@@ -6,7 +6,8 @@ import type { UserProfile } from "../engine/persona";
 export interface Message {
   id: string;
   from: "her" | "me";
-  kind: "text" | "photo";
+  // "callmark" renders as a centered "📞 Voice call · m:ss" record in chat
+  kind: "text" | "photo" | "callmark";
   text: string; // for photos this is the caption
   photoSeed?: string; // deterministic seed for the generated photo card
   at: number;
@@ -15,6 +16,9 @@ export interface Message {
   status?: "sent" | "delivered" | "read";
   // WhatsApp-style quote: set when this message replies to a specific one
   replyTo?: { from: "her" | "me"; text: string };
+  // "call" turns are spoken words: hidden from the chat UI, but fed to the
+  // brain so she remembers call conversations perfectly
+  channel?: "chat" | "call";
 }
 
 export interface AppState {

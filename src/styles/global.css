@@ -425,6 +425,24 @@ button {
   text-align: right;
 }
 
+/* call record — the only trace a voice call leaves in the chat */
+.call-chip {
+  align-self: center;
+  margin: 10px 0;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 0.5px solid var(--hairline);
+  box-shadow: var(--shadow-card);
+  font-size: 13.5px;
+  color: var(--ink-dim);
+}
+.call-chip .ct {
+  color: var(--ink-faint);
+  font-size: 11.5px;
+  margin-left: 4px;
+}
+
 /* WhatsApp-style quotes: tap a bubble → reply chip → quoted compose */
 .msg {
   cursor: pointer;

@@ -204,11 +204,14 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
 
   // render with day separators; timestamp only on the last bubble of a
   // same-sender group (research: uncluttered = intimate)
+  // call turns never render — a call is spoken, not written. Only the
+  // "📞 Voice call" record shows (she still remembers everything said).
+  const visible = messages.filter((m) => m.channel !== "call");
   const rows: React.ReactNode[] = [];
   let lastDay = "";
-  for (let i = 0; i < messages.length; i++) {
-    const m = messages[i];
-    const next = messages[i + 1];
+  for (let i = 0; i < visible.length; i++) {
+    const m = visible[i];
+    const next = visible[i + 1];
     const lastOfGroup =
       !next || next.from !== m.from || next.at - m.at > 60_000;
     const d = dayLabel(m.at);
@@ -220,7 +223,13 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
         </div>,
       );
     }
-    if (m.kind === "photo") {
+    if (m.kind === "callmark") {
+      rows.push(
+        <div key={m.id} className="call-chip">
+          📞 Voice call · {m.text} <span className="ct">{fmtTime(m.at)}</span>
+        </div>,
+      );
+    } else if (m.kind === "photo") {
       rows.push(
         <div key={m.id} className="msg her photo">
           <PhotoCard seed={m.photoSeed || m.text} />

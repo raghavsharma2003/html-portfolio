@@ -39,11 +39,13 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
   const stateLabel =
     eng.phase === "connecting"
       ? "connecting…"
-      : eng.speaking
-        ? "speaking"
-        : eng.listening
-          ? "listening to you…"
-          : eng.mmss;
+      : eng.muted
+        ? "mic off · " + eng.mmss
+        : eng.speaking
+          ? "speaking"
+          : eng.listening
+            ? "listening…"
+            : eng.mmss;
 
   return (
     <div className="call">
@@ -100,10 +102,10 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
         </button>
         <button
           className={`cbtn ${eng.listening ? "active-mic" : ""}`}
-          onClick={() => eng.startListening()}
-          aria-label="Microphone"
+          onClick={() => eng.toggleMute()}
+          aria-label={eng.muted ? "Unmute microphone" : "Mute microphone"}
         >
-          <MicIcon off={!eng.sttSupported} />
+          <MicIcon off={eng.muted || !eng.sttSupported} />
         </button>
       </div>
     </div>

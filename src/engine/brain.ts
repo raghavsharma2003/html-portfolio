@@ -89,11 +89,19 @@ function parseBubbles(raw: string): HeartReply {
 
 function toTurns(history: Message[], latest: string) {
   const turns: Array<{ role: "user" | "assistant"; content: string }> = [];
+  let lastChannel: "chat" | "call" = "chat";
   for (const m of history.slice(-30)) {
+    if (m.kind === "callmark") continue; // call-record chip, not conversation
     let text = m.kind === "photo" ? `[shared a photo: ${m.text}]` : m.text;
     if (m.replyTo) {
       const who = m.replyTo.from === "her" ? "your message" : "their own message";
       text = `[replying to ${who}: "${m.replyTo.text.slice(0, 60)}"] ${text}`;
+    }
+    // mark medium switches so she remembers what was SAID on a call vs texted
+    const ch = m.channel === "call" ? "call" : "chat";
+    if (ch !== lastChannel) {
+      text = (ch === "call" ? "[a voice call starts]\n" : "[the call ended, back to texting]\n") + text;
+      lastChannel = ch;
     }
     const role = m.from === "me" ? ("user" as const) : ("assistant" as const);
     const prev = turns[turns.length - 1];
