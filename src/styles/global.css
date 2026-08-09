@@ -425,6 +425,21 @@ button {
   text-align: right;
 }
 
+/* delivery ticks: white-ish on my rose bubbles, blue when read */
+.msg .t .tickicon {
+  margin-left: 4px;
+  color: rgba(255, 255, 255, 0.8);
+}
+.msg .t .tickicon.read {
+  color: #6fe0ff;
+}
+.msg.emoji-big .t .tickicon {
+  color: var(--ink-faint);
+}
+.msg.emoji-big .t .tickicon.read {
+  color: #35b8e8;
+}
+
 /* single-emoji messages render as big animated reactions — no bubble */
 .msg.emoji-big,
 .msg.emoji-big:has(+ .msg) {

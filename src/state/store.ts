@@ -10,6 +10,9 @@ export interface Message {
   text: string; // for photos this is the caption
   photoSeed?: string; // deterministic seed for the generated photo card
   at: number;
+  // my messages only: ✓ sent → ✓✓ delivered → blue ✓✓ read (when she reads).
+  // absent on old messages = read.
+  status?: "sent" | "delivered" | "read";
 }
 
 export interface AppState {

@@ -49,6 +49,25 @@ export const SettingsIcon = ({ size = 20 }: { size?: number }) => (
   </svg>
 );
 
+// WhatsApp-style delivery ticks: ✓ sent, ✓✓ delivered, blue ✓✓ read
+export const TickIcon = ({ status }: { status: "sent" | "delivered" | "read" }) => (
+  <svg
+    width={15}
+    height={11}
+    viewBox="0 0 18 12"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.9}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`tickicon ${status === "read" ? "read" : ""}`}
+    style={{ verticalAlign: "-1px" }}
+  >
+    <path d="M1.5 6.5 5 10 11 2.5" />
+    {status !== "sent" && <path d="M7.5 8.8 8.5 10 14.5 2.5" />}
+  </svg>
+);
+
 export const BroomIcon = ({ size = 20 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" {...S}>
     <path d="M14 3l7 7" />

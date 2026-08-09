@@ -10,7 +10,7 @@ import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
 import PhotoCard from "./PhotoCard";
 import BigEmoji, { isSingleEmoji } from "./BigEmoji";
-import { PhoneIcon, SendIcon, BroomIcon } from "./icons";
+import { PhoneIcon, SendIcon, BroomIcon, TickIcon } from "./icons";
 
 interface Props {
   state: AppState;
@@ -20,6 +20,16 @@ interface Props {
 
 const fmtTime = (t: number) =>
   new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+function lastSeenLabel(t: number): string {
+  const mins = Math.floor((Date.now() - t) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return "recently";
+  const d = new Date(t);
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) return "today at " + fmtTime(t);
+  return fmtTime(t);
+}
 
 function dayLabel(t: number): string {
   const d = new Date(t);
@@ -45,6 +55,10 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   const [clearArm, setClearArm] = useState(false);
+  // presence: she is not permanently glued to the phone — she comes online to
+  // read/reply, lingers a bit, then drops to "last seen"
+  const [herOnline, setHerOnline] = useState(false);
+  const offlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const busy = useRef(false);
@@ -61,6 +75,30 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
 
   const pushMsg = (m: Message) =>
     setState((s) => ({ ...s, messages: [...s.messages, m] }));
+
+  // tick progression on my messages: sent → delivered → read
+  const upgradeMyStatus = (to: "delivered" | "read") =>
+    setState((s) => ({
+      ...s,
+      messages: s.messages.map((m) =>
+        m.from === "me" &&
+        m.status &&
+        m.status !== "read" &&
+        (to === "read" || m.status === "sent")
+          ? { ...m, status: to }
+          : m,
+      ),
+    }));
+
+  const cameOnline = () => {
+    setHerOnline(true);
+    if (offlineTimer.current) clearTimeout(offlineTimer.current);
+    // she wanders off her phone 45–100s after her last activity
+    offlineTimer.current = setTimeout(() => {
+      setHerOnline(false);
+      setState((s) => ({ ...s, lastSeen: Date.now() }));
+    }, 45_000 + Math.random() * 55_000);
+  };
 
   const mergeLearned = (learned?: Record<string, string>) => {
     if (!learned || !Object.keys(learned).length) return;
@@ -111,6 +149,9 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
   async function deliver(reply: HeartReply, incoming = "") {
     busy.current = true;
     await sleep(readDelay(incoming));
+    // this is the moment she actually reads you: she pops online, blue ticks
+    cameOnline();
+    upgradeMyStatus("read");
     for (const bubble of reply.bubbles) {
       setTyping(true);
       await sleep(typeDelay(bubble));
@@ -140,8 +181,17 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
     setDraft("");
     lastActivity.current = Date.now();
     nudged.current = false;
-    const mine: Message = { id: uid(), from: "me", kind: "text", text, at: Date.now() };
+    const mine: Message = {
+      id: uid(),
+      from: "me",
+      kind: "text",
+      text,
+      at: Date.now(),
+      status: "sent",
+    };
     pushMsg(mine);
+    // single tick → double tick shortly after (server delivery rhythm)
+    setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
     const reply = await think(user, brainKeys(), [...messages, mine], text);
     mergeLearned(reply.learned);
     await deliver(reply, text);
@@ -176,14 +226,24 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
       rows.push(
         <div key={m.id} className={`msg ${m.from} emoji-big`}>
           <BigEmoji emoji={m.text} />
-          {lastOfGroup && <span className="t">{fmtTime(m.at)}</span>}
+          {(lastOfGroup || m.from === "me") && (
+            <span className="t">
+              {lastOfGroup && fmtTime(m.at)}
+              {m.from === "me" && <TickIcon status={m.status ?? "read"} />}
+            </span>
+          )}
         </div>,
       );
     } else {
       rows.push(
         <div key={m.id} className={`msg ${m.from}`}>
           {m.text}
-          {lastOfGroup && <span className="t">{fmtTime(m.at)}</span>}
+          {(lastOfGroup || m.from === "me") && (
+            <span className="t">
+              {lastOfGroup && fmtTime(m.at)}
+              {m.from === "me" && <TickIcon status={m.status ?? "read"} />}
+            </span>
+          )}
         </div>,
       );
     }
@@ -204,10 +264,12 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
           <div className="name">{HER_NAME}</div>
           {typing ? (
             <div className="status typing">typing…</div>
-          ) : (
+          ) : herOnline ? (
             <div className="status">
               <span className="dot" /> online
             </div>
+          ) : (
+            <div className="status">last seen {lastSeenLabel(state.lastSeen)}</div>
           )}
         </div>
         <button className="icon-btn" onClick={onVoiceCall} aria-label="Voice call">
