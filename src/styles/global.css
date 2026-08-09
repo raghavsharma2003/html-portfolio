@@ -597,10 +597,12 @@ button {
   font-size: 13.5px;
   line-height: 1.35;
   color: var(--ink-dim);
-  overflow: hidden;
+}
+.quote .qtext {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .msg .quote b {
   display: block;
@@ -651,11 +653,8 @@ button {
   border-radius: 8px;
   padding: 7px 11px;
   font-size: 13.5px;
+  line-height: 1.35;
   color: var(--ink-dim);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 .reply-bar .quote b {
   display: block;

@@ -498,7 +498,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
           {m.replyTo && (
             <div className="quote">
               <b>{m.replyTo.from === "her" ? HER_NAME : "You"}</b>
-              {m.replyTo.text.slice(0, 90)}
+              <span className="qtext">{m.replyTo.text.slice(0, 120)}</span>
             </div>
           )}
           {emojiOnly ? <BigEmoji emoji={m.text} /> : m.text}
@@ -579,7 +579,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
         <div className="reply-bar">
           <div className="quote">
             <b>{replyTo.from === "her" ? HER_NAME : "You"}</b>
-            {replyTo.text.slice(0, 90)}
+            <span className="qtext">{replyTo.text.slice(0, 120)}</span>
           </div>
           <button className="reply-x" onClick={() => setReplyTo(null)} aria-label="Cancel reply">
             ×
