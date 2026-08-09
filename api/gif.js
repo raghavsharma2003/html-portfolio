@@ -2,6 +2,8 @@
 // pages (no API key exists for this app; the discontinued public keys are
 // dead). POST { q } → { url }. Small in-memory cache per warm lambda.
 
+import { allow, ipOf } from "./_ratelimit.js";
+
 const cache = new Map();
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36";
@@ -12,6 +14,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  if (!allow(ipOf(req), "gif", 30)) return res.status(429).json({ error: "slow down" });
 
   try {
     const q = String(req.body?.q || "")

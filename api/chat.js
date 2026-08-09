@@ -1,6 +1,8 @@
 // Meera brain proxy — keeps the OpenRouter key server-side so the app and
 // public repo never contain it. POST { system, messages, model? } → reply text.
 
+import { allow, ipOf } from "./_ratelimit.js";
+
 import { OPENROUTER_KEY } from "./_config.js";
 
 const DEFAULT_MODEL = "google/gemini-3.6-flash";
@@ -12,6 +14,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  if (!allow(ipOf(req), "chat", 30)) return res.status(429).json({ error: "slow down" });
 
   const key = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY;
   if (!key) return res.status(500).json({ error: "no key configured" });

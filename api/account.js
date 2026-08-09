@@ -11,6 +11,8 @@
 //   load_state   { access_token }        → { state } | { state: null }
 //   track        { device, event, props?, user_id? } → { ok }
 
+import { allow, ipOf } from "./_ratelimit.js";
+
 import { SUPABASE_URL, SUPABASE_KEY } from "./_config.js";
 
 const SB_URL = process.env.SUPABASE_URL || SUPABASE_URL;
@@ -60,6 +62,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  if (!allow(ipOf(req), "account", 20)) return res.status(429).json({ error: "slow down" });
   if (!SB_URL || !SB_KEY) return res.status(500).json({ error: "no backend configured" });
 
   try {

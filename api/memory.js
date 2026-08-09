@@ -5,6 +5,8 @@
 //   remember — LLM extracts entities/relations from recent turns → upsert graph
 // The Supabase anon key lives server-side only; this proxy is the gatekeeper.
 
+import { allow, ipOf } from "./_ratelimit.js";
+
 import { OPENROUTER_KEY, SUPABASE_URL, SUPABASE_KEY } from "./_config.js";
 
 const SB_URL = process.env.SUPABASE_URL || SUPABASE_URL;
@@ -233,6 +235,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  if (!allow(ipOf(req), "memory", 60)) return res.status(429).json({ error: "slow down" });
   if (!SB_URL || !SB_KEY) return res.status(500).json({ error: "no backend configured" });
 
   try {

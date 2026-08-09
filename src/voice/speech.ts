@@ -36,6 +36,12 @@ const PROXY_SPEECH_URL = isNative
 
 const hasAudioTags = (t: string) => /\[[a-z ]+\]/i.test(t);
 
+// can this browser transcribe speech at all? (voice notes + hands-free calls)
+export function sttSupported(): boolean {
+  if (isNative) return true;
+  return Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+}
+
 export interface DeviceVoice {
   id: string;
   label: string;

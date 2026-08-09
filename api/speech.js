@@ -3,6 +3,8 @@
 // Gemini TTS returns raw PCM (24kHz, 16-bit, mono); we add the WAV header
 // here so every browser can play it directly.
 
+import { allow, ipOf } from "./_ratelimit.js";
+
 import { OPENROUTER_KEY } from "./_config.js";
 
 const MODEL = "google/gemini-3.1-flash-tts-preview";
@@ -34,6 +36,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  if (!allow(ipOf(req), "speech", 20)) return res.status(429).json({ error: "slow down" });
 
   const key = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY;
   if (!key) return res.status(500).json({ error: "no key configured" });

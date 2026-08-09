@@ -176,7 +176,14 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
             >
               {busy ? "Sending…" : "Send code"}
             </button>
-            <p className="auth-fine">New here? The code creates your account automatically.</p>
+            <p className="auth-fine">
+              New here? The code creates your account automatically. By signing
+              in you agree to the{" "}
+              <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+                privacy policy & terms
+              </a>
+              .
+            </p>
           </>
         ) : (
           <>

@@ -14,7 +14,7 @@ import PhotoCard from "./PhotoCard";
 import BigEmoji, { isSingleEmoji } from "./BigEmoji";
 import VoiceNote, { registerLocalClip } from "./VoiceNote";
 import GifBubble from "./GifBubble";
-import { listen } from "../voice/speech";
+import { listen, sttSupported } from "../voice/speech";
 import { PhoneIcon, SendIcon, BroomIcon, TickIcon, MicIcon } from "./icons";
 
 interface Props {
@@ -619,8 +619,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
                 }
               }}
             />
-            {draft.trim() ? (
-              <button className="send-btn" onClick={send} aria-label="Send">
+            {draft.trim() || !sttSupported() ? (
+              <button className={`send-btn ${draft.trim() ? "" : "off"}`} onClick={send} aria-label="Send">
                 <SendIcon />
               </button>
             ) : (
