@@ -495,9 +495,9 @@ function splitPhrases(text: string): string[] {
   }
   if (cur) out.push(cur);
   // first chunk should be SHORT for fast onset — if it's long, cut at a comma
-  if (out.length && out[0].length > 55) {
-    const cut = out[0].slice(0, 55).lastIndexOf(",");
-    if (cut > 20) {
+  if (out.length && out[0].length > 45) {
+    const cut = out[0].slice(0, 45).lastIndexOf(",");
+    if (cut > 16) {
       const head = out[0].slice(0, cut + 1);
       const tail = out[0].slice(cut + 1).trim();
       out.splice(0, 1, head, tail);
@@ -676,10 +676,10 @@ export function createStreamSpeaker(
     for (;;) {
       // fastest onset: if the FIRST sentence is running long, don't wait for
       // its period — cut at a comma/space once enough words exist
-      if (!firstOut && buf.length >= 48 && !/[.!?…]/.test(buf)) {
-        const head = buf.slice(0, 48);
+      if (!firstOut && buf.length >= 38 && !/[.!?…]/.test(buf)) {
+        const head = buf.slice(0, 38);
         const at = Math.max(head.lastIndexOf(","), head.lastIndexOf(" "));
-        if (at > 24) {
+        if (at > 18) {
           emit(buf.slice(0, at + 1).trim());
           buf = buf.slice(at + 1);
           firstOut = true;

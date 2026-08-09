@@ -228,9 +228,9 @@ export function useCallEngine(
 
   function commitDelay(t: string): number {
     const trimmed = t.trim().toLowerCase();
-    if (SHORT_COMPLETE.test(trimmed) || /\?$/.test(trimmed)) return 450;
+    if (SHORT_COMPLETE.test(trimmed) || /\?$/.test(trimmed)) return 420;
     if (CONTINUATION.test(trimmed)) return 1900;
-    return 850;
+    return 750; // resume-while-thinking absorbs the rare early commit
   }
 
   // 150ms endpointing tick (web SR only — native STT endpoints itself)

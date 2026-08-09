@@ -93,15 +93,31 @@ function parseBubbles(raw: string): HeartReply {
     if (!out.gif) out.gif = { query: q.trim() };
     return "";
   });
+  // the model sometimes imitates the HISTORY annotation format instead of
+  // the live protocol ("[sent a meme gif: x]" is how we describe her past
+  // gifs to her) — honor the intent: actually send the gif/photo
+  raw = raw.replace(/\[\s*sent a meme gif\s*:\s*([^\]\n]+?)\s*\]?/gi, (_m, q: string) => {
+    if (!out.gif && q.trim()) out.gif = { query: q.trim() };
+    return "";
+  });
+  raw = raw.replace(/\[\s*shared a photo\s*:\s*([^\]\n]+?)\s*\]?/gi, (_m, body: string) => {
+    if (!out.photo && body.trim()) {
+      const [tagPart, ...capParts] = body.split("|");
+      out.photo = { seed: body, caption: capParts.join("|").trim() || tagPart.trim() };
+    }
+    return "";
+  });
   raw = raw.replace(/\[\s*followup\s*:\s*(\d+)\s*(?:\|\s*([^\]\n]*))?\]?/gi, (_m, mins, why) => {
     const minutes = Math.min(360, Math.max(2, parseInt(mins, 10) || 0));
     if (minutes && !out.followup) out.followup = { minutes, why: (why || "").trim().slice(0, 120) };
     return "";
   });
   // catch-all: any residual protocol-shaped marker (unclosed, non-numeric
-  // followup, unknown variant) and any imitated clock stamp, ANYWHERE
+  // followup, unknown variant), imitated history annotations, and any
+  // imitated clock stamp, ANYWHERE
   raw = raw
     .replace(/\[\s*(?:tone|followup|photo|voicenote|gif)\s*:[^\]]*\]?/gi, "")
+    .replace(/\[\s*(?:voice note|they sent a photo|replying to|a voice call starts|the call ended)[^\]]*\]?/gi, "")
     .replace(/\[\d{1,2}:\d{2}\s*(?:am|pm)?\]/gi, "");
 
   // models separate thoughts with "---" or plain newlines — both are bubbles
