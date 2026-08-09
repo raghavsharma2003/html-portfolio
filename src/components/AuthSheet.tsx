@@ -118,9 +118,9 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
           </>
         ) : step === "start" ? (
           <>
-            <h3>Keep her with you</h3>
+            <h3>Pick up where you left off</h3>
             <p className="hint">
-              Sign in and your chats, memories and her story about you follow you to any device.
+              Sign in and your chats and her memory of you follow you to any device.
             </p>
 
             <button className="auth-google" disabled={busy} onClick={() => googleSignIn().catch(() => setError("google sign-in isn't switched on yet — use email"))}>

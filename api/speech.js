@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-  if (!allow(ipOf(req), "speech", 20)) return res.status(429).json({ error: "slow down" });
+  if (!allow(ipOf(req), "speech", 60)) return res.status(429).json({ error: "slow down" });
 
   const key = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY;
   if (!key) return res.status(500).json({ error: "no key configured" });
@@ -56,7 +56,8 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           model: MODEL,
-          input: text.slice(0, 1200),
+          // Gemini TTS takes natural-language delivery direction in the input
+          input: `Speak as a fun, sarcastic, lively 24-year-old Indian woman from Mumbai. Quick, animated, full of life — banter energy like roasting a close friend, never soft or breathy or romantic. Natural young Indian accent, natural Hinglish code-switching. Say: ${text.slice(0, 1100)}`,
           voice: ALLOWED_VOICES.has(voice) ? voice : DEFAULT_VOICE,
           response_format: "pcm",
         }),

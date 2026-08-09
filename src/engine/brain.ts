@@ -70,6 +70,12 @@ function splitLong(bubble: string): string[] {
 
 function parseBubbles(raw: string): HeartReply {
   const out: HeartReply = { bubbles: [] };
+  // followup first, leniently — models sometimes drop the closing bracket
+  raw = raw.replace(/\[followup:\s*(\d+)\s*(?:\|\s*([^\]\n]*))?\]?/i, (_m, mins, why) => {
+    const minutes = Math.min(360, Math.max(2, parseInt(mins, 10) || 0));
+    if (minutes) out.followup = { minutes, why: (why || "").trim().slice(0, 120) };
+    return "";
+  });
   // models separate thoughts with "---" or plain newlines — both are bubbles
   for (const part of raw.split(/\n?---\n?|\n+/)) {
     const p = part.trim();
@@ -77,6 +83,7 @@ function parseBubbles(raw: string): HeartReply {
     const photo = p.match(/^\[photo:\s*(.+?)\]$/i);
     const voice = p.match(/^\[voicenote:\s*(.+?)\]$/i);
     const gif = p.match(/^\[gif:\s*(.+?)\]$/i);
+
     if (photo) {
       const [tagPart, ...capParts] = photo[1].split("|");
       const caption = capParts.join("|").trim() || tagPart.trim();
@@ -145,8 +152,16 @@ function toTurns(history: Message[], latest: string) {
     }
     const role = m.from === "me" ? ("user" as const) : ("assistant" as const);
     const prev = turns[turns.length - 1];
-    if (prev && prev.role === role) prev.content = `${prev.content}\n${text}`;
-    else turns.push({ role, content: text });
+    if (prev && prev.role === role) {
+      prev.content = `${prev.content}\n${text}`;
+    } else {
+      // every turn carries its clock time — she never guesses when a
+      // message happened
+      const stamp = m.at
+        ? new Date(m.at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })
+        : "";
+      turns.push({ role, content: stamp ? `[${stamp}] ${text}` : text });
+    }
   }
   if (!turns.length || turns[turns.length - 1].role !== "user") {
     // directive/nudge turns happen "now" — surface the gap since the last
@@ -272,12 +287,17 @@ export async function think(
 
   const turns = toTurns(history, latest);
 
-  // calls cap generation hard: shorter replies = faster first audio
-  const maxTokens = mode === "call" ? 220 : 700;
+  // calls: smaller/faster model + hard cap — spoken replies are short and
+  // latency matters more than prose quality
+  const maxTokens = mode === "call" ? 160 : 700;
+  const callKeys =
+    mode === "call" && !keys.openrouterModel?.trim()
+      ? { ...keys, openrouterModel: "google/gemini-3.1-flash-lite" }
+      : keys;
   let text: string | null = null;
-  if (keys.openrouterKey) text = await openrouterThink(keys, system, turns, maxTokens);
-  if (!text && keys.apiKey) text = await claudeThink(keys, system, turns);
-  if (!text) text = await proxyThink(keys, system, turns, maxTokens);
+  if (callKeys.openrouterKey) text = await openrouterThink(callKeys, system, turns, maxTokens);
+  if (!text && callKeys.apiKey) text = await claudeThink(callKeys, system, turns);
+  if (!text) text = await proxyThink(callKeys, system, turns, maxTokens);
   if (!text) {
     // every brain unreachable. crisis/honesty replies still go out; anything
     // else becomes an honest connectivity text — never fake conversation.

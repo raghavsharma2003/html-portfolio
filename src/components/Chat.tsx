@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think } from "../engine/brain";
-import { HER_NAME, OPEN_DIRECTIVE, NUDGE_DIRECTIVE } from "../engine/persona";
+import { HER_NAME, OPEN_DIRECTIVE, NUDGE_DIRECTIVE, FOLLOWUP_DIRECTIVE } from "../engine/persona";
 import { logTurns, rememberFrom } from "../engine/memory";
 import { track } from "../engine/account";
 import type { HeartReply } from "../engine/localHeart";
@@ -158,6 +158,27 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
 
+  // her self-scheduled follow-up: "back in 20 min" → when the clock hits,
+  // she texts first (survives reloads — the timestamp is persisted)
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const f = state.followup;
+      if (!f || busy.current || Date.now() < f.at) return;
+      const late = Math.round((Date.now() - f.at) / 60000);
+      const statedAgo = late < 2 ? "right about now" : `${late} minutes past the time`;
+      setState((s) => ({ ...s, followup: null }));
+      busy.current = true;
+      think(user, brainKeys(), messages, FOLLOWUP_DIRECTIVE(f.why, statedAgo), "chat", "device", true).then(
+        (reply) => {
+          if (reply.bubbles.length || reply.photo) deliver(reply);
+          else busy.current = false;
+        },
+      );
+    }, 15_000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.followup, messages.length]);
+
   // idle nudge — she double-texts if you go quiet with the app open;
   // the model improvises what she's doing, nothing is scripted
   useEffect(() => {
@@ -225,6 +246,10 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
       delivered.push(msg);
       pushMsg(msg);
     }
+    if (reply.followup) {
+      const at = Date.now() + reply.followup.minutes * 60_000;
+      setState((s) => ({ ...s, followup: { at, why: reply.followup!.why } }));
+    }
     if (delivered.length) logTurns(state.deviceId, delivered);
     if (reply.photo) track(state.deviceId, "photo_sent", { seed: reply.photo.seed.slice(0, 40) }, state.auth?.userId);
     if (reply.photo) {
@@ -259,6 +284,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
       ...(replyTo ? { replyTo: { from: replyTo.from, text: replyTo.text } } : {}),
     };
     setReplyTo(null);
+    if (state.followup) setState((s) => ({ ...s, followup: null }));
     pushMsg(mine);
     logTurns(state.deviceId, [mine]);
     track(state.deviceId, "message_sent", { len: text.length, quoted: Boolean(mine.replyTo) }, state.auth?.userId);

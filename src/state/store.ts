@@ -48,6 +48,8 @@ export interface AppState {
   sarvamKey: string; // Sarvam AI key — best Hinglish voice (bulbul:v3)
   deviceVoice: string; // preferred on-device TTS voice (fallback tier)
   lastSeen: number;
+  // her self-scheduled follow-up ("back in 20 min" → she texts first)
+  followup?: { at: number; why: string } | null;
 }
 
 const KEY = "meera.state.v1";

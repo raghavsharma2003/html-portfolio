@@ -53,6 +53,8 @@ export function useCallEngine(
   const ducked = useRef(false);
   const interrupted = useRef(false);
   const reengageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const overlapStart = useRef(0); // when user speech over her speech began
+  const reengaged = useRef(0); // continuation nudges this silence stretch
 
   const log = (m: Message) => {
     setState((s) => ({ ...s, messages: [...s.messages, m] }));
@@ -211,12 +213,35 @@ export function useCallEngine(
 
   function armReengage() {
     if (reengageTimer.current) clearTimeout(reengageTimer.current);
-    reengageTimer.current = setTimeout(() => {
-      // 8s of silence after her turn: one soft "hmm?" — then let it breathe
-      if (alive.current && !speakingRef.current && !thinkingRef.current && Math.random() < 0.6) {
-        playBackchannel();
+    reengageTimer.current = setTimeout(async () => {
+      // she doesn't sit in silence: after ~7s she carries the conversation
+      // herself (twice per stretch, then lets it breathe)
+      if (!alive.current || speakingRef.current || thinkingRef.current || mutedRef.current) return;
+      if (reengaged.current >= 2) return;
+      reengaged.current += 1;
+      const reply = await think(
+        state.user,
+        brainKeys(),
+        state.messages,
+        `<context: on the call, they've gone quiet for a few seconds after your last line. keep the conversation alive naturally like a real girl on the phone — extend your last thought, tease them for going quiet ("hello? so gaye kya"), or take the topic somewhere new. 1-2 short spoken sentences. never reference this note>`,
+        "call",
+        engine,
+        true,
+      );
+      if (!alive.current || speakingRef.current) return;
+      const line = reply.bubbles.join(" ").trim();
+      if (line) {
+        log({
+          id: uid(),
+          from: "her",
+          kind: "text",
+          channel: "call",
+          text: line.replace(/\[[a-z ]+\]/gi, "").trim(),
+          at: Date.now(),
+        });
+        sayAloud(line);
       }
-    }, 8000);
+    }, 7000);
   }
 
   // hands-free: the mic stays hot the whole call (even while she speaks,
@@ -228,25 +253,33 @@ export function useCallEngine(
       (text, final) => {
         if (reengageTimer.current) clearTimeout(reengageTimer.current);
         if (speakingRef.current) {
-          // stage 1: duck on any real (non-echo, non-backchannel) speech
+          // overlap is NORMAL in human calls — she talks through noise and
+          // brief speech; only sustained, real speech takes the floor
           const real = isRealInterruption(text);
           const words = text.trim().split(/\s+/).filter(Boolean).length;
           const command = /\b(stop|wait|ruko|suno|arre|ek minute|listen|hold on|chup)\b/i.test(text);
-          if (real && !ducked.current) {
-            duckSpeech(true);
+          if (!real || words < 2) {
+            overlapStart.current = 0;
+            return; // noise blip / backchannel / echo — keep talking
+          }
+          if (!overlapStart.current) overlapStart.current = Date.now();
+          const sustained = Date.now() - overlapStart.current > 450;
+          if (sustained && !ducked.current) {
+            duckSpeech(true); // "haan bolo" — she softens but keeps going
             ducked.current = true;
           }
-          // stage 2: promote to a hard interruption
-          if (real && (words >= 3 || command)) {
+          if ((sustained && words >= 4) || command) {
             stopSpeaking();
             speakingRef.current = false;
             setSpeaking(false);
             ducked.current = false;
+            overlapStart.current = 0;
             interrupted.current = true;
           } else {
-            return; // backchannel/echo — she keeps talking
+            return;
           }
         }
+        overlapStart.current = 0;
         setHeard(text);
         if (web) {
           // accumulate; the endpointing tick decides when the turn is over
@@ -299,6 +332,7 @@ export function useCallEngine(
 
   async function handleUser(text: string) {
     if (!alive.current || !text.trim()) return;
+    reengaged.current = 0; // they spoke — silence counter resets
     stopListen.current?.();
     listeningRef.current = false;
     setListening(false);

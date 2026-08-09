@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-  if (!allow(ipOf(req), "chat", 30)) return res.status(429).json({ error: "slow down" });
+  if (!allow(ipOf(req), "chat", 40)) return res.status(429).json({ error: "slow down" });
 
   const key = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY;
   if (!key) return res.status(500).json({ error: "no key configured" });

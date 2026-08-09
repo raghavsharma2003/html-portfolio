@@ -48,11 +48,11 @@ export default function Onboarding({ onDone }: Props) {
                 <img src={meeraBeach} alt="" className="fan fan-r" draggable={false} />
               </div>
               <h1 style={{ textAlign: "center" }}>
-                Some nights are <em>quieter</em> than they should be.
+                Some days deserve <em>someone to tell</em>.
               </h1>
               <p className="sub" style={{ textAlign: "center", margin: "0 auto 34px" }}>
-                {HER_NAME} is here for those. Someone to talk to — really talk to —
-                whenever you need it.
+                {HER_NAME} is a friend who's always up for talking — the small
+                stuff, the big stuff, whenever you need it.
               </p>
               <button className="btn-primary" onClick={() => setStep(1)}>
                 Meet {HER_NAME}
@@ -79,7 +79,7 @@ export default function Onboarding({ onDone }: Props) {
                 <br />
                 Tumhe kya <em>bulaun</em>?
               </h1>
-              <p className="sub">Bas naam batao — ya jo bhi tum chaho main pyaar se bulaya karun.</p>
+              <p className="sub">Bas naam batao — jo dost bulate hain wahi chalega.</p>
               <input
                 className="field"
                 placeholder="Your name"
@@ -119,7 +119,7 @@ export default function Onboarding({ onDone }: Props) {
                   onDone({ name: name.trim(), vibe: vibe.length ? vibe : ["company"], facts: {} })
                 }
               >
-                Start talking ❤️
+                Start talking
               </button>
             </motion.div>
           )}
