@@ -13,6 +13,8 @@ export interface Message {
   // my messages only: ✓ sent → ✓✓ delivered → blue ✓✓ read (when she reads).
   // absent on old messages = read.
   status?: "sent" | "delivered" | "read";
+  // WhatsApp-style quote: set when this message replies to a specific one
+  replyTo?: { from: "her" | "me"; text: string };
 }
 
 export interface AppState {

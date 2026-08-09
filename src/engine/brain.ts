@@ -90,7 +90,11 @@ function parseBubbles(raw: string): HeartReply {
 function toTurns(history: Message[], latest: string) {
   const turns: Array<{ role: "user" | "assistant"; content: string }> = [];
   for (const m of history.slice(-30)) {
-    const text = m.kind === "photo" ? `[shared a photo: ${m.text}]` : m.text;
+    let text = m.kind === "photo" ? `[shared a photo: ${m.text}]` : m.text;
+    if (m.replyTo) {
+      const who = m.replyTo.from === "her" ? "your message" : "their own message";
+      text = `[replying to ${who}: "${m.replyTo.text.slice(0, 60)}"] ${text}`;
+    }
     const role = m.from === "me" ? ("user" as const) : ("assistant" as const);
     const prev = turns[turns.length - 1];
     if (prev && prev.role === role) prev.content = `${prev.content}\n${text}`;

@@ -55,6 +55,9 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   const [clearArm, setClearArm] = useState(false);
+  // WhatsApp-style quote-reply: tap a bubble → reply chip → quoted compose
+  const [replySel, setReplySel] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
   // presence: she is not permanently glued to the phone — she comes online to
   // read/reply, lingers a bit, then drops to "last seen"
   const [herOnline, setHerOnline] = useState(false);
@@ -188,7 +191,9 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
       text,
       at: Date.now(),
       status: "sent",
+      ...(replyTo ? { replyTo: { from: replyTo.from, text: replyTo.text } } : {}),
     };
+    setReplyTo(null);
     pushMsg(mine);
     // single tick → double tick shortly after (server delivery rhythm)
     setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
@@ -222,22 +227,34 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
           <div className="cap">{m.text}</div>
         </div>,
       );
-    } else if (isSingleEmoji(m.text)) {
-      rows.push(
-        <div key={m.id} className={`msg ${m.from} emoji-big`}>
-          <BigEmoji emoji={m.text} />
-          {(lastOfGroup || m.from === "me") && (
-            <span className="t">
-              {lastOfGroup && fmtTime(m.at)}
-              {m.from === "me" && <TickIcon status={m.status ?? "read"} />}
-            </span>
-          )}
-        </div>,
-      );
     } else {
+      const emojiOnly = isSingleEmoji(m.text);
       rows.push(
-        <div key={m.id} className={`msg ${m.from}`}>
-          {m.text}
+        <div
+          key={m.id}
+          className={`msg ${m.from} ${emojiOnly ? "emoji-big" : ""} ${replySel === m.id ? "sel" : ""}`}
+          onClick={() => setReplySel((cur) => (cur === m.id ? null : m.id))}
+        >
+          {replySel === m.id && (
+            <button
+              className="reply-chip"
+              onClick={(e) => {
+                e.stopPropagation();
+                setReplyTo(m);
+                setReplySel(null);
+                inputRef.current?.focus();
+              }}
+            >
+              ↩ reply
+            </button>
+          )}
+          {m.replyTo && (
+            <div className="quote">
+              <b>{m.replyTo.from === "her" ? HER_NAME : "You"}</b>
+              {m.replyTo.text.slice(0, 90)}
+            </div>
+          )}
+          {emojiOnly ? <BigEmoji emoji={m.text} /> : m.text}
           {(lastOfGroup || m.from === "me") && (
             <span className="t">
               {lastOfGroup && fmtTime(m.at)}
@@ -307,6 +324,17 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
         <div style={{ height: 6 }} />
       </div>
 
+      {replyTo && (
+        <div className="reply-bar">
+          <div className="quote">
+            <b>{replyTo.from === "her" ? HER_NAME : "You"}</b>
+            {replyTo.text.slice(0, 90)}
+          </div>
+          <button className="reply-x" onClick={() => setReplyTo(null)} aria-label="Cancel reply">
+            ×
+          </button>
+        </div>
+      )}
       <div className="chat-input-row">
         <div className="chat-input">
           <textarea

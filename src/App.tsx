@@ -3,6 +3,7 @@ import { useAppState } from "./state/store";
 import Onboarding from "./components/Onboarding";
 import Chat from "./components/Chat";
 import CallVoice from "./components/CallVoice";
+import { unlockAudio } from "./voice/speech";
 
 export default function App() {
   const [state, setState] = useAppState();
@@ -19,7 +20,15 @@ export default function App() {
         />
       ) : (
         <>
-          <Chat state={state} setState={setState} onVoiceCall={() => setInCall(true)} />
+          <Chat
+            state={state}
+            setState={setState}
+            onVoiceCall={() => {
+              // unlock inside the tap gesture, or mobile browsers mute her
+              unlockAudio();
+              setInCall(true);
+            }}
+          />
           {inCall && (
             <CallVoice state={state} setState={setState} onEnd={() => setInCall(false)} />
           )}

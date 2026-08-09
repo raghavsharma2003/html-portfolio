@@ -133,9 +133,33 @@ function phrase(text: string): Array<{ t: string; pause: number }> {
 
 let speakSession = 0;
 let currentAudio: HTMLAudioElement | null = null;
+let currentSource: AudioBufferSourceNode | null = null;
 let previousSpokenText = ""; // ElevenLabs request stitching — prosody continuity
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Mobile browsers only allow audio started inside a user gesture. Her replies
+// arrive seconds AFTER the tap, so a bare Audio().play() gets blocked and we'd
+// silently fall back to robotic device TTS. Fix: unlock a shared AudioContext
+// during the call-button tap, then play every clip through it.
+let audioCtx: AudioContext | null = null;
+
+export function unlockAudio() {
+  try {
+    const AC = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AC) return;
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    // one silent tick inside the gesture seals the unlock
+    const buf = audioCtx.createBuffer(1, 1, 22050);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(audioCtx.destination);
+    src.start(0);
+  } catch {
+    /* fall back to HTMLAudio path */
+  }
+}
 
 async function playBlob(
   blob: Blob,
@@ -144,6 +168,28 @@ async function playBlob(
   onEnd?: () => void,
 ): Promise<boolean> {
   if (session !== speakSession) return true;
+  // preferred path: unlocked Web Audio — immune to autoplay policy
+  if (audioCtx && audioCtx.state === "running") {
+    try {
+      const data = await blob.arrayBuffer();
+      const buf = await audioCtx.decodeAudioData(data);
+      if (session !== speakSession) return true;
+      return await new Promise<boolean>((resolve) => {
+        const src = audioCtx!.createBufferSource();
+        currentSource = src;
+        src.buffer = buf;
+        src.connect(audioCtx!.destination);
+        src.onended = () => {
+          if (session === speakSession) onEnd?.();
+          resolve(true);
+        };
+        onStart?.();
+        src.start(0);
+      });
+    } catch {
+      /* decode failed → try HTMLAudio below */
+    }
+  }
   return new Promise((resolve) => {
     const audio = new Audio(URL.createObjectURL(blob));
     currentAudio = audio;
@@ -361,6 +407,19 @@ export async function prefetchBackchannels(opts: VoiceOpts) {
 export function playBackchannel() {
   if (!backchannelClips.length) return;
   const blob = backchannelClips[Math.floor(Math.random() * backchannelClips.length)];
+  if (audioCtx && audioCtx.state === "running") {
+    blob
+      .arrayBuffer()
+      .then((d) => audioCtx!.decodeAudioData(d))
+      .then((buf) => {
+        const src = audioCtx!.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx!.destination);
+        src.start(0);
+      })
+      .catch(() => {});
+    return;
+  }
   const a = new Audio(URL.createObjectURL(blob));
   a.onended = () => URL.revokeObjectURL(a.src);
   a.play().catch(() => {});
@@ -368,6 +427,12 @@ export function playBackchannel() {
 
 export function stopSpeaking() {
   speakSession++;
+  try {
+    currentSource?.stop();
+  } catch {
+    /* already stopped */
+  }
+  currentSource = null;
   currentAudio?.pause();
   currentAudio = null;
   if (isNative) {
