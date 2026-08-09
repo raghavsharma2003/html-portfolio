@@ -1,10 +1,11 @@
 // Settings sheet — Claude API key (added later by the owner), your name,
 // what she remembers, and a fresh start.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AppState } from "../state/store";
 import { defaultState } from "../state/store";
 import { HER_NAME } from "../engine/persona";
+import { listDeviceVoices, speak, type DeviceVoice } from "../voice/speech";
 
 interface Props {
   state: AppState;
@@ -18,6 +19,12 @@ export default function Settings({ state, setState, onClose }: Props) {
   const [elevenVoiceId, setElevenVoiceId] = useState(state.elevenVoiceId);
   const [name, setName] = useState(state.user.name);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [deviceVoice, setDeviceVoice] = useState(state.deviceVoice);
+  const [voices, setVoices] = useState<DeviceVoice[]>([]);
+
+  useEffect(() => {
+    listDeviceVoices().then(setVoices);
+  }, []);
 
   const save = () => {
     setState((s) => ({
@@ -25,6 +32,7 @@ export default function Settings({ state, setState, onClose }: Props) {
       apiKey: key.trim(),
       elevenKey: elevenKey.trim(),
       elevenVoiceId: elevenVoiceId.trim(),
+      deviceVoice,
       user: { ...s.user, name: name.trim() || s.user.name },
     }));
     onClose();
@@ -78,6 +86,37 @@ export default function Settings({ state, setState, onClose }: Props) {
           Hinglish with real emotion. Without it, calls use your phone's voice
           with humanised pacing.
         </p>
+
+        {voices.length > 0 && (
+          <>
+            <label>Phone voice (fallback)</label>
+            <select
+              className="field"
+              value={deviceVoice}
+              onChange={(e) => {
+                setDeviceVoice(e.target.value);
+                speak(
+                  "Hii... main Meera. Acha lag raha hai na?",
+                  undefined,
+                  undefined,
+                  { deviceVoice: e.target.value },
+                );
+              }}
+              style={{ appearance: "none", WebkitAppearance: "none" }}
+            >
+              <option value="">Auto (best available)</option>
+              {voices.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+            <p className="hint" style={{ marginTop: 8 }}>
+              Phones often hide much better neural voices — try a few, she'll
+              say hi in each.
+            </p>
+          </>
+        )}
 
         {facts.length > 0 && (
           <>

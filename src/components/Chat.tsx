@@ -76,8 +76,8 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
       const tod = timeOfDay();
       const opener =
         tod === "night"
-          ? [`${user.name}... hi 🤍`, "tum mere favourite time pe aaye ho", "batao — kaise ho, sach mein?"]
-          : [`hi ${user.name} 🙈`, "finally!! main kab se wait kar rahi thi", "apne baare mein kuch aisa batao jo koi normally nahi poochta"];
+          ? [`oh hi ${user.name}`, "main bas chai bana ke baithi thi, neend nahi aa rahi", "tum bhi jaag rahe ho... kya scene hai?"]
+          : [`hey ${user.name}`, "perfect timing honestly, abhi free hui hoon", "acha pehle yeh batao — tum yahan kaise pahunche? 😄"];
       deliver({ bubbles: opener });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

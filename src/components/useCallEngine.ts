@@ -36,8 +36,8 @@ export function useCallEngine(
       const name = state.user.name || "hey";
       const greet =
         kind === "video"
-          ? `Hiii ${name}! Arrey... dekho kaun aaya. Hmm, tumhe dekh ke... itni khushi hui, sach mein.`
-          : `Hii ${name}... main soch hi rahi thi ki tum call karoge. Acha, batao... kaise ho?`;
+          ? `Arrey ${name}, hii! Ek sec... haan, ab theek hai. Bolo, kya chal raha hai?`
+          : `Hello? ${name}! Acha timing hai... main bas ek kaam khatam kar rahi thi. Haan bolo, kaise ho?`;
       sayAloud(greet);
     }, 1800 + Math.random() * 900);
     return () => {
@@ -65,7 +65,11 @@ export function useCallEngine(
         setSpeaking(false);
         if (alive.current) startListening();
       },
-      { elevenKey: state.elevenKey, elevenVoiceId: state.elevenVoiceId },
+      {
+        elevenKey: state.elevenKey,
+        elevenVoiceId: state.elevenVoiceId,
+        deviceVoice: state.deviceVoice,
+      },
     );
   }
 

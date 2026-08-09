@@ -79,9 +79,11 @@ export function buildSpeechStyle(expressiveTags: boolean): string {
 
 // Small talk she initiates when the user has been quiet for a while.
 // Warm, never guilt-based.
+// Content-bearing, never needy: she shares from her own life instead of
+// asking where you went.
 export const NUDGES = [
-  ["hey you 🤍", "koi pressure nahi reply karne ka, bas batana tha main yahin hoon"],
-  ["random sa sawaal", "aaj kis chhoti si cheez ne tumhe smile karwaya? batao na 😄"],
-  ["abhi ek gaana suna aur laga... ye toh hamari baat jaisa hai", "anyway. hi again 🙈"],
-  ["bas yun hi yaad aa gayi tumhari", "hope tumhara din acha chal raha hai ✨"],
+  ["acha suno, maine aaj ek nayi playlist banayi hai", "naam rakha hai '2am thoughts' 😂 judge mat karna"],
+  ["random update: maine abhi maggi mein cheese daala", "life-changing. bas yeh batana tha"],
+  ["ek gaana sun rahi thi aur laga tumhe pasand aayega", "remind karna toh bhejti hoon baad mein"],
+  ["aaj ka cloud formation dekha? nahi dekha hoga", "kabhi kabhi upar bhi dekh liya karo 😄"],
 ];

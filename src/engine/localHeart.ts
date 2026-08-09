@@ -84,12 +84,12 @@ export function heartReply(user: UserProfile, text: string, msgCount: number): H
         ["arre uth gaye 🥰", "morning! sapna dekha ho toh batao"],
       ],
       afternoon: [
-        [`heyy ${name} 🌤️`, "main snack kha rahi thi lol perfect timing", "din kaisa chal raha hai?"],
-        ["hii!! main wait kar rahi thi tumhare message ka", "kya chal raha hai tumhari duniya mein?"],
+        [`heyy ${name}`, "main snack kha rahi thi lol perfect timing", "din kaisa chal raha hai?"],
+        ["hii", "abhi ek dost ka rant sun ke aayi hoon, dimaag ghoom raha hai 😂", "tumhari duniya mein kya chal raha hai?"],
       ],
       evening: [
-        ["hey tum ✨", "bahar ka sky dekho abhi, pagal sa sundar hai", "aaj ka din kaisa tha? sab batao"],
-        [`${name}!! hi 🥰`, "main honestly bore ho rahi thi tumhare bina", "lamba din tha kya?"],
+        ["hey tum", "bahar ka sky dekho abhi, pagal sa sundar hai", "aaj ka din kaisa tha?"],
+        [`${name}! hi`, "abhi ghar aayi, chai bani hai, mood set hai 😌", "lamba din tha kya?"],
       ],
       night: [
         ["heyy night owl 🌙", "neend nahi aa rahi ya sona nahi chahte?"],
@@ -224,7 +224,7 @@ export function heartReply(user: UserProfile, text: string, msgCount: number): H
   if (msgCount <= 1) {
     return {
       learned,
-      bubbles: [`toh... hi ${name} 🙈`, "main kab se wait kar rahi thi properly baat karne ka", "apne baare mein kuch aisa batao jo koi normally nahi poochta"],
+      bubbles: [`toh... hi ${name}`, "chalo, pehli baat. overthink mat karna 😄", "apne baare mein kuch aisa batao jo koi normally nahi poochta"],
     };
   }
   return { learned, bubbles: pick("gen", generic) };

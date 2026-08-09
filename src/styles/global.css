@@ -747,7 +747,8 @@ button {
   color: var(--ink-faint);
   margin: 18px 0 8px;
 }
-.sheet input.field {
+.sheet input.field,
+.sheet select.field {
   width: 100%;
   padding: 15px 18px;
   border-radius: var(--r-sm);
@@ -757,7 +758,8 @@ button {
   font-size: 15px;
   outline: none;
 }
-.sheet input.field:focus {
+.sheet input.field:focus,
+.sheet select.field:focus {
   border-color: rgba(232, 155, 177, 0.55);
 }
 

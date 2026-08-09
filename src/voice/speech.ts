@@ -20,6 +20,31 @@ const isNative = Capacitor.isNativePlatform();
 export interface VoiceOpts {
   elevenKey?: string;
   elevenVoiceId?: string;
+  deviceVoice?: string; // voiceURI (web) or voice name (native) chosen in Settings
+}
+
+export interface DeviceVoice {
+  id: string;
+  label: string;
+}
+
+// List selectable device voices (used by the Settings voice picker).
+export async function listDeviceVoices(): Promise<DeviceVoice[]> {
+  if (isNative) {
+    try {
+      const res: any = await TextToSpeech.getSupportedVoices();
+      const voices: any[] = res?.voices ?? [];
+      return voices
+        .filter((v) => /^(en|hi)/i.test(v.lang ?? ""))
+        .map((v) => ({ id: v.voiceURI ?? v.name, label: `${v.name} (${v.lang})` }));
+    } catch {
+      return [];
+    }
+  }
+  const voices = window.speechSynthesis?.getVoices() ?? [];
+  return voices
+    .filter((v) => /^(en|hi)/i.test(v.lang))
+    .map((v) => ({ id: v.voiceURI, label: `${v.name} (${v.lang})` }));
 }
 
 /* ─────────────────────── shared text prep ─────────────────────── */
@@ -141,6 +166,19 @@ export async function speak(
   onStart?.();
   if (isNative) {
     try {
+      let voiceIndex: number | undefined;
+      if (opts.deviceVoice) {
+        try {
+          const res: any = await TextToSpeech.getSupportedVoices();
+          const voices: any[] = res?.voices ?? [];
+          const idx = voices.findIndex(
+            (v) => (v.voiceURI ?? v.name) === opts.deviceVoice,
+          );
+          if (idx >= 0) voiceIndex = idx;
+        } catch {
+          /* keep default voice */
+        }
+      }
       for (const p of phrases) {
         if (session !== speakSession) return;
         await TextToSpeech.speak({
@@ -149,6 +187,7 @@ export async function speak(
           rate: 0.93 + Math.random() * 0.09,
           pitch: 1.08 + Math.random() * 0.05,
           volume: 1.0,
+          ...(voiceIndex !== undefined ? { voice: voiceIndex } : {}),
           category: "playback",
         });
         if (p.pause > 0) await sleep(p.pause);
@@ -166,11 +205,14 @@ export async function speak(
     return onEnd?.();
   }
   synth.cancel();
+  const chosenWeb = opts.deviceVoice
+    ? (window.speechSynthesis?.getVoices() ?? []).find((v) => v.voiceURI === opts.deviceVoice)
+    : null;
   for (const p of phrases) {
     if (session !== speakSession) return;
     await new Promise<void>((resolve) => {
       const u = new SpeechSynthesisUtterance(p.t);
-      const v = pickWebVoice();
+      const v = chosenWeb ?? pickWebVoice();
       if (v) u.voice = v;
       u.rate = 0.93 + Math.random() * 0.09;
       u.pitch = 1.08 + Math.random() * 0.05;

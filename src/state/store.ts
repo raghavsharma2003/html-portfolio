@@ -19,6 +19,7 @@ export interface AppState {
   apiKey: string; // Claude API key — pasted later by the owner in Settings
   elevenKey: string; // ElevenLabs key — unlocks her human voice
   elevenVoiceId: string; // ElevenLabs voice id (pick an Indian female voice)
+  deviceVoice: string; // preferred on-device TTS voice (fallback tier)
   lastSeen: number;
 }
 
@@ -31,6 +32,7 @@ export const defaultState: AppState = {
   apiKey: "",
   elevenKey: "",
   elevenVoiceId: "",
+  deviceVoice: "",
   lastSeen: Date.now(),
 };
 
