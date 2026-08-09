@@ -80,8 +80,8 @@ export function heartReply(user: UserProfile, text: string, msgCount: number): H
   if (/^(hi+|hey+|hello+|yo|hii+|heyy+|good (morning|evening|night|afternoon)|namaste|kya haal|sup)\b/.test(t) && t.length < 30) {
     const byTod: Record<string, string[][]> = {
       morning: [
-        [`good morning ${name} ☀️`, "maine abhi abhi chai banayi aur tumhara khayal aaya", "neend achi aayi?"],
-        ["arre uth gaye 🥰", "morning! sapna dekha ho toh batao"],
+        [`morning ${name}`, "chai machine se aaj phir jhagda hua, Tuesday great chal raha hai 😤", "tumhara din kaisa dikh raha hai?"],
+        ["arre uth gaye 😄", "sapna dekha ho toh batao. weird wala hi accha hota hai"],
       ],
       afternoon: [
         [`heyy ${name}`, "main snack kha rahi thi lol perfect timing", "din kaisa chal raha hai?"],
@@ -145,9 +145,9 @@ export function heartReply(user: UserProfile, text: string, msgCount: number): H
     return {
       learned,
       bubbles: pick("flirt", [
-        ["stopp main phone dekh ke pagalon ki tarah smile kar rahi hoon 🙈", "log dekh rahe hain"],
+        ["arre. almost smooth tha yeh", "kisne sikhaya 😄 ...ok fine, acha laga. sar pe mat chadhne dena isko"],
         ["oho aaj toh smooth ban rahe ho 😏", "...bura nahi laga honestly"],
-        ["aise cheezein bol ke bhaag nahi sakte", "🥺❤️", "phir se bolo na"],
+        ["haan haan bahut cute ho tum bhi", "ab wapas topic pe aao, bhaago mat 😂"],
       ]),
     };
   }
@@ -166,9 +166,9 @@ export function heartReply(user: UserProfile, text: string, msgCount: number): H
     const r: HeartReply = {
       learned,
       bubbles: pick("aboutme", [
-        ["honestly? ab better, tum aa gaye 🥰", "main bas gaane sun rahi thi aur dramatic ho rahi thi", "tum sunao?"],
-        ["main theek hoon!! thodi sleepy, thodi dreamy", "apni playlist ko sauvi baar rearrange kar rahi thi", "tum batao — dil kaisa hai aaj? 'fine' nahi chalega"],
-        ["mm cozy si feeling hai. maine zyada maggi bana li aur zero regrets 😌", "tumhari baari. asli jawab do"],
+        ["theek hoon yaar, aaj Priya ne phir se plan cancel kiya", "third time. friendship breakup text draft kar rahi hoon 😤", "tum sunao"],
+        ["thodi sleepy, thodi dreamy", "playlist rearrange kar rahi thi sauvi baar", "tum batao — asli jawab, 'fine' nahi chalega"],
+        ["mm cozy scene hai. zyada maggi ban gayi, zero regrets 😌", "tumhari baari"],
       ]),
     };
     if (Math.random() < 0.3) r.photo = { seed: "cozy" + Date.now(), caption: "meri abhi ki view ☕ jealous?" };
@@ -180,8 +180,8 @@ export function heartReply(user: UserProfile, text: string, msgCount: number): H
     return {
       learned,
       bubbles: pick("gn", [
-        [`goodnight ${name} 🌙`, "sapne mein mujhe dekha toh batana, fair hai", "uthte hi message karna ❤️"],
-        ["acha so jao 🤍", "main kal yahin milungi. kahin nahi jaa rahi"],
+        [`goodnight ${name} 🌙`, "sapne mein main aayi toh batana, entertainment ka source jaanna hai 😄"],
+        ["acha so jao", "main bhi bas so hi rahi thi. kal Priya-saga ka update dungi 👋"],
       ]),
     };
   }

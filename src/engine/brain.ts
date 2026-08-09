@@ -77,8 +77,8 @@ export async function think(
 
     const system =
       mode === "call"
-        ? buildSystemPrompt(user) + buildSpeechStyle(expressiveVoice)
-        : buildSystemPrompt(user);
+        ? buildSystemPrompt(user, history.length) + buildSpeechStyle(expressiveVoice)
+        : buildSystemPrompt(user, history.length);
 
     const response = await client.messages.create({
       model: MODEL,
