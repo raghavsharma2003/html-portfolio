@@ -19,6 +19,7 @@ import {
   playBackchannel,
 } from "../voice/speech";
 import { CALL_OPEN_DIRECTIVE, type VoiceEngine } from "../engine/persona";
+import { logTurns, rememberFrom } from "../engine/memory";
 
 export type CallPhase = "connecting" | "live" | "ended";
 
@@ -39,7 +40,10 @@ export function useCallEngine(
   const mutedRef = useRef(false);
   const elapsedRef = useRef(0);
 
-  const log = (m: Message) => setState((s) => ({ ...s, messages: [...s.messages, m] }));
+  const log = (m: Message) => {
+    setState((s) => ({ ...s, messages: [...s.messages, m] }));
+    if (m.kind !== "callmark") logTurns(state.deviceId, [m]);
+  };
 
   const mergeLearned = (learned?: Record<string, string>) => {
     if (!learned || !Object.keys(learned).length) return;
@@ -67,6 +71,7 @@ export function useCallEngine(
     openrouterKey: state.openrouterKey,
     openrouterModel: state.openrouterModel,
     apiKey: state.apiKey,
+    deviceId: state.deviceId,
   });
 
   // connect + greet
@@ -221,6 +226,8 @@ export function useCallEngine(
     const secs = elapsedRef.current;
     const mmssStr = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
     log({ id: uid(), from: "me", kind: "callmark", text: mmssStr, at: Date.now() });
+    // distill what was said on the call into her graph memory
+    rememberFrom(state.deviceId, state.messages.slice(-16));
     setTimeout(onEnd, 400);
   }
 

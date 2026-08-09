@@ -34,6 +34,20 @@ thinks for real — no API key needed.
 - **Presence** — she has her own life and days worth sharing; she matches your
   energy instead of clinging.
 
+## The backend
+
+Supabase (Postgres) behind the same Vercel proxy — the app never holds a
+database key:
+
+- **Full conversation log** (`meera_log`): every chat and call turn, per
+  anonymous device id.
+- **Graph memory** (`meera_nodes` + `meera_edges`): a cheap LLM distills
+  conversations into entities (people, places, plans, preferences, events)
+  and relationships, with salience that grows on repeat mentions. Before
+  every reply, `/api/memory` recalls the relevant subgraph and injects it as
+  "what you know about them" — so context survives cleared chats, new
+  devices... nothing she learns is ever lost.
+
 ## The brain and the voice
 
 - **Brain**: the Vercel function `api/chat.js` holds an OpenRouter key

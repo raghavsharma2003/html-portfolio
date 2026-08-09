@@ -6,6 +6,7 @@ import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think } from "../engine/brain";
 import { HER_NAME, OPEN_DIRECTIVE, NUDGE_DIRECTIVE } from "../engine/persona";
+import { logTurns, rememberFrom } from "../engine/memory";
 import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
 import PhotoCard from "./PhotoCard";
@@ -74,7 +75,9 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
     openrouterKey,
     openrouterModel: state.openrouterModel,
     apiKey,
+    deviceId: state.deviceId,
   });
+  const sendCount = useRef(0);
 
   const pushMsg = (m: Message) =>
     setState((s) => ({ ...s, messages: [...s.messages, m] }));
@@ -155,13 +158,17 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
     // this is the moment she actually reads you: she pops online, blue ticks
     cameOnline();
     upgradeMyStatus("read");
+    const delivered: Message[] = [];
     for (const bubble of reply.bubbles) {
       setTyping(true);
       await sleep(typeDelay(bubble));
       setTyping(false);
-      pushMsg({ id: uid(), from: "her", kind: "text", text: bubble, at: Date.now() });
+      const msg: Message = { id: uid(), from: "her", kind: "text", text: bubble, at: Date.now() };
+      delivered.push(msg);
+      pushMsg(msg);
       await sleep(280 + Math.random() * 420);
     }
+    if (delivered.length) logTurns(state.deviceId, delivered);
     if (reply.photo) {
       setTyping(true);
       await sleep(1600);
@@ -195,11 +202,17 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
     };
     setReplyTo(null);
     pushMsg(mine);
+    logTurns(state.deviceId, [mine]);
     // single tick → double tick shortly after (server delivery rhythm)
     setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
     const reply = await think(user, brainKeys(), [...messages, mine], text);
     mergeLearned(reply.learned);
     await deliver(reply, text);
+    // periodically distill the conversation into her graph memory
+    sendCount.current += 1;
+    if (sendCount.current % 4 === 0) {
+      rememberFrom(state.deviceId, [...messages, mine]);
+    }
   }
 
   // render with day separators; timestamp only on the last bubble of a

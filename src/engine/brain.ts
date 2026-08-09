@@ -15,6 +15,7 @@ import {
   type VoiceEngine,
 } from "./persona";
 import { heartReply, type HeartReply } from "./localHeart";
+import { recallMemories } from "./memory";
 import type { Message } from "../state/store";
 
 const CLAUDE_MODEL = "claude-opus-5";
@@ -33,6 +34,7 @@ export interface BrainKeys {
   openrouterKey?: string;
   openrouterModel?: string;
   apiKey?: string; // Claude
+  deviceId?: string; // enables graph-memory recall via /api/memory
 }
 
 // Make device-spoken text breathe: openers, thinking pauses. Used on the
@@ -211,10 +213,19 @@ export async function think(
     local.photo = undefined;
   }
 
-  const system =
+  let system =
     mode === "call"
       ? buildSystemPrompt(user, history.length) + buildSpeechStyle(voiceEngine)
       : buildSystemPrompt(user, history.length);
+
+  // graph-memory recall: what she knows about their world, woven into context
+  if (keys.deviceId) {
+    const memories = await recallMemories(keys.deviceId, latest);
+    if (memories) {
+      system += `\n\nWHAT YOU KNOW ABOUT THEM — true facts from your earlier conversations. You genuinely remember these. When they ask about or touch on anything here, you KNOW it — answer confidently with the specific detail ("priya ki shaadi h na december me"), never play dumb, never guess, never ask them to remind you. Weave one in naturally when relevant; don't dump several at once, and never mention any list or "memory":\n${memories}`;
+    }
+  }
+
   const turns = toTurns(history, latest);
 
   let text: string | null = null;

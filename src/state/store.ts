@@ -23,6 +23,7 @@ export interface Message {
 
 export interface AppState {
   onboarded: boolean;
+  deviceId: string; // anonymous identity for the memory backend
   user: UserProfile;
   messages: Message[];
   openrouterKey: string; // OpenRouter key — her primary brain (open models)
@@ -39,6 +40,10 @@ const KEY = "meera.state.v1";
 
 export const defaultState: AppState = {
   onboarded: false,
+  deviceId:
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-0000-4000-8000-000000000000`,
   user: { name: "", vibe: [], facts: {} },
   messages: [],
   openrouterKey: "",
