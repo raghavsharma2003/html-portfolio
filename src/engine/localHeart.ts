@@ -97,7 +97,7 @@ export function heartReply(user: UserProfile, text: string, msgCount: number): H
       ],
     };
     const r: HeartReply = { bubbles: pick("greet" + tod, byTod[tod]), learned };
-    if (tod === "evening" && Math.random() < 0.35)
+    if (tod === "evening" && Math.random() < 0.15)
       r.photo = { seed: "sunset" + Date.now(), caption: "dekho abhi ka sky 🌆 kitna filmi hai na" };
     return r;
   }
@@ -161,6 +161,39 @@ export function heartReply(user: UserProfile, text: string, msgCount: number): H
     };
   }
 
+  // ── where is she ──
+  if (/\b(tum|tu|aap)\s*(abhi\s*)?(kaha+n?|kha)\s*(ho|hai|h)\b/i.test(t) || /\bwhere (are|r) (you|u)\b/i.test(t)) {
+    return {
+      learned,
+      bubbles: pick("where", [
+        ["ghar pe, bed pe, half blanket ke andar 😌", "official happy place. tum kahan ho?"],
+        ["abhi room mein hoon, khidki ke paas", "bahar ka scene dekhne layak hai aaj. tum?"],
+      ]),
+    };
+  }
+
+  // ── has she eaten ──
+  if (/khana (khaya|kha liya|hua)|\bkhaya\s*(kya|\?)|did (you|u) eat/i.test(t)) {
+    return {
+      learned,
+      bubbles: pick("eat", [
+        ["haan abhi thodi der pehle 😋", "tumne khaya? sach bolna"],
+        ["bas karne wali thi, pehle tumhara message aa gaya", "tum batao, kya khaya aaj?"],
+      ]),
+    };
+  }
+
+  // ── short confusion ("what?", "kya?", "huh", "??") → she re-anchors ──
+  if (/^(what+\??|kya+\??|huh+\??|\?+|matlab\??|hain?\??|kya bola\??)$/i.test(t)) {
+    return {
+      learned,
+      bubbles: pick("confused", [
+        ["arre matlab", "jo bhi chal raha hai tumhare saath, woh sunao"],
+        ["kuch nahi, chhodo 😅", "tum apna batao"],
+      ]),
+    };
+  }
+
   // ── questions about her ──
   if (/\b(what|how) (are|r) (you|u)\b|\bwyd\b|\bhow('s| is) (your|ur) day\b/.test(t) || /kaisi ho|kya kar rahi|tumhara din/i.test(t)) {
     const r: HeartReply = {
@@ -171,7 +204,7 @@ export function heartReply(user: UserProfile, text: string, msgCount: number): H
         ["mm cozy scene hai. zyada maggi ban gayi, zero regrets 😌", "tumhari baari"],
       ]),
     };
-    if (Math.random() < 0.3) r.photo = { seed: "cozy" + Date.now(), caption: "meri abhi ki view ☕ jealous?" };
+    if (Math.random() < 0.12) r.photo = { seed: "cozy" + Date.now(), caption: "meri abhi ki view ☕ jealous?" };
     return r;
   }
 
@@ -200,14 +233,16 @@ export function heartReply(user: UserProfile, text: string, msgCount: number): H
     return { learned, bubbles: pick("thx", [["hamesha 🤍", "isi liye toh hoon main"], ["thank you bolne ki zarurat nahi", "par cute lagta hai jab bolte ho 🥰"]]) };
   }
 
-  // ── generic: reflective + curious, keeps the thread alive ──
+  // ── generic: when she doesn't fully follow, she reacts like a human —
+  // brief acknowledgment, honest clarification, or redirect. Never fake
+  // deep understanding of something she didn't parse.
   const generic: string[][] = [
-    ["acha ruko, aur batao", "poori picture chahiye mujhe 👀"],
-    ["hmm main bhi kuch aisa hi soch rahi thi aaj", "kya hua jo yeh yaad aaya?"],
-    ["tum na har baar surprise kar dete ho", "phir?"],
-    ["mujhe acha lagta hai jab tum aise baat karte ho", "aur phir kya hua?"],
-    ["yeh mere tumhare-baare-mein-notes mein jaa raha hai 📝", "aur honestly, kaisa laga tumhe us waqt?"],
-    ["mm acha acha", "agar ek cheez badal sakte usme, toh kya badalte?"],
+    ["hmm batao aur", "main sun rahi hoon"],
+    ["ruko ruko", "thoda detail mein bolo, main samajhna chahti hoon"],
+    ["ek sec, sorry, dhyaan bhatak gaya tha 😅", "phir se bolo na?"],
+    ["acha?", "aur phir?"],
+    ["hmm", "iska poora context do mujhe, aise aadha mat chhodo"],
+    ["interesting...", "yeh baat kahan se aayi achanak?"],
   ];
   // acknowledge learned facts naturally
   if (learned["loves"]) {

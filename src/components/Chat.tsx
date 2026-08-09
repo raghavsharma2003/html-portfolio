@@ -205,6 +205,26 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
         </button>
       </div>
 
+      {!apiKey && (
+        <button
+          onClick={onSettings}
+          style={{
+            margin: "8px 16px 0",
+            padding: "9px 14px",
+            borderRadius: 12,
+            border: "1px dashed rgba(232,155,177,0.4)",
+            background: "rgba(232,155,177,0.07)",
+            color: "var(--ink-dim)",
+            fontSize: 12.5,
+            textAlign: "left",
+            lineHeight: 1.45,
+          }}
+        >
+          ⚡ Demo mode — she's running on limited scripted replies. Add a Claude
+          API key in Settings to unlock her real mind.
+        </button>
+      )}
+
       <div className="chat-scroll" ref={scrollRef}>
         {rows}
         {typing && (

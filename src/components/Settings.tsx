@@ -147,6 +147,17 @@ export default function Settings({ state, setState, onClose }: Props) {
           Save
         </button>
         <div style={{ height: 12 }} />
+        <button
+          className="btn-ghost"
+          style={{ width: "100%" }}
+          onClick={() => {
+            setState((s) => ({ ...s, messages: [] }));
+            onClose();
+          }}
+        >
+          Clear chat — fresh start, she still remembers you
+        </button>
+        <div style={{ height: 12 }} />
         {!confirmReset ? (
           <button className="btn-ghost" style={{ width: "100%" }} onClick={() => setConfirmReset(true)}>
             Start over…
