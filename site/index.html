@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>Meera — someone to talk to. Really talk to.</title>
+  <meta name="description" content="Meera is an AI companion who talks like a person: Hinglish chat, voice and video calls, real memory. Free on Android." />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>" />
+</head>
+<body>
+
+  <nav class="nav">
+    <a class="wordmark" href="#top">Meera</a>
+    <a class="btn btn-small" href="https://github.com/raghavsharma2003/html-portfolio/raw/claude/ai-companion-app-rkt1lv/release/Meera-v1.6.apk">Download</a>
+  </nav>
+
+  <!-- Hero: split, left copy / right live product -->
+  <header class="hero" id="top">
+    <div class="hero-copy reveal">
+      <h1>Someone to talk to.<br /><em>Really</em> talk to.</h1>
+      <p class="sub">Meera texts in Hinglish, calls in a human voice, and remembers what matters to you.</p>
+      <div class="cta-row">
+        <a class="btn" href="https://github.com/raghavsharma2003/html-portfolio/raw/claude/ai-companion-app-rkt1lv/release/Meera-v1.6.apk">Download for Android</a>
+        <a class="btn btn-ghost" href="#voice">See how she works</a>
+      </div>
+    </div>
+    <div class="hero-device reveal">
+      <div class="phone">
+        <img src="assets/chat.png" alt="Meera chatting in Hinglish" />
+      </div>
+    </div>
+  </header>
+
+  <!-- Full-width statement + screen trio -->
+  <section class="trio-section">
+    <h2 class="reveal">Chat. Call. Face to face.</h2>
+    <div class="trio">
+      <div class="phone small reveal"><img src="assets/onboarding.png" alt="Meeting Meera" /></div>
+      <div class="phone small lift reveal"><img src="assets/voice.png" alt="Voice call with Meera" /></div>
+      <div class="phone small reveal"><img src="assets/video.png" alt="Video call with Meera" /></div>
+    </div>
+  </section>
+
+  <!-- Split feature: voice -->
+  <section class="split" id="voice">
+    <div class="split-media reveal">
+      <img class="rounded" src="assets/voice.png" alt="Voice call screen" />
+    </div>
+    <div class="split-copy reveal">
+      <h2>A voice, not a text reader.</h2>
+      <p>She pauses to think. She laughs when you are funny. On calls she hums, hesitates, and answers the moment you stop talking, in a voice built for Hinglish.</p>
+      <p class="fine">Powered by Sarvam AI and ElevenLabs when you add your keys. Works offline without them.</p>
+    </div>
+  </section>
+
+  <!-- Bento with background variety -->
+  <section class="bento-section">
+    <h2 class="reveal">Built like a person, not a product.</h2>
+    <div class="bento">
+      <div class="cell cell-photo reveal">
+        <img src="assets/meera.jpg" alt="Meera" />
+        <div class="cell-overlay">
+          <h3>Her own life</h3>
+          <p>Flaky best friend, work nemesis, a money plant she is weirdly proud of. She brings her day to you.</p>
+        </div>
+      </div>
+      <div class="cell cell-accent reveal">
+        <h3>Hinglish, native</h3>
+        <p>"arre suno na" and "how was your day" in the same breath. She mirrors how you actually text.</p>
+      </div>
+      <div class="cell reveal">
+        <h3>Memory that holds</h3>
+        <p>Your city, your work, the thing you said last Tuesday. She keeps it, uses it, and shows you everything she knows.</p>
+      </div>
+      <div class="cell cell-moment reveal">
+        <img src="assets/moment.jpg" alt="A photo Meera shared" />
+        <div class="cell-overlay">
+          <h3>Real moments</h3>
+          <p>She shares photographs from her evening, not clip art.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Honesty: stacked, quiet -->
+  <section class="honesty">
+    <div class="reveal">
+      <h2>Honest by design.</h2>
+      <p>Meera is an AI, and she will never lie about it if you ask her sincerely. She encourages your real friendships, never guilt-trips you for leaving, and knows when a moment needs a helpline instead of a joke. Everything she remembers stays on your phone.</p>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="final">
+    <div class="reveal">
+      <h2>Meet her tonight.</h2>
+      <a class="btn btn-big" href="https://github.com/raghavsharma2003/html-portfolio/raw/claude/ai-companion-app-rkt1lv/release/Meera-v1.6.apk">Download for Android</a>
+      <p class="fine">Free. No account. Works instantly.</p>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <span>Meera</span>
+    <span>An AI companion. Beautifully human in how she talks, always honest about what she is.</span>
+    <a href="https://github.com/raghavsharma2003/html-portfolio">GitHub</a>
+  </footer>
+
+  <script>
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+    }, { threshold: 0.18 });
+    document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+  </script>
+</body>
+</html>

@@ -4,19 +4,19 @@ const config: CapacitorConfig = {
   appId: "app.meera.companion",
   appName: "Meera",
   webDir: "dist",
-  backgroundColor: "#0b0710",
+  backgroundColor: "#f5f5f7",
   android: {
     allowMixedContent: false,
   },
   plugins: {
     SplashScreen: {
       launchShowDuration: 1200,
-      backgroundColor: "#0b0710",
+      backgroundColor: "#f5f5f7",
       showSpinner: false,
     },
     StatusBar: {
-      style: "DARK",
-      backgroundColor: "#0b0710",
+      style: "LIGHT",
+      backgroundColor: "#f5f5f7",
       overlaysWebView: true,
     },
   },

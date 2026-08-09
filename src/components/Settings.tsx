@@ -15,6 +15,8 @@ interface Props {
 
 export default function Settings({ state, setState, onClose }: Props) {
   const [key, setKey] = useState(state.apiKey);
+  const [orKey, setOrKey] = useState(state.openrouterKey);
+  const [orModel, setOrModel] = useState(state.openrouterModel);
   const [elevenKey, setElevenKey] = useState(state.elevenKey);
   const [sarvamKey, setSarvamKey] = useState(state.sarvamKey);
   const [elevenVoiceId, setElevenVoiceId] = useState(state.elevenVoiceId);
@@ -31,6 +33,8 @@ export default function Settings({ state, setState, onClose }: Props) {
     setState((s) => ({
       ...s,
       apiKey: key.trim(),
+      openrouterKey: orKey.trim(),
+      openrouterModel: orModel.trim(),
       elevenKey: elevenKey.trim(),
       elevenVoiceId: elevenVoiceId.trim(),
       sarvamKey: sarvamKey.trim(),
@@ -55,17 +59,36 @@ export default function Settings({ state, setState, onClose }: Props) {
         <label>Your name</label>
         <input className="field" value={name} maxLength={24} onChange={(e) => setName(e.target.value)} />
 
-        <label>Claude API key</label>
+        <label>OpenRouter API key — her brain</label>
         <input
           className="field"
           type="password"
-          placeholder="sk-ant-…  (optional — unlocks her full mind)"
+          placeholder="sk-or-…"
+          value={orKey}
+          onChange={(e) => setOrKey(e.target.value)}
+        />
+        <label>Model (optional)</label>
+        <input
+          className="field"
+          placeholder="default: deepseek/deepseek-chat"
+          value={orModel}
+          onChange={(e) => setOrModel(e.target.value)}
+        />
+        <p className="hint" style={{ marginTop: 8 }}>
+          Open-source models via OpenRouter — strong, fast, and a fraction of
+          the cost. Any model slug works. Stored only on this device.
+        </p>
+
+        <label>Claude API key (optional alternative)</label>
+        <input
+          className="field"
+          type="password"
+          placeholder="sk-ant-…"
           value={key}
           onChange={(e) => setKey(e.target.value)}
         />
         <p className="hint" style={{ marginTop: 8 }}>
-          Without a key she runs on her built-in heart. With one, she thinks with
-          Claude and gets dramatically deeper. Stored only on this device.
+          Used only if no OpenRouter key is set, or as automatic fallback.
         </p>
 
         <label>Sarvam AI key (best Hinglish voice)</label>

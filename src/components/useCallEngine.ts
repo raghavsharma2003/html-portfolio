@@ -117,7 +117,11 @@ export function useCallEngine(
     playBackchannel();
     const reply = await think(
       state.user,
-      state.apiKey,
+      {
+        openrouterKey: state.openrouterKey,
+        openrouterModel: state.openrouterModel,
+        apiKey: state.apiKey,
+      },
       [...state.messages, mine],
       text,
       "call",

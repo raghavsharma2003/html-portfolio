@@ -16,7 +16,9 @@ export interface AppState {
   onboarded: boolean;
   user: UserProfile;
   messages: Message[];
-  apiKey: string; // Claude API key — pasted later by the owner in Settings
+  openrouterKey: string; // OpenRouter key — her primary brain (open models)
+  openrouterModel: string; // OpenRouter model slug; sensible default provided
+  apiKey: string; // Claude API key — optional alternative brain
   elevenKey: string; // ElevenLabs key — expressive voice (laughs, whispers)
   elevenVoiceId: string; // ElevenLabs voice id (default: Monika Sogam, Hindi)
   sarvamKey: string; // Sarvam AI key — best Hinglish voice (bulbul:v3)
@@ -30,6 +32,8 @@ export const defaultState: AppState = {
   onboarded: false,
   user: { name: "", vibe: [], facts: {} },
   messages: [],
+  openrouterKey: "",
+  openrouterModel: "",
   apiKey: "",
   elevenKey: "",
   elevenVoiceId: "",

@@ -51,7 +51,7 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
   const nudged = useRef(false);
   const lastActivity = useRef(Date.now());
 
-  const { messages, user, apiKey } = state;
+  const { messages, user, apiKey, openrouterKey } = state;
 
   const pushMsg = (m: Message) =>
     setState((s) => ({ ...s, messages: [...s.messages, m] }));
@@ -132,7 +132,12 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
     nudged.current = false;
     const mine: Message = { id: uid(), from: "me", kind: "text", text, at: Date.now() };
     pushMsg(mine);
-    const reply = await think(user, apiKey, [...messages, mine], text);
+    const reply = await think(
+      user,
+      { openrouterKey, openrouterModel: state.openrouterModel, apiKey },
+      [...messages, mine],
+      text,
+    );
     mergeLearned(reply.learned);
     await deliver(reply, text);
   }
@@ -205,7 +210,7 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
         </button>
       </div>
 
-      {!apiKey && (
+      {!apiKey && !openrouterKey && (
         <button
           onClick={onSettings}
           style={{
@@ -220,8 +225,8 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
             lineHeight: 1.45,
           }}
         >
-          ⚡ Demo mode — she's running on limited scripted replies. Add a Claude
-          API key in Settings to unlock her real mind.
+          ⚡ Demo mode — she's running on limited scripted replies. Add your
+          OpenRouter key in Settings to unlock her real mind.
         </button>
       )}
 
