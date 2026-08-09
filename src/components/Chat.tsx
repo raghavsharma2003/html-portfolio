@@ -134,6 +134,14 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
     scrollRef.current?.scrollTo({ top: 1e9, behavior: "smooth" });
   }, [messages.length, typing]);
 
+  // keyboard open/close resizes the app — keep the conversation pinned to
+  // the bottom through it
+  useEffect(() => {
+    const onResize = () => scrollRef.current?.scrollTo({ top: 1e9 });
+    window.visualViewport?.addEventListener("resize", onResize);
+    return () => window.visualViewport?.removeEventListener("resize", onResize);
+  }, []);
+
   // her opening message when the chat is brand new — improvised by the model,
   // never a stored line ("heyy" alone only if the network is truly dead)
   useEffect(() => {
@@ -261,6 +269,51 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
     }
   }
 
+  // WhatsApp swipe-to-reply: drag a bubble horizontally past the threshold
+  // and the compose bar quotes it. Direction-locked so scrolling still works.
+  const swipe = useRef({ x: 0, y: 0, dx: 0, active: false, fired: false });
+  function swipeHandlers(m: Message) {
+    return {
+      onTouchStart: (e: React.TouchEvent) => {
+        swipe.current = {
+          x: e.touches[0].clientX,
+          y: e.touches[0].clientY,
+          dx: 0,
+          active: false,
+          fired: false,
+        };
+      },
+      onTouchMove: (e: React.TouchEvent) => {
+        const s = swipe.current;
+        const dx = e.touches[0].clientX - s.x;
+        const dy = e.touches[0].clientY - s.y;
+        if (!s.active) {
+          if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.4) s.active = true;
+          else return;
+        }
+        s.dx = Math.max(-84, Math.min(84, dx));
+        const el = e.currentTarget as HTMLElement;
+        el.style.transition = "none";
+        el.style.transform = `translateX(${s.dx}px)`;
+        if (!s.fired && Math.abs(s.dx) >= 56) {
+          s.fired = true;
+          navigator.vibrate?.(12);
+        }
+      },
+      onTouchEnd: (e: React.TouchEvent) => {
+        const s = swipe.current;
+        const el = e.currentTarget as HTMLElement;
+        el.style.transition = "transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.1)";
+        el.style.transform = "";
+        if (s.active && Math.abs(s.dx) >= 56) {
+          setReplyTo(m);
+          setReplySel(null);
+        }
+        swipe.current = { x: 0, y: 0, dx: 0, active: false, fired: false };
+      },
+    };
+  }
+
   async function startRecording() {
     if (recording || busy.current) return;
     try {
@@ -370,7 +423,7 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
       );
     } else if (m.kind === "voice") {
       rows.push(
-        <div key={m.id} className={`msg ${m.from} voice`}>
+        <div key={m.id} className={`msg ${m.from} voice`} {...swipeHandlers(m)}>
           <VoiceNote m={m} />
           {(lastOfGroup || m.from === "me") && (
             <span className="t">
@@ -382,7 +435,7 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
       );
     } else if (m.kind === "gif") {
       rows.push(
-        <div key={m.id} className={`msg ${m.from} gifmsg`}>
+        <div key={m.id} className={`msg ${m.from} gifmsg`} {...swipeHandlers(m)}>
           <GifBubble
             m={m}
             onResolved={(id, url) =>
@@ -397,7 +450,7 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
       );
     } else if (m.kind === "photo") {
       rows.push(
-        <div key={m.id} className="msg her photo">
+        <div key={m.id} className="msg her photo" {...swipeHandlers(m)}>
           <PhotoCard seed={m.photoSeed || m.text} />
           <div className="cap">{m.text}</div>
         </div>,
@@ -409,6 +462,7 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
           key={m.id}
           className={`msg ${m.from} ${emojiOnly ? "emoji-big" : ""} ${replySel === m.id ? "sel" : ""}`}
           onClick={() => setReplySel((cur) => (cur === m.id ? null : m.id))}
+          {...swipeHandlers(m)}
         >
           {replySel === m.id && (
             <button

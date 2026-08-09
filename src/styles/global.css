@@ -42,6 +42,20 @@ body,
   overscroll-behavior: none;
 }
 
+/* the app tracks the VISUAL viewport (--vvh set from VisualViewport API),
+   so the soft keyboard shrinks the app instead of pushing the header away */
+#root {
+  height: var(--vvh, 100dvh);
+  max-height: 100dvh;
+}
+html,
+body {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
 body {
   background: var(--bg);
   color: var(--ink);
