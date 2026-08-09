@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { AppState } from "../state/store";
 import { HER_NAME } from "../engine/persona";
-import Avatar from "./Avatar";
+import PhotoAvatar from "./PhotoAvatar";
 import { useCallEngine } from "./useCallEngine";
 import { EndCallIcon, MicIcon, KeyboardIcon } from "./icons";
 
@@ -57,11 +57,7 @@ export default function CallVideo({ state, setState, onEnd }: Props) {
   return (
     <div className="call">
       <div className="video-stage">
-        <div className="bg-scene" />
-        <div style={{ position: "relative", zIndex: 2 }}>
-          <div className={`speak-glow ${eng.speaking ? "on" : ""}`} />
-          <Avatar size={Math.min(420, window.innerWidth)} speaking={eng.speaking} listening={eng.listening} />
-        </div>
+        <PhotoAvatar cover speaking={eng.speaking} listening={eng.listening} />
 
         {/* top overlay */}
         <div

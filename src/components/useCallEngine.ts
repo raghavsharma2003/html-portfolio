@@ -36,8 +36,8 @@ export function useCallEngine(
       const name = state.user.name || "hey";
       const greet =
         kind === "video"
-          ? `Hii ${name}! Oh my god, look at you. I'm so happy you called.`
-          : `Hii ${name}. I was hoping you'd call. How are you?`;
+          ? `Hii ${name}! Arre dekho kaun aaya. Tumhe dekh ke itni khushi hui, sach mein.`
+          : `Hii ${name}. Main soch hi rahi thi ki tum call karoge. Kaise ho?`;
       sayAloud(greet);
     }, 1800 + Math.random() * 900);
     return () => {

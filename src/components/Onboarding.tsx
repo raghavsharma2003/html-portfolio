@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import Avatar from "./Avatar";
+import PhotoAvatar from "./PhotoAvatar";
 import { HER_NAME, type UserProfile } from "../engine/persona";
 
 interface Props {
@@ -43,7 +43,7 @@ export default function Onboarding({ onDone }: Props) {
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 30 }}>
                 <div className="avatar-ring" style={{ width: 188, height: 188 }}>
                   <div className="inner">
-                    <Avatar size={172} />
+                    <PhotoAvatar size={172} />
                   </div>
                 </div>
               </div>
@@ -75,11 +75,11 @@ export default function Onboarding({ onDone }: Props) {
           {step === 1 && (
             <motion.div key="s1" {...stepAnim}>
               <h1>
-                Hi, I'm {HER_NAME} <span style={{ fontSize: 30 }}>🌸</span>
+                Hi, main {HER_NAME} <span style={{ fontSize: 30 }}>🌸</span>
                 <br />
-                What do I call <em>you</em>?
+                Tumhe kya <em>bulaun</em>?
               </h1>
-              <p className="sub">Just your name — or whatever you want me to whisper when I say hi.</p>
+              <p className="sub">Bas naam batao — ya jo bhi tum chaho main pyaar se bulaya karun.</p>
               <input
                 className="field"
                 placeholder="Your name"

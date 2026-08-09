@@ -12,7 +12,7 @@ up on video calls with a living, breathing animated presence.
 
 ## 📲 Install
 
-Grab **[`release/Meera-v1.0.apk`](release/Meera-v1.0.apk)** and install it on
+Grab **[`release/Meera-v1.1.apk`](release/Meera-v1.1.apk)** and install it on
 any Android phone (enable "install from unknown sources"). It works instantly —
 no account, no server, no API key required.
 

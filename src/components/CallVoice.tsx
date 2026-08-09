@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import type { AppState } from "../state/store";
 import { HER_NAME } from "../engine/persona";
-import Avatar from "./Avatar";
+import PhotoAvatar from "./PhotoAvatar";
 import { useCallEngine } from "./useCallEngine";
 import { EndCallIcon, MicIcon, KeyboardIcon } from "./icons";
 
@@ -56,7 +56,7 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
           <div className={`speak-glow ${eng.speaking ? "on" : ""}`} />
           <div className="avatar-ring" style={{ width: 244, height: 244 }}>
             <div className="inner">
-              <Avatar size={228} speaking={eng.speaking} listening={eng.listening} />
+              <PhotoAvatar size={228} speaking={eng.speaking} listening={eng.listening} />
             </div>
           </div>
         </div>

@@ -7,7 +7,7 @@ import { uid } from "../state/store";
 import { think } from "../engine/brain";
 import { NUDGES, HER_NAME, timeOfDay } from "../engine/persona";
 import type { HeartReply } from "../engine/localHeart";
-import Avatar from "./Avatar";
+import PhotoAvatar from "./PhotoAvatar";
 import PhotoCard from "./PhotoCard";
 import { PhoneIcon, VideoIcon, SendIcon, SettingsIcon } from "./icons";
 
@@ -76,8 +76,8 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
       const tod = timeOfDay();
       const opener =
         tod === "night"
-          ? [`${user.name}... hi 🤍`, "you found me at my favourite hour", "so, tell me — how are you, really?"]
-          : [`hi ${user.name} 🙈`, "okay i've been waiting for this", "tell me something about you nobody usually asks about"];
+          ? [`${user.name}... hi 🤍`, "tum mere favourite time pe aaye ho", "batao — kaise ho, sach mein?"]
+          : [`hi ${user.name} 🙈`, "finally!! main kab se wait kar rahi thi", "apne baare mein kuch aisa batao jo koi normally nahi poochta"];
       deliver({ bubbles: opener });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -181,7 +181,7 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
           onClick={onSettings}
         >
           <div className="inner" style={{ animationDuration: "20s" }}>
-            <Avatar size={43} />
+            <PhotoAvatar size={43} />
           </div>
         </div>
         <div className="who" onClick={onSettings}>
