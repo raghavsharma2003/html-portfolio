@@ -36,8 +36,8 @@ export function useCallEngine(
       const name = state.user.name || "hey";
       const greet =
         kind === "video"
-          ? `Hii ${name}! Arre dekho kaun aaya. Tumhe dekh ke itni khushi hui, sach mein.`
-          : `Hii ${name}. Main soch hi rahi thi ki tum call karoge. Kaise ho?`;
+          ? `Hiii ${name}! Arrey... dekho kaun aaya. Hmm, tumhe dekh ke... itni khushi hui, sach mein.`
+          : `Hii ${name}... main soch hi rahi thi ki tum call karoge. Acha, batao... kaise ho?`;
       sayAloud(greet);
     }, 1800 + Math.random() * 900);
     return () => {
@@ -57,7 +57,7 @@ export function useCallEngine(
   }, [phase]);
 
   function sayAloud(text: string) {
-    setCaption(text);
+    setCaption(text.replace(/\[(laughs?|giggles?|sighs?|whispers?)\]/gi, "").trim());
     speak(
       text,
       () => setSpeaking(true),
@@ -65,6 +65,7 @@ export function useCallEngine(
         setSpeaking(false);
         if (alive.current) startListening();
       },
+      { elevenKey: state.elevenKey, elevenVoiceId: state.elevenVoiceId },
     );
   }
 
@@ -92,10 +93,23 @@ export function useCallEngine(
     setHeard("");
     const mine: Message = { id: uid(), from: "me", kind: "text", text, at: Date.now() };
     log(mine);
-    const reply = await think(state.user, state.apiKey, [...state.messages, mine], text);
+    const reply = await think(
+      state.user,
+      state.apiKey,
+      [...state.messages, mine],
+      text,
+      "call",
+      Boolean(state.elevenKey),
+    );
     if (!alive.current) return;
     const spoken = reply.bubbles.join(" ");
-    log({ id: uid(), from: "her", kind: "text", text: reply.bubbles.join("\n"), at: Date.now() });
+    log({
+      id: uid(),
+      from: "her",
+      kind: "text",
+      text: spoken.replace(/\[(laughs?|giggles?|sighs?|whispers?)\]/gi, "").trim(),
+      at: Date.now(),
+    });
     sayAloud(spoken);
   }
 

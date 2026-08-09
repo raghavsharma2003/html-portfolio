@@ -14,6 +14,8 @@ interface Props {
 
 export default function Settings({ state, setState, onClose }: Props) {
   const [key, setKey] = useState(state.apiKey);
+  const [elevenKey, setElevenKey] = useState(state.elevenKey);
+  const [elevenVoiceId, setElevenVoiceId] = useState(state.elevenVoiceId);
   const [name, setName] = useState(state.user.name);
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -21,6 +23,8 @@ export default function Settings({ state, setState, onClose }: Props) {
     setState((s) => ({
       ...s,
       apiKey: key.trim(),
+      elevenKey: elevenKey.trim(),
+      elevenVoiceId: elevenVoiceId.trim(),
       user: { ...s.user, name: name.trim() || s.user.name },
     }));
     onClose();
@@ -52,6 +56,27 @@ export default function Settings({ state, setState, onClose }: Props) {
         <p className="hint" style={{ marginTop: 8 }}>
           Without a key she runs on her built-in heart. With one, she thinks with
           Claude and gets dramatically deeper. Stored only on this device.
+        </p>
+
+        <label>ElevenLabs API key</label>
+        <input
+          className="field"
+          type="password"
+          placeholder="xi-…  (optional — unlocks her human voice)"
+          value={elevenKey}
+          onChange={(e) => setElevenKey(e.target.value)}
+        />
+        <label>ElevenLabs voice ID</label>
+        <input
+          className="field"
+          placeholder="pick an Indian female voice in the ElevenLabs library"
+          value={elevenVoiceId}
+          onChange={(e) => setElevenVoiceId(e.target.value)}
+        />
+        <p className="hint" style={{ marginTop: 8 }}>
+          With ElevenLabs she truly <em>speaks</em> — laughs, pauses, whispers,
+          Hinglish with real emotion. Without it, calls use your phone's voice
+          with humanised pacing.
         </p>
 
         {facts.length > 0 && (

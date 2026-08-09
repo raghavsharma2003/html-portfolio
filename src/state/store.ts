@@ -17,6 +17,8 @@ export interface AppState {
   user: UserProfile;
   messages: Message[];
   apiKey: string; // Claude API key — pasted later by the owner in Settings
+  elevenKey: string; // ElevenLabs key — unlocks her human voice
+  elevenVoiceId: string; // ElevenLabs voice id (pick an Indian female voice)
   lastSeen: number;
 }
 
@@ -27,6 +29,8 @@ export const defaultState: AppState = {
   user: { name: "", vibe: [], facts: {} },
   messages: [],
   apiKey: "",
+  elevenKey: "",
+  elevenVoiceId: "",
   lastSeen: Date.now(),
 };
 

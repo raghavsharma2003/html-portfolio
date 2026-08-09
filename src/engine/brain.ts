@@ -2,11 +2,26 @@
 // falls back to the offline heart engine on any failure.
 
 import Anthropic from "@anthropic-ai/sdk";
-import { buildSystemPrompt, type UserProfile } from "./persona";
+import { buildSystemPrompt, buildSpeechStyle, type UserProfile } from "./persona";
 import { heartReply, type HeartReply } from "./localHeart";
 import type { Message } from "../state/store";
 
 const MODEL = "claude-opus-5";
+
+export type ThinkMode = "chat" | "call";
+
+// Make device-spoken text breathe: openers, thinking pauses. Used on the
+// offline heart's replies when they're spoken on a call.
+export function humanizeForSpeech(text: string): string {
+  let t = text;
+  if (Math.random() < 0.45) {
+    const openers = ["hmm... ", "acha... ", "arrey ", "mmm, "];
+    t = openers[Math.floor(Math.random() * openers.length)] + t;
+  }
+  // let some sentence breaks become soft trailing pauses
+  t = t.replace(/\. /g, () => (Math.random() < 0.3 ? "... " : ". "));
+  return t;
+}
 
 function parseBubbles(raw: string): HeartReply {
   const out: HeartReply = { bubbles: [] };
@@ -29,9 +44,15 @@ export async function think(
   apiKey: string,
   history: Message[],
   latest: string,
+  mode: ThinkMode = "chat",
+  expressiveVoice = false,
 ): Promise<HeartReply> {
   // learn facts locally regardless of which engine answers
   const local = heartReply(user, latest, history.length);
+  if (mode === "call") {
+    local.bubbles = [humanizeForSpeech(local.bubbles.join(" "))];
+    local.photo = undefined;
+  }
 
   if (!apiKey) return local;
 
@@ -54,11 +75,16 @@ export async function think(
     }
     if (turns[0]?.role !== "user") turns.shift();
 
+    const system =
+      mode === "call"
+        ? buildSystemPrompt(user) + buildSpeechStyle(expressiveVoice)
+        : buildSystemPrompt(user);
+
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
       output_config: { effort: "low" },
-      system: buildSystemPrompt(user),
+      system,
       messages: turns,
     });
 
@@ -72,6 +98,10 @@ export async function think(
 
     const parsed = parseBubbles(text);
     parsed.learned = local.learned;
+    if (mode === "call") {
+      parsed.bubbles = [parsed.bubbles.join(" ")];
+      parsed.photo = undefined;
+    }
     return parsed;
   } catch {
     return local; // network/auth failure → she still answers, seamlessly
