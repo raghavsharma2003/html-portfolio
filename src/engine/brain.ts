@@ -1,10 +1,13 @@
 // Reply brain, in priority order:
-//   1. OpenRouter (open-source models — cheap, strong, the default once the
+//   1. OpenRouter (open-source models — cheap, strong; used directly when the
 //      owner pastes their key in Settings; DeepSeek by default)
 //   2. Claude (optional alternative, if that key is set instead)
-//   3. Offline heart engine (always available fallback)
+//   3. Hosted proxy (our Vercel function holds an OpenRouter key server-side,
+//      so a fresh install has a real brain with zero setup)
+//   4. Offline heart engine (always available fallback)
 
 import Anthropic from "@anthropic-ai/sdk";
+import { Capacitor } from "@capacitor/core";
 import {
   buildSystemPrompt,
   buildSpeechStyle,
@@ -17,6 +20,11 @@ import type { Message } from "../state/store";
 const CLAUDE_MODEL = "claude-opus-5";
 // Open-source default: excellent Hinglish, tiny cost. Overridable in Settings.
 export const OPENROUTER_DEFAULT_MODEL = "deepseek/deepseek-chat";
+// Serverless proxy that holds an OpenRouter key server-side — the zero-config
+// brain. On the website it's same-origin; the Android app crosses origins.
+const PROXY_URL = Capacitor.isNativePlatform()
+  ? "https://meera-silk.vercel.app/api/chat"
+  : "/api/chat";
 
 export type ThinkMode = "chat" | "call";
 
@@ -98,6 +106,25 @@ async function openrouterThink(
   }
 }
 
+async function proxyThink(
+  keys: BrainKeys,
+  system: string,
+  turns: Array<{ role: "user" | "assistant"; content: string }>,
+): Promise<string | null> {
+  try {
+    const res = await fetch(PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ system, messages: turns, model: keys.openrouterModel?.trim() || undefined }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data?.text === "string" && data.text.trim() ? data.text : null;
+  } catch {
+    return null;
+  }
+}
+
 async function claudeThink(
   keys: BrainKeys,
   system: string,
@@ -138,9 +165,6 @@ export async function think(
     local.photo = undefined;
   }
 
-  const hasCloud = Boolean(keys.openrouterKey || keys.apiKey);
-  if (!hasCloud) return local;
-
   const system =
     mode === "call"
       ? buildSystemPrompt(user, history.length) + buildSpeechStyle(voiceEngine)
@@ -150,6 +174,7 @@ export async function think(
   let text: string | null = null;
   if (keys.openrouterKey) text = await openrouterThink(keys, system, turns);
   if (!text && keys.apiKey) text = await claudeThink(keys, system, turns);
+  if (!text) text = await proxyThink(keys, system, turns);
   if (!text) return local; // network/auth failure → she still answers
 
   const parsed = parseBubbles(text);

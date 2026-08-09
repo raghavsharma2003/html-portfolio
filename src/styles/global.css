@@ -59,6 +59,26 @@ select {
   font-family: var(--font-ui);
 }
 
+/* On a desktop browser the app lives in a phone-width frame, centered —
+   full-bleed on anything narrower (phones, the APK's WebView). */
+@media (min-width: 720px) {
+  body {
+    background: #e8e8ed;
+  }
+  #root {
+    max-width: 430px;
+    height: min(100%, 900px);
+    margin: 0 auto;
+    position: relative;
+    top: 50%;
+    transform: translateY(-50%);
+    overflow: hidden;
+    border-radius: 26px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 24px 70px -24px rgba(0, 0, 0, 0.35);
+    background: var(--bg);
+  }
+}
+
 button {
   font-family: var(--font-ui);
   border: none;
@@ -209,6 +229,38 @@ button {
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 8px;
+}
+
+/* Fanned stack of her real photos — the first thing you see is a life, not a logo */
+.photo-fan {
+  position: relative;
+  height: 218px;
+  margin-bottom: 26px;
+}
+.photo-fan .fan {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 148px;
+  height: 186px;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 4px solid #fff;
+  box-shadow: 0 10px 30px rgba(29, 29, 31, 0.16);
+}
+.photo-fan .fan-l {
+  transform: translate(-50%, -50%) translateX(-84px) rotate(-9deg);
+  z-index: 1;
+}
+.photo-fan .fan-r {
+  transform: translate(-50%, -50%) translateX(84px) rotate(9deg);
+  z-index: 1;
+}
+.photo-fan .fan-c {
+  width: 158px;
+  height: 198px;
+  transform: translate(-50%, -50%) rotate(-1.5deg);
+  z-index: 2;
 }
 
 .onb-dots {

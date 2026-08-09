@@ -1,0 +1,8 @@
+{
+  "installCommand": "npm install --no-audit --no-fund",
+  "buildCommand": "bash scripts/vercel-build.sh",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/chat", "destination": "/chat.html" }
+  ]
+}

@@ -180,6 +180,52 @@ img { max-width: 100%; display: block; }
 .split-copy p + p { margin-top: 14px; }
 .fine { font-size: 14px !important; color: var(--ink-faint) !important; }
 
+/* her camera roll — tilted prints on the table */
+.roll-section {
+  padding: 110px 24px 40px;
+  max-width: 1100px;
+  margin: 0 auto;
+  text-align: center;
+}
+.roll-section h2 {
+  font-size: clamp(32px, 4vw, 48px);
+  letter-spacing: -0.025em;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+.roll-sub {
+  color: var(--ink-soft);
+  font-size: 17px;
+  margin-bottom: 52px;
+}
+.roll {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 26px;
+}
+.roll figure {
+  background: #fff;
+  border-radius: 14px;
+  padding: 10px 10px 14px;
+  box-shadow: 0 12px 34px rgba(29, 29, 31, 0.1);
+  transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.roll figure:nth-child(odd) { transform: rotate(-1.6deg); }
+.roll figure:nth-child(even) { transform: rotate(1.4deg); }
+.roll figure:hover { transform: rotate(0deg) translateY(-6px); }
+.roll img {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+.roll figcaption {
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
 /* bento with background variety */
 .bento-section {
   padding: 40px 24px 130px;
@@ -277,6 +323,7 @@ img { max-width: 100%; display: block; }
   .split-copy { text-align: center; }
   .split-copy p { margin-left: auto; margin-right: auto; }
   .bento { grid-template-columns: 1fr; }
+  .roll { grid-template-columns: repeat(2, 1fr); gap: 18px; }
   .phone.lift { transform: none; }
   .trio { gap: 24px; }
 }

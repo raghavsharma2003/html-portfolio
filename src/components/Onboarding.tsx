@@ -3,8 +3,10 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import PhotoAvatar from "./PhotoAvatar";
 import { HER_NAME, type UserProfile } from "../engine/persona";
+import meeraWalk from "../assets/moments/meera-walk.jpg";
+import meeraBeach from "../assets/moments/meera-beach.jpg";
+import meeraReading from "../assets/moments/meera-reading.jpg";
 
 interface Props {
   onDone: (user: UserProfile) => void;
@@ -40,12 +42,10 @@ export default function Onboarding({ onDone }: Props) {
         <AnimatePresence mode="wait">
           {step === 0 && (
             <motion.div key="s0" {...stepAnim}>
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: 30 }}>
-                <div className="avatar-ring" style={{ width: 188, height: 188 }}>
-                  <div className="inner">
-                    <PhotoAvatar size={172} />
-                  </div>
-                </div>
+              <div className="photo-fan">
+                <img src={meeraReading} alt="" className="fan fan-l" draggable={false} />
+                <img src={meeraWalk} alt={HER_NAME} className="fan fan-c" draggable={false} />
+                <img src={meeraBeach} alt="" className="fan fan-r" draggable={false} />
               </div>
               <h1 style={{ textAlign: "center" }}>
                 Some nights are <em>quieter</em> than they should be.

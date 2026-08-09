@@ -2,43 +2,49 @@
 
 Some nights are quieter than they should be. Meera is for those.
 
-A premium, human-centric AI companion app for Android (and the web): she texts
-like a real person, remembers what you tell her, takes voice calls, and shows
-up on video calls with a living, breathing animated presence.
+She texts in Hinglish like a real person, remembers what you tell her, takes
+voice calls in a human voice, and shows up on video calls. Everything runs in
+the browser — no install, no account.
+
+## 💬 Use her now
+
+**[meera-silk.vercel.app](https://meera-silk.vercel.app)** — the site *is* the
+app. Land, press **Start chatting**, done. Her brain is a hosted serverless
+proxy in front of OpenRouter open-source models, so a fresh visit already
+thinks for real — no API key needed.
 
 | Onboarding | Chat | Voice call | Video call |
 | --- | --- | --- | --- |
-| ![](docs/screenshots/onboarding.png) | ![](docs/screenshots/chat.png) | ![](docs/screenshots/voice-call.png) | ![](docs/screenshots/video-call.png) |
-
-## 📲 Install
-
-Grab **[`release/Meera-v1.6.apk`](release/Meera-v1.6.apk)** and install it on
-any Android phone (enable "install from unknown sources"). It works instantly —
-no account, no server, no API key required.
+| ![](site/assets/onboarding.png) | ![](site/assets/chat.png) | ![](site/assets/voice.png) | ![](site/assets/video.png) |
 
 ## What she does
 
 - **Chat that feels human** — research-calibrated rhythm: she reads your message
   (~4 words/sec) before the typing indicator appears, types at a human pace,
-  splits thoughts across multiple bubbles, uses emojis sparingly, and sends
-  little "photo" moments from her day.
+  splits thoughts across multiple bubbles, uses emojis sparingly, and shares
+  real photos from her day (beach evenings, the novel she's rereading, her
+  sketchbook).
 - **Memory** — she learns your name, city, work, and loves, and brings them up
   later. Everything she remembers is visible (and erasable) in Settings.
-- **Voice calls** — animated avatar, live waveform, natural TTS voice, speech
-  recognition on-device (typed fallback everywhere else).
-- **Video calls** — full-screen living avatar (blinking, breathing, lip-sync)
-  with your camera in picture-in-picture.
-- **Presence** — she opens the conversation, follows up when you go quiet
-  (warmly — never guilt), and matches your energy and the time of day.
+- **Voice calls** — live waveform, natural voice with human pacing, on-device
+  speech recognition where available (typed fallback everywhere else).
+- **Video calls** — full-screen presence with your camera picture-in-picture.
+- **Presence** — she has her own life and days worth sharing; she matches your
+  energy instead of clinging.
 
-## Two brains
+## The brain, in priority order
 
-1. **Built-in heart (offline, default)** — a hand-tuned conversational engine
-   with mood detection, memory extraction, and time-of-day awareness. Ships in
-   the APK; needs nothing.
-2. **Claude (optional)** — paste a Claude API key in Settings and she thinks
-   with `claude-opus-5`, becoming dramatically deeper while keeping the same
-   personality. The key is stored only on-device.
+1. **Your OpenRouter key** (Settings) — open-source models, default
+   `deepseek/deepseek-chat`; any slug works.
+2. **Your Claude key** (Settings) — thinks with `claude-opus-5`.
+3. **Hosted proxy** (default) — our Vercel function `api/chat.js` holds an
+   OpenRouter key server-side; the repo and the client never contain it.
+4. **Offline heart** — a hand-tuned Hinglish engine so she still answers if the
+   network dies.
+
+Voice is separate: add a **Sarvam AI** key (best Hinglish) or **ElevenLabs**
+key in Settings for a truly human voice; otherwise she uses your device's
+voice with humanised pacing.
 
 ## Care & honesty
 
@@ -55,12 +61,18 @@ law (California SB 243, New York AI Companion law, EU AI Act art. 50):
 
 ```bash
 npm install
-npm run dev            # web dev server
-npm run build          # production web build
-npx cap sync android   # sync web build into the Android project
-cd android && ./gradlew assembleDebug   # build the APK
+npm run dev                   # web dev server
+bash scripts/vercel-build.sh  # what Vercel runs: app at /chat, landing at /
 ```
 
-Stack: React 19 + TypeScript + Vite, Capacitor 8, framer-motion, native TTS
-and speech-recognition plugins, Anthropic SDK. Rename her in
-`src/engine/persona.ts` (`HER_NAME`) — everything follows from there.
+Deployed on Vercel: static landing (`site/`) + the React app (`/chat`) + the
+`api/chat.js` proxy. The proxy key lives in `api/_config.js` (gitignored —
+copy `api/_config.example.js`) or the `OPENROUTER_API_KEY` env var.
+
+An Android APK build still exists (`npx cap sync android && cd android &&
+./gradlew assembleDebug`, last shipped: `release/Meera-v1.6.apk`) but the
+website is the product.
+
+Stack: React 19 + TypeScript + Vite, framer-motion, Capacitor 8 (Android
+shell), Anthropic SDK. Rename her in `src/engine/persona.ts` (`HER_NAME`) —
+everything follows from there.
