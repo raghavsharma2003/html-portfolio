@@ -6,7 +6,14 @@ import { useEffect, useRef, useState } from "react";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think } from "../engine/brain";
-import { speak, stopSpeaking, listen } from "../voice/speech";
+import {
+  speak,
+  stopSpeaking,
+  listen,
+  prefetchBackchannels,
+  playBackchannel,
+} from "../voice/speech";
+import type { VoiceEngine } from "../engine/persona";
 
 export type CallPhase = "connecting" | "live" | "ended";
 
@@ -27,9 +34,22 @@ export function useCallEngine(
 
   const log = (m: Message) => setState((s) => ({ ...s, messages: [...s.messages, m] }));
 
+  const voiceOpts = {
+    elevenKey: state.elevenKey,
+    elevenVoiceId: state.elevenVoiceId,
+    sarvamKey: state.sarvamKey,
+    deviceVoice: state.deviceVoice,
+  };
+  const engine: VoiceEngine = state.sarvamKey
+    ? "sarvam"
+    : state.elevenKey
+      ? "eleven"
+      : "device";
+
   // connect + greet
   useEffect(() => {
     alive.current = true;
+    prefetchBackchannels(voiceOpts); // instant "hmm?" clips for turn-taking
     const t = setTimeout(() => {
       if (!alive.current) return;
       setPhase("live");
@@ -57,7 +77,7 @@ export function useCallEngine(
   }, [phase]);
 
   function sayAloud(text: string) {
-    setCaption(text.replace(/\[(laughs?|giggles?|sighs?|whispers?)\]/gi, "").trim());
+    setCaption(text.replace(/\[[a-z ]+\]/gi, "").trim());
     speak(
       text,
       () => setSpeaking(true),
@@ -65,11 +85,7 @@ export function useCallEngine(
         setSpeaking(false);
         if (alive.current) startListening();
       },
-      {
-        elevenKey: state.elevenKey,
-        elevenVoiceId: state.elevenVoiceId,
-        deviceVoice: state.deviceVoice,
-      },
+      voiceOpts,
     );
   }
 
@@ -97,13 +113,15 @@ export function useCallEngine(
     setHeard("");
     const mine: Message = { id: uid(), from: "me", kind: "text", text, at: Date.now() };
     log(mine);
+    // human turn-taking norm is ~0-200ms — bridge the think+render gap
+    playBackchannel();
     const reply = await think(
       state.user,
       state.apiKey,
       [...state.messages, mine],
       text,
       "call",
-      Boolean(state.elevenKey),
+      engine,
     );
     if (!alive.current) return;
     const spoken = reply.bubbles.join(" ");
@@ -111,7 +129,7 @@ export function useCallEngine(
       id: uid(),
       from: "her",
       kind: "text",
-      text: spoken.replace(/\[(laughs?|giggles?|sighs?|whispers?)\]/gi, "").trim(),
+      text: spoken.replace(/\[[a-z ]+\]/gi, "").trim(),
       at: Date.now(),
     });
     sayAloud(spoken);

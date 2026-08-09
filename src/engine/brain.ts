@@ -2,7 +2,12 @@
 // falls back to the offline heart engine on any failure.
 
 import Anthropic from "@anthropic-ai/sdk";
-import { buildSystemPrompt, buildSpeechStyle, type UserProfile } from "./persona";
+import {
+  buildSystemPrompt,
+  buildSpeechStyle,
+  type UserProfile,
+  type VoiceEngine,
+} from "./persona";
 import { heartReply, type HeartReply } from "./localHeart";
 import type { Message } from "../state/store";
 
@@ -45,7 +50,7 @@ export async function think(
   history: Message[],
   latest: string,
   mode: ThinkMode = "chat",
-  expressiveVoice = false,
+  voiceEngine: VoiceEngine = "device",
 ): Promise<HeartReply> {
   // learn facts locally regardless of which engine answers
   const local = heartReply(user, latest, history.length);
@@ -77,7 +82,7 @@ export async function think(
 
     const system =
       mode === "call"
-        ? buildSystemPrompt(user, history.length) + buildSpeechStyle(expressiveVoice)
+        ? buildSystemPrompt(user, history.length) + buildSpeechStyle(voiceEngine)
         : buildSystemPrompt(user, history.length);
 
     const response = await client.messages.create({

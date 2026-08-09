@@ -16,6 +16,7 @@ interface Props {
 export default function Settings({ state, setState, onClose }: Props) {
   const [key, setKey] = useState(state.apiKey);
   const [elevenKey, setElevenKey] = useState(state.elevenKey);
+  const [sarvamKey, setSarvamKey] = useState(state.sarvamKey);
   const [elevenVoiceId, setElevenVoiceId] = useState(state.elevenVoiceId);
   const [name, setName] = useState(state.user.name);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -32,6 +33,7 @@ export default function Settings({ state, setState, onClose }: Props) {
       apiKey: key.trim(),
       elevenKey: elevenKey.trim(),
       elevenVoiceId: elevenVoiceId.trim(),
+      sarvamKey: sarvamKey.trim(),
       deviceVoice,
       user: { ...s.user, name: name.trim() || s.user.name },
     }));
@@ -65,6 +67,15 @@ export default function Settings({ state, setState, onClose }: Props) {
           Without a key she runs on her built-in heart. With one, she thinks with
           Claude and gets dramatically deeper. Stored only on this device.
         </p>
+
+        <label>Sarvam AI key (best Hinglish voice)</label>
+        <input
+          className="field"
+          type="password"
+          placeholder="sarvam key — Indian voices, made for Hinglish"
+          value={sarvamKey}
+          onChange={(e) => setSarvamKey(e.target.value)}
+        />
 
         <label>ElevenLabs API key</label>
         <input

@@ -20,8 +20,16 @@ const isNative = Capacitor.isNativePlatform();
 export interface VoiceOpts {
   elevenKey?: string;
   elevenVoiceId?: string;
+  sarvamKey?: string; // Sarvam AI — best-in-class for Hinglish (bulbul:v3)
   deviceVoice?: string; // voiceURI (web) or voice name (native) chosen in Settings
 }
+
+// Default ElevenLabs voice: "Monika Sogam — Calm and Natural", the most
+// popular Hindi female voice in their library (add it to My Voices first).
+const ELEVEN_DEFAULT_VOICE = "1qEiC6qsybMkmnNdVMbK";
+const SARVAM_SPEAKER = "priya";
+
+const hasAudioTags = (t: string) => /\[[a-z ]+\]/i.test(t);
 
 export interface DeviceVoice {
   id: string;
@@ -52,7 +60,7 @@ export async function listDeviceVoices(): Promise<DeviceVoice[]> {
 function stripForDevice(text: string): string {
   // device TTS can't laugh — turn audio tags into pauses, drop emojis
   return text
-    .replace(/\[(laughs?|giggles?|sighs?|whispers?|hums?|exhales?)\]/gi, "…")
+    .replace(/\[[a-z ]+\]/gi, "…")
     .replace(/\[photo:[^\]]*\]/gi, "")
     .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{2764}]/gu, "")
     .replace(/\s+/g, " ")
@@ -65,6 +73,18 @@ function stripForCloud(text: string): string {
     .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{2764}]/gu, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// Punctuation-aware prosody for device TTS: questions rise, exclamations
+// quicken, plus per-phrase jitter so consecutive sentences never match.
+function prosody(t: string): { rate: number; pitch: number } {
+  let rate = 0.95;
+  let pitch = 1.1;
+  if (/\?$/.test(t.trim())) pitch += 0.06;
+  else if (/!$/.test(t.trim())) rate += 0.08;
+  rate *= 0.96 + Math.random() * 0.08;
+  pitch += (Math.random() - 0.5) * 0.04;
+  return { rate, pitch };
 }
 
 // split into phrases with a pause length after each (ms)
@@ -108,8 +128,90 @@ function phrase(text: string): Array<{ t: string; pause: number }> {
 
 let speakSession = 0;
 let currentAudio: HTMLAudioElement | null = null;
+let previousSpokenText = ""; // ElevenLabs request stitching — prosody continuity
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function playBlob(
+  blob: Blob,
+  session: number,
+  onStart?: () => void,
+  onEnd?: () => void,
+): Promise<boolean> {
+  if (session !== speakSession) return true;
+  return new Promise((resolve) => {
+    const audio = new Audio(URL.createObjectURL(blob));
+    currentAudio = audio;
+    audio.onplay = () => onStart?.();
+    audio.onended = () => {
+      URL.revokeObjectURL(audio.src);
+      if (session === speakSession) onEnd?.();
+      resolve(true);
+    };
+    audio.onerror = () => resolve(false);
+    audio.play().catch(() => resolve(false));
+  });
+}
+
+async function elevenFetch(text: string, opts: VoiceOpts): Promise<Blob | null> {
+  try {
+    const voiceId = opts.elevenVoiceId?.trim() || ELEVEN_DEFAULT_VOICE;
+    const res = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+      {
+        method: "POST",
+        headers: { "xi-api-key": opts.elevenKey!, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          model_id: "eleven_v3",
+          // v3 accepts only 0 / 0.5 / 1 for stability; expressiveness comes
+          // from audio tags, so style stays 0 (nonzero adds instability).
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+            style: 0.0,
+            use_speaker_boost: true,
+          },
+          ...(previousSpokenText ? { previous_text: previousSpokenText } : {}),
+          apply_text_normalization: "auto",
+        }),
+      },
+    );
+    if (!res.ok) return null;
+    return await res.blob();
+  } catch {
+    return null;
+  }
+}
+
+async function sarvamFetch(text: string, opts: VoiceOpts): Promise<Blob | null> {
+  try {
+    const res = await fetch("https://api.sarvam.ai/text-to-speech", {
+      method: "POST",
+      headers: {
+        "api-subscription-key": opts.sarvamKey!,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text,
+        language_code: "hi-IN",
+        speaker: SARVAM_SPEAKER,
+        model: "bulbul:v3",
+        pace: 1.0,
+        speech_sample_rate: 24000,
+        enable_preprocessing: true,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const b64 = data?.audios?.[0];
+    if (!b64) return null;
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return new Blob([bytes], { type: "audio/wav" });
+  } catch {
+    return null;
+  }
+}
 
 export async function speak(
   text: string,
@@ -119,42 +221,30 @@ export async function speak(
 ) {
   const session = ++speakSession;
 
-  // ── tier 1: ElevenLabs expressive voice ──
-  if (opts.elevenKey) {
-    const clean = stripForCloud(text);
-    if (!clean) return onEnd?.();
-    try {
-      const voiceId = opts.elevenVoiceId?.trim() || "21m00Tcm4TlvDq8ikWAM";
-      const res = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
-        {
-          method: "POST",
-          headers: { "xi-api-key": opts.elevenKey, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: clean,
-            model_id: "eleven_v3",
-            voice_settings: { stability: 0.35, similarity_boost: 0.8, style: 0.55 },
-          }),
-        },
-      );
-      if (res.ok) {
-        const blob = await res.blob();
-        if (session !== speakSession) return;
-        const audio = new Audio(URL.createObjectURL(blob));
-        currentAudio = audio;
-        audio.onplay = () => onStart?.();
-        audio.onended = () => {
-          URL.revokeObjectURL(audio.src);
-          if (session === speakSession) onEnd?.();
-        };
-        audio.onerror = () => onEnd?.();
-        await audio.play();
-        return;
-      }
-      // fall through to device TTS on API error (bad key, quota…)
-    } catch {
-      /* network issue → device fallback */
+  // ── cloud tiers ──
+  // Sarvam bulbul is the Hinglish champion → primary when its key exists.
+  // ElevenLabs v3 is the emotion champion → takes over when the reply
+  // carries audio tags ([laughs] etc.), or when it's the only cloud key.
+  const cloudText = stripForCloud(text);
+  if (cloudText) {
+    const preferEleven = Boolean(opts.elevenKey) && (hasAudioTags(text) || !opts.sarvamKey);
+    const tries: Array<() => Promise<Blob | null>> = [];
+    if (preferEleven) {
+      tries.push(() => elevenFetch(cloudText, opts));
+      if (opts.sarvamKey) tries.push(() => sarvamFetch(stripForDevice(text), opts));
+    } else if (opts.sarvamKey) {
+      tries.push(() => sarvamFetch(stripForDevice(text), opts));
+      if (opts.elevenKey) tries.push(() => elevenFetch(cloudText, opts));
     }
+    for (const attempt of tries) {
+      const blob = await attempt();
+      if (blob) {
+        previousSpokenText = cloudText;
+        const ok = await playBlob(blob, session, onStart, onEnd);
+        if (ok) return;
+      }
+    }
+    // all cloud attempts failed → device fallback below
   }
 
   // ── tier 2: device TTS, humanized ──
@@ -181,11 +271,12 @@ export async function speak(
       }
       for (const p of phrases) {
         if (session !== speakSession) return;
+        const { rate, pitch } = prosody(p.t);
         await TextToSpeech.speak({
           text: p.t,
-          lang: "en-IN",
-          rate: 0.93 + Math.random() * 0.09,
-          pitch: 1.08 + Math.random() * 0.05,
+          lang: /[ऀ-ॿ]/.test(p.t) ? "hi-IN" : "en-IN",
+          rate,
+          pitch,
           volume: 1.0,
           ...(voiceIndex !== undefined ? { voice: voiceIndex } : {}),
           category: "playback",
@@ -214,8 +305,9 @@ export async function speak(
       const u = new SpeechSynthesisUtterance(p.t);
       const v = chosenWeb ?? pickWebVoice();
       if (v) u.voice = v;
-      u.rate = 0.93 + Math.random() * 0.09;
-      u.pitch = 1.08 + Math.random() * 0.05;
+      const { rate, pitch } = prosody(p.t);
+      u.rate = rate;
+      u.pitch = pitch;
       u.onend = () => resolve();
       u.onerror = () => resolve();
       synth.speak(u);
@@ -223,6 +315,30 @@ export async function speak(
     if (p.pause > 0) await sleep(p.pause);
   }
   if (session === speakSession) onEnd?.();
+}
+
+/* ── backchannels: humans respond within ~200ms; while her real reply
+   renders, an instant "Hmm?" / "Haan…" keeps the rhythm alive ── */
+
+const backchannelClips: Blob[] = [];
+const BACKCHANNELS = ["Hmm?", "Haan...", "Acha...", "Mmm."];
+
+export async function prefetchBackchannels(opts: VoiceOpts) {
+  if (backchannelClips.length || (!opts.sarvamKey && !opts.elevenKey)) return;
+  for (const b of BACKCHANNELS) {
+    const blob = opts.sarvamKey
+      ? await sarvamFetch(b, opts)
+      : await elevenFetch(b, opts);
+    if (blob) backchannelClips.push(blob);
+  }
+}
+
+export function playBackchannel() {
+  if (!backchannelClips.length) return;
+  const blob = backchannelClips[Math.floor(Math.random() * backchannelClips.length)];
+  const a = new Audio(URL.createObjectURL(blob));
+  a.onended = () => URL.revokeObjectURL(a.src);
+  a.play().catch(() => {});
 }
 
 export function stopSpeaking() {

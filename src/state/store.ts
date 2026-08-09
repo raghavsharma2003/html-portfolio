@@ -17,8 +17,9 @@ export interface AppState {
   user: UserProfile;
   messages: Message[];
   apiKey: string; // Claude API key — pasted later by the owner in Settings
-  elevenKey: string; // ElevenLabs key — unlocks her human voice
-  elevenVoiceId: string; // ElevenLabs voice id (pick an Indian female voice)
+  elevenKey: string; // ElevenLabs key — expressive voice (laughs, whispers)
+  elevenVoiceId: string; // ElevenLabs voice id (default: Monika Sogam, Hindi)
+  sarvamKey: string; // Sarvam AI key — best Hinglish voice (bulbul:v3)
   deviceVoice: string; // preferred on-device TTS voice (fallback tier)
   lastSeen: number;
 }
@@ -32,6 +33,7 @@ export const defaultState: AppState = {
   apiKey: "",
   elevenKey: "",
   elevenVoiceId: "",
+  sarvamKey: "",
   deviceVoice: "",
   lastSeen: Date.now(),
 };
