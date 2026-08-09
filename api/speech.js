@@ -63,9 +63,10 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           model: MODEL,
           // Gemini TTS takes natural-language delivery direction in the input.
-          // Base identity stays constant; the MOOD comes from the conversation
-          // itself so her delivery follows the emotional flow of the call.
-          input: `Speak as a 24-year-old Indian woman from Mumbai on a phone call with a close friend. Warm, approachable, attentive — the kind of voice that makes you feel comfortable and genuinely heard. Natural young Indian accent, effortless Hinglish code-switching, real conversational pacing, softly expressive. Never aggressive, never performative, never a radio host. Do not laugh, giggle or add sounds unless the words themselves are laughter. Her mood right now: ${mood}. Say: ${text.slice(0, 1100)}`,
+          // Kept SHORT — direction length adds real latency (~0.6s measured
+          // between a full paragraph and none). Identity constant; the mood
+          // comes from the conversation so delivery follows the call's flow.
+          input: `Warm 24-year-old Mumbai woman on a casual phone call with a close friend: natural Indian accent, easy Hinglish, real pacing, never performative, no laughs unless the words are laughter. Mood: ${mood}. Say: ${text.slice(0, 1100)}`,
           voice: ALLOWED_VOICES.has(voice) ? voice : DEFAULT_VOICE,
           response_format: "pcm",
         }),

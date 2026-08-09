@@ -21,20 +21,23 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
   const [showKb, setShowKb] = useState(false);
   const [bars, setBars] = useState<number[]>(Array(24).fill(8));
 
+  const hearing = Boolean(eng.heard); // her mic is picking up YOUR voice
   useEffect(() => {
     const iv = setInterval(() => {
       setBars((b) =>
         b.map(() =>
           eng.speaking
             ? 6 + Math.random() * 30
-            : eng.listening
-              ? 5 + Math.random() * 14
-              : 5 + Math.random() * 4,
+            : hearing
+              ? 8 + Math.random() * 26 // your words visibly move the line
+              : eng.listening
+                ? 5 + Math.random() * 12
+                : 5 + Math.random() * 4,
         ),
       );
     }, 120);
     return () => clearInterval(iv);
-  }, [eng.speaking, eng.listening]);
+  }, [eng.speaking, eng.listening, hearing]);
 
   const stateLabel =
     eng.phase === "connecting"
@@ -43,9 +46,13 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
         ? "mic off · " + eng.mmss
         : eng.speaking
           ? "speaking"
-          : eng.listening
-            ? "listening…"
-            : eng.mmss;
+          : hearing
+            ? "sun rahi hu…" // live proof she's hearing you
+            : eng.thinking
+              ? "hmm…"
+              : eng.listening
+                ? "listening…"
+                : eng.mmss;
 
   return (
     <div className="call">

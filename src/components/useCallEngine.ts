@@ -37,6 +37,7 @@ export function useCallEngine(
   const [phase, setPhase] = useState<CallPhase>("connecting");
   const [speaking, setSpeaking] = useState(false);
   const [listening, setListening] = useState(false);
+  const [thinking, setThinking] = useState(false);
   const [muted, setMuted] = useState(false);
   const [heard, setHeard] = useState("");
   const [sttSupported, setSttSupported] = useState(true);
@@ -55,6 +56,12 @@ export function useCallEngine(
   const acc = useRef({ finals: "", interim: "", lastAt: 0 });
   const ducked = useRef(false);
   const interrupted = useRef(false);
+  // turn sequencing: if they resume speaking while she's still THINKING
+  // (hasn't spoken yet), the in-flight reply is stale — discard it and let
+  // the fresh, fuller utterance drive a new one. This is how humans handle
+  // "wait, and also—": the listener re-plans instead of talking over you.
+  const turnSeq = useRef(0);
+  const lastHeardAt = useRef(0);
   const reengageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlapStart = useRef(0); // when user speech over her speech began
   const reengaged = useRef(0); // continuation nudges this silence stretch
@@ -223,6 +230,10 @@ export function useCallEngine(
       // herself (twice per stretch, then lets it breathe)
       if (!alive.current || speakingRef.current || thinkingRef.current || mutedRef.current) return;
       if (reengaged.current >= 2) return;
+      // if we heard ANYTHING from them recently (even sub-threshold speech
+      // the recognizer is still chewing on), don't talk over it
+      if (Date.now() - lastHeardAt.current < 6000) return;
+      if (acc.current.lastAt && Date.now() - acc.current.lastAt < 4000) return;
       reengaged.current += 1;
       const reply = await think(
         state.user,
@@ -256,6 +267,7 @@ export function useCallEngine(
     const web = !Capacitor.isNativePlatform();
     const res = listen(
       (text, final) => {
+        lastHeardAt.current = Date.now();
         if (reengageTimer.current) clearTimeout(reengageTimer.current);
         if (speakingRef.current) {
           // overlap is NORMAL in human calls — she talks through noise and
@@ -350,9 +362,9 @@ export function useCallEngine(
   async function handleUser(text: string) {
     if (!alive.current || !text.trim()) return;
     reengaged.current = 0; // they spoke — silence counter resets
-    stopListen.current?.();
-    listeningRef.current = false;
-    setListening(false);
+    const seq = ++turnSeq.current;
+    // mic STAYS HOT while she thinks — if they keep talking, the fresh
+    // speech accumulates, commits, and this in-flight turn goes stale
     setHeard("");
     const mine: Message = {
       id: uid(),
@@ -367,9 +379,17 @@ export function useCallEngine(
     // a human doesn't make a sound after every single turn
     if (text.split(/\s+/).length >= 8 && Math.random() < 0.4) playBackchannel();
     thinkingRef.current = true;
-    // still silent after ~4s? hold the floor with a sound, not silence
+    setThinking(true);
+    // still silent after ~4s? hold the floor with a sound, not silence —
+    // but never over the user actively talking
     setTimeout(() => {
-      if (thinkingRef.current && alive.current && !speakingRef.current) playThinkingFiller();
+      if (
+        thinkingRef.current &&
+        alive.current &&
+        !speakingRef.current &&
+        Date.now() - lastHeardAt.current > 1500
+      )
+        playThinkingFiller();
     }, 4000);
     const wasInterrupt = interrupted.current;
     interrupted.current = false;
@@ -405,7 +425,7 @@ export function useCallEngine(
       );
     };
     const onDelta = (delta: string) => {
-      if (!alive.current) return;
+      if (!alive.current || seq !== turnSeq.current) return;
       if (firstDelta) {
         firstDelta = false;
         herWordsRef.current = new Set(); // fresh echo set for this utterance
@@ -451,9 +471,25 @@ export function useCallEngine(
       onDelta,
     );
     thinkingRef.current = false;
+    setThinking(false);
     if (!alive.current) return;
-    mergeLearned(reply.learned);
     const spoken = reply.bubbles.join(" ");
+    if (seq !== turnSeq.current) {
+      // stale: they kept talking and a fresher turn took over. If she had
+      // already started saying this, keep it in her memory of the call.
+      if (speaker && (speaker as StreamSpeaker).started()) {
+        log({
+          id: uid(),
+          from: "her",
+          kind: "text",
+          channel: "call",
+          text: spoken.replace(/\[[a-z ]+\]/gi, "").trim(),
+          at: Date.now(),
+        });
+      }
+      return;
+    }
+    mergeLearned(reply.learned);
     log({
       id: uid(),
       from: "her",
@@ -491,6 +527,7 @@ export function useCallEngine(
     phase,
     speaking,
     listening,
+    thinking,
     muted,
     toggleMute,
     heard,

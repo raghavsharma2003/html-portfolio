@@ -90,6 +90,13 @@ function parseBubbles(raw: string): HeartReply {
     // formatting ("Bubble 1:", "separators.", instruction bullets). None of
     // that is conversation — strip labels, drop pure scaffolding.
     p = p.replace(/^bubble\s*\d+\s*:\s*/i, "").trim();
+    // she must never echo the system's own history metadata: clock stamps
+    // ("[12:35 am]"), gap markers ("[2 hours later, …]"), medium markers
+    p = p
+      .replace(/^\[\d{1,2}:\d{2}\s*(?:am|pm)?\]\s*/i, "")
+      .replace(/^\[\d+\s*(?:minutes?|hours?|days?)\s+later[^\]]*\]\s*/i, "")
+      .replace(/^\[(?:a voice call starts|the call ended[^\]]*)\]\s*/i, "")
+      .trim();
     if (!p) continue;
     if (/^(bubble\s*\d*\s*[:.]?|separators?\.?|styling with.*|formats?[:.]?|protocols?[:.]?|\(.*protocol.*\)|response[:.]?|reply[:.]?)$/i.test(p)) continue;
     if (/^-\s+[A-Z]/.test(p)) continue; // leaked "- Keep it short..." style bullet

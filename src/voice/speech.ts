@@ -504,6 +504,35 @@ async function fetchClipFor(
   return meeraFetch(text, style);
 }
 
+// Hedged fetch for the FIRST clip of a reply — the one the user is waiting
+// on in silence. If the primary request is slow (upstream variance), a
+// second identical request starts and whichever finishes first wins.
+function hedgedClipFor(text: string, opts: VoiceOpts, style?: string): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let pending = 1;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const settle = (b: Blob | null) => {
+      if (settled) return;
+      if (b) {
+        settled = true;
+        if (timer) clearTimeout(timer);
+        resolve(b);
+      } else if (--pending <= 0) {
+        settled = true;
+        if (timer) clearTimeout(timer);
+        resolve(null);
+      }
+    };
+    fetchClipFor(text, opts, style).then(settle, () => settle(null));
+    timer = setTimeout(() => {
+      if (settled) return;
+      pending++;
+      fetchClipFor(text, opts, style).then(settle, () => settle(null));
+    }, 2400);
+  });
+}
+
 // Speak a call reply with phrase pipelining. Returns via onEnd; a bumped
 // speakSession (stopSpeaking / barge-in) aborts everything mid-flight.
 export async function speakCall(
@@ -518,8 +547,8 @@ export async function speakCall(
   if (!clean) return onEnd?.();
   const phrases = splitPhrases(clean);
 
-  // pipeline: kick off fetch N+1 while N plays
-  const fetches: Array<Promise<Blob | null>> = [fetchClipFor(phrases[0], opts, style)];
+  // pipeline: kick off fetch N+1 while N plays; the first clip is hedged
+  const fetches: Array<Promise<Blob | null>> = [hedgedClipFor(phrases[0], opts, style)];
   let started = false;
   for (let i = 0; i < phrases.length; i++) {
     if (session !== speakSession) return;
@@ -573,7 +602,12 @@ export function createStreamSpeaker(
     const clean = stripForCloud(phrase);
     if (!clean) return;
     allText += (allText ? " " : "") + clean;
-    queue.push(fetchClipFor(clean, opts, style)); // fetch starts NOW
+    // fetch starts NOW; the first clip (the one awaited in silence) is hedged
+    queue.push(
+      queue.length === 0 && !started
+        ? hedgedClipFor(clean, opts, style)
+        : fetchClipFor(clean, opts, style),
+    );
     void pump();
   };
 
@@ -615,6 +649,18 @@ export function createStreamSpeaker(
     // phrase goes out at the first boundary for fastest onset, later ones
     // merge up to ~110 chars so we don't spray tiny TTS requests
     for (;;) {
+      // fastest onset: if the FIRST sentence is running long, don't wait for
+      // its period — cut at a comma/space once enough words exist
+      if (!firstOut && buf.length >= 48 && !/[.!?…]/.test(buf)) {
+        const head = buf.slice(0, 48);
+        const at = Math.max(head.lastIndexOf(","), head.lastIndexOf(" "));
+        if (at > 24) {
+          emit(buf.slice(0, at + 1).trim());
+          buf = buf.slice(at + 1);
+          firstOut = true;
+          continue;
+        }
+      }
       const m = buf.match(/[.!?…]+["')]*\s/);
       if (!m || m.index === undefined) return;
       const end = m.index + m[0].length;
