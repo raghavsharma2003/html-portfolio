@@ -772,6 +772,32 @@ export function playThinkingFiller() {
   }
 }
 
+// Deterministic acknowledgment — "I heard you" — played when her reply is
+// taking a beat. ALWAYS fires (rotating clip) so the user is never left
+// wondering whether she listened; this is the audio version of read-ticks.
+let lastAckIdx = -1;
+export function playAck() {
+  if (!backchannelClips.length) return;
+  lastAckIdx = (lastAckIdx + 1) % backchannelClips.length;
+  const blob = backchannelClips[lastAckIdx];
+  if (audioCtx && audioCtx.state === "running") {
+    blob
+      .arrayBuffer()
+      .then((d) => audioCtx!.decodeAudioData(d))
+      .then((buf) => {
+        const src = audioCtx!.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx!.destination);
+        src.start(0);
+      })
+      .catch(() => {});
+    return;
+  }
+  const a = new Audio(URL.createObjectURL(blob));
+  a.onended = () => URL.revokeObjectURL(a.src);
+  a.play().catch(() => {});
+}
+
 export function playBackchannel() {
   if (!backchannelClips.length) return;
   const blob = backchannelClips[Math.floor(Math.random() * backchannelClips.length)];

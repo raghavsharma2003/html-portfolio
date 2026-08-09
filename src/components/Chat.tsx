@@ -11,6 +11,8 @@ import { track } from "../engine/account";
 import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
 import PhotoCard from "./PhotoCard";
+import StoryView from "./StoryView";
+import { activeStories, hasUnseenStory } from "../engine/storyCatalog";
 import BigEmoji, { isSingleEmoji } from "./BigEmoji";
 import VoiceNote, { registerLocalClip } from "./VoiceNote";
 import GifBubble from "./GifBubble";
@@ -74,6 +76,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   // chat generation — bumped by clear-chat so an in-flight reply from the
   // old conversation can never ghost into the fresh one
   const epoch = useRef(0);
+  // her daily story (insta-style) — viewer open state; ring refreshes on close
+  const [storyOpen, setStoryOpen] = useState(false);
   const inCallRef = useRef(false);
   inCallRef.current = Boolean(inCall);
   // WhatsApp-style quote-reply: tap a bubble → reply chip → quoted compose
@@ -789,15 +793,29 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     }
   }
 
+  const stories = activeStories();
+  const storyLive = stories.length > 0;
+  const storyUnseen = hasUnseenStory();
+
   return (
     <div className="chat">
       <div className="chat-head">
         <div
-          className="avatar-ring"
+          className={`avatar-ring ${storyLive ? (storyUnseen ? "story-live" : "story-seen") : ""}`}
           style={{ width: 48, height: 48, padding: 2.5, animationDuration: "20s" }}
-          onClick={onProfile}
+          onClick={() => {
+            // insta mechanics: an active story opens from the avatar; the
+            // account sheet stays reachable via ⋯ inside the viewer (and
+            // directly here when no story is live)
+            if (storyLive) {
+              setStoryOpen(true);
+              track(state.deviceId, "story_open", { unseen: storyUnseen }, state.auth?.userId);
+            } else {
+              onProfile();
+            }
+          }}
           role="button"
-          aria-label="Account"
+          aria-label={storyLive ? "View her story" : "Account"}
         >
           <div className="inner" style={{ animationDuration: "20s" }}>
             <PhotoAvatar size={43} />
@@ -856,6 +874,21 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         <div style={{ height: 6 }} />
       </div>
 
+      {storyOpen && (
+        <StoryView
+          stories={stories}
+          signedIn={Boolean(state.auth)}
+          onSignIn={() => {
+            setStoryOpen(false);
+            onProfile();
+          }}
+          onClose={() => setStoryOpen(false)}
+          onProfile={() => {
+            setStoryOpen(false);
+            onProfile();
+          }}
+        />
+      )}
       {notice && <div className="chat-notice">{notice}</div>}
       {replyTo && (
         <div className="reply-bar">

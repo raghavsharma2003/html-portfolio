@@ -19,7 +19,7 @@ import {
   stopSpeaking,
   listen,
   prefetchBackchannels,
-  playBackchannel,
+  playAck,
   playThinkingFiller,
   startRoomTone,
   stopRoomTone,
@@ -125,22 +125,22 @@ export function useCallEngine(
     recallMemories(state.deviceId, recent).then((m) => {
       recallRef.current = m || "";
     });
+    // she improvises her own phone pickup — nothing scripted. The brain call
+    // starts NOW, in parallel with the "ringing" beat, so pickup is instant.
+    const greetPromise = think(
+      state.user,
+      brainKeys(),
+      state.messages,
+      CALL_OPEN_DIRECTIVE(),
+      "call",
+      engine,
+      true,
+    );
     const t = setTimeout(async () => {
       if (!alive.current) return;
       setPhase("live");
       startRoomTone(); // real lines are never digitally silent
-      // she improvises her own phone pickup — nothing scripted
-      const reply = await think(
-        state.user,
-        brainKeys(),
-        state.messages,
-        CALL_OPEN_DIRECTIVE(),
-        "call",
-        engine,
-        true,
-        undefined,
-        recallRef.current,
-      );
+      const reply = await greetPromise;
       if (!alive.current) return;
       const greet = reply.bubbles.join(" ").trim() || "hello?";
       log({
@@ -459,9 +459,18 @@ export function useCallEngine(
       at: Date.now(),
     };
     log(mine);
-    // a soft listener sound SOMETIMES, only after they said something long —
-    // a human doesn't make a sound after every single turn
-    if (text.split(/\s+/).length >= 8 && Math.random() < 0.4) playBackchannel();
+    // GUARANTEED acknowledgment: if her reply hasn't started speaking within
+    // ~1.1s, a soft "hmm/haan" tells them she heard — the audio equivalent
+    // of read-ticks. Deterministic, once per turn, never layered over speech.
+    setTimeout(() => {
+      if (
+        thinkingRef.current &&
+        alive.current &&
+        !speakingRef.current &&
+        seq === turnSeq.current
+      )
+        playAck();
+    }, 1100);
     thinkingRef.current = true;
     setThinking(true);
     // still silent after ~4s? hold the floor with a sound, not silence —

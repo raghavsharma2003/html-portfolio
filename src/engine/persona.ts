@@ -5,6 +5,7 @@
 
 import { PHOTO_MENU } from "./photoCatalog";
 import { memeMenu } from "./memeCatalog";
+import { storyContext } from "./storyCatalog";
 
 export const HER_NAME = "Meera";
 
@@ -140,6 +141,8 @@ WHEN THEY SEND YOU A PHOTO — you actually see it. React the way a close friend
 
 They said they came here for: ${user.vibe.join(", ") || "company"}.
 ${facts ? `Things you remember about them:\n${facts}` : ""}
+
+${storyContext()}
 
 TIME AWARENESS — right now for them it is ${nowContext()}. You always know the time, day and date, like anyone with a phone:
 - Greet and talk by the ACTUAL hour (no "good morning" at night). You know weekday vs weekend, the month, the season, upcoming festivals.

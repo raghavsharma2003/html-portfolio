@@ -1265,3 +1265,126 @@ button {
   font-size: 12.5px;
   margin-top: 2px;
 }
+
+/* ─── Her story (insta-style) ─── */
+
+/* live unseen story: vivid rose→amber ring; seen: quiet grey ring */
+.avatar-ring.story-live {
+  background: conic-gradient(from 210deg, #e0356b, #f77737, #fcaf45, #e0356b) !important;
+  animation: none;
+}
+.avatar-ring.story-seen {
+  background: var(--hairline-strong) !important;
+  animation: none;
+}
+.avatar-ring.story-live > .inner,
+.avatar-ring.story-seen > .inner {
+  animation: none;
+}
+
+.story-view {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: story-in 0.22s ease;
+  user-select: none;
+  touch-action: none;
+}
+@keyframes story-in {
+  from { opacity: 0; transform: scale(1.04); }
+}
+.story-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.story-bars {
+  position: absolute;
+  top: calc(var(--safe-top) + 10px);
+  left: 10px;
+  right: 10px;
+  display: flex;
+  gap: 5px;
+  z-index: 2;
+}
+.story-bar {
+  flex: 1;
+  height: 2.5px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.32);
+  overflow: hidden;
+}
+.story-bar i {
+  display: block;
+  height: 100%;
+  background: #fff;
+  border-radius: 2px;
+}
+.story-head {
+  position: absolute;
+  top: calc(var(--safe-top) + 22px);
+  left: 12px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 2;
+  color: #fff;
+}
+.story-name {
+  font-weight: 600;
+  font-size: 15px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+}
+.story-age {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.story-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 19px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+}
+.story-spin {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  animation: vspin 0.8s linear infinite;
+}
+
+.story-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(14px);
+  animation: story-in 0.2s ease;
+}
+.story-gate p {
+  color: #fff;
+  font-size: 21px;
+  font-weight: 600;
+}
+.story-skip {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14.5px;
+  padding: 8px 16px;
+}

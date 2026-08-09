@@ -112,11 +112,31 @@ export const defaultState: AppState = {
   lastSeen: Date.now(),
 };
 
+// repair messages stored by older builds: annotation text that should have
+// been a real gif, and leaked clock stamps — they live in localStorage
+// forever unless fixed here
+function migrateMessages(messages: Message[]): Message[] {
+  return messages
+    .map((m) => {
+      if (m.kind !== "text" || m.from !== "her") return m;
+      const gm = m.text.match(/^\[sent a meme gif:\s*([^\]]+)\]$/i);
+      if (gm) return { ...m, kind: "gif" as const, text: gm[1].trim(), gifUrl: undefined };
+      const stripped = m.text
+        .replace(/\[\d{1,2}:\d{2}\s*(?:am|pm)?\]/gi, "")
+        .replace(/\[\s*(?:tone|followup|sent a meme gif|shared a photo)\s*:[^\]]*\]?/gi, "")
+        .trim();
+      return stripped !== m.text ? { ...m, text: stripped } : m;
+    })
+    .filter((m) => m.kind !== "text" || m.text);
+}
+
 export function loadState(): AppState {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { ...defaultState };
-    return { ...defaultState, ...JSON.parse(raw) };
+    const parsed = { ...defaultState, ...JSON.parse(raw) };
+    parsed.messages = migrateMessages(parsed.messages);
+    return parsed;
   } catch {
     return { ...defaultState };
   }

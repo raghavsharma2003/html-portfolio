@@ -67,7 +67,8 @@ export default function Onboarding({ onDone }: Props) {
                 }}
               >
                 {HER_NAME} is an AI companion — beautifully human in how she
-                talks, always honest about what she is.
+                talks, always honest about what she is. For adults 18+ only.
+                By continuing you confirm you're 18 or older.
               </p>
             </motion.div>
           )}

@@ -60,6 +60,47 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── silent auto-update ──
+  // A long-lived tab keeps running old code after a deploy (that's how bug
+  // fixes "don't arrive"). Poll the served HTML for the current bundle hash;
+  // when it changes, reload the moment it can't interrupt anything.
+  const inCallRef = useRef(false);
+  inCallRef.current = inCall;
+  useEffect(() => {
+    const current = document.querySelector<HTMLScriptElement>("script[src*='assets/index-']")?.src;
+    if (!current) return;
+    let pending = false;
+    const maybeReload = () => {
+      if (pending && document.hidden && !inCallRef.current) location.reload();
+    };
+    const check = async () => {
+      try {
+        const html = await fetch(`${location.pathname}?u=${Date.now()}`, { cache: "no-store" }).then(
+          (r) => r.text(),
+        );
+        const m = html.match(/assets\/index-[^"]+\.js/);
+        if (m && !current.endsWith(m[0].split("/").pop() as string)) {
+          pending = true;
+          maybeReload();
+        }
+      } catch {
+        /* offline — try next round */
+      }
+    };
+    const iv = setInterval(check, 15 * 60_000);
+    const onVis = () => {
+      if (document.hidden) maybeReload();
+      else check();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    check();
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const authFailed = (e: unknown) => {
     if (!isAuthDead(e)) return false;
     // token revoked/expired — say so via signed-out UI instead of silently
