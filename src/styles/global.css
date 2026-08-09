@@ -733,6 +733,20 @@ button {
   font-size: 15px;
   color: var(--ink);
 }
+/* photos the user sends: same card, right-aligned, ticks under the image */
+.msg.me.photo {
+  align-self: flex-end;
+}
+.msg.me.photo .t {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 3px 8px 2px;
+  font-size: 11px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
 
 .typing-bubble {
   align-self: flex-start;
@@ -774,8 +788,23 @@ button {
   border-radius: 22px;
   border: 1px solid var(--hairline-strong);
   background: var(--surface);
-  padding: 2px 6px 2px 18px;
+  padding: 2px 6px 2px 10px;
   transition: border-color 0.15s;
+}
+.attach-btn {
+  width: 34px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  flex-shrink: 0;
+  margin-right: 2px;
+  transition: color 0.15s, transform 0.15s;
+}
+.attach-btn:active {
+  transform: scale(0.88);
+  color: var(--accent);
 }
 .chat-input:focus-within {
   border-color: var(--accent);

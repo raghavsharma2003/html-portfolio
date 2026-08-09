@@ -6,7 +6,7 @@ import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think } from "../engine/brain";
 import { HER_NAME, OPEN_DIRECTIVE, NUDGE_DIRECTIVE, FOLLOWUP_DIRECTIVE } from "../engine/persona";
-import { logTurns, rememberFrom } from "../engine/memory";
+import { logTurns, rememberFrom, uploadPhoto, describePhoto } from "../engine/memory";
 import { track } from "../engine/account";
 import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
@@ -15,7 +15,7 @@ import BigEmoji, { isSingleEmoji } from "./BigEmoji";
 import VoiceNote, { registerLocalClip } from "./VoiceNote";
 import GifBubble from "./GifBubble";
 import { listen, sttSupported } from "../voice/speech";
-import { PhoneIcon, SendIcon, BroomIcon, TickIcon, MicIcon } from "./icons";
+import { PhoneIcon, SendIcon, BroomIcon, TickIcon, MicIcon, CameraIcon } from "./icons";
 
 interface Props {
   state: AppState;
@@ -303,6 +303,91 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
     }
   }
 
+  // ── sending HER a photo (camera or gallery): compress client-side, show
+  // instantly, upload to storage, then she looks at the actual image with
+  // the whole conversation as context ──
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function compressImage(file: File): Promise<{ dataUrl: string; b64: string } | null> {
+    try {
+      const src = URL.createObjectURL(file);
+      const img = new Image();
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej();
+        img.src = src;
+      });
+      const scale = Math.min(1, 1024 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * scale));
+      c.height = Math.max(1, Math.round(img.height * scale));
+      c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(src);
+      const dataUrl = c.toDataURL("image/jpeg", 0.82);
+      return { dataUrl, b64: dataUrl.split(",")[1] || "" };
+    } catch {
+      return null;
+    }
+  }
+
+  async function sendPhoto(file: File) {
+    if (busy.current) return;
+    const packed = await compressImage(file);
+    if (!packed || !packed.b64) return;
+    const caption = draft.trim();
+    setDraft("");
+    lastActivity.current = Date.now();
+    nudged.current = false;
+    const mine: Message = {
+      id: uid(),
+      from: "me",
+      kind: "photo",
+      text: caption,
+      photoUrl: packed.dataUrl, // instant local render; swapped after upload
+      at: Date.now(),
+      status: "sent",
+      ...(replyTo ? { replyTo: { from: replyTo.from, text: replyTo.text } } : {}),
+    };
+    setReplyTo(null);
+    if (state.followup) setState((s) => ({ ...s, followup: null }));
+    pushMsg(mine);
+    track(state.deviceId, "photo_shared", { caption: Boolean(caption) }, state.auth?.userId);
+    setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
+    // permanent copy in storage — the brain's vision reads this URL, and it
+    // survives across devices; on upload failure the data URL still works
+    const url = await uploadPhoto(state.deviceId, packed.b64, "image/jpeg");
+    const publicUrl = url || packed.dataUrl;
+    if (url) {
+      setState((s) => ({
+        ...s,
+        messages: s.messages.map((x) => (x.id === mine.id ? { ...x, photoUrl: url } : x)),
+      }));
+    }
+    const brainMine = { ...mine, photoUrl: publicUrl };
+    logTurns(state.deviceId, [
+      { ...mine, text: caption ? `[photo] ${caption}` : "[photo]" },
+    ]);
+    const reply = await think(
+      user,
+      brainKeys(),
+      [...messages, brainMine],
+      caption ? `[sent a photo] ${caption}` : "[sent a photo]",
+    );
+    mergeLearned(reply.learned);
+    await deliver(reply, caption || "photo");
+    // one factual line about the image → her long-term context (fire & forget)
+    if (url) {
+      describePhoto(state.deviceId, url).then((desc) => {
+        if (!desc) return;
+        setState((s) => ({
+          ...s,
+          messages: s.messages.map((x) => (x.id === mine.id ? { ...x, desc } : x)),
+        }));
+      });
+    }
+    sendCount.current += 1;
+  }
+
   // WhatsApp/Telegram swipe-to-reply, tuned to Telegram's source numbers:
   // 10px dead zone, ~3x direction lock, 48px trigger with re-armable haptic,
   // damped tracking past the trigger capped at 80px, 180ms decelerate
@@ -553,10 +638,21 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
       );
     } else if (m.kind === "photo") {
       rows.push(
-        <div key={m.id} className="msg her photo" {...swipeHandlers(m)}>
-          <PhotoCard seed={m.photoSeed || m.text} />
-          <div className="cap">{m.text}</div>
-        </div>,
+        m.from === "me" ? (
+          <div key={m.id} className="msg me photo" {...swipeHandlers(m)}>
+            {m.photoUrl && <img className="pimg" src={m.photoUrl} alt="" draggable={false} />}
+            {m.text && <div className="cap">{m.text}</div>}
+            <span className="t">
+              {fmtTime(m.at)}
+              <TickIcon status={m.status ?? "read"} />
+            </span>
+          </div>
+        ) : (
+          <div key={m.id} className="msg her photo" {...swipeHandlers(m)}>
+            <PhotoCard seed={m.photoSeed || m.text} />
+            <div className="cap">{m.text}</div>
+          </div>
+        ),
       );
     } else {
       const emojiOnly = isSingleEmoji(m.text);
@@ -704,6 +800,24 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
           </div>
         ) : (
           <div className="chat-input">
+            <button
+              className="attach-btn"
+              onClick={() => fileRef.current?.click()}
+              aria-label="Send a photo"
+            >
+              <CameraIcon size={21} />
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) sendPhoto(f);
+                e.target.value = "";
+              }}
+            />
             <textarea
               ref={inputRef}
               rows={1}

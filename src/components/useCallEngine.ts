@@ -14,6 +14,8 @@ import { uid } from "../state/store";
 import { think } from "../engine/brain";
 import {
   speakCall,
+  createStreamSpeaker,
+  type StreamSpeaker,
   stopSpeaking,
   listen,
   prefetchBackchannels,
@@ -46,6 +48,7 @@ export function useCallEngine(
   const elapsedRef = useRef(0);
   const listeningRef = useRef(false);
   const herWordsRef = useRef<Set<string>>(new Set()); // echo rejection
+  const herSpokeUntil = useRef(0); // tail-end echo guard after she stops
   const thinkingRef = useRef(false);
   // adaptive endpointing (web SR): we decide when the user's turn is over,
   // not the recognizer — LiveKit/pipecat-style, regex instead of a model
@@ -118,7 +121,7 @@ export function useCallEngine(
         text: greet.replace(/\[[a-z ]+\]/gi, "").trim(),
         at: Date.now(),
       });
-      sayAloud(greet);
+      sayAloud(greet, reply.tone);
     }, 1400 + Math.random() * 700);
     return () => {
       alive.current = false;
@@ -144,7 +147,7 @@ export function useCallEngine(
     return () => clearInterval(iv);
   }, [phase]);
 
-  function sayAloud(text: string) {
+  function sayAloud(text: string, tone?: string) {
     herWordsRef.current = new Set(
       text.toLowerCase().replace(/[^a-z\u0900-\u097F ]/gi, " ").split(/\s+/).filter(Boolean),
     );
@@ -159,12 +162,14 @@ export function useCallEngine(
       () => {
         speakingRef.current = false;
         setSpeaking(false);
+        herSpokeUntil.current = Date.now();
         if (alive.current) {
           startListening();
           armReengage(); // if they stay quiet ~8s, one soft "hmm?"
         }
       },
       voiceOpts,
+      tone,
     );
   }
 
@@ -189,9 +194,9 @@ export function useCallEngine(
 
   function commitDelay(t: string): number {
     const trimmed = t.trim().toLowerCase();
-    if (SHORT_COMPLETE.test(trimmed) || /\?$/.test(trimmed)) return 550;
-    if (CONTINUATION.test(trimmed)) return 2200;
-    return 1000;
+    if (SHORT_COMPLETE.test(trimmed) || /\?$/.test(trimmed)) return 450;
+    if (CONTINUATION.test(trimmed)) return 1900;
+    return 850;
   }
 
   // 150ms endpointing tick (web SR only — native STT endpoints itself)
@@ -202,7 +207,7 @@ export function useCallEngine(
       const text = (a.finals + " " + a.interim).trim();
       if (!text || !a.lastAt || speakingRef.current) return;
       const waited = Date.now() - a.lastAt;
-      if (waited >= Math.min(3000, commitDelay(text))) {
+      if (waited >= Math.min(2600, commitDelay(text))) {
         acc.current = { finals: "", interim: "", lastAt: 0 };
         handleUser(text);
       }
@@ -239,7 +244,7 @@ export function useCallEngine(
           text: line.replace(/\[[a-z ]+\]/gi, "").trim(),
           at: Date.now(),
         });
-        sayAloud(line);
+        sayAloud(line, reply.tone);
       }
     }, 7000);
   }
@@ -280,6 +285,18 @@ export function useCallEngine(
           }
         }
         overlapStart.current = 0;
+        // tail-end echo guard: for ~1.2s after she stops, her last words can
+        // still leak from the speaker into the mic — not the user talking
+        if (
+          Date.now() - herSpokeUntil.current < 1200 &&
+          !speakingRef.current
+        ) {
+          const ws = text.toLowerCase().replace(/[^a-zऀ-ॿ ]/gi, " ").split(/\s+/).filter(Boolean);
+          const overlap = ws.length
+            ? ws.filter((w) => herWordsRef.current.has(w)).length / ws.length
+            : 0;
+          if (overlap >= 0.6) return;
+        }
         setHeard(text);
         if (web) {
           // accumulate; the endpointing tick decides when the turn is over
@@ -346,18 +363,83 @@ export function useCallEngine(
       at: Date.now(),
     };
     log(mine);
-    // human turn-taking norm is ~0-200ms — bridge the think+render gap
-    playBackchannel();
+    // a soft listener sound SOMETIMES, only after they said something long —
+    // a human doesn't make a sound after every single turn
+    if (text.split(/\s+/).length >= 8 && Math.random() < 0.4) playBackchannel();
     thinkingRef.current = true;
-    // still thinking after ~2.5s? hold the floor with a sound, not silence
+    // still silent after ~4s? hold the floor with a sound, not silence
     setTimeout(() => {
       if (thinkingRef.current && alive.current && !speakingRef.current) playThinkingFiller();
-    }, 2500);
+    }, 4000);
     const wasInterrupt = interrupted.current;
     interrupted.current = false;
     const brainMine = wasInterrupt
       ? { ...mine, text: `[interrupting you mid-sentence] ${text}` }
       : mine;
+
+    // ── streaming speech: the [tone: …] marker is buffered off the head of
+    // the token stream, then she starts SPEAKING at the first sentence
+    // boundary while the rest of the reply is still generating ──
+    let speaker: StreamSpeaker | null = null;
+    let head = "";
+    let headDone = false;
+    let firstDelta = true;
+    const startSpeaker = (tone: string) => {
+      speaker = createStreamSpeaker(
+        voiceOpts,
+        tone || undefined,
+        () => {
+          speakingRef.current = true;
+          setSpeaking(true);
+          if (alive.current) startListening();
+        },
+        () => {
+          speakingRef.current = false;
+          setSpeaking(false);
+          herSpokeUntil.current = Date.now();
+          if (alive.current) {
+            startListening();
+            armReengage();
+          }
+        },
+      );
+    };
+    const onDelta = (delta: string) => {
+      if (!alive.current) return;
+      if (firstDelta) {
+        firstDelta = false;
+        herWordsRef.current = new Set(); // fresh echo set for this utterance
+      }
+      for (const w of delta.toLowerCase().replace(/[^a-zऀ-ॿ ]/gi, " ").split(/\s+/))
+        if (w) herWordsRef.current.add(w);
+      if (headDone) {
+        speaker?.push(delta);
+        return;
+      }
+      head += delta;
+      const m = head.match(/^\s*\[tone:\s*([^\]]*)\]\s*/i);
+      if (m) {
+        headDone = true;
+        startSpeaker(m[1].trim());
+        const rest = head.slice(m[0].length);
+        if (rest) speaker!.push(rest);
+        return;
+      }
+      const t = head.trimStart().toLowerCase();
+      const maybeMarker = t.length < 6 ? "[tone:".startsWith(t) : t.startsWith("[tone:");
+      if (t && !maybeMarker) {
+        // no marker coming — speak from the top
+        headDone = true;
+        startSpeaker("");
+        speaker!.push(head);
+      } else if (head.length > 90) {
+        // marker never closed — strip it leniently and speak the rest
+        headDone = true;
+        startSpeaker("");
+        speaker!.push(head.replace(/^\s*\[tone:\s*[^\]]*\]?\s*/i, ""));
+      }
+    };
+
     const reply = await think(
       state.user,
       brainKeys(),
@@ -365,6 +447,8 @@ export function useCallEngine(
       text,
       "call",
       engine,
+      false,
+      onDelta,
     );
     thinkingRef.current = false;
     if (!alive.current) return;
@@ -378,7 +462,11 @@ export function useCallEngine(
       text: spoken.replace(/\[[a-z ]+\]/gi, "").trim(),
       at: Date.now(),
     });
-    sayAloud(spoken);
+    if (speaker && headDone) {
+      (speaker as StreamSpeaker).finish(); // stream spoke — flush the tail
+    } else {
+      sayAloud(spoken, reply.tone); // non-streaming path (fallbacks)
+    }
   }
 
   function endCall(onEnd: () => void) {

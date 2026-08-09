@@ -37,6 +37,26 @@ export function rememberFrom(device: string, msgs: Message[]) {
   if (recent.length >= 2) post({ op: "remember", device, recent }).catch(() => {});
 }
 
+export async function uploadPhoto(device: string, dataB64: string, mime: string): Promise<string | null> {
+  try {
+    const r = await post({ op: "upload_photo", device, data: dataB64, mime });
+    const d = await (r.ok ? r.json() : null);
+    return d?.url || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function describePhoto(device: string, url: string): Promise<string> {
+  try {
+    const r = await post({ op: "describe", device, url });
+    const d = await (r.ok ? r.json() : null);
+    return d?.desc || "";
+  } catch {
+    return "";
+  }
+}
+
 export async function recallMemories(device: string, query: string): Promise<string> {
   try {
     const timeout = new Promise<string>((r) => setTimeout(() => r(""), 2800));

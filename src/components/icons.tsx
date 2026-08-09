@@ -82,3 +82,10 @@ export const KeyboardIcon = ({ size = 22 }: { size?: number }) => (
     <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M9 14h6" />
   </svg>
 );
+
+export const CameraIcon = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...S}>
+    <path d="M4 7.5h2.2l1.4-2h8.8l1.4 2H20a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18V9A1.5 1.5 0 0 1 4 7.5Z" />
+    <circle cx="12" cy="13" r="3.6" />
+  </svg>
+);

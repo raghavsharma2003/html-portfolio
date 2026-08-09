@@ -229,6 +229,59 @@ Only things worth remembering weeks later: people, places, jobs, plans, strong l
   return { ok: true, extracted: nodes.length };
 }
 
+async function opUploadPhoto(device, body) {
+  const b64 = String(body.data || "");
+  if (b64.length > 2_200_000) return { error: "too large" };
+  const mime = /^image\/(jpeg|png|webp)$/.test(String(body.mime)) ? body.mime : "image/jpeg";
+  const buf = Buffer.from(b64, "base64");
+  if (!buf.length) return { error: "empty" };
+  const path = `${device}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+  const up = await fetch(`${SB_URL}/storage/v1/object/meera-photos/${path}`, {
+    method: "POST",
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      "Content-Type": mime,
+      "x-upsert": "false",
+    },
+    body: buf,
+  });
+  if (!up.ok) return { error: "upload failed" };
+  return { url: `${SB_URL}/storage/v1/object/public/meera-photos/${path}` };
+}
+
+async function opDescribe(body) {
+  const url = String(body.url || "");
+  if (!url.startsWith(`${SB_URL}/storage/v1/object/public/meera-photos/`)) return { desc: "" };
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OR_KEY}`,
+      "Content-Type": "application/json",
+      "X-Title": "Meera",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-3.1-flash-lite",
+      max_tokens: 90,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Describe this photo in one factual line (<=110 chars) for a chat log, e.g. 'a plate of pasta on a desk' or 'screenshot of a code error in vs code'. Only the line.",
+            },
+            { type: "image_url", image_url: { url } },
+          ],
+        },
+      ],
+    }),
+  });
+  if (!res.ok) return { desc: "" };
+  const data = await res.json();
+  return { desc: String(data?.choices?.[0]?.message?.content || "").trim().slice(0, 140) };
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -242,6 +295,8 @@ export default async function handler(req, res) {
     const { op, device } = req.body || {};
     if (!UUID.test(String(device || ""))) return res.status(400).json({ error: "device uuid required" });
     if (op === "log") return res.status(200).json(await opLog(device, req.body));
+    if (op === "upload_photo") return res.status(200).json(await opUploadPhoto(device, req.body));
+    if (op === "describe") return res.status(200).json(await opDescribe(req.body));
     if (op === "recall") return res.status(200).json(await opRecall(device, req.body));
     if (op === "remember") return res.status(200).json(await opRemember(device, req.body));
     return res.status(400).json({ error: "unknown op" });

@@ -342,12 +342,12 @@ export function stopRoomTone() {
   roomTone = null;
 }
 
-async function meeraFetch(text: string): Promise<Blob | null> {
+async function meeraFetch(text: string, style?: string): Promise<Blob | null> {
   try {
     const res = await fetch(PROXY_SPEECH_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, ...(style ? { style } : {}) }),
     });
     if (!res.ok) return null;
     const blob = await res.blob();
@@ -493,11 +493,15 @@ function splitPhrases(text: string): string[] {
   return out.length ? out : [text];
 }
 
-async function fetchClipFor(text: string, opts: VoiceOpts): Promise<Blob | null> {
+async function fetchClipFor(
+  text: string,
+  opts: VoiceOpts,
+  style?: string,
+): Promise<Blob | null> {
   const preferEleven = Boolean(opts.elevenKey) && (hasAudioTags(text) || !opts.sarvamKey);
   if (preferEleven) return elevenFetch(text, opts);
   if (opts.sarvamKey) return sarvamFetch(stripForDevice(text), opts);
-  return meeraFetch(text);
+  return meeraFetch(text, style);
 }
 
 // Speak a call reply with phrase pipelining. Returns via onEnd; a bumped
@@ -507,6 +511,7 @@ export async function speakCall(
   onStart?: () => void,
   onEnd?: () => void,
   opts: VoiceOpts = {},
+  style?: string,
 ) {
   const session = ++speakSession;
   const clean = stripForCloud(text);
@@ -514,11 +519,11 @@ export async function speakCall(
   const phrases = splitPhrases(clean);
 
   // pipeline: kick off fetch N+1 while N plays
-  const fetches: Array<Promise<Blob | null>> = [fetchClipFor(phrases[0], opts)];
+  const fetches: Array<Promise<Blob | null>> = [fetchClipFor(phrases[0], opts, style)];
   let started = false;
   for (let i = 0; i < phrases.length; i++) {
     if (session !== speakSession) return;
-    if (i + 1 < phrases.length) fetches[i + 1] = fetchClipFor(phrases[i + 1], opts);
+    if (i + 1 < phrases.length) fetches[i + 1] = fetchClipFor(phrases[i + 1], opts, style);
     const blob = await fetches[i];
     if (session !== speakSession) return;
     if (!blob) continue;
@@ -538,34 +543,150 @@ export async function speakCall(
   if (session === speakSession) onEnd?.();
 }
 
-/* ── backchannels: humans respond within ~200ms; while her real reply
-   renders, an instant "Hmm?" / "Haan…" keeps the rhythm alive ── */
+/* ── streaming call speech: phrases are cut from the token stream as it
+   arrives, TTS fetches start the moment each phrase is known, and clips play
+   strictly in order. She starts talking after the FIRST sentence exists —
+   not after the whole reply. stopSpeaking() (barge-in) aborts everything. ── */
+
+export interface StreamSpeaker {
+  push: (delta: string) => void;
+  finish: () => void; // no more text coming — flush the tail
+  started: () => boolean; // has any audio actually begun playing?
+}
+
+export function createStreamSpeaker(
+  opts: VoiceOpts,
+  style: string | undefined,
+  onStart?: () => void,
+  onEnd?: () => void,
+): StreamSpeaker {
+  const session = ++speakSession;
+  let buf = "";
+  let closed = false;
+  let started = false;
+  let firstOut = false;
+  let pumping = false;
+  let allText = ""; // everything asked of TTS — device-voice fallback source
+  const queue: Array<Promise<Blob | null>> = [];
+
+  const emit = (phrase: string) => {
+    const clean = stripForCloud(phrase);
+    if (!clean) return;
+    allText += (allText ? " " : "") + clean;
+    queue.push(fetchClipFor(clean, opts, style)); // fetch starts NOW
+    void pump();
+  };
+
+  const pump = async () => {
+    if (pumping) return;
+    pumping = true;
+    while (session === speakSession) {
+      const next = queue.shift();
+      if (!next) {
+        if (closed) break;
+        await sleep(60); // stream still producing — wait for the next phrase
+        continue;
+      }
+      const blob = await next;
+      if (session !== speakSession) return;
+      if (blob) {
+        if (!started) {
+          started = true;
+          onStart?.();
+        }
+        await playBlob(blob, session, undefined, undefined);
+        if (session !== speakSession) return;
+        await sleep(100 + Math.random() * 160); // inter-phrase breath
+      }
+    }
+    pumping = false;
+    if (session === speakSession && closed && !queue.length) {
+      if (!started && allText) {
+        // every clip fetch failed — she still speaks, via device TTS
+        void speak(allText, onStart, onEnd, opts);
+        return;
+      }
+      onEnd?.();
+    }
+  };
+
+  const cut = () => {
+    // complete sentences leave the buffer as soon as they exist; the first
+    // phrase goes out at the first boundary for fastest onset, later ones
+    // merge up to ~110 chars so we don't spray tiny TTS requests
+    for (;;) {
+      const m = buf.match(/[.!?…]+["')]*\s/);
+      if (!m || m.index === undefined) return;
+      const end = m.index + m[0].length;
+      if (firstOut && end < 60 && buf.length < 110) {
+        // short fragment — see if the next boundary merges in
+        const rest = buf.slice(end);
+        const m2 = rest.match(/[.!?…]+["')]*\s/);
+        if (!m2 || m2.index === undefined) return;
+        const end2 = end + m2.index + m2[0].length;
+        if (end2 <= 130) {
+          emit(buf.slice(0, end2).trim());
+          buf = buf.slice(end2);
+          continue;
+        }
+      }
+      emit(buf.slice(0, end).trim());
+      buf = buf.slice(end);
+      firstOut = true;
+    }
+  };
+
+  return {
+    push: (delta) => {
+      if (session !== speakSession) return;
+      buf += delta;
+      cut();
+    },
+    finish: () => {
+      if (session !== speakSession) return;
+      if (buf.trim()) emit(buf.trim());
+      buf = "";
+      closed = true;
+      void pump();
+    },
+    started: () => started,
+  };
+}
+
+/* ── backchannels: soft listener sounds. Humans DON'T make a sound after
+   every turn — these fire rarely, only after long user turns, and never
+   twice in a row (the "constant humming" bug was exactly this). ── */
 
 const backchannelClips: Blob[] = [];
-const BACKCHANNELS = ["Hmm?", "Haan...", "Acha...", "Mmm."];
+const BACKCHANNELS = ["Hmm.", "Haan...", "Acha..."];
 // floor-holding sounds for when her reply is still generating — pure
 // paralinguistics, not conversation
 const fillerClips: Blob[] = [];
-const FILLERS = ["Ummm...", "Hmmm... ek second...", "Haan toh...", "Matlab..."];
+const FILLERS = ["Ummm...", "Ek second...", "Hmm..."];
+const SOFT_STYLE = "quiet, brief, barely-there listener sound, low energy";
+let lastFillerIdx = -1;
 
 export async function prefetchBackchannels(opts: VoiceOpts) {
   if (backchannelClips.length) return;
   for (const b of BACKCHANNELS) {
-    const blob = await fetchClipFor(b, opts);
+    const blob = await fetchClipFor(b, opts, SOFT_STYLE);
     if (blob) backchannelClips.push(blob);
   }
   for (const f of FILLERS) {
-    const blob = await fetchClipFor(f, opts);
+    const blob = await fetchClipFor(f, opts, SOFT_STYLE);
     if (blob) fillerClips.push(blob);
   }
 }
 
-// Played if she's STILL thinking ~2.5s after the user finished — a human
-// holds the floor with a sound, not silence. Probabilistic so it never
-// becomes a formula.
+// Played only if she's STILL silent well after the user finished — a human
+// holds the floor with a sound eventually, but not every time and never
+// the same sound twice running.
 export function playThinkingFiller() {
-  if (!fillerClips.length || Math.random() < 0.35) return;
-  const blob = fillerClips[Math.floor(Math.random() * fillerClips.length)];
+  if (!fillerClips.length || Math.random() < 0.5) return;
+  let idx = Math.floor(Math.random() * fillerClips.length);
+  if (idx === lastFillerIdx) idx = (idx + 1) % fillerClips.length;
+  lastFillerIdx = idx;
+  const blob = fillerClips[idx];
   if (audioCtx && audioCtx.state === "running") {
     blob
       .arrayBuffer()

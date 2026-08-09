@@ -42,10 +42,16 @@ export default async function handler(req, res) {
   if (!key) return res.status(500).json({ error: "no key configured" });
 
   try {
-    const { text, voice } = req.body || {};
+    const { text, voice, style } = req.body || {};
     if (typeof text !== "string" || !text.trim()) {
       return res.status(400).json({ error: "text required" });
     }
+    // per-utterance delivery mood, improvised by her brain from the actual
+    // conversation ("low and comforting", "teasing, mock-offended", …)
+    const mood =
+      typeof style === "string" && style.trim()
+        ? style.replace(/[\[\]{}<>\n\r"]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120)
+        : "relaxed, natural, casual";
     const generate = async () => {
       const upstream = await fetch("https://openrouter.ai/api/v1/audio/speech", {
         method: "POST",
@@ -56,8 +62,10 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           model: MODEL,
-          // Gemini TTS takes natural-language delivery direction in the input
-          input: `Speak as a fun, sarcastic, lively 24-year-old Indian woman from Mumbai. Quick, animated, full of life — banter energy like roasting a close friend, never soft or breathy or romantic. Natural young Indian accent, natural Hinglish code-switching. Say: ${text.slice(0, 1100)}`,
+          // Gemini TTS takes natural-language delivery direction in the input.
+          // Base identity stays constant; the MOOD comes from the conversation
+          // itself so her delivery follows the emotional flow of the call.
+          input: `Speak as a 24-year-old Indian woman from Mumbai on a phone call with a close friend. Warm, approachable, attentive — the kind of voice that makes you feel comfortable and genuinely heard. Natural young Indian accent, effortless Hinglish code-switching, real conversational pacing, softly expressive. Never aggressive, never performative, never a radio host. Do not laugh, giggle or add sounds unless the words themselves are laughter. Her mood right now: ${mood}. Say: ${text.slice(0, 1100)}`,
           voice: ALLOWED_VOICES.has(voice) ? voice : DEFAULT_VOICE,
           response_format: "pcm",
         }),

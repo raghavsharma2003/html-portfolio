@@ -70,7 +70,13 @@ function splitLong(bubble: string): string[] {
 
 function parseBubbles(raw: string): HeartReply {
   const out: HeartReply = { bubbles: [] };
-  // followup first, leniently — models sometimes drop the closing bracket
+  // call tone marker — her delivery mood, extracted leniently (models
+  // sometimes drop the closing bracket); it drives TTS, never gets spoken
+  raw = raw.replace(/\[tone:\s*([^\]\n]*)\]?/gi, (_m, mood) => {
+    if (!out.tone && mood.trim()) out.tone = mood.trim().slice(0, 120);
+    return "";
+  });
+  // followup, same leniency
   raw = raw.replace(/\[followup:\s*(\d+)\s*(?:\|\s*([^\]\n]*))?\]?/i, (_m, mins, why) => {
     const minutes = Math.min(360, Math.max(2, parseInt(mins, 10) || 0));
     if (minutes) out.followup = { minutes, why: (why || "").trim().slice(0, 120) };
@@ -78,8 +84,15 @@ function parseBubbles(raw: string): HeartReply {
   });
   // models separate thoughts with "---" or plain newlines — both are bubbles
   for (const part of raw.split(/\n?---\n?|\n+/)) {
-    const p = part.trim();
+    let p = part.trim();
     if (!p) continue;
+    // meta-text leakage guard: the model occasionally narrates its own
+    // formatting ("Bubble 1:", "separators.", instruction bullets). None of
+    // that is conversation — strip labels, drop pure scaffolding.
+    p = p.replace(/^bubble\s*\d+\s*:\s*/i, "").trim();
+    if (!p) continue;
+    if (/^(bubble\s*\d*\s*[:.]?|separators?\.?|styling with.*|formats?[:.]?|protocols?[:.]?|\(.*protocol.*\)|response[:.]?|reply[:.]?)$/i.test(p)) continue;
+    if (/^-\s+[A-Z]/.test(p)) continue; // leaked "- Keep it short..." style bullet
     const photo = p.match(/^\[photo:\s*(.+?)\]$/i);
     const voice = p.match(/^\[voicenote:\s*(.+?)\]$/i);
     const gif = p.match(/^\[gif:\s*(.+?)\]$/i);
@@ -121,15 +134,26 @@ function gapLabel(ms: number, at: number): string {
 
 const GAP_MIN = 30 * 60_000;
 
+type TurnContent = string | Array<Record<string, unknown>>;
+
 function toTurns(history: Message[], latest: string) {
-  const turns: Array<{ role: "user" | "assistant"; content: string }> = [];
+  const turns: Array<{ role: "user" | "assistant"; content: TurnContent }> = [];
   let lastChannel: "chat" | "call" = "chat";
   let prevAt = 0;
-  for (const m of history.slice(-30)) {
+  const recent = history.slice(-30);
+  // she SEES actual images for photos in the last few turns; older ones
+  // survive as their stored one-line descriptions
+  const visionCutoff = recent.length - 6;
+  for (let mi = 0; mi < recent.length; mi++) {
+    const m = recent[mi];
     if (m.kind === "callmark") continue; // call-record chip, not conversation
+    const userImage = m.from === "me" && m.kind === "photo" && m.photoUrl;
+    const photoNote = m.from === "me" ? m.text || m.desc || "" : "";
     let text =
       m.kind === "photo"
-        ? `[shared a photo: ${m.text}]`
+        ? m.from === "me"
+          ? `[they sent a photo${photoNote && photoNote !== "[photo]" ? `: ${photoNote}` : ""}]`
+          : `[shared a photo: ${m.text}]`
         : m.kind === "voice"
           ? m.text.startsWith("[voice")
             ? m.text
@@ -153,16 +177,26 @@ function toTurns(history: Message[], latest: string) {
       lastChannel = ch;
     }
     const role = m.from === "me" ? ("user" as const) : ("assistant" as const);
+    const stamp = m.at
+      ? new Date(m.at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })
+      : "";
+    const stamped = stamp ? `[${stamp}] ${text}` : text;
+    if (userImage && mi >= visionCutoff) {
+      // multimodal turn: the model looks at the real image
+      turns.push({
+        role,
+        content: [
+          { type: "text", text: stamped },
+          { type: "image_url", image_url: { url: m.photoUrl } },
+        ],
+      });
+      continue;
+    }
     const prev = turns[turns.length - 1];
-    if (prev && prev.role === role) {
+    if (prev && prev.role === role && typeof prev.content === "string") {
       prev.content = `${prev.content}\n${text}`;
     } else {
-      // every turn carries its clock time — she never guesses when a
-      // message happened
-      const stamp = m.at
-        ? new Date(m.at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })
-        : "";
-      turns.push({ role, content: stamp ? `[${stamp}] ${text}` : text });
+      turns.push({ role, content: stamped });
     }
   }
   if (!turns.length || turns[turns.length - 1].role !== "user") {
@@ -175,10 +209,12 @@ function toTurns(history: Message[], latest: string) {
   return turns;
 }
 
+type Turn = { role: "user" | "assistant"; content: TurnContent };
+
 async function openrouterThink(
   keys: BrainKeys,
   system: string,
-  turns: Array<{ role: "user" | "assistant"; content: string }>,
+  turns: Turn[],
   maxTokens = 700,
 ): Promise<string | null> {
   try {
@@ -207,8 +243,11 @@ async function openrouterThink(
 async function proxyThink(
   keys: BrainKeys,
   system: string,
-  turns: Array<{ role: "user" | "assistant"; content: string }>,
+  turns: Turn[],
   maxTokens = 700,
+  // calls stream tokens so speech can start on the first sentence
+  onDelta?: (delta: string) => void,
+  noThink = false,
 ): Promise<string | null> {
   try {
     const res = await fetch(PROXY_URL, {
@@ -219,9 +258,41 @@ async function proxyThink(
         messages: turns,
         model: keys.openrouterModel?.trim() || OPENROUTER_DEFAULT_MODEL,
         max_tokens: maxTokens,
+        ...(onDelta ? { stream: true } : {}),
+        ...(noThink ? { no_think: true } : {}),
       }),
     });
     if (!res.ok) return null;
+    const type = res.headers.get("content-type") || "";
+    if (onDelta && type.includes("text/event-stream") && res.body) {
+      // SSE: accumulate deltas, surface each as it lands
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      let full = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+          if (payload === "[DONE]") continue;
+          try {
+            const delta = JSON.parse(payload)?.choices?.[0]?.delta?.content;
+            if (typeof delta === "string" && delta) {
+              full += delta;
+              onDelta(delta);
+            }
+          } catch {
+            /* keep-alive / partial frame */
+          }
+        }
+      }
+      return full.trim() ? full : null;
+    }
     const data = await res.json();
     return typeof data?.text === "string" && data.text.trim() ? data.text : null;
   } catch {
@@ -232,8 +303,16 @@ async function proxyThink(
 async function claudeThink(
   keys: BrainKeys,
   system: string,
-  turns: Array<{ role: "user" | "assistant"; content: string }>,
+  turns: Turn[],
 ): Promise<string | null> {
+  // flatten multimodal parts — this path is text-only
+  const flat = turns.map((t) => ({
+    role: t.role,
+    content:
+      typeof t.content === "string"
+        ? t.content
+        : t.content.map((p: any) => (p.type === "text" ? p.text : "[photo]")).join(" "),
+  }));
   try {
     const client = new Anthropic({ apiKey: keys.apiKey!, dangerouslyAllowBrowser: true });
     const response = await client.messages.create({
@@ -241,7 +320,7 @@ async function claudeThink(
       max_tokens: 1024,
       output_config: { effort: "low" },
       system,
-      messages: turns,
+      messages: flat,
     });
     if (response.stop_reason === "refusal") return null;
     const text = response.content
@@ -264,6 +343,9 @@ export async function think(
   // directive turns (open/nudge context notes) carry no user text to learn
   // from, and on failure they produce silence instead of a canned reply
   isDirective = false,
+  // call mode: raw model tokens as they stream (proxy path only) — lets the
+  // call engine start speaking the first sentence while the rest generates
+  onDelta?: (delta: string) => void,
 ): Promise<HeartReply> {
   // learn facts locally regardless of which engine answers
   const local: HeartReply = isDirective
@@ -279,8 +361,10 @@ export async function think(
       ? buildSystemPrompt(user, history.length) + buildSpeechStyle(voiceEngine)
       : buildSystemPrompt(user, history.length);
 
-  // graph-memory recall: what she knows about their world, woven into context
-  if (keys.deviceId) {
+  // graph-memory recall: what she knows about their world, woven into context.
+  // Skipped on live calls — the lookup would sit in front of every spoken
+  // reply, and the last 30 turns are already in context. Chat keeps it.
+  if (keys.deviceId && mode !== "call") {
     const memories = await recallMemories(keys.deviceId, latest);
     if (memories) {
       system += `\n\nWHAT YOU KNOW ABOUT THEM — true facts from your earlier conversations. You genuinely remember these. When they ask about or touch on anything here, you KNOW it — answer confidently with the specific detail ("priya ki shaadi h na december me"), never play dumb, never guess, never ask them to remind you. Weave one in naturally when relevant; don't dump several at once, and never mention any list or "memory":\n${memories}`;
@@ -289,17 +373,22 @@ export async function think(
 
   const turns = toTurns(history, latest);
 
-  // calls: smaller/faster model + hard cap — spoken replies are short and
-  // latency matters more than prose quality
-  const maxTokens = mode === "call" ? 160 : 700;
-  const callKeys =
-    mode === "call" && !keys.openrouterModel?.trim()
-      ? { ...keys, openrouterModel: "google/gemini-3.1-flash-lite" }
-      : keys;
+  // calls: hard token cap (spoken replies are short) + streaming. The call
+  // brain is the same gemini-3.6-flash as chat — the lite model kept
+  // misreading Hinglish; streaming pays for the smarter model's latency.
+  const maxTokens = mode === "call" ? 190 : 700;
   let text: string | null = null;
-  if (callKeys.openrouterKey) text = await openrouterThink(callKeys, system, turns, maxTokens);
-  if (!text && callKeys.apiKey) text = await claudeThink(callKeys, system, turns);
-  if (!text) text = await proxyThink(callKeys, system, turns, maxTokens);
+  if (keys.openrouterKey) text = await openrouterThink(keys, system, turns, maxTokens);
+  if (!text && keys.apiKey) text = await claudeThink(keys, system, turns);
+  if (!text)
+    text = await proxyThink(
+      keys,
+      system,
+      turns,
+      maxTokens,
+      mode === "call" ? onDelta : undefined,
+      mode === "call",
+    );
   if (!text) {
     // every brain unreachable. crisis/honesty replies still go out; anything
     // else becomes an honest connectivity text — never fake conversation.

@@ -23,6 +23,8 @@ export interface Message {
   dur?: number; // voice notes: length in seconds
   spoken?: string; // her voice notes: raw expressive text (with audio tags)
   gifUrl?: string; // gif bubbles: resolved CDN url (cached after first fetch)
+  photoUrl?: string; // photos the USER sent (public storage url)
+  desc?: string; // user photos: one-line vision description (context + memory)
 }
 
 export interface AuthInfo {
@@ -54,12 +56,19 @@ export interface AppState {
 
 const KEY = "meera.state.v1";
 
+// every install gets its own valid v4 UUID — memory/log/state are all keyed
+// by it server-side, so no two users can ever share or mix data
+function freshDeviceId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  const hex = () => Math.floor(Math.random() * 16).toString(16);
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) =>
+    c === "x" ? hex() : ((Math.floor(Math.random() * 4) + 8).toString(16)),
+  );
+}
+
 export const defaultState: AppState = {
   onboarded: false,
-  deviceId:
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `${Date.now()}-0000-4000-8000-000000000000`,
+  deviceId: freshDeviceId(),
   user: { name: "", vibe: [], facts: {} },
   messages: [],
   openrouterKey: "",

@@ -10,6 +10,7 @@ export interface HeartReply {
   voice?: { text: string }; // she sends a voice note (text is what she says)
   gif?: { query: string }; // she sends a meme gif (tenor search phrase)
   followup?: { minutes: number; why: string }; // she'll text first after this long
+  tone?: string; // calls: her delivery mood right now, drives the TTS direction
   learned?: Record<string, string>;
   // crisis / honesty branches — must be delivered even if every cloud brain
   // is unreachable (brain.ts otherwise replaces offline replies with an
