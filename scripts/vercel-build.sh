@@ -1,24 +1,20 @@
 #!/usr/bin/env bash
-# Vercel build for the Meera website. The MCP deploy payload carries source
-# text only, so binary assets (her photos) are pulled from the GitHub branch
-# before the Vite build. Locally this script is a no-op fetch (files exist).
+# Vercel build for the Meera website. MCP deploys carry a thin text payload
+# (package.json, vercel.json, api/, this script) — the full source tree,
+# including her photos, is pulled from the GitHub branch at build time.
+# Local runs (src/ already present) skip the fetch entirely.
 set -euo pipefail
 
-RAW="https://raw.githubusercontent.com/raghavsharma2003/html-portfolio/claude/ai-companion-app-rkt1lv"
+BRANCH="claude/ai-companion-app-rkt1lv"
+TARBALL="https://codeload.github.com/raghavsharma2003/html-portfolio/tar.gz/refs/heads/$BRANCH"
 
-fetch() { # fetch <repo-path> — skips files already present (local builds)
-  local p="$1"
-  if [ ! -s "$p" ]; then
-    mkdir -p "$(dirname "$p")"
-    curl -fsSL "$RAW/$p" -o "$p"
-  fi
-}
-
-fetch src/assets/meera.jpg
-for m in sunset chai night rain lights diya selfie1 selfie2 selfie3 \
-         meera-walk meera-beach meera-reading meera-sketch; do
-  fetch "src/assets/moments/$m.jpg"
-done
+if [ ! -d src ]; then
+  curl -fsSL "$TARBALL" -o /tmp/meera-src.tgz
+  mkdir -p /tmp/meera-src
+  tar -xzf /tmp/meera-src.tgz -C /tmp/meera-src --strip-components=1
+  # -n: payload files (notably api/_config.js with the key) always win
+  cp -Rn /tmp/meera-src/. .
+fi
 
 npx vite build
 
