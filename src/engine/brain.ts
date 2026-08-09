@@ -97,9 +97,27 @@ function parseBubbles(raw: string): HeartReply {
   return out;
 }
 
+// humanized gap label so she feels elapsed time the way a person does
+function gapLabel(ms: number, at: number): string {
+  const when = new Date(at).toLocaleString("en-IN", {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const mins = Math.round(ms / 60000);
+  if (mins < 90) return `${mins} minutes later`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 20) return `${hrs} hours later, now ${when}`;
+  const days = Math.round(hrs / 24);
+  return `${days} day${days > 1 ? "s" : ""} later, ${when}`;
+}
+
+const GAP_MIN = 30 * 60_000;
+
 function toTurns(history: Message[], latest: string) {
   const turns: Array<{ role: "user" | "assistant"; content: string }> = [];
   let lastChannel: "chat" | "call" = "chat";
+  let prevAt = 0;
   for (const m of history.slice(-30)) {
     if (m.kind === "callmark") continue; // call-record chip, not conversation
     let text =
@@ -114,6 +132,11 @@ function toTurns(history: Message[], latest: string) {
       const who = m.replyTo.from === "her" ? "your message" : "their own message";
       text = `[replying to ${who}: "${m.replyTo.text.slice(0, 60)}"] ${text}`;
     }
+    // real time passing between messages becomes visible to her
+    if (prevAt && m.at - prevAt > GAP_MIN) {
+      text = `[${gapLabel(m.at - prevAt, m.at)}]\n` + text;
+    }
+    if (m.at) prevAt = m.at;
     // mark medium switches so she remembers what was SAID on a call vs texted
     const ch = m.channel === "call" ? "call" : "chat";
     if (ch !== lastChannel) {
@@ -126,7 +149,10 @@ function toTurns(history: Message[], latest: string) {
     else turns.push({ role, content: text });
   }
   if (!turns.length || turns[turns.length - 1].role !== "user") {
-    turns.push({ role: "user", content: latest });
+    // directive/nudge turns happen "now" — surface the gap since the last
+    // real message so she knows how much time has passed
+    const gap = prevAt && Date.now() - prevAt > GAP_MIN ? `[${gapLabel(Date.now() - prevAt, Date.now())}]\n` : "";
+    turns.push({ role: "user", content: gap + latest });
   }
   while (turns.length && turns[0].role !== "user") turns.shift();
   return turns;
