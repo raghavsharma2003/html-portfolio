@@ -269,47 +269,59 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
     }
   }
 
-  // WhatsApp swipe-to-reply: drag a bubble horizontally past the threshold
-  // and the compose bar quotes it. Direction-locked so scrolling still works.
-  const swipe = useRef({ x: 0, y: 0, dx: 0, active: false, fired: false });
+  // WhatsApp/Telegram swipe-to-reply, tuned to Telegram's source numbers:
+  // 10px dead zone, ~3x direction lock, 48px trigger with re-armable haptic,
+  // damped tracking past the trigger capped at 80px, 180ms decelerate
+  // spring-back. touch-action: pan-y on the list keeps scrolling native.
+  const swipe = useRef({ x: 0, y: 0, dx: 0, active: false, dead: false, fired: false });
   function swipeHandlers(m: Message) {
     return {
       onTouchStart: (e: React.TouchEvent) => {
-        swipe.current = {
-          x: e.touches[0].clientX,
-          y: e.touches[0].clientY,
-          dx: 0,
-          active: false,
-          fired: false,
-        };
+        const t = e.touches[0];
+        // browser back/forward gesture zone — leave edge touches alone
+        const dead = t.clientX < 20 || t.clientX > window.innerWidth - 20;
+        swipe.current = { x: t.clientX, y: t.clientY, dx: 0, active: false, dead, fired: false };
       },
       onTouchMove: (e: React.TouchEvent) => {
         const s = swipe.current;
+        if (s.dead) return;
         const dx = e.touches[0].clientX - s.x;
         const dy = e.touches[0].clientY - s.y;
         if (!s.active) {
-          if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.4) s.active = true;
-          else return;
+          if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 2.5) s.active = true;
+          else if (Math.abs(dy) > 10) s.dead = true; // vertical won: it's a scroll
+          return;
         }
-        s.dx = Math.max(-84, Math.min(84, dx));
+        // 1:1 to the trigger, then damped, hard cap 80px
+        const mag = Math.abs(dx);
+        const damped = Math.min(48, mag) + Math.max(0, mag - 48) * 0.25;
+        s.dx = Math.sign(dx) * Math.min(80, damped);
         const el = e.currentTarget as HTMLElement;
         el.style.transition = "none";
         el.style.transform = `translateX(${s.dx}px)`;
-        if (!s.fired && Math.abs(s.dx) >= 56) {
-          s.fired = true;
-          navigator.vibrate?.(12);
+        if (Math.abs(s.dx) >= 48) {
+          if (!s.fired) {
+            s.fired = true;
+            try {
+              navigator.vibrate?.(10);
+            } catch {
+              /* iOS has no vibrate */
+            }
+          }
+        } else {
+          s.fired = false; // re-arm like Telegram
         }
       },
       onTouchEnd: (e: React.TouchEvent) => {
         const s = swipe.current;
         const el = e.currentTarget as HTMLElement;
-        el.style.transition = "transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.1)";
+        el.style.transition = "transform 0.18s cubic-bezier(0, 0, 0.2, 1)";
         el.style.transform = "";
-        if (s.active && Math.abs(s.dx) >= 56) {
+        if (s.active && Math.abs(s.dx) >= 48) {
           setReplyTo(m);
           setReplySel(null);
         }
-        swipe.current = { x: 0, y: 0, dx: 0, active: false, fired: false };
+        swipe.current = { x: 0, y: 0, dx: 0, active: false, dead: false, fired: false };
       },
     };
   }

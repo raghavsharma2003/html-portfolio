@@ -42,11 +42,13 @@ body,
   overscroll-behavior: none;
 }
 
-/* the app tracks the VISUAL viewport (--vvh set from VisualViewport API),
-   so the soft keyboard shrinks the app instead of pushing the header away */
+/* the app tracks the VISUAL viewport (--vvh/--vvt from VisualViewport API):
+   the soft keyboard shrinks the app instead of pushing the header away, and
+   the shell follows Safari's forced layout-viewport offset */
 #root {
   height: var(--vvh, 100dvh);
   max-height: 100dvh;
+  transform: translateY(var(--vvt, 0px));
 }
 html,
 body {
@@ -54,6 +56,7 @@ body {
   inset: 0;
   overflow: hidden;
   width: 100%;
+  overscroll-behavior: none;
 }
 
 body {
@@ -366,6 +369,8 @@ button {
 .chat-scroll {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y; /* browser owns vertical scroll; swipe-to-reply owns x */
   padding: 18px 16px 10px;
   display: flex;
   flex-direction: column;
