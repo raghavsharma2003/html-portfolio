@@ -425,6 +425,19 @@ button {
   text-align: right;
 }
 
+/* single-emoji messages render as big animated reactions — no bubble */
+.msg.emoji-big,
+.msg.emoji-big:has(+ .msg) {
+  background: none;
+  box-shadow: none;
+  padding: 2px 4px;
+  border-radius: 0;
+}
+.msg.emoji-big .t {
+  text-align: inherit;
+  color: var(--ink-faint);
+}
+
 .msg.photo {
   padding: 5px;
   max-width: 68%;

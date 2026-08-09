@@ -9,6 +9,7 @@ import { HER_NAME, OPEN_DIRECTIVE, NUDGE_DIRECTIVE } from "../engine/persona";
 import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
 import PhotoCard from "./PhotoCard";
+import BigEmoji, { isSingleEmoji } from "./BigEmoji";
 import { PhoneIcon, SendIcon, BroomIcon } from "./icons";
 
 interface Props {
@@ -169,6 +170,13 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
         <div key={m.id} className="msg her photo">
           <PhotoCard seed={m.photoSeed || m.text} />
           <div className="cap">{m.text}</div>
+        </div>,
+      );
+    } else if (isSingleEmoji(m.text)) {
+      rows.push(
+        <div key={m.id} className={`msg ${m.from} emoji-big`}>
+          <BigEmoji emoji={m.text} />
+          {lastOfGroup && <span className="t">{fmtTime(m.at)}</span>}
         </div>,
       );
     } else {

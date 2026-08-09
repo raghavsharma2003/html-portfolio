@@ -43,24 +43,30 @@ export default async function handler(req, res) {
     if (typeof text !== "string" || !text.trim()) {
       return res.status(400).json({ error: "text required" });
     }
-    const upstream = await fetch("https://openrouter.ai/api/v1/audio/speech", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "X-Title": "Meera",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        input: text.slice(0, 1200),
-        voice: ALLOWED_VOICES.has(voice) ? voice : DEFAULT_VOICE,
-        response_format: "pcm",
-      }),
-    });
-    if (!upstream.ok) {
-      return res.status(502).json({ error: "upstream " + upstream.status });
+    const generate = async () => {
+      const upstream = await fetch("https://openrouter.ai/api/v1/audio/speech", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          "X-Title": "Meera",
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          input: text.slice(0, 1200),
+          voice: ALLOWED_VOICES.has(voice) ? voice : DEFAULT_VOICE,
+          response_format: "pcm",
+        }),
+      });
+      if (!upstream.ok) return null;
+      return Buffer.from(await upstream.arrayBuffer());
+    };
+    // upstream occasionally returns an empty 200 — one retry covers it
+    let pcm = await generate();
+    if (!pcm || pcm.length < 1000) pcm = await generate();
+    if (!pcm || pcm.length < 1000) {
+      return res.status(502).json({ error: "upstream empty" });
     }
-    const pcm = Buffer.from(await upstream.arrayBuffer());
     res.setHeader("Content-Type", "audio/wav");
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).send(Buffer.concat([wavHeader(pcm.length), pcm]));
