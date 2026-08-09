@@ -18,8 +18,9 @@ import { heartReply, type HeartReply } from "./localHeart";
 import type { Message } from "../state/store";
 
 const CLAUDE_MODEL = "claude-opus-5";
-// Open-source default: excellent Hinglish, tiny cost. Overridable in Settings.
-export const OPENROUTER_DEFAULT_MODEL = "deepseek/deepseek-chat";
+// Default brain: Gemini 3.6 Flash — the best modern-Hinglish register we
+// auditioned (vs deepseek, kimi, minimax, llama). Overridable via model slug.
+export const OPENROUTER_DEFAULT_MODEL = "google/gemini-3.6-flash";
 // Serverless proxy that holds an OpenRouter key server-side — the zero-config
 // brain. On the website it's same-origin; the Android app crosses origins.
 const PROXY_URL = Capacitor.isNativePlatform()
@@ -74,6 +75,9 @@ function parseBubbles(raw: string): HeartReply {
     const photo = p.match(/^\[photo:\s*(.+?)\]$/i);
     if (photo) {
       out.photo = { seed: photo[1] + Date.now(), caption: photo[1] };
+    } else if (/^\*[^*]+\*$/.test(p)) {
+      // "*flips through sketchbook*" roleplay actions — hard-dropped
+      continue;
     } else {
       out.bubbles.push(...splitLong(p.replace(/^["']|["']$/g, "")));
     }
@@ -136,7 +140,11 @@ async function proxyThink(
     const res = await fetch(PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ system, messages: turns, model: keys.openrouterModel?.trim() || undefined }),
+      body: JSON.stringify({
+        system,
+        messages: turns,
+        model: keys.openrouterModel?.trim() || OPENROUTER_DEFAULT_MODEL,
+      }),
     });
     if (!res.ok) return null;
     const data = await res.json();

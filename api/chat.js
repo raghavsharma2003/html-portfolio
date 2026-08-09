@@ -3,7 +3,7 @@
 
 import { OPENROUTER_KEY } from "./_config.js";
 
-const DEFAULT_MODEL = "deepseek/deepseek-chat";
+const DEFAULT_MODEL = "google/gemini-3.6-flash";
 const ALLOWED_MODEL = /^[a-z0-9-]+\/[a-z0-9.:-]+$/i;
 
 export default async function handler(req, res) {

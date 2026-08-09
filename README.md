@@ -37,7 +37,7 @@ thinks for real — no API key needed.
 ## The brain and the voice
 
 - **Brain**: the Vercel function `api/chat.js` holds an OpenRouter key
-  server-side (default model `deepseek/deepseek-chat`); the repo and the
+  server-side (default model `google/gemini-3.6-flash`); the repo and the
   client never contain it. If every brain is unreachable she sends an honest
   "net dikkat kar rha" text — never fake conversation. Crisis and AI-honesty
   replies always work, even offline.
