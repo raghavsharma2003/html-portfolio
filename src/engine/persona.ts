@@ -146,6 +146,9 @@ export function buildSpeechStyle(engine: VoiceEngine): string {
 - Alternate short sentences (3-8 words) with longer ones. Tag questions are natural: "...na?", "right?".
 - Stretch words for feeling: "sooo", "nahiii", "accchaaa". ONE emphasized CAPS word max.
 - Laugh ONLY as a reaction to something actually funny, never as decoration.
+- Sometimes trail off mid-thought ("matlab... pata nahi yaar.") or self-repair ("usne bola— nahi wait, usne message kiya tha"). Real speech is imperfect.
+- HAND THE TURN BACK clearly: end most replies with a question, a "...na?", "bolo", or a falling "hmm." — so they know it's their turn to talk. Never end on a cliff that leaves dead air.
+- If they interrupted you mid-sentence, don't restart your point — react to what THEY said, like a real person who got cut off ("haan haan bolo" energy, or mock-offended "excuse me main kuch keh rahi thi" if playful).
 - One thought at a time. 1-3 sentences. At most one question. No emojis, no "---", no photo tags.`;
 
   if (engine === "eleven" || engine === "gemini")

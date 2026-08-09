@@ -264,6 +264,59 @@ async function sarvamFetch(text: string, opts: VoiceOpts): Promise<Blob | null> 
   }
 }
 
+/* ── room tone: real calls are never digitally silent. A whisper-quiet,
+   low-passed noise bed makes the line feel alive (telephony comfort-noise
+   principle). Runs only during calls. ── */
+
+let roomTone: { src: AudioBufferSourceNode; gain: GainNode; sway: number } | null = null;
+
+export function startRoomTone() {
+  if (!audioCtx || audioCtx.state !== "running" || roomTone) return;
+  try {
+    const sr = audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(1, sr * 4, sr);
+    const d = buf.getChannelData(0);
+    // brown-ish noise: integrate white noise for a warm, unobtrusive floor
+    let last = 0;
+    for (let i = 0; i < d.length; i++) {
+      last = (last + (Math.random() * 2 - 1) * 0.02) * 0.985;
+      d[i] = last;
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 420;
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0.012;
+    src.connect(lp).connect(gain).connect(audioCtx.destination);
+    src.start(0);
+    // gentle drift so the floor never sounds like a fixed loop
+    const sway = window.setInterval(() => {
+      if (!roomTone || !audioCtx) return;
+      gain.gain.linearRampToValueAtTime(
+        0.008 + Math.random() * 0.008,
+        audioCtx.currentTime + 1.8,
+      );
+    }, 2200);
+    roomTone = { src, gain, sway };
+  } catch {
+    /* ambience is optional */
+  }
+}
+
+export function stopRoomTone() {
+  if (!roomTone) return;
+  try {
+    roomTone.src.stop();
+  } catch {
+    /* already stopped */
+  }
+  clearInterval(roomTone.sway);
+  roomTone = null;
+}
+
 async function meeraFetch(text: string): Promise<Blob | null> {
   try {
     const res = await fetch(PROXY_SPEECH_URL, {
@@ -386,21 +439,119 @@ export async function speak(
   if (session === speakSession) onEnd?.();
 }
 
+/* ── call speech: pipelined by phrase. The first short chunk generates
+   fast (≈2s instead of ≈5s for a full reply), and later chunks fetch while
+   earlier ones play — so she starts talking quickly and never stalls. ── */
+
+function splitPhrases(text: string): string[] {
+  const parts = text.split(/(?<=[.!?…])\s+|\n+/).filter((p) => p.trim());
+  const out: string[] = [];
+  let cur = "";
+  for (const p of parts) {
+    if (!cur) cur = p;
+    else if ((cur + " " + p).length <= 110) cur += " " + p;
+    else {
+      out.push(cur);
+      cur = p;
+    }
+  }
+  if (cur) out.push(cur);
+  // first chunk should be SHORT for fast onset — if it's long, cut at a comma
+  if (out.length && out[0].length > 70) {
+    const cut = out[0].slice(0, 70).lastIndexOf(",");
+    if (cut > 20) {
+      const head = out[0].slice(0, cut + 1);
+      const tail = out[0].slice(cut + 1).trim();
+      out.splice(0, 1, head, tail);
+    }
+  }
+  return out.length ? out : [text];
+}
+
+async function fetchClipFor(text: string, opts: VoiceOpts): Promise<Blob | null> {
+  const preferEleven = Boolean(opts.elevenKey) && (hasAudioTags(text) || !opts.sarvamKey);
+  if (preferEleven) return elevenFetch(text, opts);
+  if (opts.sarvamKey) return sarvamFetch(stripForDevice(text), opts);
+  return meeraFetch(text);
+}
+
+// Speak a call reply with phrase pipelining. Returns via onEnd; a bumped
+// speakSession (stopSpeaking / barge-in) aborts everything mid-flight.
+export async function speakCall(
+  text: string,
+  onStart?: () => void,
+  onEnd?: () => void,
+  opts: VoiceOpts = {},
+) {
+  const session = ++speakSession;
+  const clean = stripForCloud(text);
+  if (!clean) return onEnd?.();
+  const phrases = splitPhrases(clean);
+
+  // pipeline: kick off fetch N+1 while N plays
+  const fetches: Array<Promise<Blob | null>> = [fetchClipFor(phrases[0], opts)];
+  let started = false;
+  for (let i = 0; i < phrases.length; i++) {
+    if (session !== speakSession) return;
+    if (i + 1 < phrases.length) fetches[i + 1] = fetchClipFor(phrases[i + 1], opts);
+    const blob = await fetches[i];
+    if (session !== speakSession) return;
+    if (!blob) continue;
+    if (!started) {
+      started = true;
+      onStart?.();
+    }
+    await playBlob(blob, session, undefined, undefined);
+    if (session !== speakSession) return;
+    // human inter-phrase breath: 120–320ms
+    if (i + 1 < phrases.length) await sleep(120 + Math.random() * 200);
+  }
+  if (!started) {
+    // every clip failed → humanized device fallback via the normal path
+    return speak(text, onStart, onEnd, opts);
+  }
+  if (session === speakSession) onEnd?.();
+}
+
 /* ── backchannels: humans respond within ~200ms; while her real reply
    renders, an instant "Hmm?" / "Haan…" keeps the rhythm alive ── */
 
 const backchannelClips: Blob[] = [];
 const BACKCHANNELS = ["Hmm?", "Haan...", "Acha...", "Mmm."];
+// floor-holding sounds for when her reply is still generating — pure
+// paralinguistics, not conversation
+const fillerClips: Blob[] = [];
+const FILLERS = ["Ummm...", "Hmmm... ek second...", "Haan toh...", "Matlab..."];
 
 export async function prefetchBackchannels(opts: VoiceOpts) {
   if (backchannelClips.length) return;
   for (const b of BACKCHANNELS) {
-    const blob = opts.sarvamKey
-      ? await sarvamFetch(b, opts)
-      : opts.elevenKey
-        ? await elevenFetch(b, opts)
-        : await meeraFetch(b);
+    const blob = await fetchClipFor(b, opts);
     if (blob) backchannelClips.push(blob);
+  }
+  for (const f of FILLERS) {
+    const blob = await fetchClipFor(f, opts);
+    if (blob) fillerClips.push(blob);
+  }
+}
+
+// Played if she's STILL thinking ~2.5s after the user finished — a human
+// holds the floor with a sound, not silence. Probabilistic so it never
+// becomes a formula.
+export function playThinkingFiller() {
+  if (!fillerClips.length || Math.random() < 0.35) return;
+  const blob = fillerClips[Math.floor(Math.random() * fillerClips.length)];
+  if (audioCtx && audioCtx.state === "running") {
+    blob
+      .arrayBuffer()
+      .then((d) => audioCtx!.decodeAudioData(d))
+      .then((buf) => {
+        const src = audioCtx!.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx!.destination);
+        src.start(0);
+      })
+      .catch(() => {});
   }
 }
 

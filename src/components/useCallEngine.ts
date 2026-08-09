@@ -12,11 +12,14 @@ import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think } from "../engine/brain";
 import {
-  speak,
+  speakCall,
   stopSpeaking,
   listen,
   prefetchBackchannels,
   playBackchannel,
+  playThinkingFiller,
+  startRoomTone,
+  stopRoomTone,
 } from "../voice/speech";
 import { CALL_OPEN_DIRECTIVE, type VoiceEngine } from "../engine/persona";
 import { logTurns, rememberFrom } from "../engine/memory";
@@ -39,6 +42,9 @@ export function useCallEngine(
   const speakingRef = useRef(false);
   const mutedRef = useRef(false);
   const elapsedRef = useRef(0);
+  const listeningRef = useRef(false);
+  const herWordsRef = useRef<Set<string>>(new Set()); // echo rejection
+  const thinkingRef = useRef(false);
 
   const log = (m: Message) => {
     setState((s) => ({ ...s, messages: [...s.messages, m] }));
@@ -81,6 +87,7 @@ export function useCallEngine(
     const t = setTimeout(async () => {
       if (!alive.current) return;
       setPhase("live");
+      startRoomTone(); // real lines are never digitally silent
       // she improvises her own phone pickup — nothing scripted
       const reply = await think(
         state.user,
@@ -107,6 +114,7 @@ export function useCallEngine(
       alive.current = false;
       clearTimeout(t);
       stopSpeaking();
+      stopRoomTone();
       stopListen.current?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -127,11 +135,16 @@ export function useCallEngine(
   }, [phase]);
 
   function sayAloud(text: string) {
-    speak(
+    herWordsRef.current = new Set(
+      text.toLowerCase().replace(/[^a-z\u0900-\u097F ]/gi, " ").split(/\s+/).filter(Boolean),
+    );
+    speakCall(
       text,
       () => {
         speakingRef.current = true;
         setSpeaking(true);
+        // keep the mic hot WHILE she talks so you can interrupt her
+        if (alive.current) startListening();
       },
       () => {
         speakingRef.current = false;
@@ -142,20 +155,44 @@ export function useCallEngine(
     );
   }
 
-  // hands-free: the mic re-arms itself whenever she's not speaking and you
-  // haven't muted — no tapping to talk
+  // is this the user actually talking over her, or just an "hmm"/her own
+  // voice leaking into the mic? Backchannels and echo must NOT stop her.
+  function isRealInterruption(text: string): boolean {
+    const t = text.toLowerCase().trim();
+    if (t.length < 10) return false;
+    if (/^(h+m+|haa*n|ha|acha+|ok+a*y*|right|yeah|sahi|thik h?a*i?)( |$)+$/.test(t)) return false;
+    const words = t.replace(/[^a-z\u0900-\u097F ]/gi, " ").split(/\s+/).filter(Boolean);
+    if (!words.length) return false;
+    const overlap = words.filter((w) => herWordsRef.current.has(w)).length / words.length;
+    return overlap < 0.6; // mostly her own words = speaker echo, ignore
+  }
+
+  // hands-free: the mic stays hot the whole call (even while she speaks,
+  // for barge-in) and re-arms itself after recognizer silence timeouts
   function startListening() {
-    if (!alive.current || mutedRef.current || speakingRef.current) return;
+    if (!alive.current || mutedRef.current || listeningRef.current) return;
     const res = listen(
       (text, final) => {
+        if (speakingRef.current) {
+          // she's mid-sentence: only a real interruption cuts her off
+          if (isRealInterruption(text)) {
+            stopSpeaking();
+            speakingRef.current = false;
+            setSpeaking(false);
+            setHeard(text);
+            if (final && text) handleUser(text);
+          }
+          return;
+        }
         setHeard(text);
         if (final && text) handleUser(text);
       },
       () => {
+        listeningRef.current = false;
         setListening(false);
         // recognizers time out on silence — quietly re-arm
-        if (alive.current && !mutedRef.current && !speakingRef.current) {
-          setTimeout(() => startListening(), 350);
+        if (alive.current && !mutedRef.current) {
+          setTimeout(() => startListening(), 300);
         }
       },
     );
@@ -164,6 +201,7 @@ export function useCallEngine(
       return;
     }
     stopListen.current = res.stop || null;
+    listeningRef.current = true;
     setListening(true);
   }
 
@@ -173,6 +211,7 @@ export function useCallEngine(
     setMuted(next);
     if (next) {
       stopListen.current?.();
+      listeningRef.current = false;
       setListening(false);
     } else {
       startListening();
@@ -182,6 +221,7 @@ export function useCallEngine(
   async function handleUser(text: string) {
     if (!alive.current || !text.trim()) return;
     stopListen.current?.();
+    listeningRef.current = false;
     setListening(false);
     setHeard("");
     const mine: Message = {
@@ -195,6 +235,11 @@ export function useCallEngine(
     log(mine);
     // human turn-taking norm is ~0-200ms — bridge the think+render gap
     playBackchannel();
+    thinkingRef.current = true;
+    // still thinking after ~2.5s? hold the floor with a sound, not silence
+    setTimeout(() => {
+      if (thinkingRef.current && alive.current && !speakingRef.current) playThinkingFiller();
+    }, 2500);
     const reply = await think(
       state.user,
       brainKeys(),
@@ -203,6 +248,7 @@ export function useCallEngine(
       "call",
       engine,
     );
+    thinkingRef.current = false;
     if (!alive.current) return;
     mergeLearned(reply.learned);
     const spoken = reply.bubbles.join(" ");
@@ -220,6 +266,7 @@ export function useCallEngine(
   function endCall(onEnd: () => void) {
     alive.current = false;
     stopSpeaking();
+    stopRoomTone();
     stopListen.current?.();
     setPhase("ended");
     // the chat shows a call record, never the transcript
