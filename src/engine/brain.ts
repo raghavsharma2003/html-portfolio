@@ -75,8 +75,14 @@ function parseBubbles(raw: string): HeartReply {
     const p = part.trim();
     if (!p) continue;
     const photo = p.match(/^\[photo:\s*(.+?)\]$/i);
+    const voice = p.match(/^\[voicenote:\s*(.+?)\]$/i);
+    const gif = p.match(/^\[gif:\s*(.+?)\]$/i);
     if (photo) {
       out.photo = { seed: photo[1] + Date.now(), caption: photo[1] };
+    } else if (voice) {
+      out.voice = { text: voice[1] };
+    } else if (gif) {
+      out.gif = { query: gif[1] };
     } else if (/^\*[^*]+\*$/.test(p)) {
       // "*flips through sketchbook*" roleplay actions — hard-dropped
       continue;
@@ -94,7 +100,14 @@ function toTurns(history: Message[], latest: string) {
   let lastChannel: "chat" | "call" = "chat";
   for (const m of history.slice(-30)) {
     if (m.kind === "callmark") continue; // call-record chip, not conversation
-    let text = m.kind === "photo" ? `[shared a photo: ${m.text}]` : m.text;
+    let text =
+      m.kind === "photo"
+        ? `[shared a photo: ${m.text}]`
+        : m.kind === "voice"
+          ? `[voice note] ${m.text}`
+          : m.kind === "gif"
+            ? `[sent a meme gif: ${m.text}]`
+            : m.text;
     if (m.replyTo) {
       const who = m.replyTo.from === "her" ? "your message" : "their own message";
       text = `[replying to ${who}: "${m.replyTo.text.slice(0, 60)}"] ${text}`;
@@ -253,6 +266,8 @@ export async function think(
   if (mode === "call") {
     parsed.bubbles = [parsed.bubbles.join(" ")];
     parsed.photo = undefined;
+    parsed.voice = undefined;
+    parsed.gif = undefined;
   }
   return parsed;
 }

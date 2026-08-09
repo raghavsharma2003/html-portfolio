@@ -11,7 +11,10 @@ import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
 import PhotoCard from "./PhotoCard";
 import BigEmoji, { isSingleEmoji } from "./BigEmoji";
-import { PhoneIcon, SendIcon, BroomIcon, TickIcon } from "./icons";
+import VoiceNote, { registerLocalClip } from "./VoiceNote";
+import GifBubble from "./GifBubble";
+import { listen } from "../voice/speech";
+import { PhoneIcon, SendIcon, BroomIcon, TickIcon, MicIcon } from "./icons";
 
 interface Props {
   state: AppState;
@@ -59,6 +62,18 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
   // WhatsApp-style quote-reply: tap a bubble → reply chip → quoted compose
   const [replySel, setReplySel] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  // voice-note recording (mic + live transcription)
+  const [recording, setRecording] = useState(false);
+  const [recSecs, setRecSecs] = useState(0);
+  const recRef = useRef<{
+    recorder: MediaRecorder | null;
+    chunks: Blob[];
+    transcript: string;
+    stopSR: (() => void) | null;
+    srAlive: boolean;
+    timer: ReturnType<typeof setInterval> | null;
+    startedAt: number;
+  } | null>(null);
   // presence: she is not permanently glued to the phone — she comes online to
   // read/reply, lingers a bit, then drops to "last seen"
   const [herOnline, setHerOnline] = useState(false);
@@ -168,6 +183,37 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
       pushMsg(msg);
       await sleep(280 + Math.random() * 420);
     }
+    if (reply.voice) {
+      setTyping(true);
+      await sleep(2200 + Math.random() * 1200); // "recording..." beat
+      setTyping(false);
+      const clean = reply.voice.text.replace(/\[[a-z ]+\]/gi, "").trim();
+      const msg: Message = {
+        id: uid(),
+        from: "her",
+        kind: "voice",
+        text: clean,
+        spoken: reply.voice.text,
+        dur: Math.max(2, Math.round(clean.split(/\s+/).length / 2.4)),
+        at: Date.now(),
+      };
+      delivered.push(msg);
+      pushMsg(msg);
+    }
+    if (reply.gif) {
+      setTyping(true);
+      await sleep(900 + Math.random() * 700);
+      setTyping(false);
+      const msg: Message = {
+        id: uid(),
+        from: "her",
+        kind: "gif",
+        text: reply.gif.query,
+        at: Date.now(),
+      };
+      delivered.push(msg);
+      pushMsg(msg);
+    }
     if (delivered.length) logTurns(state.deviceId, delivered);
     if (reply.photo) {
       setTyping(true);
@@ -215,6 +261,86 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
     }
   }
 
+  async function startRecording() {
+    if (recording || busy.current) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const st = {
+        recorder,
+        chunks: [] as Blob[],
+        transcript: "",
+        stopSR: null as (() => void) | null,
+        srAlive: true,
+        timer: null as ReturnType<typeof setInterval> | null,
+        startedAt: Date.now(),
+      };
+      recRef.current = st;
+      recorder.ondataavailable = (e) => e.data.size && st.chunks.push(e.data);
+      recorder.start(250);
+      // live transcription runs alongside the recording, re-arming on silence
+      const arm = () => {
+        if (!st.srAlive) return;
+        const res = listen(
+          (text, final) => {
+            if (final && text) st.transcript = (st.transcript + " " + text).trim();
+          },
+          () => {
+            if (st.srAlive) setTimeout(arm, 250);
+          },
+        );
+        st.stopSR = res.stop || null;
+      };
+      arm();
+      st.timer = setInterval(() => setRecSecs(Math.round((Date.now() - st.startedAt) / 1000)), 500);
+      setRecSecs(0);
+      setRecording(true);
+    } catch {
+      /* mic denied — nothing to do */
+    }
+  }
+
+  function finishRecording(sendIt: boolean) {
+    const st = recRef.current;
+    if (!st) return;
+    st.srAlive = false;
+    st.stopSR?.();
+    if (st.timer) clearInterval(st.timer);
+    const secs = Math.max(1, Math.round((Date.now() - st.startedAt) / 1000));
+    st.recorder!.onstop = () => {
+      st.recorder!.stream.getTracks().forEach((t) => t.stop());
+      if (!sendIt) return;
+      // give the recognizer a beat to flush its final result
+      setTimeout(() => {
+        const transcript = st.transcript.trim();
+        if (!transcript) return; // nothing intelligible — send nothing
+        const blob = new Blob(st.chunks, { type: st.recorder!.mimeType || "audio/webm" });
+        const mine: Message = {
+          id: uid(),
+          from: "me",
+          kind: "voice",
+          text: transcript,
+          dur: secs,
+          at: Date.now(),
+          status: "sent",
+        };
+        registerLocalClip(mine.id, blob);
+        pushMsg(mine);
+        logTurns(state.deviceId, [mine]);
+        setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
+        lastActivity.current = Date.now();
+        nudged.current = false;
+        think(user, brainKeys(), [...messages, mine], `[voice note] ${transcript}`).then((reply) => {
+          mergeLearned(reply.learned);
+          deliver(reply, transcript);
+        });
+      }, 600);
+    };
+    st.recorder!.stop();
+    recRef.current = null;
+    setRecording(false);
+  }
+
   // render with day separators; timestamp only on the last bubble of a
   // same-sender group (research: uncluttered = intimate)
   // call turns never render — a call is spoken, not written. Only the
@@ -240,6 +366,33 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
       rows.push(
         <div key={m.id} className="call-chip">
           📞 Voice call · {m.text} <span className="ct">{fmtTime(m.at)}</span>
+        </div>,
+      );
+    } else if (m.kind === "voice") {
+      rows.push(
+        <div key={m.id} className={`msg ${m.from} voice`}>
+          <VoiceNote m={m} />
+          {(lastOfGroup || m.from === "me") && (
+            <span className="t">
+              {lastOfGroup && fmtTime(m.at)}
+              {m.from === "me" && <TickIcon status={m.status ?? "read"} />}
+            </span>
+          )}
+        </div>,
+      );
+    } else if (m.kind === "gif") {
+      rows.push(
+        <div key={m.id} className={`msg ${m.from} gifmsg`}>
+          <GifBubble
+            m={m}
+            onResolved={(id, url) =>
+              setState((s) => ({
+                ...s,
+                messages: s.messages.map((x) => (x.id === id ? { ...x, gifUrl: url } : x)),
+              }))
+            }
+          />
+          {lastOfGroup && <span className="t">{fmtTime(m.at)}</span>}
         </div>,
       );
     } else if (m.kind === "photo") {
@@ -358,28 +511,49 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
         </div>
       )}
       <div className="chat-input-row">
-        <div className="chat-input">
-          <textarea
-            ref={inputRef}
-            rows={1}
-            placeholder={`Message ${HER_NAME}…`}
-            value={draft}
-            onChange={(e) => {
-              setDraft(e.target.value);
-              e.target.style.height = "auto";
-              e.target.style.height = Math.min(110, e.target.scrollHeight) + "px";
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-          />
-          <button className={`send-btn ${draft.trim() ? "" : "off"}`} onClick={send} aria-label="Send">
-            <SendIcon />
-          </button>
-        </div>
+        {recording ? (
+          <div className="rec-bar">
+            <span className="rec-dot" />
+            <span className="rec-time">
+              0:{String(recSecs).padStart(2, "0")} · recording…
+            </span>
+            <button className="rec-cancel" onClick={() => finishRecording(false)}>
+              cancel
+            </button>
+            <button className="send-btn" onClick={() => finishRecording(true)} aria-label="Send voice note">
+              <SendIcon />
+            </button>
+          </div>
+        ) : (
+          <div className="chat-input">
+            <textarea
+              ref={inputRef}
+              rows={1}
+              placeholder={`Message ${HER_NAME}…`}
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = Math.min(110, e.target.scrollHeight) + "px";
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+            />
+            {draft.trim() ? (
+              <button className="send-btn" onClick={send} aria-label="Send">
+                <SendIcon />
+              </button>
+            ) : (
+              <button className="send-btn mic" onClick={startRecording} aria-label="Record voice note">
+                <MicIcon size={19} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

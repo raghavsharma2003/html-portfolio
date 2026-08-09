@@ -6,8 +6,9 @@ import type { UserProfile } from "../engine/persona";
 export interface Message {
   id: string;
   from: "her" | "me";
-  // "callmark" renders as a centered "📞 Voice call · m:ss" record in chat
-  kind: "text" | "photo" | "callmark";
+  // "callmark" renders as a centered "📞 Voice call · m:ss" record;
+  // "voice" is a voice-note bubble; "gif" is a meme gif bubble
+  kind: "text" | "photo" | "callmark" | "voice" | "gif";
   text: string; // for photos this is the caption
   photoSeed?: string; // deterministic seed for the generated photo card
   at: number;
@@ -19,6 +20,9 @@ export interface Message {
   // "call" turns are spoken words: hidden from the chat UI, but fed to the
   // brain so she remembers call conversations perfectly
   channel?: "chat" | "call";
+  dur?: number; // voice notes: length in seconds
+  spoken?: string; // her voice notes: raw expressive text (with audio tags)
+  gifUrl?: string; // gif bubbles: resolved CDN url (cached after first fetch)
 }
 
 export interface AppState {
