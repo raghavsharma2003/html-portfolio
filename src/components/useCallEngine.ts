@@ -8,6 +8,7 @@
 // only a "📞 Voice call · m:ss" record when the call ends.
 
 import { useEffect, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think } from "../engine/brain";
@@ -20,6 +21,7 @@ import {
   playThinkingFiller,
   startRoomTone,
   stopRoomTone,
+  duckSpeech,
 } from "../voice/speech";
 import { CALL_OPEN_DIRECTIVE, type VoiceEngine } from "../engine/persona";
 import { logTurns, rememberFrom } from "../engine/memory";
@@ -45,6 +47,12 @@ export function useCallEngine(
   const listeningRef = useRef(false);
   const herWordsRef = useRef<Set<string>>(new Set()); // echo rejection
   const thinkingRef = useRef(false);
+  // adaptive endpointing (web SR): we decide when the user's turn is over,
+  // not the recognizer — LiveKit/pipecat-style, regex instead of a model
+  const acc = useRef({ finals: "", interim: "", lastAt: 0 });
+  const ducked = useRef(false);
+  const interrupted = useRef(false);
+  const reengageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const log = (m: Message) => {
     setState((s) => ({ ...s, messages: [...s.messages, m] }));
@@ -149,7 +157,10 @@ export function useCallEngine(
       () => {
         speakingRef.current = false;
         setSpeaking(false);
-        if (alive.current) startListening();
+        if (alive.current) {
+          startListening();
+          armReengage(); // if they stay quiet ~8s, one soft "hmm?"
+        }
       },
       voiceOpts,
     );
@@ -167,29 +178,97 @@ export function useCallEngine(
     return overlap < 0.6; // mostly her own words = speaker echo, ignore
   }
 
+  // continuation cues hold the turn open — the poor man's end-of-utterance
+  // model (covers most of what LiveKit's transformer buys)
+  const CONTINUATION =
+    /(\b(and|but|so|or|um|uh|like|because|then|aur|toh|to|lekin|par|matlab|kyunki|na|woh|wo|i mean)\s*)$/i;
+  const SHORT_COMPLETE =
+    /^(haa*n|nahi+|nope|yes|yeah|no|ok+a*y*|hmm+|thik h?a*i?|pata nahi|i don'?t know|kuch nahi|bilkul|sahi)$/i;
+
+  function commitDelay(t: string): number {
+    const trimmed = t.trim().toLowerCase();
+    if (SHORT_COMPLETE.test(trimmed) || /\?$/.test(trimmed)) return 550;
+    if (CONTINUATION.test(trimmed)) return 2200;
+    return 1000;
+  }
+
+  // 150ms endpointing tick (web SR only — native STT endpoints itself)
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
+    const iv = setInterval(() => {
+      const a = acc.current;
+      const text = (a.finals + " " + a.interim).trim();
+      if (!text || !a.lastAt || speakingRef.current) return;
+      const waited = Date.now() - a.lastAt;
+      if (waited >= Math.min(3000, commitDelay(text))) {
+        acc.current = { finals: "", interim: "", lastAt: 0 };
+        handleUser(text);
+      }
+    }, 150);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function armReengage() {
+    if (reengageTimer.current) clearTimeout(reengageTimer.current);
+    reengageTimer.current = setTimeout(() => {
+      // 8s of silence after her turn: one soft "hmm?" — then let it breathe
+      if (alive.current && !speakingRef.current && !thinkingRef.current && Math.random() < 0.6) {
+        playBackchannel();
+      }
+    }, 8000);
+  }
+
   // hands-free: the mic stays hot the whole call (even while she speaks,
   // for barge-in) and re-arms itself after recognizer silence timeouts
   function startListening() {
     if (!alive.current || mutedRef.current || listeningRef.current) return;
+    const web = !Capacitor.isNativePlatform();
     const res = listen(
       (text, final) => {
+        if (reengageTimer.current) clearTimeout(reengageTimer.current);
         if (speakingRef.current) {
-          // she's mid-sentence: only a real interruption cuts her off
-          if (isRealInterruption(text)) {
+          // stage 1: duck on any real (non-echo, non-backchannel) speech
+          const real = isRealInterruption(text);
+          const words = text.trim().split(/\s+/).filter(Boolean).length;
+          const command = /\b(stop|wait|ruko|suno|arre|ek minute|listen|hold on|chup)\b/i.test(text);
+          if (real && !ducked.current) {
+            duckSpeech(true);
+            ducked.current = true;
+          }
+          // stage 2: promote to a hard interruption
+          if (real && (words >= 3 || command)) {
             stopSpeaking();
             speakingRef.current = false;
             setSpeaking(false);
-            setHeard(text);
-            if (final && text) handleUser(text);
+            ducked.current = false;
+            interrupted.current = true;
+          } else {
+            return; // backchannel/echo — she keeps talking
           }
-          return;
         }
         setHeard(text);
-        if (final && text) handleUser(text);
+        if (web) {
+          // accumulate; the endpointing tick decides when the turn is over
+          if (final) {
+            acc.current.finals = (acc.current.finals + " " + text).trim();
+            acc.current.interim = "";
+          } else {
+            acc.current.interim = text;
+          }
+          acc.current.lastAt = Date.now();
+        } else if (final && text) {
+          handleUser(text);
+        }
       },
       () => {
         listeningRef.current = false;
         setListening(false);
+        if (ducked.current) {
+          // interim died out — it was nothing; bring her back up
+          duckSpeech(false);
+          ducked.current = false;
+        }
         // recognizers time out on silence — quietly re-arm
         if (alive.current && !mutedRef.current) {
           setTimeout(() => startListening(), 300);
@@ -240,10 +319,15 @@ export function useCallEngine(
     setTimeout(() => {
       if (thinkingRef.current && alive.current && !speakingRef.current) playThinkingFiller();
     }, 2500);
+    const wasInterrupt = interrupted.current;
+    interrupted.current = false;
+    const brainMine = wasInterrupt
+      ? { ...mine, text: `[interrupting you mid-sentence] ${text}` }
+      : mine;
     const reply = await think(
       state.user,
       brainKeys(),
-      [...state.messages, mine],
+      [...state.messages, brainMine],
       text,
       "call",
       engine,
@@ -265,6 +349,7 @@ export function useCallEngine(
 
   function endCall(onEnd: () => void) {
     alive.current = false;
+    if (reengageTimer.current) clearTimeout(reengageTimer.current);
     stopSpeaking();
     stopRoomTone();
     stopListen.current?.();

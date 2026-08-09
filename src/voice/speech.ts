@@ -143,6 +143,25 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // silently fall back to robotic device TTS. Fix: unlock a shared AudioContext
 // during the call-button tap, then play every clip through it.
 let audioCtx: AudioContext | null = null;
+let speechBus: GainNode | null = null; // her voice routes here → duckable
+
+function speechOut(): AudioNode {
+  if (!audioCtx) return null as unknown as AudioNode;
+  if (!speechBus) {
+    speechBus = audioCtx.createGain();
+    speechBus.connect(audioCtx.destination);
+  }
+  return speechBus;
+}
+
+// two-stage barge-in: duck ("I hear you") before committing to a hard stop
+export function duckSpeech(on: boolean) {
+  if (!audioCtx || !speechBus) return;
+  const t = audioCtx.currentTime;
+  speechBus.gain.cancelScheduledValues(t);
+  speechBus.gain.setValueAtTime(speechBus.gain.value, t);
+  speechBus.gain.linearRampToValueAtTime(on ? 0.27 : 1.0, t + (on ? 0.15 : 0.3));
+}
 
 export function unlockAudio() {
   try {
@@ -178,7 +197,7 @@ async function playBlob(
         const src = audioCtx!.createBufferSource();
         currentSource = src;
         src.buffer = buf;
-        src.connect(audioCtx!.destination);
+        src.connect(speechOut());
         src.onended = () => {
           if (session === speakSession) onEnd?.();
           resolve(true);
@@ -289,14 +308,14 @@ export function startRoomTone() {
     lp.type = "lowpass";
     lp.frequency.value = 420;
     const gain = audioCtx.createGain();
-    gain.gain.value = 0.012;
+    gain.gain.value = 0.005;
     src.connect(lp).connect(gain).connect(audioCtx.destination);
     src.start(0);
     // gentle drift so the floor never sounds like a fixed loop
     const sway = window.setInterval(() => {
       if (!roomTone || !audioCtx) return;
       gain.gain.linearRampToValueAtTime(
-        0.008 + Math.random() * 0.008,
+        0.0035 + Math.random() * 0.0035,
         audioCtx.currentTime + 1.8,
       );
     }, 2200);
@@ -578,6 +597,7 @@ export function playBackchannel() {
 
 export function stopSpeaking() {
   speakSession++;
+  duckSpeech(false);
   try {
     currentSource?.stop();
   } catch {
@@ -686,7 +706,7 @@ export function listen(
   const rec = new SR();
   rec.lang = "en-IN";
   rec.interimResults = true;
-  rec.continuous = false;
+  rec.continuous = true;
   rec.onresult = (e: any) => {
     let interim = "";
     let final = "";
