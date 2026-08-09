@@ -235,6 +235,22 @@ async function opUploadPhoto(device, body) {
   const mime = /^image\/(jpeg|png|webp)$/.test(String(body.mime)) ? body.mime : "image/jpeg";
   const buf = Buffer.from(b64, "base64");
   if (!buf.length) return { error: "empty" };
+  // per-device quota: a public write endpoint with no ceiling is a storage
+  // bill waiting to happen. 500 photos per device is far beyond real use.
+  try {
+    const list = await fetch(`${SB_URL}/storage/v1/object/list/meera-photos`, {
+      method: "POST",
+      headers: {
+        apikey: SB_KEY,
+        Authorization: `Bearer ${SB_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prefix: `${device}/`, limit: 501 }),
+    }).then((r) => (r.ok ? r.json() : []));
+    if (Array.isArray(list) && list.length > 500) return { error: "photo limit reached" };
+  } catch {
+    /* quota check unavailable — allow the upload rather than break photos */
+  }
   const path = `${device}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
   const up = await fetch(`${SB_URL}/storage/v1/object/meera-photos/${path}`, {
     method: "POST",

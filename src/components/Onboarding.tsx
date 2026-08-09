@@ -15,7 +15,7 @@ interface Props {
 const VIBES = [
   "someone to talk to",
   "late-night company",
-  "a little romance",
+  "hype-friend energy",
   "deep conversations",
   "someone who listens",
   "just curious",

@@ -22,6 +22,8 @@ interface Props {
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   onVoiceCall: () => void;
   onProfile: () => void;
+  // she must never send chat bubbles while actively ON a call with them
+  inCall?: boolean;
 }
 
 const fmtTime = (t: number) =>
@@ -57,10 +59,23 @@ const typeDelay = (bubble: string) => {
   return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
 };
 
-export default function Chat({ state, setState, onVoiceCall, onProfile }: Props) {
+export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }: Props) {
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   const [clearArm, setClearArm] = useState(false);
+  // transient inline notice ("couldn't read that photo", "mic access needed")
+  const [notice, setNotice] = useState("");
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showNotice = (text: string) => {
+    setNotice(text);
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(""), 4000);
+  };
+  // chat generation — bumped by clear-chat so an in-flight reply from the
+  // old conversation can never ghost into the fresh one
+  const epoch = useRef(0);
+  const inCallRef = useRef(false);
+  inCallRef.current = Boolean(inCall);
   // WhatsApp-style quote-reply: tap a bubble → reply chip → quoted compose
   const [replySel, setReplySel] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -74,6 +89,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
     transcript: string;
     stopSR: (() => void) | null;
     srAlive: boolean;
+    srFails: number;
+    armSR: (() => void) | null;
     timer: ReturnType<typeof setInterval> | null;
     startedAt: number;
     pausedAccum: number;
@@ -150,7 +167,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
   // her opening message when the chat is brand new — improvised by the model,
   // never a stored line ("heyy" alone only if the network is truly dead)
   useEffect(() => {
-    if (messages.length === 0 && !busy.current) {
+    if (messages.length === 0 && !busy.current && !inCallRef.current) {
       busy.current = true;
       think(user, brainKeys(), [], OPEN_DIRECTIVE(), "chat", "device", true).then((reply) => {
         if (!reply.bubbles.length && !reply.photo) reply = { bubbles: ["heyy"] };
@@ -166,7 +183,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
   useEffect(() => {
     const iv = setInterval(() => {
       const f = state.followup;
-      if (!f || busy.current || Date.now() < f.at) return;
+      if (!f || busy.current || inCallRef.current || Date.now() < f.at) return;
       const late = Math.round((Date.now() - f.at) / 60000);
       const statedAgo = late < 2 ? "right about now" : `${late} minutes past the time`;
       setState((s) => ({ ...s, followup: null }));
@@ -186,7 +203,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
   // the model improvises what she's doing, nothing is scripted
   useEffect(() => {
     const iv = setInterval(() => {
-      if (nudged.current || busy.current || messages.length < 4) return;
+      if (nudged.current || busy.current || inCallRef.current || messages.length < 4) return;
       const idle = Date.now() - lastActivity.current;
       if (idle > 150_000 && messages[messages.length - 1]?.from === "her") {
         nudged.current = true;
@@ -203,7 +220,19 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
 
   async function deliver(reply: HeartReply, incoming = "") {
     busy.current = true;
+    // if the user clears the chat while she's mid-reply, this delivery is
+    // from a conversation that no longer exists — it must vanish with it
+    const ep = epoch.current;
+    const stale = () => {
+      if (ep !== epoch.current) {
+        setTyping(false);
+        busy.current = false;
+        return true;
+      }
+      return false;
+    };
     await sleep(readDelay(incoming));
+    if (stale()) return;
     // this is the moment she actually reads you: she pops online, blue ticks
     cameOnline();
     upgradeMyStatus("read");
@@ -211,15 +240,18 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
     for (const bubble of reply.bubbles) {
       setTyping(true);
       await sleep(typeDelay(bubble));
+      if (stale()) return;
       setTyping(false);
       const msg: Message = { id: uid(), from: "her", kind: "text", text: bubble, at: Date.now() };
       delivered.push(msg);
       pushMsg(msg);
       await sleep(280 + Math.random() * 420);
+      if (stale()) return;
     }
     if (reply.voice) {
       setTyping(true);
       await sleep(2200 + Math.random() * 1200); // "recording..." beat
+      if (stale()) return;
       setTyping(false);
       const clean = reply.voice.text.replace(/\[[a-z ]+\]/gi, "").trim();
       const msg: Message = {
@@ -238,6 +270,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
     if (reply.gif) {
       setTyping(true);
       await sleep(900 + Math.random() * 700);
+      if (stale()) return;
       setTyping(false);
       const msg: Message = {
         id: uid(),
@@ -258,6 +291,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
     if (reply.photo) {
       setTyping(true);
       await sleep(1600);
+      if (stale()) return;
       setTyping(false);
       pushMsg({
         id: uid(),
@@ -274,6 +308,9 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
   async function send() {
     const text = draft.trim();
     if (!text || busy.current) return;
+    // claim the conversation SYNCHRONOUSLY — a second Enter during the
+    // think() window must not start an interleaved parallel reply
+    busy.current = true;
     setDraft("");
     lastActivity.current = Date.now();
     nudged.current = false;
@@ -332,8 +369,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
 
   async function sendPhoto(file: File) {
     if (busy.current) return;
+    busy.current = true; // same synchronous claim as send()
     const packed = await compressImage(file);
-    if (!packed || !packed.b64) return;
+    if (!packed || !packed.b64) {
+      busy.current = false;
+      showNotice("couldn't read that photo — try a different one");
+      return;
+    }
     const caption = draft.trim();
     setDraft("");
     lastActivity.current = Date.now();
@@ -456,6 +498,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
         transcript: "",
         stopSR: null as (() => void) | null,
         srAlive: true,
+        srFails: 0,
+        armSR: null as (() => void) | null,
         timer: null as ReturnType<typeof setInterval> | null,
         startedAt: Date.now(),
         pausedAccum: 0,
@@ -463,20 +507,34 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
       };
       recRef.current = st;
       recorder.ondataavailable = (e) => e.data.size && st.chunks.push(e.data);
+      // a dying recorder (mic revoked, device unplugged) must not brick the
+      // rec-bar — end cleanly, the send path salvages what it can
+      recorder.onerror = () => {
+        if (recRef.current === st) finishRecording(true);
+      };
       recorder.start(250);
-      // live transcription runs alongside the recording, re-arming on silence
+      // live transcription runs alongside the recording, re-arming on
+      // silence — with a failure cap so a broken recognizer can't hot-loop
+      // for the whole note (the audio itself keeps recording regardless)
       const arm = () => {
         if (!st.srAlive) return;
+        const startedAt = Date.now();
         const res = listen(
           (text, final) => {
+            st.srFails = 0;
             if (final && text) st.transcript = (st.transcript + " " + text).trim();
           },
-          () => {
-            if (st.srAlive) setTimeout(arm, 250);
+          (reason?: string) => {
+            if (!st.srAlive || reason === "not-allowed") return;
+            if (Date.now() - startedAt < 1000) st.srFails += 1;
+            else st.srFails = 0;
+            if (st.srFails >= 4) return; // transcription is broken here; stop churning
+            setTimeout(arm, 250);
           },
         );
         st.stopSR = res.stop || null;
       };
+      st.armSR = arm;
       arm();
       st.timer = setInterval(() => {
         const pausedNow = st.pausedAt ? Date.now() - st.pausedAt : 0;
@@ -486,7 +544,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
       setRecPaused(false);
       setRecording(true);
     } catch {
-      /* mic denied — nothing to do */
+      showNotice("mic access needed — allow the microphone and try again");
     }
   }
 
@@ -502,20 +560,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
         /* ignore */
       }
       st.srAlive = true;
-      // re-arm transcription
-      const arm = () => {
-        if (!st.srAlive) return;
-        const res = listen(
-          (text, final) => {
-            if (final && text) st.transcript = (st.transcript + " " + text).trim();
-          },
-          () => {
-            if (st.srAlive) setTimeout(arm, 250);
-          },
-        );
-        st.stopSR = res.stop || null;
-      };
-      arm();
+      st.srFails = 0;
+      st.armSR?.(); // re-arm transcription (same capped loop as recording start)
       setRecPaused(false);
     } else {
       st.pausedAt = Date.now();
@@ -534,18 +580,51 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
     const st = recRef.current;
     if (!st) return;
     st.srAlive = false;
-    st.stopSR?.();
+    try {
+      st.stopSR?.();
+    } catch {
+      /* recognizer already dead */
+    }
     if (st.timer) clearInterval(st.timer);
     const pausedNow = st.pausedAt ? Date.now() - st.pausedAt : 0;
     const secs = Math.max(1, Math.round((Date.now() - st.startedAt - st.pausedAccum - pausedNow) / 1000));
-    st.recorder!.onstop = () => {
-      st.recorder!.stream.getTracks().forEach((t) => t.stop());
+    const releaseMic = () => {
+      try {
+        st.recorder!.stream.getTracks().forEach((t) => t.stop());
+      } catch {
+        /* track already stopped */
+      }
+    };
+    const finalize = () => {
       if (!sendIt) return;
       // give the recognizer a beat to flush its final result
       setTimeout(() => {
         const transcript = st.transcript.trim();
-        const blob = new Blob(st.chunks, { type: st.recorder!.mimeType || "audio/webm" });
-        if (!blob.size) return;
+        const blob = new Blob(st.chunks, { type: st.recorder?.mimeType || "audio/webm" });
+        if (!blob.size) {
+          // no audio came out of the recorder. If we at least HEARD words,
+          // the message still sends (as text) — effort is never lost.
+          if (transcript) {
+            const mine: Message = {
+              id: uid(),
+              from: "me",
+              kind: "text",
+              text: transcript,
+              at: Date.now(),
+              status: "sent",
+            };
+            pushMsg(mine);
+            logTurns(state.deviceId, [mine]);
+            setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
+            think(user, brainKeys(), [...messages, mine], transcript).then((reply) => {
+              mergeLearned(reply.learned);
+              deliver(reply, transcript);
+            });
+          } else {
+            showNotice("recording didn't capture — try again");
+          }
+          return;
+        }
         // WhatsApp rule: a recording you hit send on ALWAYS sends
         const mine: Message = {
           id: uid(),
@@ -576,7 +655,23 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
         });
       }, 600);
     };
-    st.recorder!.stop();
+    st.recorder!.onstop = () => {
+      releaseMic();
+      finalize();
+    };
+    try {
+      // an already-dead recorder (error path, revoked mic) never fires
+      // onstop — finalize directly so the rec-bar can't brick the chat
+      if (st.recorder!.state !== "inactive") {
+        st.recorder!.stop();
+      } else {
+        releaseMic();
+        finalize();
+      }
+    } catch {
+      releaseMic();
+      finalize();
+    }
     recRef.current = null;
     setRecording(false);
     setRecPaused(false);
@@ -734,8 +829,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
               setClearArm(false);
               nudged.current = false;
               busy.current = false;
+              epoch.current += 1; // kill any in-flight reply from the old chat
+              setTyping(false);
               track(state.deviceId, "chat_cleared", { count: messages.length }, state.auth?.userId);
-              setState((s) => ({ ...s, messages: [] }));
+              // clearedAt is the synced tombstone: other devices honor it
+              // instead of resurrecting the wiped conversation; followup
+              // timers from the deleted conversation die with it
+              setState((s) => ({ ...s, messages: [], followup: null, clearedAt: Date.now() }));
             }
           }}
           aria-label={clearArm ? "Tap again to clear chat" : "Clear chat"}
@@ -756,6 +856,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
         <div style={{ height: 6 }} />
       </div>
 
+      {notice && <div className="chat-notice">{notice}</div>}
       {replyTo && (
         <div className="reply-bar">
           <div className="quote">

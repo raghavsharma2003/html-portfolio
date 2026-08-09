@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useAppState } from "./state/store";
-import type { AuthInfo } from "./state/store";
+import { useAppState, rotateDeviceId, type Message } from "./state/store";
+import type { AuthInfo, AppState } from "./state/store";
 import Onboarding from "./components/Onboarding";
 import Chat from "./components/Chat";
 import CallVoice from "./components/CallVoice";
@@ -9,63 +9,116 @@ import { unlockAudio } from "./voice/speech";
 import {
   consumeOAuthCallback,
   ensureFresh,
+  isAuthDead,
+  AccountError,
   loadStateRemote,
   saveStateRemote,
   track,
   type AuthSession,
 } from "./engine/account";
 
+// union-merge two message histories by id (never wholesale replacement —
+// a message typed during sign-in must survive), honoring the clear-chat
+// tombstone so a wiped chat can't be resurrected by a stale copy
+function mergeStates(local: AppState, remote: any): Partial<AppState> {
+  const clearedAt = Math.max(local.clearedAt ?? 0, Number(remote?.clearedAt) || 0);
+  const byId = new Map<string, Message>();
+  for (const m of Array.isArray(remote?.messages) ? remote.messages : [])
+    if (m && m.id && (m.at ?? 0) >= clearedAt) byId.set(m.id, m);
+  for (const m of local.messages) if ((m.at ?? 0) >= clearedAt) byId.set(m.id, m);
+  const messages = [...byId.values()].sort((a, b) => (a.at ?? 0) - (b.at ?? 0)).slice(-500);
+  return {
+    onboarded: remote?.onboarded || local.onboarded,
+    deviceId: remote?.deviceId || local.deviceId, // keep her memory graph
+    user: local.messages.length >= (remote?.messages?.length ?? 0) ? local.user : remote?.user ?? local.user,
+    messages,
+    lastSeen: Math.max(local.lastSeen ?? 0, Number(remote?.lastSeen) || 0),
+    clearedAt: clearedAt || undefined,
+  };
+}
+
 export default function App() {
   const [state, setState] = useAppState();
   const [inCall, setInCall] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const adopted = useRef(false);
+  // last server revision we saw — sent with saves so the server can reject
+  // a stale write instead of letting this tab clobber another device
+  const serverRev = useRef<string | null>(null);
 
-  // one-time boot: finish a Google redirect + app_open analytics
+  // one-time boot: finish a Google redirect, pull the account's server copy
+  // if we're already signed in, app_open analytics
   useEffect(() => {
     const oauth = consumeOAuthCallback();
     if (oauth) {
       adoptSession(oauth);
       track(state.deviceId, "signin_success", { method: "google" });
+    } else if (state.auth?.accessToken) {
+      adoptSession(state.auth as AuthSession); // pull what other devices did
     }
     track(state.deviceId, "app_open", { onboarded: state.onboarded }, state.auth?.userId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // when signed in: reconcile once (server copy wins if it has more life in
-  // it), then keep the account fresh
+  const authFailed = (e: unknown) => {
+    if (!isAuthDead(e)) return false;
+    // token revoked/expired — say so via signed-out UI instead of silently
+    // pretending the account still syncs
+    track(state.deviceId, "auth_expired", {});
+    setState((s) => ({ ...s, auth: null }));
+    return true;
+  };
+
+  // reconcile with the account's server copy: merge, never clobber
   async function adoptSession(session: AuthSession) {
+    let fresh: AuthSession;
     try {
-      const fresh = await ensureFresh(session);
+      fresh = await ensureFresh(session);
+    } catch (e) {
+      authFailed(e);
+      return;
+    }
+    // the session is real — persist it BEFORE any remote call can fail,
+    // or a flaky load would silently discard a completed sign-in
+    setState((s) => ({ ...s, auth: fresh as AuthInfo }));
+    try {
       const remote = await loadStateRemote(fresh);
+      serverRev.current = remote?.updated_at ?? null;
       setState((s) => {
-        const merged = { ...s, auth: fresh as AuthInfo };
-        const r = remote?.state;
-        if (
-          !adopted.current &&
-          r &&
-          Array.isArray(r.messages) &&
-          r.messages.length > s.messages.length
-        ) {
-          adopted.current = true;
+        // account switch on a shared browser: never carry the previous
+        // account's (or anonymous) conversation into this account
+        if (s.lastAccountId && s.lastAccountId !== fresh.userId) {
+          const r = remote?.state;
           return {
-            ...merged,
-            onboarded: r.onboarded ?? merged.onboarded,
-            deviceId: r.deviceId || merged.deviceId, // keep her memory graph
-            user: r.user ?? merged.user,
-            messages: r.messages,
-            lastSeen: r.lastSeen ?? merged.lastSeen,
+            ...s,
+            auth: fresh as AuthInfo,
+            lastAccountId: fresh.userId,
+            onboarded: r?.onboarded ?? false,
+            deviceId: r?.deviceId || rotateDeviceId(),
+            user: r?.user ?? { name: "", vibe: [], facts: {} },
+            messages: Array.isArray(r?.messages) ? r.messages : [],
+            lastSeen: r?.lastSeen ?? Date.now(),
+            clearedAt: r?.clearedAt,
+            followup: null,
           };
         }
-        return merged;
+        return {
+          ...s,
+          auth: fresh as AuthInfo,
+          lastAccountId: fresh.userId,
+          ...mergeStates(s, remote?.state),
+        };
       });
-    } catch {
-      /* stale refresh token — leave anonymous */
+    } catch (e) {
+      if (!authFailed(e)) {
+        /* network blip — we're signed in; sync will retry */
+      }
     }
   }
 
-  // continuous sync: push state (debounced 4s) whenever it changes
+  // continuous sync: push state (debounced 4s) whenever it changes, with
+  // conflict detection — a 409 means another device saved first: merge
+  // their copy in and let the next debounce push the union
   useEffect(() => {
     if (!state.auth?.accessToken) return;
     if (syncTimer.current) clearTimeout(syncTimer.current);
@@ -75,9 +128,15 @@ export default function App() {
         if (fresh.accessToken !== state.auth?.accessToken) {
           setState((s) => ({ ...s, auth: fresh as AuthInfo }));
         }
-        await saveStateRemote(fresh, state);
-      } catch {
-        /* offline — next change retries */
+        const res = await saveStateRemote(fresh, state, serverRev.current);
+        if (res?.updated_at) serverRev.current = res.updated_at;
+      } catch (e) {
+        if (e instanceof AccountError && e.status === 409 && e.data?.state) {
+          serverRev.current = e.data.updated_at ?? null;
+          setState((s) => ({ ...s, ...mergeStates(s, e.data.state) }));
+          return; // merged state re-triggers this effect → retry push
+        }
+        authFailed(e); // otherwise: offline — next change retries
       }
     }, 4000);
     return () => {
@@ -101,6 +160,7 @@ export default function App() {
           <Chat
             state={state}
             setState={setState}
+            inCall={inCall}
             onVoiceCall={() => {
               // unlock inside the tap gesture, or mobile browsers mute her
               unlockAudio();
@@ -122,8 +182,21 @@ export default function App() {
               }}
               onSignOut={() => {
                 track(state.deviceId, "signout", {}, state.auth?.userId);
-                adopted.current = false;
-                setState((s) => ({ ...s, auth: null }));
+                serverRev.current = null;
+                // privacy on shared browsers: signing out wipes the local
+                // conversation and mints a fresh device identity — signing
+                // back in restores everything from the account's server copy
+                setState((s) => ({
+                  ...s,
+                  auth: null,
+                  onboarded: false,
+                  messages: [],
+                  followup: null,
+                  user: { name: "", vibe: [], facts: {} },
+                  deviceId: rotateDeviceId(),
+                  lastAccountId: undefined,
+                  clearedAt: undefined,
+                }));
                 setAuthOpen(false);
               }}
             />

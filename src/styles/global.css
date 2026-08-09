@@ -9,7 +9,7 @@
   --surface-2: #eeeef0;     /* her bubbles, wells */
   --ink: #1d1d1f;
   --ink-dim: #6e6e73;
-  --ink-faint: #a1a1a6;
+  --ink-faint: #8e8e93;
   --accent: #e0356b;        /* the one accent — Meera rose */
   --accent-deep: #c22a5b;
   --accent-soft: #fde8ef;
@@ -78,7 +78,7 @@ select {
 
 /* On a desktop browser the app lives in a phone-width frame, centered —
    full-bleed on anything narrower (phones, the APK's WebView). */
-@media (min-width: 720px) {
+@media (min-width: 720px) and (min-height: 720px) {
   body {
     background: #e8e8ed;
   }
@@ -436,11 +436,14 @@ button {
   margin-top: 10px;
 }
 
+.msg {
+  overflow-wrap: anywhere;
+}
 .msg .t {
   display: block;
   font-size: 10.5px;
   margin-top: 3px;
-  opacity: 0.5;
+  opacity: 0.72;
   text-align: right;
 }
 
@@ -529,6 +532,19 @@ button {
   to { background-position: -200% 0; }
 }
 
+/* transient inline notice ("couldn't read that photo", "mic needed") */
+.chat-notice {
+  align-self: center;
+  margin: 0 16px 6px;
+  padding: 8px 16px;
+  border-radius: 14px;
+  background: rgba(29, 29, 31, 0.82);
+  color: #fff;
+  font-size: 13.5px;
+  text-align: center;
+  animation: msg-in 0.25s ease;
+}
+
 /* voice-note recording bar */
 .rec-bar {
   flex: 1;
@@ -552,6 +568,10 @@ button {
 }
 .rec-time {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 14.5px;
   color: var(--ink-dim);
 }
@@ -696,10 +716,12 @@ button {
 .msg .t .tickicon.read {
   color: #6fe0ff;
 }
-.msg.emoji-big .t .tickicon {
+.msg.emoji-big .t .tickicon,
+.msg.me.photo .t .tickicon {
   color: var(--ink-faint);
 }
-.msg.emoji-big .t .tickicon.read {
+.msg.emoji-big .t .tickicon.read,
+.msg.me.photo .t .tickicon.read {
   color: #35b8e8;
 }
 
@@ -775,7 +797,7 @@ button {
   display: flex;
   align-items: flex-end;
   gap: 10px;
-  padding: 8px 12px calc(var(--safe-bottom) + 12px);
+  padding: 8px calc(env(safe-area-inset-right, 0px) + 12px) calc(var(--safe-bottom) + 12px) calc(env(safe-area-inset-left, 0px) + 12px);
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(24px) saturate(1.8);
   border-top: 1px solid var(--hairline);

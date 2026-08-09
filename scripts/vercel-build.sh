@@ -23,3 +23,5 @@ mv dist/index.html dist/chat.html
 cp site/index.html dist/index.html
 cp site/styles.css dist/styles.css
 cp site/privacy.html dist/privacy.html
+mkdir -p dist/assets
+cp -R site/assets/. dist/assets/

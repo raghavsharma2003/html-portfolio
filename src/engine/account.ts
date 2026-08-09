@@ -15,14 +15,35 @@ export interface AuthSession {
   expiresAt: number; // epoch ms
 }
 
+export class AccountError extends Error {
+  status: number;
+  data: any;
+  constructor(message: string, status: number, data?: any) {
+    super(message);
+    this.status = status;
+    this.data = data;
+  }
+}
+
+// an auth-layer rejection (revoked/expired token) — NOT a network blip.
+// Callers must surface these instead of silently retrying forever.
+export const isAuthDead = (e: unknown) =>
+  e instanceof AccountError && (e.status === 400 || e.status === 401 || e.status === 403);
+
 async function post(body: unknown): Promise<any> {
   const res = await fetch(`${BASE}/api/account`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(20_000),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || data?.msg || data?.error_description || `error ${res.status}`);
+  if (!res.ok)
+    throw new AccountError(
+      data?.error || data?.msg || data?.error_description || `error ${res.status}`,
+      res.status,
+      data,
+    );
   return data;
 }
 
@@ -77,19 +98,33 @@ export async function ensureFresh(s: AuthSession): Promise<AuthSession> {
   return refreshSession(s);
 }
 
-// which slices of AppState are worth syncing (keys stay on-device only)
+// which slices of AppState are worth syncing (keys stay on-device only).
+// data: photo URLs are stripped — a failed upload must never turn each 4s
+// sync into a multi-MB POST (the desc/caption keeps the memory).
 export function syncableState(s: AppState) {
   return {
     onboarded: s.onboarded,
     deviceId: s.deviceId,
     user: s.user,
-    messages: s.messages.slice(-400),
+    messages: s.messages.slice(-400).map((m) =>
+      m.photoUrl && m.photoUrl.startsWith("data:") ? { ...m, photoUrl: undefined } : m,
+    ),
     lastSeen: s.lastSeen,
+    clearedAt: s.clearedAt,
   };
 }
 
-export const saveStateRemote = (session: AuthSession, state: AppState) =>
-  post({ op: "save_state", access_token: session.accessToken, state: syncableState(state), device: state.deviceId });
+// baseUpdatedAt: the server revision this client last saw. The server
+// rejects the write (409) if someone else saved since — the caller then
+// merges and retries instead of clobbering another device's messages.
+export const saveStateRemote = (session: AuthSession, state: AppState, baseUpdatedAt?: string | null) =>
+  post({
+    op: "save_state",
+    access_token: session.accessToken,
+    state: syncableState(state),
+    device: state.deviceId,
+    base_updated_at: baseUpdatedAt ?? undefined,
+  });
 
 export const loadStateRemote = (session: AuthSession) =>
   post({ op: "load_state", access_token: session.accessToken });

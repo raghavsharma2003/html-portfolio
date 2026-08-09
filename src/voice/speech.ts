@@ -68,19 +68,26 @@ export async function listDeviceVoices(): Promise<DeviceVoice[]> {
 
 /* ─────────────────────── shared text prep ─────────────────────── */
 
+// protocol that must NEVER be spoken aloud: [photo:/gif:/voicenote:/followup:/
+// tone:] markers (colon form), "---" bubble separators, *roleplay actions*
+function stripProtocol(text: string): string {
+  return text
+    .replace(/\[[a-z]+\s*:[^\]]*\]?/gi, " ")
+    .replace(/\*[^*\n]{1,80}\*/g, " ")
+    .replace(/(^|\s)-{2,}(\s|$)/g, " ");
+}
+
 function stripForDevice(text: string): string {
   // device TTS can't laugh — turn audio tags into pauses, drop emojis
-  return text
+  return stripProtocol(text)
     .replace(/\[[a-z ]+\]/gi, "…")
-    .replace(/\[photo:[^\]]*\]/gi, "")
     .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{2764}]/gu, "")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function stripForCloud(text: string): string {
-  return text
-    .replace(/\[photo:[^\]]*\]/gi, "")
+  return stripProtocol(text)
     .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{2764}]/gu, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -160,13 +167,17 @@ function speechOut(): AudioNode {
   return speechBus;
 }
 
-// two-stage barge-in: duck ("I hear you") before committing to a hard stop
+// two-stage barge-in: duck ("I hear you") before committing to a hard stop.
+// Covers BOTH output paths — the WebAudio bus and the HTMLAudio fallback.
+let duckedLevel = 1.0;
 export function duckSpeech(on: boolean) {
+  duckedLevel = on ? 0.27 : 1.0;
+  if (currentAudio) currentAudio.volume = duckedLevel;
   if (!audioCtx || !speechBus) return;
   const t = audioCtx.currentTime;
   speechBus.gain.cancelScheduledValues(t);
   speechBus.gain.setValueAtTime(speechBus.gain.value, t);
-  speechBus.gain.linearRampToValueAtTime(on ? 0.27 : 1.0, t + (on ? 0.15 : 0.3));
+  speechBus.gain.linearRampToValueAtTime(duckedLevel, t + (on ? 0.15 : 0.3));
 }
 
 export function unlockAudio() {
@@ -218,6 +229,7 @@ async function playBlob(
   return new Promise((resolve) => {
     const audio = new Audio(URL.createObjectURL(blob));
     currentAudio = audio;
+    audio.volume = duckedLevel; // fallback path still honors barge-in duck
     audio.onplay = () => onStart?.();
     audio.onended = () => {
       URL.revokeObjectURL(audio.src);
@@ -348,6 +360,7 @@ async function meeraFetch(text: string, style?: string): Promise<Blob | null> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, ...(style ? { style } : {}) }),
+      signal: AbortSignal.timeout(40_000),
     });
     if (!res.ok) return null;
     const blob = await res.blob();
@@ -510,26 +523,38 @@ async function fetchClipFor(
 function hedgedClipFor(text: string, opts: VoiceOpts, style?: string): Promise<Blob | null> {
   return new Promise((resolve) => {
     let settled = false;
+    let hedged = false;
     let pending = 1;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    const launchHedge = () => {
+      if (settled || hedged) return;
+      hedged = true;
+      pending++;
+      fetchClipFor(text, opts, style).then(settle, () => settle(null));
+    };
     const settle = (b: Blob | null) => {
       if (settled) return;
       if (b) {
         settled = true;
         if (timer) clearTimeout(timer);
         resolve(b);
-      } else if (--pending <= 0) {
+        return;
+      }
+      pending--;
+      if (!hedged) {
+        // primary failed FAST (429/refused) — retry immediately, don't wait
+        if (timer) clearTimeout(timer);
+        launchHedge();
+        return;
+      }
+      if (pending <= 0) {
         settled = true;
         if (timer) clearTimeout(timer);
         resolve(null);
       }
     };
     fetchClipFor(text, opts, style).then(settle, () => settle(null));
-    timer = setTimeout(() => {
-      if (settled) return;
-      pending++;
-      fetchClipFor(text, opts, style).then(settle, () => settle(null));
-    }, 2400);
+    timer = setTimeout(launchHedge, 2400); // primary slow — race a second try
   });
 }
 
@@ -821,9 +846,12 @@ if (typeof window !== "undefined" && window.speechSynthesis) {
 
 type STTResult = { supported: boolean; stop?: () => void };
 
+// onEnd carries WHY the session ended: "" = normal silence timeout (re-arm),
+// "not-allowed" = permission denied (stop re-arming, surface the keyboard),
+// "error" = transient failure (re-arm with backoff)
 export function listen(
   onText: (text: string, final: boolean) => void,
-  onEnd: () => void,
+  onEnd: (reason?: string) => void,
 ): STTResult {
   if (isNative) {
     let stopped = false;
@@ -832,14 +860,16 @@ export function listen(
       try {
         const avail = await NativeSR.available();
         if (!avail.available) {
-          onEnd();
+          onEnd("not-allowed");
           return;
         }
+        if (stopped) return; // stop() raced our async init — don't start
         const perm = await NativeSR.requestPermissions();
         if (perm.speechRecognition !== "granted") {
-          onEnd();
+          onEnd("not-allowed");
           return;
         }
+        if (stopped) return;
         await NativeSR.removeAllListeners();
         await NativeSR.addListener("partialResults", (data: any) => {
           const t = data?.matches?.[0];
@@ -855,13 +885,15 @@ export function listen(
             onEnd();
           }
         });
+        if (stopped) return; // teardown happened mid-init — keep the mic off
         await NativeSR.start({
           language: "en-IN",
           partialResults: true,
           popup: false,
         });
+        if (stopped) NativeSR.stop().catch(() => {});
       } catch {
-        onEnd();
+        onEnd("error");
       }
     })();
     return {
@@ -880,6 +912,7 @@ export function listen(
   rec.lang = "en-IN";
   rec.interimResults = true;
   rec.continuous = true;
+  let endReason = "";
   rec.onresult = (e: any) => {
     let interim = "";
     let final = "";
@@ -891,12 +924,22 @@ export function listen(
     if (final) onText(final.trim(), true);
     else if (interim) onText(interim.trim(), false);
   };
-  rec.onend = () => onEnd();
-  rec.onerror = () => onEnd();
+  rec.onerror = (e: any) => {
+    endReason =
+      e?.error === "not-allowed" || e?.error === "service-not-allowed"
+        ? "not-allowed"
+        : e?.error === "no-speech" || e?.error === "aborted"
+          ? ""
+          : "error";
+  };
+  rec.onend = () => onEnd(endReason);
   try {
     rec.start();
   } catch {
-    return { supported: false };
+    // transient start collision (previous recognizer still tearing down) —
+    // NOT "no STT on this device"; report an error end so the caller retries
+    setTimeout(() => onEnd("error"), 50);
+    return { supported: true, stop: () => {} };
   }
   return { supported: true, stop: () => rec.stop() };
 }

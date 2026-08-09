@@ -14,14 +14,38 @@ export function allow(ip, name, perMinute) {
   }
   recent.push(now);
   buckets.set(key, recent);
-  if (buckets.size > 5000) buckets.clear(); // memory guard
+  if (buckets.size > 5000) prune(now); // memory guard — evict, never reset all
   return true;
 }
 
+// evict only stale buckets: wiping the whole map would hand an attacker a
+// periodic "rate limits off" window for everyone
+function prune(now) {
+  for (const [key, times] of buckets) {
+    if (!times.length || now - times[times.length - 1] > 60_000) buckets.delete(key);
+  }
+  // every bucket somehow live? drop the oldest half rather than all state
+  if (buckets.size > 5000) {
+    let i = 0;
+    const half = buckets.size / 2;
+    for (const key of buckets.keys()) {
+      buckets.delete(key);
+      if (++i >= half) break;
+    }
+  }
+}
+
 export function ipOf(req) {
-  return (
+  // Trust only platform-set headers. x-forwarded-for's FIRST entry is
+  // client-controlled (spoofable per request = unlimited fresh buckets);
+  // x-real-ip / x-vercel-forwarded-for are set by Vercel itself.
+  const real =
+    req.headers["x-real-ip"] ||
+    req.headers["x-vercel-forwarded-for"] ||
     String(req.headers["x-forwarded-for"] || "")
-      .split(",")[0]
-      .trim() || "unknown"
-  );
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .pop(); // last hop = the one the platform appended
+  return String(real || "unknown").slice(0, 64);
 }

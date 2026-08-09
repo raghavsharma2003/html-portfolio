@@ -25,6 +25,7 @@ async function audioFor(m: Message): Promise<Blob | null> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: m.spoken || m.text }),
+      signal: AbortSignal.timeout(40_000),
     });
     if (!res.ok) return null;
     const blob = await res.blob();
@@ -49,6 +50,7 @@ function bars(seed: string): number[] {
 export default function VoiceNote({ m }: { m: Message }) {
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false); // fetch/play failed — tap retries
   const [progress, setProgress] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wave = useRef(bars(m.id));
@@ -66,21 +68,36 @@ export default function VoiceNote({ m }: { m: Message }) {
       setPlaying(false);
       return;
     }
+    setFailed(false);
     if (!audioRef.current) {
       setLoading(true);
       const blob = await audioFor(m);
       setLoading(false);
-      if (!blob) return;
+      if (!blob) {
+        setFailed(true); // visible failure — the next tap retries the fetch
+        return;
+      }
       const a = new Audio(URL.createObjectURL(blob));
       a.ontimeupdate = () => setProgress(a.duration ? a.currentTime / a.duration : 0);
       a.onended = () => {
         setPlaying(false);
         setProgress(0);
       };
+      a.onerror = () => {
+        setPlaying(false);
+        setFailed(true);
+        audioRef.current = null; // decode failure — refetch on next tap
+      };
       audioRef.current = a;
     }
-    audioRef.current.play().catch(() => {});
-    setPlaying(true);
+    // only claim "playing" when playback actually starts (autoplay policy)
+    audioRef.current
+      .play()
+      .then(() => setPlaying(true))
+      .catch(() => {
+        setPlaying(false);
+        setFailed(true);
+      });
   }
 
   const dur = m.dur ?? Math.max(2, Math.round((m.text.split(/\s+/).length / 2.6) * 1));
@@ -111,7 +128,7 @@ export default function VoiceNote({ m }: { m: Message }) {
           />
         ))}
       </div>
-      <span className="vdur">{mm}</span>
+      <span className="vdur">{failed ? "tap to retry" : mm}</span>
     </div>
   );
 }

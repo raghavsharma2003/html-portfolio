@@ -24,6 +24,11 @@ function schedule() {
 if (vv) {
   vv.addEventListener("resize", schedule);
   vv.addEventListener("scroll", schedule);
+} else {
+  // no VisualViewport (older WebViews): plain resize keeps --vvh honest
+  // through rotations and window resizes
+  window.addEventListener("resize", schedule);
+  window.addEventListener("orientationchange", schedule);
 }
 window.addEventListener("focusin", schedule);
 // iOS 26.0 bug: offsetTop/height stay stale after keyboard dismiss — resync late

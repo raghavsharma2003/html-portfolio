@@ -52,9 +52,16 @@ export interface AppState {
   lastSeen: number;
   // her self-scheduled follow-up ("back in 20 min" → she texts first)
   followup?: { at: number; why: string } | null;
+  // clear-chat tombstone: synced so a wiped chat can never be resurrected
+  // by another device's stale copy
+  clearedAt?: number;
+  // the account this local state last belonged to — guards against a second
+  // account on the same browser inheriting the first account's conversation
+  lastAccountId?: string;
 }
 
 const KEY = "meera.state.v1";
+const DEVICE_KEY = "meera.device.v1";
 
 // every install gets its own valid v4 UUID — memory/log/state are all keyed
 // by it server-side, so no two users can ever share or mix data
@@ -66,9 +73,33 @@ function freshDeviceId(): string {
   );
 }
 
+// deviceId lives under its OWN key: a corrupt/overflowing state blob must
+// never orphan the server-side memory graph it keys
+function stableDeviceId(): string {
+  try {
+    const existing = localStorage.getItem(DEVICE_KEY);
+    if (existing && /^[0-9a-f-]{36}$/i.test(existing)) return existing;
+    const fresh = freshDeviceId();
+    localStorage.setItem(DEVICE_KEY, fresh);
+    return fresh;
+  } catch {
+    return freshDeviceId();
+  }
+}
+
+export function rotateDeviceId(): string {
+  const fresh = freshDeviceId();
+  try {
+    localStorage.setItem(DEVICE_KEY, fresh);
+  } catch {
+    /* in-memory only */
+  }
+  return fresh;
+}
+
 export const defaultState: AppState = {
   onboarded: false,
-  deviceId: freshDeviceId(),
+  deviceId: stableDeviceId(),
   user: { name: "", vibe: [], facts: {} },
   messages: [],
   openrouterKey: "",
@@ -91,18 +122,32 @@ export function loadState(): AppState {
   }
 }
 
+// data: URLs (photos whose upload failed) are huge — never let them brick
+// persistence. Strip them from the stored copy; the desc/caption survives.
+function persistable(s: AppState, keep: number): string {
+  return JSON.stringify({
+    ...s,
+    messages: s.messages.slice(-keep).map((m) =>
+      m.photoUrl && m.photoUrl.startsWith("data:") && m.photoUrl.length > 60_000
+        ? { ...m, photoUrl: undefined }
+        : m,
+    ),
+  });
+}
+
 export function saveState(s: AppState) {
   try {
     localStorage.setItem(KEY, JSON.stringify(s));
+    return;
   } catch {
-    /* storage full — drop oldest half of messages and retry */
+    /* storage full — strip heavy photo data, then halve until it fits */
+  }
+  for (const keep of [400, 200, 100, 50]) {
     try {
-      localStorage.setItem(
-        KEY,
-        JSON.stringify({ ...s, messages: s.messages.slice(-200) }),
-      );
+      localStorage.setItem(KEY, persistable(s, keep));
+      return;
     } catch {
-      /* give up quietly */
+      /* still too big — halve again */
     }
   }
 }
@@ -110,6 +155,31 @@ export function saveState(s: AppState) {
 export function useAppState() {
   const [state, setState] = useState<AppState>(loadState);
   useEffect(() => saveState(state), [state]);
+  // multi-tab: when another tab writes state, adopt whichever copy has more
+  // recent life in it — otherwise two open tabs ping-pong stale writes (and
+  // both fire her follow-up timer)
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== KEY || !e.newValue) return;
+      try {
+        const incoming = JSON.parse(e.newValue) as AppState;
+        setState((cur) => {
+          const inLast = incoming.messages?.[incoming.messages.length - 1]?.at ?? 0;
+          const curLast = cur.messages[cur.messages.length - 1]?.at ?? 0;
+          const inCleared = incoming.clearedAt ?? 0;
+          const curCleared = cur.clearedAt ?? 0;
+          if (inLast > curLast || inCleared > curCleared) {
+            return { ...defaultState, ...incoming };
+          }
+          return cur;
+        });
+      } catch {
+        /* corrupt cross-tab write — ignore */
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
   return [state, setState] as const;
 }
 

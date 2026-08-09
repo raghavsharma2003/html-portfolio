@@ -70,18 +70,40 @@ function splitLong(bubble: string): string[] {
 
 function parseBubbles(raw: string): HeartReply {
   const out: HeartReply = { bubbles: [] };
-  // call tone marker — her delivery mood, extracted leniently (models
-  // sometimes drop the closing bracket); it drives TTS, never gets spoken
-  raw = raw.replace(/\[tone:\s*([^\]\n]*)\]?/gi, (_m, mood) => {
+  // ── protocol extraction, GLOBAL and lenient: markers are honored wherever
+  // they appear (own line, inline, sloppy spacing, dropped closing bracket) —
+  // anything that looks like protocol must never reach the user as text ──
+  raw = raw.replace(/\[\s*tone\s*:\s*([^\]\n]*)\]?/gi, (_m, mood) => {
     if (!out.tone && mood.trim()) out.tone = mood.trim().slice(0, 120);
     return "";
   });
-  // followup, same leniency
-  raw = raw.replace(/\[followup:\s*(\d+)\s*(?:\|\s*([^\]\n]*))?\]?/i, (_m, mins, why) => {
-    const minutes = Math.min(360, Math.max(2, parseInt(mins, 10) || 0));
-    if (minutes) out.followup = { minutes, why: (why || "").trim().slice(0, 120) };
+  raw = raw.replace(/\[\s*photo\s*:\s*([^\]\n]+?)\s*\]/gi, (_m, body: string) => {
+    if (!out.photo) {
+      const [tagPart, ...capParts] = body.split("|");
+      const caption = capParts.join("|").trim() || tagPart.trim();
+      out.photo = { seed: body, caption };
+    }
     return "";
   });
+  raw = raw.replace(/\[\s*voicenote\s*:\s*([^\]]+?)\s*\]/gi, (_m, body: string) => {
+    if (!out.voice) out.voice = { text: body.replace(/\s+/g, " ").trim() };
+    return "";
+  });
+  raw = raw.replace(/\[\s*gif\s*:\s*([^\]\n]+?)\s*\]/gi, (_m, q: string) => {
+    if (!out.gif) out.gif = { query: q.trim() };
+    return "";
+  });
+  raw = raw.replace(/\[\s*followup\s*:\s*(\d+)\s*(?:\|\s*([^\]\n]*))?\]?/gi, (_m, mins, why) => {
+    const minutes = Math.min(360, Math.max(2, parseInt(mins, 10) || 0));
+    if (minutes && !out.followup) out.followup = { minutes, why: (why || "").trim().slice(0, 120) };
+    return "";
+  });
+  // catch-all: any residual protocol-shaped marker (unclosed, non-numeric
+  // followup, unknown variant) and any imitated clock stamp, ANYWHERE
+  raw = raw
+    .replace(/\[\s*(?:tone|followup|photo|voicenote|gif)\s*:[^\]]*\]?/gi, "")
+    .replace(/\[\d{1,2}:\d{2}\s*(?:am|pm)?\]/gi, "");
+
   // models separate thoughts with "---" or plain newlines — both are bubbles
   for (const part of raw.split(/\n?---\n?|\n+/)) {
     let p = part.trim();
@@ -90,37 +112,33 @@ function parseBubbles(raw: string): HeartReply {
     // formatting ("Bubble 1:", "separators.", instruction bullets). None of
     // that is conversation — strip labels, drop pure scaffolding.
     p = p.replace(/^bubble\s*\d+\s*:\s*/i, "").trim();
-    // she must never echo the system's own history metadata: clock stamps
-    // ("[12:35 am]"), gap markers ("[2 hours later, …]"), medium markers
+    // she must never echo the system's own history metadata: gap markers
+    // ("[2 hours later, …]"), medium markers
     p = p
-      .replace(/^\[\d{1,2}:\d{2}\s*(?:am|pm)?\]\s*/i, "")
       .replace(/^\[\d+\s*(?:minutes?|hours?|days?)\s+later[^\]]*\]\s*/i, "")
       .replace(/^\[(?:a voice call starts|the call ended[^\]]*)\]\s*/i, "")
       .trim();
     if (!p) continue;
     if (/^(bubble\s*\d*\s*[:.]?|separators?\.?|styling with.*|formats?[:.]?|protocols?[:.]?|\(.*protocol.*\)|response[:.]?|reply[:.]?)$/i.test(p)) continue;
-    if (/^-\s+[A-Z]/.test(p)) continue; // leaked "- Keep it short..." style bullet
-    const photo = p.match(/^\[photo:\s*(.+?)\]$/i);
-    const voice = p.match(/^\[voicenote:\s*(.+?)\]$/i);
-    const gif = p.match(/^\[gif:\s*(.+?)\]$/i);
-
-    if (photo) {
-      const [tagPart, ...capParts] = photo[1].split("|");
-      const caption = capParts.join("|").trim() || tagPart.trim();
-      out.photo = { seed: photo[1], caption };
-    } else if (voice) {
-      out.voice = { text: voice[1] };
-    } else if (gif) {
-      out.gif = { query: gif[1] };
-    } else if (/^\*[^*]+\*$/.test(p)) {
+    if (/^-\s+/.test(p)) {
+      // dash bullet: leaked instruction text is dropped, but a real message
+      // that happens to start with a dash keeps its words
+      if (p.length > 40 || /short|sharp|charming|bubble|separator|style|format|reply|tone/i.test(p)) continue;
+      p = p.replace(/^-\s+/, "");
+      if (!p) continue;
+    }
+    if (/^\*[^*]+\*$/.test(p)) {
       // "*flips through sketchbook*" roleplay actions — hard-dropped
       continue;
-    } else {
-      out.bubbles.push(...splitLong(p.replace(/^["']|["']$/g, "")));
     }
+    out.bubbles.push(...splitLong(p.replace(/^["']|["']$/g, "")));
   }
   out.bubbles = out.bubbles.slice(0, 4);
-  if (!out.bubbles.length && !out.photo) out.bubbles = [raw.trim() || "hmm? phir se bolo"];
+  // fallback ONLY when the reply carried nothing at all — a gif/voicenote/
+  // photo-only reply is complete without text (and raw is already cleaned)
+  if (!out.bubbles.length && !out.photo && !out.voice && !out.gif) {
+    out.bubbles = [raw.replace(/\s+/g, " ").trim().slice(0, 300) || "hmm? phir se bolo"];
+  }
   return out;
 }
 
@@ -147,13 +165,14 @@ function toTurns(history: Message[], latest: string) {
   const turns: Array<{ role: "user" | "assistant"; content: TurnContent }> = [];
   let lastChannel: "chat" | "call" = "chat";
   let prevAt = 0;
-  const recent = history.slice(-30);
+  // callmark chips are records, not conversation — filter BEFORE windowing
+  // so they don't shrink the 30-turn context or the 6-turn vision window
+  const recent = history.filter((m) => m.kind !== "callmark").slice(-30);
   // she SEES actual images for photos in the last few turns; older ones
   // survive as their stored one-line descriptions
   const visionCutoff = recent.length - 6;
   for (let mi = 0; mi < recent.length; mi++) {
     const m = recent[mi];
-    if (m.kind === "callmark") continue; // call-record chip, not conversation
     const userImage = m.from === "me" && m.kind === "photo" && m.photoUrl;
     const photoNote = m.from === "me" ? m.text || m.desc || "" : "";
     let text =
@@ -188,20 +207,33 @@ function toTurns(history: Message[], latest: string) {
       ? new Date(m.at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })
       : "";
     const stamped = stamp ? `[${stamp}] ${text}` : text;
+    const prev = turns[turns.length - 1];
     if (userImage && mi >= visionCutoff) {
-      // multimodal turn: the model looks at the real image
-      turns.push({
-        role,
-        content: [
-          { type: "text", text: stamped },
-          { type: "image_url", image_url: { url: m.photoUrl } },
-        ],
-      });
+      // multimodal parts: the model looks at the real image. Merged into an
+      // adjacent same-role turn — consecutive same-role messages 400 on
+      // strict-alternation chat templates.
+      const parts: Array<Record<string, unknown>> = [
+        { type: "text", text: stamped },
+        { type: "image_url", image_url: { url: m.photoUrl } },
+      ];
+      if (prev && prev.role === role) {
+        if (typeof prev.content === "string") {
+          prev.content = [{ type: "text", text: prev.content }, ...parts];
+        } else {
+          prev.content.push(...parts);
+        }
+      } else {
+        turns.push({ role, content: parts });
+      }
       continue;
     }
-    const prev = turns[turns.length - 1];
-    if (prev && prev.role === role && typeof prev.content === "string") {
-      prev.content = `${prev.content}\n${text}`;
+    if (prev && prev.role === role) {
+      // bursts merge into one turn, KEEPING each message's clock stamp
+      if (typeof prev.content === "string") {
+        prev.content = `${prev.content}\n${stamped}`;
+      } else {
+        prev.content.push({ type: "text", text: stamped });
+      }
     } else {
       turns.push({ role, content: stamped });
     }
@@ -237,6 +269,8 @@ async function openrouterThink(
         messages: [{ role: "system", content: system }, ...turns],
         max_tokens: maxTokens,
       }),
+      // a hung request must never brick the chat (busy) or the call (silence)
+      signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -268,6 +302,8 @@ async function proxyThink(
         ...(onDelta ? { stream: true } : {}),
         ...(noThink ? { no_think: true } : {}),
       }),
+      // streams get longer to finish, but can still never hang forever
+      signal: AbortSignal.timeout(onDelta ? 90_000 : 30_000),
     });
     if (!res.ok) return null;
     const type = res.headers.get("content-type") || "";
@@ -353,6 +389,9 @@ export async function think(
   // call mode: raw model tokens as they stream (proxy path only) — lets the
   // call engine start speaking the first sentence while the rest generates
   onDelta?: (delta: string) => void,
+  // call mode: graph memories prefetched at pickup (per-turn recall would
+  // put a lookup in front of every spoken reply)
+  extraMemories?: string,
 ): Promise<HeartReply> {
   // learn facts locally regardless of which engine answers
   const local: HeartReply = isDirective
@@ -368,14 +407,17 @@ export async function think(
       ? buildSystemPrompt(user, history.length) + buildSpeechStyle(voiceEngine)
       : buildSystemPrompt(user, history.length);
 
-  // graph-memory recall: what she knows about their world, woven into context.
-  // Skipped on live calls — the lookup would sit in front of every spoken
-  // reply, and the last 30 turns are already in context. Chat keeps it.
-  if (keys.deviceId && mode !== "call") {
-    const memories = await recallMemories(keys.deviceId, latest);
-    if (memories) {
-      system += `\n\nWHAT YOU KNOW ABOUT THEM — true facts from your earlier conversations. You genuinely remember these. When they ask about or touch on anything here, you KNOW it — answer confidently with the specific detail ("priya ki shaadi h na december me"), never play dumb, never guess, never ask them to remind you. Weave one in naturally when relevant; don't dump several at once, and never mention any list or "memory":\n${memories}`;
-    }
+  // graph-memory recall: what she knows about their world, woven into
+  // context. On live calls the lookup is done ONCE at pickup and passed in
+  // as extraMemories — never in front of a spoken reply. Chat looks it up.
+  const memories =
+    mode === "call"
+      ? extraMemories || ""
+      : keys.deviceId
+        ? await recallMemories(keys.deviceId, latest)
+        : "";
+  if (memories) {
+    system += `\n\nWHAT YOU KNOW ABOUT THEM — true facts from your earlier conversations. You genuinely remember these. When they ask about or touch on anything here, you KNOW it — answer confidently with the specific detail ("priya ki shaadi h na december me"), never play dumb, never guess, never ask them to remind you. Weave one in naturally when relevant; don't dump several at once, and never mention any list or "memory":\n${memories}`;
   }
 
   const turns = toTurns(history, latest);
@@ -401,11 +443,20 @@ export async function think(
     // else becomes an honest connectivity text — never fake conversation.
     if (local.critical) return local;
     if (isDirective) return { bubbles: [] };
-    const oops = [
-      ["yaar net kuch ajeeb kar rha", "ek min"],
-      ["arre mere msg nhi ja rhe theek se 😭", "ruk"],
-      ["net dikkat kar rha lagta h", "abhi aati hu"],
-    ];
+    // honest connectivity trouble, phrased for the medium: on a call she's
+    // SPEAKING, so "my messages aren't sending" would be absurd
+    const oops =
+      mode === "call"
+        ? [
+            ["awaaz kat rahi h lagta h... phir se bolna?"],
+            ["hello? ek second, network thoda ajeeb kar raha h"],
+            ["ruk, kuch sunai nahi diya — line kharab h shayad"],
+          ]
+        : [
+            ["yaar net kuch ajeeb kar rha", "ek min"],
+            ["arre mere msg nhi ja rhe theek se 😭", "ruk"],
+            ["net dikkat kar rha lagta h", "abhi aati hu"],
+          ];
     return {
       bubbles: oops[Math.floor(Math.random() * oops.length)],
       learned: local.learned,
@@ -415,7 +466,12 @@ export async function think(
   const parsed = parseBubbles(text);
   parsed.learned = local.learned;
   if (mode === "call") {
-    parsed.bubbles = [parsed.bubbles.join(" ")];
+    // a call turn must produce SPOKEN WORDS — if the model answered only
+    // with a photo/voicenote/gif marker, speak its content instead of
+    // yielding a silent turn of dead air
+    let spoken = parsed.bubbles.join(" ").trim();
+    if (!spoken) spoken = parsed.voice?.text || parsed.photo?.caption || "";
+    parsed.bubbles = [spoken || "haan? bolo"];
     parsed.photo = undefined;
     parsed.voice = undefined;
     parsed.gif = undefined;

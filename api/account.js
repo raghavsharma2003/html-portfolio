@@ -72,6 +72,9 @@ export default async function handler(req, res) {
     if (op === "send_otp") {
       const email = String(b.email || "").trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "valid email required" });
+      // per-DESTINATION throttle (independent of IP): stops email-bombing a
+      // victim address through rotating IPs
+      if (!allow(email, "otp_dest", 3)) return res.status(429).json({ error: "slow down" });
       return passthrough(res, await authFetch("otp", { email, create_user: true }));
     }
     if (op === "verify_otp") {
@@ -81,6 +84,9 @@ export default async function handler(req, res) {
     if (op === "send_sms") {
       const phone = String(b.phone || "").replace(/[^\d+]/g, "");
       if (phone.length < 8) return res.status(400).json({ error: "valid phone required" });
+      // per-DESTINATION throttle: SMS pumping is real toll fraud — a number
+      // can be hit at most twice a minute regardless of source IPs
+      if (!allow(phone, "otp_dest", 2)) return res.status(429).json({ error: "slow down" });
       return passthrough(res, await authFetch("otp", { phone, create_user: true }));
     }
     if (op === "verify_sms") {
@@ -108,18 +114,36 @@ export default async function handler(req, res) {
       if (!user) return res.status(401).json({ error: "invalid session" });
       const state = b.state;
       if (!state || typeof state !== "object") return res.status(400).json({ error: "state required" });
+      // size cap: the client strips photo data URLs before syncing; anything
+      // this large is a bug or abuse, and unbounded JSONB is real cost
+      if (JSON.stringify(state).length > 900_000) return res.status(413).json({ error: "state too large" });
+      // conflict detection: if another device saved since the caller last
+      // looked, reject with the server copy so the client merges instead of
+      // clobbering — last-write-wins was silently destroying messages
+      const existing = await rest("meera_state", {
+        user_id: `eq.${user.id}`,
+        select: "state,updated_at",
+      })
+        .then((r) => r.json())
+        .catch(() => []);
+      const row0 = Array.isArray(existing) && existing[0] ? existing[0] : null;
+      const base = typeof b.base_updated_at === "string" ? b.base_updated_at : null;
+      if (row0 && base && new Date(row0.updated_at).getTime() > new Date(base).getTime() + 1000) {
+        return res.status(409).json({ conflict: true, state: row0.state, updated_at: row0.updated_at });
+      }
+      const updatedAt = new Date().toISOString();
       const row = {
         user_id: user.id,
         state,
         device_id: UUID.test(String(b.device || "")) ? b.device : null,
-        updated_at: new Date().toISOString(),
+        updated_at: updatedAt,
       };
       const up = await rest("meera_state", { on_conflict: "user_id" }, {
         method: "POST",
         headers: { Prefer: "resolution=merge-duplicates" },
         body: JSON.stringify([row]),
       });
-      return res.status(up.ok ? 200 : 502).json({ ok: up.ok });
+      return res.status(up.ok ? 200 : 502).json({ ok: up.ok, updated_at: updatedAt });
     }
     if (op === "load_state") {
       const user = await userFromToken(b.access_token);
@@ -131,11 +155,17 @@ export default async function handler(req, res) {
       return res.status(200).json({ state: row?.state ?? null, updated_at: row?.updated_at ?? null });
     }
     if (op === "track") {
+      // analytics rows are unauthenticated by design — cap them hard so the
+      // table can't be bloated with megabyte props or junk event names
+      const props = b.props && typeof b.props === "object" ? b.props : {};
+      if (JSON.stringify(props).length > 2000) return res.status(413).json({ error: "props too large" });
+      const event = String(b.event || "unknown").slice(0, 60);
+      if (!/^[a-z0-9_.-]+$/i.test(event)) return res.status(400).json({ error: "bad event" });
       const row = {
         device_id: UUID.test(String(b.device || "")) ? b.device : null,
         user_id: UUID.test(String(b.user_id || "")) ? b.user_id : null,
-        event: String(b.event || "unknown").slice(0, 60),
-        props: b.props && typeof b.props === "object" ? b.props : {},
+        event,
+        props,
       };
       rest("meera_events", null, { method: "POST", body: JSON.stringify([row]) }).catch(() => {});
       return res.status(200).json({ ok: true });

@@ -73,7 +73,10 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
     } catch (e) {
       setError("that code didn't match — check and try again");
       setDigits(Array(6).fill(""));
-      boxes.current[0]?.focus();
+      // un-disable the boxes BEFORE focusing — focus() on a disabled input
+      // is a no-op and drops the phone keyboard
+      setBusy(false);
+      requestAnimationFrame(() => boxes.current[0]?.focus());
     } finally {
       setBusy(false);
     }
@@ -203,6 +206,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
                   maxLength={6}
                   value={d}
                   disabled={busy}
+                  aria-label={`digit ${i + 1} of 6`}
                   onChange={(e) => setDigit(i, e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Backspace" && !digits[i] && i > 0) boxes.current[i - 1]?.focus();

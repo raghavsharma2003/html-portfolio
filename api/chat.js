@@ -27,29 +27,48 @@ export default async function handler(req, res) {
     if (!system || !Array.isArray(messages) || !messages.length) {
       return res.status(400).json({ error: "system + messages required" });
     }
+    // payload cap: recent user photos legitimately ride as data URLs when a
+    // storage upload failed, but the total request must stay bounded —
+    // vision-model cost per call is real money
+    if (JSON.stringify(messages).length > 3_000_000) {
+      return res.status(413).json({ error: "payload too large" });
+    }
     const wantStream = stream === true;
-    const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "X-Title": "Meera",
-      },
-      body: JSON.stringify({
-        model: typeof model === "string" && ALLOWED_MODEL.test(model) ? model : DEFAULT_MODEL,
-        messages: [{ role: "system", content: String(system).slice(0, 20000) }, ...messages.slice(-40)],
-        max_tokens: Number.isFinite(max_tokens) ? Math.min(800, Math.max(50, max_tokens)) : 800,
-        ...(wantStream ? { stream: true } : {}),
-        // Minimal hidden thinking, always. Gemini's default reasoning grows
-        // with context length, eats the max_tokens budget, and the reply
-        // comes out truncated or as leaked planning scaffolding ("Bubble 1:")
-        // — the "she types random stuff in long chats" bug. It also delays a
-        // call's first token by ~1s. (reasoning cannot be fully disabled on
-        // this endpoint; "minimal" is the floor and keeps replies intact.)
-        reasoning: { effort: "minimal" },
-      }),
-    });
+    // a stalled upstream (or vanished client) must never hold the function
+    // open until the platform kills it
+    const aborter = new AbortController();
+    const kill = setTimeout(() => aborter.abort(), wantStream ? 120_000 : 60_000);
+    req.on?.("close", () => aborter.abort());
+    let upstream;
+    try {
+      upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          "X-Title": "Meera",
+        },
+        body: JSON.stringify({
+          model: typeof model === "string" && ALLOWED_MODEL.test(model) ? model : DEFAULT_MODEL,
+          messages: [{ role: "system", content: String(system).slice(0, 20000) }, ...messages.slice(-40)],
+          max_tokens: Number.isFinite(max_tokens) ? Math.min(800, Math.max(50, max_tokens)) : 800,
+          ...(wantStream ? { stream: true } : {}),
+          // Minimal hidden thinking, always. Gemini's default reasoning grows
+          // with context length, eats the max_tokens budget, and the reply
+          // comes out truncated or as leaked planning scaffolding ("Bubble 1:")
+          // — the "she types random stuff in long chats" bug. It also delays a
+          // call's first token by ~1s. (reasoning cannot be fully disabled on
+          // this endpoint; "minimal" is the floor and keeps replies intact.)
+          reasoning: { effort: "minimal" },
+        }),
+        signal: aborter.signal,
+      });
+    } catch {
+      clearTimeout(kill);
+      return res.status(504).json({ error: "upstream timeout" });
+    }
     if (!upstream.ok) {
+      clearTimeout(kill);
       return res.status(502).json({ error: "upstream " + upstream.status });
     }
     if (wantStream) {
@@ -67,10 +86,14 @@ export default async function handler(req, res) {
         }
       } catch {
         /* client or upstream dropped — end what we have */
+      } finally {
+        clearTimeout(kill);
+        reader.cancel().catch(() => {}); // stop upstream generation billing
       }
       return res.end();
     }
     const data = await upstream.json();
+    clearTimeout(kill);
     const text = data?.choices?.[0]?.message?.content ?? "";
     return res.status(200).json({ text });
   } catch (e) {

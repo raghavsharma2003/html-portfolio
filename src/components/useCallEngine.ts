@@ -26,7 +26,7 @@ import {
   duckSpeech,
 } from "../voice/speech";
 import { CALL_OPEN_DIRECTIVE, type VoiceEngine } from "../engine/persona";
-import { logTurns, rememberFrom } from "../engine/memory";
+import { logTurns, rememberFrom, recallMemories } from "../engine/memory";
 
 export type CallPhase = "connecting" | "live" | "ended";
 
@@ -44,6 +44,18 @@ export function useCallEngine(
   const [elapsed, setElapsed] = useState(0);
   const stopListen = useRef<(() => void) | null>(null);
   const alive = useRef(true);
+  // THE live state. The tick interval, recognizer callbacks and re-arm chain
+  // all capture their first-render closure — reading `state` directly in
+  // them would freeze her memory at call start (she'd forget everything said
+  // DURING the call). Every callback reads stateRef.current instead.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  // long-term graph memory, prefetched once at pickup (per-turn recall would
+  // add latency to every spoken reply)
+  const recallRef = useRef("");
+  // consecutive instant recognizer failures — backoff instead of hot-looping
+  const srFails = useRef(0);
+  const srStartedAt = useRef(0);
   const speakingRef = useRef(false);
   const mutedRef = useRef(false);
   const elapsedRef = useRef(0);
@@ -68,7 +80,7 @@ export function useCallEngine(
 
   const log = (m: Message) => {
     setState((s) => ({ ...s, messages: [...s.messages, m] }));
-    if (m.kind !== "callmark") logTurns(state.deviceId, [m]);
+    if (m.kind !== "callmark") logTurns(stateRef.current.deviceId, [m]);
   };
 
   const mergeLearned = (learned?: Record<string, string>) => {
@@ -94,16 +106,25 @@ export function useCallEngine(
       : "gemini";
 
   const brainKeys = () => ({
-    openrouterKey: state.openrouterKey,
-    openrouterModel: state.openrouterModel,
-    apiKey: state.apiKey,
-    deviceId: state.deviceId,
+    openrouterKey: stateRef.current.openrouterKey,
+    openrouterModel: stateRef.current.openrouterModel,
+    apiKey: stateRef.current.apiKey,
+    deviceId: stateRef.current.deviceId,
   });
 
   // connect + greet
   useEffect(() => {
     alive.current = true;
     prefetchBackchannels(voiceOpts); // instant "hmm?" clips for turn-taking
+    // long-term memory for the whole call, fetched while the phone "rings"
+    const recent = state.messages
+      .filter((m) => m.from === "me")
+      .slice(-4)
+      .map((m) => m.text)
+      .join(" ");
+    recallMemories(state.deviceId, recent).then((m) => {
+      recallRef.current = m || "";
+    });
     const t = setTimeout(async () => {
       if (!alive.current) return;
       setPhase("live");
@@ -117,6 +138,8 @@ export function useCallEngine(
         "call",
         engine,
         true,
+        undefined,
+        recallRef.current,
       );
       if (!alive.current) return;
       const greet = reply.bubbles.join(" ").trim() || "hello?";
@@ -170,6 +193,10 @@ export function useCallEngine(
         speakingRef.current = false;
         setSpeaking(false);
         herSpokeUntil.current = Date.now();
+        if (ducked.current) {
+          duckSpeech(false); // a soft-duck must never outlive the utterance
+          ducked.current = false;
+        }
         if (alive.current) {
           startListening();
           armReengage(); // if they stay quiet ~8s, one soft "hmm?"
@@ -232,19 +259,36 @@ export function useCallEngine(
       if (reengaged.current >= 2) return;
       // if we heard ANYTHING from them recently (even sub-threshold speech
       // the recognizer is still chewing on), don't talk over it
-      if (Date.now() - lastHeardAt.current < 6000) return;
-      if (acc.current.lastAt && Date.now() - acc.current.lastAt < 4000) return;
+      if (Date.now() - lastHeardAt.current < 6000) {
+        armReengage(); // count the clock from their last sound, not ours
+        return;
+      }
+      if (acc.current.lastAt && Date.now() - acc.current.lastAt < 4000) {
+        armReengage();
+        return;
+      }
       reengaged.current += 1;
+      const seqAtArm = turnSeq.current;
       const reply = await think(
-        state.user,
+        stateRef.current.user,
         brainKeys(),
-        state.messages,
+        stateRef.current.messages,
         `<context: on the call, they've gone quiet for a few seconds after your last line. keep the conversation alive naturally like a real girl on the phone — extend your last thought, tease them for going quiet ("hello? so gaye kya"), or take the topic somewhere new. 1-2 short spoken sentences. never reference this note>`,
         "call",
         engine,
         true,
+        undefined,
+        recallRef.current,
       );
-      if (!alive.current || speakingRef.current) return;
+      // they may have started talking (or a reply may be in flight) while
+      // this nudge generated — never talk over either
+      if (
+        !alive.current ||
+        speakingRef.current ||
+        thinkingRef.current ||
+        seqAtArm !== turnSeq.current
+      )
+        return;
       const line = reply.bubbles.join(" ").trim();
       if (line) {
         log({
@@ -256,6 +300,11 @@ export function useCallEngine(
           at: Date.now(),
         });
         sayAloud(line, reply.tone);
+      } else {
+        // network blip ate the nudge — refund it and try again, don't let
+        // the call die into permanent silence
+        reengaged.current = Math.max(0, reengaged.current - 1);
+        armReengage();
       }
     }, 7000);
   }
@@ -268,7 +317,8 @@ export function useCallEngine(
     const res = listen(
       (text, final) => {
         lastHeardAt.current = Date.now();
-        if (reengageTimer.current) clearTimeout(reengageTimer.current);
+        srFails.current = 0; // the recognizer is genuinely working
+        setSttSupported(true);
         if (speakingRef.current) {
           // overlap is NORMAL in human calls — she talks through noise and
           // brief speech; only sustained, real speech takes the floor
@@ -277,6 +327,10 @@ export function useCallEngine(
           const command = /\b(stop|wait|ruko|suno|arre|ek minute|listen|hold on|chup)\b/i.test(text);
           if (!real || words < 2) {
             overlapStart.current = 0;
+            if (ducked.current) {
+              duckSpeech(false); // it was nothing — bring her back up NOW
+              ducked.current = false;
+            }
             return; // noise blip / backchannel / echo — keep talking
           }
           if (!overlapStart.current) overlapStart.current = Date.now();
@@ -309,6 +363,9 @@ export function useCallEngine(
             : 0;
           if (overlap >= 0.6) return;
         }
+        // real accepted speech from THEM — only now does it cancel her
+        // pending silence-nudge (noise blips shouldn't kill it)
+        if (reengageTimer.current) clearTimeout(reengageTimer.current);
         setHeard(text);
         if (web) {
           // accumulate; the endpointing tick decides when the turn is over
@@ -323,7 +380,7 @@ export function useCallEngine(
           handleUser(text);
         }
       },
-      () => {
+      (reason?: string) => {
         listeningRef.current = false;
         setListening(false);
         if (ducked.current) {
@@ -331,9 +388,26 @@ export function useCallEngine(
           duckSpeech(false);
           ducked.current = false;
         }
+        if (reason === "not-allowed") {
+          // mic permission denied — stop churning the recognizer and
+          // surface the typed fallback instead of silently "listening"
+          setSttSupported(false);
+          return;
+        }
+        // failure discrimination: sessions dying instantly over and over
+        // mean the recognizer is broken here — back off, then give up to
+        // the keyboard instead of a battery-draining 300ms hot loop
+        const lasted = Date.now() - srStartedAt.current;
+        if (lasted < 1200) srFails.current += 1;
+        else srFails.current = 0;
+        if (srFails.current >= 8) {
+          setSttSupported(false);
+          return;
+        }
+        const delay = srFails.current >= 4 ? 2500 : 300;
         // recognizers time out on silence — quietly re-arm
         if (alive.current && !mutedRef.current) {
-          setTimeout(() => startListening(), 300);
+          setTimeout(() => startListening(), delay);
         }
       },
     );
@@ -341,6 +415,7 @@ export function useCallEngine(
       setSttSupported(false);
       return;
     }
+    srStartedAt.current = Date.now();
     stopListen.current = res.stop || null;
     listeningRef.current = true;
     setListening(true);
@@ -362,6 +437,15 @@ export function useCallEngine(
   async function handleUser(text: string) {
     if (!alive.current || !text.trim()) return;
     reengaged.current = 0; // they spoke — silence counter resets
+    // typed input (keyboard fallback) can land while she's mid-speech —
+    // an answered question means she yields the floor
+    if (speakingRef.current) {
+      stopSpeaking();
+      speakingRef.current = false;
+      setSpeaking(false);
+      ducked.current = false;
+      interrupted.current = true;
+    }
     const seq = ++turnSeq.current;
     // mic STAYS HOT while she thinks — if they keep talking, the fresh
     // speech accumulates, commits, and this in-flight turn goes stale
@@ -417,6 +501,10 @@ export function useCallEngine(
           speakingRef.current = false;
           setSpeaking(false);
           herSpokeUntil.current = Date.now();
+          if (ducked.current) {
+            duckSpeech(false); // a soft-duck must never outlive the utterance
+            ducked.current = false;
+          }
           if (alive.current) {
             startListening();
             armReengage();
@@ -461,14 +549,15 @@ export function useCallEngine(
     };
 
     const reply = await think(
-      state.user,
+      stateRef.current.user,
       brainKeys(),
-      [...state.messages, brainMine],
+      [...stateRef.current.messages, brainMine],
       text,
       "call",
       engine,
       false,
       onDelta,
+      recallRef.current,
     );
     thinkingRef.current = false;
     setThinking(false);
@@ -517,7 +606,7 @@ export function useCallEngine(
     const mmssStr = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
     log({ id: uid(), from: "me", kind: "callmark", text: mmssStr, at: Date.now() });
     // distill what was said on the call into her graph memory
-    rememberFrom(state.deviceId, state.messages.slice(-16));
+    rememberFrom(stateRef.current.deviceId, stateRef.current.messages.slice(-16));
     setTimeout(onEnd, 400);
   }
 
