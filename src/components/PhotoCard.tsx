@@ -1,8 +1,10 @@
-// "Moment" photos Meera shares — real photographs bundled with the app
-// (CC-licensed; see docs/PHOTO-CREDITS.md). Scene is chosen from the seed
-// text so her caption always matches what's in the frame. Swap for live
-// image generation later without touching the chat code.
+// "Moment" photos Meera shares. Primary source: her 89-photo tagged library
+// (public/moments/<tag>.jpg) — the model picks the exact tag, so the photo
+// always matches the story. Legacy regex scenes remain as fallback for old
+// messages and free-text seeds.
 
+import { Capacitor } from "@capacitor/core";
+import { tagFromSeed } from "../engine/photoCatalog";
 import sunsetImg from "../assets/moments/sunset.jpg";
 import selfie1 from "../assets/moments/selfie1.jpg";
 import selfie2 from "../assets/moments/selfie2.jpg";
@@ -40,7 +42,12 @@ const SCENES: Array<{ match: RegExp; img: string }> = [
 
 const ALL = [meeraWalk, meeraBeach, meeraReading, meeraSketch, sunsetImg, chaiImg, nightImg, rainImg, lightsImg, diyaImg];
 
+const MOMENTS_BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+
 function imageFor(seed: string): string {
+  // exact catalog tag from the model — the intended path
+  const tag = tagFromSeed(seed);
+  if (tag) return `${MOMENTS_BASE}/moments/${tag}.jpg`;
   if (/(selfie|meri photo|mera face|mirror|apni pic|my face)/i.test(seed)) {
     let h = 0;
     for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0;

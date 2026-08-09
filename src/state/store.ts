@@ -25,8 +25,18 @@ export interface Message {
   gifUrl?: string; // gif bubbles: resolved CDN url (cached after first fetch)
 }
 
+export interface AuthInfo {
+  userId: string;
+  email?: string;
+  phone?: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+}
+
 export interface AppState {
   onboarded: boolean;
+  auth?: AuthInfo | null; // signed-in account (null/undefined = anonymous)
   deviceId: string; // anonymous identity for the memory backend
   user: UserProfile;
   messages: Message[];

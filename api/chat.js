@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   if (!key) return res.status(500).json({ error: "no key configured" });
 
   try {
-    const { system, messages, model } = req.body || {};
+    const { system, messages, model, max_tokens } = req.body || {};
     if (!system || !Array.isArray(messages) || !messages.length) {
       return res.status(400).json({ error: "system + messages required" });
     }
@@ -31,7 +31,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: typeof model === "string" && ALLOWED_MODEL.test(model) ? model : DEFAULT_MODEL,
         messages: [{ role: "system", content: String(system).slice(0, 20000) }, ...messages.slice(-40)],
-        max_tokens: 800,
+        max_tokens: Number.isFinite(max_tokens) ? Math.min(800, Math.max(50, max_tokens)) : 800,
       }),
     });
     if (!upstream.ok) {

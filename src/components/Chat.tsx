@@ -7,6 +7,7 @@ import { uid } from "../state/store";
 import { think } from "../engine/brain";
 import { HER_NAME, OPEN_DIRECTIVE, NUDGE_DIRECTIVE } from "../engine/persona";
 import { logTurns, rememberFrom } from "../engine/memory";
+import { track } from "../engine/account";
 import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
 import PhotoCard from "./PhotoCard";
@@ -20,6 +21,7 @@ interface Props {
   state: AppState;
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   onVoiceCall: () => void;
+  onProfile: () => void;
 }
 
 const fmtTime = (t: number) =>
@@ -55,7 +57,7 @@ const typeDelay = (bubble: string) => {
   return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
 };
 
-export default function Chat({ state, setState, onVoiceCall }: Props) {
+export default function Chat({ state, setState, onVoiceCall, onProfile }: Props) {
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   const [clearArm, setClearArm] = useState(false);
@@ -208,6 +210,7 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
       delivered.push(msg);
       pushMsg(msg);
     }
+    if (reply.gif) track(state.deviceId, "gif_sent", { q: reply.gif.query.slice(0, 40) }, state.auth?.userId);
     if (reply.gif) {
       setTyping(true);
       await sleep(900 + Math.random() * 700);
@@ -223,6 +226,7 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
       pushMsg(msg);
     }
     if (delivered.length) logTurns(state.deviceId, delivered);
+    if (reply.photo) track(state.deviceId, "photo_sent", { seed: reply.photo.seed.slice(0, 40) }, state.auth?.userId);
     if (reply.photo) {
       setTyping(true);
       await sleep(1600);
@@ -257,6 +261,7 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
     setReplyTo(null);
     pushMsg(mine);
     logTurns(state.deviceId, [mine]);
+    track(state.deviceId, "message_sent", { len: text.length, quoted: Boolean(mine.replyTo) }, state.auth?.userId);
     // single tick → double tick shortly after (server delivery rhythm)
     setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
     const reply = await think(user, brainKeys(), [...messages, mine], text);
@@ -392,6 +397,7 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
         registerLocalClip(mine.id, blob);
         pushMsg(mine);
         logTurns(state.deviceId, [mine]);
+        track(state.deviceId, "voice_note_sent", { dur: secs }, state.auth?.userId);
         setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
         lastActivity.current = Date.now();
         nudged.current = false;
@@ -513,6 +519,9 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
         <div
           className="avatar-ring"
           style={{ width: 48, height: 48, padding: 2.5, animationDuration: "20s" }}
+          onClick={onProfile}
+          role="button"
+          aria-label="Account"
         >
           <div className="inner" style={{ animationDuration: "20s" }}>
             <PhotoAvatar size={43} />
@@ -544,6 +553,7 @@ export default function Chat({ state, setState, onVoiceCall }: Props) {
               setClearArm(false);
               nudged.current = false;
               busy.current = false;
+              track(state.deviceId, "chat_cleared", { count: messages.length }, state.auth?.userId);
               setState((s) => ({ ...s, messages: [] }));
             }
           }}

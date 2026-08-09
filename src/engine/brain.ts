@@ -78,7 +78,9 @@ function parseBubbles(raw: string): HeartReply {
     const voice = p.match(/^\[voicenote:\s*(.+?)\]$/i);
     const gif = p.match(/^\[gif:\s*(.+?)\]$/i);
     if (photo) {
-      out.photo = { seed: photo[1] + Date.now(), caption: photo[1] };
+      const [tagPart, ...capParts] = photo[1].split("|");
+      const caption = capParts.join("|").trim() || tagPart.trim();
+      out.photo = { seed: photo[1], caption };
     } else if (voice) {
       out.voice = { text: voice[1] };
     } else if (gif) {
@@ -134,6 +136,7 @@ async function openrouterThink(
   keys: BrainKeys,
   system: string,
   turns: Array<{ role: "user" | "assistant"; content: string }>,
+  maxTokens = 700,
 ): Promise<string | null> {
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -146,7 +149,7 @@ async function openrouterThink(
       body: JSON.stringify({
         model: keys.openrouterModel?.trim() || OPENROUTER_DEFAULT_MODEL,
         messages: [{ role: "system", content: system }, ...turns],
-        max_tokens: 700,
+        max_tokens: maxTokens,
       }),
     });
     if (!res.ok) return null;
@@ -162,6 +165,7 @@ async function proxyThink(
   keys: BrainKeys,
   system: string,
   turns: Array<{ role: "user" | "assistant"; content: string }>,
+  maxTokens = 700,
 ): Promise<string | null> {
   try {
     const res = await fetch(PROXY_URL, {
@@ -171,6 +175,7 @@ async function proxyThink(
         system,
         messages: turns,
         model: keys.openrouterModel?.trim() || OPENROUTER_DEFAULT_MODEL,
+        max_tokens: maxTokens,
       }),
     });
     if (!res.ok) return null;
@@ -241,10 +246,12 @@ export async function think(
 
   const turns = toTurns(history, latest);
 
+  // calls cap generation hard: shorter replies = faster first audio
+  const maxTokens = mode === "call" ? 220 : 700;
   let text: string | null = null;
-  if (keys.openrouterKey) text = await openrouterThink(keys, system, turns);
+  if (keys.openrouterKey) text = await openrouterThink(keys, system, turns, maxTokens);
   if (!text && keys.apiKey) text = await claudeThink(keys, system, turns);
-  if (!text) text = await proxyThink(keys, system, turns);
+  if (!text) text = await proxyThink(keys, system, turns, maxTokens);
   if (!text) {
     // every brain unreachable. crisis/honesty replies still go out; anything
     // else becomes an honest connectivity text — never fake conversation.

@@ -476,8 +476,8 @@ function splitPhrases(text: string): string[] {
   }
   if (cur) out.push(cur);
   // first chunk should be SHORT for fast onset — if it's long, cut at a comma
-  if (out.length && out[0].length > 70) {
-    const cut = out[0].slice(0, 70).lastIndexOf(",");
+  if (out.length && out[0].length > 55) {
+    const cut = out[0].slice(0, 55).lastIndexOf(",");
     if (cut > 20) {
       const head = out[0].slice(0, cut + 1);
       const tail = out[0].slice(cut + 1).trim();
