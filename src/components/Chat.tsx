@@ -66,6 +66,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   // voice-note recording (mic + live transcription)
   const [recording, setRecording] = useState(false);
+  const [recPaused, setRecPaused] = useState(false);
   const [recSecs, setRecSecs] = useState(0);
   const recRef = useRef<{
     recorder: MediaRecorder | null;
@@ -75,6 +76,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
     srAlive: boolean;
     timer: ReturnType<typeof setInterval> | null;
     startedAt: number;
+    pausedAccum: number;
+    pausedAt: number;
   } | null>(null);
   // presence: she is not permanently glued to the phone — she comes online to
   // read/reply, lingers a bit, then drops to "last seen"
@@ -370,6 +373,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
         srAlive: true,
         timer: null as ReturnType<typeof setInterval> | null,
         startedAt: Date.now(),
+        pausedAccum: 0,
+        pausedAt: 0,
       };
       recRef.current = st;
       recorder.ondataavailable = (e) => e.data.size && st.chunks.push(e.data);
@@ -388,11 +393,55 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
         st.stopSR = res.stop || null;
       };
       arm();
-      st.timer = setInterval(() => setRecSecs(Math.round((Date.now() - st.startedAt) / 1000)), 500);
+      st.timer = setInterval(() => {
+        const pausedNow = st.pausedAt ? Date.now() - st.pausedAt : 0;
+        setRecSecs(Math.max(0, Math.round((Date.now() - st.startedAt - st.pausedAccum - pausedNow) / 1000)));
+      }, 400);
       setRecSecs(0);
+      setRecPaused(false);
       setRecording(true);
     } catch {
       /* mic denied — nothing to do */
+    }
+  }
+
+  function togglePauseRecording() {
+    const st = recRef.current;
+    if (!st?.recorder) return;
+    if (st.pausedAt) {
+      st.pausedAccum += Date.now() - st.pausedAt;
+      st.pausedAt = 0;
+      try {
+        st.recorder.resume();
+      } catch {
+        /* ignore */
+      }
+      st.srAlive = true;
+      // re-arm transcription
+      const arm = () => {
+        if (!st.srAlive) return;
+        const res = listen(
+          (text, final) => {
+            if (final && text) st.transcript = (st.transcript + " " + text).trim();
+          },
+          () => {
+            if (st.srAlive) setTimeout(arm, 250);
+          },
+        );
+        st.stopSR = res.stop || null;
+      };
+      arm();
+      setRecPaused(false);
+    } else {
+      st.pausedAt = Date.now();
+      try {
+        st.recorder.pause();
+      } catch {
+        /* ignore */
+      }
+      st.srAlive = false;
+      st.stopSR?.();
+      setRecPaused(true);
     }
   }
 
@@ -402,20 +451,22 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
     st.srAlive = false;
     st.stopSR?.();
     if (st.timer) clearInterval(st.timer);
-    const secs = Math.max(1, Math.round((Date.now() - st.startedAt) / 1000));
+    const pausedNow = st.pausedAt ? Date.now() - st.pausedAt : 0;
+    const secs = Math.max(1, Math.round((Date.now() - st.startedAt - st.pausedAccum - pausedNow) / 1000));
     st.recorder!.onstop = () => {
       st.recorder!.stream.getTracks().forEach((t) => t.stop());
       if (!sendIt) return;
       // give the recognizer a beat to flush its final result
       setTimeout(() => {
         const transcript = st.transcript.trim();
-        if (!transcript) return; // nothing intelligible — send nothing
         const blob = new Blob(st.chunks, { type: st.recorder!.mimeType || "audio/webm" });
+        if (!blob.size) return;
+        // WhatsApp rule: a recording you hit send on ALWAYS sends
         const mine: Message = {
           id: uid(),
           from: "me",
           kind: "voice",
-          text: transcript,
+          text: transcript || "[voice note]",
           dur: secs,
           at: Date.now(),
           status: "sent",
@@ -423,19 +474,27 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
         registerLocalClip(mine.id, blob);
         pushMsg(mine);
         logTurns(state.deviceId, [mine]);
-        track(state.deviceId, "voice_note_sent", { dur: secs }, state.auth?.userId);
+        track(state.deviceId, "voice_note_sent", { dur: secs, heard: Boolean(transcript) }, state.auth?.userId);
         setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
         lastActivity.current = Date.now();
         nudged.current = false;
-        think(user, brainKeys(), [...messages, mine], `[voice note] ${transcript}`).then((reply) => {
+        // the brain sees the unclear-audio context; the UI shows a clean bubble
+        const brainMine = transcript
+          ? mine
+          : {
+              ...mine,
+              text: "[voice note — audio was unclear, you couldn't make out the words. react like a person: ask them to resend or type, casually]",
+            };
+        think(user, brainKeys(), [...messages, brainMine], brainMine.text).then((reply) => {
           mergeLearned(reply.learned);
-          deliver(reply, transcript);
+          deliver(reply, transcript || "voice note");
         });
       }, 600);
     };
     st.recorder!.stop();
     recRef.current = null;
     setRecording(false);
+    setRecPaused(false);
   }
 
   // render with day separators; timestamp only on the last bubble of a
@@ -615,12 +674,29 @@ export default function Chat({ state, setState, onVoiceCall, onProfile }: Props)
       <div className="chat-input-row">
         {recording ? (
           <div className="rec-bar">
-            <span className="rec-dot" />
+            <span className={`rec-dot ${recPaused ? "paused" : ""}`} />
             <span className="rec-time">
-              0:{String(recSecs).padStart(2, "0")} · recording…
+              {Math.floor(recSecs / 60)}:{String(recSecs % 60).padStart(2, "0")}
+              {recPaused ? " · paused" : " · recording…"}
             </span>
             <button className="rec-cancel" onClick={() => finishRecording(false)}>
               cancel
+            </button>
+            <button
+              className="rec-pause"
+              onClick={togglePauseRecording}
+              aria-label={recPaused ? "Resume recording" : "Pause recording"}
+            >
+              {recPaused ? (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M7 4.8v14.4c0 .8.9 1.3 1.6.9l11-7.2c.6-.4.6-1.4 0-1.8l-11-7.2c-.7-.4-1.6.1-1.6.9Z" />
+                </svg>
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="5" y="4" width="5" height="16" rx="1.5" />
+                  <rect x="14" y="4" width="5" height="16" rx="1.5" />
+                </svg>
+              )}
             </button>
             <button className="send-btn" onClick={() => finishRecording(true)} aria-label="Send voice note">
               <SendIcon />

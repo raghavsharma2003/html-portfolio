@@ -131,7 +131,9 @@ function toTurns(history: Message[], latest: string) {
       m.kind === "photo"
         ? `[shared a photo: ${m.text}]`
         : m.kind === "voice"
-          ? `[voice note] ${m.text}`
+          ? m.text.startsWith("[voice")
+            ? m.text
+            : `[voice note] ${m.text}`
           : m.kind === "gif"
             ? `[sent a meme gif: ${m.text}]`
             : m.text;
