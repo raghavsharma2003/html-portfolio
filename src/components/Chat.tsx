@@ -5,18 +5,16 @@ import { useEffect, useRef, useState } from "react";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think } from "../engine/brain";
-import { NUDGES, HER_NAME, timeOfDay } from "../engine/persona";
+import { HER_NAME, OPEN_DIRECTIVE, NUDGE_DIRECTIVE } from "../engine/persona";
 import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
 import PhotoCard from "./PhotoCard";
-import { PhoneIcon, VideoIcon, SendIcon, SettingsIcon } from "./icons";
+import { PhoneIcon, SendIcon, BroomIcon } from "./icons";
 
 interface Props {
   state: AppState;
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   onVoiceCall: () => void;
-  onVideoCall: () => void;
-  onSettings: () => void;
 }
 
 const fmtTime = (t: number) =>
@@ -42,9 +40,10 @@ const typeDelay = (bubble: string) => {
   return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
 };
 
-export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSettings }: Props) {
+export default function Chat({ state, setState, onVoiceCall }: Props) {
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
+  const [clearArm, setClearArm] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const busy = useRef(false);
@@ -52,6 +51,12 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
   const lastActivity = useRef(Date.now());
 
   const { messages, user, apiKey, openrouterKey } = state;
+
+  const brainKeys = () => ({
+    openrouterKey,
+    openrouterModel: state.openrouterModel,
+    apiKey,
+  });
 
   const pushMsg = (m: Message) =>
     setState((s) => ({ ...s, messages: [...s.messages, m] }));
@@ -69,29 +74,33 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
     scrollRef.current?.scrollTo({ top: 1e9, behavior: "smooth" });
   }, [messages.length, typing]);
 
-  // her opening message when the chat is brand new
+  // her opening message when the chat is brand new — improvised by the model,
+  // never a stored line ("heyy" alone only if the network is truly dead)
   useEffect(() => {
     if (messages.length === 0 && !busy.current) {
       busy.current = true;
-      const tod = timeOfDay();
-      const opener =
-        tod === "night"
-          ? [`oh hi ${user.name}`, "main bas chai bana ke baithi thi, neend nahi aa rahi", "tum bhi jaag rahe ho... kya scene hai?"]
-          : [`hey ${user.name}`, "perfect timing honestly, abhi free hui hoon", "acha pehle yeh batao — tum yahan kaise pahunche? 😄"];
-      deliver({ bubbles: opener });
+      think(user, brainKeys(), [], OPEN_DIRECTIVE(), "chat", "device", true).then((reply) => {
+        if (!reply.bubbles.length && !reply.photo) reply = { bubbles: ["heyy"] };
+        deliver(reply);
+      });
     }
+    // re-runs after a chat clear too — she says hi fresh, in her own words
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [messages.length]);
 
-  // idle nudge — she double-texts if you go quiet with the app open
+  // idle nudge — she double-texts if you go quiet with the app open;
+  // the model improvises what she's doing, nothing is scripted
   useEffect(() => {
     const iv = setInterval(() => {
       if (nudged.current || busy.current || messages.length < 4) return;
       const idle = Date.now() - lastActivity.current;
       if (idle > 150_000 && messages[messages.length - 1]?.from === "her") {
         nudged.current = true;
-        const n = NUDGES[Math.floor(Math.random() * NUDGES.length)];
-        deliver({ bubbles: n });
+        think(user, brainKeys(), messages, NUDGE_DIRECTIVE(), "chat", "device", true).then(
+          (reply) => {
+            if (reply.bubbles.length || reply.photo) deliver(reply);
+          },
+        );
       }
     }, 20_000);
     return () => clearInterval(iv);
@@ -132,12 +141,7 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
     nudged.current = false;
     const mine: Message = { id: uid(), from: "me", kind: "text", text, at: Date.now() };
     pushMsg(mine);
-    const reply = await think(
-      user,
-      { openrouterKey, openrouterModel: state.openrouterModel, apiKey },
-      [...messages, mine],
-      text,
-    );
+    const reply = await think(user, brainKeys(), [...messages, mine], text);
     mergeLearned(reply.learned);
     await deliver(reply, text);
   }
@@ -183,13 +187,12 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
         <div
           className="avatar-ring"
           style={{ width: 48, height: 48, padding: 2.5, animationDuration: "20s" }}
-          onClick={onSettings}
         >
           <div className="inner" style={{ animationDuration: "20s" }}>
             <PhotoAvatar size={43} />
           </div>
         </div>
-        <div className="who" onClick={onSettings}>
+        <div className="who">
           <div className="name">{HER_NAME}</div>
           {typing ? (
             <div className="status typing">typing…</div>
@@ -202,11 +205,23 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
         <button className="icon-btn" onClick={onVoiceCall} aria-label="Voice call">
           <PhoneIcon />
         </button>
-        <button className="icon-btn" onClick={onVideoCall} aria-label="Video call">
-          <VideoIcon />
-        </button>
-        <button className="icon-btn" onClick={onSettings} aria-label="Settings">
-          <SettingsIcon />
+        <button
+          className="icon-btn"
+          style={clearArm ? { background: "rgba(255,59,48,0.12)", color: "var(--danger)" } : undefined}
+          onClick={() => {
+            if (!clearArm) {
+              setClearArm(true);
+              setTimeout(() => setClearArm(false), 2600);
+            } else {
+              setClearArm(false);
+              nudged.current = false;
+              busy.current = false;
+              setState((s) => ({ ...s, messages: [] }));
+            }
+          }}
+          aria-label={clearArm ? "Tap again to clear chat" : "Clear chat"}
+        >
+          <BroomIcon />
         </button>
       </div>
 
@@ -241,10 +256,10 @@ export default function Chat({ state, setState, onVoiceCall, onVideoCall, onSett
               }
             }}
           />
+          <button className={`send-btn ${draft.trim() ? "" : "off"}`} onClick={send} aria-label="Send">
+            <SendIcon />
+          </button>
         </div>
-        <button className={`send-btn ${draft.trim() ? "" : "off"}`} onClick={send} aria-label="Send">
-          <SendIcon />
-        </button>
       </div>
     </div>
   );

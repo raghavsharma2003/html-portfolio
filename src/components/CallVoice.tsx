@@ -1,5 +1,6 @@
 // Voice call — avatar in a slow-spinning gradient ring, live waveform,
-// spoken captions, STT with graceful typed fallback.
+// STT with graceful typed fallback. Deliberately no captions: a call is a
+// call — you listen to her, you don't read her.
 
 import { useEffect, useState } from "react";
 import type { AppState } from "../state/store";
@@ -15,7 +16,7 @@ interface Props {
 }
 
 export default function CallVoice({ state, setState, onEnd }: Props) {
-  const eng = useCallEngine(state, setState, "voice");
+  const eng = useCallEngine(state, setState);
   const [typed, setTyped] = useState("");
   const [showKb, setShowKb] = useState(false);
   const [bars, setBars] = useState<number[]>(Array(24).fill(8));
@@ -65,10 +66,6 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
           {bars.map((h, i) => (
             <i key={i} style={{ height: h }} />
           ))}
-        </div>
-
-        <div className="call-caption">
-          {eng.heard ? `"${eng.heard}"` : eng.caption}
         </div>
 
         {(!eng.sttSupported || showKb) && eng.phase === "live" && (

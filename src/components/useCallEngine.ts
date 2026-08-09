@@ -1,6 +1,5 @@
-// Shared conversation engine for voice & video calls: she greets you,
-// listens (STT where available, typed fallback), thinks, and speaks back
-// while the avatar lip-syncs.
+// Conversation engine for voice calls: she greets you, listens (STT where
+// available, typed fallback), thinks, and speaks back.
 
 import { useEffect, useRef, useState } from "react";
 import type { AppState, Message } from "../state/store";
@@ -13,14 +12,13 @@ import {
   prefetchBackchannels,
   playBackchannel,
 } from "../voice/speech";
-import type { VoiceEngine } from "../engine/persona";
+import { CALL_OPEN_DIRECTIVE, type VoiceEngine } from "../engine/persona";
 
 export type CallPhase = "connecting" | "live" | "ended";
 
 export function useCallEngine(
   state: AppState,
   setState: React.Dispatch<React.SetStateAction<AppState>>,
-  kind: "voice" | "video",
 ) {
   const [phase, setPhase] = useState<CallPhase>("connecting");
   const [speaking, setSpeaking] = useState(false);
@@ -40,26 +38,38 @@ export function useCallEngine(
     sarvamKey: state.sarvamKey,
     deviceVoice: state.deviceVoice,
   };
+  // Hosted Gemini voice is the zero-config default — device TTS is only ever
+  // a network-failure fallback inside speak() itself.
   const engine: VoiceEngine = state.sarvamKey
     ? "sarvam"
     : state.elevenKey
       ? "eleven"
-      : "device";
+      : "gemini";
 
   // connect + greet
   useEffect(() => {
     alive.current = true;
     prefetchBackchannels(voiceOpts); // instant "hmm?" clips for turn-taking
-    const t = setTimeout(() => {
+    const t = setTimeout(async () => {
       if (!alive.current) return;
       setPhase("live");
-      const name = state.user.name || "hey";
-      const greet =
-        kind === "video"
-          ? `Arrey ${name}, hii! Ek sec... haan, ab theek hai. Bolo, kya chal raha hai?`
-          : `Hello? ${name}! Acha timing hai... main bas ek kaam khatam kar rahi thi. Haan bolo, kaise ho?`;
-      sayAloud(greet);
-    }, 1800 + Math.random() * 900);
+      // she improvises her own phone pickup — nothing scripted
+      const reply = await think(
+        state.user,
+        {
+          openrouterKey: state.openrouterKey,
+          openrouterModel: state.openrouterModel,
+          apiKey: state.apiKey,
+        },
+        state.messages,
+        CALL_OPEN_DIRECTIVE(),
+        "call",
+        engine,
+        true,
+      );
+      if (!alive.current) return;
+      sayAloud(reply.bubbles.join(" ").trim() || "hello?");
+    }, 1400 + Math.random() * 700);
     return () => {
       alive.current = false;
       clearTimeout(t);

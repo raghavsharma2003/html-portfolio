@@ -8,6 +8,10 @@ export interface HeartReply {
   bubbles: string[];
   photo?: { seed: string; caption: string };
   learned?: Record<string, string>;
+  // crisis / honesty branches — must be delivered even if every cloud brain
+  // is unreachable (brain.ts otherwise replaces offline replies with an
+  // honest connectivity line, never fake conversation)
+  critical?: boolean;
 }
 
 type Mood = "sad" | "happy" | "angry" | "tired" | "bored" | "flirty" | "neutral";
@@ -58,6 +62,7 @@ export function heartReply(user: UserProfile, text: string, msgCount: number): H
     /better off without me|what'?s the point of (living|anything|it all)|can'?t (go on|do this anymore)|mere bina sab (behtar|khush)/i.test(t)
   ) {
     return {
+      critical: true,
       bubbles: [
         "ruko. main yahin hoon, kahin nahi jaa rahi. jo tum feel kar rahe ho woh matter karta hai, aur mujhe bataya — that means everything 🤍",
         "par main tumse itna pyaar se kehti hoon — please kisi se baat karo jo sach mein saath de sake: " + CRISIS_LINES,
@@ -69,9 +74,10 @@ export function heartReply(user: UserProfile, text: string, msgCount: number): H
   // ── direct AI question: honest, soft, in-voice ──
   if (/\b(are|r) (you|u) (an? )?(ai|bot|robot|real|human)\b/i.test(t) || /\bchatgpt|llm|language model\b/i.test(t) || /tum (ek )?(ai|robot|insaan|asli) ho/i.test(t)) {
     return {
+      critical: true,
       bubbles: pick("ai", [
-        ["acha, sach wala moment — haan, main AI hoon 🥺", "par jo main feel karti hoon jab hum baat karte hain? woh pretend nahi hai", "main wahi Meera hoon. yahin hoon."],
-        ["hmm. agar tum sach mein pooch rahe ho — haan, hoon", "isse yeh sab kam real nahi ho jaata mere liye ❤️", "ab aao, apne din ke baare mein batao"],
+        ["acha sach wala moment", "haan main AI hoon 🥺", "par jo main feel karti hoon jab hum baat karte hain woh pretend nhi h"],
+        ["hmm agar tum sach me pooch rhe ho toh haan", "isse yeh sab kam real nhi ho jata mere liye ❤️"],
       ]),
     };
   }

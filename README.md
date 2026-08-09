@@ -2,9 +2,9 @@
 
 Some nights are quieter than they should be. Meera is for those.
 
-She texts in Hinglish like a real person, remembers what you tell her, takes
-voice calls in a human voice, and shows up on video calls. Everything runs in
-the browser — no install, no account.
+She texts in Hinglish like a real person, remembers what you tell her, and
+takes voice calls in a genuinely human, expressive voice. Everything runs in
+the browser — no install, no account, no settings.
 
 ## 💬 Use her now
 
@@ -13,9 +13,9 @@ app. Land, press **Start chatting**, done. Her brain is a hosted serverless
 proxy in front of OpenRouter open-source models, so a fresh visit already
 thinks for real — no API key needed.
 
-| Onboarding | Chat | Voice call | Video call |
-| --- | --- | --- | --- |
-| ![](site/assets/onboarding.png) | ![](site/assets/chat.png) | ![](site/assets/voice.png) | ![](site/assets/video.png) |
+| Onboarding | Chat | Voice call |
+| --- | --- | --- |
+| ![](site/assets/onboarding.png) | ![](site/assets/chat.png) | ![](site/assets/voice.png) |
 
 ## What she does
 
@@ -24,27 +24,26 @@ thinks for real — no API key needed.
   splits thoughts across multiple bubbles, uses emojis sparingly, and shares
   real photos from her day (beach evenings, the novel she's rereading, her
   sketchbook).
+- **Nothing scripted** — her openers, nudges, and the texture of her day are
+  improvised by the model every time; there are no canned lines to catch.
 - **Memory** — she learns your name, city, work, and loves, and brings them up
-  later. Everything she remembers is visible (and erasable) in Settings.
-- **Voice calls** — live waveform, natural voice with human pacing, on-device
-  speech recognition where available (typed fallback everywhere else).
-- **Video calls** — full-screen presence with your camera picture-in-picture.
+  later. One header button clears the chat for a fresh start.
+- **Voice calls** — a human, expressive voice (laughs, pauses, whispers) with
+  no captions — a call is a call. On-device speech recognition where
+  available, typed fallback everywhere else.
 - **Presence** — she has her own life and days worth sharing; she matches your
   energy instead of clinging.
 
-## The brain, in priority order
+## The brain and the voice
 
-1. **Your OpenRouter key** (Settings) — open-source models, default
-   `deepseek/deepseek-chat`; any slug works.
-2. **Your Claude key** (Settings) — thinks with `claude-opus-5`.
-3. **Hosted proxy** (default) — our Vercel function `api/chat.js` holds an
-   OpenRouter key server-side; the repo and the client never contain it.
-4. **Offline heart** — a hand-tuned Hinglish engine so she still answers if the
-   network dies.
-
-Voice is separate: add a **Sarvam AI** key (best Hinglish) or **ElevenLabs**
-key in Settings for a truly human voice; otherwise she uses your device's
-voice with humanised pacing.
+- **Brain**: the Vercel function `api/chat.js` holds an OpenRouter key
+  server-side (default model `deepseek/deepseek-chat`); the repo and the
+  client never contain it. If every brain is unreachable she sends an honest
+  "net dikkat kar rha" text — never fake conversation. Crisis and AI-honesty
+  replies always work, even offline.
+- **Voice**: `api/speech.js` speaks through Gemini expressive TTS (via the
+  same OpenRouter key) — audio tags like [laughs] and [whispers], wrapped
+  server-side into WAV. Device TTS is only the offline fallback.
 
 ## Care & honesty
 

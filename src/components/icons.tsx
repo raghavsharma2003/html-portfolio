@@ -49,6 +49,14 @@ export const SettingsIcon = ({ size = 20 }: { size?: number }) => (
   </svg>
 );
 
+export const BroomIcon = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...S}>
+    <path d="M14 3l7 7" />
+    <path d="M11.5 5.5 18.5 12.5 13 18a7 7 0 0 1-9.9.1L11.5 5.5Z" />
+    <path d="M7 13l4 4" />
+  </svg>
+);
+
 export const KeyboardIcon = ({ size = 22 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" {...S}>
     <rect x="2.5" y="6.5" width="19" height="11" rx="2.5" />

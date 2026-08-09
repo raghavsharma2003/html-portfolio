@@ -3,15 +3,10 @@ import { useAppState } from "./state/store";
 import Onboarding from "./components/Onboarding";
 import Chat from "./components/Chat";
 import CallVoice from "./components/CallVoice";
-import CallVideo from "./components/CallVideo";
-import Settings from "./components/Settings";
-
-type Screen = "chat" | "voice" | "video";
 
 export default function App() {
   const [state, setState] = useAppState();
-  const [screen, setScreen] = useState<Screen>("chat");
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [inCall, setInCall] = useState(false);
 
   return (
     <div className="app grain">
@@ -24,21 +19,9 @@ export default function App() {
         />
       ) : (
         <>
-          <Chat
-            state={state}
-            setState={setState}
-            onVoiceCall={() => setScreen("voice")}
-            onVideoCall={() => setScreen("video")}
-            onSettings={() => setSettingsOpen(true)}
-          />
-          {screen === "voice" && (
-            <CallVoice state={state} setState={setState} onEnd={() => setScreen("chat")} />
-          )}
-          {screen === "video" && (
-            <CallVideo state={state} setState={setState} onEnd={() => setScreen("chat")} />
-          )}
-          {settingsOpen && (
-            <Settings state={state} setState={setState} onClose={() => setSettingsOpen(false)} />
+          <Chat state={state} setState={setState} onVoiceCall={() => setInCall(true)} />
+          {inCall && (
+            <CallVoice state={state} setState={setState} onEnd={() => setInCall(false)} />
           )}
         </>
       )}

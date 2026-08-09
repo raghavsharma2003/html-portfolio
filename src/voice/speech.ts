@@ -1,13 +1,12 @@
-// Voice layer with two tiers:
+// Voice layer, in priority order:
 //
-//  1. ElevenLabs (when a key is set in Settings) — genuinely human, emotional
-//     speech. Uses the expressive v3 model, which supports Hindi/Hinglish and
-//     audio tags like [laughs], [sighs], [whispers] that the brain writes
-//     into her call speech.
-//  2. Device TTS fallback (native Android TTS / Web Speech) — humanized as
-//     far as a device voice can go: phrase-level chunking with breath pauses,
-//     "…" rendered as real silence, per-phrase pace jitter so it never reads
-//     like one flat sentence.
+//  1. Sarvam bulbul (user key) — best native Hinglish accent.
+//  2. ElevenLabs v3 (user key) — emotion champion, audio tags.
+//  3. Meera voice (hosted, zero-config) — Gemini expressive TTS through our
+//     serverless proxy; supports the same [laughs]/[whispers] audio tags, so
+//     every fresh install gets a human voice with no key at all.
+//  4. Device TTS — last resort, humanized as far as a device voice can go:
+//     phrase chunking with breath pauses, "…" as real silence, pace jitter.
 //
 // STT: native Android SpeechRecognition (WebView has none), web SR fallback.
 
@@ -28,6 +27,12 @@ export interface VoiceOpts {
 // popular Hindi female voice in their library (add it to My Voices first).
 const ELEVEN_DEFAULT_VOICE = "1qEiC6qsybMkmnNdVMbK";
 const SARVAM_SPEAKER = "priya";
+
+// Hosted Meera voice (Gemini TTS behind our proxy) — same-origin on the web,
+// absolute from inside the Android shell.
+const PROXY_SPEECH_URL = isNative
+  ? "https://meera-silk.vercel.app/api/speech"
+  : "/api/speech";
 
 const hasAudioTags = (t: string) => /\[[a-z ]+\]/i.test(t);
 
@@ -213,6 +218,21 @@ async function sarvamFetch(text: string, opts: VoiceOpts): Promise<Blob | null> 
   }
 }
 
+async function meeraFetch(text: string): Promise<Blob | null> {
+  try {
+    const res = await fetch(PROXY_SPEECH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return blob.size > 1000 ? blob : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function speak(
   text: string,
   onStart?: () => void,
@@ -225,6 +245,8 @@ export async function speak(
   // Sarvam bulbul is the Hinglish champion → primary when its key exists.
   // ElevenLabs v3 is the emotion champion → takes over when the reply
   // carries audio tags ([laughs] etc.), or when it's the only cloud key.
+  // The hosted Meera voice (Gemini TTS via our proxy) always backs them up —
+  // and IS the voice for a fresh, keyless install.
   const cloudText = stripForCloud(text);
   if (cloudText) {
     const preferEleven = Boolean(opts.elevenKey) && (hasAudioTags(text) || !opts.sarvamKey);
@@ -236,6 +258,7 @@ export async function speak(
       tries.push(() => sarvamFetch(stripForDevice(text), opts));
       if (opts.elevenKey) tries.push(() => elevenFetch(cloudText, opts));
     }
+    tries.push(() => meeraFetch(cloudText));
     for (const attempt of tries) {
       const blob = await attempt();
       if (blob) {
@@ -324,11 +347,13 @@ const backchannelClips: Blob[] = [];
 const BACKCHANNELS = ["Hmm?", "Haan...", "Acha...", "Mmm."];
 
 export async function prefetchBackchannels(opts: VoiceOpts) {
-  if (backchannelClips.length || (!opts.sarvamKey && !opts.elevenKey)) return;
+  if (backchannelClips.length) return;
   for (const b of BACKCHANNELS) {
     const blob = opts.sarvamKey
       ? await sarvamFetch(b, opts)
-      : await elevenFetch(b, opts);
+      : opts.elevenKey
+        ? await elevenFetch(b, opts)
+        : await meeraFetch(b);
     if (blob) backchannelClips.push(blob);
   }
 }

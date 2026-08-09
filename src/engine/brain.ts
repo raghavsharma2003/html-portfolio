@@ -46,18 +46,39 @@ export function humanizeForSpeech(text: string): string {
   return t;
 }
 
+// No real girl sends a paragraph: bubbles that come back too long are split
+// again at sentence-ish boundaries, as a hard guarantee.
+function splitLong(bubble: string): string[] {
+  if (bubble.length <= 90) return [bubble];
+  const parts = bubble.split(/(?<=[.!?])\s+|\n+/).filter(Boolean);
+  const out: string[] = [];
+  let cur = "";
+  for (const p of parts) {
+    if ((cur + " " + p).trim().length > 90 && cur) {
+      out.push(cur.trim());
+      cur = p;
+    } else {
+      cur = (cur ? cur + " " : "") + p;
+    }
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out.length ? out : [bubble];
+}
+
 function parseBubbles(raw: string): HeartReply {
   const out: HeartReply = { bubbles: [] };
-  for (const part of raw.split(/\n?---\n?/)) {
+  // models separate thoughts with "---" or plain newlines — both are bubbles
+  for (const part of raw.split(/\n?---\n?|\n+/)) {
     const p = part.trim();
     if (!p) continue;
     const photo = p.match(/^\[photo:\s*(.+?)\]$/i);
     if (photo) {
       out.photo = { seed: photo[1] + Date.now(), caption: photo[1] };
     } else {
-      out.bubbles.push(p.replace(/^["']|["']$/g, ""));
+      out.bubbles.push(...splitLong(p.replace(/^["']|["']$/g, "")));
     }
   }
+  out.bubbles = out.bubbles.slice(0, 4);
   if (!out.bubbles.length && !out.photo) out.bubbles = [raw.trim() || "hmm? phir se bolo"];
   return out;
 }
@@ -157,10 +178,15 @@ export async function think(
   latest: string,
   mode: ThinkMode = "chat",
   voiceEngine: VoiceEngine = "device",
+  // directive turns (open/nudge context notes) carry no user text to learn
+  // from, and on failure they produce silence instead of a canned reply
+  isDirective = false,
 ): Promise<HeartReply> {
   // learn facts locally regardless of which engine answers
-  const local = heartReply(user, latest, history.length);
-  if (mode === "call") {
+  const local: HeartReply = isDirective
+    ? { bubbles: [] }
+    : heartReply(user, latest, history.length);
+  if (mode === "call" && !isDirective) {
     local.bubbles = [humanizeForSpeech(local.bubbles.join(" "))];
     local.photo = undefined;
   }
@@ -175,7 +201,21 @@ export async function think(
   if (keys.openrouterKey) text = await openrouterThink(keys, system, turns);
   if (!text && keys.apiKey) text = await claudeThink(keys, system, turns);
   if (!text) text = await proxyThink(keys, system, turns);
-  if (!text) return local; // network/auth failure → she still answers
+  if (!text) {
+    // every brain unreachable. crisis/honesty replies still go out; anything
+    // else becomes an honest connectivity text — never fake conversation.
+    if (local.critical) return local;
+    if (isDirective) return { bubbles: [] };
+    const oops = [
+      ["yaar net kuch ajeeb kar rha", "ek min"],
+      ["arre mere msg nhi ja rhe theek se 😭", "ruk"],
+      ["net dikkat kar rha lagta h", "abhi aati hu"],
+    ];
+    return {
+      bubbles: oops[Math.floor(Math.random() * oops.length)],
+      learned: local.learned,
+    };
+  }
 
   const parsed = parseBubbles(text);
   parsed.learned = local.learned;
