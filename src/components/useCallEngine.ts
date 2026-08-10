@@ -294,6 +294,9 @@ export function useCallEngine(
         liveSession.current = null;
         liveStopping.current = false;
       }
+      // the call UI can close by ANY route (back gesture, navigation) — the
+      // screen share must NEVER outlive the call
+      stopWatchMode();
       stopSpeaking();
       stopRoomTone();
       stopListen.current?.();
@@ -679,7 +682,7 @@ export function useCallEngine(
       }
       // realtime path: the live model sees the screen as a video stream
       liveSession.current?.sendFrame(url.split(",")[1] ?? "");
-    }, 1200);
+    }, 700);
     const cleanup = () => {
       clearInterval(iv);
       stream.getTracks().forEach((tr) => tr.stop());
