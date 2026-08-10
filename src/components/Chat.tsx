@@ -5,9 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { animate } from "framer-motion";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
-import { think } from "../engine/brain";
+import { think, formatHerLife } from "../engine/brain";
 import { HER_NAME, OPEN_DIRECTIVE, NUDGE_DIRECTIVE, FOLLOWUP_DIRECTIVE } from "../engine/persona";
-import { logTurns, rememberFrom, uploadPhoto, describePhoto } from "../engine/memory";
+import { logTurns, rememberFrom, uploadPhoto, describePhoto, prefetchRecall } from "../engine/memory";
 import { track } from "../engine/account";
 import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
@@ -138,8 +138,16 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     openrouterModel: state.openrouterModel,
     apiKey,
     deviceId: state.deviceId,
+    herLife: formatHerLife(state.herLife),
   });
   const sendCount = useRef(0);
+  // ── reply pacing ──
+  // She reads while the model thinks. `lastUserAt` is when they actually hit
+  // send, so the read beat and the typing indicator run on HER clock instead
+  // of starting fresh whenever the network happens to come back.
+  const lastUserAt = useRef(0);
+  const typingSince = useRef(0);
+  const readTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pushMsg = (m: Message) =>
     setState((s) => ({ ...s, messages: [...s.messages, m] }));
@@ -257,7 +265,26 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
 
-  async function deliver(reply: HeartReply, incoming = "") {
+  // Put her "typing…" up the moment she'd realistically have finished reading,
+  // without waiting for the model. The round trip used to be silence the user
+  // just sat through; now it's her writing.
+  function beginReading(incoming: string, from: number) {
+    if (readTimer.current) clearTimeout(readTimer.current);
+    const ep = epoch.current;
+    readTimer.current = setTimeout(
+      () => {
+        readTimer.current = null;
+        if (ep !== epoch.current || inCallRef.current) return;
+        cameOnline();
+        upgradeMyStatus("read");
+        if (!typingSince.current) typingSince.current = Date.now();
+        setTyping(true);
+      },
+      Math.max(0, readDelay(incoming) - (Date.now() - from)),
+    );
+  }
+
+  async function deliver(reply: HeartReply, incoming = "", readFrom = 0) {
     busy.current = true;
     // deterministic meme throttle — regardless of what the model wants,
     // never two gifs within her last six messages. Context-free meme spam
@@ -273,6 +300,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       if (ep !== epoch.current) {
         setTyping(false);
         setTypingOut(false);
+        typingSince.current = 0;
         busy.current = false;
         return true;
       }
@@ -287,15 +315,26 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       setTyping(false);
       setTypingOut(false);
     };
-    await sleep(readDelay(incoming));
+    // the read beat is measured from when THEY sent, so the model's round trip
+    // is spent reading rather than stacked on top of it
+    const readWait = Math.max(0, readDelay(incoming) - (readFrom ? Date.now() - readFrom : 0));
+    if (readWait) await sleep(readWait);
     if (stale()) return;
     // this is the moment she actually reads you: she pops online, blue ticks
     cameOnline();
     upgradeMyStatus("read");
     const delivered: Message[] = [];
+    let firstBubble = true;
     for (const bubble of reply.bubbles) {
       setTyping(true);
-      await sleep(typeDelay(bubble));
+      if (!typingSince.current) typingSince.current = Date.now();
+      // the first bubble credits the time the indicator has ALREADY been up —
+      // she was typing it while the reply was still coming back
+      const typeWait = firstBubble
+        ? Math.max(0, typeDelay(bubble) - (Date.now() - typingSince.current))
+        : typeDelay(bubble);
+      firstBubble = false;
+      await sleep(typeWait);
       if (stale()) return;
       const msg: Message = { id: uid(), from: "her", kind: "text", text: bubble, at: Date.now() };
       await handoffTyping(msg.id);
@@ -363,13 +402,19 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       if (stale()) return;
       pushMsg(photo);
     }
+    typingSince.current = 0;
     busy.current = false;
   }
 
   // schedule a reply cycle after a short burst-wait; every newer message
   // resets the wait and supersedes any in-flight thinking
-  function scheduleReply() {
+  function scheduleReply(hint = "") {
     dirty.current = true;
+    lastUserAt.current = Date.now();
+    // the graph lookup starts now, so its round trip is spent inside the
+    // burst-wait instead of in front of the model call. `hint` is the message
+    // just pushed — state hasn't re-rendered yet, so messagesRef is one behind.
+    prefetchRecall(state.deviceId, hint || lastUserText());
     const seq = ++chatSeq.current;
     if (burstTimer.current) clearTimeout(burstTimer.current);
     burstTimer.current = setTimeout(() => void replyCycle(seq), 1300);
@@ -394,7 +439,29 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     busy.current = true;
     dirty.current = false;
     const latest = lastUserText();
-    const reply = await think(user, brainKeys(), messagesRef.current, latest);
+    const readFrom = lastUserAt.current || Date.now();
+    beginReading(latest, readFrom);
+    // [search:] turns: her holding bubble is delivered while the lookup runs
+    const holdingDeliver = async (r: HeartReply) => {
+      if (seq !== chatSeq.current || ep !== epoch.current) return;
+      delivering.current = true;
+      await deliver(r, latest, readFrom);
+      delivering.current = false;
+      busy.current = true; // deliver() clears it; this think is still running
+    };
+    const reply = await think(
+      user,
+      brainKeys(),
+      messagesRef.current,
+      latest,
+      "chat",
+      "device",
+      false,
+      undefined,
+      undefined,
+      undefined,
+      holdingDeliver,
+    );
     thinkingChat.current = false;
     if (ep !== epoch.current) {
       busy.current = false;
@@ -406,17 +473,36 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     }
     mergeLearned(reply.learned);
     delivering.current = true;
-    await deliver(reply, latest);
+    await deliver(reply, latest, readFrom);
     delivering.current = false;
     if (dirty.current && ep === epoch.current) {
       // messages landed while she was typing — she notices and follows up
       return replyCycle(chatSeq.current);
     }
     busy.current = false;
-    // periodically distill the conversation into her graph memory
+    // periodically distill the conversation into her graph memory, and keep
+    // what she claimed about HER own life — off the hot path, one extraction
+    // call that was already happening, no extra round trip per turn
     sendCount.current += 1;
-    if (sendCount.current % 4 === 0) {
-      rememberFrom(state.deviceId, messagesRef.current);
+    if (sendCount.current % 3 === 0) {
+      rememberFrom(state.deviceId, messagesRef.current).then((self) => {
+        if (!self.length) return;
+        setState((s) => {
+          const at = Date.now();
+          const seen = new Set<string>();
+          return {
+            ...s,
+            herLife: [...self.map((text) => ({ text, at })), ...(s.herLife || [])]
+              .filter((f) => {
+                const k = f.text.toLowerCase();
+                if (seen.has(k)) return false;
+                seen.add(k);
+                return true;
+              })
+              .slice(0, 14),
+          };
+        });
+      });
     }
   }
 
@@ -442,7 +528,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     track(state.deviceId, "message_sent", { len: text.length, quoted: Boolean(mine.replyTo) }, state.auth?.userId);
     // single tick → double tick shortly after (server delivery rhythm)
     setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
-    scheduleReply();
+    scheduleReply(text);
   }
 
   // ── sending HER a photo (camera or gallery): compress client-side, show
@@ -503,7 +589,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     // the photo joins the same burst pipeline as text — she sees it (vision
     // reads the local data URL until the storage upload lands) and can fold
     // it into one reply with whatever else you're sending
-    scheduleReply();
+    scheduleReply(caption);
     // background: permanent copy in storage (survives devices) + one factual
     // line about the image for her long-term context
     uploadPhoto(state.deviceId, packed.b64, "image/jpeg").then((url) => {
@@ -729,7 +815,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
             pushMsg(mine);
             logTurns(state.deviceId, [mine]);
             setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
-            scheduleReply();
+            scheduleReply(transcript);
           } else {
             showNotice("recording didn't capture — try again");
           }
@@ -756,7 +842,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
         lastActivity.current = Date.now();
         nudged.current = false;
-        scheduleReply(); // voice notes join the same burst pipeline
+        scheduleReply(mine.text); // voice notes join the same burst pipeline
       }, 600);
     };
     st.recorder!.onstop = () => {
@@ -960,12 +1046,21 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
               nudged.current = false;
               busy.current = false;
               epoch.current += 1; // kill any in-flight reply from the old chat
+              if (readTimer.current) clearTimeout(readTimer.current);
+              typingSince.current = 0;
               setTyping(false);
               track(state.deviceId, "chat_cleared", { count: messages.length }, state.auth?.userId);
               // clearedAt is the synced tombstone: other devices honor it
               // instead of resurrecting the wiped conversation; followup
               // timers from the deleted conversation die with it
-              setState((s) => ({ ...s, messages: [], followup: null, clearedAt: Date.now() }));
+              // her improvised life belonged to that conversation too
+              setState((s) => ({
+                ...s,
+                messages: [],
+                followup: null,
+                herLife: [],
+                clearedAt: Date.now(),
+              }));
             }
           }}
           aria-label={clearArm ? "Tap again to clear chat" : "Clear chat"}

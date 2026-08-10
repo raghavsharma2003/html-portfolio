@@ -907,6 +907,7 @@ export function useCallEngine(
     let started = false;
     let lastWakeAt = 0;
     let lastSentAt = 0;
+    let pendingNew = false; // a change seen but not yet sent
     const wakes: number[] = new Array(WAKE_CEILING).fill(0);
     let wakeIdx = 0;
     const wake = (note: string): boolean => {
@@ -943,18 +944,26 @@ export function useCallEngine(
           prevSig = sig;
         }
         if (motion) lastActivityAt = at;
+        // a change spotted inside the send floor is REMEMBERED, never dropped:
+        // otherwise the next tick diffs against the already-new screen, reads
+        // "nothing much moved", and the new thing never wakes her at all
+        if (motion >= 2) pendingNew = true;
         // ── expensive half, only for frames that are going out ──
         // A new thing on screen is the most valuable frame we can spend
         // bandwidth on, so it jumps the baseline cadence: congestion slows
         // the BASELINE flow, never the reaction. (The socket still has the
         // final say — sendFrame refuses a frame that would queue in front of
         // her hearing them, and then nothing wakes her, which is correct.)
-        const react = motion >= 2 && at - lastSentAt >= CHANGE_SEND_MS;
+        const react = pendingNew && at - lastSentAt >= CHANGE_SEND_MS;
         if (react || at - lastSentAt >= TIERS[tier].every) {
-          lastSentAt = at;
           const t = TIERS[tier];
           const url = grab(t.side, t.q);
           if (url) {
+            lastSentAt = at; // nothing grabbed, nothing spent
+            if (pendingNew) {
+              motion = 2;
+              pendingNew = false;
+            }
             frameRef.current = { url, at };
             setFrameAt(at);
             if (!firstFrameSeen.current) {
@@ -1153,10 +1162,10 @@ export function useCallEngine(
     }, 450);
   }
 
-  // Only a frame she could honestly call "right now" is attached. Capture can
-  // drop to one frame per 2.5s under congestion, and an 8s-old picture
-  // described as live is how she ended up commenting on things that had
-  // already scrolled away. Past this, she simply answers without the screen.
+  // Only a frame she could honestly call "right now" is attached. The
+  // baseline flow can drop to one frame per 2.5s under congestion, and an
+  // 8s-old picture described as live is how she ended up commenting on
+  // things that were already gone. Past this she answers without the screen.
   const freshFrame = () =>
     watching && frameRef.current && Date.now() - frameRef.current.at < 3000
       ? frameRef.current.url

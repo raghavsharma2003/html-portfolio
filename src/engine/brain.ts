@@ -36,6 +36,27 @@ export interface BrainKeys {
   openrouterModel?: string;
   apiKey?: string; // Claude
   deviceId?: string; // enables graph-memory recall via /api/memory
+  // what she has already told them about her OWN life (pre-formatted lines).
+  // Her day is improvised, but it stops being improvisable once it's been said.
+  herLife?: string;
+}
+
+// how long ago she said it, in the shape a person would think it
+function agoLabel(at: number): string {
+  const mins = Math.max(0, Math.round((Date.now() - at) / 60_000));
+  if (mins < 90) return "earlier in this conversation";
+  const hrs = Math.round(mins / 60);
+  if (hrs < 20) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  return `${days} day${days > 1 ? "s" : ""} ago`;
+}
+
+export function formatHerLife(facts?: Array<{ text: string; at: number }>): string {
+  if (!facts?.length) return "";
+  return facts
+    .slice(0, 12)
+    .map((f) => `- ${f.text} (${agoLabel(f.at)})`)
+    .join("\n");
 }
 
 // Make device-spoken text breathe: openers, thinking pauses. Used on the
@@ -222,8 +243,11 @@ function toTurns(history: Message[], latest: string) {
   let lastChannel: "chat" | "call" = "chat";
   let prevAt = 0;
   // callmark chips are records, not conversation — filter BEFORE windowing
-  // so they don't shrink the 30-turn context or the 6-turn vision window
-  const recent = history.filter((m) => m.kind !== "callmark").slice(-30);
+  // so they don't shrink the context or the 6-turn vision window.
+  // 30 messages was ~8 exchanges: in a fast chat her own opening scrolled out
+  // of context within a couple of minutes and she started contradicting it.
+  // Her bubbles are tiny (2–8 words), so 90 costs ~1k uncached tokens a turn.
+  const recent = history.filter((m) => m.kind !== "callmark").slice(-90);
   // she SEES actual images for photos in the last few turns; older ones
   // survive as their stored one-line descriptions
   const visionCutoff = recent.length - 6;
@@ -454,6 +478,10 @@ export async function think(
   extraMemories?: string,
   // watch-together: the current screen frame (data URL) — she SEES it
   watchFrame?: string,
+  // chat: her pre-lookup holding bubble ("ruk dekh ke batati hu") is handed
+  // over the moment it exists, so the [search:] round trip is spent with a
+  // message already on screen instead of in silence. Resolve when delivered.
+  onHolding?: (r: HeartReply) => Promise<void> | void,
 ): Promise<HeartReply> {
   // learn facts locally regardless of which engine answers
   const local: HeartReply = isDirective
@@ -483,7 +511,13 @@ export async function think(
         ? await recallMemories(keys.deviceId, latest)
         : "";
   if (memories) {
-    sysTail += `\n\nWHAT YOU KNOW ABOUT THEM — true facts from your earlier conversations. You genuinely remember these. When they ask about or touch on anything here, you KNOW it — answer confidently with the specific detail ("priya ki shaadi h na december me"), never play dumb, never guess, never ask them to remind you. Weave one in naturally when relevant; don't dump several at once, and never mention any list or "memory":\n${memories}`;
+    sysTail += `\n\nWHAT YOU REMEMBER ABOUT THEM — from your earlier conversations, each tagged with when it last came up. These are real: when they touch on one, you KNOW it and you say the specific detail, never play dumb, never ask them to remind you. Two things keep it honest:
+- Something being listed here is not a reason to say it. It comes out only where it actually fits, one at a time, woven into normal talk — never several at once, never as a list, never with any mention of remembering.
+- A memory is not a live update. Anything with a date, a plan or a situation in it may already have happened or changed, so an old one gets talked about as old ("us december wali shaadi ho gayi na?") instead of announced as if it's still ahead — and then you let them tell you where it stands.
+${memories}`;
+  }
+  if (keys.herLife) {
+    sysTail += `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are now fixed between you two, not open to reinvention. Same job, same people, same flat, same plans, same things you did. Add new texture freely; never say anything that contradicts a line here, and never re-tell one as if it's news:\n${keys.herLife}`;
   }
 
   const turns = toTurns(history, latest);
@@ -552,14 +586,27 @@ export async function think(
   // finishing this reply. One extra fast pass, only in chat, only once —
   // the second pass is told the facts and forbidden from searching again.
   if (parsed.search && mode === "chat") {
+    // her holding bubble goes out NOW, in parallel with the lookup — the two
+    // round trips used to stack into ~10s of dead air before anything appeared
+    const holding = parsed.bubbles.slice(0, 1);
+    const handoff = onHolding && holding.length ? onHolding({ bubbles: holding }) : null;
+    // a dead lookup must still produce the informed pass — she promised to
+    // check, so she owes them a reply either way
+    let facts = "";
     try {
       const res = await fetch(PROXY_URL.replace("/api/chat", "/api/search"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ q: parsed.search }),
-        signal: AbortSignal.timeout(14_000),
+        // measured p50 ~3.3s / max ~4.3s; past this she is better off replying
+        // with what she already has than making them wait longer
+        signal: AbortSignal.timeout(7_000),
       });
-      const facts = res.ok ? String((await res.json())?.facts || "") : "";
+      facts = res.ok ? String((await res.json())?.facts || "") : "";
+    } catch {
+      /* offline / timed out — the second pass says so in her own words */
+    }
+    try {
       const tailWithFacts =
         sysTail +
         `\n\nLIVE LOOKUP RESULT for "${parsed.search}" (you just checked this on your phone — it is CURRENT and true):\n${
@@ -571,14 +618,19 @@ export async function think(
         p2.learned = local.learned;
         p2.search = undefined;
         if (p2.bubbles.length) {
-          // keep any holding bubble she sent before the lookup ("ruk check
-          // karti hu") in front of the informed reply
-          p2.bubbles = [...parsed.bubbles.slice(0, 1), ...p2.bubbles].slice(0, 4);
+          // the holding bubble is already on screen when it was handed off;
+          // otherwise it still leads the informed reply
+          p2.bubbles = handoff ? p2.bubbles.slice(0, 4) : [...holding, ...p2.bubbles].slice(0, 4);
           parsed = p2;
         }
       }
     } catch {
-      /* lookup failed — her first-pass bubbles still deliver */
+      /* informed pass unreachable — her first-pass bubbles still deliver */
+    }
+    if (handoff) {
+      await handoff;
+      // delivered already — never send it twice
+      if (parsed.bubbles[0] === holding[0]) parsed.bubbles = parsed.bubbles.slice(1);
     }
     parsed.search = undefined;
   }

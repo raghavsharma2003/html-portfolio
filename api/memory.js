@@ -53,14 +53,53 @@ async function opLog(device, body) {
   return { ok: true };
 }
 
+// Query words that carry no retrieval signal. Without this filter a message
+// like "what have you been doing" matches every summary containing "been" or
+// "what", and those nodes are then handed to her as relevant facts — which is
+// how she ends up confidently telling them something unrelated and wrong.
+const RECALL_STOP = new Set([
+  "that", "this", "then", "than", "when", "what", "have", "having", "been", "with", "your", "yours",
+  "just", "like", "know", "knew", "about", "they", "them", "their", "there", "here", "from", "some",
+  "were", "will", "would", "could", "should", "shall", "being", "does", "doing", "done", "going",
+  "gone", "really", "very", "much", "many", "also", "only", "even", "because", "still", "again",
+  "which", "where", "while", "after", "before", "into", "onto", "over", "under", "such", "same",
+  "think", "thought", "thing", "things", "want", "wanted", "need", "tell", "told", "said", "says",
+  "make", "made", "take", "took", "good", "nice", "okay", "yeah", "yaar", "haan", "nahi", "nhi",
+  "matlab", "kuch", "bhi", "raha", "rahi", "rahe", "karta", "karti", "karte", "karna", "kiya",
+  "kaise", "kaisa", "kaisi", "tumhara", "tumhari", "tumhe", "mera", "meri", "mere", "main", "mujhe",
+  "abhi", "phir", "bata", "batao", "waise", "acha", "achha", "theek", "thik", "chal", "koi", "sab",
+  "hai", "hain", "tha", "thi", "the", "hoga", "hogi", "kyun", "kyu", "kaam", "baat", "bolo", "bola",
+]);
+
+function ageLabel(at) {
+  const ms = Date.now() - new Date(at).getTime();
+  if (!Number.isFinite(ms)) return "a while ago";
+  const days = Math.floor(ms / 86_400_000);
+  if (days < 1) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  if (days < 31) {
+    const w = Math.max(1, Math.round(days / 7));
+    return `${w} week${w > 1 ? "s" : ""} ago`;
+  }
+  if (days < 365) {
+    const mo = Math.max(1, Math.round(days / 30));
+    return `${mo} month${mo > 1 ? "s" : ""} ago`;
+  }
+  return "over a year ago";
+}
+
 async function opRecall(device, body) {
   const query = String(body.query || "").toLowerCase();
-  const words = [...new Set(query.match(/[a-z]{4,}|[ऀ-ॿ]{3,}/g) || [])].slice(0, 6);
+  const words = [...new Set(query.match(/[a-z]{4,}|[ऀ-ॿ]{3,}/g) || [])]
+    .filter((w) => !RECALL_STOP.has(w))
+    .slice(0, 6);
 
+  const COLS = "id, name, kind, summary, updated_at";
   const fetches = [
     q(
-      `select * from meera_nodes where device_id = $1
-       order by salience desc, updated_at desc limit 6`,
+      `select ${COLS} from meera_nodes where device_id = $1
+       order by salience desc, updated_at desc limit 4`,
       [device],
     ),
   ];
@@ -69,25 +108,28 @@ async function opRecall(device, body) {
     const params = [device];
     let p = 2;
     for (const w of words) {
-      clauses.push(`name ilike $${p} or summary ilike $${p}`);
-      params.push(`%${w}%`);
+      // word-boundary match, not substring: `ilike '%rate%'` hits "corporate"
+      // and hands her a memory the message never referred to
+      clauses.push(`name ~* $${p} or summary ~* $${p}`);
+      params.push(`\\m${w}\\M`);
       p++;
     }
     fetches.push(
       q(
-        `select * from meera_nodes where device_id = $1 and (${clauses.join(" or ")})
-         order by salience desc limit 8`,
+        `select ${COLS} from meera_nodes where device_id = $1 and (${clauses.join(" or ")})
+         order by salience desc, updated_at desc limit 8`,
         params,
       ).catch(() => []),
     );
   }
-  const results = await Promise.all(fetches);
+  const [bgRaw, matchedRaw = []] = await Promise.all(fetches);
+  const background = Array.isArray(bgRaw) ? bgRaw : [];
+  const matched = Array.isArray(matchedRaw) ? matchedRaw : [];
   const seen = new Map();
-  for (const arr of results) if (Array.isArray(arr)) for (const n of arr) seen.set(n.id, n);
-  const nodes = [...seen.values()].slice(0, 12);
-  if (!nodes.length) return { memories: "" };
+  for (const n of [...matched, ...background]) seen.set(n.id, n);
+  if (!seen.size) return { memories: "" };
 
-  const idArr = nodes.map((n) => n.id);
+  const idArr = [...seen.keys()];
   const edges = await q(
     `select * from meera_edges where device_id = $1 and (src = any($2) or dst = any($2)) limit 30`,
     [device, idArr],
@@ -99,26 +141,54 @@ async function opRecall(device, body) {
     if (!seen.has(e.src)) missing.add(e.src);
     if (!seen.has(e.dst)) missing.add(e.dst);
   }
+  const names = new Map([...seen].map(([id, n]) => [id, n.name]));
   if (missing.size) {
     const extra = await q(
       `select id, name from meera_nodes where device_id = $1 and id = any($2)`,
       [device, [...missing]],
     ).catch(() => []);
-    for (const n of Array.isArray(extra) ? extra : []) seen.set(n.id, n);
+    for (const n of Array.isArray(extra) ? extra : []) names.set(n.id, n.name);
   }
 
-  const lines = nodes.map((n) => {
+  // A dated or forward-looking fact goes stale silently: "shaadi december me
+  // h" recalled fourteen months later is not news, it's a wrong statement.
+  // Flagging it in the data beats hoping the model does the date arithmetic.
+  const TIME_BOUND =
+    /\b(jan|feb|march|april|may|june|july|aug|sept|oct|nov|dec|monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight|next|upcoming|soon|planning|plans?|will|shaadi|wedding|exam|interview|trip|due|deadline|weekend|birthday|\d{4}|\d{1,2}(st|nd|rd|th))\b/i;
+  const staleNote = (n) => {
+    const days = (Date.now() - new Date(n.updated_at).getTime()) / 86_400_000;
+    if (!(days > 45)) return "";
+    if (n.kind !== "plan" && n.kind !== "event" && !TIME_BOUND.test(n.summary || "")) return "";
+    return " ← whatever was ahead in this has already happened; talk about it as past and let them tell you how it went";
+  };
+
+  const line = (n) => {
     const rel = (Array.isArray(edges) ? edges : [])
       .filter((e) => e.src === n.id || e.dst === n.id)
       .slice(0, 4)
       .map((e) =>
         e.src === n.id
-          ? `${e.relation} ${seen.get(e.dst)?.name ?? "?"}`
-          : `${seen.get(e.src)?.name ?? "?"} ${e.relation} this`,
+          ? `${e.relation} ${names.get(e.dst) ?? "?"}`
+          : `${names.get(e.src) ?? "?"} ${e.relation} this`,
       )
       .join("; ");
-    return `- ${n.name} (${n.kind}): ${n.summary}${rel ? ` [${rel}]` : ""}`;
-  });
+    // the age travels with the fact: a plan recalled six months later is not
+    // still upcoming, and she can only get that right if she knows how old it is
+    return `- ${n.name} (${n.kind}, last came up ${ageLabel(n.updated_at)}): ${n.summary}${rel ? ` [${rel}]` : ""}${staleNote(n)}`;
+  };
+
+  // matched-vs-background stays labelled: background is continuity, not a
+  // prompt to bring six unrelated facts into a reply about something else
+  const matchedIds = new Set(matched.map((n) => n.id));
+  const blocks = [];
+  if (matched.length) blocks.push(`RELEVANT TO WHAT THEY JUST SAID:\n${matched.map(line).join("\n")}`);
+  const bgOnly = background.filter((n) => !matchedIds.has(n.id));
+  if (bgOnly.length)
+    blocks.push(
+      `STANDING BACKGROUND (the big things in their life — context only, never raise these unprompted):\n${bgOnly
+        .map(line)
+        .join("\n")}`,
+    );
 
   // touch recall time (awaited — serverless kills post-response work)
   await q(`update meera_nodes set last_recalled = now() where device_id = $1 and id = any($2)`, [
@@ -126,7 +196,7 @@ async function opRecall(device, body) {
     idArr,
   ]).catch(() => {});
 
-  return { memories: lines.join("\n") };
+  return { memories: blocks.join("\n") };
 }
 
 async function opRemember(device, body) {
@@ -149,9 +219,10 @@ async function opRemember(device, body) {
       messages: [
         {
           role: "system",
-          content: `Extract durable memory about the USER's life from this Hinglish chat (meera is the AI companion — do NOT store facts about meera's own fictional life). Reply with ONLY JSON:
-{"nodes":[{"kind":"person|place|event|preference|fact|emotion|plan|topic","name":"short lowercase","summary":"one line, <=120 chars"}],"edges":[{"src":"node name","dst":"node name","relation":"2-3 words"}]}
-Only things worth remembering weeks later: people, places, jobs, plans, strong likes/dislikes, recurring feelings, big events. Skip small talk. Max 6 nodes. Empty arrays if nothing durable.`,
+          content: `Extract durable memory about the USER's life from this Hinglish chat (meera is the AI companion). Reply with ONLY JSON:
+{"nodes":[{"kind":"person|place|event|preference|fact|emotion|plan|topic","name":"short lowercase","summary":"one line, <=120 chars"}],"edges":[{"src":"node name","dst":"node name","relation":"2-3 words"}],"self":["..."]}
+nodes/edges = the USER only. Only things worth remembering weeks later: people, places, jobs, plans, strong likes/dislikes, recurring feelings, big events. Skip small talk. Max 6 nodes. Never put meera's own life in nodes.
+"self" = up to 4 short lowercase lines stating what MEERA said about HER OWN life here (her job, her people, her flat, what she did/ate/watched, her plans) — plain facts, <=90 chars each, e.g. "flatmate is named sneha", "spent today redoing the onboarding screens". These are returned so she stays consistent with herself later, not stored as user memory. Empty array if she said nothing about herself.`,
         },
         { role: "user", content: convo },
       ],
@@ -166,6 +237,12 @@ Only things worth remembering weeks later: people, places, jobs, plans, strong l
   } catch {
     return { ok: false };
   }
+  // her own improvised life: returned to the client, never written to the
+  // user's graph — it is what keeps her from re-inventing herself two turns later
+  const self = (Array.isArray(parsed.self) ? parsed.self : [])
+    .filter((s) => typeof s === "string" && s.trim())
+    .slice(0, 4)
+    .map((s) => s.trim().replace(/\s+/g, " ").slice(0, 110));
   const nodes = (Array.isArray(parsed.nodes) ? parsed.nodes : [])
     .filter((n) => n && typeof n.name === "string" && n.name.trim())
     .slice(0, 6)
@@ -176,7 +253,7 @@ Only things worth remembering weeks later: people, places, jobs, plans, strong l
       name: n.name.trim().toLowerCase().slice(0, 60),
       summary: String(n.summary || "").slice(0, 160),
     }));
-  if (!nodes.length) return { ok: true, extracted: 0 };
+  if (!nodes.length) return { ok: true, extracted: 0, self };
 
   // split into existing (bump) vs new (insert)
   const existing = await q(
@@ -223,7 +300,7 @@ Only things worth remembering weeks later: people, places, jobs, plans, strong l
       [device, e.src, e.dst, e.relation],
     ).catch(() => {});
   }
-  return { ok: true, extracted: nodes.length };
+  return { ok: true, extracted: nodes.length, self };
 }
 
 async function opUploadPhoto(device, body) {

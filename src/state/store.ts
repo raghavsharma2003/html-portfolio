@@ -36,6 +36,14 @@ export interface AuthInfo {
   expiresAt: number;
 }
 
+// One thing she has claimed about her own life, and when she claimed it. Her
+// day is hers to improvise, but once it's been said it's shared history — this
+// is what survives the context window so she can't reinvent it three turns later.
+export interface SelfFact {
+  text: string;
+  at: number;
+}
+
 export interface AppState {
   onboarded: boolean;
   auth?: AuthInfo | null; // signed-in account (null/undefined = anonymous)
@@ -52,6 +60,8 @@ export interface AppState {
   lastSeen: number;
   // her self-scheduled follow-up ("back in 20 min" → she texts first)
   followup?: { at: number; why: string } | null;
+  // what she has told them about her own life, newest first (bounded)
+  herLife?: SelfFact[];
   // clear-chat tombstone: synced so a wiped chat can never be resurrected
   // by another device's stale copy
   clearedAt?: number;

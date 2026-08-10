@@ -68,7 +68,10 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           model: typeof model === "string" && ALLOWED_MODEL.test(model) ? model : DEFAULT_MODEL,
-          messages: [{ role: "system", content: systemContent }, ...messages.slice(-40)],
+          // safety ceiling only — the client decides the real window. It used
+          // to be 40, which silently clipped the context the client had
+          // deliberately sent and made her contradict her own earlier turns.
+          messages: [{ role: "system", content: systemContent }, ...messages.slice(-120)],
           max_tokens: Number.isFinite(max_tokens) ? Math.min(800, Math.max(50, max_tokens)) : 800,
           ...(wantStream ? { stream: true } : {}),
           // Bounded hidden thinking. Default (unbounded) reasoning grows with

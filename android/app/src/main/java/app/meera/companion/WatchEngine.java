@@ -39,9 +39,9 @@ import java.util.concurrent.Executors;
  */
 class WatchEngine {
   private static final String TAG = "MeeraWatch";
-  // she is only asked to look when the screen actually shows something new,
+  // she is only asked to look when the screen is actually doing something,
   // and the NO_COMMENT gate lets her decline any of those — the cooldown only
-  // prevents machine-gun commentary through a fast scroll
+  // prevents machine-gun commentary on a fast-moving screen
   private static final long COMMENT_COOLDOWN_MS = 8_000;
   /** Her "nothing to say" answer, however the model phrases it. None of these
    *  may ever reach TTS as words. */

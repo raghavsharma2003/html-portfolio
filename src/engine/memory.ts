@@ -29,12 +29,22 @@ export function logTurns(device: string, msgs: Message[]) {
   if (turns.length) post({ op: "log", device, turns }).catch(() => {});
 }
 
-export function rememberFrom(device: string, msgs: Message[]) {
+// Distils the recent conversation into her graph memory AND hands back the
+// things she claimed about her OWN life, so the caller can keep them.
+export async function rememberFrom(device: string, msgs: Message[]): Promise<string[]> {
   const recent = msgs
     .filter((m) => m.kind === "text")
     .slice(-16)
     .map((m) => ({ role: m.from === "me" ? "me" : "her", content: m.text }));
-  if (recent.length >= 2) post({ op: "remember", device, recent }).catch(() => {});
+  if (recent.length < 2) return [];
+  try {
+    const r = await post({ op: "remember", device, recent });
+    const d = r.ok ? await r.json() : null;
+    if (!Array.isArray(d?.self)) return [];
+    return d.self.filter((s: unknown): s is string => typeof s === "string" && Boolean(s.trim())).slice(0, 4);
+  } catch {
+    return [];
+  }
 }
 
 export async function uploadPhoto(device: string, dataB64: string, mime: string): Promise<string | null> {
@@ -57,15 +67,35 @@ export async function describePhoto(device: string, url: string): Promise<string
   }
 }
 
-export async function recallMemories(device: string, query: string): Promise<string> {
+function runRecall(device: string, query: string): Promise<string> {
   try {
-    const timeout = new Promise<string>((r) => setTimeout(() => r(""), 2800));
+    // measured: ~165ms warm, ~900ms cold. 2s is generous headroom and still
+    // can't park a reply behind a slow lookup.
+    const timeout = new Promise<string>((r) => setTimeout(() => r(""), 2000));
     const fetchIt = post({ op: "recall", device, query })
       .then((r) => (r.ok ? r.json() : { memories: "" }))
       .then((d) => (typeof d?.memories === "string" ? d.memories : ""))
       .catch(() => "");
-    return await Promise.race([fetchIt, timeout]);
+    return Promise.race([fetchIt, timeout]);
   } catch {
-    return "";
+    return Promise.resolve("");
   }
+}
+
+// The chat starts the lookup the instant they hit send, so its round trip is
+// spent inside the burst-wait instead of sitting in front of the model call.
+let pending: { device: string; query: string; p: Promise<string> } | null = null;
+
+export function prefetchRecall(device: string, query: string) {
+  if (!device) return;
+  pending = { device, query, p: runRecall(device, query) };
+}
+
+export async function recallMemories(device: string, query: string): Promise<string> {
+  if (pending && pending.device === device && pending.query === query) {
+    const { p } = pending;
+    pending = null;
+    return p;
+  }
+  return runRecall(device, query);
 }

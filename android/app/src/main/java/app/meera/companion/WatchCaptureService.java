@@ -101,6 +101,7 @@ public class WatchCaptureService extends Service {
   private static final int ACTIVE_MAD = 6; // 0.6 levels: a caret, an edit, a hover
   private byte[] sceneSig; // previous tick's grid (handler-thread confined)
   private boolean prevBig = false;
+  private boolean pendingNew = false; // a change seen but not yet sent
   private long lastSentAt = 0; // elapsedRealtime of the last frame we encoded
 
   // EXACTLY ONE lane may speak. Every lane switch stops the other lane's
@@ -423,6 +424,10 @@ public class WatchCaptureService extends Service {
     if (image == null) return;
     try {
       int motion = detect(image);
+      // a change spotted inside the send floor is REMEMBERED, never dropped:
+      // otherwise the next tick diffs against the already-new screen, reads
+      // "nothing much moved", and the new thing never wakes her at all
+      if (motion >= 2) pendingNew = true;
       long now = SystemClock.elapsedRealtime();
       LiveWatchEngine l = live;
       long baseline = l != null ? LIVE_FRAME_MS[liveTier] : FRAME_INTERVAL_MS;
@@ -431,11 +436,15 @@ public class WatchCaptureService extends Service {
       // BASELINE flow, never the reaction. (The socket still has the final
       // say: LiveWatchEngine drops a frame that would queue in front of her
       // hearing them, and then nothing wakes her, which is correct.)
-      boolean react = motion >= 2 && now - lastSentAt >= CHANGE_SEND_MS;
+      boolean react = pendingNew && now - lastSentAt >= CHANGE_SEND_MS;
       if (!react && now - lastSentAt < baseline) return;
-      lastSentAt = now;
       String b64 = encode(image);
-      if (b64 == null) return;
+      if (b64 == null) return; // nothing went out, so nothing is spent
+      lastSentAt = now;
+      if (pendingNew) {
+        motion = 2;
+        pendingNew = false;
+      }
       WatchPlugin.emitFrame(b64); // UI chip liveness (when the app is visible)
       // the brain lives natively — realtime lane while its socket is up,
       // cascade otherwise (frames before setupComplete are simply skipped).
@@ -554,6 +563,7 @@ public class WatchCaptureService extends Service {
     tierFellAt = 0;
     sceneSig = null; // a new share's first frame is new content again
     prevBig = false;
+    pendingNew = false;
     lastSentAt = 0;
     BubbleService.stopBubble(this);
     stopLive();

@@ -40,17 +40,43 @@ function detectMood(t: string): Mood {
   return "neutral";
 }
 
+// These captures become permanent "Things you remember about them" in her
+// prompt, and she states them back as fact. A sentence like "i live in the
+// moment" or "i love how you always do that" used to be stored verbatim and
+// later asserted as their city or their hobby — confidently wrong, which is
+// exactly what reads as lying. A capture only survives if it looks like a
+// standalone noun phrase.
+const DANGLING = /\b(a|an|the|my|your|his|her|their|our|this|that|it|is|was|are|were|be|been|to|of|in|on|at|for|with|and|but|so|very|really|just)$/i;
+const NOT_A_FACT = /\b(i|me|my|you|your|u|ur|he|she|him|they|them|we|us|tum|tumhe|tumhara|mera|mujhe)\b/i;
+
+function clean(v?: string, opts: { noArticle?: boolean } = {}): string {
+  if (!v) return "";
+  const s = v.trim().replace(/\s+/g, " ");
+  const words = s.split(" ");
+  if (!s || words.length > 6) return "";
+  if (/^(how|what|when|where|why|that|which|who|whether)\b/i.test(s)) return "";
+  if (opts.noArticle && /^(a|an|the)\b/i.test(s)) return ""; // nobody lives in "the moment"
+  if (DANGLING.test(words[words.length - 1])) return "";
+  if (NOT_A_FACT.test(s)) return "";
+  return s;
+}
+
 function learn(t: string): Record<string, string> {
   const out: Record<string, string> = {};
   const grab = (re: RegExp) => t.match(re)?.[1]?.trim().replace(/[.!?,].*$/, "").slice(0, 40);
-  const city = grab(/i (?:live|stay) in ([a-z ]+)/i) || grab(/main ([a-z ]+) (?:mein|me) reh/i);
+  const city = clean(grab(/i (?:live|stay) in ([a-z ]+)/i) || grab(/main ([a-z ]+) (?:mein|me) reh/i), {
+    noArticle: true,
+  });
   if (city) out["lives in"] = city;
-  const work = grab(/i work (?:at|as|in|for) ([a-z0-9 .&-]+)/i);
+  const work = clean(grab(/i work (?:at|as|in|for) ([a-z0-9 .&-]+)/i));
   if (work) out["work"] = work;
-  const study = grab(/i(?:'m| am)? study(?:ing)? ([a-z0-9 .&-]+)/i);
+  const study = clean(grab(/i(?:'m| am)? study(?:ing)? ([a-z0-9 .&-]+)/i));
   if (study) out["studies"] = study;
-  const like = grab(/i (?:love|really like|enjoy) ([a-z0-9 .&-]+)/i) || grab(/mujhe ([a-z0-9 .&-]+) (?:pasand|acha lagta|achi lagti)/i);
-  if (like && like.length > 2 && !/you\b|tum\b/i.test(like)) out["loves"] = like;
+  const like = clean(
+    grab(/i (?:love|really like|enjoy) ([a-z0-9 .&-]+)/i) ||
+      grab(/mujhe ([a-z0-9 .&-]+) (?:pasand|acha lagta|achi lagti)/i),
+  );
+  if (like && like.length > 2) out["loves"] = like;
   return out;
 }
 
