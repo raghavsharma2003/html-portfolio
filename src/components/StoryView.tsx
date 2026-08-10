@@ -29,6 +29,8 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
   const paused = useRef(false);
   const holdTimer = useRef(0);
   const touchY = useRef(0);
+  const lastTouch = useRef(0); // touch-vs-ghost-mouse discrimination
+  const mountedAt = useRef(Date.now()); // the tap that OPENED us must not act
   const cur = stories[Math.min(idx, stories.length - 1)];
 
   // every displayed story is a seen story
@@ -100,13 +102,20 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
     <div
       className="story-view"
       onTouchStart={(e) => {
+        lastTouch.current = Date.now();
         touchY.current = e.touches[0].clientY;
         holdTimer.current = window.setTimeout(() => {
           paused.current = true;
         }, 180);
       }}
       onTouchEnd={(e) => {
+        // one tap must be ONE action: suppress the browser's compatibility
+        // mouse events that follow touchend, or every tap advances twice
+        // (and with two stories, shoots straight past the end → closes)
+        e.preventDefault();
+        lastTouch.current = Date.now();
         clearTimeout(holdTimer.current);
+        if (Date.now() - mountedAt.current < 350) return; // opening tap's echo
         const dy = e.changedTouches[0].clientY - touchY.current;
         if (dy > 70) {
           onClose(); // swipe down closes, like insta
@@ -120,12 +129,15 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
         go(x < window.innerWidth / 3 ? -1 : 1);
       }}
       onMouseDown={() => {
+        if (Date.now() - lastTouch.current < 700) return; // ghost of a touch
         holdTimer.current = window.setTimeout(() => {
           paused.current = true;
         }, 180);
       }}
       onMouseUp={(e) => {
+        if (Date.now() - lastTouch.current < 700) return; // ghost of a touch
         clearTimeout(holdTimer.current);
+        if (Date.now() - mountedAt.current < 350) return; // opening tap's echo
         if (paused.current) {
           paused.current = false;
           return;
