@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
-import { think } from "../engine/brain";
+import { think, formatHerLife } from "../engine/brain";
 import {
   speakCall,
   createStreamSpeaker,
@@ -154,6 +154,10 @@ export function useCallEngine(
     openrouterModel: stateRef.current.openrouterModel,
     apiKey: stateRef.current.apiKey,
     deviceId: stateRef.current.deviceId,
+    // what she has already told them about her own life — the same ledger the
+    // chat uses. Without it she'd have one flatmate in chat and another on the
+    // phone, which is the self-contradiction this whole fix exists to kill
+    herLife: formatHerLife(stateRef.current.herLife),
   });
 
   // ── realtime engine (Gemini Live, speech-to-speech): near-zero latency,
@@ -207,12 +211,23 @@ export function useCallEngine(
   async function tryStartLive(): Promise<LiveSession | null> {
     if (typeof WebSocket === "undefined" || !navigator.mediaDevices?.getUserMedia) return null;
     const parts = buildSystemPromptParts(stateRef.current.user, stateRef.current.messages.length, "voice");
+    // the live engine assembles its own prompt, so the memory framing has to
+    // match the corrected one in brain.ts: recall is retrieved by similarity,
+    // so "answer confidently" turned a near-miss into a confident lie, and a
+    // year-old plan into today's news
+    const herLife = formatHerLife(stateRef.current.herLife);
     const system =
       parts.core +
       buildSpeechStyle("live") +
       parts.tail +
       (recallRef.current
-        ? `\n\nWHAT YOU KNOW ABOUT THEM (true memories — answer confidently):\n${recallRef.current}`
+        ? `\n\nWHAT YOU REMEMBER ABOUT THEM — from your earlier conversations, each tagged with when it last came up. These are real: when they touch on one, you KNOW it and you say the specific detail, never play dumb. Two things keep it honest:
+- Something being listed here is not a reason to say it. It comes out only where it actually fits, one at a time, in normal talk — never as a list, never with any mention of remembering.
+- A memory is not a live update. Anything with a date or a plan in it may already have happened, so an old one gets asked about as old ("us december wali shaadi ho gayi na?") instead of announced as if it's still ahead — then you let them tell you where it stands.
+${recallRef.current}`
+        : "") +
+      (herLife
+        ? `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are fixed between you two, not open to reinvention. Same job, same people, same flat, same plans. Add new texture freely; never contradict a line here, and never re-tell one as if it's news:\n${herLife}`
         : "");
     let self: LiveSession | null = null;
     const s = await startLiveCall({
