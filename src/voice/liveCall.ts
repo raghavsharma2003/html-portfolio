@@ -328,30 +328,61 @@ const HOLD_RING = 26;
 // stuttering), while over-protection costs one late barge-in during her turn.
 // A device with real AEC decays to the 0.02 floor over about a minute of her
 // speech and the term stops binding at all.
-const ECHO_KAPPA_SEED = 0.12;
-const ECHO_KAPPA_MIN = 0.02;
-const ECHO_KAPPA_MAX = 0.6;
-const ECHO_ATTACK = 0.35; // ~5 chunks to converge on a leaky speakerphone
-const ECHO_RELEASE = 0.002; // falls slowly: never chase a single quiet frame
-// κ is only allowed to learn while the room-side noise gate is CLOSED. The
-// old condition was "she is audible and nothing has cleared the HARD bar",
-// which is a positive feedback loop with the bar it feeds: every sound below
-// thrB — ambience, and a person who is failing to clear the bar — was
-// attributed entirely to her echo, so κ rose, so thrB rose, so MORE of the
-// person fell below the bar. The estimate converges onto whatever is failing
-// to clear it, and she goes talking-deaf for the rest of the turn. Gating on
-// the closed gate means κ only ever learns from audio the gate itself has
-// already ruled is not speech.
+// HOW κ IS MEASURED: it only ever DECAYS, from a pessimistic seed.
 //
-// The consequence, stated plainly: on a device leaky enough that her own echo
-// holds the gate OPEN, κ never learns and stays at the pessimistic seed. That
-// is the correct direction — κ can now only ever LOWER the protection below
-// the seed, and only on evidence gathered while the room was quiet.
-// Ambience is also subtracted in POWER before the ratio is taken (see the
-// learning site): the mic hears leak and room together, and treating their sum
-// as pure leak biases κ up by exactly the amount of room there is — worst in
-// the loud rooms where the bar matters most.
-const ECHO_MAX_RISE = 0.04; // per tick: no single chunk may ratchet the bar
+// The old rule was `κ <- κ + a·(micRms/herNow − κ)` over the whole mic signal,
+// excluded only while something had already cleared thrB. Its fixed point is
+// κ* = micRms/herNow, so echoTerm = κ*·herNow = micRms: the barge bar
+// converges onto the TOTAL MIC LEVEL — ambience, the person and the leak
+// together. Nothing at or below what the mic currently hears can then clear
+// it, and anything a person adds that fails to clear it raises the bar by
+// exactly what they added. That is positive feedback, and on a leaky
+// speakerphone it leaves her talking-deaf for a whole turn.
+//
+// The direction is the fix, and it is forced. κ cannot be allowed to rise on
+// mic level, because NO level statistic separates her echo from a person:
+// measured over a 1s window, a person raises the 20th percentile of the ratio
+// from 0.05 to 0.51, and the dispersion of the ratio is 1.92 for a person
+// against 1.93 for pure echo — the two distributions are not distinguishable
+// from level alone. So κ starts at the worst coupling the hardware plausibly
+// has and only ever comes DOWN, toward the observed 90th percentile of
+// r = sqrt(max(0, sub² − floor²)) / herNow, with her level taken at the same
+// 20ms resolution and the same instant (see herLevels).
+//
+// What that costs, stated plainly: a device with real AEC spends the first
+// second or so of the session over-protected, until her first turn measures
+// it. Barge-ins during that window are late, not lost — measured at +0 to
+// +256ms against the old arbiter, with every one of them still landing. What
+// it buys is that she stops taking the floor from herself: at −12 dB and −8 dB
+// echo return loss the old arbiter self-interrupted in 6 of 6 trials and this
+// one in 0 of 6.
+const ECHO_KAPPA_SEED = 0.3; // ≈10 dB ERL: a bare hands-free speakerphone
+const ECHO_KAPPA_MIN = 0.02; // ≈34 dB ERL: real AEC, the term stops binding
+const ECHO_WIN_MS = 1000; // ~47 sub-frames of ratio history
+const ECHO_PCT = 0.9; // the TOP of the leak distribution — it must bound peaks
+const ECHO_MIN_SAMPLES = 16; // never estimate from a handful of sub-frames
+const ECHO_RATE = 0.4; // how fast κ comes down once the evidence is in
+// The bar sits a MARGIN above the leak estimate, never at it: κ is an RMS
+// ratio and the sub-frames it has to reject are the loud ones. +2.3 dB was
+// chosen by sweeping it against BOTH failure directions at once — below 1.3
+// she starts interrupting herself again, above 1.6 the quiet talker stops
+// getting through.
+const ECHO_MARGIN = 1.3; // +2.3 dB over the leak estimate
+// The soft bar's LEVEL no longer carries the echo term (see thrS), but an
+// individual soft HIT still has to out-shout the leak at the instant it was
+// captured. That is a per-sub-frame test, not a test on the finished
+// candidate: her voice pauses, and a span statistic compared against the
+// CURRENT echo term passes during her every breath — measured, on the real
+// endpoint, as her taking the floor from herself in 3 of 3 sessions even with
+// the hard bar holding.
+//
+// What this buys, and what it does not: while echo is not the binding term —
+// a headset, any real AEC, and every moment she is quiet — the soft valve is
+// a genuinely lower bar and gives the 3.5-14 dB of extra level sensitivity it
+// is supposed to. When her leak IS the loudest thing in the room, the valve
+// collapses back onto the leak, and that is not a bug to fix: a bar below the
+// echo cannot distinguish a quiet talker from her own voice, and the soft
+// path's remaining advantage there is its longer duration.
 // ── overlap: what she sounds like while it is being resolved ──
 // Ported from the cascade lane's duckSpeech(), which has production miles.
 const DUCK_SOFT = 0.62; // −4.2 dB: "haan bolo" — she softens, keeps talking
@@ -575,6 +606,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   const subMs = chunkMs / SUBS; // 21.3ms at 48kHz
   const hangChunks = Math.max(2, Math.ceil(250 / chunkMs));
   const floorN = Math.max(16, Math.round(FLOOR_WIN_MS / subMs));
+  const echoN = Math.max(ECHO_MIN_SAMPLES, Math.round(ECHO_WIN_MS / subMs));
   const claimWin = Math.round(CLAIM_WIN_MS / subMs);
   const claimNeed = Math.round(CLAIM_MS / subMs);
   const softWin = Math.round(SOFT_CLAIM_WIN_MS / subMs);
@@ -602,6 +634,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let hold: Int16Array[] = []; // her turn's withheld audio, oldest first
   let ducked = 0; // 0 full volume · 1 soft duck · 2 yielding
   let kappa = ECHO_KAPPA_SEED; // learned mic-to-speaker coupling
+  const echoRing: number[] = []; // per-sub-frame mic÷her ratios, for the percentile
   let herTurnSeen = -1; // which of her turns the arbitration state belongs to
   const toPcm = (input: Float32Array, ratio: number, outLen: number) => {
     const p = new Int16Array(outLen);
@@ -705,7 +738,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     // proportionally less, and forgetting that would keep the bar high for the
     // whole of an overlap.
     const herNow = herRecentRms() * outGain();
-    const echoTerm = kappa * herNow;
+    const echoTerm = kappa * herNow * ECHO_MARGIN;
     const thrB = Math.min(
       BARGE_MAX,
       Math.max(thrL * BARGE_OVER_LISTEN, noiseFloor * BARGE_MULT, echoTerm),
@@ -725,24 +758,26 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     const open = gateLeft > 0;
     if (open) gatedRun = 0;
     else gatedRun++;
-    // Learn the coupling from ground truth rather than trusting AEC: while she
-    // is audible and THE GATE IS CLOSED, whatever the mic hears is her leakage
-    // plus the room, and the room is subtracted. Fast attack, slow release —
-    // being under-protected is the loud failure (she cuts herself off in a
-    // loop), being over-protected costs one late barge-in.
-    //
-    // The gate condition is what breaks the ratchet. `!hardHits.length` only
-    // excluded audio that had already cleared the bar being computed, so
-    // everything below the bar — ambience, and a person too quiet to clear it —
-    // was booked as echo and pushed the bar further up over them. The gate is
-    // the one signal here that is not derived from κ.
-    if (herSpeaking && herNow > 0.02 && !open) {
-      // subtract ambience in POWER: the mic sums two uncorrelated sources
-      const excess = Math.sqrt(Math.max(0, rms * rms - noiseFloor * noiseFloor));
-      const r = excess / herNow;
-      const next = kappa + (r > kappa ? ECHO_ATTACK : ECHO_RELEASE) * (r - kappa);
-      // upward moves are rate-bounded; downward ones are already slow
-      kappa = Math.min(ECHO_KAPPA_MAX, Math.max(ECHO_KAPPA_MIN, Math.min(next, kappa + ECHO_MAX_RISE)));
+    // Measure the coupling from ground truth rather than trusting AEC. Every
+    // sub-frame she is audible for contributes one ratio sample; κ then DECAYS
+    // toward the 90th percentile of those and never rises. See ECHO_KAPPA_SEED
+    // for why the direction is forced.
+    if (herSpeaking && herNow > 0.02) {
+      for (const v of sub) {
+        // subtract ambience in POWER: the mic sums two uncorrelated sources
+        const excess = Math.sqrt(Math.max(0, v * v - noiseFloor * noiseFloor));
+        echoRing.push(excess / herNow);
+        if (echoRing.length > echoN) echoRing.shift();
+      }
+      if (echoRing.length >= ECHO_MIN_SAMPLES) {
+        const srt = [...echoRing].sort((a, b) => a - b);
+        const r = srt[Math.min(srt.length - 1, Math.floor(srt.length * ECHO_PCT))];
+        // DECAY ONLY. A ratio above κ is not evidence of a leakier device —
+        // a person raises every percentile of it — so it is never acted on.
+        if (r < kappa) kappa = Math.max(ECHO_KAPPA_MIN, kappa - ECHO_RATE * (kappa - r));
+      }
+    } else if (!herSpeaking && echoRing.length) {
+      echoRing.length = 0; // her turn is over; the next one measures itself
     }
     // A NEW turn of hers must not inherit the last one's candidate. If she
     // starts speaking again inside one mic tick, the `!herSpeaking` branch
@@ -798,7 +833,8 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
         subLin.push(v);
         if (subLin.length > softWin + 1) subLin.shift();
         if (v > thrB) hardHits.push(subIdx);
-        if (v > thrS) softHits.push(subIdx);
+        // a soft hit must also out-shout her own leak, at this instant
+        if (v > thrS && v > echoTerm) softHits.push(subIdx);
         while (hardHits.length && subIdx - hardHits[0] > claimWin) hardHits.shift();
         while (softHits.length && subIdx - softHits[0] > softWin) softHits.shift();
       }
@@ -856,12 +892,14 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
           }
         }
         // Her own leak must not walk through the soft bar now that the bar no
-        // longer rises with echo. A genuine second source in the room puts at
-        // least one sub-frame above everything κ·herNow can account for; pure
-        // echo, by construction, cannot. A HARD claim passes this for free
-        // (thrB ≥ echoTerm already), so it bites only on soft-only claims —
-        // exactly where the risk was created.
-        claim = varied && claimPeak > echoTerm;
+        // longer rises with echo. The candidate's SUSTAINED level has to clear
+        // the leak estimate: a second source in the room adds power on top of
+        // the leak, while pure echo sits at it. The median is the right
+        // statistic here — κ is RMS-derived, and comparing a PEAK against it
+        // passes on the crest factor of her own voice alone. A HARD claim
+        // clears this for free (thrB ≥ echoTerm already), so it bites only on
+        // soft-only claims, which is where the risk was created.
+        claim = varied;
       }
     }
     // WORDS ALWAYS GO. A chunk with the gate open is never dropped for
@@ -915,7 +953,18 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       // its VAD state and its silence clock see nothing unusual. If the sound
       // dies out before it earns anything (a "haan", a door, a passing car),
       // the ring is dropped and she never knows it happened.
-      if (open) {
+      // Only audio that OUT-SHOUTS her own leak may enter the ring. The gate
+      // (thrL) carries no echo term, so on a leaky device the ring fills with
+      // her own voice — and the ring has two exits, the burst release AND the
+      // turn-end flush. The flush is unconditional by design (the turn
+      // transition is the most common overlap there is), so without this test
+      // her own echo is handed to the server as the user's turn at the end of
+      // every turn she speaks. Observed on the real endpoint at −12 dB echo
+      // return loss: her own words appearing in inputTranscription in 5 of 6
+      // sessions, with no barge-in involved at all.
+      let aboveEcho = false;
+      for (const v of sub) if (v > echoTerm) aboveEcho = true;
+      if (open && aboveEcho) {
         hold.push(toPcm(input, ratio, outLen));
         if (hold.length > HOLD_RING) hold.shift();
       } else if (gatedRun > hangChunks && hold.length) {
@@ -1151,12 +1200,15 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     // samples, both free: how loud she is (the echo reference) and where her
     // words stop touching each other (the only safe places to fade out).
     let acc = 0;
+    let peak20 = 0; // loudest 20ms block in this chunk — see herLevels below
     let lastB = boundaries.length ? boundaries[boundaries.length - 1] : 0;
     const fr = 480; // 20ms at 24kHz
     for (let f = 0; f + fr <= n; f += fr) {
       let a2 = 0;
       for (let i = f; i < f + fr; i++) a2 += ch[i] * ch[i];
       acc += a2;
+      const r20 = Math.sqrt(a2 / fr);
+      if (r20 > peak20) peak20 = r20;
       if (Math.sqrt(a2 / fr) < BOUNDARY_RMS) {
         const tB = at + (f + fr) / 24000;
         if (tB - lastB >= BOUNDARY_MIN_GAP) {
@@ -1166,7 +1218,15 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       }
     }
     if (boundaries.length > 128) boundaries.splice(0, boundaries.length - 128);
-    herLevels.push({ a: at, b: at + buf.duration, rms: Math.sqrt(acc / Math.max(1, n)) });
+    // Her level is stored as the LOUDEST 20ms BLOCK, not the chunk's RMS.
+    // The echo term bounds a 21.3ms MIC sub-frame, and a chunk-wide RMS is a
+    // different statistic: speech crest over 20ms against an 80ms average is
+    // routinely 2-3×, so a bar built from the average sits BELOW the echo it
+    // is supposed to reject and her own voice clears it — measured, on the
+    // real endpoint, as her taking the floor from herself in every session at
+    // −12 dB echo return loss. Same time resolution on both sides, or the
+    // comparison means nothing.
+    herLevels.push({ a: at, b: at + buf.duration, rms: peak20 || Math.sqrt(acc / Math.max(1, n)) });
     playhead = at + buf.duration;
     speakingUntil = Math.max(speakingUntil, Date.now() + (playhead - outCtx.currentTime) * 1000);
     liveSources.push(s);

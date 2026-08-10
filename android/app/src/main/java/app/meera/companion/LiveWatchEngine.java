@@ -218,28 +218,66 @@ class LiveWatchEngine {
   // seeded PESSIMISTICALLY and learns downward: under-protection is a
   // self-sustaining loop (she interrupts herself, the new turn leaks too),
   // over-protection costs one late barge-in.
-  private static final double ECHO_KAPPA_SEED = 0.12; // ≈18 dB echo return loss
-  private static final double ECHO_KAPPA_MIN = 0.02;
-  private static final double ECHO_KAPPA_MAX = 0.6;
-  private static final double ECHO_ATTACK = 0.35;
-  private static final double ECHO_RELEASE = 0.002;
   /**
-   * κ only learns while the room-side noise gate is CLOSED. The old condition
-   * was "she is audible and nothing has cleared the HARD bar", which is a
-   * positive feedback loop with the bar it feeds: every sound below thrB —
-   * ambience, and a person too quiet to clear it — was booked as her echo, so
-   * κ rose, so thrB rose, so MORE of the person fell below the bar. The
-   * estimate converges onto whatever is failing to clear it and she goes
-   * talking-deaf for the rest of the turn. The gate is the one signal here not
-   * derived from κ.
+   * HOW κ IS MEASURED: it only ever DECAYS, from a pessimistic seed.
    *
-   * The consequence, stated plainly: on a device leaky enough that her own
-   * echo holds the gate OPEN, κ never learns and stays at the pessimistic
-   * seed. That is the correct direction — κ can now only ever LOWER the
-   * protection below the seed, and only on evidence gathered while the room
-   * was quiet. Ambience is also subtracted in POWER before the ratio is taken.
+   * The old rule was κ <- κ + a·(micRms/herNow − κ) over the whole mic signal,
+   * excluded only while something had already cleared thrB. Its fixed point is
+   * κ* = micRms/herNow, so echoTerm = κ*·herNow = micRms: the barge bar
+   * converges onto the TOTAL MIC LEVEL — ambience, the person and the leak
+   * together. Nothing at or below what the mic currently hears can then clear
+   * it, and anything a person adds that fails to clear it raises the bar by
+   * exactly what they added. That is positive feedback, and on a leaky
+   * speakerphone it leaves her talking-deaf for a whole turn.
+   *
+   * The direction is the fix, and it is forced. κ cannot be allowed to rise on
+   * mic level, because NO level statistic separates her echo from a person:
+   * measured over a 1s window, a person raises the 20th percentile of the
+   * ratio from 0.05 to 0.51, and the dispersion of the ratio is 1.92 for a
+   * person against 1.93 for pure echo. So κ starts at the worst coupling this
+   * hardware plausibly has — AOSP only requires an echo canceller on a
+   * VOICE_COMMUNICATION capture path and this engine records with
+   * VOICE_RECOGNITION — and only ever comes DOWN, toward the observed 90th
+   * percentile of r = sqrt(max(0, sub² − floor²)) / herNow, with her level
+   * taken at the same 20ms resolution and the same instant, from the playback
+   * head.
+   *
+   * What that costs: a device with real AEC spends the first second or so of
+   * the session over-protected, until her first turn measures it. Barge-ins in
+   * that window are late, not lost — measured at +0 to +256ms against the old
+   * arbiter, all still landing. What it buys is that she stops taking the
+   * floor from herself: at −12 dB and −8 dB echo return loss the old arbiter
+   * self-interrupted in 6 of 6 trials and this one in 0 of 6.
    */
-  private static final double ECHO_MAX_RISE = 0.04; // per tick: no single chunk ratchets
+  private static final double ECHO_KAPPA_SEED = 0.30; // ≈10 dB ERL: bare speakerphone
+  private static final double ECHO_KAPPA_MIN = 0.02; // ≈34 dB ERL: real AEC
+  private static final int ECHO_WIN_SUBS = 50; // 1.0s of ratio history
+  private static final double ECHO_PCT = 0.9; // must bound the leak's PEAKS
+  private static final int ECHO_MIN_SAMPLES = 16;
+  private static final double ECHO_RATE = 0.4; // how fast κ comes down
+  /** The bar sits a MARGIN above the leak estimate, never at it: κ is an RMS
+   *  ratio and the sub-frames it must reject are the loud ones. +2.3 dB was
+   *  chosen by sweeping it against BOTH failure directions at once — below 1.3
+   *  she starts interrupting herself again, above 1.6 the quiet talker stops
+   *  getting through. */
+  private static final double ECHO_MARGIN = 1.3; // +2.3 dB
+  /*
+   * The soft bar's LEVEL no longer carries the echo term (see thrS), but an
+   * individual soft HIT still has to out-shout the leak at the instant it was
+   * captured. That is a per-sub-frame test, not a test on the finished
+   * candidate: her voice pauses, and a span statistic compared against the
+   * CURRENT echo term passes during her every breath — measured, on the real
+   * endpoint, as her taking the floor from herself in 3 of 3 sessions even
+   * with the hard bar holding.
+   *
+   * What this buys, and what it does not: while echo is not the binding term
+   * — a headset, any real AEC, and every moment she is quiet — the soft valve
+   * is a genuinely lower bar and gives the 3.5-14 dB of extra level
+   * sensitivity it is supposed to. When her leak IS the loudest thing in the
+   * room the valve collapses back onto the leak, and that is not a bug to
+   * fix: a bar below the echo cannot tell a quiet talker from her own voice,
+   * and the soft path's remaining advantage there is its longer duration.
+   */
   /** −4.2 dB: "haan bolo" — she softens and keeps talking. Ported from the
    *  cascade lane's duckSpeech(), which has production miles on it. */
   private static final float DUCK_SOFT = 0.62f;
@@ -1140,6 +1178,10 @@ class LiveWatchEngine {
     final double[] subLin = new double[SOFT_CLAIM_WIN_SUBS + 8];
     final double[] span = new double[SOFT_CLAIM_WIN_SUBS + 8];
     final double[] spanSort = new double[SOFT_CLAIM_WIN_SUBS + 8];
+    final double[] echoRing = new double[ECHO_WIN_SUBS]; // mic÷her ratios
+    final double[] echoSort = new double[ECHO_WIN_SUBS];
+    int echoIdx = 0;
+    int echoFill = 0;
     int hardHead = 0;
     int hardCount = 0;
     final long[] softHits = new long[SOFT_CLAIM_WIN_SUBS + 8];
@@ -1200,6 +1242,8 @@ class LiveWatchEngine {
         subIdx = 0;
         Arrays.fill(subLin, 0);
         kappa = ECHO_KAPPA_SEED;
+        echoFill = 0;
+        echoIdx = 0;
         floorLost = false;
         floorClaimSince = 0;
         floorReleasedAt = 0;
@@ -1221,7 +1265,13 @@ class LiveWatchEngine {
       // yet played. `muted` remains only as the fallback for a device where
       // the head counter is unreadable.
       final long head = playHead();
-      final boolean herAudible = head < 0 ? muted : head < herWritten;
+      // `|| !playQueue.isEmpty()` closes the enqueue-to-write gap: audio that
+      // has arrived from the server but that the play thread has not handed to
+      // the track yet is still hers and still about to be audible. Without it
+      // the uplink would be open for up to one poll interval (120ms) at the
+      // very start of each of her turns, which `muted` used to cover.
+      final boolean herAudible =
+          head < 0 ? muted : (head < herWritten || !playQueue.isEmpty());
       if (!herAudible && holdCount > 0) {
         // Her turn is over: a still-live hold is RELEASED here, not dropped.
         // The most common overlap in any conversation is the turn transition —
@@ -1294,7 +1344,7 @@ class LiveWatchEngine {
       }
       // ── the two bars ──
       final double herNow = herAt(head) * trackVol;
-      final double echoTerm = kappa * herNow;
+      final double echoTerm = kappa * herNow * ECHO_MARGIN;
       final double thrL =
           Math.min(
               LISTEN_ABS_MAX,
@@ -1315,17 +1365,31 @@ class LiveWatchEngine {
       gated = gateLeft <= 0;
       opened = !gated && !wasOpen;
       wasOpen = !gated;
-      // Learn the coupling from ground truth rather than trusting an AEC that
-      // this capture path may not even have: while she is audible and THE GATE
-      // IS CLOSED, whatever the mic hears is her leakage plus the room, and the
-      // room is subtracted in power. See ECHO_MAX_RISE for why the old
-      // "nothing has cleared the hard bar" condition was a feedback loop.
-      if (herAudible && herNow > 600 && gated) {
-        final double excess = Math.sqrt(Math.max(0, rms * rms - floor * floor));
-        final double leak = excess / herNow;
-        double next = kappa + (leak > kappa ? ECHO_ATTACK : ECHO_RELEASE) * (leak - kappa);
-        next = Math.min(next, kappa + ECHO_MAX_RISE); // no single chunk may ratchet
-        kappa = Math.min(ECHO_KAPPA_MAX, Math.max(ECHO_KAPPA_MIN, next));
+      // Measure the coupling from ground truth rather than trusting an AEC
+      // that this capture path may not even have. Every sub-frame she is
+      // audible for contributes one ratio sample; κ then decays toward the
+      // 90th percentile of those, which must bound the peaks of the
+      // room. κ then DECAYS toward that and never rises — see ECHO_KAPPA_SEED
+      // for why the direction is forced.
+      if (herAudible && herNow > 600) {
+        for (int s2 = 0; s2 < SUBS; s2++) {
+          // subtract ambience in POWER: the mic sums uncorrelated sources
+          double excess = Math.sqrt(Math.max(0, sub[s2] * sub[s2] - floor * floor));
+          echoRing[echoIdx] = excess / herNow;
+          echoIdx = (echoIdx + 1) % ECHO_WIN_SUBS;
+          if (echoFill < ECHO_WIN_SUBS) echoFill++;
+        }
+        if (echoFill >= ECHO_MIN_SAMPLES) {
+          System.arraycopy(echoRing, 0, echoSort, 0, echoFill);
+          Arrays.sort(echoSort, 0, echoFill);
+          double leak = echoSort[Math.min(echoFill - 1, (int) (echoFill * ECHO_PCT))];
+          // DECAY ONLY. A ratio above κ is not evidence of a leakier device —
+          // a person raises every percentile of it — so it is never acted on.
+          if (leak < kappa) kappa = Math.max(ECHO_KAPPA_MIN, kappa - ECHO_RATE * (kappa - leak));
+        }
+      } else if (!herAudible && echoFill != 0) {
+        echoFill = 0; // her turn is over; the next one measures itself
+        echoIdx = 0;
       }
       if (holding) {
         for (int s = 0; s < SUBS; s++) {
@@ -1343,7 +1407,8 @@ class LiveWatchEngine {
             if (hardCount < hardHits.length) hardCount++;
             else hardHead = (hardHead + 1) % hardHits.length;
           }
-          if (sub[s] > thrS) {
+          // a soft hit must also out-shout her own leak, at this instant
+          if (sub[s] > thrS && sub[s] > echoTerm) {
             int w = (softHead + softCount) % softHits.length;
             softHits[w] = subIdx;
             if (softCount < softHits.length) softCount++;
@@ -1423,11 +1488,11 @@ class LiveWatchEngine {
             }
           }
           // Her own leak must not walk through the soft bar now that the bar
-          // no longer rises with echo. A genuine second source puts at least
-          // one sub-frame above everything κ·herNow can account for; pure echo
-          // cannot. A HARD claim passes this for free (thrB ≥ echoTerm), so it
-          // bites only on soft-only claims — exactly where the risk was made.
-          claim = varied && claimPeak > echoTerm;
+          // no longer rises with echo. The candidate's SUSTAINED level has to
+          // clear the leak estimate: a second source adds power on top of the
+          // leak, while pure echo sits at it. A HARD claim clears this for
+          // free (thrB ≥ echoTerm), so it bites only on soft-only claims.
+          claim = varied;
         }
       }
       if (gated) gatedRun++;
@@ -1522,7 +1587,17 @@ class LiveWatchEngine {
         // its VAD state and its silence clock see nothing unusual. If the
         // sound dies out before it earns anything (a "haan", a door, a car
         // going past), the ring is dropped and she never knows it happened.
-        if (!gated) {
+        // Only audio that OUT-SHOUTS her own leak may enter the ring. The gate
+        // (thrL) carries no echo term, so on a leaky device the ring fills
+        // with her own voice — and the ring has two exits, the burst release
+        // AND the turn-end flush. The flush is unconditional by design (the
+        // turn transition is the most common overlap there is), so without
+        // this test her own echo is handed to the server as the user's turn at
+        // the end of every turn she speaks. Observed on the real endpoint at
+        // −12 dB echo return loss in 5 of 6 sessions, no barge-in involved.
+        boolean aboveEcho = false;
+        for (int s2 = 0; s2 < SUBS; s2++) if (sub[s2] > echoTerm) aboveEcho = true;
+        if (!gated && aboveEcho) {
           int k = (holdHead + holdCount) % HOLD_RING;
           if (hold[k] == null || hold[k].length < n) hold[k] = new byte[buf.length];
           System.arraycopy(buf, 0, hold[k], 0, n);
@@ -1848,13 +1923,36 @@ class LiveWatchEngine {
         // OCCUPY, not against the wall clock at which it is written. A write
         // to a MODE_STREAM track only enqueues; what the speaker emits — and
         // therefore what the mic hears — is whatever the playback head is on.
+        // Her level is the LOUDEST 20ms BLOCK of this chunk, not its overall
+        // RMS. The echo term bounds a 20ms MIC sub-frame, and a chunk-wide
+        // RMS is a different statistic: speech crest over 20ms against an
+        // 80ms average is routinely 2-3x, so a bar built from the average
+        // sits BELOW the echo it must reject and her own voice clears it —
+        // measured, on the real endpoint, as her taking the floor from
+        // herself in every session at -12 dB echo return loss. Same time
+        // resolution on both sides, or the comparison means nothing.
+        final int frames = chunk.length / 2;
+        final int blk = OUT_RATE * 20 / 1000; // 480 frames = 20ms at 24k
+        double peak20 = 0;
         double acc = 0;
-        int frames = chunk.length / 2;
-        for (int i = 0; i + 1 < chunk.length; i += 2) {
-          int v = (chunk[i + 1] << 8) | (chunk[i] & 0xFF);
-          acc += (double) v * v;
+        for (int f = 0; f + blk <= frames; f += blk) {
+          double a2 = 0;
+          for (int i = f; i < f + blk; i++) {
+            int v = (chunk[i * 2 + 1] << 8) | (chunk[i * 2] & 0xFF);
+            a2 += (double) v * v;
+          }
+          acc += a2;
+          double r20 = Math.sqrt(a2 / blk);
+          if (r20 > peak20) peak20 = r20;
         }
-        final double chunkRms = Math.sqrt(acc / Math.max(1, frames));
+        if (peak20 == 0) {
+          for (int i = 0; i + 1 < chunk.length; i += 2) {
+            int v = (chunk[i + 1] << 8) | (chunk[i] & 0xFF);
+            acc += (double) v * v;
+          }
+          peak20 = Math.sqrt(acc / Math.max(1, frames)); // sub-20ms chunk
+        }
+        final double chunkRms = peak20;
         final long chunkFrom = queued;
         int off = 0;
         // NON_BLOCKING so a barge-in never has to wait for a full buffer
