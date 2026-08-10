@@ -702,6 +702,11 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     teardown("failed");
     throw e instanceof Error ? e : new Error("mic unavailable");
   }
+  // outCtx is now built BEFORE the mic is granted rather than after, so on a
+  // platform that starts a context suspended outside a user gesture it could
+  // sit silent. Granting the mic is the moment audio is unambiguously
+  // allowed — nudge it then. A no-op on a context that is already running.
+  outCtx.resume().catch(() => {});
 
   try {
     await opened;

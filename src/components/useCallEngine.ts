@@ -51,6 +51,7 @@ import {
 } from "../native/watch";
 import { startLiveCall, type LiveSession } from "../voice/liveCall";
 import { track } from "../engine/account";
+import { diag, diagStart, flushDiag } from "../engine/diag";
 
 export type CallPhase = "connecting" | "live" | "ended";
 
@@ -342,6 +343,10 @@ ${recallRef.current}`
   useEffect(() => {
     alive.current = true;
     voiceOwner.current = "none";
+    // open the audit trail for THIS call: every timing below is stamped
+    // against this session, so a slow or silent call can be reconstructed
+    // from data instead of re-derived from the code
+    diagStart("call", stateRef.current.deviceId, { native: Capacitor.isNativePlatform() });
     // a capture service outlives the WebView (renderer kill, reload, app
     // restart): an orphaned native engine would talk over this whole call
     void stopStrayWatch();
@@ -1361,6 +1366,8 @@ ${recallRef.current}`
     stopRoomTone();
     stopListen.current?.();
     setPhase("ended");
+    diag("call", "call_ended", { secs: elapsedRef.current });
+    flushDiag(); // the call's whole timeline lands before the screen goes away
     // the chat shows a call record, never the transcript
     const secs = elapsedRef.current;
     const mmssStr = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
