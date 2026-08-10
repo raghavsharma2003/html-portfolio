@@ -5,6 +5,8 @@
 
 import { Capacitor } from "@capacitor/core";
 import type { Message } from "../state/store";
+import type { InnerPatch } from "./inner";
+import { diagTimer } from "./diag";
 
 const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
 
@@ -30,20 +32,44 @@ export function logTurns(device: string, msgs: Message[]) {
 }
 
 // Distils the recent conversation into her graph memory AND hands back the
-// things she claimed about her OWN life, so the caller can keep them.
-export async function rememberFrom(device: string, msgs: Message[]): Promise<string[]> {
+// things she claimed about her OWN life plus her carried interior, so the
+// caller can keep them. ONE model call, already off the critical path — the
+// interior rides its JSON, it never gets a call of its own.
+//
+// What goes UP is conversation text only: no timestamps, no gap markers, no
+// counts. That starvation is what makes it structurally impossible for the
+// appraiser to turn his reply speed or his silence into her mood (inner.ts G1).
+export interface RememberResult {
+  self: string[];
+  inner: InnerPatch | null;
+}
+
+export async function rememberFrom(
+  device: string,
+  msgs: Message[],
+  wants: string[] = [],
+): Promise<RememberResult> {
   const recent = msgs
     .filter((m) => m.kind === "text")
     .slice(-16)
     .map((m) => ({ role: m.from === "me" ? "me" : "her", content: m.text }));
-  if (recent.length < 2) return [];
+  if (recent.length < 2) return { self: [], inner: null };
+  const done = diagTimer("chat", "remember_pass", { turns: recent.length, wants: wants.length });
   try {
-    const r = await post({ op: "remember", device, recent });
+    const r = await post({ op: "remember", device, recent, wants });
     const d = r.ok ? await r.json() : null;
-    if (!Array.isArray(d?.self)) return [];
-    return d.self.filter((s: unknown): s is string => typeof s === "string" && Boolean(s.trim())).slice(0, 4);
+    const self = Array.isArray(d?.self)
+      ? d.self.filter((s: unknown): s is string => typeof s === "string" && Boolean(s.trim())).slice(0, 4)
+      : [];
+    const inner: InnerPatch | null =
+      d && (d.now !== undefined || d.wants !== undefined || d.told !== undefined)
+        ? { now: d.now ?? null, wants: Array.isArray(d.wants) ? d.wants : null, told: d.told === true }
+        : null;
+    done({ ok: Boolean(d), self: self.length, thread: Boolean(inner?.now) });
+    return { self, inner };
   } catch {
-    return [];
+    done({ ok: false });
+    return { self: [], inner: null };
   }
 }
 

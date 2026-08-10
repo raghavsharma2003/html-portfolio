@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { UserProfile } from "../engine/persona";
+import type { Inner } from "../engine/inner";
 
 export interface Message {
   id: string;
@@ -62,6 +63,10 @@ export interface AppState {
   followup?: { at: number; why: string } | null;
   // what she has told them about her own life, newest first (bounded)
   herLife?: SelfFact[];
+  // her carried interior: ONE feeling in her own words, and what she wants.
+  // ~600 bytes, deliberately tiny — a ledger she re-reads, not a simulation
+  // she runs. Rides this state's existing local + account sync; no new table.
+  inner?: Inner;
   // clear-chat tombstone: synced so a wiped chat can never be resurrected
   // by another device's stale copy
   clearedAt?: number;

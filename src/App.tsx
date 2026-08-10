@@ -6,6 +6,7 @@ import Chat from "./components/Chat";
 import CallVoice from "./components/CallVoice";
 import AuthSheet from "./components/AuthSheet";
 import { unlockAudio } from "./voice/speech";
+import { diagStart } from "./engine/diag";
 import { prewarmLiveToken } from "./voice/liveCall";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -36,6 +37,13 @@ function mergeStates(local: AppState, remote: any): Partial<AppState> {
     messages,
     lastSeen: Math.max(local.lastSeen ?? 0, Number(remote?.lastSeen) || 0),
     clearedAt: clearedAt || undefined,
+    // her side of the relationship syncs too. Without these two lines a 409
+    // silently discarded whatever the other device learned about her own life
+    // — she'd have one flatmate on the phone and another on the laptop.
+    // The interior merges WHOLESALE by revision, never field-by-field: a
+    // feeling and its watermark must never come from different revisions.
+    herLife: remote?.herLife?.length && !local.herLife?.length ? remote.herLife : local.herLife,
+    inner: (Number(remote?.inner?.at) || 0) > (local.inner?.at ?? 0) ? remote.inner : local.inner,
   };
 }
 
@@ -59,6 +67,11 @@ export default function App() {
       adoptSession(state.auth as AuthSession); // pull what other devices did
     }
     track(state.deviceId, "app_open", { onboarded: state.onboarded }, state.auth?.userId);
+    // open a diagnostic session for the app itself. Without this every
+    // chat-scope record (reply timings, memory passes, her interior's
+    // decisions) had no device and was thrown away — only calls and watch
+    // sessions ever reached /api/diag.
+    diagStart("app", state.deviceId, { onboarded: state.onboarded });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -199,7 +212,9 @@ export default function App() {
       if (syncTimer.current) clearTimeout(syncTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.messages.length, state.user, state.onboarded, state.auth?.accessToken]);
+    // state.inner.at: an appraisal can change nothing else, and without it
+    // her interior would never be pushed to the account at all
+  }, [state.messages.length, state.user, state.onboarded, state.auth?.accessToken, state.inner?.at]);
 
   // The realtime call's ephemeral token is fetched while they are in chat, so
   // tapping call spends a token that already exists instead of waiting on a

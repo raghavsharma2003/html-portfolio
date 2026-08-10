@@ -17,6 +17,8 @@ import {
 } from "./persona";
 import { heartReply, type HeartReply } from "./localHeart";
 import { recallMemories } from "./memory";
+import { innerContext, type Inner } from "./inner";
+import { diag } from "./diag";
 import type { Message } from "../state/store";
 
 const CLAUDE_MODEL = "claude-opus-5";
@@ -39,6 +41,9 @@ export interface BrainKeys {
   // what she has already told them about her OWN life (pre-formatted lines).
   // Her day is improvised, but it stops being improvisable once it's been said.
   herLife?: string;
+  // her carried interior — one feeling in her own words, and what she wants.
+  // Rendered into the VOLATILE tail only; it must never touch the cached core.
+  inner?: Inner;
 }
 
 // how long ago she said it, in the shape a person would think it
@@ -501,6 +506,23 @@ export async function think(
   const sysCore = parts.core + (mode === "call" ? buildSpeechStyle(voiceEngine) : "");
   let sysTail = parts.tail;
 
+  // ── her carried interior ──
+  // Goes FIRST in the tail, right after parts.tail: api/chat.js slices the
+  // tail at 8000 chars and cuts the END, so if anything is ever lost it must
+  // be the recall list (re-derivable next turn), never where she actually is.
+  // A carried feeling reaches her only on the first turn back after a real
+  // gap, and never on a message SHE initiated — see the charter in inner.ts.
+  const lastMsgAt = history.length ? history[history.length - 1].at || 0 : 0;
+  const inner = innerContext(keys.inner, {
+    now: Date.now(),
+    lastMsgAt,
+    surface: watchFrame ? "watch" : mode === "call" ? "pickup" : "chat",
+    // only CHAT directives are her opening the conversation. A call pickup is
+    // THEM calling HER, and it is the single moment this feature pays for.
+    sheInitiated: isDirective && mode === "chat",
+  });
+  sysTail += inner.thread;
+
   // graph-memory recall: what she knows about their world, woven into
   // context. On live calls the lookup is done ONCE at pickup and passed in
   // as extraMemories — never in front of a spoken reply. Chat looks it up.
@@ -519,6 +541,18 @@ ${memories}`;
   if (keys.herLife) {
     sysTail += `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are now fixed between you two, not open to reinvention. Same job, same people, same flat, same plans, same things you did. Add new texture freely; never say anything that contradicts a line here, and never re-tell one as if it's news:\n${keys.herLife}`;
   }
+  // her forward-facing life goes right after her past-facing one: herLife is
+  // what she HAS said and is recency-evicted; a want is the same object next
+  // week that it was this week, which is what makes her week 4 differ from day 1
+  sysTail += inner.wants;
+  diag("chat", "inner_tail", {
+    tail: sysTail.length,
+    thread: inner.thread.length,
+    wants: inner.wants.length,
+    // api/chat.js slices the tail at 8000 chars from the end — if this ever
+    // trips, the interior is not the thing that should be dropped
+    over: sysTail.length > 8000,
+  });
 
   const turns = toTurns(history, latest);
 

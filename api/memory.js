@@ -95,11 +95,18 @@ async function opRecall(device, body) {
     .filter((w) => !RECALL_STOP.has(w))
     .slice(0, 6);
 
-  const COLS = "id, name, kind, summary, updated_at";
+  const COLS = "id, name, kind, summary, feel, updated_at";
+  // STANDING BACKGROUND is what she carries without being asked, so it must be
+  // the big durable things — not last week's loudest topic. Identity kinds
+  // (who they are, where they are, what they like) hold their weight; episodic
+  // kinds fade with age, the way a person's does. A felt memory arrives with
+  // extra salience at write time, so it outlives an equally-old flat one.
+  const RANK = `salience * case when kind in ('person','place','preference','fact') then 1.0
+                 else greatest(0.25, 1.0 - extract(epoch from (now() - updated_at)) / (86400.0 * 60)) end`;
   const fetches = [
     q(
       `select ${COLS} from meera_nodes where device_id = $1
-       order by salience desc, updated_at desc limit 4`,
+       order by ${RANK} desc, updated_at desc limit 4`,
       [device],
     ),
   ];
@@ -117,7 +124,7 @@ async function opRecall(device, body) {
     fetches.push(
       q(
         `select ${COLS} from meera_nodes where device_id = $1 and (${clauses.join(" or ")})
-         order by salience desc, updated_at desc limit 8`,
+         order by ${RANK} desc, updated_at desc limit 8`,
         params,
       ).catch(() => []),
     );
@@ -173,8 +180,11 @@ async function opRecall(device, body) {
       )
       .join("; ");
     // the age travels with the fact: a plan recalled six months later is not
-    // still upcoming, and she can only get that right if she knows how old it is
-    return `- ${n.name} (${n.kind}, last came up ${ageLabel(n.updated_at)}): ${n.summary}${rel ? ` [${rel}]` : ""}${staleNote(n)}`;
+    // still upcoming, and she can only get that right if she knows how old it is.
+    // The feeling travels with it too — but ONLY as the words they used, so she
+    // can never tell them how they felt about something they never told her.
+    const felt = n.feel ? ` — their own words for it: "${n.feel}"` : "";
+    return `- ${n.name} (${n.kind}, last came up ${ageLabel(n.updated_at)}): ${n.summary}${felt}${rel ? ` [${rel}]` : ""}${staleNote(n)}`;
   };
 
   // matched-vs-background stays labelled: background is continuity, not a
@@ -202,9 +212,23 @@ async function opRecall(device, body) {
 async function opRemember(device, body) {
   const recent = (Array.isArray(body.recent) ? body.recent : []).slice(-16);
   if (recent.length < 2) return { ok: true, extracted: 0 };
+  // LOAD-BEARING INVARIANT — DO NOT "IMPROVE" THIS MAP.
+  // This is the ONLY place her interior is derived from, and it deliberately
+  // carries NO timestamps, NO [... later] gap markers, NO channel markers and
+  // NO turn indices (unlike toTurns() in brain.ts, which stamps everything).
+  // Because the appraiser cannot SEE his reply speed, his silence or the
+  // length of the session, it is structurally incapable of turning any of
+  // them into her mood. Input starvation is the real guarantee here — a
+  // keyword filter over generated Hinglish is not, and never was.
   const convo = recent
     .map((t) => `${t.role === "me" ? "user" : "meera"}: ${String(t.content || "").slice(0, 300)}`)
     .join("\n");
+  // what she is already carrying, so ONE judgment pass decides both what
+  // survives and what is new — two passes could contradict each other
+  const openWants = (Array.isArray(body.wants) ? body.wants : [])
+    .filter((w) => typeof w === "string" && w.trim())
+    .slice(0, 3)
+    .map((w) => w.trim().slice(0, 90));
 
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -215,14 +239,26 @@ async function opRemember(device, body) {
     },
     body: JSON.stringify({
       model: EXTRACT_MODEL,
-      max_tokens: 600,
+      // 1100, not 600: the old cap could truncate a busy stretch mid-JSON,
+      // JSON.parse threw below, the op returned {ok:false} and the client's
+      // catch swallowed it — silently losing the graph write AND the
+      // self-facts. Key order below is deliberate: her interior is emitted
+      // FIRST so that if anything ever truncates it is the tail of the
+      // (lossy, re-derivable) node list that goes, never her interior.
+      max_tokens: 1100,
       messages: [
         {
           role: "system",
-          content: `Extract durable memory about the USER's life from this Hinglish chat (meera is the AI companion). Reply with ONLY JSON:
-{"nodes":[{"kind":"person|place|event|preference|fact|emotion|plan|topic","name":"short lowercase","summary":"one line, <=120 chars"}],"edges":[{"src":"node name","dst":"node name","relation":"2-3 words"}],"self":["..."]}
-nodes/edges = the USER only. Only things worth remembering weeks later: people, places, jobs, plans, strong likes/dislikes, recurring feelings, big events. Skip small talk. Max 6 nodes. Never put meera's own life in nodes.
-"self" = up to 4 short lowercase lines stating what MEERA said about HER OWN life here (her job, her people, her flat, what she did/ate/watched, her plans) — plain facts, <=90 chars each, e.g. "flatmate is named sneha", "spent today redoing the onboarding screens". These are returned so she stays consistent with herself later, not stored as user memory. Empty array if she said nothing about herself.`,
+          content: `Extract memory from this Hinglish chat (meera is the AI companion, the other person is the user). Reply with ONLY JSON, keys in this order:
+{"now":{"text":"...","w":0.4,"sign":-1}|null,"wants":[{"text":"...","days":3}],"told":false,"self":["..."],"nodes":[{"kind":"person|place|event|preference|fact|emotion|plan|topic","name":"short lowercase","summary":"one line, <=120 chars","feel":"their own words for how it felt, or \\"\\""}],"edges":[{"src":"node name","dst":"node name","relation":"2-3 words"}]}
+
+"now" = MEERA's own carried feeling if this stretch clearly left her with one — ONE line in HER first-person voice that fuses the feeling AND its cause inseparably, <=100 chars, e.g. "still annoyed about the review thing, whole morning gone" or "weirdly happy about the deck actually landing". Rules: it may ONLY be caused by something in HER life, or by real feeling about something that happened to the USER. It may NEVER be about the user's attention, replies, silence, absence or how much he talks to her. It is a FEELING, not an event she did — events go in "self". "w" 0.2 (mild) to 0.85 (really moved her). "sign" -1 or 1. null on most stretches: nothing carried is the normal case.
+"told" = true only if meera actually said out loud in this stretch how she was feeling and why.
+"wants" = things MEERA has decided she wants to do in HER OWN life and hasn't finished — never anything she wants FROM the user. Max 3, <=90 chars, "days" = roughly how long it stays live. She is currently carrying: ${
+            openWants.length ? openWants.map((w) => `"${w}"`).join(", ") : "(nothing)"
+          }. Return the ones still true of her (same words), drop the ones she finished, dropped or stopped caring about, and add at most one new one. Omit the key entirely if you cannot tell.
+"self" = up to 4 short lowercase lines stating what MEERA said about HER OWN life here (her job, her people, her flat, what she did/ate/watched, her plans) — plain facts, <=90 chars each, e.g. "flatmate is named sneha", "spent today redoing the onboarding screens". Never a line about the USER. These keep her consistent with herself later.
+nodes/edges = the USER only. Only things worth remembering weeks later: people, places, jobs, plans, strong likes/dislikes, recurring feelings, big events. Skip small talk. Max 6 nodes. Never put meera's own life in nodes. "feel" = how the USER felt about it, IN THEIR OWN WORDS from this chat, <=40 chars — leave it "" unless they actually said it; never infer or invent a feeling for them.`,
         },
         { role: "user", content: convo },
       ],
@@ -241,8 +277,30 @@ nodes/edges = the USER only. Only things worth remembering weeks later: people, 
   // user's graph — it is what keeps her from re-inventing herself two turns later
   const self = (Array.isArray(parsed.self) ? parsed.self : [])
     .filter((s) => typeof s === "string" && s.trim())
+    // a lite extractor occasionally emits a line about HIM, which would then
+    // render under "you said these, so they are fixed between you two" — an
+    // extraction slip promoted to a confident false claim about his world
+    .filter((s) => !/^\s*(they|he|she|the user|user)\b/i.test(s))
     .slice(0, 4)
     .map((s) => s.trim().replace(/\s+/g, " ").slice(0, 110));
+  // her carried interior — validated again on the client (inner.applyInner);
+  // this side only shapes it, it never decides whether it is allowed
+  const rawNow = parsed.now && typeof parsed.now === "object" ? parsed.now : null;
+  const now =
+    rawNow && typeof rawNow.text === "string" && rawNow.text.trim()
+      ? {
+          text: rawNow.text.trim().replace(/\s+/g, " ").slice(0, 110),
+          w: Number(rawNow.w) || 0.4,
+          sign: Number(rawNow.sign) < 0 ? -1 : 1,
+        }
+      : null;
+  const wants = Array.isArray(parsed.wants)
+    ? parsed.wants
+        .filter((w) => w && typeof w.text === "string" && w.text.trim())
+        .slice(0, 3)
+        .map((w) => ({ text: w.text.trim().replace(/\s+/g, " ").slice(0, 90), days: Number(w.days) || 3 }))
+    : undefined;
+  const interior = { now, told: parsed.told === true, ...(wants ? { wants } : {}) };
   const nodes = (Array.isArray(parsed.nodes) ? parsed.nodes : [])
     .filter((n) => n && typeof n.name === "string" && n.name.trim())
     .slice(0, 6)
@@ -252,12 +310,17 @@ nodes/edges = the USER only. Only things worth remembering weeks later: people, 
         : "fact",
       name: n.name.trim().toLowerCase().slice(0, 60),
       summary: String(n.summary || "").slice(0, 160),
+      // how it FELT, in their words only. A memory with a feeling attached is
+      // what "she knows me" is made of — but a feeling they never expressed is
+      // a fabrication about their insides, which is the one thing that can't
+      // be walked back. Empty is the default and it is fine.
+      feel: typeof n.feel === "string" ? n.feel.trim().replace(/\s+/g, " ").slice(0, 40) : "",
     }));
-  if (!nodes.length) return { ok: true, extracted: 0, self };
+  if (!nodes.length) return { ok: true, extracted: 0, self, ...interior };
 
   // split into existing (bump) vs new (insert)
   const existing = await q(
-    `select id, name, mentions, salience from meera_nodes where device_id = $1 and name = any($2)`,
+    `select id, name, mentions, salience, feel from meera_nodes where device_id = $1 and name = any($2)`,
     [device, nodes.map((n) => n.name)],
   ).catch(() => []);
   const byName = new Map((Array.isArray(existing) ? existing : []).map((n) => [n.name, n]));
@@ -268,16 +331,25 @@ nodes/edges = the USER only. Only things worth remembering weeks later: people, 
     if (ex) {
       idOf.set(n.name, ex.id);
       await q(
-        `update meera_nodes set summary = $1, mentions = $2, salience = $3, updated_at = now() where id = $4`,
-        [n.summary, (ex.mentions || 1) + 1, Math.min(10, (ex.salience || 1) + 0.6), ex.id],
+        `update meera_nodes set summary = $1, mentions = $2, salience = $3, feel = $4, updated_at = now() where id = $5`,
+        [
+          n.summary,
+          (ex.mentions || 1) + 1,
+          // a thing that carried a feeling is more memorable than a thing that
+          // didn't — that asymmetry is the whole of "emotional salience", and
+          // it decides which memories come back as standing background
+          Math.min(10, (ex.salience || 1) + (n.feel ? 1.0 : 0.6)),
+          n.feel || ex.feel || "",
+          ex.id,
+        ],
       ).catch(() => {});
     }
   }
   const fresh = nodes.filter((n) => !byName.has(n.name));
   for (const n of fresh) {
     const ins = await q(
-      `insert into meera_nodes (device_id, kind, name, summary) values ($1,$2,$3,$4) returning id, name`,
-      [device, n.kind, n.name, n.summary],
+      `insert into meera_nodes (device_id, kind, name, summary, feel, salience) values ($1,$2,$3,$4,$5,$6) returning id, name`,
+      [device, n.kind, n.name, n.summary, n.feel, n.feel ? 1.6 : 1.0],
     ).catch(() => []);
     if (ins[0]) idOf.set(ins[0].name, ins[0].id);
   }
@@ -300,7 +372,7 @@ nodes/edges = the USER only. Only things worth remembering weeks later: people, 
       [device, e.src, e.dst, e.relation],
     ).catch(() => {});
   }
-  return { ok: true, extracted: nodes.length, self };
+  return { ok: true, extracted: nodes.length, self, ...interior };
 }
 
 async function opUploadPhoto(device, body) {

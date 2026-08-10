@@ -1,13 +1,14 @@
 // The chat — where the relationship lives. Human typing rhythm, multi-bubble
-// replies, photo moments, idle nudges, presence cues.
+// replies, photo moments, presence cues.
 
 import { useEffect, useRef, useState } from "react";
 import { animate } from "framer-motion";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think, formatHerLife } from "../engine/brain";
-import { HER_NAME, OPEN_DIRECTIVE, NUDGE_DIRECTIVE, FOLLOWUP_DIRECTIVE } from "../engine/persona";
+import { HER_NAME, OPEN_DIRECTIVE, FOLLOWUP_DIRECTIVE } from "../engine/persona";
 import { logTurns, rememberFrom, uploadPhoto, describePhoto, prefetchRecall } from "../engine/memory";
+import { applyInner, wantsForAppraisal } from "../engine/inner";
 import { track } from "../engine/account";
 import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
@@ -128,8 +129,6 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   const thinkingChat = useRef(false);
   const delivering = useRef(false);
   const dirty = useRef(false); // user messages not yet covered by a reply
-  const nudged = useRef(false);
-  const lastActivity = useRef(Date.now());
 
   const { messages, user, apiKey, openrouterKey } = state;
 
@@ -139,6 +138,9 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     apiKey,
     deviceId: state.deviceId,
     herLife: formatHerLife(state.herLife),
+    // where she actually is: one carried feeling and what she wants. Read
+    // only — brain.ts decides whether it reaches the prompt at all.
+    inner: state.inner,
   });
   const sendCount = useRef(0);
   // ── reply pacing ──
@@ -241,29 +243,9 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.followup, messages.length]);
 
-  // idle nudge — she double-texts if you go quiet with the app open;
-  // the model improvises what she's doing, nothing is scripted
-  useEffect(() => {
-    const iv = setInterval(() => {
-      if (nudged.current || busy.current || inCallRef.current || messages.length < 4) return;
-      const idle = Date.now() - lastActivity.current;
-      if (idle > 150_000 && messages[messages.length - 1]?.from === "her") {
-        nudged.current = true;
-        think(user, brainKeys(), messages, NUDGE_DIRECTIVE(), "chat", "device", true).then(
-          async (reply) => {
-            if (reply.bubbles.length || reply.photo) {
-              delivering.current = true;
-              await deliver(reply);
-              delivering.current = false;
-            }
-            if (dirty.current) void replyCycle(chatSeq.current);
-          },
-        );
-      }
-    }, 20_000);
-    return () => clearInterval(iv);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length]);
+  // (the idle nudge used to live here — deleted on purpose; see the note
+  // where NUDGE_DIRECTIVE was in persona.ts. Her unprompted messages are
+  // reason-contingent now, never silence-contingent.)
 
   // Put her "typing…" up the moment she'd realistically have finished reading,
   // without waiting for the model. The round trip used to be silence the user
@@ -485,24 +467,34 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     // call that was already happening, no extra round trip per turn
     sendCount.current += 1;
     if (sendCount.current % 3 === 0) {
-      rememberFrom(state.deviceId, messagesRef.current).then((self) => {
-        if (!self.length) return;
-        setState((s) => {
-          const at = Date.now();
-          const seen = new Set<string>();
-          return {
-            ...s,
-            herLife: [...self.map((text) => ({ text, at })), ...(s.herLife || [])]
-              .filter((f) => {
-                const k = f.text.toLowerCase();
-                if (seen.has(k)) return false;
-                seen.add(k);
-                return true;
-              })
-              .slice(0, 14),
-          };
-        });
-      });
+      // the SAME call also appraises where this stretch left her — one
+      // judgment pass, so her facts, her wants and her feeling can never
+      // contradict each other, and no extra round trip exists to pay for
+      rememberFrom(state.deviceId, messagesRef.current, wantsForAppraisal(state.inner)).then(
+        ({ self, inner }) => {
+          if (!self.length && !inner) return;
+          setState((s) => {
+            const at = Date.now();
+            const seen = new Set<string>();
+            return {
+              ...s,
+              herLife: self.length
+                ? [...self.map((text) => ({ text, at })), ...(s.herLife || [])]
+                    .filter((f) => {
+                      const k = f.text.toLowerCase();
+                      if (seen.has(k)) return false;
+                      seen.add(k);
+                      return true;
+                    })
+                    // formatHerLife renders 12 — storing more than that is
+                    // just localStorage nobody reads
+                    .slice(0, 12)
+                : s.herLife,
+              inner: inner ? applyInner(s.inner, inner, at) : s.inner,
+            };
+          });
+        },
+      );
     }
   }
 
@@ -510,8 +502,6 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     const text = draft.trim();
     if (!text) return; // sending is NEVER blocked — she adapts, like a person
     setDraft("");
-    lastActivity.current = Date.now();
-    nudged.current = false;
     const mine: Message = {
       id: uid(),
       from: "me",
@@ -566,8 +556,6 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     }
     const caption = draft.trim();
     setDraft("");
-    lastActivity.current = Date.now();
-    nudged.current = false;
     const mine: Message = {
       id: uid(),
       from: "me",
@@ -840,8 +828,6 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         logTurns(state.deviceId, [mine]);
         track(state.deviceId, "voice_note_sent", { dur: secs, heard: Boolean(transcript) }, state.auth?.userId);
         setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
-        lastActivity.current = Date.now();
-        nudged.current = false;
         scheduleReply(mine.text); // voice notes join the same burst pipeline
       }, 600);
     };
@@ -1043,7 +1029,6 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
               setTimeout(() => setClearArm(false), 2600);
             } else {
               setClearArm(false);
-              nudged.current = false;
               busy.current = false;
               epoch.current += 1; // kill any in-flight reply from the old chat
               if (readTimer.current) clearTimeout(readTimer.current);
@@ -1059,6 +1044,10 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
                 messages: [],
                 followup: null,
                 herLife: [],
+                // her interior belonged to that conversation too — a feeling
+                // whose cause has been deleted is exactly the causeless mood
+                // this whole design exists to make impossible
+                inner: undefined,
                 clearedAt: Date.now(),
               }));
             }

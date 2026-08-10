@@ -80,7 +80,14 @@ export function flushDiag() {
     clearTimeout(timer);
     timer = null;
   }
-  if (!buffer.length || !device) return;
+  if (!buffer.length) return;
+  // no device yet = nowhere to send it. DRAIN, don't retain: retaining meant
+  // every subsequent record hit the MAX_BUFFER check, called flush, and
+  // returned — an unbounded array plus a flush attempt on every single event.
+  if (!device) {
+    buffer = [];
+    return;
+  }
   const batch = buffer;
   buffer = [];
   try {
