@@ -107,7 +107,9 @@ export default async function handler(req, res) {
       };
       pending++;
       generate().then(settle, () => settle(null));
-      const hedgeT = setTimeout(launchHedge, 1200);
+      // synthesis time scales with text length — a flat trigger would fire
+      // the hedge on every long voice note (pure double cost, no win)
+      const hedgeT = setTimeout(launchHedge, Math.min(4000, 900 + text.length * 15));
     });
     if (!pcm) {
       return res.status(502).json({ error: "upstream empty" });

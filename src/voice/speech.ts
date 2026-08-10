@@ -199,6 +199,68 @@ export function duckSpeech(on: boolean) {
   speechBus.gain.linearRampToValueAtTime(duckedLevel, t + (on ? 0.15 : 0.3));
 }
 
+// Chat voice-note playback: the same WebAudio path calls use (the one route
+// proven to make sound on every device this app runs on); HTMLAudio only as
+// a fallback. Call from INSIDE the tap gesture so the context can unlock.
+export function playNote(
+  blob: Blob,
+  onProgress: (frac: number) => void,
+  onEnd: (ok: boolean) => void,
+): { stop: () => void } {
+  let stopped = false;
+  let src: AudioBufferSourceNode | null = null;
+  let el: HTMLAudioElement | null = null;
+  let timer: ReturnType<typeof setInterval> | null = null;
+  const finish = (ok: boolean) => {
+    if (timer) clearInterval(timer);
+    timer = null;
+    if (!stopped) onEnd(ok);
+  };
+  (async () => {
+    if (audioCtx && audioCtx.state === "running") {
+      try {
+        const buf = await audioCtx.decodeAudioData(await blob.arrayBuffer());
+        if (stopped) return;
+        src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        const t0 = audioCtx.currentTime;
+        timer = setInterval(() => {
+          if (audioCtx) onProgress(Math.min(1, (audioCtx.currentTime - t0) / buf.duration));
+        }, 120);
+        src.onended = () => finish(true);
+        src.start(0);
+        return;
+      } catch {
+        /* decode failed → HTMLAudio below */
+      }
+    }
+    if (stopped) return;
+    el = new Audio(URL.createObjectURL(blob));
+    el.ontimeupdate = () => {
+      if (el && el.duration) onProgress(el.currentTime / el.duration);
+    };
+    el.onended = () => {
+      if (el) URL.revokeObjectURL(el.src);
+      finish(true);
+    };
+    el.onerror = () => finish(false);
+    el.play().catch(() => finish(false));
+  })();
+  return {
+    stop: () => {
+      stopped = true;
+      if (timer) clearInterval(timer);
+      try {
+        src?.stop();
+      } catch {
+        /* already ended */
+      }
+      el?.pause();
+    },
+  };
+}
+
 export function unlockAudio() {
   try {
     const AC = window.AudioContext || (window as any).webkitAudioContext;
@@ -1071,8 +1133,10 @@ async function wireCallMicOnce() {
   await CallMic.addListener("micsegment", ({ text }) => {
     const h = cmCurrent;
     if (!h || h.done) return;
-    const full = text && text.length >= h.lastFull.length ? text : h.lastFull;
-    const fresh = full.slice(h.segBase).trim();
+    // the segment final is authoritative (may rewrite earlier words); clamp
+    // the committed offset so a shorter correction can't slice out of range
+    const full = text || h.lastFull;
+    const fresh = full.slice(Math.min(h.segBase, full.length)).trim();
     h.segBase = 0;
     h.lastFull = "";
     // segment close = recognizer's own endpoint; usually the tick already
@@ -1210,6 +1274,13 @@ export function listen(
         try {
           if (!callMicRunning) {
             await CallMic.start();
+            // stop() may have fired during the await (mute toggle, watch
+            // start) — leaving callMicRunning=true with the native side
+            // stopped would silently dead-mic every later listen()
+            if (h.done) {
+              CallMic.stop().catch(() => {});
+              return;
+            }
             callMicRunning = true;
           }
         } catch {

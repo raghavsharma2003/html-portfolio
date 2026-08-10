@@ -4,7 +4,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import { cachedClip, saveClip } from "../voice/speech";
+import { cachedClip, saveClip, playNote, unlockAudio } from "../voice/speech";
 import type { Message } from "../state/store";
 
 const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
@@ -60,52 +60,41 @@ export default function VoiceNote({ m }: { m: Message }) {
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false); // fetch/play failed — tap retries
   const [progress, setProgress] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const handle = useRef<{ stop: () => void } | null>(null);
   const wave = useRef(bars(m.id));
 
   useEffect(
     () => () => {
-      audioRef.current?.pause();
+      handle.current?.stop();
     },
     [],
   );
 
   async function toggle() {
     if (playing) {
-      audioRef.current?.pause();
+      handle.current?.stop();
+      handle.current = null;
       setPlaying(false);
+      setProgress(0);
       return;
     }
+    // resume/unlock the audio context INSIDE the tap gesture — by the time
+    // the clip arrives (a fetch later) the gesture grant may be gone
+    unlockAudio();
     setFailed(false);
-    if (!audioRef.current) {
-      setLoading(true);
-      const blob = await audioFor(m);
-      setLoading(false);
-      if (!blob) {
-        setFailed(true); // visible failure — the next tap retries the fetch
-        return;
-      }
-      const a = new Audio(URL.createObjectURL(blob));
-      a.ontimeupdate = () => setProgress(a.duration ? a.currentTime / a.duration : 0);
-      a.onended = () => {
-        setPlaying(false);
-        setProgress(0);
-      };
-      a.onerror = () => {
-        setPlaying(false);
-        setFailed(true);
-        audioRef.current = null; // decode failure — refetch on next tap
-      };
-      audioRef.current = a;
+    setLoading(true);
+    const blob = await audioFor(m);
+    setLoading(false);
+    if (!blob) {
+      setFailed(true); // visible failure — the next tap retries the fetch
+      return;
     }
-    // only claim "playing" when playback actually starts (autoplay policy)
-    audioRef.current
-      .play()
-      .then(() => setPlaying(true))
-      .catch(() => {
-        setPlaying(false);
-        setFailed(true);
-      });
+    setPlaying(true);
+    handle.current = playNote(blob, setProgress, (ok) => {
+      setPlaying(false);
+      setProgress(0);
+      if (!ok) setFailed(true);
+    });
   }
 
   const dur = m.dur ?? Math.max(2, Math.round((m.text.split(/\s+/).length / 2.6) * 1));

@@ -371,7 +371,8 @@ class WatchEngine {
     BubbleService.setState(ctx, BubbleService.STATE_SPEAKING);
     // half-duplex: never hear our own voice. Piped lane just writes silence
     // (capture continues, zero restart cost); legacy lane cancels + re-arms.
-    if (piped != null) piped.setMuted(true);
+    PipedRecognizer p = piped; // onDown nulls the field from another thread
+    if (p != null) p.setMuted(true);
     main.post(() -> {
       if (recognizer != null) {
         try {
@@ -390,8 +391,9 @@ class WatchEngine {
       } finally {
         speaking = false;
         BubbleService.setState(ctx, BubbleService.STATE_WATCHING);
-        if (piped != null) {
-          piped.setMuted(false); // mic never stopped — just unmute
+        PipedRecognizer p2 = piped;
+        if (p2 != null) {
+          p2.setMuted(false); // mic never stopped — just unmute
         } else {
           main.post(() -> restartSoon(200));
         }

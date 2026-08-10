@@ -81,7 +81,8 @@ public class CallMicPlugin extends Plugin {
 
   @PluginMethod
   public void setMuted(PluginCall call) {
-    if (piped != null) piped.setMuted(Boolean.TRUE.equals(call.getBoolean("muted", false)));
+    PipedRecognizer p = piped; // onDown nulls the field asynchronously
+    if (p != null) p.setMuted(Boolean.TRUE.equals(call.getBoolean("muted", false)));
     call.resolve();
   }
 

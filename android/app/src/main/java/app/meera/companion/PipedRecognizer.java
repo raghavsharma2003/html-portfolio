@@ -55,11 +55,12 @@ class PipedRecognizer {
   private volatile boolean running = false;
   private volatile boolean muted = false;
   private volatile OutputStream sink; // pump target — swapped per session
-  private AudioRecord record;
+  private volatile AudioRecord record;
   private Thread pump;
   private SpeechRecognizer recognizer;
   private ParcelFileDescriptor[] pipe;
   private int restartStreak = 0;
+  private boolean restartPending = false;
 
   PipedRecognizer(Context ctx, Callbacks cb) {
     this.ctx = ctx;
@@ -86,20 +87,45 @@ class PipedRecognizer {
               AudioFormat.CHANNEL_IN_MONO,
               AudioFormat.ENCODING_PCM_16BIT,
               Math.max(minBuf * 2, 8192));
+      if (record.getState() != AudioRecord.STATE_INITIALIZED) {
+        throw new IllegalStateException("AudioRecord uninitialized");
+      }
       record.startRecording();
     } catch (Exception e) {
       Log.w(TAG, "AudioRecord failed", e);
-      running = false;
-      cb.onDown(true);
+      down(); // releases anything partially constructed
       return;
     }
     pump =
         new Thread(
             () -> {
               byte[] buf = new byte[3200]; // 100ms @ 16k mono 16-bit
+              int readErrs = 0;
               while (running) {
-                int n = record.read(buf, 0, buf.length);
-                if (n <= 0) continue;
+                AudioRecord rec = record; // stop() nulls the field concurrently
+                if (rec == null) break;
+                int n;
+                try {
+                  n = rec.read(buf, 0, buf.length);
+                } catch (Exception e) {
+                  n = -1;
+                }
+                if (n <= 0) {
+                  // dead object / stolen mic: back off, then give up loudly
+                  // instead of spinning a MAX_PRIORITY thread forever
+                  readErrs++;
+                  if (readErrs > 150) { // ~3s of persistent failure
+                    down();
+                    return;
+                  }
+                  try {
+                    Thread.sleep(20);
+                  } catch (InterruptedException ie) {
+                    return;
+                  }
+                  continue;
+                }
+                readErrs = 0;
                 if (muted) Arrays.fill(buf, 0, n, (byte) 0);
                 OutputStream out = sink;
                 if (out != null) {
@@ -129,13 +155,24 @@ class PipedRecognizer {
           }
         });
     closeSink();
-    if (record != null) {
+    AudioRecord rec = record;
+    record = null;
+    if (rec != null) {
       try {
-        record.stop();
-        record.release();
+        rec.stop();
+        rec.release();
       } catch (Exception ignored) {}
-      record = null;
     }
+  }
+
+  /** Fatal path: full teardown FIRST, then tell the consumer. Leaving the
+   *  AudioRecord recording would starve every fallback recognizer of audio
+   *  (Android gives concurrent capture clients silence) and pin the privacy
+   *  indicator on — "she went deaf" for the rest of the session. */
+  private void down() {
+    if (!running && record == null) return;
+    stop();
+    cb.onDown(true);
   }
 
   void setMuted(boolean m) {
@@ -219,17 +256,19 @@ class PipedRecognizer {
               if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
                   || error == 12 // ERROR_LANGUAGE_NOT_SUPPORTED
                   || error == 13 /* ERROR_LANGUAGE_UNAVAILABLE */) {
-                running = false;
-                cb.onDown(true); // caller falls back to the legacy mic path
+                down(); // caller falls back to the legacy mic path
                 return;
               }
-              restartStreak++;
+              // NO_MATCH/timeout are NORMAL on silence-heavy piped audio — a
+              // quiet listener must never escalate to a fatal downgrade
+              boolean silence =
+                  error == SpeechRecognizer.ERROR_NO_MATCH
+                      || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT;
+              if (!silence) restartStreak++;
               if (restartStreak > 10) {
-                running = false;
-                cb.onDown(true);
+                down();
                 return;
               }
-              // NO_MATCH etc are normal on silence-heavy piped audio
               restartSoon(error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ? 800 : 200);
             }
 
@@ -247,8 +286,7 @@ class PipedRecognizer {
       Log.w(TAG, "piped session failed", e);
       restartStreak++;
       if (restartStreak > 6) {
-        running = false;
-        cb.onDown(true);
+        down();
         return;
       }
       restartSoon(1000);
@@ -256,8 +294,16 @@ class PipedRecognizer {
   }
 
   private void restartSoon(long delayMs) {
-    if (!running) return;
-    main.postDelayed(this::startSession, delayMs);
+    // onResults + onEndOfSegmentedSession can both fire for the same session
+    // end — one pending restart at a time, or fresh sessions get churned
+    if (!running || restartPending) return;
+    restartPending = true;
+    main.postDelayed(
+        () -> {
+          restartPending = false;
+          startSession();
+        },
+        delayMs);
   }
 
   @SuppressLint("NewApi")
