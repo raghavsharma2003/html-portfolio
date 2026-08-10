@@ -204,7 +204,10 @@ export function useCallEngine(
     liveSession.current = s;
     listeningRef.current = true;
     setListening(true);
-    s.direct(CALL_OPEN_DIRECTIVE()); // she improvises her pickup, spoken live
+    // the session now connects DURING the ring: keep the uplink muted and
+    // hold the greeting directive until the caller "picks up" at ring end —
+    // she must not hear or answer a phone that is still ringing
+    s.setMuted(true);
     return s;
   }
 
@@ -240,28 +243,33 @@ export function useCallEngine(
       const g = r.bubbles.join(" ").trim();
       if (g) prewarmSpeech(g, voiceOpts, r.tone);
     });
+    // ── realtime engine: the connection starts NOW, in parallel with the
+    // ring — token mint + WS setup + mic grant get the ring's free ~1.2s
+    // instead of starting from zero at pickup (telemetry showed connects
+    // missing the adoption window by fractions of a second) ──
+    const livePromise = tryStartLive().catch((e) => {
+      // fast failure = no live event at all in telemetry — record WHY so
+      // a device where live never engages is diagnosable remotely
+      track(stateRef.current.deviceId, "live_call_failed", {
+        m: String(e?.message || e).slice(0, 80),
+      });
+      return null;
+    });
     let pickupT: ReturnType<typeof setTimeout> | null = null;
     const t = setTimeout(async () => {
       if (!alive.current) return;
       setPhase("live");
       startRoomTone(); // real lines are never digitally silent
-      // ── realtime engine first: true speech-to-speech (Gemini Live). If it
-      // doesn't come up within ~3.5s, the cascade takes the call — and if
-      // the live session then arrives late, it's discarded, not adopted. ──
-      const livePromise = tryStartLive().catch((e) => {
-        // fast failure = no live event at all in telemetry — record WHY so
-        // a device where live never engages is diagnosable remotely
-        track(stateRef.current.deviceId, "live_call_failed", {
-          m: String(e?.message || e).slice(0, 80),
-        });
-        return null;
-      });
+      // if the live session isn't up within ~3.5s of pickup, the cascade
+      // takes the call — a late arrival is discarded, never adopted
       const winner = await Promise.race([
         livePromise,
         new Promise<"slow">((r) => setTimeout(() => r("slow"), 3500)),
       ]);
       if (!alive.current) return;
       if (winner && winner !== "slow") {
+        if (!mutedRef.current) winner.setMuted(false); // line is open now
+        winner.direct(CALL_OPEN_DIRECTIVE()); // she picks up, spoken live
         track(stateRef.current.deviceId, "live_call_started", {});
         return; // realtime session owns the call from here
       }
