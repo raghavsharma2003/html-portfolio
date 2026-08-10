@@ -39,7 +39,8 @@ public class WatchCaptureService extends Service {
   public static final String EXTRA_CONFIG = "config";
   private static final String CHANNEL_ID = "meera_watch";
   private static final int NOTIF_ID = 4207;
-  private static final long FRAME_INTERVAL_MS = 3000;
+  // reels scroll in seconds — she has to see what they see NOW, not 3s ago
+  private static final long FRAME_INTERVAL_MS = 1400;
 
   private WatchEngine engine;
   private MediaProjection projection;

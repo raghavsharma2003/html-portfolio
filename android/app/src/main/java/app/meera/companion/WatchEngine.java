@@ -39,7 +39,9 @@ import java.util.concurrent.Executors;
  */
 class WatchEngine {
   private static final String TAG = "MeeraWatch";
-  private static final long COMMENT_COOLDOWN_MS = 20_000;
+  // restraint comes from the NO_COMMENT gate (the model decides most moments
+  // deserve silence) — the cooldown only prevents machine-gun commentary
+  private static final long COMMENT_COOLDOWN_MS = 8_000;
 
   interface Emitter {
     void emit(String event, JSONObject data);
@@ -287,7 +289,9 @@ class WatchEngine {
         body.put("system", system);
         body.put("system_tail", systemTail);
         body.put("messages", messages);
-        body.put("max_tokens", 190);
+        // screen reactions are <10 words — a small cap generates faster and
+        // keeps TTS clips short; real conversation gets the full budget
+        body.put("max_tokens", isComment ? 90 : 190);
         body.put("no_think", true);
         // ambient comments can drop on a bad network; the user's actual
         // question must not — one retry so "she just never answered" is rare

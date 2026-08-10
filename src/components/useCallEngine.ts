@@ -96,6 +96,16 @@ export function useCallEngine(
   const lastHeardAt = useRef(0);
   const listenerBcAt = useRef(0); // last mid-turn listener backchannel
   const sttConsume = useRef<(() => void) | null>(null);
+  // speculative turn: the brain starts on the partial ~240ms into a pause —
+  // if the pause becomes the turn end (it usually does), the reply is already
+  // hundreds of ms ahead; if they kept talking, one cheap call is discarded
+  const spec = useRef<SpecTurn | null>(null);
+  interface SpecTurn {
+    text: string;
+    promise: ReturnType<typeof think>;
+    deltas: string[];
+    sink: ((d: string) => void) | null;
+  }
   const reengageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlapStart = useRef(0); // when user speech over her speech began
   const reengaged = useRef(0); // continuation nudges this silence stretch
@@ -300,10 +310,53 @@ export function useCallEngine(
         listenerBcAt.current = Date.now();
         playBackchannel();
       }
+      // speculative start: one head-start per pause window, only when she's
+      // idle. A wrong guess costs one flash-priced call; a right one cuts
+      // 200-400ms off every reply.
+      if (
+        waited >= 240 &&
+        text.length > 3 &&
+        !spec.current &&
+        !thinkingRef.current &&
+        !speakingRef.current
+      ) {
+        const s: SpecTurn = {
+          text,
+          deltas: [],
+          sink: null,
+          promise: null as unknown as ReturnType<typeof think>,
+        };
+        const specMine: Message = {
+          id: uid(),
+          from: "me",
+          kind: "text",
+          channel: "call",
+          text,
+          at: Date.now(),
+        };
+        s.promise = think(
+          stateRef.current.user,
+          brainKeys(),
+          [...stateRef.current.messages, specMine],
+          text,
+          "call",
+          engine,
+          false,
+          (d) => {
+            if (s.sink) s.sink(d);
+            else s.deltas.push(d);
+          },
+          recallRef.current,
+          freshFrame(),
+        );
+        spec.current = s;
+      }
       if (waited >= commitDelay(text)) {
         acc.current = { finals: "", interim: "", lastAt: 0 };
         sttConsume.current?.(); // continuous mic: don't re-deliver these words
-        handleUser(text);
+        const sp = spec.current;
+        spec.current = null;
+        handleUser(text, sp && sp.text === text ? sp : undefined);
       }
     }, 75);
     return () => clearInterval(iv);
@@ -602,7 +655,7 @@ export function useCallEngine(
     }
   }
 
-  async function handleUser(text: string) {
+  async function handleUser(text: string, prestart?: SpecTurn) {
     if (!alive.current || !text.trim()) return;
     reengaged.current = 0; // they spoke — silence counter resets
     // typed input (keyboard fallback) can land while she's mid-speech —
@@ -729,18 +782,27 @@ export function useCallEngine(
       }
     };
 
-    const reply = await think(
-      stateRef.current.user,
-      brainKeys(),
-      [...stateRef.current.messages, brainMine],
-      text,
-      "call",
-      engine,
-      false,
-      onDelta,
-      recallRef.current,
-      freshFrame(), // watching? she sees the screen while answering
-    );
+    let reply;
+    if (prestart && !wasInterrupt) {
+      // the brain already started on this exact text during the pause —
+      // adopt the in-flight stream: replay what it produced, then go live
+      for (const d of prestart.deltas) onDelta(d);
+      prestart.sink = onDelta;
+      reply = await prestart.promise;
+    } else {
+      reply = await think(
+        stateRef.current.user,
+        brainKeys(),
+        [...stateRef.current.messages, brainMine],
+        text,
+        "call",
+        engine,
+        false,
+        onDelta,
+        recallRef.current,
+        freshFrame(), // watching? she sees the screen while answering
+      );
+    }
     thinkingRef.current = false;
     setThinking(false);
     if (!alive.current) return;
