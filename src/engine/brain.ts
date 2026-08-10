@@ -9,7 +9,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Capacitor } from "@capacitor/core";
 import {
-  buildSystemPrompt,
+  buildSystemPromptParts,
   buildSpeechStyle,
   WATCH_MODE_NOTE,
   type UserProfile,
@@ -336,6 +336,9 @@ async function openrouterThink(
 async function proxyThink(
   keys: BrainKeys,
   system: string,
+  // volatile suffix sent separately: the proxy pins a cache breakpoint on
+  // `system` (byte-stable) so ~85% of input tokens bill at the cached rate
+  systemTail: string,
   turns: Turn[],
   maxTokens = 700,
   // calls stream tokens so speech can start on the first sentence
@@ -348,6 +351,7 @@ async function proxyThink(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         system,
+        system_tail: systemTail || undefined,
         messages: turns,
         model: keys.openrouterModel?.trim() || OPENROUTER_DEFAULT_MODEL,
         max_tokens: maxTokens,
@@ -456,10 +460,11 @@ export async function think(
     local.photo = undefined;
   }
 
-  let system =
-    mode === "call"
-      ? buildSystemPrompt(user, history.length) + buildSpeechStyle(voiceEngine)
-      : buildSystemPrompt(user, history.length);
+  const parts = buildSystemPromptParts(user, history.length);
+  // everything static rides in the cacheable core (call style rules are
+  // static too); everything per-turn rides in the tail after the breakpoint
+  const sysCore = parts.core + (mode === "call" ? buildSpeechStyle(voiceEngine) : "");
+  let sysTail = parts.tail;
 
   // graph-memory recall: what she knows about their world, woven into
   // context. On live calls the lookup is done ONCE at pickup and passed in
@@ -471,14 +476,14 @@ export async function think(
         ? await recallMemories(keys.deviceId, latest)
         : "";
   if (memories) {
-    system += `\n\nWHAT YOU KNOW ABOUT THEM — true facts from your earlier conversations. You genuinely remember these. When they ask about or touch on anything here, you KNOW it — answer confidently with the specific detail ("priya ki shaadi h na december me"), never play dumb, never guess, never ask them to remind you. Weave one in naturally when relevant; don't dump several at once, and never mention any list or "memory":\n${memories}`;
+    sysTail += `\n\nWHAT YOU KNOW ABOUT THEM — true facts from your earlier conversations. You genuinely remember these. When they ask about or touch on anything here, you KNOW it — answer confidently with the specific detail ("priya ki shaadi h na december me"), never play dumb, never guess, never ask them to remind you. Weave one in naturally when relevant; don't dump several at once, and never mention any list or "memory":\n${memories}`;
   }
 
   const turns = toTurns(history, latest);
 
   // watch-together: attach what's on their screen to the current turn
   if (watchFrame && mode === "call") {
-    system += WATCH_MODE_NOTE;
+    sysTail += WATCH_MODE_NOTE;
     const last = turns[turns.length - 1];
     if (last && last.role === "user") {
       const part = { type: "image_url", image_url: { url: watchFrame } };
@@ -495,12 +500,14 @@ export async function think(
   // misreading Hinglish; streaming pays for the smarter model's latency.
   const maxTokens = mode === "call" ? 190 : 700;
   let text: string | null = null;
-  if (keys.openrouterKey) text = await openrouterThink(keys, system, turns, maxTokens);
-  if (!text && keys.apiKey) text = await claudeThink(keys, system, turns);
+  const fullSystem = sysCore + sysTail;
+  if (keys.openrouterKey) text = await openrouterThink(keys, fullSystem, turns, maxTokens);
+  if (!text && keys.apiKey) text = await claudeThink(keys, fullSystem, turns);
   if (!text)
     text = await proxyThink(
       keys,
-      system,
+      sysCore,
+      sysTail,
       turns,
       maxTokens,
       mode === "call" ? onDelta : undefined,

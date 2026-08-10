@@ -259,12 +259,25 @@ export const MEME_SEARCHES: string[] = [
   "good morning chai",
 ];
 
-// a fresh random sample every prompt build — different turns surface
-// different corners of her collection, so she never cycles the same five
+// a DAILY rotating sample — deterministic within a day so the system prompt
+// stays byte-stable (Gemini's implicit prompt caching discounts a stable
+// prefix ~75%; per-call randomness was silently disabling it), while still
+// rotating corners of her collection day to day.
 export function memeMenu(n = 40): string {
+  // seeded shuffle (mulberry32) keyed to the calendar day
+  const day = new Date().toDateString();
+  let seed = 0;
+  for (const c of day) seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
+  const rand = () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
   const pool = [...MEME_SEARCHES];
   for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rand() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   return pool.slice(0, n).join('", "');

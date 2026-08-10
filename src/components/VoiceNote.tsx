@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
+import { cachedClip, saveClip } from "../voice/speech";
 import type { Message } from "../state/store";
 
 const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
@@ -20,6 +21,12 @@ async function audioFor(m: Message): Promise<Blob | null> {
   if (m.from === "me") return localClips.get(m.id) ?? null;
   const key = m.id;
   if (ttsCache.has(key)) return ttsCache.get(key)!;
+  // persistent cache: a replayed voice note must never be synthesized twice
+  const stored = await cachedClip(`vn1:${key}`);
+  if (stored) {
+    ttsCache.set(key, stored);
+    return stored;
+  }
   try {
     const res = await fetch(`${BASE}/api/speech`, {
       method: "POST",
@@ -31,6 +38,7 @@ async function audioFor(m: Message): Promise<Blob | null> {
     const blob = await res.blob();
     if (blob.size < 1000) return null;
     ttsCache.set(key, blob);
+    saveClip(`vn1:${key}`, blob);
     return blob;
   } catch {
     return null;

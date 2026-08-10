@@ -45,6 +45,7 @@ export function useCallEngine(
   const watchSession = useRef<WatchSession | null>(null);
   const frameRef = useRef<{ url: string; at: number } | null>(null);
   const lastCommentAt = useRef(0);
+  const lastAnalyzedFrame = useRef(""); // static screens must cost zero
   const [heard, setHeard] = useState("");
   const [sttSupported, setSttSupported] = useState(true);
   const [elapsed, setElapsed] = useState(0);
@@ -471,6 +472,10 @@ export function useCallEngine(
       if (speakingRef.current || thinkingRef.current || mutedRef.current) return;
       if (Date.now() - lastCommentAt.current < 22_000) return; // cadence cap
       if (Date.now() - lastHeardAt.current < 4000) return; // they're talking
+      // unchanged screen = zero vision calls (a paused video / idle app
+      // yields byte-identical frames — nothing new to react to)
+      if (frame === lastAnalyzedFrame.current) return;
+      lastAnalyzedFrame.current = frame;
       const seqAt = turnSeq.current;
       const reply = await think(
         stateRef.current.user,

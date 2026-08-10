@@ -731,6 +731,51 @@ export function createStreamSpeaker(
   };
 }
 
+/* ── persistent TTS clip cache (IndexedDB): identical text+style is never
+   synthesized twice across sessions. Backchannels alone were six paid TTS
+   calls at EVERY call start; now they're paid once per install. ── */
+
+let clipDbPromise: Promise<IDBDatabase | null> | null = null;
+function clipDb(): Promise<IDBDatabase | null> {
+  if (clipDbPromise) return clipDbPromise;
+  clipDbPromise = new Promise((resolve) => {
+    try {
+      const req = indexedDB.open("meera-clips", 1);
+      req.onupgradeneeded = () => req.result.createObjectStore("clips");
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+  return clipDbPromise;
+}
+
+export async function cachedClip(key: string): Promise<Blob | null> {
+  const db = await clipDb();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const req = db.transaction("clips").objectStore("clips").get(key);
+      req.onsuccess = () => resolve(req.result instanceof Blob ? req.result : null);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+export function saveClip(key: string, blob: Blob) {
+  clipDb().then((db) => {
+    if (!db) return;
+    try {
+      db.transaction("clips", "readwrite").objectStore("clips").put(blob, key);
+    } catch {
+      /* cache is best-effort */
+    }
+  });
+}
+
 /* ── backchannels: soft listener sounds. Humans DON'T make a sound after
    every turn — these fire rarely, only after long user turns, and never
    twice in a row (the "constant humming" bug was exactly this). ── */
@@ -746,14 +791,21 @@ let lastFillerIdx = -1;
 
 export async function prefetchBackchannels(opts: VoiceOpts) {
   if (backchannelClips.length) return;
-  for (const b of BACKCHANNELS) {
-    const blob = await fetchClipFor(b, opts, SOFT_STYLE);
-    if (blob) backchannelClips.push(blob);
-  }
-  for (const f of FILLERS) {
-    const blob = await fetchClipFor(f, opts, SOFT_STYLE);
-    if (blob) fillerClips.push(blob);
-  }
+  const load = async (text: string, into: Blob[]) => {
+    const key = `bc1:${text}:${SOFT_STYLE}`;
+    const hit = await cachedClip(key);
+    if (hit) {
+      into.push(hit);
+      return;
+    }
+    const blob = await fetchClipFor(text, opts, SOFT_STYLE);
+    if (blob) {
+      into.push(blob);
+      saveClip(key, blob);
+    }
+  };
+  for (const b of BACKCHANNELS) await load(b, backchannelClips);
+  for (const f of FILLERS) await load(f, fillerClips);
 }
 
 // Played only if she's STILL silent well after the user finished — a human

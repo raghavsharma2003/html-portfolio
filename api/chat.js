@@ -23,9 +23,24 @@ export default async function handler(req, res) {
   if (!key) return res.status(500).json({ error: "no key configured" });
 
   try {
-    const { system, messages, model, max_tokens, stream, no_think } = req.body || {};
+    const { system, system_tail, messages, model, max_tokens, stream, no_think } = req.body || {};
     if (!system || !Array.isArray(messages) || !messages.length) {
       return res.status(400).json({ error: "system + messages required" });
+    }
+    // Prompt caching: the client sends the byte-stable persona core as
+    // `system` and the per-turn volatile part as `system_tail`. A
+    // cache_control breakpoint after the core makes Google serve it from
+    // cache — measured ~85% input-cost reduction (5473/5477 tokens cached,
+    // $0.0085 → ~$0.0012 per call in testing).
+    const systemContent = [
+      {
+        type: "text",
+        text: String(system).slice(0, 20000),
+        cache_control: { type: "ephemeral" },
+      },
+    ];
+    if (typeof system_tail === "string" && system_tail) {
+      systemContent.push({ type: "text", text: system_tail.slice(0, 8000) });
     }
     // payload cap: recent user photos legitimately ride as data URLs when a
     // storage upload failed, but the total request must stay bounded —
@@ -50,7 +65,7 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           model: typeof model === "string" && ALLOWED_MODEL.test(model) ? model : DEFAULT_MODEL,
-          messages: [{ role: "system", content: String(system).slice(0, 20000) }, ...messages.slice(-40)],
+          messages: [{ role: "system", content: systemContent }, ...messages.slice(-40)],
           max_tokens: Number.isFinite(max_tokens) ? Math.min(800, Math.max(50, max_tokens)) : 800,
           ...(wantStream ? { stream: true } : {}),
           // Bounded hidden thinking. Default (unbounded) reasoning grows with
