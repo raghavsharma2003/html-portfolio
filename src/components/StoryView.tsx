@@ -2,6 +2,10 @@
 // auto-advance ~5s, tap right/left thirds for next/prev, press-and-hold to
 // pause, swipe-down or ✕ to close, relative timestamp, ⋯ opens the account
 // sheet. Dark immersive chrome; the image is the whole screen.
+//
+// The segment clock IS the progress animation: a compositor transform that
+// reports its own end, instead of a 50ms interval driving twenty React
+// renders a second through a layout property.
 
 import { useEffect, useRef, useState } from "react";
 import { type Story, storySrc, storyAge, markStorySeen } from "../engine/storyCatalog";
@@ -9,6 +13,9 @@ import { HER_NAME } from "../engine/persona";
 import PhotoAvatar from "./PhotoAvatar";
 
 const SEGMENT_MS = 5200;
+
+// rubber-band: the further past the edge, the less it follows
+const band = (d: number, dim: number, c = 0.55) => (d * dim * c) / (dim + c * Math.abs(d));
 
 interface Props {
   stories: Story[];
@@ -22,13 +29,21 @@ interface Props {
 
 export default function StoryView({ stories, onClose, onProfile, signedIn, onSignIn }: Props) {
   const [idx, setIdx] = useState(0);
-  const [progress, setProgress] = useState(0); // 0..1 within current segment
   const [ready, setReady] = useState(false); // current image loaded
   const [gate, setGate] = useState(false); // sign-in offer before story #3
   const gateDismissed = useRef(false);
+  // pause is one attribute on the root now, not a ref consulted 20×/sec —
+  // the ref stays because the gesture handlers read it synchronously
+  const [pausedUI, setPausedUI] = useState(false);
   const paused = useRef(false);
+  const setPaused = (v: boolean) => {
+    paused.current = v;
+    setPausedUI(v);
+  };
   const holdTimer = useRef(0);
   const touchY = useRef(0);
+  const dragging = useRef(false);
+  const startedAt = useRef(0);
   const lastTouch = useRef(0); // touch-vs-ghost-mouse discrimination
   const mountedAt = useRef(Date.now()); // the tap that OPENED us must not act
   const cur = stories[Math.min(idx, stories.length - 1)];
@@ -38,38 +53,10 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
     if (cur) markStorySeen(cur.id);
   }, [cur]);
 
-  // segment clock — advances while not paused and the image is up
+  // a new segment starts unloaded — the bar only runs once the image is up
   useEffect(() => {
-    setProgress(0);
     setReady(false);
-    let last = performance.now();
-    let acc = 0;
-    const iv = setInterval(() => {
-      const now = performance.now();
-      const dt = now - last;
-      last = now;
-      if (paused.current || !readyRef.current) return;
-      acc += dt;
-      if (acc >= SEGMENT_MS) {
-        clearInterval(iv);
-        setIdx((i) => {
-          if (i + 1 >= stories.length) {
-            onClose();
-            return i;
-          }
-          return i + 1;
-        });
-      } else {
-        setProgress(acc / SEGMENT_MS);
-      }
-    }, 50);
-    return () => clearInterval(iv);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx]);
-
-  // ready flag needs a ref for the interval closure
-  const readyRef = useRef(false);
-  readyRef.current = ready;
 
   const go = (dir: 1 | -1) => {
     setIdx((i) => {
@@ -81,7 +68,7 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
       }
       // soft sign-in offer before the 3rd story — skippable, once
       if (dir === 1 && next >= 2 && !signedIn && !gateDismissed.current) {
-        paused.current = true;
+        setPaused(true);
         setGate(true);
         return i;
       }
@@ -91,9 +78,19 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
 
   const dismissGate = () => {
     gateDismissed.current = true;
-    paused.current = false;
+    setPaused(false);
     setGate(false);
     setIdx((i) => Math.min(i + 1, stories.length - 1));
+  };
+
+  // the drag is written straight onto the element — React has no business
+  // re-rendering a full-screen image at finger rate
+  const resetDrag = (el: HTMLElement, animated: boolean) => {
+    el.style.transition = animated
+      ? "transform 260ms var(--ease-out), opacity 260ms var(--ease-out)"
+      : "none";
+    el.style.transform = "";
+    el.style.opacity = "";
   };
 
   if (!cur) return null;
@@ -101,12 +98,30 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
   return (
     <div
       className="story-view"
+      {...(pausedUI ? { "data-paused": "" } : {})}
       onTouchStart={(e) => {
         lastTouch.current = Date.now();
         touchY.current = e.touches[0].clientY;
+        startedAt.current = Date.now();
+        dragging.current = false;
         holdTimer.current = window.setTimeout(() => {
-          paused.current = true;
+          setPaused(true);
         }, 180);
+      }}
+      onTouchMove={(e) => {
+        // feedback has to be continuous DURING the gesture, not only at the
+        // end — otherwise you either get nothing or you get a dismissal
+        const dy = e.touches[0].clientY - touchY.current;
+        if (dy <= 0) return;
+        if (dy > 10) {
+          dragging.current = true;
+          clearTimeout(holdTimer.current);
+        }
+        const y = band(dy, window.innerHeight);
+        const el = e.currentTarget as HTMLElement;
+        el.style.transition = "none";
+        el.style.transform = `translateY(${y}px) scale(${1 - y / 2600})`;
+        el.style.opacity = String(Math.max(0.35, 1 - y / 900));
       }}
       onTouchEnd={(e) => {
         // one tap must be ONE action: suppress the browser's compatibility
@@ -115,14 +130,28 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
         e.preventDefault();
         lastTouch.current = Date.now();
         clearTimeout(holdTimer.current);
-        if (Date.now() - mountedAt.current < 350) return; // opening tap's echo
+        const el = e.currentTarget as HTMLElement;
+        if (Date.now() - mountedAt.current < 350) {
+          resetDrag(el, false);
+          return; // opening tap's echo
+        }
         const dy = e.changedTouches[0].clientY - touchY.current;
-        if (dy > 70) {
-          onClose(); // swipe down closes, like insta
+        const v = Math.abs(dy) / Math.max(1, Date.now() - startedAt.current); // px/ms
+        // velocity, not distance: demanding 110px from someone who clearly
+        // flicked the screen away is a gesture that argues instead of obeys
+        if (dy > 110 || (dy > 24 && v > 0.11)) {
+          onClose();
           return;
         }
+        if (dragging.current) {
+          dragging.current = false;
+          resetDrag(el, true);
+          setPaused(false);
+          return; // it was a drag that didn't commit, never a tap
+        }
+        resetDrag(el, false);
         if (paused.current) {
-          paused.current = false; // it was a hold-to-pause, not a tap
+          setPaused(false); // it was a hold-to-pause, not a tap
           return;
         }
         const x = e.changedTouches[0].clientX;
@@ -131,7 +160,7 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
       onMouseDown={() => {
         if (Date.now() - lastTouch.current < 700) return; // ghost of a touch
         holdTimer.current = window.setTimeout(() => {
-          paused.current = true;
+          setPaused(true);
         }, 180);
       }}
       onMouseUp={(e) => {
@@ -139,7 +168,7 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
         clearTimeout(holdTimer.current);
         if (Date.now() - mountedAt.current < 350) return; // opening tap's echo
         if (paused.current) {
-          paused.current = false;
+          setPaused(false);
           return;
         }
         go(e.clientX < window.innerWidth / 3 ? -1 : 1);
@@ -147,12 +176,17 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
     >
       <div className="story-bars">
         {stories.map((s, i) => (
-          <div key={s.id} className="story-bar">
-            <i
-              style={{
-                width: i < idx ? "100%" : i === idx ? `${progress * 100}%` : "0%",
-              }}
-            />
+          <div
+            key={`${s.id}-${idx}`} // remount restarts the fill
+            className="story-bar"
+            style={{ "--seg": `${SEGMENT_MS}ms` } as React.CSSProperties}
+            data-state={i < idx ? "done" : i === idx && ready ? "active" : "idle"}
+            // the segment ends when the animation does, not when a clock says so
+            onAnimationEnd={() => {
+              if (i === idx) go(1);
+            }}
+          >
+            <i />
           </div>
         ))}
       </div>

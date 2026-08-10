@@ -2,6 +2,7 @@
 // replies, photo moments, idle nudges, presence cues.
 
 import { useEffect, useRef, useState } from "react";
+import { animate } from "framer-motion";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think } from "../engine/brain";
@@ -17,6 +18,7 @@ import BigEmoji, { isSingleEmoji } from "./BigEmoji";
 import VoiceNote, { registerLocalClip } from "./VoiceNote";
 import GifBubble from "./GifBubble";
 import { listen, sttSupported } from "../voice/speech";
+import { tap } from "../native/haptics";
 import { PhoneIcon, SendIcon, BroomIcon, TickIcon, MicIcon, CameraIcon } from "./icons";
 
 interface Props {
@@ -64,6 +66,12 @@ const typeDelay = (bubble: string) => {
 export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }: Props) {
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
+  // the indicator holds for one exit beat while the bubble enters underneath
+  // it — she was typing, now the words are there. Unmounting it on the same
+  // frame the message lands is a teleport, and it happens on every reply.
+  const [typingOut, setTypingOut] = useState(false);
+  const followsTyping = useRef<string[]>([]);
+  const TYPING_EXIT_MS = 140;
   const [clearArm, setClearArm] = useState(false);
   // transient inline notice ("couldn't read that photo", "mic access needed")
   const [notice, setNotice] = useState("");
@@ -264,10 +272,20 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     const stale = () => {
       if (ep !== epoch.current) {
         setTyping(false);
+        setTypingOut(false);
         busy.current = false;
         return true;
       }
       return false;
+    };
+    // the indicator leaves, the bubble arrives 90ms into that exit (the CSS
+    // carries the delay) — the two read as one object, not two events
+    const handoffTyping = async (id: string) => {
+      setTypingOut(true);
+      followsTyping.current = [...followsTyping.current.slice(-7), id];
+      await sleep(TYPING_EXIT_MS);
+      setTyping(false);
+      setTypingOut(false);
     };
     await sleep(readDelay(incoming));
     if (stale()) return;
@@ -279,8 +297,9 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       setTyping(true);
       await sleep(typeDelay(bubble));
       if (stale()) return;
-      setTyping(false);
       const msg: Message = { id: uid(), from: "her", kind: "text", text: bubble, at: Date.now() };
+      await handoffTyping(msg.id);
+      if (stale()) return;
       delivered.push(msg);
       pushMsg(msg);
       await sleep(280 + Math.random() * 420);
@@ -290,7 +309,6 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       setTyping(true);
       await sleep(2200 + Math.random() * 1200); // "recording..." beat
       if (stale()) return;
-      setTyping(false);
       const clean = reply.voice.text.replace(/\[[a-z ]+\]/gi, "").trim();
       const msg: Message = {
         id: uid(),
@@ -301,6 +319,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         dur: Math.max(2, Math.round(clean.split(/\s+/).length / 2.4)),
         at: Date.now(),
       };
+      await handoffTyping(msg.id);
+      if (stale()) return;
       delivered.push(msg);
       pushMsg(msg);
     }
@@ -309,7 +329,6 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       setTyping(true);
       await sleep(900 + Math.random() * 700);
       if (stale()) return;
-      setTyping(false);
       const msg: Message = {
         id: uid(),
         from: "her",
@@ -317,6 +336,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         text: reply.gif.query,
         at: Date.now(),
       };
+      await handoffTyping(msg.id);
+      if (stale()) return;
       delivered.push(msg);
       pushMsg(msg);
     }
@@ -330,15 +351,17 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       setTyping(true);
       await sleep(1600);
       if (stale()) return;
-      setTyping(false);
-      pushMsg({
+      const photo: Message = {
         id: uid(),
         from: "her",
         kind: "photo",
         text: reply.photo.caption,
         photoSeed: reply.photo.seed,
         at: Date.now(),
-      });
+      };
+      await handoffTyping(photo.id);
+      if (stale()) return;
+      pushMsg(photo);
     }
     busy.current = false;
   }
@@ -503,14 +526,25 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   // 10px dead zone, ~3x direction lock, 48px trigger with re-armable haptic,
   // damped tracking past the trigger capped at 80px, 180ms decelerate
   // spring-back. touch-action: pan-y on the list keeps scrolling native.
-  const swipe = useRef({ x: 0, y: 0, dx: 0, active: false, dead: false, fired: false });
+  const swipe = useRef({ x: 0, y: 0, dx: 0, active: false, dead: false, fired: false, startedAt: 0 });
+  const release = useRef<{ stop: () => void } | null>(null);
   function swipeHandlers(m: Message) {
     return {
       onTouchStart: (e: React.TouchEvent) => {
+        release.current?.stop(); // a new grab always beats the spring-back
+        release.current = null;
         const t = e.touches[0];
         // browser back/forward gesture zone — leave edge touches alone
         const dead = t.clientX < 20 || t.clientX > window.innerWidth - 20;
-        swipe.current = { x: t.clientX, y: t.clientY, dx: 0, active: false, dead, fired: false };
+        swipe.current = {
+          x: t.clientX,
+          y: t.clientY,
+          dx: 0,
+          active: false,
+          dead,
+          fired: false,
+          startedAt: Date.now(),
+        };
       },
       onTouchMove: (e: React.TouchEvent) => {
         const s = swipe.current;
@@ -532,11 +566,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         if (Math.abs(s.dx) >= 48) {
           if (!s.fired) {
             s.fired = true;
-            try {
-              navigator.vibrate?.(10);
-            } catch {
-              /* iOS has no vibrate */
-            }
+            tap(); // a commit threshold you cannot see mid-gesture
           }
         } else {
           s.fired = false; // re-arm like Telegram
@@ -545,13 +575,26 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       onTouchEnd: (e: React.TouchEvent) => {
         const s = swipe.current;
         const el = e.currentTarget as HTMLElement;
-        el.style.transition = "transform 0.18s cubic-bezier(0, 0, 0.2, 1)";
-        el.style.transform = "";
+        // the release inherits the velocity the finger had: a flick returns
+        // fast, a slow drag returns slowly. Bounce 0.12 is the low end of
+        // the sanctioned range and is correct here — the gesture carried
+        // momentum, so a little overshoot reads as physical.
+        el.style.transition = "none";
+        if (s.active) {
+          const v = s.dx / Math.max(1, Date.now() - s.startedAt); // px/ms
+          release.current = animate(
+            el,
+            { transform: "translateX(0px)" },
+            { type: "spring", duration: 0.42, bounce: 0.12, velocity: v * 1000 },
+          );
+        } else {
+          el.style.transform = "";
+        }
         if (s.active && Math.abs(s.dx) >= 48) {
           setReplyTo(m);
           setReplySel(null);
         }
-        swipe.current = { x: 0, y: 0, dx: 0, active: false, dead: false, fired: false };
+        swipe.current = { x: 0, y: 0, dx: 0, active: false, dead: false, fired: false, startedAt: 0 };
       },
     };
   }
@@ -612,6 +655,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       setRecSecs(0);
       setRecPaused(false);
       setRecording(true);
+      tap(); // confirms the mic opened before you start talking
     } catch {
       showNotice("mic access needed — allow the microphone and try again");
     }
@@ -742,6 +786,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   // call turns never render — a call is spoken, not written. Only the
   // "📞 Voice call" record shows (she still remembers everything said).
   const visible = messages.filter((m) => m.channel !== "call");
+  // a bubble that took over from the typing indicator waits one exit beat
+  // before it starts (the delay lives in CSS)
+  const followsAttr = (m: Message) =>
+    m.from === "her" && followsTyping.current.includes(m.id)
+      ? { "data-follows-typing": "" }
+      : {};
   const rows: React.ReactNode[] = [];
   let lastDay = "";
   for (let i = 0; i < visible.length; i++) {
@@ -766,7 +816,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       );
     } else if (m.kind === "voice") {
       rows.push(
-        <div key={m.id} className={`msg ${m.from} voice`} {...swipeHandlers(m)}>
+        <div key={m.id} className={`msg ${m.from} voice`} {...followsAttr(m)} {...swipeHandlers(m)}>
           <VoiceNote m={m} />
           {(lastOfGroup || m.from === "me") && (
             <span className="t">
@@ -778,7 +828,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       );
     } else if (m.kind === "gif") {
       rows.push(
-        <div key={m.id} className={`msg ${m.from} gifmsg`} {...swipeHandlers(m)}>
+        <div key={m.id} className={`msg ${m.from} gifmsg`} {...followsAttr(m)} {...swipeHandlers(m)}>
           <GifBubble
             m={m}
             onResolved={(id, url) =>
@@ -803,7 +853,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
             </span>
           </div>
         ) : (
-          <div key={m.id} className="msg her photo" {...swipeHandlers(m)}>
+          <div key={m.id} className="msg her photo" {...followsAttr(m)} {...swipeHandlers(m)}>
             <PhotoCard seed={m.photoSeed || m.text} />
             <div className="cap">{m.text}</div>
           </div>
@@ -816,6 +866,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
           key={m.id}
           className={`msg ${m.from} ${emojiOnly ? "emoji-big" : ""} ${replySel === m.id ? "sel" : ""}`}
           onClick={() => setReplySel((cur) => (cur === m.id ? null : m.id))}
+          {...followsAttr(m)}
           {...swipeHandlers(m)}
         >
           {replySel === m.id && (
@@ -879,15 +930,20 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         </div>
         <div className="who">
           <div className="name">{HER_NAME}</div>
-          {typing ? (
-            <div className="status typing">typing…</div>
-          ) : herOnline ? (
-            <div className="status">
-              <span className="dot" /> online
-            </div>
-          ) : (
-            <div className="status">last seen {lastSeenLabel(state.lastSeen)}</div>
-          )}
+          {/* ONE node whose contents change — typing → online → last seen
+              dissolves. Rendering three sibling nodes would remount the
+              element and the transition would never run. */}
+          <div className={`status ${typing ? "typing" : ""}`}>
+            {typing ? (
+              "typing…"
+            ) : herOnline ? (
+              <>
+                <span className="dot" /> online
+              </>
+            ) : (
+              `last seen ${lastSeenLabel(state.lastSeen)}`
+            )}
+          </div>
         </div>
         <button className="icon-btn" onClick={onVoiceCall} aria-label="Voice call">
           <PhoneIcon />
@@ -921,7 +977,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       <div className="chat-scroll" ref={scrollRef}>
         {rows}
         {typing && (
-          <div className="typing-bubble">
+          <div className="typing-bubble" {...(typingOut ? { "data-leaving": "" } : {})}>
             <i />
             <i />
             <i />

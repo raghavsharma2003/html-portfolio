@@ -13,6 +13,7 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { TextToSpeech } from "@capacitor-community/text-to-speech";
 import { SpeechRecognition as NativeSR } from "@capgo/capacitor-speech-recognition";
+import { attachAnalyser } from "./level";
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -181,6 +182,7 @@ function speechOut(): AudioNode {
   if (!audioCtx) return null as unknown as AudioNode;
   if (!speechBus) {
     speechBus = audioCtx.createGain();
+    attachAnalyser("her", audioCtx, speechBus); // presence UI reads her real voice
     speechBus.connect(audioCtx.destination);
   }
   return speechBus;

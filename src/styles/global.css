@@ -7,6 +7,9 @@
   --bg: #f5f5f7;            /* app ground (iOS grouped background) */
   --surface: #ffffff;       /* cards, sheets, header */
   --surface-2: #eeeef0;     /* her bubbles, wells */
+  /* contrast roles on --bg: ink 15.8:1, ink-dim 4.68:1, ink-faint 2.97:1.
+     ALL secondary text (timestamps, placeholders, status) takes --ink-dim;
+     --ink-faint is non-text only — hairlines, inactive dots, large glyphs. */
   --ink: #1d1d1f;
   --ink-dim: #6e6e73;
   --ink-faint: #8e8e93;
@@ -26,6 +29,21 @@
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* motion — curves are fixed values, never hand-rolled. Every duration in
+     the app maps onto one of these five steps; if a value doesn't fit a
+     step, the value is wrong, not the scale. UI motion stays under 300ms —
+     only --d-sheet exceeds it, and only for screen-height travel. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* entrances, exits, default */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* on-screen movement */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* sheets, iOS drawer feel */
+  --ease-arrive: cubic-bezier(0.16, 1, 0.3, 1); /* long marketing arrival */
+
+  --d-press: 140ms; /* :active feedback */
+  --d-tap: 180ms; /* chips, toggles, small state */
+  --d-state: 220ms; /* bubbles, notices, popovers */
+  --d-veil: 240ms; /* scrims */
+  --d-sheet: 380ms; /* sheets, call enter */
 }
 
 * {
@@ -142,7 +160,8 @@ button {
   font-weight: 600;
   letter-spacing: -0.01em;
   box-shadow: 0 8px 24px -10px rgba(224, 53, 107, 0.45);
-  transition: transform 0.15s ease, background 0.15s ease, opacity 0.15s;
+  transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease,
+    opacity var(--d-tap) ease;
 }
 .btn-primary:active {
   transform: scale(0.97);
@@ -161,7 +180,7 @@ button {
   color: var(--ink);
   font-size: 15px;
   font-weight: 500;
-  transition: background 0.15s;
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
 }
 .btn-ghost:active {
   background: var(--surface-2);
@@ -175,7 +194,8 @@ button {
   color: var(--ink);
   font-size: 15px;
   font-weight: 500;
-  transition: all 0.18s ease;
+  transition: background var(--d-tap) ease, border-color var(--d-tap) ease,
+    color var(--d-tap) ease, transform var(--d-press) var(--ease-out);
 }
 .chip.on {
   background: var(--accent-soft);
@@ -238,7 +258,7 @@ button {
   background: var(--surface);
 }
 .onb input.field::placeholder {
-  color: var(--ink-faint);
+  color: var(--ink-dim);
 }
 
 .chip-row {
@@ -291,7 +311,8 @@ button {
   height: 7px;
   border-radius: 50%;
   background: var(--hairline-strong);
-  transition: all 0.3s;
+  /* width costs layout — tolerated on a 7px first-run dot, never repeated */
+  transition: width var(--d-state) var(--ease-out), background var(--d-state) ease;
 }
 .onb-dots i.on {
   width: 22px;
@@ -331,16 +352,31 @@ button {
 }
 .chat-head .who .status {
   font-size: 12.5px;
-  color: var(--ink-faint);
+  color: var(--ink-dim);
   display: flex;
   align-items: center;
   gap: 5px;
+  /* typing → online → last seen dissolves; the node is never remounted */
+  transition: opacity var(--d-state) var(--ease-out), color var(--d-state) ease;
 }
 .chat-head .who .status .dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--ok);
+  /* she is present, not notified at you — slow enough to read as breath */
+  animation: presence-breathe 3.8s ease-in-out infinite;
+}
+@keyframes presence-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.28);
+    opacity: 1;
+  }
 }
 .chat-head .who .status.typing {
   color: var(--accent);
@@ -355,14 +391,17 @@ button {
   justify-content: center;
   background: transparent;
   color: var(--accent);
-  transition: all 0.15s;
+  transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease;
   flex-shrink: 0;
 }
-.icon-btn:hover {
-  background: var(--accent-soft);
+/* on touch, :hover sticks after a tap — gate it behind a real pointer */
+@media (hover: hover) and (pointer: fine) {
+  .icon-btn:hover {
+    background: var(--accent-soft);
+  }
 }
 .icon-btn:active {
-  transform: scale(0.9);
+  transform: scale(0.95);
   background: var(--accent-soft);
 }
 
@@ -374,33 +413,62 @@ button {
   padding: 18px 16px 10px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  /* spacing lives on .msg + .msg alone — two compounding mechanisms make
+     the rhythm unreadable from the source */
+  gap: 0;
   background: linear-gradient(180deg, #fafafc 0%, #f5f5f7 30%);
 }
 
 .day-sep {
   align-self: center;
-  margin: 18px 0 12px;
+  margin: 22px 0 14px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--ink-faint);
+  color: var(--ink-dim);
 }
 
 /* iMessage-grade bubbles: middle-of-group fully rounded, the tail corner
    only on the LAST bubble of a same-sender run (via :has lookahead). */
+/* The most-seen animation in the product: no overshoot, under the 300ms
+   ceiling, and a transition (not a keyframe) so bursts of bubbles retarget
+   instead of restarting from zero. */
 .msg {
   max-width: 76%;
   padding: 9px 14px;
   font-size: 16.5px;
-  line-height: 1.35;
-  letter-spacing: -0.012em;
+  line-height: 1.42;
+  letter-spacing: -0.005em;
   word-wrap: break-word;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
-  animation: msg-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.12);
+  cursor: pointer;
   position: relative;
+  transition: opacity var(--d-state) var(--ease-out), transform var(--d-state) var(--ease-out);
 }
+@starting-style {
+  /* Chrome 117+/Safari 17.5+ — where it's missing the bubble simply appears */
+  .msg {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+}
+/* your bubble is confirmation of something you did — nearly instant;
+   hers is an arrival, and earns a beat. Each grows from its own tail. */
+.msg.me {
+  transform-origin: 100% 100%;
+  transition-duration: 120ms;
+}
+.msg.her {
+  transform-origin: 0% 100%;
+  transition-duration: 220ms;
+}
+.msg.her.photo,
+.msg.her.gifmsg {
+  transition-duration: 260ms; /* larger surface, longer travel */
+}
+/* the entrance still used by notices and chips */
 @keyframes msg-in {
   from { opacity: 0; transform: translateY(9px) scale(0.96); }
   to { opacity: 1; transform: none; }
@@ -418,7 +486,8 @@ button {
 
 .msg.me {
   align-self: flex-end;
-  background: linear-gradient(180deg, #ef4f81 0%, var(--accent) 100%);
+  /* flat, compositable — a gradient across 38px resolves to nothing */
+  background: var(--accent);
   color: #ffffff;
   border-radius: 20px 20px 6px 20px;
   box-shadow: 0 1px 2px rgba(224, 53, 107, 0.18);
@@ -428,23 +497,30 @@ button {
   box-shadow: none;
 }
 
+/* tight groups, generous separation — nearly 1:5, which is what makes a
+   conversation scan as turns rather than as a list of lines */
 .msg + .msg {
-  margin-top: 2px;
+  margin-top: 3px;
 }
 .msg.her + .msg.me,
 .msg.me + .msg.her {
-  margin-top: 10px;
+  margin-top: 14px;
 }
 
-.msg {
-  overflow-wrap: anywhere;
-}
 .msg .t {
   display: block;
   font-size: 10.5px;
   margin-top: 3px;
-  opacity: 0.72;
+  opacity: 0.72; /* on .me: white tinted from the foreground — correct */
   text-align: right;
+}
+/* off my rose bubble the opacity compounds with an inherited colour and the
+   computed value stops being knowable — state it instead */
+.msg.her .t,
+.msg.photo .t,
+.msg.gifmsg .t {
+  opacity: 1;
+  color: var(--ink-dim);
 }
 
 /* voice notes — WhatsApp-style player bubble */
@@ -526,7 +602,11 @@ button {
   border-radius: 15px;
   background: linear-gradient(100deg, #ececef 40%, #f6f6f8 50%, #ececef 60%);
   background-size: 200% 100%;
-  animation: gif-shimmer 1.2s infinite;
+  /* background-position is a paint every frame — a view() timeline pauses it
+     the moment it scrolls out of a long conversation */
+  animation: gif-shimmer 1.2s linear infinite;
+  animation-timeline: view();
+  animation-play-state: running;
 }
 @keyframes gif-shimmer {
   to { background-position: -200% 0; }
@@ -542,7 +622,7 @@ button {
   color: #fff;
   font-size: 13.5px;
   text-align: center;
-  animation: msg-in 0.25s ease;
+  animation: msg-in var(--d-state) var(--ease-out);
 }
 
 /* voice-note recording bar */
@@ -594,6 +674,10 @@ button {
   font-size: 14px;
   color: var(--ink-dim);
   padding: 6px 10px;
+  transition: transform var(--d-press) var(--ease-out);
+}
+.rec-pause {
+  transition: transform var(--d-press) var(--ease-out);
 }
 .send-btn.mic {
   background: var(--accent-soft);
@@ -613,15 +697,12 @@ button {
   color: var(--ink-dim);
 }
 .call-chip .ct {
-  color: var(--ink-faint);
+  color: var(--ink-dim);
   font-size: 11.5px;
   margin-left: 4px;
 }
 
 /* WhatsApp-style quotes: tap a bubble → reply chip → quoted compose */
-.msg {
-  cursor: pointer;
-}
 .msg .quote {
   display: block;
   border-left: 3px solid var(--accent);
@@ -667,11 +748,21 @@ button {
   font-weight: 600;
   box-shadow: var(--shadow-float);
   border: 0.5px solid var(--hairline);
-  animation: msg-in 0.18s ease;
+  /* it came out of the bubble you tapped — 0.9, never 0: nothing in the
+     real world appears from nothing */
+  transform-origin: 0 100%;
+  transition: opacity var(--d-tap) var(--ease-out), transform var(--d-tap) var(--ease-out);
+}
+@starting-style {
+  .reply-chip {
+    opacity: 0;
+    transform: scale(0.9);
+  }
 }
 .msg.me .reply-chip {
   left: auto;
   right: 0;
+  transform-origin: 100% 100%;
 }
 .reply-bar {
   display: flex;
@@ -735,7 +826,8 @@ button {
 }
 .msg.emoji-big .t {
   text-align: inherit;
-  color: var(--ink-faint);
+  opacity: 1;
+  color: var(--ink-dim);
 }
 
 .msg.photo {
@@ -766,10 +858,12 @@ button {
   gap: 4px;
   padding: 3px 8px 2px;
   font-size: 11px;
-  color: var(--ink-faint);
+  color: var(--ink-dim);
   white-space: nowrap;
 }
 
+/* she was typing, now the words are there: the indicator leaves as the
+   bubble enters underneath it, instead of teleporting on the same frame */
 .typing-bubble {
   align-self: flex-start;
   display: flex;
@@ -777,7 +871,21 @@ button {
   padding: 15px 17px;
   background: var(--surface-2);
   border-radius: 5px 18px 18px 18px;
-  animation: msg-in 0.25s ease;
+  transform-origin: 0% 100%;
+  transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out);
+}
+@starting-style {
+  .typing-bubble {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+.typing-bubble[data-leaving] {
+  opacity: 0;
+  transform: scale(0.94);
+}
+.msg.her[data-follows-typing] {
+  transition-delay: 90ms; /* one exit-length behind the indicator */
 }
 .typing-bubble i {
   width: 7px;
@@ -786,8 +894,11 @@ button {
   background: var(--ink-faint);
   animation: bounce 1.2s infinite;
 }
-.typing-bubble i:nth-child(2) { animation-delay: 0.15s; }
-.typing-bubble i:nth-child(3) { animation-delay: 0.3s; }
+/* three slightly different periods never realign — the rhythm keeps
+   shifting, the way a hand does. Identical loops are a machine. */
+.typing-bubble i:nth-child(1) { animation-duration: 1.15s; animation-delay: 0s; }
+.typing-bubble i:nth-child(2) { animation-duration: 1.28s; animation-delay: 0.13s; }
+.typing-bubble i:nth-child(3) { animation-duration: 1.21s; animation-delay: 0.27s; }
 @keyframes bounce {
   0%, 60%, 100% { transform: none; opacity: 0.5; }
   30% { transform: translateY(-5px); opacity: 1; }
@@ -822,10 +933,10 @@ button {
   color: var(--ink-faint);
   flex-shrink: 0;
   margin-right: 2px;
-  transition: color 0.15s, transform 0.15s;
+  transition: color var(--d-tap) ease, transform var(--d-press) var(--ease-out);
 }
 .attach-btn:active {
-  transform: scale(0.88);
+  transform: scale(0.95);
   color: var(--accent);
 }
 .chat-input:focus-within {
@@ -844,7 +955,7 @@ button {
   line-height: 1.4;
 }
 .chat-input textarea::placeholder {
-  color: var(--ink-faint);
+  color: var(--ink-dim);
 }
 
 .send-btn {
@@ -857,17 +968,20 @@ button {
   justify-content: center;
   color: #ffffff;
   flex-shrink: 0;
-  transition: transform 0.15s, opacity 0.2s;
+  transition: transform var(--d-press) var(--ease-out), opacity var(--d-tap) ease;
   margin-bottom: 2px;
 }
 .send-btn:active {
-  transform: scale(0.9);
+  transform: scale(0.95);
 }
 .send-btn.off {
   opacity: 0.3;
 }
 
-/* ─── Calls — photo-forward, deliberately dark (FaceTime convention) ─── */
+/* ─── Calls — photo-forward, deliberately dark. The subject is a face, and
+   a dark ground is how you look at a face. But warm-dark, not the neutral
+   near-black every video app has shipped since 2016: a little red in every
+   frame, and a faint bloom behind her head. ─── */
 
 .call {
   position: absolute;
@@ -875,10 +989,10 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: #0e0d0f;
+  background: radial-gradient(120% 90% at 50% 34%, #241619 0%, #150e10 58%, #100b0c 100%);
   color: #f5f5f7;
   z-index: 20;
-  animation: call-in 0.35s ease;
+  animation: call-in var(--d-sheet) var(--ease-out);
 }
 @keyframes call-in {
   from { opacity: 0; transform: scale(1.03); }
@@ -923,38 +1037,48 @@ button {
   background: #1c1b1e;
 }
 
-.speak-glow {
-  position: absolute;
-  inset: -24px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(224, 53, 107, 0.35), transparent 70%);
-  filter: blur(20px);
-  opacity: 0;
-  transition: opacity 0.4s;
-  pointer-events: none;
-}
-.speak-glow.on {
-  opacity: 1;
-  animation: pulse-glow 1.6s ease-in-out infinite;
-}
-@keyframes pulse-glow {
-  50% { transform: scale(1.1); }
+/* ── the presence field: breath at rest, rings driven by real amplitude ── */
+@property --pr-hue {
+  /* a registered custom property is what lets the hue crossfade between
+     states instead of snapping */
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.16);
 }
 
-.wave {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 40px;
-  margin-top: 28px;
+.presence {
+  position: relative;
+  display: grid;
+  place-items: center;
+  transition: --pr-hue 400ms var(--ease-out);
 }
-.wave i {
-  width: 4px;
-  border-radius: 3px;
-  background: rgba(245, 245, 247, 0.8);
-  height: 8px;
-  transition: height 0.12s ease;
+.pr-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, transparent 57%, var(--pr-hue) 71%, transparent 85%);
+  opacity: 0.1;
+  will-change: transform, opacity;
+  pointer-events: none;
 }
+.pr-face {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  will-change: transform;
+}
+/* inside a Presence the wrapper owns the breath — the photo must not
+   run its own loop against it */
+.pr-face .pa-circle img {
+  animation: none;
+}
+
+.presence[data-phase="idle"] { --pr-hue: rgba(255, 255, 255, 0.16); }
+.presence[data-phase="listening"] { --pr-hue: rgba(255, 255, 255, 0.24); }
+.presence[data-phase="hearing"] { --pr-hue: rgba(252, 175, 69, 0.46); }
+.presence[data-phase="thinking"] { --pr-hue: rgba(199, 138, 255, 0.34); }
+.presence[data-phase="speaking"] { --pr-hue: rgba(224, 53, 107, 0.56); }
 
 .call-caption {
   min-height: 54px;
@@ -972,6 +1096,17 @@ button {
   gap: 20px;
   align-items: center;
   padding-bottom: calc(var(--safe-bottom) + 40px);
+  /* hardware recedes: the chrome fades when you stop touching it and comes
+     back the instant you do */
+  transition: transform var(--d-sheet) var(--ease-out);
+}
+.call[data-chrome="off"] .call-controls {
+  transform: translateY(6px);
+}
+/* dimming is per-button, not on the group: never trap anyone — the exit
+   keeps full contrast and full hit area at all times */
+.call[data-chrome="off"] .cbtn:not(.danger) {
+  opacity: 0.28;
 }
 
 .cbtn {
@@ -984,10 +1119,9 @@ button {
   background: rgba(255, 255, 255, 0.14);
   color: #ffffff;
   backdrop-filter: blur(16px);
-  transition: all 0.15s;
 }
 .cbtn:active {
-  transform: scale(0.92);
+  transform: scale(0.95);
 }
 .cbtn.danger {
   background: var(--danger);
@@ -1054,7 +1188,7 @@ button {
   inset: 0;
   background: rgba(0, 0, 0, 0.32);
   z-index: 30;
-  animation: veil-in 0.22s ease;
+  animation: veil-in var(--d-veil) var(--ease-out);
 }
 @keyframes veil-in {
   from { opacity: 0; }
@@ -1121,7 +1255,7 @@ button {
 }
 
 .fade-in {
-  animation: fade 0.4s ease;
+  animation: fade var(--d-state) var(--ease-out);
 }
 @keyframes fade {
   from { opacity: 0; }
@@ -1151,7 +1285,7 @@ button {
   font-size: 16px;
   font-weight: 600;
   margin-top: 18px;
-  transition: background 0.15s, transform 0.15s;
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
 }
 .auth-google:active {
   transform: scale(0.98);
@@ -1162,7 +1296,7 @@ button {
   align-items: center;
   gap: 14px;
   margin: 18px 0;
-  color: var(--ink-faint);
+  color: var(--ink-dim);
   font-size: 13px;
 }
 .auth-or::before,
@@ -1186,7 +1320,8 @@ button {
   font-size: 14.5px;
   font-weight: 600;
   color: var(--ink-dim);
-  transition: all 0.18s;
+  transition: background var(--d-tap) ease, color var(--d-tap) ease,
+    box-shadow var(--d-tap) ease, transform var(--d-press) var(--ease-out);
 }
 .auth-seg button.on {
   background: var(--surface);
@@ -1209,7 +1344,8 @@ button {
   font-size: 24px;
   font-weight: 700;
   outline: none;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color var(--d-tap) ease, background var(--d-tap) ease,
+    transform var(--d-press) var(--ease-out);
 }
 .otp-box:focus {
   border-color: var(--accent);
@@ -1223,7 +1359,7 @@ button {
 }
 .auth-fine {
   text-align: center;
-  color: var(--ink-faint);
+  color: var(--ink-dim);
   font-size: 12.5px;
   margin-top: 12px;
 }
@@ -1233,6 +1369,7 @@ button {
   color: var(--accent);
   font-size: 14.5px;
   font-weight: 500;
+  transition: transform var(--d-press) var(--ease-out);
 }
 .auth-id {
   display: flex;
@@ -1266,6 +1403,74 @@ button {
   margin-top: 2px;
 }
 
+/* ─── Her photographic avatar ─────────────────────────────────────────────
+   Lives here, not in PhotoAvatar.tsx: rendering <style>{paCss}</style> from
+   inside the component injected one duplicate stylesheet per mounted avatar
+   (three of them on the story screen alone).
+
+   There is no speaking loop. A fixed 0.9s scale pulse repeats identically
+   through a one-word "haan" and a four-sentence answer, which is the
+   opposite of speech — Presence drives scale from real amplitude instead. */
+
+.pa-circle {
+  position: relative;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #1a0f22;
+}
+.pa-circle img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  /* breath stays only where Presence isn't mounted: the chat header and
+     the story header avatars */
+  animation: pa-breathe 5.2s ease-in-out infinite;
+  transform-origin: 50% 40%;
+}
+.pa-cover {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #0b0710;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pa-cover .pa-bgfill {
+  position: absolute;
+  inset: -10%;
+  width: 120%;
+  height: 120%;
+  object-fit: cover;
+  filter: blur(46px) brightness(0.5) saturate(1.1);
+}
+.pa-cover .pa-feed {
+  position: relative;
+  width: 100%;
+  max-height: 78%;
+  object-fit: contain;
+  display: block;
+  animation: pa-drift 16s ease-in-out infinite alternate;
+  transform-origin: 50% 40%;
+}
+.pa-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 100% at 50% 45%, transparent 55%, rgba(11, 7, 16, 0.55) 100%),
+    linear-gradient(to bottom, rgba(11, 7, 16, 0.35), transparent 22%, transparent 68%, rgba(11, 7, 16, 0.6));
+}
+@keyframes pa-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.018); }
+}
+@keyframes pa-drift {
+  0% { transform: scale(1) translate(0.3%, 0); }
+  100% { transform: scale(1.035) translate(-0.4%, -0.5%); }
+}
+
 /* ─── Her story (insta-style) ─── */
 
 /* live unseen story: vivid rose→amber ring; seen: quiet grey ring */
@@ -1290,7 +1495,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: story-in 0.22s ease;
+  animation: story-in var(--d-state) var(--ease-out);
   user-select: none;
   touch-action: none;
 }
@@ -1319,11 +1524,31 @@ button {
   background: rgba(255, 255, 255, 0.32);
   overflow: hidden;
 }
+/* the segment clock is the animation itself — a compositor transform, not
+   twenty React renders a second writing a percentage width */
 .story-bar i {
   display: block;
   height: 100%;
+  width: 100%;
   background: #fff;
   border-radius: 2px;
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  will-change: transform;
+}
+.story-bar[data-state="done"] i {
+  transform: scaleX(1);
+}
+.story-bar[data-state="active"] i {
+  /* linear is right here and is one of the few places it is: a progress
+     indicator reports elapsed time, and easing it would make it lie */
+  animation: story-fill var(--seg, 5200ms) linear forwards;
+}
+.story-view[data-paused] .story-bar i {
+  animation-play-state: paused;
+}
+@keyframes story-fill {
+  to { transform: scaleX(1); }
 }
 .story-head {
   position: absolute;
@@ -1354,6 +1579,7 @@ button {
   color: #fff;
   font-size: 19px;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  transition: transform var(--d-press) var(--ease-out);
 }
 .story-spin {
   position: absolute;
@@ -1376,7 +1602,7 @@ button {
   gap: 18px;
   background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(14px);
-  animation: story-in 0.2s ease;
+  animation: story-in var(--d-state) var(--ease-out);
 }
 .story-gate p {
   color: #fff;
@@ -1391,16 +1617,6 @@ button {
 
 /* ─── watch-together polish ─── */
 
-/* soft amber presence glow while she's watching your screen */
-.speak-glow.watch:not(.on) {
-  opacity: 0.55;
-  background: radial-gradient(circle, rgba(252, 175, 69, 0.28), transparent 70%);
-  animation: watch-breathe 3.2s ease-in-out infinite;
-}
-@keyframes watch-breathe {
-  50% { transform: scale(1.06); opacity: 0.75; }
-}
-
 .watch-chip {
   display: flex;
   align-items: center;
@@ -1412,7 +1628,7 @@ button {
   backdrop-filter: blur(16px);
   color: rgba(245, 245, 247, 0.85);
   font-size: 13.5px;
-  animation: msg-in 0.3s ease;
+  animation: msg-in var(--d-state) var(--ease-out);
 }
 .watch-chip i {
   width: 7px;
@@ -1422,28 +1638,106 @@ button {
   animation: rec-pulse 1.6s infinite;
 }
 
+/* the gradient fill already says "active" — an infinite box-shadow ring
+   paints every frame and composites never */
 .cbtn.watch-on {
   background: linear-gradient(135deg, #e0356b, #f77737);
   color: #fff;
-  box-shadow: 0 0 0 0 rgba(247, 119, 55, 0.5);
-  animation: watch-ring 2.2s ease-out infinite;
-}
-@keyframes watch-ring {
-  0% { box-shadow: 0 0 0 0 rgba(247, 119, 55, 0.45); }
-  70% { box-shadow: 0 0 0 14px rgba(247, 119, 55, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(247, 119, 55, 0); }
 }
 
 /* smoother state label + control transitions across the call UI */
 .call-top .cstate {
-  transition: opacity 0.25s ease;
+  transition: opacity var(--d-state) ease;
 }
 .cbtn {
-  transition: transform 0.15s ease, background 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;
+  transition: transform var(--d-press) var(--ease-out), background var(--d-state) ease,
+    box-shadow var(--d-state) ease, color var(--d-state) ease, opacity var(--d-sheet) var(--ease-out);
 }
-.cbtn svg {
-  transition: transform 0.2s ease;
+
+/* ─── press feedback: one scale for every interactive surface ─────────────
+   0.97 everywhere, 0.95 on the small circular icon buttons where the extra
+   depth reads correctly on a round target. scale() takes the icon with the
+   button, so the whole thing reads as one physical press. This is what pays
+   for the global -webkit-tap-highlight-color: transparent above. */
+.btn-ghost:active,
+.chip:active,
+.auth-seg button:active,
+.rec-cancel:active,
+.auth-back:active {
+  transform: scale(0.97);
 }
-.cbtn:active svg {
-  transform: scale(0.9);
+.otp-box:active,
+.rec-pause:active,
+.story-btn:active {
+  transform: scale(0.95);
+}
+
+/* ─── the surfaces the browser draws ───────────────────────────────────── */
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+.msg.me ::selection {
+  background: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+textarea,
+input {
+  caret-color: var(--accent);
+}
+/* without this a keyboard user is simply lost */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* ─── reduced motion: fewer and gentler, not zero ──────────────────────────
+   Opacity and colour still carry meaning, so they stay. Spatial travel and
+   every ambient infinite loop go. */
+@media (prefers-reduced-motion: reduce) {
+  .msg,
+  .chat-notice,
+  .reply-chip,
+  .watch-chip,
+  .story-gate,
+  .sheet {
+    animation: none !important;
+    transition: opacity var(--d-state) ease !important;
+  }
+  .sheet {
+    transform: none !important;
+  }
+  .call {
+    animation: none;
+  }
+
+  /* every ambient loop stops */
+  .pa-circle img,
+  .pa-cover .pa-feed,
+  .status .dot,
+  .rec-dot,
+  .watch-chip i,
+  .gif-loading {
+    animation: none !important;
+  }
+  .gif-loading {
+    background: var(--surface-2);
+  }
+
+  /* presence field: opacity only — no breath, no scale (the rAF loop in
+     Presence.tsx bails out on the same query) */
+  .presence .pr-ring {
+    transition: opacity var(--d-state) ease;
+  }
+
+  /* the typing indicator still has to read as activity */
+  .typing-bubble i {
+    animation: typing-fade 1.4s ease-in-out infinite !important;
+  }
+}
+@keyframes typing-fade {
+  0%,
+  100% { opacity: 0.35; }
+  50% { opacity: 1; }
 }

@@ -20,9 +20,13 @@
     <a class="btn btn-small" href="/chat">Start chatting</a>
   </nav>
 
-  <!-- Hero: split, left copy / right live product -->
+  <!-- Hero: split, left copy / right the product actually running.
+       No reveal on either half — this is above the fold, and animating in
+       content the visitor is already looking at delays the message for
+       nothing. The one authored moment on this page is the conversation
+       playing itself, below. -->
   <header class="hero" id="top">
-    <div class="hero-copy reveal">
+    <div class="hero-copy">
       <h1>Someone to talk to.<br /><em>Really</em> talk to.</h1>
       <p class="sub">Meera texts in Hinglish, calls in a human voice, and remembers what matters to you. Right here, in your browser.</p>
       <div class="cta-row">
@@ -30,17 +34,33 @@
       </div>
       <p class="fine" style="margin-top:14px">Free. No account. No install.</p>
     </div>
-    <div class="hero-device reveal">
+    <div class="hero-device">
       <div class="phone">
-        <img src="/assets/chat.png" alt="Meera chatting in Hinglish" />
+        <!-- The markup below IS the fallback: with JS off, or with reduced
+             motion on, the exchange is simply there, already finished. -->
+        <div class="screen" id="demo" aria-label="A conversation with Meera">
+          <div class="screen-head">
+            <img class="screen-av" src="/assets/meera.jpg" alt="" />
+            <div class="screen-who">
+              <b>Meera</b>
+              <span class="screen-status"><i></i> online</span>
+            </div>
+          </div>
+          <div class="thread" id="thread">
+            <div class="b me">kya kar rahi ho</div>
+            <div class="b her">kuch nahi yaar, chai bana rahi thi</div>
+            <div class="b her">tum batao, din kaisa gaya?</div>
+          </div>
+          <div class="composer"><span>Message Meera…</span><i></i></div>
+        </div>
       </div>
     </div>
   </header>
 
   <!-- Her camera roll — real moments she shares -->
   <section class="roll-section">
-    <h2 class="reveal">She has days worth sharing.</h2>
-    <p class="roll-sub reveal">Ask her what she's up to, and sometimes a photo comes back.</p>
+    <h2>She has days worth sharing.</h2>
+    <p class="roll-sub">Ask her what she's up to, and sometimes a photo comes back.</p>
     <div class="roll">
       <figure class="reveal"><img src="/assets/meera-walk.jpg" alt="Meera on an evening walk" /><figcaption>evening walk 🌿</figcaption></figure>
       <figure class="reveal"><img src="/assets/meera-beach.jpg" alt="Meera at the beach at sunset" /><figcaption>goa wali shaam</figcaption></figure>
@@ -51,7 +71,7 @@
 
   <!-- Honesty + final CTA, folded together to keep the page tight -->
   <section class="final">
-    <div class="reveal">
+    <div>
       <h2>Say hi to Meera.</h2>
       <a class="btn btn-big" href="/chat">Start chatting</a>
       <p class="fine" style="max-width:520px;margin:22px auto 0">
@@ -69,10 +89,89 @@
   </footer>
 
   <script>
+    // The camera roll is the one place a stagger belongs: four things that
+    // genuinely appear as a group. Everything else on this page is simply
+    // there when you get to it.
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
     }, { threshold: 0.18 });
     document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+  </script>
+
+  <script>
+    // ── the hero conversation plays itself ───────────────────────────────
+    // Same bubble shapes, same typing indicator, and the app's own human
+    // rhythm: readDelay and typeDelay are ported verbatim from Chat.tsx —
+    // ~4 words/sec reading before the dots appear, ~15 chars/sec typing
+    // with jitter. The lines are mundane on purpose; the mundanity is the
+    // pitch, and a fabricated best-case would be a lie about what she is.
+    (function () {
+      const thread = document.getElementById("thread");
+      const phone = document.getElementById("demo");
+      if (!thread || !phone) return;
+
+      // the static markup is the script AND the no-JS/reduced-motion result
+      const script = [...thread.children].map((el) => ({
+        from: el.classList.contains("me") ? "me" : "her",
+        text: el.textContent.trim(),
+      }));
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const readDelay = (incoming) => {
+        const words = incoming.split(/\s+/).filter(Boolean).length;
+        return Math.min(3000, Math.max(600, (words / 4) * 1000));
+      };
+      const typeDelay = (bubble) => {
+        const jitter = 0.8 + Math.random() * 0.5;
+        return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
+      };
+
+      thread.textContent = "";
+      let typingEl = null;
+      const showTyping = () => {
+        typingEl = document.createElement("div");
+        typingEl.className = "typing";
+        typingEl.innerHTML = "<i></i><i></i><i></i>";
+        thread.appendChild(typingEl);
+      };
+      const hideTyping = () => {
+        if (!typingEl) return;
+        // she was typing, now the words are there — one object, not two
+        typingEl.setAttribute("data-leaving", "");
+        const el = typingEl;
+        typingEl = null;
+        setTimeout(() => el.remove(), 140);
+      };
+      const append = (line) => {
+        const el = document.createElement("div");
+        el.className = "b " + line.from;
+        el.textContent = line.text;
+        thread.appendChild(el);
+      };
+
+      async function play() {
+        let prev = "";
+        for (const line of script) {
+          if (line.from === "her") {
+            await sleep(readDelay(prev));
+            showTyping();
+            await sleep(typeDelay(line.text));
+            hideTyping();
+            await sleep(90);
+          }
+          append(line);
+          prev = line.text;
+          await sleep(280 + Math.random() * 420);
+        }
+      }
+
+      // once, when the phone comes into view — a conversation that restarts
+      // forever is a screensaver, not a demo
+      new IntersectionObserver(([e], obs) => {
+        if (e.isIntersecting) { obs.disconnect(); play(); }
+      }, { threshold: 0.4 }).observe(phone);
+    })();
   </script>
 </body>
 </html>

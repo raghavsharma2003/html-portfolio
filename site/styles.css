@@ -1,4 +1,39 @@
-/* Meera landing — light, Apple-grade. One accent, system type, real imagery. */
+/* Meera landing — light, Apple-grade. One accent, real imagery, and one
+   display face of its own. */
+
+/* ── display type ─────────────────────────────────────────────────────────
+   Inside the app the system stack is correct: it ships optical sizing and
+   tracking tables, and an Operate surface benefits from feeling native. The
+   landing page is a Persuade surface with its own world to establish, and
+   "SF Pro Display" resolves to the same stack as "SF Pro Text" everywhere
+   except Apple hardware — so on Android and most desktops a 58px headline
+   was being set in the system UI font.
+
+   One face, headings only (nothing below 24px), latin subset, self-hosted,
+   font-display: swap. Instrument Sans, SIL OFL 1.1 — see assets/fonts/OFL.txt. */
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("/assets/fonts/instrument-sans-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* The swap must not move the hero. Instrument Sans and the system fallbacks
+   already agree on x-height (0.510 vs Arial 0.519) and cap-height (0.720 vs
+   0.716), so size stays at 100% — what differs is the vertical line box, and
+   these overrides pin it to the real face's metrics (970/-250/0 per 1000upem).
+   Lowercase runs ~7% wider in the real face, which changes line length, not
+   layout height: the hero's breaks are authored with <br>. */
+@font-face {
+  font-family: "Display Fallback";
+  src: local("Helvetica Neue"), local("Arial"), local("Roboto"), local("Segoe UI");
+  ascent-override: 97%;
+  descent-override: 25%;
+  line-gap-override: 0%;
+}
 
 :root {
   --ink: #1d1d1f;
@@ -10,7 +45,15 @@
   --accent-deep: #c22a5b;
   --hairline: rgba(0, 0, 0, 0.08);
   --shadow-device: 0 24px 80px -24px rgba(0, 0, 0, 0.28);
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  /* headings only — existing size-specific tracking carries over unchanged */
+  --font-display: "Instrument Sans", "Display Fallback", var(--font);
+
+  /* the same curves and steps the app uses — a landing page that moves
+     differently from the product it sells is two products */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-arrive: cubic-bezier(0.16, 1, 0.3, 1);
+  --d-state: 220ms;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -27,9 +70,16 @@ body {
 
 img { max-width: 100%; display: block; }
 
-/* reveal motion */
-.reveal { opacity: 0; transform: translateY(26px); transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1); }
+/* reveal motion — kept for the camera roll alone: four figures that really
+   do appear as a group, so they get a real stagger instead of firing as one
+   block. One identical entrance repeated on every section is not a motion
+   thesis, it is a default applied nine times. */
+.reveal { opacity: 0; transform: translateY(26px); transition: opacity 0.7s var(--ease-arrive), transform 0.7s var(--ease-arrive); }
 .reveal.in { opacity: 1; transform: none; }
+.roll figure.reveal { transition-delay: 0ms; }
+.roll figure.reveal:nth-child(2) { transition-delay: 45ms; }
+.roll figure.reveal:nth-child(3) { transition-delay: 90ms; }
+.roll figure.reveal:nth-child(4) { transition-delay: 135ms; }
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1; transform: none; transition: none; }
   .phone.lift { transform: none !important; }
@@ -96,13 +146,16 @@ img { max-width: 100%; display: block; }
   min-height: calc(100dvh - 64px);
 }
 .hero-copy h1 {
+  font-family: var(--font-display);
   font-size: clamp(38px, 4.6vw, 58px);
   line-height: 1.05;
   letter-spacing: -0.03em;
   font-weight: 700;
   text-wrap: balance;
 }
-.hero-copy h1 em { font-style: italic; color: var(--accent); }
+/* the display face has no true italic, so the browser obliques it — the
+   slant then eats the word space on the right. Give it back optically. */
+.hero-copy h1 em { font-style: italic; color: var(--accent); padding-right: 0.07em; }
 .hero-copy .sub {
   margin-top: 22px;
   font-size: 20px;
@@ -123,6 +176,143 @@ img { max-width: 100%; display: block; }
   margin: 0 auto;
 }
 .phone img { border-radius: 35px; }
+
+/* ── the hero conversation: the product itself, not a screenshot of it ──
+   Bubble shapes, spacing and typing indicator match the app exactly. */
+.screen {
+  border-radius: 35px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #fafafc 0%, #f5f5f7 30%);
+  /* shorter than a real handset on purpose: the exchange is three lines and
+     a taller frame would hang most of the hero on empty ground */
+  aspect-ratio: 9 / 16;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  color: var(--ink);
+}
+.screen-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 14px 12px;
+  background: rgba(250, 250, 252, 0.9);
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.07);
+}
+.screen-av { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
+.screen-who b { display: block; font-size: 15px; font-weight: 650; letter-spacing: -0.015em; }
+.screen-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+}
+.screen-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34c759;
+  animation: presence-breathe 3.8s ease-in-out infinite;
+}
+@keyframes presence-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.75; }
+  50% { transform: scale(1.28); opacity: 1; }
+}
+.thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 14px 12px 10px;
+  overflow: hidden;
+}
+.thread .b {
+  max-width: 78%;
+  padding: 8px 13px;
+  font-size: 15px;
+  line-height: 1.42;
+  letter-spacing: -0.005em;
+  transition: opacity var(--d-state) var(--ease-out), transform var(--d-state) var(--ease-out);
+}
+@starting-style {
+  .thread .b { opacity: 0; transform: translateY(6px) scale(0.985); }
+}
+.thread .b.her {
+  align-self: flex-start;
+  background: #e9e9eb;
+  border-radius: 18px 18px 18px 5px;
+  transform-origin: 0% 100%;
+}
+.thread .b.me {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 18px 18px 5px 18px;
+  transform-origin: 100% 100%;
+  transition-duration: 120ms; /* your own message is a confirmation */
+}
+/* the tail corner belongs to the LAST bubble of a run, same as the app */
+.thread .b.her:has(+ .b.her) { border-radius: 18px; }
+.thread .b.her + .b.her, .thread .b.me + .b.me { margin-top: 3px; }
+.thread .b.me + .b.her, .thread .b.her + .b.me { margin-top: 14px; }
+.thread .typing {
+  align-self: flex-start;
+  display: flex;
+  gap: 5px;
+  padding: 13px 15px;
+  margin-top: 14px;
+  background: #eeeef0;
+  border-radius: 5px 18px 18px 18px;
+  transform-origin: 0% 100%;
+  transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out);
+}
+@starting-style {
+  .thread .typing { opacity: 0; transform: scale(0.94); }
+}
+.thread .typing[data-leaving] { opacity: 0; transform: scale(0.94); }
+.thread .typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8e8e93;
+  animation: dot-bounce 1.2s infinite;
+}
+/* three periods that never realign — identical loops are a machine */
+.thread .typing i:nth-child(1) { animation-duration: 1.15s; animation-delay: 0s; }
+.thread .typing i:nth-child(2) { animation-duration: 1.28s; animation-delay: 0.13s; }
+.thread .typing i:nth-child(3) { animation-duration: 1.21s; animation-delay: 0.27s; }
+@keyframes dot-bounce {
+  0%, 60%, 100% { transform: none; opacity: 0.5; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 16px;
+  background: rgba(255, 255, 255, 0.9);
+  border-top: 1px solid var(--hairline);
+}
+.composer span {
+  flex: 1;
+  padding: 9px 14px;
+  border-radius: 22px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: #fff;
+  color: var(--ink-faint);
+  font-size: 13.5px;
+}
+.composer i {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen-status i, .thread .typing i { animation: none; }
+}
 .phone.small { width: min(250px, 62vw); border-radius: 36px; padding: 8px; }
 .phone.small img { border-radius: 29px; }
 .phone.lift { transform: translateY(-26px); }
@@ -134,6 +324,7 @@ img { max-width: 100%; display: block; }
   text-align: center;
 }
 .trio-section h2 {
+  font-family: var(--font-display);
   font-size: clamp(32px, 4vw, 48px);
   letter-spacing: -0.025em;
   font-weight: 700;
@@ -166,6 +357,7 @@ img { max-width: 100%; display: block; }
   margin: 0 auto;
 }
 .split-copy h2 {
+  font-family: var(--font-display);
   font-size: clamp(30px, 3.6vw, 44px);
   letter-spacing: -0.025em;
   font-weight: 700;
@@ -188,6 +380,7 @@ img { max-width: 100%; display: block; }
   text-align: center;
 }
 .roll-section h2 {
+  font-family: var(--font-display);
   font-size: clamp(32px, 4vw, 48px);
   letter-spacing: -0.025em;
   font-weight: 700;
@@ -233,6 +426,7 @@ img { max-width: 100%; display: block; }
   margin: 0 auto;
 }
 .bento-section h2 {
+  font-family: var(--font-display);
   font-size: clamp(32px, 4vw, 48px);
   letter-spacing: -0.025em;
   font-weight: 700;
@@ -281,6 +475,7 @@ img { max-width: 100%; display: block; }
 }
 .honesty > div { max-width: 720px; margin: 0 auto; }
 .honesty h2 {
+  font-family: var(--font-display);
   font-size: clamp(30px, 3.6vw, 44px);
   letter-spacing: -0.025em;
   font-weight: 700;
@@ -291,6 +486,7 @@ img { max-width: 100%; display: block; }
 /* final */
 .final { padding: 140px 24px; text-align: center; }
 .final h2 {
+  font-family: var(--font-display);
   font-size: clamp(36px, 5vw, 60px);
   letter-spacing: -0.03em;
   font-weight: 700;

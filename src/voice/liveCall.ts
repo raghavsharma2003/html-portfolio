@@ -7,6 +7,8 @@
 // The cascade engine (STT→LLM→TTS) remains the fallback: startLiveCall
 // rejects or calls onEnded("failed"), and the caller falls back seamlessly.
 
+import { attachAnalyser, detachAnalyser } from "./level";
+
 const WS_BASE =
   "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";
 
@@ -62,6 +64,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   src.connect(proc);
   proc.connect(sink);
   sink.connect(inCtx.destination);
+  attachAnalyser("you", inCtx, src); // presence UI reads YOUR real amplitude
   proc.onaudioprocess = (e) => {
     if (dead || !ready || muted || !ws || ws.readyState !== WebSocket.OPEN) return;
     const input = e.inputBuffer.getChannelData(0);
@@ -88,6 +91,10 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
 
   // ── downlink: 24k PCM chunks → gapless WebAudio playback ──
   const outCtx = new AudioContext();
+  // every chunk passes this bus, so the presence UI reads HER real amplitude
+  const outBus = outCtx.createGain();
+  attachAnalyser("her", outCtx, outBus);
+  outBus.connect(outCtx.destination);
   let playhead = 0;
   let liveSources: AudioBufferSourceNode[] = [];
   let speakingUntil = 0;
@@ -106,7 +113,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     }
     const s = outCtx.createBufferSource();
     s.buffer = buf;
-    s.connect(outCtx.destination);
+    s.connect(outBus);
     const at = Math.max(outCtx.currentTime + 0.03, playhead);
     s.start(at);
     playhead = at + buf.duration;
@@ -161,6 +168,8 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       /* already gone */
     }
     stream.getTracks().forEach((t) => t.stop());
+    detachAnalyser("her");
+    detachAnalyser("you");
     inCtx.close().catch(() => {});
     outCtx.close().catch(() => {});
     try {
