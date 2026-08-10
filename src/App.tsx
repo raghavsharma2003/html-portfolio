@@ -70,9 +70,19 @@ export default function App() {
     const current = document.querySelector<HTMLScriptElement>("script[src*='assets/index-']")?.src;
     if (!current) return;
     let pending = false;
-    const maybeReload = () => {
-      if (pending && document.hidden && !inCallRef.current) location.reload();
+    let lastInput = Date.now();
+    const noteInput = () => {
+      lastInput = Date.now();
     };
+    window.addEventListener("pointerdown", noteInput, true);
+    window.addEventListener("keydown", noteInput, true);
+    const maybeReload = () => {
+      if (!pending || inCallRef.current) return;
+      // hidden tab → reload now; visible tab → reload once the user has
+      // been idle a while (a stale tab kept showing already-fixed bugs)
+      if (document.hidden || Date.now() - lastInput > 45_000) location.reload();
+    };
+    const idleIv = setInterval(maybeReload, 10_000);
     const check = async () => {
       try {
         const html = await fetch(`${location.pathname}?u=${Date.now()}`, { cache: "no-store" }).then(
@@ -96,6 +106,9 @@ export default function App() {
     check();
     return () => {
       clearInterval(iv);
+      clearInterval(idleIv);
+      window.removeEventListener("pointerdown", noteInput, true);
+      window.removeEventListener("keydown", noteInput, true);
       document.removeEventListener("visibilitychange", onVis);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -156,6 +156,9 @@ export function parseBubbles(raw: string): HeartReply {
       continue;
     }
     if (META_LEAK.test(p)) continue; // leaked internal monologue — never shown
+    // tail of a mangled marker ("ide eye cat]"): a short line ending with a
+    // bracket it never opened is protocol shrapnel, not conversation
+    if (/\]\s*$/.test(p) && !p.includes("[") && p.length < 60) continue;
     out.bubbles.push(...splitLong(p.replace(/^["']|["']$/g, "")));
   }
   out.bubbles = out.bubbles.slice(0, 4);
@@ -168,7 +171,8 @@ export function parseBubbles(raw: string): HeartReply {
   // The fallback itself must pass the leak filter too.
   if (!out.bubbles.length && !out.photo && !out.voice && !out.gif) {
     const residual = raw.replace(/\s+/g, " ").trim().slice(0, 300);
-    out.bubbles = [residual && !META_LEAK.test(residual) ? residual : "hmm?"];
+    const shrapnel = /\]\s*$/.test(residual) && !residual.includes("[");
+    out.bubbles = [residual && !META_LEAK.test(residual) && !shrapnel ? residual : "hmm?"];
   }
   return out;
 }

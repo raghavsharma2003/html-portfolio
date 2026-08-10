@@ -124,6 +124,9 @@ function migrateMessages(messages: Message[]): Message[] {
     .map((m) => {
       if (m.kind !== "text" || m.from !== "her") return m;
       if (leak.test(m.text)) return { ...m, text: "" }; // filtered out below
+      // marker shrapnel from older builds ("ide eye cat]") — erase
+      if (/\]\s*$/.test(m.text) && !m.text.includes("[") && m.text.length < 60)
+        return { ...m, text: "" };
       const gm = m.text.match(/^\[sent a meme gif:\s*([^\]]+)\]$/i);
       if (gm) return { ...m, kind: "gif" as const, text: gm[1].trim(), gifUrl: undefined };
       const stripped = m.text
