@@ -4,7 +4,10 @@
 import { GOOGLE_KEY } from "./_config.js";
 import { allow, ipOf } from "./_ratelimit.js";
 
-export const LIVE_MODEL = "models/gemini-2.5-flash-native-audio-latest";
+// NOT the "-latest" alias: it points at a thinking-heavy preview that takes
+// 3-5.5s to first audio. The 09-2025 native-audio preview with thinking
+// disabled measures ~890ms — the floor for this API.
+export const LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-09-2025";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");

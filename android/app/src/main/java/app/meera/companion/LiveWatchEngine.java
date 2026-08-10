@@ -547,6 +547,9 @@ class LiveWatchEngine {
   private String setupMessage() throws Exception {
     JSONObject gen = new JSONObject();
     gen.put("responseModalities", new JSONArray().put("AUDIO"));
+    // thinking before speaking = seconds of dead air (measured 3-5.5s vs
+    // ~0.9s without) — a co-watcher reacts, she doesn't deliberate
+    gen.put("thinkingConfig", new JSONObject().put("thinkingBudget", 0));
     JSONObject speech = new JSONObject();
     speech.put(
         "voiceConfig",
@@ -555,9 +558,9 @@ class LiveWatchEngine {
     gen.put("speechConfig", speech);
 
     JSONObject vad = new JSONObject();
-    // co-watching: she must yield the instant they start talking, and commit
-    // their turn fast — a 450ms tail beats the 800ms default for banter
-    vad.put("startOfSpeechSensitivity", "START_SENSITIVITY_HIGH");
+    // default start sensitivity: HIGH made every reel sound and breath cut
+    // her off mid-word. Sustained real speech still takes the floor; the
+    // 450ms tail keeps turn commits fast.
     vad.put("silenceDurationMs", 450);
     vad.put("prefixPaddingMs", 60);
 

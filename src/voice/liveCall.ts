@@ -124,17 +124,43 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     };
     opts.onState("speaking");
   };
+  // Humans don't gate off mid-syllable when talked over — they trail off.
+  // On barge-in her voice DISSOLVES over ~220ms, then the queue clears.
   const flushPlayback = () => {
-    for (const s of liveSources) {
-      try {
-        s.stop();
-      } catch {
-        /* already done */
-      }
-    }
+    const doomed = liveSources;
     liveSources = [];
     playhead = 0;
     speakingUntil = 0;
+    try {
+      const t = outCtx.currentTime;
+      outBus.gain.cancelScheduledValues(t);
+      outBus.gain.setValueAtTime(outBus.gain.value, t);
+      outBus.gain.linearRampToValueAtTime(0.0001, t + 0.22);
+      setTimeout(() => {
+        for (const s of doomed) {
+          try {
+            s.stop();
+          } catch {
+            /* already done */
+          }
+        }
+        try {
+          const t2 = outCtx.currentTime;
+          outBus.gain.cancelScheduledValues(t2);
+          outBus.gain.setValueAtTime(1, t2); // ready for her next turn
+        } catch {
+          /* ctx closed */
+        }
+      }, 240);
+    } catch {
+      for (const s of doomed) {
+        try {
+          s.stop();
+        } catch {
+          /* already done */
+        }
+      }
+    }
     opts.onState("listening");
   };
   // she's "listening" again once the queued audio drains
@@ -194,6 +220,9 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
             model,
             generationConfig: {
               responseModalities: ["AUDIO"],
+              // she must SPEAK, not deliberate — thinking added seconds of
+              // dead air before every reply (measured 3-5.5s vs ~0.9s)
+              thinkingConfig: { thinkingBudget: 0 },
               speechConfig: {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
                 languageCode: "hi-IN",
@@ -204,8 +233,9 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
             outputAudioTranscription: {},
             realtimeInputConfig: {
               automaticActivityDetection: {
-                // catch their barge-in FAST, commit their turn quickly
-                startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
+                // default start sensitivity: HIGH made her stop dead for every
+                // breath and "hmm" — a human keeps talking through those. Real
+                // sustained speech still interrupts her (now with a dissolve).
                 silenceDurationMs: 450,
                 prefixPaddingMs: 60,
               },
