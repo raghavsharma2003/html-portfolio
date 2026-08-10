@@ -63,6 +63,7 @@ class WatchEngine {
   private volatile String latestFrame = null;
   private volatile String lastAnalyzed = null;
   private SpeechRecognizer recognizer;
+  private PipedRecognizer piped; // beep-free continuous lane (API 33+)
   private AudioTrack player;
   private AudioFocusRequest focus;
   private volatile boolean micDead = false;
@@ -88,11 +89,44 @@ class WatchEngine {
   void start() {
     running = true;
     lastCommentAt = System.currentTimeMillis(); // no instant commentary
-    main.post(this::startRecognizer);
+    if (PipedRecognizer.supported(ctx)) {
+      // we own the mic and pipe PCM to the recognizer: no system earcons
+      // ("tun tun") every few seconds, no dead-mic restart windows
+      piped =
+          new PipedRecognizer(
+              ctx,
+              new PipedRecognizer.Callbacks() {
+                @Override
+                public void onPartial(String cumulativeText) {
+                  lastUserSpokeAt = System.currentTimeMillis();
+                }
+
+                @Override
+                public void onSegment(String text) {
+                  if (running && text != null && !text.trim().isEmpty()) {
+                    lastUserSpokeAt = System.currentTimeMillis();
+                    onUserSpoke(text.trim());
+                  }
+                }
+
+                @Override
+                public void onDown(boolean fatal) {
+                  piped = null;
+                  if (running) main.post(WatchEngine.this::startRecognizer); // legacy rung
+                }
+              });
+      piped.start();
+    } else {
+      main.post(this::startRecognizer);
+    }
   }
 
   void stop() {
     running = false;
+    if (piped != null) {
+      piped.stop();
+      piped = null;
+    }
     main.post(() -> {
       if (recognizer != null) {
         try {
@@ -335,10 +369,13 @@ class WatchEngine {
   private void speak(String text, String tone) {
     speaking = true;
     BubbleService.setState(ctx, BubbleService.STATE_SPEAKING);
+    // half-duplex: never hear our own voice. Piped lane just writes silence
+    // (capture continues, zero restart cost); legacy lane cancels + re-arms.
+    if (piped != null) piped.setMuted(true);
     main.post(() -> {
       if (recognizer != null) {
         try {
-          recognizer.cancel(); // half-duplex: never hear our own voice
+          recognizer.cancel();
         } catch (Exception ignored) {}
       }
     });
@@ -353,7 +390,11 @@ class WatchEngine {
       } finally {
         speaking = false;
         BubbleService.setState(ctx, BubbleService.STATE_WATCHING);
-        main.post(() -> restartSoon(200));
+        if (piped != null) {
+          piped.setMuted(false); // mic never stopped — just unmute
+        } else {
+          main.post(() -> restartSoon(200));
+        }
       }
     });
   }

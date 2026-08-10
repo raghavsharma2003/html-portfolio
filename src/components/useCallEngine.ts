@@ -23,6 +23,7 @@ import {
   playBackchannel,
   playPickup,
   prewarmSpeech,
+  getSttMode,
   playThinkingFiller,
   startRoomTone,
   stopRoomTone,
@@ -94,6 +95,7 @@ export function useCallEngine(
   const turnSeq = useRef(0);
   const lastHeardAt = useRef(0);
   const listenerBcAt = useRef(0); // last mid-turn listener backchannel
+  const sttConsume = useRef<(() => void) | null>(null);
   const reengageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlapStart = useRef(0); // when user speech over her speech began
   const reengaged = useRef(0); // continuation nudges this silence stretch
@@ -276,8 +278,11 @@ export function useCallEngine(
 
   // 75ms endpointing tick (web SR only — native STT endpoints itself)
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) return;
     const iv = setInterval(() => {
+      // web SR and the beep-free continuous native mic both stream interims
+      // and rely on this tick to decide when the turn ended; the legacy
+      // native loop self-endpoints and delivers finals directly
+      if (Capacitor.isNativePlatform() && getSttMode() !== "callmic") return;
       const a = acc.current;
       const text = (a.finals + " " + a.interim).trim();
       if (!text || !a.lastAt || speakingRef.current) return;
@@ -297,6 +302,7 @@ export function useCallEngine(
       }
       if (waited >= commitDelay(text)) {
         acc.current = { finals: "", interim: "", lastAt: 0 };
+        sttConsume.current?.(); // continuous mic: don't re-deliver these words
         handleUser(text);
       }
     }, 75);
@@ -425,7 +431,7 @@ export function useCallEngine(
         // pending silence-nudge (noise blips shouldn't kill it)
         if (reengageTimer.current) clearTimeout(reengageTimer.current);
         setHeard(text);
-        if (web) {
+        if (web || getSttMode() === "callmic") {
           // accumulate; the endpointing tick decides when the turn is over
           if (final) {
             acc.current.finals = (acc.current.finals + " " + text).trim();
@@ -475,6 +481,7 @@ export function useCallEngine(
     }
     srStartedAt.current = Date.now();
     stopListen.current = res.stop || null;
+    sttConsume.current = res.consume || null;
     listeningRef.current = true;
     setListening(true);
   }

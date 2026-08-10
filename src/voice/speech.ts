@@ -10,11 +10,27 @@
 //
 // STT: native Android SpeechRecognition (WebView has none), web SR fallback.
 
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { TextToSpeech } from "@capacitor-community/text-to-speech";
 import { SpeechRecognition as NativeSR } from "@capgo/capacitor-speech-recognition";
 
 const isNative = Capacitor.isNativePlatform();
+
+/* ── beep-free continuous mic (Android 13+): the native CallMic plugin owns
+   the microphone and pipes PCM straight into the recognizer. The system
+   earcons ("tun tun") only play when Google's service opens the mic itself —
+   with the pipe they never fire. One session spans the whole call: no
+   restart gaps, and the mic stays hot even while she speaks. ── */
+interface CallMicNative {
+  available(): Promise<{ supported: boolean; micGranted: boolean }>;
+  start(): Promise<void>;
+  setMuted(o: { muted: boolean }): Promise<void>;
+  stop(): Promise<void>;
+  addListener(ev: "micpartial", cb: (d: { text: string }) => void): Promise<unknown>;
+  addListener(ev: "micsegment", cb: (d: { text: string }) => void): Promise<unknown>;
+  addListener(ev: "micerror", cb: (d: { fatal?: boolean }) => void): Promise<unknown>;
+}
+const CallMic = registerPlugin<CallMicNative>("CallMic");
 
 export interface VoiceOpts {
   elevenKey?: string;
@@ -995,7 +1011,87 @@ if (typeof window !== "undefined" && window.speechSynthesis) {
 
 /* ─────────────────────────── STT ─────────────────────────── */
 
-type STTResult = { supported: boolean; stop?: () => void };
+type STTResult = {
+  supported: boolean;
+  stop?: () => void;
+  // continuous-mic sessions deliver a growing transcript; after the engine
+  // commits a turn it calls consume() so already-committed words are never
+  // re-delivered as fresh speech
+  consume?: () => void;
+};
+
+// which STT lane is live — the engine's endpointing tick runs for "web" and
+// "callmic" (both stream interims), while the legacy native loop self-endpoints
+let activeSttMode: "web" | "native-loop" | "callmic" = "web";
+export const getSttMode = () => activeSttMode;
+
+type CallMicHandler = {
+  onText: (text: string, final: boolean) => void;
+  onEnd: (reason?: string) => void;
+  done: boolean;
+  segBase: number; // chars of the current segment already committed upstream
+  lastFull: string;
+};
+let callMicSupported: boolean | null = null;
+let callMicWired = false;
+let callMicRunning = false;
+let cmCurrent: CallMicHandler | null = null;
+
+async function callMicUsable(): Promise<boolean> {
+  if (!isNative) return false;
+  if (callMicSupported === false) return false;
+  try {
+    const r = await CallMic.available();
+    if (!r.supported) {
+      callMicSupported = false;
+      return false;
+    }
+    // permission not granted yet → legacy path owns the prompt this time;
+    // don't cache, the grant may exist by the next call
+    if (!r.micGranted) return false;
+    callMicSupported = true;
+    return true;
+  } catch {
+    callMicSupported = false;
+    return false;
+  }
+}
+
+async function wireCallMicOnce() {
+  if (callMicWired) return;
+  callMicWired = true;
+  await CallMic.addListener("micpartial", ({ text }) => {
+    const h = cmCurrent;
+    if (!h || h.done || !text) return;
+    if (text.length < h.segBase) h.segBase = 0; // upstream session recycled
+    h.lastFull = text;
+    const fresh = text.slice(h.segBase).trim();
+    if (fresh) h.onText(fresh, false);
+  });
+  await CallMic.addListener("micsegment", ({ text }) => {
+    const h = cmCurrent;
+    if (!h || h.done) return;
+    const full = text && text.length >= h.lastFull.length ? text : h.lastFull;
+    const fresh = full.slice(h.segBase).trim();
+    h.segBase = 0;
+    h.lastFull = "";
+    // segment close = recognizer's own endpoint; usually the tick already
+    // committed everything (fresh empty). Deliver any remainder as FINAL so
+    // it lands in the accumulator's finals and survives a new segment
+    // starting before the next tick commit.
+    if (fresh) h.onText(fresh, true);
+  });
+  await CallMic.addListener("micerror", ({ fatal }) => {
+    const h = cmCurrent;
+    callMicRunning = false;
+    if (fatal) callMicSupported = false; // downgrade: legacy lane from now on
+    if (h && !h.done) {
+      h.done = true;
+      cmCurrent = null;
+      h.onEnd("error"); // engine backoff re-arms; next listen() re-dispatches
+    }
+  });
+}
 
 // onEnd carries WHY the session ended: "" = normal silence timeout (re-arm),
 // "not-allowed" = permission denied (stop re-arming, surface the keyboard),
@@ -1053,43 +1149,95 @@ function wireNativeOnce(): Promise<boolean> {
   return nativeWirePromise;
 }
 
+// Legacy native lane: capgo plugin restart-loop (self-endpointing sessions).
+// Still the path on Android <13, when the on-device model is missing, or
+// after a piped-lane fatal downgrade.
+function legacyNativeListen(
+  onText: (text: string, final: boolean) => void,
+  onEnd: (reason?: string) => void,
+): STTResult {
+  const h: NativeHandler = { onText, onEnd, last: "", done: false, started: false };
+  (async () => {
+    const ok = await wireNativeOnce();
+    if (h.done) return; // stop() raced our async init — keep the mic off
+    if (!ok) {
+      h.done = true;
+      onEnd("not-allowed");
+      return;
+    }
+    nativeCurrent = h;
+    try {
+      await NativeSR.start({
+        language: "en-IN",
+        partialResults: true,
+        popup: false,
+      });
+      h.started = true;
+      if (h.done) NativeSR.stop().catch(() => {});
+    } catch {
+      if (!h.done) {
+        h.done = true;
+        onEnd("error");
+      }
+    }
+  })();
+  return {
+    supported: true,
+    stop: () => {
+      h.done = true;
+      // only touch the bridge if this session actually started — the
+      // post-start done-check above handles a stop that raced start()
+      if (h.started) NativeSR.stop().catch(() => {});
+    },
+  };
+}
+
 export function listen(
   onText: (text: string, final: boolean) => void,
   onEnd: (reason?: string) => void,
 ): STTResult {
   if (isNative) {
-    const h: NativeHandler = { onText, onEnd, last: "", done: false, started: false };
+    // dispatch: beep-free continuous lane first, legacy loop otherwise. The
+    // choice is async, so the returned handle routes to whichever lane won.
+    const h: CallMicHandler = { onText, onEnd, done: false, segBase: 0, lastFull: "" };
+    let legacy: STTResult | null = null;
     (async () => {
-      const ok = await wireNativeOnce();
-      if (h.done) return; // stop() raced our async init — keep the mic off
-      if (!ok) {
-        h.done = true;
-        onEnd("not-allowed");
-        return;
-      }
-      nativeCurrent = h;
-      try {
-        await NativeSR.start({
-          language: "en-IN",
-          partialResults: true,
-          popup: false,
-        });
-        h.started = true;
-        if (h.done) NativeSR.stop().catch(() => {});
-      } catch {
-        if (!h.done) {
-          h.done = true;
-          onEnd("error");
+      if (await callMicUsable()) {
+        activeSttMode = "callmic";
+        await wireCallMicOnce();
+        if (h.done) return; // stop() raced init
+        cmCurrent = h;
+        try {
+          if (!callMicRunning) {
+            await CallMic.start();
+            callMicRunning = true;
+          }
+        } catch {
+          callMicSupported = false; // start refused — legacy from here on
+          cmCurrent = null;
+          if (!h.done) {
+            activeSttMode = "native-loop";
+            legacy = legacyNativeListen(onText, onEnd);
+          }
         }
+      } else if (!h.done) {
+        activeSttMode = "native-loop";
+        legacy = legacyNativeListen(onText, onEnd);
       }
     })();
     return {
       supported: true,
       stop: () => {
         h.done = true;
-        // only touch the bridge if this session actually started — the
-        // post-start done-check above handles a stop that raced start()
-        if (h.started) NativeSR.stop().catch(() => {});
+        if (cmCurrent === h) {
+          cmCurrent = null;
+          callMicRunning = false;
+          CallMic.stop().catch(() => {});
+        }
+        legacy?.stop?.();
+      },
+      consume: () => {
+        h.segBase = h.lastFull.length;
       },
     };
   }
@@ -1097,6 +1245,7 @@ export function listen(
   const SR: any =
     (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   if (!SR) return { supported: false };
+  activeSttMode = "web";
   const rec = new SR();
   rec.lang = "en-IN";
   rec.interimResults = true;
