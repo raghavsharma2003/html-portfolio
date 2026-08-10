@@ -39,10 +39,16 @@ public class WatchCaptureService extends Service {
   public static final String EXTRA_CONFIG = "config";
   private static final String CHANNEL_ID = "meera_watch";
   private static final int NOTIF_ID = 4207;
-  // reels scroll in seconds — she has to see what they see NOW, not 3s ago
+  // reels scroll in seconds — she has to see what they see NOW, not 3s ago.
+  // The live session streams video into an already-open socket, so a faster
+  // rate costs only bandwidth; the cascade pays a vision request per frame,
+  // hence the slower fallback tick.
+  private static final long FRAME_INTERVAL_LIVE_MS = 1000;
   private static final long FRAME_INTERVAL_MS = 1400;
 
-  private WatchEngine engine;
+  private LiveWatchEngine live; // realtime lane (Gemini Live) — tried first
+  private WatchEngine engine; // cascade lane — built lazily if live gives up
+  private String config;
   private MediaProjection projection;
   private VirtualDisplay display;
   private ImageReader reader;
@@ -58,7 +64,9 @@ public class WatchCaptureService extends Service {
       } catch (Exception ignored) {
         // a dropped frame is fine; the next tick retries
       }
-      if (running && handler != null) handler.postDelayed(this, FRAME_INTERVAL_MS);
+      if (running && handler != null) {
+        handler.postDelayed(this, live != null ? FRAME_INTERVAL_LIVE_MS : FRAME_INTERVAL_MS);
+      }
     }
   };
 
@@ -76,7 +84,7 @@ public class WatchCaptureService extends Service {
     startAsForeground();
     // a second start() must not leak the old session (double engines would
     // talk over each other and double the frame traffic) — tear down first
-    if (projection != null || engine != null) teardownSession();
+    if (projection != null || engine != null || live != null) teardownSession();
     int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0);
     Intent data = intent.getParcelableExtra(EXTRA_RESULT_DATA);
     MediaProjectionManager mpm =
@@ -119,16 +127,75 @@ public class WatchCaptureService extends Service {
             null);
     running = true;
     // the native brain loop — lives HERE because Android freezes the WebView
-    // (timers and fetch) while another app is foreground
-    engine = new WatchEngine(this, WatchPlugin::emitEvent);
-    String cfg = intent.getStringExtra(EXTRA_CONFIG);
-    if (cfg != null) engine.configure(cfg);
-    engine.start();
+    // (timers and fetch) while another app is foreground. Realtime first:
+    // the Gemini Live session co-watches with ~zero latency and real barge-in;
+    // the snapshot→think→speak cascade is the fallback rung underneath it.
+    config = intent.getStringExtra(EXTRA_CONFIG);
+    if (!startLive()) startCascade();
     BubbleService.startBubble(this); // she hovers over the screen (needs SAW)
     BubbleService.setState(this, BubbleService.STATE_WATCHING);
     handler = new Handler(Looper.getMainLooper());
     handler.postDelayed(sampler, 800);
     return START_NOT_STICKY;
+  }
+
+  /** Realtime lane. Returns false if this device/build can't run it at all. */
+  private boolean startLive() {
+    if (!LiveWatchEngine.supported()) return false;
+    LiveWatchEngine e =
+        new LiveWatchEngine(
+            this,
+            new LiveWatchEngine.Callbacks() {
+              @Override
+              public void onReady() {
+                if (!running) return;
+                BubbleService.setState(
+                    WatchCaptureService.this, BubbleService.STATE_WATCHING);
+              }
+
+              @Override
+              public void onTurn(String who, String text) {
+                try {
+                  // exactly the shape WatchEngine.emitTurn uses, so the JS
+                  // "watchturn" listener stays untouched
+                  WatchPlugin.emitEvent(
+                      "watchturn", new org.json.JSONObject().put("who", who).put("text", text));
+                } catch (Exception ignored) {
+                }
+              }
+
+              @Override
+              public void onSpeaking(boolean speaking) {
+                if (!running) return;
+                BubbleService.setState(
+                    WatchCaptureService.this,
+                    speaking ? BubbleService.STATE_SPEAKING : BubbleService.STATE_WATCHING);
+              }
+
+              @Override
+              public void onDown(boolean fatal) {
+                // live gave up (no mic grant, or the socket kept dying) — the
+                // engine has already released the mic, so the cascade can grab it
+                if (live == null) return;
+                live.stop();
+                live = null;
+                if (!running) return;
+                startCascade();
+              }
+            });
+    if (config != null) e.configure(config);
+    live = e;
+    e.start();
+    return true;
+  }
+
+  /** The original snapshot→think→speak brain: fallback, built only if needed. */
+  private void startCascade() {
+    if (engine != null) return;
+    engine = new WatchEngine(this, WatchPlugin::emitEvent);
+    if (config != null) engine.configure(config);
+    engine.start();
+    BubbleService.setState(this, BubbleService.STATE_WATCHING);
   }
 
   private void startAsForeground() {
@@ -196,20 +263,32 @@ public class WatchCaptureService extends Service {
       frame.compress(Bitmap.CompressFormat.JPEG, 68, out);
       String b64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
       WatchPlugin.emitFrame(b64); // UI chip liveness (when the app is visible)
-      if (engine != null) engine.onFrame(b64); // the brain lives natively
+      // the brain lives natively — realtime lane while its socket is up,
+      // cascade otherwise (frames before setupComplete are simply skipped)
+      LiveWatchEngine l = live;
+      if (l != null) {
+        if (l.isReady()) l.onFrame(b64);
+      } else if (engine != null) {
+        engine.onFrame(b64);
+      }
     } finally {
       image.close();
     }
   }
 
-  /** Release one capture session (projection, reader, display, engine). */
+  /** Release one capture session (projection, reader, display, engines). */
   private void teardownSession() {
     running = false;
     BubbleService.stopBubble(this);
+    if (live != null) {
+      live.stop(); // idempotent: releases mic, socket, AudioTrack, focus
+      live = null;
+    }
     if (engine != null) {
       engine.stop();
       engine = null;
     }
+    config = null;
     if (handler != null) handler.removeCallbacksAndMessages(null);
     if (display != null) display.release();
     if (reader != null) reader.close();
