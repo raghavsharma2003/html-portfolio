@@ -248,7 +248,14 @@ export function useCallEngine(
       // ── realtime engine first: true speech-to-speech (Gemini Live). If it
       // doesn't come up within ~3.5s, the cascade takes the call — and if
       // the live session then arrives late, it's discarded, not adopted. ──
-      const livePromise = tryStartLive().catch(() => null);
+      const livePromise = tryStartLive().catch((e) => {
+        // fast failure = no live event at all in telemetry — record WHY so
+        // a device where live never engages is diagnosable remotely
+        track(stateRef.current.deviceId, "live_call_failed", {
+          m: String(e?.message || e).slice(0, 80),
+        });
+        return null;
+      });
       const winner = await Promise.race([
         livePromise,
         new Promise<"slow">((r) => setTimeout(() => r("slow"), 3500)),
