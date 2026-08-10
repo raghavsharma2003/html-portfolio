@@ -236,6 +236,13 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
                 // default start sensitivity: HIGH made her stop dead for every
                 // breath and "hmm" — a human keeps talking through those. Real
                 // sustained speech still interrupts her (now with a dissolve).
+                //
+                // end HIGH: commit their turn from the SPEECH being complete,
+                // not from the room going quiet — background noise was making
+                // her wait forever ("how are you?" ...silence... while traffic
+                // hums). If she ever jumps in early, they just talk over her —
+                // human conversation self-corrects in that direction.
+                endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
                 silenceDurationMs: 450,
                 prefixPaddingMs: 60,
               },

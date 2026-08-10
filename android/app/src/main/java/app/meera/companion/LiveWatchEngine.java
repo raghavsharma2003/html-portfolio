@@ -560,7 +560,10 @@ class LiveWatchEngine {
     JSONObject vad = new JSONObject();
     // default start sensitivity: HIGH made every reel sound and breath cut
     // her off mid-word. Sustained real speech still takes the floor; the
-    // 450ms tail keeps turn commits fast.
+    // 450ms tail keeps turn commits fast. End HIGH: commit the turn from the
+    // speech completing, not from the room going quiet — reel audio in the
+    // background must never make her hold a reply forever.
+    vad.put("endOfSpeechSensitivity", "END_SENSITIVITY_HIGH");
     vad.put("silenceDurationMs", 450);
     vad.put("prefixPaddingMs", 60);
 
