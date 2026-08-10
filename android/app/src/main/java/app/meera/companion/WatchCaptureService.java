@@ -37,6 +37,10 @@ public class WatchCaptureService extends Service {
   public static final String EXTRA_RESULT_CODE = "resultCode";
   public static final String EXTRA_RESULT_DATA = "resultData";
   public static final String EXTRA_CONFIG = "config";
+  /** Stop the whole watch session — sent by the bubble menu + the
+   *  notification's Stop action, the two controls reachable from OUTSIDE
+   *  the app. */
+  public static final String ACTION_STOP = "app.meera.companion.watch.STOP";
   private static final String CHANNEL_ID = "meera_watch";
   private static final int NOTIF_ID = 4207;
   // reels scroll in seconds — she has to see what they see NOW, not 3s ago.
@@ -83,6 +87,10 @@ public class WatchCaptureService extends Service {
   public int onStartCommand(Intent intent, int flags, int startId) {
     if (intent == null) {
       stopSelf();
+      return START_NOT_STICKY;
+    }
+    if (ACTION_STOP.equals(intent.getAction())) {
+      stopEverything(); // bubble menu / notification action ended the session
       return START_NOT_STICKY;
     }
     startAsForeground();
@@ -229,12 +237,22 @@ public class WatchCaptureService extends Service {
     PendingIntent pi =
         PendingIntent.getActivity(
             this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    PendingIntent stopPi =
+        PendingIntent.getService(
+            this,
+            1,
+            new Intent(this, WatchCaptureService.class).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     Notification notif =
         new Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("Meera is watching with you")
-            .setContentText("Screen sharing is on — tap to open, stop from the call.")
+            .setContentText("Screen sharing is on — tap the bubble or here to stop.")
             .setSmallIcon(getApplicationInfo().icon)
             .setContentIntent(pi)
+            .addAction(
+                new Notification.Action.Builder(
+                        null, "Stop sharing", stopPi)
+                    .build())
             .setOngoing(true)
             .build();
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -323,6 +341,14 @@ public class WatchCaptureService extends Service {
     stopForeground(STOP_FOREGROUND_REMOVE);
     stopSelf();
     WatchPlugin.emitStopped();
+  }
+
+  @Override
+  public void onTaskRemoved(Intent rootIntent) {
+    // the user swiped the app away — the screen share must die with it, not
+    // keep broadcasting their screen from an ownerless service
+    stopEverything();
+    super.onTaskRemoved(rootIntent);
   }
 
   @Override

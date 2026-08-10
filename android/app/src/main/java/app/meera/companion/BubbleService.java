@@ -68,10 +68,12 @@ public class BubbleService extends Service {
   private WindowManager.LayoutParams layoutParams;
   private FrameLayout bubble;
   private View statusDot;
+  private android.widget.LinearLayout menu; // tap menu: stop sharing / open app
   private ValueAnimator pulseAnimator;
   private ValueAnimator snapAnimator;
   // state is remembered so a STATE intent that arrives before SHOW isn't lost
   private String currentState = STATE_WATCHING;
+  private String lastApplied = ""; // vibrate only on the transition INTO speaking
 
   @Override
   public IBinder onBind(Intent intent) {
@@ -306,7 +308,7 @@ public class BubbleService extends Service {
                 return true;
               case MotionEvent.ACTION_UP:
                 if (!dragging && event.getEventTime() - downTime <= tapTimeout) {
-                  openApp();
+                  toggleMenu(); // tap = quick controls; the menu's "open" goes to the app
                 } else {
                   snapToEdge();
                 }
@@ -362,6 +364,116 @@ public class BubbleService extends Service {
     }
   }
 
+  // ---- tap menu: the ONLY controls reachable while the user is in another
+  // app — stop sharing must never require finding your way back to the call ----
+
+  private void toggleMenu() {
+    if (menu != null) {
+      hideMenu();
+    } else {
+      showMenu();
+    }
+  }
+
+  private void showMenu() {
+    if (windowManager == null || bubble == null) return;
+    android.widget.LinearLayout m = new android.widget.LinearLayout(this);
+    m.setOrientation(android.widget.LinearLayout.VERTICAL);
+    GradientDrawable bg = new GradientDrawable();
+    bg.setColor(0xF01C1C1E);
+    bg.setCornerRadius(dp(14));
+    m.setBackground(bg);
+    int pad = dp(4);
+    m.setPadding(pad, pad, pad, pad);
+    m.addView(menuItem("✕  Stop sharing", new Runnable() {
+      @Override
+      public void run() {
+        hideMenu();
+        try {
+          startService(
+              new Intent(BubbleService.this, WatchCaptureService.class)
+                  .setAction(WatchCaptureService.ACTION_STOP));
+        } catch (Exception ignored) {}
+      }
+    }));
+    m.addView(menuItem("💬  Open Meera", new Runnable() {
+      @Override
+      public void run() {
+        hideMenu();
+        openApp();
+      }
+    }));
+
+    int windowType =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+            ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            : WindowManager.LayoutParams.TYPE_PHONE;
+    WindowManager.LayoutParams lp =
+        new WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            windowType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            PixelFormat.TRANSLUCENT);
+    lp.gravity = Gravity.TOP | Gravity.START;
+    DisplayMetrics metrics = getResources().getDisplayMetrics();
+    int size = dp(BUBBLE_DP);
+    int menuW = dp(170);
+    // beside the bubble, flipped to whichever side has room, clamped on-screen
+    lp.x = Math.max(0, Math.min(
+        layoutParams.x + size / 2 < metrics.widthPixels / 2 ? layoutParams.x : layoutParams.x + size - menuW,
+        metrics.widthPixels - menuW));
+    lp.y = Math.min(layoutParams.y + size + dp(8), metrics.heightPixels - dp(120));
+    m.setOnTouchListener(new View.OnTouchListener() {
+      @Override
+      public boolean onTouch(View v, MotionEvent e) {
+        if (e.getActionMasked() == MotionEvent.ACTION_OUTSIDE) {
+          hideMenu(); // tapping anywhere else dismisses, like every chat-head
+          return true;
+        }
+        return false;
+      }
+    });
+    try {
+      windowManager.addView(m, lp);
+      menu = m;
+      m.postDelayed(new Runnable() {
+        @Override
+        public void run() {
+          if (menu == m) hideMenu(); // never leave stale controls floating
+        }
+      }, 6000);
+    } catch (Exception ignored) {}
+  }
+
+  private android.widget.TextView menuItem(String label, final Runnable action) {
+    android.widget.TextView tv = new android.widget.TextView(this);
+    tv.setText(label);
+    tv.setTextColor(Color.WHITE);
+    tv.setTextSize(14);
+    int ph = dp(14);
+    int pv = dp(11);
+    tv.setPadding(ph, pv, ph, pv);
+    tv.setMinWidth(dp(162));
+    tv.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        action.run();
+      }
+    });
+    return tv;
+  }
+
+  private void hideMenu() {
+    if (menu != null && windowManager != null) {
+      try {
+        windowManager.removeView(menu);
+      } catch (Exception ignored) {}
+    }
+    menu = null;
+  }
+
   private void openApp() {
     Intent open =
         new Intent(this, MainActivity.class)
@@ -387,7 +499,30 @@ public class BubbleService extends Service {
     if (STATE_SPEAKING.equals(state)) {
       dot.setColor(COLOR_ROSE);
       startPulse();
-    } else if (STATE_IDLE.equals(state)) {
+      // a single soft tick the moment she STARTS speaking — while the user
+      // is in another app this is the "she's saying something" signal, felt
+      // even when the bubble isn't in view. Only on the transition, never
+      // repeated during one utterance.
+      if (!STATE_SPEAKING.equals(lastApplied)) {
+        try {
+          android.os.Vibrator vib =
+              (android.os.Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+          if (vib != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+              vib.vibrate(
+                  android.os.VibrationEffect.createOneShot(
+                      35, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+              vib.vibrate(35);
+            }
+          }
+        } catch (Exception ignored) {}
+      }
+      lastApplied = state;
+      return;
+    }
+    lastApplied = state;
+    if (STATE_IDLE.equals(state)) {
       dot.setColor(COLOR_IDLE);
     } else {
       // default/unknown states read as "watching" — the bubble only exists
@@ -426,6 +561,7 @@ public class BubbleService extends Service {
   // ---- teardown ----
 
   private void removeBubble() {
+    hideMenu(); // controls must never outlive the bubble
     stopPulse();
     if (snapAnimator != null) {
       snapAnimator.cancel();
