@@ -76,7 +76,9 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
         {eng.watching && (
           <div className="watch-chip">
             <i />
-            screen shared — she can see it
+            {Date.now() - eng.frameAt < 9000
+              ? "screen shared — she can see it"
+              : "connecting to your screen…"}
           </div>
         )}
 

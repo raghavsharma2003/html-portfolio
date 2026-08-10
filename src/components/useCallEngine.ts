@@ -28,6 +28,7 @@ import {
 import { CALL_OPEN_DIRECTIVE, WATCH_COMMENT_DIRECTIVE, type VoiceEngine } from "../engine/persona";
 import { logTurns, rememberFrom, recallMemories } from "../engine/memory";
 import { startWatch, watchAvailable, type WatchSession } from "../native/watch";
+import { track } from "../engine/account";
 
 export type CallPhase = "connecting" | "live" | "ended";
 
@@ -42,10 +43,13 @@ export function useCallEngine(
   const [muted, setMuted] = useState(false);
   // watch-together: she sees their screen while staying on the call
   const [watching, setWatching] = useState(false);
+  const [frameAt, setFrameAt] = useState(0); // UI proof that frames flow
   const watchSession = useRef<WatchSession | null>(null);
   const frameRef = useRef<{ url: string; at: number } | null>(null);
   const lastCommentAt = useRef(0);
   const lastAnalyzedFrame = useRef(""); // static screens must cost zero
+  const firstFrameSeen = useRef(false);
+  const commentBusy = useRef(false);
   const [heard, setHeard] = useState("");
   const [sttSupported, setSttSupported] = useState(true);
   const [elapsed, setElapsed] = useState(0);
@@ -235,9 +239,9 @@ export function useCallEngine(
 
   function commitDelay(t: string): number {
     const trimmed = t.trim().toLowerCase();
-    if (SHORT_COMPLETE.test(trimmed) || /\?$/.test(trimmed)) return 420;
-    if (CONTINUATION.test(trimmed)) return 1900;
-    return 750; // resume-while-thinking absorbs the rare early commit
+    if (SHORT_COMPLETE.test(trimmed) || /\?$/.test(trimmed)) return 380;
+    if (CONTINUATION.test(trimmed)) return 1800;
+    return 650; // resume-while-thinking absorbs the rare early commit
   }
 
   // 150ms endpointing tick (web SR only — native STT endpoints itself)
@@ -435,17 +439,29 @@ export function useCallEngine(
       watchSession.current = await startWatch(
         (url) => {
           frameRef.current = { url, at: Date.now() };
+          setFrameAt(Date.now());
+          if (!firstFrameSeen.current) {
+            firstFrameSeen.current = true;
+            track(stateRef.current.deviceId, "watch_frame_first", {});
+          }
+          // commentary is driven by the NATIVE frame tick, not a JS timer —
+          // Android throttles WebView timers while another app is foreground,
+          // which froze her eyes in v1 of this feature
+          void maybeWatchComment();
         },
         () => {
           // capture ended outside our UI (notification, system revoke)
           watchSession.current = null;
           frameRef.current = null;
           setWatching(false);
+          track(stateRef.current.deviceId, "watch_stopped_externally", {});
         },
       );
       setWatching(true);
       lastCommentAt.current = Date.now(); // no instant commentary on start
+      track(stateRef.current.deviceId, "watch_started", {});
     } catch {
+      track(stateRef.current.deviceId, "watch_consent_denied", {});
       /* consent denied — stay in the plain call */
     }
   }
@@ -463,20 +479,22 @@ export function useCallEngine(
       : undefined;
 
   // proactive couch-friend commentary: mostly silence, an occasional short
-  // reaction when a moment earns it — never over their speech or her own
-  useEffect(() => {
-    if (!watching) return;
-    const iv = setInterval(async () => {
-      const frame = freshFrame();
-      if (!frame || !alive.current) return;
-      if (speakingRef.current || thinkingRef.current || mutedRef.current) return;
-      if (Date.now() - lastCommentAt.current < 22_000) return; // cadence cap
-      if (Date.now() - lastHeardAt.current < 4000) return; // they're talking
-      // unchanged screen = zero vision calls (a paused video / idle app
-      // yields byte-identical frames — nothing new to react to)
-      if (frame === lastAnalyzedFrame.current) return;
-      lastAnalyzedFrame.current = frame;
-      const seqAt = turnSeq.current;
+  // reaction when a moment earns it — never over their speech or her own.
+  // Called on every NATIVE frame arrival (~3s) so it keeps working while
+  // another app is foreground and WebView timers are throttled.
+  async function maybeWatchComment() {
+    const frame = freshFrame();
+    if (!frame || !alive.current || commentBusy.current) return;
+    if (speakingRef.current || thinkingRef.current || mutedRef.current) return;
+    if (Date.now() - lastCommentAt.current < 20_000) return; // cadence cap
+    if (Date.now() - lastHeardAt.current < 4000) return; // they're talking
+    // unchanged screen = zero vision calls (a paused video / idle app
+    // yields byte-identical frames — nothing new to react to)
+    if (frame === lastAnalyzedFrame.current) return;
+    lastAnalyzedFrame.current = frame;
+    commentBusy.current = true;
+    const seqAt = turnSeq.current;
+    try {
       const reply = await think(
         stateRef.current.user,
         brainKeys(),
@@ -499,6 +517,7 @@ export function useCallEngine(
       const line = reply.bubbles.join(" ").trim();
       if (!line || /NO_?COMMENT/i.test(line)) return; // silence is the default
       lastCommentAt.current = Date.now();
+      track(stateRef.current.deviceId, "watch_comment", {});
       log({
         id: uid(),
         from: "her",
@@ -508,10 +527,10 @@ export function useCallEngine(
         at: Date.now(),
       });
       sayAloud(line, reply.tone);
-    }, 6000);
-    return () => clearInterval(iv);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watching]);
+    } finally {
+      commentBusy.current = false;
+    }
+  }
 
   function toggleMute() {
     const next = !mutedRef.current;
@@ -729,6 +748,7 @@ export function useCallEngine(
     startListening,
     endCall,
     watching,
+    frameAt,
     watchAvailable: watchAvailable(),
     startWatchMode,
     stopWatchMode,
