@@ -6,6 +6,7 @@
 // The Supabase anon key lives server-side only; this proxy is the gatekeeper.
 
 import { allow, ipOf } from "./_ratelimit.js";
+import { q } from "./_db.js";
 
 import { OPENROUTER_KEY, SUPABASE_URL, SUPABASE_KEY } from "./_config.js";
 
@@ -31,15 +32,24 @@ function sb(path, params, opts = {}) {
 async function opLog(device, body) {
   const turns = (Array.isArray(body.turns) ? body.turns : []).slice(0, 30);
   if (!turns.length) return { ok: true };
-  const rows = turns.map((t) => ({
-    device_id: device,
-    role: t.role === "her" ? "her" : "me",
-    channel: t.channel === "call" ? "call" : "chat",
-    kind: typeof t.kind === "string" ? t.kind.slice(0, 20) : "text",
-    content: String(t.content || "").slice(0, 4000),
-    at: Number.isFinite(t.at) ? new Date(t.at).toISOString() : new Date().toISOString(),
-  }));
-  await sb("meera_log", null, { method: "POST", body: JSON.stringify(rows) });
+  const values = [];
+  const params = [];
+  let p = 1;
+  for (const t of turns) {
+    values.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
+    params.push(
+      device,
+      t.role === "her" ? "her" : "me",
+      t.channel === "call" ? "call" : "chat",
+      typeof t.kind === "string" ? t.kind.slice(0, 20) : "text",
+      String(t.content || "").slice(0, 4000),
+      Number.isFinite(t.at) ? new Date(t.at).toISOString() : new Date().toISOString(),
+    );
+  }
+  await q(
+    `insert into meera_log (device_id, role, channel, kind, content, at) values ${values.join(",")}`,
+    params,
+  );
   return { ok: true };
 }
 
@@ -48,24 +58,27 @@ async function opRecall(device, body) {
   const words = [...new Set(query.match(/[a-z]{4,}|[ऀ-ॿ]{3,}/g) || [])].slice(0, 6);
 
   const fetches = [
-    sb("meera_nodes", {
-      device_id: `eq.${device}`,
-      order: "salience.desc,updated_at.desc",
-      limit: "6",
-    }).then((r) => r.json()),
+    q(
+      `select * from meera_nodes where device_id = $1
+       order by salience desc, updated_at desc limit 6`,
+      [device],
+    ),
   ];
   if (words.length) {
-    const or =
-      "(" +
-      words.flatMap((w) => [`name.ilike.*${w}*`, `summary.ilike.*${w}*`]).join(",") +
-      ")";
+    const clauses = [];
+    const params = [device];
+    let p = 2;
+    for (const w of words) {
+      clauses.push(`name ilike $${p} or summary ilike $${p}`);
+      params.push(`%${w}%`);
+      p++;
+    }
     fetches.push(
-      sb("meera_nodes", {
-        device_id: `eq.${device}`,
-        or,
-        order: "salience.desc",
-        limit: "8",
-      }).then((r) => r.json()),
+      q(
+        `select * from meera_nodes where device_id = $1 and (${clauses.join(" or ")})
+         order by salience desc limit 8`,
+        params,
+      ).catch(() => []),
     );
   }
   const results = await Promise.all(fetches);
@@ -74,14 +87,11 @@ async function opRecall(device, body) {
   const nodes = [...seen.values()].slice(0, 12);
   if (!nodes.length) return { memories: "" };
 
-  const ids = nodes.map((n) => n.id).join(",");
-  const edges = await sb("meera_edges", {
-    device_id: `eq.${device}`,
-    or: `(src.in.(${ids}),dst.in.(${ids}))`,
-    limit: "30",
-  })
-    .then((r) => r.json())
-    .catch(() => []);
+  const idArr = nodes.map((n) => n.id);
+  const edges = await q(
+    `select * from meera_edges where device_id = $1 and (src = any($2) or dst = any($2)) limit 30`,
+    [device, idArr],
+  ).catch(() => []);
 
   // resolve neighbor names outside the recalled set
   const missing = new Set();
@@ -90,13 +100,10 @@ async function opRecall(device, body) {
     if (!seen.has(e.dst)) missing.add(e.dst);
   }
   if (missing.size) {
-    const extra = await sb("meera_nodes", {
-      device_id: `eq.${device}`,
-      id: `in.(${[...missing].join(",")})`,
-      select: "id,name",
-    })
-      .then((r) => r.json())
-      .catch(() => []);
+    const extra = await q(
+      `select id, name from meera_nodes where device_id = $1 and id = any($2)`,
+      [device, [...missing]],
+    ).catch(() => []);
     for (const n of Array.isArray(extra) ? extra : []) seen.set(n.id, n);
   }
 
@@ -114,10 +121,10 @@ async function opRecall(device, body) {
   });
 
   // touch recall time (fire-and-forget)
-  sb("meera_nodes", { device_id: `eq.${device}`, id: `in.(${ids})` }, {
-    method: "PATCH",
-    body: JSON.stringify({ last_recalled: new Date().toISOString() }),
-  }).catch(() => {});
+  q(`update meera_nodes set last_recalled = now() where device_id = $1 and id = any($2)`, [
+    device,
+    idArr,
+  ]).catch(() => {});
 
   return { memories: lines.join("\n") };
 }
@@ -172,14 +179,10 @@ Only things worth remembering weeks later: people, places, jobs, plans, strong l
   if (!nodes.length) return { ok: true, extracted: 0 };
 
   // split into existing (bump) vs new (insert)
-  const nameList = nodes.map((n) => `"${n.name.replace(/"/g, "")}"`).join(",");
-  const existing = await sb("meera_nodes", {
-    device_id: `eq.${device}`,
-    name: `in.(${nameList})`,
-    select: "id,name,mentions,salience",
-  })
-    .then((r) => r.json())
-    .catch(() => []);
+  const existing = await q(
+    `select id, name, mentions, salience from meera_nodes where device_id = $1 and name = any($2)`,
+    [device, nodes.map((n) => n.name)],
+  ).catch(() => []);
   const byName = new Map((Array.isArray(existing) ? existing : []).map((n) => [n.name, n]));
 
   const idOf = new Map();
@@ -187,44 +190,38 @@ Only things worth remembering weeks later: people, places, jobs, plans, strong l
     const ex = byName.get(n.name);
     if (ex) {
       idOf.set(n.name, ex.id);
-      await sb("meera_nodes", { id: `eq.${ex.id}` }, {
-        method: "PATCH",
-        body: JSON.stringify({
-          summary: n.summary,
-          mentions: (ex.mentions || 1) + 1,
-          salience: Math.min(10, (ex.salience || 1) + 0.6),
-          updated_at: new Date().toISOString(),
-        }),
-      });
+      await q(
+        `update meera_nodes set summary = $1, mentions = $2, salience = $3, updated_at = now() where id = $4`,
+        [n.summary, (ex.mentions || 1) + 1, Math.min(10, (ex.salience || 1) + 0.6), ex.id],
+      ).catch(() => {});
     }
   }
   const fresh = nodes.filter((n) => !byName.has(n.name));
-  if (fresh.length) {
-    const inserted = await sb("meera_nodes", null, {
-      method: "POST",
-      headers: { Prefer: "return=representation" },
-      body: JSON.stringify(fresh.map((n) => ({ ...n, device_id: device }))),
-    })
-      .then((r) => r.json())
-      .catch(() => []);
-    for (const n of Array.isArray(inserted) ? inserted : []) idOf.set(n.name, n.id);
+  for (const n of fresh) {
+    const ins = await q(
+      `insert into meera_nodes (device_id, kind, name, summary) values ($1,$2,$3,$4) returning id, name`,
+      [device, n.kind, n.name, n.summary],
+    ).catch(() => []);
+    if (ins[0]) idOf.set(ins[0].name, ins[0].id);
   }
 
   const edges = (Array.isArray(parsed.edges) ? parsed.edges : [])
     .filter((e) => idOf.has(String(e.src).toLowerCase()) && idOf.has(String(e.dst).toLowerCase()))
     .slice(0, 8)
     .map((e) => ({
-      device_id: device,
       src: idOf.get(String(e.src).toLowerCase()),
       dst: idOf.get(String(e.dst).toLowerCase()),
       relation: String(e.relation || "related to").slice(0, 40),
     }));
-  if (edges.length) {
-    await sb("meera_edges", { on_conflict: "device_id,src,dst,relation" }, {
-      method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates" },
-      body: JSON.stringify(edges),
-    }).catch(() => {});
+  for (const e of edges) {
+    await q(
+      `insert into meera_edges (device_id, src, dst, relation)
+       select $1, $2, $3, $4
+       where not exists (
+         select 1 from meera_edges where device_id = $1 and src = $2 and dst = $3 and relation = $4
+       )`,
+      [device, e.src, e.dst, e.relation],
+    ).catch(() => {});
   }
   return { ok: true, extracted: nodes.length };
 }

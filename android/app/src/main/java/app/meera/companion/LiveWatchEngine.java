@@ -82,18 +82,22 @@ class LiveWatchEngine {
   private static final int OUT_RATE = 24000; // downlink her voice PCM16 mono
   private static final int MIC_CHUNK = 3200; // 100ms @ 16k mono 16-bit
   private static final int MAX_RECONNECTS = 3; // then fall back to the cascade
-  private static final long DRAIN_GRACE_MS = 300; // silence before we let focus go
-  // if the uplink backs up (bad network) drop frames before audio: her
-  // hearing them matters more than seeing the newest reel, and an unbounded
-  // OkHttp send queue is an OOM in a service that must not die
-  private static final long MAX_QUEUE_VIDEO = 1_000_000L;
-  private static final long MAX_QUEUE_AUDIO = 2_000_000L;
+  private static final int MAX_ROTATES = 6; // goAway storms must not spin
+  private static final long DRAIN_GRACE_MS = 1500; // hold focus between quick turns
+  // REALTIME means a backed-up uplink must DROP, not buffer: ~2 frames of
+  // video / ~2s of audio max. The old MB-scale caps would happily queue 45
+  // seconds of stale conversation on a weak uplink — the opposite of live.
+  private static final long MAX_QUEUE_VIDEO = 150_000L;
+  private static final long MAX_QUEUE_AUDIO = 120_000L;
 
   /** Live mode replaces the per-frame NO_COMMENT gate — she decides herself. */
   private static final String LIVE_NOTE =
       "\n\nREALTIME: you can see their screen as live video and hear them continuously."
-          + " Nobody prompts you — you choose when to speak. Long stretches of silence are"
-          + " correct and expected; react only in the instant something lands, in a few words."
+          + " Much of the audio you hear is the VIDEO's own sound (reel dialogue, music),"
+          + " not them talking to you — tell the difference by content. React to the video's"
+          + " sound like a co-watcher (laugh, comment), never answer it as if they asked you."
+          + " When THEY talk to you, respond normally. Long stretches of silence are correct"
+          + " and expected; react only in the instant something lands, in a few words."
           + " Never narrate or describe the screen, never announce that you can see it, and"
           + " never ask what they're watching.";
 
@@ -150,7 +154,9 @@ class LiveWatchEngine {
 
   private volatile AudioTrack track;
   private volatile Thread playThread;
-  private volatile long framesQueued = 0; // frames handed to the track since last flush
+  private final AtomicInteger rotates = new AtomicInteger();
+  private volatile long lastVoiceAt = 0; // last input-transcription activity
+  private volatile long lastNudgeAt = 0; // last silent-screen commentary nudge
   // lazily built from whichever thread speaks first; volatile so the abandon
   // path (any thread, no lock) never sees a half-published request
   private volatile AudioAttributes attrs;
@@ -214,6 +220,21 @@ class LiveWatchEngine {
     running = false;
     ready = false;
     wsGen.incrementAndGet(); // every in-flight WS callback is now stale
+    // a turn cut off mid-stream must still reach the chat log — emit
+    // synchronously; the queued main posts are about to be removed
+    final String meLeft;
+    final String herLeft;
+    synchronized (bufLock) {
+      meLeft = myBuf.toString().trim();
+      herLeft = herBuf.toString().trim();
+      myBuf.setLength(0);
+      herBuf.setLength(0);
+    }
+    try {
+      if (!meLeft.isEmpty()) cb.onTurn("me", meLeft);
+      if (!herLeft.isEmpty()) cb.onTurn("her", herLeft);
+    } catch (Exception ignored) {
+    }
     main.removeCallbacksAndMessages(null); // only our own posts
 
     WebSocket s = ws;
@@ -334,6 +355,37 @@ class LiveWatchEngine {
               + "\",\"mimeType\":\"image/jpeg\"}}}");
     } catch (Exception ignored) {
     }
+    maybeNudge(s);
+  }
+
+  /** The Live API only generates on audio activity — video frames alone
+   *  never trigger a turn. During SILENT watching (muted reels, scrolling)
+   *  she'd stay mute forever, so every ~25s of total quiet we nudge her to
+   *  glance at the screen; the note allows complete silence back. */
+  private void maybeNudge(WebSocket s) {
+    long now = System.currentTimeMillis();
+    if (speaking) return;
+    if (now - lastVoiceAt < 12_000) return; // they're talking — no need
+    if (now - lastNudgeAt < 25_000) return;
+    lastNudgeAt = now;
+    try {
+      JSONObject part =
+          new JSONObject()
+              .put(
+                  "text",
+                  "<context: silent co-watching check. Look at the current screen. If this exact"
+                      + " moment genuinely deserves a short friend-reaction, say it — under 10"
+                      + " words. Otherwise stay completely silent: produce no words at all."
+                      + " Silence is the normal answer. Never reference this note>");
+      JSONObject turn = new JSONObject().put("role", "user").put("parts", new JSONArray().put(part));
+      s.send(
+          new JSONObject()
+              .put(
+                  "clientContent",
+                  new JSONObject().put("turns", new JSONArray().put(turn)).put("turnComplete", true))
+              .toString());
+    } catch (Exception ignored) {
+    }
   }
 
   /* ── connection ────────────────────────────────────────────────────── */
@@ -365,7 +417,17 @@ class LiveWatchEngine {
     int gen = wsGen.incrementAndGet();
     try {
       Request req = new Request.Builder().url(WS_BASE + "?access_token=" + token).build();
-      ws = c.newWebSocket(req, new Sock(gen));
+      WebSocket s = c.newWebSocket(req, new Sock(gen));
+      if (gen != wsGen.get()) {
+        // a failure elsewhere invalidated this attempt while the token POST
+        // was in flight — cancel instead of orphaning a live server session
+        try {
+          s.cancel();
+        } catch (Exception ignored) {
+        }
+        return;
+      }
+      ws = s;
     } catch (Exception e) {
       Log.w(TAG, "ws open failed", e);
       retryOrDie();
@@ -399,9 +461,15 @@ class LiveWatchEngine {
     main.postDelayed(() -> safeExecute(this::connect), delay);
   }
 
-  /** goAway: the server is about to hang up — get ahead of it, no penalty. */
+  /** goAway: the server is about to hang up — get ahead of it. Budgeted and
+   *  paced: an unthrottled goAway storm would burn the token endpoint's
+   *  rate limit in seconds. */
   private void rotate() {
     if (!running) return;
+    if (rotates.incrementAndGet() > MAX_ROTATES) {
+      retryOrDie(); // too many rotations this session — treat as a failure
+      return;
+    }
     WebSocket old = ws;
     ws = null;
     ready = false;
@@ -412,7 +480,7 @@ class LiveWatchEngine {
       } catch (Exception ignored) {
       }
     }
-    safeExecute(this::connect);
+    main.postDelayed(() -> safeExecute(this::connect), 500);
   }
 
   private final class Sock extends WebSocketListener {
@@ -561,6 +629,7 @@ class LiveWatchEngine {
       if (in != null) {
         String t = in.optString("text", "");
         if (!t.isEmpty()) {
+          lastVoiceAt = System.currentTimeMillis(); // audible activity — no nudge needed
           synchronized (bufLock) {
             myBuf.append(t);
           }
@@ -774,6 +843,13 @@ class LiveWatchEngine {
 
   private void playLoop() {
     long quietSince = 0;
+    // thread-confined frame counter: flushPlayback() only bumps flushGen —
+    // this loop zeroes its own counter when it OBSERVES the generation
+    // change. A shared counter had a lost-update race (reset from the WS
+    // reader thread vs += here) that latched speaking=true forever and left
+    // the user's video permanently ducked.
+    long queued = 0;
+    int lastGen = flushGen.get();
     while (running) {
       byte[] chunk;
       try {
@@ -783,12 +859,17 @@ class LiveWatchEngine {
       }
       AudioTrack t = track;
       if (t == null) return;
+      int g = flushGen.get();
+      if (g != lastGen) {
+        lastGen = g;
+        queued = 0; // the track was flushed (head reset) — resync
+        quietSince = 0;
+      }
       if (chunk != null && chunk.length > 0) {
         quietSince = 0;
-        int gen = flushGen.get();
         int off = 0;
         // NON_BLOCKING so a barge-in never has to wait for a full buffer
-        while (off < chunk.length && running && gen == flushGen.get()) {
+        while (off < chunk.length && running && g == flushGen.get()) {
           int n;
           try {
             n = t.write(chunk, off, chunk.length - off, AudioTrack.WRITE_NON_BLOCKING);
@@ -806,40 +887,52 @@ class LiveWatchEngine {
           }
           off += n;
         }
-        if (gen == flushGen.get()) {
-          framesQueued += off / 2; // 16-bit mono: 2 bytes per frame
+        if (g == flushGen.get()) {
+          queued += off / 2; // 16-bit mono: 2 bytes per frame
         } else {
-          framesQueued = 0; // flushed mid-write; the buffer is empty again
+          lastGen = flushGen.get();
+          queued = 0; // flushed mid-write; the buffer is empty again
         }
         continue;
       }
       // nothing queued: has everything we wrote actually been heard?
-      if (speaking && framesQueued > 0) {
+      if (speaking && queued > 0) {
         long head;
         try {
           head = t.getPlaybackHeadPosition() & 0xFFFFFFFFL;
         } catch (Exception e) {
           head = 0;
         }
-        if (head >= framesQueued) {
+        if (head >= queued) {
           long now = System.currentTimeMillis();
           if (quietSince == 0) {
             quietSince = now;
           } else if (now - quietSince >= DRAIN_GRACE_MS) {
             quietSince = 0;
-            // pause+flush+play resets the head counter, so framesQueued and
-            // getPlaybackHeadPosition stay small and comparable all session
+            // pause+flush+play resets the head counter, so the counters stay
+            // small and comparable all session
             try {
               t.pause();
               t.flush();
               t.play();
             } catch (Exception ignored) {
             }
-            framesQueued = 0;
+            queued = 0;
+            lastGen = flushGen.get();
             setSpeaking(false);
           }
         } else {
           quietSince = 0;
+        }
+      } else if (speaking && queued == 0) {
+        // enqueueAudio set speaking but nothing ever reached the track (dead
+        // track / write errors) — a wall-clock watchdog instead of a latch
+        long now = System.currentTimeMillis();
+        if (quietSince == 0) {
+          quietSince = now;
+        } else if (now - quietSince >= 1500) {
+          quietSince = 0;
+          setSpeaking(false);
         }
       }
     }
@@ -847,9 +940,8 @@ class LiveWatchEngine {
 
   /** Barge-in / disconnect: silence her NOW. Safe from any thread. */
   private void flushPlayback() {
-    flushGen.incrementAndGet(); // any in-flight write stops adding frames
+    flushGen.incrementAndGet(); // playLoop observes this and resyncs itself
     playQueue.clear();
-    framesQueued = 0;
     AudioTrack t = track;
     if (t != null) {
       try {

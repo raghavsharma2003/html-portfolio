@@ -48,6 +48,10 @@ public class WatchCaptureService extends Service {
 
   private LiveWatchEngine live; // realtime lane (Gemini Live) — tried first
   private WatchEngine engine; // cascade lane — built lazily if live gives up
+  private final Runnable unmuteTail = () -> {
+    LiveWatchEngine l = live;
+    if (l != null) l.setMuted(false);
+  };
   private String config;
   private MediaProjection projection;
   private VirtualDisplay display;
@@ -167,6 +171,22 @@ public class WatchCaptureService extends Service {
               @Override
               public void onSpeaking(boolean speaking) {
                 if (!running) return;
+                // HALF-DUPLEX ON SPEAKER: without this, the phone's mic feeds
+                // her own voice straight back to the server VAD — she'd
+                // interrupt herself mid-syllable in an endless loop. Mute the
+                // uplink while she talks (silence keeps the stream alive),
+                // unmute with a short tail so her trailing audio can't leak.
+                LiveWatchEngine l = live;
+                if (l != null) {
+                  if (speaking) {
+                    if (handler != null) handler.removeCallbacks(unmuteTail);
+                    l.setMuted(true);
+                  } else if (handler != null) {
+                    handler.postDelayed(unmuteTail, 350);
+                  } else {
+                    l.setMuted(false);
+                  }
+                }
                 BubbleService.setState(
                     WatchCaptureService.this,
                     speaking ? BubbleService.STATE_SPEAKING : BubbleService.STATE_WATCHING);

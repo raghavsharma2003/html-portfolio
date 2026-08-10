@@ -12,6 +12,7 @@
 //   track        { device, event, props?, user_id? } → { ok }
 
 import { allow, ipOf } from "./_ratelimit.js";
+import { q } from "./_db.js";
 
 import { SUPABASE_URL, SUPABASE_KEY } from "./_config.js";
 
@@ -120,38 +121,42 @@ export default async function handler(req, res) {
       // conflict detection: if another device saved since the caller last
       // looked, reject with the server copy so the client merges instead of
       // clobbering — last-write-wins was silently destroying messages
-      const existing = await rest("meera_state", {
-        user_id: `eq.${user.id}`,
-        select: "state,updated_at",
-      })
-        .then((r) => r.json())
-        .catch(() => []);
-      const row0 = Array.isArray(existing) && existing[0] ? existing[0] : null;
+      const existing = await q(
+        `select state, updated_at from meera_state where user_id = $1`,
+        [user.id],
+      ).catch(() => []);
+      const row0 = existing[0] ?? null;
       const base = typeof b.base_updated_at === "string" ? b.base_updated_at : null;
       if (row0 && base && new Date(row0.updated_at).getTime() > new Date(base).getTime() + 1000) {
         return res.status(409).json({ conflict: true, state: row0.state, updated_at: row0.updated_at });
       }
       const updatedAt = new Date().toISOString();
-      const row = {
-        user_id: user.id,
-        state,
-        device_id: UUID.test(String(b.device || "")) ? b.device : null,
-        updated_at: updatedAt,
-      };
-      const up = await rest("meera_state", { on_conflict: "user_id" }, {
-        method: "POST",
-        headers: { Prefer: "resolution=merge-duplicates" },
-        body: JSON.stringify([row]),
-      });
-      return res.status(up.ok ? 200 : 502).json({ ok: up.ok, updated_at: updatedAt });
+      try {
+        await q(
+          `insert into meera_state (user_id, state, device_id, updated_at)
+           values ($1, $2, $3, $4)
+           on conflict (user_id) do update
+             set state = excluded.state, device_id = excluded.device_id, updated_at = excluded.updated_at`,
+          [
+            user.id,
+            JSON.stringify(state),
+            UUID.test(String(b.device || "")) ? b.device : null,
+            updatedAt,
+          ],
+        );
+        return res.status(200).json({ ok: true, updated_at: updatedAt });
+      } catch {
+        return res.status(502).json({ ok: false });
+      }
     }
     if (op === "load_state") {
       const user = await userFromToken(b.access_token);
       if (!user) return res.status(401).json({ error: "invalid session" });
-      const rows = await rest("meera_state", { user_id: `eq.${user.id}`, select: "state,updated_at" }).then((r) =>
-        r.json(),
-      );
-      const row = Array.isArray(rows) && rows[0] ? rows[0] : null;
+      const rows = await q(
+        `select state, updated_at from meera_state where user_id = $1`,
+        [user.id],
+      ).catch(() => []);
+      const row = rows[0] ?? null;
       return res.status(200).json({ state: row?.state ?? null, updated_at: row?.updated_at ?? null });
     }
     if (op === "track") {
@@ -161,13 +166,12 @@ export default async function handler(req, res) {
       if (JSON.stringify(props).length > 2000) return res.status(413).json({ error: "props too large" });
       const event = String(b.event || "unknown").slice(0, 60);
       if (!/^[a-z0-9_.-]+$/i.test(event)) return res.status(400).json({ error: "bad event" });
-      const row = {
-        device_id: UUID.test(String(b.device || "")) ? b.device : null,
-        user_id: UUID.test(String(b.user_id || "")) ? b.user_id : null,
+      q(`insert into meera_events (device_id, user_id, event, props) values ($1,$2,$3,$4)`, [
+        UUID.test(String(b.device || "")) ? b.device : null,
+        UUID.test(String(b.user_id || "")) ? b.user_id : null,
         event,
-        props,
-      };
-      rest("meera_events", null, { method: "POST", body: JSON.stringify([row]) }).catch(() => {});
+        JSON.stringify(props),
+      ]).catch(() => {});
       return res.status(200).json({ ok: true });
     }
     return res.status(400).json({ error: "unknown op" });
