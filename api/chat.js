@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   if (!key) return res.status(500).json({ error: "no key configured" });
 
   try {
-    const { system, messages, model, max_tokens, stream } = req.body || {};
+    const { system, messages, model, max_tokens, stream, no_think } = req.body || {};
     if (!system || !Array.isArray(messages) || !messages.length) {
       return res.status(400).json({ error: "system + messages required" });
     }
@@ -53,13 +53,13 @@ export default async function handler(req, res) {
           messages: [{ role: "system", content: String(system).slice(0, 20000) }, ...messages.slice(-40)],
           max_tokens: Number.isFinite(max_tokens) ? Math.min(800, Math.max(50, max_tokens)) : 800,
           ...(wantStream ? { stream: true } : {}),
-          // Minimal hidden thinking, always. Gemini's default reasoning grows
-          // with context length, eats the max_tokens budget, and the reply
-          // comes out truncated or as leaked planning scaffolding ("Bubble 1:")
-          // — the "she types random stuff in long chats" bug. It also delays a
-          // call's first token by ~1s. (reasoning cannot be fully disabled on
-          // this endpoint; "minimal" is the floor and keeps replies intact.)
-          reasoning: { effort: "minimal" },
+          // Bounded hidden thinking. Default (unbounded) reasoning grows with
+          // context, eats the max_tokens budget, and truncates/leaks — but the
+          // "minimal" floor costs conversational coherence (non-sequiturs,
+          // context-free media sends). So: calls (no_think, latency-critical)
+          // stay at the floor; chat gets one notch of planning ("low"), still
+          // bounded far below the 700-token reply budget.
+          reasoning: { effort: no_think === true ? "minimal" : "low" },
         }),
         signal: aborter.signal,
       });

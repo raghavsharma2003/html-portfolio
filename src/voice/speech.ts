@@ -626,6 +626,10 @@ export function createStreamSpeaker(
   const emit = (phrase: string) => {
     const clean = stripForCloud(phrase);
     if (!clean) return;
+    // leaked internal monologue must never be SPOKEN either — a phrase
+    // mentioning models/modes/prompts is planning bleed, not conversation
+    if (/\b(base model|minimal text|text mode|system prompt|language model|as an ai|reasoning|max.?_?tokens|persona prompt|default model|output format)\b/i.test(clean))
+      return;
     allText += (allText ? " " : "") + clean;
     // fetch starts NOW; the first clip (the one awaited in silence) is hedged
     queue.push(

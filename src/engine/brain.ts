@@ -68,7 +68,15 @@ function splitLong(bubble: string): string[] {
   return out.length ? out : [bubble];
 }
 
-function parseBubbles(raw: string): HeartReply {
+// Internal vocabulary that must NEVER reach the user. A real friend never
+// says "base model", "text mode" or "system prompt" — these phrases only
+// exist when the model's internal planning bleeds into the reply channel.
+// Any bubble containing one is dropped whole: losing a bubble is invisible,
+// leaking internals kills the product.
+const META_LEAK =
+  /\b(base model|minimal text|text mode|chat mode|call mode|system prompt|language model|as an ai\b|ai model|reasoning effort|max.?_?tokens|token (limit|budget)|persona (prompt|instruction)|instruction(s)? (say|state|require)|default model|llm|assistant mode|output format)\b/i;
+
+export function parseBubbles(raw: string): HeartReply {
   const out: HeartReply = { bubbles: [] };
   // ── protocol extraction, GLOBAL and lenient: markers are honored wherever
   // they appear (own line, inline, sloppy spacing, dropped closing bracket) —
@@ -96,11 +104,11 @@ function parseBubbles(raw: string): HeartReply {
   // the model sometimes imitates the HISTORY annotation format instead of
   // the live protocol ("[sent a meme gif: x]" is how we describe her past
   // gifs to her) — honor the intent: actually send the gif/photo
-  raw = raw.replace(/\[\s*sent a meme gif\s*:\s*([^\]\n]+?)\s*\]?/gi, (_m, q: string) => {
+  raw = raw.replace(/\[\s*sent a meme gif\s*:\s*([^\]\n]+)\s*\]?/gi, (_m, q: string) => {
     if (!out.gif && q.trim()) out.gif = { query: q.trim() };
     return "";
   });
-  raw = raw.replace(/\[\s*shared a photo\s*:\s*([^\]\n]+?)\s*\]?/gi, (_m, body: string) => {
+  raw = raw.replace(/\[\s*shared a photo\s*:\s*([^\]\n]+)\s*\]?/gi, (_m, body: string) => {
     if (!out.photo && body.trim()) {
       const [tagPart, ...capParts] = body.split("|");
       out.photo = { seed: body, caption: capParts.join("|").trim() || tagPart.trim() };
@@ -147,13 +155,20 @@ function parseBubbles(raw: string): HeartReply {
       // "*flips through sketchbook*" roleplay actions — hard-dropped
       continue;
     }
+    if (META_LEAK.test(p)) continue; // leaked internal monologue — never shown
     out.bubbles.push(...splitLong(p.replace(/^["']|["']$/g, "")));
   }
   out.bubbles = out.bubbles.slice(0, 4);
+  // leaks can hide inside media payloads too (a spoken voicenote, a caption)
+  if (out.voice && META_LEAK.test(out.voice.text)) out.voice = undefined;
+  if (out.gif && META_LEAK.test(out.gif.query)) out.gif = undefined;
+  if (out.photo && META_LEAK.test(out.photo.caption)) out.photo.caption = "";
   // fallback ONLY when the reply carried nothing at all — a gif/voicenote/
-  // photo-only reply is complete without text (and raw is already cleaned)
+  // photo-only reply is complete without text (and raw is already cleaned).
+  // The fallback itself must pass the leak filter too.
   if (!out.bubbles.length && !out.photo && !out.voice && !out.gif) {
-    out.bubbles = [raw.replace(/\s+/g, " ").trim().slice(0, 300) || "hmm? phir se bolo"];
+    const residual = raw.replace(/\s+/g, " ").trim().slice(0, 300);
+    out.bubbles = [residual && !META_LEAK.test(residual) ? residual : "hmm?"];
   }
   return out;
 }

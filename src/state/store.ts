@@ -116,9 +116,14 @@ export const defaultState: AppState = {
 // been a real gif, and leaked clock stamps — they live in localStorage
 // forever unless fixed here
 function migrateMessages(messages: Message[]): Message[] {
+  // internal-vocabulary leak (mirror of brain.ts META_LEAK): her stored
+  // bubbles that slipped through older builds get erased from history
+  const leak =
+    /\b(base model|minimal text|text mode|chat mode|call mode|system prompt|language model|ai model|reasoning effort|max.?_?tokens|persona (prompt|instruction)|default model|llm|assistant mode|output format)\b/i;
   return messages
     .map((m) => {
       if (m.kind !== "text" || m.from !== "her") return m;
+      if (leak.test(m.text)) return { ...m, text: "" }; // filtered out below
       const gm = m.text.match(/^\[sent a meme gif:\s*([^\]]+)\]$/i);
       if (gm) return { ...m, kind: "gif" as const, text: gm[1].trim(), gifUrl: undefined };
       const stripped = m.text
