@@ -43,25 +43,39 @@ export interface LiveCallOpts {
   onTiming?: (t: { mintMs?: number; preminted?: boolean; readyMs?: number }) => void;
 }
 
-// ── uplink backpressure thresholds (ws.bufferedAmount, bytes) ──
+// ── uplink: what the socket queue is allowed to do to the call ──
 // bufferedAmount is ONE counter for audio AND video, so every threshold here
 // is stated in "seconds of mic audio". 16k PCM16 as base64+JSON runs
 // ~43.5KB/s (a 4096-frame tick = 85ms = 2730 PCM bytes -> 3640 base64 chars
 // + ~60 bytes of JSON ≈ 3.7KB per 85ms).
 //
-// 48_000 / 43_500 ≈ 1.10s of mic audio already waiting.
-const AUDIO_CAP = 48_000;
-// ...but being over the cap for an INSTANT is not a stall: one 50KB frame
-// alone exceeds it, and on any link that can carry the call at all it drains
-// in 100-300ms — a delay the receiver's own buffer absorbs, where a dropped
-// chunk is a hole in what she hears. So speech is shed only when the counter
-// has stayed above the cap CONTINUOUSLY for this long, i.e. the uplink is
-// genuinely not draining (600ms ≈ 7 mic ticks).
-const AUDIO_SUSTAIN_MS = 600;
-// Silence is different: a gated chunk carries no words, only VAD continuity,
-// so it sheds at the first sign of backlog. 8_000 / 43_500 ≈ 185ms of audio
-// backlog (~2 mic ticks). ~60-70% of a call is gated, so this alone frees
-// most of the uplink before a single syllable is ever at risk.
+// DELIBERATELY NOT HERE ANY MORE: speech dropping. There is no backlog level
+// at which a mic chunk carrying WORDS is discarded. Her hearing every word is
+// the product; a "gracefully degraded" call that quietly eats syllables is
+// just a broken call that hides it. A slow link now delays her instead of
+// deafening her.
+//
+// The one thing a queue must never do is grow without bound: a socket that
+// has stopped draining will happily accept minutes of audio and then deliver
+// all of it at once, and she replays speech from most of a minute ago as if
+// it were now (measured, 45s of stale audio). So there is exactly ONE hard
+// ceiling, below — a stall backstop, not a quality knob. Nothing between
+// "fine" and "the socket is dead" changes behaviour.
+//
+// 400_000 / 43_500 ≈ 9.2s of mic audio already waiting. Chosen to be
+// unreachable on any link that can carry a call at all: a healthy socket sits
+// near zero, a bad-but-usable one spikes to tens of KB and drains inside a
+// second, and one 120KB video frame is still under a third of it. Getting
+// here means the socket has accepted nothing for the better part of ten
+// seconds, at which point the conversation is already over and the only
+// question is whether she also shouts ten seconds of history when it comes
+// back. It bounds that damage at ~9s instead of unbounded.
+const STALL_CEILING = 400_000;
+// Wordless chunks are a different matter and this stays exactly as it was.
+// A gated chunk carries no words, only VAD continuity, so it sheds at the
+// first sign of backlog. 8_000 / 43_500 ≈ 185ms of audio backlog (~2 mic
+// ticks). ~60-70% of a call is gated, so this alone frees most of the uplink
+// — and it costs nothing, because nothing was said in those chunks.
 const SILENCE_CAP = 8_000;
 // ...but silence is never shed to NOTHING. The server ends their turn by
 // HEARING the pause: if a congested link suppressed every gated chunk, the
@@ -72,14 +86,16 @@ const SILENCE_CAP = 8_000;
 // past that at least one chunk in SILENCE_KEEP always goes.
 const SILENCE_ENDPOINT_MS = 700; // protected pause after the gate closes
 const SILENCE_KEEP = 3; // heartbeat: ≥1 of every 3 gated chunks survives
-// A frame may only enter a NEAR-DRAINED socket: same 8_000 ≈ 185ms. If the
-// queue has not come back down to ~2 mic ticks since the last frame, the
-// link cannot carry frames at this rate and the tier logic will slow them.
-const FRAME_GATE = 8_000;
 // A pathological encode (~90KB of JPEG) would be ~2.8s of uplink on its own.
+// This is the ONLY thing that can now refuse a frame: frames are no longer
+// gated on how drained the socket is. Refusing a frame because ~185ms of
+// backlog exists is how she goes blind mid-screen-share and then has nothing
+// to say — the failure is silence, and it looks exactly like lag.
 const FRAME_MAX_B64 = 120_000;
 // ── congestion, measured at the TROUGHS (identical numbers on Android —
 // see LiveWatchEngine.CONGEST_*) ──
+// ADVISORY ONLY. Nothing inside this file reduces quality from it; it is
+// computed so callers that still ask can display or log it.
 // The counter's time-average is dominated by our own frame sawtooth, which
 // says nothing about the link. Its MINIMUM over the last 8 mic ticks does:
 // that is what the socket drains back down to between frames. > 6_000
@@ -263,17 +279,12 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     if (rmsWin.length > winLen) rmsWin.shift();
     const noiseFloor = Math.min(0.04, Math.max(0.0015, Math.min(...rmsWin)));
     // ── the ONE buffered sample of this mic tick ──
-    // Everything downstream (congestion trough, the over-cap stopwatch, the
-    // drop decision) reads this single value: the counter is sampled on the
-    // mic clock and nowhere else, so the signal is evenly spaced and a tick
-    // that happens to send twice (gate-open pre-roll) can't double-weight it.
+    // Both readers (the advisory congestion trough and the silence-shed
+    // decision) take this single value: the counter is sampled on the mic
+    // clock and nowhere else, so the signal is evenly spaced and a tick that
+    // happens to send twice (gate-open pre-roll) can't double-weight it.
     const buffered = ws.bufferedAmount;
     noteBuffered(buffered);
-    if (buffered > AUDIO_CAP) {
-      if (!overSince) overSince = performance.now();
-    } else {
-      overSince = 0; // drained back under the cap — the stall clock restarts
-    }
     if (muted) return;
     const thr = Math.min(Math.max(noiseFloor * 3, 0.01), 0.025);
     if (rms > thr) gateLeft = hangChunks;
@@ -281,16 +292,20 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     const open = gateLeft > 0;
     if (open) gatedRun = 0;
     else gatedRun++;
-    // VOICE FIRST, and silence first of all. A SPEECH chunk is dropped only
-    // once the socket has been over the cap for AUDIO_SUSTAIN_MS without
-    // relief — a transient frame burst never costs a syllable, it only
-    // delays it. A GATED chunk (no words in it) goes as soon as there is any
-    // real backlog, which is where the uplink is actually recovered.
-    const drop = open
-      ? overSince !== 0 && performance.now() - overSince >= AUDIO_SUSTAIN_MS
-      : buffered > SILENCE_CAP &&
-        gatedRun > endpointChunks && // the turn-ending pause always goes
-        gatedRun % SILENCE_KEEP !== 0; // and the stream never goes dark
+    // WORDS ALWAYS GO. A chunk with the gate open is never dropped for
+    // backpressure at any queue depth — only the stall backstop below can
+    // stop it, and that means the socket is dead, not slow.
+    //
+    // A GATED chunk (no words in it) still sheds as soon as there is real
+    // backlog: it costs nothing to lose and it is where the uplink is
+    // actually recovered. The turn-ending pause is still untouchable (it is
+    // what commits their turn) and the SILENCE_KEEP heartbeat still means the
+    // stream never goes dark.
+    const drop =
+      !open &&
+      buffered > SILENCE_CAP &&
+      gatedRun > endpointChunks && // the turn-ending pause always goes
+      gatedRun % SILENCE_KEEP !== 0; // and the stream never goes dark
     const ratio = inCtx.sampleRate / 16000;
     const outLen = Math.floor(input.length / ratio);
     const pcm = new Int16Array(outLen); // stays zeroed (silence) when gated
@@ -299,9 +314,10 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
         const s = input[Math.floor(i * ratio)];
         pcm[i] = Math.max(-32768, Math.min(32767, Math.round(s * 32767)));
       }
-      if (!wasOpen && prevPcm && !drop) {
+      if (!wasOpen && prevPcm) {
         // closed→open: replay the previous chunk first so the syllable that
-        // OPENED the gate arrives whole
+        // OPENED the gate arrives whole. Unconditional now — `drop` is false
+        // by construction whenever the gate is open.
         sendPcm(prevPcm);
       }
     } else {
@@ -331,9 +347,6 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   const troughRing = new Array<number>(TROUGH_RING).fill(0);
   let troughIdx = 0;
   let congestionLevel: 0 | 1 | 2 = 0;
-  // set on the mic clock when the counter first goes over AUDIO_CAP, cleared
-  // the moment it comes back under: only the mic tick touches it
-  let overSince = 0;
   const noteBuffered = (buffered: number) => {
     troughRing[troughIdx] = buffered;
     troughIdx = (troughIdx + 1) % TROUGH_RING;
@@ -344,10 +357,18 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     else if (congestionLevel === 2 && trough < CONGEST_DOWN_2) congestionLevel = 1;
     else if (congestionLevel === 1 && trough < CONGEST_DOWN_1) congestionLevel = 0;
   };
-  // pure sender: the sample and the drop decision both belong to the mic
-  // tick, which is the only clock allowed to observe the socket
+  // pure sender: the sample and the shed decision both belong to the mic
+  // tick, which is the only clock allowed to observe the socket.
+  //
+  // The one exception is the stall backstop, which lives HERE rather than in
+  // the tick so that nothing — not a pre-roll replay, not a frame — can push
+  // a dead socket past the ceiling. It is not a quality mechanism: on a link
+  // that can carry the call it never fires, and when it does fire the call is
+  // already gone. It only stops the queue turning into a nine-second delay
+  // line that shouts stale speech at her when the socket wakes up.
   function sendPcm(pcm: Int16Array) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (ws.bufferedAmount > STALL_CEILING) return;
     let bin = "";
     const bytes = new Uint8Array(pcm.buffer);
     for (let i = 0; i < bytes.length; i += 8192) {
@@ -371,31 +392,22 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let playhead = 0;
   let liveSources: AudioBufferSourceNode[] = [];
   let speakingUntil = 0;
-  // ── adaptive jitter cushion ──
-  // A fixed 30ms lead assumes chunks always arrive before the previous one
-  // finishes. On a jittery mobile downlink they don't: the buffer runs dry
-  // mid-word and her voice STUTTERS. So the lead is earned: it grows 40ms
-  // per utterance that ran dry (to 320ms) and decays 20ms per clean
-  // utterance back to 30ms. A slightly higher constant delay is
-  // imperceptible in conversation; a gap in the middle of a word is not.
-  // LEAD_MIN is the pre-backpressure floor exactly: on a good network the
-  // cushion never grows, so latency is identical to the old code.
-  // LEAD_MAX covers the ~300ms arrival spikes this mechanism exists for
-  // (a 240ms ceiling could not absorb the very jitter it was sized against).
-  // At 20ms per clean utterance, a fully-grown cushion unwinds in ~10 clean
-  // utterances rather than dragging 20 of them.
-  const LEAD_MIN = 0.03;
-  const LEAD_MAX = 0.32;
-  const LEAD_GROW = 0.04;
-  const LEAD_DECAY = 0.02;
-  // a silence longer than this is her turn ENDING, not the stream starving
-  const UTTERANCE_GAP = 0.5;
-  let lead = LEAD_MIN;
-  let ranDry = false; // this utterance already bought its cushion
-  let heardThisTurn = false; // any audio in the current turn (silent turns don't score)
-  // turnComplete arrived: the next chunk begins a NEW utterance, so the gap
-  // in front of it is her generating, never our downlink starving
-  let turnEnded = false;
+  // ── fixed jitter lead ──
+  // 30ms, always. This used to be an adaptive cushion that GREW to 320ms on a
+  // jittery downlink to hide stutter, and that is a bad trade for this
+  // product: it buys smoothness by making her answer up to 290ms later, on
+  // exactly the calls that already feel slow, and it stays inflated for ten
+  // more utterances after the jitter has passed. The whole point of this lane
+  // is that she comes back fast; a scheduler that quietly adds a third of a
+  // second is working against it.
+  //
+  // What we give up is stated plainly: on a genuinely jittery downlink her
+  // voice will now STUTTER — a short gap mid-word when a chunk arrives after
+  // the previous one has finished playing — instead of arriving late but
+  // smooth. That is the deliberate call. Everything else about the scheduler
+  // is unchanged: the playhead still anchors chunks back-to-back, so audio is
+  // still gapless whenever the network delivers on time.
+  const LEAD = 0.03;
   const playChunk = (b64: string) => {
     const raw = atob(b64);
     const n = raw.length / 2;
@@ -413,28 +425,11 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     s.buffer = buf;
     s.connect(outBus);
     const now = outCtx.currentTime;
-    heardThisTurn = true;
-    if (turnEnded) {
-      // first chunk after a turn boundary. turnComplete already banked the
-      // verdict for the utterance that ended, and the pause in front of this
-      // chunk is HER (thinking/generating), not the network — scoring it as
-      // an underrun is what made the cushion ratchet up on healthy links.
-      // This is "playhead → 0" for the SCORING only: the playhead itself is
-      // kept as the scheduling anchor, because her previous turn's audio can
-      // still be queued ahead of outCtx.currentTime and must not be overlapped.
-      turnEnded = false;
-      ranDry = false;
-    } else if (!playhead || now - playhead > UTTERANCE_GAP) {
-      // fresh utterance: bank the verdict on the one that just ended
-      if (playhead && !ranDry) lead = Math.max(LEAD_MIN, lead - LEAD_DECAY);
-      ranDry = false;
-    } else if (playhead < now && !ranDry) {
-      // this chunk arrived AFTER the queue emptied — she stuttered mid-word.
-      // Buy cushion now; one grow per utterance keeps it from ratcheting.
-      ranDry = true;
-      lead = Math.min(LEAD_MAX, lead + LEAD_GROW);
-    }
-    const at = Math.max(now + lead, playhead);
+    // The playhead still anchors this chunk to the end of the last one, so a
+    // stream that arrives on time plays gapless. If it arrived late the
+    // playhead is already behind `now` and this chunk simply starts as soon
+    // as it can — late, audibly, and without dragging every later reply.
+    const at = Math.max(now + LEAD, playhead);
     s.start(at);
     playhead = at + buf.duration;
     speakingUntil = Math.max(speakingUntil, Date.now() + (playhead - outCtx.currentTime) * 1000);
@@ -451,10 +446,6 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     liveSources = [];
     playhead = 0;
     speakingUntil = 0;
-    // an utterance we CUT never gets scored either way
-    ranDry = false;
-    turnEnded = false;
-    heardThisTurn = false;
     try {
       const t = outCtx.currentTime;
       outBus.gain.cancelScheduledValues(t);
@@ -609,17 +600,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       }
       if (sc.inputTranscription?.text) myBuf += sc.inputTranscription.text;
       if (sc.outputTranscription?.text) herBuf += sc.outputTranscription.text;
-      if (sc.turnComplete) {
-        flushTexts();
-        // her turn is over: settle the cushion for the utterance that just
-        // played (a turn that ran clean earns one decay step), then mark the
-        // boundary so the pause before her NEXT turn is never scored as a
-        // network underrun. A turn with no audio at all scores nothing.
-        if (heardThisTurn && !ranDry) lead = Math.max(LEAD_MIN, lead - LEAD_DECAY);
-        ranDry = false;
-        heardThisTurn = false;
-        turnEnded = true;
-      }
+      if (sc.turnComplete) flushTexts();
     };
     ws.onerror = () => {
       clearTimeout(failTimer);
@@ -659,10 +640,15 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       if (dead || !ready || !ws || ws.readyState !== WebSocket.OPEN) return false;
       // NOT sampled into the congestion signal: the reading we would take
       // here is the sawtooth we ourselves are about to create.
-      // Hard rule: a screen frame only enters a near-drained socket, so it
-      // can never queue in front of her hearing you.
-      if (ws.bufferedAmount > FRAME_GATE) return false;
+      //
+      // A frame is no longer refused for backlog. It used to need a
+      // near-drained socket, which meant that on the exact link where screen
+      // share matters she stopped receiving frames, went blind, and then went
+      // quiet — and being blind reads as lag just as much as being slow does.
+      // Only two things can refuse a frame now: a pathological encode, and
+      // the stall backstop (a socket that has taken nothing for ~9s).
       if (b64Jpeg.length > FRAME_MAX_B64) return false; // pathological encode
+      if (ws.bufferedAmount > STALL_CEILING) return false; // socket is dead, not slow
       ws.send(
         JSON.stringify({
           realtimeInput: { video: { data: b64Jpeg, mimeType: "image/jpeg" } },
