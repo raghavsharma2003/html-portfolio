@@ -20,6 +20,7 @@ import {
   listen,
   prefetchBackchannels,
   playAck,
+  playBackchannel,
   playPickup,
   prewarmSpeech,
   playThinkingFiller,
@@ -92,6 +93,7 @@ export function useCallEngine(
   // "wait, and also—": the listener re-plans instead of talking over you.
   const turnSeq = useRef(0);
   const lastHeardAt = useRef(0);
+  const listenerBcAt = useRef(0); // last mid-turn listener backchannel
   const reengageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlapStart = useRef(0); // when user speech over her speech began
   const reengaged = useRef(0); // continuation nudges this silence stretch
@@ -280,6 +282,19 @@ export function useCallEngine(
       const text = (a.finals + " " + a.interim).trim();
       if (!text || !a.lastAt || speakingRef.current) return;
       const waited = Date.now() - a.lastAt;
+      // real listeners backchannel DURING your story, at your breath pauses —
+      // if they're mid-thought (continuation shape / long turn) a soft
+      // "hmm/haan" overlaps their pause, capped to once per ~10s
+      if (
+        waited >= 320 &&
+        waited < 480 &&
+        text.length > 50 &&
+        Date.now() - listenerBcAt.current > 10_000 &&
+        !thinkingRef.current
+      ) {
+        listenerBcAt.current = Date.now();
+        playBackchannel();
+      }
       if (waited >= commitDelay(text)) {
         acc.current = { finals: "", interim: "", lastAt: 0 };
         handleUser(text);
@@ -616,7 +631,8 @@ export function useCallEngine(
         thinkingRef.current &&
         alive.current &&
         !speakingRef.current &&
-        seq === turnSeq.current
+        seq === turnSeq.current &&
+        Date.now() - listenerBcAt.current > 2000 // a bc just played — enough
       )
         playAck();
     }, substantive ? 420 : 1100);
