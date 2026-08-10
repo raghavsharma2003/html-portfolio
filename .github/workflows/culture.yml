@@ -1,0 +1,45 @@
+# Rebuilds her recognition index once a day, off every hot path.
+#
+# Cadence comes from how fast the two clocks actually run. Moment-level culture
+# (a clip, a match, a launch) has a viral half-life of just over five days and
+# is down to roughly a sixth of its size after two weeks; format- and
+# slang-level culture turns over in months. So daily is right for the moments
+# and generous for the slang, and anything faster than daily buys nothing —
+# an item under 24 hours old is known only to the very online, and referencing
+# it is a coin flip rather than a sign of being current.
+#
+# 03:45 UTC = 09:15 IST, so the index is built before India's evening and the
+# day's topics have had a morning to settle. GitHub's scheduler drifts by
+# minutes to hours under load; that is fine, the endpoint is idempotent per
+# IST day and the client self-heals if a run is skipped entirely.
+#
+# Failure is a no-op by design: a bad fetch or a failed distillation leaves
+# yesterday's row in place, and the client stops serving any row older than
+# ~60 hours. She is then simply not updated, which is the correct outcome —
+# last week's slang in her mouth is worse than no slang at all.
+name: culture refresh
+
+on:
+  schedule:
+    - cron: "45 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Rebuild today's recognition index
+        run: |
+          code=$(curl -sS -o /tmp/culture.json -w '%{http_code}' \
+            --max-time 120 \
+            -X POST https://meera-silk.vercel.app/api/culture \
+            -H 'Content-Type: application/json' \
+            -d '{"op":"refresh"}')
+          echo "http $code"
+          cat /tmp/culture.json
+          echo
+          # a failed refresh must not fail loudly enough to page anyone: the
+          # product degrades to "not updated today", which is safe. It is
+          # still worth a red run so a week of failures is visible.
+          test "$code" = "200"

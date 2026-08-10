@@ -1,11 +1,43 @@
 // Gemini Live realtime call engine — true speech-to-speech. The mic streams
 // 16kHz PCM up a WebSocket; her voice streams back as 24kHz PCM chunks that
-// play with ~zero buffering; barge-in is server-side (an `interrupted` signal
-// flushes local playback instantly). Auth is a single-use ephemeral token
-// minted by /api/live-token — the Google key never reaches this code.
+// play with ~zero buffering. Auth is a single-use ephemeral token minted by
+// /api/live-token — the Google key never reaches this code.
 //
 // The cascade engine (STT→LLM→TTS) remains the fallback: startLiveCall
 // rejects or calls onEnded("failed"), and the caller falls back seamlessly.
+//
+// ── WHO OWNS THE FLOOR ──────────────────────────────────────────────────
+// The server's automatic activity detection is a bare speech DETECTOR with no
+// usable threshold. Measured against the pinned model, one stimulus per
+// session: real speech at full level interrupts her in 123-136ms; the same
+// speech attenuated to 0.30 ("voice in the next room") in 199-218ms; at 0.12
+// ("distant TV") in 203-216ms; a 0.45s "haan" backchannel in 199-211ms. LOW
+// and HIGH startOfSpeechSensitivity are behaviourally IDENTICAL — the knob is
+// a no-op for barge-in, which is why it is not in the setup block below and
+// must not be added. The only thing the server reliably ignores is broadband
+// noise (a fan at rms .015 and .05 both left her talking).
+//
+// So there is no server-side way to say "that was the television". But the
+// server can only react to audio we CHOOSE to send it, and withholding the
+// uplink for the length of one of her turns is safe (measured: 11 seconds of
+// a completely dark uplink, turn completed normally, next question
+// transcribed correctly, no double generation). That makes the client the
+// floor authority, and this file is where that decision lives:
+//
+//   while she is audible, incoming mic audio is HELD in a ring instead of
+//   sent. A sound only earns the floor by clearing a real bar (duration +
+//   energy well above the rolling noise floor + not her own voice coming
+//   back). When it does, the whole ring is burst-released so nothing the
+//   person said is lost; when it doesn't — a fan, a TV, a door, a "haan" —
+//   the ring is dropped and she never even hears about it.
+//
+// Measured on the production endpoint with the exact constants below:
+// a real barge-in ducks her at +171ms, releases at +598ms and the server
+// stops her at +830ms, 3/3 clean with the whole utterance (including the
+// held 600ms prefix) transcribed and no double generation. A 450ms "haan"
+// left her untouched 3/3, where today it kills her at +200ms. A distant TV
+// at 0.12 gain left her untouched 2/2, where today it kills her at +130ms
+// and she answers the television.
 
 import { attachAnalyser, detachAnalyser } from "./level";
 import { diag } from "../engine/diag";
@@ -130,6 +162,151 @@ const CONGEST_UP_2 = 20_000;
 const CONGEST_DOWN_1 = 3_000;
 const CONGEST_DOWN_2 = 12_000;
 const TROUGH_RING = 8; // 8 mic ticks ≈ 680ms of history
+
+// ── THE FLOOR MODEL ─────────────────────────────────────────────────────
+// Every number here is a ratio against a MEASURED room, stated in dB so the
+// arithmetic can be argued with. RMS 1.0 = full scale, so dBFS = 20·log10(rms).
+//
+// One mic tick is 4096 frames ≈ 85.3ms at 48kHz, which is far too coarse to
+// express "280ms of speech" as anything but "either 256 or 341ms". Every tick
+// is therefore sub-framed into 4 blocks of 1024 (21.3ms), and every duration
+// below is counted in those.
+const SUBS = 4;
+// Ambience. The old estimator was the MINIMUM of the last 29 tick RMS values.
+// A min is a 1-in-29 order statistic — maximally noisy, biased low, and one
+// freak-quiet chunk pins it for 2.5s. Worse, a min tracks the DIPS of the
+// interferer rather than its level, so it converges correctly on a fan (no
+// dips) and falls straight through a television (inter-syllable dips just
+// like a person). A 10th percentile over 3s of sub-frames is the same cost
+// and does neither.
+const FLOOR_WIN_MS = 3000; // 141 sub-frames
+const FLOOR_PCT = 0.1;
+const FLOOR_MIN = 0.0015; // −56 dBFS: a genuinely silent room
+const FLOOR_MAX = 0.12; // −18 dBFS: a loud café. Was 0.04, see below.
+// LISTEN bar — used when she is NOT talking. A false open costs ~nothing
+// here (the server still needs 300ms of silence to end a turn) and a false
+// close costs a clipped first syllable, so this stays exactly as sensitive
+// as the shipped gate that produced the measured 1536ms endpointing: the
+// clamp band 0.01…0.025 is unchanged in every room quiet enough for it to
+// mean anything.
+//
+// What IS fixed is an inversion. `clamp(floor*3, 0.01, 0.025)` and a floor
+// clamped at 0.04 CROSS: above floor = 0.00833 (−41.6 dBFS) the threshold
+// froze at 0.025 (−32 dBFS) however loud the room got, and above floor =
+// 0.025 the threshold sat BELOW the noise floor — at the old floor ceiling
+// of 0.04 it was 20·log10(0.025/0.04) = −4.1 dB UNDER ambient, so the gate
+// could never close. A living-room TV (−40…−30 dBFS) crosses that routinely.
+// A gate that never closes transmits the whole room as speech AND never
+// sends the server the digital silence that ends a turn — which is both
+// "she stops for the TV" and "she waits for the room to go quiet", from one
+// arithmetic error. RATIO_MIN is the fix: the threshold may never sit less
+// than +5.1 dB above the measured floor, whatever the clamps say.
+const LISTEN_MULT = 3;
+const LISTEN_MIN = 0.01;
+const LISTEN_MAX = 0.025;
+const LISTEN_RATIO_MIN = 1.8; // +5.1 dB — the gate can always close again
+// BARGE bar — used while she IS audible, where the cost function inverts: a
+// false open costs her being killed mid-word by a television. +16 dB over
+// ambient (6.3×) is the near-field argument: inverse square between a mouth
+// at 0.2m and a TV at 3m is 20·log10(3/0.2) = 23.5 dB, and hands-free at
+// 0.5m vs 3m is 15.6 dB. +16 dB is inside the margin a real talker always
+// has and outside the 0-6 dB a same-room interferer can muster. The
+// 2.5× (+8 dB) over the LISTEN bar is what keeps it meaningful in a quiet
+// room, where the LISTEN bar is a floor-independent constant.
+const BARGE_MULT = 6.3; // +16.0 dB over ambience
+const BARGE_OVER_LISTEN = 2.5; // +8.0 dB over the listen bar
+const BARGE_MAX = 0.35; // −9 dBFS: nothing may ever be unbargeable
+// SOFT bar — the escape valve. A quiet talker in a loud room can fail the
+// hard bar honestly, and "she is uninterruptible" is a worse product than
+// "she is over-interruptible". +12 dB over ambience for a much longer run
+// releases the floor anyway. A distant TV usually sits under this too (it
+// raises the very floor it is measured against), and when it doesn't, the
+// failure is bounded at one late interruption instead of a permanent one.
+const SOFT_MULT = 4.0; // +12.0 dB over ambience
+const SOFT_OVER_LISTEN = 1.6; // +4.1 dB over the listen bar
+// Durations. A door, a cough, a keyboard, a chair scrape are all sub-300ms.
+// A "haan"/"hmm"/"achha" is 300-500ms and is a CONTINUER, not a floor claim —
+// it means "keep going", so it must not be able to stop her. 550ms of speech
+// inside an 850ms window (26 of 40 sub-frames, so up to 300ms of plosive gaps
+// and stop consonants are tolerated without resetting anything) is above every
+// backchannel in this language and below any real sentence.
+//
+// The cost is stated plainly: the floor claim itself is 550ms, the server
+// reacts ~230ms after the burst release, and the yield fade is up to 450ms
+// more, so she can still be audible ~1.2s after a person starts talking.
+// That is only tolerable because of the duck below — she audibly softens at
+// 171ms, which is what makes an overlap read as "she noticed" rather than
+// "she is ignoring me". Measured human overlaps are under 374ms at the 75th
+// percentile; nobody in a real conversation stops on contact.
+const CLAIM_MS = 550;
+const CLAIM_WIN_MS = 850;
+const SOFT_CLAIM_MS = 1100;
+const SOFT_CLAIM_WIN_MS = 2000;
+const DUCK_AT_MS = 150; // 7 sub-frames — she notices, she does not stop
+// Steadiness veto. Between a fan switching on and the 3s the floor needs to
+// learn it, a loud machine can clear the level bar. Speech runs 5-9 dB of
+// log-RMS standard deviation over half a second (the ~4Hz syllabic
+// envelope); a fan or a hum runs 1-2 dB. So a claim that is BOTH steady
+// (<2 dB) and not overwhelming (<+24 dB over ambience) is refused. A real
+// talker fails neither test, and anyone who raises their voice skips it.
+const STEADY_DB = 2.0;
+const STEADY_OVERRIDE_MULT = 16.0; // +24.1 dB — loud enough to skip the check
+// Held audio. The ring must span the whole claim window plus the pre-roll,
+// or the burst back-fills a truncated sentence and the first syllable of the
+// utterance she finally admits is gone. The binding case is the SOFT claim:
+// ceil(2000/85.3) + 2 = 26 ticks ≈ 2.22s ≈ 71KB of Int16, which is nothing in
+// memory and ~85KB on the wire in one burst — under a fifth of the stall
+// ceiling, and a 2s held burst has been measured to replay cleanly.
+const HOLD_RING = 26;
+// Her own voice is a first-class interrupter: it opens the gate, the server
+// interrupts her, she starts a new turn, that leaks too. Web asks for
+// echoCancellation, but she is rendered through a SEPARATE AudioContext and
+// on Android WebView the platform AEC's reference is device-dependent. We do
+// not have to guess — we know exactly what we are playing. κ is the observed
+// coupling (mic RMS ÷ her playback RMS): good software AEC gives 30-40 dB of
+// echo return loss (κ ≈ 0.01-0.03) and the term never binds; a bare
+// speakerphone gives 10-16 dB (κ ≈ 0.15-0.3) and it correctly dominates.
+// It is SEEDED PESSIMISTICALLY at 0.12 (≈18 dB ERL) and learns DOWNWARD,
+// because the two failure directions are not symmetric: under-protection is a
+// self-sustaining loop (her voice opens the gate, she is interrupted, the new
+// turn leaks too — it reads as her randomly cutting herself off and
+// stuttering), while over-protection costs one late barge-in during her turn.
+// A device with real AEC decays to the 0.02 floor over about a minute of her
+// speech and the term stops binding at all.
+const ECHO_KAPPA_SEED = 0.12;
+const ECHO_KAPPA_MIN = 0.02;
+const ECHO_KAPPA_MAX = 0.6;
+const ECHO_ATTACK = 0.35; // ~5 chunks to converge on a leaky speakerphone
+const ECHO_RELEASE = 0.002; // falls slowly: never chase a single quiet frame
+// ── overlap: what she sounds like while it is being resolved ──
+// Ported from the cascade lane's duckSpeech(), which has production miles.
+const DUCK_SOFT = 0.62; // −4.2 dB: "haan bolo" — she softens, keeps talking
+const DUCK_CLAIM = 0.3; // −10.5 dB: the floor is going, she is on her way out
+const DUCK_RAMP = 0.12; // seconds
+const UNDUCK_RAMP = 0.18; // slower back up — a snap reads as a glitch
+// When the floor is genuinely lost, do NOT gate off mid-syllable. At the
+// instant `interrupted` lands the client is holding a MEDIAN OF 5.05 SECONDS
+// of her finished, already-paid-for voice (measured: 3.00/4.72/7.49/5.05s of
+// unplayed lead across four trials) and the server will send nothing more for
+// that turn. Today all of it is destroyed and replaced with a 220ms ramp.
+// Instead we play on to the next phrase boundary in her own audio — a real
+// gap between words — and fade across it. Humans trail off; they do not cut.
+const YIELD_MAX = 0.45; // seconds of continuation we will ever pay for
+const YIELD_DEFAULT = 0.26; // no boundary in reach: a slightly longer dissolve
+const YIELD_HARD = 0.13; // they are plainly taking the floor: get out of the way
+const YIELD_HARD_AFTER_MS = 700; // overlap this long = not a hesitation
+const BOUNDARY_RMS = 0.02; // a 20ms frame this quiet is a word gap
+const BOUNDARY_MIN_GAP = 0.06; // don't record two boundaries inside one gap
+// If she is talking and we released a real floor claim, the server owes us an
+// `interrupted`. On the pinned model there is an acknowledged case where it
+// never arrives (the user already speaking as her turn begins), and today
+// that single message is the ONLY thing in this file that can stop her. The
+// watchdog makes the client's own decision authoritative instead.
+const RELEASE_WATCHDOG_MS = 1500;
+// A killed turn's stragglers must not resurrect: chunks are dropped between
+// `interrupted` and the `turnComplete` that follows it 4-21ms later. The cap
+// is a safety net so a missing turnComplete can never mute her forever.
+const DISCARD_CAP_MS = 2000;
 
 /**
  * Mint the ephemeral token with two STAGGERED attempts inside one budget.
@@ -312,33 +489,81 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     proc.connect(sink);
     sink.connect(inCtx.destination);
     attachAnalyser("you", inCtx, src); // presence UI reads YOUR real amplitude
-  // ── adaptive noise gate: a fan/traffic hum must never read as "still
-  // talking". Ambience is the sliding-window MINIMUM of the level (speech
-  // always has inter-syllable dips that land in a 2.5s window), so the floor
-  // converges on any room — loud or quiet — in ~2.5s, both directions. The
-  // decision threshold is clamped to soft-speech level so it can never eat
-  // the talker. A one-chunk pre-roll survives first syllables (the server's
-  // prefixPadding only pads from RECEIVED audio, which pre-gate is silence).
+  // ── adaptive noise gate + floor arbiter ──
+  // Two questions with opposite cost functions used to share one threshold.
+  // "Is anyone talking?" (she is silent) wants to be sensitive — a false open
+  // costs nothing, a false close clips a first syllable. "Is this a PERSON
+  // taking the floor from her?" (she is talking) wants to be strict — a false
+  // open costs her being killed mid-word by a television. So there are two
+  // bars now, and while she is audible the audio is HELD rather than sent
+  // until one of them is genuinely cleared.
   const chunkMs = (4096 / inCtx.sampleRate) * 1000; // actual, not assumed
-  const winLen = Math.max(8, Math.round(2500 / chunkMs));
+  const subMs = chunkMs / SUBS; // 21.3ms at 48kHz
   const hangChunks = Math.max(2, Math.ceil(250 / chunkMs));
-  const rmsWin: number[] = [];
+  const floorN = Math.max(16, Math.round(FLOOR_WIN_MS / subMs));
+  const claimWin = Math.round(CLAIM_WIN_MS / subMs);
+  const claimNeed = Math.round(CLAIM_MS / subMs);
+  const softWin = Math.round(SOFT_CLAIM_WIN_MS / subMs);
+  const softNeed = Math.round(SOFT_CLAIM_MS / subMs);
+  const duckNeed = Math.max(2, Math.round(DUCK_AT_MS / subMs));
+  const floorRing: number[] = [];
+  let noiseFloor = 0.003;
+  let tickNo = 0;
   let gateLeft = 0;
   let prevPcm: Int16Array | null = null;
   let wasOpen = false;
   const endpointChunks = Math.ceil(SILENCE_ENDPOINT_MS / chunkMs);
   let gatedRun = 0; // consecutive gated (wordless) chunks
+  // ── floor-arbitration state ──
+  let subIdx = 0; // monotonic sub-frame counter — the claim windows' clock
+  const hardHits: number[] = []; // sub-frames above the BARGE bar
+  const hardDb: number[] = []; // ...and their levels, for the steadiness test
+  const softHits: number[] = []; // sub-frames above the SOFT bar
+  let claimPeak = 0;
+  let hold: Int16Array[] = []; // her turn's withheld audio, oldest first
+  let ducked = 0; // 0 full volume · 1 soft duck · 2 yielding
+  let kappa = ECHO_KAPPA_SEED; // learned mic-to-speaker coupling
+  const toPcm = (input: Float32Array, ratio: number, outLen: number) => {
+    const p = new Int16Array(outLen);
+    for (let i = 0; i < outLen; i++) {
+      const s = input[Math.floor(i * ratio)];
+      p[i] = Math.max(-32768, Math.min(32767, Math.round(s * 32767)));
+    }
+    return p;
+  };
   proc.onaudioprocess = (e) => {
     if (dead || !ready || !ws || ws.readyState !== WebSocket.OPEN) return;
     const input = e.inputBuffer.getChannelData(0);
+    const N = input.length;
+    // Sub-frame RMS. 85ms granularity cannot express a 550ms guard as
+    // anything better than "either 512 or 597ms", and every duration in the
+    // floor model is counted in these.
+    const sub: number[] = [];
     let sum = 0;
-    for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
-    const rms = Math.sqrt(sum / input.length);
+    for (let s = 0; s < SUBS; s++) {
+      const a = Math.floor((s * N) / SUBS);
+      const b = Math.floor(((s + 1) * N) / SUBS);
+      let acc = 0;
+      for (let i = a; i < b; i++) acc += input[i] * input[i];
+      sum += acc;
+      sub.push(Math.sqrt(acc / Math.max(1, b - a)));
+    }
+    const rms = Math.sqrt(sum / N);
     // the floor learns even while muted — the muted ring second is free room
     // calibration (web mute = "line not open yet", the audio is clean room)
-    rmsWin.push(rms);
-    if (rmsWin.length > winLen) rmsWin.shift();
-    const noiseFloor = Math.min(0.04, Math.max(0.0015, Math.min(...rmsWin)));
+    for (const v of sub) {
+      floorRing.push(v);
+      if (floorRing.length > floorN) floorRing.shift();
+    }
+    // the percentile is a sort of 141 doubles; once every 4 ticks (~341ms) is
+    // plenty for a statistic with a 3s window and keeps this off the hot path
+    if ((tickNo++ & 3) === 0 && floorRing.length > 8) {
+      const sorted = [...floorRing].sort((x, y) => x - y);
+      noiseFloor = Math.min(
+        FLOOR_MAX,
+        Math.max(FLOOR_MIN, sorted[Math.floor(sorted.length * FLOOR_PCT)]),
+      );
+    }
     // ── the ONE buffered sample of this mic tick ──
     // Both readers (the advisory congestion trough and the silence-shed
     // decision) take this single value: the counter is sampled on the mic
@@ -347,12 +572,105 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     const buffered = ws.bufferedAmount;
     noteBuffered(buffered);
     if (muted) return;
-    const thr = Math.min(Math.max(noiseFloor * 3, 0.01), 0.025);
-    if (rms > thr) gateLeft = hangChunks;
+    // ── the two bars ──
+    const thrL = Math.max(
+      noiseFloor * LISTEN_RATIO_MIN,
+      Math.min(Math.max(noiseFloor * LISTEN_MULT, LISTEN_MIN), LISTEN_MAX),
+    );
+    // herRecentRms is measured on the samples BEFORE the output bus gain, so
+    // scale by what is actually reaching the speaker — a ducked voice leaks
+    // proportionally less, and forgetting that would keep the bar high for the
+    // whole of an overlap.
+    const herNow = herRecentRms() * outGain();
+    const echoTerm = kappa * herNow;
+    const thrB = Math.min(
+      BARGE_MAX,
+      Math.max(thrL * BARGE_OVER_LISTEN, noiseFloor * BARGE_MULT, echoTerm),
+    );
+    const thrS = Math.min(
+      thrB,
+      Math.max(thrL * SOFT_OVER_LISTEN, noiseFloor * SOFT_MULT, echoTerm),
+    );
+    if (rms > thrL) gateLeft = hangChunks;
     else if (gateLeft > 0) gateLeft--;
     const open = gateLeft > 0;
     if (open) gatedRun = 0;
     else gatedRun++;
+    const herSpeaking = speakingUntil > Date.now();
+    // Learn the coupling from ground truth rather than trusting AEC: while she
+    // is audible and nothing is claiming the floor, whatever the mic hears IS
+    // her leakage. Fast attack, slow release — being under-protected is the
+    // loud failure (she cuts herself off in a loop), being over-protected
+    // costs one late barge-in.
+    if (herSpeaking && herNow > 0.02 && !hardHits.length) {
+      const r = rms / herNow;
+      kappa += (r > kappa ? ECHO_ATTACK : ECHO_RELEASE) * (r - kappa);
+      kappa = Math.min(ECHO_KAPPA_MAX, Math.max(ECHO_KAPPA_MIN, kappa));
+    }
+    if (!herSpeaking) {
+      // her turn is over: nothing to arbitrate, everything resets
+      if (floorLost || hardHits.length || softHits.length || hold.length) {
+        hardHits.length = 0;
+        hardDb.length = 0;
+        softHits.length = 0;
+        hold = [];
+        claimPeak = 0;
+      }
+      floorLost = false;
+      floorClaimSince = 0;
+      floorReleasedAt = 0;
+      // never fight a dissolve that is still running — it owns the gain
+      if (ducked && !yieldTimer) {
+        rampGain(1, UNDUCK_RAMP);
+        ducked = 0;
+      }
+    }
+    const holding = herSpeaking && !floorLost;
+    let claim = false;
+    if (holding) {
+      for (const v of sub) {
+        subIdx++;
+        if (v > thrB) {
+          hardHits.push(subIdx);
+          hardDb.push(20 * Math.log10(Math.max(v, 1e-6)));
+          if (v > claimPeak) claimPeak = v;
+        }
+        if (v > thrS) softHits.push(subIdx);
+        while (hardHits.length && subIdx - hardHits[0] > claimWin) {
+          hardHits.shift();
+          hardDb.shift();
+        }
+        while (softHits.length && subIdx - softHits[0] > softWin) softHits.shift();
+      }
+      if (!hardHits.length) claimPeak = 0;
+      if (hardHits.length && !floorClaimSince) floorClaimSince = Date.now();
+      // THE DUCK. She softens the moment something is plainly a voice, long
+      // before it has earned anything — that is the hitch a person produces
+      // on contact, and it is fully reversible.
+      if (!ducked && hardHits.length >= duckNeed) {
+        rampGain(DUCK_SOFT, DUCK_RAMP);
+        ducked = 1;
+      } else if (ducked === 1 && hardHits.length < Math.max(1, duckNeed >> 1)) {
+        rampGain(1, UNDUCK_RAMP); // it was nothing — bring her back up NOW
+        ducked = 0;
+        floorClaimSince = 0;
+      }
+      // THE CLAIM. Long enough to be a sentence and not a continuer, loud
+      // enough to be in this room and not on a screen across it, and varied
+      // enough to be a mouth and not a motor.
+      if (hardHits.length >= claimNeed || softHits.length >= softNeed) {
+        let varied = true;
+        if (hardDb.length >= 6 && claimPeak < noiseFloor * STEADY_OVERRIDE_MULT) {
+          let m = 0;
+          for (const d of hardDb) m += d;
+          m /= hardDb.length;
+          let v2 = 0;
+          for (const d of hardDb) v2 += (d - m) * (d - m);
+          varied = Math.sqrt(v2 / hardDb.length) >= STEADY_DB;
+        }
+        claim = varied;
+      }
+    }
     // WORDS ALWAYS GO. A chunk with the gate open is never dropped for
     // backpressure at any queue depth — only the stall backstop below can
     // stop it, and that means the socket is dead, not slow.
@@ -369,6 +687,56 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       gatedRun % SILENCE_KEEP !== 0; // and the stream never goes dark
     const ratio = e.inputBuffer.sampleRate / 16000;
     const outLen = Math.floor(input.length / ratio);
+    if (claim) {
+      // RELEASE. The whole ring goes out in one burst, oldest first, ahead of
+      // the mic clock — the server then hears the sentence from its first
+      // syllable, not from the moment we made up our mind. Measured: it
+      // interrupts her ~230ms after the burst and transcribes the utterance in
+      // full, held prefix included, with no double generation.
+      //
+      // The stall ceiling is checked ONCE, before the loop. A partial flush
+      // would splice the middle out of the person's word and scramble the
+      // turn's transcript — worse than not releasing at all.
+      if (ws.bufferedAmount <= STALL_CEILING) for (const c of hold) sendPcm(c);
+      hold = [];
+      floorLost = true;
+      floorReleasedAt = Date.now();
+      rampGain(DUCK_CLAIM, DUCK_RAMP);
+      ducked = 2;
+      diag("call", "floor_release", {
+        claimMs: floorClaimSince ? Date.now() - floorClaimSince : 0,
+        ratioDb: Math.round(20 * Math.log10(Math.max(claimPeak, 1e-6) / Math.max(noiseFloor, 1e-6))),
+        floorDb: Math.round(20 * Math.log10(Math.max(noiseFloor, 1e-6))),
+        kappa: Math.round(kappa * 100) / 100,
+        soft: hardHits.length < claimNeed,
+      });
+    } else if (holding) {
+      // HOLD. Real audio into the ring, digital silence onto the wire — which
+      // is exactly what the server already receives for most of every call, so
+      // its VAD state and its silence clock see nothing unusual. If the sound
+      // dies out before it earns anything (a "haan", a door, a passing car),
+      // the ring is dropped and she never knows it happened.
+      if (open) {
+        hold.push(toPcm(input, ratio, outLen));
+        if (hold.length > HOLD_RING) hold.shift();
+      } else if (gatedRun > hangChunks && hold.length) {
+        hold = [];
+        if (floorClaimSince) {
+          diag("call", "floor_hold", {
+            heldMs: Math.round(Date.now() - floorClaimSince),
+            ratioDb: Math.round(
+              20 * Math.log10(Math.max(claimPeak, 1e-6) / Math.max(noiseFloor, 1e-6)),
+            ),
+          });
+          floorClaimSince = 0;
+        }
+      }
+      prevPcm = null;
+      wasOpen = open;
+      if (!drop) sendPcm(new Int16Array(outLen));
+      return;
+    }
+    // ── normal streaming: she is silent, or the floor is genuinely theirs ──
     const pcm = new Int16Array(outLen); // stays zeroed (silence) when gated
     if (open) {
       for (let i = 0; i < outLen; i++) {
@@ -383,16 +751,21 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       }
     } else {
       // keep a real-audio pre-roll ready even while closed
-      const p = new Int16Array(outLen);
-      for (let i = 0; i < outLen; i++) {
-        const s = input[Math.floor(i * ratio)];
-        p[i] = Math.max(-32768, Math.min(32767, Math.round(s * 32767)));
-      }
-      prevPcm = p;
+      prevPcm = toPcm(input, ratio, outLen);
     }
     wasOpen = open;
     if (open) prevPcm = null;
     if (!drop) sendPcm(pcm);
+    // The server owes us an `interrupted` after a release. On this model
+    // there is an acknowledged case where it never sends one (the user is
+    // already speaking as her turn begins) and today that single message is
+    // the only thing in this file that can stop her. The client made the
+    // floor decision, so the client enforces it.
+    if (floorReleasedAt && Date.now() - floorReleasedAt > RELEASE_WATCHDOG_MS && herSpeaking) {
+      floorReleasedAt = 0;
+      diag("call", "floor_watchdog", { afterMs: RELEASE_WATCHDOG_MS });
+      yieldFloor(true);
+    }
   };
   };
   // ── uplink congestion, read from the TROUGHS of bufferedAmount ──
@@ -454,6 +827,63 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let playhead = 0;
   let liveSources: AudioBufferSourceNode[] = [];
   let speakingUntil = 0;
+  // ── floor state shared with the uplink tick (which is built later) ──
+  let floorLost = false; // a person has taken this turn from her
+  let floorClaimSince = 0; // when the current candidate first looked like a voice
+  let floorReleasedAt = 0; // when we burst the held audio at the server
+  // her own output, sampled as it is SCHEDULED — ground truth for echo
+  let herLevels: { a: number; b: number; rms: number }[] = [];
+  // times (in outCtx seconds) where her own audio has a real gap between
+  // words. Yielding across one of these is the difference between trailing
+  // off and being cut off mid-syllable.
+  let boundaries: number[] = [];
+  let discardTurn = false; // stragglers from a killed turn must not resurrect
+  let discardAt = 0;
+  let yieldTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * The ONE writer of outBus.gain. A duck and a dissolve scheduling on the
+   * same AudioParam is how she snaps back to full volume in the middle of a
+   * fade, so every ramp cancels what came before it.
+   */
+  const rampGain = (v: number, secs: number) => {
+    try {
+      const t = outCtx.currentTime;
+      outBus.gain.cancelScheduledValues(t);
+      outBus.gain.setValueAtTime(outBus.gain.value, t);
+      outBus.gain.linearRampToValueAtTime(Math.max(0.0001, v), t + secs);
+    } catch {
+      /* ctx closed */
+    }
+  };
+  /** What fraction of her voice is actually reaching the speaker right now. */
+  const outGain = () => {
+    try {
+      return outBus.gain.value;
+    } catch {
+      return 1;
+    }
+  };
+  /** Loudest thing she has actually put through the speaker in the last
+   *  250ms. Taking a MAX over a lag window means we never have to measure the
+   *  device's acoustic round trip — whatever the mic hears now, she played
+   *  some of it within that window. */
+  const herRecentRms = () => {
+    let m = 0;
+    try {
+      const now = outCtx.currentTime;
+      let w = 0;
+      for (const s of herLevels) {
+        if (s.b <= now - 0.25) continue;
+        herLevels[w++] = s;
+        if (s.a <= now && s.rms > m) m = s.rms;
+      }
+      herLevels.length = w;
+    } catch {
+      /* ctx closed */
+    }
+    return m;
+  };
   // ── fixed jitter lead ──
   // 30ms, always. This used to be an adaptive cushion that GREW to 320ms on a
   // jittery downlink to hide stutter, and that is a bad trade for this
@@ -471,6 +901,13 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   // still gapless whenever the network delivers on time.
   const LEAD = 0.03;
   const playChunk = (b64: string) => {
+    // a turn that was yielded is over: anything still arriving for it is a
+    // straggler and must not resurrect her. The cap is a safety net so a
+    // missing turnComplete can never mute her for the rest of the call.
+    if (discardTurn) {
+      if (Date.now() - discardAt < DISCARD_CAP_MS) return;
+      discardTurn = false;
+    }
     const raw = atob(b64);
     const n = raw.length / 2;
     if (!n) return;
@@ -493,6 +930,26 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     // as it can — late, audibly, and without dragging every later reply.
     const at = Math.max(now + LEAD, playhead);
     s.start(at);
+    // Two things are read off this chunk while we are already walking its
+    // samples, both free: how loud she is (the echo reference) and where her
+    // words stop touching each other (the only safe places to fade out).
+    let acc = 0;
+    let lastB = boundaries.length ? boundaries[boundaries.length - 1] : 0;
+    const fr = 480; // 20ms at 24kHz
+    for (let f = 0; f + fr <= n; f += fr) {
+      let a2 = 0;
+      for (let i = f; i < f + fr; i++) a2 += ch[i] * ch[i];
+      acc += a2;
+      if (Math.sqrt(a2 / fr) < BOUNDARY_RMS) {
+        const tB = at + (f + fr) / 24000;
+        if (tB - lastB >= BOUNDARY_MIN_GAP) {
+          boundaries.push(tB);
+          lastB = tB;
+        }
+      }
+    }
+    if (boundaries.length > 128) boundaries.splice(0, boundaries.length - 128);
+    herLevels.push({ a: at, b: at + buf.duration, rms: Math.sqrt(acc / Math.max(1, n)) });
     playhead = at + buf.duration;
     speakingUntil = Math.max(speakingUntil, Date.now() + (playhead - outCtx.currentTime) * 1000);
     liveSources.push(s);
@@ -501,35 +958,52 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     };
     opts.onState("speaking");
   };
-  // Humans don't gate off mid-syllable when talked over — they trail off.
-  // On barge-in her voice DISSOLVES over ~220ms, then the queue clears.
-  const flushPlayback = () => {
+  /**
+   * Give up the floor — the human way, not the switch way.
+   *
+   * When `interrupted` lands, the client is holding a median of five seconds
+   * of her finished voice that the server will never resend. Throwing all of
+   * it away and ramping to silence in 220ms is a machine stopping; a person
+   * finishes the word they are on, lands on the next gap between words, and
+   * fades across it. So we look ahead in her own audio for a real boundary
+   * inside the next 450ms and dissolve to that. If the overlap has already
+   * run long enough to be unambiguous, we skip the courtesy and get out of
+   * the way in 130ms instead.
+   */
+  const yieldFloor = (hard: boolean) => {
+    if (yieldTimer) return; // already on our way out
+    let now = 0;
+    try {
+      now = outCtx.currentTime;
+    } catch {
+      /* ctx closed */
+    }
+    let stopAt = now + (hard ? YIELD_HARD : YIELD_DEFAULT);
+    if (!hard) {
+      const b = boundaries.find((t) => t > now + 0.06 && t <= now + YIELD_MAX);
+      if (b) stopAt = b;
+    }
+    // never promise more audio than actually exists
+    stopAt = playhead > now + 0.02 ? Math.min(stopAt, playhead) : now + 0.02;
     const doomed = liveSources;
     liveSources = [];
-    playhead = 0;
-    speakingUntil = 0;
+    discardTurn = true;
+    discardAt = Date.now();
+    boundaries = [];
+    herLevels = [];
+    const fadeMs = Math.max(0, stopAt - now) * 1000;
+    speakingUntil = Date.now() + fadeMs;
+    playhead = stopAt;
     try {
       const t = outCtx.currentTime;
       outBus.gain.cancelScheduledValues(t);
       outBus.gain.setValueAtTime(outBus.gain.value, t);
-      outBus.gain.linearRampToValueAtTime(0.0001, t + 0.22);
-      setTimeout(() => {
-        for (const s of doomed) {
-          try {
-            s.stop();
-          } catch {
-            /* already done */
-          }
-        }
-        try {
-          const t2 = outCtx.currentTime;
-          outBus.gain.cancelScheduledValues(t2);
-          outBus.gain.setValueAtTime(1, t2); // ready for her next turn
-        } catch {
-          /* ctx closed */
-        }
-      }, 240);
+      outBus.gain.linearRampToValueAtTime(0.0001, stopAt);
     } catch {
+      /* ctx closed */
+    }
+    yieldTimer = setTimeout(() => {
+      yieldTimer = null;
       for (const s of doomed) {
         try {
           s.stop();
@@ -537,8 +1011,18 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
           /* already done */
         }
       }
-    }
-    opts.onState("listening");
+      try {
+        const t2 = outCtx.currentTime;
+        outBus.gain.cancelScheduledValues(t2);
+        outBus.gain.setValueAtTime(1, t2); // ready for her next turn
+      } catch {
+        /* ctx closed */
+      }
+      if (!liveSources.length) playhead = 0;
+      speakingUntil = 0;
+      opts.onState("listening");
+    }, fadeMs + 30);
+    diag("call", "floor_yield", { hard, fadeMs: Math.round(fadeMs) });
   };
   // she's "listening" again once the queued audio drains
   const stateTick = setInterval(() => {
@@ -563,6 +1047,8 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     if (dead) return;
     dead = true;
     clearInterval(stateTick);
+    if (yieldTimer) clearTimeout(yieldTimer);
+    yieldTimer = null;
     flushTexts();
     try {
       proc?.disconnect();
@@ -614,9 +1100,26 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
             outputAudioTranscription: {},
             realtimeInputConfig: {
               automaticActivityDetection: {
-                // default start sensitivity: HIGH made her stop dead for every
-                // breath and "hmm" — a human keeps talking through those. Real
-                // sustained speech still interrupts her (now with a dissolve).
+                // NOTHING IS SET FOR START-OF-SPEECH ON PURPOSE, and nothing
+                // should be. startOfSpeechSensitivity was tested head to head
+                // on this model, 14 sessions, one stimulus each: LOW and HIGH
+                // are behaviourally identical — full-level speech interrupts
+                // in 123-136ms at both, a 0.12-gain "distant TV" in 203-216ms
+                // at both, a 0.45s "haan" in 199-211ms at both, and broadband
+                // noise interrupts at neither. It is a no-op for barge-in.
+                // Deciding what deserves to stop her is done in the uplink,
+                // above, where the client can actually see the room.
+                //
+                // activityHandling: NO_INTERRUPTION is likewise NOT set. It
+                // really does stop barge-in — and it makes her deaf for the
+                // whole turn including the seconds of audio delivery after
+                // generation ends (measured: ~16s of deafness on a ~9s reply,
+                // the barge-in never transcribed and never answered). That
+                // trades "she stops when I speak" for "she talks over me and
+                // ignores me", which is worse. turnCoverage is not set either:
+                // TURN_INCLUDES_ALL_INPUT does not rescue audio and short
+                // windows make the server ASR invent whole Hindi sentences
+                // out of room noise for her to answer.
                 //
                 // end HIGH: commit their turn from the SPEECH being complete,
                 // not from the room going quiet — background noise was making
@@ -668,15 +1171,24 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       const sc = msg.serverContent;
       if (!sc) return;
       if (sc.interrupted) {
-        // user talked over her — kill local audio NOW (server already stopped)
-        flushPlayback();
+        // The server has already stopped generating and everything it will
+        // ever send for this turn is in our buffer. Whether that ends as a
+        // trail-off or a clean break depends on how long the overlap has
+        // been running: a hesitation gets the phrase boundary, someone who
+        // has plainly been talking for most of a second gets out of the way.
+        const overlapMs = floorClaimSince ? Date.now() - floorClaimSince : 0;
+        yieldFloor(overlapMs > YIELD_HARD_AFTER_MS);
+        floorReleasedAt = 0; // the server answered; the watchdog stands down
       }
       for (const p of sc.modelTurn?.parts ?? []) {
         if (p.inlineData?.data) playChunk(p.inlineData.data);
       }
       if (sc.inputTranscription?.text) myBuf += sc.inputTranscription.text;
       if (sc.outputTranscription?.text) herBuf += sc.outputTranscription.text;
-      if (sc.turnComplete) flushTexts();
+      if (sc.turnComplete) {
+        discardTurn = false; // the killed turn is closed; the next one may play
+        flushTexts();
+      }
     };
     ws.onerror = () => {
       clearTimeout(failTimer);
@@ -726,15 +1238,27 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       muted = m;
     },
     direct: (contextNote: string) => {
-      if (dead || !ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(
-        JSON.stringify({
-          clientContent: {
-            turns: [{ role: "user", parts: [{ text: contextNote }] }],
-            turnComplete: true,
-          },
-        }),
-      );
+      // A clientContent turn with turnComplete:true is a hard turn commit: it
+      // sets `interrupted` and guillotines her mid-word. Most callers of this
+      // are screen-share wake-ups ("look at what just happened"), which is a
+      // machine cutting her off inside a feature whose whole premise is
+      // sitting next to someone. So while she is audibly speaking the note
+      // waits for her to finish — capped, because a comment about a frame
+      // that is two seconds gone is worse than no comment.
+      const send = () => {
+        if (dead || !ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(
+          JSON.stringify({
+            clientContent: {
+              turns: [{ role: "user", parts: [{ text: contextNote }] }],
+              turnComplete: true,
+            },
+          }),
+        );
+      };
+      const wait = Math.min(1200, speakingUntil - Date.now());
+      if (wait > 40) setTimeout(send, wait);
+      else send();
     },
     sendFrame: (b64Jpeg: string) => {
       if (dead || !ready || !ws || ws.readyState !== WebSocket.OPEN) return false;
