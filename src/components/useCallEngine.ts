@@ -673,33 +673,61 @@ export function useCallEngine(
     video.muted = true;
     await video.play().catch(() => {});
     const canvas = document.createElement("canvas");
-    const grab = (): string | null => {
+    const grab = (maxSide: number, quality: number): string | null => {
       const w = video.videoWidth;
       const h = video.videoHeight;
       if (!w || !h) return null;
-      const scale = Math.min(1, 768 / Math.max(w, h));
+      const scale = Math.min(1, maxSide / Math.max(w, h));
       canvas.width = Math.round(w * scale);
       canvas.height = Math.round(h * scale);
       const ctx2d = canvas.getContext("2d");
       if (!ctx2d) return null;
       ctx2d.drawImage(video, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL("image/jpeg", 0.68);
+      return canvas.toDataURL("image/jpeg", quality);
     };
-    const iv = setInterval(() => {
-      if (!alive.current) return;
-      const url = grab();
-      if (!url) return;
-      frameRef.current = { url, at: Date.now() };
-      setFrameAt(Date.now());
-      if (!firstFrameSeen.current) {
-        firstFrameSeen.current = true;
-        track(stateRef.current.deviceId, "watch_frame_first", { web: true });
+    // ── adaptive cadence: the uplink carries her ears and her eyes on ONE
+    // socket, and voice always wins. Under congestion we shed frame RATE,
+    // then JPEG quality, then resolution — audio is never touched. Falling
+    // is instant (the link is already hurting); climbing back is one step
+    // per ~5s of clear uplink so one blip doesn't pin us at the low tier.
+    const TIERS = [
+      { every: 600, q: 0.68, side: 768 },
+      { every: 1200, q: 0.55, side: 768 },
+      { every: 2500, q: 0.45, side: 560 },
+    ];
+    let tier = 0;
+    let clearSince = Date.now();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const pump = () => {
+      if (alive.current) {
+        const t = TIERS[tier];
+        const url = grab(t.side, t.q);
+        if (url) {
+          frameRef.current = { url, at: Date.now() };
+          setFrameAt(Date.now());
+          if (!firstFrameSeen.current) {
+            firstFrameSeen.current = true;
+            track(stateRef.current.deviceId, "watch_frame_first", { web: true });
+          }
+          // realtime path: the live model sees the screen as a video stream
+          liveSession.current?.sendFrame(url.split(",")[1] ?? "");
+        }
       }
-      // realtime path: the live model sees the screen as a video stream
-      liveSession.current?.sendFrame(url.split(",")[1] ?? "");
-    }, 600);
+      // read the pressure AFTER sending — the frame we just handed the
+      // socket is part of what the next tier decision has to account for
+      const c = liveSession.current?.congestion() ?? 0;
+      const now = Date.now();
+      if (c > tier) tier = c;
+      if (c > 0) clearSince = now;
+      else if (tier > 0 && now - clearSince >= 5000) {
+        tier -= 1;
+        clearSince = now;
+      }
+      timer = setTimeout(pump, TIERS[tier].every);
+    };
+    timer = setTimeout(pump, TIERS[0].every);
     const cleanup = () => {
-      clearInterval(iv);
+      if (timer) clearTimeout(timer);
       stream.getTracks().forEach((tr) => tr.stop());
       frameRef.current = null;
       watchSession.current = null;

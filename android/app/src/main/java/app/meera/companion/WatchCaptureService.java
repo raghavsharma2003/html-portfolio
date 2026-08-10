@@ -47,7 +47,16 @@ public class WatchCaptureService extends Service {
   // The live session streams video into an already-open socket, so a faster
   // rate costs only bandwidth; the cascade pays a vision request per frame,
   // hence the slower fallback tick.
-  private static final long FRAME_INTERVAL_LIVE_MS = 600;
+  //
+  // On the live lane those frames share ONE socket with her ears, so the
+  // rate/quality/size are indexed by LiveWatchEngine.getCongestion(): on a
+  // struggling uplink we send fewer, cheaper, smaller frames and the voice
+  // stream keeps the bandwidth. Voice is never the thing that degrades.
+  private static final long[] LIVE_FRAME_MS = {600L, 1200L, 2500L};
+  private static final int[] LIVE_JPEG_Q = {68, 55, 45};
+  private static final int[] LIVE_MAX_SIDE = {768, 768, 560};
+  /** Congestion drops the tier at once; the climb back is one step per this. */
+  private static final long TIER_RECOVER_MS = 5000;
   private static final long FRAME_INTERVAL_MS = 1400;
 
   private LiveWatchEngine live; // realtime lane (Gemini Live) — tried first
@@ -62,6 +71,9 @@ public class WatchCaptureService extends Service {
   private ImageReader reader;
   private Handler handler;
   private boolean running = false;
+  // capture tier, handler-thread confined (sampler + captureFrame only)
+  private int liveTier = 0;
+  private long tierClearSince = 0;
 
   private final Runnable sampler = new Runnable() {
     @Override
@@ -72,11 +84,31 @@ public class WatchCaptureService extends Service {
       } catch (Exception ignored) {
         // a dropped frame is fine; the next tick retries
       }
+      adaptTier();
       if (running && handler != null) {
-        handler.postDelayed(this, live != null ? FRAME_INTERVAL_LIVE_MS : FRAME_INTERVAL_MS);
+        handler.postDelayed(this, live != null ? LIVE_FRAME_MS[liveTier] : FRAME_INTERVAL_MS);
       }
     }
   };
+
+  /** One step per frame tick: fall to the reported congestion immediately,
+   *  recover a single step per {@link #TIER_RECOVER_MS} of clear uplink. */
+  private void adaptTier() {
+    LiveWatchEngine l = live;
+    if (l == null) {
+      liveTier = 0; // cascade lane: no shared socket to protect
+      return;
+    }
+    int c = l.getCongestion();
+    long now = System.currentTimeMillis();
+    if (c > liveTier) liveTier = c;
+    if (c > 0) {
+      tierClearSince = now;
+    } else if (liveTier > 0 && now - tierClearSince >= TIER_RECOVER_MS) {
+      liveTier--;
+      tierClearSince = now;
+    }
+  }
 
   @Override
   public IBinder onBind(Intent intent) {
@@ -286,9 +318,13 @@ public class WatchCaptureService extends Service {
               image.getHeight(),
               Bitmap.Config.ARGB_8888);
       bitmap.copyPixelsFromBuffer(buffer);
-      // crop padding, downscale so the longest side is ~768 (one vision tile)
+      // crop padding, downscale so the longest side is ~768 (one vision
+      // tile) — or smaller on the live lane's heaviest congestion tier
+      LiveWatchEngine l = live;
+      int maxSide = l != null ? LIVE_MAX_SIDE[liveTier] : 768;
+      int quality = l != null ? LIVE_JPEG_Q[liveTier] : 68;
       Bitmap cropped = Bitmap.createBitmap(bitmap, 0, 0, image.getWidth(), image.getHeight());
-      float scale = 768f / Math.max(cropped.getWidth(), cropped.getHeight());
+      float scale = maxSide / (float) Math.max(cropped.getWidth(), cropped.getHeight());
       Bitmap frame =
           scale < 1f
               ? Bitmap.createScaledBitmap(
@@ -298,12 +334,11 @@ public class WatchCaptureService extends Service {
                   true)
               : cropped;
       ByteArrayOutputStream out = new ByteArrayOutputStream();
-      frame.compress(Bitmap.CompressFormat.JPEG, 68, out);
+      frame.compress(Bitmap.CompressFormat.JPEG, quality, out);
       String b64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
       WatchPlugin.emitFrame(b64); // UI chip liveness (when the app is visible)
       // the brain lives natively — realtime lane while its socket is up,
       // cascade otherwise (frames before setupComplete are simply skipped)
-      LiveWatchEngine l = live;
       if (l != null) {
         if (l.isReady()) l.onFrame(b64);
       } else if (engine != null) {
@@ -317,6 +352,8 @@ public class WatchCaptureService extends Service {
   /** Release one capture session (projection, reader, display, engines). */
   private void teardownSession() {
     running = false;
+    liveTier = 0; // a new session starts at full rate, not the old one's tier
+    tierClearSince = 0;
     BubbleService.stopBubble(this);
     if (live != null) {
       live.stop(); // idempotent: releases mic, socket, AudioTrack, focus

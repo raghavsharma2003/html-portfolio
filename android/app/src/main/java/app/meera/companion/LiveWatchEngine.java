@@ -84,11 +84,21 @@ class LiveWatchEngine {
   private static final int MAX_RECONNECTS = 3; // then fall back to the cascade
   private static final int MAX_ROTATES = 6; // goAway storms must not spin
   private static final long DRAIN_GRACE_MS = 1500; // hold focus between quick turns
-  // REALTIME means a backed-up uplink must DROP, not buffer: ~2 frames of
-  // video / ~2s of audio max. The old MB-scale caps would happily queue 45
-  // seconds of stale conversation on a weak uplink — the opposite of live.
-  private static final long MAX_QUEUE_VIDEO = 150_000L;
-  private static final long MAX_QUEUE_AUDIO = 120_000L;
+  // REALTIME means a backed-up uplink must DROP, not buffer. VOICE FIRST:
+  // audio is skipped only once ~0.9s of it is already waiting (a hole costs
+  // one syllable, a queue costs a growing delay on every word after it), and
+  // video is cut off far earlier so a screen frame can NEVER sit in front of
+  // her hearing them. The old caps (150KB/120KB) were ~2.7s of stale
+  // conversation queued on a weak uplink — the opposite of live.
+  private static final long MAX_QUEUE_VIDEO = 16_000L;
+  private static final long MAX_QUEUE_AUDIO = 40_000L;
+  // congestion levels off the SMOOTHED queue, with hysteresis so one frame
+  // in flight can't flap the capture tier. Level 2 sits below the audio cap
+  // on purpose: video degrades before a single mic chunk is ever dropped.
+  private static final double CONGEST_UP_1 = 8_000;
+  private static final double CONGEST_UP_2 = 28_000;
+  private static final double CONGEST_DOWN_1 = 5_000;
+  private static final double CONGEST_DOWN_2 = 20_000;
 
   /** Live mode replaces the per-frame NO_COMMENT gate — she decides herself. */
   private static final String LIVE_NOTE =
@@ -161,6 +171,8 @@ class LiveWatchEngine {
   private final AtomicInteger rotates = new AtomicInteger();
   private volatile long lastVoiceAt = 0; // last input-transcription activity
   private volatile long lastNudgeAt = 0; // last silent-screen commentary nudge
+  private volatile int congestion = 0; // 0 clear / 1 moderate / 2 heavy uplink
+  private double queueEma = 0; // mic-thread confined: only sampleCongestion touches it
   // lazily built from whichever thread speaks first; volatile so the abandon
   // path (any thread, no lock) never sees a half-published request
   private volatile AudioAttributes attrs;
@@ -324,6 +336,14 @@ class LiveWatchEngine {
 
   boolean isReady() {
     return running && ready;
+  }
+
+  /**
+   * Smoothed uplink pressure: 0 clear, 1 moderate, 2 heavy. The capture
+   * service sheds frame RATE and JPEG quality against this — never audio.
+   */
+  int getCongestion() {
+    return congestion;
   }
 
   /** Half-duplex gate for callers: capture never stops, we send silence. */
@@ -848,7 +868,9 @@ class LiveWatchEngine {
       WebSocket s = ws;
       if (!ready || s == null) continue;
       try {
-        if (s.queueSize() > MAX_QUEUE_AUDIO) continue;
+        long queued = s.queueSize();
+        sampleCongestion(queued);
+        if (queued > MAX_QUEUE_AUDIO) continue;
         s.send(
             "{\"realtimeInput\":{\"audio\":{\"data\":\""
                 + Base64.encodeToString(buf, 0, n, Base64.NO_WRAP)
@@ -856,6 +878,23 @@ class LiveWatchEngine {
       } catch (Exception ignored) {
       }
     }
+  }
+
+  /**
+   * okhttp's queueSize is the bytes we handed the socket that have not
+   * reached the network — it only grows when the uplink can't keep up, so a
+   * smoothed reading IS the congestion signal (no probing, no extra
+   * traffic). Sampled on the mic clock (one 100ms chunk per call) from the
+   * mic thread only, so the EMA needs no lock.
+   */
+  private void sampleCongestion(long queued) {
+    queueEma = queueEma * 0.8 + queued * 0.2;
+    int c = congestion;
+    if (c < 2 && queueEma > CONGEST_UP_2) c = 2;
+    else if (c < 1 && queueEma > CONGEST_UP_1) c = 1;
+    else if (c == 2 && queueEma < CONGEST_DOWN_2) c = 1;
+    else if (c == 1 && queueEma < CONGEST_DOWN_1) c = 0;
+    congestion = c;
   }
 
   /* ── downlink: queued 24k PCM -> streaming AudioTrack ──────────────── */

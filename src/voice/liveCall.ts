@@ -19,6 +19,11 @@ export interface LiveSession {
   direct: (contextNote: string) => void;
   /** Stream a screen frame (base64 JPEG) — realtime co-watching. */
   sendFrame: (b64Jpeg: string) => void;
+  /**
+   * Smoothed uplink pressure: 0 clear, 1 moderate, 2 heavy. Callers shed
+   * VIDEO against this (rate/quality) — never audio.
+   */
+  congestion: () => 0 | 1 | 2;
   active: () => boolean;
 }
 
@@ -31,17 +36,58 @@ export interface LiveCallOpts {
   onEnded: (reason: "failed" | "closed") => void;
 }
 
+// ── uplink backpressure thresholds (ws.bufferedAmount, bytes) ──
+// 16k PCM16 base64 runs ~43KB/s, so 48KB of unsent socket buffer is already
+// ~1s of mic audio the server hasn't heard. Past that, DROPPING a chunk is
+// strictly better than queueing it: a hole in the uplink costs one syllable
+// (the VAD rides it out), a queue costs an ever-growing delay on every word
+// after it. Frames get a third of that budget so a screen frame can NEVER
+// sit in front of her hearing you.
+const UPLINK_AUDIO_MAX = 48_000;
+const UPLINK_FRAME_MAX = 16_000;
+// congestion levels off the smoothed reading (hysteresis so a single frame
+// in flight doesn't flap the video tier)
+const CONGEST_UP_1 = 8_000;
+const CONGEST_UP_2 = 32_000;
+const CONGEST_DOWN_1 = 5_000;
+const CONGEST_DOWN_2 = 24_000;
+
+/**
+ * Mint the ephemeral token with two STAGGERED attempts inside one budget.
+ * On a lossy mobile link a single lost SYN burns the entire ring window
+ * (8s of retransmit backoff, then no live call at all); a second attempt
+ * fired at 2.5s costs one request and wins the race outright when the
+ * first one is stuck. First success wins — the loser is abandoned.
+ */
+async function mintToken(base: string, budgetMs: number) {
+  let won = false;
+  const attempt = async (delayMs: number) => {
+    if (delayMs) {
+      await new Promise((r) => setTimeout(r, delayMs));
+      if (won) throw new Error("superseded"); // never mint a second token for nothing
+    }
+    const res = await fetch(`${base}/api/live-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+      signal: AbortSignal.timeout(budgetMs - delayMs),
+    });
+    if (!res.ok) throw new Error("no live token");
+    const j = await res.json();
+    if (!j?.token) throw new Error("no live token");
+    won = true;
+    return j as { token: string; model?: string };
+  };
+  try {
+    return await Promise.any([attempt(0), attempt(2500)]);
+  } catch {
+    throw new Error("no live token"); // both attempts failed inside the budget
+  }
+}
+
 export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   // 1. ephemeral token from our server (never the real key)
-  const tokRes = await fetch(`${opts.base}/api/live-token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: "{}",
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!tokRes.ok) throw new Error("no live token");
-  const { token, model } = await tokRes.json();
-  if (!token) throw new Error("no live token");
+  const { token, model } = await mintToken(opts.base, 8000);
 
   // 2. mic — echo cancellation on: she plays through the same phone's speaker
   const stream = await navigator.mediaDevices.getUserMedia({
@@ -121,8 +167,26 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     if (open) prevPcm = null;
     sendPcm(pcm);
   };
+  // ── uplink congestion: bufferedAmount is the browser's own count of bytes
+  // we handed the socket that have not reached the network. It only grows
+  // when the uplink can't keep up, so a smoothed reading IS the congestion
+  // signal — no probing, no extra traffic. Sampled on the mic clock (~85ms)
+  // and on every frame attempt.
+  let bufEma = 0;
+  let congestionLevel: 0 | 1 | 2 = 0;
+  const noteBuffered = (buffered: number) => {
+    bufEma = bufEma * 0.8 + buffered * 0.2;
+    if (congestionLevel < 2 && bufEma > CONGEST_UP_2) congestionLevel = 2;
+    else if (congestionLevel < 1 && bufEma > CONGEST_UP_1) congestionLevel = 1;
+    else if (congestionLevel === 2 && bufEma < CONGEST_DOWN_2) congestionLevel = 1;
+    else if (congestionLevel === 1 && bufEma < CONGEST_DOWN_1) congestionLevel = 0;
+  };
   function sendPcm(pcm: Int16Array) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const buffered = ws.bufferedAmount;
+    noteBuffered(buffered);
+    // the uplink is behind: skip this chunk rather than deepen the queue
+    if (buffered > UPLINK_AUDIO_MAX) return;
     let bin = "";
     const bytes = new Uint8Array(pcm.buffer);
     for (let i = 0; i < bytes.length; i += 8192) {
@@ -146,6 +210,21 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let playhead = 0;
   let liveSources: AudioBufferSourceNode[] = [];
   let speakingUntil = 0;
+  // ── adaptive jitter cushion ──
+  // A fixed 30ms lead assumes chunks always arrive before the previous one
+  // finishes. On a jittery mobile downlink they don't: the buffer runs dry
+  // mid-word and her voice STUTTERS. So the lead is earned: it grows 40ms
+  // per utterance that ran dry (to 240ms) and decays 10ms per clean
+  // utterance back to 40ms. A slightly higher constant delay is
+  // imperceptible in conversation; a gap in the middle of a word is not.
+  const LEAD_MIN = 0.04;
+  const LEAD_MAX = 0.24;
+  const LEAD_GROW = 0.04;
+  const LEAD_DECAY = 0.01;
+  // a silence longer than this is her turn ENDING, not the stream starving
+  const UTTERANCE_GAP = 0.5;
+  let lead = LEAD_MIN;
+  let ranDry = false; // this utterance already bought its cushion
   const playChunk = (b64: string) => {
     const raw = atob(b64);
     const n = raw.length / 2;
@@ -162,7 +241,18 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     const s = outCtx.createBufferSource();
     s.buffer = buf;
     s.connect(outBus);
-    const at = Math.max(outCtx.currentTime + 0.03, playhead);
+    const now = outCtx.currentTime;
+    if (!playhead || now - playhead > UTTERANCE_GAP) {
+      // fresh utterance: bank the verdict on the one that just ended
+      if (playhead && !ranDry) lead = Math.max(LEAD_MIN, lead - LEAD_DECAY);
+      ranDry = false;
+    } else if (playhead < now && !ranDry) {
+      // this chunk arrived AFTER the queue emptied — she stuttered mid-word.
+      // Buy cushion now; one grow per utterance keeps it from ratcheting.
+      ranDry = true;
+      lead = Math.min(LEAD_MAX, lead + LEAD_GROW);
+    }
+    const at = Math.max(now + lead, playhead);
     s.start(at);
     playhead = at + buf.duration;
     speakingUntil = Math.max(speakingUntil, Date.now() + (playhead - outCtx.currentTime) * 1000);
@@ -370,12 +460,17 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     },
     sendFrame: (b64Jpeg: string) => {
       if (dead || !ready || !ws || ws.readyState !== WebSocket.OPEN) return;
+      const buffered = ws.bufferedAmount;
+      noteBuffered(buffered);
+      // hard rule: a screen frame never queues in front of her hearing you
+      if (buffered > UPLINK_FRAME_MAX) return;
       ws.send(
         JSON.stringify({
           realtimeInput: { video: { data: b64Jpeg, mimeType: "image/jpeg" } },
         }),
       );
     },
+    congestion: () => congestionLevel,
     active: () => !dead,
   };
 }
