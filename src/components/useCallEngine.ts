@@ -39,6 +39,7 @@ import {
 } from "../engine/persona";
 import { logTurns, rememberFrom, recallMemories } from "../engine/memory";
 import { ensureOverlay, startWatch, watchAvailable, type WatchSession } from "../native/watch";
+import { startLiveCall, type LiveSession } from "../voice/liveCall";
 import { track } from "../engine/account";
 
 export type CallPhase = "connecting" | "live" | "ended";
@@ -144,6 +145,69 @@ export function useCallEngine(
     deviceId: stateRef.current.deviceId,
   });
 
+  // ── realtime engine (Gemini Live, speech-to-speech): near-zero latency,
+  // server-side barge-in. The cascade below stays as the seamless fallback —
+  // at call start when live can't connect, and mid-call if the session drops.
+  const liveSession = useRef<LiveSession | null>(null);
+  const liveStopping = useRef(false); // deliberate stop — not a mid-call drop
+  const LIVE_BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+
+  async function tryStartLive(): Promise<LiveSession | null> {
+    if (typeof WebSocket === "undefined" || !navigator.mediaDevices?.getUserMedia) return null;
+    const parts = buildSystemPromptParts(stateRef.current.user, stateRef.current.messages.length);
+    const system =
+      parts.core +
+      buildSpeechStyle("live") +
+      parts.tail +
+      (recallRef.current
+        ? `\n\nWHAT YOU KNOW ABOUT THEM (true memories — answer confidently):\n${recallRef.current}`
+        : "");
+    let self: LiveSession | null = null;
+    const s = await startLiveCall({
+      base: LIVE_BASE,
+      system,
+      onState: (st) => {
+        if (!alive.current) return;
+        const speaking = st === "speaking";
+        speakingRef.current = speaking;
+        setSpeaking(speaking);
+        listeningRef.current = true; // live mic is always hot
+        setListening(true);
+      },
+      onMyText: (t) => {
+        lastHeardAt.current = Date.now();
+        log({ id: uid(), from: "me", kind: "text", channel: "call", text: t, at: Date.now() });
+      },
+      onHerText: (t) =>
+        log({ id: uid(), from: "her", kind: "text", channel: "call", text: t, at: Date.now() }),
+      onEnded: (reason) => {
+        if (liveSession.current === self) liveSession.current = null;
+        if (liveStopping.current || !alive.current) return;
+        // dropped mid-call (network blip, session cap) — cascade takes over
+        // so the call never dies; she just keeps talking the slower way
+        track(stateRef.current.deviceId, "live_call_dropped", { reason });
+        speakingRef.current = false;
+        setSpeaking(false);
+        listeningRef.current = false;
+        setListening(false);
+        startListening();
+        armReengage();
+      },
+    });
+    self = s;
+    if (!alive.current) {
+      liveStopping.current = true;
+      s.stop();
+      liveStopping.current = false;
+      return null;
+    }
+    liveSession.current = s;
+    listeningRef.current = true;
+    setListening(true);
+    s.direct(CALL_OPEN_DIRECTIVE()); // she improvises her pickup, spoken live
+    return s;
+  }
+
   // connect + greet
   useEffect(() => {
     alive.current = true;
@@ -181,14 +245,34 @@ export function useCallEngine(
       if (!alive.current) return;
       setPhase("live");
       startRoomTone(); // real lines are never digitally silent
-      // if her improvised greeting's audio isn't rolling within ~600ms of
-      // the line going live, a cached "haan hello?" fills the gap — a phone
-      // pickup is never silent
+      // ── realtime engine first: true speech-to-speech (Gemini Live). If it
+      // doesn't come up within ~3.5s, the cascade takes the call — and if
+      // the live session then arrives late, it's discarded, not adopted. ──
+      const livePromise = tryStartLive().catch(() => null);
+      const winner = await Promise.race([
+        livePromise,
+        new Promise<"slow">((r) => setTimeout(() => r("slow"), 3500)),
+      ]);
+      if (!alive.current) return;
+      if (winner && winner !== "slow") {
+        track(stateRef.current.deviceId, "live_call_started", {});
+        return; // realtime session owns the call from here
+      }
+      livePromise.then((s) => {
+        // late arrival after the cascade already started talking — discard
+        if (s && liveSession.current !== s) {
+          liveStopping.current = true;
+          s.stop();
+          liveStopping.current = false;
+        }
+      });
+      if (winner === "slow") track(stateRef.current.deviceId, "live_call_slow", {});
+      // ── cascade fallback: prewarmed greet + instant pickup filler ──
       pickupT = setTimeout(() => {
         if (alive.current && !speakingRef.current) playPickup();
       }, 600);
       const reply = await greetPromise;
-      if (!alive.current) return;
+      if (!alive.current || liveSession.current) return;
       const greet = reply.bubbles.join(" ").trim() || "hello?";
       log({
         id: uid(),
@@ -204,6 +288,12 @@ export function useCallEngine(
       alive.current = false;
       clearTimeout(t);
       if (pickupT) clearTimeout(pickupT);
+      if (liveSession.current) {
+        liveStopping.current = true;
+        liveSession.current.stop();
+        liveSession.current = null;
+        liveStopping.current = false;
+      }
       stopSpeaking();
       stopRoomTone();
       stopListen.current?.();
@@ -368,7 +458,7 @@ export function useCallEngine(
     reengageTimer.current = setTimeout(async () => {
       // she doesn't sit in silence: after ~7s she carries the conversation
       // herself (twice per stretch, then lets it breathe)
-      if (watchSession.current) return; // native engine owns the voice now
+      if (watchSession.current || liveSession.current) return; // another engine owns the voice
       if (!alive.current || speakingRef.current || thinkingRef.current || mutedRef.current) return;
       if (reengaged.current >= 2) return;
       // if we heard ANYTHING from them recently (even sub-threshold speech
@@ -427,8 +517,9 @@ export function useCallEngine(
   // for barge-in) and re-arms itself after recognizer silence timeouts
   function startListening() {
     // while watch-together runs, the NATIVE engine owns the mic — a JS
-    // recognizer here would fight it for the hardware (SR is a singleton)
-    if (watchSession.current) return;
+    // recognizer here would fight it for the hardware (SR is a singleton);
+    // same when the realtime live session owns the whole audio path
+    if (watchSession.current || liveSession.current) return;
     if (!alive.current || mutedRef.current || listeningRef.current) return;
     const web = !Capacitor.isNativePlatform();
     const res = listen(
@@ -555,7 +646,15 @@ export function useCallEngine(
         return;
       }
       // stand the JS mic lane down BEFORE the consent dialog + native start —
-      // the native recognizer's first grab must not collide with ours
+      // the native recognizer's first grab must not collide with ours. The
+      // live session releases the mic entirely (native watch owns audio);
+      // when watch ends, the cascade resumes and live re-engages next call.
+      if (liveSession.current) {
+        liveStopping.current = true;
+        liveSession.current.stop();
+        liveSession.current = null;
+        liveStopping.current = false;
+      }
       stopListen.current?.();
       listeningRef.current = false;
       setListening(false);
@@ -646,6 +745,11 @@ export function useCallEngine(
     const next = !mutedRef.current;
     mutedRef.current = next;
     setMuted(next);
+    if (liveSession.current) {
+      // live engine: the socket stays up, we just stop sending audio
+      liveSession.current.setMuted(next);
+      return;
+    }
     if (next) {
       stopListen.current?.();
       listeningRef.current = false;
@@ -657,6 +761,13 @@ export function useCallEngine(
 
   async function handleUser(text: string, prestart?: SpecTurn) {
     if (!alive.current || !text.trim()) return;
+    if (liveSession.current) {
+      // typed input during a live call — inject as a user turn; she answers
+      // through the realtime engine's own voice
+      log({ id: uid(), from: "me", kind: "text", channel: "call", text, at: Date.now() });
+      liveSession.current.direct(text);
+      return;
+    }
     reengaged.current = 0; // they spoke — silence counter resets
     // typed input (keyboard fallback) can land while she's mid-speech —
     // an answered question means she yields the floor
@@ -840,6 +951,12 @@ export function useCallEngine(
 
   function endCall(onEnd: () => void) {
     alive.current = false;
+    if (liveSession.current) {
+      liveStopping.current = true;
+      liveSession.current.stop();
+      liveSession.current = null;
+      liveStopping.current = false;
+    }
     stopWatchMode(); // screen sharing dies with the call, always
     if (reengageTimer.current) clearTimeout(reengageTimer.current);
     stopSpeaking();
