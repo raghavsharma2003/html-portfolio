@@ -49,28 +49,16 @@ public class WatchCaptureService extends Service {
   // rate costs only bandwidth; the cascade pays a vision request per frame,
   // hence the slower fallback tick.
   //
-  // On the live lane those frames share ONE socket with her ears, so the
-  // rate/quality/size are indexed by LiveWatchEngine.getCongestion(): on a
-  // struggling uplink we send fewer, cheaper, smaller frames and the voice
-  // stream keeps the bandwidth. Voice is never the thing that degrades.
-  private static final long[] LIVE_FRAME_MS = {600L, 1200L, 2500L};
-  private static final int[] LIVE_JPEG_Q = {68, 55, 45};
-  private static final int[] LIVE_MAX_SIDE = {768, 768, 560};
-  // Congestion drops the tier at once; the climb back is one step per CLEAR
-  // WINDOW, where "clear" means congestion BELOW the tier we sit at — not
-  // congestion zero. A link that settles at level 1 must still be able to
-  // climb from tier 2 to tier 1; requiring zero pinned it at the worst tier
-  // for the rest of the session.
-  //
-  // The window is exponential for marginal links: 5s to start, doubling (to
-  // 40s) whenever a recovery step is undone by a fall within 10s, and back
-  // to 5s after a full minute with no fall at all. A link that can only
-  // carry tier 1 therefore stops re-testing tier 0 every 5s — that
-  // oscillation was itself visible as the picture pulsing.
-  private static final long TIER_RECOVER_MS = 5000;
-  private static final long TIER_RECOVER_MAX_MS = 40_000;
-  private static final long TIER_UNDONE_MS = 10_000; // a fall this soon after a climb
-  private static final long TIER_STABLE_MS = 60_000; // this long with no fall = reset
+  // ONE quality, always the best one. There is deliberately NO adaptive
+  // tiering here any more: degrading the picture to protect a link made her
+  // worse at the only thing this feature is for. At the bottom tier she saw
+  // the screen once every 2.5s, which is not watching — it is a slideshow she
+  // then guesses about. Frames go out at full rate and quality and the link
+  // carries it or drops individual frames; she is never fed a worse picture
+  // on purpose.
+  private static final long LIVE_FRAME_MS = 600L;
+  private static final int LIVE_JPEG_Q = 68;
+  private static final int LIVE_MAX_SIDE = 768;
   private static final long FRAME_INTERVAL_MS = 1400;
 
   // ── waking her up, fast ────────────────────────────────────────────────
@@ -133,13 +121,6 @@ public class WatchCaptureService extends Service {
   private ImageReader reader;
   private Handler handler;
   private boolean running = false;
-  // capture tier, handler-thread confined (sampler + tick + teardownSession,
-  // all on the main looper) — no other thread reads or writes any of it
-  private int liveTier = 0;
-  private long tierClearSince = 0; // SystemClock.elapsedRealtime
-  private long tierRecoverMs = TIER_RECOVER_MS; // current clear window
-  private long tierRecoveredAt = 0; // last climb, for the "undone" test
-  private long tierFellAt = 0; // last fall, for the stability reset
 
   private final Runnable sampler = new Runnable() {
     @Override
@@ -150,46 +131,9 @@ public class WatchCaptureService extends Service {
       } catch (Exception ignored) {
         // a dropped frame is fine; the next tick retries
       }
-      adaptTier();
       if (running && handler != null) handler.postDelayed(this, DETECT_MS);
     }
   };
-
-  /** One step per frame tick: fall to the reported congestion immediately,
-   *  recover a single step per clear window. elapsedRealtime, not wall clock:
-   *  an NTP/DST jump must not hand out a free recovery or freeze one. */
-  private void adaptTier() {
-    LiveWatchEngine l = live;
-    if (l == null) {
-      liveTier = 0; // cascade lane: no shared socket to protect
-      return;
-    }
-    int c = l.getCongestion();
-    long now = SystemClock.elapsedRealtime();
-    if (c > liveTier) {
-      liveTier = c; // falling is instant — the link is already hurting
-      if (tierRecoveredAt != 0 && now - tierRecoveredAt <= TIER_UNDONE_MS) {
-        // we climbed and the link threw it straight back: wait longer
-        tierRecoverMs = Math.min(TIER_RECOVER_MAX_MS, tierRecoverMs * 2);
-      }
-      tierRecoveredAt = 0;
-      tierFellAt = now;
-      tierClearSince = now;
-    } else if (c >= liveTier) {
-      // still as congested as the tier we are on — the clear run restarts.
-      // (Only c >= liveTier restarts it: a residual level 1 no longer blocks
-      // the climb down from tier 2.)
-      tierClearSince = now;
-    } else if (now - tierClearSince >= tierRecoverMs) {
-      liveTier--;
-      tierClearSince = now;
-      tierRecoveredAt = now;
-    }
-    if (tierFellAt != 0 && now - tierFellAt >= TIER_STABLE_MS) {
-      tierRecoverMs = TIER_RECOVER_MS; // link has been stable for a minute
-      tierFellAt = 0;
-    }
-  }
 
   @Override
   public IBinder onBind(Intent intent) {
@@ -430,7 +374,7 @@ public class WatchCaptureService extends Service {
       if (motion >= 2) pendingNew = true;
       long now = SystemClock.elapsedRealtime();
       LiveWatchEngine l = live;
-      long baseline = l != null ? LIVE_FRAME_MS[liveTier] : FRAME_INTERVAL_MS;
+      long baseline = l != null ? LIVE_FRAME_MS : FRAME_INTERVAL_MS;
       // A new thing on screen is the single most valuable frame we can spend
       // bandwidth on, so it jumps the baseline cadence — congestion slows the
       // BASELINE flow, never the reaction. (The socket still has the final
@@ -493,11 +437,11 @@ public class WatchCaptureService extends Service {
             image.getHeight(),
             Bitmap.Config.ARGB_8888);
     bitmap.copyPixelsFromBuffer(buffer);
-    // crop padding, downscale so the longest side is ~768 (one vision
-    // tile) — or smaller on the live lane's heaviest congestion tier
+    // crop padding, downscale so the longest side is ~768 — one vision tile,
+    // the same full quality on every link
     LiveWatchEngine l = live;
-    int maxSide = l != null ? LIVE_MAX_SIDE[liveTier] : 768;
-    int quality = l != null ? LIVE_JPEG_Q[liveTier] : 68;
+    int maxSide = l != null ? LIVE_MAX_SIDE : 768;
+    int quality = l != null ? LIVE_JPEG_Q : 68;
     Bitmap cropped = Bitmap.createBitmap(bitmap, 0, 0, image.getWidth(), image.getHeight());
     float scale = maxSide / (float) Math.max(cropped.getWidth(), cropped.getHeight());
     Bitmap frame =
@@ -554,13 +498,6 @@ public class WatchCaptureService extends Service {
   private void teardownSession() {
     running = false;
     sessionActive = false;
-    // a new session starts at full rate and the FAST clear window — never
-    // inheriting the old link's tier or its accumulated backoff
-    liveTier = 0;
-    tierClearSince = 0;
-    tierRecoverMs = TIER_RECOVER_MS;
-    tierRecoveredAt = 0;
-    tierFellAt = 0;
     sceneSig = null; // a new share's first frame is new content again
     prevBig = false;
     pendingNew = false;

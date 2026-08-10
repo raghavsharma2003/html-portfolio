@@ -95,10 +95,15 @@ class LiveWatchEngine {
   // by itself, and on any link that can carry the call it drains in
   // 100-300ms — a delay the receiver absorbs, where a dropped chunk is a
   // hole in what she hears. So SPEECH is shed only after the counter has sat
-  // above the cap CONTINUOUSLY for AUDIO_SUSTAIN_MS (600ms = 6 mic chunks),
+  // above the cap CONTINUOUSLY for STALL_MS (a dead socket, not a busy one),
   // which only a genuine stall can do.
   private static final long MAX_QUEUE_AUDIO = 40_000L;
-  private static final long AUDIO_SUSTAIN_MS = 600L;
+  // Not a quality knob — a last-resort backstop. Speech is shed ONLY when the
+  // queue has sat above the cap this long with no drainage at all, i.e. the
+  // socket is effectively dead. At 43KB/s, 6s over a 40KB cap means a quarter
+  // megabyte of speech queued that would otherwise be delivered as a wall of
+  // stale audio long after the moment passed.
+  private static final long STALL_MS = 6_000L;
   // Silence is not speech: a gated chunk carries no words, only VAD
   // continuity, so it sheds at the first real backlog. 8_000 / 43_000 ≈
   // 185ms of audio backlog (~2 mic chunks). ~60-70% of a call is gated, so
@@ -113,12 +118,6 @@ class LiveWatchEngine {
   // needs to call the turn over.)
   private static final int SILENCE_ENDPOINT_CHUNKS = 7;
   private static final int SILENCE_KEEP = 3;
-  // A frame may only enter a NEAR-DRAINED socket — the same 8_000 ≈ 185ms.
-  // If the queue has not come back down to ~2 mic chunks since the last
-  // frame, the link cannot carry frames at this rate and the capture tier
-  // will slow them down. (The old 16_000 check still let a ~50KB frame land
-  // on a queue already holding a third of the entire audio budget.)
-  private static final long FRAME_GATE = 8_000L;
   /** Pathological encode (~90KB of JPEG): ~2.8s of uplink in one message. */
   private static final int FRAME_MAX_B64 = 120_000;
   // Congestion read from the queue's TROUGHS — the SAME numbers as the web
@@ -466,11 +465,12 @@ class LiveWatchEngine {
     if (s == null) return;
     boolean sent = false;
     try {
-      // a frame goes out only into a near-drained socket, and is never
-      // sampled into the congestion signal — the reading here is the
-      // sawtooth we are about to create ourselves
-      if (s.queueSize() > FRAME_GATE) return; // hasn't drained since the last frame
-      if (b64Jpeg.length() > FRAME_MAX_B64) return; // pathological encode
+      // Frames are never refused for backlog any more. Withholding the
+      // picture is what made her go blind and then quiet mid-share, and a
+      // frame she never sees is worth less than a frame that arrives late.
+      // Only an absurd encode is still refused, so one bad frame cannot
+      // wedge the socket.
+      if (b64Jpeg.length() > FRAME_MAX_B64) return;
       // base64 (NO_WRAP) and the fixed mime are JSON-safe by construction —
       // hand-rolled so a ~60KB frame isn't copied through JSONObject twice
       sent =
@@ -986,17 +986,20 @@ class LiveWatchEngine {
         } else {
           overSince = 0; // drained back under the cap — the stall clock restarts
         }
-        // VOICE FIRST, and silence first of all. A SPEECH chunk is dropped
-        // only once the queue has been over the cap for AUDIO_SUSTAIN_MS
-        // with no relief — a transient frame burst never costs a syllable,
-        // it only delays it. A silent chunk goes as soon as there is any
-        // real backlog; that is where the uplink is actually recovered.
+        // HER HEARING EVERY WORD IS THE PRODUCT. A chunk carrying speech is
+        // never dropped to protect a link: words she never receives are words
+        // she answers by guessing. Only wordless chunks shed, and even those
+        // keep the turn-ending pause and a heartbeat so the server's VAD can
+        // still hear them stop talking. The one exception is a catastrophic
+        // stall (STALL_MS with no drainage at all), where the queue is dead
+        // and everything in it would arrive as tens of seconds of stale
+        // speech — there, dropping is the kinder failure.
         drop =
             (muted || gated)
                 ? (queued > SILENCE_CAP
                     && gatedRun > SILENCE_ENDPOINT_CHUNKS // turn-ending pause always goes
                     && gatedRun % SILENCE_KEEP != 0) // and the stream never goes dark
-                : (overSince != 0 && nowMs - overSince >= AUDIO_SUSTAIN_MS);
+                : (overSince != 0 && nowMs - overSince >= STALL_MS);
       }
       if (!gated && opened && prevChunk != null && canSend && !drop) {
         // closed->open: replay the previous chunk so the syllable that

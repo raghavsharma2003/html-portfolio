@@ -873,38 +873,16 @@ ${recallRef.current}`
       ctx2d.drawImage(video, 0, 0, canvas.width, canvas.height);
       return canvas.toDataURL("image/jpeg", quality);
     };
-    // ── adaptive cadence: the uplink carries her ears and her eyes on ONE
-    // socket, and voice always wins. Under congestion we shed frame RATE,
-    // then JPEG quality, then resolution — audio is never touched. Falling
-    // is instant (the link is already hurting); climbing back is one step
-    // per CLEAR WINDOW, where "clear" means congestion BELOW the tier we are
-    // sitting at — not congestion zero. A link that settles at level 1 must
-    // still be able to climb from tier 2 to tier 1; requiring zero pinned it
-    // at the worst tier for the rest of the call.
-    //
-    // The window is exponential for marginal links: 5s to start, doubling
-    // (to 40s) every time a recovery step is undone by a fall within 10s,
-    // and back to 5s after a full minute without a fall. A link that can
-    // only carry tier 1 therefore stops re-testing tier 0 every 5s — that
-    // oscillation was itself visible as the picture pulsing.
-    // All timers are performance.now(): a wall-clock jump (NTP, DST) must
-    // not hand out a free recovery or freeze one for hours.
-    const TIERS = [
-      { every: 600, q: 0.68, side: 768 },
-      { every: 1200, q: 0.55, side: 768 },
-      { every: 2500, q: 0.45, side: 560 },
-    ];
-    const RECOVER_BASE_MS = 5000;
-    const RECOVER_MAX_MS = 40_000;
-    const RECOVER_UNDONE_MS = 10_000; // a fall this soon after a climb = too eager
-    const RECOVER_STABLE_MS = 60_000; // this long without a fall = fast window back
-    let tier = 0;
-    // per-session state: a new share starts at the fast window, never
-    // inheriting the last session's backoff
-    let recoverMs = RECOVER_BASE_MS;
-    let clearSince = performance.now();
-    let recoveredAt = 0;
-    let fellAt = 0;
+    // ── ONE quality, always the best one ──
+    // There is deliberately no adaptive tiering here. Degrading the picture
+    // to protect the link made her worse at the only thing this feature is
+    // for: at the bottom tier she saw the screen once every 2.5s, which is
+    // not watching, it is a slideshow she then has to guess about. Frames go
+    // out at full rate and quality; the link carries them or an individual
+    // frame is lost, and she is never shown a worse picture on purpose.
+    const FRAME_EVERY_MS = 600;
+    const FRAME_Q = 0.68;
+    const FRAME_SIDE = 768;
     let timer: ReturnType<typeof setTimeout> | null = null;
     // wake-up pacing — purely to protect the socket and the API, never to
     // ration what she says: a floor between wake-ups, and a ceiling per
@@ -970,9 +948,8 @@ ${recallRef.current}`
         // final say — sendFrame refuses a frame that would queue in front of
         // her hearing them, and then nothing wakes her, which is correct.)
         const react = pendingNew && at - lastSentAt >= CHANGE_SEND_MS;
-        if (react || at - lastSentAt >= TIERS[tier].every) {
-          const t = TIERS[tier];
-          const url = grab(t.side, t.q);
+        if (react || at - lastSentAt >= FRAME_EVERY_MS) {
+          const url = grab(FRAME_SIDE, FRAME_Q);
           if (url) {
             lastSentAt = at; // nothing grabbed, nothing spent
             if (pendingNew) {
@@ -1005,33 +982,6 @@ ${recallRef.current}`
             }
           }
         }
-      }
-      // the signal is sampled on the mic clock inside the session (queue
-      // troughs), so it is already independent of the frame we just sent
-      const c = liveSession.current?.congestion() ?? 0;
-      const now = performance.now();
-      if (c > tier) {
-        tier = c; // falling is instant — the link is already hurting
-        if (recoveredAt && now - recoveredAt <= RECOVER_UNDONE_MS) {
-          // we climbed and the link threw it straight back: wait longer
-          recoverMs = Math.min(RECOVER_MAX_MS, recoverMs * 2);
-        }
-        recoveredAt = 0;
-        fellAt = now;
-        clearSince = now;
-      } else if (c >= tier) {
-        // still as congested as the tier we are on — the clear run restarts.
-        // (Only c >= tier restarts it: a residual level 1 no longer blocks
-        // the climb down from tier 2.)
-        clearSince = now;
-      } else if (now - clearSince >= recoverMs) {
-        tier -= 1;
-        clearSince = now;
-        recoveredAt = now;
-      }
-      if (fellAt && now - fellAt >= RECOVER_STABLE_MS) {
-        recoverMs = RECOVER_BASE_MS; // link has been stable for a minute
-        fellAt = 0;
       }
       timer = setTimeout(pump, DETECT_MS);
     };
