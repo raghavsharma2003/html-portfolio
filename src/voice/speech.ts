@@ -934,57 +934,86 @@ type STTResult = { supported: boolean; stop?: () => void };
 // onEnd carries WHY the session ended: "" = normal silence timeout (re-arm),
 // "not-allowed" = permission denied (stop re-arming, surface the keyboard),
 // "error" = transient failure (re-arm with backoff)
+// Native STT plumbing is wired ONCE per app run (permission check + event
+// listeners), so each re-arm after she speaks is a single start() bridge
+// call. The old per-listen setup (5 round-trips) left the mic dead for the
+// whole plumbing time on every turn — the "did she even hear me?" gap.
+type NativeHandler = {
+  onText: (text: string, final: boolean) => void;
+  onEnd: (reason?: string) => void;
+  last: string;
+  done: boolean;
+};
+let nativeWired = false;
+let nativePermOk = false;
+let nativeCurrent: NativeHandler | null = null;
+
+async function wireNativeOnce(): Promise<boolean> {
+  if (nativeWired) return nativePermOk;
+  nativeWired = true;
+  try {
+    const avail = await NativeSR.available();
+    if (!avail.available) return (nativePermOk = false);
+    const perm = await NativeSR.requestPermissions();
+    if (perm.speechRecognition !== "granted") return (nativePermOk = false);
+    await NativeSR.removeAllListeners();
+    await NativeSR.addListener("partialResults", (data: any) => {
+      const h = nativeCurrent;
+      const t = data?.matches?.[0];
+      if (h && !h.done && t) {
+        h.last = t;
+        h.onText(t, false);
+      }
+    });
+    await NativeSR.addListener("listeningState", (data: any) => {
+      const h = nativeCurrent;
+      if (data?.status === "stopped" && h && !h.done) {
+        h.done = true;
+        if (h.last) h.onText(h.last, true);
+        h.onEnd();
+      }
+    });
+    nativePermOk = true;
+  } catch {
+    nativeWired = false; // transient failure — re-attempt the wiring next arm
+    nativePermOk = false;
+  }
+  return nativePermOk;
+}
+
 export function listen(
   onText: (text: string, final: boolean) => void,
   onEnd: (reason?: string) => void,
 ): STTResult {
   if (isNative) {
-    let stopped = false;
-    let last = "";
+    const h: NativeHandler = { onText, onEnd, last: "", done: false };
     (async () => {
+      const ok = await wireNativeOnce();
+      if (h.done) return; // stop() raced our async init — keep the mic off
+      if (!ok) {
+        h.done = true;
+        onEnd("not-allowed");
+        return;
+      }
+      nativeCurrent = h;
       try {
-        const avail = await NativeSR.available();
-        if (!avail.available) {
-          onEnd("not-allowed");
-          return;
-        }
-        if (stopped) return; // stop() raced our async init — don't start
-        const perm = await NativeSR.requestPermissions();
-        if (perm.speechRecognition !== "granted") {
-          onEnd("not-allowed");
-          return;
-        }
-        if (stopped) return;
-        await NativeSR.removeAllListeners();
-        await NativeSR.addListener("partialResults", (data: any) => {
-          const t = data?.matches?.[0];
-          if (t) {
-            last = t;
-            onText(t, false);
-          }
-        });
-        await NativeSR.addListener("listeningState", (data: any) => {
-          if (data?.status === "stopped" && !stopped) {
-            stopped = true;
-            if (last) onText(last, true);
-            onEnd();
-          }
-        });
-        if (stopped) return; // teardown happened mid-init — keep the mic off
         await NativeSR.start({
           language: "en-IN",
           partialResults: true,
           popup: false,
         });
-        if (stopped) NativeSR.stop().catch(() => {});
+        if (h.done) NativeSR.stop().catch(() => {});
       } catch {
-        onEnd("error");
+        if (!h.done) {
+          h.done = true;
+          onEnd("error");
+        }
       }
     })();
     return {
       supported: true,
       stop: () => {
-        stopped = true;
+        h.done = true;
         NativeSR.stop().catch(() => {});
       },
     };
