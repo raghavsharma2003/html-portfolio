@@ -69,10 +69,13 @@ export async function listDeviceVoices(): Promise<DeviceVoice[]> {
 /* ─────────────────────── shared text prep ─────────────────────── */
 
 // protocol that must NEVER be spoken aloud: [photo:/gif:/voicenote:/followup:/
-// tone:] markers (colon form), "---" bubble separators, *roleplay actions*
+// tone:] markers (colon form), stage directions ("[slightly out of breath,
+// …]" — any bracket content that isn't a short simple audio tag), "---"
+// bubble separators, *roleplay actions*
 function stripProtocol(text: string): string {
   return text
     .replace(/\[[a-z]+\s*:[^\]]*\]?/gi, " ")
+    .replace(/\[(?![a-z ]{2,16}\])[^\]]*\]?/gi, " ")
     .replace(/\*[^*\n]{1,80}\*/g, " ")
     .replace(/(^|\s)-{2,}(\s|$)/g, " ");
 }

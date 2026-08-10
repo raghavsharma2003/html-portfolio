@@ -224,6 +224,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
 
   async function deliver(reply: HeartReply, incoming = "") {
     busy.current = true;
+    // deterministic meme throttle — regardless of what the model wants,
+    // never two gifs within her last six messages. Context-free meme spam
+    // reads as botlike; scarcity is what makes a meme land.
+    if (reply.gif) {
+      const recentHer = messages.filter((m) => m.from === "her").slice(-6);
+      if (recentHer.some((m) => m.kind === "gif")) reply.gif = undefined;
+    }
     // if the user clears the chat while she's mid-reply, this delivery is
     // from a conversation that no longer exists — it must vanish with it
     const ep = epoch.current;

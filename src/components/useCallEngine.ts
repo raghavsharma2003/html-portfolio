@@ -25,8 +25,9 @@ import {
   stopRoomTone,
   duckSpeech,
 } from "../voice/speech";
-import { CALL_OPEN_DIRECTIVE, type VoiceEngine } from "../engine/persona";
+import { CALL_OPEN_DIRECTIVE, WATCH_COMMENT_DIRECTIVE, type VoiceEngine } from "../engine/persona";
 import { logTurns, rememberFrom, recallMemories } from "../engine/memory";
+import { startWatch, watchAvailable, type WatchSession } from "../native/watch";
 
 export type CallPhase = "connecting" | "live" | "ended";
 
@@ -39,6 +40,11 @@ export function useCallEngine(
   const [listening, setListening] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [muted, setMuted] = useState(false);
+  // watch-together: she sees their screen while staying on the call
+  const [watching, setWatching] = useState(false);
+  const watchSession = useRef<WatchSession | null>(null);
+  const frameRef = useRef<{ url: string; at: number } | null>(null);
+  const lastCommentAt = useRef(0);
   const [heard, setHeard] = useState("");
   const [sttSupported, setSttSupported] = useState(true);
   const [elapsed, setElapsed] = useState(0);
@@ -421,6 +427,87 @@ export function useCallEngine(
     setListening(true);
   }
 
+  // ── watch-together: consent dialog → screen frames → couch-friend mode ──
+  async function startWatchMode() {
+    if (!watchAvailable() || watching) return;
+    try {
+      watchSession.current = await startWatch(
+        (url) => {
+          frameRef.current = { url, at: Date.now() };
+        },
+        () => {
+          // capture ended outside our UI (notification, system revoke)
+          watchSession.current = null;
+          frameRef.current = null;
+          setWatching(false);
+        },
+      );
+      setWatching(true);
+      lastCommentAt.current = Date.now(); // no instant commentary on start
+    } catch {
+      /* consent denied — stay in the plain call */
+    }
+  }
+
+  function stopWatchMode() {
+    watchSession.current?.stop();
+    watchSession.current = null;
+    frameRef.current = null;
+    setWatching(false);
+  }
+
+  const freshFrame = () =>
+    watching && frameRef.current && Date.now() - frameRef.current.at < 8000
+      ? frameRef.current.url
+      : undefined;
+
+  // proactive couch-friend commentary: mostly silence, an occasional short
+  // reaction when a moment earns it — never over their speech or her own
+  useEffect(() => {
+    if (!watching) return;
+    const iv = setInterval(async () => {
+      const frame = freshFrame();
+      if (!frame || !alive.current) return;
+      if (speakingRef.current || thinkingRef.current || mutedRef.current) return;
+      if (Date.now() - lastCommentAt.current < 22_000) return; // cadence cap
+      if (Date.now() - lastHeardAt.current < 4000) return; // they're talking
+      const seqAt = turnSeq.current;
+      const reply = await think(
+        stateRef.current.user,
+        brainKeys(),
+        stateRef.current.messages,
+        WATCH_COMMENT_DIRECTIVE(),
+        "call",
+        engine,
+        true,
+        undefined,
+        recallRef.current,
+        frame,
+      );
+      if (
+        !alive.current ||
+        speakingRef.current ||
+        thinkingRef.current ||
+        seqAt !== turnSeq.current
+      )
+        return;
+      const line = reply.bubbles.join(" ").trim();
+      if (!line || /NO_?COMMENT/i.test(line)) return; // silence is the default
+      lastCommentAt.current = Date.now();
+      log({
+        id: uid(),
+        from: "her",
+        kind: "text",
+        channel: "call",
+        text: line.replace(/\[[a-z ]+\]/gi, "").trim(),
+        at: Date.now(),
+      });
+      sayAloud(line, reply.tone);
+    }, 6000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watching]);
+
   function toggleMute() {
     const next = !mutedRef.current;
     mutedRef.current = next;
@@ -567,6 +654,7 @@ export function useCallEngine(
       false,
       onDelta,
       recallRef.current,
+      freshFrame(), // watching? she sees the screen while answering
     );
     thinkingRef.current = false;
     setThinking(false);
@@ -605,6 +693,7 @@ export function useCallEngine(
 
   function endCall(onEnd: () => void) {
     alive.current = false;
+    stopWatchMode(); // screen sharing dies with the call, always
     if (reengageTimer.current) clearTimeout(reengageTimer.current);
     stopSpeaking();
     stopRoomTone();
@@ -634,5 +723,9 @@ export function useCallEngine(
     handleUser,
     startListening,
     endCall,
+    watching,
+    watchAvailable: watchAvailable(),
+    startWatchMode,
+    stopWatchMode,
   };
 }

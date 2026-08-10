@@ -101,6 +101,19 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
       </div>
 
       <div className="call-controls">
+        {eng.watchAvailable && eng.phase === "live" && (
+          <button
+            className={`cbtn ${eng.watching ? "active-mic" : ""}`}
+            onClick={() => (eng.watching ? eng.stopWatchMode() : eng.startWatchMode())}
+            aria-label={eng.watching ? "Stop sharing screen" : "Watch together"}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2.5" y="4.5" width="19" height="13" rx="2.5" />
+              <path d="M8 21h8M12 17.5V21" />
+              {eng.watching && <path d="M8.5 9.5 12 12l3.5-2.5" />}
+            </svg>
+          </button>
+        )}
         <button className="cbtn" onClick={() => setShowKb((v) => !v)} aria-label="Type instead">
           <KeyboardIcon />
         </button>

@@ -11,6 +11,7 @@ import { Capacitor } from "@capacitor/core";
 import {
   buildSystemPrompt,
   buildSpeechStyle,
+  WATCH_MODE_NOTE,
   type UserProfile,
   type VoiceEngine,
 } from "./persona";
@@ -159,6 +160,16 @@ export function parseBubbles(raw: string): HeartReply {
     // tail of a mangled marker ("ide eye cat]"): a short line ending with a
     // bracket it never opened is protocol shrapnel, not conversation
     if (/\]\s*$/.test(p) && !p.includes("[") && p.length < 60) continue;
+    // brackets simply do not exist in real texting. Anything bracketed that
+    // survived marker extraction is a stage direction ("[slightly out of
+    // breath...]") or shrapnel — remove the content and the stray brackets.
+    p = p
+      .replace(/\[[^\]]*\]/g, " ")
+      .replace(/\[[^\]]*$/, " ")
+      .replace(/[\[\]]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!p) continue;
     out.bubbles.push(...splitLong(p.replace(/^["']|["']$/g, "")));
   }
   out.bubbles = out.bubbles.slice(0, 4);
@@ -170,9 +181,15 @@ export function parseBubbles(raw: string): HeartReply {
   // photo-only reply is complete without text (and raw is already cleaned).
   // The fallback itself must pass the leak filter too.
   if (!out.bubbles.length && !out.photo && !out.voice && !out.gif) {
-    const residual = raw.replace(/\s+/g, " ").trim().slice(0, 300);
-    const shrapnel = /\]\s*$/.test(residual) && !residual.includes("[");
-    out.bubbles = [residual && !META_LEAK.test(residual) && !shrapnel ? residual : "hmm?"];
+    const rawTrim = raw.replace(/\s+/g, " ").trim();
+    const wasShrapnel = /\]\s*$/.test(rawTrim) && !rawTrim.includes("[") && rawTrim.length < 60;
+    const residual = rawTrim
+      .replace(/\[[^\]]*\]?/g, " ") // stage directions / unclosed brackets
+      .replace(/[\[\]]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 300);
+    out.bubbles = [residual && !META_LEAK.test(residual) && !wasShrapnel ? residual : "hmm?"];
   }
   return out;
 }
@@ -427,6 +444,8 @@ export async function think(
   // call mode: graph memories prefetched at pickup (per-turn recall would
   // put a lookup in front of every spoken reply)
   extraMemories?: string,
+  // watch-together: the current screen frame (data URL) — she SEES it
+  watchFrame?: string,
 ): Promise<HeartReply> {
   // learn facts locally regardless of which engine answers
   const local: HeartReply = isDirective
@@ -456,6 +475,20 @@ export async function think(
   }
 
   const turns = toTurns(history, latest);
+
+  // watch-together: attach what's on their screen to the current turn
+  if (watchFrame && mode === "call") {
+    system += WATCH_MODE_NOTE;
+    const last = turns[turns.length - 1];
+    if (last && last.role === "user") {
+      const part = { type: "image_url", image_url: { url: watchFrame } };
+      if (typeof last.content === "string") {
+        last.content = [{ type: "text", text: last.content }, part];
+      } else {
+        last.content.push(part);
+      }
+    }
+  }
 
   // calls: hard token cap (spoken replies are short) + streaming. The call
   // brain is the same gemini-3.6-flash as chat — the lite model kept
@@ -506,6 +539,13 @@ export async function think(
     // yielding a silent turn of dead air
     let spoken = parsed.bubbles.join(" ").trim();
     if (!spoken) spoken = parsed.voice?.text || parsed.photo?.caption || "";
+    // stage directions must never be SPOKEN: strip every bracket segment
+    // except short simple audio tags ([laughs], [sighs]) the TTS understands
+    spoken = spoken
+      .replace(/\[(?![a-z ]{2,16}\])[^\]]*\]?/gi, " ")
+      .replace(/\[[a-z ]{2,16}$/i, " ") // unclosed tag at end
+      .replace(/\s+/g, " ")
+      .trim();
     parsed.bubbles = [spoken || "haan? bolo"];
     parsed.photo = undefined;
     parsed.voice = undefined;
