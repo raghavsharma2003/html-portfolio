@@ -460,7 +460,10 @@ export async function think(
     local.photo = undefined;
   }
 
-  const parts = buildSystemPromptParts(user, history.length);
+  // on a call the core itself is voice-native: no texting register, no
+  // photo/gif protocols, and an explicit "they are SPEAKING, not typing"
+  // framing — she must never ask about typos on a phone call
+  const parts = buildSystemPromptParts(user, history.length, mode === "call" ? "voice" : "text");
   // everything static rides in the cacheable core (call style rules are
   // static too); everything per-turn rides in the tail after the breakpoint
   const sysCore = parts.core + (mode === "call" ? buildSpeechStyle(voiceEngine) : "");

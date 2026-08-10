@@ -154,7 +154,7 @@ export function useCallEngine(
 
   async function tryStartLive(): Promise<LiveSession | null> {
     if (typeof WebSocket === "undefined" || !navigator.mediaDevices?.getUserMedia) return null;
-    const parts = buildSystemPromptParts(stateRef.current.user, stateRef.current.messages.length);
+    const parts = buildSystemPromptParts(stateRef.current.user, stateRef.current.messages.length, "voice");
     const system =
       parts.core +
       buildSpeechStyle("live") +
@@ -394,7 +394,7 @@ export function useCallEngine(
         waited >= 320 &&
         waited < 480 &&
         text.length > 50 &&
-        Date.now() - listenerBcAt.current > 10_000 &&
+        Date.now() - listenerBcAt.current > 18_000 &&
         !thinkingRef.current
       ) {
         listenerBcAt.current = Date.now();
@@ -630,10 +630,87 @@ export function useCallEngine(
     setListening(true);
   }
 
-  // ── watch-together: consent dialog → NATIVE engine (sees/thinks/speaks/
-  // listens in the service process, immune to WebView freezing) ──
+  // ── watch-together (browser): getDisplayMedia screen capture, frames
+  // streamed straight into the live session — realtime co-watching with no
+  // extra model loop. Desktop Chrome/Edge; lets people without the APK
+  // (Mac/iPhone friends on the website) use screen sharing too. ──
+  const webWatchAvailable = () =>
+    !Capacitor.isNativePlatform() &&
+    typeof navigator !== "undefined" &&
+    Boolean(navigator.mediaDevices?.getDisplayMedia);
+
+  async function startWebWatch() {
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 4 },
+        audio: false,
+      });
+    } catch {
+      track(stateRef.current.deviceId, "watch_consent_denied", { web: true });
+      return;
+    }
+    const video = document.createElement("video");
+    video.srcObject = stream;
+    video.muted = true;
+    await video.play().catch(() => {});
+    const canvas = document.createElement("canvas");
+    const grab = (): string | null => {
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      if (!w || !h) return null;
+      const scale = Math.min(1, 768 / Math.max(w, h));
+      canvas.width = Math.round(w * scale);
+      canvas.height = Math.round(h * scale);
+      const ctx2d = canvas.getContext("2d");
+      if (!ctx2d) return null;
+      ctx2d.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg", 0.68);
+    };
+    const iv = setInterval(() => {
+      if (!alive.current) return;
+      const url = grab();
+      if (!url) return;
+      frameRef.current = { url, at: Date.now() };
+      setFrameAt(Date.now());
+      if (!firstFrameSeen.current) {
+        firstFrameSeen.current = true;
+        track(stateRef.current.deviceId, "watch_frame_first", { web: true });
+      }
+      // realtime path: the live model sees the screen as a video stream
+      liveSession.current?.sendFrame(url.split(",")[1] ?? "");
+    }, 1200);
+    const cleanup = () => {
+      clearInterval(iv);
+      stream.getTracks().forEach((tr) => tr.stop());
+      frameRef.current = null;
+      watchSession.current = null;
+      setWatching(false);
+    };
+    // user can stop sharing from the browser's own UI at any moment
+    stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+      if (watchSession.current) {
+        cleanup();
+        track(stateRef.current.deviceId, "watch_stopped_externally", { web: true });
+      }
+    });
+    watchSession.current = { stop: cleanup };
+    setWatching(true);
+    liveSession.current?.direct(
+      "<context: they just started sharing their screen with you — from now on you can SEE it live (frames stream to you). React like a friend on the couch: mostly silent, short instant reactions only when a moment earns it, never narrate. never reference this note>",
+    );
+    track(stateRef.current.deviceId, "watch_started", { web: true });
+  }
+
+  // ── watch-together (Android app): consent dialog → NATIVE engine (sees/
+  // thinks/speaks/listens in the service process, immune to WebView
+  // freezing) ──
   async function startWatchMode() {
-    if (!watchAvailable() || watching) return;
+    if (watching) return;
+    if (!watchAvailable()) {
+      if (webWatchAvailable()) await startWebWatch();
+      return;
+    }
     try {
       // bubble permission ("Display over other apps"): first missing-grant tap
       // opens the settings toggle and waits for them to come back and tap
@@ -661,7 +738,7 @@ export function useCallEngine(
       if (reengageTimer.current) clearTimeout(reengageTimer.current);
       // hand the native engine her full brain: cached persona core + call
       // style, volatile tail + watch rules, and the comment directive
-      const parts = buildSystemPromptParts(stateRef.current.user, stateRef.current.messages.length);
+      const parts = buildSystemPromptParts(stateRef.current.user, stateRef.current.messages.length, "voice");
       const config = {
         base: "https://meera-silk.vercel.app",
         system: parts.core + buildSpeechStyle(engine),
@@ -806,7 +883,7 @@ export function useCallEngine(
         Date.now() - listenerBcAt.current > 2000 // a bc just played — enough
       )
         playAck();
-    }, substantive ? 420 : 1100);
+    }, substantive ? 550 : 1300);
     thinkingRef.current = true;
     setThinking(true);
     // still silent after ~4s? hold the floor with a sound, not silence —
@@ -989,7 +1066,7 @@ export function useCallEngine(
     endCall,
     watching,
     frameAt,
-    watchAvailable: watchAvailable(),
+    watchAvailable: watchAvailable() || webWatchAvailable(),
     startWatchMode,
     stopWatchMode,
   };

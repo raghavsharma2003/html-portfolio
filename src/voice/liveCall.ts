@@ -15,6 +15,8 @@ export interface LiveSession {
   setMuted: (m: boolean) => void;
   /** Speak an invisible directive (e.g. the pickup greeting trigger). */
   direct: (contextNote: string) => void;
+  /** Stream a screen frame (base64 JPEG) — realtime co-watching. */
+  sendFrame: (b64Jpeg: string) => void;
   active: () => boolean;
 }
 
@@ -192,7 +194,12 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
             inputAudioTranscription: {},
             outputAudioTranscription: {},
             realtimeInputConfig: {
-              automaticActivityDetection: { silenceDurationMs: 500 },
+              automaticActivityDetection: {
+                // catch their barge-in FAST, commit their turn quickly
+                startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
+                silenceDurationMs: 450,
+                prefixPaddingMs: 60,
+              },
             },
             contextWindowCompression: { slidingWindow: {} },
           },
@@ -261,6 +268,14 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
             turns: [{ role: "user", parts: [{ text: contextNote }] }],
             turnComplete: true,
           },
+        }),
+      );
+    },
+    sendFrame: (b64Jpeg: string) => {
+      if (dead || !ready || !ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(
+        JSON.stringify({
+          realtimeInput: { video: { data: b64Jpeg, mimeType: "image/jpeg" } },
         }),
       );
     },
