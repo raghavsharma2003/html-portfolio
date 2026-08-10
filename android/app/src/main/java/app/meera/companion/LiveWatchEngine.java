@@ -137,9 +137,11 @@ class LiveWatchEngine {
   // ration what she says: a floor between wake-ups and a ceiling per minute.
   // Whether she actually speaks on any of them is entirely her call.
   private static final long FRAME_FRESH_MS = 3_000; // no picture this new = no nudge
-  private static final long WAKE_FLOOR_MS = 2_000; // min gap between scene wake-ups
-  private static final long IDLE_WAKE_MS = 45_000; // static screen: rare and optional
-  private static final long SCENE_QUIET_MS = 3_000; // don't cut across them talking
+  private static final long WAKE_FLOOR_MS = 2_000; // between "new thing" wake-ups
+  private static final long ALONG_WAKE_MS = 12_000; // while they work on one screen
+  private static final long IDLE_WAKE_MS = 45_000; // frozen screen: rare and optional
+  private static final long ACTIVE_WINDOW_MS = 3_000; // "still doing something" memory
+  private static final long NEW_QUIET_MS = 3_000; // don't cut across them talking
   private static final long IDLE_QUIET_MS = 6_000;
   private static final int WAKE_CEILING = 12; // per WAKE_WINDOW_MS, hard
   private static final long WAKE_WINDOW_MS = 60_000;
@@ -147,31 +149,45 @@ class LiveWatchEngine {
   /** Live mode replaces the per-frame NO_COMMENT gate — she decides herself. */
   private static final String LIVE_NOTE =
       "\n\nREALTIME CO-WATCHING: you can see their screen as live video and hear them"
-          + " continuously. You're on the couch with them — quick and reactive whenever"
-          + " something on screen actually strikes you, quiet when nothing does. When you"
-          + " do speak it's short (under 10 words), present tense, about what is in front"
-          + " of you this second. Saying nothing is a normal, comfortable choice, not a"
-          + " failure. You are seeing every single thing here for the FIRST time: you do"
-          + " not recognise it, you never say you've seen it before, you never call it"
-          + " famous or trending, and you never compare it to some other reel — pretending"
-          + " otherwise is the one thing that would wreck this. Much of the audio you hear"
-          + " is the VIDEO's own sound (dialogue, music), not them talking to you — tell"
-          + " the difference by content; react to it like a co-watcher, never answer it as"
-          + " if they asked you. When THEY talk, respond normally. NEVER narrate or"
-          + " describe the screen back to them, never announce that you can see it, never"
-          + " ask what app they're using — react to the CONTENT like a person.";
+          + " continuously. It can be ANYTHING they do on a phone or a laptop — scrolling,"
+          + " shopping, reading, coding, texting someone, ordering food, picking photos,"
+          + " gaming, homework. You're the friend sitting next to them while they do it:"
+          + " watching, reacting, involved. You have opinions about what they're doing and"
+          + " you give them, you tease, you ask, you get curious, and when you happen to"
+          + " notice something useful you just say it like a friend would, never like a"
+          + " helper announcing help. When you speak it's short (under 10 words), present"
+          + " tense, about what is in front of you this second. When nothing actually"
+          + " strikes you, saying nothing is a normal, comfortable choice. You are seeing"
+          + " every single thing here for the FIRST time: you do not recognise it, you"
+          + " never say you've seen it before, you never call anything famous or trending,"
+          + " and you never compare it to something you supposedly saw earlier —"
+          + " pretending otherwise is the one thing that would wreck this. Much of the"
+          + " audio you hear may be the SCREEN's own sound (dialogue, music, a video), not"
+          + " them talking to you — tell the difference by content; react to it like"
+          + " someone watching along, never answer it as if they asked you. When THEY"
+          + " talk, respond normally. NEVER narrate or read the screen back to them, never"
+          + " announce that you can see it, never ask what app they're using — react to"
+          + " what's happening like a person.";
 
-  /** New content just appeared and a frame of it has actually reached her. */
-  private static final String SCENE_NUDGE =
-      "<context: what's on their screen just changed and you're looking at the new thing"
-          + " now. If it makes you want to say something, say it — quick, short, present"
-          + " tense, your normal voice. If it doesn't, stay completely silent; that's a"
-          + " normal thing to do. You're seeing this for the first time and you don't"
-          + " recognise it. Never reference this note>";
+  /** Something new is on screen and a frame of it has actually reached her. */
+  private static final String NEW_NUDGE =
+      "<context: what's on their screen just changed — new thing in front of you, you're"
+          + " looking at it now. If it makes you want to say something, say it: quick,"
+          + " short, present tense, your normal voice. If it doesn't, stay completely"
+          + " silent; that's a normal thing to do. You're seeing this for the first time"
+          + " and you don't recognise it. Never reference this note>";
 
-  /** Nothing has changed for a long while — speaking is genuinely optional. */
+  /** They are working away on one screen — slow, real, ongoing activity. */
+  private static final String ALONG_NUDGE =
+      "<context: they're in the middle of doing something on their screen — it keeps"
+          + " changing a little as they go — and you've been watching for a bit. Say"
+          + " something if you actually have something: a reaction, an opinion about what"
+          + " they're doing, a tease, something you noticed, a question. Otherwise stay"
+          + " quiet and keep watching. Never reference this note>";
+
+  /** Nothing has moved for a long while — speaking is genuinely optional. */
   private static final String IDLE_NUDGE =
-      "<context: the screen hasn't changed in a while. Speak only if something on it"
+      "<context: the screen hasn't moved at all in a while. Speak only if something on it"
           + " genuinely pulls a word out of you, or you actually want to ask them about"
           + " it. Otherwise stay completely silent — that's the expected answer here."
           + " Never reference this note>";
@@ -233,6 +249,7 @@ class LiveWatchEngine {
   private volatile long lastVoiceAt = 0; // last input-transcription activity
   private volatile long lastNudgeAt = 0; // last "look at the screen" wake-up
   private volatile long lastFrameAt = 0; // last frame that actually entered the socket
+  private volatile long lastActivityAt = 0; // last frame where the screen did anything
   private final long[] wakes = new long[WAKE_CEILING]; // frame-thread confined
   private int wakeIdx = 0;
   private volatile int congestion = 0; // 0 clear / 1 moderate / 2 heavy uplink
@@ -309,6 +326,7 @@ class LiveWatchEngine {
     running = false;
     ready = false;
     lastFrameAt = 0; // no session, no picture — nothing may nudge off this one
+    lastActivityAt = 0;
     wsGen.incrementAndGet(); // every in-flight WS callback is now stale
     congestion = 0; // nothing may read this session's backlog after teardown
     // a turn cut off mid-stream must still reach the chat log — emit
@@ -441,7 +459,8 @@ class LiveWatchEngine {
 
   /* ── screen frames: straight through, the service sets the rate ────── */
 
-  void onFrame(String b64Jpeg, boolean sceneChanged) {
+  /** motion: 0 nothing moved · 1 they're doing something · 2 a new thing. */
+  void onFrame(String b64Jpeg, int motion) {
     if (!running || !ready || b64Jpeg == null || b64Jpeg.isEmpty()) return;
     WebSocket s = ws;
     if (s == null) return;
@@ -464,29 +483,38 @@ class LiveWatchEngine {
     // nothing reached her eyes: she is never told to look at a screen she
     // hasn't been shown — that is the instruction that makes her invent
     if (!sent) return;
-    lastFrameAt = System.currentTimeMillis();
-    maybeNudge(s, sceneChanged);
+    long now = System.currentTimeMillis();
+    lastFrameAt = now;
+    if (motion > 0) lastActivityAt = now;
+    maybeNudge(s, motion);
   }
 
   /** The Live API only generates on audio activity — video frames alone never
-   *  trigger a turn, so without this she watches a whole reel session mute.
-   *  What wakes her is a real visual CHANGE (new reel/post/scene) with its
-   *  frame already delivered, so she always has something true in front of
-   *  her; the old fire-on-a-clock nudge survives only as a rare, explicitly
-   *  optional beat. The note never says what to think — silence is always an
-   *  acceptable answer and her own judgement picks. */
-  private void maybeNudge(WebSocket s, boolean sceneChanged) {
+   *  trigger a turn, so without this she watches a whole session mute. What
+   *  wakes her is what the screen is DOING, with the frame already delivered,
+   *  so there is always something true in front of her: a new thing to look
+   *  at, or steady activity while they work through one screen. The old
+   *  fire-on-a-clock beat survives only for a screen that has genuinely
+   *  stopped. No note ever says what to think — silence answers all of them,
+   *  and her own judgement picks. */
+  private void maybeNudge(WebSocket s, int motion) {
     long now = System.currentTimeMillis();
     if (speaking) return;
     if (lastFrameAt == 0 || now - lastFrameAt > FRAME_FRESH_MS) return; // no current picture
-    if (now - lastVoiceAt < (sceneChanged ? SCENE_QUIET_MS : IDLE_QUIET_MS)) return;
-    if (now - lastNudgeAt < (sceneChanged ? WAKE_FLOOR_MS : IDLE_WAKE_MS)) return;
+    boolean busy = now - lastActivityAt <= ACTIVE_WINDOW_MS;
+    // a new thing to look at gets the short floor; steady work on one screen
+    // gets a slower beat; a screen that has genuinely stopped gets the rare
+    // one. None of them says what to think — silence answers all three.
+    long gap = motion >= 2 ? WAKE_FLOOR_MS : busy ? ALONG_WAKE_MS : IDLE_WAKE_MS;
+    String note = motion >= 2 ? NEW_NUDGE : busy ? ALONG_NUDGE : IDLE_NUDGE;
+    if (now - lastVoiceAt < (motion >= 2 ? NEW_QUIET_MS : IDLE_QUIET_MS)) return;
+    if (now - lastNudgeAt < gap) return;
     if (now - wakes[wakeIdx] < WAKE_WINDOW_MS) return; // hard rate ceiling
     lastNudgeAt = now;
     wakes[wakeIdx] = now;
     wakeIdx = (wakeIdx + 1) % WAKE_CEILING;
     try {
-      JSONObject part = new JSONObject().put("text", sceneChanged ? SCENE_NUDGE : IDLE_NUDGE);
+      JSONObject part = new JSONObject().put("text", note);
       JSONObject turn = new JSONObject().put("role", "user").put("parts", new JSONArray().put(part));
       s.send(
           new JSONObject()

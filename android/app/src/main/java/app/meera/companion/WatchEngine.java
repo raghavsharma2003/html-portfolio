@@ -159,13 +159,13 @@ class WatchEngine {
   }
 
   /** New screen frame from the capture pipeline (JPEG base64, ~768px).
-   *  sceneChanged marks the leading edge of NEW content — the moment a friend
-   *  actually looks up. Nothing new on screen, nothing to react to. */
-  void onFrame(String b64, boolean sceneChanged) {
+   *  motion: 0 nothing moved · 1 they're doing something · 2 a new thing to
+   *  look at. A frozen screen is the one case with nothing to react to. */
+  void onFrame(String b64, int motion) {
     latestFrame = b64;
     latestFrameAt = System.currentTimeMillis();
     if (!running || speaking || thinking) return;
-    if (!sceneChanged) return; // same thing still on screen — no reason to speak
+    if (motion <= 0) return; // nothing moved — no reason to look up
     long now = latestFrameAt;
     if (now - lastCommentAt < COMMENT_COOLDOWN_MS) return;
     if (now - lastUserSpokeAt < 4000) return; // they're mid-thought

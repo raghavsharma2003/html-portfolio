@@ -31,6 +31,7 @@ import {
 } from "../voice/speech";
 import {
   CALL_OPEN_DIRECTIVE,
+  WATCH_ALONG_DIRECTIVE,
   WATCH_COMMENT_DIRECTIVE,
   WATCH_IDLE_DIRECTIVE,
   WATCH_MODE_NOTE,
@@ -816,16 +817,20 @@ export function useCallEngine(
     const canvas = document.createElement("canvas");
     // ── waking her up: the Live API never generates from video on its own,
     // so nothing she sees can make her speak unless we ask her to look. The
-    // trigger is a real visual CHANGE — a 16x16 grayscale thumbnail per frame
-    // and the mean absolute difference against the previous one. It carries
-    // no taste: it says "this is new content, here it is", and her own brain
-    // decides whether any of it is worth a word.
+    // trigger is what the screen is actually DOING — a 16x16 grayscale
+    // thumbnail per frame, mean absolute difference against the previous one.
+    // A screen can be interesting without changing fast (reading, typing,
+    // filling a form), so the signal has three bands rather than two: a big
+    // change means a new thing to look at, a small one means they're still
+    // busy doing something, and nothing at all means nothing at all. It
+    // carries no taste — her own brain decides what, and whether, to say.
     const SIG = 16;
     const sigCanvas = document.createElement("canvas");
     sigCanvas.width = SIG;
     sigCanvas.height = SIG;
     let prevSig: Uint8Array | null = null;
-    let prevChanged = false;
+    let prevBig = false;
+    let lastActivityAt = 0;
     const signature = (): Uint8Array | null => {
       if (!video.videoWidth || !video.videoHeight) return null;
       const c = sigCanvas.getContext("2d", { willReadFrequently: true });
@@ -885,25 +890,28 @@ export function useCallEngine(
     // wake-up pacing — purely to protect the socket and the API, never to
     // ration what she says: a floor between wake-ups, and a ceiling per
     // minute. Anything she does say is her own call, every time.
-    const SCENE_MAD = 14; // 0-255; video motion sits well under this, a new reel far over
-    const WAKE_FLOOR_MS = 2000;
-    const IDLE_WAKE_MS = 45_000;
+    const NEW_MAD = 14; // most of the frame is different: a new page/app/post
+    const ACTIVE_MAD = 1.2; // a caret, a line of text, a hover, a small edit
+    const ACTIVE_WINDOW_MS = 3000; // "they're still doing something" memory
+    const WAKE_FLOOR_MS = 2000; // between new-thing wake-ups
+    const ALONG_WAKE_MS = 12_000; // while they work on one screen
+    const IDLE_WAKE_MS = 45_000; // frozen screen: rare and explicitly optional
     const WAKE_CEILING = 12;
     const WAKE_WINDOW_MS = 60_000;
     let started = false;
     let lastWakeAt = 0;
     const wakes: number[] = new Array(WAKE_CEILING).fill(0);
     let wakeIdx = 0;
-    const wake = (note: string) => {
+    const wake = (note: string): boolean => {
       const now = Date.now();
-      // never ask her to look at a screen she has no current picture of,
-      // and never cut across them talking or herself
-      if (speakingRef.current || now - lastHeardAt.current < 3000) return;
-      if (now - wakes[wakeIdx] < WAKE_WINDOW_MS) return;
+      // never cut across them talking, or across herself
+      if (speakingRef.current || now - lastHeardAt.current < 3000) return false;
+      if (now - wakes[wakeIdx] < WAKE_WINDOW_MS) return false;
       lastWakeAt = now;
       wakes[wakeIdx] = now;
       wakeIdx = (wakeIdx + 1) % WAKE_CEILING;
       liveSession.current?.direct(note);
+      return true;
     };
     const pump = () => {
       if (alive.current) {
@@ -921,26 +929,36 @@ export function useCallEngine(
           // "look at the screen" — otherwise she'd be told to react to
           // something she was never shown, which is where invention starts.
           const sent = liveSession.current?.sendFrame(url.split(",")[1] ?? "") ?? false;
+          const at = Date.now();
+          // 0 nothing moved · 1 they're doing something · 2 a new thing to look at
+          let motion = 0;
           const sig = signature();
-          let changed = false;
           if (sig) {
-            if (prevSig) {
+            if (!prevSig) {
+              motion = 2; // the first thing she is shown is new by definition
+            } else {
               let sum = 0;
               for (let i = 0; i < sig.length; i++) sum += Math.abs(sig[i] - prevSig[i]);
-              changed = sum / sig.length >= SCENE_MAD;
+              const d = sum / sig.length;
+              const big = d >= NEW_MAD;
+              // only the leading EDGE of a big change is "new": the middle of
+              // a scroll or a page transition is them being busy, not a thing
+              motion = big ? (prevBig ? 1 : 2) : d >= ACTIVE_MAD ? 1 : 0;
+              prevBig = big;
             }
             prevSig = sig;
           }
-          // the leading EDGE of new content, so a scroll burst wakes her once
-          const edge = changed && !prevChanged;
-          prevChanged = changed;
-          const now = Date.now();
+          if (motion) lastActivityAt = at;
+          const busy = at - lastActivityAt <= ACTIVE_WINDOW_MS;
+          // a new thing gets the short floor; steady work on one screen gets a
+          // slower beat; a screen that has genuinely stopped gets the rare one
           if (sent && !started) {
-            started = true;
-            wake(WATCH_START_DIRECTIVE());
-          } else if (sent && edge && now - lastWakeAt >= WAKE_FLOOR_MS) {
+            started = wake(WATCH_START_DIRECTIVE());
+          } else if (sent && motion >= 2 && at - lastWakeAt >= WAKE_FLOOR_MS) {
             wake(WATCH_SCENE_DIRECTIVE());
-          } else if (sent && now - lastWakeAt >= IDLE_WAKE_MS) {
+          } else if (sent && busy && at - lastWakeAt >= ALONG_WAKE_MS) {
+            wake(WATCH_ALONG_DIRECTIVE());
+          } else if (sent && !busy && at - lastWakeAt >= IDLE_WAKE_MS) {
             wake(WATCH_IDLE_DIRECTIVE());
           }
         }

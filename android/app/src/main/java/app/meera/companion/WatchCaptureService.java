@@ -75,19 +75,24 @@ public class WatchCaptureService extends Service {
 
   // ── waking her up ──────────────────────────────────────────────────────
   // The Live API never generates from video on its own, so nothing she sees
-  // can make her speak unless something asks her to look. That trigger is a
-  // real visual CHANGE: every frame is reduced to a 16x16 grayscale thumb and
-  // compared to the previous one by mean absolute difference (0-255). Motion
-  // inside a playing video sits well under the threshold; a new reel, a
-  // scroll or a hard cut moves most of the frame and lands far over it.
-  // The signal carries NO taste — it says "this is new content, here it is",
-  // and her own brain decides whether any of it is worth a word.
+  // can make her speak unless something asks her to look. What it looks at is
+  // what the screen is DOING: every frame becomes a 16x16 grayscale thumb,
+  // compared to the previous one by mean absolute difference (in TENTHS of a
+  // 0-255 level, so a caret or one new line of text isn't rounded away).
+  //
+  // A screen is often interesting without changing fast — reading, typing,
+  // filling a form, comparing two things — so there are three bands, not two:
+  // most of the frame different (a new page, app, post, photo), a little
+  // different (they're busy doing something), and identical (nothing at all).
+  // The bands carry NO taste; they say what happened, and her own brain
+  // decides what — and whether — to say about it.
   private static final int SIG_SIDE = 16;
   private static final int SIG_LEN = SIG_SIDE * SIG_SIDE;
-  private static final int SCENE_MAD = 14;
+  private static final int NEW_MAD = 140; // 14.0 levels: most of the frame moved
+  private static final int ACTIVE_MAD = 12; // 1.2 levels: a caret, an edit, a hover
   private final int[] sigPx = new int[SIG_LEN];
   private byte[] sceneSig; // previous frame's thumb (handler-thread confined)
-  private boolean prevChanged = false;
+  private boolean prevBig = false;
 
   // EXACTLY ONE lane may speak. Every lane switch stops the other lane's
   // audio synchronously before the new one starts, and every engine callback
@@ -435,26 +440,28 @@ public class WatchCaptureService extends Service {
       frame.compress(Bitmap.CompressFormat.JPEG, quality, out);
       String b64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
       WatchPlugin.emitFrame(b64); // UI chip liveness (when the app is visible)
-      // is this NEW content? The leading edge of a change wakes her once —
-      // mid-scroll frames keep changing and must not wake her every tick
+      // 0 nothing moved · 1 they're doing something · 2 a new thing to look at
       byte[] sig = signature(frame);
-      boolean edge = false;
+      int motion = 0;
       if (sig != null) {
         if (sceneSig == null) {
-          edge = true; // the first thing she is ever shown is new by definition
+          motion = 2; // the first thing she is ever shown is new by definition
         } else {
-          boolean changed = mad(sceneSig, sig) >= SCENE_MAD;
-          edge = changed && !prevChanged;
-          prevChanged = changed;
+          int d = madTenths(sceneSig, sig);
+          boolean big = d >= NEW_MAD;
+          // only the LEADING EDGE of a big change is a new thing: the middle
+          // of a scroll or a page transition is them being busy, not a thing
+          motion = big ? (prevBig ? 1 : 2) : d >= ACTIVE_MAD ? 1 : 0;
+          prevBig = big;
         }
         sceneSig = sig;
       }
       // the brain lives natively — realtime lane while its socket is up,
       // cascade otherwise (frames before setupComplete are simply skipped)
       if (l != null) {
-        if (l.isReady()) l.onFrame(b64, edge);
+        if (l.isReady()) l.onFrame(b64, motion);
       } else if (engine != null) {
-        engine.onFrame(b64, edge);
+        engine.onFrame(b64, motion);
       }
     } finally {
       image.close();
@@ -480,10 +487,11 @@ public class WatchCaptureService extends Service {
     }
   }
 
-  private static int mad(byte[] a, byte[] b) {
+  /** Mean absolute difference in tenths of a level (max 2550). */
+  private static int madTenths(byte[] a, byte[] b) {
     int sum = 0;
     for (int i = 0; i < a.length; i++) sum += Math.abs((a[i] & 0xFF) - (b[i] & 0xFF));
-    return sum / a.length;
+    return sum * 10 / a.length;
   }
 
   /** Release one capture session (projection, reader, display, engines). */
@@ -498,7 +506,7 @@ public class WatchCaptureService extends Service {
     tierRecoveredAt = 0;
     tierFellAt = 0;
     sceneSig = null; // a new share's first frame is new content again
-    prevChanged = false;
+    prevBig = false;
     BubbleService.stopBubble(this);
     stopLive();
     stopCascade();
