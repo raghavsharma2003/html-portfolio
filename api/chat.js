@@ -7,6 +7,10 @@ import { OPENROUTER_KEY } from "./_config.js";
 
 const DEFAULT_MODEL = "google/gemini-3.6-flash";
 const ALLOWED_MODEL = /^[a-z0-9-]+\/[a-z0-9.:-]+$/i;
+// Headroom over the current core (~29.8k chars), so her personality can keep
+// growing without quietly losing its tail again. It is a sanity bound against
+// a malformed request, not a cost lever: the whole core is prompt-cached.
+const SYSTEM_MAX = 48_000;
 
 // voice calls stream tokens so she can start speaking on the first sentence
 export const config = { supportsResponseStreaming: true };
@@ -35,10 +39,23 @@ export default async function handler(req, res) {
     // cache_control breakpoint after the core makes Google serve it from
     // cache — measured ~85% input-cost reduction (5473/5477 tokens cached,
     // $0.0085 → ~$0.0012 per call in testing).
+    // The cap is a payload guard, NOT a budget. It sat at 20000 while the
+    // text core grew to ~29800, so for an unknown stretch every chat message
+    // silently lost its last ~9800 characters — which is where the crisis
+    // helplines, the never-deny-being-an-AI rule, the banned-phrase list and
+    // the [search:]/[followup:] protocols all live. She could not look
+    // anything up because she was never told the protocol existed, and she
+    // had no helpline to give someone who needed one. Silent truncation of a
+    // system prompt is the worst kind of bug: everything still "works".
+    const sys = String(system);
+    if (sys.length > SYSTEM_MAX) {
+      // never silent again — a prompt that outgrows the cap must be visible
+      console.warn(`[chat] system prompt truncated: ${sys.length} > ${SYSTEM_MAX}`);
+    }
     const systemContent = [
       {
         type: "text",
-        text: String(system).slice(0, 20000),
+        text: sys.slice(0, SYSTEM_MAX),
         cache_control: { type: "ephemeral" },
       },
     ];
