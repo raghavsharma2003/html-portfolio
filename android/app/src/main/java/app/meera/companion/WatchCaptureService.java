@@ -20,6 +20,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Base64;
 import android.util.DisplayMetrics;
 
@@ -55,8 +56,21 @@ public class WatchCaptureService extends Service {
   private static final long[] LIVE_FRAME_MS = {600L, 1200L, 2500L};
   private static final int[] LIVE_JPEG_Q = {68, 55, 45};
   private static final int[] LIVE_MAX_SIDE = {768, 768, 560};
-  /** Congestion drops the tier at once; the climb back is one step per this. */
+  // Congestion drops the tier at once; the climb back is one step per CLEAR
+  // WINDOW, where "clear" means congestion BELOW the tier we sit at — not
+  // congestion zero. A link that settles at level 1 must still be able to
+  // climb from tier 2 to tier 1; requiring zero pinned it at the worst tier
+  // for the rest of the session.
+  //
+  // The window is exponential for marginal links: 5s to start, doubling (to
+  // 40s) whenever a recovery step is undone by a fall within 10s, and back
+  // to 5s after a full minute with no fall at all. A link that can only
+  // carry tier 1 therefore stops re-testing tier 0 every 5s — that
+  // oscillation was itself visible as the picture pulsing.
   private static final long TIER_RECOVER_MS = 5000;
+  private static final long TIER_RECOVER_MAX_MS = 40_000;
+  private static final long TIER_UNDONE_MS = 10_000; // a fall this soon after a climb
+  private static final long TIER_STABLE_MS = 60_000; // this long with no fall = reset
   private static final long FRAME_INTERVAL_MS = 1400;
 
   // EXACTLY ONE lane may speak. Every lane switch stops the other lane's
@@ -88,9 +102,14 @@ public class WatchCaptureService extends Service {
   private ImageReader reader;
   private Handler handler;
   private boolean running = false;
-  // capture tier, handler-thread confined (sampler + captureFrame only)
+  // capture tier, handler-thread confined (sampler + captureFrame +
+  // teardownSession, all on the main looper) — no other thread reads or
+  // writes any of it
   private int liveTier = 0;
-  private long tierClearSince = 0;
+  private long tierClearSince = 0; // SystemClock.elapsedRealtime
+  private long tierRecoverMs = TIER_RECOVER_MS; // current clear window
+  private long tierRecoveredAt = 0; // last climb, for the "undone" test
+  private long tierFellAt = 0; // last fall, for the stability reset
 
   private final Runnable sampler = new Runnable() {
     @Override
@@ -109,7 +128,8 @@ public class WatchCaptureService extends Service {
   };
 
   /** One step per frame tick: fall to the reported congestion immediately,
-   *  recover a single step per {@link #TIER_RECOVER_MS} of clear uplink. */
+   *  recover a single step per clear window. elapsedRealtime, not wall clock:
+   *  an NTP/DST jump must not hand out a free recovery or freeze one. */
   private void adaptTier() {
     LiveWatchEngine l = live;
     if (l == null) {
@@ -117,13 +137,29 @@ public class WatchCaptureService extends Service {
       return;
     }
     int c = l.getCongestion();
-    long now = System.currentTimeMillis();
-    if (c > liveTier) liveTier = c;
-    if (c > 0) {
+    long now = SystemClock.elapsedRealtime();
+    if (c > liveTier) {
+      liveTier = c; // falling is instant — the link is already hurting
+      if (tierRecoveredAt != 0 && now - tierRecoveredAt <= TIER_UNDONE_MS) {
+        // we climbed and the link threw it straight back: wait longer
+        tierRecoverMs = Math.min(TIER_RECOVER_MAX_MS, tierRecoverMs * 2);
+      }
+      tierRecoveredAt = 0;
+      tierFellAt = now;
       tierClearSince = now;
-    } else if (liveTier > 0 && now - tierClearSince >= TIER_RECOVER_MS) {
+    } else if (c >= liveTier) {
+      // still as congested as the tier we are on — the clear run restarts.
+      // (Only c >= liveTier restarts it: a residual level 1 no longer blocks
+      // the climb down from tier 2.)
+      tierClearSince = now;
+    } else if (now - tierClearSince >= tierRecoverMs) {
       liveTier--;
       tierClearSince = now;
+      tierRecoveredAt = now;
+    }
+    if (tierFellAt != 0 && now - tierFellAt >= TIER_STABLE_MS) {
+      tierRecoverMs = TIER_RECOVER_MS; // link has been stable for a minute
+      tierFellAt = 0;
     }
   }
 
@@ -399,8 +435,13 @@ public class WatchCaptureService extends Service {
   private void teardownSession() {
     running = false;
     sessionActive = false;
-    liveTier = 0; // a new session starts at full rate, not the old one's tier
+    // a new session starts at full rate and the FAST clear window — never
+    // inheriting the old link's tier or its accumulated backoff
+    liveTier = 0;
     tierClearSince = 0;
+    tierRecoverMs = TIER_RECOVER_MS;
+    tierRecoveredAt = 0;
+    tierFellAt = 0;
     BubbleService.stopBubble(this);
     stopLive();
     stopCascade();

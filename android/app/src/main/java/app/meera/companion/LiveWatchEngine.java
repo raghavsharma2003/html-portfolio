@@ -14,6 +14,7 @@ import android.media.audiofx.NoiseSuppressor;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Base64;
 import android.util.Log;
 
@@ -84,21 +85,54 @@ class LiveWatchEngine {
   private static final int MAX_RECONNECTS = 3; // then fall back to the cascade
   private static final int MAX_ROTATES = 6; // goAway storms must not spin
   private static final long DRAIN_GRACE_MS = 1500; // hold focus between quick turns
-  // REALTIME means a backed-up uplink must DROP, not buffer. VOICE FIRST:
-  // audio is skipped only once ~0.9s of it is already waiting (a hole costs
-  // one syllable, a queue costs a growing delay on every word after it), and
-  // video is cut off far earlier so a screen frame can NEVER sit in front of
-  // her hearing them. The old caps (150KB/120KB) were ~2.7s of stale
-  // conversation queued on a weak uplink — the opposite of live.
-  private static final long MAX_QUEUE_VIDEO = 16_000L;
+  // REALTIME means a backed-up uplink must DROP, not buffer — but VIDEO and
+  // AUDIO share okhttp's ONE queueSize counter, so every threshold below is
+  // stated in "seconds of mic audio": a 3200-byte 100ms chunk becomes ~4267
+  // base64 chars + ~60 bytes of JSON ≈ 4.3KB per 100ms ≈ 43KB/s.
+  //
+  // 40_000 / 43_000 ≈ 0.93s of mic audio already waiting. Being over it for
+  // an INSTANT is not a stall, though: one ~50KB frame exceeds this cap all
+  // by itself, and on any link that can carry the call it drains in
+  // 100-300ms — a delay the receiver absorbs, where a dropped chunk is a
+  // hole in what she hears. So SPEECH is shed only after the counter has sat
+  // above the cap CONTINUOUSLY for AUDIO_SUSTAIN_MS (600ms = 6 mic chunks),
+  // which only a genuine stall can do.
   private static final long MAX_QUEUE_AUDIO = 40_000L;
-  // congestion levels off the SMOOTHED queue, with hysteresis so one frame
-  // in flight can't flap the capture tier. Level 2 sits below the audio cap
-  // on purpose: video degrades before a single mic chunk is ever dropped.
-  private static final double CONGEST_UP_1 = 8_000;
-  private static final double CONGEST_UP_2 = 28_000;
-  private static final double CONGEST_DOWN_1 = 5_000;
-  private static final double CONGEST_DOWN_2 = 20_000;
+  private static final long AUDIO_SUSTAIN_MS = 600L;
+  // Silence is not speech: a gated chunk carries no words, only VAD
+  // continuity, so it sheds at the first real backlog. 8_000 / 43_000 ≈
+  // 185ms of audio backlog (~2 mic chunks). ~60-70% of a call is gated, so
+  // this alone recovers most of the uplink before a syllable is at risk.
+  private static final long SILENCE_CAP = 8_000L;
+  // ...but silence is never shed to NOTHING. The server ends their turn by
+  // HEARING the pause: if a congested link suppressed every gated chunk the
+  // stream would go dark the instant they stop talking, the VAD clock would
+  // stop advancing and she would listen forever without answering. So the
+  // pause right after words is untouchable, and past it at least one chunk
+  // in SILENCE_KEEP always goes. (7 chunks = 700ms > the 300ms the server
+  // needs to call the turn over.)
+  private static final int SILENCE_ENDPOINT_CHUNKS = 7;
+  private static final int SILENCE_KEEP = 3;
+  // A frame may only enter a NEAR-DRAINED socket — the same 8_000 ≈ 185ms.
+  // If the queue has not come back down to ~2 mic chunks since the last
+  // frame, the link cannot carry frames at this rate and the capture tier
+  // will slow them down. (The old 16_000 check still let a ~50KB frame land
+  // on a queue already holding a third of the entire audio budget.)
+  private static final long FRAME_GATE = 8_000L;
+  /** Pathological encode (~90KB of JPEG): ~2.8s of uplink in one message. */
+  private static final int FRAME_MAX_B64 = 120_000;
+  // Congestion read from the queue's TROUGHS — the SAME numbers as the web
+  // client (src/voice/liveCall.ts CONGEST_*). The counter's average is
+  // mostly our own frame sawtooth and says nothing about the link; its
+  // MINIMUM over the last 8 mic ticks is what the socket drains back down to
+  // between frames. > 6_000 (≈140ms of audio) at the emptiest moment means
+  // the link never fully caught up; > 20_000 (≈465ms) means it is badly
+  // behind. Hysteresis down at 3_000 (≈70ms) / 12_000 (≈280ms).
+  private static final long CONGEST_UP_1 = 6_000L;
+  private static final long CONGEST_UP_2 = 20_000L;
+  private static final long CONGEST_DOWN_1 = 3_000L;
+  private static final long CONGEST_DOWN_2 = 12_000L;
+  private static final int TROUGH_RING = 8; // 8 mic chunks = 800ms of history
 
   /** Live mode replaces the per-frame NO_COMMENT gate — she decides herself. */
   private static final String LIVE_NOTE =
@@ -172,7 +206,13 @@ class LiveWatchEngine {
   private volatile long lastVoiceAt = 0; // last input-transcription activity
   private volatile long lastNudgeAt = 0; // last silent-screen commentary nudge
   private volatile int congestion = 0; // 0 clear / 1 moderate / 2 heavy uplink
-  private double queueEma = 0; // mic-thread confined: only sampleCongestion touches it
+  // ── mic-thread confined, every one of them: the mic pump is the only
+  // thread that samples the socket queue, so none of this needs a lock. The
+  // sole cross-thread hop is the volatile `congestion` int it publishes.
+  private final long[] troughRing = new long[TROUGH_RING];
+  private int troughIdx = 0;
+  private long overSince = 0; // elapsedRealtime the queue first went over the cap
+  private int troughGen = -1; // wsGen this ring belongs to (see resetIfNewSocket)
   // lazily built from whichever thread speaks first; volatile so the abandon
   // path (any thread, no lock) never sees a half-published request
   private volatile AudioAttributes attrs;
@@ -239,6 +279,7 @@ class LiveWatchEngine {
     running = false;
     ready = false;
     wsGen.incrementAndGet(); // every in-flight WS callback is now stale
+    congestion = 0; // nothing may read this session's backlog after teardown
     // a turn cut off mid-stream must still reach the chat log — emit
     // synchronously; the queued main posts are about to be removed
     final String meLeft;
@@ -339,8 +380,9 @@ class LiveWatchEngine {
   }
 
   /**
-   * Smoothed uplink pressure: 0 clear, 1 moderate, 2 heavy. The capture
-   * service sheds frame RATE and JPEG quality against this — never audio.
+   * Uplink pressure from the socket queue's TROUGHS: 0 clear, 1 moderate,
+   * 2 heavy. The capture service sheds frame RATE and JPEG quality against
+   * this — never audio.
    */
   int getCongestion() {
     return congestion;
@@ -373,7 +415,11 @@ class LiveWatchEngine {
     WebSocket s = ws;
     if (s == null) return;
     try {
-      if (s.queueSize() > MAX_QUEUE_VIDEO) return; // uplink is drowning
+      // a frame goes out only into a near-drained socket, and is never
+      // sampled into the congestion signal — the reading here is the
+      // sawtooth we are about to create ourselves
+      if (s.queueSize() > FRAME_GATE) return; // hasn't drained since the last frame
+      if (b64Jpeg.length() > FRAME_MAX_B64) return; // pathological encode
       // base64 (NO_WRAP) and the fixed mime are JSON-safe by construction —
       // hand-rolled so a ~60KB frame isn't copied through JSONObject twice
       s.send(
@@ -471,6 +517,9 @@ class LiveWatchEngine {
     // stale, so we never schedule two reconnects and end up with two sockets
     wsGen.incrementAndGet();
     ready = false;
+    // the dead socket's backlog says nothing about the next one's link — the
+    // mic thread clears its ring off the same wsGen bump (resetIfNewSocket)
+    congestion = 0;
     flushPlayback();
     WebSocket s = ws;
     ws = null;
@@ -503,6 +552,7 @@ class LiveWatchEngine {
     ws = null;
     ready = false;
     wsGen.incrementAndGet();
+    congestion = 0; // fresh socket, fresh reading (ring clears on the mic thread)
     // the old session's audio is still draining the AudioTrack — without
     // this the new session starts talking over the tail of the old one
     flushPlayback();
@@ -791,6 +841,7 @@ class LiveWatchEngine {
     byte[] prevChunk = null;
     int prevLen = 0;
     boolean wasOpen = false;
+    int gatedRun = 0; // consecutive wordless chunks
     while (running) {
       AudioRecord r = record; // stop() nulls the field from another thread
       if (r == null) break;
@@ -817,6 +868,7 @@ class LiveWatchEngine {
       errs = 0;
       boolean gated = true;
       boolean opened = false;
+      // set after the gate is evaluated below; read by the silence heartbeat
       if (muted) {
         // do NOT learn while muted: half-duplex mute means HER voice is on
         // the speaker right now — training the floor on it would ratchet the
@@ -842,18 +894,54 @@ class LiveWatchEngine {
         opened = !gated && !wasOpen;
         wasOpen = !gated;
       }
-      if (!gated && opened && prevChunk != null && ws != null) {
+      if (muted || gated) gatedRun++;
+      else gatedRun = 0;
+      // ── the ONE queue sample of this mic tick ──
+      // Congestion, the over-cap stopwatch and the drop decision all read
+      // this single value, so the signal is evenly spaced on the mic clock
+      // and a tick that sends twice (the gate-open pre-roll below) cannot
+      // double-weight it.
+      WebSocket s = ws;
+      boolean canSend = ready && s != null;
+      long queued = 0;
+      if (canSend) {
+        try {
+          queued = s.queueSize();
+        } catch (Exception e) {
+          canSend = false;
+        }
+      }
+      resetIfNewSocket();
+      boolean drop = true;
+      if (canSend) {
+        sampleCongestion(queued);
+        long nowMs = SystemClock.elapsedRealtime();
+        if (queued > MAX_QUEUE_AUDIO) {
+          if (overSince == 0) overSince = nowMs;
+        } else {
+          overSince = 0; // drained back under the cap — the stall clock restarts
+        }
+        // VOICE FIRST, and silence first of all. A SPEECH chunk is dropped
+        // only once the queue has been over the cap for AUDIO_SUSTAIN_MS
+        // with no relief — a transient frame burst never costs a syllable,
+        // it only delays it. A silent chunk goes as soon as there is any
+        // real backlog; that is where the uplink is actually recovered.
+        drop =
+            (muted || gated)
+                ? (queued > SILENCE_CAP
+                    && gatedRun > SILENCE_ENDPOINT_CHUNKS // turn-ending pause always goes
+                    && gatedRun % SILENCE_KEEP != 0) // and the stream never goes dark
+                : (overSince != 0 && nowMs - overSince >= AUDIO_SUSTAIN_MS);
+      }
+      if (!gated && opened && prevChunk != null && canSend && !drop) {
         // closed->open: replay the previous chunk so the syllable that
         // OPENED the gate arrives whole (server prefixPadding can't help —
         // it pads from received audio, which pre-gate was our silence)
-        WebSocket s0 = ws;
         try {
-          if (s0 != null && s0.queueSize() <= MAX_QUEUE_AUDIO) {
-            s0.send(
-                "{\"realtimeInput\":{\"audio\":{\"data\":\""
-                    + Base64.encodeToString(prevChunk, 0, prevLen, Base64.NO_WRAP)
-                    + "\",\"mimeType\":\"audio/pcm;rate=16000\"}}}");
-          }
+          s.send(
+              "{\"realtimeInput\":{\"audio\":{\"data\":\""
+                  + Base64.encodeToString(prevChunk, 0, prevLen, Base64.NO_WRAP)
+                  + "\",\"mimeType\":\"audio/pcm;rate=16000\"}}}");
         } catch (Exception ignored) {
         }
       }
@@ -868,36 +956,61 @@ class LiveWatchEngine {
       // muted/gated writes silence rather than stopping capture: the stream
       // stays continuous (server VAD hates gaps) and reopening costs nothing
       if (muted || gated) Arrays.fill(buf, 0, n, (byte) 0);
-      WebSocket s = ws;
-      if (!ready || s == null) continue;
-      try {
-        long queued = s.queueSize();
-        sampleCongestion(queued);
-        if (queued > MAX_QUEUE_AUDIO) continue;
-        s.send(
-            "{\"realtimeInput\":{\"audio\":{\"data\":\""
-                + Base64.encodeToString(buf, 0, n, Base64.NO_WRAP)
-                + "\",\"mimeType\":\"audio/pcm;rate=16000\"}}}");
-      } catch (Exception ignored) {
+      if (canSend && !drop) {
+        try {
+          s.send(
+              "{\"realtimeInput\":{\"audio\":{\"data\":\""
+                  + Base64.encodeToString(buf, 0, n, Base64.NO_WRAP)
+                  + "\",\"mimeType\":\"audio/pcm;rate=16000\"}}}");
+        } catch (Exception ignored) {
+        }
       }
     }
   }
 
   /**
    * okhttp's queueSize is the bytes we handed the socket that have not
-   * reached the network — it only grows when the uplink can't keep up, so a
-   * smoothed reading IS the congestion signal (no probing, no extra
-   * traffic). Sampled on the mic clock (one 100ms chunk per call) from the
-   * mic thread only, so the EMA needs no lock.
+   * reached the network — but VIDEO shares that counter, so its average is
+   * mostly our own frame sawtooth (a ~50KB frame every tier period), which
+   * reads "congested" on a link that is carrying the call perfectly well and
+   * then oscillates the capture tier for the rest of the session. The TROUGH
+   * cannot lie that way: the MINIMUM across the last TROUGH_RING mic ticks
+   * (~800ms) is what the socket drains back down to BETWEEN frames. It sits
+   * near zero whenever the link can still swallow a frame inside a frame
+   * period; it only climbs when the link genuinely cannot drain one before
+   * the next arrives — which is the definition of congestion.
+   *
+   * Mic-thread confined (one 100ms chunk per call), so the ring needs no
+   * lock; only {@link #congestion} crosses threads, and it is volatile.
    */
   private void sampleCongestion(long queued) {
-    queueEma = queueEma * 0.8 + queued * 0.2;
+    troughRing[troughIdx] = queued;
+    troughIdx = (troughIdx + 1) % troughRing.length;
+    long trough = Long.MAX_VALUE;
+    for (long v : troughRing) trough = Math.min(trough, v);
     int c = congestion;
-    if (c < 2 && queueEma > CONGEST_UP_2) c = 2;
-    else if (c < 1 && queueEma > CONGEST_UP_1) c = 1;
-    else if (c == 2 && queueEma < CONGEST_DOWN_2) c = 1;
-    else if (c == 1 && queueEma < CONGEST_DOWN_1) c = 0;
+    if (c < 2 && trough > CONGEST_UP_2) c = 2;
+    else if (c < 1 && trough > CONGEST_UP_1) c = 1;
+    else if (c == 2 && trough < CONGEST_DOWN_2) c = 1;
+    else if (c == 1 && trough < CONGEST_DOWN_1) c = 0;
     congestion = c;
+  }
+
+  /**
+   * A REPLACED socket must not inherit the old one's backlog reading: the
+   * reconnect, rotate() and stop() paths all bump wsGen, and each of them
+   * also zeroes the volatile level directly. This clears the mic-thread-
+   * confined half (ring + stall clock) from the mic thread itself, on the
+   * first tick after the swap, so that state stays confined to one thread.
+   */
+  private void resetIfNewSocket() {
+    int gen = wsGen.get();
+    if (gen == troughGen) return;
+    troughGen = gen;
+    Arrays.fill(troughRing, 0L);
+    troughIdx = 0;
+    overSince = 0;
+    congestion = 0;
   }
 
   /* ── downlink: queued 24k PCM -> streaming AudioTrack ──────────────── */
