@@ -266,7 +266,17 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     );
   }
 
-  async function deliver(reply: HeartReply, incoming = "", readFrom = 0) {
+  // `keepTyping` is set only by the [search:] holding delivery: the indicator
+  // must stay up across the lookup + informed pass (4–6s), because a holding
+  // bubble followed by a dead typing indicator reads as distracted, not as
+  // thinking. It also keeps `typingSince`, so the first informed bubble gets
+  // credit for the time already elapsed instead of paying a full typeDelay.
+  async function deliver(
+    reply: HeartReply,
+    incoming = "",
+    readFrom = 0,
+    opts: { keepTyping?: boolean } = {},
+  ) {
     busy.current = true;
     // deterministic meme throttle — regardless of what the model wants,
     // never two gifs within her last six messages. Context-free meme spam
@@ -290,13 +300,17 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     };
     // the indicator leaves, the bubble arrives 90ms into that exit (the CSS
     // carries the delay) — the two read as one object, not two events
-    const handoffTyping = async (id: string) => {
+    const handoffTyping = async (id: string, last = false) => {
       setTypingOut(true);
       followsTyping.current = [...followsTyping.current.slice(-7), id];
       await sleep(TYPING_EXIT_MS);
-      setTyping(false);
+      // holding delivery: the last hand-off keeps the indicator up, because
+      // she is genuinely still working on the informed reply
+      if (!(opts.keepTyping && last)) setTyping(false);
       setTypingOut(false);
     };
+    // which hand-off is the final one of this delivery
+    const lastMedia = reply.photo ? "photo" : reply.gif ? "gif" : reply.voice ? "voice" : "";
     // the read beat is measured from when THEY sent, so the model's round trip
     // is spent reading rather than stacked on top of it
     const readWait = Math.max(0, readDelay(incoming) - (readFrom ? Date.now() - readFrom : 0));
@@ -307,7 +321,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     upgradeMyStatus("read");
     const delivered: Message[] = [];
     let firstBubble = true;
-    for (const bubble of reply.bubbles) {
+    for (let bi = 0; bi < reply.bubbles.length; bi++) {
+      const bubble = reply.bubbles[bi];
       setTyping(true);
       if (!typingSince.current) typingSince.current = Date.now();
       // the first bubble credits the time the indicator has ALREADY been up —
@@ -319,7 +334,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       await sleep(typeWait);
       if (stale()) return;
       const msg: Message = { id: uid(), from: "her", kind: "text", text: bubble, at: Date.now() };
-      await handoffTyping(msg.id);
+      await handoffTyping(msg.id, !lastMedia && bi === reply.bubbles.length - 1);
       if (stale()) return;
       delivered.push(msg);
       pushMsg(msg);
@@ -340,7 +355,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         dur: Math.max(2, Math.round(clean.split(/\s+/).length / 2.4)),
         at: Date.now(),
       };
-      await handoffTyping(msg.id);
+      await handoffTyping(msg.id, lastMedia === "voice");
       if (stale()) return;
       delivered.push(msg);
       pushMsg(msg);
@@ -357,7 +372,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         text: reply.gif.query,
         at: Date.now(),
       };
-      await handoffTyping(msg.id);
+      await handoffTyping(msg.id, lastMedia === "gif");
       if (stale()) return;
       delivered.push(msg);
       pushMsg(msg);
@@ -380,11 +395,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         photoSeed: reply.photo.seed,
         at: Date.now(),
       };
-      await handoffTyping(photo.id);
+      await handoffTyping(photo.id, lastMedia === "photo");
       if (stale()) return;
       pushMsg(photo);
     }
-    typingSince.current = 0;
+    // holding delivery: keep the elapsed-time credit too, so the first
+    // informed bubble doesn't pay a full typeDelay on top of the lookup
+    if (!opts.keepTyping) typingSince.current = 0;
     busy.current = false;
   }
 
@@ -427,7 +444,10 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     const holdingDeliver = async (r: HeartReply) => {
       if (seq !== chatSeq.current || ep !== epoch.current) return;
       delivering.current = true;
-      await deliver(r, latest, readFrom);
+      // the indicator stays up (and keeps its elapsed-time credit) across the
+      // lookup + informed pass — she said "ruk dekh ke batati hu" and is
+      // visibly still on it, instead of going quiet for 4–6s
+      await deliver(r, latest, readFrom, { keepTyping: true });
       delivering.current = false;
       busy.current = true; // deliver() clears it; this think is still running
     };

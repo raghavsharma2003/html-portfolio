@@ -12,10 +12,12 @@ import {
   buildSystemPromptParts,
   buildSpeechStyle,
   WATCH_MODE_NOTE,
+  SEARCH_DECISION,
   type UserProfile,
   type VoiceEngine,
 } from "./persona";
 import { heartReply, type HeartReply } from "./localHeart";
+import { cultureNote } from "./culture";
 import { recallMemories } from "./memory";
 import { innerContext, type Inner } from "./inner";
 import { diag } from "./diag";
@@ -103,8 +105,15 @@ function splitLong(bubble: string): string[] {
 const META_LEAK =
   /\b(base model|minimal text|text mode|chat mode|call mode|system prompt|language model|as an ai\b|ai model|reasoning effort|max.?_?tokens|token (limit|budget)|persona (prompt|instruction)|instruction(s)? (say|state|require)|default model|llm|assistant mode|output format)\b/i;
 
-export function parseBubbles(raw: string): HeartReply {
-  const out: HeartReply = { bubbles: [] };
+// A malformed [search: …] marker is a promise she cannot keep: the holding
+// bubble still reaches them and nothing ever checks. `searchBroken` carries
+// that fact out of the parser so the lookup block can still run the honest
+// "couldn't check" pass. It rides a widened type instead of HeartReply itself
+// because it is brain-internal — nothing downstream of think() reads it.
+export type ParsedReply = HeartReply & { searchBroken?: boolean; searchSalvaged?: boolean };
+
+export function parseBubbles(raw: string): ParsedReply {
+  const out: ParsedReply = { bubbles: [] };
   // ── protocol extraction, GLOBAL and lenient: markers are honored wherever
   // they appear (own line, inline, sloppy spacing, dropped closing bracket) —
   // anything that looks like protocol must never reach the user as text ──
@@ -128,8 +137,24 @@ export function parseBubbles(raw: string): HeartReply {
     if (!out.gif) out.gif = { query: q.trim() };
     return "";
   });
+  let searchBroken = false;
   raw = raw.replace(/\[\s*search\s*:\s*([^\]\n]+?)\s*\]/gi, (_m, q: string) => {
-    if (!out.search) out.search = q.trim().slice(0, 200);
+    const t = q.trim();
+    if (!t) searchBroken = true; // "[search: ]" — promised, but nothing to check
+    else if (!out.search) out.search = t.slice(0, 200);
+    return "";
+  });
+  // SALVAGE: a marker the strict form missed — dropped "]", a newline inside
+  // the query, an empty query. Lazy and bounded by "]", "\n---", a following
+  // "[" or end-of-string, so unlike the greedy catch-all below it can never
+  // swallow the rest of the reply.
+  raw = raw.replace(/\[\s*search\s*:([^\]]*?)(?:\]|\n---|(?=\[)|$)/gi, (_m, q: string) => {
+    searchBroken = true;
+    const cleaned = q.replace(/\s+/g, " ").trim();
+    if (!out.search && cleaned) {
+      out.search = cleaned.slice(0, 200);
+      out.searchSalvaged = true; // telemetry only — the query itself is never logged
+    }
     return "";
   });
   // the model sometimes imitates the HISTORY annotation format instead of
@@ -203,6 +228,7 @@ export function parseBubbles(raw: string): HeartReply {
     out.bubbles.push(...splitLong(p.replace(/^["']|["']$/g, "")));
   }
   out.bubbles = out.bubbles.slice(0, 4);
+  if (searchBroken && !out.search) out.searchBroken = true;
   // leaks can hide inside media payloads too (a spoken voicenote, a caption)
   if (out.voice && META_LEAK.test(out.voice.text)) out.voice = undefined;
   if (out.gif && META_LEAK.test(out.gif.query)) out.gif = undefined;
@@ -488,6 +514,9 @@ export async function think(
   // message already on screen instead of in silence. Resolve when delivered.
   onHolding?: (r: HeartReply) => Promise<void> | void,
 ): Promise<HeartReply> {
+  // when this turn started — the web lookup below spends what is LEFT of a
+  // whole-turn budget rather than adding its own leg on top of pass 1
+  const t0 = Date.now();
   // learn facts locally regardless of which engine answers
   const local: HeartReply = isDirective
     ? { bubbles: [] }
@@ -554,6 +583,20 @@ ${memories}`;
     over: sysTail.length > 8000,
   });
 
+  // Cultural currency, pulled not pushed. This is "" unless THEY just said
+  // something in today's recognition index — she can never raise any of it
+  // first, which is the whole design (see src/engine/culture.ts). Chat only:
+  // on a call there is no room for a paragraph about a meme.
+  if (mode === "chat" && !isDirective) sysTail += cultureNote(latest);
+  // dead last, and chat only — see SEARCH_DECISION in persona.ts for why
+  // position is the entire mechanism here
+  if (mode === "chat") sysTail += SEARCH_DECISION;
+  // the tail is sliced at 8000 chars from the END by api/chat.js, and the
+  // decision rule is now the last thing in it — so if this ever trips, the
+  // rule is the first casualty and the trim has to happen in recall instead
+  if (mode === "chat")
+    diag("chat", "tail_built", { tail: sysTail.length, over: sysTail.length > 8000 });
+
   const turns = toTurns(history, latest);
 
   // watch-together: attach what's on their screen to the current turn
@@ -619,38 +662,80 @@ ${memories}`;
   // ── live web lookup: she asked for fresh facts ([search: …]) before
   // finishing this reply. One extra fast pass, only in chat, only once —
   // the second pass is told the facts and forbidden from searching again.
-  if (parsed.search && mode === "chat") {
+  // A MALFORMED marker enters here too: she already promised to check, so a
+  // broken marker skips the network and goes straight to the honest
+  // "couldn't check" pass instead of leaving the promise hanging.
+  if ((parsed.search || parsed.searchBroken) && mode === "chat") {
+    diag("chat", "search_fire", {
+      q_len: parsed.search?.length || 0,
+      salvaged: !!parsed.searchSalvaged,
+      broken: !!parsed.searchBroken,
+    });
     // her holding bubble goes out NOW, in parallel with the lookup — the two
     // round trips used to stack into ~10s of dead air before anything appeared
     const holding = parsed.bubbles.slice(0, 1);
     const handoff = onHolding && holding.length ? onHolding({ bubbles: holding }) : null;
-    // a dead lookup must still produce the informed pass — she promised to
-    // check, so she owes them a reply either way
+    // A DEADLINE, not a per-leg budget. The old 7s sat on top of whatever
+    // pass 1 had already spent, so a slow turn could reach ~16.6s of model
+    // time just to deliver an apology. Whatever is left of the turn is what
+    // the lookup gets; below the floor it does not start at all.
+    const TURN_BUDGET_MS = 11_000;
+    const left = TURN_BUDGET_MS - (Date.now() - t0);
     let facts = "";
-    try {
-      const res = await fetch(PROXY_URL.replace("/api/chat", "/api/search"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ q: parsed.search }),
-        // measured p50 ~3.3s / max ~4.3s; past this she is better off replying
-        // with what she already has than making them wait longer
-        signal: AbortSignal.timeout(7_000),
-      });
-      facts = res.ok ? String((await res.json())?.facts || "") : "";
-    } catch {
-      /* offline / timed out — the second pass says so in her own words */
+    let soft = false;
+    let ok = false;
+    const tSearch = Date.now();
+    if (parsed.search && left > 1_500) {
+      try {
+        const res = await fetch(PROXY_URL.replace("/api/chat", "/api/search"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ q: parsed.search }),
+          // measured p50 ~3.2s / p90 ~3.5s / max ~4.0s (n=12, datacenter);
+          // the server's own fuse is 6.5s so it dies just before we give up
+          signal: AbortSignal.timeout(Math.min(7_000, left)),
+        });
+        if (res.ok) {
+          const body = await res.json();
+          facts = String(body?.facts || "");
+          soft = body?.confidence === "soft";
+          ok = !!facts;
+        }
+      } catch {
+        /* offline / timed out — the second pass says so in her own words */
+      }
     }
+    diag("chat", "search_done", {
+      ms: Date.now() - tSearch,
+      ok,
+      chars: facts.length,
+      soft,
+      budget_left: Math.max(0, left),
+    });
+    const tPass2 = Date.now();
+    let pass2ok = false;
+    let pass2bubbles = 0;
     try {
+      // Truth framing that matches what actually came back. "CURRENT and true"
+      // used to be asserted over any string at all, including a listicle
+      // summary, in a persona carrying an absolute truthfulness rule.
       const tailWithFacts =
         sysTail +
-        `\n\nLIVE LOOKUP RESULT for "${parsed.search}" (you just checked this on your phone — it is CURRENT and true):\n${
-          facts || "(lookup failed — say you couldn't check right now, casually)"
-        }\nWeave the facts in naturally like someone who just googled it; never mention "searching" or "results", and do NOT output another [search: …] marker.`;
+        `\n\nWHAT THE LOOKUP CAME BACK WITH for "${parsed.search || ""}" — you glanced at your phone just now:\n${
+          facts || "(nothing came back — say you couldn't check right now, casually, and don't fill the gap yourself)"
+        }\n${
+          soft
+            ? "This is what the internet says rather than a source worth trusting — keep it loose, hedge it, never assert it."
+            : "If it doesn't state a city, a date or a unit, don't invent one; say the number loosely rather than precisely."
+        }\nThese came from LOOKING IT UP, not from your own experience — never restate them as something you personally saw, used or checked on your own phone. Weave in only the part that answers what they asked; if it doesn't actually answer it, say you couldn't find it properly. Never mention "searching" or "results", and do NOT output another [search: …] marker.`;
       const second = await proxyThink(keys, sysCore, tailWithFacts, turns, maxTokens);
       if (second) {
         const p2 = parseBubbles(second);
         p2.learned = local.learned;
         p2.search = undefined;
+        p2.searchBroken = undefined;
+        pass2ok = true;
+        pass2bubbles = p2.bubbles.length;
         if (p2.bubbles.length) {
           // the holding bubble is already on screen when it was handed off;
           // otherwise it still leads the informed reply
@@ -659,14 +744,27 @@ ${memories}`;
         }
       }
     } catch {
-      /* informed pass unreachable — her first-pass bubbles still deliver */
+      /* informed pass unreachable — the guard below still answers them */
     }
+    diag("chat", "search_pass2", { ms: Date.now() - tPass2, ok: pass2ok, bubbles: pass2bubbles });
     if (handoff) {
       await handoff;
-      // delivered already — never send it twice
-      if (parsed.bubbles[0] === holding[0]) parsed.bubbles = parsed.bubbles.slice(1);
+      // delivered already — never send it twice, but only strip it when
+      // something else actually arrived to take its place
+      if (parsed.bubbles.length > 1 && parsed.bubbles[0] === holding[0]) {
+        parsed.bubbles = parsed.bubbles.slice(1);
+      } else if (parsed.bubbles.length <= 1 && parsed.bubbles[0] === holding[0]) {
+        // pass 2 produced nothing. Silence after "ruk dekh ke batati hu" is
+        // the worst outcome on this path — worse than a stale fact, because
+        // the unanswered promise sits on their screen. One canned line is
+        // acceptable here and only here: it asserts nothing about the world,
+        // so it cannot be false.
+        parsed.bubbles = ["yaar abhi check nhi kar paa rhi, net ajeeb h 😭"];
+        diag("chat", "search_silence_saved", {});
+      }
     }
     parsed.search = undefined;
+    parsed.searchBroken = undefined;
   }
 
   if (mode === "call") {

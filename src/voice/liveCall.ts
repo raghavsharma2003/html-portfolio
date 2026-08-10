@@ -31,13 +31,21 @@
 //   person said is lost; when it doesn't — a fan, a TV, a door, a "haan" —
 //   the ring is dropped and she never even hears about it.
 //
-// Measured on the production endpoint with the exact constants below:
-// a real barge-in ducks her at +171ms, releases at +598ms and the server
-// stops her at +830ms, 3/3 clean with the whole utterance (including the
-// held 600ms prefix) transcribed and no double generation. A 450ms "haan"
-// left her untouched 3/3, where today it kills her at +200ms. A distant TV
-// at 0.12 gain left her untouched 2/2, where today it kills her at +130ms
-// and she answers the television.
+// Measured on the production endpoint with the exact constants below, timed
+// from the person's first sound: she DUCKS at +171ms, the ring is released at
+// +598ms, and the server stops her at +672ms (i.e. 71-77ms after the burst) —
+// 3/3 clean, exactly two turns, and the whole utterance transcribed INCLUDING
+// the 600ms that was held back. A 450ms "haan" left her untouched 3/3, where
+// the straight-through path kills her at +200ms. A distant TV at 0.12 gain
+// left her untouched 2/2, where the straight-through path kills her at
+// +130ms and she then answers the television.
+//
+// One measurement that cost an hour and is worth writing down: the ring must
+// only ever contain OPEN-gate audio. Buffering the silence in front of a
+// candidate puts a dead prefix at the head of the burst, and the server's
+// onset detection is then late by that prefix's whole length — 2.2s of ringed
+// silence moved release→interrupted from ~76ms to ~600ms. Ring words, not
+// waiting.
 
 import { attachAnalyser, detachAnalyser } from "./level";
 import { diag } from "../engine/diag";
