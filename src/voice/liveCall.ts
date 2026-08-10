@@ -8,6 +8,7 @@
 // rejects or calls onEnded("failed"), and the caller falls back seamlessly.
 
 import { attachAnalyser, detachAnalyser } from "./level";
+import { diag } from "../engine/diag";
 
 const WS_BASE =
   "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";
@@ -39,8 +40,25 @@ export interface LiveCallOpts {
   onMyText: (t: string) => void; // finalized user transcript per turn
   onHerText: (t: string) => void; // finalized her transcript per turn
   onEnded: (reason: "failed" | "closed") => void;
-  /** Connect-path timings, so remote telemetry can say WHERE the seconds go. */
-  onTiming?: (t: { mintMs?: number; preminted?: boolean; readyMs?: number }) => void;
+  /**
+   * Connect-path timings, so remote telemetry can say WHERE the seconds go.
+   * readyMs is the roll-up everyone already reads; the rest break it apart,
+   * because a real device reported readyMs 7618 with mintMs 0 and there was
+   * no way to tell which segment ate the seven seconds.
+   */
+  onTiming?: (t: {
+    mintMs?: number;
+    preminted?: boolean;
+    readyMs?: number;
+    /** getUserMedia: permission plumbing + opening the mic. */
+    micMs?: number;
+    /** new WebSocket -> open: DNS + TLS + HTTP upgrade. */
+    wsOpenMs?: number;
+    /** setup written -> setupComplete: the server's own handshake. */
+    setupMs?: number;
+    /** how much of the slower leg the faster one hid, i.e. what parallelism saved. */
+    overlapMs?: number;
+  }) => void;
 }
 
 // ── uplink: what the socket queue is allowed to do to the call ──
@@ -224,33 +242,71 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   const tMint = Date.now();
   const warmed = takePre();
   const { token, model } = warmed ?? (await mintToken(opts.base, 8000));
-  opts.onTiming?.({ mintMs: Date.now() - tMint, preminted: !!warmed });
+  const mintMs = Date.now() - tMint;
+  opts.onTiming?.({ mintMs, preminted: !!warmed });
   // refill for the NEXT call, but not now: a mint racing this session's own
   // handshake is exactly the contention this change exists to remove
   setTimeout(() => prewarmLiveToken(opts.base), 15_000);
 
-  // 2. mic — echo cancellation on: she plays through the same phone's speaker
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-  });
+  // ── 2. THE TWO SLOW THINGS START TOGETHER ──
+  // These used to be serialized: the mic was awaited first and the socket was
+  // only constructed afterwards, so a device that takes seconds to hand over
+  // the microphone (Android WebView permission plumbing is the bad case) paid
+  // for that AND then paid DNS + TLS + upgrade + the server handshake on top.
+  // A real call reported readyMs 7618 with the token already in hand.
+  //
+  // Nothing in the setup message depends on the microphone, so the socket can
+  // connect, send setup and collect setupComplete while the mic is still
+  // opening. Whichever leg is slower now hides the other one entirely.
+  //
+  // Ordering note that makes this safe: everything from here to the end of
+  // the `opened` block is SYNCHRONOUS. A WebSocket event cannot be dispatched
+  // until this call stack unwinds, so no open/message can be missed by
+  // assigning the handlers a few statements later.
+  const tPar = Date.now();
+  let micMs = 0;
+  let wsOpenMs = 0;
+  let setupMs = 0;
+  let tSetupSent = 0;
+  const micP = navigator.mediaDevices
+    .getUserMedia({
+      // echo cancellation on: she plays through the same phone's speaker
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    })
+    .then((s) => {
+      micMs = Date.now() - tPar;
+      return s;
+    });
+  micP.catch(() => {}); // the socket leg may reject first; never go unhandled
 
   let ws: WebSocket | null = new WebSocket(`${WS_BASE}?access_token=${token}`);
   let dead = false;
   let muted = false;
   let ready = false;
 
-  // ── uplink: mic → 16k PCM16 ──
-  const inCtx = new AudioContext();
-  const src = inCtx.createMediaStreamSource(stream);
-  // ScriptProcessor still works everywhere (incl. Android WebView) and 4096
-  // frames ≈ 85ms at 48k — fine granularity for realtime
-  const proc = inCtx.createScriptProcessor(4096, 1, 1);
-  const sink = inCtx.createGain();
-  sink.gain.value = 0; // processor needs a destination; we never monitor the mic
-  src.connect(proc);
-  proc.connect(sink);
-  sink.connect(inCtx.destination);
-  attachAnalyser("you", inCtx, src); // presence UI reads YOUR real amplitude
+  // ── uplink: mic → 16k PCM16. Built once the stream lands, below. ──
+  let inCtx: AudioContext | null = null;
+  let proc: ScriptProcessorNode | null = null;
+  let src: MediaStreamAudioSourceNode | null = null;
+  let stream: MediaStream | null = null;
+  /**
+   * Wire the microphone into the socket. Called the moment getUserMedia
+   * resolves — which may be before OR after the socket finished its
+   * handshake; the tick guards on `ready` either way.
+   */
+  const buildUplink = (ms: MediaStream) => {
+    stream = ms;
+    inCtx = new AudioContext();
+    src = inCtx.createMediaStreamSource(ms);
+    // ScriptProcessor still works everywhere (incl. Android WebView) and 4096
+    // frames ≈ 85ms at 48k — fine granularity for realtime
+    proc = inCtx.createScriptProcessor(4096, 1, 1);
+    const sink = inCtx.createGain();
+    sink.gain.value = 0; // processor needs a destination; we never monitor the mic
+    src.connect(proc);
+    proc.connect(sink);
+    sink.connect(inCtx.destination);
+    attachAnalyser("you", inCtx, src); // presence UI reads YOUR real amplitude
   // ── adaptive noise gate: a fan/traffic hum must never read as "still
   // talking". Ambience is the sliding-window MINIMUM of the level (speech
   // always has inter-syllable dips that land in a 2.5s window), so the floor
@@ -306,7 +362,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       buffered > SILENCE_CAP &&
       gatedRun > endpointChunks && // the turn-ending pause always goes
       gatedRun % SILENCE_KEEP !== 0; // and the stream never goes dark
-    const ratio = inCtx.sampleRate / 16000;
+    const ratio = e.inputBuffer.sampleRate / 16000;
     const outLen = Math.floor(input.length / ratio);
     const pcm = new Int16Array(outLen); // stays zeroed (silence) when gated
     if (open) {
@@ -332,6 +388,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     wasOpen = open;
     if (open) prevPcm = null;
     if (!drop) sendPcm(pcm);
+  };
   };
   // ── uplink congestion, read from the TROUGHS of bufferedAmount ──
   // bufferedAmount is the browser's own count of bytes we handed the socket
@@ -503,15 +560,17 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     clearInterval(stateTick);
     flushTexts();
     try {
-      proc.disconnect();
-      src.disconnect();
+      proc?.disconnect();
+      src?.disconnect();
     } catch {
       /* already gone */
     }
-    stream.getTracks().forEach((t) => t.stop());
+    // the uplink may not exist yet: teardown can fire while getUserMedia is
+    // still open, and a stream that lands after that is stopped on arrival
+    stream?.getTracks().forEach((t) => t.stop());
     detachAnalyser("her");
     detachAnalyser("you");
-    inCtx.close().catch(() => {});
+    inCtx?.close().catch(() => {});
     outCtx.close().catch(() => {});
     try {
       ws?.close();
@@ -529,6 +588,8 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     if (!ws) return reject(new Error("no ws"));
     const failTimer = setTimeout(() => reject(new Error("live setup timeout")), 10_000);
     ws.onopen = () => {
+      wsOpenMs = Date.now() - tPar;
+      tSetupSent = Date.now();
       ws!.send(
         JSON.stringify({
           setup: {
@@ -584,7 +645,17 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       if (msg.setupComplete) {
         ready = true;
         clearTimeout(failTimer);
-        opts.onTiming?.({ readyMs: Date.now() - tMint });
+        setupMs = Date.now() - tSetupSent;
+        const readyMs = Date.now() - tMint;
+        // The two legs ran together, so the connect cost is the SLOWER of
+        // them, not the sum. overlapMs is what that parallelism actually
+        // saved on this device — the old serialized path would have taken
+        // roughly readyMs + overlapMs.
+        const socketLeg = wsOpenMs + setupMs;
+        const overlapMs = Math.max(0, Math.min(micMs, socketLeg));
+        const timing = { readyMs, micMs, wsOpenMs, setupMs, overlapMs };
+        opts.onTiming?.(timing);
+        diag("call", "live_connect", { ...timing, mintMs, preminted: !!warmed });
         resolve();
         opts.onState("listening");
         return;
@@ -612,6 +683,25 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       else teardown("closed");
     };
   });
+
+  opened.catch(() => {}); // the mic leg may reject first; never go unhandled
+  // a stream that arrives after we've already given up must not stay live
+  micP
+    .then((s) => {
+      if (dead) s.getTracks().forEach((t) => t.stop());
+    })
+    .catch(() => {});
+
+  // ── join the two legs ──
+  // The mic is awaited first only because the uplink graph needs it; the
+  // socket has been handshaking underneath this whole time, so this await
+  // costs max(mic, socket) rather than mic + socket.
+  try {
+    buildUplink(await micP);
+  } catch (e) {
+    teardown("failed");
+    throw e instanceof Error ? e : new Error("mic unavailable");
+  }
 
   try {
     await opened;
