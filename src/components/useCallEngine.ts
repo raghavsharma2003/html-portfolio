@@ -815,16 +815,20 @@ export function useCallEngine(
     video.muted = true;
     await video.play().catch(() => {});
     const canvas = document.createElement("canvas");
-    // ── waking her up: the Live API never generates from video on its own,
-    // so nothing she sees can make her speak unless we ask her to look. The
-    // trigger is what the screen is actually DOING — a 16x16 grayscale
-    // thumbnail per frame, mean absolute difference against the previous one.
+    // ── waking her up, fast: the Live API never generates from video on its
+    // own, so nothing she sees can make her speak unless we ask her to look,
+    // which makes the gap between "the screen changed" and "she is looking at
+    // it" the whole latency budget. DETECTION IS DECOUPLED FROM TRANSMISSION:
+    // a 32x32 luma thumbnail is read every DETECT_MS (one tiny drawImage +
+    // getImageData, ~0.1ms), while full JPEG frames still go up at the
+    // bandwidth-appropriate cadence — and the frame that proves a change is
+    // encoded and sent on that same tick instead of waiting for the next one.
     // A screen can be interesting without changing fast (reading, typing,
     // filling a form), so the signal has three bands rather than two: a big
     // change means a new thing to look at, a small one means they're still
     // busy doing something, and nothing at all means nothing at all. It
     // carries no taste — her own brain decides what, and whether, to say.
-    const SIG = 16;
+    const SIG = 32;
     const sigCanvas = document.createElement("canvas");
     sigCanvas.width = SIG;
     sigCanvas.height = SIG;
@@ -890,8 +894,10 @@ export function useCallEngine(
     // wake-up pacing — purely to protect the socket and the API, never to
     // ration what she says: a floor between wake-ups, and a ceiling per
     // minute. Anything she does say is her own call, every time.
-    const NEW_MAD = 14; // most of the frame is different: a new page/app/post
-    const ACTIVE_MAD = 1.2; // a caret, a line of text, a hover, a small edit
+    const DETECT_MS = 120; // screen sampled this often
+    const CHANGE_SEND_MS = 250; // floor between reaction frames
+    const NEW_MAD = 12; // most of the grid is different: a new page/app/post
+    const ACTIVE_MAD = 0.6; // a caret, a line of text, a hover, a small edit
     const ACTIVE_WINDOW_MS = 3000; // "they're still doing something" memory
     const WAKE_FLOOR_MS = 2000; // between new-thing wake-ups
     const ALONG_WAKE_MS = 12_000; // while they work on one screen
@@ -900,6 +906,7 @@ export function useCallEngine(
     const WAKE_WINDOW_MS = 60_000;
     let started = false;
     let lastWakeAt = 0;
+    let lastSentAt = 0;
     const wakes: number[] = new Array(WAKE_CEILING).fill(0);
     let wakeIdx = 0;
     const wake = (note: string): boolean => {
@@ -915,51 +922,63 @@ export function useCallEngine(
     };
     const pump = () => {
       if (alive.current) {
-        const t = TIERS[tier];
-        const url = grab(t.side, t.q);
-        if (url) {
-          frameRef.current = { url, at: Date.now() };
-          setFrameAt(Date.now());
-          if (!firstFrameSeen.current) {
-            firstFrameSeen.current = true;
-            track(stateRef.current.deviceId, "watch_frame_first", { web: true });
+        const at = Date.now();
+        // ── cheap half: has the screen done anything? ──
+        // 0 nothing moved · 1 they're doing something · 2 a new thing to look at
+        let motion = 0;
+        const sig = signature();
+        if (sig) {
+          if (!prevSig) {
+            motion = 2; // the first thing she is shown is new by definition
+          } else {
+            let sum = 0;
+            for (let i = 0; i < sig.length; i++) sum += Math.abs(sig[i] - prevSig[i]);
+            const d = sum / sig.length;
+            const big = d >= NEW_MAD;
+            // only the leading EDGE of a big change is "new": the middle of
+            // a scroll or a page transition is them being busy, not a thing
+            motion = big ? (prevBig ? 1 : 2) : d >= ACTIVE_MAD ? 1 : 0;
+            prevBig = big;
           }
-          // realtime path: the live model sees the screen as a video stream.
-          // Only a frame that ACTUALLY entered the socket may be followed by
-          // "look at the screen" — otherwise she'd be told to react to
-          // something she was never shown, which is where invention starts.
-          const sent = liveSession.current?.sendFrame(url.split(",")[1] ?? "") ?? false;
-          const at = Date.now();
-          // 0 nothing moved · 1 they're doing something · 2 a new thing to look at
-          let motion = 0;
-          const sig = signature();
-          if (sig) {
-            if (!prevSig) {
-              motion = 2; // the first thing she is shown is new by definition
-            } else {
-              let sum = 0;
-              for (let i = 0; i < sig.length; i++) sum += Math.abs(sig[i] - prevSig[i]);
-              const d = sum / sig.length;
-              const big = d >= NEW_MAD;
-              // only the leading EDGE of a big change is "new": the middle of
-              // a scroll or a page transition is them being busy, not a thing
-              motion = big ? (prevBig ? 1 : 2) : d >= ACTIVE_MAD ? 1 : 0;
-              prevBig = big;
+          prevSig = sig;
+        }
+        if (motion) lastActivityAt = at;
+        // ── expensive half, only for frames that are going out ──
+        // A new thing on screen is the most valuable frame we can spend
+        // bandwidth on, so it jumps the baseline cadence: congestion slows
+        // the BASELINE flow, never the reaction. (The socket still has the
+        // final say — sendFrame refuses a frame that would queue in front of
+        // her hearing them, and then nothing wakes her, which is correct.)
+        const react = motion >= 2 && at - lastSentAt >= CHANGE_SEND_MS;
+        if (react || at - lastSentAt >= TIERS[tier].every) {
+          lastSentAt = at;
+          const t = TIERS[tier];
+          const url = grab(t.side, t.q);
+          if (url) {
+            frameRef.current = { url, at };
+            setFrameAt(at);
+            if (!firstFrameSeen.current) {
+              firstFrameSeen.current = true;
+              track(stateRef.current.deviceId, "watch_frame_first", { web: true });
             }
-            prevSig = sig;
-          }
-          if (motion) lastActivityAt = at;
-          const busy = at - lastActivityAt <= ACTIVE_WINDOW_MS;
-          // a new thing gets the short floor; steady work on one screen gets a
-          // slower beat; a screen that has genuinely stopped gets the rare one
-          if (sent && !started) {
-            started = wake(WATCH_START_DIRECTIVE());
-          } else if (sent && motion >= 2 && at - lastWakeAt >= WAKE_FLOOR_MS) {
-            wake(WATCH_SCENE_DIRECTIVE());
-          } else if (sent && busy && at - lastWakeAt >= ALONG_WAKE_MS) {
-            wake(WATCH_ALONG_DIRECTIVE());
-          } else if (sent && !busy && at - lastWakeAt >= IDLE_WAKE_MS) {
-            wake(WATCH_IDLE_DIRECTIVE());
+            // realtime path: the live model sees the screen as a video stream.
+            // Only a frame that ACTUALLY entered the socket may be followed by
+            // "look at the screen" — otherwise she'd be told to react to
+            // something she was never shown, which is where invention starts.
+            // The wake-up goes out right behind its own frame, same tick.
+            const sent = liveSession.current?.sendFrame(url.split(",")[1] ?? "") ?? false;
+            const busy = at - lastActivityAt <= ACTIVE_WINDOW_MS;
+            // a new thing gets the short floor; steady work on one screen gets
+            // a slower beat; a screen that has stopped gets the rare one
+            if (sent && !started) {
+              started = wake(WATCH_START_DIRECTIVE());
+            } else if (sent && motion >= 2 && at - lastWakeAt >= WAKE_FLOOR_MS) {
+              wake(WATCH_SCENE_DIRECTIVE());
+            } else if (sent && busy && at - lastWakeAt >= ALONG_WAKE_MS) {
+              wake(WATCH_ALONG_DIRECTIVE());
+            } else if (sent && !busy && at - lastWakeAt >= IDLE_WAKE_MS) {
+              wake(WATCH_IDLE_DIRECTIVE());
+            }
           }
         }
       }
@@ -990,9 +1009,9 @@ export function useCallEngine(
         recoverMs = RECOVER_BASE_MS; // link has been stable for a minute
         fellAt = 0;
       }
-      timer = setTimeout(pump, TIERS[tier].every);
+      timer = setTimeout(pump, DETECT_MS);
     };
-    timer = setTimeout(pump, TIERS[0].every);
+    timer = setTimeout(pump, DETECT_MS);
     const cleanup = () => {
       if (timer) clearTimeout(timer);
       stream.getTracks().forEach((tr) => tr.stop());

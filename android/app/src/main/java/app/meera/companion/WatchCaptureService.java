@@ -73,26 +73,35 @@ public class WatchCaptureService extends Service {
   private static final long TIER_STABLE_MS = 60_000; // this long with no fall = reset
   private static final long FRAME_INTERVAL_MS = 1400;
 
-  // ── waking her up ──────────────────────────────────────────────────────
+  // ── waking her up, fast ────────────────────────────────────────────────
   // The Live API never generates from video on its own, so nothing she sees
-  // can make her speak unless something asks her to look. What it looks at is
-  // what the screen is DOING: every frame becomes a 16x16 grayscale thumb,
-  // compared to the previous one by mean absolute difference (in TENTHS of a
-  // 0-255 level, so a caret or one new line of text isn't rounded away).
+  // can make her speak unless something asks her to look — which makes the
+  // delay between "the screen changed" and "she is looking at it" the whole
+  // latency budget. DETECTION IS THEREFORE DECOUPLED FROM TRANSMISSION: this
+  // service samples the screen every DETECT_MS by reading a 32x32 luma grid
+  // straight out of the capture plane (1024 sparse reads, no Bitmap, no
+  // allocation), while full JPEG frames still go up at the bandwidth-
+  // appropriate cadence. A change is noticed within DETECT_MS instead of
+  // within a frame period, and the frame that proves it is encoded and sent
+  // on that same tick rather than waiting for the next one.
   //
   // A screen is often interesting without changing fast — reading, typing,
   // filling a form, comparing two things — so there are three bands, not two:
-  // most of the frame different (a new page, app, post, photo), a little
+  // most of the grid different (a new page, app, post, photo), a little
   // different (they're busy doing something), and identical (nothing at all).
   // The bands carry NO taste; they say what happened, and her own brain
   // decides what — and whether — to say about it.
-  private static final int SIG_SIDE = 16;
+  private static final long DETECT_MS = 120; // screen sampled this often
+  private static final long CHANGE_SEND_MS = 250; // floor between reaction frames
+  private static final int SIG_SIDE = 32;
   private static final int SIG_LEN = SIG_SIDE * SIG_SIDE;
-  private static final int NEW_MAD = 140; // 14.0 levels: most of the frame moved
-  private static final int ACTIVE_MAD = 12; // 1.2 levels: a caret, an edit, a hover
-  private final int[] sigPx = new int[SIG_LEN];
-  private byte[] sceneSig; // previous frame's thumb (handler-thread confined)
+  // mean absolute difference, in TENTHS of a 0-255 level, so one new line of
+  // text is not rounded away
+  private static final int NEW_MAD = 120; // 12.0 levels: most of the grid moved
+  private static final int ACTIVE_MAD = 6; // 0.6 levels: a caret, an edit, a hover
+  private byte[] sceneSig; // previous tick's grid (handler-thread confined)
   private boolean prevBig = false;
+  private long lastSentAt = 0; // elapsedRealtime of the last frame we encoded
 
   // EXACTLY ONE lane may speak. Every lane switch stops the other lane's
   // audio synchronously before the new one starts, and every engine callback
@@ -123,9 +132,8 @@ public class WatchCaptureService extends Service {
   private ImageReader reader;
   private Handler handler;
   private boolean running = false;
-  // capture tier, handler-thread confined (sampler + captureFrame +
-  // teardownSession, all on the main looper) — no other thread reads or
-  // writes any of it
+  // capture tier, handler-thread confined (sampler + tick + teardownSession,
+  // all on the main looper) — no other thread reads or writes any of it
   private int liveTier = 0;
   private long tierClearSince = 0; // SystemClock.elapsedRealtime
   private long tierRecoverMs = TIER_RECOVER_MS; // current clear window
@@ -137,14 +145,12 @@ public class WatchCaptureService extends Service {
     public void run() {
       if (!running) return;
       try {
-        captureFrame();
+        tick();
       } catch (Exception ignored) {
         // a dropped frame is fine; the next tick retries
       }
       adaptTier();
-      if (running && handler != null) {
-        handler.postDelayed(this, live != null ? LIVE_FRAME_MS[liveTier] : FRAME_INTERVAL_MS);
-      }
+      if (running && handler != null) handler.postDelayed(this, DETECT_MS);
     }
   };
 
@@ -254,7 +260,7 @@ public class WatchCaptureService extends Service {
     BubbleService.startBubble(this); // she hovers over the screen (needs SAW)
     BubbleService.setState(this, BubbleService.STATE_WATCHING);
     handler = new Handler(Looper.getMainLooper());
-    handler.postDelayed(sampler, 800);
+    handler.postDelayed(sampler, 400);
     return START_NOT_STICKY;
   }
 
@@ -405,59 +411,36 @@ public class WatchCaptureService extends Service {
     }
   }
 
-  private void captureFrame() {
+  /** One detect tick. Cheap by design: the signature is read straight out of
+   *  the ImageReader plane (1024 sparse pixel reads, no allocation), and the
+   *  expensive path — full-res copy, downscale, JPEG, base64 — runs only when
+   *  there is actually a frame worth sending. */
+  private void tick() {
     if (reader == null) return;
     Image image = reader.acquireLatestImage();
+    // no new image = the screen has not redrawn, so nothing changed and there
+    // is nothing to look at: the idle case costs one null check
     if (image == null) return;
     try {
-      Image.Plane plane = image.getPlanes()[0];
-      ByteBuffer buffer = plane.getBuffer();
-      int pixelStride = plane.getPixelStride();
-      int rowStride = plane.getRowStride();
-      int rowPadding = rowStride - pixelStride * image.getWidth();
-      Bitmap bitmap =
-          Bitmap.createBitmap(
-              image.getWidth() + rowPadding / pixelStride,
-              image.getHeight(),
-              Bitmap.Config.ARGB_8888);
-      bitmap.copyPixelsFromBuffer(buffer);
-      // crop padding, downscale so the longest side is ~768 (one vision
-      // tile) — or smaller on the live lane's heaviest congestion tier
+      int motion = detect(image);
+      long now = SystemClock.elapsedRealtime();
       LiveWatchEngine l = live;
-      int maxSide = l != null ? LIVE_MAX_SIDE[liveTier] : 768;
-      int quality = l != null ? LIVE_JPEG_Q[liveTier] : 68;
-      Bitmap cropped = Bitmap.createBitmap(bitmap, 0, 0, image.getWidth(), image.getHeight());
-      float scale = maxSide / (float) Math.max(cropped.getWidth(), cropped.getHeight());
-      Bitmap frame =
-          scale < 1f
-              ? Bitmap.createScaledBitmap(
-                  cropped,
-                  Math.round(cropped.getWidth() * scale),
-                  Math.round(cropped.getHeight() * scale),
-                  true)
-              : cropped;
-      ByteArrayOutputStream out = new ByteArrayOutputStream();
-      frame.compress(Bitmap.CompressFormat.JPEG, quality, out);
-      String b64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
+      long baseline = l != null ? LIVE_FRAME_MS[liveTier] : FRAME_INTERVAL_MS;
+      // A new thing on screen is the single most valuable frame we can spend
+      // bandwidth on, so it jumps the baseline cadence — congestion slows the
+      // BASELINE flow, never the reaction. (The socket still has the final
+      // say: LiveWatchEngine drops a frame that would queue in front of her
+      // hearing them, and then nothing wakes her, which is correct.)
+      boolean react = motion >= 2 && now - lastSentAt >= CHANGE_SEND_MS;
+      if (!react && now - lastSentAt < baseline) return;
+      lastSentAt = now;
+      String b64 = encode(image);
+      if (b64 == null) return;
       WatchPlugin.emitFrame(b64); // UI chip liveness (when the app is visible)
-      // 0 nothing moved · 1 they're doing something · 2 a new thing to look at
-      byte[] sig = signature(frame);
-      int motion = 0;
-      if (sig != null) {
-        if (sceneSig == null) {
-          motion = 2; // the first thing she is ever shown is new by definition
-        } else {
-          int d = madTenths(sceneSig, sig);
-          boolean big = d >= NEW_MAD;
-          // only the LEADING EDGE of a big change is a new thing: the middle
-          // of a scroll or a page transition is them being busy, not a thing
-          motion = big ? (prevBig ? 1 : 2) : d >= ACTIVE_MAD ? 1 : 0;
-          prevBig = big;
-        }
-        sceneSig = sig;
-      }
       // the brain lives natively — realtime lane while its socket is up,
-      // cascade otherwise (frames before setupComplete are simply skipped)
+      // cascade otherwise (frames before setupComplete are simply skipped).
+      // The wake-up rides inside onFrame, straight after the frame it belongs
+      // to, with no scheduler hop in between.
       if (l != null) {
         if (l.isReady()) l.onFrame(b64, motion);
       } else if (engine != null) {
@@ -468,19 +451,83 @@ public class WatchCaptureService extends Service {
     }
   }
 
-  /** 16x16 luma thumbnail of a frame, or null if it can't be built. */
-  private byte[] signature(Bitmap src) {
+  /** 0 nothing moved · 1 they're doing something · 2 a new thing to look at. */
+  private int detect(Image image) {
+    byte[] sig = signature(image);
+    if (sig == null) return 0;
+    int motion;
+    if (sceneSig == null) {
+      motion = 2; // the first thing she is ever shown is new by definition
+    } else {
+      int d = madTenths(sceneSig, sig);
+      boolean big = d >= NEW_MAD;
+      // only the LEADING EDGE of a big change is a new thing: the middle of a
+      // scroll or a page transition is them being busy, not a thing
+      motion = big ? (prevBig ? 1 : 2) : d >= ACTIVE_MAD ? 1 : 0;
+      prevBig = big;
+    }
+    sceneSig = sig;
+    return motion;
+  }
+
+  /** Full-res copy -> crop -> downscale -> JPEG -> base64. The expensive
+   *  half, run only for frames that are actually going out. */
+  private String encode(Image image) {
+    Image.Plane plane = image.getPlanes()[0];
+    ByteBuffer buffer = plane.getBuffer();
+    int pixelStride = plane.getPixelStride();
+    int rowStride = plane.getRowStride();
+    int rowPadding = rowStride - pixelStride * image.getWidth();
+    Bitmap bitmap =
+        Bitmap.createBitmap(
+            image.getWidth() + rowPadding / pixelStride,
+            image.getHeight(),
+            Bitmap.Config.ARGB_8888);
+    bitmap.copyPixelsFromBuffer(buffer);
+    // crop padding, downscale so the longest side is ~768 (one vision
+    // tile) — or smaller on the live lane's heaviest congestion tier
+    LiveWatchEngine l = live;
+    int maxSide = l != null ? LIVE_MAX_SIDE[liveTier] : 768;
+    int quality = l != null ? LIVE_JPEG_Q[liveTier] : 68;
+    Bitmap cropped = Bitmap.createBitmap(bitmap, 0, 0, image.getWidth(), image.getHeight());
+    float scale = maxSide / (float) Math.max(cropped.getWidth(), cropped.getHeight());
+    Bitmap frame =
+        scale < 1f
+            ? Bitmap.createScaledBitmap(
+                cropped,
+                Math.round(cropped.getWidth() * scale),
+                Math.round(cropped.getHeight() * scale),
+                true)
+            : cropped;
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    frame.compress(Bitmap.CompressFormat.JPEG, quality, out);
+    return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
+  }
+
+  /** Luma thumbnail sampled straight from the capture plane — no Bitmap, no
+   *  allocation beyond the signature itself, so it can run every tick. */
+  private byte[] signature(Image image) {
     try {
-      Bitmap t = Bitmap.createScaledBitmap(src, SIG_SIDE, SIG_SIDE, true);
-      t.getPixels(sigPx, 0, SIG_SIDE, 0, 0, SIG_SIDE, SIG_SIDE);
+      Image.Plane plane = image.getPlanes()[0];
+      ByteBuffer buf = plane.getBuffer();
+      int ps = plane.getPixelStride();
+      int rs = plane.getRowStride();
+      int w = image.getWidth();
+      int h = image.getHeight();
+      if (w <= 0 || h <= 0) return null;
       byte[] sig = new byte[SIG_LEN];
-      for (int i = 0; i < SIG_LEN; i++) {
-        int p = sigPx[i];
-        sig[i] =
-            (byte)
-                ((((p >> 16) & 0xFF) * 77 + ((p >> 8) & 0xFF) * 150 + (p & 0xFF) * 29) >> 8);
+      for (int y = 0; y < SIG_SIDE; y++) {
+        int py = Math.min(h - 1, (2 * y + 1) * h / (2 * SIG_SIDE));
+        int row = py * rs;
+        for (int x = 0; x < SIG_SIDE; x++) {
+          int px = Math.min(w - 1, (2 * x + 1) * w / (2 * SIG_SIDE));
+          int off = row + px * ps; // absolute gets: the buffer position stays put
+          int r = buf.get(off) & 0xFF;
+          int g = buf.get(off + 1) & 0xFF;
+          int b = buf.get(off + 2) & 0xFF;
+          sig[y * SIG_SIDE + x] = (byte) ((r * 77 + g * 150 + b * 29) >> 8);
+        }
       }
-      if (t != src) t.recycle();
       return sig;
     } catch (Exception e) {
       return null;
@@ -507,6 +554,7 @@ public class WatchCaptureService extends Service {
     tierFellAt = 0;
     sceneSig = null; // a new share's first frame is new content again
     prevBig = false;
+    lastSentAt = 0;
     BubbleService.stopBubble(this);
     stopLive();
     stopCascade();
