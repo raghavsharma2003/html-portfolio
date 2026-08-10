@@ -35,6 +35,8 @@ export interface LiveCallOpts {
   onMyText: (t: string) => void; // finalized user transcript per turn
   onHerText: (t: string) => void; // finalized her transcript per turn
   onEnded: (reason: "failed" | "closed") => void;
+  /** Connect-path timings, so remote telemetry can say WHERE the seconds go. */
+  onTiming?: (t: { mintMs?: number; preminted?: boolean; readyMs?: number }) => void;
 }
 
 // ── uplink backpressure thresholds (ws.bufferedAmount, bytes) ──
@@ -98,6 +100,53 @@ const TROUGH_RING = 8; // 8 mic ticks ≈ 680ms of history
  * attempt fails fast (refused, 5xx, DNS), the second starts immediately
  * instead of sleeping out 2.5s of an 8s budget on an already-dead request.
  */
+// ── pre-minted token ────────────────────────────────────────────────────
+// The mint is a full round trip to our server and on to Google. On a weak
+// mobile link that is seconds, and it lands squarely on the call-start path
+// where it becomes dead air. So it happens EARLY — while they are reading
+// chat — and the call spends the cached token instead. Single-use: taking it
+// clears it. The server issues a 9-minute start window; we keep a margin
+// under that and fall back to a normal mint whenever the cache is cold.
+const TOKEN_FRESH_MS = 7 * 60_000;
+const PREWARM_RETRY_MS = 20_000; // a failing mint must not hammer the limiter
+let pre: { token: string; model?: string; at: number } | null = null;
+let preFlight: Promise<void> | null = null;
+let preTried = 0;
+
+/** Mint ahead of time (chat idle). Safe to call often — it self-throttles. */
+export function prewarmLiveToken(base: string) {
+  if (typeof fetch === "undefined") return;
+  if (preFlight) return; // one in flight is enough
+  if (pre && Date.now() - pre.at < TOKEN_FRESH_MS) return; // still good
+  if (Date.now() - preTried < PREWARM_RETRY_MS) return; // backoff after a miss
+  preTried = Date.now();
+  preFlight = fetch(`${base}/api/live-token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+    signal: AbortSignal.timeout(10_000),
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => {
+      if (j?.token) pre = { token: j.token, model: j.model, at: Date.now() };
+    })
+    .catch(() => {})
+    .finally(() => {
+      preFlight = null;
+    });
+}
+
+/** Take the pre-minted token if one is fresh. Single-use: this consumes it. */
+function takePre() {
+  if (pre && Date.now() - pre.at < TOKEN_FRESH_MS) {
+    const t = pre;
+    pre = null;
+    return t;
+  }
+  pre = null;
+  return null;
+}
+
 async function mintToken(base: string, budgetMs: number) {
   const t0 = Date.now();
   let won = false;
@@ -149,8 +198,16 @@ async function mintToken(base: string, budgetMs: number) {
 }
 
 export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
-  // 1. ephemeral token from our server (never the real key)
-  const { token, model } = await mintToken(opts.base, 8000);
+  // 1. ephemeral token from our server (never the real key). A token minted
+  // while they were in chat skips this round trip entirely; the next one is
+  // minted in the background so the call after this is instant too.
+  const tMint = Date.now();
+  const warmed = takePre();
+  const { token, model } = warmed ?? (await mintToken(opts.base, 8000));
+  opts.onTiming?.({ mintMs: Date.now() - tMint, preminted: !!warmed });
+  // refill for the NEXT call, but not now: a mint racing this session's own
+  // handshake is exactly the contention this change exists to remove
+  setTimeout(() => prewarmLiveToken(opts.base), 15_000);
 
   // 2. mic — echo cancellation on: she plays through the same phone's speaker
   const stream = await navigator.mediaDevices.getUserMedia({
@@ -532,6 +589,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       if (msg.setupComplete) {
         ready = true;
         clearTimeout(failTimer);
+        opts.onTiming?.({ readyMs: Date.now() - tMint });
         resolve();
         opts.onState("listening");
         return;

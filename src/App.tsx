@@ -6,6 +6,8 @@ import Chat from "./components/Chat";
 import CallVoice from "./components/CallVoice";
 import AuthSheet from "./components/AuthSheet";
 import { unlockAudio } from "./voice/speech";
+import { prewarmLiveToken } from "./voice/liveCall";
+import { Capacitor } from "@capacitor/core";
 import {
   consumeOAuthCallback,
   ensureFresh,
@@ -198,6 +200,22 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.messages.length, state.user, state.onboarded, state.auth?.accessToken]);
+
+  // The realtime call's ephemeral token is fetched while they are in chat, so
+  // tapping call spends a token that already exists instead of waiting on a
+  // round trip — on a weak mobile link that round trip was the difference
+  // between her realtime voice picking up and the slower fallback taking the
+  // call. Re-armed on return to the app so it is never stale when they call.
+  useEffect(() => {
+    if (!state.onboarded || inCall) return;
+    const base = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+    const warm = () => {
+      if (document.visibilityState === "visible") prewarmLiveToken(base);
+    };
+    warm();
+    document.addEventListener("visibilitychange", warm);
+    return () => document.removeEventListener("visibilitychange", warm);
+  }, [state.onboarded, inCall]);
 
   return (
     <div className="app grain">

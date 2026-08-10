@@ -157,6 +157,7 @@ export function useCallEngine(
   // at call start when live can't connect, and mid-call if the session drops.
   const liveSession = useRef<LiveSession | null>(null);
   const liveStopping = useRef(false); // deliberate stop — not a mid-call drop
+  const liveTiming = useRef<{ mintMs?: number; preminted?: boolean; readyMs?: number }>({});
   const LIVE_BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
 
   // ── voice ownership ──────────────────────────────────────────────────
@@ -227,6 +228,10 @@ export function useCallEngine(
       },
       onHerText: (t) =>
         log({ id: uid(), from: "her", kind: "text", channel: "call", text: t, at: Date.now() }),
+      onTiming: (t) => {
+        // where the connect seconds actually went, per device/network
+        Object.assign(liveTiming.current, t);
+      },
       onEnded: (reason) => {
         if (liveSession.current === self) liveSession.current = null;
         if (liveStopping.current || !alive.current) return;
@@ -309,7 +314,7 @@ export function useCallEngine(
       s.direct(
         `<context: you are mid-call; the line just cleared up. What was said so far:\n${said}\nContinue the SAME conversation from exactly where it is. Do NOT greet again, do NOT restart, do NOT mention the line or anything technical. If it isn't your turn to speak, just a tiny natural acknowledgement or near-silence>`,
       );
-      track(stateRef.current.deviceId, "live_call_upgraded", {});
+      track(stateRef.current.deviceId, "live_call_upgraded", { ...liveTiming.current });
     };
     attempt();
   }
@@ -379,7 +384,7 @@ export function useCallEngine(
       if (winner && winner !== "slow" && winner.active() && voiceOwner.current === "live") {
         if (!mutedRef.current) winner.setMuted(false); // line is open now
         winner.direct(CALL_OPEN_DIRECTIVE()); // she picks up, spoken live
-        track(stateRef.current.deviceId, "live_call_started", {});
+        track(stateRef.current.deviceId, "live_call_started", { ...liveTiming.current });
         return; // realtime session owns the call from here
       }
       // the race lost by a hair: the session claimed the slot in the
@@ -388,7 +393,7 @@ export function useCallEngine(
         const s2 = liveSession.current;
         if (!mutedRef.current) s2.setMuted(false);
         s2.direct(CALL_OPEN_DIRECTIVE());
-        track(stateRef.current.deviceId, "live_call_started", {});
+        track(stateRef.current.deviceId, "live_call_started", { ...liveTiming.current });
         return;
       }
       // the cascade takes the call — claim it BEFORE the greet so nothing
@@ -404,7 +409,7 @@ export function useCallEngine(
         if (liveSession.current === s) liveSession.current = null;
         liveStopping.current = false;
       });
-      if (winner === "slow") track(stateRef.current.deviceId, "live_call_slow", {});
+      if (winner === "slow") track(stateRef.current.deviceId, "live_call_slow", { ...liveTiming.current });
       // ── cascade fallback: prewarmed greet + instant pickup filler ──
       pickupT = setTimeout(() => {
         if (alive.current && !speakingRef.current && voiceOwner.current === "cascade")

@@ -23,7 +23,12 @@ export default async function handler(req, res) {
 
   try {
     const expire = new Date(Date.now() + 30 * 60_000).toISOString();
-    const newSession = new Date(Date.now() + 2 * 60_000).toISOString();
+    // The window to START a session. Wide enough that the client can mint the
+    // token while they are still in chat and spend it when they tap call —
+    // taking the whole round trip off the call-start path, which is where it
+    // costs them dead air (telemetry: live losing the pickup race on mobile).
+    // Verified: a token minted 3 minutes early still opens a session.
+    const newSession = new Date(Date.now() + 9 * 60_000).toISOString();
     const upstream = await fetch(
       "https://generativelanguage.googleapis.com/v1alpha/auth_tokens",
       {
