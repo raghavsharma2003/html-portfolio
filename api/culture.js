@@ -94,15 +94,19 @@ async function serveIndex(res) {
   }
   const ageH = row ? Number(row.age_h) || 0 : Infinity;
   const fresh = row && ageH <= MAX_AGE_H;
+  // Neon-over-HTTP may hand back a date as a string or as a Date depending on
+  // the column type inference — normalize before comparing, or every client
+  // would see stale:true forever and kick a (harmless but pointless) refresh
+  const day = row ? String(row.day).slice(0, 10) : "";
   // a 10-minute browser/CDN cache is plenty: the row changes once a day
   res.setHeader("Cache-Control", "public, max-age=600, s-maxage=600");
   return res.status(200).json({
-    day: fresh ? row.day : null,
+    day: fresh ? day : null,
     items: fresh ? asArray(row.items) : [],
     dated: fresh ? asArray(row.dated) : [],
     age_h: fresh ? Math.round(ageH) : null,
     // the client fires one background refresh a day when it sees this
-    stale: !row || String(row.day) !== istDay(),
+    stale: !row || day !== istDay(),
   });
 }
 

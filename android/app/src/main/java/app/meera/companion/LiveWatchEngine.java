@@ -1084,6 +1084,29 @@ class LiveWatchEngine {
       // The service mutes this engine for exactly as long as she is audible,
       // so `muted` IS "she has the floor" on this lane.
       final boolean herAudible = muted;
+      if (!herAudible && holdCount > 0) {
+        // Her turn is over: a still-live hold is RELEASED here, not dropped.
+        // The most common overlap in any conversation is the turn transition —
+        // someone starting on her last word — and there is nothing left to
+        // protect at that point. A dead candidate was already cleared
+        // mid-turn, so the ring is only non-empty here if they are still
+        // talking; this saves the leading syllables of the most frequent
+        // overlap in the product and costs nothing.
+        WebSocket sf = ws;
+        if (ready && sf != null) {
+          for (int i = 0; i < holdCount; i++) {
+            int k = (holdHead + i) % HOLD_RING;
+            if (hold[k] == null) continue;
+            try {
+              sf.send(
+                  "{\"realtimeInput\":{\"audio\":{\"data\":\""
+                      + Base64.encodeToString(hold[k], 0, holdLen[k], Base64.NO_WRAP)
+                      + "\",\"mimeType\":\"audio/pcm;rate=16000\"}}}");
+            } catch (Exception ignored) {
+            }
+          }
+        }
+      }
       if (!herAudible && (floorLost || hardCount > 0 || softCount > 0 || holdCount > 0)) {
         floorLost = false;
         floorClaimSince = 0;
@@ -1150,8 +1173,9 @@ class LiveWatchEngine {
       // this capture path may not even have: while she is audible and nothing
       // is claiming the floor, whatever the mic hears IS her leakage.
       if (herAudible && herNow > 600 && hardCount == 0) {
-        double r = rms / herNow;
-        kappa += (r > kappa ? ECHO_ATTACK : ECHO_RELEASE) * (r - kappa);
+        // `r` is the AudioRecord for this whole loop — name the ratio
+        double leak = rms / herNow;
+        kappa += (leak > kappa ? ECHO_ATTACK : ECHO_RELEASE) * (leak - kappa);
         kappa = Math.min(ECHO_KAPPA_MAX, Math.max(ECHO_KAPPA_MIN, kappa));
       }
       if (holding) {

@@ -31,6 +31,7 @@ import { diag } from "./diag";
 const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
 const LS_KEY = "meera.culture.v1";
 const REFRESH_MS = 6 * 3600_000; // the row changes once a day; this is slack
+const MAX_AGE_MS = 60 * 3600_000; // matches the endpoint's own staleness ceiling
 const MAX_INJECTED = 2; // two is already generous; more is a briefing
 
 interface CultureItem {
@@ -116,6 +117,10 @@ export function cultureNote(userText: string): string {
     void primeCulture();
     if (!index) return "";
   }
+  // Hard ceiling, independent of the endpoint's own. Stale IS the failure mode
+  // for culture — a girl who half-knows last week's thing is the "fellow kids"
+  // failure in its purest form, and going blank costs nothing.
+  if (Date.now() - index.fetchedAt > MAX_AGE_MS) return "";
   const hay = pad(userText);
   if (hay.length < 6) return "";
 
@@ -237,7 +242,7 @@ function fromStorage(): CultureIndex | null {
     if (!p || !Array.isArray(p.items)) return null;
     // a cached index older than the endpoint's own staleness ceiling is worse
     // than nothing: last week's slang is the "fellow kids" failure exactly
-    if (Date.now() - (p.fetchedAt || 0) > 60 * 3600_000) return null;
+    if (Date.now() - (p.fetchedAt || 0) > MAX_AGE_MS) return null;
     return { ...p, items: sanitizeItems(p.items) };
   } catch {
     return null;

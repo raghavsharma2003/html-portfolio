@@ -608,7 +608,16 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       kappa = Math.min(ECHO_KAPPA_MAX, Math.max(ECHO_KAPPA_MIN, kappa));
     }
     if (!herSpeaking) {
-      // her turn is over: nothing to arbitrate, everything resets
+      // Her turn is over: nothing left to arbitrate. But a still-live hold
+      // must be RELEASED here, not dropped — the most common overlap in any
+      // conversation is the turn transition, someone starting on her last
+      // word, and there is nothing left to protect at that point. The ring is
+      // only ever non-empty here if the candidate was still going (a dead one
+      // is cleared mid-turn), so this costs nothing and saves the leading
+      // syllables of the single most frequent overlap in the product.
+      if (hold.length) {
+        if (ws.bufferedAmount <= STALL_CEILING) for (const c of hold) sendPcm(c);
+      }
       if (floorLost || hardHits.length || softHits.length || hold.length) {
         hardHits.length = 0;
         hardDb.length = 0;
