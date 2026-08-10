@@ -146,20 +146,35 @@ class LiveWatchEngine {
   private static final int SUB_MS = 20;
   private static final int FLOOR_WIN_SUBS = 150; // 3.0s of ambience
   private static final double FLOOR_PCT = 0.10; // 10th percentile, not the MIN
-  private static final double FLOOR_MIN = 50; // −56 dBFS
-  // was 1300 (−28 dBFS). The floor clamp and the threshold clamp CROSSED:
-  // above floor 273 the threshold froze at 820, and above floor 820 the
-  // threshold sat BELOW ambience — at the old ceiling of 1300 it was
-  // 20·log10(820/1300) = −4.0 dB UNDER the noise floor, so in a loud room the
-  // gate could never close, the whole room was transmitted as speech, and the
-  // digital silence that ends a turn was never sent. Both halves of "she
-  // stops for the TV" and "she waits for the room to go quiet", from one
-  // arithmetic error. 3900 ≈ −18.5 dBFS is a genuinely loud café.
-  private static final double FLOOR_MAX = 3900;
-  private static final double LISTEN_MIN = 330; // −40 dBFS, unchanged
-  private static final double LISTEN_MAX = 820; // −32 dBFS, unchanged
+  private static final double FLOOR_MIN = 49; // −56.5 dBFS (web 0.0015)
+  // The floor clamp and the threshold clamp CROSSED: above floor 273 the
+  // threshold froze at 820, and above floor 820 the threshold sat BELOW
+  // ambience — at the old ceiling of 1300 it was 20·log10(820/1300) = −4.0 dB
+  // UNDER the noise floor, so in a loud room the gate could never close, the
+  // whole room was transmitted as speech, and the digital silence that ends a
+  // turn was never sent. LISTEN_RATIO_MIN below is the fix for that and it
+  // stays.
+  //
+  // What does NOT stay is the 3900 ceiling that rode along with it. RATIO_MIN
+  // makes the listen bar track the floor at +5.1 dB with no absolute cap, so
+  // the floor ceiling IS the listen-bar ceiling: at floor 3900 the bar is
+  // 3900·1.8 = 7020 = −13.4 dBFS, against the old 820 (−32.0 dBFS) cap — an
+  // 18.6 dB move. Ordinary speech at 1m is −26…−20 dBFS, so from floor ≈ 1600
+  // upward the gate stops opening for a normal voice at all, and a closed gate
+  // transmits a ZEROED buffer: the uplink goes silent on an idle session where
+  // the hold logic never runs and nothing else can rescue it. 1311 (0.04 full
+  // scale, −28 dBFS) bounds the worst case at 1311·1.8 = 2360 = −22.9 dBFS.
+  private static final double FLOOR_MAX = 1311; // −28.0 dBFS (web 0.04)
+  private static final double LISTEN_MIN = 328; // −40.0 dBFS (web 0.01)
+  private static final double LISTEN_MAX = 819; // −32.0 dBFS (web 0.025)
   private static final double LISTEN_MULT = 3;
   private static final double LISTEN_RATIO_MIN = 1.8; // +5.1 dB — it can always close
+  /** Absolute backstop on the listen bar, independent of the floor. A no-op at
+   *  FLOOR_MAX (1311·1.8 = 2360 exactly), deliberately set AT the ratio-min
+   *  value so it can never fight LISTEN_RATIO_MIN and re-create the clamp
+   *  crossing that fix exists to close. It is here so that raising FLOOR_MAX
+   *  again cannot silently re-open the deafness above. */
+  private static final double LISTEN_ABS_MAX = 2360; // −22.9 dBFS (web 0.072)
   // While she is audible the cost function inverts: a false open costs her
   // being killed mid-word by a television. +16 dB over ambience is the
   // near-field argument — inverse square from a mouth at 0.2m against a TV at
@@ -169,6 +184,14 @@ class LiveWatchEngine {
   private static final double BARGE_MULT = 6.3; // +16.0 dB over ambience
   private static final double BARGE_OVER_LISTEN = 2.5; // +8.0 dB over the listen bar
   private static final double BARGE_MAX = 11469; // −9 dBFS: nothing is unbargeable
+  // The soft bar is deliberately NOT raised by the echo term. It used to be
+  // min(thrB, max(…, echoTerm)), which collapses onto thrB the instant echo
+  // binds thrB — so on the leaky speakerphone the valve exists for, it gave
+  // zero extra LEVEL sensitivity and only a longer duration, which is a pure
+  // loss. Echo may now raise the hard bar only. What stops her own leak from
+  // walking through the lower soft bar is not the bar, it is claimPeak >
+  // echoTerm at the claim site: a real second source puts at least one
+  // sub-frame above everything her own voice can explain, and pure echo cannot.
   private static final double SOFT_MULT = 4.0; // +12.0 dB — the quiet-talker valve
   private static final double SOFT_OVER_LISTEN = 1.6;
   // 550ms of speech inside 850ms (28 of 43 sub-frames, so ~300ms of plosive
@@ -200,6 +223,23 @@ class LiveWatchEngine {
   private static final double ECHO_KAPPA_MAX = 0.6;
   private static final double ECHO_ATTACK = 0.35;
   private static final double ECHO_RELEASE = 0.002;
+  /**
+   * κ only learns while the room-side noise gate is CLOSED. The old condition
+   * was "she is audible and nothing has cleared the HARD bar", which is a
+   * positive feedback loop with the bar it feeds: every sound below thrB —
+   * ambience, and a person too quiet to clear it — was booked as her echo, so
+   * κ rose, so thrB rose, so MORE of the person fell below the bar. The
+   * estimate converges onto whatever is failing to clear it and she goes
+   * talking-deaf for the rest of the turn. The gate is the one signal here not
+   * derived from κ.
+   *
+   * The consequence, stated plainly: on a device leaky enough that her own
+   * echo holds the gate OPEN, κ never learns and stays at the pessimistic
+   * seed. That is the correct direction — κ can now only ever LOWER the
+   * protection below the seed, and only on evidence gathered while the room
+   * was quiet. Ambience is also subtracted in POWER before the ratio is taken.
+   */
+  private static final double ECHO_MAX_RISE = 0.04; // per tick: no single chunk ratchets
   /** −4.2 dB: "haan bolo" — she softens and keeps talking. Ported from the
    *  cascade lane's duckSpeech(), which has production miles on it. */
   private static final float DUCK_SOFT = 0.62f;
@@ -317,12 +357,38 @@ class LiveWatchEngine {
   private volatile boolean ready = false;
   private volatile boolean muted = false;
   private volatile boolean speaking = false;
-  /** RMS (Int16 units) of the audio the play thread is writing RIGHT NOW,
-   *  with the wall clock it was written at. Ground truth for the echo term:
-   *  taking a MAX over a short lag window means we never have to measure the
-   *  device's acoustic round trip. */
-  private volatile double herRms = 0;
-  private volatile long herRmsAt = 0;
+  /**
+   * Her own level, keyed to the PLAYBACK HEAD rather than to the wall clock.
+   *
+   * This used to be one {rms, writtenAt} pair stamped as the chunk was handed
+   * to AudioTrack, read by the mic thread inside a 300ms freshness window. On
+   * MODE_STREAM a write only ENQUEUES: the track buffer here is ~400ms, so the
+   * audio being stamped is up to 400ms away from the speaker and the stamp has
+   * already expired by the time it is emitted. herNow therefore read 0 at
+   * exactly the moment her loudest audio reached the mic — echo protection off
+   * precisely when it is needed. On a weak-AEC device her own voice could then
+   * clear the bar, pass the steadiness veto, and be burst-released to the
+   * server as the USER'S turn.
+   *
+   * So each chunk records the frame range it will occupy in the track, and the
+   * mic thread looks up whatever range contains getPlaybackHeadPosition(). The
+   * frame counters are the same clock: both are reset by the pause/flush/play
+   * in flushPlayback(), and the generation stamp discards a ring written
+   * before a flush. Single writer (play thread), single reader (mic thread) —
+   * a torn read costs one stale RMS estimate, never correctness.
+   */
+  private static final int HER_RING = 48;
+  /** ~120ms at 24kHz: the acoustic round trip plus one mic chunk of capture. */
+  private static final int HER_LOOKBACK_FRAMES = OUT_RATE * 120 / 1000;
+  /** ~40ms ahead: the head advances while this chunk is being measured. */
+  private static final int HER_LOOKAHEAD_FRAMES = OUT_RATE * 40 / 1000;
+  private final long[] herFrom = new long[HER_RING]; // first frame of the chunk
+  private final long[] herTo = new long[HER_RING]; // one past its last frame
+  private final double[] herLvl = new double[HER_RING]; // its RMS, Int16 units
+  private final int[] herGen = new int[HER_RING]; // flushGen it belongs to
+  private volatile int herWrite = 0; // next slot; only the play thread writes
+  /** One past the last frame handed to the track, in the same frame clock. */
+  private volatile long herWritten = 0;
   private volatile float trackVol = 1f; // what fraction is reaching the speaker
   /** Non-zero while a dissolve owns the volume — a duck must never fight it. */
   private volatile int fadeActive = 0;
@@ -331,6 +397,29 @@ class LiveWatchEngine {
   /** When the current candidate first looked like a voice — decides whether
    *  the eventual yield is a trail-off or a clean break. */
   private volatile long floorClaimSince = 0;
+  /**
+   * When we burst a real floor claim at the server, or 0 once the server has
+   * answered. This was a micLoop LOCAL, which the WS reader thread cannot
+   * reach — so unlike the web lane (which clears it in the `interrupted`
+   * branch) Android had no stand-down: after a SUCCESSFUL barge-in the
+   * watchdog still fired ~1.5s later and guillotined the reply she had already
+   * started, with no `interrupted` and no cause anywhere in the logs.
+   */
+  private volatile long floorReleasedAt = 0;
+  /**
+   * Bytes of a deliberate release burst still draining, and the wall clock at
+   * which that credit expires no matter what. A floor release hands the socket
+   * the whole hold ring at once (22 chunks ≈ 93KB of base64); queueSize then
+   * reads far above FRAME_GATE (8_000) until it drains, so screen share went
+   * blind for ~2.2s after EVERY barge-in and the congestion trough pinned at 2
+   * for ~2s — reporting a link problem that does not exist. This is the same
+   * argument sampleCongestion() already makes about the frame sawtooth: our
+   * own deliberate bursts are not evidence about the link. Credited out of the
+   * frame gate and the trough ONLY; the stall clock still reads the raw queue,
+   * because a genuinely dead socket must never be masked.
+   */
+  private volatile long burstBytes = 0;
+  private volatile long burstUntil = 0;
   private boolean torn = false; // guarded by this — stop() is one-way
 
   private volatile OkHttpClient client;
@@ -575,7 +664,12 @@ class LiveWatchEngine {
       // HEARING. Going momentarily blind is recoverable — the next tick
       // retries 600ms later and an unsent frame can never wake her. Going
       // deaf makes her answer the wrong question, which is unrecoverable.
-      if (s.queueSize() > FRAME_GATE) return;
+      // The reading is credited for a deliberate release burst still draining
+      // (see burstBytes): this gate's job is to keep video out of a socket
+      // that is behind on HER audio, and a barge-in burst is audio we have
+      // already chosen to send, not a link that cannot keep up. Without the
+      // credit every barge-in blinded the screen share for ~2.2s.
+      if (s.queueSize() - burstBytes > FRAME_GATE) return;
       if (b64Jpeg.length() > FRAME_MAX_B64) return; // pathological encode
       // base64 (NO_WRAP) and the fixed mime are JSON-safe by construction —
       // hand-rolled so a ~60KB frame isn't copied through JSONObject twice
@@ -871,6 +965,7 @@ class LiveWatchEngine {
         // plainly been talking for most of a second gets out of the way.
         long overlap = floorClaimSince == 0 ? 0 : System.currentTimeMillis() - floorClaimSince;
         yieldFloor(overlap > YIELD_HARD_AFTER_MS);
+        floorReleasedAt = 0; // the server answered; the watchdog stands down
       }
       JSONObject turn = sc.optJSONObject("modelTurn");
       if (turn != null) {
@@ -1039,7 +1134,12 @@ class LiveWatchEngine {
     // ── floor-arbitration state, mic-thread confined ──
     long subIdx = 0; // monotonic sub-frame counter — the claim windows' clock
     final long[] hardHits = new long[CLAIM_WIN_SUBS + 8];
-    final double[] hardDb = new double[CLAIM_WIN_SUBS + 8];
+    // EVERY sub-frame while she is audible, linear RMS, indexed by subIdx mod
+    // length — the steadiness test reads this, not only the above-bar
+    // sub-frames. Sized to the soft window, the longer of the two.
+    final double[] subLin = new double[SOFT_CLAIM_WIN_SUBS + 8];
+    final double[] span = new double[SOFT_CLAIM_WIN_SUBS + 8];
+    final double[] spanSort = new double[SOFT_CLAIM_WIN_SUBS + 8];
     int hardHead = 0;
     int hardCount = 0;
     final long[] softHits = new long[SOFT_CLAIM_WIN_SUBS + 8];
@@ -1051,8 +1151,8 @@ class LiveWatchEngine {
     final int[] holdLen = new int[HOLD_RING];
     int holdHead = 0;
     int holdCount = 0;
-    long releasedAt = 0;
     int ducked = 0; // 0 full volume · 1 soft duck · 2 yielding
+    int sockSeen = -1; // which socket generation this arbitration state belongs to
     final double[] sub = new double[SUBS];
     while (running) {
       AudioRecord r = record; // stop() nulls the field from another thread
@@ -1081,9 +1181,47 @@ class LiveWatchEngine {
       boolean gated = true;
       boolean opened = false;
       boolean claim = false;
-      // The service mutes this engine for exactly as long as she is audible,
-      // so `muted` IS "she has the floor" on this lane.
-      final boolean herAudible = muted;
+      // A REPLACED socket must not inherit the old one's arbitration state:
+      // the hold ring is audio for a session that no longer exists, and
+      // floorLost/hardCount/κ describe a conversation that has ended. Only the
+      // queue-side half of this was being reset. resetIfNewSocket() is called
+      // FIRST in the tick now, so the mic-confined half is cleared before
+      // anything reads it.
+      resetIfNewSocket();
+      if (sockSeen != wsGen.get()) {
+        sockSeen = wsGen.get();
+        hardCount = 0;
+        hardHead = 0;
+        softCount = 0;
+        softHead = 0;
+        holdHead = 0;
+        holdCount = 0;
+        claimPeak = 0;
+        subIdx = 0;
+        Arrays.fill(subLin, 0);
+        kappa = ECHO_KAPPA_SEED;
+        floorLost = false;
+        floorClaimSince = 0;
+        floorReleasedAt = 0;
+        gatedRun = 0;
+        prevChunk = null;
+      }
+      // WHETHER SHE IS ACTUALLY AUDIBLE, from the playback head — not from
+      // `muted`.
+      //
+      // `muted` is the service's half-duplex switch, and it is held for
+      // DRAIN_GRACE_MS (1500ms, before setSpeaking(false) is even called) plus
+      // a 350ms unmute tail after her audio has genuinely stopped. Using it as
+      // "she has the floor" meant the arbiter went on HOLDING for ~1850ms into
+      // the silence after every one of her turns — and a held candidate that
+      // then goes quiet for 4 chunks is DROPPED, so a short reply landing in
+      // that window ("haan", "theek hai") was deleted and never reached the
+      // server at all. The floor arbiter now does the half-duplex job itself,
+      // on the real signal: audio she has been given that the speaker has not
+      // yet played. `muted` remains only as the fallback for a device where
+      // the head counter is unreadable.
+      final long head = playHead();
+      final boolean herAudible = head < 0 ? muted : head < herWritten;
       if (!herAudible && holdCount > 0) {
         // Her turn is over: a still-live hold is RELEASED here, not dropped.
         // The most common overlap in any conversation is the turn transition —
@@ -1110,7 +1248,7 @@ class LiveWatchEngine {
       if (!herAudible && (floorLost || hardCount > 0 || softCount > 0 || holdCount > 0)) {
         floorLost = false;
         floorClaimSince = 0;
-        releasedAt = 0;
+        floorReleasedAt = 0;
         hardCount = 0;
         hardHead = 0;
         softCount = 0;
@@ -1118,7 +1256,7 @@ class LiveWatchEngine {
         holdHead = 0;
         holdCount = 0;
         claimPeak = 0;
-        if (ducked != 0 && fadeActive == 0) setVol(1f);
+        if (ducked != 0) restoreVol();
         ducked = 0;
       }
       final boolean holding = herAudible && !floorLost;
@@ -1155,39 +1293,55 @@ class LiveWatchEngine {
         floor = Math.min(FLOOR_MAX, Math.max(FLOOR_MIN, floorSort[(int) (floorFill * FLOOR_PCT)]));
       }
       // ── the two bars ──
-      final double herNow =
-          (SystemClock.elapsedRealtime() - herRmsAt < 300) ? herRms * trackVol : 0;
+      final double herNow = herAt(head) * trackVol;
       final double echoTerm = kappa * herNow;
       final double thrL =
-          Math.max(floor * LISTEN_RATIO_MIN, Math.min(Math.max(floor * LISTEN_MULT, LISTEN_MIN), LISTEN_MAX));
+          Math.min(
+              LISTEN_ABS_MAX,
+              Math.max(
+                  floor * LISTEN_RATIO_MIN,
+                  Math.min(Math.max(floor * LISTEN_MULT, LISTEN_MIN), LISTEN_MAX)));
       final double thrB =
           Math.min(BARGE_MAX, Math.max(Math.max(thrL * BARGE_OVER_LISTEN, floor * BARGE_MULT), echoTerm));
+      // No echo term: with it, min(thrB, max(…, echoTerm)) is exactly thrB
+      // whenever echo binds thrB, and the valve collapses onto the bar it is
+      // supposed to sit below. The min() stays only as a sanity rail — with
+      // SOFT_OVER_LISTEN < BARGE_OVER_LISTEN and SOFT_MULT < BARGE_MULT it can
+      // bind only when BARGE_MAX clamps thrB.
       final double thrS =
-          Math.min(thrB, Math.max(Math.max(thrL * SOFT_OVER_LISTEN, floor * SOFT_MULT), echoTerm));
+          Math.min(thrB, Math.max(thrL * SOFT_OVER_LISTEN, floor * SOFT_MULT));
       if (rms > thrL) gateLeft = 3; // ~300ms hangover
       else if (gateLeft > 0) gateLeft--;
       gated = gateLeft <= 0;
       opened = !gated && !wasOpen;
       wasOpen = !gated;
       // Learn the coupling from ground truth rather than trusting an AEC that
-      // this capture path may not even have: while she is audible and nothing
-      // is claiming the floor, whatever the mic hears IS her leakage.
-      if (herAudible && herNow > 600 && hardCount == 0) {
-        // `r` is the AudioRecord for this whole loop — name the ratio
-        double leak = rms / herNow;
-        kappa += (leak > kappa ? ECHO_ATTACK : ECHO_RELEASE) * (leak - kappa);
-        kappa = Math.min(ECHO_KAPPA_MAX, Math.max(ECHO_KAPPA_MIN, kappa));
+      // this capture path may not even have: while she is audible and THE GATE
+      // IS CLOSED, whatever the mic hears is her leakage plus the room, and the
+      // room is subtracted in power. See ECHO_MAX_RISE for why the old
+      // "nothing has cleared the hard bar" condition was a feedback loop.
+      if (herAudible && herNow > 600 && gated) {
+        final double excess = Math.sqrt(Math.max(0, rms * rms - floor * floor));
+        final double leak = excess / herNow;
+        double next = kappa + (leak > kappa ? ECHO_ATTACK : ECHO_RELEASE) * (leak - kappa);
+        next = Math.min(next, kappa + ECHO_MAX_RISE); // no single chunk may ratchet
+        kappa = Math.min(ECHO_KAPPA_MAX, Math.max(ECHO_KAPPA_MIN, next));
       }
       if (holding) {
         for (int s = 0; s < SUBS; s++) {
           subIdx++;
+          // EVERY sub-frame goes in the deviation ring, above the bar or not.
+          // Selecting on "above thrB" is a left-truncated sample: it discards
+          // precisely the inter-syllable dips that MAKE speech look like
+          // speech, leaving the top of the envelope, which is flat for
+          // anybody. A marginal talker measured that way lands at σ ≈ 2.1-2.4
+          // dB against a 2.0 dB bar and is refused as a machine.
+          subLin[(int) Math.floorMod(subIdx, (long) subLin.length)] = sub[s];
           if (sub[s] > thrB) {
             int w = (hardHead + hardCount) % hardHits.length;
             hardHits[w] = subIdx;
-            hardDb[w] = 20 * Math.log10(Math.max(sub[s], 1));
             if (hardCount < hardHits.length) hardCount++;
             else hardHead = (hardHead + 1) % hardHits.length;
-            if (sub[s] > claimPeak) claimPeak = sub[s];
           }
           if (sub[s] > thrS) {
             int w = (softHead + softCount) % softHits.length;
@@ -1204,16 +1358,36 @@ class LiveWatchEngine {
             softCount--;
           }
         }
-        if (hardCount == 0) claimPeak = 0;
+        // THE CANDIDATE'S OWN SPAN: from its oldest surviving hit to now.
+        // Sub-frames BEFORE it are room silence that is no part of the
+        // candidate and would inflate the deviation into an automatic pass.
+        long firstHit = 0;
+        if (hardCount > 0 && softCount > 0) {
+          firstHit = Math.min(hardHits[hardHead], softHits[softHead]);
+        } else if (hardCount > 0) {
+          firstHit = hardHits[hardHead];
+        } else if (softCount > 0) {
+          firstHit = softHits[softHead];
+        }
+        int spanN = 0;
+        claimPeak = 0;
+        if (firstHit > 0) {
+          spanN = (int) Math.min(subIdx - firstHit + 1, subLin.length);
+          for (int i = 0; i < spanN; i++) {
+            double v = subLin[(int) Math.floorMod(subIdx - i, (long) subLin.length)];
+            span[i] = v;
+            if (v > claimPeak) claimPeak = v;
+          }
+        }
         if (hardCount > 0 && floorClaimSince == 0) floorClaimSince = System.currentTimeMillis();
         // THE DUCK. She softens the moment something is plainly a voice, long
         // before it has earned anything — the hitch a person produces on
         // contact, and fully reversible.
         if (ducked == 0 && hardCount >= DUCK_SUBS) {
-          setVol(DUCK_SOFT);
+          setVolAsync(DUCK_SOFT);
           ducked = 1;
-        } else if (ducked == 1 && hardCount < DUCK_SUBS / 2 && fadeActive == 0) {
-          setVol(1f); // it was nothing — bring her back up NOW
+        } else if (ducked == 1 && hardCount < DUCK_SUBS / 2) {
+          restoreVol(); // it was nothing — bring her back up NOW
           ducked = 0;
           floorClaimSince = 0;
         }
@@ -1224,18 +1398,36 @@ class LiveWatchEngine {
         // bar, but speech runs 5-9 dB of log-RMS deviation and a motor runs 1-2.
         if (hardCount >= CLAIM_SUBS || softCount >= SOFT_CLAIM_SUBS) {
           boolean varied = true;
-          if (hardCount >= 6 && claimPeak < floor * STEADY_OVERRIDE_MULT) {
-            double m = 0;
-            for (int i = 0; i < hardCount; i++) m += hardDb[(hardHead + i) % hardDb.length];
-            m /= hardCount;
-            double v2 = 0;
-            for (int i = 0; i < hardCount; i++) {
-              double d = hardDb[(hardHead + i) % hardDb.length] - m;
-              v2 += d * d;
+          if (spanN >= 6) {
+            // Ambience for the override. The trailing 3s percentile has not
+            // seen a machine that started less than 3s ago — which is the
+            // entire window in which this veto matters — so the comparison is
+            // made against the LOUDER of that percentile and the candidate's
+            // own median, which a steady source raises on its first half
+            // second. Against the stale floor alone, a fan clears +24 dB
+            // trivially and switches the veto off for exactly the stimulus it
+            // exists to catch.
+            System.arraycopy(span, 0, spanSort, 0, spanN);
+            Arrays.sort(spanSort, 0, spanN);
+            double ambient = Math.max(floor, spanSort[spanN / 2]);
+            if (claimPeak < ambient * STEADY_OVERRIDE_MULT) {
+              double m = 0;
+              for (int i = 0; i < spanN; i++) m += 20 * Math.log10(Math.max(span[i], 1));
+              m /= spanN;
+              double v2 = 0;
+              for (int i = 0; i < spanN; i++) {
+                double d = 20 * Math.log10(Math.max(span[i], 1)) - m;
+                v2 += d * d;
+              }
+              varied = Math.sqrt(v2 / spanN) >= STEADY_DB;
             }
-            varied = Math.sqrt(v2 / hardCount) >= STEADY_DB;
           }
-          claim = varied;
+          // Her own leak must not walk through the soft bar now that the bar
+          // no longer rises with echo. A genuine second source puts at least
+          // one sub-frame above everything κ·herNow can account for; pure echo
+          // cannot. A HARD claim passes this for free (thrB ≥ echoTerm), so it
+          // bites only on soft-only claims — exactly where the risk was made.
+          claim = varied && claimPeak > echoTerm;
         }
       }
       if (gated) gatedRun++;
@@ -1255,10 +1447,17 @@ class LiveWatchEngine {
           canSend = false;
         }
       }
-      resetIfNewSocket();
       boolean drop = true;
       if (canSend) {
-        sampleCongestion(queued);
+        // Retire the release-burst credit as the socket actually drains it: it
+        // can never exceed what is really queued, and it expires on a wall
+        // clock regardless. The trough sees the credited value; the stall
+        // clock below deliberately does not.
+        if (burstBytes != 0) {
+          if (SystemClock.elapsedRealtime() > burstUntil) burstBytes = 0;
+          else if (queued < burstBytes) burstBytes = queued;
+        }
+        sampleCongestion(Math.max(0, queued - burstBytes));
         long nowMs = SystemClock.elapsedRealtime();
         if (queued > MAX_QUEUE_AUDIO) {
           if (overSince == 0) overSince = nowMs;
@@ -1303,12 +1502,19 @@ class LiveWatchEngine {
             } catch (Exception ignored) {
             }
           }
+          // Credit exactly what this burst added, for exactly as long as it
+          // takes to drain: it is audio we chose to send, not a slow link.
+          try {
+            burstBytes = Math.max(0, s.queueSize() - queued);
+            burstUntil = SystemClock.elapsedRealtime() + 2500;
+          } catch (Exception ignored) {
+          }
         }
         holdHead = 0;
         holdCount = 0;
         floorLost = true;
-        releasedAt = SystemClock.elapsedRealtime();
-        setVol(DUCK_CLAIM);
+        floorReleasedAt = SystemClock.elapsedRealtime();
+        setVolAsync(DUCK_CLAIM);
         ducked = 2;
       } else if (holding) {
         // HOLD. Real audio into the ring, digital silence onto the wire —
@@ -1377,13 +1583,82 @@ class LiveWatchEngine {
       // this model there is an acknowledged case where it never sends one, and
       // that single message is otherwise the only thing here that can stop
       // her. The client made the floor decision, so the client enforces it.
-      if (releasedAt != 0
-          && SystemClock.elapsedRealtime() - releasedAt > RELEASE_WATCHDOG_MS
-          && speaking) {
-        releasedAt = 0;
+      // floorReleasedAt is a FIELD, not a local: the WS reader thread clears it
+      // the moment the server answers with `interrupted`, which is the
+      // stand-down the web lane has always had. Without it a SUCCESSFUL
+      // barge-in still tripped this 1.5s later and cut off the reply she had
+      // already begun.
+      final long rel = floorReleasedAt;
+      if (rel != 0 && SystemClock.elapsedRealtime() - rel > RELEASE_WATCHDOG_MS && speaking) {
+        floorReleasedAt = 0;
         yieldFloor(true);
       }
     }
+  }
+
+  /**
+   * Where the speaker actually is, in the same frame clock the play thread
+   * stamps chunks with. −1 when there is no usable track.
+   *
+   * getPlaybackHeadPosition() is a read of a native counter and is safe from
+   * any thread; the mic thread never touches the track's state.
+   */
+  private long playHead() {
+    AudioTrack t = track;
+    if (t == null) return -1;
+    try {
+      return t.getPlaybackHeadPosition() & 0xFFFFFFFFL;
+    } catch (Exception e) {
+      return -1;
+    }
+  }
+
+  /**
+   * How loud the audio the speaker is emitting RIGHT NOW is, in Int16 units,
+   * or 0 if it is emitting nothing. The mic thread's only honest reference for
+   * telling her own leak apart from a person.
+   *
+   * A small window either side of the head absorbs the device's acoustic round
+   * trip and the ~100ms mic chunk: a sub-frame captured now heard audio the
+   * speaker emitted a few tens of ms ago, so the MAX across the chunk-sized
+   * neighbourhood of the head is taken rather than the single chunk under it.
+   */
+  private double herAt(long head) {
+    if (head < 0) return 0;
+    final int gen = flushGen.get();
+    final long lo = head - HER_LOOKBACK_FRAMES;
+    final long hi = head + HER_LOOKAHEAD_FRAMES;
+    double m = 0;
+    for (int i = 0; i < HER_RING; i++) {
+      if (herGen[i] != gen) continue;
+      if (herTo[i] <= lo || herFrom[i] >= hi) continue;
+      if (herLvl[i] > m) m = herLvl[i];
+    }
+    return m;
+  }
+
+  /**
+   * The mic thread's route to the volume. EVERY volume write now happens on
+   * the main thread, which is also where fadeStep() runs — so a duck and a
+   * dissolve are serialised by the looper instead of racing.
+   *
+   * They used to race through a check-then-act on a plain volatile: the mic
+   * thread read fadeActive == 0, a dissolve started on the main thread, and
+   * the mic thread's setVol(1f) then landed on top of it and snapped her back
+   * to FULL volume in the middle of the fade — the exact "she snaps back mid
+   * dissolve" symptom. The check and the write are now one main-thread action.
+   */
+  private void setVolAsync(float v) {
+    main.post(() -> setVol(v));
+  }
+
+  /** Back to full, unless a dissolve owns the gain. Runs on main, so the
+   *  fadeActive test and the write cannot be split by one starting. */
+  private void restoreVol() {
+    main.post(
+        () -> {
+          if (fadeActive == 0) setVol(1f);
+        });
   }
 
   /** What fraction of her voice is reaching the speaker. One writer, so a duck
@@ -1406,10 +1681,20 @@ class LiveWatchEngine {
    * volume walks down, and only then is the queue dropped.
    */
   private void yieldFloor(boolean hard) {
-    final int gen = yieldGen.incrementAndGet();
-    fadeActive = gen;
-    fadeStep(gen, 1, hard ? YIELD_HARD_STEPS : YIELD_STEPS,
-        hard ? YIELD_HARD_STEP_MS : YIELD_STEP_MS, trackVol);
+    // Called from the mic thread (the watchdog) and the WS reader. The whole
+    // dissolve — including its first step — runs on main, so it is ordered
+    // against every other volume write rather than racing the duck.
+    main.post(
+        () -> {
+          final int gen = yieldGen.incrementAndGet();
+          fadeActive = gen;
+          fadeStep(
+              gen,
+              1,
+              hard ? YIELD_HARD_STEPS : YIELD_STEPS,
+              hard ? YIELD_HARD_STEP_MS : YIELD_STEP_MS,
+              trackVol);
+        });
   }
 
   private void fadeStep(int gen, int i, int steps, int stepMs, float from) {
@@ -1555,20 +1840,22 @@ class LiveWatchEngine {
         lastGen = g;
         queued = 0; // the track was flushed (head reset) — resync
         quietSince = 0;
+        herWritten = 0; // and nothing older than the flush is still audible
       }
       if (chunk != null && chunk.length > 0) {
         quietSince = 0;
-        // Publish how loud she is AS IT IS WRITTEN — the closest point to what
-        // the speaker is about to emit, and the only honest reference the
-        // mic thread has for telling her own leak apart from a person.
+        // Publish how loud she is AGAINST THE FRAME RANGE THIS CHUNK WILL
+        // OCCUPY, not against the wall clock at which it is written. A write
+        // to a MODE_STREAM track only enqueues; what the speaker emits — and
+        // therefore what the mic hears — is whatever the playback head is on.
         double acc = 0;
         int frames = chunk.length / 2;
         for (int i = 0; i + 1 < chunk.length; i += 2) {
           int v = (chunk[i + 1] << 8) | (chunk[i] & 0xFF);
           acc += (double) v * v;
         }
-        herRms = Math.sqrt(acc / Math.max(1, frames));
-        herRmsAt = SystemClock.elapsedRealtime();
+        final double chunkRms = Math.sqrt(acc / Math.max(1, frames));
+        final long chunkFrom = queued;
         int off = 0;
         // NON_BLOCKING so a barge-in never has to wait for a full buffer
         while (off < chunk.length && running && g == flushGen.get()) {
@@ -1591,9 +1878,22 @@ class LiveWatchEngine {
         }
         if (g == flushGen.get()) {
           queued += off / 2; // 16-bit mono: 2 bytes per frame
+          // Record the frame range this chunk actually occupies, so the mic
+          // thread can ask "what is the speaker emitting right now?" instead
+          // of "what did we hand the track ~400ms ago?".
+          if (off > 0) {
+            int slot = Math.floorMod(herWrite, HER_RING);
+            herFrom[slot] = chunkFrom;
+            herTo[slot] = queued;
+            herLvl[slot] = chunkRms;
+            herGen[slot] = g;
+            herWrite = herWrite + 1;
+            herWritten = queued;
+          }
         } else {
           lastGen = flushGen.get();
           queued = 0; // flushed mid-write; the buffer is empty again
+          herWritten = 0;
         }
         continue;
       }
@@ -1620,6 +1920,7 @@ class LiveWatchEngine {
             } catch (Exception ignored) {
             }
             queued = 0;
+            herWritten = 0;
             lastGen = flushGen.get();
             setSpeaking(false);
           }

@@ -591,12 +591,18 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   // ── floor-arbitration state ──
   let subIdx = 0; // monotonic sub-frame counter — the claim windows' clock
   const hardHits: number[] = []; // sub-frames above the BARGE bar
-  const hardDb: number[] = []; // ...and their levels, for the steadiness test
   const softHits: number[] = []; // sub-frames above the SOFT bar
   let claimPeak = 0;
+  // EVERY sub-frame while she is audible, linear RMS, oldest first — one entry
+  // per sub-frame, so position maps straight back to subIdx. The steadiness
+  // test reads this rather than only the above-bar sub-frames, because
+  // selecting on "above the bar" throws away the dips that distinguish a mouth
+  // from a motor. Bounded by the soft window, the longer of the two.
+  const subLin: number[] = [];
   let hold: Int16Array[] = []; // her turn's withheld audio, oldest first
   let ducked = 0; // 0 full volume · 1 soft duck · 2 yielding
   let kappa = ECHO_KAPPA_SEED; // learned mic-to-speaker coupling
+  let herTurnSeen = -1; // which of her turns the arbitration state belongs to
   const toPcm = (input: Float32Array, ratio: number, outLen: number) => {
     const p = new Int16Array(outLen);
     for (let i = 0; i < outLen; i++) {
@@ -623,11 +629,21 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       sub.push(Math.sqrt(acc / Math.max(1, b - a)));
     }
     const rms = Math.sqrt(sum / N);
-    // the floor learns even while muted — the muted ring second is free room
-    // calibration (web mute = "line not open yet", the audio is clean room)
-    for (const v of sub) {
-      floorRing.push(v);
-      if (floorRing.length > floorN) floorRing.shift();
+    const herSpeaking = speakingUntil > Date.now();
+    // Do NOT learn ambience from her own leak. The floor is what the ROOM
+    // sounds like; every sub-frame captured while she is audible carries some
+    // amount of her, and folding that in ratchets the ambience estimate up on
+    // audio that is not the room — which then raises every bar derived from
+    // it, on a leaky device, for the whole turn. The Android lane has always
+    // guarded this (`if (!herAudible)`); the web lane did not.
+    //
+    // Learning while MUTED is still deliberate and still correct: web mute
+    // means "the line is not open yet", so that audio is clean room.
+    if (!herSpeaking) {
+      for (const v of sub) {
+        floorRing.push(v);
+        if (floorRing.length > floorN) floorRing.shift();
+      }
     }
     // the percentile is a sort of 141 doubles; once every 4 ticks (~341ms) is
     // plenty for a statistic with a 3s window and keeps this off the hot path
@@ -644,12 +660,45 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     // clock and nowhere else, so the signal is evenly spaced and a tick that
     // happens to send twice (gate-open pre-roll) can't double-weight it.
     const buffered = ws.bufferedAmount;
-    noteBuffered(buffered);
-    if (muted) return;
+    // Retire the burst credit as the socket actually drains it: it can never
+    // exceed what is really queued, and it expires on a wall clock regardless.
+    if (burstBytes) {
+      if (Date.now() > burstUntil) burstBytes = 0;
+      else if (buffered < burstBytes) burstBytes = buffered;
+    }
+    const linkBuffered = Math.max(0, buffered - burstBytes);
+    noteBuffered(linkBuffered);
+    if (muted) {
+      // Muting is not a reason to leave her quiet. This return used to sit
+      // ABOVE the duck restore, so muting while she was ducked pinned
+      // outBus.gain at −4.2 dB (or −10.5 dB after a claim) for the entire
+      // mute and, because nothing else writes the gain outside this tick, for
+      // every turn after it too. Unwind the overlap state on the way out, and
+      // drop the held ring: it is room audio from before the mute and must
+      // never be burst at the server after it.
+      if (ducked && !yieldTimer) {
+        rampGain(1, UNDUCK_RAMP);
+        ducked = 0;
+      }
+      hardHits.length = 0;
+      softHits.length = 0;
+      subLin.length = 0;
+      hold = [];
+      claimPeak = 0;
+      floorLost = false;
+      floorClaimSince = 0;
+      floorReleasedAt = 0;
+      prevPcm = null;
+      wasOpen = false;
+      return;
+    }
     // ── the two bars ──
-    const thrL = Math.max(
-      noiseFloor * LISTEN_RATIO_MIN,
-      Math.min(Math.max(noiseFloor * LISTEN_MULT, LISTEN_MIN), LISTEN_MAX),
+    const thrL = Math.min(
+      LISTEN_ABS_MAX,
+      Math.max(
+        noiseFloor * LISTEN_RATIO_MIN,
+        Math.min(Math.max(noiseFloor * LISTEN_MULT, LISTEN_MIN), LISTEN_MAX),
+      ),
     );
     // herRecentRms is measured on the samples BEFORE the output bus gain, so
     // scale by what is actually reaching the speaker — a ducked voice leaks
@@ -661,25 +710,58 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       BARGE_MAX,
       Math.max(thrL * BARGE_OVER_LISTEN, noiseFloor * BARGE_MULT, echoTerm),
     );
+    // The soft bar carries NO echo term. With it, `min(thrB, max(…, echoTerm))`
+    // evaluates to exactly thrB whenever echo binds thrB — the valve collapsed
+    // onto the bar it is supposed to sit below, in the one case it exists for.
+    // The min() is kept only as a sanity rail; with SOFT_OVER_LISTEN < BARGE_
+    // OVER_LISTEN and SOFT_MULT < BARGE_MULT it can bind only when BARGE_MAX
+    // clamps thrB.
     const thrS = Math.min(
       thrB,
-      Math.max(thrL * SOFT_OVER_LISTEN, noiseFloor * SOFT_MULT, echoTerm),
+      Math.max(thrL * SOFT_OVER_LISTEN, noiseFloor * SOFT_MULT),
     );
     if (rms > thrL) gateLeft = hangChunks;
     else if (gateLeft > 0) gateLeft--;
     const open = gateLeft > 0;
     if (open) gatedRun = 0;
     else gatedRun++;
-    const herSpeaking = speakingUntil > Date.now();
     // Learn the coupling from ground truth rather than trusting AEC: while she
-    // is audible and nothing is claiming the floor, whatever the mic hears IS
-    // her leakage. Fast attack, slow release — being under-protected is the
-    // loud failure (she cuts herself off in a loop), being over-protected
-    // costs one late barge-in.
-    if (herSpeaking && herNow > 0.02 && !hardHits.length) {
-      const r = rms / herNow;
-      kappa += (r > kappa ? ECHO_ATTACK : ECHO_RELEASE) * (r - kappa);
-      kappa = Math.min(ECHO_KAPPA_MAX, Math.max(ECHO_KAPPA_MIN, kappa));
+    // is audible and THE GATE IS CLOSED, whatever the mic hears is her leakage
+    // plus the room, and the room is subtracted. Fast attack, slow release —
+    // being under-protected is the loud failure (she cuts herself off in a
+    // loop), being over-protected costs one late barge-in.
+    //
+    // The gate condition is what breaks the ratchet. `!hardHits.length` only
+    // excluded audio that had already cleared the bar being computed, so
+    // everything below the bar — ambience, and a person too quiet to clear it —
+    // was booked as echo and pushed the bar further up over them. The gate is
+    // the one signal here that is not derived from κ.
+    if (herSpeaking && herNow > 0.02 && !open) {
+      // subtract ambience in POWER: the mic sums two uncorrelated sources
+      const excess = Math.sqrt(Math.max(0, rms * rms - noiseFloor * noiseFloor));
+      const r = excess / herNow;
+      const next = kappa + (r > kappa ? ECHO_ATTACK : ECHO_RELEASE) * (r - kappa);
+      // upward moves are rate-bounded; downward ones are already slow
+      kappa = Math.min(ECHO_KAPPA_MAX, Math.max(ECHO_KAPPA_MIN, Math.min(next, kappa + ECHO_MAX_RISE)));
+    }
+    // A NEW turn of hers must not inherit the last one's candidate. If she
+    // starts speaking again inside one mic tick, the `!herSpeaking` branch
+    // below never runs and hits from her previous turn stay in the window,
+    // where they can complete a claim that no one is actually making.
+    if (herTurnSeen !== herTurnGen) {
+      herTurnSeen = herTurnGen;
+      // The hit windows and the claim belong to the turn that just ended;
+      // carrying them forward can complete a claim nobody is making. The HOLD
+      // ring deliberately survives: if a person really is talking across her
+      // turn boundary, that is their speech and it still has to reach the
+      // server. It is released by the `!herSpeaking` branch below, or by the
+      // dead-candidate drop, exactly as it would have been.
+      hardHits.length = 0;
+      softHits.length = 0;
+      subLin.length = 0;
+      claimPeak = 0;
+      floorClaimSince = 0;
+      floorLost = false;
     }
     if (!herSpeaking) {
       // Her turn is over: nothing left to arbitrate. But a still-live hold
@@ -694,8 +776,8 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       }
       if (floorLost || hardHits.length || softHits.length || hold.length) {
         hardHits.length = 0;
-        hardDb.length = 0;
         softHits.length = 0;
+        subLin.length = 0;
         hold = [];
         claimPeak = 0;
       }
@@ -713,19 +795,29 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     if (holding) {
       for (const v of sub) {
         subIdx++;
-        if (v > thrB) {
-          hardHits.push(subIdx);
-          hardDb.push(20 * Math.log10(Math.max(v, 1e-6)));
-          if (v > claimPeak) claimPeak = v;
-        }
+        subLin.push(v);
+        if (subLin.length > softWin + 1) subLin.shift();
+        if (v > thrB) hardHits.push(subIdx);
         if (v > thrS) softHits.push(subIdx);
-        while (hardHits.length && subIdx - hardHits[0] > claimWin) {
-          hardHits.shift();
-          hardDb.shift();
-        }
+        while (hardHits.length && subIdx - hardHits[0] > claimWin) hardHits.shift();
         while (softHits.length && subIdx - softHits[0] > softWin) softHits.shift();
       }
-      if (!hardHits.length) claimPeak = 0;
+      // THE CANDIDATE'S OWN SPAN: from its oldest surviving hit to now. Every
+      // sub-frame in there counts, above the bar or not — the sub-bar dips
+      // inside a candidate ARE the syllabic envelope. Sub-frames BEFORE it are
+      // room silence that is no part of the candidate and would inflate the
+      // deviation into an automatic pass.
+      const firstHit = hardHits.length
+        ? softHits.length
+          ? Math.min(hardHits[0], softHits[0])
+          : hardHits[0]
+        : softHits.length
+          ? softHits[0]
+          : 0;
+      let span: number[] = [];
+      if (firstHit) span = subLin.slice(Math.max(0, subLin.length - 1 - (subIdx - firstHit)));
+      claimPeak = 0;
+      for (const v of span) if (v > claimPeak) claimPeak = v;
       if (hardHits.length && !floorClaimSince) floorClaimSince = Date.now();
       // THE DUCK. She softens the moment something is plainly a voice, long
       // before it has earned anything — that is the hitch a person produces
@@ -742,16 +834,34 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       // enough to be in this room and not on a screen across it, and varied
       // enough to be a mouth and not a motor.
       if (hardHits.length >= claimNeed || softHits.length >= softNeed) {
+        // Ambience for the override. The trailing 3s percentile has not seen a
+        // machine that started less than 3s ago — which is the entire window
+        // in which the veto matters — so it is taken against the LOUDER of
+        // that percentile and the candidate's own median, which a steady
+        // source raises on its first half-second.
+        let ambient = noiseFloor;
         let varied = true;
-        if (hardDb.length >= 6 && claimPeak < noiseFloor * STEADY_OVERRIDE_MULT) {
-          let m = 0;
-          for (const d of hardDb) m += d;
-          m /= hardDb.length;
-          let v2 = 0;
-          for (const d of hardDb) v2 += (d - m) * (d - m);
-          varied = Math.sqrt(v2 / hardDb.length) >= STEADY_DB;
+        if (span.length >= 6) {
+          const srt = [...span].sort((a, b) => a - b);
+          const med = srt[srt.length >> 1];
+          if (med > ambient) ambient = med;
+          if (claimPeak < ambient * STEADY_OVERRIDE_MULT) {
+            let m = 0;
+            const db = span.map((v) => 20 * Math.log10(Math.max(v, 1e-6)));
+            for (const d of db) m += d;
+            m /= db.length;
+            let v2 = 0;
+            for (const d of db) v2 += (d - m) * (d - m);
+            varied = Math.sqrt(v2 / db.length) >= STEADY_DB;
+          }
         }
-        claim = varied;
+        // Her own leak must not walk through the soft bar now that the bar no
+        // longer rises with echo. A genuine second source in the room puts at
+        // least one sub-frame above everything κ·herNow can account for; pure
+        // echo, by construction, cannot. A HARD claim passes this for free
+        // (thrB ≥ echoTerm already), so it bites only on soft-only claims —
+        // exactly where the risk was created.
+        claim = varied && claimPeak > echoTerm;
       }
     }
     // WORDS ALWAYS GO. A chunk with the gate open is never dropped for
@@ -780,7 +890,13 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       // The stall ceiling is checked ONCE, before the loop. A partial flush
       // would splice the middle out of the person's word and scramble the
       // turn's transcript — worse than not releasing at all.
-      if (ws.bufferedAmount <= STALL_CEILING) for (const c of hold) sendPcm(c);
+      if (ws.bufferedAmount <= STALL_CEILING) {
+        const before = ws.bufferedAmount;
+        for (const c of hold) sendPcm(c);
+        // credit exactly what this burst added, and only until it drains
+        burstBytes = Math.max(0, ws.bufferedAmount - before);
+        burstUntil = Date.now() + 2500;
+      }
       hold = [];
       floorLost = true;
       floorReleasedAt = Date.now();
@@ -914,6 +1030,24 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let floorLost = false; // a person has taken this turn from her
   let floorClaimSince = 0; // when the current candidate first looked like a voice
   let floorReleasedAt = 0; // when we burst the held audio at the server
+  // Bumped on every boundary of HER turns. The mic tick clears its candidate
+  // when this moves, so a turn that starts again inside one 85ms tick — where
+  // `herSpeaking` never reads false and the end-of-turn reset never runs —
+  // cannot inherit the previous turn's hits.
+  let herTurnGen = 0;
+  // ── a deliberate release burst is not congestion ──
+  // The floor release hands the socket the whole hold ring at once (up to 26
+  // chunks ≈ 96KB of base64). bufferedAmount then reads far above VIDEO_GATE
+  // (48_000) for as long as it takes to drain, so screen share goes blind for
+  // ~2.2s after EVERY barge-in and the congestion trough pins at 2 for ~2s —
+  // reporting a link problem that does not exist. This is the same argument
+  // the trough estimator already makes about the frame sawtooth: our own
+  // deliberate bursts are not evidence about the link. The burst is therefore
+  // credited back out of the reading that the video gate and the trough see —
+  // and ONLY those. The stall backstop still reads the raw counter, because a
+  // genuinely dead socket must never be masked by a credit.
+  let burstBytes = 0;
+  let burstUntil = 0; // hard time bound: a credit can never outlive its drain
   // her own output, sampled as it is SCHEDULED — ground truth for echo
   let herLevels: { a: number; b: number; rms: number }[] = [];
   // times (in outCtx seconds) where her own audio has a real gap between
@@ -1262,6 +1396,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
         const overlapMs = floorClaimSince ? Date.now() - floorClaimSince : 0;
         yieldFloor(overlapMs > YIELD_HARD_AFTER_MS);
         floorReleasedAt = 0; // the server answered; the watchdog stands down
+        herTurnGen++; // this turn of hers is over, whatever follows is a new one
       }
       for (const p of sc.modelTurn?.parts ?? []) {
         if (p.inlineData?.data) playChunk(p.inlineData.data);
@@ -1270,6 +1405,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       if (sc.outputTranscription?.text) herBuf += sc.outputTranscription.text;
       if (sc.turnComplete) {
         discardTurn = false; // the killed turn is closed; the next one may play
+        herTurnGen++; // and the arbiter's candidate does not cross the boundary
         flushTexts();
       }
     };
@@ -1363,7 +1499,13 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       // ~143KB/s and the queue can pin at the ceiling, at which point the
       // thing being shed is her HEARING. A skipped frame is retried 600ms
       // later and can never wake her; a lost syllable is answered wrong.
-      if (ws.bufferedAmount > VIDEO_GATE) return false;
+      //
+      // The reading is credited for a deliberate release burst still draining
+      // (see burstBytes): the gate's job is to keep video out of a socket that
+      // is behind on HER audio, and a barge-in burst is audio we have already
+      // chosen to send, not a link that cannot keep up. Without the credit
+      // every single barge-in blinded the screen share for ~2.2s.
+      if (Math.max(0, ws.bufferedAmount - burstBytes) > VIDEO_GATE) return false;
       if (ws.bufferedAmount > STALL_CEILING) return false; // socket is dead, not slow
       ws.send(
         JSON.stringify({
