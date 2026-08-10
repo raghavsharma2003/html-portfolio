@@ -43,7 +43,7 @@ public class WatchCaptureService extends Service {
   // The live session streams video into an already-open socket, so a faster
   // rate costs only bandwidth; the cascade pays a vision request per frame,
   // hence the slower fallback tick.
-  private static final long FRAME_INTERVAL_LIVE_MS = 1000;
+  private static final long FRAME_INTERVAL_LIVE_MS = 600;
   private static final long FRAME_INTERVAL_MS = 1400;
 
   private LiveWatchEngine live; // realtime lane (Gemini Live) — tried first

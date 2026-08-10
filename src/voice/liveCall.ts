@@ -65,15 +65,38 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   proc.connect(sink);
   sink.connect(inCtx.destination);
   attachAnalyser("you", inCtx, src); // presence UI reads YOUR real amplitude
+  // ── adaptive noise gate: a fan/traffic hum must never read as "still
+  // talking". The gate learns the room's ambient RMS and transmits SILENCE
+  // whenever the level is just ambience — the server VAD then sees clean
+  // speech boundaries and commits the turn ~450ms after the WORDS stop,
+  // regardless of background noise. 350ms hangover so word gaps and soft
+  // syllables never get chopped.
+  let noiseFloor = 0.006;
+  let gateUntil = 0;
   proc.onaudioprocess = (e) => {
     if (dead || !ready || muted || !ws || ws.readyState !== WebSocket.OPEN) return;
     const input = e.inputBuffer.getChannelData(0);
+    let sum = 0;
+    for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+    const rms = Math.sqrt(sum / input.length);
+    if (rms < noiseFloor * 1.6) {
+      noiseFloor = 0.95 * noiseFloor + 0.05 * rms; // settle onto the ambience
+    } else {
+      noiseFloor = Math.min(noiseFloor * 1.0015, 0.04); // creep up, capped
+    }
+    noiseFloor = Math.max(noiseFloor, 0.0015);
+    const speech = rms > Math.max(noiseFloor * 3, 0.01);
+    const now = Date.now();
+    if (speech) gateUntil = now + 350;
+    const open = now < gateUntil;
     const ratio = inCtx.sampleRate / 16000;
     const outLen = Math.floor(input.length / ratio);
-    const pcm = new Int16Array(outLen);
-    for (let i = 0; i < outLen; i++) {
-      const s = input[Math.floor(i * ratio)];
-      pcm[i] = Math.max(-32768, Math.min(32767, Math.round(s * 32767)));
+    const pcm = new Int16Array(outLen); // stays zeroed (silence) when gated
+    if (open) {
+      for (let i = 0; i < outLen; i++) {
+        const s = input[Math.floor(i * ratio)];
+        pcm[i] = Math.max(-32768, Math.min(32767, Math.round(s * 32767)));
+      }
     }
     let bin = "";
     const bytes = new Uint8Array(pcm.buffer);

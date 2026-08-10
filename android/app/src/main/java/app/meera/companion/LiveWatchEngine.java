@@ -365,8 +365,8 @@ class LiveWatchEngine {
   private void maybeNudge(WebSocket s) {
     long now = System.currentTimeMillis();
     if (speaking) return;
-    if (now - lastVoiceAt < 12_000) return; // they're talking — no need
-    if (now - lastNudgeAt < 25_000) return;
+    if (now - lastVoiceAt < 6_000) return; // they're talking — no need
+    if (now - lastNudgeAt < 12_000) return;
     lastNudgeAt = now;
     try {
       JSONObject part =
@@ -744,6 +744,12 @@ class LiveWatchEngine {
   private void micLoop() {
     byte[] buf = new byte[MIC_CHUNK];
     int errs = 0;
+    // adaptive noise gate: ambience (fan, reel audio bleed, traffic) must
+    // never read as "still talking" — the server VAD needs clean speech
+    // boundaries or she waits forever. Gate learns the room's RMS floor and
+    // sends SILENCE when the level is just ambience; 350ms hangover.
+    double noiseFloor = 200; // int16 RMS units
+    long gateUntil = 0;
     while (running) {
       AudioRecord r = record; // stop() nulls the field from another thread
       if (r == null) break;
@@ -768,9 +774,24 @@ class LiveWatchEngine {
         continue;
       }
       errs = 0;
-      // muted writes silence rather than stopping capture: the stream stays
-      // continuous (server VAD hates gaps) and unmuting costs nothing
-      if (muted) Arrays.fill(buf, 0, n, (byte) 0);
+      double sum = 0;
+      for (int i = 0; i + 1 < n; i += 2) {
+        int v = (buf[i + 1] << 8) | (buf[i] & 0xFF);
+        sum += (double) v * v;
+      }
+      double rms = Math.sqrt(sum / Math.max(1, n / 2));
+      if (rms < noiseFloor * 1.6) {
+        noiseFloor = 0.95 * noiseFloor + 0.05 * rms;
+      } else {
+        noiseFloor = Math.min(noiseFloor * 1.0015, 1300);
+      }
+      noiseFloor = Math.max(noiseFloor, 50);
+      long nowMs = System.currentTimeMillis();
+      if (rms > Math.max(noiseFloor * 3, 330)) gateUntil = nowMs + 350;
+      boolean gated = nowMs >= gateUntil;
+      // muted/gated writes silence rather than stopping capture: the stream
+      // stays continuous (server VAD hates gaps) and reopening costs nothing
+      if (muted || gated) Arrays.fill(buf, 0, n, (byte) 0);
       WebSocket s = ws;
       if (!ready || s == null) continue;
       try {

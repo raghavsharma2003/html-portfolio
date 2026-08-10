@@ -697,7 +697,7 @@ export function useCallEngine(
       }
       // realtime path: the live model sees the screen as a video stream
       liveSession.current?.sendFrame(url.split(",")[1] ?? "");
-    }, 700);
+    }, 600);
     const cleanup = () => {
       clearInterval(iv);
       stream.getTracks().forEach((tr) => tr.stop());
