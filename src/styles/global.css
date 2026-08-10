@@ -1388,3 +1388,62 @@ button {
   font-size: 14.5px;
   padding: 8px 16px;
 }
+
+/* ─── watch-together polish ─── */
+
+/* soft amber presence glow while she's watching your screen */
+.speak-glow.watch:not(.on) {
+  opacity: 0.55;
+  background: radial-gradient(circle, rgba(252, 175, 69, 0.28), transparent 70%);
+  animation: watch-breathe 3.2s ease-in-out infinite;
+}
+@keyframes watch-breathe {
+  50% { transform: scale(1.06); opacity: 0.75; }
+}
+
+.watch-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  color: rgba(245, 245, 247, 0.85);
+  font-size: 13.5px;
+  animation: msg-in 0.3s ease;
+}
+.watch-chip i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fcaf45;
+  animation: rec-pulse 1.6s infinite;
+}
+
+.cbtn.watch-on {
+  background: linear-gradient(135deg, #e0356b, #f77737);
+  color: #fff;
+  box-shadow: 0 0 0 0 rgba(247, 119, 55, 0.5);
+  animation: watch-ring 2.2s ease-out infinite;
+}
+@keyframes watch-ring {
+  0% { box-shadow: 0 0 0 0 rgba(247, 119, 55, 0.45); }
+  70% { box-shadow: 0 0 0 14px rgba(247, 119, 55, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(247, 119, 55, 0); }
+}
+
+/* smoother state label + control transitions across the call UI */
+.call-top .cstate {
+  transition: opacity 0.25s ease;
+}
+.cbtn {
+  transition: transform 0.15s ease, background 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;
+}
+.cbtn svg {
+  transition: transform 0.2s ease;
+}
+.cbtn:active svg {
+  transform: scale(0.9);
+}

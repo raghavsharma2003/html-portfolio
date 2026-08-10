@@ -50,9 +50,11 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
             ? "sun rahi hu…" // live proof she's hearing you
             : eng.thinking
               ? "hmm…"
-              : eng.listening
-                ? "listening…"
-                : eng.mmss;
+              : eng.watching
+                ? "watching with you 👀"
+                : eng.listening
+                  ? "listening…"
+                  : eng.mmss;
 
   return (
     <div className="call">
@@ -63,13 +65,20 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
 
       <div className="call-stage">
         <div style={{ position: "relative" }}>
-          <div className={`speak-glow ${eng.speaking ? "on" : ""}`} />
+          <div className={`speak-glow ${eng.speaking ? "on" : ""} ${eng.watching ? "watch" : ""}`} />
           <div className="avatar-ring" style={{ width: 244, height: 244 }}>
             <div className="inner">
               <PhotoAvatar size={228} speaking={eng.speaking} listening={eng.listening} />
             </div>
           </div>
         </div>
+
+        {eng.watching && (
+          <div className="watch-chip">
+            <i />
+            screen shared — she can see it
+          </div>
+        )}
 
         <div className="wave">
           {bars.map((h, i) => (
@@ -103,7 +112,7 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
       <div className="call-controls">
         {eng.watchAvailable && eng.phase === "live" && (
           <button
-            className={`cbtn ${eng.watching ? "active-mic" : ""}`}
+            className={`cbtn ${eng.watching ? "watch-on" : ""}`}
             onClick={() => (eng.watching ? eng.stopWatchMode() : eng.startWatchMode())}
             aria-label={eng.watching ? "Stop sharing screen" : "Watch together"}
           >
