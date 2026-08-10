@@ -166,7 +166,9 @@ export default async function handler(req, res) {
       if (JSON.stringify(props).length > 2000) return res.status(413).json({ error: "props too large" });
       const event = String(b.event || "unknown").slice(0, 60);
       if (!/^[a-z0-9_.-]+$/i.test(event)) return res.status(400).json({ error: "bad event" });
-      q(`insert into meera_events (device_id, user_id, event, props) values ($1,$2,$3,$4)`, [
+      // awaited: a serverless function freezes the instant the response is
+      // sent — a fire-and-forget insert dies mid-flight most of the time
+      await q(`insert into meera_events (device_id, user_id, event, props) values ($1,$2,$3,$4)`, [
         UUID.test(String(b.device || "")) ? b.device : null,
         UUID.test(String(b.user_id || "")) ? b.user_id : null,
         event,

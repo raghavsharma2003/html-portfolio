@@ -120,8 +120,8 @@ async function opRecall(device, body) {
     return `- ${n.name} (${n.kind}): ${n.summary}${rel ? ` [${rel}]` : ""}`;
   });
 
-  // touch recall time (fire-and-forget)
-  q(`update meera_nodes set last_recalled = now() where device_id = $1 and id = any($2)`, [
+  // touch recall time (awaited — serverless kills post-response work)
+  await q(`update meera_nodes set last_recalled = now() where device_id = $1 and id = any($2)`, [
     device,
     idArr,
   ]).catch(() => {});
