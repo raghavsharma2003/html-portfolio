@@ -34,6 +34,9 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  // the native app is cross-origin: without this it pays a preflight RTT on
+  // EVERY speech request — pure added latency on the hottest path
+  res.setHeader("Access-Control-Max-Age", "86400");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   if (!allow(ipOf(req), "speech", 60)) return res.status(429).json({ error: "slow down" });
@@ -74,10 +77,39 @@ export default async function handler(req, res) {
       if (!upstream.ok) return null;
       return Buffer.from(await upstream.arrayBuffer());
     };
-    // upstream occasionally returns an empty 200 — one retry covers it
-    let pcm = await generate();
-    if (!pcm || pcm.length < 1000) pcm = await generate();
-    if (!pcm || pcm.length < 1000) {
+    // upstream occasionally returns an empty 200. A serial retry doubled
+    // worst-case latency on the path the user waits on in silence — instead,
+    // if the primary is slow a second request races it after 1200ms and the
+    // first non-empty result wins.
+    const pcm = await new Promise((resolve) => {
+      let settled = false;
+      let pending = 0;
+      let hedged = false;
+      const settle = (buf) => {
+        if (settled) return;
+        pending--;
+        if (buf && buf.length >= 1000) {
+          settled = true;
+          clearTimeout(hedgeT);
+          resolve(buf);
+        } else if (!hedged) {
+          launchHedge(); // fast empty/fail — retry immediately
+        } else if (pending <= 0) {
+          settled = true;
+          resolve(null);
+        }
+      };
+      const launchHedge = () => {
+        if (settled || hedged) return;
+        hedged = true;
+        pending++;
+        generate().then(settle, () => settle(null));
+      };
+      pending++;
+      generate().then(settle, () => settle(null));
+      const hedgeT = setTimeout(launchHedge, 1200);
+    });
+    if (!pcm) {
       return res.status(502).json({ error: "upstream empty" });
     }
     res.setHeader("Content-Type", "audio/wav");

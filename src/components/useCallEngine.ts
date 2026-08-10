@@ -20,6 +20,8 @@ import {
   listen,
   prefetchBackchannels,
   playAck,
+  playPickup,
+  prewarmSpeech,
   playThinkingFiller,
   startRoomTone,
   stopRoomTone,
@@ -152,10 +154,25 @@ export function useCallEngine(
       engine,
       true,
     );
+    // the moment the greet TEXT exists, its first clip starts synthesizing —
+    // the TTS fetch (the slowest step) overlaps the ring instead of running
+    // after it, which was the 2-3s of dead air at pickup
+    greetPromise.then((r) => {
+      if (!alive.current) return;
+      const g = r.bubbles.join(" ").trim();
+      if (g) prewarmSpeech(g, voiceOpts, r.tone);
+    });
+    let pickupT: ReturnType<typeof setTimeout> | null = null;
     const t = setTimeout(async () => {
       if (!alive.current) return;
       setPhase("live");
       startRoomTone(); // real lines are never digitally silent
+      // if her improvised greeting's audio isn't rolling within ~600ms of
+      // the line going live, a cached "haan hello?" fills the gap — a phone
+      // pickup is never silent
+      pickupT = setTimeout(() => {
+        if (alive.current && !speakingRef.current) playPickup();
+      }, 600);
       const reply = await greetPromise;
       if (!alive.current) return;
       const greet = reply.bubbles.join(" ").trim() || "hello?";
@@ -168,10 +185,11 @@ export function useCallEngine(
         at: Date.now(),
       });
       sayAloud(greet, reply.tone);
-    }, 1400 + Math.random() * 700);
+    }, 1100 + Math.random() * 300);
     return () => {
       alive.current = false;
       clearTimeout(t);
+      if (pickupT) clearTimeout(pickupT);
       stopSpeaking();
       stopRoomTone();
       stopListen.current?.();
@@ -242,14 +260,19 @@ export function useCallEngine(
   const SHORT_COMPLETE =
     /^(haa*n|nahi+|nope|yes|yeah|no|ok+a*y*|hmm+|thik h?a*i?|pata nahi|i don'?t know|kuch nahi|bilkul|sahi)$/i;
 
+  // STT gives no punctuation, so question shape is detected textually — the
+  // turns where lag hurts most get the fastest commit
+  const QUESTION_SHAPE =
+    /^(kya|kyu|kyun|kaise|kaisa|kaisi|kab|kaha|kahan|kaun|kitna|kitni|what|why|how|where|when|who|which|can|do|did|are|is|will|should)\b|\b(kya|na|right|kya)$/i;
+
   function commitDelay(t: string): number {
     const trimmed = t.trim().toLowerCase();
-    if (SHORT_COMPLETE.test(trimmed) || /\?$/.test(trimmed)) return 380;
+    if (SHORT_COMPLETE.test(trimmed) || QUESTION_SHAPE.test(trimmed)) return 380;
     if (CONTINUATION.test(trimmed)) return 1800;
-    return 650; // resume-while-thinking absorbs the rare early commit
+    return 450; // resume-while-thinking absorbs the rare early commit
   }
 
-  // 150ms endpointing tick (web SR only — native STT endpoints itself)
+  // 75ms endpointing tick (web SR only — native STT endpoints itself)
   useEffect(() => {
     if (Capacitor.isNativePlatform()) return;
     const iv = setInterval(() => {
@@ -257,11 +280,11 @@ export function useCallEngine(
       const text = (a.finals + " " + a.interim).trim();
       if (!text || !a.lastAt || speakingRef.current) return;
       const waited = Date.now() - a.lastAt;
-      if (waited >= Math.min(2600, commitDelay(text))) {
+      if (waited >= commitDelay(text)) {
         acc.current = { finals: "", interim: "", lastAt: 0 };
         handleUser(text);
       }
-    }, 150);
+    }, 75);
     return () => clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -582,9 +605,12 @@ export function useCallEngine(
       at: Date.now(),
     };
     log(mine);
-    // GUARANTEED acknowledgment: if her reply hasn't started speaking within
-    // ~1.1s, a soft "hmm/haan" tells them she heard — the audio equivalent
-    // of read-ticks. Deterministic, once per turn, never layered over speech.
+    // GUARANTEED acknowledgment: a soft "hmm/haan" tells them she heard —
+    // the audio equivalent of read-ticks. Deterministic, once per turn,
+    // never layered over speech. After a substantive turn (they said a real
+    // thing and are now waiting) it comes at ~420ms like a human listener;
+    // for quick fragments it holds back so replies usually beat it.
+    const substantive = text.length > 24 || text.split(/\s+/).length > 4;
     setTimeout(() => {
       if (
         thinkingRef.current &&
@@ -593,7 +619,7 @@ export function useCallEngine(
         seq === turnSeq.current
       )
         playAck();
-    }, 1100);
+    }, substantive ? 420 : 1100);
     thinkingRef.current = true;
     setThinking(true);
     // still silent after ~4s? hold the floor with a sound, not silence —

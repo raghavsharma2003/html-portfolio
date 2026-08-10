@@ -557,8 +557,21 @@ function hedgedClipFor(text: string, opts: VoiceOpts, style?: string): Promise<B
       }
     };
     fetchClipFor(text, opts, style).then(settle, () => settle(null));
-    timer = setTimeout(launchHedge, 2400); // primary slow — race a second try
+    timer = setTimeout(launchHedge, 1400); // primary slow — race a second try
   });
+}
+
+/* ── prewarm: start fetching the first clip of a KNOWN upcoming reply (the
+   greeting during the ring) so speakCall finds it already in flight ── */
+const prewarmed = new Map<string, Promise<Blob | null>>();
+
+export function prewarmSpeech(text: string, opts: VoiceOpts, style?: string) {
+  const clean = stripForCloud(text);
+  if (!clean) return;
+  const first = splitPhrases(clean)[0];
+  if (!first || prewarmed.has(first)) return;
+  prewarmed.set(first, hedgedClipFor(first, opts, style));
+  if (prewarmed.size > 4) prewarmed.delete(prewarmed.keys().next().value!);
 }
 
 // Speak a call reply with phrase pipelining. Returns via onEnd; a bumped
@@ -575,8 +588,11 @@ export async function speakCall(
   if (!clean) return onEnd?.();
   const phrases = splitPhrases(clean);
 
-  // pipeline: kick off fetch N+1 while N plays; the first clip is hedged
-  const fetches: Array<Promise<Blob | null>> = [hedgedClipFor(phrases[0], opts, style)];
+  // pipeline: kick off fetch N+1 while N plays; the first clip is hedged —
+  // or already in flight if the caller prewarmed it (greeting during ring)
+  const pre = prewarmed.get(phrases[0]);
+  if (pre) prewarmed.delete(phrases[0]);
+  const fetches: Array<Promise<Blob | null>> = [pre ?? hedgedClipFor(phrases[0], opts, style)];
   let started = false;
   for (let i = 0; i < phrases.length; i++) {
     if (session !== speakSession) return;
@@ -683,10 +699,10 @@ export function createStreamSpeaker(
     for (;;) {
       // fastest onset: if the FIRST sentence is running long, don't wait for
       // its period — cut at a comma/space once enough words exist
-      if (!firstOut && buf.length >= 38 && !/[.!?…]/.test(buf)) {
-        const head = buf.slice(0, 38);
+      if (!firstOut && buf.length >= 26 && !/[.!?…]/.test(buf)) {
+        const head = buf.slice(0, 26);
         const at = Math.max(head.lastIndexOf(","), head.lastIndexOf(" "));
-        if (at > 18) {
+        if (at > 12) {
           emit(buf.slice(0, at + 1).trim());
           buf = buf.slice(at + 1);
           firstOut = true;
@@ -804,8 +820,58 @@ export async function prefetchBackchannels(opts: VoiceOpts) {
       saveClip(key, blob);
     }
   };
-  for (const b of BACKCHANNELS) await load(b, backchannelClips);
-  for (const f of FILLERS) await load(f, fillerClips);
+  // ALL in parallel — serial loading meant a first call could reach the ack
+  // moment with zero clips loaded, i.e. dead silence exactly when the
+  // product promises "she always acknowledges you"
+  await Promise.all([
+    ...BACKCHANNELS.map((b) => load(b, backchannelClips)),
+    ...FILLERS.map((f) => load(f, fillerClips)),
+    ...PICKUPS.map((p) => loadPickup(p, opts)),
+  ]);
+}
+
+// Canned pickup lines, cached in IndexedDB after the first call — played the
+// INSTANT the line goes live if the improvised greeting's audio isn't ready
+// yet, so a call never starts with dead air.
+const PICKUPS = ["Haan hello?", "Hello ji.", "Haan bolo?"];
+const PICKUP_STYLE = "casual warm phone pickup, natural, a little curious";
+const pickupClips: Blob[] = [];
+
+async function loadPickup(text: string, opts: VoiceOpts) {
+  const key = `pk1:${text}:${PICKUP_STYLE}`;
+  const hit = await cachedClip(key);
+  if (hit) {
+    pickupClips.push(hit);
+    return;
+  }
+  const blob = await fetchClipFor(text, opts, PICKUP_STYLE);
+  if (blob) {
+    pickupClips.push(blob);
+    saveClip(key, blob);
+  }
+}
+
+/** Play a canned pickup line NOW (cached, zero network). True if played. */
+export function playPickup(): boolean {
+  if (!pickupClips.length) return false;
+  const blob = pickupClips[Math.floor(Math.random() * pickupClips.length)];
+  if (audioCtx && audioCtx.state === "running") {
+    blob
+      .arrayBuffer()
+      .then((d) => audioCtx!.decodeAudioData(d))
+      .then((buf) => {
+        const src = audioCtx!.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx!.destination);
+        src.start(0);
+      })
+      .catch(() => {});
+    return true;
+  }
+  const a = new Audio(URL.createObjectURL(blob));
+  a.onended = () => URL.revokeObjectURL(a.src);
+  a.play().catch(() => {});
+  return true;
 }
 
 // Played only if she's STILL silent well after the user finished — a human
