@@ -244,12 +244,21 @@ export function useCallEngine(
       },
     });
     self = s;
-    // another engine took the call while we were connecting (the cascade
-    // adopted it, or native watch started) — a late arrival is NEVER adopted
-    if (!alive.current || voiceOwner.current === "cascade" || voiceOwner.current === "native") {
+    // native watch took the audio path while we were connecting, or the
+    // call already ended — this session has no seat, drop it
+    if (!alive.current || voiceOwner.current === "native") {
       liveStopping.current = true;
       s.stop();
       liveStopping.current = false;
+      return null;
+    }
+    // the cascade already took the call (slow network missed the pickup
+    // window) — don't waste the better engine: upgrade to it mid-call at
+    // the next turn boundary instead of leaving the whole call on the
+    // slower lane (telemetry: live_call_slow calls felt "she takes forever")
+    if (voiceOwner.current === "cascade") {
+      s.setMuted(true);
+      adoptLiveLate(s);
       return null;
     }
     claimVoice("live");
@@ -261,6 +270,48 @@ export function useCallEngine(
     // she must not hear or answer a phone that is still ringing
     s.setMuted(true);
     return s;
+  }
+
+  // A live session that connected after the cascade adopted the call. Swap
+  // engines at a human moment — she's not mid-sentence, no reply is in
+  // flight, they aren't mid-utterance — so the upgrade is inaudible except
+  // that she suddenly answers much faster.
+  function adoptLiveLate(s: LiveSession) {
+    let tries = 0;
+    const attempt = () => {
+      const drop = () => {
+        liveStopping.current = true;
+        s.stop();
+        liveStopping.current = false;
+      };
+      if (!alive.current || !s.active() || voiceOwner.current !== "cascade") return drop();
+      const midUser =
+        (acc.current.finals + acc.current.interim).trim().length > 0 ||
+        Date.now() - lastHeardAt.current < 1500;
+      if (speakingRef.current || thinkingRef.current || midUser) {
+        // a busy call keeps deferring; give up after ~60s and stay cascade
+        if (++tries < 200) setTimeout(attempt, 300);
+        else drop();
+        return;
+      }
+      claimVoice("live"); // silences the cascade lane, in-flight audio included
+      liveSession.current = s;
+      listeningRef.current = true;
+      setListening(true);
+      if (!mutedRef.current) s.setMuted(false);
+      // she joined a conversation already in progress — hand her the turns
+      // she missed so nothing said on the slow lane is forgotten
+      const said = stateRef.current.messages
+        .filter((m) => m.channel === "call" && m.kind === "text")
+        .slice(-6)
+        .map((m) => `${m.from === "me" ? "them" : "you"}: ${m.text}`)
+        .join("\n");
+      s.direct(
+        `<context: you are mid-call; the line just cleared up. What was said so far:\n${said}\nContinue the SAME conversation from exactly where it is. Do NOT greet again, do NOT restart, do NOT mention the line or anything technical. If it isn't your turn to speak, just a tiny natural acknowledgement or near-silence>`,
+      );
+      track(stateRef.current.deviceId, "live_call_upgraded", {});
+    };
+    attempt();
   }
 
   // connect + greet
@@ -331,13 +382,23 @@ export function useCallEngine(
         track(stateRef.current.deviceId, "live_call_started", {});
         return; // realtime session owns the call from here
       }
-      // the cascade takes the call — claim it BEFORE the greet so a live
-      // session that lands a moment late is discarded instead of sitting
-      // half-adopted (muted mic, but still answering typed turns aloud)
+      // the race lost by a hair: the session claimed the slot in the
+      // microtask gap between the timeout and this line — it's ready, take it
+      if (voiceOwner.current === "live" && liveSession.current?.active()) {
+        const s2 = liveSession.current;
+        if (!mutedRef.current) s2.setMuted(false);
+        s2.direct(CALL_OPEN_DIRECTIVE());
+        track(stateRef.current.deviceId, "live_call_started", {});
+        return;
+      }
+      // the cascade takes the call — claim it BEFORE the greet so nothing
+      // half-adopted answers typed turns aloud. A live session that connects
+      // later routes itself through adoptLiveLate (mid-call upgrade); this
+      // then-block only sweeps up a session that DIED during the ring.
       claimVoice("cascade");
       livePromise.then((s) => {
-        // late arrival after the cascade already started talking — discard
         if (!s || (voiceOwner.current === "live" && liveSession.current === s)) return;
+        if (s.active()) return; // adoptLiveLate owns a living late arrival
         liveStopping.current = true;
         s.stop();
         if (liveSession.current === s) liveSession.current = null;
