@@ -38,7 +38,13 @@ import {
   type VoiceEngine,
 } from "../engine/persona";
 import { logTurns, rememberFrom, recallMemories } from "../engine/memory";
-import { ensureOverlay, startWatch, watchAvailable, type WatchSession } from "../native/watch";
+import {
+  ensureOverlay,
+  startWatch,
+  stopStrayWatch,
+  watchAvailable,
+  type WatchSession,
+} from "../native/watch";
 import { startLiveCall, type LiveSession } from "../voice/liveCall";
 import { track } from "../engine/account";
 
@@ -57,6 +63,7 @@ export function useCallEngine(
   const [watching, setWatching] = useState(false);
   const [frameAt, setFrameAt] = useState(0); // UI proof that frames flow
   const watchSession = useRef<WatchSession | null>(null);
+  const watchStarting = useRef(false); // synchronous double-tap / re-entry gate
   const frameRef = useRef<{ url: string; at: number } | null>(null);
   const lastCommentAt = useRef(0);
   const firstFrameSeen = useRef(false);
@@ -152,6 +159,46 @@ export function useCallEngine(
   const liveStopping = useRef(false); // deliberate stop — not a mid-call drop
   const LIVE_BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
 
+  // ── voice ownership ──────────────────────────────────────────────────
+  // EXACTLY ONE engine may speak on this call. The slot is swappable
+  // ("none" while the phone rings, then live ⇄ cascade), and "native" is
+  // exclusive: while the Android watch service holds it, the web layer owns
+  // no mic, no timers and no TTS. Claiming kills the loser's IN-FLIGHT
+  // audio, not just its future audio — a queued TTS clip is a second voice.
+  type VoiceOwner = "none" | "live" | "cascade" | "native";
+  const voiceOwner = useRef<VoiceOwner>("none");
+
+  function claimVoice(next: VoiceOwner) {
+    voiceOwner.current = next;
+    if (next !== "cascade") {
+      // the cascade lane: playing/queued clips, the recognizer, the
+      // re-engage nudge, accumulated speech and every in-flight think()
+      stopSpeaking();
+      speakingRef.current = false;
+      setSpeaking(false);
+      stopListen.current?.();
+      stopListen.current = null;
+      listeningRef.current = false;
+      setListening(false);
+      if (reengageTimer.current) {
+        clearTimeout(reengageTimer.current);
+        reengageTimer.current = null;
+      }
+      acc.current = { finals: "", interim: "", lastAt: 0 };
+      spec.current = null;
+      turnSeq.current += 1; // every reply still generating is now stale
+      thinkingRef.current = false;
+      setThinking(false);
+      ducked.current = false;
+    }
+    if (next !== "live" && liveSession.current) {
+      liveStopping.current = true;
+      liveSession.current.stop();
+      liveSession.current = null;
+      liveStopping.current = false;
+    }
+  }
+
   async function tryStartLive(): Promise<LiveSession | null> {
     if (typeof WebSocket === "undefined" || !navigator.mediaDevices?.getUserMedia) return null;
     const parts = buildSystemPromptParts(stateRef.current.user, stateRef.current.messages.length, "voice");
@@ -183,9 +230,11 @@ export function useCallEngine(
       onEnded: (reason) => {
         if (liveSession.current === self) liveSession.current = null;
         if (liveStopping.current || !alive.current) return;
+        if (voiceOwner.current === "native") return; // native watch owns the voice
         // dropped mid-call (network blip, session cap) — cascade takes over
         // so the call never dies; she just keeps talking the slower way
         track(stateRef.current.deviceId, "live_call_dropped", { reason });
+        claimVoice("cascade");
         speakingRef.current = false;
         setSpeaking(false);
         listeningRef.current = false;
@@ -195,12 +244,15 @@ export function useCallEngine(
       },
     });
     self = s;
-    if (!alive.current) {
+    // another engine took the call while we were connecting (the cascade
+    // adopted it, or native watch started) — a late arrival is NEVER adopted
+    if (!alive.current || voiceOwner.current === "cascade" || voiceOwner.current === "native") {
       liveStopping.current = true;
       s.stop();
       liveStopping.current = false;
       return null;
     }
+    claimVoice("live");
     liveSession.current = s;
     listeningRef.current = true;
     setListening(true);
@@ -214,6 +266,10 @@ export function useCallEngine(
   // connect + greet
   useEffect(() => {
     alive.current = true;
+    voiceOwner.current = "none";
+    // a capture service outlives the WebView (renderer kill, reload, app
+    // restart): an orphaned native engine would talk over this whole call
+    void stopStrayWatch();
     prefetchBackchannels(voiceOpts); // instant "hmm?" clips for turn-taking
     // long-term memory for the whole call, fetched while the phone "rings"
     const recent = state.messages
@@ -267,27 +323,34 @@ export function useCallEngine(
         new Promise<"slow">((r) => setTimeout(() => r("slow"), 3500)),
       ]);
       if (!alive.current) return;
-      if (winner && winner !== "slow") {
+      // adopt only a session that is still the owner AND still alive — one
+      // that dropped during the ring already handed the slot to the cascade
+      if (winner && winner !== "slow" && winner.active() && voiceOwner.current === "live") {
         if (!mutedRef.current) winner.setMuted(false); // line is open now
         winner.direct(CALL_OPEN_DIRECTIVE()); // she picks up, spoken live
         track(stateRef.current.deviceId, "live_call_started", {});
         return; // realtime session owns the call from here
       }
+      // the cascade takes the call — claim it BEFORE the greet so a live
+      // session that lands a moment late is discarded instead of sitting
+      // half-adopted (muted mic, but still answering typed turns aloud)
+      claimVoice("cascade");
       livePromise.then((s) => {
         // late arrival after the cascade already started talking — discard
-        if (s && liveSession.current !== s) {
-          liveStopping.current = true;
-          s.stop();
-          liveStopping.current = false;
-        }
+        if (!s || (voiceOwner.current === "live" && liveSession.current === s)) return;
+        liveStopping.current = true;
+        s.stop();
+        if (liveSession.current === s) liveSession.current = null;
+        liveStopping.current = false;
       });
       if (winner === "slow") track(stateRef.current.deviceId, "live_call_slow", {});
       // ── cascade fallback: prewarmed greet + instant pickup filler ──
       pickupT = setTimeout(() => {
-        if (alive.current && !speakingRef.current) playPickup();
+        if (alive.current && !speakingRef.current && voiceOwner.current === "cascade")
+          playPickup();
       }, 600);
       const reply = await greetPromise;
-      if (!alive.current || liveSession.current) return;
+      if (!alive.current || voiceOwner.current !== "cascade") return;
       const greet = reply.bubbles.join(" ").trim() || "hello?";
       log({
         id: uid(),
@@ -401,6 +464,12 @@ export function useCallEngine(
       // and rely on this tick to decide when the turn ended; the legacy
       // native loop self-endpoints and delivers finals directly
       if (Capacitor.isNativePlatform() && getSttMode() !== "callmic") return;
+      // another engine owns the voice: words captured just before the handoff
+      // must never commit into a cascade reply behind its back
+      if (voiceOwner.current !== "cascade") {
+        if (acc.current.lastAt) acc.current = { finals: "", interim: "", lastAt: 0 };
+        return;
+      }
       const a = acc.current;
       const text = (a.finals + " " + a.interim).trim();
       if (!text || !a.lastAt || speakingRef.current) return;
@@ -473,10 +542,11 @@ export function useCallEngine(
 
   function armReengage() {
     if (reengageTimer.current) clearTimeout(reengageTimer.current);
+    if (voiceOwner.current !== "cascade") return; // another engine owns the voice
     reengageTimer.current = setTimeout(async () => {
       // she doesn't sit in silence: after ~7s she carries the conversation
       // herself (twice per stretch, then lets it breathe)
-      if (watchSession.current || liveSession.current) return; // another engine owns the voice
+      if (voiceOwner.current !== "cascade") return;
       if (!alive.current || speakingRef.current || thinkingRef.current || mutedRef.current) return;
       if (reengaged.current >= 2) return;
       // if we heard ANYTHING from them recently (even sub-threshold speech
@@ -506,6 +576,7 @@ export function useCallEngine(
       // this nudge generated — never talk over either
       if (
         !alive.current ||
+        voiceOwner.current !== "cascade" ||
         speakingRef.current ||
         thinkingRef.current ||
         seqAtArm !== turnSeq.current
@@ -534,10 +605,11 @@ export function useCallEngine(
   // hands-free: the mic stays hot the whole call (even while she speaks,
   // for barge-in) and re-arms itself after recognizer silence timeouts
   function startListening() {
-    // while watch-together runs, the NATIVE engine owns the mic — a JS
-    // recognizer here would fight it for the hardware (SR is a singleton);
-    // same when the realtime live session owns the whole audio path
-    if (watchSession.current || liveSession.current) return;
+    // only the cascade lane owns a JS recognizer. While native watch runs the
+    // service owns the mic (SR is a singleton and they'd fight for it), and
+    // the realtime live session owns the whole audio path. Every re-arm route
+    // — recognizer onend, WebView resume, unmute, stopped events — lands here.
+    if (voiceOwner.current !== "cascade") return;
     if (!alive.current || mutedRef.current || listeningRef.current) return;
     const web = !Capacitor.isNativePlatform();
     const res = listen(
@@ -752,11 +824,14 @@ export function useCallEngine(
   // thinks/speaks/listens in the service process, immune to WebView
   // freezing) ──
   async function startWatchMode() {
-    if (watching) return;
+    // `watching` is React state and lands a frame late — a double tap used to
+    // run TWO consent dialogs and two engines. This ref is the real gate.
+    if (watching || watchStarting.current || watchSession.current) return;
     if (!watchAvailable()) {
       if (webWatchAvailable()) await startWebWatch();
       return;
     }
+    watchStarting.current = true;
     try {
       // bubble permission ("Display over other apps"): first missing-grant tap
       // opens the settings toggle and waits for them to come back and tap
@@ -768,20 +843,11 @@ export function useCallEngine(
         await ensureOverlay(true);
         return;
       }
-      // stand the JS mic lane down BEFORE the consent dialog + native start —
-      // the native recognizer's first grab must not collide with ours. The
-      // live session releases the mic entirely (native watch owns audio);
-      // when watch ends, the cascade resumes and live re-engages next call.
-      if (liveSession.current) {
-        liveStopping.current = true;
-        liveSession.current.stop();
-        liveSession.current = null;
-        liveStopping.current = false;
-      }
-      stopListen.current?.();
-      listeningRef.current = false;
-      setListening(false);
-      if (reengageTimer.current) clearTimeout(reengageTimer.current);
+      // hand the whole audio path to the native lane BEFORE the consent
+      // dialog: JS timers keep running behind it, so a stray re-arm, a
+      // committed turn or a queued TTS clip would surface as a second voice
+      // once the native engine starts. This kills in-flight audio too.
+      claimVoice("native");
       // hand the native engine her full brain: cached persona core + call
       // style, volatile tail + watch rules, and the comment directive
       const parts = buildSystemPromptParts(stateRef.current.user, stateRef.current.messages.length, "voice");
@@ -824,11 +890,13 @@ export function useCallEngine(
         },
         () => {
           // capture ended outside our UI (notification, system revoke)
+          if (!watchSession.current) return; // already torn down here
           watchSession.current = null;
           frameRef.current = null;
           setWatching(false);
           track(stateRef.current.deviceId, "watch_stopped_externally", {});
           // same hardware-release beat as stopWatchMode before re-arming
+          claimVoice("cascade");
           setTimeout(() => {
             if (alive.current && !mutedRef.current) startListening();
           }, 450);
@@ -836,8 +904,8 @@ export function useCallEngine(
       );
       setWatching(true);
       lastCommentAt.current = Date.now();
-      // the native engine owns voice + mic now: cut any in-flight JS speech
-      // and invalidate pending turns so nothing talks over her native lane
+      // belt and braces: claimVoice already silenced the JS lane before the
+      // consent dialog — anything that slipped through it dies here
       stopSpeaking();
       speakingRef.current = false;
       setSpeaking(false);
@@ -845,16 +913,25 @@ export function useCallEngine(
       track(stateRef.current.deviceId, "watch_started", {});
     } catch {
       track(stateRef.current.deviceId, "watch_consent_denied", {});
-      // consent denied — stay in the plain call, mic back on
-      if (alive.current && !mutedRef.current) startListening();
+      // consent denied — stay in the plain call, mic back on. NEVER re-arm on
+      // top of a session that is actually running (a denial racing a live
+      // start is how the JS cascade ended up talking over the native engine).
+      if (!watchSession.current && voiceOwner.current === "native") {
+        claimVoice("cascade");
+        if (alive.current && !mutedRef.current) startListening();
+      }
+    } finally {
+      watchStarting.current = false;
     }
   }
 
   function stopWatchMode() {
-    watchSession.current?.stop();
+    const s = watchSession.current;
     watchSession.current = null;
     frameRef.current = null;
     setWatching(false);
+    s?.stop();
+    if (voiceOwner.current === "native") claimVoice("cascade");
     // give the native recognizer a beat to release the hardware before the
     // JS one grabs it — an instant re-arm tends to land on BUSY
     setTimeout(() => {
@@ -887,6 +964,9 @@ export function useCallEngine(
 
   async function handleUser(text: string, prestart?: SpecTurn) {
     if (!alive.current || !text.trim()) return;
+    // native watch owns the conversation — she hears them through the
+    // service's own mic; a reply from here would be a second voice
+    if (voiceOwner.current === "native") return;
     if (liveSession.current) {
       // typed input during a live call — inject as a user turn; she answers
       // through the realtime engine's own voice

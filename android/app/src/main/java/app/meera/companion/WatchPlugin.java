@@ -105,6 +105,16 @@ public class WatchPlugin extends Plugin {
     call.resolve(r);
   }
 
+  /** Is a capture session running? The service outlives the WebView, so a
+   *  reloaded web layer needs a way to find (and kill) an orphaned engine
+   *  before it starts a second one on top of it. */
+  @PluginMethod
+  public void state(PluginCall call) {
+    JSObject r = new JSObject();
+    r.put("active", WatchCaptureService.isSessionActive());
+    call.resolve(r);
+  }
+
   @PluginMethod
   public void stop(PluginCall call) {
     getContext().stopService(new Intent(getContext(), WatchCaptureService.class));

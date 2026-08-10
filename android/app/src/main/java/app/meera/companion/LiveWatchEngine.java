@@ -503,6 +503,9 @@ class LiveWatchEngine {
     ws = null;
     ready = false;
     wsGen.incrementAndGet();
+    // the old session's audio is still draining the AudioTrack — without
+    // this the new session starts talking over the tail of the old one
+    flushPlayback();
     if (old != null) {
       try {
         old.close(1000, "rotate");

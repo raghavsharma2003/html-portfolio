@@ -6,6 +6,8 @@ import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor
 interface WatchNative {
   start(options?: { config?: string }): Promise<void>;
   stop(): Promise<void>;
+  /** Is a capture session running right now? (survives a WebView reload) */
+  state(): Promise<{ active: boolean }>;
   ensureOverlay(options?: { prompt?: boolean }): Promise<{ granted: boolean }>;
   addListener(
     event: "frame",
@@ -39,6 +41,46 @@ export interface WatchSession {
   stop: () => void;
 }
 
+interface Handlers {
+  onFrame: (dataUrl: string) => void;
+  onTurn: (who: "me" | "her", text: string) => void;
+  onStopped: () => void;
+}
+
+// ONE set of native listeners for the whole app lifetime, dispatching to the
+// session that currently owns them. Registering per session (and removing
+// them per session) let two racing starts double every handler — duplicated
+// turns, and a duplicated "stopped" that looked like two engines.
+let wiring: Promise<void> | null = null;
+let handlers: Handlers | null = null;
+let starting = false;
+
+function wireOnce(): Promise<void> {
+  if (!wiring) {
+    wiring = (async () => {
+      await Watch.addListener("frame", ({ data }) => {
+        if (data) handlers?.onFrame(`data:image/jpeg;base64,${data}`);
+      });
+      await Watch.addListener("watchturn", ({ who, text }) => {
+        if (text) handlers?.onTurn(who === "her" ? "her" : "me", text);
+      });
+      await Watch.addListener("stopped", () => {
+        // exactly one stop per session, however many the native side emits
+        const h = handlers;
+        handlers = null;
+        h?.onStopped();
+      });
+    })().catch((e) => {
+      wiring = null;
+      throw e;
+    });
+  }
+  return wiring;
+}
+
+/** Is a native watch session currently owned by this web layer? */
+export const watchOwned = () => handlers !== null;
+
 // Start a screen-watch session: runs the system consent dialog, then the
 // NATIVE engine (service process — immune to WebView freezing) sees frames,
 // thinks, speaks, and listens. JS only receives liveness + transcript turns.
@@ -54,19 +96,44 @@ export async function startWatch(
   onTurn: (who: "me" | "her", text: string) => void,
   onStopped: () => void,
 ): Promise<WatchSession> {
-  await Watch.removeAllListeners();
-  await Watch.addListener("frame", ({ data }) => {
-    if (data) onFrame(`data:image/jpeg;base64,${data}`);
-  });
-  await Watch.addListener("watchturn", ({ who, text }) => {
-    if (text) onTurn(who === "her" ? "her" : "me", text);
-  });
-  await Watch.addListener("stopped", () => onStopped());
-  await Watch.start({ config: JSON.stringify(config) }); // throws on denial
+  // a second start while one is live/starting would run a second consent
+  // dialog and a second engine — two of her, offset by a second
+  if (starting || handlers) throw new Error("watch already running");
+  starting = true;
+  try {
+    await wireOnce();
+    handlers = { onFrame, onTurn, onStopped };
+    try {
+      await Watch.start({ config: JSON.stringify(config) }); // throws on denial
+    } catch (e) {
+      handlers = null;
+      throw e;
+    }
+  } finally {
+    starting = false;
+  }
   return {
     stop: () => {
+      handlers = null; // late native events must not reach a dead session
       Watch.stop().catch(() => {});
-      Watch.removeAllListeners().catch(() => {});
     },
   };
+}
+
+/**
+ * Kill a capture session this web layer does NOT own. The service outlives
+ * the WebView (renderer kill, reload, app restart), so a fresh call could
+ * otherwise start its own engine on top of a native one still talking.
+ */
+export async function stopStrayWatch(): Promise<boolean> {
+  if (!Capacitor.isNativePlatform() || handlers || starting) return false;
+  try {
+    const r = await Watch.state();
+    // a session we started while the query was in flight is ours, not a stray
+    if (!r?.active || handlers || starting) return false;
+    await Watch.stop();
+    return true;
+  } catch {
+    return false; // older shell without state() — nothing we can do
+  }
 }
