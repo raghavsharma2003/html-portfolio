@@ -66,29 +66,35 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   sink.connect(inCtx.destination);
   attachAnalyser("you", inCtx, src); // presence UI reads YOUR real amplitude
   // ── adaptive noise gate: a fan/traffic hum must never read as "still
-  // talking". The gate learns the room's ambient RMS and transmits SILENCE
-  // whenever the level is just ambience — the server VAD then sees clean
-  // speech boundaries and commits the turn ~450ms after the WORDS stop,
-  // regardless of background noise. 350ms hangover so word gaps and soft
-  // syllables never get chopped.
-  let noiseFloor = 0.006;
-  let gateUntil = 0;
+  // talking". Ambience is the sliding-window MINIMUM of the level (speech
+  // always has inter-syllable dips that land in a 2.5s window), so the floor
+  // converges on any room — loud or quiet — in ~2.5s, both directions. The
+  // decision threshold is clamped to soft-speech level so it can never eat
+  // the talker. A one-chunk pre-roll survives first syllables (the server's
+  // prefixPadding only pads from RECEIVED audio, which pre-gate is silence).
+  const chunkMs = (4096 / inCtx.sampleRate) * 1000; // actual, not assumed
+  const winLen = Math.max(8, Math.round(2500 / chunkMs));
+  const hangChunks = Math.max(2, Math.ceil(250 / chunkMs));
+  const rmsWin: number[] = [];
+  let gateLeft = 0;
+  let prevPcm: Int16Array | null = null;
+  let wasOpen = false;
   proc.onaudioprocess = (e) => {
-    if (dead || !ready || muted || !ws || ws.readyState !== WebSocket.OPEN) return;
+    if (dead || !ready || !ws || ws.readyState !== WebSocket.OPEN) return;
     const input = e.inputBuffer.getChannelData(0);
     let sum = 0;
     for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
     const rms = Math.sqrt(sum / input.length);
-    if (rms < noiseFloor * 1.6) {
-      noiseFloor = 0.95 * noiseFloor + 0.05 * rms; // settle onto the ambience
-    } else {
-      noiseFloor = Math.min(noiseFloor * 1.0015, 0.04); // creep up, capped
-    }
-    noiseFloor = Math.max(noiseFloor, 0.0015);
-    const speech = rms > Math.max(noiseFloor * 3, 0.01);
-    const now = Date.now();
-    if (speech) gateUntil = now + 350;
-    const open = now < gateUntil;
+    // the floor learns even while muted — the muted ring second is free room
+    // calibration (web mute = "line not open yet", the audio is clean room)
+    rmsWin.push(rms);
+    if (rmsWin.length > winLen) rmsWin.shift();
+    const noiseFloor = Math.min(0.04, Math.max(0.0015, Math.min(...rmsWin)));
+    if (muted) return;
+    const thr = Math.min(Math.max(noiseFloor * 3, 0.01), 0.025);
+    if (rms > thr) gateLeft = hangChunks;
+    else if (gateLeft > 0) gateLeft--;
+    const open = gateLeft > 0;
     const ratio = inCtx.sampleRate / 16000;
     const outLen = Math.floor(input.length / ratio);
     const pcm = new Int16Array(outLen); // stays zeroed (silence) when gated
@@ -97,7 +103,26 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
         const s = input[Math.floor(i * ratio)];
         pcm[i] = Math.max(-32768, Math.min(32767, Math.round(s * 32767)));
       }
+      if (!wasOpen && prevPcm) {
+        // closed→open: replay the previous chunk first so the syllable that
+        // OPENED the gate arrives whole
+        sendPcm(prevPcm);
+      }
+    } else {
+      // keep a real-audio pre-roll ready even while closed
+      const p = new Int16Array(outLen);
+      for (let i = 0; i < outLen; i++) {
+        const s = input[Math.floor(i * ratio)];
+        p[i] = Math.max(-32768, Math.min(32767, Math.round(s * 32767)));
+      }
+      prevPcm = p;
     }
+    wasOpen = open;
+    if (open) prevPcm = null;
+    sendPcm(pcm);
+  };
+  function sendPcm(pcm: Int16Array) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
     let bin = "";
     const bytes = new Uint8Array(pcm.buffer);
     for (let i = 0; i < bytes.length; i += 8192) {
@@ -110,7 +135,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
         },
       }),
     );
-  };
+  }
 
   // ── downlink: 24k PCM chunks → gapless WebAudio playback ──
   const outCtx = new AudioContext();
@@ -266,7 +291,10 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
                 // hums). If she ever jumps in early, they just talk over her —
                 // human conversation self-corrects in that direction.
                 endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
-                silenceDurationMs: 450,
+                // the client gate already spends ~250ms of hangover after the
+                // words stop; the server silence budget comes down to match so
+                // total commit stays ~550ms
+                silenceDurationMs: 300,
                 prefixPaddingMs: 60,
               },
             },

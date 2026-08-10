@@ -573,7 +573,9 @@ class LiveWatchEngine {
     // speech completing, not from the room going quiet — reel audio in the
     // background must never make her hold a reply forever.
     vad.put("endOfSpeechSensitivity", "END_SENSITIVITY_HIGH");
-    vad.put("silenceDurationMs", 450);
+    // the client gate spends ~300ms of hangover after words stop — the
+    // server silence budget comes down to keep total commit ~600ms
+    vad.put("silenceDurationMs", 300);
     vad.put("prefixPaddingMs", 60);
 
     JSONObject setup = new JSONObject();
@@ -753,12 +755,19 @@ class LiveWatchEngine {
   private void micLoop() {
     byte[] buf = new byte[MIC_CHUNK];
     int errs = 0;
-    // adaptive noise gate: ambience (fan, reel audio bleed, traffic) must
-    // never read as "still talking" — the server VAD needs clean speech
-    // boundaries or she waits forever. Gate learns the room's RMS floor and
-    // sends SILENCE when the level is just ambience; 350ms hangover.
-    double noiseFloor = 200; // int16 RMS units
-    long gateUntil = 0;
+    // adaptive noise gate: ambience (fan, reel bleed, traffic) must never
+    // read as "still talking". The floor is the sliding-window MINIMUM of
+    // chunk RMS (speech always has inter-syllable dips inside a 2.5s
+    // window) so it converges on any room in ~2.5s both directions; the
+    // decision threshold is clamped to soft-speech level so it can never
+    // gate the talker. One-chunk pre-roll protects first syllables.
+    final double[] rmsWin = new double[25]; // 25 x 100ms = 2.5s
+    java.util.Arrays.fill(rmsWin, 1e9);
+    int winIdx = 0;
+    int gateLeft = 0;
+    byte[] prevChunk = null;
+    int prevLen = 0;
+    boolean wasOpen = false;
     while (running) {
       AudioRecord r = record; // stop() nulls the field from another thread
       if (r == null) break;
@@ -783,21 +792,56 @@ class LiveWatchEngine {
         continue;
       }
       errs = 0;
-      double sum = 0;
-      for (int i = 0; i + 1 < n; i += 2) {
-        int v = (buf[i + 1] << 8) | (buf[i] & 0xFF);
-        sum += (double) v * v;
-      }
-      double rms = Math.sqrt(sum / Math.max(1, n / 2));
-      if (rms < noiseFloor * 1.6) {
-        noiseFloor = 0.95 * noiseFloor + 0.05 * rms;
+      boolean gated = true;
+      boolean opened = false;
+      if (muted) {
+        // do NOT learn while muted: half-duplex mute means HER voice is on
+        // the speaker right now — training the floor on it would ratchet the
+        // threshold up on audio we're about to discard anyway
+        gateLeft = 0;
+        wasOpen = false;
       } else {
-        noiseFloor = Math.min(noiseFloor * 1.0015, 1300);
+        double sum = 0;
+        for (int i = 0; i + 1 < n; i += 2) {
+          int v = (buf[i + 1] << 8) | (buf[i] & 0xFF);
+          sum += (double) v * v;
+        }
+        double rms = Math.sqrt(sum / Math.max(1, n / 2));
+        rmsWin[winIdx] = rms;
+        winIdx = (winIdx + 1) % rmsWin.length;
+        double floor = 1e9;
+        for (double w : rmsWin) floor = Math.min(floor, w);
+        floor = Math.min(1300, Math.max(50, floor));
+        double thr = Math.min(Math.max(floor * 3, 330), 820);
+        if (rms > thr) gateLeft = 3; // ~300ms hangover
+        else if (gateLeft > 0) gateLeft--;
+        gated = gateLeft <= 0;
+        opened = !gated && !wasOpen;
+        wasOpen = !gated;
       }
-      noiseFloor = Math.max(noiseFloor, 50);
-      long nowMs = System.currentTimeMillis();
-      if (rms > Math.max(noiseFloor * 3, 330)) gateUntil = nowMs + 350;
-      boolean gated = nowMs >= gateUntil;
+      if (!gated && opened && prevChunk != null && ws != null) {
+        // closed->open: replay the previous chunk so the syllable that
+        // OPENED the gate arrives whole (server prefixPadding can't help —
+        // it pads from received audio, which pre-gate was our silence)
+        WebSocket s0 = ws;
+        try {
+          if (s0 != null && s0.queueSize() <= MAX_QUEUE_AUDIO) {
+            s0.send(
+                "{\"realtimeInput\":{\"audio\":{\"data\":\""
+                    + Base64.encodeToString(prevChunk, 0, prevLen, Base64.NO_WRAP)
+                    + "\",\"mimeType\":\"audio/pcm;rate=16000\"}}}");
+          }
+        } catch (Exception ignored) {
+        }
+      }
+      if (gated) {
+        // stash real audio as the next pre-roll BEFORE zeroing
+        if (prevChunk == null || prevChunk.length < n) prevChunk = new byte[buf.length];
+        System.arraycopy(buf, 0, prevChunk, 0, n);
+        prevLen = n;
+      } else {
+        prevChunk = null;
+      }
       // muted/gated writes silence rather than stopping capture: the stream
       // stays continuous (server VAD hates gaps) and reopening costs nothing
       if (muted || gated) Arrays.fill(buf, 0, n, (byte) 0);
