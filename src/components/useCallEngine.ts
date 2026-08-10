@@ -760,6 +760,9 @@ export function useCallEngine(
       const config = {
         base: "https://meera-silk.vercel.app",
         system: parts.core + buildSpeechStyle(engine),
+        // the LIVE engine speaks natively — tone markers and TTS directions
+        // are cascade machinery that make a speech-to-speech model stilted
+        systemLive: parts.core + buildSpeechStyle("live"),
         systemTail:
           parts.tail +
           WATCH_MODE_NOTE +

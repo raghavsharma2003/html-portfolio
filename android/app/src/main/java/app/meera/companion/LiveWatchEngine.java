@@ -92,14 +92,18 @@ class LiveWatchEngine {
 
   /** Live mode replaces the per-frame NO_COMMENT gate — she decides herself. */
   private static final String LIVE_NOTE =
-      "\n\nREALTIME: you can see their screen as live video and hear them continuously."
-          + " Much of the audio you hear is the VIDEO's own sound (reel dialogue, music),"
-          + " not them talking to you — tell the difference by content. React to the video's"
-          + " sound like a co-watcher (laugh, comment), never answer it as if they asked you."
-          + " When THEY talk to you, respond normally. Long stretches of silence are correct"
-          + " and expected; react only in the instant something lands, in a few words."
-          + " Never narrate or describe the screen, never announce that you can see it, and"
-          + " never ask what they're watching.";
+      "\n\nREALTIME CO-WATCHING: you can see their screen as live video and hear them"
+          + " continuously. You are an ENGAGED friend on the couch, present and reactive —"
+          + " every reel or two deserves SOMETHING from you: a laugh, a one-line quip, a"
+          + " 'nahi yaar', a callback to an earlier one, an occasional question about what"
+          + " you two are seeing. Quick and short (under 10 words), in the moment. Stay"
+          + " quiet only when nothing is genuinely worth a word — quiet is a choice, not"
+          + " your default. Much of the audio you hear is the VIDEO's own sound (dialogue,"
+          + " music), not them talking to you — tell the difference by content; react to it"
+          + " like a co-watcher, never answer it as if they asked you. When THEY talk,"
+          + " respond normally. NEVER narrate or describe the screen back to them, never"
+          + " announce that you can see it, never ask what app they're using — you can see"
+          + " it, react to the CONTENT like a person.";
 
   interface Callbacks {
     /** setupComplete arrived: the live session is carrying the watch. */
@@ -177,7 +181,10 @@ class LiveWatchEngine {
     try {
       JSONObject cfg = new JSONObject(json);
       base = cfg.optString("base", base);
-      String core = cfg.optString("system", "");
+      // systemLive: persona + live speech style (no tone markers / TTS
+      // machinery — those made the speech-native model stilted and quiet).
+      // "system" (the cascade prompt) is only the fallback if absent.
+      String core = cfg.optString("systemLive", cfg.optString("system", ""));
       String tail = cfg.optString("systemTail", "");
       // "directive" is the cascade's per-frame NO_COMMENT gate — feeding it
       // to a live model would make her SAY "NO_COMMENT" out loud. Dropped.
@@ -373,10 +380,12 @@ class LiveWatchEngine {
           new JSONObject()
               .put(
                   "text",
-                  "<context: silent co-watching check. Look at the current screen. If this exact"
-                      + " moment genuinely deserves a short friend-reaction, say it — under 10"
-                      + " words. Otherwise stay completely silent: produce no words at all."
-                      + " Silence is the normal answer. Never reference this note>");
+                  "<context: co-watching beat. Look at what's on their screen RIGHT NOW and react"
+                      + " the way an engaged friend on the couch would — a quip, a laugh, 'arre yeh"
+                      + " dekh', a callback to something from earlier, or a quick question about it."
+                      + " Under 10 words, about the CONTENT (never the app, never 'I can see your"
+                      + " screen'). Only if there is truly nothing worth a word, stay completely"
+                      + " silent. Never reference this note>");
       JSONObject turn = new JSONObject().put("role", "user").put("parts", new JSONArray().put(part));
       s.send(
           new JSONObject()

@@ -46,6 +46,7 @@ export async function startWatch(
   config: {
     base: string;
     system: string;
+    systemLive?: string; // live speech-to-speech engine variant (no TTS machinery)
     systemTail: string;
     directive: string;
   },
