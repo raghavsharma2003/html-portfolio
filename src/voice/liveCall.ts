@@ -190,7 +190,27 @@ const SUBS = 4;
 const FLOOR_WIN_MS = 3000; // 141 sub-frames
 const FLOOR_PCT = 0.1;
 const FLOOR_MIN = 0.0015; // −56 dBFS: a genuinely silent room
-const FLOOR_MAX = 0.12; // −18 dBFS: a loud café. Was 0.04, see below.
+// −28 dBFS: a loud room. This was briefly raised to 0.12 (−18.4 dBFS) as part
+// of the RATIO_MIN fix below, and that combination is deafness. RATIO_MIN
+// makes the listen bar track the floor at +5.1 dB with no absolute cap, so the
+// floor ceiling IS the listen-bar ceiling: at floor 0.12 the bar is
+// 0.12·1.8 = 0.216 = −13.3 dBFS, an 18.7 dB move off the old 0.025 (−32.0
+// dBFS) cap. Ordinary speech at 1m is −26…−20 dBFS, so from floor ≈ 0.05
+// upward the gate stops opening for a normal voice at all — and because a
+// closed gate transmits a ZEROED buffer, the whole uplink goes silent on an
+// IDLE session, where the hold logic never runs and nothing else can rescue
+// it. 0.04 bounds the worst case at 0.04·1.8 = 0.072 = −22.9 dBFS, which is
+// still inside the range a person raises their voice into in a room that
+// genuinely measures −28 dBFS of ambience.
+const FLOOR_MAX = 0.04; // −28 dBFS
+// Absolute backstop on the listen bar, independent of the floor. It is a
+// no-op at FLOOR_MAX = 0.04 (0.04·1.8 = 0.072 exactly), and exists so that
+// raising FLOOR_MAX again cannot silently re-open the deafness above: the
+// listen bar can never be pushed past −22.9 dBFS by ANY ambience estimate.
+// Deliberately set AT the ratio-min value rather than below it, so it can
+// never fight LISTEN_RATIO_MIN and re-create the clamp crossing that fix
+// exists to close.
+const LISTEN_ABS_MAX = 0.072; // −22.9 dBFS
 // LISTEN bar — used when she is NOT talking. A false open costs ~nothing
 // here (the server still needs 300ms of silence to end a turn) and a false
 // close costs a clipped first syllable, so this stays exactly as sensitive
@@ -230,6 +250,15 @@ const BARGE_MAX = 0.35; // −9 dBFS: nothing may ever be unbargeable
 // releases the floor anyway. A distant TV usually sits under this too (it
 // raises the very floor it is measured against), and when it doesn't, the
 // failure is bounded at one late interruption instead of a permanent one.
+//
+// The soft bar is deliberately NOT raised by the echo term. It used to be
+// `min(thrB, max(…, echoTerm))`, which collapses onto thrB the instant echo
+// binds thrB — so on the leaky speakerphone the valve exists for, it gave
+// zero extra LEVEL sensitivity and only a longer duration, which is a pure
+// loss. Echo may now raise the hard bar only. What stops her own leak from
+// walking through the lower soft bar is not the bar, it is `claimPeak >
+// echoTerm` at the claim site: a real second source puts at least one
+// sub-frame above everything her own voice can explain, and pure echo cannot.
 const SOFT_MULT = 4.0; // +12.0 dB over ambience
 const SOFT_OVER_LISTEN = 1.6; // +4.1 dB over the listen bar
 // Durations. A door, a cough, a keyboard, a chair scrape are all sub-300ms.
@@ -257,6 +286,24 @@ const DUCK_AT_MS = 150; // 7 sub-frames — she notices, she does not stop
 // envelope); a fan or a hum runs 1-2 dB. So a claim that is BOTH steady
 // (<2 dB) and not overwhelming (<+24 dB over ambience) is refused. A real
 // talker fails neither test, and anyone who raises their voice skips it.
+//
+// Two corrections to how this is measured.
+//
+// (1) The deviation is taken over EVERY sub-frame in the claim window, not
+// only the ones above the hard bar. Selecting on "above thrB" is a
+// left-truncated sample: it discards precisely the inter-syllable dips that
+// MAKE speech look like speech, and what survives is the top of the envelope,
+// which is flat for anybody. A marginal talker measured that way lands at
+// σ ≈ 2.1-2.4 dB against a 2.0 dB bar and gets refused as a machine. The dips
+// are already in sub[]; there is no reason to throw them away.
+//
+// (2) The override compares against the floor as it was BEFORE the interferer
+// arrived. The floor is a 3s trailing percentile, so for ~2.7s after a fan
+// starts, `noiseFloor·16` is still computed from the quiet room — the fan
+// clears it trivially and the veto switches itself off for exactly the
+// stimulus it exists to catch. The comparison is made against the LOUDER of
+// the trailing floor and a fast in-window ambience estimate (the median of
+// this claim's own sub-frames), which a steady machine raises immediately.
 const STEADY_DB = 2.0;
 const STEADY_OVERRIDE_MULT = 16.0; // +24.1 dB — loud enough to skip the check
 // Held audio. The ring must span the whole claim window plus the pre-roll,
@@ -286,6 +333,25 @@ const ECHO_KAPPA_MIN = 0.02;
 const ECHO_KAPPA_MAX = 0.6;
 const ECHO_ATTACK = 0.35; // ~5 chunks to converge on a leaky speakerphone
 const ECHO_RELEASE = 0.002; // falls slowly: never chase a single quiet frame
+// κ is only allowed to learn while the room-side noise gate is CLOSED. The
+// old condition was "she is audible and nothing has cleared the HARD bar",
+// which is a positive feedback loop with the bar it feeds: every sound below
+// thrB — ambience, and a person who is failing to clear the bar — was
+// attributed entirely to her echo, so κ rose, so thrB rose, so MORE of the
+// person fell below the bar. The estimate converges onto whatever is failing
+// to clear it, and she goes talking-deaf for the rest of the turn. Gating on
+// the closed gate means κ only ever learns from audio the gate itself has
+// already ruled is not speech.
+//
+// The consequence, stated plainly: on a device leaky enough that her own echo
+// holds the gate OPEN, κ never learns and stays at the pessimistic seed. That
+// is the correct direction — κ can now only ever LOWER the protection below
+// the seed, and only on evidence gathered while the room was quiet.
+// Ambience is also subtracted in POWER before the ratio is taken (see the
+// learning site): the mic hears leak and room together, and treating their sum
+// as pure leak biases κ up by exactly the amount of room there is — worst in
+// the loud rooms where the bar matters most.
+const ECHO_MAX_RISE = 0.04; // per tick: no single chunk may ratchet the bar
 // ── overlap: what she sounds like while it is being resolved ──
 // Ported from the cascade lane's duckSpeech(), which has production miles.
 const DUCK_SOFT = 0.62; // −4.2 dB: "haan bolo" — she softens, keeps talking
