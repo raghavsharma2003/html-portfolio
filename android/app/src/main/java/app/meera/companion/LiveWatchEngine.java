@@ -120,6 +120,10 @@ class LiveWatchEngine {
   private static final int SILENCE_KEEP = 3;
   /** Pathological encode (~90KB of JPEG): ~2.8s of uplink in one message. */
   private static final int FRAME_MAX_B64 = 120_000;
+  /** A frame may only enter a socket that has drained to ~185ms of audio
+   *  backlog. Deliberately well BELOW MAX_QUEUE_AUDIO (40_000): video must
+   *  give way long before her hearing is ever at risk. */
+  private static final long FRAME_GATE = 8_000L;
   // Congestion read from the queue's TROUGHS — the SAME numbers as the web
   // client (src/voice/liveCall.ts CONGEST_*). The counter's average is
   // mostly our own frame sawtooth and says nothing about the link; its
@@ -465,12 +469,18 @@ class LiveWatchEngine {
     if (s == null) return;
     boolean sent = false;
     try {
-      // Frames are never refused for backlog any more. Withholding the
-      // picture is what made her go blind and then quiet mid-share, and a
-      // frame she never sees is worth less than a frame that arrives late.
-      // Only an absurd encode is still refused, so one bad frame cannot
-      // wedge the socket.
-      if (b64Jpeg.length() > FRAME_MAX_B64) return;
+      // VIDEO YIELDS TO HER EARS. This is priority, not degradation: frames
+      // are never shrunk, slowed or cheapened — they simply do not enter a
+      // socket that still owes her the words being spoken into it. Removing
+      // this gate entirely inverted the whole point: video and audio share
+      // ONE queue, a single frame (33-53KB base64) is larger than the entire
+      // audio cap (40_000 ≈ 0.9s of speech), so on any uplink under ~1Mbit
+      // the queue never drained, and the only thing that shed was her
+      // HEARING. Going momentarily blind is recoverable — the next tick
+      // retries 600ms later and an unsent frame can never wake her. Going
+      // deaf makes her answer the wrong question, which is unrecoverable.
+      if (s.queueSize() > FRAME_GATE) return;
+      if (b64Jpeg.length() > FRAME_MAX_B64) return; // pathological encode
       // base64 (NO_WRAP) and the fixed mime are JSON-safe by construction —
       // hand-rolled so a ~60KB frame isn't copied through JSONObject twice
       sent =

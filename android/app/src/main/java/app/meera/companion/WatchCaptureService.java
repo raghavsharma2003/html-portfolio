@@ -86,7 +86,16 @@ public class WatchCaptureService extends Service {
   // mean absolute difference, in TENTHS of a 0-255 level, so one new line of
   // text is not rounded away
   private static final int NEW_MAD = 120; // 12.0 levels: most of the grid moved
-  private static final int ACTIVE_MAD = 6; // 0.6 levels: a caret, an edit, a hover
+  // A MEAN cannot see typing. One cell of a 32x32 grid covers a large slab of
+  // a phone screen, so a caret, a word appearing or a hover changes ONE cell
+  // by a little — averaged over 1024 cells that rounds to zero, and reading,
+  // writing, coding and form-filling all registered as a DEAD screen. So
+  // activity is counted, not averaged: any single cell moving by a real
+  // amount means something is happening. Screen capture has no sensor noise
+  // (an unchanged screen produces identical bytes), so this cannot self-
+  // trigger on a still image.
+  private static final int CELL_DELTA = 8; // levels, per cell
+  private static final int ACTIVE_CELLS = 1; // cells that must move
   private byte[] sceneSig; // previous tick's grid (handler-thread confined)
   private boolean prevBig = false;
   private boolean pendingNew = false; // a change seen but not yet sent
@@ -413,10 +422,11 @@ public class WatchCaptureService extends Service {
       motion = 2; // the first thing she is ever shown is new by definition
     } else {
       int d = madTenths(sceneSig, sig);
+      int moved = changedCells(sceneSig, sig);
       boolean big = d >= NEW_MAD;
       // only the LEADING EDGE of a big change is a new thing: the middle of a
       // scroll or a page transition is them being busy, not a thing
-      motion = big ? (prevBig ? 1 : 2) : d >= ACTIVE_MAD ? 1 : 0;
+      motion = big ? (prevBig ? 1 : 2) : moved >= ACTIVE_CELLS ? 1 : 0;
       prevBig = big;
     }
     sceneSig = sig;
@@ -492,6 +502,15 @@ public class WatchCaptureService extends Service {
     int sum = 0;
     for (int i = 0; i < a.length; i++) sum += Math.abs((a[i] & 0xFF) - (b[i] & 0xFF));
     return sum * 10 / a.length;
+  }
+
+  /** How many grid cells moved by at least CELL_DELTA levels. */
+  private static int changedCells(byte[] a, byte[] b) {
+    int n = 0;
+    for (int i = 0; i < a.length; i++) {
+      if (Math.abs((a[i] & 0xFF) - (b[i] & 0xFF)) >= CELL_DELTA) n++;
+    }
+    return n;
   }
 
   /** Release one capture session (projection, reader, display, engines). */

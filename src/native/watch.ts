@@ -90,6 +90,8 @@ export async function startWatch(
     system: string;
     systemLive?: string; // live speech-to-speech engine variant (no TTS machinery)
     systemTail: string;
+    /** Appended by the native side ONLY on turns that carry a real frame. */
+    watchNote?: string;
     directive: string;
   },
   onFrame: (dataUrl: string) => void,

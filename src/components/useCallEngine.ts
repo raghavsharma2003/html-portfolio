@@ -895,7 +895,13 @@ ${recallRef.current}`
     const DETECT_MS = 120; // screen sampled this often
     const CHANGE_SEND_MS = 250; // floor between reaction frames
     const NEW_MAD = 12; // most of the grid is different: a new page/app/post
-    const ACTIVE_MAD = 0.6; // a caret, a line of text, a hover, a small edit
+    // a MEAN cannot see typing: one cell covers a large slab of the screen,
+    // so a caret or a new word moves ONE cell a little and averages to zero —
+    // which made reading, writing and coding look like a dead screen. Count
+    // cells that actually moved instead. Screen capture has no sensor noise,
+    // so a still image can never trigger this.
+    const CELL_DELTA = 8; // levels, per cell
+    const ACTIVE_CELLS = 1; // cells that must move
     const ACTIVE_WINDOW_MS = 3000; // "they're still doing something" memory
     const WAKE_FLOOR_MS = 2000; // between new-thing wake-ups
     const ALONG_WAKE_MS = 12_000; // while they work on one screen
@@ -905,6 +911,7 @@ ${recallRef.current}`
     let started = false;
     let lastWakeAt = 0;
     let lastSentAt = 0;
+    let lastGrabAt = 0;
     let pendingNew = false; // a change seen but not yet sent
     const wakes: number[] = new Array(WAKE_CEILING).fill(0);
     let wakeIdx = 0;
@@ -931,12 +938,17 @@ ${recallRef.current}`
             motion = 2; // the first thing she is shown is new by definition
           } else {
             let sum = 0;
-            for (let i = 0; i < sig.length; i++) sum += Math.abs(sig[i] - prevSig[i]);
+            let moved = 0;
+            for (let i = 0; i < sig.length; i++) {
+              const delta = Math.abs(sig[i] - prevSig[i]);
+              sum += delta;
+              if (delta >= CELL_DELTA) moved++;
+            }
             const d = sum / sig.length;
             const big = d >= NEW_MAD;
             // only the leading EDGE of a big change is "new": the middle of
             // a scroll or a page transition is them being busy, not a thing
-            motion = big ? (prevBig ? 1 : 2) : d >= ACTIVE_MAD ? 1 : 0;
+            motion = big ? (prevBig ? 1 : 2) : moved >= ACTIVE_CELLS ? 1 : 0;
             prevBig = big;
           }
           prevSig = sig;
@@ -953,10 +965,12 @@ ${recallRef.current}`
         // final say — sendFrame refuses a frame that would queue in front of
         // her hearing them, and then nothing wakes her, which is correct.)
         const react = pendingNew && at - lastSentAt >= CHANGE_SEND_MS;
-        if (react || at - lastSentAt >= FRAME_EVERY_MS) {
+        // re-encoding is the expensive half, so it is floored separately from
+        // delivery: a refused frame retries soon, but never every 120ms tick
+        if ((react || at - lastSentAt >= FRAME_EVERY_MS) && at - lastGrabAt >= CHANGE_SEND_MS) {
           const url = grab(FRAME_SIDE, FRAME_Q);
           if (url) {
-            lastSentAt = at; // nothing grabbed, nothing spent
+            lastGrabAt = at; // bound re-encode cost even when the send is refused
             if (pendingNew) {
               motion = 2;
               pendingNew = false;
@@ -973,6 +987,10 @@ ${recallRef.current}`
             // something she was never shown, which is where invention starts.
             // The wake-up goes out right behind its own frame, same tick.
             const sent = liveSession.current?.sendFrame(url.split(",")[1] ?? "") ?? false;
+            // only a frame that REACHED her spends the cadence slot: a frame
+            // the socket refused must be retried on the next tick, not treated
+            // as delivered and waited out for another full period
+            if (sent) lastSentAt = at;
             const busy = at - lastActivityAt <= ACTIVE_WINDOW_MS;
             // a new thing gets the short floor; steady work on one screen gets
             // a slower beat; a screen that has stopped gets the rare one
@@ -1050,12 +1068,15 @@ ${recallRef.current}`
         // the LIVE engine speaks natively — tone markers and TTS directions
         // are cascade machinery that make a speech-to-speech model stilted
         systemLive: parts.core + buildSpeechStyle("live"),
+        // the watch note rides SEPARATELY: the native side appends it only on
+        // turns that actually carry a frame, so she is never told "this is
+        // what's on their screen right now" when no picture reached her
         systemTail:
           parts.tail +
-          WATCH_MODE_NOTE +
           (recallRef.current
-            ? `\n\nWHAT YOU KNOW ABOUT THEM (true memories — answer confidently):\n${recallRef.current}`
+            ? `\n\nWHAT YOU REMEMBER ABOUT THEM — real, from earlier conversations, but a memory is not a live update: anything with a date or a plan in it may already have happened, so ask about it as past rather than announcing it as ahead.\n${recallRef.current}`
             : ""),
+        watchNote: WATCH_MODE_NOTE,
         directive: WATCH_COMMENT_DIRECTIVE(),
       };
       watchSession.current = await startWatch(

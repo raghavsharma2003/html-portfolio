@@ -89,6 +89,11 @@ export interface LiveCallOpts {
 // question is whether she also shouts ten seconds of history when it comes
 // back. It bounds that damage at ~9s instead of unbounded.
 const STALL_CEILING = 400_000;
+/** A frame may only enter a socket holding under ~1.1s of audio backlog —
+ *  deliberately far below STALL_CEILING so video always gives way first and
+ *  the stall backstop stays what it claims to be: unreachable on any link
+ *  that can carry a call at all. */
+const VIDEO_GATE = 48_000;
 // Wordless chunks are a different matter and this stays exactly as it was.
 // A gated chunk carries no words, only VAD continuity, so it sheds at the
 // first sign of backlog. 8_000 / 43_500 ≈ 185ms of audio backlog (~2 mic
@@ -743,6 +748,15 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       // Only two things can refuse a frame now: a pathological encode, and
       // the stall backstop (a socket that has taken nothing for ~9s).
       if (b64Jpeg.length > FRAME_MAX_B64) return false; // pathological encode
+      // VIDEO YIELDS TO HER EARS. Not degradation — frames are never shrunk,
+      // slowed or cheapened, they just don't enter a socket that still owes
+      // her the words being spoken into it. Audio and video share ONE
+      // bufferedAmount, so without this a ~50KB frame (≈16 mic ticks) races
+      // the microphone toward the same backstop; with sharing on the offer is
+      // ~143KB/s and the queue can pin at the ceiling, at which point the
+      // thing being shed is her HEARING. A skipped frame is retried 600ms
+      // later and can never wake her; a lost syllable is answered wrong.
+      if (ws.bufferedAmount > VIDEO_GATE) return false;
       if (ws.bufferedAmount > STALL_CEILING) return false; // socket is dead, not slow
       ws.send(
         JSON.stringify({

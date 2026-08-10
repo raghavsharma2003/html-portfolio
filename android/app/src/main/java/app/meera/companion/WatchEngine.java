@@ -64,6 +64,9 @@ class WatchEngine {
   private volatile String base = "https://meera-silk.vercel.app";
   private volatile String system = "";
   private volatile String systemTail = "";
+  /** The "you can see their screen" note — appended ONLY on turns that
+   *  actually carry a frame. */
+  private volatile String watchNote = "";
   private volatile String directive = "";
   private volatile boolean running = false;
   private volatile boolean speaking = false;
@@ -91,6 +94,7 @@ class WatchEngine {
       base = cfg.optString("base", base);
       system = cfg.optString("system", "");
       systemTail = cfg.optString("systemTail", "");
+      watchNote = cfg.optString("watchNote", "");
       directive = cfg.optString("directive", "");
     } catch (Exception e) {
       Log.w(TAG, "bad config", e);
@@ -311,7 +315,20 @@ class WatchEngine {
 
         JSONObject body = new JSONObject();
         body.put("system", system);
-        body.put("system_tail", systemTail);
+        // The watch note tells her "the frame you've been given is what's on
+        // their screen RIGHT NOW". On a turn that carries NO image — the
+        // capture went stale, or the screen simply stopped redrawing — that
+        // sentence is a lie she then acts on, which is where invention starts.
+        // She is told the truth instead: sharing is on, but she cannot see it
+        // this second.
+        body.put(
+            "system_tail",
+            frameB64 != null && !frameB64.isEmpty()
+                ? systemTail + watchNote
+                : systemTail
+                    + "\n(screen share is on, but no frame reached you this second —"
+                    + " you cannot see their screen right now. Ask or say so; never"
+                    + " guess at what's on it.)");
         body.put("messages", messages);
         // screen reactions are <10 words — a small cap generates faster and
         // keeps TTS clips short; real conversation gets the full budget
