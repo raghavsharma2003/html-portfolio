@@ -102,6 +102,10 @@ export function parseBubbles(raw: string): HeartReply {
     if (!out.gif) out.gif = { query: q.trim() };
     return "";
   });
+  raw = raw.replace(/\[\s*search\s*:\s*([^\]\n]+?)\s*\]/gi, (_m, q: string) => {
+    if (!out.search) out.search = q.trim().slice(0, 200);
+    return "";
+  });
   // the model sometimes imitates the HISTORY annotation format instead of
   // the live protocol ("[sent a meme gif: x]" is how we describe her past
   // gifs to her) — honor the intent: actually send the gif/photo
@@ -125,7 +129,7 @@ export function parseBubbles(raw: string): HeartReply {
   // followup, unknown variant), imitated history annotations, and any
   // imitated clock stamp, ANYWHERE
   raw = raw
-    .replace(/\[\s*(?:tone|followup|photo|voicenote|gif)\s*:[^\]]*\]?/gi, "")
+    .replace(/\[\s*(?:tone|followup|photo|voicenote|gif|search)\s*:[^\]]*\]?/gi, "")
     .replace(/\[\s*(?:voice note|they sent a photo|replying to|a voice call starts|the call ended)[^\]]*\]?/gi, "")
     .replace(/\[\d{1,2}:\d{2}\s*(?:am|pm)?\]/gi, "");
 
@@ -541,8 +545,44 @@ export async function think(
     };
   }
 
-  const parsed = parseBubbles(text);
+  let parsed = parseBubbles(text);
   parsed.learned = local.learned;
+
+  // ── live web lookup: she asked for fresh facts ([search: …]) before
+  // finishing this reply. One extra fast pass, only in chat, only once —
+  // the second pass is told the facts and forbidden from searching again.
+  if (parsed.search && mode === "chat") {
+    try {
+      const res = await fetch(PROXY_URL.replace("/api/chat", "/api/search"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ q: parsed.search }),
+        signal: AbortSignal.timeout(14_000),
+      });
+      const facts = res.ok ? String((await res.json())?.facts || "") : "";
+      const tailWithFacts =
+        sysTail +
+        `\n\nLIVE LOOKUP RESULT for "${parsed.search}" (you just checked this on your phone — it is CURRENT and true):\n${
+          facts || "(lookup failed — say you couldn't check right now, casually)"
+        }\nWeave the facts in naturally like someone who just googled it; never mention "searching" or "results", and do NOT output another [search: …] marker.`;
+      const second = await proxyThink(keys, sysCore, tailWithFacts, turns, maxTokens);
+      if (second) {
+        const p2 = parseBubbles(second);
+        p2.learned = local.learned;
+        p2.search = undefined;
+        if (p2.bubbles.length) {
+          // keep any holding bubble she sent before the lookup ("ruk check
+          // karti hu") in front of the informed reply
+          p2.bubbles = [...parsed.bubbles.slice(0, 1), ...p2.bubbles].slice(0, 4);
+          parsed = p2;
+        }
+      }
+    } catch {
+      /* lookup failed — her first-pass bubbles still deliver */
+    }
+    parsed.search = undefined;
+  }
+
   if (mode === "call") {
     // a call turn must produce SPOKEN WORDS — if the model answered only
     // with a photo/voicenote/gif marker, speak its content instead of

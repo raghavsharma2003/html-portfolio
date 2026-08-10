@@ -31,13 +31,16 @@ export const STORIES: Story[] = [
   },
 ];
 
-const LIVE_MS = 24 * 3600_000;
-
-export const activeStories = (): Story[] =>
-  STORIES.filter((s) => {
-    const age = Date.now() - s.at;
-    return age >= 0 && age < LIVE_MS;
-  });
+// Her latest story batch NEVER expires — it stays on her profile (like a
+// highlight) until a newer day's images replace it. A companion whose story
+// ring vanishes overnight looks like she deleted it.
+export const activeStories = (): Story[] => {
+  const posted = STORIES.filter((s) => s.at <= Date.now());
+  if (!posted.length) return [];
+  const newest = Math.max(...posted.map((s) => s.at));
+  const day = new Date(newest).toDateString();
+  return posted.filter((s) => new Date(s.at).toDateString() === day);
+};
 
 export const storySrc = (s: Story) => `${BASE}${s.src}`;
 
@@ -46,7 +49,9 @@ export function storyAge(s: Story): string {
   const mins = Math.max(0, Math.round((Date.now() - s.at) / 60000));
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m`;
-  return `${Math.round(mins / 60)}h`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.round(hours / 24)}d`;
 }
 
 // ── seen-state (device-local, like insta's grey ring) ──
@@ -82,7 +87,7 @@ export const hasUnseenStory = () => {
 export function storyContext(): string {
   const live = activeStories();
   if (!live.length) return "";
-  return `\n\nYOUR STORY TODAY (like an insta/whatsapp status they can see by tapping your profile photo): ${live
+  return `\n\nYOUR CURRENT STORY (like an insta/whatsapp status they can see by tapping your profile photo): ${live
     .map((s) => s.desc)
     .join("; then ")}. You posted it yourself, so you know exactly what's in it — if they mention it ("story dekhi", "kya padh rahi thi"), react naturally like someone whose story got noticed, never confused. Don't bring it up unprompted more than once.`;
 }
