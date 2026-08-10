@@ -8,6 +8,7 @@ import AuthSheet from "./components/AuthSheet";
 import { unlockAudio } from "./voice/speech";
 import { diagStart } from "./engine/diag";
 import { prewarmLiveToken } from "./voice/liveCall";
+import { primeCulture } from "./engine/culture";
 import { Capacitor } from "@capacitor/core";
 import {
   consumeOAuthCallback,
@@ -72,6 +73,11 @@ export default function App() {
     // decisions) had no device and was thrown away — only calls and watch
     // sessions ever reached /api/diag.
     diagStart("app", state.deviceId, { onboarded: state.onboarded });
+    // warm the recognition index so the FIRST turn after app start already
+    // has it. cultureNote() kicks this fetch off itself and returns "" while
+    // it is in flight, so this only removes a one-turn warm-up — it is
+    // fire-and-forget and can never block or fail the boot.
+    void primeCulture();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

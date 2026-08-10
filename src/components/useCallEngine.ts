@@ -42,6 +42,7 @@ import {
   type VoiceEngine,
 } from "../engine/persona";
 import { logTurns, rememberFrom, recallMemories } from "../engine/memory";
+import { innerContext, applyInner, wantsForAppraisal } from "../engine/inner";
 import {
   ensureOverlay,
   startWatch,
@@ -50,6 +51,7 @@ import {
   type WatchSession,
 } from "../native/watch";
 import { startLiveCall, type LiveSession } from "../voice/liveCall";
+import { callLookup } from "../voice/liveLookup";
 import { track } from "../engine/account";
 import { diag, diagStart, flushDiag } from "../engine/diag";
 
@@ -159,6 +161,10 @@ export function useCallEngine(
     // chat uses. Without it she'd have one flatmate in chat and another on the
     // phone, which is the self-contradiction this whole fix exists to kill
     herLife: formatHerLife(stateRef.current.herLife),
+    // and where her own day left her. brain.ts decides whether it reaches the
+    // prompt at all: only when the last message is >45 min old, which on a
+    // call means pickup and never a mid-call turn or a goodbye.
+    inner: stateRef.current.inner,
   });
 
   // ── realtime engine (Gemini Live, speech-to-speech): near-zero latency,
@@ -217,18 +223,28 @@ export function useCallEngine(
     // so "answer confidently" turned a near-miss into a confident lie, and a
     // year-old plan into today's news
     const herLife = formatHerLife(stateRef.current.herLife);
+    // where her own day left her. The thread is allowed here because a pickup
+    // IS a gap entry; it is never re-injected mid-call, so nothing interior can
+    // ever colour a goodbye (the live prompt is frozen at connect anyway).
+    const lastMsg = stateRef.current.messages[stateRef.current.messages.length - 1];
+    const inner = innerContext(stateRef.current.inner, {
+      now: Date.now(),
+      lastMsgAt: lastMsg?.at || 0,
+      surface: "pickup",
+    });
     const system =
       parts.core +
       buildSpeechStyle("live") +
       parts.tail +
+      inner.thread +
       (recallRef.current
         ? `\n\nWHAT YOU REMEMBER ABOUT THEM — from your earlier conversations, each tagged with when it last came up. These are real: when they touch on one, you KNOW it and you say the specific detail, never play dumb. Two things keep it honest:
 - Something being listed here is not a reason to say it. It comes out only where it actually fits, one at a time, in normal talk — never as a list, never with any mention of remembering.
 - A memory is not a live update. Anything with a date or a plan in it may already have happened, so an old one gets asked about as old ("us december wali shaadi ho gayi na?") instead of announced as if it's still ahead — then you let them tell you where it stands.
 ${recallRef.current}`
         : "") +
-      (herLife
-        ? `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are fixed between you two, not open to reinvention. Same job, same people, same flat, same plans. Add new texture freely; never contradict a line here, and never re-tell one as if it's news:\n${herLife}`
+      (herLife || inner.wants
+        ? `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are fixed between you two, not open to reinvention. Same job, same people, same flat, same plans. Add new texture freely; never contradict a line here, and never re-tell one as if it's news:\n${herLife}${inner.wants}`
         : "");
     let self: LiveSession | null = null;
     const s = await startLiveCall({
@@ -245,6 +261,18 @@ ${recallRef.current}`
       onMyText: (t) => {
         lastHeardAt.current = Date.now();
         log({ id: uid(), from: "me", kind: "text", channel: "call", text: t, at: Date.now() });
+        // A factual question on a call: fire the lookup NOW, in parallel with
+        // her own answer, and inject the facts a beat after she has started
+        // talking. `callLookup` is a no-op unless the turn is unambiguously
+        // factual (measured 0 false fires in 55 ordinary turns), and it
+        // resolves to "" on any failure, so the worst case is that nothing
+        // happens and she answers from her own head as she does today.
+        void callLookup(t).then((note) => {
+          if (!note) return;
+          // direct() already waits (capped at 1.2s) for her to stop speaking
+          // before committing the turn, so this cannot guillotine her mid-word
+          liveSession.current?.direct(note);
+        });
       },
       onHerText: (t) =>
         log({ id: uid(), from: "her", kind: "text", channel: "call", text: t, at: Date.now() }),
@@ -1075,7 +1103,21 @@ ${recallRef.current}`
           parts.tail +
           (recallRef.current
             ? `\n\nWHAT YOU REMEMBER ABOUT THEM — real, from earlier conversations, but a memory is not a live update: anything with a date or a plan in it may already have happened, so ask about it as past rather than announcing it as ahead.\n${recallRef.current}`
-            : ""),
+            : "") +
+          // her own life, which this lane has been silently missing — plus what
+          // she currently wants. innerContext returns thread:"" for "watch" on
+          // purpose; do not route around it.
+          (() => {
+            const hl = formatHerLife(stateRef.current.herLife);
+            const w = innerContext(stateRef.current.inner, {
+              now: Date.now(),
+              lastMsgAt: stateRef.current.messages[stateRef.current.messages.length - 1]?.at || 0,
+              surface: "watch",
+            }).wants;
+            return hl || w
+              ? `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are fixed between you two. Add new texture freely; never contradict a line here:\n${hl}${w}`
+              : "";
+          })(),
         watchNote: WATCH_MODE_NOTE,
         directive: WATCH_COMMENT_DIRECTIVE(),
       };
@@ -1393,8 +1435,34 @@ ${recallRef.current}`
     const secs = elapsedRef.current;
     const mmssStr = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
     log({ id: uid(), from: "me", kind: "callmark", text: mmssStr, at: Date.now() });
-    // distill what was said on the call into her graph memory
-    rememberFrom(stateRef.current.deviceId, stateRef.current.messages.slice(-16));
+    // distill what was said on the call into her graph memory — and keep what
+    // she claimed about herself and where the call left her. The result used to
+    // be discarded, so nothing said on a call ever reached her self-ledger.
+    rememberFrom(
+      stateRef.current.deviceId,
+      stateRef.current.messages.slice(-60),
+      wantsForAppraisal(stateRef.current.inner),
+    ).then(({ self, inner }) => {
+      if (!self.length && !inner) return;
+      setState((s) => {
+        const at = Date.now();
+        const seen = new Set<string>();
+        return {
+          ...s,
+          herLife: self.length
+            ? [...self.map((text) => ({ text, at })), ...(s.herLife || [])]
+                .filter((f) => {
+                  const k = f.text.toLowerCase();
+                  if (seen.has(k)) return false;
+                  seen.add(k);
+                  return true;
+                })
+                .slice(0, 12)
+            : s.herLife,
+          inner: inner ? applyInner(s.inner, inner, at) : s.inner,
+        };
+      });
+    });
     setTimeout(onEnd, 400);
   }
 
