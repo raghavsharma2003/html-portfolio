@@ -17,8 +17,12 @@ export interface LiveSession {
   setMuted: (m: boolean) => void;
   /** Speak an invisible directive (e.g. the pickup greeting trigger). */
   direct: (contextNote: string) => void;
-  /** Stream a screen frame (base64 JPEG) — realtime co-watching. */
-  sendFrame: (b64Jpeg: string) => void;
+  /**
+   * Stream a screen frame (base64 JPEG) — realtime co-watching. Returns
+   * whether the frame actually entered the socket: a caller may only tell
+   * her to look at the screen when it did.
+   */
+  sendFrame: (b64Jpeg: string) => boolean;
   /**
    * Uplink pressure read from the socket queue's TROUGHS: 0 clear, 1
    * moderate, 2 heavy. Callers shed VIDEO against this (rate/quality) —
@@ -652,18 +656,19 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       );
     },
     sendFrame: (b64Jpeg: string) => {
-      if (dead || !ready || !ws || ws.readyState !== WebSocket.OPEN) return;
+      if (dead || !ready || !ws || ws.readyState !== WebSocket.OPEN) return false;
       // NOT sampled into the congestion signal: the reading we would take
       // here is the sawtooth we ourselves are about to create.
       // Hard rule: a screen frame only enters a near-drained socket, so it
       // can never queue in front of her hearing you.
-      if (ws.bufferedAmount > FRAME_GATE) return;
-      if (b64Jpeg.length > FRAME_MAX_B64) return; // pathological encode
+      if (ws.bufferedAmount > FRAME_GATE) return false;
+      if (b64Jpeg.length > FRAME_MAX_B64) return false; // pathological encode
       ws.send(
         JSON.stringify({
           realtimeInput: { video: { data: b64Jpeg, mimeType: "image/jpeg" } },
         }),
       );
+      return true;
     },
     congestion: () => congestionLevel,
     active: () => !dead,

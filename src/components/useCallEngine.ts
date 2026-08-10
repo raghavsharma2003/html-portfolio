@@ -32,7 +32,10 @@ import {
 import {
   CALL_OPEN_DIRECTIVE,
   WATCH_COMMENT_DIRECTIVE,
+  WATCH_IDLE_DIRECTIVE,
   WATCH_MODE_NOTE,
+  WATCH_SCENE_DIRECTIVE,
+  WATCH_START_DIRECTIVE,
   buildSystemPromptParts,
   buildSpeechStyle,
   type VoiceEngine,
@@ -811,6 +814,29 @@ export function useCallEngine(
     video.muted = true;
     await video.play().catch(() => {});
     const canvas = document.createElement("canvas");
+    // ── waking her up: the Live API never generates from video on its own,
+    // so nothing she sees can make her speak unless we ask her to look. The
+    // trigger is a real visual CHANGE — a 16x16 grayscale thumbnail per frame
+    // and the mean absolute difference against the previous one. It carries
+    // no taste: it says "this is new content, here it is", and her own brain
+    // decides whether any of it is worth a word.
+    const SIG = 16;
+    const sigCanvas = document.createElement("canvas");
+    sigCanvas.width = SIG;
+    sigCanvas.height = SIG;
+    let prevSig: Uint8Array | null = null;
+    let prevChanged = false;
+    const signature = (): Uint8Array | null => {
+      if (!video.videoWidth || !video.videoHeight) return null;
+      const c = sigCanvas.getContext("2d", { willReadFrequently: true });
+      if (!c) return null;
+      c.drawImage(video, 0, 0, SIG, SIG);
+      const d = c.getImageData(0, 0, SIG, SIG).data;
+      const out = new Uint8Array(SIG * SIG);
+      for (let i = 0; i < out.length; i++)
+        out[i] = (d[i * 4] * 77 + d[i * 4 + 1] * 150 + d[i * 4 + 2] * 29) >> 8;
+      return out;
+    };
     const grab = (maxSide: number, quality: number): string | null => {
       const w = video.videoWidth;
       const h = video.videoHeight;
@@ -856,6 +882,29 @@ export function useCallEngine(
     let recoveredAt = 0;
     let fellAt = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    // wake-up pacing — purely to protect the socket and the API, never to
+    // ration what she says: a floor between wake-ups, and a ceiling per
+    // minute. Anything she does say is her own call, every time.
+    const SCENE_MAD = 14; // 0-255; video motion sits well under this, a new reel far over
+    const WAKE_FLOOR_MS = 2000;
+    const IDLE_WAKE_MS = 45_000;
+    const WAKE_CEILING = 12;
+    const WAKE_WINDOW_MS = 60_000;
+    let started = false;
+    let lastWakeAt = 0;
+    const wakes: number[] = new Array(WAKE_CEILING).fill(0);
+    let wakeIdx = 0;
+    const wake = (note: string) => {
+      const now = Date.now();
+      // never ask her to look at a screen she has no current picture of,
+      // and never cut across them talking or herself
+      if (speakingRef.current || now - lastHeardAt.current < 3000) return;
+      if (now - wakes[wakeIdx] < WAKE_WINDOW_MS) return;
+      lastWakeAt = now;
+      wakes[wakeIdx] = now;
+      wakeIdx = (wakeIdx + 1) % WAKE_CEILING;
+      liveSession.current?.direct(note);
+    };
     const pump = () => {
       if (alive.current) {
         const t = TIERS[tier];
@@ -867,8 +916,33 @@ export function useCallEngine(
             firstFrameSeen.current = true;
             track(stateRef.current.deviceId, "watch_frame_first", { web: true });
           }
-          // realtime path: the live model sees the screen as a video stream
-          liveSession.current?.sendFrame(url.split(",")[1] ?? "");
+          // realtime path: the live model sees the screen as a video stream.
+          // Only a frame that ACTUALLY entered the socket may be followed by
+          // "look at the screen" — otherwise she'd be told to react to
+          // something she was never shown, which is where invention starts.
+          const sent = liveSession.current?.sendFrame(url.split(",")[1] ?? "") ?? false;
+          const sig = signature();
+          let changed = false;
+          if (sig) {
+            if (prevSig) {
+              let sum = 0;
+              for (let i = 0; i < sig.length; i++) sum += Math.abs(sig[i] - prevSig[i]);
+              changed = sum / sig.length >= SCENE_MAD;
+            }
+            prevSig = sig;
+          }
+          // the leading EDGE of new content, so a scroll burst wakes her once
+          const edge = changed && !prevChanged;
+          prevChanged = changed;
+          const now = Date.now();
+          if (sent && !started) {
+            started = true;
+            wake(WATCH_START_DIRECTIVE());
+          } else if (sent && edge && now - lastWakeAt >= WAKE_FLOOR_MS) {
+            wake(WATCH_SCENE_DIRECTIVE());
+          } else if (sent && now - lastWakeAt >= IDLE_WAKE_MS) {
+            wake(WATCH_IDLE_DIRECTIVE());
+          }
         }
       }
       // the signal is sampled on the mic clock inside the session (queue
@@ -917,9 +991,9 @@ export function useCallEngine(
     });
     watchSession.current = { stop: cleanup };
     setWatching(true);
-    liveSession.current?.direct(
-      "<context: they just started sharing their screen with you — from now on you can SEE it live (frames stream to you). React like a friend on the couch: mostly silent, short instant reactions only when a moment earns it, never narrate. never reference this note>",
-    );
+    // she is told about the share by the pump, on the first frame that
+    // actually reaches her — telling her now would be telling her to look at
+    // a screen no frame of which has been sent yet
     track(stateRef.current.deviceId, "watch_started", { web: true });
   }
 
@@ -1042,8 +1116,12 @@ export function useCallEngine(
     }, 450);
   }
 
+  // Only a frame she could honestly call "right now" is attached. Capture can
+  // drop to one frame per 2.5s under congestion, and an 8s-old picture
+  // described as live is how she ended up commenting on things that had
+  // already scrolled away. Past this, she simply answers without the screen.
   const freshFrame = () =>
-    watching && frameRef.current && Date.now() - frameRef.current.at < 8000
+    watching && frameRef.current && Date.now() - frameRef.current.at < 3000
       ? frameRef.current.url
       : undefined;
 

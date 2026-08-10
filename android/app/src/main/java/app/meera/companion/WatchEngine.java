@@ -39,9 +39,17 @@ import java.util.concurrent.Executors;
  */
 class WatchEngine {
   private static final String TAG = "MeeraWatch";
-  // restraint comes from the NO_COMMENT gate (the model decides most moments
-  // deserve silence) — the cooldown only prevents machine-gun commentary
+  // she is only asked to look when the screen actually shows something new,
+  // and the NO_COMMENT gate lets her decline any of those — the cooldown only
+  // prevents machine-gun commentary through a fast scroll
   private static final long COMMENT_COOLDOWN_MS = 8_000;
+  /** Her "nothing to say" answer, however the model phrases it. None of these
+   *  may ever reach TTS as words. */
+  private static final java.util.regex.Pattern SILENT =
+      java.util.regex.Pattern.compile(
+          "^\\W*(no[_ ]?comment|no response|silence|silent|quiet"
+              + "|(stay|stays|staying|remain|remains)\\s+(quiet|silent)|says?\\s+nothing)\\W*$",
+          java.util.regex.Pattern.CASE_INSENSITIVE);
 
   interface Emitter {
     void emit(String event, JSONObject data);
@@ -63,6 +71,7 @@ class WatchEngine {
   private volatile long lastCommentAt = 0;
   private volatile long lastUserSpokeAt = 0;
   private volatile String latestFrame = null;
+  private volatile long latestFrameAt = 0;
   private volatile String lastAnalyzed = null;
   private SpeechRecognizer recognizer;
   private PipedRecognizer piped; // beep-free continuous lane (API 33+)
@@ -149,16 +158,28 @@ class WatchEngine {
     } catch (Exception ignored) {}
   }
 
-  /** New screen frame from the capture pipeline (JPEG base64, ~768px). */
-  void onFrame(String b64) {
+  /** New screen frame from the capture pipeline (JPEG base64, ~768px).
+   *  sceneChanged marks the leading edge of NEW content — the moment a friend
+   *  actually looks up. Nothing new on screen, nothing to react to. */
+  void onFrame(String b64, boolean sceneChanged) {
     latestFrame = b64;
+    latestFrameAt = System.currentTimeMillis();
     if (!running || speaking || thinking) return;
-    long now = System.currentTimeMillis();
+    if (!sceneChanged) return; // same thing still on screen — no reason to speak
+    long now = latestFrameAt;
     if (now - lastCommentAt < COMMENT_COOLDOWN_MS) return;
     if (now - lastUserSpokeAt < 4000) return; // they're mid-thought
     if (b64.equals(lastAnalyzed)) return; // static screen costs zero
     lastAnalyzed = b64;
     think(directive, b64, true);
+  }
+
+  /** The screen as she could honestly call it "right now": capture can fall
+   *  to one frame per 2.5s, and answering off a stale picture is the same lie
+   *  as answering off no picture. Past this she just talks without it. */
+  private String freshFrame() {
+    String f = latestFrame;
+    return f != null && System.currentTimeMillis() - latestFrameAt < 3000 ? f : null;
   }
 
   /* ── user speech lane: restart-loop SpeechRecognizer with partials ── */
@@ -245,7 +266,7 @@ class WatchEngine {
   private void onUserSpoke(String text) {
     remember("user", text);
     emitTurn("me", text);
-    think(text, latestFrame, false);
+    think(text, freshFrame(), false);
   }
 
   /* ── brain: POST /api/chat with rolling native context + current frame ── */
@@ -254,6 +275,9 @@ class WatchEngine {
 
   private void think(String latest, String frameB64, boolean isComment) {
     if (latest == null || latest.isEmpty()) return;
+    // a screen comment with no screen attached is an invitation to invent —
+    // there is nothing to react to, so there is nothing to say
+    if (isComment && (frameB64 == null || frameB64.isEmpty())) return;
     if (thinking) {
       // never drop what the USER said because she was mid-think — hold the
       // latest utterance and answer it as soon as this pass finishes
@@ -314,7 +338,10 @@ class WatchEngine {
         String tone = extractTone(text);
         String spoken = sanitize(text);
         String up = spoken.toUpperCase();
-        if (spoken.isEmpty() || up.contains("NO_COMMENT") || up.contains("NO COMMENT")) {
+        if (spoken.isEmpty()
+            || up.contains("NO_COMMENT")
+            || up.contains("NO COMMENT")
+            || SILENT.matcher(spoken).matches()) {
           thinking = false;
           drainPending();
           return;
@@ -336,7 +363,7 @@ class WatchEngine {
   private void drainPending() {
     String p = pendingUser;
     pendingUser = null;
-    if (p != null && running) think(p, latestFrame, false);
+    if (p != null && running) think(p, freshFrame(), false);
   }
 
   private void remember(String role, String text) {

@@ -73,6 +73,22 @@ public class WatchCaptureService extends Service {
   private static final long TIER_STABLE_MS = 60_000; // this long with no fall = reset
   private static final long FRAME_INTERVAL_MS = 1400;
 
+  // ── waking her up ──────────────────────────────────────────────────────
+  // The Live API never generates from video on its own, so nothing she sees
+  // can make her speak unless something asks her to look. That trigger is a
+  // real visual CHANGE: every frame is reduced to a 16x16 grayscale thumb and
+  // compared to the previous one by mean absolute difference (0-255). Motion
+  // inside a playing video sits well under the threshold; a new reel, a
+  // scroll or a hard cut moves most of the frame and lands far over it.
+  // The signal carries NO taste — it says "this is new content, here it is",
+  // and her own brain decides whether any of it is worth a word.
+  private static final int SIG_SIDE = 16;
+  private static final int SIG_LEN = SIG_SIDE * SIG_SIDE;
+  private static final int SCENE_MAD = 14;
+  private final int[] sigPx = new int[SIG_LEN];
+  private byte[] sceneSig; // previous frame's thumb (handler-thread confined)
+  private boolean prevChanged = false;
+
   // EXACTLY ONE lane may speak. Every lane switch stops the other lane's
   // audio synchronously before the new one starts, and every engine callback
   // carries the session generation it was born in — an older engine's
@@ -419,16 +435,55 @@ public class WatchCaptureService extends Service {
       frame.compress(Bitmap.CompressFormat.JPEG, quality, out);
       String b64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
       WatchPlugin.emitFrame(b64); // UI chip liveness (when the app is visible)
+      // is this NEW content? The leading edge of a change wakes her once —
+      // mid-scroll frames keep changing and must not wake her every tick
+      byte[] sig = signature(frame);
+      boolean edge = false;
+      if (sig != null) {
+        if (sceneSig == null) {
+          edge = true; // the first thing she is ever shown is new by definition
+        } else {
+          boolean changed = mad(sceneSig, sig) >= SCENE_MAD;
+          edge = changed && !prevChanged;
+          prevChanged = changed;
+        }
+        sceneSig = sig;
+      }
       // the brain lives natively — realtime lane while its socket is up,
       // cascade otherwise (frames before setupComplete are simply skipped)
       if (l != null) {
-        if (l.isReady()) l.onFrame(b64);
+        if (l.isReady()) l.onFrame(b64, edge);
       } else if (engine != null) {
-        engine.onFrame(b64);
+        engine.onFrame(b64, edge);
       }
     } finally {
       image.close();
     }
+  }
+
+  /** 16x16 luma thumbnail of a frame, or null if it can't be built. */
+  private byte[] signature(Bitmap src) {
+    try {
+      Bitmap t = Bitmap.createScaledBitmap(src, SIG_SIDE, SIG_SIDE, true);
+      t.getPixels(sigPx, 0, SIG_SIDE, 0, 0, SIG_SIDE, SIG_SIDE);
+      byte[] sig = new byte[SIG_LEN];
+      for (int i = 0; i < SIG_LEN; i++) {
+        int p = sigPx[i];
+        sig[i] =
+            (byte)
+                ((((p >> 16) & 0xFF) * 77 + ((p >> 8) & 0xFF) * 150 + (p & 0xFF) * 29) >> 8);
+      }
+      if (t != src) t.recycle();
+      return sig;
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
+  private static int mad(byte[] a, byte[] b) {
+    int sum = 0;
+    for (int i = 0; i < a.length; i++) sum += Math.abs((a[i] & 0xFF) - (b[i] & 0xFF));
+    return sum / a.length;
   }
 
   /** Release one capture session (projection, reader, display, engines). */
@@ -442,6 +497,8 @@ public class WatchCaptureService extends Service {
     tierRecoverMs = TIER_RECOVER_MS;
     tierRecoveredAt = 0;
     tierFellAt = 0;
+    sceneSig = null; // a new share's first frame is new content again
+    prevChanged = false;
     BubbleService.stopBubble(this);
     stopLive();
     stopCascade();
