@@ -943,42 +943,48 @@ type NativeHandler = {
   onEnd: (reason?: string) => void;
   last: string;
   done: boolean;
+  // events are only honored once this session's start() resolved — a stale
+  // "stopped" from the PREVIOUS session crossing the bridge late must not
+  // kill a session that hasn't even begun (that read as "mic randomly dies")
+  started: boolean;
 };
-let nativeWired = false;
-let nativePermOk = false;
+let nativeWirePromise: Promise<boolean> | null = null;
 let nativeCurrent: NativeHandler | null = null;
 
-async function wireNativeOnce(): Promise<boolean> {
-  if (nativeWired) return nativePermOk;
-  nativeWired = true;
-  try {
-    const avail = await NativeSR.available();
-    if (!avail.available) return (nativePermOk = false);
-    const perm = await NativeSR.requestPermissions();
-    if (perm.speechRecognition !== "granted") return (nativePermOk = false);
-    await NativeSR.removeAllListeners();
-    await NativeSR.addListener("partialResults", (data: any) => {
-      const h = nativeCurrent;
-      const t = data?.matches?.[0];
-      if (h && !h.done && t) {
-        h.last = t;
-        h.onText(t, false);
-      }
+// Promise-cached (not a boolean): two overlapping first calls — easy while
+// the permission dialog is up — must both await the SAME wiring instead of
+// the second seeing "wired but not ok" and permanently reporting not-allowed.
+function wireNativeOnce(): Promise<boolean> {
+  if (!nativeWirePromise) {
+    nativeWirePromise = (async () => {
+      const avail = await NativeSR.available();
+      if (!avail.available) return false;
+      const perm = await NativeSR.requestPermissions();
+      if (perm.speechRecognition !== "granted") return false;
+      await NativeSR.removeAllListeners();
+      await NativeSR.addListener("partialResults", (data: any) => {
+        const h = nativeCurrent;
+        const t = data?.matches?.[0];
+        if (h && h.started && !h.done && t) {
+          h.last = t;
+          h.onText(t, false);
+        }
+      });
+      await NativeSR.addListener("listeningState", (data: any) => {
+        const h = nativeCurrent;
+        if (data?.status === "stopped" && h && h.started && !h.done) {
+          h.done = true;
+          if (h.last) h.onText(h.last, true);
+          h.onEnd();
+        }
+      });
+      return true;
+    })().catch(() => {
+      nativeWirePromise = null; // transient failure — re-attempt next arm
+      return false;
     });
-    await NativeSR.addListener("listeningState", (data: any) => {
-      const h = nativeCurrent;
-      if (data?.status === "stopped" && h && !h.done) {
-        h.done = true;
-        if (h.last) h.onText(h.last, true);
-        h.onEnd();
-      }
-    });
-    nativePermOk = true;
-  } catch {
-    nativeWired = false; // transient failure — re-attempt the wiring next arm
-    nativePermOk = false;
   }
-  return nativePermOk;
+  return nativeWirePromise;
 }
 
 export function listen(
@@ -986,7 +992,7 @@ export function listen(
   onEnd: (reason?: string) => void,
 ): STTResult {
   if (isNative) {
-    const h: NativeHandler = { onText, onEnd, last: "", done: false };
+    const h: NativeHandler = { onText, onEnd, last: "", done: false, started: false };
     (async () => {
       const ok = await wireNativeOnce();
       if (h.done) return; // stop() raced our async init — keep the mic off
@@ -1002,6 +1008,7 @@ export function listen(
           partialResults: true,
           popup: false,
         });
+        h.started = true;
         if (h.done) NativeSR.stop().catch(() => {});
       } catch {
         if (!h.done) {
@@ -1014,7 +1021,9 @@ export function listen(
       supported: true,
       stop: () => {
         h.done = true;
-        NativeSR.stop().catch(() => {});
+        // only touch the bridge if this session actually started — the
+        // post-start done-check above handles a stop that raced start()
+        if (h.started) NativeSR.stop().catch(() => {});
       },
     };
   }

@@ -73,6 +73,9 @@ public class WatchCaptureService extends Service {
       return START_NOT_STICKY;
     }
     startAsForeground();
+    // a second start() must not leak the old session (double engines would
+    // talk over each other and double the frame traffic) — tear down first
+    if (projection != null || engine != null) teardownSession();
     int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0);
     Intent data = intent.getParcelableExtra(EXTRA_RESULT_DATA);
     MediaProjectionManager mpm =
@@ -146,10 +149,18 @@ public class WatchCaptureService extends Service {
             .setContentIntent(pi)
             .setOngoing(true)
             .build();
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-      startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      // BOTH types, and microphone especially: without the mic type actively
+      // passed to startForeground, Android silently starves SpeechRecognizer
+      // the moment the user switches to YouTube — she'd go deaf, the error
+      // streak would latch micDead, and the whole talk lane would die
+      startForeground(
+          NOTIF_ID,
+          notif,
+          ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+              | ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
     } else {
-      startForeground(NOTIF_ID, notif);
+      startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
     }
   }
 
@@ -190,7 +201,8 @@ public class WatchCaptureService extends Service {
     }
   }
 
-  private void stopEverything() {
+  /** Release one capture session (projection, reader, display, engine). */
+  private void teardownSession() {
     running = false;
     BubbleService.stopBubble(this);
     if (engine != null) {
@@ -204,6 +216,10 @@ public class WatchCaptureService extends Service {
     display = null;
     reader = null;
     projection = null;
+  }
+
+  private void stopEverything() {
+    teardownSession();
     stopForeground(STOP_FOREGROUND_REMOVE);
     stopSelf();
     WatchPlugin.emitStopped();
@@ -211,16 +227,7 @@ public class WatchCaptureService extends Service {
 
   @Override
   public void onDestroy() {
-    running = false;
-    BubbleService.stopBubble(this);
-    if (engine != null) {
-      engine.stop();
-      engine = null;
-    }
-    if (handler != null) handler.removeCallbacksAndMessages(null);
-    if (display != null) display.release();
-    if (reader != null) reader.close();
-    if (projection != null) projection.stop();
+    teardownSession();
     super.onDestroy();
   }
 }

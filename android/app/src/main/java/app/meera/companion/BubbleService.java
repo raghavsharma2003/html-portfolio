@@ -80,19 +80,28 @@ public class BubbleService extends Service {
 
   // ---- control surface (other services drive the bubble through these) ----
 
+  // startService throws IllegalStateException once the process drops to
+  // background (e.g. a stop racing an in-flight TTS request) — a missed
+  // bubble update must never crash the app, so every entry point swallows
   public static void startBubble(Context context) {
-    context.startService(new Intent(context, BubbleService.class).setAction(ACTION_SHOW));
+    try {
+      context.startService(new Intent(context, BubbleService.class).setAction(ACTION_SHOW));
+    } catch (Exception ignored) {}
   }
 
   public static void stopBubble(Context context) {
-    context.startService(new Intent(context, BubbleService.class).setAction(ACTION_HIDE));
+    try {
+      context.startService(new Intent(context, BubbleService.class).setAction(ACTION_HIDE));
+    } catch (Exception ignored) {}
   }
 
   public static void setState(Context context, String state) {
-    context.startService(
-        new Intent(context, BubbleService.class)
-            .setAction(ACTION_STATE)
-            .putExtra(EXTRA_STATE, state));
+    try {
+      context.startService(
+          new Intent(context, BubbleService.class)
+              .setAction(ACTION_STATE)
+              .putExtra(EXTRA_STATE, state));
+    } catch (Exception ignored) {}
   }
 
   @Override

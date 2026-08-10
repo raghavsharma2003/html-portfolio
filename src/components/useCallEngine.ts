@@ -271,6 +271,7 @@ export function useCallEngine(
     reengageTimer.current = setTimeout(async () => {
       // she doesn't sit in silence: after ~7s she carries the conversation
       // herself (twice per stretch, then lets it breathe)
+      if (watchSession.current) return; // native engine owns the voice now
       if (!alive.current || speakingRef.current || thinkingRef.current || mutedRef.current) return;
       if (reengaged.current >= 2) return;
       // if we heard ANYTHING from them recently (even sub-threshold speech
@@ -328,6 +329,9 @@ export function useCallEngine(
   // hands-free: the mic stays hot the whole call (even while she speaks,
   // for barge-in) and re-arms itself after recognizer silence timeouts
   function startListening() {
+    // while watch-together runs, the NATIVE engine owns the mic — a JS
+    // recognizer here would fight it for the hardware (SR is a singleton)
+    if (watchSession.current) return;
     if (!alive.current || mutedRef.current || listeningRef.current) return;
     const web = !Capacitor.isNativePlatform();
     const res = listen(
@@ -452,6 +456,12 @@ export function useCallEngine(
         await ensureOverlay(true);
         return;
       }
+      // stand the JS mic lane down BEFORE the consent dialog + native start —
+      // the native recognizer's first grab must not collide with ours
+      stopListen.current?.();
+      listeningRef.current = false;
+      setListening(false);
+      if (reengageTimer.current) clearTimeout(reengageTimer.current);
       // hand the native engine her full brain: cached persona core + call
       // style, volatile tail + watch rules, and the comment directive
       const parts = buildSystemPromptParts(stateRef.current.user, stateRef.current.messages.length);
@@ -495,21 +505,25 @@ export function useCallEngine(
           frameRef.current = null;
           setWatching(false);
           track(stateRef.current.deviceId, "watch_stopped_externally", {});
-          if (alive.current) startListening(); // JS call loop resumes
+          // same hardware-release beat as stopWatchMode before re-arming
+          setTimeout(() => {
+            if (alive.current && !mutedRef.current) startListening();
+          }, 450);
         },
       );
       setWatching(true);
       lastCommentAt.current = Date.now();
-      // the native engine owns the mic and the voice while watching — the
-      // JS lanes stand down so the two brains never talk over each other
-      stopListen.current?.();
-      listeningRef.current = false;
-      setListening(false);
-      if (reengageTimer.current) clearTimeout(reengageTimer.current);
+      // the native engine owns voice + mic now: cut any in-flight JS speech
+      // and invalidate pending turns so nothing talks over her native lane
+      stopSpeaking();
+      speakingRef.current = false;
+      setSpeaking(false);
+      turnSeq.current += 1;
       track(stateRef.current.deviceId, "watch_started", {});
     } catch {
       track(stateRef.current.deviceId, "watch_consent_denied", {});
-      /* consent denied — stay in the plain call */
+      // consent denied — stay in the plain call, mic back on
+      if (alive.current && !mutedRef.current) startListening();
     }
   }
 
@@ -518,7 +532,11 @@ export function useCallEngine(
     watchSession.current = null;
     frameRef.current = null;
     setWatching(false);
-    if (alive.current && !mutedRef.current) startListening(); // JS loop resumes
+    // give the native recognizer a beat to release the hardware before the
+    // JS one grabs it — an instant re-arm tends to land on BUSY
+    setTimeout(() => {
+      if (alive.current && !mutedRef.current) startListening();
+    }, 450);
   }
 
   const freshFrame = () =>

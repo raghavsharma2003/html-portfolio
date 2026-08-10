@@ -56,6 +56,12 @@ public class WatchPlugin extends Plugin {
 
   @PluginMethod
   public void start(PluginCall call) {
+    // the loop needs API 29+ (mediaProjection FGS type, channel notifications,
+    // AudioFocusRequest); minSdk is 24, so gate here instead of crashing there
+    if (android.os.Build.VERSION.SDK_INT < 29) {
+      call.reject("watch together needs Android 10 or newer");
+      return;
+    }
     MediaProjectionManager mpm =
         (MediaProjectionManager) getContext().getSystemService(Context.MEDIA_PROJECTION_SERVICE);
     if (mpm == null) {

@@ -105,6 +105,14 @@ class WatchEngine {
     net.shutdownNow();
   }
 
+  /** execute() after shutdownNow() throws REE from inside running tasks —
+   *  a stop() racing an in-flight think/speak must never crash the process. */
+  private void safeExecute(Runnable r) {
+    try {
+      net.execute(r);
+    } catch (Exception ignored) {}
+  }
+
   /** New screen frame from the capture pipeline (JPEG base64, ~768px). */
   void onFrame(String b64) {
     latestFrame = b64;
@@ -163,10 +171,12 @@ class WatchEngine {
                       || error == SpeechRecognizer.ERROR_SERVER
                       || error == 10; // ERROR_TOO_MANY_REQUESTS (API 31+)
               errStreak = (slow || throttled) ? errStreak + 1 : 0;
-              if (errStreak > 8) {
+              if (errStreak > 8 && !throttled) {
                 micDead = true; // recognizer is broken here — stop churning
                 return;
               }
+              // throttling is transient (network/rate limit) — keep backing
+              // off instead of latching the mic dead for the whole session
               restartSoon(throttled ? Math.min(2000L * errStreak, 10_000) : slow ? 900 : 250);
             }
 
@@ -187,6 +197,7 @@ class WatchEngine {
       recognizer.startListening(intent);
     } catch (Exception e) {
       Log.w(TAG, "recognizer start failed", e);
+      restartSoon(2000); // transient create/start failure — don't go silent
     }
   }
 
@@ -203,10 +214,18 @@ class WatchEngine {
 
   /* ── brain: POST /api/chat with rolling native context + current frame ── */
 
+  private volatile String pendingUser = null;
+
   private void think(String latest, String frameB64, boolean isComment) {
-    if (thinking || latest == null || latest.isEmpty()) return;
+    if (latest == null || latest.isEmpty()) return;
+    if (thinking) {
+      // never drop what the USER said because she was mid-think — hold the
+      // latest utterance and answer it as soon as this pass finishes
+      if (!isComment) pendingUser = latest;
+      return;
+    }
     thinking = true;
-    net.execute(() -> {
+    safeExecute(() -> {
       try {
         JSONArray messages = new JSONArray();
         synchronized (turns) {
@@ -236,23 +255,50 @@ class WatchEngine {
         body.put("messages", messages);
         body.put("max_tokens", 190);
         body.put("no_think", true);
-        String resp = post(base + "/api/chat", body.toString(), "application/json");
+        // ambient comments can drop on a bad network; the user's actual
+        // question must not — one retry so "she just never answered" is rare
+        String resp = null;
+        int attempts = isComment ? 1 : 2;
+        for (int i = 0; i < attempts && resp == null; i++) {
+          try {
+            resp = post(base + "/api/chat", body.toString(), "application/json");
+          } catch (Exception e) {
+            if (i + 1 >= attempts) throw e;
+          }
+        }
         String text = resp == null ? null : new JSONObject(resp).optString("text", "");
-        thinking = false;
-        if (!running || text == null || text.trim().isEmpty()) return;
+        if (!running || text == null || text.trim().isEmpty()) {
+          thinking = false;
+          drainPending();
+          return;
+        }
 
         String tone = extractTone(text);
         String spoken = sanitize(text);
-        if (spoken.isEmpty() || spoken.toUpperCase().contains("NO_COMMENT")) return;
+        String up = spoken.toUpperCase();
+        if (spoken.isEmpty() || up.contains("NO_COMMENT") || up.contains("NO COMMENT")) {
+          thinking = false;
+          drainPending();
+          return;
+        }
         if (isComment) lastCommentAt = System.currentTimeMillis();
         remember("assistant", spoken);
         emitTurn("her", spoken);
-        speak(spoken, tone);
+        speak(spoken, tone); // sets speaking=true before returning …
+        thinking = false; // … so onFrame stays gated with no window between
+        drainPending();
       } catch (Exception e) {
         thinking = false;
         Log.w(TAG, "think failed", e);
+        drainPending();
       }
     });
+  }
+
+  private void drainPending() {
+    String p = pendingUser;
+    pendingUser = null;
+    if (p != null && running) think(p, latestFrame, false);
   }
 
   private void remember(String role, String text) {
@@ -296,7 +342,7 @@ class WatchEngine {
         } catch (Exception ignored) {}
       }
     });
-    net.execute(() -> {
+    safeExecute(() -> {
       try {
         JSONObject body = new JSONObject().put("text", text);
         if (tone != null && !tone.isEmpty()) body.put("style", tone);
@@ -329,7 +375,16 @@ class WatchEngine {
             .build();
     am.requestAudioFocus(focus); // YouTube ducks under her voice
     try {
-      int pcmLen = wav.length - 44;
+      // find the real data chunk — WAVs may carry LIST/fact chunks, and a
+      // fixed 44-byte skip would play header bytes as an audible click
+      int dataAt = 44;
+      for (int i = 12; i < Math.min(wav.length - 8, 200); i++) {
+        if (wav[i] == 'd' && wav[i + 1] == 'a' && wav[i + 2] == 't' && wav[i + 3] == 'a') {
+          dataAt = i + 8;
+          break;
+        }
+      }
+      int pcmLen = wav.length - dataAt;
       player =
           new AudioTrack.Builder()
               .setAudioAttributes(attrs)
@@ -342,11 +397,11 @@ class WatchEngine {
               .setBufferSizeInBytes(pcmLen)
               .setTransferMode(AudioTrack.MODE_STATIC)
               .build();
-      player.write(wav, 44, pcmLen);
+      player.write(wav, dataAt, pcmLen);
       player.play();
       // block this worker until playback ends (rough: samples / rate)
       long ms = (long) (pcmLen / 2 / 24.0) + 150;
-      Thread.sleep(Math.min(ms, 30_000));
+      Thread.sleep(Math.min(ms, 120_000));
     } catch (Exception e) {
       Log.w(TAG, "playback failed", e);
     } finally {
