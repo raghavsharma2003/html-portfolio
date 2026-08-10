@@ -107,6 +107,19 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const busy = useRef(false);
+  // ── burst-aware reply orchestration ──
+  // The user can ALWAYS send (like WhatsApp). Each send schedules a reply
+  // cycle behind a short "let them finish typing" debounce; newer messages
+  // supersede an in-flight think (she re-reads everything), and messages
+  // that arrive while she's typing out a reply get a follow-up cycle after —
+  // exactly how a person handles a flurry of texts.
+  const messagesRef = useRef(state.messages);
+  messagesRef.current = state.messages;
+  const chatSeq = useRef(0);
+  const burstTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const thinkingChat = useRef(false);
+  const delivering = useRef(false);
+  const dirty = useRef(false); // user messages not yet covered by a reply
   const nudged = useRef(false);
   const lastActivity = useRef(Date.now());
 
@@ -173,9 +186,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   useEffect(() => {
     if (messages.length === 0 && !busy.current && !inCallRef.current) {
       busy.current = true;
-      think(user, brainKeys(), [], OPEN_DIRECTIVE(), "chat", "device", true).then((reply) => {
+      think(user, brainKeys(), [], OPEN_DIRECTIVE(), "chat", "device", true).then(async (reply) => {
         if (!reply.bubbles.length && !reply.photo) reply = { bubbles: ["heyy"] };
-        deliver(reply);
+        delivering.current = true;
+        await deliver(reply);
+        delivering.current = false;
+        if (dirty.current) void replyCycle(chatSeq.current);
       });
     }
     // re-runs after a chat clear too — she says hi fresh, in her own words
@@ -193,9 +209,15 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       setState((s) => ({ ...s, followup: null }));
       busy.current = true;
       think(user, brainKeys(), messages, FOLLOWUP_DIRECTIVE(f.why, statedAgo), "chat", "device", true).then(
-        (reply) => {
-          if (reply.bubbles.length || reply.photo) deliver(reply);
-          else busy.current = false;
+        async (reply) => {
+          if (reply.bubbles.length || reply.photo) {
+            delivering.current = true;
+            await deliver(reply);
+            delivering.current = false;
+          } else {
+            busy.current = false;
+          }
+          if (dirty.current) void replyCycle(chatSeq.current);
         },
       );
     }, 15_000);
@@ -212,8 +234,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       if (idle > 150_000 && messages[messages.length - 1]?.from === "her") {
         nudged.current = true;
         think(user, brainKeys(), messages, NUDGE_DIRECTIVE(), "chat", "device", true).then(
-          (reply) => {
-            if (reply.bubbles.length || reply.photo) deliver(reply);
+          async (reply) => {
+            if (reply.bubbles.length || reply.photo) {
+              delivering.current = true;
+              await deliver(reply);
+              delivering.current = false;
+            }
+            if (dirty.current) void replyCycle(chatSeq.current);
           },
         );
       }
@@ -316,12 +343,63 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     busy.current = false;
   }
 
-  async function send() {
-    const text = draft.trim();
-    if (!text || busy.current) return;
-    // claim the conversation SYNCHRONOUSLY — a second Enter during the
-    // think() window must not start an interleaved parallel reply
+  // schedule a reply cycle after a short burst-wait; every newer message
+  // resets the wait and supersedes any in-flight thinking
+  function scheduleReply() {
+    dirty.current = true;
+    const seq = ++chatSeq.current;
+    if (burstTimer.current) clearTimeout(burstTimer.current);
+    burstTimer.current = setTimeout(() => void replyCycle(seq), 1300);
+  }
+
+  function lastUserText(): string {
+    const hist = messagesRef.current;
+    for (let i = hist.length - 1; i >= 0; i--) {
+      const m = hist[i];
+      if (m.from === "me" && m.channel !== "call") return m.text;
+    }
+    return "";
+  }
+
+  async function replyCycle(seq: number): Promise<void> {
+    if (seq !== chatSeq.current || inCallRef.current) return; // superseded
+    if (thinkingChat.current) return; // running cycle chains the newest seq
+    if (delivering.current) return; // deliver-end chains a follow-up
+    if (busy.current) return; // directive cycle in flight — dirty chains after
+    const ep = epoch.current;
+    thinkingChat.current = true;
     busy.current = true;
+    dirty.current = false;
+    const latest = lastUserText();
+    const reply = await think(user, brainKeys(), messagesRef.current, latest);
+    thinkingChat.current = false;
+    if (ep !== epoch.current) {
+      busy.current = false;
+      return; // chat was cleared mid-think
+    }
+    if (seq !== chatSeq.current) {
+      // they kept texting while she read — re-read EVERYTHING, reply once
+      return replyCycle(chatSeq.current);
+    }
+    mergeLearned(reply.learned);
+    delivering.current = true;
+    await deliver(reply, latest);
+    delivering.current = false;
+    if (dirty.current && ep === epoch.current) {
+      // messages landed while she was typing — she notices and follows up
+      return replyCycle(chatSeq.current);
+    }
+    busy.current = false;
+    // periodically distill the conversation into her graph memory
+    sendCount.current += 1;
+    if (sendCount.current % 4 === 0) {
+      rememberFrom(state.deviceId, messagesRef.current);
+    }
+  }
+
+  function send() {
+    const text = draft.trim();
+    if (!text) return; // sending is NEVER blocked — she adapts, like a person
     setDraft("");
     lastActivity.current = Date.now();
     nudged.current = false;
@@ -341,14 +419,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     track(state.deviceId, "message_sent", { len: text.length, quoted: Boolean(mine.replyTo) }, state.auth?.userId);
     // single tick → double tick shortly after (server delivery rhythm)
     setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
-    const reply = await think(user, brainKeys(), [...messages, mine], text);
-    mergeLearned(reply.learned);
-    await deliver(reply, text);
-    // periodically distill the conversation into her graph memory
-    sendCount.current += 1;
-    if (sendCount.current % 4 === 0) {
-      rememberFrom(state.deviceId, [...messages, mine]);
-    }
+    scheduleReply();
   }
 
   // ── sending HER a photo (camera or gallery): compress client-side, show
@@ -379,11 +450,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   }
 
   async function sendPhoto(file: File) {
-    if (busy.current) return;
-    busy.current = true; // same synchronous claim as send()
     const packed = await compressImage(file);
     if (!packed || !packed.b64) {
-      busy.current = false;
       showNotice("couldn't read that photo — try a different one");
       return;
     }
@@ -406,30 +474,21 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     pushMsg(mine);
     track(state.deviceId, "photo_shared", { caption: Boolean(caption) }, state.auth?.userId);
     setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
-    // permanent copy in storage — the brain's vision reads this URL, and it
-    // survives across devices; on upload failure the data URL still works
-    const url = await uploadPhoto(state.deviceId, packed.b64, "image/jpeg");
-    const publicUrl = url || packed.dataUrl;
-    if (url) {
+    logTurns(state.deviceId, [
+      { ...mine, text: caption ? `[photo] ${caption}` : "[photo]" },
+    ]);
+    // the photo joins the same burst pipeline as text — she sees it (vision
+    // reads the local data URL until the storage upload lands) and can fold
+    // it into one reply with whatever else you're sending
+    scheduleReply();
+    // background: permanent copy in storage (survives devices) + one factual
+    // line about the image for her long-term context
+    uploadPhoto(state.deviceId, packed.b64, "image/jpeg").then((url) => {
+      if (!url) return;
       setState((s) => ({
         ...s,
         messages: s.messages.map((x) => (x.id === mine.id ? { ...x, photoUrl: url } : x)),
       }));
-    }
-    const brainMine = { ...mine, photoUrl: publicUrl };
-    logTurns(state.deviceId, [
-      { ...mine, text: caption ? `[photo] ${caption}` : "[photo]" },
-    ]);
-    const reply = await think(
-      user,
-      brainKeys(),
-      [...messages, brainMine],
-      caption ? `[sent a photo] ${caption}` : "[sent a photo]",
-    );
-    mergeLearned(reply.learned);
-    await deliver(reply, caption || "photo");
-    // one factual line about the image → her long-term context (fire & forget)
-    if (url) {
       describePhoto(state.deviceId, url).then((desc) => {
         if (!desc) return;
         setState((s) => ({
@@ -437,8 +496,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
           messages: s.messages.map((x) => (x.id === mine.id ? { ...x, desc } : x)),
         }));
       });
-    }
-    sendCount.current += 1;
+    });
   }
 
   // WhatsApp/Telegram swipe-to-reply, tuned to Telegram's source numbers:
@@ -499,7 +557,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   }
 
   async function startRecording() {
-    if (recording || busy.current) return;
+    if (recording) return; // recording is never blocked by her reply state
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
@@ -627,21 +685,22 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
             pushMsg(mine);
             logTurns(state.deviceId, [mine]);
             setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
-            think(user, brainKeys(), [...messages, mine], transcript).then((reply) => {
-              mergeLearned(reply.learned);
-              deliver(reply, transcript);
-            });
+            scheduleReply();
           } else {
             showNotice("recording didn't capture — try again");
           }
           return;
         }
-        // WhatsApp rule: a recording you hit send on ALWAYS sends
+        // WhatsApp rule: a recording you hit send on ALWAYS sends. When the
+        // audio was unintelligible, the stored text carries the unclear-audio
+        // context for her brain — voice bubbles never display their text.
         const mine: Message = {
           id: uid(),
           from: "me",
           kind: "voice",
-          text: transcript || "[voice note]",
+          text:
+            transcript ||
+            "[voice note — audio was unclear, you couldn't make out the words. react like a person: ask them to resend or type, casually]",
           dur: secs,
           at: Date.now(),
           status: "sent",
@@ -653,17 +712,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
         lastActivity.current = Date.now();
         nudged.current = false;
-        // the brain sees the unclear-audio context; the UI shows a clean bubble
-        const brainMine = transcript
-          ? mine
-          : {
-              ...mine,
-              text: "[voice note — audio was unclear, you couldn't make out the words. react like a person: ask them to resend or type, casually]",
-            };
-        think(user, brainKeys(), [...messages, brainMine], brainMine.text).then((reply) => {
-          mergeLearned(reply.learned);
-          deliver(reply, transcript || "voice note");
-        });
+        scheduleReply(); // voice notes join the same burst pipeline
       }, 600);
     };
     st.recorder!.onstop = () => {
