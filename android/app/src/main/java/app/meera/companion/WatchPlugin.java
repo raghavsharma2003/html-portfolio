@@ -8,6 +8,8 @@ import android.media.projection.MediaProjectionManager;
 import androidx.activity.result.ActivityResult;
 
 import com.getcapacitor.JSObject;
+
+import org.json.JSONObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -38,6 +40,14 @@ public class WatchPlugin extends Plugin {
     p.notifyListeners("frame", data);
   }
 
+  static void emitEvent(String event, JSONObject data) {
+    WatchPlugin p = active;
+    if (p == null) return;
+    try {
+      p.notifyListeners(event, JSObject.fromJSONObject(data));
+    } catch (Exception ignored) {}
+  }
+
   static void emitStopped() {
     WatchPlugin p = active;
     if (p == null) return;
@@ -65,8 +75,28 @@ public class WatchPlugin extends Plugin {
     Intent svc = new Intent(getContext(), WatchCaptureService.class);
     svc.putExtra(WatchCaptureService.EXTRA_RESULT_CODE, result.getResultCode());
     svc.putExtra(WatchCaptureService.EXTRA_RESULT_DATA, result.getData());
+    String cfg = call.getString("config");
+    if (cfg != null) svc.putExtra(WatchCaptureService.EXTRA_CONFIG, cfg);
     getContext().startForegroundService(svc);
     call.resolve();
+  }
+
+  @PluginMethod
+  public void ensureOverlay(PluginCall call) {
+    boolean granted = android.provider.Settings.canDrawOverlays(getContext());
+    boolean prompt = Boolean.TRUE.equals(call.getBoolean("prompt", true));
+    if (!granted && prompt) {
+      // SAW is a settings toggle, not a runtime dialog — send them there once
+      Intent i =
+          new Intent(
+              android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+              android.net.Uri.parse("package:" + getContext().getPackageName()));
+      i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      getContext().startActivity(i);
+    }
+    JSObject r = new JSObject();
+    r.put("granted", granted);
+    call.resolve(r);
   }
 
   @PluginMethod

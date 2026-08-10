@@ -36,10 +36,12 @@ import java.nio.ByteBuffer;
 public class WatchCaptureService extends Service {
   public static final String EXTRA_RESULT_CODE = "resultCode";
   public static final String EXTRA_RESULT_DATA = "resultData";
+  public static final String EXTRA_CONFIG = "config";
   private static final String CHANNEL_ID = "meera_watch";
   private static final int NOTIF_ID = 4207;
   private static final long FRAME_INTERVAL_MS = 3000;
 
+  private WatchEngine engine;
   private MediaProjection projection;
   private VirtualDisplay display;
   private ImageReader reader;
@@ -112,6 +114,14 @@ public class WatchCaptureService extends Service {
             null,
             null);
     running = true;
+    // the native brain loop — lives HERE because Android freezes the WebView
+    // (timers and fetch) while another app is foreground
+    engine = new WatchEngine(this, WatchPlugin::emitEvent);
+    String cfg = intent.getStringExtra(EXTRA_CONFIG);
+    if (cfg != null) engine.configure(cfg);
+    engine.start();
+    BubbleService.startBubble(this); // she hovers over the screen (needs SAW)
+    BubbleService.setState(this, BubbleService.STATE_WATCHING);
     handler = new Handler(Looper.getMainLooper());
     handler.postDelayed(sampler, 800);
     return START_NOT_STICKY;
@@ -173,7 +183,8 @@ public class WatchCaptureService extends Service {
       ByteArrayOutputStream out = new ByteArrayOutputStream();
       frame.compress(Bitmap.CompressFormat.JPEG, 68, out);
       String b64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
-      WatchPlugin.emitFrame(b64);
+      WatchPlugin.emitFrame(b64); // UI chip liveness (when the app is visible)
+      if (engine != null) engine.onFrame(b64); // the brain lives natively
     } finally {
       image.close();
     }
@@ -181,6 +192,11 @@ public class WatchCaptureService extends Service {
 
   private void stopEverything() {
     running = false;
+    BubbleService.stopBubble(this);
+    if (engine != null) {
+      engine.stop();
+      engine = null;
+    }
     if (handler != null) handler.removeCallbacksAndMessages(null);
     if (display != null) display.release();
     if (reader != null) reader.close();
@@ -196,6 +212,11 @@ public class WatchCaptureService extends Service {
   @Override
   public void onDestroy() {
     running = false;
+    BubbleService.stopBubble(this);
+    if (engine != null) {
+      engine.stop();
+      engine = null;
+    }
     if (handler != null) handler.removeCallbacksAndMessages(null);
     if (display != null) display.release();
     if (reader != null) reader.close();

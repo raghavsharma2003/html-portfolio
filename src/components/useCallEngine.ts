@@ -25,9 +25,16 @@ import {
   stopRoomTone,
   duckSpeech,
 } from "../voice/speech";
-import { CALL_OPEN_DIRECTIVE, WATCH_COMMENT_DIRECTIVE, type VoiceEngine } from "../engine/persona";
+import {
+  CALL_OPEN_DIRECTIVE,
+  WATCH_COMMENT_DIRECTIVE,
+  WATCH_MODE_NOTE,
+  buildSystemPromptParts,
+  buildSpeechStyle,
+  type VoiceEngine,
+} from "../engine/persona";
 import { logTurns, rememberFrom, recallMemories } from "../engine/memory";
-import { startWatch, watchAvailable, type WatchSession } from "../native/watch";
+import { ensureOverlay, startWatch, watchAvailable, type WatchSession } from "../native/watch";
 import { track } from "../engine/account";
 
 export type CallPhase = "connecting" | "live" | "ended";
@@ -47,9 +54,7 @@ export function useCallEngine(
   const watchSession = useRef<WatchSession | null>(null);
   const frameRef = useRef<{ url: string; at: number } | null>(null);
   const lastCommentAt = useRef(0);
-  const lastAnalyzedFrame = useRef(""); // static screens must cost zero
   const firstFrameSeen = useRef(false);
-  const commentBusy = useRef(false);
   const [heard, setHeard] = useState("");
   const [sttSupported, setSttSupported] = useState(true);
   const [elapsed, setElapsed] = useState(0);
@@ -432,11 +437,37 @@ export function useCallEngine(
     setListening(true);
   }
 
-  // ── watch-together: consent dialog → screen frames → couch-friend mode ──
+  // ── watch-together: consent dialog → NATIVE engine (sees/thinks/speaks/
+  // listens in the service process, immune to WebView freezing) ──
   async function startWatchMode() {
     if (!watchAvailable() || watching) return;
     try {
+      // bubble permission ("Display over other apps"): first missing-grant tap
+      // opens the settings toggle and waits for them to come back and tap
+      // again — stacking the capture consent on top of Settings is chaos. If
+      // they've been asked before, proceed bubble-less rather than nag.
+      const overlayOk = await ensureOverlay(false);
+      if (!overlayOk && !localStorage.getItem("meera.overlay.asked")) {
+        localStorage.setItem("meera.overlay.asked", "1");
+        await ensureOverlay(true);
+        return;
+      }
+      // hand the native engine her full brain: cached persona core + call
+      // style, volatile tail + watch rules, and the comment directive
+      const parts = buildSystemPromptParts(stateRef.current.user, stateRef.current.messages.length);
+      const config = {
+        base: "https://meera-silk.vercel.app",
+        system: parts.core + buildSpeechStyle(engine),
+        systemTail:
+          parts.tail +
+          WATCH_MODE_NOTE +
+          (recallRef.current
+            ? `\n\nWHAT YOU KNOW ABOUT THEM (true memories — answer confidently):\n${recallRef.current}`
+            : ""),
+        directive: WATCH_COMMENT_DIRECTIVE(),
+      };
       watchSession.current = await startWatch(
+        config,
         (url) => {
           frameRef.current = { url, at: Date.now() };
           setFrameAt(Date.now());
@@ -444,10 +475,19 @@ export function useCallEngine(
             firstFrameSeen.current = true;
             track(stateRef.current.deviceId, "watch_frame_first", {});
           }
-          // commentary is driven by the NATIVE frame tick, not a JS timer —
-          // Android throttles WebView timers while another app is foreground,
-          // which froze her eyes in v1 of this feature
-          void maybeWatchComment();
+        },
+        (who, text) => {
+          // native transcript → call memory (delivered when app is visible;
+          // Android batches these while backgrounded, which is fine for logs)
+          log({
+            id: uid(),
+            from: who,
+            kind: "text",
+            channel: "call",
+            text,
+            at: Date.now(),
+          });
+          if (who === "her") track(stateRef.current.deviceId, "watch_comment", {});
         },
         () => {
           // capture ended outside our UI (notification, system revoke)
@@ -455,10 +495,17 @@ export function useCallEngine(
           frameRef.current = null;
           setWatching(false);
           track(stateRef.current.deviceId, "watch_stopped_externally", {});
+          if (alive.current) startListening(); // JS call loop resumes
         },
       );
       setWatching(true);
-      lastCommentAt.current = Date.now(); // no instant commentary on start
+      lastCommentAt.current = Date.now();
+      // the native engine owns the mic and the voice while watching — the
+      // JS lanes stand down so the two brains never talk over each other
+      stopListen.current?.();
+      listeningRef.current = false;
+      setListening(false);
+      if (reengageTimer.current) clearTimeout(reengageTimer.current);
       track(stateRef.current.deviceId, "watch_started", {});
     } catch {
       track(stateRef.current.deviceId, "watch_consent_denied", {});
@@ -471,66 +518,13 @@ export function useCallEngine(
     watchSession.current = null;
     frameRef.current = null;
     setWatching(false);
+    if (alive.current && !mutedRef.current) startListening(); // JS loop resumes
   }
 
   const freshFrame = () =>
     watching && frameRef.current && Date.now() - frameRef.current.at < 8000
       ? frameRef.current.url
       : undefined;
-
-  // proactive couch-friend commentary: mostly silence, an occasional short
-  // reaction when a moment earns it — never over their speech or her own.
-  // Called on every NATIVE frame arrival (~3s) so it keeps working while
-  // another app is foreground and WebView timers are throttled.
-  async function maybeWatchComment() {
-    const frame = freshFrame();
-    if (!frame || !alive.current || commentBusy.current) return;
-    if (speakingRef.current || thinkingRef.current || mutedRef.current) return;
-    if (Date.now() - lastCommentAt.current < 20_000) return; // cadence cap
-    if (Date.now() - lastHeardAt.current < 4000) return; // they're talking
-    // unchanged screen = zero vision calls (a paused video / idle app
-    // yields byte-identical frames — nothing new to react to)
-    if (frame === lastAnalyzedFrame.current) return;
-    lastAnalyzedFrame.current = frame;
-    commentBusy.current = true;
-    const seqAt = turnSeq.current;
-    try {
-      const reply = await think(
-        stateRef.current.user,
-        brainKeys(),
-        stateRef.current.messages,
-        WATCH_COMMENT_DIRECTIVE(),
-        "call",
-        engine,
-        true,
-        undefined,
-        recallRef.current,
-        frame,
-      );
-      if (
-        !alive.current ||
-        speakingRef.current ||
-        thinkingRef.current ||
-        seqAt !== turnSeq.current
-      )
-        return;
-      const line = reply.bubbles.join(" ").trim();
-      if (!line || /NO_?COMMENT/i.test(line)) return; // silence is the default
-      lastCommentAt.current = Date.now();
-      track(stateRef.current.deviceId, "watch_comment", {});
-      log({
-        id: uid(),
-        from: "her",
-        kind: "text",
-        channel: "call",
-        text: line.replace(/\[[a-z ]+\]/gi, "").trim(),
-        at: Date.now(),
-      });
-      sayAloud(line, reply.tone);
-    } finally {
-      commentBusy.current = false;
-    }
-  }
 
   function toggleMute() {
     const next = !mutedRef.current;
