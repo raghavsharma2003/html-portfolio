@@ -19,7 +19,7 @@ import {
 import { tagFromSeed } from "./photoCatalog";
 import { heartReply, type HeartReply } from "./localHeart";
 import { cultureNote } from "./culture";
-import { recallMemories } from "./memory";
+import { recallMemories, forgetMemories, resolveForget } from "./memory";
 import { innerContext, overlaps, type Inner } from "./inner";
 import { diag } from "./diag";
 import type { Message } from "../state/store";
@@ -154,6 +154,16 @@ export function parseBubbles(raw: string): ParsedReply {
     if (!out.gif) out.gif = { query: q.trim() };
     return "";
   });
+  // [forget: …] — the only marker that DELETES. Strict form only: no salvage
+  // pass and no catch-all rescue, unlike [search:]. A mangled search marker
+  // costs a wasted lookup; guessing at a mangled forget costs rows that do
+  // not come back, so a marker that did not arrive cleanly is dropped and she
+  // simply hasn't done it.
+  raw = raw.replace(/\[\s*forget\s*:\s*([^\]\n]+?)\s*\]/gi, (_m, body: string) => {
+    const t = body.replace(/\s+/g, " ").trim();
+    if (t && !out.forget) out.forget = t.slice(0, 80);
+    return "";
+  });
   let searchBroken = false;
   raw = raw.replace(/\[\s*search\s*:\s*([^\]\n]+?)\s*\]/gi, (_m, q: string) => {
     const t = q.trim();
@@ -197,7 +207,7 @@ export function parseBubbles(raw: string): ParsedReply {
   // followup, unknown variant), imitated history annotations, and any
   // imitated clock stamp, ANYWHERE
   raw = raw
-    .replace(/\[\s*(?:tone|followup|photo|voicenote|gif|search)\s*:[^\]]*\]?/gi, "")
+    .replace(/\[\s*(?:tone|followup|photo|voicenote|gif|search|forget)\s*:[^\]]*\]?/gi, "")
     .replace(/\[\s*(?:voice note|they sent a photo|replying to|a voice call starts|the call ended)[^\]]*\]?/gi, "")
     .replace(/\[\d{1,2}:\d{2}\s*(?:am|pm)?\]/gi, "");
 
@@ -799,6 +809,28 @@ ${memories}`;
     }
     parsed.search = undefined;
     parsed.searchBroken = undefined;
+  }
+
+  // ── they asked her to forget something, and she said yes ──
+  // This runs BEFORE her words are handed back, so the rows are already gone
+  // by the time "haan, hata diya" reaches them. The other order — reply now,
+  // delete on the way out — is the one that lets her say it and have it not
+  // be true yet, which is the exact failure this whole feature exists to fix.
+  // Awaited on both surfaces: a spoken "bhool ja" on a call must delete as
+  // surely as a typed one.
+  if (parsed.forget && keys.deviceId) {
+    const target = resolveForget(parsed.forget, history);
+    // no target = refused (a whole-memory wipe) or unreadable. Nothing is
+    // deleted and nothing is claimed: `forgot` stays unset, so no caller
+    // downstream shows a receipt for something that did not happen.
+    const res = target ? await forgetMemories(keys.deviceId, target) : null;
+    diag("chat", "forget_fire", {
+      scope: target?.scope || "refused",
+      ok: Boolean(res),
+      ...(res?.deleted || {}),
+    });
+    if (target && res) parsed.forgot = { target, deleted: res.deleted };
+    parsed.forget = undefined;
   }
 
   if (mode === "call") {

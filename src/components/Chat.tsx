@@ -7,7 +7,15 @@ import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think, formatHerLife } from "../engine/brain";
 import { HER_NAME, OPEN_DIRECTIVE, FOLLOWUP_DIRECTIVE } from "../engine/persona";
-import { logTurns, rememberFrom, uploadPhoto, describePhoto, prefetchRecall } from "../engine/memory";
+import {
+  logTurns,
+  rememberFrom,
+  uploadPhoto,
+  describePhoto,
+  prefetchRecall,
+  forgetMemories,
+  messagesAfterForget,
+} from "../engine/memory";
 import { applyInner, wantsForAppraisal } from "../engine/inner";
 import { track } from "../engine/account";
 import type { HeartReply } from "../engine/localHeart";
@@ -102,11 +110,15 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   // to be either unreachable or one mis-tap away from destroying the chat
   const [moreOpen, setMoreOpen] = useState(false);
   // clearing parks the conversation for ten seconds instead of destroying it
-  const [undo, setUndo] = useState<Pick<
-    AppState,
-    "messages" | "herLife" | "inner" | "clearedAt"
-  > | null>(null);
+  type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt">;
+  const [undo, setUndo] = useState<{ label: string; snapshot: Snapshot } | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Forgetting parks the REQUEST, not just the local state: the server-side
+  // delete is irreversible, so nothing is sent until the ten seconds are up.
+  // Undo drops this; leaving the screen runs it, because walking away is not
+  // taking it back — and a local wipe with the rows still on the server is
+  // the worst of both, she'd look forgotten and still know everything.
+  const pendingForget = useRef<(() => void) | null>(null);
   // reported, never enforced: navigator.onLine and its two events, no fetch.
   // Sending is never blocked — she answers when the line comes back.
   const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
@@ -391,6 +403,21 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     opts: { keepTyping?: boolean } = {},
   ) {
     busy.current = true;
+    // SHE AGREED TO FORGET SOMETHING, and by the time this runs the rows are
+    // already deleted (brain.ts awaits the delete before handing the reply
+    // back). The turns are still in the local store though, and the local
+    // store IS the context window she thinks with — leaving them there means
+    // she has "forgotten" something she can still read four lines up. They go
+    // before her words land, so the two are never briefly inconsistent.
+    // Forgetting one FACT prunes nothing: that would shred their own history
+    // as a side effect of asking her to drop a detail.
+    if (reply.forgot) {
+      const { target, deleted } = reply.forgot;
+      setState((s) => ({ ...s, messages: messagesAfterForget(s.messages, target) }));
+      // scope and counts only — a telemetry row naming the thing would
+      // outlive the memory it deleted
+      track(state.deviceId, "memory_forgotten", { scope: target.scope, ...deleted }, state.auth?.userId);
+    }
     // deterministic meme throttle — regardless of what the model wants,
     // never two gifs within her last six messages. Context-free meme spam
     // reads as botlike; scarcity is what makes a meme land.
@@ -636,7 +663,9 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   // the conversation, her improvised life and her carried feeling were gone
   // with no confirmation and no recovery. Now it is named in a sheet, and
   // for ten seconds afterwards it is only parked.
-  function clearChat() {
+  // the local teardown both destructive actions share: whatever she was
+  // mid-way through belongs to a conversation that is about to not exist
+  function tearDownLocally(): Snapshot {
     const snapshot = {
       messages: state.messages,
       herLife: state.herLife,
@@ -650,7 +679,6 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     setTyping(false);
     setReplyTo(null);
     setReplySel(null);
-    track(state.deviceId, "chat_cleared", { count: state.messages.length }, state.auth?.userId);
     // clearedAt is the synced tombstone: other devices honor it instead of
     // resurrecting the wiped conversation; followup timers from the deleted
     // conversation die with it, and so does her improvised life — a feeling
@@ -664,15 +692,45 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       inner: undefined,
       clearedAt: Date.now(),
     }));
-    setUndo(snapshot);
+    return snapshot;
+  }
+
+  // park a destructive action: the local state is already gone, `commit` is
+  // what actually leaves the device and it does not run for ten seconds
+  function park(label: string, snapshot: Snapshot, commit?: () => void) {
+    setUndo({ label, snapshot });
+    pendingForget.current = commit ?? null;
     if (undoTimer.current) clearTimeout(undoTimer.current);
-    undoTimer.current = setTimeout(() => setUndo(null), 10_000);
+    undoTimer.current = setTimeout(() => {
+      setUndo(null);
+      const run = pendingForget.current;
+      pendingForget.current = null;
+      run?.();
+    }, 10_000);
+  }
+
+  function clearChat() {
+    track(state.deviceId, "chat_cleared", { count: state.messages.length }, state.auth?.userId);
+    park("Chat cleared", tearDownLocally());
+  }
+
+  // The inverse of the whole memory system, from the settings sheet. It is a
+  // superset of clearChat on purpose: leaving the transcript on screen while
+  // deleting the graph would leave her still knowing them from context, which
+  // is the same lie in a smaller window.
+  function forgetEverything() {
+    const device = state.deviceId;
+    track(state.deviceId, "memory_forgotten", { scope: "all" }, state.auth?.userId);
+    park(`${HER_NAME} forgot everything`, tearDownLocally(), () => {
+      forgetMemories(device, { scope: "all" });
+    });
   }
 
   function undoClear() {
-    const snap = undo;
+    const snap = undo?.snapshot;
     if (!snap) return;
     if (undoTimer.current) clearTimeout(undoTimer.current);
+    pendingForget.current = null; // the delete never leaves the device
     setUndo(null);
     busy.current = false;
     epoch.current += 1; // the fresh opener she started belongs to nothing now
@@ -692,6 +750,10 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   useEffect(
     () => () => {
       if (undoTimer.current) clearTimeout(undoTimer.current);
+      // leaving the screen is not undoing: a confirmed forget still goes
+      const run = pendingForget.current;
+      pendingForget.current = null;
+      run?.();
     },
     [],
   );
@@ -1362,11 +1424,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
             onProfile();
           }}
           onClearChat={clearChat}
+          onForgetEverything={forgetEverything}
         />
       )}
       {undo && (
         <div className="undo-toast" role="status">
-          <span>Chat cleared</span>
+          <span>{undo.label}</span>
           <button onClick={undoClear}>Undo</button>
         </div>
       )}

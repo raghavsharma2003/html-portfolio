@@ -141,6 +141,15 @@ export const TrashIcon = ({ size = 19 }: { size?: number }) => (
   </svg>
 );
 
+// what she has worked out about you, as opposed to what you two have said:
+// a head with a thread inside it. Pairs with TrashIcon on the row below.
+export const MemoryIcon = ({ size = 19 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...S} aria-hidden="true">
+    <path d="M15.5 20.5v-2.2a5.8 5.8 0 0 0 3.3-8.9A5.6 5.6 0 0 0 8.4 5.6a4.4 4.4 0 0 0-1.6 8.1v6.8" />
+    <path d="M12 9.2c-1.4.5-2 1.6-2 2.9v3.3" />
+  </svg>
+);
+
 export const HeartIcon = ({ size = 19 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" {...S} aria-hidden="true">
     <path d="M12 20s-7.5-4.6-7.5-9.5A4.2 4.2 0 0 1 12 7.6a4.2 4.2 0 0 1 7.5 2.9C19.5 15.4 12 20 12 20Z" />

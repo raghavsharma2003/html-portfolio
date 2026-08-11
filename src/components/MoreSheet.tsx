@@ -20,6 +20,7 @@ import {
   CloseIcon,
   CloudIcon,
   HeartIcon,
+  MemoryIcon,
   PersonIcon,
   TrashIcon,
 } from "./icons";
@@ -33,7 +34,7 @@ const VIBES = [
   "just curious",
 ];
 
-type View = "menu" | "profile" | "clear";
+type View = "menu" | "profile" | "clear" | "forget";
 
 interface Props {
   state: AppState;
@@ -41,6 +42,9 @@ interface Props {
   onClose: () => void;
   onAccount: () => void;
   onClearChat: () => void;
+  // the inverse of remembering. Same ten-second park as onClearChat — the
+  // caller does not send anything until the window closes.
+  onForgetEverything: () => void;
   messageCount: number;
 }
 
@@ -50,6 +54,7 @@ export default function MoreSheet({
   onClose,
   onAccount,
   onClearChat,
+  onForgetEverything,
   messageCount,
 }: Props) {
   const [view, setView] = useState<View>("menu");
@@ -98,7 +103,15 @@ export default function MoreSheet({
         ref={sheet}
         role="dialog"
         aria-modal="true"
-        aria-label={view === "clear" ? "Clear this chat?" : view === "profile" ? "You" : "Settings"}
+        aria-label={
+          view === "clear"
+            ? "Clear this chat?"
+            : view === "forget"
+              ? "Make her forget you?"
+              : view === "profile"
+                ? "You"
+                : "Settings"
+        }
       >
         <div className="grab" />
         <button className="sheet-x" onClick={onClose} aria-label="Close">
@@ -152,6 +165,26 @@ export default function MoreSheet({
                     {messageCount
                       ? `${messageCount} message${messageCount === 1 ? "" : "s"} · she starts over`
                       : "Nothing to clear yet"}
+                  </span>
+                </span>
+                <span className="schev">
+                  <ChevronIcon />
+                </span>
+              </button>
+
+              {/* The other direction, and it is deliberately the LAST row and
+                  the second destructive one: clearing takes the conversation
+                  and leaves what she knows; this takes what she knows. A
+                  product built on her remembering you is only honest if the
+                  undo for that is somewhere you can find without asking. */}
+              <button className="srow destructive" onClick={() => setView("forget")}>
+                <span className="sicon">
+                  <MemoryIcon />
+                </span>
+                <span className="stext">
+                  <span className="stitle">Make her forget you</span>
+                  <span className="ssub">
+                    Everything she's worked out about your life, deleted for good
                   </span>
                 </span>
                 <span className="schev">
@@ -239,6 +272,44 @@ export default function MoreSheet({
             </div>
             <p className="auth-fine" style={{ marginTop: 16 }}>
               <HeartIcon size={13} /> Your account, and her memory of <em>you</em>, are not touched.
+            </p>
+          </>
+        )}
+
+        {view === "forget" && (
+          <>
+            <h3>Make her forget you?</h3>
+            {/* Named in words, the same as the clear-chat copy, and it names
+                the parts separately because they are separate things: what
+                she worked out about you, and the record of you saying it. */}
+            <p className="confirm-body">
+              {HER_NAME} deletes <b>everything she has worked out about your life</b> — the
+              people, the places, the plans, the running jokes, how things felt — and{" "}
+              <b>her record of every message and call</b> you two have had. This chat goes
+              with it and she starts over not knowing you.
+              <br />
+              <br />
+              You'll get ten seconds to undo. Nothing is sent until then — but once it
+              goes, it is gone, and nobody can bring it back.
+            </p>
+            <div className="confirm-actions">
+              <button
+                className="btn-danger"
+                onClick={() => {
+                  onForgetEverything();
+                  onClose();
+                }}
+              >
+                <TrashIcon size={18} />
+                <span style={{ marginLeft: 8 }}>Forget everything</span>
+              </button>
+              <button className="btn-ghost" style={{ width: "100%" }} onClick={() => setView("menu")}>
+                Keep it
+              </button>
+            </div>
+            <p className="auth-fine" style={{ marginTop: 16 }}>
+              <HeartIcon size={13} /> Your account stays. You can also just ask her — "yeh
+              bhool ja" drops one thing without touching the rest.
             </p>
           </>
         )}

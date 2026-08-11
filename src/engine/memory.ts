@@ -100,6 +100,143 @@ export async function describePhoto(device: string, url: string): Promise<string
   }
 }
 
+// ── forgetting ─────────────────────────────────────────────────────────────
+// The inverse of everything above, and the thing that makes the rest of it
+// consensual. The server hard-deletes rows (api/memory.js opForget); what
+// lives here is the seam that decides WHAT gets asked for, because the two
+// dangerous decisions — how wide a scope is, and whether a whole-memory wipe
+// can be triggered by a generated marker — belong in code, not in a brief.
+
+export type ForgetTarget =
+  | { scope: "item"; name: string }
+  | { scope: "session"; from: number; to: number; channel?: "chat" | "call" }
+  | { scope: "day"; day: string; tzMin: number }
+  | { scope: "all" };
+
+export interface ForgetResult {
+  scope: ForgetTarget["scope"];
+  deleted: { log: number; nodes: number; edges: number };
+}
+
+export async function forgetMemories(
+  device: string,
+  target: ForgetTarget,
+): Promise<ForgetResult | null> {
+  if (!device) return null;
+  const done = diagTimer("chat", "forget", { scope: target.scope });
+  try {
+    const r = await post({ op: "forget", device, ...target });
+    const d = r.ok ? await r.json() : null;
+    if (!d?.ok) {
+      done({ ok: false });
+      return null;
+    }
+    const deleted = {
+      log: Number(d.deleted?.log) || 0,
+      nodes: Number(d.deleted?.nodes) || 0,
+      edges: Number(d.deleted?.edges) || 0,
+    };
+    // the SCOPE is telemetry; the name of the thing they asked her to drop
+    // never is — a diag row naming it would outlive the memory it deleted
+    done({ ok: true, ...deleted });
+    return { scope: d.scope, deleted };
+  } catch {
+    done({ ok: false });
+    return null;
+  }
+}
+
+const localDay = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+// "the call" = the run of spoken turns at the end of the history. Spoken
+// turns never render in the chat, and meera_log has no session column, so a
+// time window is the only handle either side has on one.
+function lastCallWindow(history: Message[]): { from: number; to: number } | null {
+  let end = -1;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].channel === "call") {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) return null;
+  let start = end;
+  while (start > 0) {
+    const prev = history[start - 1];
+    if (prev.channel === "call" || prev.kind === "callmark") start -= 1;
+    else break;
+  }
+  const from = history[start].at || 0;
+  const to = (history[end].at || 0) + 1000;
+  return to > from ? { from, to } : null;
+}
+
+/**
+ * Turn a `[forget: …]` marker into a scope, or refuse it.
+ *
+ * A WHOLE-MEMORY WIPE IS DELIBERATELY NOT IN THIS VOCABULARY. Every other
+ * scope here is bounded and re-learnable — they can just tell her again.
+ * "everything" is neither, and routing it through a generated marker would
+ * put the single irreversible action in the product one stray token away
+ * from happening. It lives in the settings sheet instead: named in words,
+ * with ten seconds to take it back. The refusal is structural rather than a
+ * line in her brief precisely so that a wording regression cannot reach it.
+ */
+export function resolveForget(
+  marker: string,
+  history: Message[],
+  now = Date.now(),
+): ForgetTarget | null {
+  const t = marker.trim().toLowerCase().replace(/[.!?,]+$/, "");
+  if (!t) return null;
+  if (/^(all|everything|sab|sab ?kuch|sabhi|puri|poora|whole|us)\b/.test(t)) return null;
+  if (/\b(call|phone|video)\b/.test(t)) {
+    const win = lastCallWindow(history);
+    return win ? { scope: "session", from: win.from, to: win.to, channel: "call" } : null;
+  }
+  const tzMin = -new Date(now).getTimezoneOffset();
+  if (/^(today|aaj)\b/.test(t)) return { scope: "day", day: localDay(new Date(now)), tzMin };
+  // "kal" is both yesterday and tomorrow in Hinglish; in a forget it can only
+  // ever be the one that has already happened
+  if (/^(yesterday|kal)\b/.test(t))
+    return { scope: "day", day: localDay(new Date(now - 86_400_000)), tzMin };
+  const name = t.slice(0, 60);
+  return name.length >= 3 ? { scope: "item", name } : null;
+}
+
+/**
+ * The other half of a forget, and the half that is easy to miss: the turns
+ * still sitting in the local store are the context window she thinks with.
+ * Deleting them server-side and leaving them here means she has "forgotten"
+ * something she can still read three lines above.
+ *
+ * Only window scopes prune. Forgetting one FACT does not delete the chat they
+ * said it in — that would shred their own history as a side effect of asking
+ * her to drop a detail, which is not what anyone means by "bhool ja".
+ */
+export function messagesAfterForget(messages: Message[], target: ForgetTarget): Message[] {
+  if (target.scope === "all") return [];
+  if (target.scope === "item") return messages;
+  let from: number;
+  let to: number;
+  let channel: "chat" | "call" | undefined;
+  if (target.scope === "session") {
+    ({ from, to, channel } = target);
+  } else {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(target.day);
+    if (!m) return messages;
+    from = Date.UTC(+m[1], +m[2] - 1, +m[3]) - target.tzMin * 60_000;
+    to = from + 86_400_000;
+  }
+  return messages.filter((msg) => {
+    const at = msg.at || 0;
+    if (at < from || at >= to) return true;
+    if (channel && (msg.channel || "chat") !== channel) return true;
+    return false;
+  });
+}
+
 function runRecall(device: string, query: string): Promise<string> {
   try {
     // measured: ~165ms warm, ~900ms cold. 2s is generous headroom and still

@@ -3,6 +3,7 @@
 // exists, brain.ts prefers Claude and falls back here if the network fails.
 
 import { timeOfDay, CRISIS_LINES, type UserProfile } from "./persona";
+import type { ForgetTarget } from "./memory";
 
 export interface HeartReply {
   bubbles: string[];
@@ -11,6 +12,12 @@ export interface HeartReply {
   gif?: { query: string }; // she sends a meme gif (tenor search phrase)
   followup?: { minutes: number; why: string }; // she'll text first after this long
   search?: string; // she wants a live web lookup before finishing this reply
+  // they asked her to drop something and she agreed: the raw marker body on
+  // the way in, and — once the delete has actually happened — what it removed
+  // on the way out. `forgot` is set ONLY after the rows are gone, so a caller
+  // can trust it as a receipt rather than an intention.
+  forget?: string;
+  forgot?: { target: ForgetTarget; deleted: { log: number; nodes: number; edges: number } };
   tone?: string; // calls: her delivery mood right now, drives the TTS direction
   learned?: Record<string, string>;
   // crisis / honesty branches — must be delivered even if every cloud brain
