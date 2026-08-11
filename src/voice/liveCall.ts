@@ -438,6 +438,13 @@ const ECHO_ENV_CAP = 2000; // ~40s of lead: a backstop, never reached in a call
 // room only means the bar is higher than it needed to be for 200ms.
 const ECHO_TAIL_MS = 200;
 const ECHO_TAIL_DB = 20;
+// How far back the ring-admission test peak-holds the prediction: 3 mic ticks
+// ≈ 256ms, the same span herRecentRms uses, so the two questions differ in
+// their statistic and not in the window they look at.
+const ECHO_ADMIT_TICKS = 3;
+// Only sub-frames where she is within this much of her recent peak are used to
+// measure κ. Her pauses carry no coupling information, only model error.
+const ECHO_MEASURE_FRAC = 0.5;
 // The bar sits a MARGIN above the leak estimate, never at it: κ is an RMS
 // ratio and the sub-frames it has to reject are the loud ones. +2.3 dB was
 // chosen by sweeping it against BOTH failure directions at once — below 1.3
@@ -723,6 +730,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   // power at each candidate acoustic lag. A good affine fit across the window
   // means this stretch of mic audio IS her, at that lag — the only evidence
   // that lets κ move UP. Fixed-length arrays: this runs on the audio tick.
+  const echoHold: number[] = []; // recent ticks' predicted echo, for admission
   const fitMic: number[] = [];
   const fitHer: number[][] = []; // [tick][lag]
   let echoLocked = false;
@@ -908,9 +916,26 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     let herNow = 0;
     for (const h of herAt) if (h > herNow) herNow = h;
     const echoAt = herAt.map((h) => kappa * h * ECHO_MARGIN);
-    const echoRing_ADMIT = Math.max(kappa * herMax * ECHO_MARGIN, ...echoAt);
-    let echoTerm = 0;
-    for (const e of echoAt) if (e > echoTerm) echoTerm = e;
+    let echoTick = 0;
+    for (const e of echoAt) if (e > echoTick) echoTick = e;
+    // Whether ANYTHING in this chunk out-shouts her leak is a different
+    // question from whether it is clearing the bar at this instant, and it has
+    // a whole turn to be answered rather than one sub-frame. It gets a
+    // peak-held estimate, because its failure mode is her own voice ending up
+    // in the hold ring and being flushed at the server as the user's turn:
+    // with the instantaneous prediction alone that leak was 1792ms per call at
+    // −6 dB, with the peak hold 938ms, and barge-in is unchanged either way.
+    //
+    // The peak is held over the PREDICTION, never over `kappa * herMax`: κ is
+    // measured against the prediction, so pairing it with the 250ms max
+    // multiplies the same headroom in twice and the bar lands ~3 dB high. That
+    // mistake, made here first, locked a quiet talker out completely — 8/8
+    // releases to 0/8 at −12 dB, where there is no real conflict to trade.
+    echoHold.push(echoTick);
+    if (echoHold.length > ECHO_ADMIT_TICKS) echoHold.shift();
+    let admitEcho = 0;
+    for (const e of echoHold) if (e > admitEcho) admitEcho = e;
+    const echoTerm = echoTick;
     const thrBAt = echoAt.map((e) =>
       Math.min(BARGE_MAX, Math.max(thrL * BARGE_OVER_LISTEN, noiseFloor * BARGE_MULT, e)),
     );
@@ -935,7 +960,13 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       // The ratio is taken against the SAME prediction the bar is built on, so
       // κ and the bar stay in one another's units whichever branch is live.
       for (let s = 0; s < SUBS; s++) {
-        if (herAt[s] <= 0.02) continue; // her own gap: nothing to divide by
+        // Measure the coupling only where the PREDICTION is trustworthy: her
+        // loud moments. In her quiet ones the predicted level is small and the
+        // model's error is a large fraction of it, so the ratio's 90th
+        // percentile ends up absorbing prediction error rather than coupling —
+        // measured as κ = 0.41 on a device whose true coupling is 0.25, which
+        // is 4.3 dB of bar that nothing in the room put there.
+        if (herAt[s] <= 0.02 || herAt[s] < herMax * ECHO_MEASURE_FRAC) continue;
         // subtract ambience in POWER: the mic sums two uncorrelated sources
         const v = sub[s];
         const excess = Math.sqrt(Math.max(0, v * v - noiseFloor * noiseFloor));
@@ -1207,7 +1238,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       // return loss: her own words appearing in inputTranscription in 5 of 6
       // sessions, with no barge-in involved at all.
       let aboveEcho = false;
-      for (let s = 0; s < SUBS; s++) if (sub[s] > echoRing_ADMIT) aboveEcho = true;
+      for (let s = 0; s < SUBS; s++) if (sub[s] > admitEcho) aboveEcho = true;
       if (open && aboveEcho) {
         hold.push(toPcm(input, ratio, outLen));
         if (hold.length > HOLD_RING) hold.shift();
