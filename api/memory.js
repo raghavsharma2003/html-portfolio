@@ -1,9 +1,18 @@
 // Meera memory backend — Supabase-backed conversation log + graph memory.
-// One endpoint, three ops (POST { op, device, ... }):
+// One endpoint, POST { op, device, ... }:
 //   log      — append conversation turns to the permanent log
 //   recall   — graph lookup: relevant nodes + their edges → compact text
 //   remember — LLM extracts entities/relations from recent turns → upsert graph
+//   forget   — the inverse of all three: hard-deletes rows by scope
 // The Supabase anon key lives server-side only; this proxy is the gatekeeper.
+//
+// FORGETTING IS A DELETE, NOT A FLAG. There is no `deleted_at`, no `hidden`
+// column and nothing for recall to filter, because a memory that is still in
+// the table is still a memory — the row is gone. The single exception is
+// meera_forget, which stores the WORD and nothing else, for the one reason
+// documented at noteForgotten(). Every statement in here is scoped by
+// device_id: the device is the identity, so a device can only ever delete
+// its own rows.
 
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
@@ -346,15 +355,31 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
     }));
   if (!nodes.length) return { ok: true, extracted: 0, self, ...interior };
 
+  // THE RE-DERIVATION GUARD. This pass runs over the transcript still on
+  // their screen, so a thing deleted last turn is sitting right there to be
+  // extracted again. Filtering happens BEFORE the upsert — not by deleting
+  // it again afterwards — so a forgotten fact is never written at all.
+  // Checked against name AND summary, because a term filtered out of the
+  // name walks straight back in through the summary.
+  const forgotten = await q(
+    `select term from meera_forget where device_id = $1 order by at desc limit ${FORGET_TERMS_CAP}`,
+    [device],
+  ).catch(() => []);
+  const suppressed = (Array.isArray(forgotten) ? forgotten : []).map((r) => termRe(String(r.term)));
+  const kept = suppressed.length
+    ? nodes.filter((n) => !suppressed.some((rx) => rx.test(n.name) || rx.test(n.summary)))
+    : nodes;
+  if (!kept.length) return { ok: true, extracted: 0, self, ...interior };
+
   // split into existing (bump) vs new (insert)
   const existing = await q(
     `select id, name, mentions, salience, feel from meera_nodes where device_id = $1 and name = any($2)`,
-    [device, nodes.map((n) => n.name)],
+    [device, kept.map((n) => n.name)],
   ).catch(() => []);
   const byName = new Map((Array.isArray(existing) ? existing : []).map((n) => [n.name, n]));
 
   const idOf = new Map();
-  for (const n of nodes) {
+  for (const n of kept) {
     const ex = byName.get(n.name);
     if (ex) {
       idOf.set(n.name, ex.id);
@@ -373,7 +398,7 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
       ).catch(() => {});
     }
   }
-  const fresh = nodes.filter((n) => !byName.has(n.name));
+  const fresh = kept.filter((n) => !byName.has(n.name));
   for (const n of fresh) {
     const ins = await q(
       `insert into meera_nodes (device_id, kind, name, summary, feel, salience) values ($1,$2,$3,$4,$5,$6) returning id, name`,
@@ -400,7 +425,155 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
       [device, e.src, e.dst, e.relation],
     ).catch(() => {});
   }
-  return { ok: true, extracted: nodes.length, self, ...interior };
+  return { ok: true, extracted: kept.length, self, ...interior };
+}
+
+// ── forgetting ─────────────────────────────────────────────────────────────
+
+const reEsc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Terms are ASCII in practice (node names are short lowercase labels), but
+// Hinglish typed in Devanagari has no \b to anchor to, so it falls back to a
+// plain containment match rather than silently never matching.
+const termRe = (t) =>
+  /^[\x20-\x7e]+$/.test(t) ? new RegExp(`\\b${reEsc(t)}\\b`, "i") : new RegExp(reEsc(t), "i");
+
+const FORGET_TERMS_CAP = 200;
+
+// THE ONE THING A FORGET DOES NOT DELETE, and why.
+// The extractor does not read meera_log — it reads the last ~16 turns off the
+// CLIENT, which is the conversation still sitting on their screen. So deleting
+// every row about a thing and stopping there buys exactly one turn: the next
+// remember pass runs over that same untouched transcript, re-derives the fact
+// and inserts it again. Forgetting would be a lie with a delay.
+// This table holds the WORD, per device, and nothing else — no summary, no
+// feeling, no timestamp of the conversation it came from. It is never read by
+// recall, never joined into a prompt, and its only consumer is the filter in
+// opRemember. Scope "all" deletes it too, since a list of things they wanted
+// gone is itself a record of them.
+async function noteForgotten(device, terms) {
+  const clean = [
+    ...new Set(terms.map((t) => String(t || "").trim().toLowerCase()).filter((t) => t.length >= 3)),
+  ].slice(0, 12);
+  for (const t of clean) {
+    await q(
+      `insert into meera_forget (device_id, term) values ($1,$2)
+       on conflict (device_id, lower(term)) do nothing`,
+      [device, t.slice(0, 60)],
+    ).catch(() => {});
+  }
+  if (!clean.length) return;
+  await q(
+    `delete from meera_forget where device_id = $1 and id not in (
+       select id from meera_forget where device_id = $1 order by at desc limit ${FORGET_TERMS_CAP})`,
+    [device],
+  ).catch(() => {});
+}
+
+// an orphaned edge is a relation between two things that no longer exist —
+// it survives every node-level delete unless it is chased explicitly
+async function dropEdgesFor(device, ids) {
+  if (!ids.length) return 0;
+  const gone = await q(
+    `delete from meera_edges where device_id = $1 and (src = any($2) or dst = any($2)) returning id`,
+    [device, ids],
+  ).catch(() => []);
+  return gone.length;
+}
+
+// "everything from that date" — a calendar day is a local-time idea, so it
+// needs their offset. Minutes EAST of UTC; the app is India-first, so IST.
+function dayWindow(body) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(body.day || ""));
+  if (!m) return [NaN, NaN];
+  const raw = Number(body.tzMin);
+  const tz = Number.isFinite(raw) ? Math.max(-840, Math.min(840, raw)) : 330;
+  const start = Date.UTC(+m[1], +m[2] - 1, +m[3]) - tz * 60_000;
+  return [start, start + 86_400_000];
+}
+
+// Scopes, and what each one actually means in rows:
+//   item    — one remembered thing by name: its node, its edges, and the raw
+//             turns that say the word. Deleting the node but keeping the
+//             sentence it was distilled from is not forgetting, it is filing.
+//   session — one stretch of conversation, [from, to) in ms, optionally one
+//             channel ("forget that call" is a window plus channel='call').
+//   day     — one calendar day in their timezone.
+//   all     — every row this device has, including the suppression list.
+async function opForget(device, body) {
+  const scope = ["item", "session", "day", "all"].includes(body.scope) ? body.scope : "";
+  if (!scope) return { error: "unknown scope" };
+
+  let logRows = [];
+  let nodeRows = [];
+  let edges = 0;
+
+  if (scope === "item") {
+    const name = String(body.name || "").trim().toLowerCase().slice(0, 60);
+    // a two-letter term would word-match half the log; a forget must be
+    // precise about what it takes, not merely enthusiastic
+    if (name.length < 3) return { error: "nothing named" };
+    const rx = `\\m${reEsc(name)}\\M`;
+    // summary as well as name: "priya" lives on inside a node called
+    // "wedding" whose one line is about her, and that node is the same fact
+    nodeRows = await q(
+      `delete from meera_nodes where device_id = $1 and (name = $2 or name ~* $3 or summary ~* $3)
+       returning id, name`,
+      [device, name, rx],
+    );
+    edges = await dropEdgesFor(device, nodeRows.map((n) => n.id));
+    logRows = await q(`delete from meera_log where device_id = $1 and content ~* $2 returning id`, [
+      device,
+      rx,
+    ]);
+  } else if (scope === "session" || scope === "day") {
+    const [from, to] = scope === "day" ? dayWindow(body) : [Number(body.from), Number(body.to)];
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return { error: "bad window" };
+    const a = new Date(from).toISOString();
+    const b = new Date(to).toISOString();
+    const chan = body.channel === "call" ? "call" : body.channel === "chat" ? "chat" : null;
+    logRows = await q(
+      `delete from meera_log where device_id = $1 and at >= $2 and at < $3${chan ? " and channel = $4" : ""}
+       returning id`,
+      chan ? [device, a, b, chan] : [device, a, b],
+    );
+    // updated_at, not created_at. A node last written inside the window had
+    // its summary rewritten FROM that window's words — an older node that
+    // came up again during the forgotten stretch is now carrying text from
+    // it. Taking too much here is the safe direction; leaving the stretch
+    // standing in summary form is not.
+    nodeRows = await q(
+      `delete from meera_nodes where device_id = $1 and updated_at >= $2 and updated_at < $3
+       returning id, name`,
+      [device, a, b],
+    );
+    edges = await dropEdgesFor(device, nodeRows.map((n) => n.id));
+    const inWindow = await q(
+      `delete from meera_edges where device_id = $1 and created_at >= $2 and created_at < $3 returning id`,
+      [device, a, b],
+    ).catch(() => []);
+    edges += inWindow.length;
+  } else {
+    logRows = await q(`delete from meera_log where device_id = $1 returning id`, [device]);
+    nodeRows = await q(`delete from meera_nodes where device_id = $1 returning id, name`, [device]);
+    const e = await q(`delete from meera_edges where device_id = $1 returning id`, [device]).catch(
+      () => [],
+    );
+    edges = e.length;
+    await q(`delete from meera_forget where device_id = $1`, [device]).catch(() => {});
+  }
+
+  if (scope !== "all") {
+    const terms = nodeRows.map((n) => n.name);
+    if (scope === "item") terms.push(String(body.name || "").trim().toLowerCase());
+    await noteForgotten(device, terms);
+  }
+
+  return {
+    ok: true,
+    scope,
+    deleted: { log: logRows.length, nodes: nodeRows.length, edges },
+  };
 }
 
 async function opUploadPhoto(device, body) {
@@ -489,6 +662,7 @@ export default async function handler(req, res) {
     if (op === "describe") return res.status(200).json(await opDescribe(req.body));
     if (op === "recall") return res.status(200).json(await opRecall(device, req.body));
     if (op === "remember") return res.status(200).json(await opRemember(device, req.body));
+    if (op === "forget") return res.status(200).json(await opForget(device, req.body));
     return res.status(400).json({ error: "unknown op" });
   } catch (e) {
     return res.status(500).json({ error: "memory failure" });
