@@ -1,0 +1,80 @@
+# The website must never lag behind the branch.
+#
+# It used to: deploys were manual, so the live site was whatever someone last
+# remembered to push out. On 2026-08-11 production was found serving a build
+# from two commits earlier, with the API older still — and nothing reported it,
+# because a stale deploy looks exactly like a working one.
+#
+# This runs the same deploy a human would, on every push, so "deployed" stops
+# being a thing anyone has to remember.
+#
+# NEEDS ONE SECRET: VERCEL_TOKEN (Settings → Secrets → Actions). Without it the
+# job fails loudly rather than skipping quietly — a deploy workflow that
+# silently does nothing is worse than no workflow, because it looks like cover.
+name: Deploy web
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  workflow_dispatch:
+
+# A newer push makes an in-flight deploy pointless. Cancel it rather than
+# racing: two deploys landing out of order would leave the OLDER one live.
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Fail early if the token is missing
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN is not set. Add it in Settings → Secrets → Actions."
+            exit 1
+          fi
+
+      # The same gates the APK build runs. A green site with a red typecheck is
+      # how a broken build reaches production without anyone noticing.
+      - run: npm ci
+      - run: npx tsc -b
+      - run: node scripts/check-prompt-budget.mjs
+      - run: node scripts/context.mjs --check
+
+      # api/_config.js holds every key and is gitignored, so CI does not have
+      # it. It is reconstructed here from secrets and never written to a log.
+      # A deploy without it returns 500 on every API route.
+      - name: Reconstruct api/_config.js
+        env:
+          OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
+          GOOGLE_KEY: ${{ secrets.GOOGLE_KEY }}
+          GOOGLE_KEYS: ${{ secrets.GOOGLE_KEYS }}
+          GOOGLE_PAID_KEY: ${{ secrets.GOOGLE_PAID_KEY }}
+          NEON_URL: ${{ secrets.NEON_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          AZURE_KEY: ${{ secrets.AZURE_KEY }}
+          AZURE_ENDPOINT: ${{ secrets.AZURE_ENDPOINT }}
+        run: node scripts/write-config.mjs
+
+      - name: Deploy to production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        # --archive=tgz: a plain upload of this tree (photos included) has
+        # failed with "fetch failed" mid-transfer; the tarball path is what
+        # actually completes.
+        run: npx --yes vercel@latest deploy --prod --yes --archive=tgz
+
+      # Deployed is not the same as serving the new code. Vercel reports READY
+      # for a build whose functions still 500, so assert the live site answers.
+      - name: Verify production is actually serving
+        run: node scripts/verify-deploy.mjs
