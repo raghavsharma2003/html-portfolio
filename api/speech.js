@@ -14,7 +14,7 @@
 // a free speedup out of it.
 
 import { allow, ipOf } from "./_ratelimit.js";
-import { withGeminiKey, isQuota, isTransient, poolSize } from "./_gkeys.js";
+import { withGeminiKey, isQuota, isTransient, poolSize, poolHealth } from "./_gkeys.js";
 
 import { OPENROUTER_KEY } from "./_config.js";
 
@@ -133,7 +133,7 @@ export default async function handler(req, res) {
           // 1000ms against a p90 of 2427ms with no way to tell which. Two
           // header writes, no extra work on the request path.
           "X-Meera-Lane": lane,
-          "X-Meera-Pool": String(poolSize()),
+          "X-Meera-Pool": poolHealth(),
           "Access-Control-Expose-Headers": "X-Meera-Lane, X-Meera-Pool",
         });
       }
@@ -392,7 +392,7 @@ export default async function handler(req, res) {
     res.setHeader("Content-Type", "audio/wav");
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Meera-Lane", winner); // same attribution on the buffered path
-    res.setHeader("X-Meera-Pool", String(poolSize()));
+    res.setHeader("X-Meera-Pool", poolHealth());
     res.setHeader("Access-Control-Expose-Headers", "X-Meera-Lane, X-Meera-Pool");
     return res.status(200).send(Buffer.concat([wavHeader(pcm.length), pcm]));
   } catch (e) {

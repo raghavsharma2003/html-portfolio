@@ -22,12 +22,36 @@
 // hundred milliseconds once, against a Neon round-trip on EVERY call to share
 // the state. The cheap failure is the right one here.
 
-import { GOOGLE_KEY, GOOGLE_KEYS } from "./_config.js";
+// Namespace import, not named: GOOGLE_PAID_KEY is optional, and a named import
+// of an export that does not exist is a link-time SyntaxError that would take
+// the whole function down rather than degrade.
+import * as CFG from "./_config.js";
 
-const POOL = (Array.isArray(GOOGLE_KEYS) && GOOGLE_KEYS.length ? GOOGLE_KEYS : [GOOGLE_KEY])
+const POOL = (Array.isArray(CFG.GOOGLE_KEYS) && CFG.GOOGLE_KEYS.length
+  ? CFG.GOOGLE_KEYS
+  : [CFG.GOOGLE_KEY])
   .filter((k) => typeof k === "string" && k.length > 20)
   // a key pasted twice would otherwise be tried twice before moving on
   .filter((k, i, a) => a.indexOf(k) === i);
+
+/**
+ * A BILLED Google key, if one is configured. Optional, and everything works
+ * without it — but it is the difference between 600 ms and 2 s once free quota
+ * runs out, which on a real day is most of the day.
+ *
+ * Measured 2026-08-11: all 9 free keys returned 429 "exceeded your current
+ * quota" together, and the only remaining fallback (OpenRouter) CANNOT stream —
+ * chunked encoding, but the first byte lands at 1742-2267 ms with the whole
+ * clip arriving ~20 ms later, i.e. it buffers the synthesis. Google direct
+ * streams a first frame at 615-1051 ms. A billed key is the same fast streaming
+ * path that simply never 429s.
+ *
+ * Read from the environment first so it can be set in the Vercel dashboard
+ * without touching the gitignored config file.
+ */
+const PAID_KEY = [process.env.GOOGLE_PAID_KEY, CFG.GOOGLE_PAID_KEY].find(
+  (k) => typeof k === "string" && k.length > 20 && !POOL.includes(k),
+);
 
 // Free-tier quotas are mostly per-minute, so a key that 429s is usually fine
 // again shortly. Five minutes is long enough to stop hammering it and short
@@ -88,6 +112,13 @@ const SICK_MS = 30_000;
 
 export async function withGeminiKey(fn) {
   const keys = healthyKeys().slice(0, MAX_TRIES);
+  // The billed key goes LAST, always, and is never cooled: free capacity is
+  // still spent first, and the tier below (OpenRouter) is still there if this
+  // fails too. Appending it here rather than giving it its own lane is
+  // deliberate — it is the same Google streaming endpoint, so it inherits the
+  // caller's streaming path, its frame parsing and its splice protection for
+  // free. A separate lane would be a second audio path to keep in sync.
+  if (PAID_KEY) keys.push(PAID_KEY);
   let lastErr = null;
   for (const key of keys) {
     let r;
@@ -99,7 +130,7 @@ export async function withGeminiKey(fn) {
     }
     if (r?.ok) return { value: r.value, key };
     if (r?.exhausted) {
-      markExhausted(key);
+      if (key !== PAID_KEY) markExhausted(key); // a billed key is never "spent"
       lastErr = "quota";
       continue;
     }
@@ -135,3 +166,16 @@ export const isTransient = (status) =>
   status === 500 || status === 502 || status === 503 || status === 504 || status === 408;
 
 export const poolSize = () => POOL.length;
+
+/**
+ * How many keys are believed usable RIGHT NOW, plus whether a billed key is
+ * configured. `poolSize` is a constant, which is why the diagnostic header it
+ * fed read "pool=9" while all nine keys were sitting on a 429 — a number that
+ * looked like health and carried none. Per-instance, so it reflects what this
+ * function has actually seen, which is the honest scope of the answer.
+ */
+export const poolHealth = () => {
+  const now = Date.now();
+  const live = POOL.filter((k) => (cooled.get(k) ?? 0) <= now).length;
+  return `${live}/${POOL.length}${PAID_KEY ? "+p" : ""}`;
+};
