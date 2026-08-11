@@ -249,12 +249,46 @@ class LiveWatchEngine {
    * floor from herself: at −12 dB and −8 dB echo return loss the old arbiter
    * self-interrupted in 6 of 6 trials and this one in 0 of 6.
    */
+  //
+  // ── ...AND WHY IT MAY NOW ALSO RISE, ON EVIDENCE THAT IS NOT A LEVEL ──
+  //
+  // Twin of the web lane; see src/voice/liveCall.ts for the full argument and
+  // the measurements. In short: the seed is a GUESS about the device, and a
+  // phone at loud volume or on speakerphone (≈−6 dB of coupling, κ ≈ 0.5) puts
+  // the bar below her own leak with no way back up. Simulated against the real
+  // arbiter, three of her turns per call, 8 seeds, nobody in the room:
+  //
+  //   coupling   self-duck % of her turn     her own voice sent to the server
+  //     −6 dB          91  →  13                  6996ms  →  1194ms per call
+  //     −9 dB          33  →   5                  4778ms  →   512ms
+  //    −12 dB           2  →   0                  2474ms  →   341ms
+  //   and at −1.5 dB she took the floor from herself in 6 of 8 calls → 2 of 8,
+  //   with barge-in unchanged at 8/8 from −6 dB down (7/8 at −3, as before).
+  //
+  // κ may rise only while the ECHO LOCK holds: across a 1.0s window of mic
+  // ticks, mic power must be an affine function of HER OWN output power at a
+  // fixed lag. A second talker is uncorrelated with her envelope, so they move
+  // the intercept and wreck the fit — which is why this is not the "level
+  // statistic" the paragraph above rules out. Measured r² of that fit: 0.89
+  // median on pure echo, and gating at 0.7 keeps √slope within 4% of its
+  // pure-echo value even with a loud person talking across her whole turn.
   private static final double ECHO_KAPPA_SEED = 0.30; // ≈10 dB ERL: bare speakerphone
   private static final double ECHO_KAPPA_MIN = 0.02; // ≈34 dB ERL: real AEC
+  /** ≈−2.4 dB ERL. Past this no bar can tell her voice from anyone else's. */
+  private static final double ECHO_KAPPA_MAX = 0.76;
   private static final int ECHO_WIN_SUBS = 50; // 1.0s of ratio history
   private static final double ECHO_PCT = 0.9; // must bound the leak's PEAKS
   private static final int ECHO_MIN_SAMPLES = 16;
   private static final double ECHO_RATE = 0.4; // how fast κ comes down
+  /** Faster than the decay: under-protection is the self-sustaining failure. */
+  private static final double ECHO_UP_RATE = 0.55;
+  private static final int ECHO_FIT_WIN = 10; // 10 mic chunks = 1.0s
+  private static final double ECHO_FIT_R2 = 0.7; // pure echo sits at p10 = 0.73
+  private static final int ECHO_LAG_STEP_MS = 20;
+  private static final int ECHO_LAGS = 14; // 0…260ms of acoustic round trip
+  /** How long the room keeps handing her last syllable back, and how far down. */
+  private static final int ECHO_TAIL_MS = 200;
+  private static final double ECHO_TAIL_DB = 20;
   /** The bar sits a MARGIN above the leak estimate, never at it: κ is an RMS
    *  ratio and the sub-frames it must reject are the loud ones. +2.3 dB was
    *  chosen by sweeping it against BOTH failure directions at once — below 1.3
@@ -461,6 +495,37 @@ class LiveWatchEngine {
   private final double[] herLvl = new double[HER_RING]; // its RMS, Int16 units
   private final int[] herGen = new int[HER_RING]; // flushGen it belongs to
   private volatile int herWrite = 0; // next slot; only the play thread writes
+  /**
+   * The same audio at 20ms resolution: what she was doing at one exact moment,
+   * rather than how loud she was around now. herLvl answers the second
+   * question (a max over a window, so it can bound a peak without anyone
+   * measuring the device's acoustic round trip); the echo fit needs the first,
+   * because it correlates her envelope against the microphone's.
+   *
+   * Sized for the LEAD, not for the history: the downlink runs seconds ahead
+   * of the speaker (a median of ~5s of unplayed audio on his own calls), so a
+   * ring holding only the last N frames fills with audio nobody has heard yet
+   * and the lookup falls off the front of it. 1024 blocks = 20.5s of lead.
+   * Same single-writer/single-reader discipline as herLvl above.
+   */
+  private static final int HER_ENV_RING = 1024;
+  private final long[] herEnvTo = new long[HER_ENV_RING]; // one past the block's last frame
+  private final double[] herEnvP = new double[HER_ENV_RING]; // its POWER, Int16 units²
+  private final int[] herEnvGen = new int[HER_ENV_RING];
+  private volatile int herEnvWrite = 0;
+  /** Scratch for one chunk's 20ms powers, play thread only. */
+  private final double[] envScratch = new double[512];
+  /** Decay applied to her tail, one entry per 20ms of age. */
+  private static final double[] ECHO_TAIL_DECAY = tailDecay();
+
+  private static double[] tailDecay() {
+    final int n = ECHO_TAIL_MS / 20 + 1;
+    final double[] d = new double[n];
+    for (int i = 0; i < n; i++) {
+      d[i] = Math.pow(10, -ECHO_TAIL_DB * (i * 20.0 / ECHO_TAIL_MS) / 10);
+    }
+    return d;
+  }
   /** One past the last frame handed to the track, in the same frame clock. */
   private volatile long herWritten = 0;
   private volatile float trackVol = 1f; // what fraction is reaching the speaker
@@ -1252,6 +1317,18 @@ class LiveWatchEngine {
     final double[] spanSort = new double[SOFT_CLAIM_WIN_SUBS + 8];
     final double[] echoRing = new double[ECHO_WIN_SUBS]; // mic÷her ratios
     final double[] echoSort = new double[ECHO_WIN_SUBS];
+    // per-sub-frame prediction and the bars derived from it
+    final double[] herAtSub = new double[SUBS];
+    final double[] echoAtSub = new double[SUBS];
+    final double[] thrBSub = new double[SUBS];
+    final double[] thrSSub = new double[SUBS];
+    // the echo lock: one row per mic chunk, one column per candidate lag
+    final double[] fitMic = new double[ECHO_FIT_WIN];
+    final double[][] fitHer = new double[ECHO_FIT_WIN][ECHO_LAGS];
+    int fitIdx = 0;
+    int fitFill = 0;
+    boolean echoLocked = false;
+    int echoLag = -1; // -1 = never locked; the prediction falls back to herAt()
     int echoIdx = 0;
     int echoFill = 0;
     int hardHead = 0;
@@ -1316,6 +1393,10 @@ class LiveWatchEngine {
         kappa = ECHO_KAPPA_SEED;
         echoFill = 0;
         echoIdx = 0;
+        fitFill = 0;
+        fitIdx = 0;
+        echoLocked = false;
+        echoLag = -1;
         floorLost = false;
         floorClaimSince = 0;
         floorReleasedAt = 0;
@@ -1415,23 +1496,54 @@ class LiveWatchEngine {
         floor = Math.min(FLOOR_MAX, Math.max(FLOOR_MIN, floorSort[(int) (floorFill * FLOOR_PCT)]));
       }
       // ── the two bars ──
-      final double herNow = herAt(head) * trackVol;
-      final double echoTerm = kappa * herNow * ECHO_MARGIN;
       final double thrL =
           Math.min(
               LISTEN_ABS_MAX,
               Math.max(
                   floor * LISTEN_RATIO_MIN,
                   Math.min(Math.max(floor * LISTEN_MULT, LISTEN_MIN), LISTEN_MAX)));
-      final double thrB =
-          Math.min(BARGE_MAX, Math.max(Math.max(thrL * BARGE_OVER_LISTEN, floor * BARGE_MULT), echoTerm));
+      // herAt() is a MAX over a window around the playback head, taken that way
+      // so the bar could bound a peak without measuring the acoustic round
+      // trip. Once the lock has measured it, predict the echo instead: her own
+      // envelope at that lag, decayed across the reverb tail. See herTailPower.
+      final double herMax = herAt(head) * trackVol;
+      final long lagFrames =
+          echoLag >= 0 ? (long) OUT_RATE * echoLag * ECHO_LAG_STEP_MS / 1000 : 0;
+      final long subFrames = OUT_RATE * 20 / 1000;
+      double herNow = 0;
+      double echoTerm = 0;
+      for (int s = 0; s < SUBS; s++) {
+        if (echoLag < 0) {
+          herAtSub[s] = herMax;
+        } else {
+          // this mic chunk covers the SUBS*20ms ending at `head`
+          final long f = head - lagFrames - subFrames * (SUBS - 1 - s);
+          herAtSub[s] = Math.sqrt(herTailPower(f)) * trackVol;
+        }
+        echoAtSub[s] = kappa * herAtSub[s] * ECHO_MARGIN;
+        if (herAtSub[s] > herNow) herNow = herAtSub[s];
+        if (echoAtSub[s] > echoTerm) echoTerm = echoAtSub[s];
+        thrBSub[s] =
+            Math.min(
+                BARGE_MAX,
+                Math.max(Math.max(thrL * BARGE_OVER_LISTEN, floor * BARGE_MULT), echoAtSub[s]));
+      }
+      // Whether anything at all in this chunk out-shouts her leak is a
+      // different question from whether it is clearing the bar RIGHT NOW, and
+      // it has a whole turn to be answered rather than one sub-frame. It gets
+      // the conservative estimate — her recent PEAK leak, not the prediction —
+      // because its failure mode is her own voice ending up in the hold ring
+      // and being flushed at the server as the user's turn. Measured: with the
+      // prediction alone that leak was 1792ms per call at −6 dB; with the peak
+      // it is 938ms, and barge-in is unchanged.
+      final double admitEcho = Math.max(kappa * herMax * ECHO_MARGIN, echoTerm);
       // No echo term: with it, min(thrB, max(…, echoTerm)) is exactly thrB
       // whenever echo binds thrB, and the valve collapses onto the bar it is
       // supposed to sit below. The min() stays only as a sanity rail — with
       // SOFT_OVER_LISTEN < BARGE_OVER_LISTEN and SOFT_MULT < BARGE_MULT it can
       // bind only when BARGE_MAX clamps thrB.
-      final double thrS =
-          Math.min(thrB, Math.max(thrL * SOFT_OVER_LISTEN, floor * SOFT_MULT));
+      final double softBar = Math.max(thrL * SOFT_OVER_LISTEN, floor * SOFT_MULT);
+      for (int s = 0; s < SUBS; s++) thrSSub[s] = Math.min(thrBSub[s], softBar);
       if (rms > thrL) gateLeft = 3; // ~300ms hangover
       else if (gateLeft > 0) gateLeft--;
       gated = gateLeft <= 0;
@@ -1443,25 +1555,91 @@ class LiveWatchEngine {
       // 90th percentile of those, which must bound the peaks of the
       // room. κ then DECAYS toward that and never rises — see ECHO_KAPPA_SEED
       // for why the direction is forced.
-      if (herAudible && herNow > 600) {
+      if (herAudible && herMax > 600) {
+        // The ratio is taken against the SAME prediction the bar is built on,
+        // so κ and the bar stay in one another's units whichever branch is live.
         for (int s2 = 0; s2 < SUBS; s2++) {
+          if (herAtSub[s2] <= 600) continue; // her own gap: nothing to divide by
           // subtract ambience in POWER: the mic sums uncorrelated sources
           double excess = Math.sqrt(Math.max(0, sub[s2] * sub[s2] - floor * floor));
-          echoRing[echoIdx] = excess / herNow;
+          echoRing[echoIdx] = excess / herAtSub[s2];
           echoIdx = (echoIdx + 1) % ECHO_WIN_SUBS;
           if (echoFill < ECHO_WIN_SUBS) echoFill++;
+        }
+        // THE LOCK. One (her power at lag L, mic power) pair per mic chunk;
+        // a good affine fit across the window means this stretch of microphone
+        // audio IS her, at that lag — the only evidence that lets κ move UP.
+        {
+          final long win = (long) OUT_RATE * SUBS * 20 / 1000;
+          for (int L = 0; L < ECHO_LAGS; L++) {
+            fitHer[fitIdx][L] =
+                herMeanPower(head - (long) OUT_RATE * L * ECHO_LAG_STEP_MS / 1000, win);
+          }
+          fitMic[fitIdx] = Math.max(0, rms * rms - floor * floor);
+          fitIdx = (fitIdx + 1) % ECHO_FIT_WIN;
+          if (fitFill < ECHO_FIT_WIN) fitFill++;
+          echoLocked = false;
+          if (fitFill == ECHO_FIT_WIN) {
+            double my = 0;
+            for (int i = 0; i < ECHO_FIT_WIN; i++) my += fitMic[i];
+            my /= ECHO_FIT_WIN;
+            double syy = 0;
+            for (int i = 0; i < ECHO_FIT_WIN; i++) syy += (fitMic[i] - my) * (fitMic[i] - my);
+            if (syy > 0) {
+              double bestR2 = 0;
+              int bestL = -1;
+              for (int L = 0; L < ECHO_LAGS; L++) {
+                double mx = 0;
+                for (int i = 0; i < ECHO_FIT_WIN; i++) mx += fitHer[i][L];
+                mx /= ECHO_FIT_WIN;
+                double sxx = 0;
+                double sxy = 0;
+                for (int i = 0; i < ECHO_FIT_WIN; i++) {
+                  final double dx = fitHer[i][L] - mx;
+                  sxx += dx * dx;
+                  sxy += dx * (fitMic[i] - my);
+                }
+                // sxy > 0 as well as r²: a NEGATIVE slope fits just as tightly
+                // and means the opposite of what we are looking for.
+                if (sxx <= 0 || sxy <= 0) continue;
+                final double r2 = (sxy * sxy) / (sxx * syy);
+                if (r2 > bestR2) {
+                  bestR2 = r2;
+                  bestL = L;
+                }
+              }
+              if (bestL >= 0 && bestR2 >= ECHO_FIT_R2) {
+                echoLocked = true;
+                // The round trip belongs to the device and the room, not to
+                // this second: keep the last lag actually earned, so the
+                // prediction survives windows where the fit is inconclusive.
+                echoLag = bestL;
+              }
+            }
+          }
         }
         if (echoFill >= ECHO_MIN_SAMPLES) {
           System.arraycopy(echoRing, 0, echoSort, 0, echoFill);
           Arrays.sort(echoSort, 0, echoFill);
           double leak = echoSort[Math.min(echoFill - 1, (int) (echoFill * ECHO_PCT))];
-          // DECAY ONLY. A ratio above κ is not evidence of a leakier device —
-          // a person raises every percentile of it — so it is never acted on.
+          // DOWN is unconditional: a ratio below κ can only mean the device
+          // leaks less than we feared, whoever else is in the room.
           if (leak < kappa) kappa = Math.max(ECHO_KAPPA_MIN, kappa - ECHO_RATE * (kappa - leak));
+          // UP only on a locked fit. A ratio above κ is not, on its own,
+          // evidence of a leakier device — a person raises every percentile of
+          // it. It becomes evidence once we can also show this window's mic
+          // audio is an affine function of her own output at a fixed lag,
+          // which a person cannot make true.
+          else if (echoLocked) {
+            kappa = Math.min(ECHO_KAPPA_MAX, kappa + ECHO_UP_RATE * (leak - kappa));
+          }
         }
-      } else if (!herAudible && echoFill != 0) {
+      } else if (!herAudible && (echoFill != 0 || fitFill != 0)) {
         echoFill = 0; // her turn is over; the next one measures itself
         echoIdx = 0;
+        fitFill = 0; // and a gap in her audio is not a fit, it is a jump
+        fitIdx = 0;
+        echoLocked = false;
       }
       if (holding) {
         for (int s = 0; s < SUBS; s++) {
@@ -1473,14 +1651,14 @@ class LiveWatchEngine {
           // anybody. A marginal talker measured that way lands at σ ≈ 2.1-2.4
           // dB against a 2.0 dB bar and is refused as a machine.
           subLin[(int) Math.floorMod(subIdx, (long) subLin.length)] = sub[s];
-          if (sub[s] > thrB) {
+          if (sub[s] > thrBSub[s]) {
             int w = (hardHead + hardCount) % hardHits.length;
             hardHits[w] = subIdx;
             if (hardCount < hardHits.length) hardCount++;
             else hardHead = (hardHead + 1) % hardHits.length;
           }
           // a soft hit must also out-shout her own leak, at this instant
-          if (sub[s] > thrS && sub[s] > echoTerm) {
+          if (sub[s] > thrSSub[s] && sub[s] > echoAtSub[s]) {
             int w = (softHead + softCount) % softHits.length;
             softHits[w] = subIdx;
             if (softCount < softHits.length) softCount++;
@@ -1668,7 +1846,7 @@ class LiveWatchEngine {
         // the end of every turn she speaks. Observed on the real endpoint at
         // −12 dB echo return loss in 5 of 6 sessions, no barge-in involved.
         boolean aboveEcho = false;
-        for (int s2 = 0; s2 < SUBS; s2++) if (sub[s2] > echoTerm) aboveEcho = true;
+        for (int s2 = 0; s2 < SUBS; s2++) if (sub[s2] > admitEcho) aboveEcho = true;
         if (!gated && aboveEcho) {
           int k = (holdHead + holdCount) % HOLD_RING;
           if (hold[k] == null || hold[k].length < n) hold[k] = new byte[buf.length];
@@ -1782,6 +1960,54 @@ class LiveWatchEngine {
       if (herLvl[i] > m) m = herLvl[i];
     }
     return m;
+  }
+
+  /**
+   * What her own voice is still expected to measure at the microphone at track
+   * frame {@code at}: the loudest 20ms she played before it, each one decayed
+   * by how long ago it was.
+   *
+   * A flat peak-hold over the tail is just herAt() again — her syllables are
+   * close enough together that the recent peak IS the local peak, and it was
+   * measured as exactly neutral. The decay is the point: a syllable 100ms back
+   * is still arriving, but 10 dB down, so the bar follows her envelope into
+   * her own pauses instead of sitting at her loudest word through all of them.
+   * That is where people start talking, and it is what keeps barge-in at 8/8
+   * while κ is allowed to rise.
+   */
+  private double herTailPower(long at) {
+    if (at < 0) return 0;
+    final int gen = flushGen.get();
+    final long span = (long) OUT_RATE * ECHO_TAIL_MS / 1000;
+    final long blk = OUT_RATE * 20 / 1000;
+    double m = 0;
+    for (int i = 0; i < HER_ENV_RING; i++) {
+      if (herEnvGen[i] != gen) continue;
+      final long e = herEnvTo[i];
+      final long age = at - e;
+      if (age < 0 || age >= span) continue;
+      final int k = (int) (age / blk);
+      if (k >= ECHO_TAIL_DECAY.length) continue;
+      final double d = herEnvP[i] * ECHO_TAIL_DECAY[k];
+      if (d > m) m = d;
+    }
+    return m;
+  }
+
+  /** Her MEAN output power over {@code win} frames ending at {@code at}. */
+  private double herMeanPower(long at, long win) {
+    if (at < 0) return 0;
+    final int gen = flushGen.get();
+    double acc = 0;
+    int n = 0;
+    for (int i = 0; i < HER_ENV_RING; i++) {
+      if (herEnvGen[i] != gen) continue;
+      final long e = herEnvTo[i];
+      if (e > at || e <= at - win) continue;
+      acc += herEnvP[i];
+      n++;
+    }
+    return n > 0 ? acc / n : 0;
   }
 
   /**
@@ -2007,6 +2233,7 @@ class LiveWatchEngine {
         final int blk = OUT_RATE * 20 / 1000; // 480 frames = 20ms at 24k
         double peak20 = 0;
         double acc = 0;
+        int envN = 0;
         for (int f = 0; f + blk <= frames; f += blk) {
           double a2 = 0;
           for (int i = f; i < f + blk; i++) {
@@ -2016,6 +2243,8 @@ class LiveWatchEngine {
           acc += a2;
           double r20 = Math.sqrt(a2 / blk);
           if (r20 > peak20) peak20 = r20;
+          // the echo fit's regressor — free, this loop is already walking them
+          if (envN < envScratch.length) envScratch[envN++] = a2 / blk;
         }
         if (peak20 == 0) {
           for (int i = 0; i + 1 < chunk.length; i += 2) {
@@ -2059,6 +2288,18 @@ class LiveWatchEngine {
             herGen[slot] = g;
             herWrite = herWrite + 1;
             herWritten = queued;
+            // ...and the same audio at 20ms, but only the blocks that really
+            // made it into the track: a block published for audio the write
+            // dropped would have the arbiter protecting silence.
+            for (int e = 0; e < envN; e++) {
+              final long to = chunkFrom + (long) (e + 1) * blk;
+              if (to > queued) break;
+              int es = Math.floorMod(herEnvWrite, HER_ENV_RING);
+              herEnvTo[es] = to;
+              herEnvP[es] = envScratch[e];
+              herEnvGen[es] = g;
+              herEnvWrite = herEnvWrite + 1;
+            }
           }
         } else {
           lastGen = flushGen.get();
