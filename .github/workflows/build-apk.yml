@@ -25,6 +25,10 @@ jobs:
       # where the crisis helplines, the AI-honesty rule and the search protocol
       # live — it has already cost us all three once.
       - run: node scripts/check-prompt-budget.mjs
+      # The project's memory must stay valid: a decision whose measurement was
+      # renamed, or an entry written up nowhere, is a story about the project
+      # rather than a record of it.
+      - run: node scripts/context.mjs --check
       - run: npx vite build
       - run: npx cap sync android
       - run: cd android && ./gradlew assembleDebug --no-daemon

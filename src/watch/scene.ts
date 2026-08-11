@@ -184,6 +184,26 @@ const SHOW_FLOOR_MS = 4000;
 // it — after it proves it is not a passing overlay.
 const SWITCH_CONFIRM_MS = 900;
 
+// ── one reaction per thing ──────────────────────────────────────────────────
+// A wake she ANSWERED is different from a wake that merely fired, and the
+// difference is only visible over a moving screen. Measured over real captured
+// sessions (scratchpad/mf): 26% of everything she said across a session was
+// her saying a thing she had already said, and half of those landed on a
+// picture that was, at 16x16, the SAME PICTURE she had already spoken about —
+// they scrolled away and came back, an app switch returned to where it started,
+// a hold broke and re-formed on the same screen. Each of those is a fresh hold
+// and a legitimate wake by every rule above, and every one of them is a friend
+// saying the same sentence to you twice.
+//
+// This is geometry, not taste: it knows only that this picture is the picture
+// a wake was already spent on. It carries no opinion about what is in it, and
+// it cannot be right or wrong about content because it never looks at any.
+//
+// The window is IDLE_WAKE_MS, deliberately: after a full idle beat has passed,
+// coming back to something IS a new moment, and the same screen is fair again.
+const SPOKEN_RING = 8;
+const SPOKEN_MAD = 5; // levels on the 16x16 reduction, as RESHOW_MAD
+
 // Going back to something you already passed is the clearest showing there is
 // — putting the thing back in front of her, with a thumb. One 16x16
 // signature per second for 20 seconds is 5KB.
@@ -290,6 +310,9 @@ export class SceneReader {
   private ringAt = 0;
   private holdId = 0;
 
+  // pictures a wake was already spent on — see SPOKEN_RING
+  private spoken: Held[] = [];
+
   // pacing
   private novelty = 0;
   private lastAmbientAt = 0;
@@ -320,6 +343,7 @@ export class SceneReader {
     this.ring = [];
     this.ringAt = 0;
     this.holdId = 0;
+    this.spoken = [];
     this.novelty = 0;
     this.lastAmbientAt = 0;
     this.lastShowAt = 0;
@@ -331,6 +355,13 @@ export class SceneReader {
    *  own gates, because a wake the socket, the ceiling or her own voice
    *  refused never happened and must not spend the budget. */
   noteWake(cls: WakeClass, at: number) {
+    // Remember the PICTURE this wake was spent on, so nothing can be woken on
+    // twice. Only wakes that actually went out reach this method, which is
+    // exactly the set that should count.
+    if (this.prev) {
+      this.spoken.push({ sig: reduce(this.prev), at, hold: this.holdId });
+      if (this.spoken.length > SPOKEN_RING) this.spoken.shift();
+    }
     if (isShowClass(cls)) {
       this.settled = true;
       this.lastShowAt = at;
@@ -594,6 +625,19 @@ export class SceneReader {
     return clamp(own ? HOLD_MULTIPLIER * own : lo, lo, hi);
   }
 
+  /** Has a wake already been spent on THIS picture, recently? The reduction is
+   *  computed at most once per tick and only when a wake is otherwise about to
+   *  fire, so the common case — no wake — costs nothing. */
+  private answered(at: number, memo: { sig?: Uint8Array }): boolean {
+    if (!this.prev || !this.spoken.length) return false;
+    if (!memo.sig) memo.sig = reduce(this.prev);
+    for (const h of this.spoken) {
+      if (at - h.at > IDLE_WAKE_MS) continue;
+      if (madSmall(h.sig, memo.sig) <= SPOKEN_MAD) return true;
+    }
+    return false;
+  }
+
   private pick(
     at: number,
     quiet: boolean,
@@ -603,6 +647,7 @@ export class SceneReader {
     cy: number,
     blank: boolean,
   ): WakeClass | null {
+    const memo: { sig?: Uint8Array } = {};
     const { gap, repGap, storm } = this.tempo(at);
     // 0 means "never yet", not "at the epoch" — the first show of a session
     // must not be blocked by a floor measured from a timestamp that never was
@@ -618,7 +663,8 @@ export class SceneReader {
         this.prerolled = true;
         this.prerollNow = true;
       }
-      if (showOk && held >= hold) return this.armedReshow ? "reshow" : "settle";
+      if (showOk && held >= hold && !this.answered(at, memo))
+        return this.armedReshow ? "reshow" : "settle";
     }
 
     // pointing: a cursor circling a thing, or a thumb tapping the same region,
@@ -640,7 +686,8 @@ export class SceneReader {
       if (
         this.pointTicks >= POINT_TICKS &&
         Math.abs(cx - this.pointFromX) >= POINT_TRAVEL &&
-        Math.abs(cy - this.pointFromY) >= POINT_TRAVEL
+        Math.abs(cy - this.pointFromY) >= POINT_TRAVEL &&
+        !this.answered(at, memo)
       ) {
         this.pointTicks = 0;
         return "point";
@@ -658,7 +705,8 @@ export class SceneReader {
       !quiet &&
       !blank &&
       showOk &&
-      at - this.pendingAt >= SWITCH_CONFIRM_MS
+      at - this.pendingAt >= SWITCH_CONFIRM_MS &&
+      !this.answered(at, memo)
     ) {
       this.pendingFired = true;
       return "switch";
@@ -673,7 +721,8 @@ export class SceneReader {
     if (
       this.novelty >= NOVELTY_BUDGET &&
       (!this.lastAmbientAt || at - this.lastAmbientAt >= ALONG_MIN_MS) &&
-      at - this.startedAt >= ALONG_MIN_MS
+      at - this.startedAt >= ALONG_MIN_MS &&
+      !this.answered(at, memo)
     ) {
       return "along";
     }
@@ -681,7 +730,8 @@ export class SceneReader {
       quiet &&
       this.quietSince &&
       at - this.quietSince >= this.idleTarget &&
-      (!this.lastAmbientAt || at - this.lastAmbientAt >= this.idleTarget)
+      (!this.lastAmbientAt || at - this.lastAmbientAt >= this.idleTarget) &&
+      !this.answered(at, memo)
     ) {
       return "idle";
     }

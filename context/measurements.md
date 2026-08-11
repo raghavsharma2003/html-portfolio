@@ -1,0 +1,157 @@
+# Measurements
+
+Every number with its n and method, so a future number can be compared against
+it. A figure without those cannot be compared, which is the only thing figures
+are for.
+
+---
+
+## `charm-grok` — grok loses to the incumbent 38–2 (2026-08-11)
+
+Blind, counterbalanced judging by `claude-opus-4.8`. 48 conversation units, 96
+judgments, every unit judged in **both** presentation orders; a unit counts as a
+win only when both orders agree, and order-flips are charged as ties.
+
+| axis | incumbent – grok |
+|---|---|
+| overall | **38 – 2** (p<0.001) |
+| warmth | 35 – 3 |
+| humour | 31 – 2 |
+| personhood | 34 – 4 |
+
+Grok's 2 wins were both `voice/bored`, and only because the incumbent's own
+doubled-tone-marker bug fired there. Mechanism: 36.1 words/turn vs 20.5, 1.74
+questions/turn, 63% of turns ending in a question, and in chat one turn in five
+losing bubbles to the 4-bubble parser cap.
+
+**Position bias was real** — the judge picked slot A on 61% of non-tie
+judgments. That is why both orders are always run.
+
+Tested against the **actual Foundry deployment**, which currently serves
+`grok-4.20-beta-0309-non-reasoning` — a beta build that could change underneath
+us.
+
+## `charm-luna` — luna ties, and wins specificity (2026-08-11)
+
+Same method. Overall 17–18 (p=1.00, dead heat). Warmth 18–19, humour 18–21, all
+within noise. **Specificity 9–25 for luna (p=0.009)** — a clear win.
+
+Against luna: spoken turns 37% longer (28.2 vs 20.5 words), crisis-beat collapse
+into a clinical risk-assessment script, and **zero media tags in 144 replies**
+against the incumbent's 11 (p=0.029).
+
+## `reasoning-split` — reasoning helps light, harms heavy (2026-08-11)
+
+Matched pairs, reasoning the only variable: `grok-4-20-(non-)reasoning` and
+`grok-4-1-fast-(non-)reasoning`. 164 conversations, 984 turns, zero errored.
+128 blind counterbalanced judgments over all 64 matched pairs.
+
+- **Light** (casual, teasing, bored, conflict, factual, excited): **74–21,
+  +55%**, significant on all seven dimensions.
+- **Heavy** (sad, crisis-adjacent): **29–3 against, −81%**. Attunement and
+  specificity −78% each.
+
+Per beat, monotone: teasing 15–1, conflict 14–2, factual 14–2, casual 13–2 for
+reasoning; sad 2–14, crisis 1–15 against.
+
+**The pooled average (+21%) is deliberately not reported** — it is an artifact
+of a 6:2 light:heavy beat mix, and the sign flips if heavy beats exceed ~35% of
+real traffic.
+
+**Mechanism**, measured three independent ways: on heavy beats reasoning
+collapses into restate → matching anecdote → question. Mirror-echo 0–2% → 10–29%;
+"mujhe bhi…" 8–10% → 35–52%. `persona.ts` explicitly bans mirroring; reasoning
+follows the *stated* rules literally and breaks the one forbidding parroting.
+Helplines injected into 16.7% of heavy turns vs 0%.
+
+**Latency:** non-reasoning 626/863 ms p50; reasoning 5,212/4,205 ms p50,
+8,091/6,111 ms p90. Serial and uncontended.
+
+**Truncation was a non-event** — on xAI deployments `max_tokens` caps *visible*
+output only, so 0 of 984 turns truncated at either budget even with up to 2,305
+hidden reasoning tokens. **This does not transfer to GPT-5.6**, which truncated
+3–5% of spoken turns at `max_tokens: 190`.
+
+An earlier 256-conversation run was **discarded** after rate limits were found
+to be hitting only the fastest arm, which would have handed reasoning an
+unearned win.
+
+## `vision-fab` — fabrication on real screenshots (2026-08-11)
+
+12 screens captured at 390×844 DPR 3, downscaled through the app's own pipeline
+to 355×768 JPEG q68 — our actual fidelity. 160 calls, 0 errors.
+
+Decisive case: a chat thread proposing one café, **explicitly rejecting it**, and
+settling on another. All 9 messages crisply legible.
+
+| model | messages read | venue | declared illegible | fabrications /32 |
+|---|---|---|---|---|
+| grok-4-20-non-reasoning | 12 | Koshy's ✓ | — | **0** |
+| gemini-3.6-flash | 13 | Koshy's ✓ | — | **0** |
+| llama-4-maverick | 9 | Koshy's ✓ | — | 3 |
+| gpt-5.6-luna | 3 | Third Wave ✗ | `[]` | 1 |
+| gpt-5.6-terra | 4 | Third Wave ✗ | `[]` | 2 |
+
+Latency: grok 428 ms median, gemini 2,136 ms. Image tokens: 288 vs 1,078.
+At the full 600 ms cadence the incumbent costs ≈**$25/hour** — scene-change
+gating is what keeps the real figure near $2.66, so that gating is not an
+optimisation, it is viability.
+
+Maverick broke the "seeing it for the first time" rule twice in 16 frames.
+Luna and terra gave the **best privacy responses** in the set — naming a medical
+notification's kind without quoting it.
+
+**Untested:** everything here is single-frame. The real lane has 600 ms
+continuity and a scene detector.
+
+## `voice-ears` — Azure TTS rejected by ear (2026-08-11)
+
+See `rejected.md#azure-tts` for the table. Judged on 9 lines pulled verbatim
+from her register rules, 4 arms each, delivered as WAVs.
+
+**A trap worth recording:** aggregate speech-recognition recall reads coral 0.93
+vs control 0.71, and that is **not** a quality ranking — expressive delivery
+*lowers* ASR recall. The control scores 0.0 on the laughter line precisely
+because it laughs over its own words.
+
+## `cache-9x` / `cost-per-turn` (2026-08-11)
+
+Real API calls with the real persona, usage reported by the provider.
+
+| lane | input tokens | cached | cost/turn |
+|---|---|---|---|
+| chat | 10,613 | 99.8% | $0.0019 |
+| call | 11,047 | 99.9% | $0.0029 |
+
+Same turn with caching disabled: **$0.0160 vs $0.0017 — 9.2× cheaper with it.**
+
+At these rates $5,000 buys ≈2.7M chat turns or ≈35,000 ten-minute calls.
+**Cost is not this project's constraint; quality is.**
+
+## `taste-consistency` — 27% → 63% (2026-08-11)
+
+480 live turns, real persona, real prompt assembly. Same position asked twice,
+6–8 turns apart: agreed with herself 13/48 before, **30/48 after**. Words on
+turns with no taste block unchanged at 7.4. Register defect on taste turns
+13/96 → 0/32 text. Offline: 0 false fires in 60 ordinary messages, 20/20
+relevant hits, identical output over 100 calls.
+
+Remaining 37% inconsistency is on topics with no table row — the fix is more
+rows, not more prompt.
+
+## Audio floor, at controlled speaker-to-mic coupling (2026-08-11)
+
+Simulator driving the **real** `liveCall.ts` with her voice played through a room
+impulse response. n=8 seeds per cell.
+
+| coupling | self-duck before → after | her voice uplinked before → after |
+|---|---|---|
+| −6 dB | 91% → **14%** | 6,996 ms → **1,280 ms** |
+| −9 dB | 33% → 5% | 4,778 ms → 512 ms |
+| −12 dB | 2% → 1% | 2,474 ms → 341 ms |
+
+Self-interruption now breaks at about **−3 dB** (simulator figure, read as
+approximate). Side effect: a distant television stopping her went **8/8 → 2/8**.
+Cost, stated: a *quiet* talker at −6 dB now gets ignored — at those levels a
+quiet person and a distant TV are not separable by level, and the baseline only
+"heard" them by also hearing itself 91% of the time.

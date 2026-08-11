@@ -103,6 +103,23 @@ final class SceneReader {
 
   private static final long SWITCH_CONFIRM_MS = 900L;
 
+  // ── one reaction per thing ─────────────────────────────────────────────
+  // A wake she ANSWERED is different from a wake that merely fired, and the
+  // difference is only visible over a moving screen. Measured over real
+  // captured sessions (scratchpad/mf): 26% of everything she said across a
+  // session was a thing she had already said, and half of those landed on a
+  // picture that was, at 16x16, the SAME PICTURE she had already spoken about
+  // — they scrolled away and came back, an app switch returned to where it
+  // started, a hold broke and re-formed on the same screen. Each is a fresh
+  // hold and a legitimate wake by every rule above, and each is a friend
+  // saying the same sentence to you twice.
+  //
+  // Geometry, not taste: it knows only that this picture is the one a wake was
+  // already spent on. The window is IDLE_WAKE_MS on purpose — after a full
+  // idle beat, coming back to something IS a new moment.
+  private static final int SPOKEN_RING = 8;
+  private static final double SPOKEN_MAD = 5; // as RESHOW_MAD, on the 16x16
+
   private static final int RESHOW_RING = 20;
   private static final long RESHOW_EVERY_MS = 1000L;
   private static final long RESHOW_MIN_AGE_MS = 2000L;
@@ -181,6 +198,10 @@ final class SceneReader {
   private long ringAt = 0;
   private int holdId = 0;
 
+  // pictures a wake was already spent on — see SPOKEN_RING
+  private final List<byte[]> spokenSig = new ArrayList<>();
+  private final List<Long> spokenAt = new ArrayList<>();
+
   private double novelty = 0;
   private long lastAmbientAt = 0;
   private long lastShowAt = 0;
@@ -212,6 +233,8 @@ final class SceneReader {
     ringHold.clear();
     ringAt = 0;
     holdId = 0;
+    spokenSig.clear();
+    spokenAt.clear();
     novelty = 0;
     lastAmbientAt = 0;
     lastShowAt = 0;
@@ -225,6 +248,17 @@ final class SceneReader {
    * never happened and must not spend the budget.
    */
   void noteWake(int wake, long at) {
+    // Remember the PICTURE this wake was spent on, so nothing can be woken on
+    // twice. Only wakes that actually went out reach this method, which is
+    // exactly the set that should count.
+    if (prev != null) {
+      spokenSig.add(reduce(prev));
+      spokenAt.add(at);
+      if (spokenSig.size() > SPOKEN_RING) {
+        spokenSig.remove(0);
+        spokenAt.remove(0);
+      }
+    }
     if (isShow(wake)) {
       settled = true;
       lastShowAt = at;
@@ -445,7 +479,24 @@ final class SceneReader {
     return out;
   }
 
+  /**
+   * Has a wake already been spent on THIS picture, recently? The reduction is
+   * computed at most once per tick and only when a wake is otherwise about to
+   * fire, so the common case — no wake — costs nothing. The one-element array
+   * is the memo: Java cannot let a helper write a caller's local directly.
+   */
+  private boolean answered(long at, byte[][] memo) {
+    if (prev == null || spokenSig.isEmpty()) return false;
+    if (memo[0] == null) memo[0] = reduce(prev);
+    for (int i = 0; i < spokenSig.size(); i++) {
+      if (at - spokenAt.get(i) > IDLE_WAKE_MS) continue;
+      if (madSmall(spokenSig.get(i), memo[0]) <= SPOKEN_MAD) return true;
+    }
+    return false;
+  }
+
   private int pick(long at, boolean quiet, int moved, double mad, double cx, double cy, boolean blank) {
+    byte[][] memo = new byte[1][];
     long[] tempo = tempo(at);
     long gap = tempo[0];
     long repGap = tempo[1];
@@ -461,7 +512,8 @@ final class SceneReader {
         prerolled = true;
         prerollNow = true;
       }
-      if (showOk && held >= hold) return armedReshow ? WAKE_RESHOW : WAKE_SETTLE;
+      if (showOk && held >= hold && !answered(at, memo))
+        return armedReshow ? WAKE_RESHOW : WAKE_SETTLE;
     }
 
     if (!blank
@@ -477,7 +529,8 @@ final class SceneReader {
       pointTicks++;
       if (pointTicks >= POINT_TICKS
           && Math.abs(cx - pointFromX) >= POINT_TRAVEL
-          && Math.abs(cy - pointFromY) >= POINT_TRAVEL) {
+          && Math.abs(cy - pointFromY) >= POINT_TRAVEL
+          && !answered(at, memo)) {
         pointTicks = 0;
         return WAKE_POINT;
       }
@@ -485,7 +538,12 @@ final class SceneReader {
       pointTicks = 0;
     }
 
-    if (!pendingFired && !quiet && !blank && showOk && at - pendingAt >= SWITCH_CONFIRM_MS) {
+    if (!pendingFired
+        && !quiet
+        && !blank
+        && showOk
+        && at - pendingAt >= SWITCH_CONFIRM_MS
+        && !answered(at, memo)) {
       pendingFired = true;
       return WAKE_SWITCH;
     }
@@ -497,13 +555,15 @@ final class SceneReader {
 
     if (novelty >= NOVELTY_BUDGET
         && (lastAmbientAt == 0 || at - lastAmbientAt >= ALONG_MIN_MS)
-        && at - startedAt >= ALONG_MIN_MS) {
+        && at - startedAt >= ALONG_MIN_MS
+        && !answered(at, memo)) {
       return WAKE_ALONG;
     }
     if (quiet
         && quietSince != 0
         && at - quietSince >= idleTarget
-        && (lastAmbientAt == 0 || at - lastAmbientAt >= idleTarget)) {
+        && (lastAmbientAt == 0 || at - lastAmbientAt >= idleTarget)
+        && !answered(at, memo)) {
       return WAKE_IDLE;
     }
     return WAKE_NONE;
