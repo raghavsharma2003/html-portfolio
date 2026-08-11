@@ -120,6 +120,15 @@ export default async function handler(req, res) {
           "Content-Type": "audio/l16; rate=24000; channels=1",
           "Cache-Control": "no-store",
           "Access-Control-Allow-Origin": "*",
+          // WHICH LANE SPOKE, and how much of the free pool was usable when it
+          // did. Without this a slow first byte is unattributable from outside:
+          // a cold function, a slow free key and a fall-through to the paid arm
+          // all look identical, and the first production battery had a p50 of
+          // 1000ms against a p90 of 2427ms with no way to tell which. Two
+          // header writes, no extra work on the request path.
+          "X-Meera-Lane": lane,
+          "X-Meera-Pool": String(poolSize()),
+          "Access-Control-Expose-Headers": "X-Meera-Lane, X-Meera-Pool",
         });
       }
       for (const h of L.held) res.write(h);
@@ -346,6 +355,9 @@ export default async function handler(req, res) {
     const pcm = Buffer.concat(lanes[winner].held);
     res.setHeader("Content-Type", "audio/wav");
     res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Meera-Lane", winner); // same attribution on the buffered path
+    res.setHeader("X-Meera-Pool", String(poolSize()));
+    res.setHeader("Access-Control-Expose-Headers", "X-Meera-Lane, X-Meera-Pool");
     return res.status(200).send(Buffer.concat([wavHeader(pcm.length), pcm]));
   } catch (e) {
     // once bytes are on the wire the status line is spent — all that is left

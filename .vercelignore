@@ -1,0 +1,8 @@
+node_modules
+android
+dist
+release
+context
+docs
+scratchpad
+.git
