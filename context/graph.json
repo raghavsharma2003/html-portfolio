@@ -237,6 +237,36 @@
       "kind": "rejection",
       "title": "Loosening one-reaction-per-thing to catch more stops",
       "at": "2026-08-11"
+    },
+    {
+      "id": "live-model-bake",
+      "kind": "measurement",
+      "title": "Every model that can serve the realtime call",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "live-floor",
+      "kind": "measurement",
+      "title": "Where the 1.4s live reply actually goes",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "live-model-swap",
+      "kind": "rejection",
+      "title": "Moving the realtime call off gemini-3.1-flash-live-preview",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "silence-tuning",
+      "kind": "rejection",
+      "title": "Shortening silenceDurationMs to speed her up",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "ack-bracket-direction",
+      "kind": "rejection",
+      "title": "A bracketed direction inside a backchannel clip",
+      "at": "2026-08-11"
     }
   ],
   "edges": [
@@ -399,6 +429,41 @@
       "src": "fab-noise-floor",
       "rel": "constrains",
       "dst": "scene-hold-800"
+    },
+    {
+      "src": "live-model-swap",
+      "rel": "measured_by",
+      "dst": "live-model-bake"
+    },
+    {
+      "src": "live-model-swap",
+      "rel": "caused_by",
+      "dst": "live-model-bake"
+    },
+    {
+      "src": "silence-tuning",
+      "rel": "measured_by",
+      "dst": "live-floor"
+    },
+    {
+      "src": "live-model-bake",
+      "rel": "constrains",
+      "dst": "voice-model"
+    },
+    {
+      "src": "live-floor",
+      "rel": "constrains",
+      "dst": "audio-floor"
+    },
+    {
+      "src": "ack-bracket-direction",
+      "rel": "part_of",
+      "dst": "audio-floor"
+    },
+    {
+      "src": "ack-bracket-direction",
+      "rel": "caused_by",
+      "dst": "recited-prompt"
     }
   ]
 }

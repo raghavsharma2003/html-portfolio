@@ -164,3 +164,27 @@ Of the 7 missed stops at baseline, 4 were this dedupe. Measuring the 16×16 MAD
 of the "duplicate" pictures gives **0.00–0.77** — they are literally the same
 screen. No threshold separates them from true duplicates. The mechanism is
 correct; the misses are not a bug to fix.
+
+---
+
+## `live-model-swap` — moving the realtime call off `gemini-3.1-flash-live-preview`
+
+All five alternatives that can do bidi audio are worse, and two are worse in
+ways that break shipped features: they **reject video**, which ends screen
+share, and they miss the 600 ms `RELEASE_WATCHDOG_MS` barge-in signal on nearly
+every run, which would silently undo the release work and hard-cut her mid-word.
+See `live-model-bake`.
+
+## `silence-tuning` — shortening `silenceDurationMs` to speed her up
+
+150, 300 and 500 all land within 50 ms of each other. The knob anyone would
+reach for buys nothing, and shortening it trades getting cut off mid-sentence
+for zero. See `live-floor`.
+
+## `ack-bracket-direction` — writing a bracketed direction into a backchannel clip
+
+`[laughs softly]` came back as laughter **plus the spoken word "Softly."** A
+direction in a TTS payload is performed as words. Related to `recited-prompt`
+and to the voice-note truncation bug: bracket-shaped text is not inert anywhere
+in this system. The generated laugh is also not in the shipping clip list — the
+sound is chosen by a timer that has no idea what was just said.

@@ -193,3 +193,31 @@ identical input.
 
 **Any fabrication claim from this harness at n<300 is noise.** This is why the
 sweep above spent its budget on n rather than on more arms.
+
+## `live-model-bake` — every model that can serve the realtime call (2026-08-11)
+
+Exactly **six** models in the catalogue support `bidiGenerateContent`. Three
+disqualify themselves outright: `gemini-omni-flash-preview` has no bidi at all
+(`1008`), robotics-streaming refuses AUDIO (`1007`), and live-translate
+**translated instead of answering**, at 7559 ms.
+
+| model | steady med | IQR | silent | video | barge-in signal |
+|---|---|---|---|---|---|
+| **3.1-flash-live (incumbent)** | **1370 ms** | **231 ms** | 0/24 | **accepted** | **5/5 @ 279 ms** |
+| 2.5-native-audio-latest | 2449 ms | 1548 ms | 0/24 | rejected | 4/5 @ 1323 ms |
+| 2.5-native-audio-09-2025 | 2272 ms | 2009 ms | 1/22 | rejected | — |
+
+The barge-in column is the disqualifier, not the median: `RELEASE_WATCHDOG_MS`
+is 600 ms, and the alternatives miss it on nearly every run. Swapping would
+silently undo the release work and hard-cut her mid-word. They also reject
+video, which ends screen share.
+
+## `live-floor` — where the 1.4 s live reply actually goes (2026-08-11)
+
+A **text** turn with no VAD wait is **720 ms** (n=15): prefill of the 48k system
+instruction, first token, network. Untouchable from the client. The audio path
+adds ~745 ms on top.
+
+**`silenceDurationMs` is not what you are paying for it.** 150 / 300 / 500 all
+land within **50 ms** of each other. ~1.4–1.5 s is the floor; the remaining
+levers are a shorter system instruction and *hiding* the wait.
