@@ -658,13 +658,14 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     }
   }
 
-  // ── clearing, with a way back ─────────────────────────────────────────
+  // ── clearing and forgetting, both with a way back ─────────────────────
   // The old flow was: tap an unlabelled broom twice within 2.6 seconds and
   // the conversation, her improvised life and her carried feeling were gone
-  // with no confirmation and no recovery. Now it is named in a sheet, and
-  // for ten seconds afterwards it is only parked.
-  // the local teardown both destructive actions share: whatever she was
-  // mid-way through belongs to a conversation that is about to not exist
+  // with no confirmation and no recovery. Now both destructive actions are
+  // named in a sheet, and for ten seconds afterwards they are only parked.
+  //
+  // the local teardown they share: whatever she was mid-way through belongs
+  // to a conversation that is about to not exist
   function tearDownLocally(): Snapshot {
     const snapshot = {
       messages: state.messages,
@@ -699,7 +700,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   // what actually leaves the device and it does not run for ten seconds
   function park(label: string, snapshot: Snapshot, commit?: () => void) {
     setUndo({ label, snapshot });
+    // a second destructive action inside the first one's window supersedes
+    // its UNDO, never its commit — that one was already confirmed, and
+    // silently dropping it would leave the rows alive on a device that has
+    // been told they are gone
+    const superseded = pendingForget.current;
     pendingForget.current = commit ?? null;
+    superseded?.();
     if (undoTimer.current) clearTimeout(undoTimer.current);
     undoTimer.current = setTimeout(() => {
       setUndo(null);

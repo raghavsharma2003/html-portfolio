@@ -356,12 +356,73 @@ const HOLD_RING = 26;
 // it buys is that she stops taking the floor from herself: at −12 dB and −8 dB
 // echo return loss the old arbiter self-interrupted in 6 of 6 trials and this
 // one in 0 of 6.
+//
+// ── ...AND WHY IT MAY NOW ALSO RISE, ON EVIDENCE THAT IS NOT A LEVEL ──
+//
+// Everything above is still true and none of it is being undone. But the seed
+// is a GUESS about the device, and when the guess is too low the arbiter is
+// under-protected for the whole call with no way back: κ = 0.30 against a
+// phone at loud volume or on speakerphone (−6 dB of coupling, κ ≈ 0.5) puts
+// the bar BELOW her own leak. Measured in the simulator below, 8 seeds per
+// cell, nobody in the room at all: at −6 dB she spent 93% of her own turn
+// ducked by her own voice and handed the server 2389ms of it as if it were
+// the user talking, at every turn end; at −3 dB she took the floor from
+// herself in 1 of 8 turns outright. On a phone at loud volume that is not an
+// exotic device, it is Tuesday — exactly the complaint.
+//
+// The paragraph above says no LEVEL statistic separates her echo from a
+// person, and that is correct. This is not a level statistic. Her echo is a
+// filtered copy of a signal WE OWN, so across a window of mic ticks
+//
+//     micPower ≈ C²·herPower(t − lag) + (room + anyone else)²
+//
+// is an affine relation, and a second talker — who is uncorrelated with her
+// envelope — moves the INTERCEPT, not the SLOPE. So the fit's quality is the
+// gate ("this window really is her, and the lag is this") and the existing
+// 90th-percentile ratio stays the estimate (it is already measured in the
+// same units the bar uses). Measured, best-lag fit over 12 ticks ≈ 1.0s:
+//
+//   r² of the fit, pure echo, all couplings   p10 0.73   median 0.89-0.90
+//   √slope vs the true coupling, no one there   1.10-1.14× (bias, not spread)
+//   √slope with a LOUD person talking across her whole turn, gated at r²≥0.7:
+//       −6 dB 0.582 (pure 0.561) · −9 dB 0.397 (0.405) · −12 dB 0.272 (0.280)
+//
+// i.e. the gate throws away ~80% of the windows when someone else is talking
+// and the ones it keeps still measure the device, not the person. UNGATED the
+// same estimator collapses (median 0.000, p90 1.02) — the gate is the whole
+// mechanism, not a decoration.
+//
+// The direction stays asymmetric where it matters: κ rises only on a locked
+// fit and never past ECHO_KAPPA_MAX, and the decay path is untouched, so the
+// good-AEC device still walks down to 0.02 and stays there.
 const ECHO_KAPPA_SEED = 0.3; // ≈10 dB ERL: a bare hands-free speakerphone
 const ECHO_KAPPA_MIN = 0.02; // ≈34 dB ERL: real AEC, the term stops binding
+// ≈ −2.4 dB ERL. Past this the "room" is a speaker pointed at a microphone and
+// no bar can tell her voice from anyone else's; refusing to go further keeps
+// the failure at "late barge-in" instead of "permanently deaf".
+const ECHO_KAPPA_MAX = 0.76;
 const ECHO_WIN_MS = 1000; // ~47 sub-frames of ratio history
 const ECHO_PCT = 0.9; // the TOP of the leak distribution — it must bound peaks
 const ECHO_MIN_SAMPLES = 16; // never estimate from a handful of sub-frames
 const ECHO_RATE = 0.4; // how fast κ comes down once the evidence is in
+// Rising is FASTER than decaying, deliberately: an under-protected arbiter is
+// the self-sustaining failure (her leak takes the floor, which starts a new
+// turn, which leaks) and every tick spent under-protected is a tick of her own
+// voice going into the hold ring. Over-protection just costs a late barge-in.
+const ECHO_UP_RATE = 0.55;
+// ── the lock ──
+// 12 ticks ≈ 1.02s of (her aligned power, mic power) pairs, which is both the
+// window the ratio percentile already uses and long enough to contain two or
+// three of her syllables — the fit needs her envelope to MOVE.
+const ECHO_FIT_WIN = 12;
+const ECHO_FIT_R2 = 0.7; // measured: pure echo p10 = 0.73, so this is the knee
+// The acoustic round trip is a device property nobody can look up, so it is
+// searched: 0-260ms in 20ms steps covers a phone against a face (~20ms) and a
+// speakerphone across a reverberant room. Measured best lag in the simulator:
+// 40ms, stable across every coupling.
+const ECHO_LAG_STEP_MS = 20;
+const ECHO_LAGS = 14; // 0…260ms
+const ECHO_ENV_MAX = 260; // 20ms frames of her own envelope kept: ~5.2s
 // The bar sits a MARGIN above the leak estimate, never at it: κ is an RMS
 // ratio and the sub-frames it has to reject are the loud ones. +2.3 dB was
 // chosen by sweeping it against BOTH failure directions at once — below 1.3
@@ -642,6 +703,45 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let ducked = 0; // 0 full volume · 1 soft duck · 2 yielding
   let kappa = ECHO_KAPPA_SEED; // learned mic-to-speaker coupling
   const echoRing: number[] = []; // per-sub-frame mic÷her ratios, for the percentile
+  // ── the echo lock ──
+  // One row per mic tick while she is audible: the mic's own power, and her
+  // power at each candidate acoustic lag. A good affine fit across the window
+  // means this stretch of mic audio IS her, at that lag — the only evidence
+  // that lets κ move UP. Fixed-length arrays: this runs on the audio tick.
+  const fitMic: number[] = [];
+  const fitHer: number[][] = []; // [tick][lag]
+  let echoLocked = false;
+  let echoLag = -1; // index into the lag search; -1 = never locked, use herMax
+  /** Her own output power over `winSec` ending at `endT`, from herEnv. */
+  const herPowerAt = (endT: number, winSec: number) => {
+    let acc = 0;
+    let n = 0;
+    for (let i = herEnv.length - 1; i >= 0; i--) {
+      const e = herEnv[i];
+      if (e.t > endT) continue;
+      if (e.t <= endT - winSec) break; // herEnv is time-ordered
+      acc += e.p;
+      n++;
+    }
+    return n ? acc / n : 0;
+  };
+  /**
+   * The LOUDEST 20ms she played in the window ending at `endT` — the peak, not
+   * the mean, because the thing being bounded is a peak, and peak-held across
+   * ECHO_TAIL_MS because a room keeps returning her last syllable for as long
+   * as it reverberates. This is what makes the prediction safe to lower: her
+   * tail is inside the window that predicted it.
+   */
+  const herPeakPowerAt = (endT: number, winSec: number) => {
+    let m = 0;
+    for (let i = herEnv.length - 1; i >= 0; i--) {
+      const e = herEnv[i];
+      if (e.t > endT) continue;
+      if (e.t <= endT - winSec) break;
+      if (e.p > m) m = e.p;
+    }
+    return m;
+  };
   let herTurnSeen = -1; // which of her turns the arbitration state belongs to
   const toPcm = (input: Float32Array, ratio: number, outLen: number) => {
     const p = new Int16Array(outLen);
@@ -740,26 +840,66 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
         Math.min(Math.max(noiseFloor * LISTEN_MULT, LISTEN_MIN), LISTEN_MAX),
       ),
     );
-    // herRecentRms is measured on the samples BEFORE the output bus gain, so
-    // scale by what is actually reaching the speaker — a ducked voice leaks
-    // proportionally less, and forgetting that would keep the bar high for the
-    // whole of an overlap.
-    const herNow = herRecentRms() * outGain();
-    const echoTerm = kappa * herNow * ECHO_MARGIN;
-    const thrB = Math.min(
-      BARGE_MAX,
-      Math.max(thrL * BARGE_OVER_LISTEN, noiseFloor * BARGE_MULT, echoTerm),
-    );
+    // ── WHAT HER OWN VOICE IS EXPECTED TO SOUND LIKE, SUB-FRAME BY SUB-FRAME ──
+    //
+    // herRecentRms is a MAX over the last 250ms, taken that way so the bar
+    // could bound a peak without anyone having to measure the device's
+    // acoustic round trip. It is measured on the samples BEFORE the output bus
+    // gain, so it is scaled by what is actually reaching the speaker — a
+    // ducked voice leaks proportionally less.
+    //
+    // The cost of a 250ms max is that the bar is flat: it stays at her LOUDEST
+    // recent syllable through her every pause, so the moments when a person is
+    // most audible — the gaps between her words, which is exactly where people
+    // start talking — are the moments the bar is least deserved. It is also
+    // mis-aligned in the dangerous direction: anchored at `now`, it contains
+    // audio that has not reached the microphone yet and drops her tail from
+    // 250-300ms ago, which on a reverberant speakerphone is still arriving.
+    //
+    // Once the lock has measured the round trip we can do the honest thing and
+    // PREDICT the echo instead: her own envelope, at the measured lag, peak-
+    // held across a reverb tail. The bar then rises on her syllables and falls
+    // in her gaps, which protects her strictly better AND hears people
+    // strictly better. Until the lock exists — the first second of the first
+    // turn — this is exactly the old expression, unchanged.
+    const herMax = herRecentRms() * outGain();
+    let nowT = 0;
+    try {
+      nowT = outCtx.currentTime;
+    } catch {
+      /* ctx closed */
+    }
+    const gNow = outGain();
+    const lagS = echoLag >= 0 ? (echoLag * ECHO_LAG_STEP_MS) / 1000 : 0;
+    // her predicted level at each sub-frame of THIS mic buffer (the buffer
+    // covers the chunkMs that just elapsed, so sub-frame s ends that far back)
+    const herAt: number[] = [];
+    for (let s = 0; s < SUBS; s++) {
+      if (echoLag < 0) {
+        herAt.push(herMax);
+        continue;
+      }
+      const tEnd = nowT - chunkMs / 1000 + ((s + 1) * subMs) / 1000 - lagS;
+      herAt.push(Math.sqrt(herPeakPowerAt(tEnd, ECHO_TAIL_MS / 1000)) * gNow);
+    }
+    let herNow = 0;
+    for (const h of herAt) if (h > herNow) herNow = h;
+    const echoAt = herAt.map((h) => kappa * h * ECHO_MARGIN);
+    let echoTerm = 0;
+    for (const e of echoAt) if (e > echoTerm) echoTerm = e;
+    const barB = (e: number) =>
+      Math.min(BARGE_MAX, Math.max(thrL * BARGE_OVER_LISTEN, noiseFloor * BARGE_MULT, e));
+    const thrBAt = echoAt.map(barB);
+    const thrB = barB(echoTerm);
     // The soft bar carries NO echo term. With it, `min(thrB, max(…, echoTerm))`
     // evaluates to exactly thrB whenever echo binds thrB — the valve collapsed
     // onto the bar it is supposed to sit below, in the one case it exists for.
     // The min() is kept only as a sanity rail; with SOFT_OVER_LISTEN < BARGE_
     // OVER_LISTEN and SOFT_MULT < BARGE_MULT it can bind only when BARGE_MAX
     // clamps thrB.
-    const thrS = Math.min(
-      thrB,
-      Math.max(thrL * SOFT_OVER_LISTEN, noiseFloor * SOFT_MULT),
-    );
+    const softBar = Math.max(thrL * SOFT_OVER_LISTEN, noiseFloor * SOFT_MULT);
+    const thrSAt = thrBAt.map((b) => Math.min(b, softBar));
+    const thrS = Math.min(thrB, softBar);
     if (rms > thrL) gateLeft = hangChunks;
     else if (gateLeft > 0) gateLeft--;
     const open = gateLeft > 0;
@@ -769,22 +909,90 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     // sub-frame she is audible for contributes one ratio sample; κ then DECAYS
     // toward the 90th percentile of those and never rises. See ECHO_KAPPA_SEED
     // for why the direction is forced.
-    if (herSpeaking && herNow > 0.02) {
-      for (const v of sub) {
+    if (herSpeaking && herMax > 0.02) {
+      // The ratio is taken against the SAME prediction the bar is built on, so
+      // κ and the bar stay in one another's units whichever branch is live.
+      for (let s = 0; s < SUBS; s++) {
+        if (herAt[s] <= 0.02) continue; // her own gap: nothing to divide by
         // subtract ambience in POWER: the mic sums two uncorrelated sources
+        const v = sub[s];
         const excess = Math.sqrt(Math.max(0, v * v - noiseFloor * noiseFloor));
-        echoRing.push(excess / herNow);
+        echoRing.push(excess / herAt[s]);
         if (echoRing.length > echoN) echoRing.shift();
+      }
+      // THE LOCK. One (her power at lag L, mic power) pair per tick; when the
+      // affine fit across the window is good at some lag, this window is her.
+      const winSec = chunkMs / 1000;
+      const row: number[] = [];
+      for (let L = 0; L < ECHO_LAGS; L++) {
+        row.push(herPowerAt(nowT - (L * ECHO_LAG_STEP_MS) / 1000, winSec));
+      }
+      fitHer.push(row);
+      fitMic.push(Math.max(0, rms * rms - noiseFloor * noiseFloor));
+      if (fitHer.length > ECHO_FIT_WIN) {
+        fitHer.shift();
+        fitMic.shift();
+      }
+      echoLocked = false;
+      if (fitHer.length === ECHO_FIT_WIN) {
+        const n = ECHO_FIT_WIN;
+        let my = 0;
+        for (const y of fitMic) my += y;
+        my /= n;
+        let syy = 0;
+        for (const y of fitMic) syy += (y - my) * (y - my);
+        if (syy > 0) {
+          let bestR2 = 0;
+          let bestL = -1;
+          for (let L = 0; L < ECHO_LAGS; L++) {
+            let mx = 0;
+            for (const r of fitHer) mx += r[L];
+            mx /= n;
+            let sxx = 0;
+            let sxy = 0;
+            for (let i = 0; i < n; i++) {
+              const dx = fitHer[i][L] - mx;
+              sxx += dx * dx;
+              sxy += dx * (fitMic[i] - my);
+            }
+            // sxy > 0 as well as r²: a NEGATIVE slope fits just as tightly and
+            // means the opposite of what we are looking for.
+            if (sxx <= 0 || sxy <= 0) continue;
+            const r2 = (sxy * sxy) / (sxx * syy);
+            if (r2 > bestR2) {
+              bestR2 = r2;
+              bestL = L;
+            }
+          }
+          if (bestL >= 0 && bestR2 >= ECHO_FIT_R2) {
+            echoLocked = true;
+            // The round trip is a property of the device and the room, not of
+            // this second: keep the last lag that was actually earned, so the
+            // prediction survives the windows where the fit is inconclusive.
+            echoLag = bestL;
+          }
+        }
       }
       if (echoRing.length >= ECHO_MIN_SAMPLES) {
         const srt = [...echoRing].sort((a, b) => a - b);
         const r = srt[Math.min(srt.length - 1, Math.floor(srt.length * ECHO_PCT))];
-        // DECAY ONLY. A ratio above κ is not evidence of a leakier device —
-        // a person raises every percentile of it — so it is never acted on.
+        // DOWN is unconditional: a ratio below κ can only mean the device
+        // leaks less than we feared, whoever else is in the room.
         if (r < kappa) kappa = Math.max(ECHO_KAPPA_MIN, kappa - ECHO_RATE * (kappa - r));
+        // UP only on a locked fit. A ratio above κ is not, on its own,
+        // evidence of a leakier device — a person raises every percentile of
+        // it. It is evidence once we can also show that this window's mic
+        // audio is an affine function of her own output at a fixed lag, which
+        // a person cannot make true.
+        else if (echoLocked) {
+          kappa = Math.min(ECHO_KAPPA_MAX, kappa + ECHO_UP_RATE * (r - kappa));
+        }
       }
-    } else if (!herSpeaking && echoRing.length) {
+    } else if (!herSpeaking && (echoRing.length || fitHer.length)) {
       echoRing.length = 0; // her turn is over; the next one measures itself
+      fitHer.length = 0; // and a gap in her audio is not a fit, it is a jump
+      fitMic.length = 0;
+      echoLocked = false;
     }
     // A NEW turn of hers must not inherit the last one's candidate. If she
     // starts speaking again inside one mic tick, the `!herSpeaking` branch
@@ -835,13 +1043,14 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     const holding = herSpeaking && !floorLost;
     let claim = false;
     if (holding) {
-      for (const v of sub) {
+      for (let s = 0; s < SUBS; s++) {
+        const v = sub[s];
         subIdx++;
         subLin.push(v);
         if (subLin.length > softWin + 1) subLin.shift();
-        if (v > thrB) hardHits.push(subIdx);
+        if (v > thrBAt[s]) hardHits.push(subIdx);
         // a soft hit must also out-shout her own leak, at this instant
-        if (v > thrS && v > echoTerm) softHits.push(subIdx);
+        if (v > thrSAt[s] && v > echoAt[s]) softHits.push(subIdx);
         while (hardHits.length && subIdx - hardHits[0] > claimWin) hardHits.shift();
         while (softHits.length && subIdx - softHits[0] > softWin) softHits.shift();
       }
@@ -970,7 +1179,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       // return loss: her own words appearing in inputTranscription in 5 of 6
       // sessions, with no barge-in involved at all.
       let aboveEcho = false;
-      for (const v of sub) if (v > echoTerm) aboveEcho = true;
+      for (let s = 0; s < SUBS; s++) if (sub[s] > echoAt[s]) aboveEcho = true;
       if (open && aboveEcho) {
         hold.push(toPcm(input, ratio, outLen));
         if (hold.length > HOLD_RING) hold.shift();
@@ -1147,6 +1356,12 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let burstUntil = 0; // hard time bound: a credit can never outlive its drain
   // her own output, sampled as it is SCHEDULED — ground truth for echo
   let herLevels: { a: number; b: number; rms: number }[] = [];
+  // The same audio at 20ms resolution, as POWER, stamped with the outCtx time
+  // the frame is scheduled to END. herLevels answers "how loud is she around
+  // now" (a max, so it can bound a peak without knowing the acoustic delay);
+  // this answers "what exactly was she doing 140ms ago", which is what the
+  // echo fit correlates against. Both come out of the one loop in playChunk.
+  let herEnv: { t: number; p: number }[] = [];
   // times (in outCtx seconds) where her own audio has a real gap between
   // words. Yielding across one of these is the difference between trailing
   // off and being cut off mid-syllable.
@@ -1257,6 +1472,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       acc += a2;
       const r20 = Math.sqrt(a2 / fr);
       if (r20 > peak20) peak20 = r20;
+      herEnv.push({ t: at + (f + fr) / 24000, p: a2 / fr });
       if (Math.sqrt(a2 / fr) < BOUNDARY_RMS) {
         const tB = at + (f + fr) / 24000;
         if (tB - lastB >= BOUNDARY_MIN_GAP) {
@@ -1266,6 +1482,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       }
     }
     if (boundaries.length > 128) boundaries.splice(0, boundaries.length - 128);
+    if (herEnv.length > ECHO_ENV_MAX) herEnv.splice(0, herEnv.length - ECHO_ENV_MAX);
     // Her level is stored as the LOUDEST 20ms BLOCK, not the chunk's RMS.
     // The echo term bounds a 21.3ms MIC sub-frame, and a chunk-wide RMS is a
     // different statistic: speech crest over 20ms against an 80ms average is
@@ -1316,6 +1533,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     discardAt = Date.now();
     boundaries = [];
     herLevels = [];
+    herEnv = []; // the audio these describe is being thrown away
     const fadeMs = Math.max(0, stopAt - now) * 1000;
     speakingUntil = Date.now() + fadeMs;
     playhead = stopAt;
