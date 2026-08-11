@@ -566,6 +566,22 @@ const DISCARD_CAP_MS = 2000;
 // is not allowed to trade. The murmur therefore runs on its own source into
 // its own gain, overlapping her real audio rather than queueing in front of it,
 // and fades out under her first chunk.
+// OFF. The owner listened and the verdict was "weird, and it doesn't have her
+// energy even if it's just listening" — which is correct, and the timbre was
+// the one property in this whole feature nobody measured. A synthesised "mm"
+// is three harmonics and an envelope: it can borrow her pitch range but it is
+// not her voice, so it lands as a tone from somewhere else in the room rather
+// than as her listening. A backchannel's entire job is to say "it's still me
+// here", and a sound that isn't hers says the opposite.
+//
+// Everything below it is kept and still measured-correct: the placement (in
+// the gap AFTER they stop, never over their voice, proven to be the only safe
+// option), the mic hold across the reverb tail, and the guarantee that it never
+// touches `playhead`. The missing piece is a real clip of HER voice, which the
+// existing prewarm path could fetch during the ring — where there is already
+// idle time — so it would still cost nothing on the call path. That is the
+// version worth shipping; this one is not.
+const ACK_ENABLED = false;
 const ACK_MIN_USER_MS = 2500; // only after a real stretch of them talking
 const ACK_MIN_VOICE_MS = 1200; // ...of which this much was actually voice
 // A silence longer than this ends their stretch of talking. Shorter than it is
@@ -1683,7 +1699,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
    *     be faded across; a hum has no words to land between.
    */
   const emitAck = () => {
-    if (dead) return;
+    if (!ACK_ENABLED || dead) return; // synthesised timbre rejected — see ACK_ENABLED
     const now = Date.now();
     if (now - lastAckAt < ACK_MIN_GAP_MS) return;
     try {
