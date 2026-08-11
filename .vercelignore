@@ -1,8 +1,21 @@
 node_modules
-android
 dist
 release
 context
 docs
 scratchpad
 .git
+
+# NOT all of android/. scripts/ota-bundle.mjs reads OTA_NATIVE_CONTRACT from
+# android/app/build.gradle to stamp min_native into the OTA manifest, and it
+# hard-fails rather than guessing — correctly, since a wrong min_native ships a
+# web bundle to APKs whose native code cannot run it.
+#
+# Excluding the whole tree broke the deploy exactly once: the CLI uploads src/,
+# so vercel-build.sh skips its tarball fetch, so build.gradle never arrived.
+# Only the build outputs are excluded now — they are large, regenerated, and
+# .vercelignore does not read .gitignore, so without these they would upload.
+android/build
+android/app/build
+android/.gradle
+android/app/src/main/assets/public
