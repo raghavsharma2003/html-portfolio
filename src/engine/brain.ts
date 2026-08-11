@@ -16,6 +16,7 @@ import {
   type UserProfile,
   type VoiceEngine,
 } from "./persona";
+import { tagFromSeed } from "./photoCatalog";
 import { heartReply, type HeartReply } from "./localHeart";
 import { cultureNote } from "./culture";
 import { recallMemories } from "./memory";
@@ -228,6 +229,14 @@ export function parseBubbles(raw: string): ParsedReply {
       continue;
     }
     if (META_LEAK.test(p)) continue; // leaked internal monologue — never shown
+    // A bare catalog tag emitted as its own bubble ("mirror_selfie_room") is
+    // her reaching for a photo and dropping the [photo: …] wrapper. Observed
+    // 1/84 in an audit run. Showing the raw tag is the worst outcome — it is
+    // visibly internal — so honor the intent and send the photo instead.
+    if (!out.photo && tagFromSeed(p) && p === p.trim().toLowerCase() && !/\s/.test(p)) {
+      out.photo = { seed: p, caption: "" };
+      continue;
+    }
     // tail of a mangled marker ("ide eye cat]"): a short line ending with a
     // bracket it never opened is protocol shrapnel, not conversation
     if (/\]\s*$/.test(p) && !p.includes("[") && p.length < 60) continue;

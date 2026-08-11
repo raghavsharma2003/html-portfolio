@@ -35,7 +35,10 @@ import {
   WATCH_COMMENT_DIRECTIVE,
   WATCH_IDLE_DIRECTIVE,
   WATCH_MODE_NOTE,
+  WATCH_POINT_DIRECTIVE,
+  WATCH_RESHOW_DIRECTIVE,
   WATCH_SCENE_DIRECTIVE,
+  WATCH_SHOW_DIRECTIVE,
   WATCH_START_DIRECTIVE,
   buildSystemPromptParts,
   buildSpeechStyle,
@@ -1024,10 +1027,7 @@ ${recallRef.current}`
     let wakeIdx = 0;
     // Which note each class carries. The code says "look now" and what just
     // happened; it never says what to make of it, and silence answers all of
-    // them. settle/reshow/point currently reuse the scene note — once
-    // persona.ts lands WATCH_SHOW/RESHOW/POINT (see
-    // scratchpad/screenshare-persona-patch.md) this map is the only thing
-    // that changes.
+    // them except the deliberate shows.
     const noteFor = (cls: WakeClass): string =>
       cls === "start"
         ? WATCH_START_DIRECTIVE()
@@ -1035,7 +1035,13 @@ ${recallRef.current}`
           ? WATCH_ALONG_DIRECTIVE()
           : cls === "idle"
             ? WATCH_IDLE_DIRECTIVE()
-            : WATCH_SCENE_DIRECTIVE();
+            : cls === "reshow"
+              ? WATCH_RESHOW_DIRECTIVE()
+              : cls === "point"
+                ? WATCH_POINT_DIRECTIVE()
+                : cls === "settle"
+                  ? WATCH_SHOW_DIRECTIVE()
+                  : WATCH_SCENE_DIRECTIVE(); // "switch": into something alive
     const wake = (cls: WakeClass): boolean => {
       const now = Date.now();
       const show = isShowClass(cls);

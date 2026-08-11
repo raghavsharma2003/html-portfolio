@@ -407,7 +407,14 @@ const BOUNDARY_MIN_GAP = 0.06; // don't record two boundaries inside one gap
 // never arrives (the user already speaking as her turn begins), and today
 // that single message is the ONLY thing in this file that can stop her. The
 // watchdog makes the client's own decision authoritative instead.
-const RELEASE_WATCHDOG_MS = 1500;
+const RELEASE_WATCHDOG_MS = 600;
+// ...but when her generation is ALREADY COMPLETE the server owes us nothing —
+// there is no turn left to interrupt, so waiting for a message that cannot
+// come is pure dead air on top of her talking over them. Act at the next
+// phrase boundary instead, almost immediately. 300ms is a real barge settling
+// (long enough that a single "haan" backchannel has already been refused the
+// floor upstream), not a 1.5s stare.
+const RELEASE_SETTLE_MS = 300;
 // A killed turn's stragglers must not resurrect: chunks are dropped between
 // `interrupted` and the `turnComplete` that follows it 4-21ms later. The cap
 // is a safety net so a missing turnComplete can never mute her forever.
@@ -1009,10 +1016,46 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     // already speaking as her turn begins) and today that single message is
     // the only thing in this file that can stop her. The client made the
     // floor decision, so the client enforces it.
-    if (floorReleasedAt && Date.now() - floorReleasedAt > RELEASE_WATCHDOG_MS && herSpeaking) {
-      floorReleasedAt = 0;
-      diag("call", "floor_watchdog", { afterMs: RELEASE_WATCHDOG_MS });
-      yieldFloor(true);
+    if (floorReleasedAt && herSpeaking) {
+      // TWO COMPLETELY DIFFERENT SITUATIONS, and conflating them is what made
+      // her "stop all of a sudden" on his device. Measured on his own calls
+      // (meera_diag, two sessions): 4 of 5 releases got no `interrupted` at
+      // all, waited the full 1500ms, and were then hard-cut with a 130ms
+      // guillotine. The one healthy release was interrupted at +150ms and
+      // faded softly in 87ms.
+      //
+      // The reason the server said nothing is that there was nothing to say:
+      // she had FINISHED GENERATING and we were playing out a buffered
+      // sentence (median ~5s of unplayed lead). A completed turn cannot be
+      // interrupted, so silence there is correct server behaviour, not a
+      // failure — and treating it as failure is what chopped her mid-word.
+      const genDone = !genInFlight;
+      const waited = Date.now() - floorReleasedAt;
+      if (waited > (genDone ? RELEASE_SETTLE_MS : RELEASE_WATCHDOG_MS)) {
+        const overlapMs = floorClaimSince ? Date.now() - floorClaimSince : 0;
+        let bufferedMs = 0;
+        try {
+          bufferedMs = Math.max(0, (playhead - outCtx.currentTime) * 1000);
+        } catch {
+          /* ctx closed */
+        }
+        floorReleasedAt = 0;
+        // whether turnComplete had landed and how much of her voice was still
+        // queued are the two facts that separate the two cases — log them so
+        // the next call from his device proves this rather than infers it
+        diag("call", "floor_watchdog", {
+          afterMs: waited,
+          genDone,
+          bufferedMs: Math.round(bufferedMs),
+          overlapMs,
+          hard: !genDone && overlapMs > YIELD_HARD_AFTER_MS,
+        });
+        // A finished sentence is NEVER hard-cut: there is no runaway
+        // generation to stop, only her own voice to land gracefully. That is
+        // the boundary-seeking fade — she finishes the word, reaches the next
+        // real gap between words, and trails off across it.
+        yieldFloor(!genDone && overlapMs > YIELD_HARD_AFTER_MS);
+      }
     }
   };
   };
@@ -1079,6 +1122,11 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let floorLost = false; // a person has taken this turn from her
   let floorClaimSince = 0; // when the current candidate first looked like a voice
   let floorReleasedAt = 0; // when we burst the held audio at the server
+  // Is the SERVER still generating this turn? True from her first audio chunk
+  // until generationComplete/turnComplete. It is the difference between "stop
+  // her, she is still being written" and "she is finished, we are just playing
+  // it out" — only the first can be interrupted, and only the first may be cut.
+  let genInFlight = false;
   // Bumped on every boundary of HER turns. The mic tick clears its candidate
   // when this moves, so a turn that starts again inside one 85ms tick — where
   // `herSpeaking` never reads false and the end-of-turn reset never runs —
@@ -1299,7 +1347,9 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       speakingUntil = 0;
       opts.onState("listening");
     }, fadeMs + 30);
-    diag("call", "floor_yield", { hard, fadeMs: Math.round(fadeMs) });
+    // genDone rides along so a single event proves which case this was: a
+    // hard cut is only ever legitimate while the server is still generating
+    diag("call", "floor_yield", { hard, fadeMs: Math.round(fadeMs), genDone: !genInFlight });
   };
   // she's "listening" again once the queued audio drains
   const stateTick = setInterval(() => {
@@ -1367,6 +1417,24 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
               // she must SPEAK, not deliberate — thinking added seconds of
               // dead air before every reply (measured 3-5.5s vs ~0.9s)
               thinkingConfig: { thinkingBudget: 0 },
+              // HOW HER VOICE GETS ITS PERSONALITY, and where it does NOT
+              // come from. There is no expressiveness knob here to turn: the
+              // native-audio model speaks the characters she emits, so her
+              // stretched vowels, "..." pauses and written-out laughter ARE
+              // the prosody. That lives in the spoken register in persona.ts;
+              // this block only picks the timbre.
+              //
+              // Measured and rejected, so nobody re-chases them:
+              //   enableAffectiveDialog  NOT A FIELD on v1alpha
+              //     BidiGenerateContent — the server closes 1007 "Unknown name
+              //     enableAffectiveDialog at 'setup': Cannot find field". It
+              //     is not a model limitation and no spelling of it works here.
+              //   dropping languageCode  no consistent prosodic gain (A/B,
+              //     n=5 each, identical prompt: pitch range 21.2 vs 25.2 st,
+              //     pauses 23.2/min vs 10.9/min — the two measures move in
+              //     OPPOSITE directions, which at this n is noise, not a
+              //     result), and unpinning it gives up the hi-IN phoneme
+              //     handling her Hinglish depends on. Keep it pinned.
               speechConfig: {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
                 languageCode: "hi-IN",
@@ -1454,16 +1522,40 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
         // been running: a hesitation gets the phrase boundary, someone who
         // has plainly been talking for most of a second gets out of the way.
         const overlapMs = floorClaimSince ? Date.now() - floorClaimSince : 0;
-        yieldFloor(overlapMs > YIELD_HARD_AFTER_MS);
+        // same fields as floor_watchdog so the two paths are directly
+        // comparable in the diag trail: this is the HEALTHY case (server
+        // answered, soft fade) and it must stay the common one
+        diag("call", "floor_interrupted", {
+          afterMs: floorReleasedAt ? Date.now() - floorReleasedAt : 0,
+          genDone: !genInFlight,
+          overlapMs,
+          hard: overlapMs > YIELD_HARD_AFTER_MS,
+        });
+        // `genInFlight &&` is the same principle as the watchdog: a hard cut
+        // is only ever legitimate while there is live generation to stop. On
+        // his device this path also fired a 130ms guillotine once (t=68455,
+        // overlap 852ms) — if generation had already closed there, nothing
+        // was being stopped and the fade should have been graceful. When the
+        // server really did interrupt a live turn this is unchanged, which
+        // keeps the healthy +150ms/87ms case exactly as it is.
+        yieldFloor(genInFlight && overlapMs > YIELD_HARD_AFTER_MS);
         floorReleasedAt = 0; // the server answered; the watchdog stands down
         herTurnGen++; // this turn of hers is over, whatever follows is a new one
       }
       for (const p of sc.modelTurn?.parts ?? []) {
-        if (p.inlineData?.data) playChunk(p.inlineData.data);
+        if (p.inlineData?.data) {
+          genInFlight = true; // a turn is being generated: it CAN be interrupted
+          playChunk(p.inlineData.data);
+        }
       }
       if (sc.inputTranscription?.text) myBuf += sc.inputTranscription.text;
       if (sc.outputTranscription?.text) herBuf += sc.outputTranscription.text;
+      // The server has stopped producing. Everything still to come out of the
+      // speakers is already in our buffer, so from here there is nothing left
+      // for an `interrupted` to stop — and none will ever arrive.
+      if (sc.generationComplete) genInFlight = false;
       if (sc.turnComplete) {
+        genInFlight = false;
         discardTurn = false; // the killed turn is closed; the next one may play
         herTurnGen++; // and the arbiter's candidate does not cross the boundary
         flushTexts();
