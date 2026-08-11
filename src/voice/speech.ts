@@ -631,6 +631,35 @@ async function fetchClipFor(
 // Hedged fetch for the FIRST clip of a reply — the one the user is waiting
 // on in silence. If the primary request is slow (upstream variance), a
 // second identical request starts and whichever finishes first wins.
+// A hedge only pays when slowness is VARIANCE — one unlucky request against a
+// normally-fast endpoint. It pays nothing when slowness is SYSTEMATIC, because
+// the second request is drawn from the same slow distribution as the first.
+//
+// This fired on 9 of 9 measured utterances: the threshold was a flat 1400ms,
+// tuned when the voice endpoint was fast, while first-audio was actually taking
+// 4.9-12.7s. So every single turn billed two generations and won nothing —
+// the retry was just as slow as the request it was racing.
+//
+// A fixed number cannot survive the endpoint changing speed, and it is about to
+// change again (the Azure voice measured 255ms). So the trigger is now relative
+// to what this endpoint is ACTUALLY doing: hedge at twice the recent median,
+// which by construction fires on genuine outliers and stays quiet when
+// everything is uniformly slow. The floor keeps a fast endpoint from hedging on
+// noise; the ceiling keeps a broken one from never hedging at all.
+const clipMs: number[] = [];
+const HEDGE_FLOOR = 1_400;
+const HEDGE_CEIL = 20_000;
+function hedgeDelay(): number {
+  if (clipMs.length < 2) return HEDGE_FLOOR; // no evidence yet — old behaviour
+  const sorted = [...clipMs].sort((a, b) => a - b);
+  const p50 = sorted[Math.floor(sorted.length / 2)];
+  return Math.min(HEDGE_CEIL, Math.max(HEDGE_FLOOR, p50 * 2));
+}
+function noteClipMs(ms: number) {
+  clipMs.push(ms);
+  if (clipMs.length > 12) clipMs.shift();
+}
+
 function hedgedClipFor(text: string, opts: VoiceOpts, style?: string): Promise<Blob | null> {
   return new Promise((resolve) => {
     let settled = false;
@@ -664,8 +693,14 @@ function hedgedClipFor(text: string, opts: VoiceOpts, style?: string): Promise<B
         resolve(null);
       }
     };
-    fetchClipFor(text, opts, style).then(settle, () => settle(null));
-    timer = setTimeout(launchHedge, 1400); // primary slow — race a second try
+    const t0 = Date.now();
+    fetchClipFor(text, opts, style).then((b) => {
+      // only the unhedged primary teaches us this endpoint's real speed; a
+      // hedged race would measure the winner of two and bias the median down
+      if (!hedged) noteClipMs(Date.now() - t0);
+      settle(b);
+    }, () => settle(null));
+    timer = setTimeout(launchHedge, hedgeDelay()); // outlier — race a second try
   });
 }
 
