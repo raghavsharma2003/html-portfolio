@@ -24,7 +24,21 @@ const MODEL = "google/gemini-3.1-flash-tts-preview";
 // the whole file, so streaming looks unsupported at the API level when it is
 // unsupported at the MODEL level. That is why this was missed for a round.
 const FREE_MODEL = "gemini-3.1-flash-tts-preview";
-const DEFAULT_VOICE = "Leda"; // young-sounding female
+// HER VOICE, EVERYWHERE. This is Aoede because the two lanes that cannot
+// choose — the Gemini Live call and the native live watch engine — both speak
+// Aoede and there is no setting that changes them. Every lane that CAN choose
+// therefore has to match, or she changes voice mid-conversation.
+//
+// She did. This default was Leda, so a call that started live (Aoede) and fell
+// back to the cascade (Leda) swapped her for a different woman mid-sentence,
+// and screen share — where the live→cascade handoff is most likely — was where
+// it was heard: "two or three different voices", reported as multiple
+// personalities. Both lanes were working exactly as designed; they just
+// disagreed about who she was.
+//
+// To move her voice, move it HERE and in the two live speechConfigs together —
+// liveCall.ts and LiveWatchEngine.java — or this comes straight back.
+const DEFAULT_VOICE = "Aoede";
 const ALLOWED_VOICES = new Set(["Leda", "Kore", "Aoede", "Zephyr"]);
 const SAMPLE_RATE = 24000;
 

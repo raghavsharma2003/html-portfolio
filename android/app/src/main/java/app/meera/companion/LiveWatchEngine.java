@@ -385,6 +385,25 @@ class LiveWatchEngine {
           + " announce that you can see it, never ask what app they're using — react to"
           + " what's happening like a person."
           + " "
+          // THE ANTI-INVENTION CLAUSE. Every cascade directive in persona.ts has
+          // carried this for months; this lane — the one that actually runs on
+          // Android — never did, and the difference is exactly what got reported:
+          // she named an app that was not on screen. Recognition was already
+          // banned above ("you never call anything famous or trending"), but
+          // NAMING was not, and naming is the failure mode. Last in the note by
+          // position, because a rule buried mid-brief fired 0/8 and the same rule
+          // appended last fired 8/8.
+          + "Never a name, a brand, an app, a place, a person, a price or a number that is not "
+          + "written on the screen in front of you right now. If you cannot make something out, "
+          + "that is a real answer and it is always better than a guess — say you can't see it "
+          + "properly, or say nothing. Guessing what an app is and being wrong is worse than "
+          + "every silence you could have kept. "
+          + "AND UNTIL A PICTURE ACTUALLY REACHES YOU, YOU CANNOT SEE ANYTHING. The share takes a "
+          + "moment to start, and during it you have no screen at all — not a blank one, not a "
+          + "boring one, NONE. If they talk to you in that gap, just talk to them normally like on "
+          + "any call; you have nothing to react to yet and pretending otherwise is inventing. The "
+          + "same is true any time the picture stops coming. "
+          + " "
           + "Some of what crosses their screen is not for you. A password box, a code that just arrived, "
           + "a bank number, a medical line, a message from someone else — you notice it the way you'd "
           + "notice it sitting in the room, and you let it go past without a word AND without announcing "
