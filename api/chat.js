@@ -7,10 +7,13 @@ import { OPENROUTER_KEY } from "./_config.js";
 
 const DEFAULT_MODEL = "google/gemini-3.6-flash";
 const ALLOWED_MODEL = /^[a-z0-9-]+\/[a-z0-9.:-]+$/i;
-// Headroom over the current core (~29.8k chars), so her personality can keep
-// growing without quietly losing its tail again. It is a sanity bound against
-// a malformed request, not a cost lever: the whole core is prompt-cached.
-const SYSTEM_MAX = 48_000;
+// Headroom over the current core, so her personality can keep growing without
+// quietly losing its tail again. It is a sanity bound against a malformed
+// request, not a cost lever: the whole core is prompt-cached, so a higher
+// ceiling costs nothing until the text is actually there. Raised 48k -> 64k
+// because the live voice lane measured 45,042 — 93.8% of the old cap, i.e. one
+// good paragraph away from silently truncating her again.
+const SYSTEM_MAX = 64_000;
 
 // voice calls stream tokens so she can start speaking on the first sentence
 export const config = { supportsResponseStreaming: true };
@@ -68,7 +71,18 @@ export default async function handler(req, res) {
     // safety-relevant text sits. Same failure shape as the system-prompt
     // truncation that once dropped the crisis helplines — so: raise it, and
     // make any future overflow loud instead of silent.
-    const TAIL_MAX = 14_000;
+    // Raised 14_000 -> 24_000 after scripts/check-prompt-budget.mjs measured the
+    // real worst case for the first time: a live watch turn assembles ~10.4k of
+    // static blocks and the dynamic blocks are bounded, by the code that builds
+    // them, at ~11.4k (12 recall lines — 8 matched + 4 background — each with a
+    // 160-char summary cap, 12 herLife items, her carried feeling and wants).
+    // That is ~21.8k against a 14k cap. Worse, brain.ts appends SEARCH_DECISION
+    // LAST on the chat lane, so the first casualty of the overflow is her ability
+    // to look anything up — the exact failure that the system-prompt truncation
+    // caused before, reappearing one field over. The tail is the uncached half,
+    // but a ceiling costs nothing when the content isn't there: the typical tail
+    // measures ~11k and is unaffected.
+    const TAIL_MAX = 24_000;
     if (typeof system_tail === "string" && system_tail) {
       if (system_tail.length > TAIL_MAX) {
         console.warn(`[chat] system_tail truncated: ${system_tail.length} > ${TAIL_MAX}`);

@@ -19,6 +19,12 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm ci
+      - run: npx tsc -b
+      # Fails the build if a system prompt outgrows the cap api/chat.js slices
+      # it at. Truncation is silent and eats the END of the prompt, which is
+      # where the crisis helplines, the AI-honesty rule and the search protocol
+      # live — it has already cost us all three once.
+      - run: node scripts/check-prompt-budget.mjs
       - run: npx vite build
       - run: npx cap sync android
       - run: cd android && ./gradlew assembleDebug --no-daemon
