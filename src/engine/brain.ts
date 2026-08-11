@@ -13,6 +13,7 @@ import {
   buildSpeechStyle,
   WATCH_MODE_NOTE,
   SEARCH_DECISION,
+  FORGET_DECISION,
   type UserProfile,
   type VoiceEngine,
 } from "./persona";
@@ -656,6 +657,13 @@ ${memories}`;
   // dead last, and chat only — see SEARCH_DECISION in persona.ts for why
   // position is the entire mechanism here
   if (mode === "chat") sysTail += SEARCH_DECISION;
+  // Both lanes, unlike the search rule: "bhool ja jo tune call pe dekha" said
+  // ON a call is the canonical case for this feature, and the cascade call
+  // lane goes through this same path. (The realtime live lane never reaches
+  // here at all — it produces sound and nothing else — which is why the live
+  // brief tells her plainly that she cannot delete mid-call instead of letting
+  // her agree and do nothing.)
+  sysTail += FORGET_DECISION;
   // api/chat.js keeps the first 14000 chars of the tail, and the decision rule
   // is the last thing in it — so if this ever trips, the rule is the first
   // casualty and the trim has to happen in recall instead

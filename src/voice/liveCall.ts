@@ -444,13 +444,56 @@ const ECHO_TAIL_DB = 20;
 const ECHO_ADMIT_TICKS = 3;
 // Only sub-frames where she is within this much of her recent peak are used to
 // measure κ. Her pauses carry no coupling information, only model error.
-const ECHO_MEASURE_FRAC = 0.5;
+const ECHO_MEASURE_FRAC = 0.7;
 // The bar sits a MARGIN above the leak estimate, never at it: κ is an RMS
 // ratio and the sub-frames it has to reject are the loud ones. +2.3 dB was
 // chosen by sweeping it against BOTH failure directions at once — below 1.3
 // she starts interrupting herself again, above 1.6 the quiet talker stops
 // getting through.
-const ECHO_MARGIN = 1.3; // +2.3 dB over the leak estimate
+// It came DOWN from 1.3 when κ stopped being a guess. The old note here said
+// "below 1.3 she starts interrupting herself again", and that was true of a κ
+// pinned at a seed that could be 6 dB wrong: the margin was covering the
+// estimator's error, not the leak's crest. With the lock measuring the device,
+// 1.15 was chosen by sweeping BOTH failure directions again (n=8 per cell,
+// three of her turns per call):
+//
+//   margin  self-duck@−6dB  her voice sent@−6dB  quiet talker 0.10  TV 0.12
+//    1.30        13%              1280ms              3/8             4/8
+//    1.15        19%              1792ms              6/8             7/8
+//   baseline     91%              6996ms              5/8             8/8
+//
+// 1.15 is the one that beats the shipped arbiter on BOTH sides at once: she
+// stops ducking and answering herself, and a quiet talker is heard MORE often
+// than before, not less. 1.30 protects her better still, but it buys that by
+// refusing the quiet talker — and "she is uninterruptible" is the worse
+// product. The quiet talker and the distant television move together in every
+// cell of that sweep, which is the same thing this file has always said: at
+// 0.10-0.12 they are not separable by level, and the margin only chooses which
+// way to be wrong.
+// ...and it is no longer ONE number, because the two ends of the κ range are
+// not the same problem. The margin exists to cover the estimator's error, and
+// that error scales with the leak: on a device with real AEC (κ ≈ 0.02) there
+// is almost nothing to get wrong and every extra dB is taken straight out of
+// a quiet talker; on a speakerphone at κ ≈ 0.7 a 1 dB under-estimate is her
+// cutting herself off. Measured at the two ends, n=8 per cell:
+//
+//              −6 dB coupling            −12 dB coupling      −3 dB coupling
+//   margin  self-duck   her voice out   quiet talker  TV     self-duck  leak
+//    1.30      13%          1280ms          3/8      4/8        60%    1621ms
+//    1.15      19%          1792ms          6/8      7/8        86%    5119ms
+//   baseline   91%          6996ms          5/8      8/8        94%    6910ms
+//
+// So the margin rides κ: tight where the estimate is good and the quiet talker
+// is the thing at stake, wide where her own voice is the loudest thing in the
+// room and nothing quiet was ever going to be heard over it anyway.
+const ECHO_MARGIN_LO = 1.15; // +1.2 dB, at κ ≤ ECHO_MARGIN_KLO
+const ECHO_MARGIN_HI = 1.45; // +3.2 dB, at κ ≥ ECHO_MARGIN_KHI
+const ECHO_MARGIN_KLO = 0.3; // the old seed: ≈10 dB ERL
+const ECHO_MARGIN_KHI = 0.66; // ≈3.6 dB ERL: a speaker aimed at the microphone
+const echoMargin = (k: number) =>
+  ECHO_MARGIN_LO +
+  (ECHO_MARGIN_HI - ECHO_MARGIN_LO) *
+    Math.max(0, Math.min(1, (k - ECHO_MARGIN_KLO) / (ECHO_MARGIN_KHI - ECHO_MARGIN_KLO)));
 // The soft bar's LEVEL no longer carries the echo term (see thrS), but an
 // individual soft HIT still has to out-shout the leak at the instant it was
 // captured. That is a per-sub-frame test, not a test on the finished
@@ -915,7 +958,8 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     }
     let herNow = 0;
     for (const h of herAt) if (h > herNow) herNow = h;
-    const echoAt = herAt.map((h) => kappa * h * ECHO_MARGIN);
+    const margin = echoMargin(kappa);
+    const echoAt = herAt.map((h) => kappa * h * margin);
     let echoTick = 0;
     for (const e of echoAt) if (e > echoTick) echoTick = e;
     // Whether ANYTHING in this chunk out-shouts her leak is a different
