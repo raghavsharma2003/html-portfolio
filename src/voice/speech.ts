@@ -225,6 +225,13 @@ let currentAudio: HTMLAudioElement | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let previousSpokenText = ""; // ElevenLabs request stitching — prosody continuity
 
+// A streamed phrase is not one audio element but DOZENS of scheduled buffer
+// sources plus a fetch still arriving. Barge-in has to reach all of it: killing
+// only `currentSource` would leave her talking over the user, which is a worse
+// failure than the latency streaming was added to fix.
+let scheduled: AudioBufferSourceNode[] = [];
+const streamAborts = new Set<AbortController>();
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Mobile browsers only allow audio started inside a user gesture. Her replies
@@ -491,6 +498,154 @@ export function stopRoomTone() {
   }
   clearInterval(roomTone.sway);
   roomTone = null;
+}
+
+/* ── progressive proxy voice ──────────────────────────────────────────────
+   The proxy can stream her voice as raw PCM while it is still being
+   synthesised. Measured on the free lane: first frame at 579ms p50 / 722ms
+   p90, against 2053ms p50 / 4177ms p90 / 20180ms worst for the complete file
+   this used to wait on.
+
+   No decodeAudioData anywhere in here — that needs a COMPLETE file, which is
+   the whole problem. The wire format is known, headerless and fixed-rate
+   (L16, 24kHz, mono), so a frame becomes an AudioBuffer and is scheduled the
+   moment it lands. ── */
+
+const PCM_RATE = 24000;
+// Upstream never once fell behind the playhead across 10 runs (worst lead
+// +40ms, generation at 1.6–2.2x realtime), so this buffer is sized for the
+// CLIENT's network jitter, not the provider's.
+const JITTER_MS = 150;
+
+// Would this text route to the hosted proxy voice at all? Mirrors fetchClipFor
+// exactly, because a divergence here would silently stream one engine's text
+// through another engine's door.
+function usesProxyVoice(text: string, opts: VoiceOpts): boolean {
+  const preferEleven = Boolean(opts.elevenKey) && (hasAudioTags(text) || !opts.sarvamKey);
+  return !preferEleven && !opts.sarvamKey;
+}
+
+/**
+ * Fetch and play one phrase progressively. Resolves TRUE once the audio has
+ * finished sounding (or barge-in cut it), FALSE if nothing was ever audible —
+ * in which case the caller falls back to the complete-file path, having lost
+ * nothing but the attempt.
+ */
+async function streamProxyClip(
+  text: string,
+  style: string | undefined,
+  session: number,
+  onFirstAudio?: () => void,
+): Promise<boolean> {
+  const ctx = audioCtx;
+  // progressive PCM needs the unlocked WebAudio path; the HTMLAudio fallback
+  // can only play a complete file, so it keeps the blob route
+  if (!ctx || ctx.state !== "running") return false;
+  const spoken = stripTagsForPlainVoice(text);
+  if (!spoken) return false;
+
+  const ctl = new AbortController();
+  streamAborts.add(ctl);
+  const mine: AudioBufferSourceNode[] = [];
+  const t0 = Date.now();
+  try {
+    const res = await fetch(PROXY_SPEECH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: spoken, stream: true, ...(style ? { style } : {}) }),
+      signal: ctl.signal,
+    });
+    if (!res.ok || !res.body) return false;
+    const reader = res.body.getReader();
+
+    let carry = new Uint8Array(0);
+    let queued: AudioBuffer[] = [];
+    let queuedMs = 0;
+    let playAt = 0;
+    let started = false;
+    let last: AudioBufferSourceNode | null = null;
+
+    const schedule = (b: AudioBuffer) => {
+      const src = ctx.createBufferSource();
+      src.buffer = b;
+      src.connect(speechOut()); // her bus, so the barge-in duck still applies
+      // an underrun would otherwise schedule in the past and overlap the
+      // previous frame; a short gap is the honest failure, and the measurement
+      // says it should not happen at all
+      if (playAt < ctx.currentTime) playAt = ctx.currentTime + 0.02;
+      src.start(playAt);
+      playAt += b.duration;
+      mine.push(src);
+      scheduled.push(src);
+      last = src;
+    };
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (session !== speakSession) {
+        ctl.abort();
+        return true; // barge-in, not a failure — do not re-synthesise
+      }
+      if (!value?.length) continue;
+      // samples are 16-bit: an odd byte split across two reads must be carried
+      // over, or every sample after it is noise
+      let bytes: Uint8Array;
+      if (carry.length) {
+        bytes = new Uint8Array(carry.length + value.length);
+        bytes.set(carry);
+        bytes.set(value, carry.length);
+      } else {
+        bytes = value;
+      }
+      const usable = bytes.length - (bytes.length % 2);
+      carry = bytes.slice(usable);
+      if (!usable) continue;
+
+      const i16 = new Int16Array(
+        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + usable),
+      );
+      const buf = ctx.createBuffer(1, i16.length, PCM_RATE);
+      const f32 = buf.getChannelData(0);
+      for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768;
+      queuedMs += (i16.length / PCM_RATE) * 1000;
+      queued.push(buf);
+
+      if (!started && queuedMs < JITTER_MS) continue;
+      if (!started) {
+        started = true;
+        playAt = ctx.currentTime + 0.02;
+        // The hedge's median must keep describing TIME UNTIL SHE STARTS
+        // TALKING. Feeding it the complete-file time instead would teach it a
+        // number roughly twice as large as the thing it gates, and it would go
+        // back to firing on every turn — that bug billed two generations on 9
+        // of 9 utterances and won nothing.
+        noteClipMs(Date.now() - t0);
+        onFirstAudio?.();
+      }
+      for (const b of queued) schedule(b);
+      queued = [];
+    }
+
+    if (!started) return false; // stream ended before the buffer ever filled
+    for (const b of queued) schedule(b);
+    if (!last) return false;
+    // resolve only once the last frame has actually finished sounding, so the
+    // pipeline's inter-phrase breath still lands where it should. A stopped
+    // source fires onended too, so barge-in unblocks this as well.
+    await new Promise<void>((resolve) => {
+      (last as AudioBufferSourceNode).onended = () => resolve();
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    streamAborts.delete(ctl);
+    for (const s of mine) {
+      const i = scheduled.indexOf(s);
+      if (i >= 0) scheduled.splice(i, 1);
+    }
+  }
 }
 
 async function meeraFetch(text: string, style?: string): Promise<Blob | null> {
@@ -765,18 +920,40 @@ export async function speakCall(
   // or already in flight if the caller prewarmed it (greeting during ring)
   const pre = prewarmed.get(phrases[0]);
   if (pre) prewarmed.delete(phrases[0]);
-  const fetches: Array<Promise<Blob | null>> = [pre ?? hedgedClipFor(phrases[0], opts, style)];
+  const fetches: Array<Promise<Blob | null> | undefined> = [];
   let started = false;
-  for (let i = 0; i < phrases.length; i++) {
-    if (session !== speakSession) return;
-    if (i + 1 < phrases.length) fetches[i + 1] = fetchClipFor(phrases[i + 1], opts, style);
-    const blob = await fetches[i];
-    if (session !== speakSession) return;
-    if (!blob) continue;
+  const begin = () => {
     if (!started) {
       started = true;
       onStart?.();
     }
+  };
+
+  // ── the first phrase is the ONLY one waited on in silence, so it streams ──
+  // Later phrases fetch while earlier ones play, so their synthesis time is
+  // already hidden and they keep the simpler complete-file path (and the blob
+  // cache that hangs off it). Streaming here buys the entire win.
+  let from = 0;
+  if (!pre && usesProxyVoice(phrases[0], opts)) {
+    // phrase 2 must not wait on phrase 1 finishing SOUNDING — start it now
+    if (phrases.length > 1) fetches[1] = fetchClipFor(phrases[1], opts, style);
+    const ok = await streamProxyClip(phrases[0], style, session, begin);
+    if (session !== speakSession) return;
+    if (ok) {
+      from = 1;
+      if (phrases.length > 1) await sleep(120 + Math.random() * 200);
+    }
+  }
+  if (from === 0) fetches[0] = pre ?? hedgedClipFor(phrases[0], opts, style);
+
+  for (let i = from; i < phrases.length; i++) {
+    if (session !== speakSession) return;
+    if (i + 1 < phrases.length && !fetches[i + 1])
+      fetches[i + 1] = fetchClipFor(phrases[i + 1], opts, style);
+    const blob = await fetches[i];
+    if (session !== speakSession) return;
+    if (!blob) continue;
+    begin();
     await playBlob(blob, session, undefined, undefined);
     if (session !== speakSession) return;
     // human inter-phrase breath: 120–320ms
@@ -813,7 +990,11 @@ export function createStreamSpeaker(
   let firstOut = false;
   let pumping = false;
   let allText = ""; // everything asked of TTS — device-voice fallback source
-  const queue: Array<Promise<Blob | null>> = [];
+  // A queued unit of speech: a complete file already being fetched, or a phrase
+  // to be STREAMED. Only a phrase that would otherwise be awaited in silence is
+  // ever streamed; the rest arrive under cover of the one before them.
+  type Queued = Promise<Blob | null> | { streamText: string };
+  const queue: Array<Queued> = [];
 
   const emit = (phrase: string) => {
     const clean = stripForCloud(phrase);
@@ -823,11 +1004,16 @@ export function createStreamSpeaker(
     if (/\b(base model|minimal text|text mode|system prompt|language model|as an ai|reasoning|max.?_?tokens|persona prompt|default model|output format)\b/i.test(clean))
       return;
     allText += (allText ? " " : "") + clean;
-    // fetch starts NOW; the first clip (the one awaited in silence) is hedged
+    // Work starts NOW. A phrase with nothing playing ahead of it is the one the
+    // user waits on in silence: it streams if the proxy voice is serving, and
+    // is hedged otherwise (the engines that cannot stream keep the old cover).
+    const awaitedInSilence = queue.length === 0 && !started;
     queue.push(
-      queue.length === 0 && !started
-        ? hedgedClipFor(clean, opts, style)
-        : fetchClipFor(clean, opts, style),
+      awaitedInSilence && usesProxyVoice(clean, opts)
+        ? { streamText: clean }
+        : awaitedInSilence
+          ? hedgedClipFor(clean, opts, style)
+          : fetchClipFor(clean, opts, style),
     );
     void pump();
   };
@@ -842,13 +1028,35 @@ export function createStreamSpeaker(
         await sleep(60); // stream still producing — wait for the next phrase
         continue;
       }
-      const blob = await next;
-      if (session !== speakSession) return;
-      if (blob) {
+      const begin = () => {
         if (!started) {
           started = true;
           onStart?.();
         }
+      };
+      if ("streamText" in next) {
+        const ok = await streamProxyClip(next.streamText, style, session, begin);
+        if (session !== speakSession) return;
+        if (ok) {
+          await sleep(100 + Math.random() * 160); // inter-phrase breath
+          continue;
+        }
+        // never became audible — fall back to the complete-file path, having
+        // lost only the attempt
+        const blob = await hedgedClipFor(next.streamText, opts, style);
+        if (session !== speakSession) return;
+        if (blob) {
+          begin();
+          await playBlob(blob, session, undefined, undefined);
+          if (session !== speakSession) return;
+          await sleep(100 + Math.random() * 160);
+        }
+        continue;
+      }
+      const blob = await next;
+      if (session !== speakSession) return;
+      if (blob) {
+        begin();
         await playBlob(blob, session, undefined, undefined);
         if (session !== speakSession) return;
         await sleep(100 + Math.random() * 160); // inter-phrase breath
@@ -1120,6 +1328,20 @@ export function playBackchannel() {
 export function stopSpeaking() {
   speakSession++;
   duckSpeech(false);
+  // A streamed phrase is dozens of already-scheduled sources plus a fetch still
+  // arriving. Every one of them has to go: stopping the fetch alone leaves
+  // queued audio to play out over the user, and stopping the sources alone
+  // leaves the rest of the stream arriving to be scheduled behind them.
+  for (const c of streamAborts) c.abort();
+  streamAborts.clear();
+  for (const s of scheduled) {
+    try {
+      s.stop();
+    } catch {
+      /* already ended */
+    }
+  }
+  scheduled = [];
   try {
     currentSource?.stop();
   } catch {
