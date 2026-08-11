@@ -106,23 +106,37 @@ function stripForDevice(text: string): string {
     .trim();
 }
 
+// Keeps short audio tags ([laughs], [sighs]) — ElevenLabs v3 actually performs
+// them, and the routing above deliberately steers tagged replies to it. The
+// engines that CANNOT perform them strip them at their own door instead
+// (stripForDevice for Sarvam/device, stripTagsForPlainVoice for our proxy), so
+// no engine is ever handed a tag it will read out loud as a word.
 function stripForCloud(text: string): string {
-  // Short bracket tags used to be passed through on the theory that the cloud
-  // voice renders them as sound. It emits them on essentially every cascade
-  // reply — [excited], [laughs], [sighs], [softly], [giggles], [curious] —
-  // measured 10/10, and we have no evidence the model performs any of them.
-  // The downside is asymmetric: a rendered tag buys a small flourish, a spoken
-  // one has her literally saying the word "excited" mid-sentence. Her brief
-  // already tells her to write the laugh out ("hahaha"), which is heard for
-  // certain, so nothing is lost by turning the tag into the beat it stands for.
   return stripProtocol(text)
-    .replace(/\[[a-z ]{2,16}\]/gi, "…")
     .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{2764}]/gu, "")
     .replace(/\s+/g, " ")
-    .trim()
-    // a tag at the head becomes a pause before she has said anything, which is
-    // just dead air on the front of the turn
-    .replace(/^…\s*/, "");
+    .trim();
+}
+
+// The hosted Meera voice (Gemini TTS through our proxy) is the default for a
+// fresh, keyless install and there is no evidence it performs audio tags. She
+// emits them constantly on the cascade lane — [excited], [laughs], [sighs],
+// [softly], [giggles], [curious], measured on 10 of 10 replies — so this is the
+// common case, not an edge one. The bet is asymmetric: a performed tag buys a
+// small flourish, an unperformed one has her literally saying the word
+// "excited" mid-sentence. Her brief already tells her to write the laugh out
+// ("hahaha"), which is heard for certain, so the tag becomes the beat it stood
+// for and nothing is lost.
+function stripTagsForPlainVoice(text: string): string {
+  return (
+    text
+      .replace(/\[[a-z ]{2,16}\]/gi, "…")
+      .replace(/\s+/g, " ")
+      .trim()
+      // a tag at the head would be a pause before she has said anything, which
+      // is just dead air on the front of the turn
+      .replace(/^…\s*/, "")
+  );
 }
 
 // Punctuation-aware prosody for device TTS: questions rise, exclamations
@@ -450,11 +464,13 @@ export function stopRoomTone() {
 }
 
 async function meeraFetch(text: string, style?: string): Promise<Blob | null> {
+  const spoken = stripTagsForPlainVoice(text);
+  if (!spoken) return null;
   try {
     const res = await fetch(PROXY_SPEECH_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, ...(style ? { style } : {}) }),
+      body: JSON.stringify({ text: spoken, ...(style ? { style } : {}) }),
       signal: AbortSignal.timeout(40_000),
     });
     if (!res.ok) return null;
