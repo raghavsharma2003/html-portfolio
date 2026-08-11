@@ -17,12 +17,69 @@
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
 
-import { OPENROUTER_KEY, SUPABASE_URL, SUPABASE_KEY } from "./_config.js";
+import {
+  OPENROUTER_KEY,
+  SUPABASE_URL,
+  SUPABASE_KEY,
+  AZURE_ENDPOINT,
+  AZURE_KEY,
+} from "./_config.js";
 
 const SB_URL = process.env.SUPABASE_URL || SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_KEY || SUPABASE_KEY;
 const OR_KEY = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY;
 const EXTRACT_MODEL = "google/gemini-3.1-flash-lite";
+
+// Deciding what is worth remembering about someone — and which of two
+// contradictory things is now true — is judgement work, not pattern matching,
+// and it is the foundation of her remembering you at all. It is also the one
+// place a reasoning model clearly belongs: a measured A/B put reasoning +55%
+// ahead on ordinary conversation and 81% BEHIND on emotionally heavy beats,
+// where it collapsed into restate-anecdote-question. That failure is about
+// COMPANIONSHIP. Extraction is neither companionship nor latency-critical —
+// nobody is waiting on it — so the win applies and the failure does not.
+//
+// Azure is tried first because it is funded by credits and is the better
+// model; OpenRouter remains the fallback, because a bad Azure minute must cost
+// a slower extraction, never a lost memory. Note the hidden cost: reasoning
+// tokens are billed and never appear in `completion_tokens` (307,788 of them
+// in the battery that produced this decision).
+const AZ_ENDPOINT = process.env.AZURE_ENDPOINT || AZURE_ENDPOINT;
+const AZ_KEY = process.env.AZURE_API_KEY || AZURE_KEY;
+const AZ_EXTRACT_MODEL = "grok-4-1-fast-reasoning";
+
+/** Ask the extraction brain. Azure (reasoning) first, OpenRouter as fallback. */
+async function extractChat(messages, maxTokens) {
+  if (AZ_ENDPOINT && AZ_KEY) {
+    try {
+      const r = await fetch(`${AZ_ENDPOINT}/chat/completions`, {
+        method: "POST",
+        headers: { "api-key": AZ_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: AZ_EXTRACT_MODEL, max_tokens: maxTokens, messages }),
+        signal: AbortSignal.timeout(25_000),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        const t = j?.choices?.[0]?.message?.content;
+        if (t) return t;
+      }
+    } catch {
+      /* fall through — never let the better brain being down lose a memory */
+    }
+  }
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OR_KEY}`,
+      "Content-Type": "application/json",
+      "X-Title": "Meera",
+    },
+    body: JSON.stringify({ model: EXTRACT_MODEL, max_tokens: maxTokens, messages }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data?.choices?.[0]?.message?.content ?? null;
+}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function sb(path, params, opts = {}) {
@@ -250,23 +307,8 @@ async function opRemember(device, body) {
     .map((w) => w.replace(/^owed:\s*/i, ""))
     .slice(0, 2);
 
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OR_KEY}`,
-      "Content-Type": "application/json",
-      "X-Title": "Meera",
-    },
-    body: JSON.stringify({
-      model: EXTRACT_MODEL,
-      // 1100, not 600: the old cap could truncate a busy stretch mid-JSON,
-      // JSON.parse threw below, the op returned {ok:false} and the client's
-      // catch swallowed it — silently losing the graph write AND the
-      // self-facts. Key order below is deliberate: her interior is emitted
-      // FIRST so that if anything ever truncates it is the tail of the
-      // (lossy, re-derivable) node list that goes, never her interior.
-      max_tokens: 1100,
-      messages: [
+  const content = await extractChat(
+    [
         {
           role: "system",
           content: `Extract memory from this Hinglish chat (meera is the AI companion, the other person is the user). Reply with ONLY JSON, keys in this order:
@@ -284,14 +326,19 @@ async function opRemember(device, body) {
 nodes/edges = the USER's world and what the TWO of them share. Only things worth remembering weeks later: people, places, jobs, plans, strong likes/dislikes, recurring feelings, big events — plus kind "phrase": a word, nickname or running joke the two of THEM made up together, stored under the exact word they use, with the summary saying what it means and where it came from. A phrase only counts if it literally appears in this chat; never invent one and never file an ordinary Hindi/English word as a phrase. Skip small talk. Max 6 nodes. Never put meera's own life in nodes. "feel" = how the USER felt about it, IN THEIR OWN WORDS from this chat, <=40 chars — leave it "" unless they actually said it; never infer or invent a feeling for them.`,
         },
         { role: "user", content: convo },
-      ],
-    }),
-  });
-  if (!res.ok) return { ok: false };
-  const data = await res.json();
+    ],
+    // 1100, not 600: the old cap could truncate a busy stretch mid-JSON,
+    // JSON.parse threw below, the op returned {ok:false} and the client's
+    // catch swallowed it — silently losing the graph write AND the
+    // self-facts. Key order in the schema is deliberate for the same reason:
+    // her interior is emitted FIRST so that if anything ever truncates it is
+    // the tail of the (lossy, re-derivable) node list that goes.
+    1100,
+  );
+  if (!content) return { ok: false };
   let parsed;
   try {
-    const raw = data?.choices?.[0]?.message?.content ?? "";
+    const raw = content;
     parsed = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
   } catch {
     return { ok: false };
