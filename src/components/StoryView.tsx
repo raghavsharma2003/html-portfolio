@@ -14,6 +14,18 @@ import PhotoAvatar from "./PhotoAvatar";
 
 const SEGMENT_MS = 5200;
 
+// storyAge() reports "2d" past a day, which is engine-correct but reads as a
+// stale story sitting behind a live ring — her latest batch deliberately
+// never expires (see storyCatalog). Past a day the label becomes the day it
+// was posted, which reads as a highlight instead of something rotting.
+function ageLabel(s: Story): string {
+  const hours = (Date.now() - s.at) / 3_600_000;
+  if (hours < 24) return storyAge(s);
+  if (hours < 48) return "yesterday";
+  if (hours < 24 * 7) return new Date(s.at).toLocaleDateString([], { weekday: "long" }).toLowerCase();
+  return new Date(s.at).toLocaleDateString([], { day: "numeric", month: "short" });
+}
+
 // rubber-band: the further past the edge, the less it follows
 const band = (d: number, dim: number, c = 0.55) => (d * dim * c) / (dim + c * Math.abs(d));
 
@@ -221,7 +233,7 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
       <div className="story-head" onTouchEnd={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
         <PhotoAvatar size={34} />
         <span className="story-name">{HER_NAME}</span>
-        <span className="story-age">{storyAge(cur)}</span>
+        <span className="story-age">{ageLabel(cur)}</span>
         <span style={{ flex: 1 }} />
         <button
           className="story-btn"
