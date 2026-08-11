@@ -43,6 +43,9 @@ class WatchEngine {
   // and the NO_COMMENT gate lets her decline any of those — the cooldown only
   // prevents machine-gun commentary on a fast-moving screen
   private static final long COMMENT_COOLDOWN_MS = 8_000;
+  /** No picture this new, no looking up. The same grounding invariant the
+   *  realtime lane runs on, and the same number. */
+  private static final long FRAME_FRESH_MS = 3_000;
   /** Her "nothing to say" answer, however the model phrases it. None of these
    *  may ever reach TTS as words. */
   private static final java.util.regex.Pattern SILENT =
@@ -164,18 +167,34 @@ class WatchEngine {
 
   /** New screen frame from the capture pipeline (JPEG base64, ~768px).
    *  motion: 0 nothing moved · 1 they're doing something · 2 a new thing to
-   *  look at. A frozen screen is the one case with nothing to react to. */
+   *  look at. Frames are only stored here; WHEN she looks up is decided by
+   *  nudge() below, off what the screen actually did. */
   void onFrame(String b64, int motion) {
     latestFrame = b64;
     latestFrameAt = System.currentTimeMillis();
-    if (!running || speaking || thinking) return;
-    if (motion <= 0) return; // nothing moved — no reason to look up
-    long now = latestFrameAt;
-    if (now - lastCommentAt < COMMENT_COOLDOWN_MS) return;
-    if (now - lastUserSpokeAt < 4000) return; // they're mid-thought
-    if (b64.equals(lastAnalyzed)) return; // static screen costs zero
+  }
+
+  /** The cascade's version of a wake-up: one vision request against the frame
+   *  that is already in hand. It used to fire on ANY motion behind an 8s
+   *  cooldown, which meant a vision request every 8 seconds of a scroll — for
+   *  frames the user was already past. Now the same SceneReader that drives
+   *  the realtime lane decides, so the request is spent on a screen they
+   *  actually stopped on. Returns whether anything was started. */
+  boolean nudge(int wake) {
+    if (!running || speaking || thinking) return false;
+    if (wake == SceneReader.WAKE_NONE) return false;
+    String b64 = latestFrame;
+    if (b64 == null) return false;
+    long now = System.currentTimeMillis();
+    // the grounding invariant, same as the live lane: no current picture, no
+    // looking up — she is never asked about a screen she was not shown
+    if (latestFrameAt == 0 || now - latestFrameAt > FRAME_FRESH_MS) return false;
+    if (now - lastCommentAt < COMMENT_COOLDOWN_MS) return false;
+    if (now - lastUserSpokeAt < 4000) return false; // they're mid-thought
+    if (b64.equals(lastAnalyzed)) return false; // static screen costs zero
     lastAnalyzed = b64;
     think(directive, b64, true);
+    return true;
   }
 
   /** The screen as she could honestly call it "right now": capture can fall
@@ -183,7 +202,7 @@ class WatchEngine {
    *  as answering off no picture. Past this she just talks without it. */
   private String freshFrame() {
     String f = latestFrame;
-    return f != null && System.currentTimeMillis() - latestFrameAt < 3000 ? f : null;
+    return f != null && System.currentTimeMillis() - latestFrameAt < FRAME_FRESH_MS ? f : null;
   }
 
   /* ── user speech lane: restart-loop SpeechRecognizer with partials ── */

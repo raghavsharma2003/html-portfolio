@@ -68,6 +68,9 @@ export default function Presence({
 
   return (
     <div className="presence" data-phase={phase} ref={root} style={{ width: size, height: size }}>
+      {/* static, painted once, never touched by the loop: it is the room
+          she is sitting in, not part of the amplitude field */}
+      <i className="pr-bloom" />
       <i className="pr-ring" />
       <i className="pr-ring" />
       <i className="pr-ring" />

@@ -13,6 +13,7 @@ import {
   track,
   type AuthSession,
 } from "../engine/account";
+import { CloseIcon } from "./icons";
 
 interface Props {
   state: AppState;
@@ -32,6 +33,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
   const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [sentTo, setSentTo] = useState(""); // "code sent" confirmation
   const boxes = useRef<Array<HTMLInputElement | null>>([]);
 
   const signedIn = Boolean(state.auth?.accessToken);
@@ -39,6 +41,26 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
   useEffect(() => {
     if (step === "otp") boxes.current[0]?.focus();
   }, [step]);
+
+  // The only way out of this sheet was a tap on the sliver of scrim above
+  // it — no close control, no Escape. On a tall phone with the OTP step
+  // open that sliver is about 90px, and a sign-in sheet you can't back out
+  // of is the most expensive dead end in the product.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      if (step === "otp") {
+        setStep("start");
+        setDigits(Array(6).fill(""));
+        setError("");
+      } else {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [step, onClose]);
 
   async function start() {
     setError("");
@@ -49,6 +71,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
       } else {
         await sendSmsOtp(phone);
       }
+      setSentTo(mode === "email" ? email : phone);
       setStep("otp");
     } catch (e) {
       const msg = String((e as Error).message || "");
@@ -101,8 +124,11 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
   return (
     <>
       <div className="sheet-veil" onClick={onClose} />
-      <div className="sheet auth-sheet">
+      <div className="sheet auth-sheet" role="dialog" aria-modal="true" aria-label="Account">
         <div className="grab" />
+        <button className="sheet-x" onClick={onClose} aria-label="Close">
+          <CloseIcon />
+        </button>
 
         {signedIn ? (
           <>
@@ -170,7 +196,11 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
                 onKeyDown={(e) => e.key === "Enter" && phone.length > 7 && start()}
               />
             )}
-            {error && <p className="auth-error">{error}</p>}
+            {error && (
+              <p className="auth-error" role="alert">
+                {error}
+              </p>
+            )}
             <div style={{ height: 14 }} />
             <button
               className="btn-primary"
@@ -192,9 +222,10 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
           <>
             <h3>Enter the code</h3>
             <p className="hint">
-              Sent to {mode === "email" ? email : phone} — check {mode === "email" ? "your inbox" : "your messages"}.
+              Sent to <b style={{ color: "var(--ink)" }}>{sentTo || (mode === "email" ? email : phone)}</b> — check{" "}
+              {mode === "email" ? "your inbox" : "your messages"}.
             </p>
-            <div className="otp-row">
+            <div className="otp-row" role="group" aria-label="Six digit code">
               {digits.map((d, i) => (
                 <input
                   key={i}
@@ -214,10 +245,14 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
                 />
               ))}
             </div>
-            {error && <p className="auth-error">{error}</p>}
+            {error && (
+              <p className="auth-error" role="alert">
+                {error}
+              </p>
+            )}
             <div style={{ height: 10 }} />
             <button className="btn-ghost" style={{ width: "100%" }} disabled={busy} onClick={() => start()}>
-              Resend code
+              {busy ? "Sending…" : "Resend code"}
             </button>
             <button
               className="auth-back"

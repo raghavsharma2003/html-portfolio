@@ -21,12 +21,25 @@ const VIBES = [
   "just curious",
 ];
 
-const stepAnim = {
-  initial: { opacity: 0, y: 26 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -18 },
-  transition: { duration: 0.45, ease: [0.2, 0.9, 0.3, 1] as any },
-};
+// Spatial travel is the part of this that some people cannot tolerate — the
+// crossfade carries the same meaning and stays. framer-motion does not read
+// the media query for us, so it is read here.
+const reduced =
+  typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const stepAnim = reduced
+  ? {
+      initial: { opacity: 0 },
+      animate: { opacity: 1 },
+      exit: { opacity: 0 },
+      transition: { duration: 0.2 },
+    }
+  : {
+      initial: { opacity: 0, y: 26 },
+      animate: { opacity: 1, y: 0 },
+      exit: { opacity: 0, y: -18 },
+      transition: { duration: 0.45, ease: [0.2, 0.9, 0.3, 1] as any },
+    };
 
 export default function Onboarding({ onDone }: Props) {
   const [step, setStep] = useState(0);
@@ -57,12 +70,14 @@ export default function Onboarding({ onDone }: Props) {
               <button className="btn-primary" onClick={() => setStep(1)}>
                 Meet {HER_NAME}
               </button>
+              {/* legal text is text: --ink-faint put it at 2.7:1, which is
+                  a disclosure nobody can read */}
               <p
                 style={{
                   textAlign: "center",
                   marginTop: 16,
                   fontSize: 12.5,
-                  color: "var(--ink-faint)",
+                  color: "var(--ink-dim)",
                   lineHeight: 1.5,
                 }}
               >
@@ -127,10 +142,24 @@ export default function Onboarding({ onDone }: Props) {
         </AnimatePresence>
       </div>
 
-      <div className="onb-dots">
-        {[0, 1, 2].map((i) => (
-          <i key={i} className={i === step ? "on" : ""} />
-        ))}
+      {/* Onboarding used to move in one direction only: a typo in your name
+          on step 2 was a typo she would use forever, because there was no
+          way back and no way to edit it afterwards either. */}
+      <div className="onb-foot">
+        <button
+          className="onb-back"
+          onClick={() => setStep((s) => Math.max(0, s - 1))}
+          disabled={step === 0}
+          aria-label="Back"
+        >
+          ← back
+        </button>
+        <div className="onb-dots" role="presentation">
+          {[0, 1, 2].map((i) => (
+            <i key={i} className={i === step ? "on" : ""} />
+          ))}
+        </div>
+        <span className="onb-back" aria-hidden="true" />
       </div>
     </div>
   );

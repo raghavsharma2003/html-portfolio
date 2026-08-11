@@ -299,14 +299,20 @@ class LiveWatchEngine {
   // ration what she says: a floor between wake-ups and a ceiling per minute.
   // Whether she actually speaks on any of them is entirely her call.
   private static final long FRAME_FRESH_MS = 3_000; // no picture this new = no nudge
-  private static final long WAKE_FLOOR_MS = 2_000; // between "new thing" wake-ups
-  private static final long ALONG_WAKE_MS = 12_000; // while they work on one screen
-  private static final long IDLE_WAKE_MS = 45_000; // frozen screen: rare and optional
-  private static final long ACTIVE_WINDOW_MS = 3_000; // "still doing something" memory
-  private static final long NEW_QUIET_MS = 3_000; // don't cut across them talking
-  private static final long IDLE_QUIET_MS = 6_000;
+  // WHEN to wake her now comes from SceneReader (a line-for-line twin of
+  // src/watch/scene.ts): the old three-constant ladder — 2s for a new thing,
+  // 12s while they work, 45s on a frozen screen — was one cadence trying to
+  // serve a reel feed, a code file and an article being read at the same
+  // time, so it was simultaneously too fast for one and too slow for another.
+  // What survives here are the gates that keep a wake honest and the socket
+  // safe. IDLE_QUIET_MS is the ambient "don't cut across them" window; a
+  // deliberate show uses the shorter SHOW_QUIET_MS below.
+  private static final long IDLE_QUIET_MS = 3_000;
   private static final int WAKE_CEILING = 12; // per WAKE_WINDOW_MS, hard
   private static final long WAKE_WINDOW_MS = 60_000;
+  private static final int AMBIENT_CEILING = 5; // ambient's share of the ring
+  private static final long SHOW_FLOOR_MS = 2500; // between deliberate shows
+  private static final long SHOW_QUIET_MS = 1200; // after their voice, for a show
 
   /** Live mode replaces the per-frame NO_COMMENT gate — she decides herself. */
   private static final String LIVE_NOTE =
@@ -330,6 +336,13 @@ class LiveWatchEngine {
           + " talk, respond normally. NEVER narrate or read the screen back to them, never"
           + " announce that you can see it, never ask what app they're using — react to"
           + " what's happening like a person.";
+
+  /** The share has just begun and the first frame has actually reached her. */
+  private static final String START_NUDGE =
+      "<context: they just started sharing their screen and the first frame has reached you —"
+          + " from here you see it live. Say something only if what's there actually strikes"
+          + " you; otherwise just settle in and watch. Never announce that you can see their"
+          + " screen. Never reference this note>";
 
   /** Something new is on screen and a frame of it has actually reached her. */
   private static final String NEW_NUDGE =
@@ -477,7 +490,9 @@ class LiveWatchEngine {
   private volatile long lastFrameAt = 0; // last frame that actually entered the socket
   private volatile long lastActivityAt = 0; // last frame where the screen did anything
   private final long[] wakes = new long[WAKE_CEILING]; // frame-thread confined
+  private final boolean[] wakeAmbient = new boolean[WAKE_CEILING];
   private int wakeIdx = 0;
+  private volatile long lastShowNudgeAt = 0;
   private volatile int congestion = 0; // 0 clear / 1 moderate / 2 heavy uplink
   // ── mic-thread confined, every one of them: the mic pump is the only
   // thread that samples the socket queue, so none of this needs a lock. The
@@ -724,35 +739,54 @@ class LiveWatchEngine {
     long now = System.currentTimeMillis();
     lastFrameAt = now;
     if (motion > 0) lastActivityAt = now;
-    maybeNudge(s, motion);
   }
 
   /** The Live API only generates on audio activity — video frames alone never
-   *  trigger a turn, so without this she watches a whole session mute. What
-   *  wakes her is what the screen is DOING, with the frame already delivered,
-   *  so there is always something true in front of her: a new thing to look
-   *  at, or steady activity while they work through one screen. The old
-   *  fire-on-a-clock beat survives only for a screen that has genuinely
-   *  stopped. No note ever says what to think — silence answers all of them,
-   *  and her own judgement picks. */
-  private void maybeNudge(WebSocket s, int motion) {
+   *  trigger a turn, so without this she watches a whole session mute. WHEN to
+   *  wake her is decided upstream by SceneReader, purely from what the screen
+   *  did; this method owns the gates that keep the wake HONEST and the socket
+   *  safe, and nothing more. No note ever says what to think — silence answers
+   *  every one of them, and her own judgement picks.
+   *
+   *  Returns whether the wake actually went out, so the caller's budget is
+   *  spent only on wakes that happened. */
+  boolean nudge(int wake) {
+    if (!running || !ready || wake == SceneReader.WAKE_NONE) return false;
+    WebSocket s = ws;
+    if (s == null) return false;
     long now = System.currentTimeMillis();
-    if (speaking) return;
-    if (lastFrameAt == 0 || now - lastFrameAt > FRAME_FRESH_MS) return; // no current picture
-    boolean busy = now - lastActivityAt <= ACTIVE_WINDOW_MS;
-    // a new thing to look at gets the short floor; steady work on one screen
-    // gets a slower beat; a screen that has genuinely stopped gets the rare
-    // one. None of them says what to think — silence answers all three.
-    long gap = motion >= 2 ? WAKE_FLOOR_MS : busy ? ALONG_WAKE_MS : IDLE_WAKE_MS;
-    String note = motion >= 2 ? NEW_NUDGE : busy ? ALONG_NUDGE : IDLE_NUDGE;
-    if (now - lastVoiceAt < (motion >= 2 ? NEW_QUIET_MS : IDLE_QUIET_MS)) return;
-    if (now - lastNudgeAt < gap) return;
-    if (now - wakes[wakeIdx] < WAKE_WINDOW_MS) return; // hard rate ceiling
+    if (speaking) return false;
+    // THE grounding invariant: no picture this new, no wake-up. She is never
+    // told to look at a screen she was not actually shown — that is the
+    // instruction that makes her invent.
+    if (lastFrameAt == 0 || now - lastFrameAt > FRAME_FRESH_MS) return false;
+    boolean show = SceneReader.isShow(wake);
+    // Never cut across them. Ambient keeps the full 3s; a SHOW gets 1200ms,
+    // because a show is exactly the case where they spoke and are now waiting,
+    // and the old guard burnt three of the four seconds inside which a reply
+    // still reads as a reply rather than as reluctance.
+    if (now - lastVoiceAt < (show ? SHOW_QUIET_MS : IDLE_QUIET_MS)) return false;
+    // Ambient chatter must not spend the budget a deliberate show needs: one
+    // ring of 12, but ambient may take only 5 of them. Four minutes of
+    // browsing used to drain the ring, and then the one moment that actually
+    // mattered was silently rate-limited into nothing.
+    if (show) {
+      if (now - lastShowNudgeAt < SHOW_FLOOR_MS) return false;
+    } else {
+      int ambient = 0;
+      for (int i = 0; i < WAKE_CEILING; i++) {
+        if (wakeAmbient[i] && now - wakes[i] < WAKE_WINDOW_MS) ambient++;
+      }
+      if (ambient >= AMBIENT_CEILING) return false;
+    }
+    if (now - wakes[wakeIdx] < WAKE_WINDOW_MS) return false; // hard rate ceiling
     lastNudgeAt = now;
+    if (show) lastShowNudgeAt = now;
     wakes[wakeIdx] = now;
+    wakeAmbient[wakeIdx] = !show;
     wakeIdx = (wakeIdx + 1) % WAKE_CEILING;
     try {
-      JSONObject part = new JSONObject().put("text", note);
+      JSONObject part = new JSONObject().put("text", noteFor(wake));
       JSONObject turn = new JSONObject().put("role", "user").put("parts", new JSONArray().put(part));
       s.send(
           new JSONObject()
@@ -760,8 +794,23 @@ class LiveWatchEngine {
                   "clientContent",
                   new JSONObject().put("turns", new JSONArray().put(turn)).put("turnComplete", true))
               .toString());
+      return true;
     } catch (Exception ignored) {
+      return false;
     }
+  }
+
+  /** Which note each class carries. The code says "look now" and what just
+   *  happened; it never says what to make of it. settle/reshow/point/switch
+   *  currently share the new-thing note — see
+   *  scratchpad/screenshare-persona-patch.md for the SHOW/RESHOW/POINT wording
+   *  that lands with the persona change, at which point this map is the only
+   *  thing that moves. */
+  private static String noteFor(int wake) {
+    if (wake == SceneReader.WAKE_START) return START_NUDGE;
+    if (wake == SceneReader.WAKE_ALONG) return ALONG_NUDGE;
+    if (wake == SceneReader.WAKE_IDLE) return IDLE_NUDGE;
+    return NEW_NUDGE;
   }
 
   /* ── connection ────────────────────────────────────────────────────── */

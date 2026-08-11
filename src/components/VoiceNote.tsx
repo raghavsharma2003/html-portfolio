@@ -55,7 +55,7 @@ function bars(seed: string): number[] {
   });
 }
 
-export default function VoiceNote({ m }: { m: Message }) {
+export default function VoiceNote({ m, onPlay }: { m: Message; onPlay?: () => void }) {
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false); // fetch/play failed — tap retries
@@ -81,6 +81,9 @@ export default function VoiceNote({ m }: { m: Message }) {
     // resume/unlock the audio context INSIDE the tap gesture — by the time
     // the clip arrives (a fetch later) the gesture grant may be gone
     unlockAudio();
+    // the "unheard" affordance stops asking the moment you act on it, not
+    // when the audio finishes arriving — the tap is the acknowledgement
+    onPlay?.();
     setFailed(false);
     setLoading(true);
     const blob = await audioFor(m);
@@ -126,6 +129,7 @@ export default function VoiceNote({ m }: { m: Message }) {
         ))}
       </div>
       <span className="vdur">{failed ? "tap to retry" : mm}</span>
+      {failed && <span className="sr-only">Voice note failed to play. Tap play to retry.</span>}
     </div>
   );
 }

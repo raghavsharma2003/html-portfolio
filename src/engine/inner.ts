@@ -75,9 +75,36 @@ export interface Want {
   due: number;
 }
 
+/**
+ * Something SHE said out loud that she'd come back to ("kal batati hu", "ruk
+ * photo dhoondti hu"). Not a plan, not a want — a sentence she already spoke,
+ * which today evaporates the moment it scrolls out of the window.
+ *
+ * Why this is not a hook, and the two properties that keep it that way:
+ *  - It creates NOTHING. It only records a promise she made spontaneously, and
+ *    it ships alongside a persona rule that BANS making one at a goodbye. Net
+ *    effect is fewer manufactured cliffhangers and more kept words.
+ *  - It is never proactive. It rides the same tail as `wants`, so it can only
+ *    reach her while they are already talking — it never opens a conversation,
+ *    never fires a notification, and is suppressed exactly where a thread is.
+ * The Zeigarnik "open loops aid memory/return" literature FAILED to replicate;
+ * nothing here rests on it. This exists because she was already telling people
+ * she'd be back with something and then silently wasn't.
+ */
+export interface Owed {
+  id: string;
+  /** <=90 chars, HER words for what she said she'd do */
+  text: string;
+  born: number;
+  /** short and hard. An unpaid promise past this is dropped, never mentioned. */
+  due: number;
+}
+
 export interface Inner {
   thread?: Thread;
   wants: Want[]; // <= 3
+  /** <= 2. What she told them she'd come back to and hasn't yet. */
+  owed?: Owed[];
   /** watermark: the appraiser only scores conversation newer than this */
   lastAppraisedAt: number;
   /** container revision — the unit of cross-device merge (never per-field) */
@@ -85,6 +112,10 @@ export interface Inner {
 }
 
 export const MAX_WANTS = 3;
+export const MAX_OWED = 2;
+/** A promise has a short shelf life: after this it is stale enough that
+ *  delivering it reads as a scheduled callback rather than as her memory. */
+const OWED_MAX_DAYS = 2.5;
 const TAU_H = 9; // hours — a feeling survives its own day and dies overnight
 const FLOOR = 0.15; // below this the thread does not exist
 const W_MIN = 0.2;
@@ -126,6 +157,12 @@ export function carry(t: Thread | undefined, now: number, lastMsgAt: number): nu
 export function liveWants(inner: Inner | undefined, now: number): Want[] {
   if (!inner?.wants?.length) return [];
   return inner.wants.filter((w) => w.due > now).slice(0, MAX_WANTS);
+}
+
+/** Promises she still owes. Same silent, total expiry as a want. */
+export function liveOwed(inner: Inner | undefined, now: number): Owed[] {
+  if (!inner?.owed?.length) return [];
+  return inner.owed.filter((o) => o.due > now).slice(0, MAX_OWED);
 }
 
 // how long ago, in the shape a person would think it (mirrors brain.agoLabel)
@@ -203,7 +240,19 @@ export function innerContext(inner: Inner | undefined, o: InnerOpts): { thread: 
           "\n",
         )}\nThese are the true answer when they ask what you're up to, what your week or your weekend looks like, or when the talk lands anywhere near one — the same answer as last time, moved on by however much you've actually done, and you're allowed to have done nothing. Never listed, never reported unasked, never announced as news.`
     : "";
-  return { thread: out, wants: wantsBlock };
+
+  // ── what she owes ───────────────────────────────────────────────────
+  // Not on watch: a promise delivered over someone's shared screen is a
+  // non-sequitur. Everywhere else it is simply her keeping her word.
+  const owed = o.surface === "watch" ? [] : liveOwed(inner, o.now);
+  const owedBlock = owed.length
+    ? `\n\nYOU SAID YOU'D COME BACK TO THIS — you actually said it out loud to them, so it is owed:\n${owed
+        .map((w) => `- ${w.text} (you said this ${agoLabel(w.born, o.now)})`)
+        .join(
+          "\n",
+        )}\nJust do it, early and unasked, as one ordinary sentence — the thing itself, never "waise maine bola tha na", never presented as a payoff, never saved for a better moment. If the conversation has gone somewhere that makes it irrelevant, or they're clearly on their way out, let it go silently and never mention it again. It is a debt you owe them, so it can never be a reason to steer them anywhere.`
+    : "";
+  return { thread: out, wants: wantsBlock + owedBlock };
 }
 
 // ── writes ────────────────────────────────────────────────────────────
@@ -216,6 +265,10 @@ export interface InnerPatch {
   /** the wants still true of her — a full replacement list, judged in the
    *  same pass that produced `self`, so the two can never contradict */
   wants?: Array<{ text?: string; days?: number }> | null;
+  /** promises of hers still outstanding — full replacement list, same pass.
+   *  An empty ARRAY means "she has settled up"; null/undefined means the
+   *  appraiser had nothing to say and the existing list simply ages out. */
+  owed?: Array<{ text?: string }> | null;
   /** she voiced the carried feeling in this stretch → retire it forever */
   told?: boolean;
 }
@@ -245,7 +298,7 @@ const words = (s: string) =>
       .filter((w) => w.length > 3),
   );
 
-function overlaps(a: string, b: string): boolean {
+export function overlaps(a: string, b: string): boolean {
   const A = words(a);
   const B = words(b);
   let n = 0;
@@ -259,8 +312,8 @@ function overlaps(a: string, b: string): boolean {
  */
 export function applyInner(cur: Inner | undefined, patch: InnerPatch, now = Date.now()): Inner {
   const base: Inner = cur
-    ? { ...cur, wants: [...(cur.wants || [])] }
-    : { wants: [], lastAppraisedAt: 0, at: 0 };
+    ? { ...cur, wants: [...(cur.wants || [])], owed: [...(cur.owed || [])] }
+    : { wants: [], owed: [], lastAppraisedAt: 0, at: 0 };
   let changed = false;
 
   // she said it out loud → it is spent, permanently. This is what makes
@@ -327,14 +380,50 @@ export function applyInner(cur: Inner | undefined, patch: InnerPatch, now = Date
     }
   }
 
+  // ── owed ──────────────────────────────────────────────────────────
+  // Same replacement semantics as wants, with one difference that matters:
+  // an owed thing keeps its ORIGINAL due date when it survives a pass. A want
+  // that is still true is still true; a promise that is still unpaid is
+  // getting older, and it must be allowed to die rather than be renewed into
+  // a thing she keeps circling back to.
+  const prevOwed = base.owed || [];
+  if (Array.isArray(patch.owed)) {
+    const next: Owed[] = [];
+    for (const raw of patch.owed.slice(0, MAX_OWED)) {
+      const text = trimWords(String(raw?.text || ""), 90);
+      if (text.length < 6) continue;
+      if (next.some((o) => overlaps(o.text, text))) continue;
+      const prior = prevOwed.find((o) => overlaps(o.text, text));
+      next.push(prior || { id: uid(), text, born: now, due: now + OWED_MAX_DAYS * 86_400_000 });
+    }
+    const live = next.filter((o) => o.due > now);
+    if (live.length !== prevOwed.length || live.some((o, i) => o.id !== prevOwed[i]?.id)) changed = true;
+    diag("chat", "inner_owed_set", { live: live.length, was: prevOwed.length });
+    base.owed = live;
+  } else if (prevOwed.length) {
+    const live = prevOwed.filter((o) => o.due > now);
+    if (live.length !== prevOwed.length) {
+      diag("chat", "inner_owed_expired", { dropped: prevOwed.length - live.length });
+      base.owed = live;
+      changed = true;
+    }
+  }
+
   base.lastAppraisedAt = now;
   if (changed) base.at = now;
   return base;
 }
 
-/** What the appraiser needs to see to judge her wants: her current ones, so
- *  one pass decides both what survives and what is new. Text only — no
- *  timestamps, no counts (G1). */
+/** What the appraiser needs to see to judge her open state: her current wants
+ *  AND her current unpaid promises, so ONE pass decides what survives, what is
+ *  new, and what she has now settled. Text only — no timestamps, no counts (G1).
+ *
+ *  Owed items travel with an `owed:` prefix rather than a second parameter
+ *  because the two call sites live in components this module does not own; the
+ *  server splits them back apart. Ugly seam, zero coordination cost. */
 export function wantsForAppraisal(inner: Inner | undefined, now = Date.now()): string[] {
-  return liveWants(inner, now).map((w) => w.text);
+  return [
+    ...liveWants(inner, now).map((w) => w.text),
+    ...liveOwed(inner, now).map((o) => `owed: ${o.text}`),
+  ];
 }

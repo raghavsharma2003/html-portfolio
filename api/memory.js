@@ -101,7 +101,11 @@ async function opRecall(device, body) {
   // (who they are, where they are, what they like) hold their weight; episodic
   // kinds fade with age, the way a person's does. A felt memory arrives with
   // extra salience at write time, so it outlives an equally-old flat one.
-  const RANK = `salience * case when kind in ('person','place','preference','fact') then 1.0
+  // 'phrase' sits with the identity kinds on purpose: a word the two of them
+  // coined is the least perishable thing in the whole store — a callback that
+  // survived three weeks is worth ten inside the same chat, and it is exactly
+  // what the 90-message context window cannot hold on its own.
+  const RANK = `salience * case when kind in ('person','place','preference','fact','phrase') then 1.0
                  else greatest(0.25, 1.0 - extract(epoch from (now() - updated_at)) / (86400.0 * 60)) end`;
   const fetches = [
     q(
@@ -225,10 +229,17 @@ async function opRemember(device, body) {
     .join("\n");
   // what she is already carrying, so ONE judgment pass decides both what
   // survives and what is new — two passes could contradict each other
-  const openWants = (Array.isArray(body.wants) ? body.wants : [])
+  // one list arrives on the wire (the client-side call sites live in
+  // components that can't be widened); "owed: " marks a promise, not a want
+  const carried = (Array.isArray(body.wants) ? body.wants : [])
     .filter((w) => typeof w === "string" && w.trim())
-    .slice(0, 3)
-    .map((w) => w.trim().slice(0, 90));
+    .slice(0, 5)
+    .map((w) => w.trim().slice(0, 96));
+  const openWants = carried.filter((w) => !/^owed:/i.test(w)).slice(0, 3);
+  const openOwed = carried
+    .filter((w) => /^owed:/i.test(w))
+    .map((w) => w.replace(/^owed:\s*/i, ""))
+    .slice(0, 2);
 
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -250,15 +261,18 @@ async function opRemember(device, body) {
         {
           role: "system",
           content: `Extract memory from this Hinglish chat (meera is the AI companion, the other person is the user). Reply with ONLY JSON, keys in this order:
-{"now":{"text":"...","w":0.4,"sign":-1}|null,"wants":[{"text":"...","days":3}],"told":false,"self":["..."],"nodes":[{"kind":"person|place|event|preference|fact|emotion|plan|topic","name":"short lowercase","summary":"one line, <=120 chars","feel":"their own words for how it felt, or \\"\\""}],"edges":[{"src":"node name","dst":"node name","relation":"2-3 words"}]}
+{"now":{"text":"...","w":0.4,"sign":-1}|null,"wants":[{"text":"...","days":3}],"owed":[{"text":"..."}],"told":false,"self":["..."],"nodes":[{"kind":"person|place|preference|fact|phrase|event|emotion|plan|topic","name":"short lowercase","summary":"one line, <=120 chars","feel":"their own words for how it felt, or \\"\\""}],"edges":[{"src":"node name","dst":"node name","relation":"2-3 words"}]}
 
 "now" = MEERA's own carried feeling if this stretch clearly left her with one — ONE line in HER first-person voice that fuses the feeling AND its cause inseparably, <=100 chars, e.g. "still annoyed about the review thing, whole morning gone" or "weirdly happy about the deck actually landing". Rules: it may ONLY be caused by something in HER life, or by real feeling about something that happened to the USER. It may NEVER be about the user's attention, replies, silence, absence or how much he talks to her. It is a FEELING, not an event she did — events go in "self". "w" 0.2 (mild) to 0.85 (really moved her). "sign" -1 or 1. null on most stretches: nothing carried is the normal case.
 "told" = true only if meera actually said out loud in this stretch how she was feeling and why.
 "wants" = things MEERA has decided she wants to do in HER OWN life and hasn't finished — never anything she wants FROM the user. Max 3, <=90 chars, "days" = roughly how long it stays live. She is currently carrying: ${
             openWants.length ? openWants.map((w) => `"${w}"`).join(", ") : "(nothing)"
           }. Return the ones still true of her (same words), drop the ones she finished, dropped or stopped caring about, and add at most one new one. Omit the key entirely if you cannot tell.
+"owed" = things MEERA told the user out loud she would come back to and has NOT yet done ("kal batati hu", "ruk photo dhoondti hu", "baad me batati hu poori story"). Max 2, <=90 chars, her words for the thing itself (not "she said she would..."). She is currently owing: ${
+            openOwed.length ? openOwed.map((w) => `"${w}"`).join(", ") : "(nothing)"
+          }. Return the ones she still has NOT delivered, and DROP any she actually delivered in this stretch. Return [] when she owes nothing. Never anything she wants FROM the user, never something the user promised, never a plan for them to do together. Omit the key entirely if you cannot tell.
 "self" = up to 4 short lowercase lines stating what MEERA said about HER OWN life here (her job, her people, her flat, what she did/ate/watched, her plans) — plain facts, <=90 chars each, e.g. "flatmate is named sneha", "spent today redoing the onboarding screens". Never a line about the USER. These keep her consistent with herself later.
-nodes/edges = the USER only. Only things worth remembering weeks later: people, places, jobs, plans, strong likes/dislikes, recurring feelings, big events. Skip small talk. Max 6 nodes. Never put meera's own life in nodes. "feel" = how the USER felt about it, IN THEIR OWN WORDS from this chat, <=40 chars — leave it "" unless they actually said it; never infer or invent a feeling for them.`,
+nodes/edges = the USER's world and what the TWO of them share. Only things worth remembering weeks later: people, places, jobs, plans, strong likes/dislikes, recurring feelings, big events — plus kind "phrase": a word, nickname or running joke the two of THEM made up together, stored under the exact word they use, with the summary saying what it means and where it came from. A phrase only counts if it literally appears in this chat; never invent one and never file an ordinary Hindi/English word as a phrase. Skip small talk. Max 6 nodes. Never put meera's own life in nodes. "feel" = how the USER felt about it, IN THEIR OWN WORDS from this chat, <=40 chars — leave it "" unless they actually said it; never infer or invent a feeling for them.`,
         },
         { role: "user", content: convo },
       ],
@@ -300,12 +314,26 @@ nodes/edges = the USER only. Only things worth remembering weeks later: people, 
         .slice(0, 3)
         .map((w) => ({ text: w.text.trim().replace(/\s+/g, " ").slice(0, 90), days: Number(w.days) || 3 }))
     : undefined;
-  const interior = { now, told: parsed.told === true, ...(wants ? { wants } : {}) };
+  // an empty ARRAY is meaningful here — it is how the appraiser says "she
+  // delivered it, she owes nothing now" — so it must survive as [], not become
+  // undefined and leave the old promise ageing out on its own clock
+  const owed = Array.isArray(parsed.owed)
+    ? parsed.owed
+        .filter((w) => w && typeof w.text === "string" && w.text.trim())
+        .slice(0, 2)
+        .map((w) => ({ text: w.text.trim().replace(/\s+/g, " ").slice(0, 90) }))
+    : undefined;
+  const interior = {
+    now,
+    told: parsed.told === true,
+    ...(wants ? { wants } : {}),
+    ...(owed ? { owed } : {}),
+  };
   const nodes = (Array.isArray(parsed.nodes) ? parsed.nodes : [])
     .filter((n) => n && typeof n.name === "string" && n.name.trim())
     .slice(0, 6)
     .map((n) => ({
-      kind: ["person", "place", "event", "preference", "fact", "emotion", "plan", "topic"].includes(n.kind)
+      kind: ["person", "place", "event", "preference", "fact", "phrase", "emotion", "plan", "topic"].includes(n.kind)
         ? n.kind
         : "fact",
       name: n.name.trim().toLowerCase().slice(0, 60),

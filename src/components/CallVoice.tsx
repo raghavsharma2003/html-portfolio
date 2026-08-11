@@ -57,6 +57,9 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
           ? "listening"
           : "idle";
 
+  // What the line is doing, in one line. `connecting` gets a breathing dot
+  // because it is the only state you might sit in wondering whether anything
+  // is happening; the rest are self-evidently alive.
   const stateLabel =
     eng.phase === "connecting"
       ? "connecting…"
@@ -73,6 +76,8 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
                 : eng.listening
                   ? "listening…"
                   : eng.mmss;
+  const stateTone =
+    eng.phase === "connecting" ? "connecting" : eng.muted ? "muted" : connected ? "live" : "";
 
   return (
     <div
@@ -80,10 +85,16 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
       data-chrome={chrome ? "on" : "off"}
       onPointerDown={wake}
       onPointerMove={wake}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Call with ${HER_NAME}`}
     >
       <div className="call-top">
         <div className="cname">{HER_NAME}</div>
-        <div className="cstate">{stateLabel}</div>
+        <div className="cstate" data-tone={stateTone} aria-live="polite">
+          {eng.phase === "connecting" && <span className="cdot" />}
+          {stateLabel}
+        </div>
       </div>
 
       <div className="call-stage">
@@ -91,8 +102,22 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
           <PhotoAvatar size={244} />
         </Presence>
 
+        {/* The mic is the one thing on this screen that can be wrong without
+            looking wrong: she is listening, you are talking, and nothing is
+            reaching her. Say so where you are already looking. */}
+        {!eng.sttSupported && eng.phase === "live" && !showKb && (
+          <div className="call-hint" role="status">
+            Your browser can't hear you here — type to her instead
+          </div>
+        )}
+        {eng.muted && eng.phase === "live" && (
+          <div className="call-hint warn" role="status">
+            Your mic is off — she can't hear you
+          </div>
+        )}
+
         {eng.watching && (
-          <div className="watch-chip">
+          <div className="watch-chip" role="status">
             <i />
             {Date.now() - eng.frameAt < 9000
               ? "screen shared — she can see it"
@@ -123,41 +148,64 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
         )}
       </div>
 
+      {/* Every control wears its name. Icon-only hardware is fine on a phone
+          you have used for years and hostile on a screen you are seeing for
+          the first time while someone is talking to you — "which of these
+          four circles hangs up" is not a question to ask mid-sentence. */}
       <div className="call-controls">
         {eng.watchAvailable && eng.phase === "live" && (
-          <button
-            className={`cbtn ${eng.watching ? "watch-on" : ""}`}
-            onClick={() => (eng.watching ? eng.stopWatchMode() : eng.startWatchMode())}
-            aria-label={eng.watching ? "Stop sharing screen" : "Watch together"}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2.5" y="4.5" width="19" height="13" rx="2.5" />
-              <path d="M8 21h8M12 17.5V21" />
-              {eng.watching && <path d="M8.5 9.5 12 12l3.5-2.5" />}
-            </svg>
-          </button>
+          <span className="cbtn-wrap">
+            <button
+              className={`cbtn ${eng.watching ? "watch-on" : ""}`}
+              onClick={() => (eng.watching ? eng.stopWatchMode() : eng.startWatchMode())}
+              aria-label={eng.watching ? "Stop sharing screen" : "Watch together"}
+              aria-pressed={eng.watching}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2.5" y="4.5" width="19" height="13" rx="2.5" />
+                <path d="M8 21h8M12 17.5V21" />
+                {eng.watching && <path d="M8.5 9.5 12 12l3.5-2.5" />}
+              </svg>
+            </button>
+            <span className="clabel">{eng.watching ? "sharing" : "watch"}</span>
+          </span>
         )}
-        <button className="cbtn" onClick={() => setShowKb((v) => !v)} aria-label="Type instead">
-          <KeyboardIcon />
-        </button>
-        <button
-          className="cbtn danger"
-          style={{ width: 74, height: 74 }}
-          onClick={() => {
-            tap(); // same handler as the visual: latency between senses kills it
-            eng.endCall(onEnd);
-          }}
-          aria-label="End call"
-        >
-          <EndCallIcon size={30} />
-        </button>
-        <button
-          className={`cbtn ${eng.listening ? "active-mic" : ""}`}
-          onClick={() => eng.toggleMute()}
-          aria-label={eng.muted ? "Unmute microphone" : "Mute microphone"}
-        >
-          <MicIcon off={eng.muted || !eng.sttSupported} />
-        </button>
+        <span className="cbtn-wrap">
+          <button
+            className={`cbtn ${showKb ? "active-mic" : ""}`}
+            onClick={() => setShowKb((v) => !v)}
+            aria-label="Type instead"
+            aria-pressed={showKb}
+          >
+            <KeyboardIcon />
+          </button>
+          <span className="clabel">type</span>
+        </span>
+        <span className="cbtn-wrap is-end">
+          <button
+            className="cbtn danger"
+            style={{ width: 74, height: 74 }}
+            onClick={() => {
+              tap(); // same handler as the visual: latency between senses kills it
+              eng.endCall(onEnd);
+            }}
+            aria-label="End call"
+          >
+            <EndCallIcon size={30} />
+          </button>
+          <span className="clabel">end</span>
+        </span>
+        <span className="cbtn-wrap">
+          <button
+            className={`cbtn ${eng.muted ? "muted" : eng.listening ? "active-mic" : ""}`}
+            onClick={() => eng.toggleMute()}
+            aria-label={eng.muted ? "Unmute microphone" : "Mute microphone"}
+            aria-pressed={eng.muted}
+          >
+            <MicIcon off={eng.muted || !eng.sttSupported} />
+          </button>
+          <span className="clabel">{eng.muted ? "muted" : "mic"}</span>
+        </span>
       </div>
     </div>
   );

@@ -68,38 +68,53 @@ public class WatchCaptureService extends Service {
   // latency budget. DETECTION IS THEREFORE DECOUPLED FROM TRANSMISSION: this
   // service samples the screen every DETECT_MS by reading a 32x32 luma grid
   // straight out of the capture plane (1024 sparse reads, no Bitmap, no
-  // allocation), while full JPEG frames still go up at the bandwidth-
-  // appropriate cadence. A change is noticed within DETECT_MS instead of
-  // within a frame period, and the frame that proves it is encoded and sent
-  // on that same tick rather than waiting for the next one.
+  // allocation), while full JPEG frames go up at the bandwidth-appropriate
+  // cadence.
   //
-  // A screen is often interesting without changing fast — reading, typing,
-  // filling a form, comparing two things — so there are three bands, not two:
-  // most of the grid different (a new page, app, post, photo), a little
-  // different (they're busy doing something), and identical (nothing at all).
-  // The bands carry NO taste; they say what happened, and her own brain
-  // decides what — and whether — to say about it.
+  // WHAT the screen is doing is worked out by SceneReader, a line-for-line
+  // port of src/watch/scene.ts: pure geometry, carrying NO taste. It says how
+  // many cells moved, where, whether the picture translated instead of being
+  // replaced, and how long it has been standing still — never what any of it
+  // means. Her own brain decides what, and whether, to say, and silence
+  // answers every wake.
   private static final long DETECT_MS = 120; // screen sampled this often
   private static final long CHANGE_SEND_MS = 250; // floor between reaction frames
-  private static final int SIG_SIDE = 32;
-  private static final int SIG_LEN = SIG_SIDE * SIG_SIDE;
-  // mean absolute difference, in TENTHS of a 0-255 level, so one new line of
-  // text is not rounded away
-  private static final int NEW_MAD = 120; // 12.0 levels: most of the grid moved
-  // A MEAN cannot see typing. One cell of a 32x32 grid covers a large slab of
-  // a phone screen, so a caret, a word appearing or a hover changes ONE cell
-  // by a little — averaged over 1024 cells that rounds to zero, and reading,
-  // writing, coding and form-filling all registered as a DEAD screen. So
-  // activity is counted, not averaged: any single cell moving by a real
-  // amount means something is happening. Screen capture has no sensor noise
-  // (an unchanged screen produces identical bytes), so this cannot self-
-  // trigger on a still image.
-  private static final int CELL_DELTA = 8; // levels, per cell
-  private static final int ACTIVE_CELLS = 1; // cells that must move
-  private byte[] sceneSig; // previous tick's grid (handler-thread confined)
-  private boolean prevBig = false;
-  private boolean pendingNew = false; // a change seen but not yet sent
-  private long lastSentAt = 0; // elapsedRealtime of the last frame we encoded
+  private static final int SIG_SIDE = SceneReader.SIG_SIDE;
+  private static final int SIG_LEN = SceneReader.SIG_LEN;
+  // A screen that has not moved since the last frame we sent carries no new
+  // information: the identical picture costs a full vision tile every 600ms
+  // and shows her nothing she is not already looking at. tick() already
+  // skipped a screen that never redrew, but not one that redraws WITHOUT
+  // changing — a video paused under a UI overlay, a blinking caret on an
+  // otherwise still page, an app that repaints on a timer. This is NOT a
+  // quality change: same picture, same size, same cadence the instant
+  // anything moves. Only a provably identical screen gets the slow beat.
+  //
+  // The keep-alive is LOAD-BEARING and must stay under LiveWatchEngine's
+  // FRAME_FRESH_MS (3000): no picture that new, no wake-up at all, so a
+  // slower beat would blind her on exactly the still screens this saves on.
+  private static final long IDLE_FRAME_MS = 2500L;
+  /** Mirrors LiveWatchEngine.FRAME_FRESH_MS: no picture this new, no wake-up.
+   *  This is THE grounding invariant of the whole feature — she is never told
+   *  to look at a screen she was not actually shown. */
+  private static final long FRAME_FRESH_MS = 3000L;
+  private final SceneReader scene = new SceneReader();
+  private boolean movedSinceSent = true; // the first frame always goes
+  private String lastB64; // the last picture we encoded, for the keep-alive
+  private boolean lastB64Held; // ...and whether it caught the screen standing still
+  private boolean wantStill; // the screen stopped and we still owe a still frame
+  private long lastSentAt = 0; // elapsedRealtime of the last frame that went out
+  private long lastStillFrameAt = 0; // ...captured while the screen was HELD
+  private boolean startedWake = false;
+  /** THE LOOK-AWAY. User-initiated only: while this is set nothing is encoded
+   *  and nothing enters the socket, so the existing "no wake without a
+   *  delivered frame" rule makes her politely blind for free. Nothing may
+   *  ever set it from a heuristic about what is on the screen. */
+  private static volatile boolean privateMode = false;
+
+  static void setPrivate(boolean on) {
+    privateMode = on;
+  }
 
   // EXACTLY ONE lane may speak. Every lane switch stops the other lane's
   // audio synchronously before the new one starts, and every engine callback
@@ -371,66 +386,128 @@ public class WatchCaptureService extends Service {
    *  there is actually a frame worth sending. */
   private void tick() {
     if (reader == null) return;
+    long now = SystemClock.elapsedRealtime();
     Image image = reader.acquireLatestImage();
-    // no new image = the screen has not redrawn, so nothing changed and there
-    // is nothing to look at: the idle case costs one null check
-    if (image == null) return;
+    // NO NEW IMAGE IS NOT NOTHING. A virtual display only produces a buffer
+    // when the screen composites something, so a static screen delivers
+    // nothing at all — and a static screen is exactly what a deliberate show
+    // looks like. The old early return meant the stiller the screen got, the
+    // less code ran: detect never fired, the still run never advanced, and
+    // the one moment that matters most in this whole feature executed nothing.
+    // It also meant her newest picture aged past FRAME_FRESH_MS and she went
+    // blind and unwakeable for as long as they held.
+    if (image == null) {
+      SceneReader.Out s = scene.still(now);
+      // the keep-alive re-sends the LAST ENCODED picture — no plane read, no
+      // Bitmap, no JPEG: this is a socket write of a string we already have
+      keepAlive(now);
+      dispatch(s, now);
+      return;
+    }
     try {
-      int motion = detect(image);
-      // a change spotted inside the send floor is REMEMBERED, never dropped:
-      // otherwise the next tick diffs against the already-new screen, reads
-      // "nothing much moved", and the new thing never wakes her at all
-      if (motion >= 2) pendingNew = true;
-      long now = SystemClock.elapsedRealtime();
+      byte[] sig = signature(image);
+      // an unreadable plane is not a still screen: advance the hold off the
+      // last grid rather than pretending the picture changed to nothing
+      SceneReader.Out s = sig != null ? scene.read(sig, now) : scene.still(now);
+      // "identical" is the detector's own hold test, not byte equality: a
+      // blinking caret, a clock digit or a spinner is a screen standing still,
+      // and a paused video under a UI overlay redraws without changing —
+      // exactly the case acquireLatestImage()'s null check never covered.
+      if (!s.quiet) movedSinceSent = true;
       LiveWatchEngine l = live;
       long baseline = l != null ? LIVE_FRAME_MS : FRAME_INTERVAL_MS;
-      // A new thing on screen is the single most valuable frame we can spend
-      // bandwidth on, so it jumps the baseline cadence — congestion slows the
-      // BASELINE flow, never the reaction. (The socket still has the final
-      // say: LiveWatchEngine drops a frame that would queue in front of her
-      // hearing them, and then nothing wakes her, which is correct.)
-      boolean react = pendingNew && now - lastSentAt >= CHANGE_SEND_MS;
-      if (!react && now - lastSentAt < baseline) return;
-      String b64 = encode(image);
-      if (b64 == null) return; // nothing went out, so nothing is spent
-      lastSentAt = now;
-      if (pendingNew) {
-        motion = 2;
-        pendingNew = false;
+      // Full cadence whenever anything moved; the slow keep-alive beat only on
+      // a screen the detector says is genuinely identical. A redraw that
+      // changed nothing is not worth a vision tile — and it tells her nothing
+      // she is not already looking at. Never a quality change, only a
+      // frequency one, and only on a screen that is standing still.
+      long cadence = movedSinceSent ? baseline : Math.max(baseline, IDLE_FRAME_MS);
+      // The screen just STOPPED: get a legible still picture up now, ahead of
+      // the cadence, so the hold that confirms a moment later is backed by the
+      // frame they are actually looking at — and the poke itself is a bare
+      // socket write with nothing on the critical path. A frame captured
+      // mid-transition is half the old screen and half the new one, which is
+      // precisely the input that makes her guess at what she is seeing.
+      // the pre-roll is STICKY: if the 250ms re-encode floor swallows the tick
+      // the screen stopped on, the debt carries to the next tick that can pay
+      // it, so a hold is never left backed by a mid-transition picture
+      if (s.preroll) wantStill = true;
+      boolean want = wantStill || now - lastSentAt >= cadence;
+      if (want && now - lastSentAt >= CHANGE_SEND_MS) {
+        String b64 = encode(image);
+        if (b64 != null) send(b64, s.motion, s.quiet, now);
       }
-      WatchPlugin.emitFrame(b64); // UI chip liveness (when the app is visible)
-      // the brain lives natively — realtime lane while its socket is up,
-      // cascade otherwise (frames before setupComplete are simply skipped).
-      // The wake-up rides inside onFrame, straight after the frame it belongs
-      // to, with no scheduler hop in between.
-      if (l != null) {
-        if (l.isReady()) l.onFrame(b64, motion);
-      } else if (engine != null) {
-        engine.onFrame(b64, motion);
-      }
+      dispatch(s, now);
     } finally {
       image.close();
     }
   }
 
-  /** 0 nothing moved · 1 they're doing something · 2 a new thing to look at. */
-  private int detect(Image image) {
-    byte[] sig = signature(image);
-    if (sig == null) return 0;
-    int motion;
-    if (sceneSig == null) {
-      motion = 2; // the first thing she is ever shown is new by definition
-    } else {
-      int d = madTenths(sceneSig, sig);
-      int moved = changedCells(sceneSig, sig);
-      boolean big = d >= NEW_MAD;
-      // only the LEADING EDGE of a big change is a new thing: the middle of a
-      // scroll or a page transition is them being busy, not a thing
-      motion = big ? (prevBig ? 1 : 2) : moved >= ACTIVE_CELLS ? 1 : 0;
-      prevBig = big;
+  /** Re-send the picture we already have, so a held screen never ages past
+   *  the freshness window that every wake-up depends on. No encode, no plane
+   *  read — the cost is the vision tile and nothing else. */
+  private void keepAlive(long now) {
+    if (lastB64 == null || now - lastSentAt < IDLE_FRAME_MS) return;
+    // it only counts as a picture of the HELD screen if it actually caught the
+    // screen standing still — re-sending a mid-transition frame must not let a
+    // show wake claim she is looking at what they stopped on
+    send(lastB64, 0, lastB64Held, now);
+  }
+
+  private void send(String b64, int motion, boolean held, long now) {
+    // THE LOOK-AWAY: nothing is encoded and nothing enters the socket while
+    // they have the curtain closed, so no wake can fire and she cannot invent
+    // a word about what she missed.
+    if (privateMode) return;
+    lastSentAt = now;
+    lastB64 = b64;
+    lastB64Held = held;
+    movedSinceSent = false;
+    if (held) {
+      lastStillFrameAt = now;
+      wantStill = false;
     }
-    sceneSig = sig;
-    return motion;
+    WatchPlugin.emitFrame(b64); // UI chip liveness (when the app is visible)
+    // the brain lives natively — realtime lane while its socket is up,
+    // cascade otherwise (frames before setupComplete are simply skipped)
+    LiveWatchEngine l = live;
+    if (l != null) {
+      if (l.isReady()) l.onFrame(b64, motion);
+    } else if (engine != null) {
+      engine.onFrame(b64, motion);
+    }
+  }
+
+  /** Hand the wake-up to whichever lane is live. Every honesty gate still
+   *  lives downstream: a real frame in the socket, never while she speaks,
+   *  never across them, and the per-minute ceiling. Nothing here says what to
+   *  think — silence answers all of them. */
+  private void dispatch(SceneReader.Out s, long now) {
+    if (privateMode) return;
+    LiveWatchEngine l = live;
+    int wake = s.wake;
+    if (!startedWake) {
+      if (lastSentAt == 0) return;
+      wake = SceneReader.WAKE_START;
+    } else if (wake == SceneReader.WAKE_NONE) {
+      return;
+    }
+    // a SHOW must ride behind a picture of the HELD screen, not one captured
+    // mid-transition; the ambient beat is happy with any delivered frame
+    long backing = SceneReader.isShow(wake) ? lastStillFrameAt : lastSentAt;
+    if (backing == 0 || now - backing > FRAME_FRESH_MS) return;
+    boolean sent;
+    if (l != null) {
+      sent = l.nudge(wake);
+    } else if (engine != null) {
+      sent = engine.nudge(wake);
+    } else {
+      return;
+    }
+    if (sent) {
+      scene.noteWake(wake, now);
+      if (wake == SceneReader.WAKE_START) startedWake = true;
+    }
   }
 
   /** Full-res copy -> crop -> downscale -> JPEG -> base64. The expensive
@@ -497,30 +574,19 @@ public class WatchCaptureService extends Service {
     }
   }
 
-  /** Mean absolute difference in tenths of a level (max 2550). */
-  private static int madTenths(byte[] a, byte[] b) {
-    int sum = 0;
-    for (int i = 0; i < a.length; i++) sum += Math.abs((a[i] & 0xFF) - (b[i] & 0xFF));
-    return sum * 10 / a.length;
-  }
-
-  /** How many grid cells moved by at least CELL_DELTA levels. */
-  private static int changedCells(byte[] a, byte[] b) {
-    int n = 0;
-    for (int i = 0; i < a.length; i++) {
-      if (Math.abs((a[i] & 0xFF) - (b[i] & 0xFF)) >= CELL_DELTA) n++;
-    }
-    return n;
-  }
-
   /** Release one capture session (projection, reader, display, engines). */
   private void teardownSession() {
     running = false;
     sessionActive = false;
-    sceneSig = null; // a new share's first frame is new content again
-    prevBig = false;
-    pendingNew = false;
+    scene.reset(); // a new share's first frame is new content again
+    movedSinceSent = true;
+    lastB64 = null;
+    lastB64Held = false;
+    wantStill = false;
     lastSentAt = 0;
+    lastStillFrameAt = 0;
+    startedWake = false;
+    privateMode = false; // a look-away never survives the session it was in
     BubbleService.stopBubble(this);
     stopLive();
     stopCascade();

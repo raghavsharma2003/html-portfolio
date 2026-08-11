@@ -1,27 +1,45 @@
-/* ─── Meera design system — light, Apple-grade ─────────────────────────────
-   One theme (light), one accent (rose), system type stack, soft elevated
-   surfaces, restrained motion. Calls remain photo-dark by design (FaceTime
-   convention) — the app chrome is light. */
+/* ─── Meera design system ──────────────────────────────────────────────────
+   One accent (a warm rose, not a magenta), warm neutrals rather than the
+   cool iOS greys, system type stack on a fixed scale, soft elevated
+   surfaces, restrained motion. Two grounds: a warm-paper day and a
+   warm-dark night — she is a person you text at 2am, and a white screen at
+   2am is a product that doesn't know what time it is. Calls are dark in
+   BOTH (FaceTime convention: a face is looked at on dark ground).
+
+   Every colour here is a token. Nothing outside this block picks a colour
+   by hand — that is what makes the two grounds one system instead of two
+   stylesheets. */
 
 :root {
-  --bg: #f5f5f7;            /* app ground (iOS grouped background) */
+  color-scheme: light dark;
+
+  --bg: #faf7f4;            /* app ground — warm paper */
   --surface: #ffffff;       /* cards, sheets, header */
-  --surface-2: #eeeef0;     /* her bubbles, wells */
-  /* contrast roles on --bg: ink 15.8:1, ink-dim 4.68:1, ink-faint 2.97:1.
-     ALL secondary text (timestamps, placeholders, status) takes --ink-dim;
-     --ink-faint is non-text only — hairlines, inactive dots, large glyphs. */
-  --ink: #1d1d1f;
-  --ink-dim: #6e6e73;
-  --ink-faint: #8e8e93;
-  --accent: #e0356b;        /* the one accent — Meera rose */
-  --accent-deep: #c22a5b;
-  --accent-soft: #fde8ef;
-  --ok: #34c759;
-  --danger: #ff3b30;
-  --hairline: rgba(0, 0, 0, 0.08);
-  --hairline-strong: rgba(0, 0, 0, 0.14);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px -12px rgba(0, 0, 0, 0.12);
-  --shadow-float: 0 12px 40px -12px rgba(0, 0, 0, 0.22);
+  --surface-2: #f0ebe6;     /* her bubbles, wells */
+  --surface-3: #e6dfd9;     /* pressed wells, hairline fills */
+  /* contrast roles: ink 15.9:1, ink-dim 5.5:1 (4.9:1 on her bubble),
+     ink-faint 2.9:1. ALL secondary text (timestamps, placeholders, status)
+     takes --ink-dim; --ink-faint is non-text only — hairlines, inactive
+     dots, large glyphs. */
+  --ink: #201b19;
+  --ink-dim: #6d635e;
+  --ink-faint: #9c918b;
+  --accent: #c23f56;        /* the one accent — warm rose. white on it 5.07:1 */
+  --accent-deep: #a53347;
+  --accent-soft: #fbecee;
+  --accent-warm: #e2724f;   /* the ember end of the accent — story ring, watch */
+  --bubble-me: var(--accent);
+  --bubble-me-ink: #ffffff;
+  --bubble-me-dim: rgba(255, 255, 255, 0.92); /* 4.54:1 on the bubble */
+  --tick-read: #b9f0ff;
+  --ok: #2fa855;
+  --danger: #d8402f;
+  --hairline: rgba(32, 27, 25, 0.08);
+  --hairline-strong: rgba(32, 27, 25, 0.15);
+  --scrim: rgba(32, 22, 20, 0.38);
+  --chrome: rgba(252, 250, 248, 0.82); /* header/composer glass */
+  --shadow-card: 0 1px 2px rgba(60, 40, 34, 0.05), 0 8px 24px -12px rgba(60, 40, 34, 0.16);
+  --shadow-float: 0 12px 40px -12px rgba(60, 40, 34, 0.28);
   --r-lg: 24px;
   --r-md: 18px;
   --r-sm: 12px;
@@ -29,6 +47,34 @@
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* ── type scale ──────────────────────────────────────────────────────────
+     Seven steps. Before this, the app used sixteen sizes between 10.5 and
+     34px, most of them one-offs written at the call site; two labels that
+     mean the same thing were 12.5px and 13.5px. A size that isn't on this
+     scale is a bug, not a decision. Tracking tightens as size grows, the
+     way an optical-size axis would. */
+  --t-display: 34px;  /* onboarding headline */
+  --t-title: 24px;    /* sheet titles */
+  --t-head: 18px;     /* her name in the header */
+  --t-body: 16.5px;   /* message bubbles, the size the product is read at */
+  --t-ui: 15px;       /* buttons, fields, list rows */
+  --t-sub: 13.5px;    /* secondary lines, hints, chips */
+  --t-meta: 11.5px;   /* timestamps, day separators, ticks */
+
+  /* ── spacing ─────────────────────────────────────────────────────────────
+     4px base. Gutters are --s4 (16px) everywhere so the header, the thread
+     and the composer share one left edge. */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 44px;
+  --hit: 44px; /* the minimum any finger is asked to hit */
 
   /* motion — curves are fixed values, never hand-rolled. Every duration in
      the app maps onto one of these five steps; if a value doesn't fit a
@@ -38,12 +84,52 @@
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* on-screen movement */
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* sheets, iOS drawer feel */
   --ease-arrive: cubic-bezier(0.16, 1, 0.3, 1); /* long marketing arrival */
+  /* the one spring in the system: overshoot for things that ARRIVE under
+     their own power (a jump-to-latest pill, a reply chip leaving a bubble).
+     Never for text — a settling headline is a headline you can't read. */
+  --ease-spring: linear(
+    0, 0.005, 0.021, 0.048, 0.086, 0.135, 0.194, 0.264, 0.343, 0.432, 0.53,
+    0.637, 0.752, 0.875, 1.005, 1.083, 1.121, 1.13, 1.12, 1.099, 1.075, 1.053,
+    1.036, 1.023, 1.014, 1.008, 1.004, 1.002, 1.001, 1
+  );
 
   --d-press: 140ms; /* :active feedback */
   --d-tap: 180ms; /* chips, toggles, small state */
   --d-state: 220ms; /* bubbles, notices, popovers */
   --d-veil: 240ms; /* scrims */
   --d-sheet: 380ms; /* sheets, call enter */
+}
+
+/* ── night ───────────────────────────────────────────────────────────────
+   Not an inversion: a different room. Warm-dark ground, her bubble lifted
+   off it rather than punched into it, and an accent brightened just enough
+   to hold 5.2:1 on the ground while a deeper one carries white text inside
+   the bubble. Follows the OS — there is no toggle to find, and no state to
+   get stuck in. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15100f;
+    --surface: #1e1817;
+    --surface-2: #2a2321;
+    --surface-3: #362d2b;
+    --ink: #f4eeea;
+    --ink-dim: #a99e98;
+    --ink-faint: #7d726d;
+    --accent: #e0596e;
+    --accent-deep: #ef7085;
+    --accent-soft: rgba(224, 89, 110, 0.16);
+    --accent-warm: #f2895f;
+    --bubble-me: #b03a4c;   /* white on it 5.91:1 */
+    --tick-read: #a9e9ff;
+    --ok: #45c96c;
+    --danger: #ff6b5a;
+    --hairline: rgba(255, 240, 235, 0.09);
+    --hairline-strong: rgba(255, 240, 235, 0.17);
+    --scrim: rgba(0, 0, 0, 0.58);
+    --chrome: rgba(28, 22, 21, 0.82);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+    --shadow-float: 0 12px 40px -12px rgba(0, 0, 0, 0.75);
+  }
 }
 
 * {
@@ -95,10 +181,14 @@ select {
 }
 
 /* On a desktop browser the app lives in a phone-width frame, centered —
-   full-bleed on anything narrower (phones, the APK's WebView). */
+   full-bleed on anything narrower (phones, the APK's WebView). The ground
+   behind it is a very slow warm wash rather than flat grey: the frame is
+   sitting on a surface, not floating in a void. */
 @media (min-width: 720px) and (min-height: 720px) {
   body {
-    background: #e8e8ed;
+    background:
+      radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%),
+      color-mix(in srgb, var(--bg) 78%, #8d7a72);
   }
   #root {
     max-width: 430px;
@@ -108,8 +198,9 @@ select {
     top: 50%;
     transform: translateY(-50%);
     overflow: hidden;
-    border-radius: 26px;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 24px 70px -24px rgba(0, 0, 0, 0.35);
+    border-radius: 30px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.55) inset, 0 0 0 1px var(--hairline),
+      0 30px 80px -28px rgba(60, 40, 34, 0.45);
     background: var(--bg);
   }
 }
@@ -146,53 +237,83 @@ button {
 
 /* ─── shared primitives ─── */
 
+/* ── the hit-area rule ────────────────────────────────────────────────────
+   Nothing in this product asks a thumb for better than 44px. Where the
+   drawn control is smaller than that (a 38px icon button reads correctly
+   at 38px and would look clumsy at 44), the TARGET is grown with a
+   pseudo-element instead of the box: no layout changes, no visual change,
+   and the miss rate goes to zero. */
+.hit-44 {
+  position: relative;
+}
+.hit-44::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--hit));
+  height: max(100%, var(--hit));
+  transform: translate(-50%, -50%);
+}
+
 .btn-primary {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--s2);
   width: 100%;
-  padding: 16px 24px;
+  min-height: 52px;
+  padding: var(--s4) var(--s5);
   border-radius: 999px;
   background: var(--accent);
   color: #ffffff;
   font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  box-shadow: 0 8px 24px -10px rgba(224, 53, 107, 0.45);
+  box-shadow: 0 8px 24px -10px color-mix(in srgb, var(--accent) 55%, transparent);
   transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease,
-    opacity var(--d-tap) ease;
+    opacity var(--d-tap) ease, box-shadow var(--d-tap) ease;
 }
 .btn-primary:active {
   transform: scale(0.97);
   background: var(--accent-deep);
 }
 .btn-primary:disabled {
-  opacity: 0.35;
+  /* a disabled primary must still read as text, not as a ghost: 0.35 opacity
+     put "Send code" at 1.9:1 and it looked broken rather than waiting */
+  background: var(--surface-3);
+  color: var(--ink-faint);
   box-shadow: none;
+  cursor: default;
 }
 
 .btn-ghost {
-  padding: 13px 22px;
+  min-height: var(--hit);
+  padding: var(--s3) 22px;
   border-radius: 999px;
   border: 1px solid var(--hairline-strong);
   background: var(--surface);
   color: var(--ink);
-  font-size: 15px;
+  font-size: var(--t-ui);
   font-weight: 500;
   transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
 }
 .btn-ghost:active {
   background: var(--surface-2);
 }
+.btn-ghost.destructive {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
 
 .chip {
+  min-height: var(--hit);
   padding: 10px 18px;
   border-radius: 999px;
   border: 1px solid var(--hairline-strong);
   background: var(--surface);
   color: var(--ink);
-  font-size: 15px;
+  font-size: var(--t-ui);
   font-weight: 500;
   transition: background var(--d-tap) ease, border-color var(--d-tap) ease,
     color var(--d-tap) ease, transform var(--d-press) var(--ease-out);
@@ -210,7 +331,9 @@ button {
   inset: 0;
   display: flex;
   flex-direction: column;
-  padding: calc(var(--safe-top) + 28px) 28px calc(var(--safe-bottom) + 24px);
+  overflow-y: auto;
+  padding: calc(var(--safe-top) + 28px) calc(var(--safe-right) + 28px)
+    calc(var(--safe-bottom) + 24px) calc(var(--safe-left) + 28px);
   background: var(--surface);
 }
 
@@ -224,7 +347,7 @@ button {
 .onb h1 {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 34px;
+  font-size: var(--t-display);
   line-height: 1.12;
   letter-spacing: -0.022em;
   margin-bottom: 14px;
@@ -244,6 +367,7 @@ button {
 
 .onb input.field {
   width: 100%;
+  min-height: 54px;
   padding: 17px 20px;
   border-radius: var(--r-sm);
   border: 1px solid var(--hairline-strong);
@@ -253,9 +377,14 @@ button {
   outline: none;
   transition: border-color 0.15s, background 0.15s;
 }
+.onb input.field:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
 .onb input.field:focus {
   border-color: var(--accent);
   background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 .onb input.field::placeholder {
   color: var(--ink-dim);
@@ -282,8 +411,8 @@ button {
   height: 186px;
   object-fit: cover;
   border-radius: 16px;
-  border: 4px solid #fff;
-  box-shadow: 0 10px 30px rgba(29, 29, 31, 0.16);
+  border: 4px solid var(--surface);
+  box-shadow: 0 10px 30px rgba(60, 40, 34, 0.18);
 }
 .photo-fan .fan-l {
   transform: translate(-50%, -50%) translateX(-84px) rotate(-9deg);
@@ -300,11 +429,29 @@ button {
   z-index: 2;
 }
 
+.onb-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: 18px;
+}
+.onb-back {
+  width: 72px;
+  min-height: var(--hit);
+  text-align: left;
+  font-size: var(--t-sub);
+  color: var(--accent);
+  transition: opacity var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.onb-back:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
 .onb-dots {
   display: flex;
   gap: 7px;
   justify-content: center;
-  margin-bottom: 22px;
 }
 .onb-dots i {
   width: 7px;
@@ -332,30 +479,38 @@ button {
 .chat-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: calc(var(--safe-top) + 12px) 16px 12px;
-  background: rgba(250, 250, 252, 0.82);
+  gap: var(--s3);
+  padding: calc(var(--safe-top) + var(--s3)) calc(var(--safe-right) + var(--s4)) var(--s3)
+    calc(var(--safe-left) + var(--s4));
+  background: var(--chrome);
   backdrop-filter: blur(28px) saturate(1.9);
-  border-bottom: 0.5px solid rgba(0, 0, 0, 0.07);
+  border-bottom: 0.5px solid var(--hairline);
   z-index: 5;
 }
 
 .chat-head .who {
   flex: 1;
   min-width: 0;
+  /* the whole name+status block is the story/profile target too, so the
+     3mm-wide status line is never the only thing to aim at */
+  text-align: left;
+  background: none;
+  padding: var(--s1) 0;
 }
 .chat-head .who .name {
   font-family: var(--font-display);
-  font-size: 18px;
+  font-size: var(--t-head);
   font-weight: 650;
   letter-spacing: -0.015em;
+  color: var(--ink);
 }
 .chat-head .who .status {
-  font-size: 12.5px;
+  font-size: var(--t-sub);
   color: var(--ink-dim);
   display: flex;
   align-items: center;
   gap: 5px;
+  min-height: 18px;
   /* typing → online → last seen dissolves; the node is never remounted */
   transition: opacity var(--d-state) var(--ease-out), color var(--d-state) ease;
 }
@@ -383,6 +538,7 @@ button {
 }
 
 .icon-btn {
+  position: relative;
   width: 38px;
   height: 38px;
   border-radius: 50%;
@@ -391,8 +547,19 @@ button {
   justify-content: center;
   background: transparent;
   color: var(--accent);
-  transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease;
+  transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease,
+    color var(--d-tap) ease;
   flex-shrink: 0;
+}
+/* 38px is the right drawn size and the wrong target size — grow the target */
+.icon-btn::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--hit);
+  height: var(--hit);
+  transform: translate(-50%, -50%);
 }
 /* on touch, :hover sticks after a tap — gate it behind a real pointer */
 @media (hover: hover) and (pointer: fine) {
@@ -410,23 +577,114 @@ button {
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y; /* browser owns vertical scroll; swipe-to-reply owns x */
-  padding: 18px 16px 10px;
+  padding: 18px calc(var(--safe-right) + var(--s4)) 10px calc(var(--safe-left) + var(--s4));
   display: flex;
   flex-direction: column;
   /* spacing lives on .msg + .msg alone — two compounding mechanisms make
      the rhythm unreadable from the source */
   gap: 0;
-  background: linear-gradient(180deg, #fafafc 0%, #f5f5f7 30%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 55%, var(--bg)) 0%,
+    var(--bg) 30%
+  );
+  /* the browser keeps the reading position when content is inserted ABOVE
+     the viewport — history merges from another device used to yank the
+     thread out from under whoever was reading it */
+  overflow-anchor: auto;
 }
 
 .day-sep {
   align-self: center;
   margin: 22px 0 14px;
-  font-size: 11px;
+  font-size: var(--t-meta);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-dim);
+}
+
+/* ── the first minute ─────────────────────────────────────────────────────
+   Before this the brand-new chat was a white void for the two to six
+   seconds her opening line takes to come back — the single most likely
+   moment for someone to decide the app is broken and leave. Now the room
+   is furnished: her face, one honest line about what is happening, and the
+   same typing indicator she uses everywhere else. */
+.chat-empty {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--s6) var(--s5);
+  animation: fade var(--d-sheet) var(--ease-out);
+}
+.chat-empty .ce-face {
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 12px 36px -14px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.chat-empty h2 {
+  margin-top: 18px;
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.chat-empty p {
+  margin-top: 6px;
+  max-width: 26ch;
+  font-size: var(--t-sub);
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+.chat-empty .ce-dots {
+  margin-top: 22px;
+  align-self: center;
+  border-radius: 999px;
+  padding: 13px 18px;
+}
+
+/* ── jump to latest ───────────────────────────────────────────────────────
+   The thread used to slam to the bottom on every arrival, including while
+   you were reading something forty messages up. It now stays where you put
+   it and tells you she wrote, which is what a person scrolling back
+   actually needs. */
+.jump-latest {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 74px);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 var(--s4);
+  border-radius: 999px;
+  border: 0.5px solid var(--hairline);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--t-sub);
+  font-weight: 550;
+  box-shadow: var(--shadow-float);
+  transform: translateX(-50%);
+  transition: opacity var(--d-state) var(--ease-out), transform var(--d-state) var(--ease-spring);
+}
+@starting-style {
+  .jump-latest {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px) scale(0.9);
+  }
+}
+.jump-latest .jl-arrow {
+  color: var(--accent);
+}
+.jump-latest .jl-new {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 /* iMessage-grade bubbles: middle-of-group fully rounded, the tail corner
@@ -437,7 +695,7 @@ button {
 .msg {
   max-width: 76%;
   padding: 9px 14px;
-  font-size: 16.5px;
+  font-size: var(--t-body);
   line-height: 1.42;
   letter-spacing: -0.005em;
   word-wrap: break-word;
@@ -476,7 +734,7 @@ button {
 
 .msg.her {
   align-self: flex-start;
-  background: #e9e9eb;
+  background: var(--surface-2);
   color: var(--ink);
   border-radius: 20px 20px 20px 6px;
 }
@@ -487,14 +745,19 @@ button {
 .msg.me {
   align-self: flex-end;
   /* flat, compositable — a gradient across 38px resolves to nothing */
-  background: var(--accent);
-  color: #ffffff;
+  background: var(--bubble-me);
+  color: var(--bubble-me-ink);
   border-radius: 20px 20px 6px 20px;
-  box-shadow: 0 1px 2px rgba(224, 53, 107, 0.18);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--bubble-me) 20%, transparent);
 }
 .msg.me:has(+ .msg.me) {
   border-radius: 20px;
   box-shadow: none;
+}
+/* a message that hasn't left the device yet: the bubble itself is the
+   pending state, so there is never a send you can't account for */
+.msg.me.pending {
+  opacity: 0.62;
 }
 
 /* tight groups, generous separation — nearly 1:5, which is what makes a
@@ -507,19 +770,24 @@ button {
   margin-top: 14px;
 }
 
+/* Timestamps were 10.5px at 0.72 opacity: 2.87:1 on my own bubble and
+   4.18:1 on hers, i.e. the one piece of text in the product that is
+   genuinely hard to read was the one telling you WHEN. Opacity is gone —
+   every value below is a stated colour that has been measured (4.54:1 on
+   the rose bubble, 4.93:1 on hers) — and the size sits on the scale. */
 .msg .t {
   display: block;
-  font-size: 10.5px;
+  font-size: var(--t-meta);
+  line-height: 1.2;
   margin-top: 3px;
-  opacity: 0.72; /* on .me: white tinted from the foreground — correct */
+  color: var(--bubble-me-dim);
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
-/* off my rose bubble the opacity compounds with an inherited colour and the
-   computed value stops being knowable — state it instead */
 .msg.her .t,
 .msg.photo .t,
-.msg.gifmsg .t {
-  opacity: 1;
+.msg.gifmsg .t,
+.msg.emoji-big .t {
   color: var(--ink-dim);
 }
 
@@ -534,15 +802,29 @@ button {
   padding: 2px 0;
 }
 .vplay {
-  width: 34px;
-  height: 34px;
+  position: relative;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--hairline-strong);
   color: var(--ink);
+  transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease;
+}
+.vplay::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--hit);
+  height: var(--hit);
+  transform: translate(-50%, -50%);
+}
+.vplay:active {
+  transform: scale(0.92);
 }
 .msg.me .vplay {
   background: rgba(255, 255, 255, 0.25);
@@ -550,6 +832,27 @@ button {
 }
 .vplay:disabled {
   opacity: 0.45;
+}
+/* A voice note is the one thing she sends that you have to DO something
+   with. Unplayed, its play button carries her accent and one slow halo —
+   three cycles, then it stops asking. Nothing here touches the waveform
+   bars: those carry playback progress and are owned by the component. */
+.msg.her.voice.unheard .vplay {
+  background: var(--accent);
+  color: #fff;
+}
+.msg.her.voice.unheard .vplay::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: vn-halo 2.6s var(--ease-out) 3 both;
+  pointer-events: none;
+}
+@keyframes vn-halo {
+  0% { opacity: 0.55; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(1.5); }
 }
 .vwave {
   display: flex;
@@ -565,9 +868,10 @@ button {
   transition: opacity 0.2s;
 }
 .vdur {
-  font-size: 12px;
-  opacity: 0.7;
+  font-size: var(--t-meta);
+  opacity: 0.86;
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 .vspin {
   width: 14px;
@@ -600,7 +904,12 @@ button {
   width: 200px;
   height: 140px;
   border-radius: 15px;
-  background: linear-gradient(100deg, #ececef 40%, #f6f6f8 50%, #ececef 60%);
+  background: linear-gradient(
+    100deg,
+    var(--surface-2) 40%,
+    color-mix(in srgb, var(--surface-2) 55%, var(--surface)) 50%,
+    var(--surface-2) 60%
+  );
   background-size: 200% 100%;
   /* background-position is a paint every frame — a view() timeline pauses it
      the moment it scrolls out of a long conversation */
@@ -615,14 +924,58 @@ button {
 /* transient inline notice ("couldn't read that photo", "mic needed") */
 .chat-notice {
   align-self: center;
-  margin: 0 16px 6px;
-  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 var(--s4) 6px;
+  padding: 9px var(--s4);
   border-radius: 14px;
-  background: rgba(29, 29, 31, 0.82);
-  color: #fff;
-  font-size: 13.5px;
-  text-align: center;
+  background: color-mix(in srgb, var(--ink) 88%, transparent);
+  color: var(--bg);
+  font-size: var(--t-sub);
+  line-height: 1.35;
+  text-align: left;
+  box-shadow: var(--shadow-float);
   animation: msg-in var(--d-state) var(--ease-out);
+}
+.chat-notice button {
+  flex-shrink: 0;
+  color: var(--bg);
+  font-size: var(--t-sub);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: var(--s1) 0;
+}
+
+/* ── connection ───────────────────────────────────────────────────────────
+   Driven by navigator.onLine and its events ONLY — never by a request that
+   could fail for its own reasons. It reports, it never blocks: you can
+   always keep typing, and she answers when the line comes back. */
+.offline-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 7px var(--s4);
+  background: color-mix(in srgb, var(--accent-warm) 16%, var(--surface));
+  color: var(--ink);
+  font-size: var(--t-sub);
+  border-bottom: 0.5px solid var(--hairline);
+  z-index: 5;
+  transition: opacity var(--d-state) var(--ease-out);
+}
+@starting-style {
+  .offline-bar {
+    opacity: 0;
+  }
+}
+.offline-bar i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-warm);
+  flex-shrink: 0;
 }
 
 /* voice-note recording bar */
@@ -652,7 +1005,14 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14.5px;
+  font-size: var(--t-ui);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.rec-time b {
+  font-weight: 600;
+}
+.rec-time span {
   color: var(--ink-dim);
 }
 .rec-dot.paused {
@@ -660,6 +1020,7 @@ button {
   background: var(--ink-faint);
 }
 .rec-pause {
+  position: relative;
   width: 38px;
   height: 38px;
   border-radius: 50%;
@@ -671,10 +1032,21 @@ button {
   flex-shrink: 0;
 }
 .rec-cancel {
-  font-size: 14px;
+  position: relative;
+  font-size: var(--t-ui);
   color: var(--ink-dim);
   padding: 6px 10px;
   transition: transform var(--d-press) var(--ease-out);
+}
+.rec-cancel::after,
+.rec-pause::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--hit));
+  height: var(--hit);
+  transform: translate(-50%, -50%);
 }
 .rec-pause {
   transition: transform var(--d-press) var(--ease-out);
@@ -687,30 +1059,37 @@ button {
 /* call record — the only trace a voice call leaves in the chat */
 .call-chip {
   align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   margin: 10px 0;
-  padding: 7px 16px;
+  padding: 7px var(--s4);
   border-radius: 999px;
   background: var(--surface);
   border: 0.5px solid var(--hairline);
   box-shadow: var(--shadow-card);
-  font-size: 13.5px;
+  font-size: var(--t-sub);
   color: var(--ink-dim);
 }
+.call-chip svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
 .call-chip .ct {
-  color: var(--ink-dim);
-  font-size: 11.5px;
-  margin-left: 4px;
+  color: var(--ink-faint);
+  font-size: var(--t-meta);
+  font-variant-numeric: tabular-nums;
 }
 
 /* WhatsApp-style quotes: tap a bubble → reply chip → quoted compose */
 .msg .quote {
   display: block;
   border-left: 3px solid var(--accent);
-  background: rgba(0, 0, 0, 0.055);
+  background: var(--hairline);
   border-radius: 8px;
   padding: 6px 10px;
   margin: -2px 0 7px;
-  font-size: 13.5px;
+  font-size: var(--t-sub);
   line-height: 1.35;
   color: var(--ink-dim);
 }
@@ -737,21 +1116,27 @@ button {
 }
 .reply-chip {
   position: absolute;
-  top: -34px;
+  top: -38px;
   left: 0;
   z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
   padding: 5px 13px;
   border-radius: 999px;
   background: var(--surface);
   color: var(--accent);
-  font-size: 13.5px;
+  font-size: var(--t-sub);
   font-weight: 600;
+  white-space: nowrap;
   box-shadow: var(--shadow-float);
   border: 0.5px solid var(--hairline);
   /* it came out of the bubble you tapped — 0.9, never 0: nothing in the
-     real world appears from nothing */
+     real world appears from nothing. It arrives on the spring: this is one
+     of the two places in the app something moves under its own power. */
   transform-origin: 0 100%;
-  transition: opacity var(--d-tap) var(--ease-out), transform var(--d-tap) var(--ease-out);
+  transition: opacity var(--d-tap) var(--ease-out), transform var(--d-state) var(--ease-spring);
 }
 @starting-style {
   .reply-chip {
@@ -768,17 +1153,25 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 14px 0;
-  background: rgba(250, 250, 252, 0.82);
+  padding: 8px calc(var(--safe-right) + 14px) 0 calc(var(--safe-left) + 14px);
+  background: var(--chrome);
   backdrop-filter: blur(28px) saturate(1.9);
+  transition: opacity var(--d-state) var(--ease-out), transform var(--d-state) var(--ease-out);
+}
+@starting-style {
+  .reply-bar {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }
 .reply-bar .quote {
   flex: 1;
+  min-width: 0;
   border-left: 3px solid var(--accent);
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--hairline);
   border-radius: 8px;
   padding: 7px 11px;
-  font-size: 13.5px;
+  font-size: var(--t-sub);
   line-height: 1.35;
   color: var(--ink-dim);
 }
@@ -789,23 +1182,49 @@ button {
   font-weight: 650;
 }
 .reply-bar .reply-x {
-  width: 30px;
-  height: 30px;
+  position: relative;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: var(--surface-2);
   color: var(--ink-dim);
   font-size: 19px;
   line-height: 1;
   flex-shrink: 0;
+  transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease;
+}
+.reply-bar .reply-x::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--hit);
+  height: var(--hit);
+  transform: translate(-50%, -50%);
+}
+.reply-bar .reply-x:active {
+  transform: scale(0.92);
 }
 
-/* delivery ticks: white-ish on my rose bubbles, blue when read */
+/* Delivery ticks: light on my rose bubbles, cyan when she has read it.
+   The read tick is the smallest and most-watched piece of state in the
+   product, so it does not merely change colour — the second stroke draws
+   itself once, left to right, the way a thing that just happened should. */
 .msg .t .tickicon {
   margin-left: 4px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--bubble-me-dim);
+  transition: color var(--d-state) var(--ease-out);
 }
 .msg .t .tickicon.read {
-  color: #6fe0ff;
+  color: var(--tick-read);
+}
+.msg .t .tickicon.read .tick2 {
+  stroke-dasharray: 16;
+  animation: tick-draw 260ms var(--ease-out) both;
+}
+@keyframes tick-draw {
+  from { stroke-dashoffset: 16; }
+  to { stroke-dashoffset: 0; }
 }
 .msg.emoji-big .t .tickicon,
 .msg.me.photo .t .tickicon {
@@ -813,7 +1232,7 @@ button {
 }
 .msg.emoji-big .t .tickicon.read,
 .msg.me.photo .t .tickicon.read {
-  color: #35b8e8;
+  color: color-mix(in srgb, var(--tick-read) 70%, #0a6c8a);
 }
 
 /* single-emoji messages render as big animated reactions — no bubble */
@@ -823,6 +1242,26 @@ button {
   box-shadow: none;
   padding: 2px 4px;
   border-radius: 0;
+}
+/* the platform glyph is drawn instantly and the animated one crossfades on
+   top of it — there is never a frame where the message isn't there */
+.bigmoji {
+  position: relative;
+  display: block;
+}
+.bigmoji-glyph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 82px;
+  line-height: 1;
+}
+.bigmoji img {
+  position: relative;
+  display: block;
+  transition: opacity var(--d-state) var(--ease-out);
 }
 .msg.emoji-big .t {
   text-align: inherit;
@@ -844,7 +1283,7 @@ button {
 }
 .msg.photo .cap {
   padding: 8px 10px 6px;
-  font-size: 15px;
+  font-size: var(--t-ui);
   color: var(--ink);
 }
 /* photos the user sends: same card, right-aligned, ticks under the image */
@@ -857,7 +1296,7 @@ button {
   justify-content: flex-end;
   gap: 4px;
   padding: 3px 8px 2px;
-  font-size: 11px;
+  font-size: var(--t-meta);
   color: var(--ink-dim);
   white-space: nowrap;
 }
@@ -908,8 +1347,9 @@ button {
   display: flex;
   align-items: flex-end;
   gap: 10px;
-  padding: 8px calc(env(safe-area-inset-right, 0px) + 12px) calc(var(--safe-bottom) + 12px) calc(env(safe-area-inset-left, 0px) + 12px);
-  background: rgba(255, 255, 255, 0.85);
+  padding: 8px calc(var(--safe-right) + var(--s3)) calc(var(--safe-bottom) + var(--s3))
+    calc(var(--safe-left) + var(--s3));
+  background: var(--chrome);
   backdrop-filter: blur(24px) saturate(1.8);
   border-top: 1px solid var(--hairline);
 }
@@ -918,29 +1358,50 @@ button {
   flex: 1;
   display: flex;
   align-items: center;
+  min-height: var(--hit);
   border-radius: 22px;
   border: 1px solid var(--hairline-strong);
   background: var(--surface);
   padding: 2px 6px 2px 10px;
-  transition: border-color 0.15s;
+  transition: border-color var(--d-tap) ease, box-shadow var(--d-tap) ease;
 }
 .attach-btn {
-  width: 34px;
+  position: relative;
+  width: 36px;
   height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ink-faint);
+  color: var(--ink-dim);
   flex-shrink: 0;
   margin-right: 2px;
   transition: color var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.attach-btn::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--hit);
+  height: var(--hit);
+  transform: translate(-50%, -50%);
 }
 .attach-btn:active {
   transform: scale(0.95);
   color: var(--accent);
 }
+/* the field is the only thing on this row that can hold a caret, so it gets
+   the ring — but as a soft halo, not a second border that shifts the layout */
 .chat-input:focus-within {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+/* the ring above IS the focus indicator for this composite control — the
+   global :focus-visible sets an outline AND a halo, and both of them
+   landing on the textarea inside drew a second ring within the first */
+.chat-input textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 .chat-input textarea {
   flex: 1;
@@ -948,6 +1409,7 @@ button {
   border: none;
   outline: none;
   color: var(--ink);
+  /* 16px exactly: anything smaller and iOS Safari zooms the page on focus */
   font-size: 16px;
   resize: none;
   max-height: 110px;
@@ -959,6 +1421,7 @@ button {
 }
 
 .send-btn {
+  position: relative;
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -968,14 +1431,27 @@ button {
   justify-content: center;
   color: #ffffff;
   flex-shrink: 0;
-  transition: transform var(--d-press) var(--ease-out), opacity var(--d-tap) ease;
+  transition: transform var(--d-press) var(--ease-out), opacity var(--d-tap) ease,
+    background var(--d-tap) ease;
   margin-bottom: 2px;
 }
-.send-btn:active {
-  transform: scale(0.95);
+.send-btn::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--hit);
+  height: var(--hit);
+  transform: translate(-50%, -50%);
 }
+.send-btn:active {
+  transform: scale(0.92);
+}
+/* "nothing to send yet" — not disabled (it still focuses the field), just
+   quiet. 0.3 opacity made a live control look broken. */
 .send-btn.off {
-  opacity: 0.3;
+  background: var(--surface-3);
+  color: var(--ink-faint);
 }
 
 /* ─── Calls — photo-forward, deliberately dark. The subject is a face, and
@@ -1009,10 +1485,32 @@ button {
   font-weight: 650;
   letter-spacing: -0.02em;
 }
+/* the state line changes every few seconds for the whole call — it is the
+   most-read text on this screen and was set at 0.6 alpha (2.9:1) */
 .call-top .cstate {
-  margin-top: 5px;
-  color: rgba(245, 245, 247, 0.6);
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 20px;
+  margin-top: 6px;
+  color: rgba(245, 240, 238, 0.82);
+  font-size: var(--t-sub);
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.call-top .cstate .cdot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: presence-breathe 3.8s ease-in-out infinite;
+}
+.call-top .cstate[data-tone="live"] {
+  color: #ffe9de;
+}
+.call-top .cstate[data-tone="muted"] {
+  color: var(--danger);
 }
 
 .call-stage {
@@ -1052,14 +1550,38 @@ button {
   place-items: center;
   transition: --pr-hue 400ms var(--ease-out);
 }
+/* THE RINGS WERE INVISIBLE. inset:0 put their bright band at 57–85% of the
+   presence box — radius 70–104px inside a face of radius 122px — so the
+   entire amplitude field was painted underneath an opaque photograph and
+   only escaped at voice levels above 1.2, i.e. never. Sizing the ring box
+   to 168% puts the band at radius 118–174px: it starts exactly at her
+   edge and travels outward, which is what it was always meant to do.
+   Same three elements, same rAF, same two writes per ring per frame. */
 .pr-ring {
   position: absolute;
-  inset: 0;
+  width: 168%;
+  height: 168%;
   border-radius: 50%;
-  background: radial-gradient(circle, transparent 57%, var(--pr-hue) 71%, transparent 85%);
+  background: radial-gradient(circle, transparent 57%, var(--pr-hue) 70%, transparent 84%);
   opacity: 0.1;
   will-change: transform, opacity;
   pointer-events: none;
+}
+/* a soft bloom behind her head so the face sits IN the dark rather than on
+   top of it. One static element, painted once, never animated. */
+.pr-bloom {
+  position: absolute;
+  width: 210%;
+  height: 210%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--pr-hue) 0%, transparent 58%);
+  opacity: 0.22;
+  pointer-events: none;
+  transition: opacity 600ms var(--ease-out);
+}
+.presence[data-phase="speaking"] .pr-bloom,
+.presence[data-phase="hearing"] .pr-bloom {
+  opacity: 0.34;
 }
 .pr-face {
   width: 100%;
@@ -1067,6 +1589,10 @@ button {
   border-radius: 50%;
   overflow: hidden;
   will-change: transform;
+  /* the photo is a JPEG with a light edge; a hair of inset shadow keeps the
+     circle reading as a circle instead of a cut-out with a white seam */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 20px 60px -24px rgba(0, 0, 0, 0.9);
 }
 /* inside a Presence the wrapper owns the breath — the photo must not
    run its own loop against it */
@@ -1074,11 +1600,31 @@ button {
   animation: none;
 }
 
-.presence[data-phase="idle"] { --pr-hue: rgba(255, 255, 255, 0.16); }
-.presence[data-phase="listening"] { --pr-hue: rgba(255, 255, 255, 0.24); }
+.presence[data-phase="idle"] { --pr-hue: rgba(255, 226, 205, 0.18); }
+.presence[data-phase="listening"] { --pr-hue: rgba(255, 226, 205, 0.28); }
 .presence[data-phase="hearing"] { --pr-hue: rgba(252, 175, 69, 0.46); }
 .presence[data-phase="thinking"] { --pr-hue: rgba(199, 138, 255, 0.34); }
-.presence[data-phase="speaking"] { --pr-hue: rgba(224, 53, 107, 0.56); }
+.presence[data-phase="speaking"] { --pr-hue: rgba(226, 88, 110, 0.58); }
+
+/* the honest line about what the line is doing — never a modal, never
+   blocking, and it never appears unless something really is wrong */
+.call-hint {
+  margin-top: 20px;
+  max-width: 82%;
+  text-align: center;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  color: rgba(245, 240, 238, 0.92);
+  font-size: var(--t-sub);
+  line-height: 1.4;
+  animation: msg-in var(--d-state) var(--ease-out);
+}
+.call-hint.warn {
+  background: rgba(216, 64, 47, 0.22);
+  color: #ffdbd5;
+}
 
 .call-caption {
   min-height: 54px;
@@ -1093,9 +1639,12 @@ button {
 
 .call-controls {
   display: flex;
-  gap: 20px;
-  align-items: center;
-  padding-bottom: calc(var(--safe-bottom) + 40px);
+  gap: 18px;
+  align-items: flex-end;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 100%;
+  padding: 0 var(--s4) calc(var(--safe-bottom) + 40px);
   /* hardware recedes: the chrome fades when you stop touching it and comes
      back the instant you do */
   transition: transform var(--d-sheet) var(--ease-out);
@@ -1106,7 +1655,31 @@ button {
 /* dimming is per-button, not on the group: never trap anyone — the exit
    keeps full contrast and full hit area at all times */
 .call[data-chrome="off"] .cbtn:not(.danger) {
-  opacity: 0.28;
+  opacity: 0.34;
+}
+
+/* every control on the call screen wears its name. Icon-only hardware is
+   fine on a phone you have used for years and hostile on a screen you are
+   seeing for the first time while someone is talking to you. */
+.cbtn-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  width: 68px;
+}
+.cbtn-wrap .clabel {
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  color: rgba(245, 240, 238, 0.72);
+  transition: color var(--d-state) ease, opacity var(--d-sheet) var(--ease-out);
+  white-space: nowrap;
+}
+.call[data-chrome="off"] .cbtn-wrap:not(.is-end) .clabel {
+  opacity: 0.34;
+}
+.cbtn-wrap.is-end {
+  width: 82px;
 }
 
 .cbtn {
@@ -1125,16 +1698,21 @@ button {
 }
 .cbtn.danger {
   background: var(--danger);
+  box-shadow: 0 10px 30px -10px rgba(216, 64, 47, 0.75);
 }
 .cbtn.active-mic {
   background: #ffffff;
   color: #1d1d1f;
 }
+.cbtn.muted {
+  background: rgba(216, 64, 47, 0.28);
+  color: #ffd9d3;
+}
 
 .pip {
   position: absolute;
-  right: 16px;
-  top: 16px;
+  right: calc(var(--safe-right) + 16px);
+  top: calc(var(--safe-top) + 16px);
   width: 104px;
   height: 140px;
   border-radius: 16px;
@@ -1167,8 +1745,8 @@ button {
 .call-input-row {
   position: absolute;
   bottom: calc(var(--safe-bottom) + 116px);
-  left: 16px;
-  right: 16px;
+  left: calc(var(--safe-left) + 16px);
+  right: calc(var(--safe-right) + 16px);
   display: flex;
   gap: 10px;
   z-index: 6;
@@ -1186,7 +1764,8 @@ button {
 .sheet-veil {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.32);
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
   z-index: 30;
   animation: veil-in var(--d-veil) var(--ease-out);
 }
@@ -1200,15 +1779,17 @@ button {
   bottom: 0;
   z-index: 31;
   background: var(--surface);
-  border-radius: 20px 20px 0 0;
-  box-shadow: var(--shadow-float);
-  padding: 12px 24px calc(var(--safe-bottom) + 26px);
-  animation: sheet-up 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
-  max-height: 84%;
+  border-radius: 22px 22px 0 0;
+  box-shadow: var(--shadow-float), 0 -0.5px 0 var(--hairline);
+  padding: 12px calc(var(--safe-right) + var(--s5)) calc(var(--safe-bottom) + 26px)
+    calc(var(--safe-left) + var(--s5));
+  animation: sheet-up var(--d-sheet) var(--ease-drawer);
+  max-height: 88%;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 @keyframes sheet-up {
-  from { transform: translateY(36%); opacity: 0; }
+  from { transform: translateY(100%); }
 }
 .sheet .grab {
   width: 38px;
@@ -1217,16 +1798,46 @@ button {
   background: var(--hairline-strong);
   margin: 0 auto 18px;
 }
+/* every sheet is closable from inside it — the scrim is not an affordance
+   anyone has been taught, and on a tall sheet there is barely any scrim */
+.sheet-x {
+  position: absolute;
+  top: 12px;
+  right: calc(var(--safe-right) + var(--s4));
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  color: var(--ink-dim);
+  transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease;
+}
+.sheet-x::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--hit);
+  height: var(--hit);
+  transform: translate(-50%, -50%);
+}
+.sheet-x:active {
+  transform: scale(0.92);
+  background: var(--surface-3);
+}
 .sheet h3 {
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: var(--t-title);
   font-weight: 700;
   letter-spacing: -0.02em;
   margin-bottom: 4px;
+  padding-right: 40px;
 }
 .sheet .hint {
   color: var(--ink-dim);
-  font-size: 13.5px;
+  font-size: var(--t-sub);
   margin-bottom: 16px;
   line-height: 1.5;
 }
@@ -1240,18 +1851,193 @@ button {
 .sheet input.field,
 .sheet select.field {
   width: 100%;
+  min-height: var(--hit);
   padding: 14px 16px;
   border-radius: var(--r-sm);
   border: 1px solid var(--hairline-strong);
   background: var(--bg);
   color: var(--ink);
-  font-size: 15px;
+  /* 16px minimum on anything focusable, or iOS zooms the sheet on tap */
+  font-size: 16px;
   outline: none;
+  transition: border-color var(--d-tap) ease, box-shadow var(--d-tap) ease;
 }
 .sheet input.field:focus,
 .sheet select.field:focus {
   border-color: var(--accent);
   background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.sheet input.field:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* ── the settings that did not exist ──────────────────────────────────────
+   Your name and what you came for were asked once, in onboarding, and then
+   became unreachable forever. The broom that erased her — and her memory of
+   her own life — was an unlabelled icon two taps from the call button. Both
+   now live in one sheet you open on purpose. */
+.sheet-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px -8px 0;
+}
+.srow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 8px;
+  border-radius: 14px;
+  text-align: left;
+  color: var(--ink);
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.srow:active {
+  background: var(--surface-2);
+  transform: scale(0.985);
+}
+.srow .sicon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.srow .stext {
+  flex: 1;
+  min-width: 0;
+}
+.srow .stitle {
+  display: block;
+  font-size: var(--t-ui);
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+.srow .ssub {
+  display: block;
+  font-size: var(--t-sub);
+  line-height: 1.35;
+  color: var(--ink-dim);
+  margin-top: 2px;
+  /* two lines, then ellipsis: an email address plus a sync state is longer
+     than a phone is wide and must not push the chevron off the row */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.srow .schev {
+  color: var(--ink-faint);
+  flex-shrink: 0;
+}
+.srow.destructive .sicon {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+.srow.destructive .stitle {
+  color: var(--danger);
+}
+
+.sheet-foot {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 0.5px solid var(--hairline);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.sheet-foot a {
+  color: var(--ink-dim);
+}
+
+/* destructive confirmation: the thing being destroyed is named, in words,
+   and the safe choice is the one your thumb is already on */
+.confirm-body {
+  font-size: var(--t-ui);
+  line-height: 1.5;
+  color: var(--ink-dim);
+  margin-bottom: 20px;
+}
+.confirm-body b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.btn-danger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 52px;
+  padding: var(--s4) var(--s5);
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  transition: transform var(--d-press) var(--ease-out), filter var(--d-tap) ease;
+}
+.btn-danger:active {
+  transform: scale(0.97);
+  filter: brightness(0.9);
+}
+
+/* ── undo ────────────────────────────────────────────────────────────────
+   Nothing in this product should be gone before you have had a chance to
+   change your mind. Clearing the chat parks it for ten seconds first. */
+.undo-toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 78px);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: calc(100% - 32px);
+  padding: 11px 12px 11px 18px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--ink) 92%, transparent);
+  color: var(--bg);
+  font-size: var(--t-sub);
+  box-shadow: var(--shadow-float);
+  transform: translateX(-50%);
+  transition: opacity var(--d-state) var(--ease-out), transform var(--d-state) var(--ease-spring);
+}
+@starting-style {
+  .undo-toast {
+    opacity: 0;
+    transform: translateX(-50%) translateY(14px) scale(0.94);
+  }
+}
+.undo-toast button {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--bg);
+  font-size: var(--t-sub);
+  font-weight: 650;
+  transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease;
+}
+.undo-toast button:active {
+  transform: scale(0.94);
 }
 
 .fade-in {
@@ -1263,13 +2049,13 @@ button {
 
 .gif-fallback {
   padding: 10px 14px;
-  font-size: 14.5px;
+  font-size: var(--t-ui);
   color: var(--ink-dim);
 }
 
 /* ─── Account sheet — Apple-grade auth ─── */
 .auth-sheet h3 {
-  font-size: 24px;
+  font-size: var(--t-title);
   letter-spacing: -0.02em;
 }
 .auth-google {
@@ -1282,8 +2068,10 @@ button {
   border-radius: 14px;
   border: 1px solid var(--hairline-strong);
   background: var(--surface);
+  color: var(--ink);
   font-size: 16px;
   font-weight: 600;
+  min-height: 52px;
   margin-top: 18px;
   transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
 }
@@ -1315,9 +2103,10 @@ button {
 }
 .auth-seg button {
   flex: 1;
+  min-height: 40px;
   padding: 9px;
   border-radius: 9px;
-  font-size: 14.5px;
+  font-size: var(--t-ui);
   font-weight: 600;
   color: var(--ink-dim);
   transition: background var(--d-tap) ease, color var(--d-tap) ease,
@@ -1326,7 +2115,7 @@ button {
 .auth-seg button.on {
   background: var(--surface);
   color: var(--ink);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 4px rgba(32, 27, 25, 0.12);
 }
 .otp-row {
   display: flex;
@@ -1337,6 +2126,7 @@ button {
 .otp-box {
   width: 46px;
   height: 56px;
+  color: var(--ink);
   border-radius: 13px;
   border: 1.5px solid var(--hairline-strong);
   background: var(--bg);
@@ -1352,8 +2142,11 @@ button {
   background: var(--surface);
 }
 .auth-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
   color: var(--danger);
-  font-size: 13.5px;
+  font-size: var(--t-sub);
   margin-top: 10px;
   line-height: 1.4;
 }
@@ -1361,13 +2154,15 @@ button {
   text-align: center;
   color: var(--ink-dim);
   font-size: 12.5px;
+  line-height: 1.5;
   margin-top: 12px;
 }
 .auth-back {
   display: block;
-  margin: 14px auto 0;
+  min-height: var(--hit);
+  margin: 6px auto 0;
   color: var(--accent);
-  font-size: 14.5px;
+  font-size: var(--t-ui);
   font-weight: 500;
   transition: transform var(--d-press) var(--ease-out);
 }
@@ -1395,11 +2190,11 @@ button {
 }
 .auth-who {
   font-weight: 600;
-  font-size: 15.5px;
+  font-size: var(--t-ui);
 }
 .auth-sub {
   color: var(--ink-dim);
-  font-size: 12.5px;
+  font-size: var(--t-sub);
   margin-top: 2px;
 }
 
@@ -1462,9 +2257,17 @@ button {
     radial-gradient(120% 100% at 50% 45%, transparent 55%, rgba(11, 7, 16, 0.55) 100%),
     linear-gradient(to bottom, rgba(11, 7, 16, 0.35), transparent 22%, transparent 68%, rgba(11, 7, 16, 0.6));
 }
+/* The source photograph is a 900² square with a pale band along its bottom
+   edge, which showed as a white crescent inside every avatar circle in the
+   product. The breath now rests at 1.04 instead of 1.0 — same amplitude,
+   same cost, and the crop finally lands inside the picture. */
 @keyframes pa-breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.018); }
+  0%, 100% { transform: scale(1.04); }
+  50% { transform: scale(1.058); }
+}
+/* where the loop is off (reduced motion) the crop still has to hold */
+.pa-circle img {
+  transform: scale(1.04);
 }
 @keyframes pa-drift {
   0% { transform: scale(1) translate(0.3%, 0); }
@@ -1473,14 +2276,22 @@ button {
 
 /* ─── Her story (insta-style) ─── */
 
-/* live unseen story: vivid rose→amber ring; seen: quiet grey ring */
+/* live unseen story: warm rose→ember ring; seen: a quiet ring. Static on
+   purpose — a conic gradient that turns is a repaint of the whole ring
+   every frame, for decoration, forever. */
 .avatar-ring.story-live {
-  background: conic-gradient(from 210deg, #e0356b, #f77737, #fcaf45, #e0356b) !important;
+  background: conic-gradient(from 210deg, var(--accent), var(--accent-warm), #f0b268, var(--accent)) !important;
   animation: none;
 }
 .avatar-ring.story-seen {
   background: var(--hairline-strong) !important;
   animation: none;
+}
+/* it is a <button> now (it was a div with role=button and tabIndex -1, so
+   the story and the account were both unreachable from a keyboard) */
+button.avatar-ring {
+  display: block;
+  flex-shrink: 0;
 }
 .avatar-ring.story-live > .inner,
 .avatar-ring.story-seen > .inner {
@@ -1550,11 +2361,25 @@ button {
 @keyframes story-fill {
   to { transform: scaleX(1); }
 }
+/* the chrome sat on whatever the photo happened to be behind it. A short
+   scrim under the top strip means the name and the bars are legible on a
+   white bedsheet as well as on a night street. */
+.story-view::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--safe-top) + 120px);
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+  z-index: 1;
+  pointer-events: none;
+}
 .story-head {
   position: absolute;
   top: calc(var(--safe-top) + 22px);
-  left: 12px;
-  right: 8px;
+  left: calc(var(--safe-left) + var(--s3));
+  right: calc(var(--safe-right) + var(--s2));
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1563,16 +2388,17 @@ button {
 }
 .story-name {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--t-ui);
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
 }
 .story-age {
-  font-size: 13.5px;
-  color: rgba(255, 255, 255, 0.75);
+  font-size: var(--t-sub);
+  color: rgba(255, 255, 255, 0.82);
 }
 .story-btn {
-  width: 40px;
-  height: 40px;
+  position: relative;
+  width: var(--hit);
+  height: var(--hit);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1580,6 +2406,29 @@ button {
   font-size: 19px;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
   transition: transform var(--d-press) var(--ease-out);
+}
+/* the one thing a first-time viewer cannot guess: that the sides advance
+   and a hold pauses. Shown once, for two seconds, then never again. */
+.story-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 34px);
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12.5px;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: story-hint 2.8s var(--ease-out) forwards;
+}
+@keyframes story-hint {
+  0% { opacity: 0; }
+  14%, 62% { opacity: 1; }
+  100% { opacity: 0; }
 }
 .story-spin {
   position: absolute;
@@ -1607,11 +2456,13 @@ button {
 .story-gate p {
   color: #fff;
   font-size: 21px;
+  text-align: center;
   font-weight: 600;
 }
 .story-skip {
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 14.5px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: var(--t-ui);
+  min-height: var(--hit);
   padding: 8px 16px;
 }
 
@@ -1626,22 +2477,22 @@ button {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(16px);
-  color: rgba(245, 245, 247, 0.85);
-  font-size: 13.5px;
+  color: rgba(245, 240, 238, 0.92);
+  font-size: var(--t-sub);
   animation: msg-in var(--d-state) var(--ease-out);
 }
 .watch-chip i {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #fcaf45;
+  background: var(--accent-warm);
   animation: rec-pulse 1.6s infinite;
 }
 
 /* the gradient fill already says "active" — an infinite box-shadow ring
    paints every frame and composites never */
 .cbtn.watch-on {
-  background: linear-gradient(135deg, #e0356b, #f77737);
+  background: linear-gradient(135deg, var(--accent), var(--accent-warm));
   color: #fff;
 }
 
@@ -1685,11 +2536,38 @@ textarea,
 input {
   caret-color: var(--accent);
 }
-/* without this a keyboard user is simply lost */
+/* Without this a keyboard user is simply lost. Two rings, not one: the
+   accent stroke plus a light halo outside it, so the indicator survives
+   both grounds and lands on a dark call screen as well as on paper. */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 8px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 10px;
+}
+.call :focus-visible,
+.story-view :focus-visible {
+  outline-color: #fff;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.5);
+}
+/* a bubble is focusable so quote-reply is reachable without a touchscreen;
+   the ring follows the bubble's own corner radius */
+.msg:focus-visible {
+  border-radius: 20px;
+}
+
+/* ── screen-reader only ───────────────────────────────────────────────────
+   Live regions and the labels that make an icon mean something. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ─── reduced motion: fewer and gentler, not zero ──────────────────────────
@@ -1701,9 +2579,27 @@ input {
   .reply-chip,
   .watch-chip,
   .story-gate,
+  .story-view,
+  .chat-empty,
+  .jump-latest,
+  .undo-toast,
+  .offline-bar,
+  .reply-bar,
   .sheet {
     animation: none !important;
     transition: opacity var(--d-state) ease !important;
+  }
+  .sheet,
+  .jump-latest,
+  .undo-toast {
+    /* these three are centred BY transform — clearing it outright would
+       park them half a width off screen. Keep the placement, drop the travel. */
+    animation: none !important;
+  }
+  .jump-latest,
+  .undo-toast {
+    transition: opacity var(--d-state) ease !important;
+    transform: translateX(-50%) !important;
   }
   .sheet {
     transform: none !important;
@@ -1711,15 +2607,26 @@ input {
   .call {
     animation: none;
   }
+  .story-hint {
+    animation: none;
+    opacity: 1;
+  }
 
   /* every ambient loop stops */
   .pa-circle img,
   .pa-cover .pa-feed,
   .status .dot,
+  .cstate .cdot,
   .rec-dot,
   .watch-chip i,
-  .gif-loading {
+  .offline-bar i,
+  .gif-loading,
+  .msg.her.voice.unheard .vplay::before {
     animation: none !important;
+  }
+  .msg.her.voice.unheard .vplay::before {
+    opacity: 0.5;
+    transform: none;
   }
   .gif-loading {
     background: var(--surface-2);
@@ -1729,6 +2636,15 @@ input {
      Presence.tsx bails out on the same query) */
   .presence .pr-ring {
     transition: opacity var(--d-state) ease;
+  }
+  .presence .pr-bloom {
+    opacity: 0.4;
+  }
+
+  /* the read tick still needs to READ as a change; it just stops drawing */
+  .msg .t .tickicon.read .tick2 {
+    animation: none !important;
+    stroke-dasharray: none;
   }
 
   /* the typing indicator still has to read as activity */

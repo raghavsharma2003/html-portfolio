@@ -58,6 +58,30 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
     setReady(false);
   }, [idx]);
 
+  // On a touchscreen the whole surface is the control. On a keyboard it was
+  // nothing at all: no way to advance, no way back, and no way out except
+  // reaching for a mouse. Escape closes, arrows move, space holds.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        go(1);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        go(-1);
+      } else if (e.key === " " && !e.repeat) {
+        e.preventDefault();
+        setPaused(!paused.current);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stories.length, signedIn]);
+
   const go = (dir: 1 | -1) => {
     setIdx((i) => {
       const next = i + dir;
@@ -98,6 +122,9 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
   return (
     <div
       className="story-view"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${HER_NAME}'s story`}
       {...(pausedUI ? { "data-paused": "" } : {})}
       onTouchStart={(e) => {
         lastTouch.current = Date.now();
@@ -221,12 +248,16 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
       <img
         className="story-img"
         src={storySrc(cur)}
-        alt=""
+        alt={cur.desc || `${HER_NAME}'s story`}
         draggable={false}
         onLoad={() => setReady(true)}
         onError={() => go(1)} // a broken image never traps the viewer
       />
       {!ready && <div className="story-spin" />}
+      {/* the one thing a first-time viewer cannot guess — shown once */}
+      {idx === 0 && stories.length > 1 && (
+        <div className="story-hint">tap the sides to move · hold to pause</div>
+      )}
 
       {gate && (
         <div

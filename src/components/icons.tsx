@@ -49,7 +49,10 @@ export const SettingsIcon = ({ size = 20 }: { size?: number }) => (
   </svg>
 );
 
-// WhatsApp-style delivery ticks: ✓ sent, ✓✓ delivered, blue ✓✓ read
+// WhatsApp-style delivery ticks: ✓ sent, ✓✓ delivered, cyan ✓✓ read.
+// The second stroke carries a class so the read state can DRAW it once
+// (see .tickicon.read .tick2) instead of simply recolouring in place —
+// this is the smallest and most-watched piece of state in the product.
 export const TickIcon = ({ status }: { status: "sent" | "delivered" | "read" }) => (
   <svg
     width={15}
@@ -62,9 +65,10 @@ export const TickIcon = ({ status }: { status: "sent" | "delivered" | "read" }) 
     strokeLinejoin="round"
     className={`tickicon ${status === "read" ? "read" : ""}`}
     style={{ verticalAlign: "-1px" }}
+    aria-hidden="true"
   >
     <path d="M1.5 6.5 5 10 11 2.5" />
-    {status !== "sent" && <path d="M7.5 8.8 8.5 10 14.5 2.5" />}
+    {status !== "sent" && <path className="tick2" d="M7.5 8.8 8.5 10 14.5 2.5" />}
   </svg>
 );
 
@@ -87,5 +91,64 @@ export const CameraIcon = ({ size = 20 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" {...S}>
     <path d="M4 7.5h2.2l1.4-2h8.8l1.4 2H20a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18V9A1.5 1.5 0 0 1 4 7.5Z" />
     <circle cx="12" cy="13" r="3.6" />
+  </svg>
+);
+
+export const MoreIcon = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <circle cx="5" cy="12" r="1.9" />
+    <circle cx="12" cy="12" r="1.9" />
+    <circle cx="19" cy="12" r="1.9" />
+  </svg>
+);
+
+export const ChevronIcon = ({ size = 17 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...S} aria-hidden="true">
+    <path d="m9 5 7 7-7 7" />
+  </svg>
+);
+
+export const ArrowDownIcon = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...S} strokeWidth={2.1} aria-hidden="true">
+    <path d="M12 4.5v15M5.5 13l6.5 6.5 6.5-6.5" />
+  </svg>
+);
+
+export const CloseIcon = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...S} strokeWidth={2.1} aria-hidden="true">
+    <path d="M6 6l12 12M18 6 6 18" />
+  </svg>
+);
+
+export const PersonIcon = ({ size = 19 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...S} aria-hidden="true">
+    <circle cx="12" cy="8" r="3.7" />
+    <path d="M4.8 20a7.2 7.2 0 0 1 14.4 0" />
+  </svg>
+);
+
+export const CloudIcon = ({ size = 19 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...S} aria-hidden="true">
+    <path d="M7 18.5a4 4 0 0 1-.3-8A5.5 5.5 0 0 1 17.4 10a3.8 3.8 0 0 1-.4 8.5H7Z" />
+  </svg>
+);
+
+export const TrashIcon = ({ size = 19 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...S} aria-hidden="true">
+    <path d="M4.5 6.5h15M9.5 6.5V4.8a1.3 1.3 0 0 1 1.3-1.3h2.4a1.3 1.3 0 0 1 1.3 1.3v1.7" />
+    <path d="M6.5 6.5 7.4 19a1.6 1.6 0 0 0 1.6 1.5h6a1.6 1.6 0 0 0 1.6-1.5l.9-12.5" />
+    <path d="M10.5 10v7M13.5 10v7" />
+  </svg>
+);
+
+export const HeartIcon = ({ size = 19 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...S} aria-hidden="true">
+    <path d="M12 20s-7.5-4.6-7.5-9.5A4.2 4.2 0 0 1 12 7.6a4.2 4.2 0 0 1 7.5 2.9C19.5 15.4 12 20 12 20Z" />
+  </svg>
+);
+
+export const OfflineIcon = ({ size = 14 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...S} aria-hidden="true">
+    <path d="M2.5 8.6a15 15 0 0 1 6-3.4M15.4 5.2a15 15 0 0 1 6.1 3.4M6 12.4a10 10 0 0 1 3.4-2M14.6 10.4a10 10 0 0 1 3.4 2M9.6 16.1a5 5 0 0 1 4.8 0M12 20h.01M3 3l18 18" />
   </svg>
 );

@@ -45,12 +45,15 @@ import { logTurns, rememberFrom, recallMemories } from "../engine/memory";
 import { innerContext, applyInner, wantsForAppraisal } from "../engine/inner";
 import {
   ensureOverlay,
+  setWatchPrivate,
   startWatch,
   stopStrayWatch,
   watchAvailable,
   type WatchSession,
 } from "../native/watch";
 import { startLiveCall, type LiveSession } from "../voice/liveCall";
+import { readLevel } from "../voice/level";
+import { SceneReader, gridFromRGBA, isShowClass, type WakeClass } from "../watch/scene";
 import { callLookup } from "../voice/liveLookup";
 import { track } from "../engine/account";
 import { diag, diagStart, flushDiag } from "../engine/diag";
@@ -74,6 +77,19 @@ export function useCallEngine(
   const frameRef = useRef<{ url: string; at: number } | null>(null);
   const lastCommentAt = useRef(0);
   const firstFrameSeen = useRef(false);
+  // THE LOOK-AWAY. The most human privacy gesture is not a settings toggle,
+  // it is putting a hand over the screen for ten seconds. Until now the only
+  // controls ENDED the share, so someone who needs three seconds of privacy
+  // has to kill it and re-do the whole consent dance — which in practice
+  // means they never share again. While this is set no frame is encoded and
+  // nothing enters the socket, and because every wake in both lanes already
+  // requires a frame that actually arrived, she goes politely blind with no
+  // new gating logic and no way to invent a word about what she missed.
+  // USER-INITIATED ONLY: nothing here may ever engage it on a heuristic —
+  // that would be exactly the content-scoring this product does not do, and
+  // she would go mysteriously blind for reasons she could not explain.
+  const [watchPaused, setWatchPaused] = useState(false);
+  const watchPrivate = useRef(false);
   const [heard, setHeard] = useState("");
   const [sttSupported, setSttSupported] = useState(true);
   const [elapsed, setElapsed] = useState(0);
@@ -125,7 +141,26 @@ export function useCallEngine(
   const overlapStart = useRef(0); // when user speech over her speech began
   const reengaged = useRef(0); // continuation nudges this silence stretch
 
+  // Turns spoken while their screen was shared. Frames are ephemeral — they
+  // are streamed and never stored — but what she SAYS about a screen is not,
+  // and that is the leak nobody had covered: at the end of every call the
+  // last turns go to the graph extractor, which mints durable rows about the
+  // user's life from them. One glance at a thread and "Rohit na?" stops being
+  // a passing mistake and becomes a permanent, confidently wrong claim she
+  // will raise weeks later — and it goes to a second vendor to get there.
+  // Screen-derived talk is conversation; it is never durable memory about
+  // their life. The price is losing some genuine memory ("they were shopping
+  // for a bike") and that is the correct price.
+  const watchTurnIds = useRef<Set<string>>(new Set());
+
   const log = (m: Message) => {
+    if (watchSession.current && m.kind === "text") {
+      watchTurnIds.current.add(m.id);
+      if (watchTurnIds.current.size > 400) {
+        // unbounded growth across a long session is the only cost here
+        watchTurnIds.current = new Set([...watchTurnIds.current].slice(-200));
+      }
+    }
     setState((s) => ({ ...s, messages: [...s.messages, m] }));
     if (m.kind !== "callmark") logTurns(stateRef.current.deviceId, [m]);
   };
@@ -851,7 +886,15 @@ ${recallRef.current}`
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 4 },
+        // This is the DETECTION source, not the transmitted one: the JPEG
+        // cadence (FRAME_EVERY_MS) and the single quality below are
+        // untouched, so this costs local decode and nothing else. At 4fps
+        // roughly every second detector sample read a frame identical to the
+        // last, which reported "nothing moved" on a screen that was moving —
+        // and made typing, scroll direction and the revert window (all
+        // 100-400ms phenomena) unmeasurable on the surface where reading,
+        // coding, shopping and forms actually happen.
+        video: { frameRate: { ideal: 12 } },
         audio: false,
       });
     } catch {
@@ -868,31 +911,27 @@ ${recallRef.current}`
     // which makes the gap between "the screen changed" and "she is looking at
     // it" the whole latency budget. DETECTION IS DECOUPLED FROM TRANSMISSION:
     // a 32x32 luma thumbnail is read every DETECT_MS (one tiny drawImage +
-    // getImageData, ~0.1ms), while full JPEG frames still go up at the
-    // bandwidth-appropriate cadence — and the frame that proves a change is
-    // encoded and sent on that same tick instead of waiting for the next one.
-    // A screen can be interesting without changing fast (reading, typing,
-    // filling a form), so the signal has three bands rather than two: a big
-    // change means a new thing to look at, a small one means they're still
-    // busy doing something, and nothing at all means nothing at all. It
-    // carries no taste — her own brain decides what, and whether, to say.
+    // getImageData, ~0.1ms), while full JPEG frames go up at the
+    // bandwidth-appropriate cadence.
+    //
+    // WHAT the screen is doing is worked out by src/watch/scene.ts, which is
+    // pure geometry: how many cells moved, where, whether the picture
+    // translated instead of being replaced, and how long it has been standing
+    // still. It carries NO taste — no per-app rules, no content scoring, no
+    // keyword triggers, no phrase banks. It only ever says "something
+    // happened, and this is what kind". Her own judgment decides what, and
+    // whether, to say, and silence answers every single wake.
     const SIG = 32;
     const sigCanvas = document.createElement("canvas");
     sigCanvas.width = SIG;
     sigCanvas.height = SIG;
-    let prevSig: Uint8Array | null = null;
-    let prevBig = false;
-    let lastActivityAt = 0;
+    const scene = new SceneReader();
     const signature = (): Uint8Array | null => {
       if (!video.videoWidth || !video.videoHeight) return null;
       const c = sigCanvas.getContext("2d", { willReadFrequently: true });
       if (!c) return null;
       c.drawImage(video, 0, 0, SIG, SIG);
-      const d = c.getImageData(0, 0, SIG, SIG).data;
-      const out = new Uint8Array(SIG * SIG);
-      for (let i = 0; i < out.length; i++)
-        out[i] = (d[i * 4] * 77 + d[i * 4 + 1] * 150 + d[i * 4 + 2] * 29) >> 8;
-      return out;
+      return gridFromRGBA(c.getImageData(0, 0, SIG, SIG).data);
     };
     const grab = (maxSide: number, quality: number): string | null => {
       const w = video.videoWidth;
@@ -916,122 +955,197 @@ ${recallRef.current}`
     const FRAME_EVERY_MS = 600;
     const FRAME_Q = 0.68;
     const FRAME_SIDE = 768;
+    // A screen that has not moved since the last frame we sent carries no new
+    // information: the identical picture costs a full vision tile every 600ms
+    // and shows her nothing she is not already looking at. The detector
+    // already knows this — the send path just has to ask. This is NOT quality
+    // tiering: the picture is never degraded, the cadence is never slowed
+    // while anything is happening, and a real change still jumps the queue.
+    // Only a provably identical screen gets the slow beat.
+    // 2500 must stay under BOTH the 3000ms freshFrame() window (or the
+    // cascade lane goes blind) and the frame-gated wake path below.
+    const IDLE_FRAME_MS = 2500;
     let timer: ReturnType<typeof setTimeout> | null = null;
     // wake-up pacing — purely to protect the socket and the API, never to
-    // ration what she says: a floor between wake-ups, and a ceiling per
-    // minute. Anything she does say is her own call, every time.
+    // ration what she says: floors between wake-ups and a ceiling per minute.
+    // Anything she does say is her own call, every time.
     const DETECT_MS = 120; // screen sampled this often
     const CHANGE_SEND_MS = 250; // floor between reaction frames
-    const NEW_MAD = 12; // most of the grid is different: a new page/app/post
-    // a MEAN cannot see typing: one cell covers a large slab of the screen,
-    // so a caret or a new word moves ONE cell a little and averages to zero —
-    // which made reading, writing and coding look like a dead screen. Count
-    // cells that actually moved instead. Screen capture has no sensor noise,
-    // so a still image can never trigger this.
-    const CELL_DELTA = 8; // levels, per cell
-    const ACTIVE_CELLS = 1; // cells that must move
-    const ACTIVE_WINDOW_MS = 3000; // "they're still doing something" memory
-    const WAKE_FLOOR_MS = 2000; // between new-thing wake-ups
-    const ALONG_WAKE_MS = 12_000; // while they work on one screen
-    const IDLE_WAKE_MS = 45_000; // frozen screen: rare and explicitly optional
+    // Ambient chatter must not be able to spend the budget a deliberate show
+    // needs. One ring of 12, but ambient may only take 5 of them: four
+    // minutes of browsing used to drain the ring, and then the one moment
+    // that actually mattered — they stopped and waited — was silently rate-
+    // limited into nothing, with no log and no fallback.
     const WAKE_CEILING = 12;
+    const AMBIENT_CEILING = 5;
     const WAKE_WINDOW_MS = 60_000;
+    // Never cut across them. AMBIENT keeps the full 3s; a SHOW gets 1200ms,
+    // because a show is precisely the case where they spoke and are now
+    // waiting, and the old guard burnt three of the four seconds inside which
+    // a reply still reads as a reply.
+    const AMBIENT_QUIET_MS = 3000;
+    const SHOW_QUIET_MS = 1200;
+    // Their voice, from the mic envelope rather than from transcription:
+    // transcript chunks land hundreds of ms to seconds after the sound, so a
+    // guard measured off them starts late and ends later. This is only ever
+    // used to RELEASE a guard earlier and to time frames — never to decide
+    // anything about her speech.
+    const VOICE_ON = 0.12;
+    const VOICE_OFF = 0.06;
+    const FLUSH_EVERY_MS = 800;
+    // A budget, not just a floor: on a still screen a flush frame is a frame
+    // the cadence would not otherwise have spent, so someone who talks the
+    // whole time must not be able to undo the keep-alive saving. Twelve a
+    // minute covers about six utterances, which is more than anyone speaks
+    // while watching something.
+    const FLUSH_CEILING = 12;
+    let voiceOn = false;
+    let voiceOffAt = 0;
+    let lastFlushAt = 0;
+    const flushes: number[] = new Array(FLUSH_CEILING).fill(0);
+    let flushIdx = 0;
+    const flush = (at: number, held: boolean) => {
+      if (at - lastFlushAt < FLUSH_EVERY_MS) return;
+      if (at - flushes[flushIdx] < 60_000) return;
+      lastFlushAt = at;
+      flushes[flushIdx] = at;
+      flushIdx = (flushIdx + 1) % FLUSH_CEILING;
+      push(at, held);
+    };
     let started = false;
-    let lastWakeAt = 0;
     let lastSentAt = 0;
     let lastGrabAt = 0;
-    let pendingNew = false; // a change seen but not yet sent
+    let lastStillFrameAt = 0; // a frame captured while the screen was HELD
+    let movedSinceSent = true; // the first frame always goes
+    let wantStill = false; // the screen stopped and we still owe a still frame
+    let lastShowWakeAt = 0;
     const wakes: number[] = new Array(WAKE_CEILING).fill(0);
+    const wakeAmbient: boolean[] = new Array(WAKE_CEILING).fill(false);
     let wakeIdx = 0;
-    const wake = (note: string): boolean => {
+    // Which note each class carries. The code says "look now" and what just
+    // happened; it never says what to make of it, and silence answers all of
+    // them. settle/reshow/point currently reuse the scene note — once
+    // persona.ts lands WATCH_SHOW/RESHOW/POINT (see
+    // scratchpad/screenshare-persona-patch.md) this map is the only thing
+    // that changes.
+    const noteFor = (cls: WakeClass): string =>
+      cls === "start"
+        ? WATCH_START_DIRECTIVE()
+        : cls === "along"
+          ? WATCH_ALONG_DIRECTIVE()
+          : cls === "idle"
+            ? WATCH_IDLE_DIRECTIVE()
+            : WATCH_SCENE_DIRECTIVE();
+    const wake = (cls: WakeClass): boolean => {
       const now = Date.now();
-      // never cut across them talking, or across herself
-      if (speakingRef.current || now - lastHeardAt.current < 3000) return false;
-      if (now - wakes[wakeIdx] < WAKE_WINDOW_MS) return false;
-      lastWakeAt = now;
+      const show = isShowClass(cls);
+      // never cut across her own voice, or across theirs
+      if (speakingRef.current) return false;
+      const quietFor = show ? SHOW_QUIET_MS : AMBIENT_QUIET_MS;
+      if (now - lastHeardAt.current < quietFor) return false;
+      if (voiceOn || now - voiceOffAt < quietFor) return false;
+      // a wake-up may only ride behind a picture that ACTUALLY entered the
+      // socket, and for a show it must be a picture of the HELD screen — not
+      // a frame captured mid-transition, which is half the old screen and
+      // half the new one and is exactly what makes her guess
+      if (now - (show ? lastStillFrameAt : lastSentAt) > 3000) return false;
+      if (show) {
+        if (now - lastShowWakeAt < 2500) return false;
+      } else {
+        let ambient = 0;
+        for (let i = 0; i < WAKE_CEILING; i++)
+          if (wakeAmbient[i] && now - wakes[i] < WAKE_WINDOW_MS) ambient++;
+        if (ambient >= AMBIENT_CEILING) return false;
+      }
+      if (now - wakes[wakeIdx] < WAKE_WINDOW_MS) return false; // hard ceiling
+      if (show) lastShowWakeAt = now;
       wakes[wakeIdx] = now;
+      wakeAmbient[wakeIdx] = !show;
       wakeIdx = (wakeIdx + 1) % WAKE_CEILING;
-      liveSession.current?.direct(note);
+      liveSession.current?.direct(noteFor(cls));
+      scene.noteWake(cls, now);
       return true;
+    };
+    // Encode + send one frame right now. Returns whether it reached the socket
+    // — nothing else in this loop may claim she has seen anything.
+    const push = (at: number, held: boolean): boolean => {
+      // The look-away: while they have closed the curtain no frame is
+      // encoded, nothing enters the socket, and therefore — by the same
+      // grounding rule that governs everything else here — nothing can wake
+      // her and she cannot invent a word about it. User-initiated only; no
+      // heuristic ever engages this.
+      if (watchPrivate.current) return false;
+      if (at - lastGrabAt < CHANGE_SEND_MS) return false;
+      const url = grab(FRAME_SIDE, FRAME_Q);
+      if (!url) return false;
+      lastGrabAt = at; // bound re-encode cost even when the send is refused
+      frameRef.current = { url, at };
+      setFrameAt(at);
+      if (!firstFrameSeen.current) {
+        firstFrameSeen.current = true;
+        track(stateRef.current.deviceId, "watch_frame_first", { web: true });
+      }
+      const sent = liveSession.current?.sendFrame(url.split(",")[1] ?? "") ?? false;
+      // only a frame that REACHED her spends the cadence slot: a frame the
+      // socket refused must be retried on the next tick, not treated as
+      // delivered and waited out for another full period
+      if (sent) {
+        lastSentAt = at;
+        movedSinceSent = false;
+        if (held) {
+          lastStillFrameAt = at;
+          wantStill = false;
+        }
+      }
+      return sent;
     };
     const pump = () => {
       if (alive.current) {
         const at = Date.now();
-        // ── cheap half: has the screen done anything? ──
-        // 0 nothing moved · 1 they're doing something · 2 a new thing to look at
-        let motion = 0;
+        // ── cheap half: what has the screen done? ──
         const sig = signature();
-        if (sig) {
-          if (!prevSig) {
-            motion = 2; // the first thing she is shown is new by definition
-          } else {
-            let sum = 0;
-            let moved = 0;
-            for (let i = 0; i < sig.length; i++) {
-              const delta = Math.abs(sig[i] - prevSig[i]);
-              sum += delta;
-              if (delta >= CELL_DELTA) moved++;
-            }
-            const d = sum / sig.length;
-            const big = d >= NEW_MAD;
-            // only the leading EDGE of a big change is "new": the middle of
-            // a scroll or a page transition is them being busy, not a thing
-            motion = big ? (prevBig ? 1 : 2) : moved >= ACTIVE_CELLS ? 1 : 0;
-            prevBig = big;
-          }
-          prevSig = sig;
+        const s = sig ? scene.read(sig, at) : scene.still(at);
+        // "identical" is the detector's own hold test, not byte equality: a
+        // blinking caret, a clock digit or a spinner is a screen standing
+        // still, and a paused video under a UI overlay redraws without
+        // changing. Spending a full vision tile every 600ms on those shows
+        // her nothing she is not already looking at.
+        if (!s.quiet) movedSinceSent = true;
+
+        // ── their voice, for timing only ──
+        const env = readLevel("you");
+        if (!voiceOn && env >= VOICE_ON) {
+          voiceOn = true;
+          // "dekh yeh" needs the RIGHT PIXELS, not a poke: the Live API
+          // generates its own turn from the audio, and the freshest frame in
+          // her context could otherwise be 600ms of scrolling out of date.
+          // Costs a couple of JPEGs per spoken sentence and never a word.
+          flush(at, s.quiet);
+        } else if (voiceOn && env <= VOICE_OFF) {
+          voiceOn = false;
+          voiceOffAt = at;
+          flush(at, s.quiet);
         }
-        if (motion) lastActivityAt = at;
-        // a change spotted inside the send floor is REMEMBERED, never dropped:
-        // otherwise the next tick diffs against the already-new screen, reads
-        // "nothing much moved", and the new thing never wakes her at all
-        if (motion >= 2) pendingNew = true;
-        // ── expensive half, only for frames that are going out ──
-        // A new thing on screen is the most valuable frame we can spend
-        // bandwidth on, so it jumps the baseline cadence: congestion slows
-        // the BASELINE flow, never the reaction. (The socket still has the
-        // final say — sendFrame refuses a frame that would queue in front of
-        // her hearing them, and then nothing wakes her, which is correct.)
-        const react = pendingNew && at - lastSentAt >= CHANGE_SEND_MS;
-        // re-encoding is the expensive half, so it is floored separately from
-        // delivery: a refused frame retries soon, but never every 120ms tick
-        if ((react || at - lastSentAt >= FRAME_EVERY_MS) && at - lastGrabAt >= CHANGE_SEND_MS) {
-          const url = grab(FRAME_SIDE, FRAME_Q);
-          if (url) {
-            lastGrabAt = at; // bound re-encode cost even when the send is refused
-            if (pendingNew) {
-              motion = 2;
-              pendingNew = false;
-            }
-            frameRef.current = { url, at };
-            setFrameAt(at);
-            if (!firstFrameSeen.current) {
-              firstFrameSeen.current = true;
-              track(stateRef.current.deviceId, "watch_frame_first", { web: true });
-            }
-            // realtime path: the live model sees the screen as a video stream.
-            // Only a frame that ACTUALLY entered the socket may be followed by
-            // "look at the screen" — otherwise she'd be told to react to
-            // something she was never shown, which is where invention starts.
-            // The wake-up goes out right behind its own frame, same tick.
-            const sent = liveSession.current?.sendFrame(url.split(",")[1] ?? "") ?? false;
-            // only a frame that REACHED her spends the cadence slot: a frame
-            // the socket refused must be retried on the next tick, not treated
-            // as delivered and waited out for another full period
-            if (sent) lastSentAt = at;
-            const busy = at - lastActivityAt <= ACTIVE_WINDOW_MS;
-            // a new thing gets the short floor; steady work on one screen gets
-            // a slower beat; a screen that has stopped gets the rare one
-            if (sent && !started) {
-              started = wake(WATCH_START_DIRECTIVE());
-            } else if (sent && motion >= 2 && at - lastWakeAt >= WAKE_FLOOR_MS) {
-              wake(WATCH_SCENE_DIRECTIVE());
-            } else if (sent && busy && at - lastWakeAt >= ALONG_WAKE_MS) {
-              wake(WATCH_ALONG_DIRECTIVE());
-            } else if (sent && !busy && at - lastWakeAt >= IDLE_WAKE_MS) {
-              wake(WATCH_IDLE_DIRECTIVE());
-            }
-          }
+
+        // ── expensive half: which frames are worth a vision tile ──
+        // The screen just stopped: get a legible still picture up NOW, ahead
+        // of the cadence, so a hold that confirms a moment later is backed by
+        // the frame they are actually looking at and the poke itself is a
+        // bare socket write with nothing on the critical path.
+        const due =
+          at - lastSentAt >= (movedSinceSent ? FRAME_EVERY_MS : IDLE_FRAME_MS);
+        // The pre-roll is STICKY: if the 250ms re-encode floor swallows the
+        // tick the screen stopped on, the debt carries to the next tick that
+        // can pay it, so a hold is never left backed by a mid-transition
+        // picture. (The 2500ms keep-alive then doubles as the refresh that
+        // keeps lastStillFrameAt inside the 3000ms window a show requires.)
+        if (s.preroll) wantStill = true;
+        if (wantStill || due) push(at, s.quiet);
+
+        if (!started) {
+          if (lastSentAt) started = wake("start");
+        } else if (s.wake) {
+          wake(s.wake);
         }
       }
       timer = setTimeout(pump, DETECT_MS);
@@ -1440,7 +1554,9 @@ ${recallRef.current}`
     // be discarded, so nothing said on a call ever reached her self-ledger.
     rememberFrom(
       stateRef.current.deviceId,
-      stateRef.current.messages.slice(-60),
+      // see watchTurnIds: anything said over a shared screen is conversation,
+      // never durable memory about their life
+      stateRef.current.messages.filter((m) => !watchTurnIds.current.has(m.id)).slice(-60),
       wantsForAppraisal(stateRef.current.inner),
     ).then(({ self, inner }) => {
       if (!self.length && !inner) return;
@@ -1486,5 +1602,18 @@ ${recallRef.current}`
     watchAvailable: watchAvailable() || webWatchAvailable(),
     startWatchMode,
     stopWatchMode,
+    // the look-away, for whoever draws the control next to the watch chip
+    watchPaused,
+    setWatchPaused: (on: boolean) => {
+      watchPrivate.current = on;
+      setWatchPaused(on);
+      setWatchPrivate(on).catch(() => {}); // native lane, no-op on the web
+      if (on) {
+        // she must not be left holding a picture of the moment they closed
+        // the curtain: the cascade lane reads frameRef directly
+        frameRef.current = null;
+        setFrameAt(0);
+      }
+    },
   };
 }

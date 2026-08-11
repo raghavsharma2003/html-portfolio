@@ -20,7 +20,17 @@ import VoiceNote, { registerLocalClip } from "./VoiceNote";
 import GifBubble from "./GifBubble";
 import { listen, sttSupported } from "../voice/speech";
 import { tap } from "../native/haptics";
-import { PhoneIcon, SendIcon, BroomIcon, TickIcon, MicIcon, CameraIcon } from "./icons";
+import MoreSheet from "./MoreSheet";
+import {
+  PhoneIcon,
+  SendIcon,
+  TickIcon,
+  MicIcon,
+  CameraIcon,
+  MoreIcon,
+  ArrowDownIcon,
+  OfflineIcon,
+} from "./icons";
 
 interface Props {
   state: AppState;
@@ -73,7 +83,18 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   const [typingOut, setTypingOut] = useState(false);
   const followsTyping = useRef<string[]>([]);
   const TYPING_EXIT_MS = 140;
-  const [clearArm, setClearArm] = useState(false);
+  // the settings sheet (profile, account, clear chat) — everything that used
+  // to be either unreachable or one mis-tap away from destroying the chat
+  const [moreOpen, setMoreOpen] = useState(false);
+  // clearing parks the conversation for ten seconds instead of destroying it
+  const [undo, setUndo] = useState<Pick<
+    AppState,
+    "messages" | "herLife" | "inner" | "clearedAt"
+  > | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // reported, never enforced: navigator.onLine and its two events, no fetch.
+  // Sending is never blocked — she answers when the line comes back.
+  const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
   // transient inline notice ("couldn't read that photo", "mic access needed")
   const [notice, setNotice] = useState("");
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -109,12 +130,24 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     pausedAccum: number;
     pausedAt: number;
   } | null>(null);
+  // the thread is one tab stop; this is where focus sits inside it
+  const [focusedMid, setFocusedMid] = useState("");
+  // which of her voice notes have been played on this device — the unheard
+  // affordance stops asking the moment you have heard it
+  const [playedVoice, setPlayedVoice] = useState<Set<string>>(() => new Set());
   // presence: she is not permanently glued to the phone — she comes online to
   // read/reply, lingers a bit, then drops to "last seen"
   const [herOnline, setHerOnline] = useState(false);
   const offlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // scroll ownership: while you are at the bottom the thread follows her.
+  // The moment you scroll back to re-read something it stops following and
+  // offers to catch you up instead. (Before this, every arriving bubble
+  // yanked a forty-message scrollback back to the floor.)
+  const atBottom = useRef(true);
+  const [showJump, setShowJump] = useState(false);
+  const [missed, setMissed] = useState(0);
   const busy = useRef(false);
   // ── burst-aware reply orchestration ──
   // The user can ALWAYS send (like WhatsApp). Each send schedules a reply
@@ -186,17 +219,82 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     }));
   };
 
-  // auto scroll
+  // ── scroll ownership ──────────────────────────────────────────────────
+  // "Near the bottom" is 120px, which is roughly one bubble: if the last
+  // thing on screen is the newest message you are still following the
+  // conversation, and the thread should keep up with her. Past that you are
+  // reading, and nothing may move the viewport but you.
+  const NEAR_BOTTOM = 120;
+  const measureBottom = () => {
+    const el = scrollRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM;
+  };
+  const toBottom = (behavior: ScrollBehavior = "smooth") => {
+    scrollRef.current?.scrollTo({ top: 1e9, behavior });
+    atBottom.current = true;
+    setShowJump(false);
+    setMissed(0);
+  };
+
+  // one passive listener; the read is a single layout query per scroll frame
+  // and it never writes, so it cannot thrash
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 1e9, behavior: "smooth" });
-  }, [messages.length, typing]);
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const near = measureBottom();
+      if (near === atBottom.current) return;
+      atBottom.current = near;
+      if (near) {
+        setShowJump(false);
+        setMissed(0);
+      }
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // follow the conversation only while it is being followed
+  const lastLen = useRef(messages.length);
+  useEffect(() => {
+    const grew = messages.length > lastLen.current;
+    const arrivals = messages.length - lastLen.current;
+    lastLen.current = messages.length;
+    if (atBottom.current) {
+      scrollRef.current?.scrollTo({ top: 1e9, behavior: grew ? "smooth" : "auto" });
+    } else if (grew) {
+      const fromHer = messages[messages.length - 1]?.from === "her";
+      setShowJump(true);
+      if (fromHer) setMissed((n) => n + Math.max(1, arrivals));
+    }
+  }, [messages.length]);
+
+  // the typing indicator adds height at the bottom — same rule
+  useEffect(() => {
+    if (typing && atBottom.current) scrollRef.current?.scrollTo({ top: 1e9, behavior: "smooth" });
+  }, [typing]);
 
   // keyboard open/close resizes the app — keep the conversation pinned to
-  // the bottom through it
+  // the bottom through it, but only if it was pinned to begin with
   useEffect(() => {
-    const onResize = () => scrollRef.current?.scrollTo({ top: 1e9 });
+    const onResize = () => {
+      if (atBottom.current) scrollRef.current?.scrollTo({ top: 1e9 });
+    };
     window.visualViewport?.addEventListener("resize", onResize);
     return () => window.visualViewport?.removeEventListener("resize", onResize);
+  }, []);
+
+  // ── connection ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener("online", up);
+    window.addEventListener("offline", down);
+    return () => {
+      window.removeEventListener("online", up);
+      window.removeEventListener("offline", down);
+    };
   }, []);
 
   // her opening message when the chat is brand new — improvised by the model,
@@ -517,6 +615,71 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       );
     }
   }
+
+  // ── clearing, with a way back ─────────────────────────────────────────
+  // The old flow was: tap an unlabelled broom twice within 2.6 seconds and
+  // the conversation, her improvised life and her carried feeling were gone
+  // with no confirmation and no recovery. Now it is named in a sheet, and
+  // for ten seconds afterwards it is only parked.
+  function clearChat() {
+    const snapshot = {
+      messages: state.messages,
+      herLife: state.herLife,
+      inner: state.inner,
+      clearedAt: state.clearedAt,
+    };
+    busy.current = false;
+    epoch.current += 1; // kill any in-flight reply from the old chat
+    if (readTimer.current) clearTimeout(readTimer.current);
+    typingSince.current = 0;
+    setTyping(false);
+    setReplyTo(null);
+    setReplySel(null);
+    track(state.deviceId, "chat_cleared", { count: state.messages.length }, state.auth?.userId);
+    // clearedAt is the synced tombstone: other devices honor it instead of
+    // resurrecting the wiped conversation; followup timers from the deleted
+    // conversation die with it, and so does her improvised life — a feeling
+    // whose cause has been deleted is exactly the causeless mood this whole
+    // design exists to make impossible.
+    setState((s) => ({
+      ...s,
+      messages: [],
+      followup: null,
+      herLife: [],
+      inner: undefined,
+      clearedAt: Date.now(),
+    }));
+    setUndo(snapshot);
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => setUndo(null), 10_000);
+  }
+
+  function undoClear() {
+    const snap = undo;
+    if (!snap) return;
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndo(null);
+    busy.current = false;
+    epoch.current += 1; // the fresh opener she started belongs to nothing now
+    setTyping(false);
+    setTypingOut(false);
+    typingSince.current = 0;
+    setState((s) => ({
+      ...s,
+      messages: snap.messages,
+      herLife: snap.herLife,
+      inner: snap.inner,
+      clearedAt: snap.clearedAt,
+    }));
+    tap();
+  }
+
+  useEffect(
+    () => () => {
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+    },
+    [],
+  );
 
   function send() {
     const text = draft.trim();
@@ -878,6 +1041,29 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   // call turns never render — a call is spoken, not written. Only the
   // "📞 Voice call" record shows (she still remembers everything said).
   const visible = messages.filter((m) => m.channel !== "call");
+  // roving tabindex: the newest message is the thread's single tab stop
+  // unless the reader has moved focus somewhere else in it
+  const lastTextId = (() => {
+    for (let i = visible.length - 1; i >= 0; i--)
+      if (visible[i].kind === "text") return visible[i].id;
+    return "";
+  })();
+  const focusMid = focusedMid && visible.some((m) => m.id === focusedMid) ? focusedMid : lastTextId;
+  const moveFocus = (from: string, dir: 1 | -1) => {
+    const list = Array.from(
+      scrollRef.current?.querySelectorAll<HTMLElement>("[data-mid]") ?? [],
+    );
+    const i = list.findIndex((el) => el.dataset.mid === from);
+    const next = list[i + dir];
+    if (!next) return;
+    setFocusedMid(next.dataset.mid || "");
+    next.focus();
+  };
+  const newestHerVoice = (() => {
+    for (let i = visible.length - 1; i >= 0; i--)
+      if (visible[i].from === "her" && visible[i].kind === "voice") return visible[i].id;
+    return "";
+  })();
   // a bubble that took over from the typing indicator waits one exit beat
   // before it starts (the delay lives in CSS)
   const followsAttr = (m: Message) =>
@@ -903,13 +1089,22 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     if (m.kind === "callmark") {
       rows.push(
         <div key={m.id} className="call-chip">
-          📞 Voice call · {m.text} <span className="ct">{fmtTime(m.at)}</span>
+          <PhoneIcon size={14} />
+          Voice call · {m.text} <span className="ct">{fmtTime(m.at)}</span>
         </div>,
       );
     } else if (m.kind === "voice") {
+      // her newest voice note, until it has been played, is the one thing in
+      // the thread that is waiting on you — the play button says so
+      const unheard = m.from === "her" && m.id === newestHerVoice && !playedVoice.has(m.id);
       rows.push(
-        <div key={m.id} className={`msg ${m.from} voice`} {...followsAttr(m)} {...swipeHandlers(m)}>
-          <VoiceNote m={m} />
+        <div
+          key={m.id}
+          className={`msg ${m.from} voice ${unheard ? "unheard" : ""}`}
+          {...followsAttr(m)}
+          {...swipeHandlers(m)}
+        >
+          <VoiceNote m={m} onPlay={() => setPlayedVoice((s) => new Set(s).add(m.id))} />
           {(lastOfGroup || m.from === "me") && (
             <span className="t">
               {lastOfGroup && fmtTime(m.at)}
@@ -958,6 +1153,27 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
           key={m.id}
           className={`msg ${m.from} ${emojiOnly ? "emoji-big" : ""} ${replySel === m.id ? "sel" : ""}`}
           onClick={() => setReplySel((cur) => (cur === m.id ? null : m.id))}
+          // Quote-reply was tap-only, so on a keyboard it did not exist at
+          // all. The thread is a roving-tabindex list now: ONE tab stop for
+          // the whole conversation (putting forty bubbles in the tab order
+          // would put the composer forty presses away), arrows move between
+          // messages, Enter opens the same chip the tap does.
+          role="button"
+          data-mid={m.id}
+          tabIndex={m.id === focusMid ? 0 : -1}
+          aria-label={`${m.from === "her" ? HER_NAME : "You"} at ${fmtTime(m.at)}: ${m.text}. Reply`}
+          onFocus={() => setFocusedMid(m.id)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setReplySel((cur) => (cur === m.id ? null : m.id));
+            } else if (e.key === "Escape" && replySel === m.id) {
+              setReplySel(null);
+            } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+              e.preventDefault();
+              moveFocus(m.id, e.key === "ArrowDown" ? 1 : -1);
+            }
+          }}
           {...followsAttr(m)}
           {...swipeHandlers(m)}
         >
@@ -996,36 +1212,39 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   const storyLive = stories.length > 0;
   const storyUnseen = hasUnseenStory();
 
+  const openStoryOrProfile = () => {
+    // insta mechanics: an active story opens from the avatar; when nothing
+    // is live the same target goes to the account
+    if (storyLive) {
+      setStoryOpen(true);
+      track(state.deviceId, "story_open", { unseen: storyUnseen }, state.auth?.userId);
+    } else {
+      onProfile();
+    }
+  };
+  const headTarget = storyLive ? "View her story" : "Account";
+
   return (
     <div className="chat">
       <div className="chat-head">
-        <div
+        <button
           className={`avatar-ring ${storyLive ? (storyUnseen ? "story-live" : "story-seen") : ""}`}
-          style={{ width: 48, height: 48, padding: 2.5, animationDuration: "20s" }}
-          onClick={() => {
-            // insta mechanics: an active story opens from the avatar; the
-            // account sheet stays reachable via ⋯ inside the viewer (and
-            // directly here when no story is live)
-            if (storyLive) {
-              setStoryOpen(true);
-              track(state.deviceId, "story_open", { unseen: storyUnseen }, state.auth?.userId);
-            } else {
-              onProfile();
-            }
-          }}
-          role="button"
-          aria-label={storyLive ? "View her story" : "Account"}
+          style={{ width: 48, height: 48, padding: 2.5 }}
+          onClick={openStoryOrProfile}
+          aria-label={headTarget}
         >
-          <div className="inner" style={{ animationDuration: "20s" }}>
+          <div className="inner">
             <PhotoAvatar size={43} />
           </div>
-        </div>
-        <div className="who">
+        </button>
+        {/* its accessible name is its own content — "Meera, last seen today
+            at 4:06" — which is more use than repeating the avatar's label */}
+        <button className="who" onClick={openStoryOrProfile}>
           <div className="name">{HER_NAME}</div>
           {/* ONE node whose contents change — typing → online → last seen
               dissolves. Rendering three sibling nodes would remount the
               element and the transition would never run. */}
-          <div className={`status ${typing ? "typing" : ""}`}>
+          <div className={`status ${typing ? "typing" : ""}`} aria-live="polite">
             {typing ? (
               "typing…"
             ) : herOnline ? (
@@ -1036,52 +1255,52 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
               `last seen ${lastSeenLabel(state.lastSeen)}`
             )}
           </div>
-        </div>
+        </button>
         <button className="icon-btn" onClick={onVoiceCall} aria-label="Voice call">
           <PhoneIcon />
         </button>
         <button
           className="icon-btn"
-          style={clearArm ? { background: "rgba(255,59,48,0.12)", color: "var(--danger)" } : undefined}
-          onClick={() => {
-            if (!clearArm) {
-              setClearArm(true);
-              setTimeout(() => setClearArm(false), 2600);
-            } else {
-              setClearArm(false);
-              busy.current = false;
-              epoch.current += 1; // kill any in-flight reply from the old chat
-              if (readTimer.current) clearTimeout(readTimer.current);
-              typingSince.current = 0;
-              setTyping(false);
-              track(state.deviceId, "chat_cleared", { count: messages.length }, state.auth?.userId);
-              // clearedAt is the synced tombstone: other devices honor it
-              // instead of resurrecting the wiped conversation; followup
-              // timers from the deleted conversation die with it
-              // her improvised life belonged to that conversation too
-              setState((s) => ({
-                ...s,
-                messages: [],
-                followup: null,
-                herLife: [],
-                // her interior belonged to that conversation too — a feeling
-                // whose cause has been deleted is exactly the causeless mood
-                // this whole design exists to make impossible
-                inner: undefined,
-                clearedAt: Date.now(),
-              }));
-            }
-          }}
-          aria-label={clearArm ? "Tap again to clear chat" : "Clear chat"}
+          onClick={() => setMoreOpen(true)}
+          aria-label="Settings"
+          aria-haspopup="dialog"
         >
-          <BroomIcon />
+          <MoreIcon />
         </button>
       </div>
 
-      <div className="chat-scroll" ref={scrollRef}>
+      {!online && (
+        <div className="offline-bar" role="status">
+          <OfflineIcon />
+          No connection — keep typing, she'll get it when you're back
+        </div>
+      )}
+
+      <div className="chat-scroll" ref={scrollRef} role="log" aria-label={`Conversation with ${HER_NAME}`}>
+        {rows.length === 0 && (
+          // The brand-new chat used to be a white void for the two to six
+          // seconds her first line takes to arrive — the single most likely
+          // moment to decide the app is broken. Now the room is furnished.
+          <div className="chat-empty">
+            <div className="ce-face">
+              <PhotoAvatar size={96} />
+            </div>
+            <h2>{user.name ? `${HER_NAME} is writing to you` : `Say hi to ${HER_NAME}`}</h2>
+            <p>
+              She texts in Hinglish, calls when you want to hear a voice, and remembers what
+              you tell her.
+            </p>
+            <div className="typing-bubble ce-dots">
+              <i />
+              <i />
+              <i />
+            </div>
+          </div>
+        )}
         {rows}
         {typing && (
           <div className="typing-bubble" {...(typingOut ? { "data-leaving": "" } : {})}>
+            <span className="sr-only">{HER_NAME} is typing</span>
             <i />
             <i />
             <i />
@@ -1089,6 +1308,18 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         )}
         <div style={{ height: 6 }} />
       </div>
+
+      {showJump && (
+        <button className="jump-latest" onClick={() => toBottom()}>
+          {missed > 0 && <span className="jl-new" />}
+          {missed > 0
+            ? `${missed} new message${missed === 1 ? "" : "s"}`
+            : "Jump to latest"}
+          <span className="jl-arrow">
+            <ArrowDownIcon />
+          </span>
+        </button>
+      )}
 
       {storyOpen && (
         <StoryView
@@ -1105,7 +1336,30 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
           }}
         />
       )}
-      {notice && <div className="chat-notice">{notice}</div>}
+      {moreOpen && (
+        <MoreSheet
+          state={state}
+          setState={setState}
+          messageCount={visible.length}
+          onClose={() => setMoreOpen(false)}
+          onAccount={() => {
+            setMoreOpen(false);
+            onProfile();
+          }}
+          onClearChat={clearChat}
+        />
+      )}
+      {undo && (
+        <div className="undo-toast" role="status">
+          <span>Chat cleared</span>
+          <button onClick={undoClear}>Undo</button>
+        </div>
+      )}
+      {notice && (
+        <div className="chat-notice" role="status">
+          {notice}
+        </div>
+      )}
       {replyTo && (
         <div className="reply-bar">
           <div className="quote">
@@ -1119,11 +1373,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       )}
       <div className="chat-input-row">
         {recording ? (
-          <div className="rec-bar">
+          <div className="rec-bar" role="status" aria-label="Recording a voice note">
             <span className={`rec-dot ${recPaused ? "paused" : ""}`} />
             <span className="rec-time">
-              {Math.floor(recSecs / 60)}:{String(recSecs % 60).padStart(2, "0")}
-              {recPaused ? " · paused" : " · recording…"}
+              <b>
+                {Math.floor(recSecs / 60)}:{String(recSecs % 60).padStart(2, "0")}
+              </b>
+              <span>{recPaused ? " · paused" : " · recording"}</span>
             </span>
             <button className="rec-cancel" onClick={() => finishRecording(false)}>
               cancel
@@ -1186,7 +1442,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
               }}
             />
             {draft.trim() || !sttSupported() ? (
-              <button className={`send-btn ${draft.trim() ? "" : "off"}`} onClick={send} aria-label="Send">
+              <button
+                className={`send-btn ${draft.trim() ? "" : "off"}`}
+                // an empty send is not an error — it puts the caret where
+                // the words go, instead of doing nothing at all
+                onClick={() => (draft.trim() ? send() : inputRef.current?.focus())}
+                aria-label="Send"
+              >
                 <SendIcon />
               </button>
             ) : (

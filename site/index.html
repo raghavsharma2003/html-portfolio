@@ -57,6 +57,34 @@
     </div>
   </header>
 
+  <!-- What she actually is, in four claims we can stand behind. No product
+       screenshots here on purpose: the app is redesigned often enough that a
+       screenshot is a promise that expires, and her photographs don't. -->
+  <section class="bento-section">
+    <h2>Not a chatbot with a name.</h2>
+    <div class="bento">
+      <div class="cell cell-accent">
+        <h3>She texts like a person.</h3>
+        <p>Hinglish, her own rhythm, two messages when one wasn't enough. She reads before she answers, and she takes as long as reading takes.</p>
+      </div>
+      <div class="cell cell-photo">
+        <img src="/assets/meera-walk.jpg" alt="Meera out on an evening walk" />
+        <div class="cell-overlay">
+          <h3>She has her own day.</h3>
+          <p>She's somewhere when you text her, and she'll tell you where. Ask tomorrow and it's still true.</p>
+        </div>
+      </div>
+      <div class="cell">
+        <h3>She picks up.</h3>
+        <p>Tap call and you hear her voice — the same person, out loud. Share your screen and she watches whatever you're watching, with you.</p>
+      </div>
+      <div class="cell">
+        <h3>She remembers.</h3>
+        <p>Your name, what you were dreading on Tuesday, how it went. Sign in and all of it follows you to any device.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- Her camera roll — real moments she shares -->
   <section class="roll-section">
     <h2>She has days worth sharing.</h2>
@@ -92,10 +120,19 @@
     // The camera roll is the one place a stagger belongs: four things that
     // genuinely appear as a group. Everything else on this page is simply
     // there when you get to it.
-    const io = new IntersectionObserver((entries) => {
-      for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-    }, { threshold: 0.18 });
-    document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+    //
+    // The hiding is done by THIS script, not by the stylesheet: if the
+    // script is blocked, or IntersectionObserver is missing, the figures
+    // are visible rather than four transparent boxes holding open 400px of
+    // white where the photographs should be.
+    (function () {
+      if (!("IntersectionObserver" in window)) return;
+      document.documentElement.classList.add("js-reveal");
+      const io = new IntersectionObserver((entries) => {
+        for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+      }, { threshold: 0.18 });
+      document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+    })();
   </script>
 
   <script>
@@ -127,7 +164,6 @@
         return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
       };
 
-      thread.textContent = "";
       let typingEl = null;
       const showTyping = () => {
         typingEl = document.createElement("div");
@@ -151,6 +187,12 @@
       };
 
       async function play() {
+        // Emptying the thread at load time meant the phone was a blank grey
+        // rectangle from first paint until the observer fired — and on a
+        // phone, where the device sits half below the fold, that is what the
+        // hero looks like for as long as you are looking at it. The written
+        // conversation stays on screen until the moment it is replaced.
+        thread.textContent = "";
         let prev = "";
         for (const line of script) {
           if (line.from === "her") {
@@ -168,9 +210,11 @@
 
       // once, when the phone comes into view — a conversation that restarts
       // forever is a screensaver, not a demo
+      // 0.4 of a 9:16 device is more than a short phone viewport can show at
+      // once, so the demo never started on the screens most people use it on
       new IntersectionObserver(([e], obs) => {
         if (e.isIntersecting) { obs.disconnect(); play(); }
-      }, { threshold: 0.4 }).observe(phone);
+      }, { threshold: 0.2 }).observe(phone);
     })();
   </script>
 </body>

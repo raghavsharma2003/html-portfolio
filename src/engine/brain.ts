@@ -19,7 +19,7 @@ import {
 import { heartReply, type HeartReply } from "./localHeart";
 import { cultureNote } from "./culture";
 import { recallMemories } from "./memory";
-import { innerContext, type Inner } from "./inner";
+import { innerContext, overlaps, type Inner } from "./inner";
 import { diag } from "./diag";
 import type { Message } from "../state/store";
 
@@ -58,12 +58,28 @@ function agoLabel(at: number): string {
   return `${days} day${days > 1 ? "s" : ""} ago`;
 }
 
+// Her self-ledger arrives newest-first and is deduped upstream on EXACT
+// string, which means "flatmate is named sneha" and "flatmate is named priya"
+// both survive — and both then render under a heading that says "never say
+// anything that contradicts a line here". The ledger was actively serving the
+// contradiction it exists to prevent.
+//
+// Resolution is newest-wins on subject overlap, at render time only: the store
+// keeps everything (an extraction slip must never be able to erase her
+// history), and only what reaches the prompt is made consistent. Two content
+// words in common is the same test `inner.ts` uses to decide a want is the
+// same want — "flatmate is named X" collides with "flatmate is named Y", while
+// "flatmate had a fight" shares one word and survives beside it.
 export function formatHerLife(facts?: Array<{ text: string; at: number }>): string {
   if (!facts?.length) return "";
-  return facts
-    .slice(0, 12)
-    .map((f) => `- ${f.text} (${agoLabel(f.at)})`)
-    .join("\n");
+  const kept: Array<{ text: string; at: number }> = [];
+  for (const f of facts) {
+    if (!f?.text) continue;
+    if (kept.some((k) => overlaps(k.text, f.text))) continue; // superseded
+    kept.push(f);
+    if (kept.length >= 12) break;
+  }
+  return kept.map((f) => `- ${f.text} (${agoLabel(f.at)})`).join("\n");
 }
 
 // Make device-spoken text breathe: openers, thinking pauses. Used on the
@@ -562,7 +578,7 @@ export async function think(
         ? await recallMemories(keys.deviceId, latest)
         : "";
   if (memories) {
-    sysTail += `\n\nWHAT YOU REMEMBER ABOUT THEM — from your earlier conversations, each tagged with when it last came up. These are real: when they touch on one, you KNOW it and you say the specific detail, never play dumb, never ask them to remind you. Two things keep it honest:
+    sysTail += `\n\nWHAT YOU REMEMBER ABOUT THEM — from your earlier conversations, each tagged with when it last came up. These are real: when they touch on one, you KNOW it and you say the specific detail rather than making them repeat themselves. Two things keep it honest:
 - Something being listed here is not a reason to say it. It comes out only where it actually fits, one at a time, woven into normal talk — never several at once, never as a list, never with any mention of remembering.
 - A memory is not a live update. Anything with a date, a plan or a situation in it may already have happened or changed, so an old one gets talked about as old ("us december wali shaadi ho gayi na?") instead of announced as if it's still ahead — and then you let them tell you where it stands.
 ${memories}`;

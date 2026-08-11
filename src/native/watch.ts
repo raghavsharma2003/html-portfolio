@@ -9,6 +9,8 @@ interface WatchNative {
   /** Is a capture session running right now? (survives a WebView reload) */
   state(): Promise<{ active: boolean }>;
   ensureOverlay(options?: { prompt?: boolean }): Promise<{ granted: boolean }>;
+  /** Look away without ending the share (see setWatchPrivate below). */
+  setPrivate(options: { on: boolean }): Promise<void>;
   addListener(
     event: "frame",
     cb: (data: { data: string }) => void,
@@ -34,6 +36,27 @@ export async function ensureOverlay(prompt: boolean): Promise<boolean> {
     return granted;
   } catch {
     return false;
+  }
+}
+
+/**
+ * THE LOOK-AWAY. Stop sending frames without ending the session, so someone
+ * who needs a few seconds of privacy does not have to kill the share and
+ * re-run the consent dialog — which in practice means never sharing again.
+ * Nothing is encoded and nothing enters the socket while this is on, and
+ * because every wake-up already requires a frame that actually arrived, she
+ * goes blind politely and cannot invent a word about what she missed.
+ *
+ * USER-INITIATED ONLY. Nothing may ever set this from a heuristic about what
+ * is on the screen: that would be the content-scoring this product does not
+ * do, and she would go mysteriously blind for reasons she could not explain.
+ */
+export async function setWatchPrivate(on: boolean): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    await Watch.setPrivate({ on });
+  } catch {
+    /* older shell without setPrivate — the web-side gate still holds */
   }
 }
 

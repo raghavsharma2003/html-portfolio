@@ -62,8 +62,15 @@ export async function rememberFrom(
       ? d.self.filter((s: unknown): s is string => typeof s === "string" && Boolean(s.trim())).slice(0, 4)
       : [];
     const inner: InnerPatch | null =
-      d && (d.now !== undefined || d.wants !== undefined || d.told !== undefined)
-        ? { now: d.now ?? null, wants: Array.isArray(d.wants) ? d.wants : null, told: d.told === true }
+      d && (d.now !== undefined || d.wants !== undefined || d.owed !== undefined || d.told !== undefined)
+        ? {
+            now: d.now ?? null,
+            wants: Array.isArray(d.wants) ? d.wants : null,
+            // [] is a real answer here ("she settled up"), so it must not be
+            // collapsed to null the way an absent key is
+            owed: Array.isArray(d.owed) ? d.owed : null,
+            told: d.told === true,
+          }
         : null;
     done({ ok: Boolean(d), self: self.length, thread: Boolean(inner?.now) });
     return { self, inner };

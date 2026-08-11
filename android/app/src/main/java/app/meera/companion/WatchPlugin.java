@@ -115,6 +115,18 @@ public class WatchPlugin extends Plugin {
     call.resolve(r);
   }
 
+  /** The look-away: stop sending frames without ending the share. A person
+   *  who needs three seconds of privacy should not have to kill the session
+   *  and re-do the whole consent dance — in practice that means they simply
+   *  never share again. While this is on, nothing is encoded and nothing
+   *  enters the socket, so the existing "no wake without a delivered frame"
+   *  rule makes her politely blind for free. USER-INITIATED ONLY. */
+  @PluginMethod
+  public void setPrivate(PluginCall call) {
+    WatchCaptureService.setPrivate(Boolean.TRUE.equals(call.getBoolean("on", false)));
+    call.resolve();
+  }
+
   @PluginMethod
   public void stop(PluginCall call) {
     getContext().stopService(new Intent(getContext(), WatchCaptureService.class));

@@ -36,15 +36,21 @@
 }
 
 :root {
-  --ink: #1d1d1f;
-  --ink-dim: #6e6e73;
-  --ink-faint: #a1a1a6;
+  /* the same tokens the app ships, to the value — a landing page whose
+     rose is eight degrees off the product's rose is two products */
+  --ink: #201b19;
+  --ink-dim: #6d635e;
+  /* --ink-soft was used twice below and defined nowhere, so both the roll
+     subtitle and every caption fell back to inherited near-black */
+  --ink-soft: #6d635e;
+  --ink-faint: #9c918b;
   --bg: #ffffff;
-  --bg-soft: #f5f5f7;
-  --accent: #e0356b;
-  --accent-deep: #c22a5b;
-  --hairline: rgba(0, 0, 0, 0.08);
-  --shadow-device: 0 24px 80px -24px rgba(0, 0, 0, 0.28);
+  --bg-soft: #faf7f4;
+  --accent: #c23f56;
+  --accent-deep: #a53347;
+  --accent-warm: #e2724f;
+  --hairline: rgba(32, 27, 25, 0.08);
+  --shadow-device: 0 24px 80px -24px rgba(60, 40, 34, 0.3);
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   /* headings only — existing size-specific tracking carries over unchanged */
   --font-display: "Instrument Sans", "Display Fallback", var(--font);
@@ -74,8 +80,12 @@ img { max-width: 100%; display: block; }
    do appear as a group, so they get a real stagger instead of firing as one
    block. One identical entrance repeated on every section is not a motion
    thesis, it is a default applied nine times. */
-.reveal { opacity: 0; transform: translateY(26px); transition: opacity 0.7s var(--ease-arrive), transform 0.7s var(--ease-arrive); }
-.reveal.in { opacity: 1; transform: none; }
+/* Progressive enhancement, and only that: the hidden state is applied BY
+   the script, on the <html> element, so a blocked or failed script leaves
+   the camera roll simply visible instead of leaving four invisible figures
+   holding open 400px of white. */
+.js-reveal .reveal { opacity: 0; transform: translateY(26px); transition: opacity 0.7s var(--ease-arrive), transform 0.7s var(--ease-arrive); }
+.js-reveal .reveal.in { opacity: 1; transform: none; }
 .roll figure.reveal { transition-delay: 0ms; }
 .roll figure.reveal:nth-child(2) { transition-delay: 45ms; }
 .roll figure.reveal:nth-child(3) { transition-delay: 90ms; }
@@ -125,6 +135,14 @@ img { max-width: 100%; display: block; }
 }
 .btn:hover { background: var(--accent-deep); }
 .btn:active { transform: scale(0.97); }
+/* the page is read on phones first: no call to action under 44px tall */
+.btn { min-height: 48px; }
+.btn-small { min-height: 40px; }
+a:focus-visible, .btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
 .btn-small { padding: 9px 20px; font-size: 14.5px; }
 .btn-big { padding: 18px 40px; font-size: 18px; }
 .btn-ghost {
@@ -182,7 +200,7 @@ img { max-width: 100%; display: block; }
 .screen {
   border-radius: 35px;
   overflow: hidden;
-  background: linear-gradient(180deg, #fafafc 0%, #f5f5f7 30%);
+  background: linear-gradient(180deg, #fffdfb 0%, #faf7f4 30%);
   /* shorter than a real handset on purpose: the exchange is three lines and
      a taller frame would hang most of the hero on empty ground */
   aspect-ratio: 9 / 16;
@@ -196,8 +214,8 @@ img { max-width: 100%; display: block; }
   align-items: center;
   gap: 10px;
   padding: 16px 14px 12px;
-  background: rgba(250, 250, 252, 0.9);
-  border-bottom: 0.5px solid rgba(0, 0, 0, 0.07);
+  background: rgba(252, 250, 248, 0.9);
+  border-bottom: 0.5px solid var(--hairline);
 }
 .screen-av { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
 .screen-who b { display: block; font-size: 15px; font-weight: 650; letter-spacing: -0.015em; }
@@ -212,7 +230,7 @@ img { max-width: 100%; display: block; }
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #34c759;
+  background: #2fa855;
   animation: presence-breathe 3.8s ease-in-out infinite;
 }
 @keyframes presence-breathe {
@@ -240,7 +258,7 @@ img { max-width: 100%; display: block; }
 }
 .thread .b.her {
   align-self: flex-start;
-  background: #e9e9eb;
+  background: #f0ebe6;
   border-radius: 18px 18px 18px 5px;
   transform-origin: 0% 100%;
 }
@@ -262,7 +280,7 @@ img { max-width: 100%; display: block; }
   gap: 5px;
   padding: 13px 15px;
   margin-top: 14px;
-  background: #eeeef0;
+  background: #f0ebe6;
   border-radius: 5px 18px 18px 18px;
   transform-origin: 0% 100%;
   transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out);
@@ -275,7 +293,7 @@ img { max-width: 100%; display: block; }
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #8e8e93;
+  background: #9c918b;
   animation: dot-bounce 1.2s infinite;
 }
 /* three periods that never realign — identical loops are a machine */
@@ -298,9 +316,9 @@ img { max-width: 100%; display: block; }
   flex: 1;
   padding: 9px 14px;
   border-radius: 22px;
-  border: 1px solid rgba(0, 0, 0, 0.14);
+  border: 1px solid var(--hairline);
   background: #fff;
-  color: var(--ink-faint);
+  color: var(--ink-dim);
   font-size: 13.5px;
 }
 .composer i {
@@ -317,60 +335,12 @@ img { max-width: 100%; display: block; }
 .phone.small img { border-radius: 29px; }
 .phone.lift { transform: translateY(-26px); }
 
-/* trio */
-.trio-section {
-  background: var(--bg-soft);
-  padding: 110px 24px 120px;
-  text-align: center;
-}
-.trio-section h2 {
-  font-family: var(--font-display);
-  font-size: clamp(32px, 4vw, 48px);
-  letter-spacing: -0.025em;
-  font-weight: 700;
-  margin-bottom: 64px;
-}
-.trio {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 36px;
-  flex-wrap: wrap;
-  max-width: 1100px;
-  margin: 0 auto;
-}
+/* (the trio / split / honesty section styles that used to sit here were
+   rules for markup that no longer exists — ~90 lines of a stylesheet
+   describing a page nobody can reach) */
 
-/* split feature */
-.split {
-  display: grid;
-  grid-template-columns: 0.9fr 1.1fr;
-  align-items: center;
-  gap: 64px;
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 130px 24px;
-}
-.split-media .rounded {
-  border-radius: 28px;
-  box-shadow: var(--shadow-device);
-  width: min(360px, 100%);
-  margin: 0 auto;
-}
-.split-copy h2 {
-  font-family: var(--font-display);
-  font-size: clamp(30px, 3.6vw, 44px);
-  letter-spacing: -0.025em;
-  font-weight: 700;
-  margin-bottom: 18px;
-}
-.split-copy p {
-  font-size: 18px;
-  color: var(--ink-dim);
-  max-width: 52ch;
-  letter-spacing: -0.005em;
-}
-.split-copy p + p { margin-top: 14px; }
-.fine { font-size: 14px !important; color: var(--ink-faint) !important; }
+/* the one rule from the removed blocks that is still used */
+.fine { font-size: 14px !important; color: var(--ink-dim) !important; }
 
 /* her camera roll — tilted prints on the table */
 .roll-section {
@@ -421,7 +391,7 @@ img { max-width: 100%; display: block; }
 
 /* bento with background variety */
 .bento-section {
-  padding: 40px 24px 130px;
+  padding: 110px 24px 40px;
   max-width: 1100px;
   margin: 0 auto;
 }
@@ -449,7 +419,7 @@ img { max-width: 100%; display: block; }
   flex-direction: column;
   justify-content: flex-end;
 }
-.cell h3 { font-size: 22px; letter-spacing: -0.02em; margin-bottom: 8px; }
+.cell h3 { font-family: var(--font-display); font-size: 22px; letter-spacing: -0.02em; margin-bottom: 8px; }
 .cell p { color: var(--ink-dim); font-size: 16px; max-width: 46ch; }
 .cell-accent { background: var(--accent); }
 .cell-accent h3, .cell-accent p { color: #fff; }
@@ -462,7 +432,9 @@ img { max-width: 100%; display: block; }
 .cell-overlay {
   position: relative;
   padding: 36px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0) 70%);
+  /* the copy sits on a photograph of a person: the scrim has to reach
+     further up and land harder than a decorative one would */
+  background: linear-gradient(to top, rgba(20, 12, 10, 0.85) 8%, rgba(20, 12, 10, 0.35) 55%, rgba(20, 12, 10, 0) 92%);
   margin-top: auto;
 }
 .cell-overlay h3, .cell-overlay p { color: #fff; }
@@ -503,7 +475,7 @@ img { max-width: 100%; display: block; }
   flex-wrap: wrap;
   padding: 28px max(24px, calc((100vw - 1200px) / 2));
   border-top: 1px solid var(--hairline);
-  color: var(--ink-faint);
+  color: var(--ink-dim);
   font-size: 13.5px;
 }
 .footer span:first-child { font-weight: 700; color: var(--ink); font-size: 15px; }
@@ -519,6 +491,11 @@ img { max-width: 100%; display: block; }
   .split-copy { text-align: center; }
   .split-copy p { margin-left: auto; margin-right: auto; }
   .bento { grid-template-columns: 1fr; }
+  /* copy-only cells were 300px tall holding four lines against the floor —
+     on a phone that is a screenful of empty per claim */
+  .cell { min-height: 0; padding: 28px; }
+  .cell-photo, .cell-moment { min-height: 300px; }
+  .cell-overlay { padding: 28px; }
   .roll { grid-template-columns: repeat(2, 1fr); gap: 18px; }
   .phone.lift { transform: none; }
   .trio { gap: 24px; }
