@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 api/_config.js
+
+# agent working files belong in the session scratchpad, never in the repo
+scratchpad/
