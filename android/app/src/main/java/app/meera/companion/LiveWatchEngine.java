@@ -289,12 +289,26 @@ class LiveWatchEngine {
   /** How long the room keeps handing her last syllable back, and how far down. */
   private static final int ECHO_TAIL_MS = 200;
   private static final double ECHO_TAIL_DB = 20;
+  /** How far back ring admission peak-holds the prediction: 3 chunks = 300ms. */
+  private static final int ECHO_ADMIT_TICKS = 3;
   /** The bar sits a MARGIN above the leak estimate, never at it: κ is an RMS
    *  ratio and the sub-frames it must reject are the loud ones. +2.3 dB was
    *  chosen by sweeping it against BOTH failure directions at once — below 1.3
    *  she starts interrupting herself again, above 1.6 the quiet talker stops
    *  getting through. */
+  // Twin of the web lane. Re-swept once κ stopped being a guess — the old note
+  // ("below 1.3 she starts interrupting herself again") was true of a κ pinned
+  // at a possibly-6-dB-wrong seed, so the margin was covering the ESTIMATOR's
+  // error too. It STAYS at 1.3: at 1.15 one more quiet talker in eight gets
+  // through, but the television goes back to stopping her 7/8 of the time,
+  // which is the half of the complaint this work exists to answer.
   private static final double ECHO_MARGIN = 1.3; // +2.3 dB
+  /**
+   * Only sub-frames where she is within this much of her recent peak measure
+   * κ. Her pauses carry no coupling information, only the prediction's error —
+   * measured as κ = 0.41 on a device whose true coupling is 0.25.
+   */
+  private static final double ECHO_MEASURE_FRAC = 0.7;
   /*
    * The soft bar's LEVEL no longer carries the echo term (see thrS), but an
    * individual soft HIT still has to out-shout the leak at the instant it was
@@ -1325,6 +1339,8 @@ class LiveWatchEngine {
     // the echo lock: one row per mic chunk, one column per candidate lag
     final double[] fitMic = new double[ECHO_FIT_WIN];
     final double[][] fitHer = new double[ECHO_FIT_WIN][ECHO_LAGS];
+    final double[] echoHold = new double[ECHO_ADMIT_TICKS];
+    int echoHoldIdx = 0;
     int fitIdx = 0;
     int fitFill = 0;
     boolean echoLocked = false;
@@ -1397,6 +1413,7 @@ class LiveWatchEngine {
         fitIdx = 0;
         echoLocked = false;
         echoLag = -1;
+        Arrays.fill(echoHold, 0);
         floorLost = false;
         floorClaimSince = 0;
         floorReleasedAt = 0;
@@ -1536,7 +1553,13 @@ class LiveWatchEngine {
       // and being flushed at the server as the user's turn. Measured: with the
       // prediction alone that leak was 1792ms per call at −6 dB; with the peak
       // it is 938ms, and barge-in is unchanged.
-      final double admitEcho = Math.max(kappa * herMax * ECHO_MARGIN, echoTerm);
+      // The peak is held over the PREDICTION, never over kappa * herMax: κ is
+      // measured against the prediction, so pairing it with the windowed max
+      // multiplies the same headroom in twice and the bar lands ~3 dB high.
+      echoHold[echoHoldIdx] = echoTerm;
+      echoHoldIdx = (echoHoldIdx + 1) % ECHO_ADMIT_TICKS;
+      double admitEcho = 0;
+      for (int i = 0; i < ECHO_ADMIT_TICKS; i++) if (echoHold[i] > admitEcho) admitEcho = echoHold[i];
       // No echo term: with it, min(thrB, max(…, echoTerm)) is exactly thrB
       // whenever echo binds thrB, and the valve collapses onto the bar it is
       // supposed to sit below. The min() stays only as a sanity rail — with
@@ -1559,7 +1582,8 @@ class LiveWatchEngine {
         // The ratio is taken against the SAME prediction the bar is built on,
         // so κ and the bar stay in one another's units whichever branch is live.
         for (int s2 = 0; s2 < SUBS; s2++) {
-          if (herAtSub[s2] <= 600) continue; // her own gap: nothing to divide by
+          // measure only where the PREDICTION is trustworthy: her loud moments
+          if (herAtSub[s2] <= 600 || herAtSub[s2] < herMax * ECHO_MEASURE_FRAC) continue;
           // subtract ambience in POWER: the mic sums uncorrelated sources
           double excess = Math.sqrt(Math.max(0, sub[s2] * sub[s2] - floor * floor));
           echoRing[echoIdx] = excess / herAtSub[s2];
