@@ -41,8 +41,23 @@ interface Props {
   inCall?: boolean;
 }
 
-const fmtTime = (t: number) =>
-  new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+// Intl formatting is not free and the thread holds up to 500 messages, each
+// of which now needs its time twice (the visible stamp and the bubble's
+// accessible name). One formatter, and one cache keyed to the minute — the
+// answer cannot change within a minute, and the map is bounded by the
+// number of distinct minutes in a conversation.
+const timeFmt = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
+const timeCache = new Map<number, string>();
+const fmtTime = (t: number): string => {
+  const key = Math.floor(t / 60_000);
+  let v = timeCache.get(key);
+  if (v === undefined) {
+    v = timeFmt.format(t);
+    if (timeCache.size > 2000) timeCache.clear();
+    timeCache.set(key, v);
+  }
+  return v;
+};
 
 function lastSeenLabel(t: number): string {
   const mins = Math.floor((Date.now() - t) / 60000);

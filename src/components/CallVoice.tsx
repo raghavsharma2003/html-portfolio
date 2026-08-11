@@ -10,7 +10,7 @@ import PhotoAvatar from "./PhotoAvatar";
 import Presence, { type Phase } from "./Presence";
 import { useCallEngine } from "./useCallEngine";
 import { tap, ImpactStyle } from "../native/haptics";
-import { EndCallIcon, MicIcon, KeyboardIcon } from "./icons";
+import { EndCallIcon, MicIcon, KeyboardIcon, SendIcon } from "./icons";
 
 interface Props {
   state: AppState;
@@ -24,6 +24,13 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
   const [showKb, setShowKb] = useState(false);
 
   const hearing = Boolean(eng.heard); // her mic is picking up YOUR voice
+
+  const sendTyped = () => {
+    const t = typed.trim();
+    if (!t) return;
+    eng.handleUser(t);
+    setTyped("");
+  };
 
   // hardware receding: chrome dims after a few quiet seconds and comes back
   // on the first touch. One timer, no re-render storm.
@@ -126,24 +133,32 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
         )}
 
         {(!eng.sttSupported || showKb) && eng.phase === "live" && (
-          <div className="call-input-row" style={{ position: "static", marginTop: 10, width: "88%" }}>
+          <div className="call-input-row" style={{ position: "static", marginTop: 16, width: "88%" }}>
             <div className="chat-input" style={{ flex: 1 }}>
               <textarea
                 rows={1}
+                autoFocus
+                aria-label={`Type to ${HER_NAME}`}
                 placeholder="Say something…"
                 value={typed}
                 onChange={(e) => setTyped(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    if (typed.trim()) {
-                      eng.handleUser(typed.trim());
-                      setTyped("");
-                    }
+                    sendTyped();
                   }
                 }}
               />
             </div>
+            {/* Enter-only was invisible on a phone: the one way to talk to
+                her without a microphone had no button. */}
+            <button
+              className={`send-btn ${typed.trim() ? "" : "off"}`}
+              onClick={sendTyped}
+              aria-label="Send"
+            >
+              <SendIcon />
+            </button>
           </div>
         )}
       </div>

@@ -1758,6 +1758,15 @@ button {
 .call-input-row .chat-input textarea {
   color: #f5f5f7;
 }
+/* the shared placeholder colour is a light-ground ink; on the call's dark
+   field it was 1.6:1 — the field looked empty of even its own prompt */
+.call-input-row .chat-input textarea::placeholder {
+  color: rgba(245, 240, 238, 0.55);
+}
+.call-input-row .chat-input:focus-within {
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.14);
+}
 
 /* ─── Settings sheet ─── */
 
