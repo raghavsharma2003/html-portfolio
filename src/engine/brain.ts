@@ -162,7 +162,29 @@ export function parseBubbles(raw: string): ParsedReply {
     return "";
   });
   raw = raw.replace(/\[\s*voicenote\s*:\s*([^\]]+?)\s*\]/gi, (_m, body: string) => {
-    if (!out.voice) out.voice = { text: body.replace(/\s+/g, " ").trim() };
+    const said = body.replace(/\s+/g, " ").trim();
+    // A voicenote payload is WORDS SHE SPEAKS. Models routinely write a stage
+    // direction there instead — "[voicenote: softly]", "[voicenote: giggles]" —
+    // and the old code took it literally, so the app sent her a voice note
+    // whose entire content was the spoken word "softly". Measured on a crisis
+    // conversation: 4 of 4 voice notes malformed on one model, and 2 of 5 on
+    // the model we ship TODAY. This is live in production, not hypothetical,
+    // and a voice note reading "giggles" during someone's worst night is about
+    // the most damaging thing this app could send.
+    //
+    // A direction is short and has no sentence in it. Real spoken content has
+    // several words, or punctuation, or is plainly not a lone adverb. Dropping
+    // a doubtful one is free — the reply's text bubbles still send — while
+    // sending one is unrecoverable.
+    const wordCount = said ? said.split(" ").length : 0;
+    const looksLikeDirection =
+      wordCount <= 2 &&
+      !/[.!?…,]/.test(said) &&
+      /^[a-z ]+$/i.test(said) &&
+      /\b(softly|gently|quietly|warmly|sadly|happily|excited|laughing|laughs|giggles|giggling|sighs|sighing|whispers|whispering|crying|smiling|serious|calm|tired|sleepy|cheerful|teasing|playful|concerned|worried)\b/i.test(
+        said,
+      );
+    if (!out.voice && said && !looksLikeDirection) out.voice = { text: said };
     return "";
   });
   raw = raw.replace(/\[\s*gif\s*:\s*([^\]\n]+?)\s*\]/gi, (_m, q: string) => {
