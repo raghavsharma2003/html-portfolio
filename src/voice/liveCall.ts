@@ -861,10 +861,10 @@ function decodeWav(buf: ArrayBuffer): { pcm: Float32Array; sr: number } | null {
 }
 
 /** peak of the 20ms-RMS envelope — the same reading the echo apparatus takes */
-function peak20(x: Float32Array, sr: number, from = 0, to = x.length): number {
+function peak20(x: Float32Array, sr: number): number {
   const w = Math.max(1, Math.round(sr * 0.02));
   let peak = 0;
-  for (let i = from; i + w <= to; i += w) {
+  for (let i = 0; i + w <= x.length; i += w) {
     let a = 0;
     for (let j = i; j < i + w; j++) a += x[j] * x[j];
     const r = Math.sqrt(a / w);
