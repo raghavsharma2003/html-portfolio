@@ -10,11 +10,27 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        // OTA native contract. Web and Java used to ship together, so a web
+        // bundle could always assume the Java beside it; OTA breaks that
+        // coupling, and a bundle that calls a @PluginMethod this APK does not
+        // have is a crash on a phone we cannot reach. BUMP THIS whenever the
+        // JS→Java surface gains something a web bundle may depend on (a new
+        // plugin method, a new event name, a changed payload shape). Bundles
+        // built after the bump carry min_native = the new number and are
+        // REFUSED by older APKs instead of applied — those need a reinstall,
+        // which is the honest answer. scripts/ota-bundle.mjs reads this exact
+        // line, so keep the shape parseable.
+        buildConfigField "int", "OTA_NATIVE_CONTRACT", "1"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
+    }
+    // AGP 8 generates BuildConfig only on request; OTA_NATIVE_CONTRACT above
+    // is read from Java and is the reason this is on.
+    buildFeatures {
+        buildConfig true
     }
     buildTypes {
         release {

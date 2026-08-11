@@ -18,6 +18,11 @@ fi
 
 npx vite build
 
+# The Android OTA bundle, zipped from dist BEFORE the shuffle below: the phone
+# loads "/" from the bundle root, so the app's own index.html has to still be
+# index.html when it is packed. See docs/AUTOUPDATE.md.
+node scripts/ota-bundle.mjs
+
 # / is the landing page, /chat is the app (see vercel.json rewrite)
 mv dist/index.html dist/chat.html
 cp site/index.html dist/index.html
