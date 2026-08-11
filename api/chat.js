@@ -2,6 +2,7 @@
 // public repo never contain it. POST { system, messages, model? } → reply text.
 
 import { allow, ipOf } from "./_ratelimit.js";
+import { withGeminiKey, isQuota, poolSize } from "./_gkeys.js";
 
 import { OPENROUTER_KEY } from "./_config.js";
 
@@ -14,6 +15,8 @@ const ALLOWED_MODEL = /^[a-z0-9-]+\/[a-z0-9.:-]+$/i;
 // because the live voice lane measured 45,042 — 93.8% of the old cap, i.e. one
 // good paragraph away from silently truncating her again.
 const SYSTEM_MAX = 64_000;
+// Google's OpenAI-compatible surface: same request shape, same SSE stream.
+const GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 // voice calls stream tokens so she can start speaking on the first sentence
 export const config = { supportsResponseStreaming: true };
@@ -101,9 +104,65 @@ export default async function handler(req, res) {
     const aborter = new AbortController();
     const kill = setTimeout(() => aborter.abort(), wantStream ? 120_000 : 60_000);
     req.on?.("close", () => aborter.abort());
-    let upstream;
+    // one notch of planning for chat, the floor for calls — see the table below
+    const effort = no_think === true ? "minimal" : "low";
+    const body = {
+      model: typeof model === "string" && ALLOWED_MODEL.test(model) ? model : DEFAULT_MODEL,
+      messages: [{ role: "system", content: systemContent }, ...messages.slice(-120)],
+      max_tokens: Number.isFinite(max_tokens) ? Math.min(800, Math.max(50, max_tokens)) : 800,
+      ...(wantStream ? { stream: true } : {}),
+    };
+
+    // ── free tier first ──────────────────────────────────────────────────
+    // Google's OpenAI-compatible endpoint speaks the same request and the same
+    // SSE our client already parses, so this is a swap of host and key rather
+    // than a second code path to keep in sync.
+    //
+    // THE EFFORT TIER MUST MATCH THE LANE, and the failure is silent and total.
+    // Measured with the real persona, n=5 per cell:
+    //
+    //   chat  + low      21.0 -> 22.8 words, 0 empty   <- correct
+    //   chat  + minimal   2.2 words, 4 of 5 EMPTY      <- she says nothing
+    //   call  + minimal  23.8 -> 22.8 words, 0 empty   <- correct
+    //   call  + low       5.2 words, 4 of 5 EMPTY      <- she says nothing
+    //
+    // The tiers are INVERTED between the two lanes, so any fixed value is
+    // catastrophic on one of them. The right rule is therefore the simplest
+    // one: send exactly the effort this request already asked for. `no_think`
+    // is the client saying "this is a call", which is the same signal the paid
+    // lane uses below.
+    //
+    // At the matching tier the free lane is at parity or better: chat 2540ms
+    // vs 2485ms, and calls 1324ms vs 1578ms — 254ms FASTER than paid.
+    let upstream = null;
+    let usedFree = false;
+    if (poolSize() > 0) {
+      const got = await withGeminiKey(async (gkey) => {
+        const r = await fetch(GEMINI_OPENAI_URL, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${gkey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ ...body, reasoning_effort: effort }),
+          signal: aborter.signal,
+        });
+        if (r.ok) return { ok: true, value: r };
+        if (isQuota(r.status)) return { ok: false, exhausted: true };
+        // 4xx that is not quota: our request is malformed and every key will
+        // reject it identically, so stop rather than burning the pool
+        return { ok: false, error: `gemini ${r.status}` };
+      });
+      if (got.value) {
+        upstream = got.value;
+        usedFree = true;
+      } else if (!got.triedAll) {
+        clearTimeout(kill);
+        return res.status(502).json({ error: got.error });
+      }
+      // triedAll: the whole free pool is spent — fall through to the paid lane
+    }
+
     try {
-      upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      if (!upstream)
+        upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${key}`,
@@ -111,20 +170,14 @@ export default async function handler(req, res) {
           "X-Title": "Meera",
         },
         body: JSON.stringify({
-          model: typeof model === "string" && ALLOWED_MODEL.test(model) ? model : DEFAULT_MODEL,
-          // safety ceiling only — the client decides the real window. It used
-          // to be 40, which silently clipped the context the client had
-          // deliberately sent and made her contradict her own earlier turns.
-          messages: [{ role: "system", content: systemContent }, ...messages.slice(-120)],
-          max_tokens: Number.isFinite(max_tokens) ? Math.min(800, Math.max(50, max_tokens)) : 800,
-          ...(wantStream ? { stream: true } : {}),
+          ...body,
           // Bounded hidden thinking. Default (unbounded) reasoning grows with
           // context, eats the max_tokens budget, and truncates/leaks — but the
           // "minimal" floor costs conversational coherence (non-sequiturs,
           // context-free media sends). So: calls (no_think, latency-critical)
           // stay at the floor; chat gets one notch of planning ("low"), still
           // bounded far below the 700-token reply budget.
-          reasoning: { effort: no_think === true ? "minimal" : "low" },
+          reasoning: { effort },
         }),
         signal: aborter.signal,
       });

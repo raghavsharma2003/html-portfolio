@@ -2,6 +2,7 @@
 // the client can open its realtime WebSocket WITHOUT ever seeing the real
 // Google key. The token expires in 30 minutes and admits one session.
 import { GOOGLE_KEY } from "./_config.js";
+import { withGeminiKey, isQuota } from "./_gkeys.js";
 import { allow, ipOf } from "./_ratelimit.js";
 
 // The model IS the latency. Measured end-to-end on real audio — wall clock
@@ -39,8 +40,8 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   if (!allow(ipOf(req), "livetok", 12)) return res.status(429).json({ error: "slow down" });
 
-  const key = process.env.GOOGLE_API_KEY || GOOGLE_KEY;
-  if (!key) return res.status(503).json({ error: "live calls not configured" });
+  const envKey = process.env.GOOGLE_API_KEY;
+  if (!envKey && !GOOGLE_KEY) return res.status(503).json({ error: "live calls not configured" });
 
   try {
     const expire = new Date(Date.now() + 30 * 60_000).toISOString();
@@ -50,7 +51,11 @@ export default async function handler(req, res) {
     // costs them dead air (telemetry: live losing the pickup race on mobile).
     // Verified: a token minted 3 minutes early still opens a session.
     const newSession = new Date(Date.now() + 9 * 60_000).toISOString();
-    const upstream = await fetch(
+    // Rotates the free-key pool. A live call is the one surface where a 429
+    // is unrecoverable — she simply never picks up — so trying the next key
+    // costs one round trip during the ring, where there is slack, rather than
+    // failing the call outright.
+    const mint = async (key) => await fetch(
       "https://generativelanguage.googleapis.com/v1alpha/auth_tokens",
       {
         method: "POST",
@@ -63,10 +68,20 @@ export default async function handler(req, res) {
         signal: AbortSignal.timeout(10_000),
       },
     );
-    if (!upstream.ok) {
-      return res.status(502).json({ error: "token mint failed" });
+    // An explicit env key overrides the pool entirely (deployment escape hatch).
+    let data = null;
+    if (envKey) {
+      const r = await mint(envKey);
+      if (r.ok) data = await r.json();
+    } else {
+      const got = await withGeminiKey(async (k) => {
+        const r = await mint(k);
+        if (r.ok) return { ok: true, value: await r.json() };
+        if (isQuota(r.status)) return { ok: false, exhausted: true };
+        return { ok: false, error: `mint ${r.status}` };
+      });
+      data = got.value ?? null;
     }
-    const data = await upstream.json();
     if (!data?.name) return res.status(502).json({ error: "token mint failed" });
     return res.status(200).json({ token: data.name, model: LIVE_MODEL });
   } catch {
