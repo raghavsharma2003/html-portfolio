@@ -137,3 +137,30 @@ anecdote.
 - **Claude, despite being the best measured at romanised Hinglish** — Anthropic
   is the one publisher with no qualifier on the Azure credit exclusion list, and
   with a card on file it bills the card instead of the credits.
+
+---
+
+## `frame-cadence` — capturing screen frames faster
+
+`FRAME_EVERY_MS` 600 → 450 → 300 → 240 moved the wake by **0 ms on 18 of 18
+real stops**, for +21% vision spend.
+
+Nothing in the path is serialized: detection runs at 120 ms off the luma grid
+and never waits on encoding, so the classifier already decides on frame N while
+N+1 is being captured. The pre-roll has the still frame in the socket **before
+the hold confirms**. A faster camera cannot help a pipeline whose cost is the
+hold, not the picture.
+
+## `hold-scroll-floor` — lowering `HOLD_SCROLL_MIN`
+
+900, 700 and 600 changed nothing — not one millisecond, not one wake, on any of
+the eight sessions. A scroll hold is `1.8 × their own gap` ≈ 2400 ms, so a 1200
+floor never binds; in the one session where it does, her own voice blocks the
+wake and it slips to the same place anyway.
+
+## `wake-dedupe` — loosening one-reaction-per-thing to catch more stops
+
+Of the 7 missed stops at baseline, 4 were this dedupe. Measuring the 16×16 MAD
+of the "duplicate" pictures gives **0.00–0.77** — they are literally the same
+screen. No threshold separates them from true duplicates. The mechanism is
+correct; the misses are not a bug to fix.

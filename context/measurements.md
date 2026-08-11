@@ -155,3 +155,41 @@ approximate). Side effect: a distant television stopping her went **8/8 → 2/8*
 Cost, stated: a *quiet* talker at −6 dB now gets ignored — at those levels a
 quiet person and a distant TV are not separable by level, and the baseline only
 "heard" them by also hearing itself 91% of the time.
+
+## `wake-hold-curve` — screen-share wake latency vs the landing hold ceiling (2026-08-11)
+
+`HOLD_REPLACE_MAX` swept on 8 captured sessions, graded, real model at every
+wake. 48 sessions/arm, then 90/arm on the 3 sessions where the ceiling can act.
+
+| ceiling | stops reacted | wake p50 | p90 | fabrication | talk |
+|---|---|---|---|---|---|
+| 4000 (was) | 180/300 | 1920 ms | 4200 ms | 35.0% (112/320) | 53% |
+| 1200 | 211/300 | 1320 ms | 2760 ms | 35.5% (128/361) | 60% |
+| **800 (shipped)** | **215/300** | **960 ms** | **2760 ms** | 37.8% (138/365) | 60% |
+
+Stop → her voice end to end: p50 **2.66 s → 1.70 s**, p90 **4.94 s → 3.50 s**.
+Fabrication pooled across both fast ceilings **+1.6 pp, 95% CI [−4.7, +7.9],
+p=0.61** — it did not rise. Costs: `narrates_transition` +2.2 pp (p=0.016),
+repeats +4.7 pp (p=0.089), talk share +4 pp.
+
+2000 is dominated — full wake-rate cost, no latency win. In `scenesim` a
+browse-8-products pattern goes 4.4 → 10.9 wakes/min with the knee between 3000
+and 2000; that pattern is not in the captured sessions, so **3000 is the
+conservative fallback** if she is heard getting chatty while browsing.
+
+## `her-reaction-736` — her own reaction time on a screen wake (2026-08-11)
+
+**736 ms median, p90 1104 ms**, n=134, pooled from live poke logs. The 1.5 s
+this was previously budgeted at is near the p99. More of the wake budget is
+ours than was assumed.
+
+## `fab-noise-floor` — the fabrication metric's noise floor in the replay harness (2026-08-11)
+
+5 of 8 sessions produce a **byte-identical** wake pattern under every candidate
+— same class, same time, same frame index — so the setting provably cannot act
+there. Across those 300 arm-pairs the judged fabrication rate still spreads
+**13.6 pp**, median |difference| 28 pp, p90 75 pp; one cell moved 50% → 92% on
+identical input.
+
+**Any fabrication claim from this harness at n<300 is noise.** This is why the
+sweep above spent its budget on n rather than on more arms.

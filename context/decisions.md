@@ -151,3 +151,32 @@ build. Commenting out CSS that contains comments does not work.
   helplines once. `scripts/check-prompt-budget.mjs` is the guard.
 - `prompt-position` — a rule buried mid-brief fired 0/8; the identical rule
   appended last fired 8/8.
+
+---
+
+## `scene-hold-800` — the landing hold is capped at 800 ms, not 4000 (2026-08-11)
+
+The hold before she reacts to a settled screen is `HOLD_MULTIPLIER x that
+person's own landing rhythm`, bounded by `HOLD_REPLACE_MAX`. At 4000 the bound
+did not bind, so **the slower someone moved between screens the longer she made
+them wait on each landing** — backwards for the one lane that is the deliberate
+"dekh yeh". It was also silencing stops outright: a 4080 ms hold demands 4000 ms
+of stillness, the screen moved on at 3720 ms, nothing fired.
+
+See `wake-hold-curve`. Stop → her voice p50 2.66 s → 1.70 s, and 215/300 stops
+get a reaction instead of 180, with fabrication flat.
+
+It lands at 800 rather than the 260 floor for a reason worth keeping: a show
+wake may only ride behind a frame captured while the screen was HELD, and a
+still-settling screen has moving cells, so it is not held. That was checked
+directly down to a 120 ms hold — the picture she answered on was captured after
+the arrest every time, minimum lead 120 ms. But the margin is one detect tick,
+and replayed sessions settle in one tick where a real fling does not.
+
+`scene.ts` and `SceneReader.java` are twins; the constant is measured in the
+TypeScript harness, so both move together or the Android lane silently keeps the
+old behaviour.
+
+**Reverses if:** fabrication rises on the landing lane, or she speaks during
+flick-storm glances. If she is merely heard getting chatty while browsing, 3000
+is the conservative fallback and buys about half the win.

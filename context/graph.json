@@ -153,12 +153,12 @@
     {
       "id": "persona",
       "kind": "component",
-      "title": "persona.ts \u2014 where her personality lives"
+      "title": "persona.ts — where her personality lives"
     },
     {
       "id": "inner",
       "kind": "component",
-      "title": "inner.ts \u2014 carried feeling, wants, taste, mood arc"
+      "title": "inner.ts — carried feeling, wants, taste, mood arc"
     },
     {
       "id": "memory-graph",
@@ -194,6 +194,48 @@
       "id": "light-only",
       "kind": "decision",
       "title": "The app is light-themed, unconditionally",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "scene-hold-800",
+      "kind": "decision",
+      "title": "The landing hold is capped at 800ms, not 4000",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "wake-hold-curve",
+      "kind": "measurement",
+      "title": "Screen-share wake latency vs the landing hold ceiling",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "her-reaction-736",
+      "kind": "measurement",
+      "title": "Her own reaction time on a screen wake is 736ms",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "fab-noise-floor",
+      "kind": "measurement",
+      "title": "Fabrication rate spreads 13.6pp on identical input",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "frame-cadence",
+      "kind": "rejection",
+      "title": "Capturing screen frames faster",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "hold-scroll-floor",
+      "kind": "rejection",
+      "title": "Lowering HOLD_SCROLL_MIN",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "wake-dedupe",
+      "kind": "rejection",
+      "title": "Loosening one-reaction-per-thing to catch more stops",
       "at": "2026-08-11"
     }
   ],
@@ -317,6 +359,46 @@
       "src": "light-only",
       "rel": "part_of",
       "dst": "persona"
+    },
+    {
+      "src": "scene-hold-800",
+      "rel": "measured_by",
+      "dst": "wake-hold-curve"
+    },
+    {
+      "src": "scene-hold-800",
+      "rel": "part_of",
+      "dst": "scene"
+    },
+    {
+      "src": "frame-cadence",
+      "rel": "part_of",
+      "dst": "scene"
+    },
+    {
+      "src": "hold-scroll-floor",
+      "rel": "part_of",
+      "dst": "scene"
+    },
+    {
+      "src": "wake-dedupe",
+      "rel": "part_of",
+      "dst": "scene"
+    },
+    {
+      "src": "her-reaction-736",
+      "rel": "part_of",
+      "dst": "scene"
+    },
+    {
+      "src": "fab-noise-floor",
+      "rel": "constrains",
+      "dst": "vision-model"
+    },
+    {
+      "src": "fab-noise-floor",
+      "rel": "constrains",
+      "dst": "scene-hold-800"
     }
   ]
 }
