@@ -528,6 +528,63 @@ async function dropEdgesFor(device, ids) {
   return gone.length;
 }
 
+// Telemetry is deleted on exactly the terms the log is — rule 3 of
+// docs/TELEMETRY.md — because telemetry is the one place that would otherwise
+// keep a copy of something they asked to be gone.
+//
+// Two reasons this is not optional decoration:
+//   - `compose.*` captures DRAFT text, which exists nowhere else in the
+//     product (rule 2's single exception). A forget that clears meera_log and
+//     leaves the draft behind has deleted the sent message and kept the thing
+//     they typed and thought better of, which is worse than not deleting.
+//   - everything else in meera_tel references content by msg_id rather than
+//     copying it, so it goes not because it is incriminating but because a
+//     timeline of a conversation that no longer exists is still a record of
+//     that conversation.
+//
+// Matching is on the whole props document, not on a known list of text-bearing
+// keys. An allowlist of keys is a promise that no future producer ever puts a
+// word in a new field, and that promise is the sort that gets broken quietly.
+// Over-deleting here is the safe direction, the same call the node delete
+// above already makes.
+//
+// The rollup is repaired afterwards rather than left alone: a meera_tel_session
+// row that outlives its events would list a session with nothing in it, which
+// during an RCA reads as data loss rather than as a forget doing its job.
+// Repair is best-effort — a stale count must never fail a delete that worked.
+async function purgeTelemetry(device, { rx, from, to, all }) {
+  let gone = [];
+  if (all) {
+    gone = await q(`delete from meera_tel where device_id = $1 returning id`, [device]);
+    await q(`delete from meera_tel_session where device_id = $1`, [device]).catch(() => {});
+    return gone.length;
+  }
+  if (rx) {
+    gone = await q(`delete from meera_tel where device_id = $1 and props::text ~* $2 returning id`, [
+      device,
+      rx,
+    ]);
+  } else if (Number.isFinite(from) && Number.isFinite(to)) {
+    gone = await q(
+      `delete from meera_tel where device_id = $1 and at >= $2 and at < $3 returning id`,
+      [device, new Date(from).toISOString(), new Date(to).toISOString()],
+    );
+  }
+  if (!gone.length) return 0;
+  await q(
+    `delete from meera_tel_session s where s.device_id = $1
+       and not exists (select 1 from meera_tel t where t.session_id = s.session_id)`,
+    [device],
+  ).catch(() => {});
+  await q(
+    `update meera_tel_session s set events = c.n
+       from (select session_id, count(*)::int n from meera_tel where device_id = $1 group by session_id) c
+      where s.session_id = c.session_id and s.device_id = $1 and s.events <> c.n`,
+    [device],
+  ).catch(() => {});
+  return gone.length;
+}
+
 // "everything from that date" — a calendar day is a local-time idea, so it
 // needs their offset. Minutes EAST of UTC; the app is India-first, so IST.
 function dayWindow(body) {
@@ -555,6 +612,7 @@ async function opForget(device, body) {
   let nodeRows = [];
   let edges = 0;
   let photos = 0;
+  let telemetry = 0;
 
   if (scope === "item") {
     const name = String(body.name || "").trim().toLowerCase().slice(0, 60);
@@ -574,6 +632,7 @@ async function opForget(device, body) {
       device,
       rx,
     ]);
+    telemetry = await purgeTelemetry(device, { rx });
   } else if (scope === "session" || scope === "day") {
     const [from, to] = scope === "day" ? dayWindow(body) : [Number(body.from), Number(body.to)];
     if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return { error: "bad window" };
@@ -601,6 +660,11 @@ async function opForget(device, body) {
       [device, a, b],
     ).catch(() => []);
     edges += inWindow.length;
+    // The whole window goes, not just the events whose area matches `channel`.
+    // "forget that call" is a time window; a chat event sitting inside it is
+    // part of the same stretch, and the node delete directly above already
+    // takes the window unfiltered for the same reason.
+    telemetry = await purgeTelemetry(device, { from, to });
     // the pictures they sent during that stretch go with it
     photos = await deletePhotos(device, from, to).catch(() => 0);
   } else {
@@ -611,6 +675,8 @@ async function opForget(device, body) {
     );
     edges = e.length;
     await q(`delete from meera_forget where device_id = $1`, [device]).catch(() => {});
+    // a wipe takes telemetry outright, rollup included — rule 3
+    telemetry = await purgeTelemetry(device, { all: true });
     // a full wipe takes every picture, including any whose filename carries no
     // parseable timestamp — this is the one path that is allowed to be total
     photos = await deletePhotos(device).catch(() => 0);
@@ -625,7 +691,7 @@ async function opForget(device, body) {
   return {
     ok: true,
     scope,
-    deleted: { log: logRows.length, nodes: nodeRows.length, edges, photos },
+    deleted: { log: logRows.length, nodes: nodeRows.length, edges, photos, telemetry },
   };
 }
 

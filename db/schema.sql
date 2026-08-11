@@ -149,6 +149,75 @@ create table if not exists meera_culture (
 -- does not appear in the shipped client bundle (verified: it contains no JWT of
 -- any kind), so this grants deletion to our proxy and not to users.
 
+-- ── Session telemetry (docs/TELEMETRY.md is the contract) ───────────────────
+--
+-- Everything a session did, fine-grained enough to reconstruct it second by
+-- second. Distinct from meera_diag, which is the call-path audit trail and
+-- stays as it is: this table is the whole app run, and diag events feed the
+-- same sink under `call.*`.
+--
+-- ORDER BY t_ms, NOT BY at. `at` is client wall clock and jumps — NTP steps,
+-- timezone changes, a phone that slept for two hours. `t_ms` is a monotonic
+-- offset from session start (performance.now), so it is the only field a
+-- timeline can be reconstructed on. Both are stored; the index leads with
+-- t_ms for exactly this reason.
+--
+-- `event` is deliberately unconstrained text. No enum, no check, no allowlist:
+-- an unknown event must be stored, because the event nobody thought to
+-- register is the one an incident turns out to be about.
+--
+-- device_id is text (not uuid) to match meera_diag: telemetry starts before
+-- the device id is known to be well-formed, and a malformed id must still
+-- produce a stored row rather than an error. It is still the delete key —
+-- api/memory.js opForget purges this table on the same terms it purges
+-- meera_log, which is what keeps `forget` from being a lie (rule 3). The one
+-- content-bearing field is compose.draft's `text` in props, which exists
+-- nowhere else; nothing else here copies what was said, it references
+-- meera_log by msg_id in props instead (rule 2).
+create table if not exists meera_tel (
+  id         bigint generated always as identity primary key,
+  device_id  text not null,
+  user_id    uuid,
+  session_id text not null,
+  seq        integer,
+  area       text not null,
+  event      text not null,
+  t_ms       integer,
+  props      jsonb not null default '{}'::jsonb,
+  at         timestamptz not null default now()
+);
+-- NOT named meera_tel_session, which is what docs/TELEMETRY.md specs and what
+-- was measured to break: indexes and tables share one namespace in Postgres,
+-- so the index claims the name first and the `create table if not exists
+-- meera_tel_session` below then finds a relation of that name and SKIPS —
+-- with a NOTICE, not an error. Verified against the live database on a throw-
+-- away schema: after running the file as specced, meera_tel_session existed
+-- only as an index and every rollup query failed at runtime, long after the
+-- schema apply had reported success.
+create index if not exists meera_tel_session_tms on meera_tel (session_id, t_ms);
+create index if not exists meera_tel_device_at on meera_tel (device_id, at desc);
+create index if not exists meera_tel_event_at on meera_tel (event, at desc);
+create index if not exists meera_tel_area_at on meera_tel (area, at desc);
+
+-- One row per app run, rolled up at ingest so `--list` never scans the event
+-- table. `events` is incremented by the same statement that inserts the
+-- events, so the two cannot disagree; started_at/ended_at use least/greatest
+-- because batches arrive out of order (an offline drain lands after the live
+-- traffic it preceded).
+create table if not exists meera_tel_session (
+  session_id  text primary key,
+  device_id   text not null,
+  user_id     uuid,
+  surface     text,
+  started_at  timestamptz not null default now(),
+  ended_at    timestamptz,
+  events      integer not null default 0,
+  platform    text,
+  app_version text,
+  meta        jsonb not null default '{}'::jsonb
+);
+create index if not exists meera_tel_session_device on meera_tel_session (device_id, started_at desc);
+
 -- Web lookup cache, keyed by the normalised query.
 create table if not exists meera_search_cache (
   k     text primary key,

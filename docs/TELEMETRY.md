@@ -166,7 +166,12 @@ create table if not exists meera_tel (
   props      jsonb not null default '{}'::jsonb,
   at         timestamptz not null default now()
 );
-create index if not exists meera_tel_session on meera_tel (session_id, t_ms);
+-- NOT named meera_tel_session: tables and indexes share one namespace in
+-- Postgres, so that name would be claimed by the index and the
+-- `create table if not exists meera_tel_session` below would find a relation
+-- of that name and SKIP — with a NOTICE, not an error. The apply reports
+-- success, the table never exists, and every rollup query fails much later.
+create index if not exists meera_tel_session_tms on meera_tel (session_id, t_ms);
 create index if not exists meera_tel_device_at on meera_tel (device_id, at desc);
 create index if not exists meera_tel_event_at on meera_tel (event, at desc);
 create index if not exists meera_tel_area_at on meera_tel (area, at desc);
