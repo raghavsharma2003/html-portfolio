@@ -458,6 +458,32 @@ ${recallRef.current}`
       return null;
     });
     let pickupT: ReturnType<typeof setTimeout> | null = null;
+    // ── HOW LONG SHE TAKES TO PICK UP ──
+    // Her response timing everywhere else in a live call is the server's, and
+    // the client may not add to it: her first word after they stop talking is
+    // the one number this lane is not allowed to trade. The RING is the one
+    // beat in the whole call that is genuinely free, because it happens before
+    // the line is open — and a phone that is answered in exactly 1.2 seconds
+    // every single time is one of the tells that there is nobody there.
+    //
+    // It only ever gets LONGER, never shorter, and that is not a style choice:
+    // the live session gets `ring + 3500ms` to connect before the slower
+    // cascade takes the call, so shortening the ring would buy a little realism
+    // by making more calls land on the slow lane. Speed is non-negotiable in
+    // one direction only.
+    const ringMs = (() => {
+      let ms = 1100 + Math.random() * 300; // the floor, unchanged
+      const h = new Date().getHours();
+      const prev = state.messages[state.messages.length - 1];
+      const since = prev?.at ? Date.now() - prev.at : Infinity;
+      // she was asleep, or lying in the dark with the phone face-down
+      if (h < 6) ms += 500 + Math.random() * 400;
+      // mid-conversation: the phone is already in her hand
+      else if (since < 3 * 60_000) ms += 0;
+      // they have not spoken in a day — she has to catch up to who is calling
+      else if (since > 20 * 3_600_000) ms += 400 + Math.random() * 300;
+      return Math.min(2400, ms);
+    })();
     const t = setTimeout(async () => {
       if (!alive.current) return;
       setPhase("live");
@@ -517,7 +543,7 @@ ${recallRef.current}`
         at: Date.now(),
       });
       sayAloud(greet, reply.tone);
-    }, 1100 + Math.random() * 300);
+    }, ringMs);
     return () => {
       alive.current = false;
       clearTimeout(t);

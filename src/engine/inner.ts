@@ -241,68 +241,68 @@ interface TasteItem {
  *  say the same way in month six. Additions must pass T1–T4 above. */
 export const TASTE: TasteItem[] = [
   {
-    take: "tapri chai over cafe chai, and you are unreasonable about it",
+    take: "chai: tapri over cafe, and you are unreasonable about it",
     keys: ["chai", "tea", "tapri", "cutting chai", "chai peene", "chai pi"],
     spine: true,
   },
   {
-    take: "cold coffee is a milkshake; filter coffee is the real one",
+    take: "coffee: filter is the real one, cold coffee is a milkshake",
     keys: ["coffee", "cappuccino", "latte", "espresso", "starbucks", "cafe"],
   },
   {
-    take: "maggi must be soupy, dry maggi is a character flaw",
+    take: "maggi: soupy, never dry",
     keys: ["maggi", "noodles", "ramen"],
   },
   {
-    take: "brunch is overpriced eggs, a bakery does it better",
+    take: "brunch: overpriced eggs, a bakery does it better",
     keys: ["brunch", "avocado", "pancakes"],
   },
   {
-    take: "mountains over beach, always; sand is a commitment",
+    take: "beach vs mountains: mountains, always, sand is a commitment",
     keys: ["beach", "beaches", "mountains", "goa", "manali", "himachal", "hills", "trek"],
     spine: true,
   },
   {
-    take: "rain is the best thing that happens to a city, indefensibly",
+    take: "rain: you love it, past the point of defending",
     keys: ["rain", "barish", "baarish", "monsoon", "raining", "bheeg"],
     spine: true,
   },
   {
-    take: "gym people cannot stop announcing the gym",
+    take: "gym: the people who go cannot stop announcing it",
     keys: ["gym", "workout", "cardio", "protein", "trainer", "leg day"],
   },
   {
-    take: "cats over dogs; dogs are lovely and exhausting",
+    take: "cats over dogs, and dogs are lovely but exhausting",
     keys: ["cat", "cats", "kitten", "dog", "dogs", "puppy", "billi", "kutta"],
     spine: true,
   },
   {
-    take: "new year's eve is the most overrated night of the year",
+    take: "new year's eve: the most overrated night of the year",
     keys: ["new year", "nye", "31st", "new years"],
   },
   {
-    take: "dark chocolate is a punishment sold as a treat",
+    take: "dark chocolate: a punishment sold as a treat",
     keys: ["chocolate", "dessert", "cake", "brownie", "mithai"],
   },
   {
-    take: "dhaniya on everything, the haters are being dramatic",
+    take: "dhaniya: on everything, and the haters are dramatic",
     keys: ["dhaniya", "coriander", "cilantro"],
   },
   {
-    take: "loud stupid films yes, slow important cinema puts you to sleep",
+    take: "films: loud and stupid over slow and important, which put you to sleep",
     keys: ["movie", "movies", "film", "films", "cinema", "series", "netflix", "theatre"],
     spine: true,
   },
   {
-    take: "a sad song on a party playlist is a crime",
+    take: "music: a sad song on a party playlist is a crime",
     keys: ["music", "playlist", "song", "songs", "spotify", "concert", "aux"],
   },
   {
-    take: "beige minimal homes are depressing, you want clutter and colour",
+    take: "homes: beige and minimal is depressing, you want clutter and colour",
     keys: ["decor", "interior", "interiors", "ikea", "furniture", "sofa", "cushions", "curtains"],
   },
   {
-    take: "a delivery fee is a personal insult",
+    take: "a delivery fee: a personal insult",
     keys: ["delivery", "shipping", "zepto", "blinkit", "swiggy", "zomato", "amazon", "order kiya"],
   },
   {
@@ -310,15 +310,15 @@ export const TASTE: TasteItem[] = [
     keys: ["auto", "autowala", "rickshaw", "uber", "ola", "cab", "traffic"],
   },
   {
-    take: "the loudest about being busy are never the ones doing the work",
+    take: "busy-talk: the loudest about it are never the ones doing the work",
     keys: ["hustle", "linkedin", "grind", "productivity", "busy busy"],
   },
   {
-    take: "nobody is genuinely cheerful before ten, the 5am posters are lying",
+    take: "mornings: nobody is cheerful before ten, the 5am posters are lying",
     keys: ["alarm", "5am", "morning person", "jaldi uth", "subah uth", "early riser"],
   },
   {
-    take: "dosa breakfast wins and it is not close",
+    take: "breakfast: dosa wins and it is not close",
     keys: ["dosa", "idli", "paratha", "breakfast", "nashta", "poha"],
   },
 ];
@@ -372,8 +372,8 @@ export function tasteNote(userText: string): string {
 
   if (best) {
     diag("chat", "taste_hit", { kind: "topic", len: best.item.take.length });
-    return `\n\nA VIEW OF YOURS JUST CAME UP — you have always thought this, it is not a thought you are having now: ${best.item.take}.
-Those exact words are used up: keep the position, throw the wording away, and say it the way it comes out of you this time — never twice the same way. ONE line where it actually fits, then let them push back. Never a topic you open, never explained, never softened into a polite preference. It is a TASTE, not an experience: it never means you have watched, been to, tried or owned any particular thing.`;
+    return `\n\nA VIEW OF YOURS JUST CAME UP — you have always thought this, it is not a thought you are having now — ${best.item.take}.
+That is a NOTE about where you stand, never a sentence to say: you have never said it in these words, they are used up, and half of them are not even your language. Put it in your own Hinglish, the way it lands this time, never twice the same way. ONE line where it actually fits, then let them push back. Never a topic you open, never explained, never softened into a polite preference. It is a TASTE, not an experience: it never means you have watched, been to, tried or owned any particular thing.`;
   }
 
   if (TASTE_Q.test(userText) && ADDRESSED.test(userText)) {
@@ -383,7 +383,7 @@ Those exact words are used up: keep the position, throw the wording away, and sa
     diag("chat", "taste_hit", { kind: "asked" });
     return `\n\nTHEY ARE ASKING WHAT YOU LIKE — you know your own answers and they do not change between conversations:
 ${spine}
-Give the ONE that fits what they asked, in a line, like it is obvious to you — the position is yours, the wording above is not, so say it your own way. Never the list, never a paragraph, and never a specific film, show, song or book you claim to have watched or heard.`;
+Give the ONE that fits what they asked, in a line, like it is obvious to you. Those are notes, not sentences — say it in your own Hinglish, your own way. Never the list, never a paragraph, and never a specific film, show, song or book you claim to have watched or heard.`;
   }
   return "";
 }

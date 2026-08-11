@@ -528,6 +528,66 @@ const RELEASE_SETTLE_MS = 300;
 // is a safety net so a missing turnComplete can never mute her forever.
 const DISCARD_CAP_MS = 2000;
 
+// ── THE LISTENING SOUND, and why it is placed where it is ────────────────
+// The complaint this answers is that she is completely silent while you talk,
+// so the line feels dead. A real listener backchannels — "hmm", "haan" — and
+// the honest finding is that on this architecture she CANNOT do it while you
+// are still speaking. Measured in scratchpad/echosim (exp11.mjs, 8 seeds per
+// cell, one 450ms sound dropped 1.5s into a 4s utterance, paired against the
+// identical run without it):
+//
+//   how it is played                 extra digital     longest silent    other-
+//                                    silence in        run inside        energy
+//                                    their sentence    their sentence    uplinked
+//   registered (protected properly)     +171ms          427 -> 597ms       +0ms
+//   as a model turn (prompted)          +85ms           427 -> 512ms       +0ms
+//   stray, via a 2nd AudioContext       -171ms          427ms (unch.)      +171ms
+//   in the GAP after they stop           0ms            427ms (unch.)      +0ms
+//
+// The two "during" options fail for opposite reasons and there is no third.
+// Protecting the sound means HOLDING the microphone (the only mechanism this
+// file has for not feeding her own output back to the server), and a hold puts
+// digital silence on the uplink — which is precisely how the server ends a
+// turn (automaticActivityDetection.silenceDurationMs = 300). So the protection
+// and the damage are the same act: their sentence gets split in two and she
+// answers the first half while they are saying the second. NOT protecting it
+// hands her own voice to the server inside their turn (+171ms of foreign
+// energy per sound, at EVERY coupling measured, −6 through −18 dB, because the
+// listen gate carries no echo term) and simultaneously fills their own pauses,
+// so the endpointer commits LATER and she replies slower. That second one is
+// what calling speech.ts's playAck() during a live call would do today.
+//
+// The gap AFTER they stop is free on every axis: the uplink there is already
+// digital silence (the gate has closed), so a hold costs nothing the server
+// was not already being told, and 0ms of their speech is displaced.
+//
+// WHAT IT MAY NEVER DO: touch `playhead`. Her first word is scheduled off that
+// value, so a sound that advances it would delay her — the one thing this lane
+// is not allowed to trade. The murmur therefore runs on its own source into
+// its own gain, overlapping her real audio rather than queueing in front of it,
+// and fades out under her first chunk.
+const ACK_MIN_USER_MS = 2500; // only after a real stretch of them talking
+const ACK_MIN_VOICE_MS = 1200; // ...of which this much was actually voice
+// A silence longer than this ends their stretch of talking. Shorter than it is
+// one of their own pauses and the stretch continues through it: the gate closes
+// after 250ms of hangover, which is inside the gap an ordinary talker leaves
+// between phrases, so anything less generous measures phrases instead of turns.
+const ACK_TALK_GAP_MS = 800;
+const ACK_MIN_GAP_MS = 15_000; // rarely, and never twice running
+const ACK_AFTER_CHUNKS = 2; // ≈420ms after they stop: where a human lands one
+const ACK_SECS = 0.42;
+const ACK_PEAK = 0.12; // −18 dBFS: a backchannel is quieter than a sentence
+// Her own reverb tail keeps arriving after the sound itself has stopped, and
+// the listen gate has no echo term, so an unguarded tail is streamed to the
+// server as if the user had started talking. Measured as the +427ms of
+// uplinked energy the "after" arm cost at −6 dB before this guard existed
+// (+171ms at −12, +85ms at −18) — one extra turn's worth of exactly the leak
+// the echo work just spent itself reducing. Holding the microphone across the
+// tail is free here: their turn is already committed and the uplink is already
+// silent. 320ms > ECHO_TAIL_MS (200) + the acoustic round trip.
+const ACK_TAIL_GUARD_MS = 320;
+const ACK_FADE = 0.1; // seconds — she trails the hum off as she starts talking
+
 /**
  * Mint the ephemeral token with two STAGGERED attempts inside one budget.
  * On a lossy mobile link a single lost SYN burns the entire ring window
@@ -735,6 +795,12 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let wasOpen = false;
   const endpointChunks = Math.ceil(SILENCE_ENDPOINT_MS / chunkMs);
   let gatedRun = 0; // consecutive gated (wordless) chunks
+  // this stretch of them talking: when it began, when it last had words in it,
+  // and how much of it was actually voice rather than their own pauses
+  let talkStart = 0;
+  let talkEndAt = 0;
+  let talkOpen = 0;
+  const talkGapChunks = Math.max(2, Math.round(ACK_TALK_GAP_MS / chunkMs));
   // ── floor-arbitration state ──
   let subIdx = 0; // monotonic sub-frame counter — the claim windows' clock
   const hardHits: number[] = []; // sub-frames above the BARGE bar
@@ -975,8 +1041,52 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     if (rms > thrL) gateLeft = hangChunks;
     else if (gateLeft > 0) gateLeft--;
     const open = gateLeft > 0;
+    // HOW LONG HAVE THEY BEEN TALKING. Not "consecutive open chunks": the gate
+    // closes inside anybody's sentence — 250ms of hangover against the 300ms+
+    // gaps a real talker leaves between phrases — so a consecutive count
+    // measures their longest phrase, not their turn, and it measured ~1s on a
+    // 3s utterance (the murmur never fired once in 8 seeds). A stretch of talk
+    // is a SPAN with their own pauses inside it, ended only by a silence long
+    // enough to be a turn boundary.
+    const wasGated = gatedRun;
     if (open) gatedRun = 0;
     else gatedRun++;
+    // ...and NONE of it is credited while she is audible. The listen gate
+    // carries no echo term, so on a leaky device her own voice holds it open
+    // for her whole turn; counting that as "them talking" made her hum at her
+    // own echo (measured: 2 murmurs per call in a scenario with one user turn
+    // in it). Her leak also outlives `speakingUntil` by a reverb tail, and the
+    // two thresholds below are what stop that tail from qualifying on its own.
+    if (herSpeaking) {
+      talkStart = 0;
+      talkOpen = 0;
+    } else if (open) {
+      if (!talkStart || wasGated > talkGapChunks) {
+        talkStart = Date.now();
+        talkOpen = 0;
+      }
+      talkOpen += chunkMs;
+      talkEndAt = Date.now();
+    }
+    // ── the listening sound ──
+    // Placed where a person places one: a beat after they stop, while she has
+    // nothing to say yet. The conditions are the ones speech.ts already argued
+    // for on the cascade lane — humans do not make a sound after every turn,
+    // only after someone has actually been talking, and never twice running.
+    //
+    // Cheap tests first, and every one of them is a reason NOT to make a sound:
+    // she is already audible, they only said two words, one was made recently,
+    // or the gate is open because they are still going.
+    if (
+      !open &&
+      gatedRun === ACK_AFTER_CHUNKS &&
+      !herSpeaking &&
+      !genInFlight && // her answer is already being written; it will arrive
+      talkEndAt - talkStart >= ACK_MIN_USER_MS &&
+      talkOpen >= ACK_MIN_VOICE_MS // a span of mostly silence is not a turn
+    ) {
+      emitAck();
+    }
     // Measure the coupling from ground truth rather than trusting AEC. Every
     // sub-frame she is audible for contributes one ratio sample; κ then DECAYS
     // toward the 90th percentile of those and never rises. See ECHO_KAPPA_SEED
@@ -1513,6 +1623,115 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   // is unchanged: the playhead still anchors chunks back-to-back, so audio is
   // still gapless whenever the network delivers on time.
   const LEAD = 0.03;
+  // ── the listening sound ──
+  // A closed-mouth "mm": a nasal murmur is one of the few speech sounds with
+  // no consonant edge and almost no formant structure — a fundamental in her
+  // register, two fast-decaying harmonics, a small downward glide and a soft
+  // attack. It is generated here rather than fetched so that it costs no
+  // network on the call path and cannot arrive late; the price is that WHETHER
+  // IT SOUNDS LIKE HER IS THE ONE THING IN THIS FILE THAT HAS NOT BEEN
+  // MEASURED. Everything below is measured; the timbre needs a human ear.
+  let lastAckAt = 0;
+  let ackNode: { src: AudioBufferSourceNode; g: GainNode } | null = null;
+  const makeMurmur = () => {
+    const sr = 24000;
+    const n = Math.round(sr * ACK_SECS);
+    const buf = outCtx.createBuffer(1, n, sr);
+    const ch = buf.getChannelData(0);
+    const f0 = 194 + Math.random() * 26;
+    const fall = 0.87 + Math.random() * 0.06; // "mm" falls; "hm?" would rise
+    let ph = 0;
+    for (let i = 0; i < n; i++) {
+      const u = i / n;
+      ph += (2 * Math.PI * (f0 * (1 + (fall - 1) * u))) / sr;
+      const s = Math.sin(ph) + 0.3 * Math.sin(2 * ph) + 0.09 * Math.sin(3 * ph);
+      // no plosive onset, a long release: an unhurried, non-committal sound
+      const env = Math.min(1, u / 0.14) * Math.min(1, (1 - u) / 0.34);
+      const wobble = 1 + 0.05 * Math.sin(2 * Math.PI * 4.6 * u * ACK_SECS);
+      ch[i] = (s / 1.39) * env * wobble * ACK_PEAK;
+    }
+    return buf;
+  };
+  /** Trail the hum off — she is starting a word, not being cut off. */
+  const fadeAck = () => {
+    if (!ackNode) return;
+    const { src, g } = ackNode;
+    ackNode = null;
+    try {
+      const t = outCtx.currentTime;
+      g.gain.cancelScheduledValues(t);
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.linearRampToValueAtTime(0.0001, t + ACK_FADE);
+      src.stop(t + ACK_FADE + 0.02);
+    } catch {
+      /* ctx closed */
+    }
+  };
+  /**
+   * "I'm here" in the gap after they stop, before her answer exists.
+   *
+   * Three invariants, in the order they matter:
+   *  1. `playhead` is not touched, so her first word is not delayed by a
+   *     single sample. The murmur is a parallel source; if her audio lands on
+   *     top of it, the murmur fades and she does not wait.
+   *  2. It is REGISTERED with the echo apparatus — speakingUntil, herLevels,
+   *     herEnv — before it is audible. That is what makes the arbiter hold the
+   *     microphone across it and across its reverb tail, so not one sample of
+   *     it is uplinked as if the user had made it. An unregistered clip played
+   *     through any other AudioContext is the failure measured in exp11.
+   *  3. It does NOT push `boundaries`. Those are the places her SENTENCE may
+   *     be faded across; a hum has no words to land between.
+   */
+  const emitAck = () => {
+    if (dead) return;
+    const now = Date.now();
+    if (now - lastAckAt < ACK_MIN_GAP_MS) return;
+    try {
+      const t0 = outCtx.currentTime;
+      const buf = makeMurmur();
+      const at = t0 + LEAD;
+      const src = outCtx.createBufferSource();
+      src.buffer = buf;
+      const g = outCtx.createGain();
+      src.connect(g);
+      g.connect(outBus); // through her own bus: the presence UI and the duck
+      src.start(at);
+      const node = { src, g };
+      ackNode = node;
+      src.onended = () => {
+        if (ackNode === node) ackNode = null;
+        try {
+          g.disconnect();
+        } catch {
+          /* already gone */
+        }
+      };
+      // the same two readings playChunk takes off her real audio, so the echo
+      // prediction and the coupling estimate see this exactly as they see her
+      let peak20 = 0;
+      const ch = buf.getChannelData(0);
+      const fr = 480;
+      for (let f = 0; f + fr <= buf.length; f += fr) {
+        let a2 = 0;
+        for (let i = f; i < f + fr; i++) a2 += ch[i] * ch[i];
+        herEnv.push({ t: at + (f + fr) / 24000, p: a2 / fr });
+        const r20 = Math.sqrt(a2 / fr);
+        if (r20 > peak20) peak20 = r20;
+      }
+      herLevels.push({ a: at, b: at + buf.duration, rms: peak20 });
+      // The guard is the whole point: `herSpeaking` has to outlive the sound
+      // by its own reverb, or the tail is streamed to the server as the user.
+      speakingUntil = Math.max(
+        speakingUntil,
+        now + LEAD * 1000 + buf.duration * 1000 + ACK_TAIL_GUARD_MS,
+      );
+      lastAckAt = now;
+      opts.onState("speaking");
+      diag("call", "ack_emitted", { afterUserMs: Math.round(ACK_SECS * 1000) });
+    } catch {
+      /* ctx closed — silence is the correct failure here */
+    }
+  };
   const playChunk = (b64: string) => {
     // a turn that was yielded is over: anything still arriving for it is a
     // straggler and must not resurrect her. The cap is a safety net so a
@@ -1524,6 +1743,9 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     const raw = atob(b64);
     const n = raw.length / 2;
     if (!n) return;
+    // her real voice has arrived: the hum gives way to it, under her first
+    // word rather than in front of it. Nothing here moves `playhead`.
+    fadeAck();
     const buf = outCtx.createBuffer(1, n, 24000);
     const ch = buf.getChannelData(0);
     for (let i = 0; i < n; i++) {
@@ -1604,6 +1826,10 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
    */
   const yieldFloor = (hard: boolean) => {
     if (yieldTimer) return; // already on our way out
+    // the dissolve clears herLevels/herEnv, which are what protect the hum's
+    // leak — so the hum goes out with the same gesture rather than outliving
+    // the registration that covers it
+    fadeAck();
     let now = 0;
     try {
       now = outCtx.currentTime;
