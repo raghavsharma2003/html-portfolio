@@ -423,6 +423,11 @@ const ECHO_FIT_R2 = 0.7; // measured: pure echo p10 = 0.73, so this is the knee
 const ECHO_LAG_STEP_MS = 20;
 const ECHO_LAGS = 14; // 0…260ms
 const ECHO_ENV_MAX = 260; // 20ms frames of her own envelope kept: ~5.2s
+// How long a room keeps handing her last syllable back. The prediction peak-
+// holds her envelope across this, so lowering the bar in her gaps can never
+// let her own reverb tail through it. 140ms is a small hard-surfaced room's
+// RT60 taken to −15 dB, past which the tail is under the ambience anyway.
+const ECHO_TAIL_MS = 140;
 // The bar sits a MARGIN above the leak estimate, never at it: κ is an RMS
 // ratio and the sub-frames it has to reject are the loud ones. +2.3 dB was
 // chosen by sweeping it against BOTH failure directions at once — below 1.3
@@ -887,10 +892,9 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     const echoAt = herAt.map((h) => kappa * h * ECHO_MARGIN);
     let echoTerm = 0;
     for (const e of echoAt) if (e > echoTerm) echoTerm = e;
-    const barB = (e: number) =>
-      Math.min(BARGE_MAX, Math.max(thrL * BARGE_OVER_LISTEN, noiseFloor * BARGE_MULT, e));
-    const thrBAt = echoAt.map(barB);
-    const thrB = barB(echoTerm);
+    const thrBAt = echoAt.map((e) =>
+      Math.min(BARGE_MAX, Math.max(thrL * BARGE_OVER_LISTEN, noiseFloor * BARGE_MULT, e)),
+    );
     // The soft bar carries NO echo term. With it, `min(thrB, max(…, echoTerm))`
     // evaluates to exactly thrB whenever echo binds thrB — the valve collapsed
     // onto the bar it is supposed to sit below, in the one case it exists for.
@@ -899,7 +903,6 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     // clamps thrB.
     const softBar = Math.max(thrL * SOFT_OVER_LISTEN, noiseFloor * SOFT_MULT);
     const thrSAt = thrBAt.map((b) => Math.min(b, softBar));
-    const thrS = Math.min(thrB, softBar);
     if (rms > thrL) gateLeft = hangChunks;
     else if (gateLeft > 0) gateLeft--;
     const open = gateLeft > 0;
@@ -1161,6 +1164,12 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
         ratioDb: Math.round(20 * Math.log10(Math.max(claimPeak, 1e-6) / Math.max(noiseFloor, 1e-6))),
         floorDb: Math.round(20 * Math.log10(Math.max(noiseFloor, 1e-6))),
         kappa: Math.round(kappa * 100) / 100,
+        // What her own voice was expected to measure at the microphone when
+        // this claim was allowed, and whether the echo model was locked. A
+        // self-interruption and a real barge-in are indistinguishable in this
+        // event without them: both are "someone cleared the bar".
+        echoDb: Math.round(20 * Math.log10(Math.max(echoTerm, 1e-6))),
+        lagMs: echoLag >= 0 ? echoLag * ECHO_LAG_STEP_MS : -1,
         soft: hardHits.length < claimNeed,
       });
     } else if (holding) {
