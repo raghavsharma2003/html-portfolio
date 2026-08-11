@@ -422,12 +422,22 @@ const ECHO_FIT_R2 = 0.7; // measured: pure echo p10 = 0.73, so this is the knee
 // 40ms, stable across every coupling.
 const ECHO_LAG_STEP_MS = 20;
 const ECHO_LAGS = 14; // 0…260ms
-const ECHO_ENV_MAX = 260; // 20ms frames of her own envelope kept: ~5.2s
-// How long a room keeps handing her last syllable back. The prediction peak-
-// holds her envelope across this, so lowering the bar in her gaps can never
-// let her own reverb tail through it. 140ms is a small hard-surfaced room's
-// RT60 taken to −15 dB, past which the tail is under the ambience anyway.
-const ECHO_TAIL_MS = 140;
+// How far BEHIND the playhead her envelope is kept. It cannot be a frame
+// count: the downlink runs seconds ahead of playback (a median of ~5s of
+// unplayed lead on his own calls), so a fixed-size ring fills with audio that
+// has not been heard yet and the lookup falls off the front of it — measured,
+// as the prediction reading 0.000 for the whole back half of every turn and
+// the bar collapsing onto ambience. Pruned by TIME against the playhead, the
+// ring holds whatever lead the server sends plus this much history.
+const ECHO_ENV_KEEP_S = 1.5; // > lag + tail + the fit window, with room over
+const ECHO_ENV_CAP = 2000; // ~40s of lead: a backstop, never reached in a call
+// How long a room keeps handing her last syllable back, and by how much it is
+// down by the end of that. The prediction decays her envelope across this, so
+// the bar can fall into her pauses without her own reverb tail walking through
+// it. 200ms / −20 dB is a live small room, chosen pessimistically: a deader
+// room only means the bar is higher than it needed to be for 200ms.
+const ECHO_TAIL_MS = 200;
+const ECHO_TAIL_DB = 20;
 // The bar sits a MARGIN above the leak estimate, never at it: κ is an RMS
 // ratio and the sub-frames it has to reject are the loud ones. +2.3 dB was
 // chosen by sweeping it against BOTH failure directions at once — below 1.3
@@ -731,19 +741,27 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     return n ? acc / n : 0;
   };
   /**
-   * The LOUDEST 20ms she played in the window ending at `endT` — the peak, not
-   * the mean, because the thing being bounded is a peak, and peak-held across
-   * ECHO_TAIL_MS because a room keeps returning her last syllable for as long
-   * as it reverberates. This is what makes the prediction safe to lower: her
-   * tail is inside the window that predicted it.
+   * What her voice is still expected to measure at the microphone at `endT`:
+   * the loudest 20ms she played in the window before it, each one DECAYED by
+   * how long ago it was.
+   *
+   * A flat peak-hold over the tail is the 250ms max again wearing a hat — it
+   * was measured as exactly neutral, because her syllables are close enough
+   * together that the local peak is always the recent peak. The decay is the
+   * point: a syllable 100ms back is still arriving, but 15 dB down, so the bar
+   * follows her envelope DOWN into her own pauses instead of sitting at her
+   * loudest word through all of them. That is where people start talking.
    */
-  const herPeakPowerAt = (endT: number, winSec: number) => {
+  const herTailPowerAt = (endT: number) => {
     let m = 0;
     for (let i = herEnv.length - 1; i >= 0; i--) {
       const e = herEnv[i];
       if (e.t > endT) continue;
-      if (e.t <= endT - winSec) break;
-      if (e.p > m) m = e.p;
+      const age = endT - e.t;
+      if (age >= ECHO_TAIL_MS / 1000) break;
+      // −ECHO_TAIL_DB over the whole tail, in power
+      const d = e.p * Math.pow(10, (-ECHO_TAIL_DB * age) / (ECHO_TAIL_MS / 1000) / 10);
+      if (d > m) m = d;
     }
     return m;
   };
@@ -885,11 +903,12 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
         continue;
       }
       const tEnd = nowT - chunkMs / 1000 + ((s + 1) * subMs) / 1000 - lagS;
-      herAt.push(Math.sqrt(herPeakPowerAt(tEnd, ECHO_TAIL_MS / 1000)) * gNow);
+      herAt.push(Math.sqrt(herTailPowerAt(tEnd)) * gNow);
     }
     let herNow = 0;
     for (const h of herAt) if (h > herNow) herNow = h;
     const echoAt = herAt.map((h) => kappa * h * ECHO_MARGIN);
+    const echoRing_ADMIT = Math.max(kappa * herMax * ECHO_MARGIN, ...echoAt);
     let echoTerm = 0;
     for (const e of echoAt) if (e > echoTerm) echoTerm = e;
     const thrBAt = echoAt.map((e) =>
@@ -1188,7 +1207,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       // return loss: her own words appearing in inputTranscription in 5 of 6
       // sessions, with no barge-in involved at all.
       let aboveEcho = false;
-      for (let s = 0; s < SUBS; s++) if (sub[s] > echoAt[s]) aboveEcho = true;
+      for (let s = 0; s < SUBS; s++) if (sub[s] > echoRing_ADMIT) aboveEcho = true;
       if (open && aboveEcho) {
         hold.push(toPcm(input, ratio, outLen));
         if (hold.length > HOLD_RING) hold.shift();
@@ -1491,7 +1510,13 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       }
     }
     if (boundaries.length > 128) boundaries.splice(0, boundaries.length - 128);
-    if (herEnv.length > ECHO_ENV_MAX) herEnv.splice(0, herEnv.length - ECHO_ENV_MAX);
+    {
+      const cut = now - ECHO_ENV_KEEP_S; // `now` is outCtx.currentTime: the playhead
+      let d = 0;
+      while (d < herEnv.length && herEnv[d].t < cut) d++;
+      if (herEnv.length - d > ECHO_ENV_CAP) d = herEnv.length - ECHO_ENV_CAP;
+      if (d) herEnv.splice(0, d);
+    }
     // Her level is stored as the LOUDEST 20ms BLOCK, not the chunk's RMS.
     // The echo term bounds a 21.3ms MIC sub-frame, and a chunk-wide RMS is a
     // different statistic: speech crest over 20ms against an 80ms average is
