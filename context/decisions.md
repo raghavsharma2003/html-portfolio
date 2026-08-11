@@ -87,6 +87,57 @@ heavy-beat regression is shown to be fixed.
 
 ---
 
+## `light-only` — the app is light-themed, unconditionally (2026-08-11)
+
+An OS-following dark theme shipped and was removed the same day at the owner's
+request: *"the ui should be light theme, this dark theme can be avoided. previous
+light theme was fine."*
+
+Removed rather than made a toggle, because a toggle is state that can get stuck
+and a preference the user has to find. One look, always.
+
+**Reverses if:** the owner asks for night reading. The palette below is the one
+that was built — a warm-dark room rather than an inversion, her bubble lifted
+off the ground instead of punched into it, the accent brightened to hold 5.2:1
+on the ground with a deeper one carrying white text inside the bubble. Choosing
+these was the expensive part; re-deriving them would be waste.
+
+```css
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15100f;
+    --surface: #1e1817;
+    --surface-2: #2a2321;
+    --surface-3: #362d2b;
+    --ink: #f4eeea;
+    --ink-dim: #a99e98;
+    --ink-faint: #7d726d;
+    --accent: #e0596e;
+    --accent-deep: #ef7085;
+    --accent-soft: rgba(224, 89, 110, 0.16);
+    --accent-warm: #f2895f;
+    --bubble-me: #b03a4c;   /* white on it 5.91:1 */
+    --tick-read: #a9e9ff;
+    --ok: #45c96c;
+    --danger: #ff6b5a;
+    --hairline: rgba(255, 240, 235, 0.09);
+    --hairline-strong: rgba(255, 240, 235, 0.17);
+    --scrim: rgba(0, 0, 0, 0.58);
+    --chrome: rgba(28, 22, 21, 0.82);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+    --shadow-float: 0 12px 40px -12px rgba(0, 0, 0, 0.75);
+  }
+}
+```
+
+Bring back `index.html`'s media-scoped `theme-color` pair at the same time, or
+the browser chrome sits dark above a light app.
+
+**A trap worth recording:** the first attempt COMMENTED the block out. The
+palette contains its own inline comments, and a nested `*/` closes the wrapper
+early — which left half a dark theme live in the stylesheet and passing every
+build. Commenting out CSS that contains comments does not work.
+
 ## Standing constraints that shape everything
 
 - `credits-partner` — Microsoft for Startups credits cover only models **sold

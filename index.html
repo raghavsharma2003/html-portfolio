@@ -9,10 +9,10 @@
          focus; the composer sets a 16px font size, which is what actually
          prevents that. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
-    <!-- the browser chrome follows the app's theme, so a dark app doesn't sit
-         under a light status bar -->
-    <meta name="theme-color" content="#faf7f4" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#15100f" media="(prefers-color-scheme: dark)" />
+    <!-- One colour, unconditionally: the app is light-only now, so a
+         media-scoped pair would leave the status bar dark above a light app on
+         any phone set to dark mode. -->
+    <meta name="theme-color" content="#faf7f4" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/icon-192.png" sizes="192x192" />
     <title>Meera</title>

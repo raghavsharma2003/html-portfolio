@@ -17,60 +17,306 @@
     "blocks": "this is blocked on that"
   },
   "nodes": [
-    { "id": "brain-model", "kind": "decision", "title": "Her brain stays on gemini-3.6-flash", "at": "2026-08-11" },
-    { "id": "voice-model", "kind": "decision", "title": "Her voice stays on Gemini TTS", "at": "2026-08-11" },
-    { "id": "vision-model", "kind": "decision", "title": "Screen share should move to grok-4-20-non-reasoning", "at": "2026-08-11", "status": "recommended, not yet wired" },
-    { "id": "extract-model", "kind": "decision", "title": "Memory extraction uses a reasoning model", "at": "2026-08-11", "status": "live" },
-    { "id": "reasoning-live", "kind": "decision", "title": "Reasoning is banned from her live replies", "at": "2026-08-11" },
-    { "id": "charm-grok", "kind": "measurement", "title": "grok loses to the incumbent 38-2 on charm", "at": "2026-08-11" },
-    { "id": "charm-luna", "kind": "measurement", "title": "luna ties the incumbent on charm, wins specificity", "at": "2026-08-11" },
-    { "id": "reasoning-split", "kind": "measurement", "title": "Reasoning +55% light beats, -81% heavy beats", "at": "2026-08-11" },
-    { "id": "vision-fab", "kind": "measurement", "title": "Fabrication on real screenshots by model", "at": "2026-08-11" },
-    { "id": "voice-ears", "kind": "measurement", "title": "Azure TTS rejected by ear despite better numbers", "at": "2026-08-11" },
-    { "id": "cache-9x", "kind": "measurement", "title": "Prompt caching makes each turn 9.2x cheaper", "at": "2026-08-11" },
-    { "id": "cost-per-turn", "kind": "measurement", "title": "Cost per turn, measured", "at": "2026-08-11" },
-    { "id": "taste-consistency", "kind": "measurement", "title": "Stored taste took self-consistency 27% to 63%", "at": "2026-08-11" },
-    { "id": "backchannel", "kind": "rejection", "title": "She cannot make a sound while you talk", "at": "2026-08-11" },
-    { "id": "murmur-timbre", "kind": "rejection", "title": "The synthesised listening murmur", "at": "2026-08-11" },
-    { "id": "azure-tts", "kind": "rejection", "title": "Azure TTS for her voice", "at": "2026-08-11" },
-    { "id": "speaker-id", "kind": "rejection", "title": "Telling a second speaker from the owner", "at": "2026-08-11" },
-    { "id": "recited-prompt", "kind": "rejection", "title": "Sentence-shaped text in the prompt", "at": "2026-08-11" },
-    { "id": "credits-partner", "kind": "constraint", "title": "Azure credits do not cover partner models", "at": "2026-08-11" },
-    { "id": "prompt-position", "kind": "constraint", "title": "Rule position decides whether a rule fires", "at": "2026-08-11" },
-    { "id": "silent-truncation", "kind": "constraint", "title": "Prompt truncation is silent and eats the end", "at": "2026-08-11" },
-    { "id": "audio-floor", "kind": "component", "title": "The audio floor and barge-in arbiter" },
-    { "id": "persona", "kind": "component", "title": "persona.ts — where her personality lives" },
-    { "id": "inner", "kind": "component", "title": "inner.ts — carried feeling, wants, taste, mood arc" },
-    { "id": "memory-graph", "kind": "component", "title": "Graph memory + forget" },
-    { "id": "scene", "kind": "component", "title": "Screen-share scene model" },
-    { "id": "watchdog-field", "kind": "open", "title": "The barge-in watchdog fix is unproven in the field" },
-    { "id": "semantic-recall", "kind": "open", "title": "Recall is keyword matching, not semantic" },
-    { "id": "realtime-azure", "kind": "open", "title": "gpt-realtime not yet evaluated against Gemini Live" },
-    { "id": "grok-quiet", "kind": "open", "title": "grok says nothing on 15/16 screen frames" }
+    {
+      "id": "brain-model",
+      "kind": "decision",
+      "title": "Her brain stays on gemini-3.6-flash",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "voice-model",
+      "kind": "decision",
+      "title": "Her voice stays on Gemini TTS",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "vision-model",
+      "kind": "decision",
+      "title": "Screen share should move to grok-4-20-non-reasoning",
+      "at": "2026-08-11",
+      "status": "recommended, not yet wired"
+    },
+    {
+      "id": "extract-model",
+      "kind": "decision",
+      "title": "Memory extraction uses a reasoning model",
+      "at": "2026-08-11",
+      "status": "live"
+    },
+    {
+      "id": "reasoning-live",
+      "kind": "decision",
+      "title": "Reasoning is banned from her live replies",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "charm-grok",
+      "kind": "measurement",
+      "title": "grok loses to the incumbent 38-2 on charm",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "charm-luna",
+      "kind": "measurement",
+      "title": "luna ties the incumbent on charm, wins specificity",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "reasoning-split",
+      "kind": "measurement",
+      "title": "Reasoning +55% light beats, -81% heavy beats",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "vision-fab",
+      "kind": "measurement",
+      "title": "Fabrication on real screenshots by model",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "voice-ears",
+      "kind": "measurement",
+      "title": "Azure TTS rejected by ear despite better numbers",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "cache-9x",
+      "kind": "measurement",
+      "title": "Prompt caching makes each turn 9.2x cheaper",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "cost-per-turn",
+      "kind": "measurement",
+      "title": "Cost per turn, measured",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "taste-consistency",
+      "kind": "measurement",
+      "title": "Stored taste took self-consistency 27% to 63%",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "backchannel",
+      "kind": "rejection",
+      "title": "She cannot make a sound while you talk",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "murmur-timbre",
+      "kind": "rejection",
+      "title": "The synthesised listening murmur",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "azure-tts",
+      "kind": "rejection",
+      "title": "Azure TTS for her voice",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "speaker-id",
+      "kind": "rejection",
+      "title": "Telling a second speaker from the owner",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "recited-prompt",
+      "kind": "rejection",
+      "title": "Sentence-shaped text in the prompt",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "credits-partner",
+      "kind": "constraint",
+      "title": "Azure credits do not cover partner models",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "prompt-position",
+      "kind": "constraint",
+      "title": "Rule position decides whether a rule fires",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "silent-truncation",
+      "kind": "constraint",
+      "title": "Prompt truncation is silent and eats the end",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "audio-floor",
+      "kind": "component",
+      "title": "The audio floor and barge-in arbiter"
+    },
+    {
+      "id": "persona",
+      "kind": "component",
+      "title": "persona.ts \u2014 where her personality lives"
+    },
+    {
+      "id": "inner",
+      "kind": "component",
+      "title": "inner.ts \u2014 carried feeling, wants, taste, mood arc"
+    },
+    {
+      "id": "memory-graph",
+      "kind": "component",
+      "title": "Graph memory + forget"
+    },
+    {
+      "id": "scene",
+      "kind": "component",
+      "title": "Screen-share scene model"
+    },
+    {
+      "id": "watchdog-field",
+      "kind": "open",
+      "title": "The barge-in watchdog fix is unproven in the field"
+    },
+    {
+      "id": "semantic-recall",
+      "kind": "open",
+      "title": "Recall is keyword matching, not semantic"
+    },
+    {
+      "id": "realtime-azure",
+      "kind": "open",
+      "title": "gpt-realtime not yet evaluated against Gemini Live"
+    },
+    {
+      "id": "grok-quiet",
+      "kind": "open",
+      "title": "grok says nothing on 15/16 screen frames"
+    },
+    {
+      "id": "light-only",
+      "kind": "decision",
+      "title": "The app is light-themed, unconditionally",
+      "at": "2026-08-11"
+    }
   ],
   "edges": [
-    { "src": "brain-model", "rel": "measured_by", "dst": "charm-grok" },
-    { "src": "brain-model", "rel": "measured_by", "dst": "charm-luna" },
-    { "src": "voice-model", "rel": "measured_by", "dst": "voice-ears" },
-    { "src": "azure-tts", "rel": "caused_by", "dst": "voice-ears" },
-    { "src": "vision-model", "rel": "measured_by", "dst": "vision-fab" },
-    { "src": "vision-model", "rel": "blocks", "dst": "grok-quiet" },
-    { "src": "extract-model", "rel": "measured_by", "dst": "reasoning-split" },
-    { "src": "reasoning-live", "rel": "measured_by", "dst": "reasoning-split" },
-    { "src": "murmur-timbre", "rel": "part_of", "dst": "audio-floor" },
-    { "src": "backchannel", "rel": "constrains", "dst": "audio-floor" },
-    { "src": "speaker-id", "rel": "constrains", "dst": "audio-floor" },
-    { "src": "watchdog-field", "rel": "part_of", "dst": "audio-floor" },
-    { "src": "recited-prompt", "rel": "constrains", "dst": "persona" },
-    { "src": "prompt-position", "rel": "constrains", "dst": "persona" },
-    { "src": "silent-truncation", "rel": "constrains", "dst": "persona" },
-    { "src": "taste-consistency", "rel": "part_of", "dst": "inner" },
-    { "src": "semantic-recall", "rel": "part_of", "dst": "memory-graph" },
-    { "src": "extract-model", "rel": "part_of", "dst": "memory-graph" },
-    { "src": "grok-quiet", "rel": "part_of", "dst": "scene" },
-    { "src": "credits-partner", "rel": "constrains", "dst": "brain-model" },
-    { "src": "credits-partner", "rel": "constrains", "dst": "vision-model" },
-    { "src": "cache-9x", "rel": "constrains", "dst": "brain-model" },
-    { "src": "realtime-azure", "rel": "blocks", "dst": "voice-model" }
+    {
+      "src": "brain-model",
+      "rel": "measured_by",
+      "dst": "charm-grok"
+    },
+    {
+      "src": "brain-model",
+      "rel": "measured_by",
+      "dst": "charm-luna"
+    },
+    {
+      "src": "voice-model",
+      "rel": "measured_by",
+      "dst": "voice-ears"
+    },
+    {
+      "src": "azure-tts",
+      "rel": "caused_by",
+      "dst": "voice-ears"
+    },
+    {
+      "src": "vision-model",
+      "rel": "measured_by",
+      "dst": "vision-fab"
+    },
+    {
+      "src": "vision-model",
+      "rel": "blocks",
+      "dst": "grok-quiet"
+    },
+    {
+      "src": "extract-model",
+      "rel": "measured_by",
+      "dst": "reasoning-split"
+    },
+    {
+      "src": "reasoning-live",
+      "rel": "measured_by",
+      "dst": "reasoning-split"
+    },
+    {
+      "src": "murmur-timbre",
+      "rel": "part_of",
+      "dst": "audio-floor"
+    },
+    {
+      "src": "backchannel",
+      "rel": "constrains",
+      "dst": "audio-floor"
+    },
+    {
+      "src": "speaker-id",
+      "rel": "constrains",
+      "dst": "audio-floor"
+    },
+    {
+      "src": "watchdog-field",
+      "rel": "part_of",
+      "dst": "audio-floor"
+    },
+    {
+      "src": "recited-prompt",
+      "rel": "constrains",
+      "dst": "persona"
+    },
+    {
+      "src": "prompt-position",
+      "rel": "constrains",
+      "dst": "persona"
+    },
+    {
+      "src": "silent-truncation",
+      "rel": "constrains",
+      "dst": "persona"
+    },
+    {
+      "src": "taste-consistency",
+      "rel": "part_of",
+      "dst": "inner"
+    },
+    {
+      "src": "semantic-recall",
+      "rel": "part_of",
+      "dst": "memory-graph"
+    },
+    {
+      "src": "extract-model",
+      "rel": "part_of",
+      "dst": "memory-graph"
+    },
+    {
+      "src": "grok-quiet",
+      "rel": "part_of",
+      "dst": "scene"
+    },
+    {
+      "src": "credits-partner",
+      "rel": "constrains",
+      "dst": "brain-model"
+    },
+    {
+      "src": "credits-partner",
+      "rel": "constrains",
+      "dst": "vision-model"
+    },
+    {
+      "src": "cache-9x",
+      "rel": "constrains",
+      "dst": "brain-model"
+    },
+    {
+      "src": "realtime-azure",
+      "rel": "blocks",
+      "dst": "voice-model"
+    },
+    {
+      "src": "light-only",
+      "rel": "part_of",
+      "dst": "persona"
+    }
   ]
 }

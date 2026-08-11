@@ -100,37 +100,19 @@
   --d-sheet: 380ms; /* sheets, call enter */
 }
 
-/* ── night ───────────────────────────────────────────────────────────────
-   Not an inversion: a different room. Warm-dark ground, her bubble lifted
-   off it rather than punched into it, and an accent brightened just enough
-   to hold 5.2:1 on the ground while a deeper one carries white text inside
-   the bubble. Follows the OS — there is no toggle to find, and no state to
-   get stuck in. */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #15100f;
-    --surface: #1e1817;
-    --surface-2: #2a2321;
-    --surface-3: #362d2b;
-    --ink: #f4eeea;
-    --ink-dim: #a99e98;
-    --ink-faint: #7d726d;
-    --accent: #e0596e;
-    --accent-deep: #ef7085;
-    --accent-soft: rgba(224, 89, 110, 0.16);
-    --accent-warm: #f2895f;
-    --bubble-me: #b03a4c;   /* white on it 5.91:1 */
-    --tick-read: #a9e9ff;
-    --ok: #45c96c;
-    --danger: #ff6b5a;
-    --hairline: rgba(255, 240, 235, 0.09);
-    --hairline-strong: rgba(255, 240, 235, 0.17);
-    --scrim: rgba(0, 0, 0, 0.58);
-    --chrome: rgba(28, 22, 21, 0.82);
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
-    --shadow-float: 0 12px 40px -12px rgba(0, 0, 0, 0.75);
-  }
-}
+/* ── light only ──────────────────────────────────────────────────────────
+   An OS-following dark theme lived here and has been removed at the owner's
+   request: the light theme is the product's look and he was happy with it.
+   The palette is not lost — it is recorded in context/decisions.md under
+   `light-only`, along with what it would take to bring it back, because
+   choosing those colours was the expensive part and re-deriving them from
+   scratch would be waste.
+
+   Removed rather than commented out: the palette carried its own inline
+   comments, and a nested `*​/` silently ends the wrapper early, which leaves
+   half a dark theme live in the stylesheet. Commenting out CSS that contains
+   comments is a trap. */
+
 
 * {
   margin: 0;
