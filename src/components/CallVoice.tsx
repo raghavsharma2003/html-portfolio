@@ -78,7 +78,9 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
             ? "sun rahi hu…" // live proof she's hearing you
             : eng.thinking
               ? "hmm…"
-              : eng.watching
+              : eng.watching && eng.watchPaused
+                ? "you closed the curtain"
+                : eng.watching
                 ? "watching with you 👀"
                 : eng.listening
                   ? "listening…"
@@ -90,6 +92,7 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
     <div
       className="call"
       data-chrome={chrome ? "on" : "off"}
+      data-blind={eng.watching && eng.watchPaused ? "" : undefined}
       onPointerDown={wake}
       onPointerMove={wake}
       role="dialog"
@@ -123,12 +126,69 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
           </div>
         )}
 
+        {/* ── the look-away ────────────────────────────────────────────────
+            The moment this is needed — an OTP landing, a bank app opening,
+            somebody else's message sliding down — is a moment of mild
+            panic, so it is one tap, it is the widest thing on the screen
+            after her face, and it never dims with the rest of the chrome.
+
+            The state is carried three ways at once, because a person who
+            THINKS they closed the curtain and did not is in exactly the
+            situation this exists to prevent: the bar changes colour and
+            words, the eye icon closes, and her face goes dark behind it.
+
+            The wording is the true one. She stops receiving anything and
+            nothing was stored — but while sharing, frames do leave this
+            device to the model, so this says "she can't see right now",
+            never "private". And it says she can still hear you, because
+            she can, and a curtain that silently also muted you would be
+            its own betrayal. */}
         {eng.watching && (
-          <div className="watch-chip" role="status">
-            <i />
-            {Date.now() - eng.frameAt < 9000
-              ? "screen shared — she can see it"
-              : "connecting to your screen…"}
+          <div className={`watch-chip ${eng.watchPaused ? "blind" : ""}`}>
+            <span className="wb-state" role="status">
+              <span className="wb-eye" aria-hidden="true">
+                {eng.watchPaused ? (
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12s3.6-6 9-6c1.4 0 2.7.4 3.8 1M21 12s-3.6 6-9 6c-1.5 0-2.8-.4-4-1.1" />
+                    <path d="M4 4l16 16" />
+                  </svg>
+                ) : (
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12s3.6-6 9-6 9 6 9 6-3.6 6-9 6-9-6-9-6Z" />
+                    <circle cx="12" cy="12" r="2.6" />
+                  </svg>
+                )}
+              </span>
+              <span className="wb-text">
+                {eng.watchPaused ? (
+                  <>
+                    <b>She can't see your screen</b>
+                    <em>she can still hear you</em>
+                  </>
+                ) : Date.now() - eng.frameAt < 9000 ? (
+                  <>
+                    <b>She can see your screen</b>
+                    <em>tap look away any time</em>
+                  </>
+                ) : (
+                  <>
+                    <b>Connecting to your screen…</b>
+                    <em>nothing sent yet</em>
+                  </>
+                )}
+              </span>
+            </span>
+            <button
+              className="wb-btn"
+              onClick={() => {
+                tap(ImpactStyle.Medium); // the curtain is worth feeling
+                eng.setWatchPaused(!eng.watchPaused);
+              }}
+              aria-pressed={eng.watchPaused}
+              aria-label={eng.watchPaused ? "Let her see your screen again" : "Look away — stop sending your screen"}
+            >
+              {eng.watchPaused ? "Let her see" : "Look away"}
+            </button>
           </div>
         )}
 

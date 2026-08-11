@@ -2477,32 +2477,124 @@ button.avatar-ring {
 
 /* ─── watch-together polish ─── */
 
-.watch-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 18px;
-  padding: 8px 16px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(16px);
-  color: rgba(245, 240, 238, 0.92);
-  font-size: var(--t-sub);
-  animation: msg-in var(--d-state) var(--ease-out);
-}
-.watch-chip i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent-warm);
-  animation: rec-pulse 1.6s infinite;
-}
 
 /* the gradient fill already says "active" — an infinite box-shadow ring
    paints every frame and composites never */
 .cbtn.watch-on {
   background: linear-gradient(135deg, var(--accent), var(--accent-warm));
   color: #fff;
+}
+
+/* ─── the look-away ───────────────────────────────────────────────────────
+   This replaces the passive "screen shared" chip, which reported a state
+   and offered nothing to do about it. It is the widest thing on the screen
+   after her face, its button clears 44px, and — unlike every other control
+   here — it is EXEMPT from the chrome dimming below: the one moment you
+   reach for this is a moment of mild panic, and a control that has faded
+   to 34% is a control you have to find first. */
+.watch-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: min(92%, 400px);
+  margin-top: 22px;
+  padding: 9px 9px 9px var(--s4);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.11);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f6f1ee;
+  animation: msg-in var(--d-state) var(--ease-out);
+  transition: background var(--d-state) var(--ease-out), border-color var(--d-state) ease;
+}
+.watch-chip .wb-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.watch-chip .wb-eye {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--accent-warm);
+  transition: color var(--d-state) ease;
+}
+.watch-chip .wb-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.watch-chip .wb-text b {
+  font-size: var(--t-sub);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.25;
+}
+.watch-chip .wb-text em {
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: rgba(246, 241, 238, 0.7);
+}
+.watch-chip .wb-btn {
+  flex-shrink: 0;
+  min-height: var(--hit);
+  padding: 0 var(--s4);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1d1416;
+  font-size: var(--t-sub);
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease,
+    color var(--d-tap) ease;
+}
+.watch-chip .wb-btn:active {
+  transform: scale(0.95);
+}
+
+/* curtain closed. Three signals at once, because someone who THINKS they
+   paused and did not is exactly who this exists to protect. */
+.watch-chip.blind {
+  background: rgba(216, 64, 47, 0.26);
+  border-color: rgba(255, 138, 120, 0.42);
+}
+.watch-chip.blind .wb-eye {
+  color: #ffb3a6;
+}
+.watch-chip.blind .wb-btn {
+  background: #fff;
+  color: #7d1d12;
+}
+/* …and her face goes dark behind it, which is the signal you catch from
+   across the room without reading a word.
+
+   This is a VEIL, not a filter on the face. The face is the element the
+   presence rAF writes a transform to on every frame of every call; hanging
+   a filter on it would make the compositor re-apply that filter 60 times a
+   second for as long as the curtain is closed. The veil is a sibling
+   pseudo-element that nothing animates — painted once when it appears,
+   and it costs the frame loop nothing. */
+.presence::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(12, 7, 7, 0.76);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--d-state) var(--ease-out);
+}
+.call[data-blind] .presence::after {
+  opacity: 1;
+}
+.call[data-blind] .pr-bloom {
+  opacity: 0.06;
+}
+/* the one control the receding chrome may never take away */
+.call[data-chrome="off"] .watch-chip {
+  opacity: 1;
 }
 
 /* smoother state label + control transitions across the call UI */
@@ -2627,7 +2719,6 @@ input {
   .status .dot,
   .cstate .cdot,
   .rec-dot,
-  .watch-chip i,
   .offline-bar i,
   .gif-loading,
   .msg.her.voice.unheard .vplay::before {

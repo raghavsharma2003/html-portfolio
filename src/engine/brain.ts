@@ -552,8 +552,8 @@ export async function think(
   let sysTail = parts.tail;
 
   // ── her carried interior ──
-  // Goes FIRST in the tail, right after parts.tail: api/chat.js slices the
-  // tail at 8000 chars and cuts the END, so if anything is ever lost it must
+  // Goes FIRST in the tail, right after parts.tail: api/chat.js keeps the
+  // FIRST n chars and cuts the END, so if anything is ever lost it must
   // be the recall list (re-derivable next turn), never where she actually is.
   // A carried feeling reaches her only on the first turn back after a real
   // gap, and never on a message SHE initiated — see the charter in inner.ts.
@@ -567,6 +567,16 @@ export async function think(
     sheInitiated: isDirective && mode === "chat",
   });
   sysTail += inner.thread;
+
+  // Watch mode goes in EARLY, not at the point of use. api/chat.js keeps the
+  // FIRST n chars of the tail and drops the rest, and this block carries the
+  // discretion rules (what she looks away from on their screen) and the honest
+  // answer about what is retained. It grew past 3.4k with those, so appending
+  // it after recall + herLife + wants made it the first casualty of a long
+  // tail — a silent truncation that removes a privacy rule is the same failure
+  // that once removed the crisis helplines.
+  const watching = Boolean(watchFrame) && mode === "call";
+  if (watching) sysTail += WATCH_MODE_NOTE;
 
   // graph-memory recall: what she knows about their world, woven into
   // context. On live calls the lookup is done ONCE at pickup and passed in
@@ -594,9 +604,9 @@ ${memories}`;
     tail: sysTail.length,
     thread: inner.thread.length,
     wants: inner.wants.length,
-    // api/chat.js slices the tail at 8000 chars from the end — if this ever
+    // api/chat.js keeps the first 14000 chars of the tail — if this ever
     // trips, the interior is not the thing that should be dropped
-    over: sysTail.length > 8000,
+    over: sysTail.length > 14000,
   });
 
   // Cultural currency, pulled not pushed. This is "" unless THEY just said
@@ -607,17 +617,16 @@ ${memories}`;
   // dead last, and chat only — see SEARCH_DECISION in persona.ts for why
   // position is the entire mechanism here
   if (mode === "chat") sysTail += SEARCH_DECISION;
-  // the tail is sliced at 8000 chars from the END by api/chat.js, and the
-  // decision rule is now the last thing in it — so if this ever trips, the
-  // rule is the first casualty and the trim has to happen in recall instead
+  // api/chat.js keeps the first 14000 chars of the tail, and the decision rule
+  // is the last thing in it — so if this ever trips, the rule is the first
+  // casualty and the trim has to happen in recall instead
   if (mode === "chat")
-    diag("chat", "tail_built", { tail: sysTail.length, over: sysTail.length > 8000 });
+    diag("chat", "tail_built", { tail: sysTail.length, over: sysTail.length > 14000 });
 
   const turns = toTurns(history, latest);
 
   // watch-together: attach what's on their screen to the current turn
-  if (watchFrame && mode === "call") {
-    sysTail += WATCH_MODE_NOTE;
+  if (watching) {
     const last = turns[turns.length - 1];
     if (last && last.role === "user") {
       const part = { type: "image_url", image_url: { url: watchFrame } };

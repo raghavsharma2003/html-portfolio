@@ -59,8 +59,21 @@ export default async function handler(req, res) {
         cache_control: { type: "ephemeral" },
       },
     ];
+    // The tail is the uncached half, so it is kept bounded — but the bound has
+    // to clear the real worst case, not the common one. A watch-mode turn
+    // carries the persona tail + her carried feeling + graph recall + her own
+    // life ledger + what she owes + the ~3.5k watch block (screen discretion
+    // and the honest answer about what is retained): measured ~11k. At 8000
+    // that was silently cut from the END, which is where the newest and most
+    // safety-relevant text sits. Same failure shape as the system-prompt
+    // truncation that once dropped the crisis helplines — so: raise it, and
+    // make any future overflow loud instead of silent.
+    const TAIL_MAX = 14_000;
     if (typeof system_tail === "string" && system_tail) {
-      systemContent.push({ type: "text", text: system_tail.slice(0, 8000) });
+      if (system_tail.length > TAIL_MAX) {
+        console.warn(`[chat] system_tail truncated: ${system_tail.length} > ${TAIL_MAX}`);
+      }
+      systemContent.push({ type: "text", text: system_tail.slice(0, TAIL_MAX) });
     }
     // payload cap: recent user photos legitimately ride as data URLs when a
     // storage upload failed, but the total request must stay bounded —
