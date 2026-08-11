@@ -26,3 +26,8 @@ api/_config.js
 
 # agent working files belong in the session scratchpad, never in the repo
 scratchpad/
+
+# Vercel CLI link state (project/org ids, local only). The deploy target lives
+# in the CLI's own config, not in the repo — committing it would pin every
+# clone to one project.
+.vercel/
