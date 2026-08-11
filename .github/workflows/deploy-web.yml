@@ -25,23 +25,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Visible without being a false alarm. The first version of this FAILED when
+  # VERCEL_TOKEN was missing, on the reasoning that a deploy workflow which
+  # silently does nothing reads as cover. That reasoning was right and the
+  # implementation was wrong: it went red on EVERY push, and a check that is
+  # always red is a check nobody reads — which would hide the real deploy
+  # failure it exists to catch. An annotation says it once per run, loudly, and
+  # leaves red meaning "something broke".
+  configured:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report whether deploys are configured
+        env:
+          HAS_TOKEN: ${{ secrets.VERCEL_TOKEN != '' }}
+        run: |
+          if [ "$HAS_TOKEN" != "true" ]; then
+            echo "::warning title=Deploys are not configured::VERCEL_TOKEN is not set, so the site is NOT being deployed automatically and will lag the branch. Add it in Settings → Secrets → Actions."
+          else
+            echo "deploys configured"
+          fi
+
   deploy:
     runs-on: ubuntu-latest
+    # Skipped (grey), not failed (red), when the token is absent.
+    if: ${{ secrets.VERCEL_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
-      - name: Fail early if the token is missing
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          if [ -z "$VERCEL_TOKEN" ]; then
-            echo "::error::VERCEL_TOKEN is not set. Add it in Settings → Secrets → Actions."
-            exit 1
-          fi
 
       # The same gates the APK build runs. A green site with a red typecheck is
       # how a broken build reaches production without anyone noticing.
