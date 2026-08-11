@@ -94,8 +94,18 @@ export interface LiveCallOpts {
     micMs?: number;
     /** new WebSocket -> open: DNS + TLS + HTTP upgrade. */
     wsOpenMs?: number;
-    /** setup written -> setupComplete: the server's own handshake. */
+    /**
+     * setup written -> setupComplete. NOT purely the server's handshake on a
+     * phone: it also contains the time to push the setup frame up a TCP
+     * connection still in slow start, and any main-thread block in the window
+     * (the frame is timed from when its handler RUNS). Read it against
+     * `uplinkMs` and `setupBytes` before concluding the server is slow.
+     */
     setupMs?: number;
+    /** buildUplink start -> return: main-thread time spent inside the setup wait. */
+    uplinkMs?: number;
+    /** bytes of the setup frame — makes the slow-start cost checkable, not estimated. */
+    setupBytes?: number;
     /** how much of the slower leg the faster one hid, i.e. what parallelism saved. */
     overlapMs?: number;
   }) => void;
@@ -1049,6 +1059,8 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let wsOpenMs = 0;
   let setupMs = 0;
   let tSetupSent = 0;
+  let uplinkMs = 0;
+  let setupBytes = 0;
   const micP = navigator.mediaDevices
     .getUserMedia({
       // echo cancellation on: she plays through the same phone's speaker
@@ -1065,8 +1077,20 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let muted = false;
   let ready = false;
 
-  // ── uplink: mic → 16k PCM16. Built once the stream lands, below. ──
-  let inCtx: AudioContext | null = null;
+  // ── uplink: mic → 16k PCM16. Wired once the stream lands, below. ──
+  //
+  // The CONTEXT is constructed here rather than in `buildUplink`, and that is
+  // a latency fix, not tidying. `buildUplink` runs when getUserMedia resolves
+  // (measured t≈701ms on Android) which is ~107ms INTO the wait for
+  // `setupComplete` (ws.onopen at t≈594). Opening an AudioContext is the most
+  // expensive synchronous call in this file — on Android it opens a stream
+  // through the audio HAL — and the setup frame cannot be dispatched while the
+  // main thread is inside it, so the whole cost was landing on `setupMs`.
+  // Here it is paid in the same synchronous block as `outCtx`, while the
+  // socket is still doing DNS/TLS/upgrade and a blocked main thread costs
+  // nothing. Same context, same sample rate, same graph — the floor
+  // arbitration is untouched.
+  const inCtx = new AudioContext();
   let proc: ScriptProcessorNode | null = null;
   let src: MediaStreamAudioSourceNode | null = null;
   let stream: MediaStream | null = null;
@@ -1077,7 +1101,6 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
    */
   const buildUplink = (ms: MediaStream) => {
     stream = ms;
-    inCtx = new AudioContext();
     src = inCtx.createMediaStreamSource(ms);
     // ScriptProcessor still works everywhere (incl. Android WebView) and 4096
     // frames ≈ 85ms at 48k — fine granularity for realtime
@@ -2262,7 +2285,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     stream?.getTracks().forEach((t) => t.stop());
     detachAnalyser("her");
     detachAnalyser("you");
-    inCtx?.close().catch(() => {});
+    inCtx.close().catch(() => {});
     outCtx.close().catch(() => {});
     try {
       ws?.close();
@@ -2282,8 +2305,10 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     ws.onopen = () => {
       wsOpenMs = Date.now() - tPar;
       tSetupSent = Date.now();
-      ws!.send(
-        JSON.stringify({
+      // stamped rather than estimated: this frame carries the whole live system
+      // instruction (~70KB), which needs several round trips on a connection
+      // this young, and every one of them is charged to setupMs
+      const setupFrame = JSON.stringify({
           setup: {
             model,
             generationConfig: {
@@ -2355,8 +2380,9 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
             },
             contextWindowCompression: { slidingWindow: {} },
           },
-        }),
-      );
+      });
+      setupBytes = setupFrame.length;
+      ws!.send(setupFrame);
     };
     ws.onmessage = async (ev) => {
       let text: string;
@@ -2380,7 +2406,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
         // roughly readyMs + overlapMs.
         const socketLeg = wsOpenMs + setupMs;
         const overlapMs = Math.max(0, Math.min(micMs, socketLeg));
-        const timing = { readyMs, micMs, wsOpenMs, setupMs, overlapMs };
+        const timing = { readyMs, micMs, wsOpenMs, setupMs, overlapMs, uplinkMs, setupBytes };
         opts.onTiming?.(timing);
         diag("call", "live_connect", { ...timing, mintMs, preminted: !!warmed });
         resolve();
@@ -2459,16 +2485,20 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   // socket has been handshaking underneath this whole time, so this await
   // costs max(mic, socket) rather than mic + socket.
   try {
-    buildUplink(await micP);
+    const ms = await micP;
+    const tUp = Date.now();
+    buildUplink(ms);
+    uplinkMs = Date.now() - tUp;
   } catch (e) {
     teardown("failed");
     throw e instanceof Error ? e : new Error("mic unavailable");
   }
-  // outCtx is now built BEFORE the mic is granted rather than after, so on a
-  // platform that starts a context suspended outside a user gesture it could
-  // sit silent. Granting the mic is the moment audio is unambiguously
-  // allowed — nudge it then. A no-op on a context that is already running.
+  // Both contexts are now built BEFORE the mic is granted rather than after,
+  // so on a platform that starts a context suspended outside a user gesture
+  // they could sit silent. Granting the mic is the moment audio is
+  // unambiguously allowed — nudge them then. A no-op on a running context.
   outCtx.resume().catch(() => {});
+  inCtx.resume().catch(() => {});
 
   try {
     await opened;
