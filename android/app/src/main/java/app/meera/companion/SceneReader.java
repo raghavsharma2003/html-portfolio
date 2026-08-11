@@ -88,7 +88,13 @@ final class SceneReader {
   private static final double HOLD_MULTIPLIER = 1.8;
   private static final long REPLACE_MEMORY_MS = 15_000L;
   private static final long HOLD_REPLACE_MIN = 260L;
-  private static final long HOLD_REPLACE_MAX = 4000L;
+  // 4000 -> 800: the ceiling on the landing lane was the single largest
+  // latency term and it also silenced stops outright, because the hold is
+  // HOLD_MULTIPLIER x their own landing rhythm and so grew with how SLOWLY
+  // they move. See the note in scene.ts for the measurement and the reversal
+  // condition; the two files are twins and this constant is measured in the
+  // TypeScript harness, so it must not drift from it.
+  private static final long HOLD_REPLACE_MAX = 800L;
   private static final long HOLD_CHURN_MIN = 260L;
   private static final long HOLD_CHURN_MAX = 2000L;
   private static final long HOLD_MICRO_MIN = 2500L;

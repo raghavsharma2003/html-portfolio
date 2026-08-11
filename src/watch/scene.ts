@@ -164,7 +164,27 @@ const MICRO_COVERAGE = 0.03; // <= ~30 cells
 const HOLD_MULTIPLIER = 1.8;
 const REPLACE_MEMORY_MS = 15_000;
 const HOLD_REPLACE_MIN = 260;
-const HOLD_REPLACE_MAX = 4000;
+// The ceiling on the landing lane is doing the work of the "bounded low" line
+// above, and at 4000 it was not doing it. The hold is HOLD_MULTIPLIER x their
+// own landing rhythm, so the SLOWER someone moves between screens the LONGER
+// she waits on each landing — backwards for the one lane that IS the
+// deliberate show. Measured over the eight captured sessions (scratchpad/lat,
+// 2026-08-11): at 4000 this was the single largest latency term (wake p90
+// 4200ms) and it also silenced stops outright — a 4080ms hold demanded 4000ms
+// of stillness and the screen moved on at 3720ms, so nothing fired at all.
+//
+// The floor stays at 260. Shortening the hold does NOT re-open the
+// mid-transition frame that fabrication came from: a show wake may only ride
+// behind a frame captured while the screen was HELD, and a screen still
+// settling has moving cells and is therefore not held. That was checked
+// directly down to a 120ms hold — the picture she answered on was captured
+// after the arrest every time. But the margin there is one detect tick, and
+// the replayed sessions settle in one tick where a real fling does not.
+//
+// REVERSED BY: fabrication rising on the landing lane, or her starting to
+// speak during flick-storm glances (watch `false shows on a PAUSE` in the
+// sweep, and `narrates_transition` in the graded runs).
+const HOLD_REPLACE_MAX = 800;
 const HOLD_CHURN_MIN = 260;
 const HOLD_CHURN_MAX = 2000;
 const HOLD_MICRO_MIN = 2500;
