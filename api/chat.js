@@ -134,17 +134,44 @@ export default async function handler(req, res) {
     //
     // At the matching tier the free lane is at parity or better: chat 2540ms
     // vs 2485ms, and calls 1324ms vs 1578ms — 254ms FASTER than paid.
+    // The free lane is Google's own endpoint, so it only accepts Google models
+    // and only by their bare name — the OpenRouter slug "google/gemini-3.6-flash"
+    // 404s there. Anything else (a user's own model choice) skips the pool
+    // entirely rather than being silently rewritten into something they did not
+    // ask for.
+    const freeModel = body.model.startsWith("google/") ? body.model.slice("google/".length) : null;
     let upstream = null;
     let usedFree = false;
-    if (poolSize() > 0) {
+    if (freeModel && poolSize() > 0) {
       const got = await withGeminiKey(async (gkey) => {
         const r = await fetch(GEMINI_OPENAI_URL, {
           method: "POST",
           headers: { Authorization: `Bearer ${gkey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ ...body, reasoning_effort: effort }),
+          body: JSON.stringify({ ...body, model: freeModel, reasoning_effort: effort }),
           signal: aborter.signal,
         });
-        if (r.ok) return { ok: true, value: r };
+        if (r.ok) {
+          // A 200 carrying an EMPTY reply is the worst outcome available: she
+          // simply says nothing, and every status code says it worked. It is
+          // what a mismatched reasoning tier produces, and it is exactly the
+          // failure that must never depend on my having picked the right one.
+          // Streaming cannot be inspected without buffering (that would cost
+          // her first-word latency, which is not for sale), so this guards the
+          // non-streaming lane and the stream keeps its measured tier.
+          if (!wantStream) {
+            const text = await r.clone().text();
+            let empty = false;
+            try {
+              const j = JSON.parse(text);
+              empty = !(j?.choices?.[0]?.message?.content || "").trim();
+            } catch {
+              empty = true;
+            }
+            // treat as exhausted so the next key is tried, then the paid lane
+            if (empty) return { ok: false, exhausted: true };
+          }
+          return { ok: true, value: r };
+        }
         if (isQuota(r.status)) return { ok: false, exhausted: true };
         // 4xx that is not quota: our request is malformed and every key will
         // reject it identically, so stop rather than burning the pool
