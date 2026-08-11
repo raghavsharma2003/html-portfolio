@@ -267,6 +267,24 @@
       "kind": "rejection",
       "title": "A bracketed direction inside a backchannel clip",
       "at": "2026-08-11"
+    },
+    {
+      "id": "free-tts-daily",
+      "kind": "measurement",
+      "title": "The free TTS tier is a daily budget and it runs out",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "openrouter-no-stream",
+      "kind": "measurement",
+      "title": "The paid TTS lane cannot stream",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "openrouter-streaming",
+      "kind": "rejection",
+      "title": "Asking the paid TTS lane to stream",
+      "at": "2026-08-11"
     }
   ],
   "edges": [
@@ -464,6 +482,21 @@
       "src": "ack-bracket-direction",
       "rel": "caused_by",
       "dst": "recited-prompt"
+    },
+    {
+      "src": "openrouter-streaming",
+      "rel": "caused_by",
+      "dst": "openrouter-no-stream"
+    },
+    {
+      "src": "free-tts-daily",
+      "rel": "constrains",
+      "dst": "voice-model"
+    },
+    {
+      "src": "openrouter-no-stream",
+      "rel": "constrains",
+      "dst": "voice-model"
     }
   ]
 }

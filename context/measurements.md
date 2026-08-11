@@ -221,3 +221,29 @@ adds ~745 ms on top.
 **`silenceDurationMs` is not what you are paying for it.** 150 / 300 / 500 all
 land within **50 ms** of each other. ~1.4–1.5 s is the floor; the remaining
 levers are a shorter system instruction and *hiding* the wait.
+
+## `free-tts-daily` — the free TTS tier is a DAILY budget, and it runs out (2026-08-11)
+
+All 9 keys returned 429 "You exceeded your current quota" **together**, after a
+few dozen synthesis calls across a session of testing. Two hours earlier the
+same keys measured: 6 healthy at 615–1051 ms first frame, one 429, two 503.
+
+This is not per-minute throttling that clears in seconds. Planning that assumed
+"free serves TTS" was measuring an empty budget, not a sustainable one.
+
+## `openrouter-no-stream` — the paid lane cannot stream (2026-08-11)
+
+Tested directly against `openrouter.ai/api/v1/audio/speech` with the same model,
+with and without `stream: true`:
+
+| | first byte | complete | chunks |
+|---|---|---|---|
+| `stream: true` | 2267 ms | 2283 ms | 15 |
+| baseline | 1742 ms | 1768 ms | 13 |
+
+Chunked transfer-encoding, but the whole clip lands ~20 ms after the first byte
+— it buffers the synthesis and then flushes. **`stream: true` is a no-op here.**
+
+Consequence, measured in production the same day: with free quota gone, 10 of 12
+requests were served by this lane. **Free-served first audio p50 886 ms;
+paid-served p50 2476 ms.** That gap *is* the p90.

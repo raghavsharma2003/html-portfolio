@@ -188,3 +188,16 @@ direction in a TTS payload is performed as words. Related to `recited-prompt`
 and to the voice-note truncation bug: bracket-shaped text is not inert anywhere
 in this system. The generated laugh is also not in the shipping clip list — the
 sound is chosen by a timer that has no idea what was just said.
+
+---
+
+## `openrouter-streaming` — asking the paid TTS lane to stream
+
+`stream: true` on `openrouter.ai/api/v1/audio/speech` is accepted and does
+nothing. See `openrouter-no-stream`. There is no client-side fix: the bytes do
+not exist until synthesis finishes.
+
+This is why a **billed Google key** is the tier that matters between free quota
+and OpenRouter — same streaming endpoint as the free pool, ~600 ms to first
+frame, and it simply never 429s. `withGeminiKey` appends it last and never cools
+it; absent, nothing changes.
