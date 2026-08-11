@@ -161,8 +161,26 @@ export function parseBubbles(raw: string): ParsedReply {
     }
     return "";
   });
-  raw = raw.replace(/\[\s*voicenote\s*:\s*([^\]]+?)\s*\]/gi, (_m, body: string) => {
+  // The payload may legitimately CONTAIN brackets: persona.ts invites audio
+  // tags inside a voice note ("audio tags like [giggles] [softly] allowed"),
+  // so the capture has to survive them. It did not — `[^\]]+?` stopped at the
+  // first "]", which is the TAG's closing bracket, so
+  // "[voicenote: [giggles] arre haan yaar maine kha liya]" became a voice note
+  // whose entire content was the string "[giggles" and her actual sentence was
+  // dropped on the floor. Shipped, and caught in a real conversation: she sent
+  // a clip that was nothing but a laugh, then invented an explanation for it
+  // when asked. The protocol and the parser disagreed, and the parser was
+  // wrong — she was following her instructions exactly.
+  raw = raw.replace(/\[\s*voicenote\s*:\s*((?:[^\][]|\[[^\][]*\])*?)\s*\]/gi, (_m, body: string) => {
     const said = body.replace(/\s+/g, " ").trim();
+    // What she actually SAYS, with the performance tags taken out. Tags are
+    // kept in the payload — ElevenLabs performs them and the proxy voice
+    // strips them — but they are not words, and a payload that is only tags is
+    // a recording of her laughing at nothing.
+    const words = said
+      .replace(/\[[^\][]*\]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
     // A voicenote payload is WORDS SHE SPEAKS. Models routinely write a stage
     // direction there instead — "[voicenote: softly]", "[voicenote: giggles]" —
     // and the old code took it literally, so the app sent her a voice note
@@ -176,15 +194,17 @@ export function parseBubbles(raw: string): ParsedReply {
     // several words, or punctuation, or is plainly not a lone adverb. Dropping
     // a doubtful one is free — the reply's text bubbles still send — while
     // sending one is unrecoverable.
-    const wordCount = said ? said.split(" ").length : 0;
+    const wordCount = words ? words.split(" ").length : 0;
     const looksLikeDirection =
       wordCount <= 2 &&
-      !/[.!?…,]/.test(said) &&
-      /^[a-z ]+$/i.test(said) &&
+      !/[.!?…,]/.test(words) &&
+      /^[a-z ]+$/i.test(words) &&
       /\b(softly|gently|quietly|warmly|sadly|happily|excited|laughing|laughs|giggles|giggling|sighs|sighing|whispers|whispering|crying|smiling|serious|calm|tired|sleepy|cheerful|teasing|playful|concerned|worried)\b/i.test(
-        said,
+        words,
       );
-    if (!out.voice && said && !looksLikeDirection) out.voice = { text: said };
+    // `words` rather than `said`, so "[voicenote: [giggles]]" — tags and
+    // nothing else — is dropped instead of sent. Her text bubbles still go.
+    if (!out.voice && words && !looksLikeDirection) out.voice = { text: said };
     return "";
   });
   raw = raw.replace(/\[\s*gif\s*:\s*([^\]\n]+?)\s*\]/gi, (_m, q: string) => {

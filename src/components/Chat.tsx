@@ -530,20 +530,38 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       setTyping(true);
       await sleep(2200 + Math.random() * 1200); // "recording..." beat
       if (stale()) return;
-      const clean = reply.voice.text.replace(/\[[a-z ]+\]/gi, "").trim();
-      const msg: Message = {
-        id: uid(),
-        from: "her",
-        kind: "voice",
-        text: clean,
-        spoken: reply.voice.text,
-        dur: Math.max(2, Math.round(clean.split(/\s+/).length / 2.4)),
-        at: Date.now(),
-      };
-      await handoffTyping(msg.id, lastMedia === "voice");
-      if (stale()) return;
-      delivered.push(msg);
-      pushMsg(msg);
+      // Audio tags are performance directions, not words. `spoken` keeps them
+      // (ElevenLabs performs them; the proxy voice strips them at fetch), the
+      // caption must not show them.
+      //
+      // The old strip was /\[[a-z ]+\]/ — CLOSED, alphabetic tags only. So a
+      // payload the parser had truncated to "[giggles" survived it whole and
+      // rendered literally in the bubble, and "[softly, warm]" would have too.
+      // Anything bracket-shaped goes now, closed or not.
+      const clean = reply.voice.text
+        .replace(/\[[^\][]*\]/g, " ")
+        .replace(/\[[^\][]*$/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      // Nothing but directions left: that is a recording of her laughing at
+      // nothing, which is what shipped. The parser drops these now, so this is
+      // a second lock on the same door. Skip only the CLIP — the gif and
+      // follow-ups below still owe the user their turn.
+      if (clean) {
+        const msg: Message = {
+          id: uid(),
+          from: "her",
+          kind: "voice",
+          text: clean,
+          spoken: reply.voice.text,
+          dur: Math.max(2, Math.round(clean.split(/\s+/).length / 2.4)),
+          at: Date.now(),
+        };
+        await handoffTyping(msg.id, lastMedia === "voice");
+        if (stale()) return;
+        delivered.push(msg);
+        pushMsg(msg);
+      }
     }
     if (reply.gif) track(state.deviceId, "gif_sent", { q: reply.gif.query.slice(0, 40) }, state.auth?.userId);
     if (reply.gif) {
