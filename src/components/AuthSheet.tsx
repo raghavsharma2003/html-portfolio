@@ -126,7 +126,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
       <div className="sheet-veil" onClick={onClose} />
       <div className="sheet auth-sheet" role="dialog" aria-modal="true" aria-label="Account">
         <div className="grab" />
-        <button className="sheet-x" onClick={onClose} aria-label="Close">
+        <button className="sheet-x" data-tel="auth.close" onClick={onClose} aria-label="Close">
           <CloseIcon />
         </button>
 
@@ -141,7 +141,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
               </div>
             </div>
             <div style={{ height: 20 }} />
-            <button className="btn-ghost" style={{ width: "100%" }} onClick={onSignOut}>
+            <button className="btn-ghost" data-tel="auth.signout" style={{ width: "100%" }} onClick={onSignOut}>
               Sign out on this device
             </button>
           </>
@@ -152,7 +152,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
               Sign in and your chats and her memory of you follow you to any device.
             </p>
 
-            <button className="auth-google" disabled={busy} onClick={() => googleSignIn().catch(() => setError("google sign-in isn't switched on yet — use email"))}>
+            <button className="auth-google" data-tel="auth.google" disabled={busy} onClick={() => googleSignIn().catch(() => setError("google sign-in isn't switched on yet — use email"))}>
               <svg width="18" height="18" viewBox="0 0 48 48">
                 <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.7 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.2C12.4 13.5 17.7 9.5 24 9.5z" />
                 <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z" />
@@ -165,10 +165,10 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
             <div className="auth-or"><span>or</span></div>
 
             <div className="auth-seg">
-              <button className={mode === "email" ? "on" : ""} onClick={() => setMode("email")}>
+              <button className={mode === "email" ? "on" : ""} data-tel="auth.mode_email" onClick={() => setMode("email")}>
                 Email
               </button>
-              <button className={mode === "phone" ? "on" : ""} onClick={() => setMode("phone")}>
+              <button className={mode === "phone" ? "on" : ""} data-tel="auth.mode_phone" onClick={() => setMode("phone")}>
                 Phone
               </button>
             </div>
@@ -251,7 +251,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
               </p>
             )}
             <div style={{ height: 10 }} />
-            <button className="btn-ghost" style={{ width: "100%" }} disabled={busy} onClick={() => start()}>
+            <button className="btn-ghost" data-tel="auth.resend" style={{ width: "100%" }} disabled={busy} onClick={() => start()}>
               {busy ? "Sending…" : "Resend code"}
             </button>
             <button

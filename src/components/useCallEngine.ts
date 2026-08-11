@@ -60,7 +60,8 @@ import { readLevel } from "../voice/level";
 import { SceneReader, gridFromRGBA, isShowClass, type WakeClass } from "../watch/scene";
 import { callLookup } from "../voice/liveLookup";
 import { track } from "../engine/account";
-import { diag, diagStart, flushDiag } from "../engine/diag";
+import { diag, diagEnd, diagStart, flushDiag } from "../engine/diag";
+import { countNamedEntities, tel, telSubId } from "../engine/telemetry";
 
 export type CallPhase = "connecting" | "live" | "ended";
 
@@ -117,6 +118,9 @@ export function useCallEngine(
   const listeningRef = useRef(false);
   const herWordsRef = useRef<Set<string>>(new Set()); // echo rejection
   const herSpokeUntil = useRef(0); // tail-end echo guard after she stops
+  // when her CURRENT utterance began — barge-in is only interpretable as an
+  // offset into her turn ("they cut her off after 400ms" vs "after 9s")
+  const herSpokeSince = useRef(0);
   const thinkingRef = useRef(false);
   // adaptive endpointing (web SR): we decide when the user's turn is over,
   // not the recognizer — LiveKit/pipecat-style, regex instead of a model
@@ -177,6 +181,41 @@ export function useCallEngine(
     }));
   };
 
+  // ── the fabrication audit ─────────────────────────────────────────────
+  // She can only honestly describe a screen a picture of which actually
+  // reached her. For every line she says while a share is up this records
+  // whether a frame existed, how old it was, and a COUNT of the named things
+  // she asserted — never the things themselves. `had_frame:false` next to
+  // `named_entities:3` is a fabrication, and until now that was visible only
+  // as a user saying "she made that up", which arrives weeks late and cannot
+  // be tied back to a moment.
+  const watchId = useRef("");
+  const nativeWatchAt = useRef(0);
+  const nativeFrameN = useRef(0);
+  const wordsIn = (t: string) => t.trim().split(/\s+/).filter(Boolean).length;
+  function noteHerLine(text: string, lane: string, msgId: string) {
+    tel("call.turn", { who: "her", words: wordsIn(text), lane, call_id: callId.current });
+    if (!watchSession.current) return;
+    const f = frameRef.current;
+    const age = f ? Date.now() - f.at : -1;
+    tel("watch.comment", {
+      watch_id: watchId.current,
+      msg_id: msgId,
+      words: wordsIn(text),
+      frame_age_ms: age,
+    });
+    tel("watch.grounding", {
+      watch_id: watchId.current,
+      lane,
+      had_frame: Boolean(f),
+      frame_age_ms: age,
+      named_entities: countNamedEntities(text),
+      words: wordsIn(text),
+      paused: watchPrivate.current,
+    });
+  }
+  const callId = useRef("");
+
   const voiceOpts = {
     elevenKey: state.elevenKey,
     elevenVoiceId: state.elevenVoiceId,
@@ -222,8 +261,26 @@ export function useCallEngine(
   // audio, not just its future audio — a queued TTS clip is a second voice.
   type VoiceOwner = "none" | "live" | "cascade" | "native";
   const voiceOwner = useRef<VoiceOwner>("none");
+  const laneSince = useRef(0);
 
-  function claimVoice(next: VoiceOwner) {
+  // `why` is not decoration. The voice-swap class of bug is invisible in
+  // every other signal we have — the call keeps working, she just stops
+  // sounding like herself, and by the time anyone reports it the only
+  // question that matters is which lane took the slot and what pushed it.
+  function claimVoice(next: VoiceOwner, why = "") {
+    const from = voiceOwner.current;
+    if (next !== from) {
+      const at = Date.now();
+      tel("call.lane_change", {
+        from,
+        to: next,
+        reason: why,
+        held_ms: laneSince.current ? at - laneSince.current : 0,
+        speaking: speakingRef.current,
+        thinking: thinkingRef.current,
+      });
+      laneSince.current = at;
+    }
     voiceOwner.current = next;
     if (next !== "cascade") {
       // the cascade lane: playing/queued clips, the recognizer, the
@@ -309,6 +366,7 @@ ${recallRef.current}`
       },
       onMyText: (t) => {
         lastHeardAt.current = Date.now();
+        tel("call.turn", { who: "them", words: wordsIn(t), lane: "live", call_id: callId.current });
         log({ id: uid(), from: "me", kind: "text", channel: "call", text: t, at: Date.now() });
         // A factual question on a call: fire the lookup NOW, in parallel with
         // her own answer, and inject the facts a beat after she has started
@@ -323,8 +381,11 @@ ${recallRef.current}`
           liveSession.current?.direct(note);
         });
       },
-      onHerText: (t) =>
-        log({ id: uid(), from: "her", kind: "text", channel: "call", text: t, at: Date.now() }),
+      onHerText: (t) => {
+        const id = uid();
+        log({ id, from: "her", kind: "text", channel: "call", text: t, at: Date.now() });
+        noteHerLine(t, "live", id);
+      },
       onTiming: (t) => {
         // where the connect seconds actually went, per device/network
         Object.assign(liveTiming.current, t);
@@ -336,7 +397,7 @@ ${recallRef.current}`
         // dropped mid-call (network blip, session cap) — cascade takes over
         // so the call never dies; she just keeps talking the slower way
         track(stateRef.current.deviceId, "live_call_dropped", { reason });
-        claimVoice("cascade");
+        claimVoice("cascade", `live_dropped:${reason}`);
         speakingRef.current = false;
         setSpeaking(false);
         listeningRef.current = false;
@@ -363,7 +424,7 @@ ${recallRef.current}`
       adoptLiveLate(s);
       return null;
     }
-    claimVoice("live");
+    claimVoice("live", "live_connected");
     liveSession.current = s;
     listeningRef.current = true;
     setListening(true);
@@ -396,7 +457,7 @@ ${recallRef.current}`
         else drop();
         return;
       }
-      claimVoice("live"); // silences the cascade lane, in-flight audio included
+      claimVoice("live", "late_upgrade"); // silences the cascade lane, in-flight audio included
       liveSession.current = s;
       listeningRef.current = true;
       setListening(true);
@@ -423,7 +484,10 @@ ${recallRef.current}`
     // open the audit trail for THIS call: every timing below is stamped
     // against this session, so a slow or silent call can be reconstructed
     // from data instead of re-derived from the code
-    diagStart("call", stateRef.current.deviceId, { native: Capacitor.isNativePlatform() });
+    callId.current = diagStart("call", stateRef.current.deviceId, {
+      native: Capacitor.isNativePlatform(),
+    });
+    laneSince.current = Date.now();
     // a capture service outlives the WebView (renderer kill, reload, app
     // restart): an orphaned native engine would talk over this whole call
     void stopStrayWatch();
@@ -598,7 +662,7 @@ ${recallRef.current}`
       // half-adopted answers typed turns aloud. A live session that connects
       // later routes itself through adoptLiveLate (mid-call upgrade); this
       // then-block only sweeps up a session that DIED during the ring.
-      claimVoice("cascade");
+      claimVoice("cascade", "live_missed_pickup");
       livePromise.then((s) => {
         if (!s || (voiceOwner.current === "live" && liveSession.current === s)) return;
         if (s.active()) return; // adoptLiveLate owns a living late arrival
@@ -669,6 +733,7 @@ ${recallRef.current}`
       text,
       () => {
         speakingRef.current = true;
+        herSpokeSince.current = Date.now();
         setSpeaking(true);
         // keep the mic hot WHILE she talks so you can interrupt her
         if (alive.current) startListening();
@@ -825,6 +890,12 @@ ${recallRef.current}`
         return;
       }
       reengaged.current += 1;
+      tel("call.silence", {
+        call_id: callId.current,
+        ms: herSpokeUntil.current ? Date.now() - herSpokeUntil.current : -1,
+        who_broke_it: "her",
+        nth: reengaged.current,
+      });
       const seqAtArm = turnSeq.current;
       const reply = await think(
         stateRef.current.user,
@@ -889,6 +960,19 @@ ${recallRef.current}`
           const words = text.trim().split(/\s+/).filter(Boolean).length;
           const command = /\b(stop|wait|ruko|suno|arre|ek minute|listen|hold on|chup)\b/i.test(text);
           if (!real || words < 2) {
+            // a sustained overlap that did NOT take the floor is the half of
+            // barge-in nobody sees: she talked over them and they gave up
+            if (overlapStart.current && Date.now() - overlapStart.current > 450)
+              tel("call.bargein", {
+                call_id: callId.current,
+                lane: "cascade",
+                accepted: false,
+                at_ms_into_her_turn: herSpokeSince.current
+                  ? overlapStart.current - herSpokeSince.current
+                  : -1,
+                words,
+                reason: real ? "too_short" : "echo_or_backchannel",
+              });
             overlapStart.current = 0;
             if (ducked.current) {
               duckSpeech(false); // it was nothing — bring her back up NOW
@@ -903,6 +987,16 @@ ${recallRef.current}`
             ducked.current = true;
           }
           if ((sustained && words >= 4) || command) {
+            tel("call.bargein", {
+              call_id: callId.current,
+              lane: "cascade",
+              accepted: true,
+              at_ms_into_her_turn: herSpokeSince.current
+                ? overlapStart.current - herSpokeSince.current
+                : -1,
+              words,
+              reason: command ? "command" : "sustained",
+            });
             stopSpeaking();
             speakingRef.current = false;
             setSpeaking(false);
@@ -1011,8 +1105,11 @@ ${recallRef.current}`
       });
     } catch {
       track(stateRef.current.deviceId, "watch_consent_denied", { web: true });
+      tel("watch.no_comment", { why: "consent_denied", lane: "web" });
       return;
     }
+    watchId.current = telSubId("watch");
+    const watchStartedAt = Date.now();
     const video = document.createElement("video");
     video.srcObject = stream;
     video.muted = true;
@@ -1125,6 +1222,9 @@ ${recallRef.current}`
       push(at, held);
     };
     let started = false;
+    let frameN = 0;
+    let lastBlank = false;
+    let holdSince = 0;
     let lastSentAt = 0;
     let lastGrabAt = 0;
     let lastStillFrameAt = 0; // a frame captured while the screen was HELD
@@ -1151,29 +1251,49 @@ ${recallRef.current}`
                 : cls === "settle"
                   ? WATCH_SHOW_DIRECTIVE()
                   : WATCH_SCENE_DIRECTIVE(); // "switch": into something alive
+    // Every refusal below is recorded with WHICH gate refused it. A share
+    // where she stayed quiet is indistinguishable from a share where she was
+    // never asked to look, and those are opposite bugs.
+    const suppressed = (cls: WakeClass, by: string, frameAge: number): false => {
+      tel("watch.wake", {
+        watch_id: watchId.current,
+        class: cls,
+        frame_age_ms: frameAge,
+        suppressed_by: by,
+      });
+      return false;
+    };
     const wake = (cls: WakeClass): boolean => {
       const now = Date.now();
       const show = isShowClass(cls);
+      const frameAge = lastSentAt ? now - lastSentAt : -1;
       // never cut across her own voice, or across theirs
-      if (speakingRef.current) return false;
+      if (speakingRef.current) return suppressed(cls, "her_voice", frameAge);
       const quietFor = show ? SHOW_QUIET_MS : AMBIENT_QUIET_MS;
-      if (now - lastHeardAt.current < quietFor) return false;
-      if (voiceOn || now - voiceOffAt < quietFor) return false;
+      if (now - lastHeardAt.current < quietFor) return suppressed(cls, "quiet", frameAge);
+      if (voiceOn || now - voiceOffAt < quietFor) return suppressed(cls, "quiet", frameAge);
       // a wake-up may only ride behind a picture that ACTUALLY entered the
       // socket, and for a show it must be a picture of the HELD screen — not
       // a frame captured mid-transition, which is half the old screen and
       // half the new one and is exactly what makes her guess
-      if (now - (show ? lastStillFrameAt : lastSentAt) > 3000) return false;
+      if (now - (show ? lastStillFrameAt : lastSentAt) > 3000)
+        return suppressed(cls, "stale_frame", frameAge);
       if (show) {
-        if (now - lastShowWakeAt < 2500) return false;
+        if (now - lastShowWakeAt < 2500) return suppressed(cls, "show_floor", frameAge);
       } else {
         let ambient = 0;
         for (let i = 0; i < WAKE_CEILING; i++)
           if (wakeAmbient[i] && now - wakes[i] < WAKE_WINDOW_MS) ambient++;
-        if (ambient >= AMBIENT_CEILING) return false;
+        if (ambient >= AMBIENT_CEILING) return suppressed(cls, "ceiling", frameAge);
       }
-      if (now - wakes[wakeIdx] < WAKE_WINDOW_MS) return false; // hard ceiling
+      if (now - wakes[wakeIdx] < WAKE_WINDOW_MS) return suppressed(cls, "ceiling", frameAge);
       if (show) lastShowWakeAt = now;
+      tel("watch.wake", {
+        watch_id: watchId.current,
+        class: cls,
+        frame_age_ms: frameAge,
+        suppressed_by: "none",
+      });
       wakes[wakeIdx] = now;
       wakeAmbient[wakeIdx] = !show;
       wakeIdx = (wakeIdx + 1) % WAKE_CEILING;
@@ -1193,6 +1313,11 @@ ${recallRef.current}`
       if (at - lastGrabAt < CHANGE_SEND_MS) return false;
       const url = grab(FRAME_SIDE, FRAME_Q);
       if (!url) return false;
+      // SAMPLED, deliberately: frames go out up to twice a second for the
+      // length of a film, and one telemetry record per frame would be a
+      // bigger stream than the thing it describes.
+      frameN++;
+      const sample = frameN % 10 === 1;
       lastGrabAt = at; // bound re-encode cost even when the send is refused
       frameRef.current = { url, at };
       setFrameAt(at);
@@ -1201,6 +1326,18 @@ ${recallRef.current}`
         track(stateRef.current.deviceId, "watch_frame_first", { web: true });
       }
       const sent = liveSession.current?.sendFrame(url.split(",")[1] ?? "") ?? false;
+      if (sample)
+        tel("watch.frame", {
+          watch_id: watchId.current,
+          age_ms: lastSentAt ? at - lastSentAt : -1,
+          bytes: url.length,
+          w: canvas.width,
+          h: canvas.height,
+          blank: lastBlank,
+          held,
+          sent,
+          n: frameN,
+        });
       // only a frame that REACHED her spends the cadence slot: a frame the
       // socket refused must be retried on the next tick, not treated as
       // delivered and waited out for another full period
@@ -1220,6 +1357,20 @@ ${recallRef.current}`
         // ── cheap half: what has the screen done? ──
         const sig = signature();
         const s = sig ? scene.read(sig, at) : scene.still(at);
+        lastBlank = s.blank;
+        // watch.scene records what the screen DID, separately from whether it
+        // earned a wake — a class that keeps firing and keeps being refused
+        // is a different problem from a class that never fires at all.
+        if (s.quiet && !holdSince) holdSince = at;
+        else if (!s.quiet) holdSince = 0;
+        if (s.wake)
+          tel("watch.scene", {
+            watch_id: watchId.current,
+            class: s.wake,
+            hold_ms: holdSince ? at - holdSince : 0,
+            motion: s.motion,
+            coverage: s.coverage,
+          });
         // "identical" is the detector's own hold test, not byte equality: a
         // blinking caret, a clock digit or a spinner is a screen standing
         // still, and a paused video under a UI overlay redraws without
@@ -1266,22 +1417,39 @@ ${recallRef.current}`
       timer = setTimeout(pump, DETECT_MS);
     };
     timer = setTimeout(pump, DETECT_MS);
-    const cleanup = () => {
+    // one teardown, one watch.stop: the browser's own "stop sharing" and our
+    // control both land here, and a share that reported ending twice (or not
+    // at all) would put a hole in every duration derived from it
+    let stopped = false;
+    const cleanup = (reason = "user") => {
       if (timer) clearTimeout(timer);
       stream.getTracks().forEach((tr) => tr.stop());
       frameRef.current = null;
       watchSession.current = null;
       setWatching(false);
+      if (stopped) return;
+      stopped = true;
+      tel("watch.stop", {
+        watch_id: watchId.current,
+        reason,
+        duration_ms: Date.now() - watchStartedAt,
+        lane: "web",
+        frames: frameN,
+      });
+      // the contract flushes at watch end for the same reason it does at call
+      // end: the interesting part of a share is usually how it ended
+      flushDiag();
     };
     // user can stop sharing from the browser's own UI at any moment
     stream.getVideoTracks()[0]?.addEventListener("ended", () => {
       if (watchSession.current) {
-        cleanup();
+        cleanup("external");
         track(stateRef.current.deviceId, "watch_stopped_externally", { web: true });
       }
     });
-    watchSession.current = { stop: cleanup };
+    watchSession.current = { stop: () => cleanup("user") };
     setWatching(true);
+    tel("watch.start", { watch_id: watchId.current, lane: "web", call_id: callId.current });
     // she is told about the share by the pump, on the first frame that
     // actually reaches her — telling her now would be telling her to look at
     // a screen no frame of which has been sent yet
@@ -1315,7 +1483,9 @@ ${recallRef.current}`
       // dialog: JS timers keep running behind it, so a stray re-arm, a
       // committed turn or a queued TTS clip would surface as a second voice
       // once the native engine starts. This kills in-flight audio too.
-      claimVoice("native");
+      claimVoice("native", "watch_started");
+      watchId.current = telSubId("watch");
+      nativeWatchAt.current = Date.now();
       // hand the native engine her full brain: cached persona core + call
       // style, volatile tail + watch rules, and the comment directive
       const parts = buildSystemPromptParts(stateRef.current.user, stateRef.current.messages.length, "voice");
@@ -1353,25 +1523,42 @@ ${recallRef.current}`
       watchSession.current = await startWatch(
         config,
         (url) => {
-          frameRef.current = { url, at: Date.now() };
-          setFrameAt(Date.now());
+          const at = Date.now();
+          const prev = frameRef.current?.at ?? 0;
+          frameRef.current = { url, at };
+          setFrameAt(at);
           if (!firstFrameSeen.current) {
             firstFrameSeen.current = true;
             track(stateRef.current.deviceId, "watch_frame_first", {});
           }
+          // sampled, same reason as the web lane: one record per frame would
+          // be a bigger stream than the thing it describes
+          nativeFrameN.current++;
+          if (nativeFrameN.current % 10 === 1)
+            tel("watch.frame", {
+              watch_id: watchId.current,
+              age_ms: prev ? at - prev : -1,
+              bytes: url.length,
+              lane: "native",
+              n: nativeFrameN.current,
+            });
         },
         (who, text) => {
           // native transcript → call memory (delivered when app is visible;
           // Android batches these while backgrounded, which is fine for logs)
+          const id = uid();
           log({
-            id: uid(),
+            id,
             from: who,
             kind: "text",
             channel: "call",
             text,
             at: Date.now(),
           });
-          if (who === "her") track(stateRef.current.deviceId, "watch_comment", {});
+          if (who === "her") {
+            track(stateRef.current.deviceId, "watch_comment", {});
+            noteHerLine(text, "native", id);
+          }
         },
         () => {
           // capture ended outside our UI (notification, system revoke)
@@ -1380,8 +1567,15 @@ ${recallRef.current}`
           frameRef.current = null;
           setWatching(false);
           track(stateRef.current.deviceId, "watch_stopped_externally", {});
+          tel("watch.stop", {
+            watch_id: watchId.current,
+            reason: "external",
+            duration_ms: nativeWatchAt.current ? Date.now() - nativeWatchAt.current : -1,
+            lane: "native",
+          });
+          nativeWatchAt.current = 0;
           // same hardware-release beat as stopWatchMode before re-arming
-          claimVoice("cascade");
+          claimVoice("cascade", "watch_stopped_externally");
           setTimeout(() => {
             if (alive.current && !mutedRef.current) startListening();
           }, 450);
@@ -1396,13 +1590,16 @@ ${recallRef.current}`
       setSpeaking(false);
       turnSeq.current += 1;
       track(stateRef.current.deviceId, "watch_started", {});
+      tel("watch.start", { watch_id: watchId.current, lane: "native", call_id: callId.current });
     } catch {
       track(stateRef.current.deviceId, "watch_consent_denied", {});
+      tel("watch.no_comment", { why: "consent_denied", lane: "native" });
+      nativeWatchAt.current = 0;
       // consent denied — stay in the plain call, mic back on. NEVER re-arm on
       // top of a session that is actually running (a denial racing a live
       // start is how the JS cascade ended up talking over the native engine).
       if (!watchSession.current && voiceOwner.current === "native") {
-        claimVoice("cascade");
+        claimVoice("cascade", "watch_consent_denied");
         if (alive.current && !mutedRef.current) startListening();
       }
     } finally {
@@ -1415,8 +1612,20 @@ ${recallRef.current}`
     watchSession.current = null;
     frameRef.current = null;
     setWatching(false);
+    // the web lane reports its own stop from inside its teardown (one place,
+    // one record); the native lane has no such hook, so it is reported here
+    if (s && nativeWatchAt.current) {
+      tel("watch.stop", {
+        watch_id: watchId.current,
+        reason: "user",
+        duration_ms: Date.now() - nativeWatchAt.current,
+        lane: "native",
+      });
+      nativeWatchAt.current = 0;
+      flushDiag();
+    }
     s?.stop();
-    if (voiceOwner.current === "native") claimVoice("cascade");
+    if (voiceOwner.current === "native") claimVoice("cascade", "watch_stopped");
     // give the native recognizer a beat to release the hardware before the
     // JS one grabs it — an instant re-arm tends to land on BUSY
     setTimeout(() => {
@@ -1463,6 +1672,15 @@ ${recallRef.current}`
       liveSession.current.direct(text);
       return;
     }
+    const gap = herSpokeUntil.current ? Date.now() - herSpokeUntil.current : 0;
+    if (gap > 3000)
+      tel("call.silence", { call_id: callId.current, ms: gap, who_broke_it: "them" });
+    tel("call.turn", {
+      who: "them",
+      words: wordsIn(text),
+      lane: "cascade",
+      call_id: callId.current,
+    });
     reengaged.current = 0; // they spoke — silence counter resets
     // typed input (keyboard fallback) can land while she's mid-speech —
     // an answered question means she yields the floor
@@ -1534,6 +1752,7 @@ ${recallRef.current}`
         tone || undefined,
         () => {
           speakingRef.current = true;
+          herSpokeSince.current = Date.now();
           setSpeaking(true);
           if (alive.current) startListening();
         },
@@ -1629,14 +1848,20 @@ ${recallRef.current}`
       return;
     }
     mergeLearned(reply.learned);
+    const herId = uid();
+    const herLine = spoken.replace(/\[[a-z ]+\]/gi, "").trim();
     log({
-      id: uid(),
+      id: herId,
       from: "her",
       kind: "text",
       channel: "call",
-      text: spoken.replace(/\[[a-z ]+\]/gi, "").trim(),
+      text: herLine,
       at: Date.now(),
     });
+    // grounding is stamped against the frame she ACTUALLY had at think time:
+    // freshFrame() is what was handed to the brain, so a comment with no
+    // frame behind it is recorded as exactly that
+    noteHerLine(herLine, "cascade", herId);
     if (speaker && headDone) {
       (speaker as StreamSpeaker).finish(); // stream spoke — flush the tail
     } else {
@@ -1658,8 +1883,14 @@ ${recallRef.current}`
     stopRoomTone();
     stopListen.current?.();
     setPhase("ended");
-    diag("call", "call_ended", { secs: elapsedRef.current });
+    diag("call", "call_ended", {
+      secs: elapsedRef.current,
+      duration_ms: elapsedRef.current * 1000,
+      reason: "hangup",
+      lane: voiceOwner.current,
+    });
     flushDiag(); // the call's whole timeline lands before the screen goes away
+    diagEnd("call"); // later chat events must not inherit this call's id
     // the chat shows a call record, never the transcript
     const secs = elapsedRef.current;
     const mmssStr = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
@@ -1721,6 +1952,10 @@ ${recallRef.current}`
     watchPaused,
     setWatchPaused: (on: boolean) => {
       watchPrivate.current = on;
+      // not in the contract's list, and it belongs there: a stretch where she
+      // was deliberately blind explains a silence that otherwise looks like
+      // the feature failing
+      tel("watch.look_away", { watch_id: watchId.current, on });
       setWatchPaused(on);
       setWatchPrivate(on).catch(() => {}); // native lane, no-op on the web
       if (on) {

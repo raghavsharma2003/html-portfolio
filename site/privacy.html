@@ -32,7 +32,8 @@
       <li><b>Your conversations</b> — chat messages and what's said on voice calls are stored so Meera can remember you between sessions.</li>
       <li><b>Distilled memories</b> — an automated process extracts durable facts you share (people, places, plans, preferences) into a memory store tied to your anonymous device ID.</li>
       <li><b>Account details</b> — if you sign in: your email address or phone number, used only for sign-in and syncing your data across devices.</li>
-      <li><b>Usage events</b> — actions like opening the app, sending messages, or starting calls, used to understand and improve the product.</li>
+      <li><b>How you use the app, in detail</b> — this is more than a page-view counter and we'd rather say so plainly. We record what you tap and scroll, when you open and close the app, how long replies took, what happened during a voice call or a screen share, and errors. It is used to find out what actually went wrong when something goes wrong.</li>
+      <li><b>How you type, including drafts you never send</b> — the text in the message box, keystroke timings, pauses, and corrections such as backspacing and rewriting. If you type something and delete it without sending, that draft is still recorded. We collect this because how a message gets written says as much about whether Meera is working as the message itself — but it is the most personal thing on this list, so it is called out separately rather than folded into "usage data".</li>
     </ul>
 
     <h2>What we don't do</h2>
@@ -43,10 +44,10 @@
     </ul>
 
     <h2>Where it lives</h2>
-    <p>Data is stored with Supabase (database, Mumbai region) and processed through Vercel (hosting) and OpenRouter (AI models). Messages are sent to AI models to generate replies; those providers process them under their own terms.</p>
+    <p>Conversations, memories and usage records are stored in a Neon Postgres database. Supabase holds sign-in details and any photos you send. Everything is served through Vercel, and messages go to AI models (via OpenRouter and Google) to generate replies; those providers process them under their own terms. Screen-share pictures are sent to the AI model that is watching with you and are not stored anywhere.</p>
 
     <h2>Deleting your data</h2>
-    <p>The clear-chat button erases the conversation on your device. To delete everything held server-side (logs, memories, account, events), contact us with your account email or from inside the app, and we'll erase it.</p>
+    <p>The clear-chat button erases the conversation on your device. You can also ask Meera to forget something in the app — that deletes it server-side, and it takes the usage records and drafts with it, not just the message. To erase everything held server-side (conversations, memories, usage records, drafts, photos, account), ask her to forget everything or contact us with your account email.</p>
 
     <h2>If you're struggling — our crisis protocol</h2>
     <p>This is the protocol Meera follows, published here in full. When a conversation shows signs of suicidal thoughts, self-harm, or acute crisis — even indirectly — Meera immediately drops all playfulness, acknowledges what you're feeling, and clearly shares real crisis resources: in India, Tele-MANAS <b>14416</b> (24×7, free) and iCall <b>+91&nbsp;91529&nbsp;87821</b>; in the US, call or text <b>988</b>; in the UK, Samaritans <b>116&nbsp;123</b>. She encourages you to reach a trusted person, stays present, never roleplays through a crisis, never promises secrecy, and never uses your relationship with her as leverage. Meera is an AI companion, not a therapist or medical professional — if you are in danger, please contact the services above or your local emergency number now.</p>

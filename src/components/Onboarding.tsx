@@ -67,7 +67,7 @@ export default function Onboarding({ onDone }: Props) {
                 {HER_NAME} is a friend who's always up for talking — the small
                 stuff, the big stuff, whenever you need it.
               </p>
-              <button className="btn-primary" onClick={() => setStep(1)}>
+              <button className="btn-primary" data-tel="onboarding.start" onClick={() => setStep(1)}>
                 Meet {HER_NAME}
               </button>
               {/* legal text is text: --ink-faint put it at 2.7:1, which is
@@ -106,7 +106,7 @@ export default function Onboarding({ onDone }: Props) {
                 onKeyDown={(e) => e.key === "Enter" && name.trim() && setStep(2)}
               />
               <div style={{ height: 22 }} />
-              <button className="btn-primary" disabled={!name.trim()} onClick={() => setStep(2)}>
+              <button className="btn-primary" data-tel="onboarding.name_next" disabled={!name.trim()} onClick={() => setStep(2)}>
                 Nice to meet you
               </button>
             </motion.div>

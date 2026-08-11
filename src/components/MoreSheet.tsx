@@ -114,7 +114,7 @@ export default function MoreSheet({
         }
       >
         <div className="grab" />
-        <button className="sheet-x" onClick={onClose} aria-label="Close">
+        <button className="sheet-x" data-tel="more.close" onClick={onClose} aria-label="Close">
           <CloseIcon />
         </button>
 
@@ -123,7 +123,7 @@ export default function MoreSheet({
             <h3>Settings</h3>
             <p className="hint">Everything about you, and about this conversation.</p>
             <div className="sheet-rows">
-              <button className="srow" onClick={() => setView("profile")}>
+              <button className="srow" data-tel="more.profile" onClick={() => setView("profile")}>
                 <span className="sicon">
                   <PersonIcon />
                 </span>
@@ -138,7 +138,7 @@ export default function MoreSheet({
                 </span>
               </button>
 
-              <button className="srow" onClick={onAccount}>
+              <button className="srow" data-tel="more.account" onClick={onAccount}>
                 <span className="sicon">
                   <CloudIcon />
                 </span>
@@ -155,7 +155,7 @@ export default function MoreSheet({
                 </span>
               </button>
 
-              <button className="srow destructive" onClick={() => setView("clear")}>
+              <button className="srow destructive" data-tel="more.clear_chat" onClick={() => setView("clear")}>
                 <span className="sicon">
                   <TrashIcon />
                 </span>
@@ -177,7 +177,7 @@ export default function MoreSheet({
                   and leaves what she knows; this takes what she knows. A
                   product built on her remembering you is only honest if the
                   undo for that is somewhere you can find without asking. */}
-              <button className="srow destructive" onClick={() => setView("forget")}>
+              <button className="srow destructive" data-tel="more.forget_all" onClick={() => setView("forget")}>
                 <span className="sicon">
                   <MemoryIcon />
                 </span>
@@ -235,10 +235,10 @@ export default function MoreSheet({
               ))}
             </div>
             <div style={{ height: 18 }} />
-            <button className="btn-primary" onClick={saveProfile}>
+            <button className="btn-primary" data-tel="more.save_profile" onClick={saveProfile}>
               Save
             </button>
-            <button className="auth-back" onClick={() => setView("menu")}>
+            <button className="auth-back" data-tel="more.back" onClick={() => setView("menu")}>
               ← back
             </button>
           </>

@@ -18,6 +18,7 @@ import {
 } from "../engine/memory";
 import { applyInner, wantsForAppraisal } from "../engine/inner";
 import { track } from "../engine/account";
+import { tel, telFlush, createComposeTracker } from "../engine/telemetry";
 import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
 import PhotoCard from "./PhotoCard";
@@ -168,6 +169,10 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   const offlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // keystroke dynamics for the composer. One tracker for the life of the
+  // screen; it rolls itself up every 2s and on send, and NEVER emits per
+  // keystroke — see the note on the hot path in telemetry.ts.
+  const composer = useRef(createComposeTracker("chat.composer")).current;
   // scroll ownership: while you are at the bottom the thread follows her.
   // The moment you scroll back to re-read something it stops following and
   // offers to catch you up instead. (Before this, every arriving bubble
@@ -280,6 +285,88 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // An unsent draft that leaves with the screen (or with the page) is an
+  // abandoned one, and abandonment is the compose signal that has no other
+  // trace anywhere — the draft simply ceases to exist.
+  useEffect(() => {
+    const leave = () => {
+      composer.leave();
+      telFlush("beacon");
+    };
+    window.addEventListener("pagehide", leave);
+    return () => {
+      window.removeEventListener("pagehide", leave);
+      composer.leave();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── chat.read: which bubbles were actually looked at, and for how long ──
+  // Message ids and dwell only; the observer never touches text. Rolled up on
+  // a 3s beat so a fast scroll through forty messages is one record, not
+  // forty. IntersectionObserver rather than scroll math: it costs nothing per
+  // frame and this thread can hold five hundred bubbles.
+  const dwell = useRef(new Map<string, number>());
+  const readSeen = useRef(new Map<string, number>());
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const t = Date.now();
+        for (const e of entries) {
+          const id = (e.target as HTMLElement).dataset.mid;
+          if (!id) continue;
+          if (e.isIntersecting) readSeen.current.set(id, t);
+          else {
+            const from = readSeen.current.get(id);
+            if (from) {
+              readSeen.current.delete(id);
+              dwell.current.set(id, (dwell.current.get(id) ?? 0) + (t - from));
+            }
+          }
+        }
+      },
+      { root, threshold: 0.6 },
+    );
+    const attach = () => {
+      for (const el of root.querySelectorAll("[data-mid]")) io.observe(el);
+    };
+    attach();
+    // the thread re-renders constantly; re-attaching on a beat is cheaper and
+    // simpler than tracking every arrival, and a bubble missed for 1.5s is a
+    // bubble that was not being read anyway
+    const reattach = setInterval(attach, 1500);
+    const iv = setInterval(() => {
+      // a bubble that came into view and STAYED there is the most-read bubble
+      // there is; billing dwell only on exit reported nothing at all for the
+      // message someone sat and looked at
+      const t = Date.now();
+      for (const [id, from] of readSeen.current) {
+        dwell.current.set(id, (dwell.current.get(id) ?? 0) + (t - from));
+        readSeen.current.set(id, t);
+      }
+      if (!dwell.current.size) return;
+      const ids = [...dwell.current.keys()].slice(0, 30);
+      const ms = ids.map((i) => Math.round(dwell.current.get(i) ?? 0));
+      dwell.current.clear();
+      tel("chat.read", { msg_ids: ids, dwell_ms: ms, n: ids.length });
+    }, 3000);
+    // copy is a first-class signal (they wanted to keep something she said)
+    // and it is recorded as a LENGTH — the text is already in meera_log
+    const onCopy = () => {
+      const sel = window.getSelection?.()?.toString() ?? "";
+      tel("chat.copy", { chars: sel.length });
+    };
+    root.addEventListener("copy", onCopy);
+    return () => {
+      io.disconnect();
+      clearInterval(iv);
+      clearInterval(reattach);
+      root.removeEventListener("copy", onCopy);
+    };
   }, []);
 
   // follow the conversation only while it is being followed
@@ -403,6 +490,29 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     opts: { keepTyping?: boolean } = {},
   ) {
     busy.current = true;
+    // chat.reply is stamped HERE, not after delivery: everything below this
+    // line is the human typing rhythm, and folding 3.5s of deliberate pacing
+    // into a latency number would make her look slow in exactly the data
+    // used to decide whether she is slow.
+    const replyIds = reply.bubbles.map(() => uid());
+    const replyKind = reply.photo ? "photo" : reply.voice ? "voice" : reply.gif ? "gif" : "text";
+    tel("chat.reply", {
+      msg_id: replyIds[0] ?? "",
+      latency_ms: readFrom ? Date.now() - readFrom : -1,
+      bubbles: reply.bubbles.length,
+      kind: replyKind,
+      // the CONFIGURED lane. Which brain actually answered is decided inside
+      // brain.ts and is not returned, so this is what the client asked for,
+      // not what served it — a real `lane`/`model` needs brain.ts to report.
+      lane: openrouterKey ? "openrouter" : apiKey ? "claude" : "proxy",
+      critical: Boolean(reply.critical),
+      searched: Boolean(reply.search),
+      forgot: Boolean(reply.forgot),
+    });
+    // a turn where she says nothing is a failed turn, whatever the transport
+    // said. err.fetch carries the http side; this is the product-visible one.
+    if (!reply.bubbles.length && !reply.photo && !reply.voice && !reply.gif)
+      tel("chat.error", { stage: "reply", status: 0, retried: false });
     // SHE AGREED TO FORGET SOMETHING, and by the time this runs the rows are
     // already deleted (brain.ts awaits the delete before handing the reply
     // back). The turns are still in the local store though, and the local
@@ -492,6 +602,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       await handoffTyping(photo.id, lastMedia === "photo");
       if (stale()) return true;
       pushMsg(photo);
+      // `chosen` is the catalog seed, which is code, not conversation
+      tel("chat.media", { kind: "photo", msg_id: photo.id, chosen: photoOf.seed, from: "her" });
       return false;
     };
     // the read beat is measured from when THEY sent, so the model's round trip
@@ -518,7 +630,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       firstBubble = false;
       await sleep(typeWait);
       if (stale()) return;
-      const msg: Message = { id: uid(), from: "her", kind: "text", text: bubble, at: Date.now() };
+      const msg: Message = {
+        id: replyIds[bi],
+        from: "her",
+        kind: "text",
+        text: bubble,
+        at: Date.now(),
+      };
       await handoffTyping(msg.id, !lastMedia && bi === reply.bubbles.length - 1);
       if (stale()) return;
       delivered.push(msg);
@@ -561,6 +679,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         if (stale()) return;
         delivered.push(msg);
         pushMsg(msg);
+        tel("chat.media", { kind: "voicenote", msg_id: msg.id, secs: msg.dur, from: "her" });
       }
     }
     if (reply.gif) track(state.deviceId, "gif_sent", { q: reply.gif.query.slice(0, 40) }, state.auth?.userId);
@@ -579,6 +698,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       if (stale()) return;
       delivered.push(msg);
       pushMsg(msg);
+      tel("chat.media", { kind: "gif", msg_id: msg.id, from: "her" });
     }
     if (reply.followup) {
       const at = Date.now() + reply.followup.minutes * 60_000;
@@ -831,6 +951,9 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     if (state.followup) setState((s) => ({ ...s, followup: null }));
     pushMsg(mine);
     logTurns(state.deviceId, [mine]);
+    // compose.send + compose.draft (the one place draft text is captured)
+    composer.send(mine.id, text);
+    tel("chat.send", { msg_id: mine.id, kind: "text", chars: text.length, quoted: Boolean(mine.replyTo) });
     track(state.deviceId, "message_sent", { len: text.length, quoted: Boolean(mine.replyTo) }, state.auth?.userId);
     // single tick → double tick shortly after (server delivery rhythm)
     setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
@@ -885,6 +1008,9 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     setReplyTo(null);
     if (state.followup) setState((s) => ({ ...s, followup: null }));
     pushMsg(mine);
+    if (caption) composer.send(mine.id, caption);
+    tel("chat.send", { msg_id: mine.id, kind: "photo", chars: caption.length });
+    tel("chat.media", { kind: "photo", msg_id: mine.id, from: "me", bytes: packed.b64.length });
     track(state.deviceId, "photo_shared", { caption: Boolean(caption) }, state.auth?.userId);
     setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
     logTurns(state.deviceId, [
@@ -983,6 +1109,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         if (s.active && Math.abs(s.dx) >= 48) {
           setReplyTo(m);
           setReplySel(null);
+          tel("chat.swipe_reply", { msg_id: m.id, from: m.from, via: "swipe" });
         }
         swipe.current = { x: 0, y: 0, dx: 0, active: false, dead: false, fired: false, startedAt: 0 };
       },
@@ -1142,6 +1269,15 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         registerLocalClip(mine.id, blob);
         pushMsg(mine);
         logTurns(state.deviceId, [mine]);
+        tel("chat.send", { msg_id: mine.id, kind: "voice", chars: transcript.length });
+        tel("chat.media", {
+          kind: "voicenote",
+          msg_id: mine.id,
+          from: "me",
+          secs,
+          heard: Boolean(transcript),
+          bytes: blob.size,
+        });
         track(state.deviceId, "voice_note_sent", { dur: secs, heard: Boolean(transcript) }, state.auth?.userId);
         setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
         scheduleReply(mine.text); // voice notes join the same burst pipeline
@@ -1293,6 +1429,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
           // messages, Enter opens the same chip the tap does.
           role="button"
           data-mid={m.id}
+          data-tel="chat.bubble"
           tabIndex={m.id === focusMid ? 0 : -1}
           aria-label={`${m.from === "her" ? HER_NAME : "You"} at ${fmtTime(m.at)}: ${m.text}. Reply`}
           onFocus={() => setFocusedMid(m.id)}
@@ -1313,10 +1450,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
           {replySel === m.id && (
             <button
               className="reply-chip"
+              data-tel="chat.reply_chip"
               onClick={(e) => {
                 e.stopPropagation();
                 setReplyTo(m);
                 setReplySel(null);
+                tel("chat.swipe_reply", { msg_id: m.id, from: m.from, via: "chip" });
                 inputRef.current?.focus();
               }}
             >
@@ -1364,6 +1503,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
           className={`avatar-ring ${storyLive ? (storyUnseen ? "story-live" : "story-seen") : ""}`}
           style={{ width: 48, height: 48, padding: 2.5 }}
           onClick={openStoryOrProfile}
+          data-tel="chat.avatar"
           aria-label={headTarget}
         >
           <div className="inner">
@@ -1372,7 +1512,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         </button>
         {/* its accessible name is its own content — "Meera, last seen today
             at 4:06" — which is more use than repeating the avatar's label */}
-        <button className="who" onClick={openStoryOrProfile}>
+        <button className="who" data-tel="chat.header_name" onClick={openStoryOrProfile}>
           <div className="name">{HER_NAME}</div>
           {/* ONE node whose contents change — typing → online → last seen
               dissolves. Rendering three sibling nodes would remount the
@@ -1389,11 +1529,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
             )}
           </div>
         </button>
-        <button className="icon-btn" onClick={onVoiceCall} aria-label="Voice call">
+        <button className="icon-btn" data-tel="chat.call" onClick={onVoiceCall} aria-label="Voice call">
           <PhoneIcon />
         </button>
         <button
           className="icon-btn"
+          data-tel="chat.settings"
           onClick={() => setMoreOpen(true)}
           aria-label="Settings"
           aria-haspopup="dialog"
@@ -1409,7 +1550,18 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         </div>
       )}
 
-      <div className="chat-scroll" ref={scrollRef} role="log" aria-label={`Conversation with ${HER_NAME}`}>
+      {/* data-tel-private: everything inside this element is conversation.
+          Telemetry may read structure here (which bubble, how long it was on
+          screen) and never text — the accessible name of a bubble IS the
+          message, so "use the accessible name" would smuggle content into
+          the audit trail and break the one-place-per-kind rule. */}
+      <div
+        className="chat-scroll"
+        ref={scrollRef}
+        data-tel-private=""
+        role="log"
+        aria-label={`Conversation with ${HER_NAME}`}
+      >
         {rows.length === 0 && (
           // The brand-new chat used to be a white void for the two to six
           // seconds her first line takes to arrive — the single most likely
@@ -1443,7 +1595,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       </div>
 
       {showJump && (
-        <button className="jump-latest" onClick={() => toBottom()}>
+        <button className="jump-latest" data-tel="chat.jump_latest" onClick={() => toBottom()}>
           {missed > 0 && <span className="jl-new" />}
           {missed > 0
             ? `${missed} new message${missed === 1 ? "" : "s"}`
@@ -1486,7 +1638,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       {undo && (
         <div className="undo-toast" role="status">
           <span>{undo.label}</span>
-          <button onClick={undoClear}>Undo</button>
+          <button data-tel="chat.undo" onClick={undoClear}>Undo</button>
         </div>
       )}
       {notice && (
@@ -1500,7 +1652,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
             <b>{replyTo.from === "her" ? HER_NAME : "You"}</b>
             <span className="qtext">{replyTo.text.slice(0, 120)}</span>
           </div>
-          <button className="reply-x" onClick={() => setReplyTo(null)} aria-label="Cancel reply">
+          <button className="reply-x" data-tel="chat.reply_cancel" onClick={() => setReplyTo(null)} aria-label="Cancel reply">
             ×
           </button>
         </div>
@@ -1515,11 +1667,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
               </b>
               <span>{recPaused ? " · paused" : " · recording"}</span>
             </span>
-            <button className="rec-cancel" onClick={() => finishRecording(false)}>
+            <button className="rec-cancel" data-tel="chat.rec_cancel" onClick={() => finishRecording(false)}>
               cancel
             </button>
             <button
               className="rec-pause"
+              data-tel="chat.rec_pause"
               onClick={togglePauseRecording}
               aria-label={recPaused ? "Resume recording" : "Pause recording"}
             >
@@ -1534,7 +1687,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
                 </svg>
               )}
             </button>
-            <button className="send-btn" onClick={() => finishRecording(true)} aria-label="Send voice note">
+            <button className="send-btn" data-tel="chat.rec_send" onClick={() => finishRecording(true)} aria-label="Send voice note">
               <SendIcon />
             </button>
           </div>
@@ -1542,6 +1695,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
           <div className="chat-input">
             <button
               className="attach-btn"
+              data-tel="chat.attach"
               onClick={() => fileRef.current?.click()}
               aria-label="Send a photo"
             >
@@ -1561,14 +1715,31 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
             <textarea
               ref={inputRef}
               rows={1}
+              data-tel="chat.composer"
               placeholder={`Message ${HER_NAME}…`}
               value={draft}
               onChange={(e) => {
+                // value only, never the caret: reading selectionStart here
+                // forces a second synchronous layout on top of the autosize
+                // below, and it measured +0.6ms per keystroke. The caret it
+                // needed is already read at keydown, before layout is dirty.
+                composer.change(e.target.value);
                 setDraft(e.target.value);
                 e.target.style.height = "auto";
                 e.target.style.height = Math.min(110, e.target.scrollHeight) + "px";
               }}
+              onFocus={() =>
+                composer.focus(messagesRef.current[messagesRef.current.length - 1]?.at ?? 0)
+              }
+              onPaste={(e) => composer.paste(e.clipboardData?.getData("text")?.length ?? 0)}
+              onCompositionStart={() => composer.imeStart()}
+              onCompositionEnd={() => composer.imeEnd()}
               onKeyDown={(e) => {
+                composer.key(
+                  e.key,
+                  e.currentTarget.selectionStart ?? 0,
+                  e.currentTarget.selectionEnd ?? 0,
+                );
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   send();
@@ -1578,6 +1749,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
             {draft.trim() || !sttSupported() ? (
               <button
                 className={`send-btn ${draft.trim() ? "" : "off"}`}
+                data-tel="chat.send"
                 // an empty send is not an error — it puts the caret where
                 // the words go, instead of doing nothing at all
                 onClick={() => (draft.trim() ? send() : inputRef.current?.focus())}
@@ -1586,7 +1758,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
                 <SendIcon />
               </button>
             ) : (
-              <button className="send-btn mic" onClick={startRecording} aria-label="Record voice note">
+              <button className="send-btn mic" data-tel="chat.record" onClick={startRecording} aria-label="Record voice note">
                 <MicIcon size={19} />
               </button>
             )}

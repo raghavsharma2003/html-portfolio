@@ -7,6 +7,7 @@ import CallVoice from "./components/CallVoice";
 import AuthSheet from "./components/AuthSheet";
 import { unlockAudio } from "./voice/speech";
 import { diagStart } from "./engine/diag";
+import { tel, telIdentify, telRoute } from "./engine/telemetry";
 import { prewarmLiveToken } from "./voice/liveCall";
 import { primeCulture } from "./engine/culture";
 import { Capacitor } from "@capacitor/core";
@@ -68,6 +69,9 @@ export default function App() {
       adoptSession(state.auth as AuthSession); // pull what other devices did
     }
     track(state.deviceId, "app_open", { onboarded: state.onboarded }, state.auth?.userId);
+    // the boot listeners have been recording since main.tsx with no identity;
+    // this is where the whole held tail gets a device and leaves
+    telIdentify(state.deviceId, state.auth?.userId ?? null);
     // open a diagnostic session for the app itself. Without this every
     // chat-scope record (reply timings, memory passes, her interior's
     // decisions) had no device and was thrown away — only calls and watch
@@ -80,6 +84,22 @@ export default function App() {
     void primeCulture();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The app has no router, so "route" is which surface is actually on screen.
+  // A timeline that cannot say she was on a call, or in the auth sheet, when
+  // something happened is a timeline that cannot answer "what happened".
+  useEffect(() => {
+    telRoute(
+      !state.onboarded ? "/onboarding" : authOpen ? "/account" : inCall ? "/call" : "/chat",
+      "tap",
+    );
+  }, [state.onboarded, inCall, authOpen]);
+
+  // user_id is not the delete key, but a session that spans a sign-in should
+  // say so rather than silently changing owner halfway through
+  useEffect(() => {
+    telIdentify(state.deviceId, state.auth?.userId ?? null);
+  }, [state.deviceId, state.auth?.userId]);
 
   // ── silent auto-update ──
   // A long-lived tab keeps running old code after a deploy (that's how bug
@@ -101,7 +121,12 @@ export default function App() {
       if (!pending || inCallRef.current) return;
       // hidden tab → reload now; visible tab → reload once the user has
       // been idle a while (a stale tab kept showing already-fixed bugs)
-      if (document.hidden || Date.now() - lastInput > 45_000) location.reload();
+      if (document.hidden || Date.now() - lastInput > 45_000) {
+        // the reload ends this session; the record has to be on the wire
+        // before it, or the OTA path is invisible in the timeline
+        tel("app.update_applied", { hidden: document.hidden });
+        location.reload();
+      }
     };
     const idleIv = setInterval(maybeReload, 10_000);
     const check = async () => {
@@ -110,12 +135,15 @@ export default function App() {
           (r) => r.text(),
         );
         const m = html.match(/assets\/index-[^"]+\.js/);
-        if (m && !current.endsWith(m[0].split("/").pop() as string)) {
+        const fresh = Boolean(m && !current.endsWith(m[0].split("/").pop() as string));
+        tel("app.update_check", { found: fresh });
+        if (fresh) {
+          if (!pending) tel("app.update_downloaded", { build: m![0].split("/").pop() });
           pending = true;
           maybeReload();
         }
       } catch {
-        /* offline — try next round */
+        tel("app.update_check", { found: false, err: true });
       }
     };
     const iv = setInterval(check, 15 * 60_000);

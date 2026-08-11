@@ -180,6 +180,7 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
             </span>
             <button
               className="wb-btn"
+              data-tel="call.look_away"
               onClick={() => {
                 tap(ImpactStyle.Medium); // the curtain is worth feeling
                 eng.setWatchPaused(!eng.watchPaused);
@@ -198,6 +199,7 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
               <textarea
                 rows={1}
                 autoFocus
+                data-tel="call.composer"
                 aria-label={`Type to ${HER_NAME}`}
                 placeholder="Say something…"
                 value={typed}
@@ -214,6 +216,7 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
                 her without a microphone had no button. */}
             <button
               className={`send-btn ${typed.trim() ? "" : "off"}`}
+              data-tel="call.send_typed"
               onClick={sendTyped}
               aria-label="Send"
             >
@@ -232,6 +235,7 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
           <span className="cbtn-wrap">
             <button
               className={`cbtn ${eng.watching ? "watch-on" : ""}`}
+              data-tel="call.watch"
               onClick={() => (eng.watching ? eng.stopWatchMode() : eng.startWatchMode())}
               aria-label={eng.watching ? "Stop sharing screen" : "Watch together"}
               aria-pressed={eng.watching}
@@ -248,6 +252,7 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
         <span className="cbtn-wrap">
           <button
             className={`cbtn ${showKb ? "active-mic" : ""}`}
+            data-tel="call.keyboard"
             onClick={() => setShowKb((v) => !v)}
             aria-label="Type instead"
             aria-pressed={showKb}
@@ -259,6 +264,7 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
         <span className="cbtn-wrap is-end">
           <button
             className="cbtn danger"
+            data-tel="call.end"
             style={{ width: 74, height: 74 }}
             onClick={() => {
               tap(); // same handler as the visual: latency between senses kills it
@@ -273,6 +279,7 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
         <span className="cbtn-wrap">
           <button
             className={`cbtn ${eng.muted ? "muted" : eng.listening ? "active-mic" : ""}`}
+            data-tel="call.mute"
             onClick={() => eng.toggleMute()}
             aria-label={eng.muted ? "Unmute microphone" : "Mute microphone"}
             aria-pressed={eng.muted}
