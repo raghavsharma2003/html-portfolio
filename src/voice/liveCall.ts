@@ -566,21 +566,31 @@ const DISCARD_CAP_MS = 2000;
 // is not allowed to trade. The murmur therefore runs on its own source into
 // its own gain, overlapping her real audio rather than queueing in front of it,
 // and fades out under her first chunk.
-// OFF. The owner listened and the verdict was "weird, and it doesn't have her
-// energy even if it's just listening" — which is correct, and the timbre was
-// the one property in this whole feature nobody measured. A synthesised "mm"
-// is three harmonics and an envelope: it can borrow her pitch range but it is
-// not her voice, so it lands as a tone from somewhere else in the room rather
-// than as her listening. A backchannel's entire job is to say "it's still me
-// here", and a sound that isn't hers says the opposite.
+// WHAT THE SOUND IS MADE OF, and the one thing that was wrong with it.
+// v1 synthesised the murmur — three harmonics and an envelope — and the owner's
+// verdict was "weird, and it doesn't have her energy even if it's just
+// listening". That is correct, and the timbre was the one property in this
+// whole feature nobody had measured: a synthesised "mm" can borrow her pitch
+// range but it is not her voice, so it lands as a tone from somewhere else in
+// the room rather than as her listening. A backchannel's entire job is to say
+// "it's still me here", and a sound that isn't hers says the opposite.
 //
-// Everything below it is kept and still measured-correct: the placement (in
-// the gap AFTER they stop, never over their voice, proven to be the only safe
+// v2 therefore plays REAL CLIPS of her voice, fetched from the same endpoint
+// that produces her speech (`/api/speech`) during the RING — the one beat in a
+// call that is already idle, where prewarmLiveToken and the greeting TTS
+// already do exactly this. The clips are decoded, trimmed, level-matched and
+// cached before the call path is ever reached, so:
+//   • ZERO network and zero decode on the call path. `emitAck` reads a decoded
+//     buffer or makes no sound at all — there is no lazy fetch, ever.
+//   • the sound is only ever as late as `outCtx` scheduling, never as late as
+//     an endpoint that measured 1.4-4.9s (n=20) for these very clips.
+// Everything else is v1 unchanged and still measured-correct: the placement (in
+// the gap AFTER they stop, never over their voice — proven to be the only safe
 // option), the mic hold across the reverb tail, and the guarantee that it never
-// touches `playhead`. The missing piece is a real clip of HER voice, which the
-// existing prewarm path could fetch during the ring — where there is already
-// idle time — so it would still cost nothing on the call path. That is the
-// version worth shipping; this one is not.
+// touches `playhead`.
+//
+// STILL OFF pending the owner's ear on the clips themselves (scratchpad/ackv2).
+// Flipping this one constant is the whole switch.
 const ACK_ENABLED = false;
 const ACK_MIN_USER_MS = 2500; // only after a real stretch of them talking
 const ACK_MIN_VOICE_MS = 1200; // ...of which this much was actually voice
@@ -591,8 +601,42 @@ const ACK_MIN_VOICE_MS = 1200; // ...of which this much was actually voice
 const ACK_TALK_GAP_MS = 800;
 const ACK_MIN_GAP_MS = 15_000; // rarely, and never twice running
 const ACK_AFTER_CHUNKS = 2; // ≈420ms after they stop: where a human lands one
-const ACK_SECS = 0.42;
 const ACK_PEAK = 0.12; // −18 dBFS: a backchannel is quieter than a sentence
+// HOW LOUD A REAL CLIP IS MADE, and why it is not simply ACK_PEAK.
+// ACK_PEAK is a peak-SAMPLE figure, and it was applied to a near-sine. A voice
+// has a crest factor a near-sine does not, so normalising a real clip by peak
+// sample lands it ~10 dB below the sound that was actually measured — quiet to
+// the point of inaudible on a phone speaker in a room.
+//
+// The reading the echo apparatus takes off her audio (herLevels, and the power
+// that feeds herEnv) is the PEAK 20ms RMS, so that is the number every measured
+// result in this lane was taken at. The synth produced 0.0676 of it — −23.4
+// dBFS, measured over n=200 randomised draws of the v1 generator. Matching that
+// exactly is what makes a real clip both as quiet as intended AND, to the echo
+// model, the same sound the floor was proven against.
+const ACK_RMS20 = 0.0676;
+// ...with a ceiling so an onset cannot crack: if scaling to ACK_RMS20 would put
+// a sample above this, the WHOLE clip is scaled down instead (never clipped —
+// a limiter would change the timbre, which is the entire point of v2). 3×
+// ACK_PEAK is above the crest factor of ordinary speech, so it bites only on
+// outliers, and when it does the clip is quieter, never harsher.
+const ACK_PEAK_CEIL = ACK_PEAK * 3;
+// A clip shorter than this is a decode artefact, not a sound. Longer than this
+// is not a backchannel: the mic is HELD for the clip plus ACK_TAIL_GUARD_MS,
+// and that hold is the window in which the person starting to talk again has to
+// win the floor back through the barge-in path rather than simply being heard.
+// 900ms + 320ms guard also lands the sound's end just before her real first
+// word (median 1.5s), so it fills the dead air rather than colliding with her.
+// Clips outside the band are DROPPED, never truncated — a cut syllable is a
+// click and half a word.
+const ACK_MIN_MS = 150;
+const ACK_MAX_MS = 900;
+// Trim threshold for the synthesised silence the TTS pads every clip with
+// (measured 80-440ms of lead on 20 real clips). −30 dB from the clip's own
+// peak: anything quieter than that is not part of the sound, and leaving it in
+// would push the sound late relative to the 420ms placement and hold the
+// microphone for padding.
+const ACK_TRIM_DB = -30;
 // Her own reverb tail keeps arriving after the sound itself has stopped, and
 // the listen gate has no echo term, so an unguarded tail is streamed to the
 // server as if the user had started talking. Measured as the +427ms of
@@ -661,6 +705,265 @@ function takePre() {
   }
   pre = null;
   return null;
+}
+
+// ── her listening sounds, fetched before the call needs them ─────────────
+// The whole point of doing this here rather than in `emitAck` is that the call
+// path may never wait on a network. These are fetched during the ring, decoded
+// and level-matched once, and then live in module scope for the rest of the app
+// session — so a second call pays nothing at all, and a first call on a device
+// that has run the app before pays only an IndexedDB read.
+//
+// WHAT SHE SAYS. Four neutral continuers, and neutral is a requirement, not a
+// stylistic preference: this sound is chosen by a TIMER — 420ms after they stop
+// talking — with nothing in the client that knows what they just said. A "hmm"
+// is right after every possible sentence. A LAUGH IS NOT, and a laugh landing
+// on its own after someone has just told you something bad is a worse product
+// failure than silence, which is the thing this whole feature exists to fix. A
+// laugh clip is generated and shipped alongside these for the owner to hear
+// (scratchpad/ackv2/*-laugh.wav); adding it here is one line, and it should not
+// be taken until something upstream can tell this lane what the turn was about.
+//
+// Also measured, and the reason the text is this bare: a delivery direction in
+// brackets gets PERFORMED AS WORDS. "[laughs softly]" came back as laughter
+// followed by the spoken word "Softly." (transcribed, 1 of 5 clips). Anything
+// sentence-shaped handed to a TTS is a phrase it may read out — the same
+// failure mode persona.ts documents for the brain.
+const ACK_PHRASES = ["Hmm.", "Haan...", "Acha...", "Mmhm."];
+// Direction, kept identical to the one speech.ts already uses for its cascade
+// backchannels so the two lanes cannot drift into different-sounding sounds.
+const ACK_STYLE = "quiet, brief, barely-there listener sound, low energy";
+// The voice she has ON THIS LANE. The live session speaks in Aoede (see the
+// setup block below); a clip in any other voice is a second person in the call,
+// which is the exact complaint v1 collected. NOTE FOR WHOEVER OWNS api/speech.js:
+// its free Gemini lane currently hardcodes voiceName "Kore" and ignores this
+// field, so today these clips come back in the WRONG VOICE. Honouring `voice`
+// there (it is already validated against ALLOWED_VOICES, which contains Aoede)
+// is what makes this feature correct rather than merely working.
+const ACK_VOICE = "Aoede";
+const ACK_CACHE_V = "ack2"; // bump to invalidate every cached clip
+
+interface AckClip {
+  name: string;
+  pcm: Float32Array; // mono, trimmed, faded, level-matched
+  sr: number;
+}
+const ackClips: AckClip[] = [];
+let ackWarming = false;
+let ackTried = 0;
+const ACK_WARM_RETRY_MS = 60_000;
+
+/** Minimal IndexedDB clip cache. Deliberately self-contained: liveCall.ts has
+ *  no imports outside `./level` and `../engine/diag`, and the echo simulator
+ *  builds it standalone on that basis. */
+function ackDb(): Promise<IDBDatabase | null> {
+  return new Promise((resolve) => {
+    try {
+      if (typeof indexedDB === "undefined") return resolve(null);
+      const req = indexedDB.open("meera-ack", 1);
+      req.onupgradeneeded = () => req.result.createObjectStore("pcm");
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+async function ackCacheGet(key: string): Promise<{ pcm: Float32Array; sr: number } | null> {
+  const db = await ackDb();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const req = db.transaction("pcm").objectStore("pcm").get(key);
+      req.onsuccess = () => {
+        const v = req.result;
+        resolve(
+          v && v.pcm instanceof Int16Array && typeof v.sr === "number"
+            ? { pcm: fromI16(v.pcm), sr: v.sr }
+            : null,
+        );
+      };
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+function ackCachePut(key: string, pcm: Float32Array, sr: number) {
+  void ackDb().then((db) => {
+    if (!db) return;
+    try {
+      db.transaction("pcm", "readwrite").objectStore("pcm").put({ pcm: toI16(pcm), sr }, key);
+    } catch {
+      /* cache is best-effort, always */
+    }
+  });
+}
+const toI16 = (f: Float32Array) => {
+  const o = new Int16Array(f.length);
+  for (let i = 0; i < f.length; i++) o[i] = Math.max(-32768, Math.min(32767, Math.round(f[i] * 32767)));
+  return o;
+};
+const fromI16 = (i: Int16Array) => {
+  const o = new Float32Array(i.length);
+  for (let k = 0; k < i.length; k++) o[k] = i[k] / 32768;
+  return o;
+};
+
+/**
+ * Decode the WAV `/api/speech` returns. Deliberately a hand parser rather than
+ * `decodeAudioData`: decoding needs an AudioContext, and this runs during the
+ * ring where creating one costs a user-gesture argument we should not be having
+ * on a background path. The format is fixed by our own endpoint (24k, 16-bit,
+ * mono, canonical header) but the chunk walk is real, because a proxy that ever
+ * returns something else must produce NO SOUND rather than noise.
+ */
+function decodeWav(buf: ArrayBuffer): { pcm: Float32Array; sr: number } | null {
+  const dv = new DataView(buf);
+  if (buf.byteLength < 44) return null;
+  const tag = (o: number) => String.fromCharCode(dv.getUint8(o), dv.getUint8(o + 1), dv.getUint8(o + 2), dv.getUint8(o + 3));
+  if (tag(0) !== "RIFF" || tag(8) !== "WAVE") return null;
+  let off = 12;
+  let sr = 0;
+  let ch = 1;
+  let bits = 0;
+  let fmt = 0;
+  while (off + 8 <= buf.byteLength) {
+    const id = tag(off);
+    const size = dv.getUint32(off + 4, true);
+    const body = off + 8;
+    if (id === "fmt " && size >= 16) {
+      fmt = dv.getUint16(body, true);
+      ch = dv.getUint16(body + 2, true);
+      sr = dv.getUint32(body + 4, true);
+      bits = dv.getUint16(body + 14, true);
+    } else if (id === "data") {
+      if (fmt !== 1 || bits !== 16 || ch < 1 || sr < 8000) return null;
+      const end = Math.min(buf.byteLength, body + size);
+      const frames = Math.floor((end - body) / 2 / ch);
+      const out = new Float32Array(frames);
+      for (let i = 0; i < frames; i++) out[i] = dv.getInt16(body + i * ch * 2, true) / 32768;
+      return { pcm: out, sr };
+    }
+    off = body + size + (size & 1);
+  }
+  return null;
+}
+
+/** peak of the 20ms-RMS envelope — the same reading the echo apparatus takes */
+function peak20(x: Float32Array, sr: number, from = 0, to = x.length): number {
+  const w = Math.max(1, Math.round(sr * 0.02));
+  let peak = 0;
+  for (let i = from; i + w <= to; i += w) {
+    let a = 0;
+    for (let j = i; j < i + w; j++) a += x[j] * x[j];
+    const r = Math.sqrt(a / w);
+    if (r > peak) peak = r;
+  }
+  return peak;
+}
+
+/**
+ * Turn one fetched WAV into something the emit path can play: strip the TTS's
+ * silence padding, reject anything that is not backchannel-shaped, fade the cut
+ * edges, and normalise to the level the v1 sound was measured at. Returns null
+ * whenever the clip is not usable — silence is always an acceptable outcome
+ * here and a bad clip never is.
+ */
+function shapeAck(pcm: Float32Array, sr: number): Float32Array | null {
+  const w = Math.max(1, Math.round(sr * 0.02));
+  const peak = peak20(pcm, sr);
+  if (!(peak > 0)) return null;
+  const thr = peak * Math.pow(10, ACK_TRIM_DB / 20);
+  let a = 0;
+  let b = pcm.length;
+  for (let i = 0; i + w <= pcm.length; i += w) {
+    let s = 0;
+    for (let j = i; j < i + w; j++) s += pcm[j] * pcm[j];
+    if (Math.sqrt(s / w) >= thr) {
+      a = i;
+      break;
+    }
+  }
+  for (let i = Math.floor((pcm.length - w) / w) * w; i >= a; i -= w) {
+    let s = 0;
+    for (let j = i; j < i + w && j < pcm.length; j++) s += pcm[j] * pcm[j];
+    if (Math.sqrt(s / w) >= thr) {
+      b = Math.min(pcm.length, i + w);
+      break;
+    }
+  }
+  const ms = ((b - a) / sr) * 1000;
+  if (ms < ACK_MIN_MS || ms > ACK_MAX_MS) return null;
+  const out = pcm.slice(a, b);
+  // 5ms cosine edges: the trim cut mid-waveform and a step is a click
+  const ed = Math.min(Math.round(sr * 0.005), out.length >> 1);
+  for (let i = 0; i < ed; i++) {
+    const g = 0.5 - 0.5 * Math.cos((Math.PI * i) / ed);
+    out[i] *= g;
+    out[out.length - 1 - i] *= g;
+  }
+  const p20 = peak20(out, sr);
+  if (!(p20 > 0)) return null;
+  let gain = ACK_RMS20 / p20;
+  let pk = 0;
+  for (let i = 0; i < out.length; i++) {
+    const v = Math.abs(out[i]);
+    if (v > pk) pk = v;
+  }
+  if (pk * gain > ACK_PEAK_CEIL) gain = ACK_PEAK_CEIL / pk; // scale down, never clip
+  for (let i = 0; i < out.length; i++) out[i] *= gain;
+  return out;
+}
+
+/**
+ * Fetch her listening sounds. Safe to call as often as you like — it
+ * self-throttles, and it is a no-op once the clips are in hand.
+ *
+ * SEQUENTIAL on purpose. The ring already fires the greeting brain call, the
+ * greeting TTS, six cascade backchannel clips and a token mint; this is the
+ * lowest-priority audio in the product and it must not compete with any of them
+ * for the shared free-key pool. Sequential costs a cold first call its sounds
+ * (which is exactly the documented behaviour: no clip, no sound) and costs a
+ * warm one nothing at all.
+ */
+export function prewarmAckClips(base: string) {
+  if (typeof fetch === "undefined") return;
+  if (ackWarming || ackClips.length >= ACK_PHRASES.length) return;
+  if (Date.now() - ackTried < ACK_WARM_RETRY_MS) return;
+  ackTried = Date.now();
+  ackWarming = true;
+  void (async () => {
+    const t0 = Date.now();
+    for (const text of ACK_PHRASES) {
+      if (ackClips.some((c) => c.name === text)) continue;
+      const key = `${ACK_CACHE_V}:${ACK_VOICE}:${text}`;
+      try {
+        const hit = await ackCacheGet(key);
+        if (hit) {
+          ackClips.push({ name: text, pcm: hit.pcm, sr: hit.sr });
+          continue;
+        }
+        const res = await fetch(`${base}/api/speech`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, style: ACK_STYLE, voice: ACK_VOICE }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!res.ok) continue;
+        const dec = decodeWav(await res.arrayBuffer());
+        if (!dec) continue;
+        const shaped = shapeAck(dec.pcm, dec.sr);
+        if (!shaped) continue;
+        ackClips.push({ name: text, pcm: shaped, sr: dec.sr });
+        ackCachePut(key, shaped, dec.sr);
+      } catch {
+        /* a listening sound is never worth failing anything else over */
+      }
+    }
+    ackWarming = false;
+    diag("call", "ack_clips", { have: ackClips.length, of: ACK_PHRASES.length, ms: Date.now() - t0 });
+  })();
 }
 
 async function mintToken(base: string, budgetMs: number) {
@@ -1640,33 +1943,44 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   // still gapless whenever the network delivers on time.
   const LEAD = 0.03;
   // ── the listening sound ──
-  // A closed-mouth "mm": a nasal murmur is one of the few speech sounds with
-  // no consonant edge and almost no formant structure — a fundamental in her
-  // register, two fast-decaying harmonics, a small downward glide and a soft
-  // attack. It is generated here rather than fetched so that it costs no
-  // network on the call path and cannot arrive late; the price is that WHETHER
-  // IT SOUNDS LIKE HER IS THE ONE THING IN THIS FILE THAT HAS NOT BEEN
-  // MEASURED. Everything below is measured; the timbre needs a human ear.
+  // Her own voice, out of the clips `prewarmAckClips` fetched during the ring.
+  // NOTHING here reaches the network, and nothing here decodes: the buffers are
+  // built once from PCM that is already trimmed and level-matched, and if there
+  // are none, no sound is made. That is the whole contract — a listening sound
+  // that could ever arrive late, or cost the call path a millisecond, is worse
+  // than the silence it replaces.
   let lastAckAt = 0;
+  let lastAckIdx = -1;
   let ackNode: { src: AudioBufferSourceNode; g: GainNode } | null = null;
-  const makeMurmur = () => {
-    const sr = 24000;
-    const n = Math.round(sr * ACK_SECS);
-    const buf = outCtx.createBuffer(1, n, sr);
-    const ch = buf.getChannelData(0);
-    const f0 = 194 + Math.random() * 26;
-    const fall = 0.87 + Math.random() * 0.06; // "mm" falls; "hm?" would rise
-    let ph = 0;
-    for (let i = 0; i < n; i++) {
-      const u = i / n;
-      ph += (2 * Math.PI * (f0 * (1 + (fall - 1) * u))) / sr;
-      const s = Math.sin(ph) + 0.3 * Math.sin(2 * ph) + 0.09 * Math.sin(3 * ph);
-      // no plosive onset, a long release: an unhurried, non-committal sound
-      const env = Math.min(1, u / 0.14) * Math.min(1, (1 - u) / 0.34);
-      const wobble = 1 + 0.05 * Math.sin(2 * Math.PI * 4.6 * u * ACK_SECS);
-      ch[i] = (s / 1.39) * env * wobble * ACK_PEAK;
+  const ackBufs = new Map<string, AudioBuffer>();
+  /** One AudioBuffer per clip, built on first use and kept for the call. */
+  const ackBuf = (c: AckClip): AudioBuffer | null => {
+    const had = ackBufs.get(c.name);
+    if (had) return had;
+    try {
+      const buf = outCtx.createBuffer(1, c.pcm.length, c.sr);
+      buf.getChannelData(0).set(c.pcm);
+      ackBufs.set(c.name, buf);
+      return buf;
+    } catch {
+      return null; // ctx closed
     }
-    return buf;
+  };
+  /**
+   * Which sound she makes. Never the same one twice running — that is the
+   * "constant humming" failure speech.ts already documents on the cascade lane,
+   * and it reads as a loop rather than as a person the moment it happens. With
+   * ACK_MIN_GAP_MS between sounds the choice is otherwise free, so it is
+   * random-without-immediate-repeat rather than a fixed rotation, which is
+   * itself a pattern once you have been on a few calls.
+   */
+  const pickAck = (): AckClip | null => {
+    if (!ackClips.length) return null;
+    if (ackClips.length === 1) return ackClips[0];
+    let i = lastAckIdx;
+    while (i === lastAckIdx) i = Math.floor(Math.random() * ackClips.length);
+    lastAckIdx = i;
+    return ackClips[i];
   };
   /** Trail the hum off — she is starting a word, not being cut off. */
   const fadeAck = () => {
@@ -1688,8 +2002,8 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
    *
    * Three invariants, in the order they matter:
    *  1. `playhead` is not touched, so her first word is not delayed by a
-   *     single sample. The murmur is a parallel source; if her audio lands on
-   *     top of it, the murmur fades and she does not wait.
+   *     single sample. The clip is a parallel source; if her audio lands on
+   *     top of it, the clip fades and she does not wait.
    *  2. It is REGISTERED with the echo apparatus — speakingUntil, herLevels,
    *     herEnv — before it is audible. That is what makes the arbiter hold the
    *     microphone across it and across its reverb tail, so not one sample of
@@ -1699,12 +2013,18 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
    *     be faded across; a hum has no words to land between.
    */
   const emitAck = () => {
-    if (!ACK_ENABLED || dead) return; // synthesised timbre rejected — see ACK_ENABLED
+    if (!ACK_ENABLED || dead) return; // awaiting the owner's ear — see ACK_ENABLED
     const now = Date.now();
     if (now - lastAckAt < ACK_MIN_GAP_MS) return;
+    // NO CLIP, NO SOUND. There is deliberately no fallback here — not the
+    // synthesised murmur (rejected on timbre), and above all not a fetch. The
+    // clips arrive during the ring or they do not arrive at all.
+    const clip = pickAck();
+    if (!clip) return;
     try {
+      const buf = ackBuf(clip);
+      if (!buf) return;
       const t0 = outCtx.currentTime;
-      const buf = makeMurmur();
       const at = t0 + LEAD;
       const src = outCtx.createBufferSource();
       src.buffer = buf;
@@ -1724,17 +2044,17 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       };
       // the same two readings playChunk takes off her real audio, so the echo
       // prediction and the coupling estimate see this exactly as they see her
-      let peak20 = 0;
+      let peakRms = 0;
       const ch = buf.getChannelData(0);
-      const fr = 480;
+      const fr = Math.max(1, Math.round(clip.sr * 0.02));
       for (let f = 0; f + fr <= buf.length; f += fr) {
         let a2 = 0;
         for (let i = f; i < f + fr; i++) a2 += ch[i] * ch[i];
-        herEnv.push({ t: at + (f + fr) / 24000, p: a2 / fr });
+        herEnv.push({ t: at + (f + fr) / clip.sr, p: a2 / fr });
         const r20 = Math.sqrt(a2 / fr);
-        if (r20 > peak20) peak20 = r20;
+        if (r20 > peakRms) peakRms = r20;
       }
-      herLevels.push({ a: at, b: at + buf.duration, rms: peak20 });
+      herLevels.push({ a: at, b: at + buf.duration, rms: peakRms });
       // The guard is the whole point: `herSpeaking` has to outlive the sound
       // by its own reverb, or the tail is streamed to the server as the user.
       speakingUntil = Math.max(
@@ -1743,7 +2063,11 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       );
       lastAckAt = now;
       opts.onState("speaking");
-      diag("call", "ack_emitted", { afterUserMs: Math.round(ACK_SECS * 1000) });
+      diag("call", "ack_emitted", {
+        clip: clip.name,
+        ms: Math.round(buf.duration * 1000),
+        rms20: Math.round(peakRms * 1000) / 1000,
+      });
     } catch {
       /* ctx closed — silence is the correct failure here */
     }

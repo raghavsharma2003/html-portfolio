@@ -55,7 +55,7 @@ import {
   watchAvailable,
   type WatchSession,
 } from "../native/watch";
-import { startLiveCall, type LiveSession } from "../voice/liveCall";
+import { prewarmAckClips, startLiveCall, type LiveSession } from "../voice/liveCall";
 import { readLevel } from "../voice/level";
 import { SceneReader, gridFromRGBA, isShowClass, type WakeClass } from "../watch/scene";
 import { callLookup } from "../voice/liveLookup";
@@ -428,6 +428,14 @@ ${recallRef.current}`
     // restart): an orphaned native engine would talk over this whole call
     void stopStrayWatch();
     prefetchBackchannels(voiceOpts); // instant "hmm?" clips for turn-taking
+    // The same idea for the LIVE lane, which cannot use those: speech.ts plays
+    // them through its own AudioContext, and an unregistered clip coming out of
+    // the speaker during a live call is her own voice handed to the server as
+    // if the user had said it (measured, exp11). liveCall.ts keeps its own
+    // copies so it can register them with the echo apparatus before they are
+    // audible. Fetched HERE because the ring is the idle beat — the call path
+    // itself may never wait on this.
+    prewarmAckClips(LIVE_BASE);
     // long-term memory for the whole call, fetched while the phone "rings"
     const recent = state.messages
       .filter((m) => m.from === "me")

@@ -65,7 +65,15 @@ export default async function handler(req, res) {
       if (!poolSize()) return null;
       const got = await withGeminiKey(async (k) => {
         const r = await fetch(
-          "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent",
+          // 3.1, not 2.5 — the same model the paid lane below already uses, so
+          // this is not a different voice. I introduced 2.5 here when adding
+          // the free lane, purely because it was the model I had probed, and
+          // it cannot stream: it answers a streaming request with HTTP 200 and
+          // ONE frame containing the whole file, so streaming looks unsupported
+          // at the API level when it is unsupported at the MODEL level.
+          // Measured on the same text: 2053ms p50 / 4177ms p90 / 20180ms worst
+          // against 3.1's 579ms p50 / 722ms p90 / 722ms worst once streamed.
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent",
           {
             method: "POST",
             headers: { "x-goog-api-key": k, "Content-Type": "application/json" },
@@ -73,7 +81,17 @@ export default async function handler(req, res) {
               contents: [{ parts: [{ text: `Say in a warm, natural Indian-accented Hinglish, ${mood}: ${text.slice(0, 1100)}` }] }],
               generationConfig: {
                 responseModalities: ["AUDIO"],
-                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } },
+                // Her voice, not a hardcoded one. This lane ignored the `voice`
+                // parameter it validates three lines below and always sent
+                // "Kore", while the paid lane sends Leda — so which voice she
+                // had depended on which key had quota, and could FLIP BETWEEN
+                // PHRASES of the same sentence. Leda is what she has always
+                // sounded like; Kore was introduced by accident today.
+                speechConfig: {
+                  voiceConfig: {
+                    prebuiltVoiceConfig: { voiceName: ALLOWED_VOICES.has(voice) ? voice : DEFAULT_VOICE },
+                  },
+                },
               },
             }),
             signal: AbortSignal.timeout(30_000),
