@@ -507,6 +507,7 @@ async function opForget(device, body) {
   let logRows = [];
   let nodeRows = [];
   let edges = 0;
+  let photos = 0;
 
   if (scope === "item") {
     const name = String(body.name || "").trim().toLowerCase().slice(0, 60);
@@ -553,6 +554,8 @@ async function opForget(device, body) {
       [device, a, b],
     ).catch(() => []);
     edges += inWindow.length;
+    // the pictures they sent during that stretch go with it
+    photos = await deletePhotos(device, from, to).catch(() => 0);
   } else {
     logRows = await q(`delete from meera_log where device_id = $1 returning id`, [device]);
     nodeRows = await q(`delete from meera_nodes where device_id = $1 returning id, name`, [device]);
@@ -561,6 +564,9 @@ async function opForget(device, body) {
     );
     edges = e.length;
     await q(`delete from meera_forget where device_id = $1`, [device]).catch(() => {});
+    // a full wipe takes every picture, including any whose filename carries no
+    // parseable timestamp — this is the one path that is allowed to be total
+    photos = await deletePhotos(device).catch(() => 0);
   }
 
   if (scope !== "all") {
@@ -572,8 +578,66 @@ async function opForget(device, body) {
   return {
     ok: true,
     scope,
-    deleted: { log: logRows.length, nodes: nodeRows.length, edges },
+    deleted: { log: logRows.length, nodes: nodeRows.length, edges, photos },
   };
+}
+
+// Delete the actual image files, not just the rows that describe them.
+//
+// Forgetting used to clear every Postgres row and leave the uploaded pictures
+// sitting in storage under `${device}/`, so "bhool ja jo maine bheja tha"
+// deleted the description of a photo and kept the photo. That is the kind of
+// gap that makes a privacy promise a lie, and it is invisible from inside the
+// app because nothing in the UI ever lists the bucket.
+//
+// The upload path names each object `${device}/${Date.now()}-rand.jpg`, so the
+// timestamp travels in the filename and a windowed forget can honour its own
+// window instead of falling back to all-or-nothing.
+async function deletePhotos(device, from, to) {
+  const prefix = `${device}/`;
+  const paths = [];
+  // list is paginated; the upload quota caps a device at 500 objects, so this
+  // terminates well inside a serverless invocation
+  for (let offset = 0; offset < 600; offset += 100) {
+    const page = await fetch(`${SB_URL}/storage/v1/object/list/meera-photos`, {
+      method: "POST",
+      headers: {
+        apikey: SB_KEY,
+        Authorization: `Bearer ${SB_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prefix, limit: 100, offset }),
+    })
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => []);
+    if (!Array.isArray(page) || !page.length) break;
+    for (const o of page) {
+      const name = String(o?.name || "");
+      if (!name) continue;
+      if (Number.isFinite(from) && Number.isFinite(to)) {
+        // an object whose name does not carry a parseable stamp cannot be
+        // proven to be inside the window, and a forget must not delete what it
+        // cannot account for — the full wipe is the path that takes everything
+        const stamp = Number(name.split("-")[0]);
+        if (!Number.isFinite(stamp) || stamp < from || stamp >= to) continue;
+      }
+      paths.push(prefix + name);
+    }
+    if (page.length < 100) break;
+  }
+  if (!paths.length) return 0;
+  const del = await fetch(`${SB_URL}/storage/v1/object/meera-photos`, {
+    method: "DELETE",
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ prefixes: paths }),
+  }).catch(() => null);
+  if (!del || !del.ok) return 0;
+  const done = await del.json().catch(() => []);
+  return Array.isArray(done) ? done.length : paths.length;
 }
 
 async function opUploadPhoto(device, body) {
