@@ -685,10 +685,23 @@ ${memories}`;
     }
   }
 
-  // calls: hard token cap (spoken replies are short) + streaming. The call
-  // brain is the same gemini-3.6-flash as chat — the lite model kept
-  // misreading Hinglish; streaming pays for the smarter model's latency.
-  const maxTokens = mode === "call" ? 190 : 700;
+  // calls: token cap (spoken replies are short) + streaming. The call brain is
+  // the same gemini-3.6-flash as chat — the lite model kept misreading
+  // Hinglish; streaming pays for the smarter model's latency.
+  //
+  // 190 -> 400. The old cap was sized for a model that emits only reply text,
+  // and it silently became a correctness bug on any model that thinks first:
+  // measured, reasoning tokens ate the budget and cut her off MID-WORD on 3-5%
+  // of spoken turns, once answering a question about a grandmother's death
+  // anniversary with two words and stopping. Raising it takes that to 0%.
+  //
+  // The reason to fear a bigger cap was that she would ramble, and that was
+  // measured too: 27.7 words vs 28.7 at the old cap, and latency 1549ms vs
+  // 1636ms. Her length is governed by the FINAL two-count block in the brief,
+  // not by the ceiling — so the cap was never holding her short, it was only
+  // truncating the unlucky turns. A ceiling should be a safety net, not a
+  // silent editor.
+  const maxTokens = mode === "call" ? 400 : 700;
   let text: string | null = null;
   const fullSystem = sysCore + sysTail;
   if (keys.openrouterKey) text = await openrouterThink(keys, fullSystem, turns, maxTokens);
