@@ -627,6 +627,11 @@ export async function think(
     // only CHAT directives are her opening the conversation. A call pickup is
     // THEM calling HER, and it is the single moment this feature pays for.
     sheInitiated: isDirective && mode === "chat",
+    // Her taste is PULLED from what they just said, exactly like cultureNote:
+    // no match, nothing enters the prompt. Never on a directive — a message
+    // she is opening is the one place an opinion would be volunteered, and a
+    // companion who arrives with a take she was not asked for is exhausting.
+    userText: isDirective ? "" : latest,
   });
   sysTail += inner.thread;
 

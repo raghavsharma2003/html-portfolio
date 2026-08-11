@@ -109,17 +109,32 @@ const TAIL_EXTRAS =
   // her carried feeling (one thread) and up to 3 wants
   1_500;
 
+// Her taste block (676 chars worst case, measured) plus the week-shape mood
+// line (418), which can co-occur on the same turn. Charged only to the lanes
+// that can actually carry them: inner.ts suppresses BOTH on surface "watch",
+// so charging the watch lane for them makes the guard cry wolf on the very
+// lane that is already tightest — and a guard that warns about text it knows
+// cannot be there is one someone eventually raises a cap to silence.
+const TASTE_EXTRAS = 1_100;
+
 const lanes = [
   { label: "text (chat)", medium: "text", style: "", tail: SEARCH_DECISION },
   { label: "voice cascade", medium: "voice", style: buildSpeechStyle("gemini"), tail: "" },
   { label: "voice live", medium: "voice", style: buildSpeechStyle("live"), tail: "" },
-  { label: "voice live + watch", medium: "voice", style: buildSpeechStyle("live"), tail: WATCH_MODE_NOTE },
+  {
+    label: "voice live + watch",
+    medium: "voice",
+    style: buildSpeechStyle("live"),
+    tail: WATCH_MODE_NOTE,
+    noTaste: true, // inner.ts suppresses taste and week-shape on this surface
+  },
 ];
 
 for (const lane of lanes) {
   const { core, tail } = buildSystemPromptParts(user, 999, lane.medium);
   check(`${lane.label} core`, core.length + lane.style.length, SYSTEM_MAX);
-  check(`${lane.label} tail`, tail.length + lane.tail.length + TAIL_EXTRAS, TAIL_MAX);
+  const extras = TAIL_EXTRAS + (lane.noTaste ? 0 : TASTE_EXTRAS);
+  check(`${lane.label} tail`, tail.length + lane.tail.length + extras, TAIL_MAX);
 }
 
 if (failed) {

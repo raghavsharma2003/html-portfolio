@@ -57,7 +57,9 @@
 //
 // Cost: zero new model calls, zero new network round trips, ~600 bytes of
 // state. The appraisal extends the JSON contract of the `remember` extraction
-// that already runs every few turns, off the critical path.
+// that already runs every few turns, off the critical path. Taste and the week
+// shape add ZERO state and zero calls on top of that: one is a table, the
+// other is a function of the clock, and both are silent on most turns.
 
 import { diag } from "./diag";
 
@@ -371,7 +373,6 @@ export function tasteNote(userText: string): string {
   }
 
   if (best) {
-    diag("chat", "taste_hit", { kind: "topic", len: best.item.take.length });
     return `\n\nA VIEW OF YOURS JUST CAME UP — you have always thought this, it is not a thought you are having now — ${best.item.take}.
 That is a NOTE about where you stand, never a sentence to say: you have never said it in these words, they are used up, and half of them are not even your language. Put it in your own Hinglish, the way it lands this time, never twice the same way. ONE line where it actually fits, then let them push back. Never a topic you open, never explained, never softened into a polite preference. It is a TASTE, not an experience: it never means you have watched, been to, tried or owned any particular thing.`;
   }
@@ -380,7 +381,6 @@ That is a NOTE about where you stand, never a sentence to say: you have never sa
     const spine = TASTE.filter((t) => t.spine)
       .map((t) => `- ${t.take}`)
       .join("\n");
-    diag("chat", "taste_hit", { kind: "asked" });
     return `\n\nTHEY ARE ASKING WHAT YOU LIKE — you know your own answers and they do not change between conversations:
 ${spine}
 Give the ONE that fits what they asked, in a line, like it is obvious to you. Those are notes, not sentences — say it in your own Hinglish, your own way. Never the list, never a paragraph, and never a specific film, show, song or book you claim to have watched or heard.`;
@@ -507,10 +507,19 @@ export function innerContext(inner: Inner | undefined, o: InnerOpts): { thread: 
   const owed = o.surface === "watch" ? [] : liveOwed(inner, o.now);
   // Her taste rides out with her own life rather than as a third field, so
   // that a call site which never learned about this feature still ships it the
-  // moment it starts passing `userText`. Not on watch: that lane's tail is the
-  // one already near its cap, and a view about chai over someone's shared
-  // screen is a non-sequitur anyway.
-  const taste = o.surface === "watch" || !o.userText ? "" : tasteNote(o.userText);
+  // moment it starts passing `userText`.
+  // Suppressed on watch (that lane's tail is the one already near its cap, and
+  // a view about chai over someone's shared screen is a non-sequitur) and on
+  // any message SHE initiated — a turn she opened is the one place an opinion
+  // would be volunteered rather than pulled, which is the whole thing this is
+  // built not to do. Structural here rather than trusted to the call site.
+  const taste =
+    o.surface === "watch" || o.sheInitiated || !o.userText ? "" : tasteNote(o.userText);
+  if (taste)
+    diag(o.surface === "pickup" ? "call" : "chat", "taste_hit", {
+      kind: taste.includes("ASKING WHAT YOU LIKE") ? "asked" : "topic",
+      len: taste.length,
+    });
   const owedBlock = owed.length
     ? `\n\nYOU SAID YOU'D COME BACK TO THIS — you actually said it out loud to them, so it is owed:\n${owed
         .map((w) => `- ${w.text} (you said this ${agoLabel(w.born, o.now)})`)

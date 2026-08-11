@@ -269,6 +269,10 @@ export function useCallEngine(
       now: Date.now(),
       lastMsgAt: lastMsg?.at || 0,
       surface: "pickup",
+      // what they said last before calling — her taste is pulled from it, the
+      // same way the chat lane does. A pickup is THEM calling HER, so this is
+      // never her volunteering an opinion.
+      userText: lastMsg?.text || "",
     });
     const system =
       parts.core +
@@ -281,9 +285,15 @@ export function useCallEngine(
 - A memory is not a live update. Anything with a date or a plan in it may already have happened, so an old one gets asked about as old ("us december wali shaadi ho gayi na?") instead of announced as if it's still ahead — then you let them tell you where it stands.
 ${recallRef.current}`
         : "") +
-      (herLife || inner.wants
-        ? `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are fixed between you two, not open to reinvention. Same job, same people, same flat, same plans. Add new texture freely; never contradict a line here, and never re-tell one as if it's news:\n${herLife}${inner.wants}`
-        : "");
+      // herLife and inner.wants must NOT share a header. The heading is about
+      // things she has already SAID and cannot now contradict; the wants block
+      // now also carries her taste, and filing an opinion under "what you have
+      // already told them" turns a standing preference into a claim that she
+      // once announced it.
+      (herLife
+        ? `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are fixed between you two, not open to reinvention. Same job, same people, same flat, same plans. Add new texture freely; never contradict a line here, and never re-tell one as if it's news:\n${herLife}`
+        : "") +
+      inner.wants;
     let self: LiveSession | null = null;
     const s = await startLiveCall({
       base: LIVE_BASE,
