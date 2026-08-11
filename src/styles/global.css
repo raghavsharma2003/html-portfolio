@@ -1562,7 +1562,13 @@ button {
   width: 168%;
   height: 168%;
   border-radius: 50%;
-  background: radial-gradient(circle, transparent 57%, var(--pr-hue) 70%, transparent 84%);
+  /* closest-side, explicitly. A radial-gradient defaults to farthest-corner,
+     so on this square box every stop was measured against the corner distance
+     (r x 1.414) rather than the edge — which pushed the band out to ~2x her
+     radius, clipping it against the phone viewport and leaving a ~60px dead
+     gap between her face and where the ring started. The percentages below
+     were always written as fractions of the SIDE; this makes that true. */
+  background: radial-gradient(circle closest-side, transparent 57%, var(--pr-hue) 70%, transparent 84%);
   opacity: 0.1;
   will-change: transform, opacity;
   pointer-events: none;

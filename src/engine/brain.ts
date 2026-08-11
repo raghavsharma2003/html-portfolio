@@ -127,7 +127,13 @@ const META_LEAK =
 // that fact out of the parser so the lookup block can still run the honest
 // "couldn't check" pass. It rides a widened type instead of HeartReply itself
 // because it is brain-internal — nothing downstream of think() reads it.
-export type ParsedReply = HeartReply & { searchBroken?: boolean; searchSalvaged?: boolean };
+export type ParsedReply = HeartReply & {
+  searchBroken?: boolean;
+  searchSalvaged?: boolean;
+  // index in `bubbles` where she actually wrote the photo, so delivery can put
+  // it back where she meant it instead of always at the end of the burst
+  photoAt?: number;
+};
 
 export function parseBubbles(raw: string): ParsedReply {
   const out: ParsedReply = { bubbles: [] };
@@ -143,6 +149,14 @@ export function parseBubbles(raw: string): ParsedReply {
       const [tagPart, ...capParts] = body.split("|");
       const caption = capParts.join("|").trim() || tagPart.trim();
       out.photo = { seed: body, caption };
+      // Keep the SLOT the marker occupied. Deleting it outright threw away
+      // where in the burst she meant the photo to land, and delivery then
+      // always put it last — so a photo she wrote FIRST arrived after two
+      // messages of text, which in testing meant a picture of her desk
+      // dropping in underneath "my friend is upset with me". The sentinel is
+      // -wrapped rather than bracketed because the catch-all stripper
+      // below eats anything in square brackets.
+      return "\n---\nPHOTO\n---\n";
     }
     return "";
   });
@@ -215,6 +229,12 @@ export function parseBubbles(raw: string): ParsedReply {
   for (const part of raw.split(/\n?---\n?|\n+/)) {
     let p = part.trim();
     if (!p) continue;
+    // the photo's own slot: record how many bubbles preceded it and drop it,
+    // so delivery can emit the picture at the moment she reached for it
+    if (p === "PHOTO") {
+      out.photoAt = out.bubbles.length;
+      continue;
+    }
     // meta-text leakage guard: the model occasionally narrates its own
     // formatting ("Bubble 1:", "separators.", instruction bullets). None of
     // that is conversation — strip labels, drop pure scaffolding.

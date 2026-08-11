@@ -397,7 +397,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   // thinking. It also keeps `typingSince`, so the first informed bubble gets
   // credit for the time already elapsed instead of paying a full typeDelay.
   async function deliver(
-    reply: HeartReply,
+    reply: HeartReply & { photoAt?: number },
     incoming = "",
     readFrom = 0,
     opts: { keepTyping?: boolean } = {},
@@ -449,8 +449,51 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       if (!(opts.keepTyping && last)) setTyping(false);
       setTypingOut(false);
     };
-    // which hand-off is the final one of this delivery
-    const lastMedia = reply.photo ? "photo" : reply.gif ? "gif" : reply.voice ? "voice" : "";
+    // Where she actually reached for the photo. parseBubbles records the slot
+    // the [photo:] marker occupied; undefined means she wrote no marker we
+    // could place, so it falls back to the end of the burst as before.
+    // She re-sends the same picture. Measured at 2 of 4 runs of one script —
+    // twice with a byte-identical caption, and both times on the turn where
+    // the user said a friend was upset with them, which is the worst possible
+    // moment for a repeat. Her brief already forbids it ("Never twice in a
+    // row"), so prompt text demonstrably does not hold this; a client guard
+    // does, whatever the model emits. Six of her recent photos back is enough
+    // to cover a conversation without ever blocking a genuine callback to
+    // something from days ago.
+    const repeated =
+      reply.photo != null &&
+      messagesRef.current
+        .filter((m) => m.kind === "photo" && m.from === "her")
+        .slice(-6)
+        .map((m) => m.photoSeed || m.text)
+        .includes(reply.photo.seed);
+    const photoOf = repeated ? null : (reply.photo ?? null);
+    const photoSlot = photoOf ? (reply.photoAt ?? reply.bubbles.length) : -1;
+    const photoAtEnd = photoOf != null && photoSlot >= reply.bubbles.length;
+    // which hand-off is the final one of this delivery — a photo in the MIDDLE
+    // of the burst is no longer the last thing she sends, so the closing beat
+    // belongs to whatever really ends it
+    const lastMedia = photoAtEnd ? "photo" : reply.gif ? "gif" : reply.voice ? "voice" : "";
+    let photoSent = false;
+    const emitPhoto = async (): Promise<boolean> => {
+      if (photoSent || !photoOf) return false;
+      photoSent = true;
+      setTyping(true);
+      await sleep(1600);
+      if (stale()) return true;
+      const photo: Message = {
+        id: uid(),
+        from: "her",
+        kind: "photo",
+        text: photoOf.caption,
+        photoSeed: photoOf.seed,
+        at: Date.now(),
+      };
+      await handoffTyping(photo.id, lastMedia === "photo");
+      if (stale()) return true;
+      pushMsg(photo);
+      return false;
+    };
     // the read beat is measured from when THEY sent, so the model's round trip
     // is spent reading rather than stacked on top of it
     const readWait = Math.max(0, readDelay(incoming) - (readFrom ? Date.now() - readFrom : 0));
@@ -462,6 +505,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     const delivered: Message[] = [];
     let firstBubble = true;
     for (let bi = 0; bi < reply.bubbles.length; bi++) {
+      // she wrote the photo here, so it goes here — ahead of this bubble
+      if (bi === photoSlot && (await emitPhoto())) return;
       const bubble = reply.bubbles[bi];
       setTyping(true);
       if (!typingSince.current) typingSince.current = Date.now();
@@ -522,23 +567,9 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       setState((s) => ({ ...s, followup: { at, why: reply.followup!.why } }));
     }
     if (delivered.length) logTurns(state.deviceId, delivered);
-    if (reply.photo) track(state.deviceId, "photo_sent", { seed: reply.photo.seed.slice(0, 40) }, state.auth?.userId);
-    if (reply.photo) {
-      setTyping(true);
-      await sleep(1600);
-      if (stale()) return;
-      const photo: Message = {
-        id: uid(),
-        from: "her",
-        kind: "photo",
-        text: reply.photo.caption,
-        photoSeed: reply.photo.seed,
-        at: Date.now(),
-      };
-      await handoffTyping(photo.id, lastMedia === "photo");
-      if (stale()) return;
-      pushMsg(photo);
-    }
+    if (photoOf) track(state.deviceId, "photo_sent", { seed: photoOf.seed.slice(0, 40) }, state.auth?.userId);
+    // she wrote it at the end, or wrote no placeable marker
+    if (await emitPhoto()) return;
     // holding delivery: keep the elapsed-time credit too, so the first
     // informed bubble doesn't pay a full typeDelay on top of the lookup
     if (!opts.keepTyping) typingSince.current = 0;

@@ -2,8 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#f5f5f7" />
+    <!-- No maximum-scale / user-scalable=no. Blocking pinch-zoom is a WCAG
+         1.4.4 failure, and on an app whose whole content is small text and
+         her photos, "you may not zoom in" is a real thing to take away from
+         someone who needs to. It was there to stop iOS zooming on input
+         focus; the composer sets a 16px font size, which is what actually
+         prevents that. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <!-- the browser chrome follows the app's theme, so a dark app doesn't sit
+         under a light status bar -->
+    <meta name="theme-color" content="#faf7f4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#15100f" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icon-192.png" sizes="192x192" />
     <title>Meera</title>
     <meta property="og:title" content="Meera — someone to talk to. Really talk to." />
     <meta property="og:description" content="An AI companion who texts in Hinglish, calls in a human voice, and remembers what matters to you." />
