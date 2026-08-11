@@ -521,9 +521,16 @@ const JITTER_MS = 150;
 // exactly, because a divergence here would silently stream one engine's text
 // through another engine's door.
 function usesProxyVoice(text: string, opts: VoiceOpts): boolean {
+  if (!proxyStreams) return false;
   const preferEleven = Boolean(opts.elevenKey) && (hasAudioTags(text) || !opts.sarvamKey);
   return !preferEleven && !opts.sarvamKey;
 }
+
+// Cleared the first time the proxy answers a streaming request with something
+// other than PCM — an older deploy, or a rollback. Never set back: within one
+// page life the proxy does not change its mind, and the complete-file path is
+// correct, just slower.
+let proxyStreams = true;
 
 /**
  * Fetch and play one phrase progressively. Resolves TRUE once the audio has
@@ -556,6 +563,19 @@ async function streamProxyClip(
       signal: ctl.signal,
     });
     if (!res.ok || !res.body) return false;
+    // The body is about to be read as HEADERLESS PCM, so the server has to
+    // have agreed to send that. A proxy that predates the streaming lane
+    // ignores `stream` and answers with a complete WAV — whose 44-byte RIFF
+    // header would be played as samples, a click at the front of every phrase,
+    // and would "succeed" so the complete-file fallback never fired. The app
+    // and the proxy do not deploy at the same instant, and this is a rollback
+    // away at any time.
+    if (!/audio\/l16/i.test(res.headers.get("content-type") || "")) {
+      // and stop asking: against such a proxy every phrase would otherwise pay
+      // a wasted request before falling back
+      proxyStreams = false;
+      return false;
+    }
     const reader = res.body.getReader();
 
     let carry = new Uint8Array(0);
