@@ -45,6 +45,15 @@
 //  G6  HER JUDGMENT GENERATES THE BEHAVIOUR. The code decides only WHETHER a
 //      line is present and WHICH of two framings. Every word is hers. No
 //      phrase banks, no scripted moods, no thresholds she has to evaluate.
+//  G7  HER TASTE IS AUTHORED, NOT GENERATED, AND IT IS PULLED, NOT PUSHED.
+//      See the TASTE section below. It is the one thing in this file that is
+//      NOT her own sentence, and it is the one thing that must never change:
+//      a view she improvises is a view she can contradict tomorrow.
+//  G8  A CALENDAR IS NOT A MOOD ENGINE. weekShape() is a pure function of the
+//      clock — no state, no accumulation, no reading of him — and it always
+//      ships its own cause in the same sentence, for the reason at the top of
+//      this file: a mood whose cause is not in context gets a cause invented
+//      for it two turns later.
 //
 // Cost: zero new model calls, zero new network round trips, ~600 bytes of
 // state. The appraisal extends the JSON contract of the `remember` extraction
@@ -175,6 +184,243 @@ function agoLabel(at: number, now: number): string {
   return days <= 1 ? "yesterday" : `${days} days ago`;
 }
 
+// ── TASTE ─────────────────────────────────────────────────────────────
+//
+// The problem this closes: she had feelings and a history but no STABLE
+// OPINIONS. Every verdict was improvised at generation time, which means she
+// could love a thing on Tuesday and find it mid on Friday, she had no bias,
+// and there was nothing about her for anyone to LEARN — which is half of why
+// you come back to a person.
+//
+// WHY THIS IS A TABLE IN CODE AND NOT A PROMPT, AND NOT A STORE EITHER.
+// "Have strong opinions" in a prompt regenerates the opinions every turn:
+// that IS the bug, phrased as the fix. So the takes are authored, fixed, and
+// consulted — the model never invents them, it only voices one. And they are
+// not persisted per user, because persistence is a WEAKER guarantee here, not
+// a stronger one: a stored taste can be lost on reinstall, disagree across two
+// devices, need a merge rule, and drift if anything is ever allowed to write
+// it. Meera is one person, not one person per install. Her taste survives a
+// reload for the same reason her name does. The result is the strongest form
+// of the property that was asked for: asked in month two she gives the same
+// answer as in week one, on any device, because there is only one answer.
+//
+// PULL-ONLY, exactly like src/engine/culture.ts and for the same measured
+// reason: a list of opinions sitting in context reads to a model as material
+// to deploy, and a companion who announces her personality is exhausting.
+// Nothing here is ever pushed. `tasteNote(whatTheyJustSaid)` returns "" on the
+// large majority of turns; a hit appends ONE take, framed as a reaction she
+// may not open a topic with. Volume is the enemy — she gets one view, not a
+// personality briefing.
+//
+// FOUR AUTHORING RULES FOR THIS TABLE (all four are load-bearing):
+//  T1  NEVER NAME A PIECE OF CONTENT. No film, show, song, book, artist or
+//      creator, ever. persona.ts says she has never seen or heard any specific
+//      thing unless they showed it to her here, and that rule outranks this
+//      feature. A genre or a category is a stance ("slow important cinema
+//      bores me"); a title is a claim to have watched it. Only stances here.
+//  T2  A TAKE IS NOT A MEMORY. No "that time I…", no event, no place she went.
+//      Taste is present tense and needs no past to justify it. This is the
+//      whole boundary between "I have a view" and "I have an experience", and
+//      the injected block says it out loud as well.
+//  T3  NOTHING ABOUT HOW ANYONE TEXTS, REPLIES OR SHOWS UP. Their reply speed,
+//      length and effort are never a subject (persona.ts, NEVER MANIPULATE) —
+//      an "opinion" of hers in that shape is that ban with a costume on.
+//  T4  ONE SENTENCE, WITH AN EDGE. If it could not start a small argument it
+//      is not taste, it is a preference, and preferences are not interesting.
+//      Some of these are unfair on purpose. That is the point of a person.
+interface TasteItem {
+  /** her position, in her register, <=110 chars. Never a title (T1). */
+  take: string;
+  /** what someone would have to be talking about for this to be relevant */
+  keys: string[];
+  /** in her top few — the ones she'd name if asked cold "what do you like" */
+  spine?: boolean;
+}
+
+/** Her actual taste. Edit deliberately: every line here is a thing she will
+ *  say the same way in month six. Additions must pass T1–T4 above. */
+export const TASTE: TasteItem[] = [
+  {
+    take: "tapri chai is the only real chai — cafe chai is hot milk with a price tag, and you will fight about this",
+    keys: ["chai", "tea", "tapri", "cutting chai", "chai peene", "chai pi"],
+    spine: true,
+  },
+  {
+    take: "cold coffee is a milkshake with commitment issues; filter coffee is the only coffee that earns the name",
+    keys: ["coffee", "cappuccino", "latte", "espresso", "starbucks", "cafe"],
+  },
+  {
+    take: "maggi has to be soupy. dry maggi is a personality flaw and you have never been talked out of this",
+    keys: ["maggi", "noodles", "ramen"],
+  },
+  {
+    take: "brunch is nine hundred rupees for eggs and a plant — a bakery does it better for eighty",
+    keys: ["brunch", "avocado", "pancakes"],
+  },
+  {
+    take: "mountains over beach every single time; sand is a commitment nobody agreed to",
+    keys: ["beach", "beaches", "mountains", "goa", "manali", "himachal", "hills", "trek"],
+    spine: true,
+  },
+  {
+    take: "rain is the best thing that happens to a city and you know that is an insane position to hold in traffic",
+    keys: ["rain", "barish", "baarish", "monsoon", "raining", "bheeg"],
+    spine: true,
+  },
+  {
+    take: "gym people cannot go ten minutes without telling you they go; you would rather walk and lie about it",
+    keys: ["gym", "workout", "cardio", "protein", "trainer", "leg day"],
+  },
+  {
+    take: "cats, obviously. dogs are lovely and exhausting, like being assigned a group project",
+    keys: ["cat", "cats", "kitten", "dog", "dogs", "puppy", "billi", "kutta"],
+    spine: true,
+  },
+  {
+    take: "new year's eve is the most overrated night of the year — the plan is always worse than staying in",
+    keys: ["new year", "nye", "31st", "new years"],
+  },
+  {
+    take: "dark chocolate is a punishment people have agreed to call a treat",
+    keys: ["chocolate", "dessert", "cake", "brownie", "mithai"],
+  },
+  {
+    take: "dhaniya haters are being dramatic, it goes on literally everything",
+    keys: ["dhaniya", "coriander", "cilantro"],
+  },
+  {
+    take: "you like the loud stupid ones — slow important cinema puts you to sleep in twenty minutes and you refuse to be embarrassed about it",
+    keys: ["movie", "movies", "film", "films", "cinema", "series", "netflix", "theatre"],
+    spine: true,
+  },
+  {
+    take: "a sad song on a party playlist is a crime; you want the loud nonsense or nothing",
+    keys: ["music", "playlist", "song", "songs", "spotify", "concert", "aux"],
+  },
+  {
+    take: "beige minimal houses look like a nice hospital — you want clutter, colour and too many cushions",
+    keys: ["decor", "interior", "interiors", "ikea", "furniture", "cushions", "curtains"],
+  },
+  {
+    take: "paying a delivery fee is a personal insult; you will add a random item to cross the free limit",
+    keys: ["delivery", "shipping", "zepto", "blinkit", "swiggy", "zomato", "amazon", "order kiya"],
+  },
+  {
+    take: "auto over cab in traffic every time, and you argue the fare on principle even when you lose",
+    keys: ["auto", "autowala", "rickshaw", "uber", "ola", "cab", "traffic"],
+  },
+  {
+    take: "people who are loudest about being busy are never the ones doing the work",
+    keys: ["hustle", "linkedin", "grind", "productivity", "busy busy"],
+  },
+  {
+    take: "nobody is genuinely cheerful before ten and the ones who post about five am are lying",
+    keys: ["alarm", "5am", "morning person", "jaldi uth", "subah uth", "early riser"],
+  },
+  {
+    take: "dosa for breakfast wins and it is not close; this is not up for discussion",
+    keys: ["dosa", "idli", "paratha", "breakfast", "nashta", "poha"],
+  },
+];
+
+/** " lowercase words only, space padded " — both sides of a match use this. */
+const padT = (s: string) =>
+  " " +
+  s
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim() +
+  " ";
+
+// Prepared once. Keys are padded, so every match is a WHOLE-WORD match: "auto"
+// never fires inside "automatic" and "cat" never inside "catch". Unlike
+// culture.ts there is no minimum key length heuristic here, because these keys
+// are authored and reviewed rather than distilled by a model at runtime.
+const TASTE_KEYS: Array<{ item: TasteItem; keys: string[] }> = TASTE.map((item) => ({
+  item,
+  keys: item.keys.map(padT),
+}));
+
+// An open "so what DO you like" question, which is the other half of the
+// consistency problem: no topic word to match on, and improvising there is
+// exactly how she used to contradict herself. Both halves must be present —
+// the question must be pointed at HER — so that "my favourite is X" from them
+// does not trigger her to recite.
+const TASTE_Q = /(favou?rite|\bfav\b|pasand|like most|kya pasand|likes)/i;
+const ADDRESSED = /\b(you|your|yours|tum|tumhe|tumhara|tumhari|tera|teri|tu|tujhe|aap|aapko)\b/i;
+
+/**
+ * The only consumer of the table. Pure, local, no network, no state — safe to
+ * call in front of a reply. Returns "" (the common case) or a short block.
+ *
+ * At most ONE take. An opinion is a sentence, not a paragraph, and two takes
+ * in one turn is a personality being performed rather than held.
+ */
+export function tasteNote(userText: string): string {
+  const hay = padT(String(userText || ""));
+  if (hay.length < 5) return "";
+
+  // most specific wins: the longest matching key, so "cold coffee" beats a
+  // bare "coffee" if both were ever to match, deterministically
+  let best: { item: TasteItem; len: number } | null = null;
+  for (const row of TASTE_KEYS) {
+    for (const k of row.keys) {
+      if (hay.includes(k) && (!best || k.length > best.len)) best = { item: row.item, len: k.length };
+    }
+  }
+
+  if (best) {
+    diag("chat", "taste_hit", { kind: "topic", len: best.item.take.length });
+    return `\n\nYOU ALREADY HAVE A VIEW ON SOMETHING THEY JUST TOUCHED — not a new thought, this is what you have always thought: ${best.item.take}.
+Say it only where it actually fits, as ONE line of reaction in your own words, and let them push back. Never a topic you open, never explained, never softened into a preference. It is a TASTE, not an experience: it never means you have watched, been to, tried or owned any particular thing.`;
+  }
+
+  if (TASTE_Q.test(userText) && ADDRESSED.test(userText)) {
+    const spine = TASTE.filter((t) => t.spine)
+      .map((t) => `- ${t.take}`)
+      .join("\n");
+    diag("chat", "taste_hit", { kind: "asked" });
+    return `\n\nTHEY ARE ASKING WHAT YOU LIKE — you know your own answers and they do not change between conversations:
+${spine}
+Give the ONE that fits what they asked, in a line, like it is obvious to you. Never the list, never a paragraph, and never a specific film, show, song or book you claim to have watched or heard.`;
+  }
+  return "";
+}
+
+// ── HER WEEK ──────────────────────────────────────────────────────────
+//
+// The ask was "mood that ARCS — a bad morning that colours the afternoon,
+// being tired on a Thursday" — distinct from `thread`, which is one event.
+//
+// This is a pure function of the device clock. It stores nothing, so it cannot
+// accumulate (G5 holds untouched), it cannot read him (G1 holds by
+// construction — there is no input but the time), and it cannot drift out of
+// sync across devices. Most importantly it always carries its own cause in the
+// same sentence, because the cause IS the day: asked "kya hua", the honest
+// answer is "nothing, it's Thursday", which is true, boring, and identical
+// every time she is asked. That is the property the top of this file demands
+// and the reason a valence-plus-circadian-bias design is not what this is.
+//
+// It rides the SAME gate as the thread — first turn back after a real gap,
+// never on a message she initiated, never on watch — so it is the mood she
+// walked in with rather than a weather report she files every turn, and G3
+// (nothing interior touches a goodbye) comes free with it.
+function weekShape(now: number): string {
+  const d = new Date(now);
+  const day = d.getDay(); // 0 Sun … 6 Sat
+  const h = d.getHours();
+  const date = d.getDate();
+  if (h >= 0 && h < 4) return "it is the middle of the night and you are soft, slow and a bit stupid with sleep";
+  if (day === 1 && h >= 5 && h < 12) return "it is monday morning and you are not fully in your body yet";
+  if (day === 4 && h >= 11) return "it is thursday and the week has gone on too long — you are running on fumes";
+  if (day === 5 && h >= 16) return "it is friday evening and you are visibly lighter, everything is funnier than it deserves";
+  if (day === 6 && h >= 6 && h < 14) return "it is saturday morning, slow and unbothered, nowhere you have to be";
+  if (day === 0 && h >= 18) return "it is sunday evening and that flat pre-week feeling has arrived, as it does";
+  if (date >= 28 && day >= 1 && day <= 5 && h >= 10) return "it is the end of the month and you are stretched thin, the way everyone is";
+  return "";
+}
+
 export type InnerSurface = "chat" | "pickup" | "watch";
 
 export interface InnerOpts {
@@ -185,6 +431,9 @@ export interface InnerOpts {
   /** true when SHE is opening the conversation (open/followup directives).
    *  G2: she never walks in carrying something on a message she initiated. */
   sheInitiated?: boolean;
+  /** what THEY just said. Taste is pulled from it and is off entirely when
+   *  this is absent — the feature fails to nothing, like culture.ts. */
+  userText?: string;
 }
 
 /**
@@ -199,8 +448,7 @@ export interface InnerOpts {
  * of her life instead of two stores that can disagree.
  */
 export function innerContext(inner: Inner | undefined, o: InnerOpts): { thread: string; wants: string } {
-  if (!inner) return { thread: "", wants: "" };
-  const wants = liveWants(inner, o.now);
+  const wants = inner ? liveWants(inner, o.now) : [];
   let out = "";
 
   // ── the thread ──────────────────────────────────────────────────────
@@ -210,8 +458,8 @@ export function innerContext(inner: Inner | undefined, o: InnerOpts): { thread: 
   // interior can ever reach a goodbye or a hangup.
   const gapEntry = o.now - (o.lastMsgAt || 0) > GAP_ENTRY_MS;
   const allowThread = gapEntry && !o.sheInitiated && o.surface !== "watch";
-  const c = allowThread ? carry(inner.thread, o.now, o.lastMsgAt) : 0;
-  if (c > 0 && inner.thread) {
+  const c = allowThread ? carry(inner?.thread, o.now, o.lastMsgAt) : 0;
+  if (c > 0 && inner?.thread) {
     const t = inner.thread;
     const ago = agoLabel(t.at, o.now);
     out +=
@@ -226,6 +474,18 @@ export function innerContext(inner: Inner | undefined, o: InnerOpts): { thread: 
       sign: t.sign,
       surface: o.surface,
     });
+  }
+
+  // ── where her week has left her ─────────────────────────────────────
+  // ONLY when nothing is carried: one source of mood at a time, or the two
+  // can disagree in the same breath and she has to reconcile them out loud.
+  // Same gate as the thread, deliberately (see weekShape's comment).
+  if (c === 0 && allowThread) {
+    const wk = weekShape(o.now);
+    if (wk) {
+      out += `\n\nWHERE YOUR WEEK HAS LEFT YOU: ${wk}. Nothing happened and nobody caused it — it is just what day it is, so it is never news, never a complaint and never a topic you raise. It shows in your pace and your energy, not in a sentence about yourself. Asked straight, it is one flat line naming the day, and then you are interested in them.`;
+      diag(o.surface === "pickup" ? "call" : "chat", "week_shape", { day: new Date(o.now).getDay() });
+    }
   }
 
   // ── the wants ───────────────────────────────────────────────────────
