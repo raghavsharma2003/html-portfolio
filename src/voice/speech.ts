@@ -30,8 +30,38 @@ interface CallMicNative {
   addListener(ev: "micpartial", cb: (d: { text: string }) => void): Promise<unknown>;
   addListener(ev: "micsegment", cb: (d: { text: string }) => void): Promise<unknown>;
   addListener(ev: "micerror", cb: (d: { fatal?: boolean }) => void): Promise<unknown>;
+  /** NOT this mic — see webviewMicTrace below. */
+  captureTrace(): Promise<{ reqAt: number; grantAt: number; fast: boolean; n: number }>;
 }
 const CallMic = registerPlugin<CallMicNative>("CallMic");
+
+/**
+ * Sub-stage timings for the WEBVIEW's microphone grab — the mic the realtime
+ * call uses, which is NOT this module's piped mic. It is exposed through the
+ * CallMic bridge only because that is the bridge the call path already has.
+ *
+ * `micMs` in the connect telemetry is one span covering three unrelated
+ * costs and cannot say which is slow. `reqAt` is when the WebView's capture
+ * request reached native, `grantAt` when we answered it — both epoch ms on
+ * the same clock as Date.now(), so everything after grantAt is the audio
+ * device actually opening. Timestamps only; no audio, no content.
+ *
+ * Returns null off Android, or on an APK whose native half predates this.
+ */
+export async function webviewMicTrace(): Promise<{
+  reqAt: number;
+  grantAt: number;
+  fast: boolean;
+  n: number;
+} | null> {
+  if (!isNative) return null;
+  try {
+    const t = await CallMic.captureTrace();
+    return t?.reqAt ? t : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface VoiceOpts {
   elevenKey?: string;

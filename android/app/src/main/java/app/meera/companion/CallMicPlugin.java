@@ -79,6 +79,28 @@ public class CallMicPlugin extends Plugin {
     call.resolve();
   }
 
+  /**
+   * Sub-stage timings for the WEBVIEW's microphone — the one the realtime
+   * call actually uses. Not this plugin's mic; it lives here because this is
+   * the bridge the call path already has open.
+   *
+   * `micMs` in the connect telemetry is a single number spanning three
+   * unrelated costs, and it cannot say which one is slow. With reqAt/grantAt
+   * (epoch ms, same clock as JS Date.now()) the caller can split it into:
+   * getUserMedia -> the request reaching us (browser IPC + main-thread
+   * queue), our permission handshake, and everything after the grant, which
+   * is the audio device opening. Only timestamps — no audio, no content.
+   */
+  @PluginMethod
+  public void captureTrace(PluginCall call) {
+    JSObject r = new JSObject();
+    r.put("reqAt", MicPermissionFastPath.lastRequestAt());
+    r.put("grantAt", MicPermissionFastPath.lastGrantAt());
+    r.put("fast", MicPermissionFastPath.lastWasFast());
+    r.put("n", MicPermissionFastPath.requestCount());
+    call.resolve(r);
+  }
+
   @PluginMethod
   public void setMuted(PluginCall call) {
     PipedRecognizer p = piped; // onDown nulls the field asynchronously

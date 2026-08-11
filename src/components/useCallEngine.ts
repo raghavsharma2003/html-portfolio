@@ -28,6 +28,7 @@ import {
   startRoomTone,
   stopRoomTone,
   duckSpeech,
+  webviewMicTrace,
 } from "../voice/speech";
 import {
   CALL_OPEN_DIRECTIVE,
@@ -459,6 +460,39 @@ ${recallRef.current}`
     // ring — token mint + WS setup + mic grant get the ring's free ~1.2s
     // instead of starting from zero at pickup (telemetry showed connects
     // missing the adoption window by fractions of a second) ──
+    //
+    // ── WHERE THE CONNECT MILLISECONDS ACTUALLY GO ON THIS DEVICE ──
+    // micMs/setupMs are wall-clock spans, and a wall-clock span measured by
+    // JS silently contains every millisecond the main thread spent doing
+    // something ELSE: the code that stamps the end cannot run while the
+    // thread is blocked, and the socket frame that ends `setupMs` cannot be
+    // dispatched either. So on a phone those two numbers cannot distinguish
+    // "the network/OS was slow" from "we were busy". Two probes settle it,
+    // and both stop the moment the connect resolves:
+    //   lag*   — event-loop lateness sampled across the connect window. High
+    //            lag next to a high setupMs means the handshake was already
+    //            back and waiting for us, not slow.
+    //   perm*  — from the native side (Android only): when the WebView's
+    //            capture request reached us and when we answered it, which
+    //            splits micMs into browser IPC, permission plumbing, and the
+    //            audio device open. Only the last of those is a real floor.
+    // Timings and counts only — this never sees audio.
+    const tProbe = Date.now();
+    let lagMax = 0;
+    let lagSum = 0;
+    let lagN = 0;
+    let lagLast = tProbe;
+    const LAG_TICK = 50;
+    const lagIv = setInterval(() => {
+      const n = Date.now();
+      const late = n - lagLast - LAG_TICK;
+      lagLast = n;
+      if (late > 0) {
+        if (late > lagMax) lagMax = late;
+        lagSum += late;
+        lagN++;
+      }
+    }, LAG_TICK);
     const livePromise = tryStartLive().catch((e) => {
       // fast failure = no live event at all in telemetry — record WHY so
       // a device where live never engages is diagnosable remotely
@@ -467,6 +501,36 @@ ${recallRef.current}`
       });
       return null;
     });
+    void livePromise
+      .then(async () => {
+        clearInterval(lagIv);
+        // asked AFTER the connect so the bridge round trip is never on it
+        const tr = await webviewMicTrace();
+        diag("call", "live_connect_cost", {
+          connectMs: Date.now() - tProbe,
+          lagMax: Math.round(lagMax),
+          lagSum: Math.round(lagSum),
+          lagN,
+          // liveTiming is whatever startLiveCall reported, echoed so one row
+          // carries both halves of the story
+          ...liveTiming.current,
+          ...(tr
+            ? {
+                // gUM called -> the request reached native: browser IPC plus
+                // however long the main thread made it wait
+                reqAt: tr.reqAt - tProbe,
+                // our own permission handshake. 0 on the fast path is the
+                // point of the fast path
+                permMs: tr.grantAt ? tr.grantAt - tr.reqAt : -1,
+                permFast: tr.fast,
+                permN: tr.n,
+              }
+            : {}),
+        });
+      })
+      .catch(() => {
+        clearInterval(lagIv);
+      });
     let pickupT: ReturnType<typeof setTimeout> | null = null;
     // ── HOW LONG SHE TAKES TO PICK UP ──
     // Her response timing everywhere else in a live call is the server's, and
@@ -557,6 +621,7 @@ ${recallRef.current}`
     return () => {
       alive.current = false;
       clearTimeout(t);
+      clearInterval(lagIv); // a call hung up mid-connect must not leave it ticking
       if (pickupT) clearTimeout(pickupT);
       if (liveSession.current) {
         liveStopping.current = true;
