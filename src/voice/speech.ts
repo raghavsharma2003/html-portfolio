@@ -107,10 +107,22 @@ function stripForDevice(text: string): string {
 }
 
 function stripForCloud(text: string): string {
+  // Short bracket tags used to be passed through on the theory that the cloud
+  // voice renders them as sound. It emits them on essentially every cascade
+  // reply — [excited], [laughs], [sighs], [softly], [giggles], [curious] —
+  // measured 10/10, and we have no evidence the model performs any of them.
+  // The downside is asymmetric: a rendered tag buys a small flourish, a spoken
+  // one has her literally saying the word "excited" mid-sentence. Her brief
+  // already tells her to write the laugh out ("hahaha"), which is heard for
+  // certain, so nothing is lost by turning the tag into the beat it stands for.
   return stripProtocol(text)
+    .replace(/\[[a-z ]{2,16}\]/gi, "…")
     .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{2764}]/gu, "")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    // a tag at the head becomes a pause before she has said anything, which is
+    // just dead air on the front of the turn
+    .replace(/^…\s*/, "");
 }
 
 // Punctuation-aware prosody for device TTS: questions rise, exclamations
