@@ -14,7 +14,7 @@
 // a free speedup out of it.
 
 import { allow, ipOf } from "./_ratelimit.js";
-import { withGeminiKey, isQuota, poolSize } from "./_gkeys.js";
+import { withGeminiKey, isQuota, isTransient, poolSize } from "./_gkeys.js";
 
 import { OPENROUTER_KEY } from "./_config.js";
 
@@ -46,6 +46,12 @@ const FLUSH_MIN = 1000;
 // free lane beat this on every measured sample, so the paid call is not
 // actually made in the healthy case.
 const PAID_ARM_MS = 1500;
+
+// How long one free key may produce NOTHING before the next one is tried.
+// Healthy keys clear their first frame at 615-1051 ms (measured across the live
+// pool, 6 of 9 keys), so this is generous to a slow-but-working key while
+// bounding a sick one — the 503 that took 6518 ms cost the whole free lane.
+const FREE_FIRST_FRAME_MS = 1400;
 
 function wavHeader(pcmBytes) {
   const h = Buffer.alloc(44);
@@ -157,6 +163,21 @@ export default async function handler(req, res) {
           lanes.free.held.length = 0;
           lanes.free.bytes = 0;
         }
+        // A BOUNDED ATTEMPT. Aborts if the outer lane gives up, OR if this key
+        // has produced no audio by FREE_FIRST_FRAME_MS — measured, one sick key
+        // took 6518 ms to return its 503, which is four times the paid arm and
+        // was being paid in full before the free lane even looked at key two.
+        // Cleared on the first frame, so a key that is merely mid-sentence is
+        // never cut off.
+        const attempt = new AbortController();
+        const giveUp = () => attempt.abort();
+        freeAbort.signal.addEventListener("abort", giveUp, { once: true });
+        let deadline = setTimeout(giveUp, FREE_FIRST_FRAME_MS);
+        const armed = () => {
+          clearTimeout(deadline);
+          deadline = null;
+        };
+        try {
         const r = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${FREE_MODEL}:streamGenerateContent?alt=sse`,
           {
@@ -183,13 +204,15 @@ export default async function handler(req, res) {
                 },
               },
             }),
-            signal: freeAbort.signal,
+            signal: attempt.signal,
           },
         );
-        if (!r.ok)
-          return isQuota(r.status)
-            ? { ok: false, exhausted: true }
-            : { ok: false, error: `tts ${r.status}` };
+        if (!r.ok) {
+          if (isQuota(r.status)) return { ok: false, exhausted: true };
+          // sick server, not a spent key — the next key is very likely fine
+          if (isTransient(r.status)) return { ok: false, retry: true, error: `tts ${r.status}` };
+          return { ok: false, error: `tts ${r.status}` };
+        }
 
         const dec = new TextDecoder();
         let buf = "";
@@ -210,6 +233,7 @@ export default async function handler(req, res) {
               }
               if (!d?.data) continue;
               const b = Buffer.from(d.data, "base64");
+              armed(); // real audio is flowing — the deadline has done its job
               wrote += b.length;
               if (!sink("free", b)) {
                 // the paid lane cleared the gate first — stop generating
@@ -229,6 +253,18 @@ export default async function handler(req, res) {
         // so the next one, and then the paid lane, still get their turn
         if (wrote < FLUSH_MIN) return { ok: false, exhausted: true };
         return { ok: true, value: wrote };
+        } catch (e) {
+          // The outer lane gave up — the paid lane already owns the body, or the
+          // response is over. Burning another key on it would be pure waste.
+          if (freeAbort.signal.aborted) return { ok: false, error: "lost the race" };
+          // Our own deadline fired: this key produced nothing in time. That is
+          // exactly the case another key should get, so ask for one.
+          if (attempt.signal.aborted) return { ok: false, retry: true, error: "slow" };
+          throw e;
+        } finally {
+          clearTimeout(deadline);
+          freeAbort.signal.removeEventListener("abort", giveUp);
+        }
       });
       return Boolean(got.value);
     };

@@ -72,7 +72,19 @@ export function markExhausted(key) {
 // while capping the worst case at roughly one extra second before falling back.
 // Quality and speed are never traded for saving money; this is the line that
 // keeps that true as the pool grows.
-const MAX_TRIES = 2;
+// Raised from 2 after measuring the pool directly: of 9 keys, 6 answered in
+// 615-1051ms and THREE were unhealthy (one 429, two 503). At 2 tries the chance
+// of drawing two duds is ~8%, and — before the retry fix below — a single dud
+// killed the free lane outright. The reason 2 was safe-looking, "each extra try
+// costs a round trip of dead air", is answered by FREE_FIRST_FRAME_MS in
+// speech.js: an attempt is now bounded, so a try costs at most that, not the
+// 6518ms one 503 actually took.
+const MAX_TRIES = 3;
+
+// A key that just 5xx'd is sick, not spent. Cooling it for the full quota
+// window would take a healthy key out of the pool for five minutes over a blip;
+// not cooling it at all invites picking it again on the next request.
+const SICK_MS = 30_000;
 
 export async function withGeminiKey(fn) {
   const keys = healthyKeys().slice(0, MAX_TRIES);
@@ -91,7 +103,19 @@ export async function withGeminiKey(fn) {
       lastErr = "quota";
       continue;
     }
-    // not a quota problem: the request itself is wrong, so stop here
+    // UPSTREAM IS SICK, NOT SPENT — try another key. This case used to fall
+    // into the "stop here" below, and it is why the free lane was losing:
+    // measured against the live pool, 2 of 9 keys were returning 503, and one
+    // 503 ended the whole free attempt even though six other keys were
+    // answering in under a second. 9 of 12 production requests were being
+    // served by the slower paid lane as a result.
+    if (r?.retry) {
+      cooled.set(key, Date.now() + SICK_MS);
+      lastErr = r.error || "transient";
+      continue;
+    }
+    // A genuine request error (a 400 is our fault) fails identically on every
+    // key — retrying it just makes the user wait longer for the same error.
     return { error: r?.error || "request rejected", triedAll: false };
   }
   return { error: lastErr || "no keys", triedAll: true };
@@ -99,5 +123,15 @@ export async function withGeminiKey(fn) {
 
 /** True when an upstream status means "this key is out", not "this request is bad". */
 export const isQuota = (status) => status === 429 || status === 403;
+
+/**
+ * The key is fine, the server is having a moment. Measured on the live pool:
+ * two of nine keys were returning 503 while six others answered in under a
+ * second, so this must move to the NEXT key rather than end the free lane.
+ * Distinct from `isQuota` because it must not cool the key for the full quota
+ * window — see SICK_MS.
+ */
+export const isTransient = (status) =>
+  status === 500 || status === 502 || status === 503 || status === 504 || status === 408;
 
 export const poolSize = () => POOL.length;
