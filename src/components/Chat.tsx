@@ -1287,7 +1287,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       {!online && (
         <div className="offline-bar" role="status">
           <OfflineIcon />
-          No connection — keep typing, she'll get it when you're back
+          No connection — she'll get it when you're back
         </div>
       )}
 
