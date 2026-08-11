@@ -4,6 +4,7 @@
 // here so every browser can play it directly.
 
 import { allow, ipOf } from "./_ratelimit.js";
+import { withGeminiKey, isQuota, poolSize } from "./_gkeys.js";
 
 import { OPENROUTER_KEY } from "./_config.js";
 
@@ -55,6 +56,40 @@ export default async function handler(req, res) {
       typeof style === "string" && style.trim()
         ? style.replace(/[\[\]{}<>\n\r"]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120)
         : "relaxed, natural, casual";
+    // FREE TIER FIRST, and this lane needs it more than the others: if the paid
+    // account is empty she has NO VOICE AT ALL, which is what happened once
+    // today. Google's own TTS returns L16 PCM at 24kHz — the exact format this
+    // proxy already wraps in a WAV header — so it is a drop-in, not a second
+    // audio path to keep in sync.
+    const geminiTts = async () => {
+      if (!poolSize()) return null;
+      const got = await withGeminiKey(async (k) => {
+        const r = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent",
+          {
+            method: "POST",
+            headers: { "x-goog-api-key": k, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: `Say in a warm, natural Indian-accented Hinglish, ${mood}: ${text.slice(0, 1100)}` }] }],
+              generationConfig: {
+                responseModalities: ["AUDIO"],
+                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } },
+              },
+            }),
+            signal: AbortSignal.timeout(30_000),
+          },
+        );
+        if (!r.ok) return isQuota(r.status) ? { ok: false, exhausted: true } : { ok: false, error: `tts ${r.status}` };
+        const j = await r.json();
+        const b64 = j?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        // a 200 with no audio is the silent failure again — treat it as a spent
+        // key so the next one, and then the paid lane, still get their turn
+        if (!b64) return { ok: false, exhausted: true };
+        return { ok: true, value: Buffer.from(b64, "base64") };
+      });
+      return got.value ?? null;
+    };
+
     const generate = async () => {
       const upstream = await fetch("https://openrouter.ai/api/v1/audio/speech", {
         method: "POST",
@@ -81,7 +116,10 @@ export default async function handler(req, res) {
     // worst-case latency on the path the user waits on in silence — instead,
     // if the primary is slow a second request races it after 1200ms and the
     // first non-empty result wins.
-    const pcm = await new Promise((resolve) => {
+    // Free first. If the pool yields audio we are done — no paid call, and no
+    // dependence on the paid account having money in it.
+    const freePcm = await geminiTts().catch(() => null);
+    const pcm = freePcm && freePcm.length >= 1000 ? freePcm : await new Promise((resolve) => {
       let settled = false;
       let pending = 0;
       let hedged = false;
