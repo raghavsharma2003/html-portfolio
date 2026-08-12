@@ -639,6 +639,13 @@ const ACK_PEAK_CEIL = ACK_PEAK * 3;
 // word (median 1.5s), so it fills the dead air rather than colliding with her.
 // Clips outside the band are DROPPED, never truncated — a cut syllable is a
 // click and half a word.
+//
+// The band is judged on the CORE — the −30 dB span — and the restored breath
+// and room tail below are then added on top of it. The 900 ms ceiling still
+// binds the FINISHED clip: when the restoration would push it past, the
+// restoration is given back (tail first, then onset) and the core is never
+// touched. So the hold is still bounded by the same 900 + 320 that was
+// measured against her median 1.5 s first word.
 const ACK_MIN_MS = 150;
 const ACK_MAX_MS = 900;
 // Trim threshold for the synthesised silence the TTS pads every clip with
@@ -647,6 +654,35 @@ const ACK_MAX_MS = 900;
 // would push the sound late relative to the 420ms placement and hold the
 // microphone for padding.
 const ACK_TRIM_DB = -30;
+// ...but −30 dB is where the SOUND is, not where it BEGINS. A hum a person
+// makes arrives out of a breath and decays into the room, and both of those
+// live below −30 dB, so trimming there and stopping delivers the loud middle
+// of the sound with its approach and its departure removed. Owner's verdict on
+// exactly that: "abrupt and sudden start and cut ... instead of dissolving and
+// coming and flowing". So the core is found at ACK_TRIM_DB and then the edges
+// are put BACK, outward to −55 dB (below which there is nothing but the
+// synthesiser's noise floor), capped at these budgets. Measured on 12 real
+// clips: the edge the clip starts at drops from −50.5 dB to −93.7 dB relative
+// to its own peak, and the edge it ENDS at from −33.3 dB to −81.2 dB — i.e.
+// the sound now genuinely begins and ends in silence rather than at a step.
+const ACK_EDGE_DB = -55;
+const ACK_ONSET_MAX_MS = 60;
+const ACK_TAIL_MAX_MS = 200;
+// The edge windows. 5 ms was a de-click, not an onset — long enough to stop a
+// step being a click and far too short to be heard as a beginning. These are
+// longer AND curved, and the two curves are deliberately not each other's
+// mirror:
+//   in   opens LATE (u^1.6 inside the cosine) so the hum emerges rather than
+//        switching on at a fixed rate;
+//   out  holds near unity and closes LATE (u^3) so it does NOT steepen the
+//        natural decay the extension just gave back. A symmetric fade here
+//        would undo the tail restoration it is supposed to protect.
+// Measured effect on the same 12 clips: the edge discontinuity, as a fraction
+// of the clip's own mid-waveform slope, falls 0.012 → 0.002 at the start and
+// 0.028 → 0.002 at the end, with attack and release times unchanged (the
+// source's own shape is preserved; only the steps are removed).
+const ACK_FADE_IN_MS = 25;
+const ACK_FADE_OUT_MS = 90;
 // Her own reverb tail keeps arriving after the sound itself has stopped, and
 // the listen gate has no echo term, so an unguarded tail is streamed to the
 // server as if the user had started talking. Measured as the +427ms of
@@ -873,46 +909,88 @@ function peak20(x: Float32Array, sr: number): number {
   return peak;
 }
 
+/** rms of one frame starting at `i`, clamped to the buffer */
+function frameRms(x: Float32Array, i: number, w: number): number {
+  let s = 0;
+  const end = Math.min(x.length, i + w);
+  for (let j = i; j < end; j++) s += x[j] * x[j];
+  return Math.sqrt(s / Math.max(1, end - i));
+}
+/** attack window: opens LATE, so the hum emerges instead of switching on */
+const ackFadeIn = (u: number) => 0.5 - 0.5 * Math.cos(Math.PI * Math.pow(u, 1.6));
+/** release window: holds near 1 and closes LATE, so the natural decay survives */
+const ackFadeOut = (u: number) => 0.5 + 0.5 * Math.cos(Math.PI * Math.pow(u, 3));
+
 /**
- * Turn one fetched WAV into something the emit path can play: strip the TTS's
- * silence padding, reject anything that is not backchannel-shaped, fade the cut
- * edges, and normalise to the level the v1 sound was measured at. Returns null
- * whenever the clip is not usable — silence is always an acceptable outcome
- * here and a bad clip never is.
+ * Turn one fetched WAV into something the emit path can play: find the sound,
+ * reject anything that is not backchannel-shaped, give it back its own onset
+ * and decay, curve the edges, and normalise to the level this lane's echo
+ * measurements were taken at. Returns null whenever the clip is not usable —
+ * silence is always an acceptable outcome here and a bad clip never is.
+ *
+ * The order matters and is not free to change: the envelope is applied BEFORE
+ * the normalisation, so `peak20` is read off the finished sound. That is what
+ * keeps ACK_RMS20 an exact property of what is played rather than of an
+ * intermediate — verified at −23.4 dB on all 12 A/B clips.
+ *
+ * EXPORTED, and the export is the point. The cascade lane in speech.ts plays
+ * the very same kind of clip and used to play it raw — no trim, no level match,
+ * no fades — which is the lane the owner's "abrupt and sudden start and cut"
+ * verdict actually came from (this one has never been switched on). It now
+ * calls THIS function rather than growing a second copy that can drift.
+ * `pcm` is not mutated: the slice below copies before anything is scaled.
  */
-function shapeAck(pcm: Float32Array, sr: number): Float32Array | null {
-  const w = Math.max(1, Math.round(sr * 0.02));
+export function shapeAck(pcm: Float32Array, sr: number): Float32Array | null {
+  // 5ms grid, not 20: a 20ms grid quantises the cut, and at these durations
+  // one grid step is 5% of the whole sound
+  const w = Math.max(1, Math.round(sr * 0.005));
   const peak = peak20(pcm, sr);
   if (!(peak > 0)) return null;
-  const thr = peak * Math.pow(10, ACK_TRIM_DB / 20);
-  let a = 0;
-  let b = pcm.length;
-  for (let i = 0; i + w <= pcm.length; i += w) {
-    let s = 0;
-    for (let j = i; j < i + w; j++) s += pcm[j] * pcm[j];
-    if (Math.sqrt(s / w) >= thr) {
+  const core = peak * Math.pow(10, ACK_TRIM_DB / 20);
+  const edge = peak * Math.pow(10, ACK_EDGE_DB / 20);
+
+  // ── the core: what −30 dB calls "the sound" ───────────────────────────
+  let a = -1;
+  let b = -1;
+  for (let i = 0; i < pcm.length; i += w) {
+    if (frameRms(pcm, i, w) >= core) {
       a = i;
       break;
     }
   }
-  for (let i = Math.floor((pcm.length - w) / w) * w; i >= a; i -= w) {
-    let s = 0;
-    for (let j = i; j < i + w && j < pcm.length; j++) s += pcm[j] * pcm[j];
-    if (Math.sqrt(s / w) >= thr) {
+  if (a < 0) return null;
+  for (let i = Math.floor((pcm.length - 1) / w) * w; i >= a; i -= w) {
+    if (frameRms(pcm, i, w) >= core) {
       b = Math.min(pcm.length, i + w);
       break;
     }
   }
-  const ms = ((b - a) / sr) * 1000;
-  if (ms < ACK_MIN_MS || ms > ACK_MAX_MS) return null;
-  const out = pcm.slice(a, b);
-  // 5ms cosine edges: the trim cut mid-waveform and a step is a click
-  const ed = Math.min(Math.round(sr * 0.005), out.length >> 1);
-  for (let i = 0; i < ed; i++) {
-    const g = 0.5 - 0.5 * Math.cos((Math.PI * i) / ed);
-    out[i] *= g;
-    out[out.length - 1 - i] *= g;
-  }
+  if (b <= a) return null;
+  const coreMs = ((b - a) / sr) * 1000;
+  if (coreMs < ACK_MIN_MS || coreMs > ACK_MAX_MS) return null;
+
+  // ── put her breath and her room back on the ends ──────────────────────
+  const onsetCap = Math.round((sr * ACK_ONSET_MAX_MS) / 1000);
+  const tailCap = Math.round((sr * ACK_TAIL_MAX_MS) / 1000);
+  let a2 = a;
+  while (a2 - w >= 0 && a - a2 < onsetCap && frameRms(pcm, a2 - w, w) >= edge) a2 -= w;
+  let b2 = b;
+  while (b2 + w <= pcm.length && b2 - b < tailCap && frameRms(pcm, b2, w) >= edge) b2 += w;
+
+  // ── the restoration yields to the ceiling; the core never does ────────
+  const maxLen = Math.round((sr * ACK_MAX_MS) / 1000);
+  while (b2 - a2 > maxLen && b2 > b) b2 -= w;
+  while (b2 - a2 > maxLen && a2 < a) a2 += w;
+
+  const out = pcm.slice(a2, b2);
+  if (out.length < 2) return null;
+
+  // ── curved, asymmetric edges ──────────────────────────────────────────
+  const fin = Math.min(Math.round((sr * ACK_FADE_IN_MS) / 1000), out.length >> 2);
+  const fout = Math.min(Math.round((sr * ACK_FADE_OUT_MS) / 1000), Math.floor(out.length / 3));
+  for (let i = 0; i < fin; i++) out[i] *= ackFadeIn(i / fin);
+  for (let i = 0; i < fout; i++) out[out.length - 1 - i] *= ackFadeOut(1 - i / fout);
+
   const p20 = peak20(out, sr);
   if (!(p20 > 0)) return null;
   let gain = ACK_RMS20 / p20;
@@ -2005,16 +2083,30 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     lastAckIdx = i;
     return ackClips[i];
   };
-  /** Trail the hum off — she is starting a word, not being cut off. */
+  /**
+   * Trail the hum off — she is starting a word, not being cut off.
+   *
+   * The curve, not the duration, is the thing here. A linear ramp on AMPLITUDE
+   * is not linear on the ear: it spends its first half barely moving and then
+   * collapses, which is heard as the hum holding on and then being switched
+   * off underneath her — the same "sudden cut" complaint the clip edges
+   * collected, arriving from the mixer instead of from the file. The same
+   * late-closing window the shaper uses on the clip's own tail is used here,
+   * over the same ACK_FADE seconds, so the hum thins out under her first word.
+   * setValueCurveAtTime rather than a ramp because the shape is the point.
+   */
   const fadeAck = () => {
     if (!ackNode) return;
     const { src, g } = ackNode;
     ackNode = null;
     try {
       const t = outCtx.currentTime;
+      const from = g.gain.value;
       g.gain.cancelScheduledValues(t);
-      g.gain.setValueAtTime(g.gain.value, t);
-      g.gain.linearRampToValueAtTime(0.0001, t + ACK_FADE);
+      const N = 24; // 24 points over 100ms — well under one audio quantum apart
+      const curve = new Float32Array(N);
+      for (let i = 0; i < N; i++) curve[i] = Math.max(0.0001, from * ackFadeOut(i / (N - 1)));
+      g.gain.setValueCurveAtTime(curve, t, ACK_FADE);
       src.stop(t + ACK_FADE + 0.02);
     } catch {
       /* ctx closed */

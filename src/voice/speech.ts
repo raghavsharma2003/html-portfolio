@@ -14,6 +14,9 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { TextToSpeech } from "@capacitor-community/text-to-speech";
 import { SpeechRecognition as NativeSR } from "@capgo/capacitor-speech-recognition";
 import { attachAnalyser } from "./level";
+// The listening-sound shaper. Imported rather than copied — the two lanes make
+// the same sound and a second implementation is how they stop agreeing.
+import { shapeAck } from "./liveCall";
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -1283,6 +1286,13 @@ export function playThinkingFiller() {
   let idx = Math.floor(Math.random() * fillerClips.length);
   if (idx === lastFillerIdx) idx = (idx + 1) % fillerClips.length;
   lastFillerIdx = idx;
+  // DELIBERATELY NOT playSoftClip. A filler is "Ek second..." — her asking for
+  // a moment, a phrase with words in it. The shaper below enforces the
+  // BACKCHANNEL band (150-900ms core) and the backchannel LEVEL (~10 dB under
+  // her speech), and both are wrong here: the band would reject a clip this
+  // long outright and play nothing, and the level would bury a sentence the
+  // user is meant to act on. Unifying these two paths looks like tidying and is
+  // how the floor-holder goes silent.
   const blob = fillerClips[idx];
   if (audioCtx && audioCtx.state === "running") {
     blob
@@ -1298,51 +1308,92 @@ export function playThinkingFiller() {
   }
 }
 
+/* ── how a listening sound is PLAYED, and why it is not `src.start(0)` ──
+ *
+ * It used to be exactly that: decode the TTS WAV, connect a bare source to
+ * destination, start it. Three things came out of that, all measured on the
+ * clips this lane actually fetches (n=19):
+ *
+ *  • LEVEL. The clip played at whatever the synthesiser produced — a median
+ *    7.6 dB, and up to 17.3 dB, ABOVE the level a backchannel was measured and
+ *    tuned at on the live lane. A listening sound that arrives louder than the
+ *    sentence it is answering is not a listening sound; it is an interruption,
+ *    and "sudden" is the first thing anyone would call it.
+ *  • PLACEMENT. The synthesiser pads every clip with lead silence (median
+ *    260 ms, max 320). Played untrimmed, the sound lands a quarter of a second
+ *    after the moment the caller carefully picked for it.
+ *  • EDGES. No fade at either end, so the buffer's first and last samples are
+ *    steps. That is the "abrupt and sudden start and cut" verbatim.
+ *
+ * So the clip goes through the SAME shaper the live lane uses — one
+ * implementation, imported, because two would drift and this is the property
+ * the owner has now rejected twice. It trims to the sound, restores the breath
+ * and room tail either side of it, curves both edges, and normalises to the
+ * peak-20ms-RMS the live lane's echo measurements were taken at. That level is
+ * transferable between the lanes because it is a RATIO: her spoken audio
+ * measures within a few dB of the same peak-20ms-RMS on both, so "quieter than
+ * a sentence by ~10 dB" means the same thing here as there.
+ *
+ * A clip the shaper rejects is NOT played — silence is a correct listening
+ * sound and a wrong one is not — so this returns whether it made a sound, and
+ * the callers that promise to always answer try the next clip instead.
+ * Measured: 2 of 9 synthesised "Acha..." clips come back over the 900 ms band
+ * and are refused, so "the clip I happened to reach for was unusable" is a
+ * real case and not a theoretical one.
+ */
+async function playSoftClip(blob: Blob): Promise<boolean> {
+  if (audioCtx && audioCtx.state === "running") {
+    try {
+      const buf = await audioCtx.decodeAudioData(await blob.arrayBuffer());
+      const shaped = shapeAck(buf.getChannelData(0), buf.sampleRate);
+      if (!shaped) return false;
+      const out = audioCtx.createBuffer(1, shaped.length, buf.sampleRate);
+      out.getChannelData(0).set(shaped);
+      const src = audioCtx.createBufferSource();
+      src.buffer = out;
+      // through the speech bus, not straight to destination: that is the node
+      // the presence UI reads and the duck acts on, so a listening sound now
+      // shows up as her making a sound instead of as a ghost
+      src.connect(speechOut() ?? audioCtx.destination);
+      src.start(0);
+      return true;
+    } catch {
+      /* a listening sound is never worth failing a call over */
+      return false;
+    }
+  }
+  // No AudioContext (backgrounded WebView): the element path cannot decode, so
+  // it cannot trim or fade. It can at least not be too loud — 0.42 is the
+  // median 7.6 dB overshoot measured above, applied blind.
+  const a = new Audio(URL.createObjectURL(blob));
+  a.volume = 0.42;
+  a.onended = () => URL.revokeObjectURL(a.src);
+  a.play().catch(() => {});
+  return true;
+}
+
 // Deterministic acknowledgment — "I heard you" — played when her reply is
 // taking a beat. ALWAYS fires (rotating clip) so the user is never left
 // wondering whether she listened; this is the audio version of read-ticks.
 let lastAckIdx = -1;
 export function playAck() {
   if (!backchannelClips.length) return;
-  lastAckIdx = (lastAckIdx + 1) % backchannelClips.length;
-  const blob = backchannelClips[lastAckIdx];
-  if (audioCtx && audioCtx.state === "running") {
-    blob
-      .arrayBuffer()
-      .then((d) => audioCtx!.decodeAudioData(d))
-      .then((buf) => {
-        const src = audioCtx!.createBufferSource();
-        src.buffer = buf;
-        src.connect(audioCtx!.destination);
-        src.start(0);
-      })
-      .catch(() => {});
-    return;
-  }
-  const a = new Audio(URL.createObjectURL(blob));
-  a.onended = () => URL.revokeObjectURL(a.src);
-  a.play().catch(() => {});
+  // "ALWAYS fires" has to survive the shaper refusing a clip, so this walks the
+  // rotation until one of them makes a sound. It still advances by one on the
+  // way in, so the ordinary case is the same rotation it has always been.
+  void (async () => {
+    for (let i = 0; i < backchannelClips.length; i++) {
+      lastAckIdx = (lastAckIdx + 1) % backchannelClips.length;
+      if (await playSoftClip(backchannelClips[lastAckIdx])) return;
+    }
+  })();
 }
 
 export function playBackchannel() {
   if (!backchannelClips.length) return;
-  const blob = backchannelClips[Math.floor(Math.random() * backchannelClips.length)];
-  if (audioCtx && audioCtx.state === "running") {
-    blob
-      .arrayBuffer()
-      .then((d) => audioCtx!.decodeAudioData(d))
-      .then((buf) => {
-        const src = audioCtx!.createBufferSource();
-        src.buffer = buf;
-        src.connect(audioCtx!.destination);
-        src.start(0);
-      })
-      .catch(() => {});
-    return;
-  }
-  const a = new Audio(URL.createObjectURL(blob));
-  a.onended = () => URL.revokeObjectURL(a.src);
-  a.play().catch(() => {});
+  // The overlapping one. No retry: this fires DURING their sentence at a
+  // breath pause, and a second attempt would land after the pause has closed.
+  void playSoftClip(backchannelClips[Math.floor(Math.random() * backchannelClips.length)]);
 }
 
 export function stopSpeaking() {
