@@ -182,8 +182,9 @@
     },
     {
       "id": "realtime-azure",
-      "kind": "open",
-      "title": "gpt-realtime not yet evaluated against Gemini Live"
+      "kind": "rejection",
+      "title": "gpt-realtime-2.1-mini for the voice call lane",
+      "at": "2026-08-11"
     },
     {
       "id": "grok-quiet",
@@ -405,11 +406,6 @@
       "dst": "brain-model"
     },
     {
-      "src": "realtime-azure",
-      "rel": "blocks",
-      "dst": "voice-model"
-    },
-    {
       "src": "light-only",
       "rel": "part_of",
       "dst": "persona"
@@ -513,6 +509,16 @@
       "src": "azure-realtime-shape",
       "rel": "constrains",
       "dst": "audio-floor"
+    },
+    {
+      "src": "realtime-azure",
+      "rel": "caused_by",
+      "dst": "voice-ears"
+    },
+    {
+      "src": "realtime-azure",
+      "rel": "measured_by",
+      "dst": "live-model-bake"
     }
   ]
 }
