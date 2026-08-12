@@ -760,7 +760,7 @@ function takePre() {
 // session — so a second call pays nothing at all, and a first call on a device
 // that has run the app before pays only an IndexedDB read.
 //
-// WHAT SHE SAYS. Four neutral continuers, and neutral is a requirement, not a
+// WHAT SHE SAYS. Three neutral continuers, and neutral is a requirement, not a
 // stylistic preference: this sound is chosen by a TIMER — 420ms after they stop
 // talking — with nothing in the client that knows what they just said. A "hmm"
 // is right after every possible sentence. A LAUGH IS NOT, and a laugh landing
@@ -775,7 +775,41 @@ function takePre() {
 // followed by the spoken word "Softly." (transcribed, 1 of 5 clips). Anything
 // sentence-shaped handed to a TTS is a phrase it may read out — the same
 // failure mode persona.ts documents for the brain.
-const ACK_PHRASES = ["Hmm.", "Haan...", "Acha...", "Mmhm."];
+// NON-LEXICAL ONLY, and this is the third round of the owner's ear that says so.
+// The list used to be ["Hmm.", "Haan...", "Acha...", "Mmhm."]. "Haan" and
+// "Acha" are WORDS; "hmm" and "mmhm" are not. The owner has now named "acha"
+// specifically twice ("'acha' in it is still robotic"), and never a hum.
+//
+// The mechanism, and why no amount of re-generating it helped. A word has a
+// CITATION FORM — a way it is pronounced when you say it for inspection rather
+// than mean it — and every clip this lane can make is produced in isolation, so
+// a word always arrives as its citation. A hum has no citation form to fall
+// into. That predicts exactly the pattern the ear reported, and it is the only
+// account that survived measurement.
+//
+// WHAT WAS TRIED BEFORE DROPPING THEM, so nobody redoes it: murmurs were cut
+// out of REAL conversations instead of synthesised as items — a live session on
+// the production brief, given corrections to react to, with the reaction token
+// sliced off the front of her reply (scratchpad/ackv3/incontext). n=11 tokens
+// from 30 replies. It did not help on any axis measured: the extracted tokens
+// sat CLOSER to her speaking pitch than the isolated ones (−1.6 st vs −3.3),
+// carried LESS pitch movement (3.9 st vs 7.4), and ran longer (670 ms vs 440).
+// The theory that in-context prosody would fix "acha" is measured, and wrong.
+// Harvesting hums acoustically from mid-reply fared worse still: 3 of its 5
+// detections were nasal syllables cut out of the middle of words, because a
+// nasal inside a word is a closed mouth and no spectral test can tell it from a
+// hum. Isolated capture cannot make that mistake — the clip is a whole
+// utterance by construction.
+//
+// "Mmm." replaces the two that were dropped, so `pickAck`'s never-twice-running
+// rule still has three to choose between rather than two alternating.
+//
+// WHAT WOULD REVERSE THIS: the owner approving one of the lexical candidates in
+// scratchpad/ackv3/incontext/RULING-acha-haan.wav (14 of them, both methods,
+// his call and not this file's), or any lane that can pick the sound AFTER
+// knowing what was said — at which point "acha" becomes right for the turns it
+// is actually right for, which is the real reason it grates on a timer.
+const ACK_PHRASES = ["Hmm.", "Mmhm.", "Mmm."];
 // Direction, kept identical to the one speech.ts already uses for its cascade
 // backchannels so the two lanes cannot drift into different-sounding sounds.
 const ACK_STYLE = "quiet, brief, barely-there listener sound, low energy";

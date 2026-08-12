@@ -1201,7 +1201,16 @@ export function saveClip(key: string, blob: Blob) {
    twice in a row (the "constant humming" bug was exactly this). ── */
 
 const backchannelClips: Blob[] = [];
-const BACKCHANNELS = ["Hmm.", "Haan...", "Acha..."];
+// NON-LEXICAL ONLY. This list was ["Hmm.", "Haan...", "Acha..."] — two of the
+// three were WORDS — and THIS is the lane the user actually hears, so this is
+// where the owner's "'acha' in it is still robotic" verdict came from. The
+// reasoning, the measurements, and what would reverse it are on ACK_PHRASES in
+// liveCall.ts; the short version is that a word has a citation form and a hum
+// does not, and every clip here is synthesised in isolation, so a word can only
+// ever arrive as its citation. KEEP THE TWO LISTS IDENTICAL: they are the same
+// sound on two lanes, and the last time they disagreed about who she was it
+// shipped as "two or three different voices".
+const BACKCHANNELS = ["Hmm.", "Mmhm.", "Mmm."];
 // floor-holding sounds for when her reply is still generating — pure
 // paralinguistics, not conversation
 const fillerClips: Blob[] = [];
