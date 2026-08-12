@@ -247,3 +247,38 @@ Chunked transfer-encoding, but the whole clip lands ~20 ms after the first byte
 Consequence, measured in production the same day: with free quota gone, 10 of 12
 requests were served by this lane. **Free-served first audio p50 886 ms;
 paid-served p50 2476 ms.** That gap *is* the p90.
+
+## `azure-realtime-shape` — what an Azure realtime session requires (2026-08-11)
+
+Established while trying to evaluate `gpt-realtime-2.1-mini`. The model itself
+is **not measured** — see `realtime-azure`, still open — but these two are
+properties of the Azure realtime protocol and hold regardless of the verdict.
+
+**Input audio below 24 kHz is refused outright:**
+`{"code":"integer_below_min_value", "message":"Invalid
+'session.audio.input.format.rate' ... Expected a value >= 24000, but got
+16000"}`. `liveCall.ts` uplinks 16 kHz PCM, so a swap means changing the
+resample rate and carrying **1.5× the uplink bytes** — which lands in the
+congestion path that reads `bufferedAmount` troughs.
+
+**There is no continuous frame channel.** The server's supported-event enum is
+`session.update`, `session.close`, `transcription_session.update`,
+`input_audio_buffer.{append,commit,clear}`,
+`conversation.item.{create,truncate,delete,retrieve}`,
+`response.{create,cancel}`. `input_image_buffer.append` and
+`input_video_buffer.append` are rejected as invalid. The only route for a frame
+is a discrete `conversation.item.create` carrying an `input_image` part, which
+was accepted.
+
+**Caveat, and it is load-bearing:** that enum came from `gpt-4o-mini-tts`, the
+only deployment on the resource that would open a socket. Whether a real
+realtime deployment widens it is exactly what could not be tested. Treat it as
+a strong prior that screen share would need re-architecting from "stream frames
+into the session" to "inject frames as conversation items" — not as a measured
+answer.
+
+**Also note the barge-in signal is structurally different.** Azure's nearest
+event is `input_audio_buffer.speech_started`, a VAD ONSET — not
+`serverContent.interrupted`, which is a semantic "your turn was cut off" and is
+what `RELEASE_WATCHDOG_MS` is written against. That is a reason to measure the
+port rather than assume it is mechanical.

@@ -285,6 +285,12 @@
       "kind": "rejection",
       "title": "Asking the paid TTS lane to stream",
       "at": "2026-08-11"
+    },
+    {
+      "id": "azure-realtime-shape",
+      "kind": "measurement",
+      "title": "What an Azure realtime session requires",
+      "at": "2026-08-11"
     }
   ],
   "edges": [
@@ -497,6 +503,16 @@
       "src": "openrouter-no-stream",
       "rel": "constrains",
       "dst": "voice-model"
+    },
+    {
+      "src": "realtime-azure",
+      "rel": "blocks",
+      "dst": "azure-realtime-shape"
+    },
+    {
+      "src": "azure-realtime-shape",
+      "rel": "constrains",
+      "dst": "audio-floor"
     }
   ]
 }
