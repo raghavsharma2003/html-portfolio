@@ -298,6 +298,24 @@
       "kind": "decision",
       "title": "The build target is the relational-state layer; Meera is instance one",
       "at": "2026-08-13"
+    },
+    {
+      "id": "phase-a-research",
+      "kind": "measurement",
+      "title": "The relational-state research sweep (23 agents, verified)",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "consolidation-citation",
+      "kind": "constraint",
+      "title": "No derived fact without a citation trail to source episodes",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "sham-arm",
+      "kind": "constraint",
+      "title": "Swap detection must be measured against a sham arm",
+      "at": "2026-08-13"
     }
   ],
   "edges": [
@@ -545,6 +563,26 @@
       "src": "prompt-position",
       "rel": "constrains",
       "dst": "relational-state"
+    },
+    {
+      "src": "relational-state",
+      "rel": "measured_by",
+      "dst": "phase-a-research"
+    },
+    {
+      "src": "consolidation-citation",
+      "rel": "constrains",
+      "dst": "relational-state"
+    },
+    {
+      "src": "sham-arm",
+      "rel": "constrains",
+      "dst": "relational-state"
+    },
+    {
+      "src": "phase-a-research",
+      "rel": "caused_by",
+      "dst": "charm-grok"
     }
   ]
 }

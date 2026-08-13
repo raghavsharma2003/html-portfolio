@@ -23,6 +23,13 @@ D. SWAP TEST  offline judge-based fingerprinting first, then consented cohort
 E. USERS      only when the owner is satisfied
 ```
 
+## Phase A: COMPLETE (2026-08-13)
+
+Output: `docs/research/RESEARCH.md` (synthesis) plus the ten track files beside
+it. 23 agents, 12 load-bearing claims adversarially verified (5 confirmed, 6
+corrected, 1 killed), corrections applied inline. Headline findings are logged
+in `context/` — start from `node scripts/context.mjs --node phase-a-research`.
+
 ## Research tracks (Phase A)
 
 1. **memory-arch** — LLM-agent memory systems, measured not marketed

@@ -282,3 +282,50 @@ event is `input_audio_buffer.speech_started`, a VAD ONSET — not
 `serverContent.interrupted`, which is a semantic "your turn was cut off" and is
 what `RELEASE_WATCHDOG_MS` is written against. That is a reason to measure the
 port rather than assume it is mechanical.
+
+## `phase-a-research` — the relational-state research sweep (2026-08-13)
+
+23 agents, 10 tracks, 12 load-bearing claims adversarially verified (5
+confirmed, 6 corrected, 1 killed). Full corpus: `docs/research/RESEARCH.md`
+plus ten track files. The findings that shape the architecture:
+
+- **The ceiling finding replicates externally.** ANCHOR (arXiv:2607.28818,
+  2,008 conversations, 3 memory architectures × 4 models): swapping the memory
+  scaffold does not move a model's persona-collapse pattern (Claude varies
+  <1pt across scaffolds). Character.AI's PipSqueak 2 swap and Replika's ERP
+  removal (HBS study, 12,793 posts, d=1.16) are large-n natural experiments of
+  the same shape. Nobody ships, or has even tested, identity survival across a
+  model swap. **The white space is real.**
+- **The counter-datum that reframes the swap test:** Surge AI's double-blind
+  GPT-4o vs GPT-5 audit — 48% vs 43% preference, near-tie BLINDED, for a swap
+  that produced public grief unblinded. Detection must be measured against a
+  sham arm or it measures loss-framing, not discriminability.
+- **The one proven portability mechanism is ours:** `taste-consistency`
+  (authored state + deterministic retrieval, 27%→63%). Every measured success
+  in the repo shares that shape: authored state and structural guarantees beat
+  generated text and prompt instructions.
+- **Consolidation confabulates unless forced to cite.** Every surveyed
+  reflection/consolidation port inflates or invents; the constraint that
+  survives: no derived fact is written without a citation trail to source
+  episodes.
+- **No OSS memory system types "WE did this" apart from "I know this about
+  you".** All of MemGPT/Letta, Zep/Graphiti, Mem0, HippoRAG, A-MEM are
+  fact-about-user stores. The relationship-as-participant store is unbuilt.
+- **India relational state has zero prior art** — honorific register
+  (tu/tum/aap as dynamic relationship state), code-switch direction, kin-graph,
+  festival/food-as-care. Academic corpora (LinCE, GLUECoS) skew formal;
+  shipping Indian products don't model it.
+- **No streaming multimodal API persists multimodal state** — every system
+  that fakes it extracts a symbolic record during/after the turn, which is the
+  pattern our extract-model already implements.
+- **Regulation converges on three structural mechanisms:** session-duration
+  disclosure/break timers, verified age-tiering, derived-state deletion. We
+  lead on deletion; we lack export and a session clock. China's July 2026
+  companion shutdowns (Doubao/Qwen) are a live case of the identity-loss harm.
+- **Two strategy-doc numbers corrected:** the Nasscom TAM attribution and the
+  Rumik/Ira round were wrong as stated; several others are self-reported.
+  Details in `docs/research/market-verify.md`.
+
+Method note for future sweeps: 3 sieve-class bugs were caught only because
+verification was adversarial; 1 of 12 load-bearing claims died and 6 needed
+correction. **A research sweep without a refutation stage is a rumor mill.**
