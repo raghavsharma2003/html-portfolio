@@ -50,6 +50,21 @@ await gate("web build", "npx", ["vite", "build"]);
 // reason tsc runs even though vite exits 0 with type errors.
 await gate("eval suite", "node", ["evals/run.mjs"]);
 
+// Relational-schema integrity: the zero-orphan sweep and the citation
+// discipline (SPEC §4.2). Both are read-only sub-second queries against the
+// live database, so they need NEON_URL — which the APK workflow does not have
+// (api/_config.js is secrets-built only where deploys run). Skipping is
+// PRINTED, never silent: a skipped gate that looks like a passed gate is how
+// the meera_tel_session index shadowed its table for a day.
+const hasDb = await import("../api/_config.js").then((c) => Boolean(c.NEON_URL), () => false);
+if (hasDb) {
+  console.log("\n── relational db gates ──");
+  await gate("zero-orphan sweep", "node", ["scripts/relcheck.mjs"]);
+  await gate("citation discipline", "node", ["scripts/check-citations.mjs"]);
+} else {
+  console.log("\n── relational db gates: SKIPPED (no NEON_URL in this environment) ──");
+}
+
 if (liveAt) {
   console.log(`\n── live probes against ${liveAt} ──`);
   const base = liveAt.replace(/\/$/, "");

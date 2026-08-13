@@ -517,6 +517,335 @@ async function noteForgotten(device, terms) {
   ).catch(() => {});
 }
 
+// ── the relational store: one manifest, three consumers ────────────────────
+//
+// Every user-data table, in one list. opForget's whole-wipe iterates it,
+// api/export.js exports it, and scripts/relcheck.mjs asserts that no
+// person-keyed table exists in the database that is missing from it. That
+// single-source-of-truth is a SPEC requirement (§9.2): if forget and export
+// each kept their own list, they would drift, and the drift would be a
+// privacy defect discovered by a regulator instead of by CI.
+//
+// lane:
+//   legacy     — device-keyed, deleted by the pre-existing scope code below
+//   relational — person-keyed (SPEC §2), deleted by purgeRelational()
+//   person     — the identity mapping itself, deleted last and guarded
+// vy_model and vy_gate_run are deliberately absent: router roster and gate
+// audit are not user data (no person_id).
+export const PERSON_TABLES = [
+  { table: "meera_log",         key: "device_id", lane: "legacy" },
+  { table: "meera_nodes",       key: "device_id", lane: "legacy" },
+  { table: "meera_edges",       key: "device_id", lane: "legacy" },
+  { table: "meera_forget",      key: "device_id", lane: "legacy" },
+  { table: "meera_tel",         key: "device_id", lane: "legacy" },
+  { table: "meera_tel_session", key: "device_id", lane: "legacy" },
+  { table: "vy_episode",          key: "person_id", lane: "relational" },
+  { table: "vy_visual_assertion", key: "person_id", lane: "relational" },
+  { table: "vy_shared_moment",    key: "person_id", lane: "relational" },
+  { table: "vy_fact",             key: "person_id", lane: "relational" },
+  { table: "vy_rel_event",        key: "person_id", lane: "relational" },
+  { table: "vy_rel_state",        key: "person_id", lane: "relational" },
+  { table: "vy_pattern",          key: "person_id", lane: "relational" },
+  { table: "vy_phrase",           key: "person_id", lane: "relational" },
+  { table: "vy_kin",              key: "person_id", lane: "relational" },
+  { table: "vy_ritual",           key: "person_id", lane: "relational" },
+  { table: "vy_currency",         key: "person_id", lane: "relational" },
+  { table: "vy_india_profile",    key: "person_id", lane: "relational" },
+  { table: "vy_embedding",        key: "person_id", lane: "relational" },
+  { table: "vy_derivation",       key: "person_id", lane: "relational" },
+  { table: "vy_session",          key: "person_id", lane: "relational" },
+  { table: "vy_person_device",  key: "device_id", lane: "person" },
+  { table: "vy_person",         key: "person_id", lane: "person" },
+];
+
+/** Device → person through the 001 mapping; an unmapped device IS its person
+ *  (person_id := device_id cast, §2.1 — one code path for anonymous). */
+export async function personIdFor(device) {
+  const r = await q(`select person_id from vy_person_device where device_id = $1`, [device]).catch(
+    () => [],
+  );
+  return r[0]?.person_id || device;
+}
+
+// ── forget cascade v2 (SPEC §9.1, steps 2–6) ───────────────────────────────
+//
+// The legacy deletes above this point handle meera_log and the graph; this
+// handles everything DERIVED from them. Order and mechanism are the spec's:
+//
+//   2. episodes die by LOG-RANGE INTERSECTION with the deleted meera_log
+//      rows (D's mechanism — no term-matching gap). Term/window matches are
+//      an ADDITIONAL net only, never the primary mechanism (§0.2.4).
+//      visual_assertions and shared_moments go with their episode (FK).
+//   3. citation-join: everything whose citations && the dead episode ids
+//      dies over the GIN indexes — facts, rel events, patterns, kin,
+//      currency, rituals. Patterns are deleted whole, never trimmed: a
+//      pattern that cited a forgotten episode took too much of its shape
+//      from it, and taking too much is the safe direction.
+//   4. lineage chase: superseded_by chains die in BOTH directions — a
+//      summary of a forgotten thing is still a memory of it; so are the
+//      beliefs it superseded.
+//   5. vy_rel_state is rebuilt by REPLAYING surviving rel events — register
+//      and trust legitimately regress after a forget. Honesty, not a bug.
+//   6. embeddings die with their owners; legacy-quarantined rows are
+//      over-deleted on any plausibly-covering scope.
+//
+// Nothing here is .catch()-swallowed: the receipt ("haan, hata diya") may
+// only be sent once the delete actually happened, so a failed cascade must
+// fail the whole op, loudly, and the client keeps the forget pending.
+async function purgeRelational(device, scope, { logIds = [], rx = null, from = NaN, to = NaN } = {}) {
+  const person = await personIdFor(device);
+  const out = {
+    episodes: 0, facts: 0, rel_events: 0, patterns: 0, kin: 0, currency: 0,
+    rituals: 0, phrases: 0, embeddings: 0, derivations: 0, sessions: 0,
+    person_rows: 0, state_rebuilt: false, terms: [],
+  };
+
+  if (scope === "all") {
+    // manifest-driven: a table added to PERSON_TABLES is wiped here with no
+    // further code — the wipe cannot lag the schema
+    for (const t of PERSON_TABLES) {
+      if (t.lane !== "relational") continue;
+      const gone = await q(
+        `delete from ${t.table} where ${t.key} = $1 returning 1 as x`,
+        [person],
+        30_000,
+      );
+      if (gone.length) out[t.table] = gone.length;
+    }
+    // the mapping and (if no other device shares it) the person row itself:
+    // a full wipe that kept the identity row would keep a record of them
+    const m = await q(`delete from vy_person_device where device_id = $1 returning person_id`, [device]);
+    await q(
+      `delete from vy_person p where p.person_id = $1
+        and not exists (select 1 from vy_person_device d where d.person_id = p.person_id)`,
+      [person],
+    );
+    out.person_rows += m.length;
+    return out;
+  }
+
+  // ── step 2: which episodes die ──
+  const seeds = new Set();
+  if (logIds.length) {
+    const hit = await q(
+      `select id from vy_episode
+        where person_id = $1 and log_from is not null and log_to is not null
+          and exists (select 1 from unnest($2::bigint[]) d(id) where d.id between log_from and log_to)`,
+      [person, logIds],
+    );
+    for (const r of hit) seeds.add(r.id);
+  }
+  if (rx) {
+    // additional net (item scope): the summary says the word even though the
+    // cited rows might not — "priya" living inside an episode about the wedding
+    const hit = await q(
+      `select id from vy_episode where person_id = $1 and summary ~* $2`,
+      [person, rx],
+    );
+    for (const r of hit) seeds.add(r.id);
+  }
+  if (Number.isFinite(from) && Number.isFinite(to)) {
+    // additional net (window scopes): provisional episodes may not carry a log
+    // span yet; an episode that OVERLAPS the window carries its words. The
+    // window is taken unfiltered by channel, same call the node delete makes.
+    const hit = await q(
+      `select id from vy_episode
+        where person_id = $1 and started_at < $3 and coalesce(ended_at, started_at) >= $2`,
+      [person, new Date(from).toISOString(), new Date(to).toISOString()],
+    );
+    for (const r of hit) seeds.add(r.id);
+  }
+
+  // ── steps 2+4: delete episodes with the superseded_by chase, both
+  // directions, in one recursive statement (SQL-HTTP = no transactions, so
+  // each statement must leave a consistent-enough state on its own; the
+  // zero-orphan sweep is the prover). FK cascade takes assertions/moments.
+  let epIds = [];
+  if (seeds.size) {
+    const gone = await q(
+      `with recursive doomed as (
+         select id, superseded_by from vy_episode where person_id = $1 and id = any($2::bigint[])
+         union
+         select e.id, e.superseded_by from vy_episode e
+           join doomed d on e.person_id = $1 and (e.id = d.superseded_by or e.superseded_by = d.id)
+       )
+       delete from vy_episode where person_id = $1 and id in (select id from doomed)
+       returning id`,
+      [person, [...seeds]],
+      30_000,
+    );
+    epIds = gone.map((r) => r.id);
+  }
+  out.episodes = epIds.length;
+
+  // ── step 3 + 4 on facts: citation-join seed, then lineage both ways.
+  // Legacy-quarantined rows (no citations to join on) are over-deleted on
+  // any plausibly-covering scope: rx hits them by name/body; a window scope
+  // takes the ones written inside it (mirrors the meera_nodes updated_at rule).
+  const win = Number.isFinite(from) && Number.isFinite(to);
+  const factGone = await q(
+    `with recursive doomed as (
+       select id, superseded_by from vy_fact
+        where person_id = $1
+          and (citations && $2::bigint[]
+               ${rx ? "or name ~* $3 or body ~* $3" : win ? "or (provenance = 'legacy' and created_at >= $3 and created_at < $4)" : ""})
+       union
+       select f.id, f.superseded_by from vy_fact f
+         join doomed d on f.person_id = $1 and (f.id = d.superseded_by or f.superseded_by = d.id)
+     )
+     delete from vy_fact where person_id = $1 and id in (select id from doomed)
+     returning id, name`,
+    rx
+      ? [person, epIds, rx]
+      : win
+        ? [person, epIds, new Date(from).toISOString(), new Date(to).toISOString()]
+        : [person, epIds],
+    30_000,
+  );
+  const factIds = factGone.map((r) => r.id);
+  out.facts = factIds.length;
+
+  const relGone = await q(
+    `delete from vy_rel_event where person_id = $1
+      and (citations && $2::bigint[]${rx ? " or note ~* $3" : ""}) returning id`,
+    rx ? [person, epIds, rx] : [person, epIds],
+  );
+  out.rel_events = relGone.length;
+
+  const patGone = await q(
+    `delete from vy_pattern where person_id = $1
+      and (citations && $2::bigint[]${rx ? " or if_shape ~* $3 or then_note ~* $3" : ""}) returning id`,
+    rx ? [person, epIds, rx] : [person, epIds],
+  );
+  out.patterns = patGone.length;
+
+  const kinGone = await q(
+    `delete from vy_kin where person_id = $1
+      and (citations && $2::bigint[]${rx ? " or name ~* $3" : ""}) returning name`,
+    rx ? [person, epIds, rx] : [person, epIds],
+  );
+  out.kin = kinGone.length;
+
+  const curGone = await q(
+    `delete from vy_currency where person_id = $1
+      and (citations && $2::bigint[]${rx ? " or topic ~* $3" : ""}) returning topic`,
+    rx ? [person, epIds, rx] : [person, epIds],
+  );
+  out.currency = curGone.length;
+
+  const ritGone = await q(
+    `delete from vy_ritual where person_id = $1 and citations && $2::bigint[] returning key`,
+    [person, epIds],
+  );
+  out.rituals = ritGone.length;
+
+  // phrases: THEIR coined words. One dies when its coining episode dies,
+  // when the word itself is what is being forgotten (rx), or when it was
+  // coined inside a forgotten window.
+  const phrGone = await q(
+    `delete from vy_phrase where person_id = $1
+      and (origin_episode = any($2::bigint[])
+           ${rx ? "or phrase ~* $3 or gloss ~* $3" : win ? "or (coined_at >= $3 and coined_at < $4)" : ""}) returning phrase`,
+    rx
+      ? [person, epIds, rx]
+      : win
+        ? [person, epIds, new Date(from).toISOString(), new Date(to).toISOString()]
+        : [person, epIds],
+  );
+  out.phrases = phrGone.length;
+
+  // step 6: embeddings die with their owners
+  const embGone = await q(
+    `delete from vy_embedding where person_id = $1
+      and ((owner_kind = 'episode' and owner_id = any($2::bigint[]))
+        or (owner_kind = 'fact'    and owner_id = any($3::bigint[]))
+        or (owner_kind = 'pattern' and owner_id = any($4::bigint[]))) returning 1 as x`,
+    [person, epIds, factIds, patGone.map((r) => r.id)],
+  );
+  out.embeddings = embGone.length;
+
+  // a derivation record whose input span intersects the deleted log rows is
+  // the audit trail OF a conversation that no longer exists
+  if (logIds.length) {
+    const derGone = await q(
+      `delete from vy_derivation where person_id = $1
+        and exists (select 1 from unnest($2::bigint[]) d(id) where d.id between input_from and input_to)
+       returning id`,
+      [person, logIds],
+    );
+    out.derivations = derGone.length;
+  }
+
+  // session-clock rows are a timeline of the forgotten stretch (window scopes)
+  if (win) {
+    const sesGone = await q(
+      `delete from vy_session where person_id = $1 and started_at < $3 and last_activity >= $2
+       returning session_id`,
+      [person, new Date(from).toISOString(), new Date(to).toISOString()],
+    );
+    out.sessions = sesGone.length;
+  }
+
+  // ── step 5: replay-rebuild the snapshot from surviving events ──
+  if (epIds.length || relGone.length || ritGone.length) {
+    await rebuildRelState(person);
+    out.state_rebuilt = true;
+  }
+
+  // suppression terms so the extractor AND the consolidator (M3) cannot
+  // re-derive the forgotten thing from a transcript still on screen
+  for (const r of [...factGone, ...kinGone]) if (r.name) out.terms.push(r.name);
+  for (const r of phrGone) if (r.phrase) out.terms.push(r.phrase);
+  for (const r of curGone) if (r.topic) out.terms.push(r.topic);
+  return out;
+}
+
+// The snapshot is a CACHE (SPEC §2.4). After a forget it is rebuilt by
+// replaying whatever rel events survived — register and trust regress if
+// their evidence is gone. Deterministic fold, newest-wins per dim; derived
+// dims (cs_ratio, ritual_density, pacing) reset and are recomputed by the
+// nightly consolidator, which owns them. snapshot_ver DOES bump here even
+// though §2.4 says "only at consolidation": the ver exists so caches can
+// tell whether state moved, and a forget that moved state while the ver
+// held still would keep serving the forgotten state from a warm cache —
+// forget beats cache stability, explicitly.
+async function rebuildRelState(person) {
+  const evs = await q(
+    `select dim, to_v from vy_rel_event where person_id = $1 order by at, id`,
+    [person],
+  );
+  if (!evs.length) {
+    // no evidence, no state: the defaults live in the schema, not in a row
+    await q(`delete from vy_rel_state where person_id = $1`, [person]);
+    return;
+  }
+  const s = { honorific: "tum", cs_on_stress: "unknown", trust: 0.3, rupture_open: false, repair_state: "none" };
+  for (const e of evs) {
+    if (e.dim === "honorific" && ["tu", "tum", "aap"].includes(e.to_v)) s.honorific = e.to_v;
+    else if (e.dim === "trust") {
+      const v = Number(e.to_v);
+      if (Number.isFinite(v)) s.trust = Math.min(1, Math.max(0, v));
+    } else if (e.dim === "rupture") {
+      s.rupture_open = true;
+      s.repair_state = "open";
+    } else if (e.dim === "repair" && ["none", "open", "repairing", "repaired"].includes(e.to_v)) {
+      s.repair_state = e.to_v;
+      s.rupture_open = e.to_v === "open" || e.to_v === "repairing";
+    } else if (e.dim === "code_switch" && ["retreat_l2", "intensify_l1", "unknown"].includes(e.to_v)) {
+      s.cs_on_stress = e.to_v;
+    }
+  }
+  await q(
+    `insert into vy_rel_state (person_id, honorific, cs_on_stress, trust, rupture_open, repair_state, snapshot_ver)
+     values ($1,$2,$3,$4,$5,$6,1)
+     on conflict (person_id) do update set
+       honorific = $2, cs_on_stress = $3, trust = $4, rupture_open = $5, repair_state = $6,
+       cs_ratio = null, ritual_density = 0, pacing_gap_s = null,
+       snapshot_ver = vy_rel_state.snapshot_ver + 1, updated_at = now()`,
+    [person, s.honorific, s.cs_on_stress, s.trust, s.rupture_open, s.repair_state],
+  );
+}
+
 // an orphaned edge is a relation between two things that no longer exist —
 // it survives every node-level delete unless it is chased explicitly
 async function dropEdgesFor(device, ids) {
@@ -613,6 +942,7 @@ async function opForget(device, body) {
   let edges = 0;
   let photos = 0;
   let telemetry = 0;
+  let relational = null; // the §9.1 v2 cascade over the vy_ store
 
   if (scope === "item") {
     const name = String(body.name || "").trim().toLowerCase().slice(0, 60);
@@ -633,6 +963,12 @@ async function opForget(device, body) {
       rx,
     ]);
     telemetry = await purgeTelemetry(device, { rx });
+    // derived state: episodes citing the deleted rows, then everything citing
+    // those episodes, lineage chased, snapshot replayed (§9.1 steps 2–6)
+    relational = await purgeRelational(device, scope, {
+      logIds: logRows.map((r) => r.id),
+      rx,
+    });
   } else if (scope === "session" || scope === "day") {
     const [from, to] = scope === "day" ? dayWindow(body) : [Number(body.from), Number(body.to)];
     if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return { error: "bad window" };
@@ -667,6 +1003,11 @@ async function opForget(device, body) {
     telemetry = await purgeTelemetry(device, { from, to });
     // the pictures they sent during that stretch go with it
     photos = await deletePhotos(device, from, to).catch(() => 0);
+    relational = await purgeRelational(device, scope, {
+      logIds: logRows.map((r) => r.id),
+      from,
+      to,
+    });
   } else {
     logRows = await q(`delete from meera_log where device_id = $1 returning id`, [device]);
     nodeRows = await q(`delete from meera_nodes where device_id = $1 returning id, name`, [device]);
@@ -680,18 +1021,26 @@ async function opForget(device, body) {
     // a full wipe takes every picture, including any whose filename carries no
     // parseable timestamp — this is the one path that is allowed to be total
     photos = await deletePhotos(device).catch(() => 0);
+    // the whole relational store, manifest-driven, mapping row included
+    relational = await purgeRelational(device, "all");
   }
 
   if (scope !== "all") {
     const terms = nodeRows.map((n) => n.name);
     if (scope === "item") terms.push(String(body.name || "").trim().toLowerCase());
+    // suppression extension (§9.1): names of deleted facts/kin, coined
+    // phrases and currency topics join the list, so neither the extractor
+    // nor the M3 consolidator can re-derive what the cascade just took
+    if (relational?.terms?.length) terms.push(...relational.terms);
     await noteForgotten(device, terms);
   }
+
+  if (relational) delete relational.terms; // suppression list never leaves the server
 
   return {
     ok: true,
     scope,
-    deleted: { log: logRows.length, nodes: nodeRows.length, edges, photos, telemetry },
+    deleted: { log: logRows.length, nodes: nodeRows.length, edges, photos, telemetry, relational },
   };
 }
 
