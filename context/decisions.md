@@ -180,3 +180,38 @@ old behaviour.
 **Reverses if:** fabrication rises on the landing lane, or she speaks during
 flick-storm glances. If she is merely heard getting chatty while browsing, 3000
 is the conservative fallback and buys about half the win.
+
+---
+
+## `relational-state` — the build target is the relational-state layer; Meera is instance one (2026-08-13)
+
+The owner's decision, made explicitly after reviewing the evidence: Vyakti is a
+relational-intelligence lab. The falsifiable claim the company rests on:
+
+**An AI person's identity and relationship can be made to survive replacement
+of the model underneath her.** Today that claim is FALSE, and measured false —
+`charm-grok` (38–2 on a byte-identical prompt) and `realtime-azure` (41–53
+words/turn against her 20.5) both show the model leaking straight through the
+persona. The prompt sets a ceiling; the model decides how close you get.
+Closing that gap IS the company.
+
+North star, two numbers: **migration fidelity** (users who cannot tell the
+model changed) × **relationship retention** (D30/D180 still talking to her).
+
+Sequencing, decided by the owner against my users-first recommendation
+(recorded so the choice reads as deliberate): deep research → full
+relational-state build → swap test → users. Existing code has no seniority —
+each component gets an explicit keep/lift/rebuild verdict during research, and
+anything replaced is logged rather than deleted.
+
+Constraints that survive the rebuild regardless: the safety invariants (crisis
+protocol, never-deny-AI, NEVER MANIPULATE, honest forget), `prompt-position`,
+`recited-prompt`, `silent-truncation`, and the swap test runs on a CONSENTED
+cohort with debrief — covert emotional experiments on attached users are what
+regulators are probing, and trust-as-moat cannot coexist with them.
+
+**Reverses if:** the swap test, run after the full architecture, still shows
+high detection — identity cannot be lifted above the model at acceptable cost
+and latency — or field evidence shows retention is uncorrelated with
+relational depth. Either result would be a finding worth the company knowing,
+which is what makes this a lab and not a bet.

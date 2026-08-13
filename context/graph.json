@@ -292,6 +292,12 @@
       "kind": "measurement",
       "title": "What an Azure realtime session requires",
       "at": "2026-08-11"
+    },
+    {
+      "id": "relational-state",
+      "kind": "decision",
+      "title": "The build target is the relational-state layer; Meera is instance one",
+      "at": "2026-08-13"
     }
   ],
   "edges": [
@@ -519,6 +525,26 @@
       "src": "realtime-azure",
       "rel": "measured_by",
       "dst": "live-model-bake"
+    },
+    {
+      "src": "relational-state",
+      "rel": "measured_by",
+      "dst": "charm-grok"
+    },
+    {
+      "src": "relational-state",
+      "rel": "caused_by",
+      "dst": "semantic-recall"
+    },
+    {
+      "src": "recited-prompt",
+      "rel": "constrains",
+      "dst": "relational-state"
+    },
+    {
+      "src": "prompt-position",
+      "rel": "constrains",
+      "dst": "relational-state"
     }
   ]
 }
