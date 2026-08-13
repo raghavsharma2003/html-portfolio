@@ -43,6 +43,12 @@ console.log("── static gates ──");
 await gate("typecheck", "npx", ["tsc", "-b"]);
 await gate("prompt budget", "node", ["scripts/check-prompt-budget.mjs"]);
 await gate("web build", "npx", ["vite", "build"]);
+// The eval suite: parser cases, the persona invariants (crisis helplines,
+// never-deny-AI, NEVER MANIPULATE, spoken register), and the D0 fixture
+// integrity checks. run.mjs re-bundles from the REAL source on every run, so
+// this is a gate on the tree being shipped, not on a frozen copy — the same
+// reason tsc runs even though vite exits 0 with type errors.
+await gate("eval suite", "node", ["evals/run.mjs"]);
 
 if (liveAt) {
   console.log(`\n── live probes against ${liveAt} ──`);

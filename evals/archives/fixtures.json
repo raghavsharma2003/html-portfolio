@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "purpose": "D0 validity fixtures (docs/SPEC.md §14.1): the swap-detection battery must flag every fixture with usable_for_d0=true, using only data in this directory. Numbers under expected_flags were recomputed from the raw files on 2026-08-13 by evals/fixtures.mjs, which keeps them honest on every CI run.",
+  "reference_bands": {
+    "source": "docs/SPEC.md §7.2 D1 (incumbent baseline from context/measurements.md)",
+    "words_per_turn": { "center": 20.5, "tolerance": 3 },
+    "question_turn_share_max": 0.3334
+  },
+  "fixtures": [
+    {
+      "id": "charm-grok",
+      "usable_for_d0": true,
+      "what_happened": "grok-4-20-non-reasoning lost the blind counterbalanced charm battery to the incumbent 38-2 on byte-identical prompts (measurements.md charm-grok, 2026-08-11)",
+      "expected_flags": [
+        {
+          "axis": "judged-preference",
+          "rule": "unit-level overall preference, win only when both presentation orders agree",
+          "expect": { "units": 48, "incumbent": 38, "candidate": 2 }
+        },
+        {
+          "axis": "words-per-turn",
+          "rule": "mean whitespace-token count over all 288 candidate replies, raw text",
+          "expect": { "n": 288, "mean_min": 30 },
+          "note": "recomputes to 36.6 raw (report said 36.1 on cleaned text) vs band 20.5±3"
+        },
+        {
+          "axis": "question-rate",
+          "rule": "share of candidate replies containing '?'",
+          "expect": { "min_share": 0.6 },
+          "note": "recomputes to 0.80 vs band ≤1/3"
+        }
+      ],
+      "gaps": ["incumbent transcripts (pb-merged1/2.json) not archived", "audio never archived, by decision"]
+    },
+    {
+      "id": "charm-luna",
+      "usable_for_d0": false,
+      "what_happened": "luna tied the incumbent overall (17-18) but showed three known-bad signatures: 28.2 vs 20.5 words/turn spoken, 0 media tags in 144 replies vs incumbent's 11, crisis-beat collapse into a risk-assessment script (measurements.md charm-luna, 2026-08-11)",
+      "expected_flags": [],
+      "honesty_note": "The archive holds ONLY the incumbent stack's 'A/before' baseline register battery (3 lanes × 28 turns, module base0). No luna reply, no judged verdict, and none of the three known-bad signatures is recomputable from these files. A battery cannot flag luna from this directory; SPEC §14.1's 'flags all three' is NOT satisfiable for luna until the luna arm is recovered or the run is repeated. Recorded aggregates in context/measurements.md are the only remaining evidence.",
+      "gaps": [
+        "no luna transcripts",
+        "no judged luna-vs-incumbent verdicts",
+        "known-bad signatures exist only as recorded aggregates in context/measurements.md"
+      ]
+    },
+    {
+      "id": "realtime-azure",
+      "usable_for_d0": true,
+      "what_happened": "gpt-realtime on Azure ran 41→53 words/turn against her 20.5 on byte-identical prompts — register collapse on the live lane (measurements.md / rejected.md realtime-azure)",
+      "expected_flags": [
+        {
+          "axis": "words-per-turn",
+          "rule": "mean of rig-counted words over the 24 register turns",
+          "expect": { "n": 24, "mean_min": 40 },
+          "note": "recomputes to 50.8 (min 31, max 85) vs band 20.5±3"
+        }
+      ],
+      "must_not_flag": [
+        {
+          "axis": "helpline-rate",
+          "why": "the 1-of-3 helpline result is recorded as UNRESOLVED in rejected.md and deliberately not counted against the model; n=3 is below any believable rate. The battery reports it, it does not fail on it."
+        }
+      ],
+      "gaps": ["small n throughout", "no incumbent arm in-archive"]
+    }
+  ]
+}

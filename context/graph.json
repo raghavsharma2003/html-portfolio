@@ -322,6 +322,12 @@
       "kind": "decision",
       "title": "The relational-state architecture is C-minimal plus grafts",
       "at": "2026-08-13"
+    },
+    {
+      "id": "affect-recitation",
+      "kind": "measurement",
+      "title": "Short structured tags do not recite (n=84, bound 7.1%)",
+      "at": "2026-08-13"
     }
   ],
   "edges": [
@@ -609,6 +615,16 @@
       "src": "consolidation-citation",
       "rel": "constrains",
       "dst": "spec-c-minimal"
+    },
+    {
+      "src": "affect-recitation",
+      "rel": "constrains",
+      "dst": "spec-c-minimal"
+    },
+    {
+      "src": "affect-recitation",
+      "rel": "caused_by",
+      "dst": "recited-prompt"
     }
   ]
 }

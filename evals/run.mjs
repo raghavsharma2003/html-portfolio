@@ -23,7 +23,7 @@ execSync(
   { stdio: "inherit", cwd: ROOT },
 );
 
-const suites = { parse: "parse.mjs", persona: "persona-invariants.mjs" };
+const suites = { parse: "parse.mjs", persona: "persona-invariants.mjs", fixtures: "fixtures.mjs" };
 const pick = process.argv[2];
 let failed = 0;
 for (const [name, file] of Object.entries(suites)) {

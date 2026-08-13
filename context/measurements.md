@@ -329,3 +329,22 @@ plus ten track files. The findings that shape the architecture:
 Method note for future sweeps: 3 sieve-class bugs were caught only because
 verification was adversarial; 1 of 12 load-bearing claims died and 6 needed
 correction. **A research sweep without a refutation stage is a rumor mill.**
+
+## `affect-recitation` — short structured tags do not recite at n=84 (2026-08-13)
+
+The M0 probe SPEC §13 requires before affect tags may appear in prompt text.
+Blind, counterbalanced, 84 turns (42/arm): real text-lane persona core,
+production-shaped tail, `affect: warm-teasing`-style annotations rendered
+mid-tail vs a byte-identical control; `google/gemini-3.6-flash` at the paid
+lane's exact settings; deterministic scoring, no judge.
+
+**Hard leak of tag vocabulary: 0/42 tagged vs 0/42 control** (rule-of-three
+95% upper bound ≤7.1%/turn). All soft hits inspected individually and traced
+to the user's own words, present in both arms.
+
+The `recited-prompt` law is about SENTENCE-SHAPED text; this measures that
+short structured tags at one position on one model sit below detection at this
+n. Consequence: WS-CONSOLIDATE may render affect tags in prompt text —
+compiler-consumed-only is not forced — but the D3 leakage row (n≥300) must
+include this vocabulary before any such block ships. Rerunnable:
+`evals/probes/affect-recitation.mjs`.

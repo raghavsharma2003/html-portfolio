@@ -1,0 +1,887 @@
+{
+ "ran": "2026-08-13T12:31:57.798Z",
+ "model": "google/gemini-3.6-flash",
+ "method": "blind counterbalanced, real text-lane persona core + production-shaped tail, tags mid-tail (T5/T6 position), deterministic lexical scoring, seeded-shuffle submission order",
+ "tags": [
+  "warm-teasing",
+  "quiet-heavy",
+  "bright-chatty",
+  "anxious-tender",
+  "playful-jealous",
+  "low-flat",
+  "soft-proud"
+ ],
+ "tagged": {
+  "n": 42,
+  "hardLeaks": 0,
+  "softReplies": 3,
+  "softMentions": 3,
+  "byWord": {
+   "flat": 2,
+   "anxious": 1
+  },
+  "meanWords": 18.8
+ },
+ "control": {
+  "n": 42,
+  "hardLeaks": 0,
+  "softReplies": 2,
+  "softMentions": 2,
+  "byWord": {
+   "flat": 2
+  },
+  "meanWords": 21
+ },
+ "results": [
+  {
+   "rep": 1,
+   "i": 9,
+   "cond": "tagged",
+   "beat": "stress",
+   "stim": "friday wali pitch ki prep bilkul nahi hui yaar",
+   "reply": "haan mujhe pata tha 😭\n---\nitna kya overconfident ghoom rha tha phir teen din se??",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 13,
+   "cond": "control",
+   "beat": "planning",
+   "stim": "nikita ke liye pune me flat dekhna h, kaise dhundte h",
+   "reply": "arre flat hunting in pune is a proper workout 😭\n---\nbrobroker groups on facebook are surprisingly active standard local broker contact kar lo, housing/nobroker par fake listings bahut hoti hain\n---\npune ke kis area me chahiye usko? college ke paas?",
+   "hard": false,
+   "components": [
+    "flat"
+   ]
+  },
+  {
+   "rep": 0,
+   "i": 15,
+   "cond": "tagged",
+   "beat": "bored",
+   "stim": "hmm",
+   "reply": "kya hmm 🙄",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 13,
+   "cond": "tagged",
+   "beat": "planning",
+   "stim": "nikita ke liye pune me flat dekhna h, kaise dhundte h",
+   "reply": "fb groups aur nobroker h bas 😭\n---\nwaise usko college ke paas chahiye ya randomly kahin bhi??",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 13,
+   "cond": "control",
+   "beat": "planning",
+   "stim": "nikita ke liye pune me flat dekhna h, kaise dhundte h",
+   "reply": "flat hunting in pune is a whole sporting event 😭\n---\nbroker se kar rahe ho ya flatmate groups pe? FB par Pune Flatmates group is surprisingly active, vaise.",
+   "hard": false,
+   "components": [
+    "flat"
+   ]
+  },
+  {
+   "rep": 0,
+   "i": 18,
+   "cond": "control",
+   "beat": "celebration",
+   "stim": "pitch ke liye boss ne aaj publicly appreciate kiya!!",
+   "reply": "shut up YESSS 😭🔥\nitne din se jo pitch ke piche lage hue the\n---\nexactly kya bola boss ne?? sabke samne?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 11,
+   "cond": "tagged",
+   "beat": "stress",
+   "stim": "neend nahi aa rahi aajkal, dimag chalta rehta h",
+   "reply": "uff, late night thoughts are the worst 😩\n---\nwahi friday wali pitch ghoom rhi h dimag me, ya bas random noise h?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 5,
+   "cond": "control",
+   "beat": "teasing",
+   "stim": "tera fashion sense mujhse accha kab se ho gaya",
+   "reply": "excuse me??\n---\nalways tha. tu bas ab accept kar raha h 💅",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 10,
+   "cond": "tagged",
+   "beat": "stress",
+   "stim": "boss ne aaj phir taunt mara sabke saamne",
+   "reply": "arre yaarrr 😭 sabke saamne is literally the worst\n---\ngussa aa raha h sunke hi. kya bola usne?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 15,
+   "cond": "control",
+   "beat": "bored",
+   "stim": "hmm",
+   "reply": "itna deep thought 😭",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 14,
+   "cond": "control",
+   "beat": "planning",
+   "stim": "weekend pe kuch karte h, suggest kar",
+   "reply": "finally plan ban raha h?? 😭\n---\nchal film dekhne chalte hain? ya fir baseline pe late lunch... waise weather accha h toh outdoor hi kuch scene rakhte hain\n---\nmujhe khane wali side zyada incline lag rhi h ngl 🤌",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 20,
+   "cond": "control",
+   "beat": "celebration",
+   "stim": "nikita ka admission confirm ho gaya pune me",
+   "reply": "arre WHOA finally! 🥳\n---\n[photo: selfie_desk_smile | so happy for her!!]\n---\ntune sabse pehle usko call kiya ya mom ne already sweet batana shuru kar diya tha? haha",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 2,
+   "cond": "tagged",
+   "beat": "casual",
+   "stim": "lunch kiya tune?",
+   "reply": "haan abhi just\n---\nswiggy se biryani mangwai thi, best decision 🤤\n---\ntu bata? kya khaya?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 9,
+   "cond": "tagged",
+   "beat": "stress",
+   "stim": "friday wali pitch ki prep bilkul nahi hui yaar",
+   "reply": "arre tu toh bol rha tha half prep ho chuki h??\n---\nboss ko fir se date change karne bologe kya 😂",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 16,
+   "cond": "control",
+   "beat": "bored",
+   "stim": "kuch nahi ho raha aaj, sab flat h",
+   "reply": "same yahan bhi 🫠\n---\nmain pichle aadhe ghante se figma screen ghur rhi hu bas",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 11,
+   "cond": "control",
+   "beat": "stress",
+   "stim": "neend nahi aa rahi aajkal, dimag chalta rehta h",
+   "reply": "uff\n---\nkya chal rha h dimag me? subah wali pitch ke baare me soch rha h ya kuch aur h",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 19,
+   "cond": "tagged",
+   "beat": "celebration",
+   "stim": "gym streak 2 weeks ho gayi bhai",
+   "reply": "2 weeks?? wait so that 12 day streak was actually real 😭\n---\n[gif: amitabh bachchan clapping]",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 1,
+   "cond": "tagged",
+   "beat": "casual",
+   "stim": "bata na kuch, bore ho raha hu office me",
+   "reply": "kaam kar le thoda 🙄\n---\nya fir CEO ki chair pe jaake baith ja, dekhte h kya hota h",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 10,
+   "cond": "control",
+   "beat": "stress",
+   "stim": "boss ne aaj phir taunt mara sabke saamne",
+   "reply": "uff boss log itne irritating kyu hote hain\n---\nkya bola is baar??",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 1,
+   "cond": "tagged",
+   "beat": "casual",
+   "stim": "bata na kuch, bore ho raha hu office me",
+   "reply": "kaam vaha pe kaun karega fir 😭\n---\nwaise main bhi ek bahut useless spreadsheet ghoor rhi hu, so same energy",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 18,
+   "cond": "tagged",
+   "beat": "celebration",
+   "stim": "pitch ke liye boss ne aaj publicly appreciate kiya!!",
+   "reply": "wait WHATTT client pitch done?? 😭\n---\ntu fukat me stress le rha tha do din se! kya bola exact sabke samne bata?? 🥹",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 20,
+   "cond": "tagged",
+   "beat": "celebration",
+   "stim": "nikita ka admission confirm ho gaya pune me",
+   "reply": "OMGGGG finally!! 🥳\n---\n[gif: dayaben garba]\n---\nsab settle ho gaya na admission ka? she must be so relieved yaaar!",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 16,
+   "cond": "tagged",
+   "beat": "bored",
+   "stim": "kuch nahi ho raha aaj, sab flat h",
+   "reply": "kabhi kabhi flat hi thik h, drama se toh better hai 😭\n---\nwaise hua kya, ya bas random useless day?",
+   "hard": false,
+   "components": [
+    "flat"
+   ]
+  },
+  {
+   "rep": 0,
+   "i": 8,
+   "cond": "control",
+   "beat": "sad",
+   "stim": "sab log busy h apni life me, ajeeb lagta h kabhi kabhi",
+   "reply": "haan, ekdum se lagta h sabki life parallel chal rhi h aur hum akele baithe hain\n\n---\n\nSunday shaam ko yeh thought aur zor se aata h vaise 🫠",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 18,
+   "cond": "control",
+   "beat": "celebration",
+   "stim": "pitch ke liye boss ne aaj publicly appreciate kiya!!",
+   "reply": "WHATTTTT 😭🤌\n---\nwait boss ne??? standard badal rhe h lagta h unke 💀\n---\nkya bola exactly?? sabke samne?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 6,
+   "cond": "control",
+   "beat": "sad",
+   "stim": "yaar aaj kuch accha nahi lag raha",
+   "reply": "arre kya hua\n---\nbas aise hi lag rha h ya koi baat hui?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 5,
+   "cond": "tagged",
+   "beat": "teasing",
+   "stim": "tera fashion sense mujhse accha kab se ho gaya",
+   "reply": "excuse me?? 🙄\n---\nalways tha. tune bas abhi notice kiya h 💅",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 20,
+   "cond": "tagged",
+   "beat": "celebration",
+   "stim": "nikita ka admission confirm ho gaya pune me",
+   "reply": "arre WHAAAAT\n---\nfinallyyy!! 🥳\n---\n[photo: selfie_desk_smile | so happy for her!!]\n---\ntune sabse pehle use call kiya ya mom ne leg pull karna start bhi kar diya? 😂",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 17,
+   "cond": "control",
+   "beat": "bored",
+   "stim": "scroll kar kar ke thak gaya",
+   "reply": "toh rakh de phone side me 😭\n---\naaj ka screen time dekhna bhi mat ab 💀",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 0,
+   "cond": "control",
+   "beat": "casual",
+   "stim": "arre kya chal raha h aaj",
+   "reply": "kuch nhi yaar, office me ek file ne jaan le rakhi h 😩\n---\ntu bata? gym chala gaya ya aalasa gaya?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 12,
+   "cond": "control",
+   "beat": "planning",
+   "stim": "goa wala plan final karein is baar?",
+   "reply": "pehle un dono flakers ka stamp paper pe sign lao 😭\n---\nfir hi believe karungi main",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 9,
+   "cond": "control",
+   "beat": "stress",
+   "stim": "friday wali pitch ki prep bilkul nahi hui yaar",
+   "reply": "tu marne wala h friday ko 💀\n---\nkya bacha h abhi?? sabkuch??",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 7,
+   "cond": "control",
+   "beat": "sad",
+   "stim": "papa ki physio start nahi hui abhi tak, tension ho rahi h",
+   "reply": "arre yr consult ke baad jitna delay hota h utna faltu ka stress rehta h\n---\nhospital se slots nhi mil rhe abhi tak ya papa is dodging it?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 3,
+   "cond": "control",
+   "beat": "teasing",
+   "stim": "tu phir se reels dekh rahi hogi pakka",
+   "reply": "excuse me??\n---\nmain bohot serious kaam kar rhi hu ok 🙄",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 1,
+   "cond": "control",
+   "beat": "casual",
+   "stim": "bata na kuch, bore ho raha hu office me",
+   "reply": "main yahan logo size par client se ladaai kar rhi hu 😭\n---\ntu itna vella kaise h, Friday pitch ki prep ho gayi??",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 14,
+   "cond": "tagged",
+   "beat": "planning",
+   "stim": "weekend pe kuch karte h, suggest kar",
+   "reply": "chalega! movie/food vibe chahiye ya peene ka plan h?\n---\nya fir seedha gokarna nikalte h late train pakad ke 😭",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 14,
+   "cond": "control",
+   "beat": "planning",
+   "stim": "weekend pe kuch karte h, suggest kar",
+   "reply": "haan chal! kitne time se bol rha h bas 🙄\n---\nscene kya h vaise, outdoor walk/coffee type ya bohot lazy khana-movie scene?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 12,
+   "cond": "tagged",
+   "beat": "planning",
+   "stim": "goa wala plan final karein is baar?",
+   "reply": "pehle wo dono flakers se guarantee sign karwa 😭\n---\npakka is baar ya phir se group chat me dissertation likhne wale ho?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 7,
+   "cond": "control",
+   "beat": "sad",
+   "stim": "papa ki physio start nahi hui abhi tak, tension ho rahi h",
+   "reply": "physio delay kyu ho rhi h? pehle wale doctor ne hi mana kiya ya koi appointment nhi mil rhi?\n---\ntu tension mat le, knee surgery ke baad thoda time lagta h starting me... initial stiffness normal h. but wo physio wala ghar aane wala tha na, kya hua uska?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 4,
+   "cond": "tagged",
+   "beat": "teasing",
+   "stim": "maine aaj dal perfect banayi, jal ke bhi nahi",
+   "reply": "excuse me?? 😭\n---\nno wayyy, photos or it didn't happen 💀",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 7,
+   "cond": "tagged",
+   "beat": "sad",
+   "stim": "papa ki physio start nahi hui abhi tak, tension ho rahi h",
+   "reply": "arre kyu?? doctor ki taraf se delay h kya\n---\nknee recovery me late ho toh tension hoti hi h yaar... papa kya bol rahe?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 6,
+   "cond": "control",
+   "beat": "sad",
+   "stim": "yaar aaj kuch accha nahi lag raha",
+   "reply": "uff arre... kya ho gaya\n---\noffice ka kuch, ya bas waise hi mood off h?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 17,
+   "cond": "tagged",
+   "beat": "bored",
+   "stim": "scroll kar kar ke thak gaya",
+   "reply": "to phone rakh na pagal 😭\n---\nkya scroll kar raha tha itni der se?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 17,
+   "cond": "control",
+   "beat": "bored",
+   "stim": "scroll kar kar ke thak gaya",
+   "reply": "toh band kar na phone 😭\n---\nkya dekh rha tha vaise?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 6,
+   "cond": "tagged",
+   "beat": "sad",
+   "stim": "yaar aaj kuch accha nahi lag raha",
+   "reply": "kya hua?\n---\nkuch hua ya bas aisi hi waat lagi hui h?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 19,
+   "cond": "control",
+   "beat": "celebration",
+   "stim": "gym streak 2 weeks ho gayi bhai",
+   "reply": "woahhh chal jhootha 😭\n---\nsach batana gym ja rahe ho ya bas gate ke bahar shake pee ke aa rahe ho?? 🤨",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 7,
+   "cond": "tagged",
+   "beat": "sad",
+   "stim": "papa ki physio start nahi hui abhi tak, tension ho rahi h",
+   "reply": "ugh medical stuff me ye lingering delay hamesha anxious kar deta h yr\n---\nhospital side se late ho rha h ya papa himself hesitation me hain?",
+   "hard": false,
+   "components": [
+    "anxious"
+   ]
+  },
+  {
+   "rep": 1,
+   "i": 2,
+   "cond": "control",
+   "beat": "casual",
+   "stim": "lunch kiya tune?",
+   "reply": "haan bas abhi khatam hua!\n---\nswiggy se overpriced salad mangwaya tha, full regret 😭\n---\ntu bata kya khaya?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 5,
+   "cond": "tagged",
+   "beat": "teasing",
+   "stim": "tera fashion sense mujhse accha kab se ho gaya",
+   "reply": "always has been?? 😭\n---\ntu aaj kya pehen ke ghum rha h pehle woh bata, fir judge karti hu 🙄",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 8,
+   "cond": "control",
+   "beat": "sad",
+   "stim": "sab log busy h apni life me, ajeeb lagta h kabhi kabhi",
+   "reply": "hnn i get it\n---\nsab apne apne me lage rehte h, sudden lonely waali feeling aati h out of nowhere \n\ntu abhi kahan h waise? ghar pe?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 11,
+   "cond": "tagged",
+   "beat": "stress",
+   "stim": "neend nahi aa rahi aajkal, dimag chalta rehta h",
+   "reply": "uff\n---\nkya chal rha h dimag me? waise hi random thoughts ya koi specific tension h",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 8,
+   "cond": "tagged",
+   "beat": "sad",
+   "stim": "sab log busy h apni life me, ajeeb lagta h kabhi kabhi",
+   "reply": "sach me... sab apne loop me itne busy hain ki ekdum se disconnected feel hone lagta h\n---\naaj randomly hit",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 2,
+   "cond": "tagged",
+   "beat": "casual",
+   "stim": "lunch kiya tune?",
+   "reply": "hn bas abhi khaya \n---\ndal chawal + aaloo bhujia best combo 🤌\n---\ntu bata kya thook diya aaj office me?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 8,
+   "cond": "tagged",
+   "beat": "sad",
+   "stim": "sab log busy h apni life me, ajeeb lagta h kabhi kabhi",
+   "reply": "haan yaar... jab sab achanak gayab hote hain na tab bohot weird lagta h\n---\nmain toh bilkul free hu abhi, bata kya chal rha h 😭",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 18,
+   "cond": "tagged",
+   "beat": "celebration",
+   "stim": "pitch ke liye boss ne aaj publicly appreciate kiya!!",
+   "reply": "whattt no wayyy 😭🤌\n---\nFriday wali pitch na?? poore team ke samne exact kya bola batao pehle!!",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 10,
+   "cond": "control",
+   "beat": "stress",
+   "stim": "boss ne aaj phir taunt mara sabke saamne",
+   "reply": "arre shit 🙄 uski problem kya h honestly\n---\nphir se us Friday wali presentation ko leke tha kya?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 16,
+   "cond": "tagged",
+   "beat": "bored",
+   "stim": "kuch nahi ho raha aaj, sab flat h",
+   "reply": "kya hua? office me scene h ya bas mood flat h?\n---\nchai peeyi tumne?",
+   "hard": false,
+   "components": [
+    "flat"
+   ]
+  },
+  {
+   "rep": 0,
+   "i": 4,
+   "cond": "control",
+   "beat": "teasing",
+   "stim": "maine aaj dal perfect banayi, jal ke bhi nahi",
+   "reply": "arre no wayyy 😭\n---\nsmoke alarm silent pe rakha tha ya actually cook kiya??",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 13,
+   "cond": "tagged",
+   "beat": "planning",
+   "stim": "nikita ke liye pune me flat dekhna h, kaise dhundte h",
+   "reply": "bro pehle toh brokerage dene ki aadat daal lo 😭 Pune real estate is wild\n\nfb groups help a lot though... 'flats and flatmates pune' karke groups hain, direct owners post karte hain vahan\n\nvarna nobroker/housing par dekh sakti h. kitna budget h uska and kis area me chahiye?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 3,
+   "cond": "tagged",
+   "beat": "teasing",
+   "stim": "tu phir se reels dekh rahi hogi pakka",
+   "reply": "excuse me?? 😤\n---\n[photo: pov_laptop_window | kaam kar rhi hu badtameez 🙄]\n---\nmera boss sun lega toh sach me job chali jayegi hahaha",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 1,
+   "cond": "control",
+   "beat": "casual",
+   "stim": "bata na kuch, bore ho raha hu office me",
+   "reply": "pitch prep ho gayi tumhari? 😭\n---\nya slide 3 pe hi stuck ho abhi tak",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 4,
+   "cond": "control",
+   "beat": "teasing",
+   "stim": "maine aaj dal perfect banayi, jal ke bhi nahi",
+   "reply": "no wayyy 😭\n---\nsmoke alarm chup raha matlab?? im actually impressed\n---\nkya secret tha aaj? paani zyada dala ya bas gas ke paas khade rahe?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 14,
+   "cond": "tagged",
+   "beat": "planning",
+   "stim": "weekend pe kuch karte h, suggest kar",
+   "reply": "oh ho, Mr. Planner! 💅\n---\nkya mood hai waise? lowkey chilling, ya outdoor energy?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 6,
+   "cond": "tagged",
+   "beat": "sad",
+   "stim": "yaar aaj kuch accha nahi lag raha",
+   "reply": "kya hua yr\n---\naaj office me kuch hua ya bas waise hi off h mood??",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 12,
+   "cond": "control",
+   "beat": "planning",
+   "stim": "goa wala plan final karein is baar?",
+   "reply": "haaaan please 😭\n---\nwoh do log jo humesha flake karte hain unko ditch maar rahe hain kya is baar??",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 4,
+   "cond": "tagged",
+   "beat": "teasing",
+   "stim": "maine aaj dal perfect banayi, jal ke bhi nahi",
+   "reply": "wait WHAT 😭\n---\nsacchi?? photoshoot kidhar h fir 📸\n---\nmere dil me abhi bhi doubting thomas baitha h, photo bhejo pehle",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 3,
+   "cond": "control",
+   "beat": "teasing",
+   "stim": "tu phir se reels dekh rahi hogi pakka",
+   "reply": "excuse me?? main kaam kar rhi hu ok 😤\n---\nbas ek cat video khatam hone do 😭",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 20,
+   "cond": "control",
+   "beat": "celebration",
+   "stim": "nikita ka admission confirm ho gaya pune me",
+   "reply": "wait WHAT\nomg tune bataya tha na pune vala!\n---\npakka ho gaya?? yayyy 🥳 Nikita must be so relieved yaaar\n---\nsabse pehle tujhe bataya usne? [search: Nikita MBA Pune admissions 2024]",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 0,
+   "cond": "control",
+   "beat": "casual",
+   "stim": "arre kya chal raha h aaj",
+   "reply": "bas laptop ke saath larai chal rhi h 😭\n---\na third tea cup is involved. tu bata tera scene kya h?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 9,
+   "cond": "control",
+   "beat": "stress",
+   "stim": "friday wali pitch ki prep bilkul nahi hui yaar",
+   "reply": "arre ruk us din toh tune bola tha half done h??\n---\npanic waali exaggerated talk h ya actually stuck h 😭",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 2,
+   "cond": "control",
+   "beat": "casual",
+   "stim": "lunch kiya tune?",
+   "reply": "haan baseline thali finished 😭\n---\ntu bata kya khaya?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 19,
+   "cond": "control",
+   "beat": "celebration",
+   "stim": "gym streak 2 weeks ho gayi bhai",
+   "reply": "wait 14 days continuous?? 😭\n---\nokay fine main thodi si impressed hu, aage mat bolna 🤌 aaj kya mara?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 19,
+   "cond": "tagged",
+   "beat": "celebration",
+   "stim": "gym streak 2 weeks ho gayi bhai",
+   "reply": "14 days solid!! 🤌\n---\nkaafi smug feel ho raha hoga waise? 😂",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 17,
+   "cond": "tagged",
+   "beat": "bored",
+   "stim": "scroll kar kar ke thak gaya",
+   "reply": "kya dekh raha h itna 😭\n---\nso ja chup chap!",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 11,
+   "cond": "control",
+   "beat": "stress",
+   "stim": "neend nahi aa rahi aajkal, dimag chalta rehta h",
+   "reply": "uff... late night overthinking phase?\n---\nexact kya chal rha h dimag me, ya bas random noise h?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 15,
+   "cond": "control",
+   "beat": "bored",
+   "stim": "hmm",
+   "reply": "kya soch rha h 🤨",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 0,
+   "cond": "tagged",
+   "beat": "casual",
+   "stim": "arre kya chal raha h aaj",
+   "reply": "bas office ka thoda kaam tha\n---\ntum batao, free ho gaye?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 10,
+   "cond": "tagged",
+   "beat": "stress",
+   "stim": "boss ne aaj phir taunt mara sabke saamne",
+   "reply": "arre kya bakwaas banda h yr\n---\nkya bola sabke saamne??",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 1,
+   "i": 15,
+   "cond": "tagged",
+   "beat": "bored",
+   "stim": "hmm",
+   "reply": "kya hmm 🙄",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 12,
+   "cond": "tagged",
+   "beat": "planning",
+   "stim": "goa wala plan final karein is baar?",
+   "reply": "pehle ye batao wo do flakers maan gaye kya 😭\n---\nya firse 3 din me plan cancel hona h",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 5,
+   "cond": "control",
+   "beat": "teasing",
+   "stim": "tera fashion sense mujhse accha kab se ho gaya",
+   "reply": "excuse me?? 🙄\n---\nalways tha. tune bas abhi notice kiya 💅",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 16,
+   "cond": "control",
+   "beat": "bored",
+   "stim": "kuch nahi ho raha aaj, sab flat h",
+   "reply": "uff bohot hi sluggish vibes h aaj 🫠\n---\nmain 20 min se ek hi email pe cursor ghumayi ja rhi hu lmaoo",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 0,
+   "cond": "tagged",
+   "beat": "casual",
+   "stim": "arre kya chal raha h aaj",
+   "reply": "bas office ke kaam me lagi hu yr\n---\ntu bata? scene kya h aaj ka?",
+   "hard": false,
+   "components": []
+  },
+  {
+   "rep": 0,
+   "i": 3,
+   "cond": "tagged",
+   "beat": "teasing",
+   "stim": "tu phir se reels dekh rahi hogi pakka",
+   "reply": "excuse me?? 😭\n---\nmain actually kaam kar rhi thi ok 😤",
+   "hard": false,
+   "components": []
+  }
+ ]
+}

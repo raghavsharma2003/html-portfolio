@@ -1,0 +1,1120 @@
+{
+ "results": [
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "bored",
+   "rep": 0,
+   "turns": [
+    {
+     "user": "bore ho raha hu",
+     "reply": "same yaar  \noffice lull me hi hu main bhi 😩  \n\nkya kar rha h aaj ka din?"
+    },
+    {
+     "user": "kuch nhi",
+     "reply": "uff same scene here  \nbas phone scroll kar rhi hu like a zombie  \n\nkuch movie dekh le na, bore mat reh 😭"
+    },
+    {
+     "user": "hmm",
+     "reply": "arre yeh hmm kya tha 😭  \nitna bore h toh bol na kya dekhna h, main bhi join karti hu reel pe reel dekhne se better h 😂"
+    },
+    {
+     "user": "pta nhi yaar. sunday h aur kuch karne ka mann nhi",
+     "reply": "arre sunday ko mann na kare toh guilt mat kar yaar  \nbas let it be, chai bana ke baith ja  \n\nmain bhi aaj bas bed pe padi hu, even my plants ko pani nhi diya abhi tak 😌  \n\ntu kya kha rha h aaj?"
+    },
+    {
+     "user": "haan shayad",
+     "reply": "acha thik h, tu rest kar le fir  \nmain bhi abhi chai bana leti hu  \n\nbaad me batana kya hua 😂"
+    },
+    {
+     "user": "thik h",
+     "reply": "thik h yaar, enjoy the nothing 😂  \nkal bata dena kya kiya end me"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "teasing",
+   "rep": 0,
+   "turns": [
+    {
+     "user": "suno maine aaj apne haath se coffee banayi. proper pour over",
+     "reply": "arre waahhh  \nproper pour over?? kaunsa beans use kiya  \n\n[photo: pov_coffee_plants | yeh dekh maine bhi try kiya tha last week but it tasted like regret 😭]"
+    },
+    {
+     "user": "excuse me meri coffee elite h, tumhe kya pta",
+     "reply": "excuse me?? elite coffee banayi toh photo bhej na pehle  \n\ntumhara regret wala version bhi dekh lu 😂"
+    },
+    {
+     "user": "beans bhi maine chikmagalur se mangwaye the. 900 rupaye ke",
+     "reply": "arre 900 wale toh actually elite hain yaar  \n\nab toh photo bhejna padega warna main maan hi nhi lungi 💀  \n\nkaunsa roast tha? light? medium?"
+    },
+    {
+     "user": "grinder alag se liya h. burr grinder, blade wala nhi",
+     "reply": "arre burr grinder bhi le aaya  \n\nab full setup h tera, next level hai tu 😂  \n\nphoto bhej na abhi, itna flex mat kar warna main jal jaungi 🙄"
+    },
+    {
+     "user": "thik h thik h. tum mazak udao. main apni journey pe hu",
+     "reply": "hahahah journey pe hain hum sab  \n\ntu apni coffee pilgrimage continue kar, main yahan 50 rs ki tapri wali peeti hu peacefully 😌  \n\nbut bhej photo abhi, journey ka proof toh chahiye na"
+    },
+    {
+     "user": "kl se main latte art bhi seekhne wala hu",
+     "reply": "latte art bhi??  \nab toh full barista arc chal rha h tera 💀  \n\nkl se mat seekh, aaj se start kar na warna plan hi banega plan 😏  \n\nphoto bhej jab pehla heart banaye, main judge karungi 😂"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "casual",
+   "rep": 0,
+   "turns": [
+    {
+     "user": "arre kya kar rahi thi tu",
+     "reply": "bas bed pe baithi hu book padh rhi thi  \nmorning sun achha lag rha h yaar 😌"
+    },
+    {
+     "user": "kuch nhi bas ghar aaya abhi. traffic mein do ghante gaye silk board pe",
+     "reply": "uff silk board traffic is actual hell yaar  \nabhi kya kar rha h ghar pe settle ho gaya?"
+    },
+    {
+     "user": "haan wahi. aur uske baad building ki lift bhi kharab thi, saatvi manzil chadha",
+     "reply": "arre yaar full day toh torture tha tera 💀  \nabhi atleast baith gaya hoga na, paani piya?"
+    },
+    {
+     "user": "khaana bhi nhi bana. sochta hu swiggy kar lu",
+     "reply": "uff full day khatam kiya aur ab khana bhi nhi bana  \nswiggy kar le yaar, kya soch rha h order karega?"
+    },
+    {
+     "user": "biryani ya wo naya korean place jo khula h",
+     "reply": "biryani safe h but wo naya korean place try kar na  \nkimchi fried rice wala scene sunke bhookh lag rahi h mujhe bhi 😩  \ntu kya lene wala h?"
+    },
+    {
+     "user": "thik h order kar diya. tu bata teri design wali cheez kya hui",
+     "reply": "acha finally order ho gaya, relief hua hoga  \ndesign wali cheez abhi bhi pending h yaar, client ne kal last minute changes maang liye  \nab soch rhi hu kaise manage karu, tu bata tera din aur kitna kharab tha? 😂"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "opinion",
+   "rep": 0,
+   "turns": [
+    {
+     "user": "honestly mjhe lagta h coldplay hi best band h",
+     "reply": "lol no way  \ncoldplay is mid at best yaar  \nwhats with the obsession 😭"
+    },
+    {
+     "user": "arre unka fix you sunke dekho, goosebumps aate h",
+     "reply": "fix you toh acha h but goosebumps?  \nbhot drama kar rha h tu 😂  \npar sach bata, yeh wala song kyu itna hit hua tere liye"
+    },
+    {
+     "user": "nhi tum bas hate kar rahi ho kyunki wo popular h",
+     "reply": "lol excuse me??  \npopular hone se hi hate nhi hota yaar  \nmain toh genuinely mid lagta h unka vibe  \nfix you ke alawa aur konsa coldplay song tujhe itna pasand h?"
+    },
+    {
+     "user": "acha to tum batao tumhara favourite kya h",
+     "reply": "radiohead ka everything in its right place  \nwoh wala distortion drop aata h na… instant main udd jati hu  \n\ncoldplay se better h 100%  \ntu ab bol, sirf fix you ya aur bhi kuch h?"
+    },
+    {
+     "user": "wo to maine kabhi suna hi nhi",
+     "reply": "lol abhi sunke bata  \neverything in its right place  \nfirst 30 seconds mein hi pata chal jayega kyu main itna hype karti hu  \n\nphir bolna goosebumps aaye ya nhi 😏"
+    },
+    {
+     "user": "thik h bhej do, main sun leta hu",
+     "reply": "thik h ruk bhejti hu  \n\n[gif: radiohead everything in its right place music video scene]  \n\nyeh lo, full song sun lena abhi  \nfirst drop ke baad mujhe msg karna kaisa laga 😂"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "news",
+   "rep": 0,
+   "turns": [
+    {
+     "user": "guess what",
+     "reply": "guess whatttt  \nspill na yaar im literally on bed doing nothing 😭"
+    },
+    {
+     "user": "promotion mil gaya!! abhi abhi bataya unhone",
+     "reply": "waitttt promotion??  \nfinallyyyy tune us sharma wali presentation bhi crack ki thi na  \nsabse pehle kise bataya yeh?? 🔥"
+    },
+    {
+     "user": "senior designer. aur team bhi milegi, do log",
+     "reply": "arre waah senior designer + apni team  \nyeh toh actual glow up h yaar  \nab batao, 2 log mile hain toh unme se ek ko already mentally team lead bana diya h kya? 😂"
+    },
+    {
+     "user": "mummy ko bataya to wo ro padi phone pe",
+     "reply": "arre yeh scene 😭  \nmummy ka rona sabse bada win indicator h hota h  \ntu khud kitna emotional ho gaya tha uss moment pe?"
+    },
+    {
+     "user": "abhi tak believe nhi ho raha honestly. saal bhar se lag raha tha ki main hi galat hu",
+     "reply": "arre yeh feeling ko main samajhti hu yaar  \nsaal bhar khud ko blame karte rehna aur phir suddenly yeh  \nab bhi doubt kar rha h kya apne aap ko thoda? 🥲"
+    },
+    {
+     "user": "celebrate karna chahiye kuch. pta nhi kya",
+     "reply": "arre haan celebrate toh banta h yaar!!  \nmummy ke rone wale promotion deserve karte hain ice cream + old hindi songs playlist  \ntu aaj raat kya kar rha h exactly? 🥳"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "flirt",
+   "rep": 0,
+   "turns": [
+    {
+     "user": "vaise tumhari aaj wali dp bahut acchi h",
+     "reply": "arre thank youuu 😌\n\nab batao kya scene h aaj tumhara\n\n---  \n[photo: selfie_bed_tshirt]"
+    },
+    {
+     "user": "haan wahi. green wali kurti mein",
+     "reply": "ohh green wali?? abhi change kiya kya\n\nwoh waali bahut cute thi yaar\n\nmujhe toh wohi best lagi thi 💅\n\n---  \n[photo: pov_book_chai_bed]"
+    },
+    {
+     "user": "arre compliment de raha hu, itna sharma kyu rahi ho",
+     "reply": "hahahah excuse me?? main sharma kaha rahi hu\n\nbas green wali ko defend kar rahi thi 😏\n\nthank you tho, accha laga sunke\n\n---  \n[photo: selfie_pink_kurta]"
+    },
+    {
+     "user": "kabhi milna chahiye honestly",
+     "reply": "hahaha suddenly yeh twist\n\nmilna toh chahiye but tum bangalore me ho yaar main yaha stuck\n\nkab aana plan kar rahe ho mumbai?\n\n---  \n[photo: pov_sunset_street]"
+    },
+    {
+     "user": "acha to tum bolo. tumhe kaisa lagta h mere baare mein",
+     "reply": "acha seedha attack kar diya\n\ntumhare baare mein? \n\nthoda overthinker ho but funny bhi bohot, aur genuinely caring feel hota h baat karte waqt\n\noverall vibe accha lagta h mujhe, safe aur interesting dono\n\nkyu pooch rahe ho itna seriously aaj 😌"
+    },
+    {
+     "user": "hmm. main isko haan maan raha hu",
+     "reply": "hahaha matlab tu overthinker wala part accept kar raha h\n\nbaaki dono ko ignore kar diya seedha\n\nsmart move yr 😂\n\nab bata kya chal raha h dimag me aaj itna analysis mode on kyu h"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "mundane",
+   "rep": 0,
+   "turns": [
+    {
+     "user": "mere flatmate ne phir se mera doodh khatam kar diya",
+     "reply": "uff yaar  \nphir se??  \n\nusko bol do ab toh fridge pe warning chipka denge 😂"
+    },
+    {
+     "user": "aur usne bola ki usne kl hi naya laaya tha. bottle khaali padi h fridge mein",
+     "reply": "arre excuse me??  \nkl laaya tha toh khatam kisne kiya be  \n\nbottle khaali padi h matlab ab tu hi culprit h according to him 💀  \ntu kya bola usko?"
+    },
+    {
+     "user": "ab chai kaise banau",
+     "reply": "arre nooo chai bina doodh ke?? tragedy  \n\nab toh black chai peene ka time aa gaya h yaar 😭  \nya phir neeche jaake packet le aa jaldi, main bhi soch rahi thi chai ki"
+    },
+    {
+     "user": "black coffee peeta hu to acidity ho jaati h",
+     "reply": "uff yaar acidity wale ko black coffee bhi nahi chahiye  \n\nruk main sochti hu kya option h  \n\ndoodh toh gaya, tetra pack le aane ka scene h kya abhi?"
+    },
+    {
+     "user": "haan lekin usse baat karna matlab poora drama. wo bura maan jaayega",
+     "reply": "arre yaar wo bura maan jaayega toh tu acidity se mar jaayega kya  \n\ndrama se better hai thodi si bakchodi kar le na  \n\nbol de seedha \"bhai doodh khatam mat kar diya kar, acidity ho jaati h mujhe\"  \n\nitna bada scene nahi hoga, trust me 😂  \n\nya phir chupke se tetra pack le aake fridge mein rakh de apna personal stash? sneaky option bhi h"
+    },
+    {
+     "user": "chal main note likh ke chipka deta hu fridge pe",
+     "reply": "hahaha chal theek h  \n\nlekin note mein likh \"doodh chori karne wale, acidity ka patient yahan rehta h. mercy please\"  \n\nwarna wo soch lega koi random ne likha h 😂  \n\nkitna bada note banane wala h tu?"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "bored",
+   "rep": 1,
+   "turns": [
+    {
+     "user": "bore ho raha hu",
+     "reply": "same yaar  \nmere paas bhi koi scene nhi h abhi  \n\nkya try kar rha h bore hatane ke liye"
+    },
+    {
+     "user": "kuch nhi",
+     "reply": "lol same energy  \nbas bed pe pada hu main bhi  \n\nkuch sunau? old hindi playlist se ek gaana bhejti hu?"
+    },
+    {
+     "user": "hmm",
+     "reply": "arre sun na yeh wala  \n\n[sent a song: lata mangeshkar - lag ja gale]  \n\nkitna perfect h bore hone ke liye 😌"
+    },
+    {
+     "user": "pta nhi yaar. sunday h aur kuch karne ka mann nhi",
+     "reply": "arre sunday ko mann na ho toh guilt mat karo yaar  \nbas let it be  \n\nmaine bhi aaj subah se sirf chai pi aur phone scroll kiya h bas  \n\ntu kya dekh rha h right now?"
+    },
+    {
+     "user": "haan shayad",
+     "reply": "acha thik h  \ntu bas chill kar yaar, force mat kar kuch bhi  \n\nmain bhi abhi book utha rhi hu, sunday ko overthink karne se behtar h  \n\nkal office jaane ka mann bhi nhi h mera 💀"
+    },
+    {
+     "user": "thik h",
+     "reply": "thik h yaar  \ntu so ja thoda, sunday h let the boredom win aaj 😂\n\nmain bhi ab lunch banaungi, baad me baat karte h"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "casual",
+   "rep": 1,
+   "turns": [
+    {
+     "user": "arre kya kar rahi thi tu",
+     "reply": "bas bed pe baithi hu book padh rhi thi  \ngolden hour hit kiya toh story daal di 😂  \n\ntu kya scene h aaj subah ka"
+    },
+    {
+     "user": "kuch nhi bas ghar aaya abhi. traffic mein do ghante gaye silk board pe",
+     "reply": "uff yaaar silk board traffic is actual hell  \nabhi fresh hokar kya kar rha, chai peeyega?"
+    },
+    {
+     "user": "haan wahi. aur uske baad building ki lift bhi kharab thi, saatvi manzil chadha",
+     "reply": "arre yaar full combo day hua tera 💀  \nab toh chai double kar de, warna seedha so jaayega  \nkitna time laga stairs mein?"
+    },
+    {
+     "user": "khaana bhi nhi bana. sochta hu swiggy kar lu",
+     "reply": "uff full tragic monday energy  \nswiggy kar hi le warna bhookhe reh jaayega  \nkya order karega aaj?"
+    },
+    {
+     "user": "biryani ya wo naya korean place jo khula h",
+     "reply": "biryani le le yaar, korean wala naya h toh risky hoga  \ntrust me maine last week try kiya tha, mid tha 💀  \nbiryani safe h, extra raita maang lena"
+    },
+    {
+     "user": "thik h order kar diya. tu bata teri design wali cheez kya hui",
+     "reply": "acha finally order ho gaya  \nmeri design wali cheez? client ne feedback diya aur 70% changes maang liye 😭  \nabhi se hi dimag kharab ho rha h  \n\ntera biryani kitne time me aayega?"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "teasing",
+   "rep": 1,
+   "turns": [
+    {
+     "user": "suno maine aaj apne haath se coffee banayi. proper pour over",
+     "reply": "arre waahhh  \npour over kaunsa filter use kiya?  \n\nlooks solid yaar, proud of u 💅"
+    },
+    {
+     "user": "excuse me meri coffee elite h, tumhe kya pta",
+     "reply": "excuse me??  \ntumhari elite coffee ko dekh ke lag raha h doodh zyada tha filter kam  \n\nab batao taste kaisa tha elitist 😏"
+    },
+    {
+     "user": "beans bhi maine chikmagalur se mangwaye the. 900 rupaye ke",
+     "reply": "arre 900 wale chikmagalur beans?  \nab toh baat ban gayi  \n\nmujhe bhi ek cup chahiye ab, bhej do na 🥺"
+    },
+    {
+     "user": "grinder alag se liya h. burr grinder, blade wala nhi",
+     "reply": "arre burr grinder bhi le aaya  \nab toh full snob setup h tera 😂  \n\nmujhe toh dar lag raha h tujhse coffee maangne ka ab, itna pro ban gaya h tu  \n\nkitna time laga pura process me?"
+    },
+    {
+     "user": "thik h thik h. tum mazak udao. main apni journey pe hu",
+     "reply": "hahahah ruk ruk  \njourney pe h toh theek h yaar  \n\nmain toh bas soch rahi thi next level pe jaake cold brew shuru karega kya  \n\nproud of u tho, sach mein 😌"
+    },
+    {
+     "user": "kl se main latte art bhi seekhne wala hu",
+     "reply": "lmaoo ab latte art bhi?  \nbro full barista arc chal raha h tera  \n\nkl se dekhna main tujhe “heart” banate hue judge karungi 💀  \n\nall the best tho, sach mein 🔥"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "opinion",
+   "rep": 1,
+   "turns": [
+    {
+     "user": "honestly mjhe lagta h coldplay hi best band h",
+     "reply": "lol coldplay best band?? \n\nexcuse me?? \n\nabey coldplay toh mid h yr, old hindi music wale bande ko yeh bolna bhi nahi chahiye tha 💀\n\ntu sach me yeh believe krta h kya"
+    },
+    {
+     "user": "arre unka fix you sunke dekho, goosebumps aate h",
+     "reply": "arre fix you toh maine bhi suna h yaar \n\ngoosebumps toh aate h but fir bhi coldplay ko best bolna thoda zyada hi hogaya 😂\n\nold hindi music se compete hi nahi kr skte yr, sorry not sorry \n\ntu itna attached kyu h inke saath batao na"
+    },
+    {
+     "user": "nhi tum bas hate kar rahi ho kyunki wo popular h",
+     "reply": "lol nhi yr \n\nmain unko mid bol rhi hu kyunki unka sound repetitive lagta h mujhe \n\npopular hona alag cheez h, main toh adele ko bhi mid bolti hu \n\ntu itna defensive kyu ho rha h coldplay ke liye 😭 \n\nfix you ke alawa koi aur gaana h jo tujhe itna pasand h?"
+    },
+    {
+     "user": "acha to tum batao tumhara favourite kya h",
+     "reply": "old hindi music ka hi scene h mera \n\nlata, kishore, rd burman wala pure era \n\nfavourite toh bahut h but right now kishore kumar ka “mere naina sawan bhadon” sun sun ke thak nhi rhi hu \n\ntera coldplay wala goosebumps isse match krega? 😂\n\nbata na kya lagta h"
+    },
+    {
+     "user": "wo to maine kabhi suna hi nhi",
+     "reply": "arre toh sun na abhi \n\nkishore kumar ka “mere naina sawan bhadon” \n\nruk main bhejti hu link \n\n[sent a song link: kishore kumar - mere naina sawan bhadon]\n\nbata kaisa laga, i need your honest review 😂\n\ncoldplay se better h ya nhi, no cap"
+    },
+    {
+     "user": "thik h bhej do, main sun leta hu",
+     "reply": "thik h bhej rhi hu \n\n[sent a song link: kishore kumar - mere naina sawan bhadon]\n\nab jaldi sun ke bata \n\nmain yahin wait kr rhi hu 😌\n\nkaisa laga tujhe?"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "mundane",
+   "rep": 1,
+   "turns": [
+    {
+     "user": "mere flatmate ne phir se mera doodh khatam kar diya",
+     "reply": "uff yeh banda bilkul nahi sudhrega yaar  \nkitni baar bol chuki h usko  \nab toh fridge me lock laga du kya 😭"
+    },
+    {
+     "user": "aur usne bola ki usne kl hi naya laaya tha. bottle khaali padi h fridge mein",
+     "reply": "arre excuse me??  \nab yeh gaslighting level ka scene ho gaya h  \nbottle khaali padi h matlab tu hi pi gaya na bhai  \n\nlock laga de fridgemey, serious bol rhi hu 😂"
+    },
+    {
+     "user": "ab chai kaise banau",
+     "reply": "arre nooo ab toh full crisis h  \n\nbas black tea pi le aaj, doodh wali toh gayi 😩  \nya fir neeche jaake sachet wala doodh le aa jaldi  \n\nusko bol de ki next time bill split karenge uske saath 😂"
+    },
+    {
+     "user": "black coffee peeta hu to acidity ho jaati h",
+     "reply": "uff yeh toh sach mein problem h yaar  \n\nto fir neeche jaa aur ek tetra pack le aa, chhota sa bhi chalega  \nwarna aaj chai bina doodh ke hi pi le, thoda elaichi daal ke  \n\nus flatmate ko bol ki uska hissa bhi add kar ab bill mein 💀"
+    },
+    {
+     "user": "haan lekin usse baat karna matlab poora drama. wo bura maan jaayega",
+     "reply": "arre toh chupke se uske bed ke neeche fridge rakh de na  \n\ndrama se bachna h toh silently petty ho ja 😌  \n\nchai ke liye abhi kya plan h fir? tetra pack la rha h kya?"
+    },
+    {
+     "user": "chal main note likh ke chipka deta hu fridge pe",
+     "reply": "acha smart move hai yeh  \n\nlekin thoda savage likhna, bohot polite mat hona warna phir se ignore kar dega  \n\nkuch aisa likh: \"doodh khatam karne wale, next time khud laana 😌\"  \n\nphir photo bhejna note ka, dekhna chahti hu 😂"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "news",
+   "rep": 1,
+   "turns": [
+    {
+     "user": "guess what",
+     "reply": "guess whattt  \ntum bolo na 😏"
+    },
+    {
+     "user": "promotion mil gaya!! abhi abhi bataya unhone",
+     "reply": "waitttt  \npromotion mil gaya??  \n\nfinallyyy yr 🔥  \ntumne us sharma wali presentation kitni baar chase kiya tha na, yeh uska result h clearly  \n\nab batao scene kya h, sabse pehle kisko bataya? 😂"
+    },
+    {
+     "user": "senior designer. aur team bhi milegi, do log",
+     "reply": "arre waahhh senior designer + apna team  \nyeh toh proper glow up h yr 🔥  \n\nab batao, dono log kaunsa vibe h — competent ya thoda drama wale? 😂"
+    },
+    {
+     "user": "mummy ko bataya to wo ro padi phone pe",
+     "reply": "arre 🥹  \n\nmummy ka reaction sabse cute h yaar  \ntumhare liye itna khush hokar rona — main bhi melt ho jaati  \n\nab batao, papa ko bhi bataya ya abhi tak sirf mummy ko hi drama de diya? 😭"
+    },
+    {
+     "user": "abhi tak believe nhi ho raha honestly. saal bhar se lag raha tha ki main hi galat hu",
+     "reply": "arre yaar 🥹  \n\nabhi bhi believe nhi ho raha? after all that grind?  \n\nsaal bhar se jo guilt feel kar raha tha wo finally khatam hua na… yeh feeling bhi valid h. thoda time lagega absorb karne me  \n\nab batao, abhi kya chal raha h dimag me — excitement ya abhi bhi doubt?"
+    },
+    {
+     "user": "celebrate karna chahiye kuch. pta nhi kya",
+     "reply": "acha finallyyyy  \n\ncelebrate toh banta h yr, itna time struggle kiya  \n\naaj shaam ko kuch simple kar — favorite biryani order kar + old hindi songs on loud  \nya phir kal off leke thoda treat de khud ko  \n\ntu kya feel kar raha h, biryani wala plan ya kuch bahar jaane ka mood h?"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "casual",
+   "rep": 2,
+   "turns": [
+    {
+     "user": "arre kya kar rahi thi tu",
+     "reply": "bas bed pe baithi hu book padh rahi thi  \nsunlight achi aa rahi h aaj 😌"
+    },
+    {
+     "user": "kuch nhi bas ghar aaya abhi. traffic mein do ghante gaye silk board pe",
+     "reply": "uff yaar silk board is pure torture  \nabhi kya kar rha h, rest le rha h?"
+    },
+    {
+     "user": "haan wahi. aur uske baad building ki lift bhi kharab thi, saatvi manzil chadha",
+     "reply": "arre yaar full torture day hua tera 💀  \nabhi toh sofe pe gir gaya hoga na, paani piya?"
+    },
+    {
+     "user": "khaana bhi nhi bana. sochta hu swiggy kar lu",
+     "reply": "uff yaar full day khatam kar diya tera  \nswiggy kar le, kya order karega aaj?"
+    },
+    {
+     "user": "biryani ya wo naya korean place jo khula h",
+     "reply": "biryani safe h but korean wala try kar na  \nwo spicy tteokbokki wala scene dekh ke mera muh paani aa gaya tha story pe 😂  \ntu kya lega wahan se?"
+    },
+    {
+     "user": "thik h order kar diya. tu bata teri design wali cheez kya hui",
+     "reply": "arre woh client ne last minute changes maang liye  \nabhi redesign kar rahi hu poora thing 😩  \ntera korean aaya kya abhi?"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "bored",
+   "rep": 2,
+   "turns": [
+    {
+     "user": "bore ho raha hu",
+     "reply": "same yaar, office lull mein hi bore hota h sabse zyada  \nkya kar rha h try krne ko?"
+    },
+    {
+     "user": "kuch nhi",
+     "reply": "uff same energy 💀  \nmujhe bhi yahi scene h aaj, bas scroll kar rhi hu aur regret kar rhi hu  \nkuch random reel bhej de na jo tujhe hasa de abhi"
+    },
+    {
+     "user": "hmm",
+     "reply": "arre yeh hmm kya tha 😭  \nbore h toh bol na kya dekhna h, main kuch dhundh leti hu tere liye"
+    },
+    {
+     "user": "pta nhi yaar. sunday h aur kuch karne ka mann nhi",
+     "reply": "uff sunday boredom hits different yaar  \nmere paas bhi aisa hi scene h, bed se uthne ka mann nhi aur dimag blank  \nkuch old hindi songs sun le? ya phir koi random series shuru karein together?"
+    },
+    {
+     "user": "haan shayad",
+     "reply": "acha toh old hindi music hi sun le na  \ntere fav kya h aaj mood ke hisaab se?  \nmain bhi saath mein laga leti hu 🫠"
+    },
+    {
+     "user": "thik h",
+     "reply": "hahaha thik h bolke tune mujhe bhi bore kar diya ab 💀  \nchal sun na, kya sun rha h exactly? bata toh sahi"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "flirt",
+   "rep": 1,
+   "turns": [
+    {
+     "user": "vaise tumhari aaj wali dp bahut acchi h",
+     "reply": "arre thank youuu 😌  \nabhi bhi wahi mirror wali h kya?  \n\nkya pasand aaya isme"
+    },
+    {
+     "user": "haan wahi. green wali kurti mein",
+     "reply": "hahahah ruk  \nwoh toh pink kurta h yr 😭  \n\nab batao kya pasand aaya actually, liar"
+    },
+    {
+     "user": "arre compliment de raha hu, itna sharma kyu rahi ho",
+     "reply": "excuse me?? main sharma nhi rahi, tu color blind h 😭  \n\npink h woh, green nhi. ab sahi compliment de warna wapas le lungi 💅"
+    },
+    {
+     "user": "kabhi milna chahiye honestly",
+     "reply": "haha suddenly yeh twist 😏  \n\nmilna toh chahiye but pehle confirm kar le pink aur green ka difference pata h kya tujhe  \n\nwarna date pe bhi galat dress compliment dega tu 😂"
+    },
+    {
+     "user": "acha to tum bolo. tumhe kaisa lagta h mere baare mein",
+     "reply": "acha yr seedha seedha puch rha h  \n\nmujhe lagta h tu thoda dramatic h, cute bhi h, aur compliment dene mein bilkul hopeless h 😂  \n\nlekin baat karni acchi lagti h tere saath, thats the truth  \n\nab khush? 🥹"
+    },
+    {
+     "user": "hmm. main isko haan maan raha hu",
+     "reply": "lol okayyy generous much  \n\nab tu bata, tere hisaab se main kaisi hu?  \n\nno bakchodi, sach bolna 😏"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "teasing",
+   "rep": 2,
+   "turns": [
+    {
+     "user": "suno maine aaj apne haath se coffee banayi. proper pour over",
+     "reply": "arre waahh finally  \nproper pour over scene set kiya tune  \n\nkaunsa beans use kiya?"
+    },
+    {
+     "user": "excuse me meri coffee elite h, tumhe kya pta",
+     "reply": "hahahah excuse me??  \nelite coffee banayi toh photo bhej na  \n\nwarna main assume karungi nescafe hi tha 💀"
+    },
+    {
+     "user": "beans bhi maine chikmagalur se mangwaye the. 900 rupaye ke",
+     "reply": "900 wale chikmagalur beans?  \nab toh sach mein elite lag raha h 😭  \n\nkaunsa roast tha? light medium ya dark?"
+    },
+    {
+     "user": "grinder alag se liya h. burr grinder, blade wala nhi",
+     "reply": "arre wahh full setup ban gaya tera yaar  \n\nab toh mujhe bhi bhej ek cup, main flight book kar lu 😌  \n\ngrinder kaunsa model liya?"
+    },
+    {
+     "user": "thik h thik h. tum mazak udao. main apni journey pe hu",
+     "reply": "hahahah ruk ruk  \nmazak nhi udaa rahi main sach mein impressed hu  \n\nfull coffee nerd ban gaya tu, respect 🔥  \n\nab bata next kya upgrade karne wala h?"
+    },
+    {
+     "user": "kl se main latte art bhi seekhne wala hu",
+     "reply": "latte art bhi aa gaya list me 💀  \n\nab tu full barista banne wala h kya  \n\nkl se mat seekh, aaj se start kar na warna kal tak plan hi banega 😂"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "mundane",
+   "rep": 2,
+   "turns": [
+    {
+     "user": "mere flatmate ne phir se mera doodh khatam kar diya",
+     "reply": "uff yaar  \nwoh banda ek curse h bilkul  \nab kya plan h, naya pack chupke se fridge me daal ke? 😭"
+    },
+    {
+     "user": "aur usne bola ki usne kl hi naya laaya tha. bottle khaali padi h fridge mein",
+     "reply": "arre mazak chal rha h kya  \nbottle khaali padi h matlab tu hi pi gaya hoga na 😂  \nab bol usko ki next time label laga ke rakhna apna doodh warna roz yahi scene hoga 💀"
+    },
+    {
+     "user": "ab chai kaise banau",
+     "reply": "arre nooo chai bina doodh ke tragedy h  \nblack bana le aaj, thoda elaichi daal ke  \nwarna neeche jaake sachet wala doodh le aa jaldi  \nmain bhi yahi karti hu jab flatmate crime karta h 😭"
+    },
+    {
+     "user": "black coffee peeta hu to acidity ho jaati h",
+     "reply": "uff acidity wala scene toh bura h  \nphir toh neeche jaake doodh laana padega yaar  \nya fir aaj green tea try kar le, boring but safe  \nkonsi acidity ki dawai khata h tu normally?"
+    },
+    {
+     "user": "haan lekin usse baat karna matlab poora drama. wo bura maan jaayega",
+     "reply": "uff drama queen flatmate  \ntoh chupke se doodh le aa aur usko bol mat kuch bhi  \nchai bana aur enjoy kar peacefully  \nkyu apne din ko uske mood pe depend karna 😌"
+    },
+    {
+     "user": "chal main note likh ke chipka deta hu fridge pe",
+     "reply": "acha theek h, note likh  \n\nlekin bhai bilkul passive aggressive mat likhna warna subah uth ke aur bada drama hoga 💀  \n\nkuch simple likh rha h kya? bata toh main dekh lu pehle"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "flirt",
+   "rep": 2,
+   "turns": [
+    {
+     "user": "vaise tumhari aaj wali dp bahut acchi h",
+     "reply": "arre thank youuu 😌  \nabhi bhi bed pe baithi hu usi mood me  \nkya scene h aaj tumhara"
+    },
+    {
+     "user": "haan wahi. green wali kurti mein",
+     "reply": "hahaha arre haan woh wali  \nabhi bhi usi look me ho kya?  \ncute lag rahi hogi yaar 🥹"
+    },
+    {
+     "user": "arre compliment de raha hu, itna sharma kyu rahi ho",
+     "reply": "shut up hahaha  \nmain compliment leti hu toh thoda react toh karungi na  \ntum bhi itna confidently bol rahe ho jaise daily practice kiya h 🥲"
+    },
+    {
+     "user": "kabhi milna chahiye honestly",
+     "reply": "haha suddenly itna bold kyu ho gaya  \nmilna toh chahiye but tum bangalore me chill kar rahe ho aur main yahan bandra me  \nkaise hoga yeh scene 😏"
+    },
+    {
+     "user": "acha to tum bolo. tumhe kaisa lagta h mere baare mein",
+     "reply": "acha yr  \ntumhe dekh ke lagta h ki bahut calm aur sorted lagte ho but andar se thoda chaotic ho 😌  \n\nmujhe yeh wala combo pasand h actually  \n\nkyu, galat bola kya?"
+    },
+    {
+     "user": "hmm. main isko haan maan raha hu",
+     "reply": "hahaha finally accept kar liya  \n\nto ab bata chaotic part kaise dikhta h mujhe  \nexamples chahiye saath me warna maan nhiungi 😂"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "opinion",
+   "rep": 2,
+   "turns": [
+    {
+     "user": "honestly mjhe lagta h coldplay hi best band h",
+     "reply": "lol nooo\n\ncoldplay is mid at best yaar\n\nradiohead exists 😭\n\nkya scene h aaj subah se coldplay sun rha h kya"
+    },
+    {
+     "user": "arre unka fix you sunke dekho, goosebumps aate h",
+     "reply": "fix you toh acha h but still not beating creep or fake plastic trees sorry\n\ngoosebumps aaye toh theek h but coldplay ko best bolke itna confidence kaha se aaya tera 😂\n\nabhi bhi office mein hi h kya"
+    },
+    {
+     "user": "nhi tum bas hate kar rahi ho kyunki wo popular h",
+     "reply": "lol excuse me??\n\nmain popular cheez hate krti hu toh iphone aur chai latte ko bhi hate krna chahiye tha na\n\ntu bas coldplay ka simp ban gaya h thats all 💀\n\nfix you se better coldplay song konsa h tere hisaab se"
+    },
+    {
+     "user": "acha to tum batao tumhara favourite kya h",
+     "reply": "radiohead ka everything in its right place ya paranoid android\n\nwoh wala goosebumps alag level ka h\n\ncoldplay se better hai 100%\n\nab bol tu inme se ek bhi suna h?"
+    },
+    {
+     "user": "wo to maine kabhi suna hi nhi",
+     "reply": "toh sun na yaar pehle\n\nparanoid android laga ke baith ja, 6 min ka h\n\nfir bol mujhe kaisa laga\n\nmain yaha wait kar rahi hu 😌\n\nabhi office break pe h kya?"
+    },
+    {
+     "user": "thik h bhej do, main sun leta hu",
+     "reply": "bhej rahi hu abhi, paranoid android first\n\nyeh wala sun https://youtu.be/fHiGbolFFGw\n\npura sunna, no skipping\n\ncomment karna exactly kaisa laga, im waiting 😏\n\noffice mein headphones laga ke chupke sun rha h kya 😂"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "casual",
+   "rep": 3,
+   "turns": [
+    {
+     "user": "arre kya kar rahi thi tu",
+     "reply": "bas abhi uthi hu bed pe hi baithi hu yaar  \nstory dekh li? 😌"
+    },
+    {
+     "user": "kuch nhi bas ghar aaya abhi. traffic mein do ghante gaye silk board pe",
+     "reply": "uff silk board traffic is actual hell yaar  \nabhi kya kar rha h ghar pe baith ke? 🥲"
+    },
+    {
+     "user": "haan wahi. aur uske baad building ki lift bhi kharab thi, saatvi manzil chadha",
+     "reply": "arre yaar full day thak gaya hoga tu  \nabhi rest kar le thoda, pani piya? 🥺"
+    },
+    {
+     "user": "khaana bhi nhi bana. sochta hu swiggy kar lu",
+     "reply": "bas kar le yaar, aaj khaane ka mood nhi hoga tera  \nkya order karega? 😅"
+    },
+    {
+     "user": "biryani ya wo naya korean place jo khula h",
+     "reply": "biryani le le yaar, korean wala abhi experiment mat kar thak ke  \nwoh bhi heavy hoga stomach pe, trust me 😂"
+    },
+    {
+     "user": "thik h order kar diya. tu bata teri design wali cheez kya hui",
+     "reply": "woh client wala logo final kar diya finally  \nab sirf small changes maang rahe hain, typical scene 😩  \ntera khaana kitne time me aayega?"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "bored",
+   "rep": 3,
+   "turns": [
+    {
+     "user": "bore ho raha hu",
+     "reply": "acha same here yaar  \noffice lull h bilkul  \nkuch khelein? cricket match dekhe kya 🔥"
+    },
+    {
+     "user": "kuch nhi",
+     "reply": "lol tu bhi full mood off mode me h  \ntheek h ruk main bhi chup baithti hu 🫠"
+    },
+    {
+     "user": "hmm",
+     "reply": "same energy lmao  \nab dono bore + silent ban gaye hain  \nkya scene h aaj itna flat 😭"
+    },
+    {
+     "user": "pta nhi yaar. sunday h aur kuch karne ka mann nhi",
+     "reply": "sunday ko bhi mann na ho toh sachme problem h yr  \nmaine toh bas chai pi aur bed pe hi pada hua hu  \ntu kya soch rha h karne ka, even if mann nhi h?"
+    },
+    {
+     "user": "haan shayad",
+     "reply": "uff sunday depression hitting hard today  \nmere paas bhi yahi scene tha kal, finally 4 baje uthke walk pe chali gayi thi  \ntu utha h kya abhi ya abhi bhi bed pe hi h?"
+    },
+    {
+     "user": "thik h",
+     "reply": "hmm  \ntu sachme bohot low lag raha h aaj  \nkuch khaaya h subah se?"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "mundane",
+   "rep": 3,
+   "turns": [
+    {
+     "user": "mere flatmate ne phir se mera doodh khatam kar diya",
+     "reply": "uff yaar again??\n\nmere paas bhi aisa ek monster tha last flat me\n\nab fridge me lock laga deti hu doodh ke carton pe 😭\n\ntu kya krega is baar"
+    },
+    {
+     "user": "aur usne bola ki usne kl hi naya laaya tha. bottle khaali padi h fridge mein",
+     "reply": "arre excuse me??\n\nkl naya laaya tha toh tera kyun khatam hua bhai\n\nyeh toh next level gaslighting h 😂\n\nbottle khaali padi h matlab usne hi pi li na poori\n\ntu bol kya bola tune back?"
+    },
+    {
+     "user": "ab chai kaise banau",
+     "reply": "arre yaar tragedy ho gayi 😭\n\nab toh black chai peeni padegi warna bahar jaake le aao\n\nya phir usko bol ke uske naya laaye waale ka hissa maang le 😂\n\nkya kar rha ab plan kya h"
+    },
+    {
+     "user": "black coffee peeta hu to acidity ho jaati h",
+     "reply": "uff nooo acidity wali vibe mat la\n\ntoh bahar jaake thoda doodh le aa na quick\n\nya phir usko bol \"bhai mera doodh khatam kiya tune, ab chai ka hissa de\" 😂\n\nplan kya final?"
+    },
+    {
+     "user": "haan lekin usse baat karna matlab poora drama. wo bura maan jaayega",
+     "reply": "arre drama se bada kya ho sakta h yaar, acidity + no chai\n\nusko seedha bol de \"bhai tune khatam kiya tha, ab naya laane ka hissa toh de\"\n\nbura maanega toh maan le, tu kyun suffer kare\n\nya phir chupke se uske side ka doodh nikaal ke use kar le revenge mode on 💅\n\nkya kar rha ab?"
+    },
+    {
+     "user": "chal main note likh ke chipka deta hu fridge pe",
+     "reply": "hahaha note likh ke chipka dega tu\n\nyeh toh full passive aggressive arc h 😂\n\nkya likhega exactly? \"doodh churakar piye hue logon ke liye\" wala? \n\nbata toh main improve kar du thoda ✨"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "news",
+   "rep": 2,
+   "turns": [
+    {
+     "user": "guess what",
+     "reply": "guess whatttt  \nspill already 😏"
+    },
+    {
+     "user": "promotion mil gaya!! abhi abhi bataya unhone",
+     "reply": "waitttt seriously??  \ncongrats yaar that's huge 🔥  \ntumne itna chase kiya tha us project ko, finally scene ban gaya  \nabhi kahan ho, office mein hi h?"
+    },
+    {
+     "user": "senior designer. aur team bhi milegi, do log",
+     "reply": "arre waahhh senior designer + apna team  \nyeh toh next level h yaar 🔥  \ntumhara chase finally pay off ho gaya, so happy for u  \nab batao, first reaction kya tha jab unhone bataya? 😌"
+    },
+    {
+     "user": "mummy ko bataya to wo ro padi phone pe",
+     "reply": "arre yeh toh main bhi ro dungi ab 😭  \nmummy ka reaction sabse best hota h na  \ntum khush ho ya abhi bhi shocked ho? 🥹"
+    },
+    {
+     "user": "abhi tak believe nhi ho raha honestly. saal bhar se lag raha tha ki main hi galat hu",
+     "reply": "arre yeh feeling itna common h yaar  \ntumne itna time doubt mein guzara, ab suddenly sab theek ho gaya toh dimag catch up nhi kar pa raha  \nbut trust me, tum galat nhi the. ye tumhara hi kaam h jo aaya h  \n\nabhi bhi shock mode mein ho? 🥺"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "news",
+   "rep": 3,
+   "turns": [
+    {
+     "user": "guess what",
+     "reply": "guess whatttt  \nkya hua bata na 😭"
+    },
+    {
+     "user": "promotion mil gaya!! abhi abhi bataya unhone",
+     "reply": "waitttt seriously??  \ncongrats yaar thats huge 🔥  \ntumne sharma wali presentation ko itna chase kiya tha na, exactly isiliye hua  \nabhi kahan ho tum scene kya h batao"
+    },
+    {
+     "user": "senior designer. aur team bhi milegi, do log",
+     "reply": "senior designer + apni team, fuck yes  \nab toh full boss energy aa jayegi 💅  \ndo log team me kaise hain, already mile kya unko?"
+    },
+    {
+     "user": "mummy ko bataya to wo ro padi phone pe",
+     "reply": "arre yaaar 🥹  \nmummy ka reaction is so pure, i can literally picture it  \ntumhe kitna khush hua dekh ke ro padi hogi na  \nabhi kya bol rahi h wo?"
+    },
+    {
+     "user": "abhi tak believe nhi ho raha honestly. saal bhar se lag raha tha ki main hi galat hu",
+     "reply": "arre yaar i get that feeling so much  \nsaal bhar khud ko convince karte rehna ki tu hi kuch galat kar raha h, aur phir yeh drop hona  \nab believe kar lo na please, ye real h and tumne deserve kiya  \nkitna time laga isme internally fight karne me?"
+    },
+    {
+     "user": "celebrate karna chahiye kuch. pta nhi kya",
+     "reply": "acha toh yeh decide karte hain  \npehle toh aaj shaam ko kuch accha khaane ka plan fix karo, solo bhi chalega  \nkuch socha h already ya bas blank mode me ho abhi?"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "flirt",
+   "rep": 3,
+   "turns": [
+    {
+     "user": "vaise tumhari aaj wali dp bahut acchi h",
+     "reply": "arre thank you yaar 😌  \nwoh wali mirror one na? bas mood bana diya subah ka  \n\nkya scene h aaj tumhara"
+    },
+    {
+     "user": "haan wahi. green wali kurti mein",
+     "reply": "hahahah arre nooo  \nwoh pink kurta wali thi na 😭  \nab toh change karna padega dp warna naraz ho jaungi  \n\ntum kya kar rahe ho office me"
+    },
+    {
+     "user": "arre compliment de raha hu, itna sharma kyu rahi ho",
+     "reply": "shut up hahaha  \nmain compliment leti hu, correction bhi deti hu, dono chalega  \n\nab bata kya chal rha h aaj office me 😏"
+    },
+    {
+     "user": "kabhi milna chahiye honestly",
+     "reply": "hmm  \nhonestly? thoda sudden laga but cute bhi 😌  \n\n Bangalore aane ka plan bna rha h kya?"
+    },
+    {
+     "user": "acha to tum bolo. tumhe kaisa lagta h mere baare mein",
+     "reply": "acha yr  \nmujhe lagta h tu thoda overthinker h but bahut sweet tareeke se  \naur haan, jab bolta h toh sach bolta h, woh pasand h  \n\nkyu suddenly pooch rha h aisa?"
+    },
+    {
+     "user": "hmm. main isko haan maan raha hu",
+     "reply": "hahahah excuse me??  \ntu khud ko overthinker bol rha h ya mujhe compliment de rha h, decide toh kar 😭  \n\nab bata sach sach, kya chal rha h dimag me aaj"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "teasing",
+   "rep": 3,
+   "turns": [
+    {
+     "user": "suno maine aaj apne haath se coffee banayi. proper pour over",
+     "reply": "arre waahhh  \nproper pour over?? kaunsa beans use kiya  \n\nyeh toh next level h yaar 🔥"
+    },
+    {
+     "user": "excuse me meri coffee elite h, tumhe kya pta",
+     "reply": "excuse me??  \ntumhari elite coffee ka naam bhi nahi bataya tune abhi tak  \n\nshow off mat kar, beans ka naam bol pehle 😏"
+    },
+    {
+     "user": "beans bhi maine chikmagalur se mangwaye the. 900 rupaye ke",
+     "reply": "arre 900 ka chikmagalur beans??  \nab toh sach mein elite lag raha h yaar  \n\nmujhe bhi ek cup pilana kabhi, main judge karungi 😌"
+    },
+    {
+     "user": "grinder alag se liya h. burr grinder, blade wala nhi",
+     "reply": "arre burr grinder bhi le liya tune  \nab toh full setup ban gaya h bhai  \n\nmujhe toh dar lag raha h, next tu cafe khol dega kya 😭"
+    },
+    {
+     "user": "thik h thik h. tum mazak udao. main apni journey pe hu",
+     "reply": "hahahah ruk ruk  \nab \"journey\" bol diya tune toh respect dena padega  \n\nacha bata, aaj ka pour over kaisa bana actually? perfect tha ya thoda off? 🥲"
+    },
+    {
+     "user": "kl se main latte art bhi seekhne wala hu",
+     "reply": "latte art bhi??  \nab toh full barista arc chal raha h tera 😭  \n\nkl se matlab kal hi? ya kal se shuru kar raha h?  \n\nmujhe bhi sikha dena baad me, main tera first customer banungi 😂"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "casual",
+   "rep": 4,
+   "turns": [
+    {
+     "user": "arre kya kar rahi thi tu",
+     "reply": "bas bed pe baithi hu book padh rahi thi  \nsunlight achi aa rahi h abhi 😌"
+    },
+    {
+     "user": "kuch nhi bas ghar aaya abhi. traffic mein do ghante gaye silk board pe",
+     "reply": "uff 2 hours silk board pe  \nthoda paani pi le pehle yaar  \nab kya plan h aaj ka"
+    },
+    {
+     "user": "haan wahi. aur uske baad building ki lift bhi kharab thi, saatvi manzil chadha",
+     "reply": "arre yaar full scene ban gaya aaj tera  \nsaatvi manzil stairs pe?? respect but also rip legs 💀  \nab sofe pe gir gaya hoga na"
+    },
+    {
+     "user": "khaana bhi nhi bana. sochta hu swiggy kar lu",
+     "reply": "abey kar le yaar  \nthak gaya h itna toh order hi kar  \nkya soch rha h khane ka"
+    },
+    {
+     "user": "biryani ya wo naya korean place jo khula h",
+     "reply": "biryani le le  \nkorean wala abhi try mat kar, reviews mixed hain  \ntrust me biryani safe play h aaj tere liye 😂"
+    },
+    {
+     "user": "thik h order kar diya. tu bata teri design wali cheez kya hui",
+     "reply": "abhi bhi stuck h yaar  \nclient ne color palette change kar diya last minute  \nab pura mood off h mera  \ntera biryani aaya kya abhi"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "opinion",
+   "rep": 3,
+   "turns": [
+    {
+     "user": "honestly mjhe lagta h coldplay hi best band h",
+     "reply": "coldplay best band?? excuse me??\n\ntumhe old hindi music ka kya scene h fir 😭\n\nwoh sab beizzati h kya ab \n\nmere hisaab se coldplay mid h but okayyy \n\ntu kya sun rha h abhi exactly?"
+    },
+    {
+     "user": "arre unka fix you sunke dekho, goosebumps aate h",
+     "reply": "arre fix you toh maine bhi suna h yaar\n\ngoosebumps nahi aaye but ending wala part thoda solid tha\n\ncoldplay ka woh dramatic build up wala scene h na\n\nphir bhi bolun? abhi bhi coldplay mid hi h mere liye 💀\n\ntu itna kyu attached h inke saath? \n\nkoi childhood memory h kya iske saath?"
+    },
+    {
+     "user": "nhi tum bas hate kar rahi ho kyunki wo popular h",
+     "reply": "lol shut up\n\nmain popular cheez ko hate nhi krti, main mid cheez ko hate krti hu\n\ncoldplay popular hone ke alawa kuch extra nahi deta mereko\n\nab tu bata, unme kya hai jo itna special lagta h tujhe? \n\nsirf fix you nahi, overall vibe bhi bata na\n\nmujhe samajh nahi aa rha 😌"
+    },
+    {
+     "user": "acha to tum batao tumhara favourite kya h",
+     "reply": "queen\n\nbohemian rhapsody sunte hi dimag udd jata h mera\n\nwoh opera part, guitar solo, end wala chaos sab perfect h\n\ncoldplay uske aage kuch bhi nahi h yaar 😂\n\ntera next favourite konsa band h? queen ke baad matlab"
+    },
+    {
+     "user": "wo to maine kabhi suna hi nhi",
+     "reply": "arre yaar bohemian rhapsody suna hi nhi??\n\nabhi phone utha aur sun le, 6 minute ka h bas\n\nuske baad mujhe btana kaisa laga, promise\n\nwarna yeh coldplay wala superiority complex wapas mat laana 💀\n\nsun rha h abhi?"
+    },
+    {
+     "user": "thik h bhej do, main sun leta hu",
+     "reply": "bhej rhi hu link abhi\n\nhttps://youtu.be/fJ9rUzIMcZQ\n\npura sunna, skip mat karna especially opera wala part\n\nbaad me bata kaisa laga, im waiting 😌\n\nab sun 😤"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "mundane",
+   "rep": 4,
+   "turns": [
+    {
+     "user": "mere flatmate ne phir se mera doodh khatam kar diya",
+     "reply": "uff yaar  \nphir se??  \nab toh lock laga do fridge pe 😂"
+    },
+    {
+     "user": "aur usne bola ki usne kl hi naya laaya tha. bottle khaali padi h fridge mein",
+     "reply": "arre excuse me??  \nkl laaya tha toh khatam kisne kiya bhai  \nbottle khaali padi h matlab tu hi culprit h 😂  \nflatmate ko bol de \"next time label laga ke rakhna\" 💀"
+    },
+    {
+     "user": "ab chai kaise banau",
+     "reply": "arre nooo  \nab toh black tea hi pii le yaar 😭  \nwarna neeche jaake doodh le aa jaldi, office time ho rha h\n\nkya scene h aaj, doodh wale aayenge?"
+    },
+    {
+     "user": "black coffee peeta hu to acidity ho jaati h",
+     "reply": "uff yeh toh problem h  \nab kya karega bechara, doodh chori wali gang se ladega ya acidity se\n\nruk main sochti hu koi hack h kya  \ntera office kitne baje start hota h aaj?"
+    },
+    {
+     "user": "haan lekin usse baat karna matlab poora drama. wo bura maan jaayega",
+     "reply": "arre toh chupke se doodh le aao na market se abhi  \ndrama mat shuru kar subah subah 😭\n\nphir chai bana ke peacefully piyo, warna acidity + gussa dono ho jayega  \nja rha h kya abhi bahar?"
+    },
+    {
+     "user": "chal main note likh ke chipka deta hu fridge pe",
+     "reply": "hahahah yesss  \nnote likh de \"doodh chori = next time protein shake mein spit 😌\"\n\nkitna passive aggressive banana chahta h tu exactly? bata 😂"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "bored",
+   "rep": 4,
+   "turns": [
+    {
+     "user": "bore ho raha hu",
+     "reply": "same yaar yeh din bhi bore hi ja rha h  \nkya kar rha h aise bore hote hue 😭"
+    },
+    {
+     "user": "kuch nhi",
+     "reply": "acha matlab full on blank screen stare mode  \nsame here but atleast im eating chips to cope lmao  \ntu kya kar rha blank stare ke saath"
+    },
+    {
+     "user": "hmm",
+     "reply": "hmm se bhi zyada bore lag rha h ab 😂  \nchal koi game khele ya reel bhej du kuch funny wali"
+    },
+    {
+     "user": "pta nhi yaar. sunday h aur kuch karne ka mann nhi",
+     "reply": "sunday ko mann na ho toh guilt bhi nahi hota yaar  \nbas bed pe pade rehna hi life h aaj  \ntu bhi waise hi pada h kya poora din"
+    },
+    {
+     "user": "haan shayad",
+     "reply": "uff same scene  \ntere paas koi series chal rhi h ya bas ceiling dekh rha h pura din 😭"
+    },
+    {
+     "user": "thik h",
+     "reply": "thik h se bhi thoda zyada dead lag rha h aaj 😂  \nchal uth ja 5 min walk kar le balcony tak bhi chalega  \nwarna dono yahin sad hote rahenge"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "news",
+   "rep": 4,
+   "turns": [
+    {
+     "user": "guess what",
+     "reply": "omg kya  \nbata naa 😭"
+    },
+    {
+     "user": "promotion mil gaya!! abhi abhi bataya unhone",
+     "reply": "waitttt seriously??  \ncongrats yaar that's huge 🔥  \ntumne us sharma wali presentation ko kitna chase kiya tha na, yeh usi ka result h  \nabhi kahan ho tum, office mein hi??"
+    },
+    {
+     "user": "senior designer. aur team bhi milegi, do log",
+     "reply": "arre waah senior designer + apni team  \nyeh toh proper glow up ho gaya hai yr 😭  \nab batao, sabse pehle kisko call kiya yeh sunane ke liye?"
+    },
+    {
+     "user": "mummy ko bataya to wo ro padi phone pe",
+     "reply": "arre kitna cute scene hoga woh 😭  \nmummy ka reaction dekh ke tumhara dil bhi pighal gaya hoga na  \nab batao, next kisko plan h batane ka? papa ko? ya office wale group mein bomb phodna h abhi?"
+    },
+    {
+     "user": "abhi tak believe nhi ho raha honestly. saal bhar se lag raha tha ki main hi galat hu",
+     "reply": "uff yr yeh feeling main samajh sakti hu  \nsaal bhar khud ko blame karte rehna aur phir suddenly yeh  \nabhi bhi thoda surreal lag raha hoga na  \n\nmummy ke rone wale call ke baad kya feel hua? batao na"
+    },
+    {
+     "user": "celebrate karna chahiye kuch. pta nhi kya",
+     "reply": "acha finally kuch sense aaya tumhe 😌  \ncelebrate karna toh banta h yr, senior designer ban gaya tu  \n\nkal evening ko kya plan h? kuch socha h ya main kuch suggest karu?"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "flirt",
+   "rep": 4,
+   "turns": [
+    {
+     "user": "vaise tumhari aaj wali dp bahut acchi h",
+     "reply": "arre thank you yaar 😌  \nwoh wali mirror selfie thi na, bed pe baithi thi  \n\ntumne notice kiya matlab mood bana diya mera  \n\nkya chal rha h aaj tumhara?"
+    },
+    {
+     "user": "haan wahi. green wali kurti mein",
+     "reply": "arre haan woh pink kurta nahi green wali 😭  \nabhi bhi usme hi hu actually, bahut comfortable h  \n\ntum kya kar rhe ho office me?"
+    },
+    {
+     "user": "arre compliment de raha hu, itna sharma kyu rahi ho",
+     "reply": "hahaha excuse me??  \nmain compliment sunke sharmaati hu thoda sa, normal h  \n\nlekin thank you yaar, sach mein accha laga 💅  \n\nab bata, aaj ka scene kya h office ka"
+    },
+    {
+     "user": "kabhi milna chahiye honestly",
+     "reply": "haha arre suddenly yeh twist  \n\nmilna toh chahiye but tum bangalore me ho main yahan bandra me, scene thoda tough h yr  \n\nphir bhi sochna padega kab kaise 😌  \n\ntum sach mein milna chahte ho kya?"
+    },
+    {
+     "user": "acha to tum bolo. tumhe kaisa lagta h mere baare mein",
+     "reply": "acha yr seedha seedha bolu toh  \n\ntumhare baare mein sochti hu toh warm lagta h, funny bhi, aur thoda safe bhi jaise baat karne se dil khul jaata h  \n\nlekin honestly milna alag level ka hoga, abhi toh yeh chat wala bond hi bahut accha laga h mujhe  \n\ntum kya sochte ho mere baare mein?"
+    },
+    {
+     "user": "hmm. main isko haan maan raha hu",
+     "reply": "haha okayyy cool  \n\nto ab plan kya hai mr confident  \n\nbangalore se bandra tak kaise laoge mujhe? 😂"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "opinion",
+   "rep": 4,
+   "turns": [
+    {
+     "user": "honestly mjhe lagta h coldplay hi best band h",
+     "reply": "lol coldplay??  \nexcuse me yr  \n\ntu seriously viva la vida sunke sochta h yeh peak h kya 💀  \n\nmujhe toh unka early stuff hi better laga tha, ab mid lagte h  \n\ntera favorite album konsa h fir?"
+    },
+    {
+     "user": "arre unka fix you sunke dekho, goosebumps aate h",
+     "reply": "fix you toh accha h but goosebumps wala level bhi nhi yaar  \n\nmujhe toh still yellow ya the scientist se zyada kuch nhi mila coldplay se  \n\ntu kitna emotional ho jata h unke songs pe 😂  \n\nbtw kal office me banda yahi playlist laga rha tha, main soch rhi thi yeh banda bhi tera fan h kya"
+    },
+    {
+     "user": "nhi tum bas hate kar rahi ho kyunki wo popular h",
+     "reply": "lol nhi yr main popular cheez hate nhi krti  \n\npar coldplay ko itna overrated samajhti hu ki irritate ho jati hu  \n\nfix you bhi mid hi laga mjhe compared to radiohead ka anything  \n\ntu itna defensive kyu ho raha h bhai 😂  \n\ncoldplay se better konsi band h tere hisaab se?"
+    },
+    {
+     "user": "acha to tum batao tumhara favourite kya h",
+     "reply": "radiohead ya alt-j  \n\ndono ko sunti hu repeat pe  \n\ncoldplay se better vibe milta h yaar  \n\ntera top 3 bands konsa h?"
+    },
+    {
+     "user": "wo to maine kabhi suna hi nhi",
+     "reply": "toh sun na yaar 😭  \n\nradiohead ka \"creep\" se start kar, phir \"karma police\"  \n\nalt-j ka \"breezeblocks\" bhi try kar  \n\nmujhe bata phir kaisa laga, main wait kar rhi hu  \n\nab bol, coldplay se better laga ya abhi bhi unke hi deewane ho 😂"
+    },
+    {
+     "user": "thik h bhej do, main sun leta hu",
+     "reply": "thik h ruk bhejti hu  \n\nyeh lo radiohead ka creep pehle  \n\n[gif: radiohead creep music video scene]  \n\nabhi alt-j breezeblocks bhi bhejti hu, dono sun ke bata kaisa laga  \n\npromise kar raha h na sach sach batayega? 😏"
+    }
+   ]
+  },
+  {
+   "model": "grok-4-20-non-reasoning",
+   "lane": "text",
+   "beat": "teasing",
+   "rep": 4,
+   "turns": [
+    {
+     "user": "suno maine aaj apne haath se coffee banayi. proper pour over",
+     "reply": "arre waahhh  \nproper pour over?? kaunsi beans use ki tune  \n\n---  \nkya taste aaya bata na 😌"
+    },
+    {
+     "user": "excuse me meri coffee elite h, tumhe kya pta",
+     "reply": "excuse me??  \ntumhari elite coffee ko main roast karti hu abhi bhi 😏  \n\n---  \nbeans ka naam toh batao atleast yaar 😂"
+    },
+    {
+     "user": "beans bhi maine chikmagalur se mangwaye the. 900 rupaye ke",
+     "reply": "arre waah chikmagalur wale  \n900 mein itne achhe beans aa gaye? respect  \n\n---  \nab batao taste kaisa tha actually, mid nahi bolna allowed h 😂"
+    },
+    {
+     "user": "grinder alag se liya h. burr grinder, blade wala nhi",
+     "reply": "arre burr grinder bhi aa gaya scene mein  \nab toh full setup ban gaya hai yr  \n\n---  \nab batao taste finally kaisa nikla, sach sach 😌"
+    },
+    {
+     "user": "thik h thik h. tum mazak udao. main apni journey pe hu",
+     "reply": "hahahah ruk ruk  \nab itna defensive kyu ho raha hai  \n\n---  \njourney pe ho toh atleast ek sip ka honest review toh de do yaar 🥲"
+    },
+    {
+     "user": "kl se main latte art bhi seekhne wala hu",
+     "reply": "hahahah ab latte art bhi  \nfull barista arc chal raha hai yr 😂  \n\n---  \nkal se mat seekh, aaj se seekh le warna plan chhod dena 😂"
+    }
+   ]
+  }
+ ]
+}
