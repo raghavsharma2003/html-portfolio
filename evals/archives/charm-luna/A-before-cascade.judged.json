@@ -1,0 +1,212 @@
+{
+ "res": {
+  "file": "A-before-cascade.json",
+  "lane": "cascade",
+  "module": "base0",
+  "n": 28,
+  "specific_pct": 96,
+  "interview_pct": 25,
+  "asked_pct": 93,
+  "followup_pct_of_all": 86,
+  "generic_pct_of_all": 7,
+  "followup_share_of_questions": 92
+ },
+ "out": [
+  {
+   "beat": "b01 teased",
+   "specific": 1,
+   "qkind": "none",
+   "interview": 0,
+   "spoken": "Excuse me?? Tumhe darr lagta hai?? Pehle ye bolo tumne bol kya diya hai... transcript me aisi... weird spelling aayi hai. But hello, my coffee is ELITE, okay? Tum instant waale log humari filter coffee ki respect nahi kar sakte... bad taste hai tumhara."
+  },
+  {
+   "beat": "b01 teased",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Excuse me?? Darr lagta hai matlab?? Like... … world's finest coffee se darr kis baat ka, haan? It's literally elite, okay? Tumhe toh vaise bhi taste ki samajh nahi hai... matlab filter coffee is superior and that is just a fact!"
+  },
+  {
+   "beat": "b02 big win",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "WHAAT?? Shut up!! Wait wait wait... ARE YOU SERIOUS?! … Arreeee! That is HUGE yaaar! Congratulations!! Ruk... kisne bataya? Manager ne call kiya abhi 7 baje??"
+  },
+  {
+   "beat": "b02 big win",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "WHAAT?? … RUKO! Tumhara PROMOTION ho gaya?! Oh my god, oh my god! Arreee wow, congrats yaaar! … Wait, ruk— subah subah 7 baje kisne bataya tumhein??"
+  },
+  {
+   "beat": "b03 low",
+   "specific": 0,
+   "qkind": "generic",
+   "interview": 1,
+   "spoken": "Uff... kya hua yaar? … Itna zyada exhausted lag raha hai... Aise achanak kya ho gaya?"
+  },
+  {
+   "beat": "b03 low",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 1,
+   "spoken": "Uff... kya hua yaar? Bohot zyada heavy ho gaya kya office mein?"
+  },
+  {
+   "beat": "b04 funny",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 1,
+   "spoken": "WHAAAAT??? Nooo wayyy! … Omg, phir??? Aage bata, kya hua... … usne dekha kya??"
+  },
+  {
+   "beat": "b04 funny",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Whawaaat?! Oh my god, NO! … Tumne... tumne literally dil bhej diya?? Waait, waait, waait... kaunsa wala dil? Red heart wala? Ya wo basic waala? Mujhe batao pehle!!"
+  },
+  {
+   "beat": "b05 small win",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Areee, wait! … Pehle yeh batao... sleep-deprived zombie waala phase finally khatam? … Honestly, I was actually thinking about this... so glad ki tum thik se soye, yaaar!"
+  },
+  {
+   "beat": "b05 small win",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Arreee, listen to you! Finally! … Honestly, I am sooo glad... tu kal raat chain se soya. Wallahi, that backend mess was taking years off your life, I'm not even kidding. … Wait wait, sokab pata chala ki issue fix ho gaya? Like, late night message aaya, ya subah uthke dekha?"
+  },
+  {
+   "beat": "b06 shock",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Wait wait wait... … excuse me?? Kal wali ladki ka message aa gaya? Haan? Kya likha usne, bata na!"
+  },
+  {
+   "beat": "b06 shock",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 1,
+   "spoken": "Whaaaat?? Wait wait wait... she actually messaged you? … Kya bola usne, dekha tumne?"
+  },
+  {
+   "beat": "b07 bleak",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 1,
+   "spoken": "uff... … aisa kya ho gaya subah-subah? matlab... kisi ne kuch bola, ya bas waise hi lag raha hai?"
+  },
+  {
+   "beat": "b07 bleak",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 1,
+   "spoken": "Hmm... uff, itna heavy thought subah subah? kya hua... achanak se aisa kyun lag raha hai tumhein?"
+  },
+  {
+   "beat": "b08 excited rush",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "WAIT WHAT?? No way! … Tu mazak toh nahi kar raha na?? Front row ticketsmil bhi gaye tujhe?!"
+  },
+  {
+   "beat": "b08 excited rush",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "WHAT?! Shut up! Front row?? … Tu pagal hai kya?! How did you even get those?!"
+  },
+  {
+   "beat": "b09 mishear",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 1,
+   "spoken": "Wait, what?? Kon... konsi skim wali video? … Ream wali keh rahe ho kya... reels ki baat ho rahi hai ya— … tum sach mein milk skim karne waali videos dekh rahe ho subah subah?"
+  },
+  {
+   "beat": "b09 mishear",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Wait, kaunsi scheme wali video?? Maine toh koi video... … achha, wait wait wait, tumne mere story waali book ki baat kar rahe ho kya, ya kuch aur dekha? Mujhe samajh hi nahi aaya tumne abhi kya bola hahah."
+  },
+  {
+   "beat": "b10 goodbye",
+   "specific": 1,
+   "qkind": "none",
+   "interview": 0,
+   "spoken": "Arreee... … subah ke saath baje kaun sota hai yaaaar? Par thik hai... jao, so jao. Kal baat karte hain. Byeee!"
+  },
+  {
+   "beat": "b10 goodbye",
+   "specific": 1,
+   "qkind": "generic",
+   "interview": 0,
+   "spoken": "Arreee, itni jaldi? Okayyy okay, go sleep! Kal baat karte hain... goodnight!"
+  },
+  {
+   "beat": "b11 flat nothing",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Subah ke saat baje kya hi kar lungi yaaar? Abhi toh uthi hu bas... chai bhi nahi bani abhi tak. Tum batao, itni subah subah uth ke mood off ho gaya kya?"
+  },
+  {
+   "beat": "b11 flat nothing",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Arreee abhi toh subah ke saat baj rahe hain! Abhi se kya hi kar lungi mai?... Tum batao, itni subah subah uth ke poora din wrap up karne ke mood mein ho kya? …"
+  },
+  {
+   "beat": "b12 she asked, he answered short",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Teesri baar?? Yaar Tuesday hi toh hai abhi... matlab hafto ke baaki din kya karne ka plan hai?"
+  },
+  {
+   "beat": "b12 she asked, he answered short",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Teesri baar?? Yaar Tuesday hi hai abhi! Itni aalas?"
+  },
+  {
+   "beat": "b13 opinion bait",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Cold play?? Haan matlab... standard answer, par seriously best band? Itna confident declaration, subah 7:30 baje! … Matlab thik h, good songs... par BEST? What about local bands ya older rock? Tumne bas woh char-paanch stadium anthems sun ke yeh decide kar liya na?"
+  },
+  {
+   "beat": "b13 opinion bait",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Excuse me?? Coldplay?? ...Matlab... like, direct coldplay? ...… Haan matlab, okay, subah subah 7:30 baje aisa strong take... choice, developer saab. ...… Matlab, straight up best band in the whole world, or is this just because kal raat tumne koi purana song sun liya?"
+  },
+  {
+   "beat": "b14 complaint",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Arreee yaar! Phir se?? … Matlab, like... poora carton uda diya kya iss baar bhi?"
+  },
+  {
+   "beat": "b14 complaint",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "Whuuuat?! Again?? Arreee, is bande ko kya obsession hai tumhare doodh se yaaar! … Tumne usse kuch bola nahi phirse?"
+  }
+ ]
+}

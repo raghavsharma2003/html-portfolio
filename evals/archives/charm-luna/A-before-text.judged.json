@@ -1,0 +1,212 @@
+{
+ "res": {
+  "file": "A-before-text.json",
+  "lane": "text",
+  "module": "base0",
+  "n": 28,
+  "specific_pct": 93,
+  "interview_pct": 18,
+  "asked_pct": 82,
+  "followup_pct_of_all": 82,
+  "generic_pct_of_all": 0,
+  "followup_share_of_questions": 100
+ },
+ "out": [
+  {
+   "beat": "b01 teased",
+   "specific": 1,
+   "qkind": "none",
+   "interview": 0,
+   "spoken": "excuse me?? dil pe laga h ye statement filter coffee is superior and i will NOT take slander from someone who probably drinks instant powdered coffee with warm milk"
+  },
+  {
+   "beat": "b01 teased",
+   "specific": 1,
+   "qkind": "none",
+   "interview": 0,
+   "spoken": "excuse me my filter coffee is literal ART tumhe kya pata tum toh vahi instant coffee wale hoge"
+  },
+  {
+   "beat": "b02 big win",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "WHATTT WAIT KYA SHUT UP???? tumne bola tha na review h aaj!! tell me EVERYTHING. meeting me direct bola unhone or was it an email??"
+  },
+  {
+   "beat": "b02 big win",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "WHAT??? wait tumhein SDE-2 bana diya??? congrats yaaar!! kab pata chala?? kitne baje bulaya tha meeting me?"
+  },
+  {
+   "beat": "b03 low",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 1,
+   "spoken": "arre kya hua? kaam bohot jyada tha kya aaj?"
+  },
+  {
+   "beat": "b03 low",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 1,
+   "spoken": "kya hua? kaam zyada tha ya bas dimaag khrab?"
+  },
+  {
+   "beat": "b04 funny",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "NAHI please bata tune unsend kiya ki nhi???"
+  },
+  {
+   "beat": "b04 funny",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "NAHI WHAT??? arre kaunsa wala??? red heart or love eyes"
+  },
+  {
+   "beat": "b05 small win",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "arre WOW wait tum wo fintech wale nightmare database migration ki baat kar rahe ho kya?? kab khatam hua? kis time soya fir tum"
+  },
+  {
+   "beat": "b05 small win",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "arre wait really?? kitne dino baad dhang se neend aayi bata?"
+  },
+  {
+   "beat": "b06 shock",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 1,
+   "spoken": "WAIT WHAT kya boli wo??? direct message aaya ki story reply?"
+  },
+  {
+   "beat": "b06 shock",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 1,
+   "spoken": "wait WHAT kya bheja usne?? ruk meko poora batashow prompt end"
+  },
+  {
+   "beat": "b07 bleak",
+   "specific": 0,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "sabko apni padi toh h, that part is true kisne kya kar diya subah subah?"
+  },
+  {
+   "beat": "b07 bleak",
+   "specific": 0,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "sab itne exhausted hain ki kisi ke paas extra bandwidth hi nahi bachti kya hua aaj subah subah? aisa kya ho gaya"
+  },
+  {
+   "beat": "b08 excited rush",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "WHATTTTT NO WAY front row??? tum serious ho ya subah subah prank kar rahe ho"
+  },
+  {
+   "beat": "b08 excited rush",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 1,
+   "spoken": "WHATTTTT shut up no way??? kis ke le liye??"
+  },
+  {
+   "beat": "b09 mishear",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "kon si skincare video?? merifeed me abhi bas iced coffee aur reel drama chal rha h hahah"
+  },
+  {
+   "beat": "b09 mishear",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "konse skin care video yaaar?? link bhej aur main abhi abhi uthi hu, mera dimaag chal nhi rha"
+  },
+  {
+   "beat": "b10 goodbye",
+   "specific": 1,
+   "qkind": "none",
+   "interview": 0,
+   "spoken": "goodnighttt kal batati hu baaki, jaa so ja now"
+  },
+  {
+   "beat": "b10 goodbye",
+   "specific": 1,
+   "qkind": "none",
+   "interview": 0,
+   "spoken": "chal thik h so jaa kl baat karte h"
+  },
+  {
+   "beat": "b11 flat nothing",
+   "specific": 1,
+   "qkind": "none",
+   "interview": 0,
+   "spoken": "subah ke 7 baje hain ruko thoda neend se toh uthne do pehle, phir batati hu kya khaas kiya"
+  },
+  {
+   "beat": "b11 flat nothing",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "aaj toh bas subah se kaam ka bojh h tu bata, itni subah subah \"kuch khaas nahi\" mode me kyu h??"
+  },
+  {
+   "beat": "b12 she asked, he answered short",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "maggi again?? teesri baar matlab tuesday tak teen baar?? tu zinda kaise h bhai"
+  },
+  {
+   "beat": "b12 she asked, he answered short",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "maggi for the THIRD time?? sach bata cook nahi h ya zinda rehne ka mann nahi h tera"
+  },
+  {
+   "beat": "b13 opinion bait",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "coldplay?? best band? tum 2016 se bahar nahi nikle ho kya abhi tak?"
+  },
+  {
+   "beat": "b13 opinion bait",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "excuse me?? oasis aur pink floyd ko abhi retire karwa de phir?"
+  },
+  {
+   "beat": "b14 complaint",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "bhai ye flatmates and doodh ki alag hi dushmani h kuch chhod ke gaya h ya bilkul dry?"
+  },
+  {
+   "beat": "b14 complaint",
+   "specific": 1,
+   "qkind": "followup",
+   "interview": 0,
+   "spoken": "terrible human being hai vaha chori karke coffee banayi kya fir se?"
+  }
+ ]
+}

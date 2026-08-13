@@ -316,6 +316,12 @@
       "kind": "constraint",
       "title": "Swap detection must be measured against a sham arm",
       "at": "2026-08-13"
+    },
+    {
+      "id": "spec-c-minimal",
+      "kind": "decision",
+      "title": "The relational-state architecture is C-minimal plus grafts",
+      "at": "2026-08-13"
     }
   ],
   "edges": [
@@ -583,6 +589,26 @@
       "src": "phase-a-research",
       "rel": "caused_by",
       "dst": "charm-grok"
+    },
+    {
+      "src": "spec-c-minimal",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "spec-c-minimal",
+      "rel": "measured_by",
+      "dst": "taste-consistency"
+    },
+    {
+      "src": "spec-c-minimal",
+      "rel": "measured_by",
+      "dst": "phase-a-research"
+    },
+    {
+      "src": "consolidation-citation",
+      "rel": "constrains",
+      "dst": "spec-c-minimal"
     }
   ]
 }

@@ -215,3 +215,35 @@ high detection — identity cannot be lifted above the model at acceptable cost
 and latency — or field evidence shows retention is uncorrelated with
 relational depth. Either result would be a finding worth the company knowing,
 which is what makes this a lab and not a bet.
+
+---
+
+## `spec-c-minimal` — the relational-state architecture is C-minimal plus grafts (2026-08-13)
+
+Phase B: four architectures with deliberately different priors (graph-first,
+event-sourcing, minimal-diff, multimodal-first), judged by three adversarial
+lenses, 12 judgments. **C-minimal won (150.5 / A 144.5 / D 138 / B 137)** —
+extend the repo's one proven portability mechanism (authored state +
+deterministic retrieval + structural guarantees) into the full relational
+layer, rather than importing an architecture the team cannot operate.
+
+The synthesis is `docs/SPEC.md` (14 sections; proposals preserved in
+`docs/research/design/`). C's four fatal flaws are fixed by name in §0.2, and
+the best ideas of the losers are grafted, most importantly: episodes as
+citation ground truth with a four-layer enforcement ladder (from B),
+two-mechanism truth maintenance — invalidate for belief change, hard-delete
+for forget (from A), and the WE-store replay + sham-arm-as-relabel (from D).
+
+Load-bearing properties: core 40k + tail 24k = SYSTEM_MAX exactly, asserted
+in CI; every file in Phase C has exactly one owning workstream (§13 — the
+collision contract, learned from two agents editing liveCall.ts); Phase C's
+definition of done is the D-battery flagging all three archived bake-offs
+before any live verdict is trusted (§14). The known-bad corpus is archived in
+`evals/archives/` — it is the validity gate for the entire swap-test claim.
+
+**Reverses if:** D2 fails its dual reversal (<2pp movement across 3
+consecutive milestones OR <10pp total with zero adapters in the cost
+envelope) — in which case the claim narrows to gate-and-adapter plus
+migration-UX on the same engine, and the consented cohort does not run on the
+strong claim; or the citation law starves consolidation past its
+pre-registered response ladder.

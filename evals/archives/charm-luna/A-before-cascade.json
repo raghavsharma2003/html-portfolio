@@ -1,0 +1,863 @@
+{
+ "agg": {
+  "module": "base0",
+  "lane": "cascade",
+  "engine": "gemini",
+  "systemChars": 43295,
+  "n_total": 28,
+  "n_silent": 0,
+  "n_voiced": 28,
+  "errors": 0,
+  "sec_per_turn": 8.45,
+  "words_per_turn": 24.5,
+  "sec_p50": 6.9,
+  "sec_p90": 14.83,
+  "over_15s_pct": 7,
+  "stagedir_reply_pct": 100,
+  "stagedir_per_reply": 1.93,
+  "stretch_per100w": 9.04,
+  "laugh_per100w": 0.15,
+  "pause_per_reply": 1.39,
+  "caps_per_reply": 0.54,
+  "filler_per_reply": 1.21,
+  "dash_per_reply": 0.07,
+  "anyQ_pct": 100,
+  "endsQ_pct": 61,
+  "q_per_reply": 2.68,
+  "pickup_pct": 86,
+  "pickup_n": 28,
+  "qpickup_pct": 75,
+  "qpickup_n": 28
+ },
+ "rows": [
+  {
+   "beat": "b01 teased",
+   "rep": 0,
+   "raw": "[tone: mock-offended, playful, defensive] [laughs] Excuse me?? Tumhe darr lagta hai?? Pehle ye bolo tumne bol kya diya hai... transcript me aisi... weird spelling aayi hai. But hello, my coffee is ELITE, okay? Tum instant waale log humari filter coffee ki respect nahi kar sakte... bad taste hai tumhara.",
+   "spoken": "Excuse me?? Tumhe darr lagta hai?? Pehle ye bolo tumne bol kya diya hai... transcript me aisi... weird spelling aayi hai. But hello, my coffee is ELITE, okay? Tum instant waale log humari filter coffee ki respect nahi kar sakte... bad taste hai tumhara.",
+   "silent": 0,
+   "words": 44,
+   "sec": 15.17,
+   "dirs": [
+    "[laughs]"
+   ],
+   "ndirs": 1,
+   "stretch": 3,
+   "laugh": 0,
+   "pause": 3,
+   "caps": 1,
+   "filler": 0,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 0,
+   "nq": 3,
+   "qtext": [
+    "Excuse me??",
+    "Tumhe darr lagta hai??",
+    "But hello, my coffee is ELITE, okay?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b01 teased",
+   "rep": 1,
+   "raw": "[tone: playful, mock-offended, amused] [giggles] Excuse me?? Darr lagta hai matlab?? Like... [laughs] world's finest coffee se darr kis baat ka, haan?\n\nIt's literally elite, okay? Tumhe toh vaise bhi taste ki samajh nahi hai... matlab filter coffee is superior and that is just a fact!",
+   "spoken": "Excuse me?? Darr lagta hai matlab?? Like... … world's finest coffee se darr kis baat ka, haan? It's literally elite, okay? Tumhe toh vaise bhi taste ki samajh nahi hai... matlab filter coffee is superior and that is just a fact!",
+   "silent": 0,
+   "words": 40,
+   "sec": 13.79,
+   "dirs": [
+    "[giggles]",
+    "[laughs]"
+   ],
+   "ndirs": 2,
+   "stretch": 2,
+   "laugh": 0,
+   "pause": 2,
+   "caps": 0,
+   "filler": 3,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 0,
+   "nq": 4,
+   "qtext": [
+    "Excuse me??",
+    "Darr lagta hai matlab??",
+    "world's finest coffee se darr kis baat ka, haan?",
+    "It's literally elite, okay?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b02 big win",
+   "rep": 0,
+   "raw": "[tone: shocked, super excited, breathless] [excited] WHAAT?? Shut up!! Wait wait wait... ARE YOU SERIOUS?! [laughs] Arreeee! That is HUGE yaaar! Congratulations!!\n\nRuk... kisne bataya? Manager ne call kiya abhi 7 baje??",
+   "spoken": "WHAAT?? Shut up!! Wait wait wait... ARE YOU SERIOUS?! … Arreeee! That is HUGE yaaar! Congratulations!! Ruk... kisne bataya? Manager ne call kiya abhi 7 baje??",
+   "silent": 0,
+   "words": 25,
+   "sec": 8.62,
+   "dirs": [
+    "[excited]",
+    "[laughs]"
+   ],
+   "ndirs": 2,
+   "stretch": 4,
+   "laugh": 0,
+   "pause": 2,
+   "caps": 5,
+   "filler": 3,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 4,
+   "qtext": [
+    "WHAAT??",
+    "ARE YOU SERIOUS?!",
+    "kisne bataya?",
+    "Manager ne call kiya abhi 7 baje??"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b02 big win",
+   "rep": 1,
+   "raw": "[tone: breathless, fully excited, losing my mind] [excited] WHAAT?? [laughs] RUKO! Tumhara PROMOTION ho gaya?! Oh my god, oh my god! Arreee wow, congrats yaaar! [giggles] Wait, ruk— subah subah 7 baje kisne bataya tumhein??",
+   "spoken": "WHAAT?? … RUKO! Tumhara PROMOTION ho gaya?! Oh my god, oh my god! Arreee wow, congrats yaaar! … Wait, ruk— subah subah 7 baje kisne bataya tumhein??",
+   "silent": 0,
+   "words": 25,
+   "sec": 8.62,
+   "dirs": [
+    "[excited]",
+    "[laughs]",
+    "[giggles]"
+   ],
+   "ndirs": 3,
+   "stretch": 2,
+   "laugh": 0,
+   "pause": 0,
+   "caps": 3,
+   "filler": 1,
+   "dash": 1,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 3,
+   "qtext": [
+    "WHAAT??",
+    "Tumhara PROMOTION ho gaya?!",
+    "Wait, ruk— subah subah 7 baje kisne bataya tumhein??"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b03 low",
+   "rep": 0,
+   "raw": "[tone: soft, slow, caring, low-energy] [sighs] Uff... kya hua yaar? [softly] Itna zyada exhausted lag raha hai... Aise achanak kya ho gaya?",
+   "spoken": "Uff... kya hua yaar? … Itna zyada exhausted lag raha hai... Aise achanak kya ho gaya?",
+   "silent": 0,
+   "words": 15,
+   "sec": 5.17,
+   "dirs": [
+    "[sighs]",
+    "[softly]"
+   ],
+   "ndirs": 2,
+   "stretch": 2,
+   "laugh": 0,
+   "pause": 2,
+   "caps": 0,
+   "filler": 0,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 2,
+   "qtext": [
+    "kya hua yaar?",
+    "Aise achanak kya ho gaya?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b03 low",
+   "rep": 1,
+   "raw": "[tone: low, gentle, actually worried] [sighs] Uff... kya hua yaar? Bohot zyada heavy ho gaya kya office mein?",
+   "spoken": "Uff... kya hua yaar? Bohot zyada heavy ho gaya kya office mein?",
+   "silent": 0,
+   "words": 12,
+   "sec": 4.14,
+   "dirs": [
+    "[sighs]"
+   ],
+   "ndirs": 1,
+   "stretch": 1,
+   "laugh": 0,
+   "pause": 1,
+   "caps": 0,
+   "filler": 0,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 2,
+   "qtext": [
+    "kya hua yaar?",
+    "Bohot zyada heavy ho gaya kya office mein?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b04 funny",
+   "rep": 0,
+   "raw": "[tone: shocked, holding back a massive laugh, wheezing] [giggles] WHAAAAT??? Nooo wayyy! [laughs] Omg, phir??? Aage bata, kya hua... [giggles] usne dekha kya??",
+   "spoken": "WHAAAAT??? Nooo wayyy! … Omg, phir??? Aage bata, kya hua... … usne dekha kya??",
+   "silent": 0,
+   "words": 12,
+   "sec": 4.14,
+   "dirs": [
+    "[giggles]",
+    "[laughs]",
+    "[giggles]"
+   ],
+   "ndirs": 3,
+   "stretch": 5,
+   "laugh": 0,
+   "pause": 1,
+   "caps": 1,
+   "filler": 0,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 3,
+   "qtext": [
+    "WHAAAAT???",
+    "Omg, phir???",
+    "usne dekha kya??"
+   ],
+   "pickup": 0,
+   "qpickup": 0
+  },
+  {
+   "beat": "b04 funny",
+   "rep": 1,
+   "raw": "[tone: holding back a laugh, shocked, amused] [giggles] Whawaaat?! Oh my god, NO! [laughs] Tumne... tumne literally dil bhej diya?? Waait, waait, waait... kaunsa wala dil? Red heart wala? Ya wo basic waala? Mujhe batao pehle!!",
+   "spoken": "Whawaaat?! Oh my god, NO! … Tumne... tumne literally dil bhej diya?? Waait, waait, waait... kaunsa wala dil? Red heart wala? Ya wo basic waala? Mujhe batao pehle!!",
+   "silent": 0,
+   "words": 27,
+   "sec": 9.31,
+   "dirs": [
+    "[giggles]",
+    "[laughs]"
+   ],
+   "ndirs": 2,
+   "stretch": 3,
+   "laugh": 0,
+   "pause": 2,
+   "caps": 1,
+   "filler": 0,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 0,
+   "nq": 5,
+   "qtext": [
+    "Whawaaat?!",
+    "tumne literally dil bhej diya??",
+    "kaunsa wala dil?",
+    "Red heart wala?",
+    "Ya wo basic waala?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b05 small win",
+   "rep": 0,
+   "raw": "[tone: genuinely relieved, warm, half-laughing] [excited] Areee, wait! [laughs] Pehle yeh batao... sleep-deprived zombie waala phase finally khatam? [softly] Honestly, I was actually thinking about this... so glad ki tum thik se soye, yaaar!",
+   "spoken": "Areee, wait! … Pehle yeh batao... sleep-deprived zombie waala phase finally khatam? … Honestly, I was actually thinking about this... so glad ki tum thik se soye, yaaar!",
+   "silent": 0,
+   "words": 26,
+   "sec": 8.97,
+   "dirs": [
+    "[excited]",
+    "[laughs]",
+    "[softly]"
+   ],
+   "ndirs": 3,
+   "stretch": 4,
+   "laugh": 0,
+   "pause": 2,
+   "caps": 0,
+   "filler": 1,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 0,
+   "nq": 1,
+   "qtext": [
+    "sleep-deprived zombie waala phase finally khatam?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b05 small win",
+   "rep": 1,
+   "raw": "[tone: warm, relieved, soft laugh] [laughs] Arreee, listen to you! Finally! [softly] Honestly, I am sooo glad... tu kal raat chain se soya. Wallahi, that backend mess was taking years off your life, I'm not even kidding. [curious] Wait wait, sokab pata chala ki issue fix ho gaya? Like, late night message aaya, ya subah uthke dekha?",
+   "spoken": "Arreee, listen to you! Finally! … Honestly, I am sooo glad... tu kal raat chain se soya. Wallahi, that backend mess was taking years off your life, I'm not even kidding. … Wait wait, sokab pata chala ki issue fix ho gaya? Like, late night message aaya, ya subah uthke dekha?",
+   "silent": 0,
+   "words": 49,
+   "sec": 16.9,
+   "dirs": [
+    "[laughs]",
+    "[softly]",
+    "[curious]"
+   ],
+   "ndirs": 3,
+   "stretch": 3,
+   "laugh": 0,
+   "pause": 1,
+   "caps": 0,
+   "filler": 3,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 2,
+   "qtext": [
+    "Wait wait, sokab pata chala ki issue fix ho gaya?",
+    "Like, late night message aaya, ya subah uthke dekha?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b06 shock",
+   "rep": 0,
+   "raw": "[tone: super curious, amused, conspiratorial] Wait wait wait... [giggles] excuse me?? Kal wali ladki ka message aa gaya? Haan? Kya likha usne, bata na!",
+   "spoken": "Wait wait wait... … excuse me?? Kal wali ladki ka message aa gaya? Haan? Kya likha usne, bata na!",
+   "silent": 0,
+   "words": 18,
+   "sec": 6.21,
+   "dirs": [
+    "[giggles]"
+   ],
+   "ndirs": 1,
+   "stretch": 1,
+   "laugh": 0,
+   "pause": 1,
+   "caps": 0,
+   "filler": 3,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 0,
+   "nq": 3,
+   "qtext": [
+    "excuse me??",
+    "Kal wali ladki ka message aa gaya?",
+    "Haan?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b06 shock",
+   "rep": 1,
+   "raw": "[tone: suddenly intrigued, fast, leaning in] [excited] Whaaaat?? Wait wait wait... she actually messaged you? [curious] Kya bola usne, dekha tumne?",
+   "spoken": "Whaaaat?? Wait wait wait... she actually messaged you? … Kya bola usne, dekha tumne?",
+   "silent": 0,
+   "words": 13,
+   "sec": 4.48,
+   "dirs": [
+    "[excited]",
+    "[curious]"
+   ],
+   "ndirs": 2,
+   "stretch": 2,
+   "laugh": 0,
+   "pause": 1,
+   "caps": 0,
+   "filler": 3,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 3,
+   "qtext": [
+    "Whaaaat??",
+    "she actually messaged you?",
+    "Kya bola usne, dekha tumne?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b07 bleak",
+   "rep": 0,
+   "raw": "[tone: low, quiet, real] [softly] uff... [sighs] aisa kya ho gaya subah-subah? matlab... kisi ne kuch bola, ya bas waise hi lag raha hai?",
+   "spoken": "uff... … aisa kya ho gaya subah-subah? matlab... kisi ne kuch bola, ya bas waise hi lag raha hai?",
+   "silent": 0,
+   "words": 18,
+   "sec": 6.21,
+   "dirs": [
+    "[softly]",
+    "[sighs]"
+   ],
+   "ndirs": 2,
+   "stretch": 2,
+   "laugh": 0,
+   "pause": 2,
+   "caps": 0,
+   "filler": 1,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 2,
+   "qtext": [
+    "aisa kya ho gaya subah-subah?",
+    "kisi ne kuch bola, ya bas waise hi lag raha hai?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b07 bleak",
+   "rep": 1,
+   "raw": "[tone: low, quiet, serious]\n[sighs] Hmm... uff, itna heavy thought subah subah? kya hua... achanak se aisa kyun lag raha hai tumhein?",
+   "spoken": "Hmm... uff, itna heavy thought subah subah? kya hua... achanak se aisa kyun lag raha hai tumhein?",
+   "silent": 0,
+   "words": 17,
+   "sec": 5.86,
+   "dirs": [
+    "[sighs]"
+   ],
+   "ndirs": 1,
+   "stretch": 2,
+   "laugh": 0,
+   "pause": 2,
+   "caps": 0,
+   "filler": 1,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 2,
+   "qtext": [
+    "uff, itna heavy thought subah subah?",
+    "achanak se aisa kyun lag raha hai tumhein?"
+   ],
+   "pickup": 0,
+   "qpickup": 0
+  },
+  {
+   "beat": "b08 excited rush",
+   "rep": 0,
+   "raw": "[tone: excited, genuinely shocked, loud laugh] [excited] WAIT WHAT?? No way! [giggles] Tu mazak toh nahi kar raha na?? Front row ticketsmil bhi gaye tujhe?!",
+   "spoken": "WAIT WHAT?? No way! … Tu mazak toh nahi kar raha na?? Front row ticketsmil bhi gaye tujhe?!",
+   "silent": 0,
+   "words": 17,
+   "sec": 5.86,
+   "dirs": [
+    "[excited]",
+    "[giggles]"
+   ],
+   "ndirs": 2,
+   "stretch": 0,
+   "laugh": 0,
+   "pause": 0,
+   "caps": 2,
+   "filler": 1,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 0,
+   "nq": 3,
+   "qtext": [
+    "WAIT WHAT??",
+    "Tu mazak toh nahi kar raha na??",
+    "Front row ticketsmil bhi gaye tujhe?!"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b08 excited rush",
+   "rep": 1,
+   "raw": "[tone: thrilled, wide-eyed, losing it slightly] [excited] WHAT?! Shut up! Front row?? [laughs] Tu pagal hai kya?! How did you even get those?!",
+   "spoken": "WHAT?! Shut up! Front row?? … Tu pagal hai kya?! How did you even get those?!",
+   "silent": 0,
+   "words": 15,
+   "sec": 5.17,
+   "dirs": [
+    "[excited]",
+    "[laughs]"
+   ],
+   "ndirs": 2,
+   "stretch": 0,
+   "laugh": 0,
+   "pause": 0,
+   "caps": 1,
+   "filler": 0,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 0,
+   "nq": 4,
+   "qtext": [
+    "WHAT?!",
+    "Front row??",
+    "Tu pagal hai kya?!",
+    "How did you even get those?!"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b09 mishear",
+   "rep": 0,
+   "raw": "[tone: confused, laughing, amused] [giggles] Wait, what?? Kon... konsi skim wali video? [laughs] Ream wali keh rahe ho kya... reels ki baat ho rahi hai ya— [curious] tum sach mein milk skim karne waali videos dekh rahe ho subah subah?",
+   "spoken": "Wait, what?? Kon... konsi skim wali video? … Ream wali keh rahe ho kya... reels ki baat ho rahi hai ya— … tum sach mein milk skim karne waali videos dekh rahe ho subah subah?",
+   "silent": 0,
+   "words": 33,
+   "sec": 11.38,
+   "dirs": [
+    "[giggles]",
+    "[laughs]",
+    "[curious]"
+   ],
+   "ndirs": 3,
+   "stretch": 2,
+   "laugh": 0,
+   "pause": 2,
+   "caps": 0,
+   "filler": 1,
+   "dash": 1,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 3,
+   "qtext": [
+    "Wait, what??",
+    "konsi skim wali video?",
+    "tum sach mein milk skim karne waali videos dekh rahe ho subah subah?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b09 mishear",
+   "rep": 1,
+   "raw": "[tone: slightly confused, trying to catch up] [curious] Wait, kaunsi scheme wali video?? Maine toh koi video... [laughs] achha, wait wait wait, tumne mere story waali book ki baat kar rahe ho kya, ya kuch aur dekha? Mujhe samajh hi nahi aaya tumne abhi kya bola hahah.",
+   "spoken": "Wait, kaunsi scheme wali video?? Maine toh koi video... … achha, wait wait wait, tumne mere story waali book ki baat kar rahe ho kya, ya kuch aur dekha? Mujhe samajh hi nahi aaya tumne abhi kya bola hahah.",
+   "silent": 0,
+   "words": 38,
+   "sec": 13.1,
+   "dirs": [
+    "[curious]",
+    "[laughs]"
+   ],
+   "ndirs": 2,
+   "stretch": 1,
+   "laugh": 1,
+   "pause": 1,
+   "caps": 0,
+   "filler": 4,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 0,
+   "nq": 2,
+   "qtext": [
+    "Wait, kaunsi scheme wali video??",
+    "achha, wait wait wait, tumne mere story waali book ki baat kar rahe ho kya, ya kuch aur dekha?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b10 goodbye",
+   "rep": 0,
+   "raw": "[tone: soft, sleepy, a little amused] [sighs] Arreee... [softly] subah ke saath baje kaun sota hai yaaaar? Par thik hai... jao, so jao. Kal baat karte hain. Byeee!",
+   "spoken": "Arreee... … subah ke saath baje kaun sota hai yaaaar? Par thik hai... jao, so jao. Kal baat karte hain. Byeee!",
+   "silent": 0,
+   "words": 20,
+   "sec": 6.9,
+   "dirs": [
+    "[sighs]",
+    "[softly]"
+   ],
+   "ndirs": 2,
+   "stretch": 4,
+   "laugh": 0,
+   "pause": 2,
+   "caps": 0,
+   "filler": 0,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 0,
+   "nq": 1,
+   "qtext": [
+    "subah ke saath baje kaun sota hai yaaaar?"
+   ],
+   "pickup": 1,
+   "qpickup": 0
+  },
+  {
+   "beat": "b10 goodbye",
+   "rep": 1,
+   "raw": "[tone: sleepy, soft, relaxed] [giggles] Arreee, itni jaldi? Okayyy okay, go sleep! Kal baat karte hain... goodnight!",
+   "spoken": "Arreee, itni jaldi? Okayyy okay, go sleep! Kal baat karte hain... goodnight!",
+   "silent": 0,
+   "words": 12,
+   "sec": 4.14,
+   "dirs": [
+    "[giggles]"
+   ],
+   "ndirs": 1,
+   "stretch": 3,
+   "laugh": 0,
+   "pause": 1,
+   "caps": 0,
+   "filler": 0,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 0,
+   "nq": 1,
+   "qtext": [
+    "Arreee, itni jaldi?"
+   ],
+   "pickup": 1,
+   "qpickup": 0
+  },
+  {
+   "beat": "b11 flat nothing",
+   "rep": 0,
+   "raw": "[tone: soft, sleepy, slightly amused] [laughs] Subah ke saat baje kya hi kar lungi yaaar? Abhi toh uthi hu bas... chai bhi nahi bani abhi tak. Tum batao, itni subah subah uth ke mood off ho gaya kya?",
+   "spoken": "Subah ke saat baje kya hi kar lungi yaaar? Abhi toh uthi hu bas... chai bhi nahi bani abhi tak. Tum batao, itni subah subah uth ke mood off ho gaya kya?",
+   "silent": 0,
+   "words": 32,
+   "sec": 11.03,
+   "dirs": [
+    "[laughs]"
+   ],
+   "ndirs": 1,
+   "stretch": 2,
+   "laugh": 0,
+   "pause": 1,
+   "caps": 0,
+   "filler": 0,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 2,
+   "qtext": [
+    "Subah ke saat baje kya hi kar lungi yaaar?",
+    "Tum batao, itni subah subah uth ke mood off ho gaya kya?"
+   ],
+   "pickup": 0,
+   "qpickup": 0
+  },
+  {
+   "beat": "b11 flat nothing",
+   "rep": 1,
+   "raw": "[tone: tired, easygoing, slightly amused] [sighs] Arreee abhi toh subah ke saat baj rahe hain! Abhi se kya hi kar lungi mai?... Tum batao, itni subah subah uth ke poora din wrap up karne ke mood mein ho kya? [giggles]",
+   "spoken": "Arreee abhi toh subah ke saat baj rahe hain! Abhi se kya hi kar lungi mai?... Tum batao, itni subah subah uth ke poora din wrap up karne ke mood mein ho kya? …",
+   "silent": 0,
+   "words": 33,
+   "sec": 11.38,
+   "dirs": [
+    "[sighs]",
+    "[giggles]"
+   ],
+   "ndirs": 2,
+   "stretch": 2,
+   "laugh": 0,
+   "pause": 1,
+   "caps": 0,
+   "filler": 0,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 0,
+   "nq": 2,
+   "qtext": [
+    "Abhi se kya hi kar lungi mai?...",
+    "Tum batao, itni subah subah uth ke poora din wrap up karne ke mood mein ho kya?"
+   ],
+   "pickup": 0,
+   "qpickup": 0
+  },
+  {
+   "beat": "b12 she asked, he answered short",
+   "rep": 0,
+   "raw": "[tone: amused, teasing, slightly judgemental] [giggles] Teesri baar?? Yaar Tuesday hi toh hai abhi... matlab hafto ke baaki din kya karne ka plan hai?",
+   "spoken": "Teesri baar?? Yaar Tuesday hi toh hai abhi... matlab hafto ke baaki din kya karne ka plan hai?",
+   "silent": 0,
+   "words": 18,
+   "sec": 6.21,
+   "dirs": [
+    "[giggles]"
+   ],
+   "ndirs": 1,
+   "stretch": 1,
+   "laugh": 0,
+   "pause": 1,
+   "caps": 0,
+   "filler": 1,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 2,
+   "qtext": [
+    "Teesri baar??",
+    "matlab hafto ke baaki din kya karne ka plan hai?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b12 she asked, he answered short",
+   "rep": 1,
+   "raw": "[tone: amused, teasing, slightly horrified]\n\n[laughs] Teesri baar?? Yaar Tuesday hi hai abhi! Itni aalas?",
+   "spoken": "Teesri baar?? Yaar Tuesday hi hai abhi! Itni aalas?",
+   "silent": 0,
+   "words": 9,
+   "sec": 3.1,
+   "dirs": [
+    "[laughs]"
+   ],
+   "ndirs": 1,
+   "stretch": 0,
+   "laugh": 0,
+   "pause": 0,
+   "caps": 0,
+   "filler": 0,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 2,
+   "qtext": [
+    "Teesri baar??",
+    "Itni aalas?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b13 opinion bait",
+   "rep": 0,
+   "raw": "[tone: mildly amused, slightly dramatic] Cold play?? Haan matlab... standard answer, par seriously best band? Itna confident declaration, subah 7:30 baje! [giggles] Matlab thik h, good songs... par BEST? What about local bands ya older rock? Tumne bas woh char-paanch stadium anthems sun ke yeh decide kar liya na?",
+   "spoken": "Cold play?? Haan matlab... standard answer, par seriously best band? Itna confident declaration, subah 7:30 baje! … Matlab thik h, good songs... par BEST? What about local bands ya older rock? Tumne bas woh char-paanch stadium anthems sun ke yeh decide kar liya na?",
+   "silent": 0,
+   "words": 43,
+   "sec": 14.83,
+   "dirs": [
+    "[giggles]"
+   ],
+   "ndirs": 1,
+   "stretch": 2,
+   "laugh": 0,
+   "pause": 2,
+   "caps": 1,
+   "filler": 2,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 5,
+   "qtext": [
+    "Cold play??",
+    "standard answer, par seriously best band?",
+    "par BEST?",
+    "What about local bands ya older rock?",
+    "Tumne bas woh char-paanch stadium anthems sun ke yeh decide kar liya na?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b13 opinion bait",
+   "rep": 1,
+   "raw": "[tone: deadpan, slightly shocked, amused] [giggles] Excuse me?? Coldplay?? ...Matlab... like, direct coldplay? ...[laughs] Haan matlab, okay, subah subah 7:30 baje aisa strong take... *bold* choice, developer saab. ...[curious] Matlab, straight up best band in the whole world, or is this just because kal raat tumne koi purana song sun liya?",
+   "spoken": "Excuse me?? Coldplay?? ...Matlab... like, direct coldplay? ...… Haan matlab, okay, subah subah 7:30 baje aisa strong take... choice, developer saab. ...… Matlab, straight up best band in the whole world, or is this just because kal raat tumne koi purana song sun liya?",
+   "silent": 0,
+   "words": 42,
+   "sec": 14.48,
+   "dirs": [
+    "[giggles]",
+    "[laughs]",
+    "[curious]",
+    "*bold*"
+   ],
+   "ndirs": 4,
+   "stretch": 4,
+   "laugh": 0,
+   "pause": 5,
+   "caps": 0,
+   "filler": 4,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 4,
+   "qtext": [
+    "Excuse me??",
+    "Coldplay??",
+    "like, direct coldplay?",
+    "Matlab, straight up best band in the whole world, or is this just because kal raat tumne koi purana song sun liya?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b14 complaint",
+   "rep": 0,
+   "raw": "[tone: empathetic, slightly amused, relaxed] [sighs] Arreee yaar! Phir se?? [laughs] Matlab, like... poora carton uda diya kya iss baar bhi?",
+   "spoken": "Arreee yaar! Phir se?? … Matlab, like... poora carton uda diya kya iss baar bhi?",
+   "silent": 0,
+   "words": 14,
+   "sec": 4.83,
+   "dirs": [
+    "[sighs]",
+    "[laughs]"
+   ],
+   "ndirs": 2,
+   "stretch": 2,
+   "laugh": 0,
+   "pause": 1,
+   "caps": 0,
+   "filler": 2,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 2,
+   "qtext": [
+    "Phir se??",
+    "poora carton uda diya kya iss baar bhi?"
+   ],
+   "pickup": 1,
+   "qpickup": 1
+  },
+  {
+   "beat": "b14 complaint",
+   "rep": 1,
+   "raw": "[tone: fake-shocked, indignant, slightly sleepy] [giggles] Whuuuat?! Again?? Arreee, is bande ko kya obsession hai tumhare doodh se yaaar! [sighs] Tumne usse kuch bola nahi phirse?",
+   "spoken": "Whuuuat?! Again?? Arreee, is bande ko kya obsession hai tumhare doodh se yaaar! … Tumne usse kuch bola nahi phirse?",
+   "silent": 0,
+   "words": 19,
+   "sec": 6.55,
+   "dirs": [
+    "[giggles]",
+    "[sighs]"
+   ],
+   "ndirs": 2,
+   "stretch": 3,
+   "laugh": 0,
+   "pause": 0,
+   "caps": 0,
+   "filler": 0,
+   "dash": 0,
+   "anyQ": 1,
+   "endsQ": 1,
+   "nq": 3,
+   "qtext": [
+    "Whuuuat?!",
+    "Again??",
+    "Tumne usse kuch bola nahi phirse?"
+   ],
+   "pickup": 1,
+   "qpickup": 0
+  }
+ ]
+}
