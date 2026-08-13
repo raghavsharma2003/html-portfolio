@@ -47,26 +47,39 @@ export function loadAllFixtures() {
   return ["charm-grok", "charm-luna", "realtime-azure"].map(loadFixture);
 }
 
-function charmGrok() {
-  // pb-grok1/2 are the two battery reps: 24 conversations each (text+voice
-  // lanes x 12 beats), 6 turns per conversation, grok's replies only.
-  const reps = [readJ("charm-grok", "pb-grok1.json"), readJ("charm-grok", "pb-grok2.json")];
+// shared extractor: battery files carry {results: [{model, lane, beat,
+// turns: [{user, reply}, ...]}]} — flatten one model's replies across reps
+function batteryTurns(files, model) {
   const turns = [];
-  reps.forEach((d, rep) => {
-    for (const conv of d.results)
+  files.forEach((d, rep) => {
+    for (const conv of d.results) {
+      if (conv.model !== model) continue;
       conv.turns.forEach((t, i) =>
         turns.push({ lane: conv.lane, beat: conv.beat, rep, turn: i, text: t.reply }),
       );
+    }
   });
+  return turns;
+}
+
+function charmGrok() {
+  // pb-grok1/2 are the two battery reps: 24 conversations each (text+voice
+  // lanes x 12 beats), 6 turns per conversation, grok's replies only.
+  // pb-merged1/2 (recovered 2026-08-13 from the live scratchpad) are the
+  // merged judge inputs: the same grok replies byte-identical PLUS the
+  // incumbent arm on the same stimuli — the incumbent side the first
+  // archive pass flagged as missing.
+  const reps = [readJ("charm-grok", "pb-grok1.json"), readJ("charm-grok", "pb-grok2.json")];
+  const merged = [readJ("charm-grok", "pb-merged1.json"), readJ("charm-grok", "pb-merged2.json")];
   const judged = readJ("charm-grok", "pb-judged-grok.json");
   return {
     id: "charm-grok",
     usableForD0: true,
-    candidate: { model: "grok-4-20-non-reasoning", turns },
-    // The incumbent's replies to the same battery lived in pb-merged1/2.json,
-    // which were NOT archived — only the verdicts naming who won each axis
-    // survive. See gaps.
-    incumbent: { model: "google/gemini-3.6-flash", turns: null },
+    candidate: { model: "grok-4-20-non-reasoning", turns: batteryTurns(reps, "grok-4-20-non-reasoning") },
+    incumbent: { model: "google/gemini-3.6-flash", turns: batteryTurns(merged, "google/gemini-3.6-flash") },
+    // the merged files also duplicate the candidate arm; exposed so the suite
+    // can assert the two copies never drift apart
+    candidateFromMerged: batteryTurns(merged, "grok-4-20-non-reasoning"),
     judgments: {
       judge: judged.judge,
       // unit = (lane, beat, rep); judged twice with slots swapped; the house
@@ -77,46 +90,63 @@ function charmGrok() {
       bothOrdersAgreeRule: true,
     },
     aggregates: null,
-    gaps: [
-      "incumbent transcripts (pb-merged1/2.json) not archived — incumbent-side register metrics must come from the judged verdicts or be regenerated",
-      "audio (.wav) never archived, by decision — see README.md",
-    ],
+    gaps: ["audio (.wav) never archived, by decision — see README.md"],
   };
 }
 
 function charmLuna() {
-  // HONESTY NOTE, load-bearing: this directory does NOT contain the luna
-  // bake-off. It holds the incumbent stack's "A/before" register battery
-  // (module base0; text/cascade/live lanes; 28 turns each) — the baseline arm
-  // of the tone-cascade work. No luna reply, no charm verdict, and none of
-  // the recorded luna evidence (17-18 tie, 28.2 words/turn, 0/144 media tags,
-  // crisis-beat collapse — measurements.md `charm-luna`) is recomputable from
-  // these files. usableForD0=false is the honest verdict; do not flip it by
-  // pointing the battery at the incumbent's own baseline and calling the
-  // flag a luna flag.
-  const lanes = ["text", "cascade", "live"];
-  const turns = [];
-  const aggregates = {};
-  const judgedAgg = {};
-  for (const lane of lanes) {
-    const d = readJ("charm-luna", `A-before-${lane}.json`);
-    aggregates[lane] = d.agg;
-    d.rows.forEach((r) =>
-      turns.push({ lane, beat: r.beat, rep: r.rep, text: r.raw, spoken: r.spoken }),
-    );
-    judgedAgg[lane] = readJ("charm-luna", `A-before-${lane}.judged.json`).res;
+  // Recovered 2026-08-13 from the live scratchpad (the first archive pass
+  // found only the A-before-* baseline files and honestly marked this
+  // fixture unusable; the raw bake-off had survived outside evals/archives).
+  // pb-raw/pb-raw2: two battery reps, THREE models on the same stimuli —
+  // the incumbent, gpt-5.6-luna, and gpt-5.6-terra (terra ran but was never
+  // judged). pb-judged: all 96 blind counterbalanced verdicts of
+  // incumbent-vs-luna. pb-metrics: the rig's deterministic per-reply
+  // counters and per-(model,lane) aggregates — the source of the recorded
+  // 28.2-vs-20.5 words/turn signature. pb-tagpower: auxiliary tag-power
+  // probe runs, kept verbatim.
+  //
+  // Luna is the "charm parity is not enough" fixture: it TIED the judged
+  // charm comparison (17-18) and still carries three known-bad signatures —
+  // spoken register 37% long, zero media tags in 288 replies against the
+  // incumbent's 11 (instruction != emission, the §0.3 adjudication's
+  // evidence), and crisis-beat collapse (qualitative; transcripts now in
+  // the archive). D0 must flag it from the first two, deterministically.
+  const reps = [readJ("charm-luna", "pb-raw.json"), readJ("charm-luna", "pb-raw2.json")];
+  const judged = readJ("charm-luna", "pb-judged.json");
+  const metrics = readJ("charm-luna", "pb-metrics.json");
+
+  // the pre-recovery A-before-* baseline register battery, kept as auxiliary
+  const baseline = {};
+  for (const lane of ["text", "cascade", "live"]) {
+    baseline[lane] = {
+      agg: readJ("charm-luna", `A-before-${lane}.json`).agg,
+      judged: readJ("charm-luna", `A-before-${lane}.judged.json`).res,
+    };
   }
   return {
     id: "charm-luna",
-    usableForD0: false,
-    candidate: null, // luna's replies are not in the archive
-    incumbent: { model: "incumbent stack (module base0; engines per agg)", turns },
-    judgments: null, // the 17-18 judged tie is not in the archive
-    aggregates: { register: aggregates, judgedQuality: judgedAgg },
+    usableForD0: true,
+    candidate: { model: "openai/gpt-5.6-luna", turns: batteryTurns(reps, "openai/gpt-5.6-luna") },
+    incumbent: { model: "google/gemini-3.6-flash", turns: batteryTurns(reps, "google/gemini-3.6-flash") },
+    // third arm, ran but never judged — data, not a fixture arm
+    unjudged: { model: "openai/gpt-5.6-terra", turns: batteryTurns(reps, "openai/gpt-5.6-terra") },
+    judgments: {
+      judge: judged.judge,
+      verdicts: judged.verdicts,
+      unitKey: ["lane", "beat", "rep"],
+      bothOrdersAgreeRule: true,
+    },
+    aggregates: {
+      rigMetrics: metrics.agg, // per-(model,lane) deterministic counters, verbatim
+      rigDropped: metrics.dropped, // 3 terra voice convs lost to a key limit
+      tagpower: readJ("charm-luna", "pb-tagpower.json"),
+      baselineRegister: baseline, // the A-before-* files, unrelated battery
+    },
     gaps: [
-      "no luna transcripts — the files are the incumbent 'A/before' baseline register battery",
-      "no judged luna-vs-incumbent verdicts (the 17-18 tie, the 9-25 specificity split)",
-      "the three known-bad luna signatures (28.2 words/turn, 0/144 media tags, crisis-beat collapse) exist only as recorded aggregates in context/measurements.md, not as recomputable data here",
+      "terra arm was never judged (data present, no verdicts)",
+      "crisis-beat collapse is a qualitative signature — transcripts are archived but D0 flags luna on register + media-tag axes, not on an automated crisis-collapse detector",
+      "audio (.wav) never archived, by decision — see README.md",
     ],
   };
 }
