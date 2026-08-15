@@ -1,0 +1,85 @@
+# Vendor-drift alarm — SPEC.md §7.3 (M5, WS-ROUTER, owned exclusively per
+# §13): "the weekly drift monitor exercises the identical logging path, so
+# the Phase-D hook is load-bearing continuously, not shelf-ware." §12.11
+# repeats the same cadence ("the weekly drift monitor exercises the
+# identical logging path continuously") and §13's own WS-ROUTER eval gate
+# says "sham path logged weekly" — so this runs WEEKLY, not nightly, per the
+# spec's own repeated text (a deviation from this ticket's own paraphrase
+# of §7.3 as "nightly" — see the M5 report).
+#
+# Sunday 03:15 UTC = a quiet slot that does not collide with consolidate.yml
+# (22:00 UTC daily) or culture.yml (03:45 UTC daily) — three cron jobs
+# hitting the same Neon endpoint in the same few minutes would be its own
+# small risk to avoid for no reason.
+#
+# Probe deck is deliberately TINY (SPEC §7.3: "Keep the probe deck tiny
+# (pennies/night)") — 3 fixed prompts x 3 reps, per ACTIVE (gate='passed')
+# model, scored on REGISTER/LATENCY/refusal-shape only, never fabrication
+# rate (`fab-noise-floor`, context/measurements.md: "Any fabrication claim
+# from this harness at n<300 is noise" — this deck never claims one).
+#
+# Failure posture matches consolidate.yml's, not culture.yml's: a breach is
+# THIS repo's "page the owner" mechanism for silent vendor drift (the
+# `grok-4.20-beta` risk named in SPEC §4.1.10 — "a swap nobody consented
+# to"), so the job goes RED loudly rather than degrading quietly.
+name: drift monitor
+
+on:
+  schedule:
+    - cron: "15 3 * * 0" # Sunday, weekly
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true = probe deck construction only, no model calls, no writes"
+        default: "false"
+
+concurrency:
+  group: drift-monitor
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # api/_config.js is gitignored; every workflow that touches the live
+      # database or a paid model reconstructs it from secrets the same way
+      # (deploy-web.yml is the precedent this mirrors, consolidate.yml the
+      # most recent copy of it).
+      - name: Reconstruct api/_config.js
+        env:
+          OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
+          GOOGLE_KEY: ${{ secrets.GOOGLE_KEY }}
+          GOOGLE_KEYS: ${{ secrets.GOOGLE_KEYS }}
+          GOOGLE_PAID_KEY: ${{ secrets.GOOGLE_PAID_KEY }}
+          NEON_URL: ${{ secrets.NEON_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          AZURE_KEY: ${{ secrets.AZURE_KEY }}
+          AZURE_ENDPOINT: ${{ secrets.AZURE_ENDPOINT }}
+        run: node scripts/write-config.mjs
+
+      - name: Weekly drift probe deck
+        run: |
+          node scripts/derive-adapter.mjs --mode drift \
+            ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+
+      # §7.3's sham hook: "the weekly drift monitor exercises the identical
+      # logging path" — proven here on every scheduled run, not just once at
+      # M5 landing, which is what keeps it "load-bearing continuously, not
+      # shelf-ware" (§12.11) rather than a mechanism that only ever ran once
+      # by hand. `--mode sham` writes its proof records through the real
+      # meera_tel sink under a `wsrouter-test-<timestamp>` device id and
+      # deletes them itself in the same run (scripts/derive-adapter.mjs
+      # `runSham`) — so this step leaves zero residue on every run,
+      # including a red one above.
+      - name: Sham relabel — router + telemetry round trip
+        if: always()
+        run: node scripts/derive-adapter.mjs --mode sham --lane vision

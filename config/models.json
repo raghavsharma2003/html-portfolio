@@ -1,0 +1,92 @@
+{
+  "_comment": "SPEC.md §7 / §13 (WS-ROUTER, M5, owned exclusively). The authored seed for vy_model + the router's lane wiring — same role config/decay.json plays for the decay curve ('the file is the signature'). `models` mirrors vy_model's columns field-for-field (db/schema.sql migration 005) so a row here upserts cleanly; `lanes` is the router-level incumbent/candidate/fallback wiring src/engine/router.ts's LaneConfig expects. NOT a data source api/route.js writes from automatically — that endpoint is read-only diagnostics per its own file-ownership line; it reads the LIVE vy_model/vy_gate_run tables first and falls back to this file's numbers only while those tables are empty (SPEC §2.7: migrations 001-005 land with empty tables), the same fallback shape api/consolidate.js's loadDecayConfig() already uses for config/decay.json. Populating vy_model for real is therefore still open — logged as an interface ticket in the M5 report, not silently done here.",
+
+  "_lane_comment": "Lane is deliberately 'chat' | 'vision' | 'extraction' only. The live call lane is NOT here and is not routable through src/engine/router.ts's Lane type at all (SPEC §7.1: 'Realtime lanes are pinned architecture choices, not slug swaps'; context/rejected.md `live-model-swap` and `realtime-azure` are both settled NOs — five of six bidi-capable models measured worse, two in ways that break shipped features). That is an unrepresentable-bad-state choice, not an omission.",
+
+  "models": {
+    "google/gemini-3.6-flash": {
+      "_role": "chat incumbent (context/decisions.md `brain-model`); also today's de-facto vision-lane model — nothing has moved screen share off it yet (context/decisions.md `vision-model`: 'recommended, not yet wired').",
+      "provider": "google",
+      "billing": "cash",
+      "_billing_note": "Served free-tier-first via api/_gkeys.js's Google AI Studio pool, OpenRouter as cash fallback (api/chat.js). Not Azure startup credits, so the credits-partner card-risk trap (context/decisions.md, `credits-partner`) does not apply to this row.",
+      "card_risk": false,
+      "prefix_cache": true,
+      "_prefix_cache_note": "measured: context/measurements.md `cache-9x` — chat 99.8% cached, call 99.9% cached, real API calls with the real persona.",
+      "residency": "us",
+      "max_tokens_mode": "total",
+      "_max_tokens_mode_note": "NOT directly measured for this model — `reasoning-split` (context/measurements.md) measured visible-only truncation behavior only for the xAI/grok family. Assumed 'total' (OpenAI-compatible default) pending a direct measurement; flagged rather than asserted as fact.",
+      "effort_map": {
+        "chat": { "low": "correct (21.0-22.8 words, 0 empty)", "minimal": "BROKEN — 2.2 words, 4/5 EMPTY" },
+        "call": { "minimal": "correct (23.8-22.8 words, 0 empty)", "low": "BROKEN — 5.2 words, 4/5 EMPTY" }
+      },
+      "_effort_map_note": "measured: api/chat.js's own comment block, n=5/cell, real persona. THE TIERS ARE INVERTED BETWEEN LANES — a router or caller that applies one fixed effort value to both lanes silently breaks one of them.",
+      "adapter": {},
+      "_adapter_note": "empty by design at M5 landing — the compiler's C6 adapter.<model> block (SPEC §3.1) is WS-COMPILER's, not yet wired to read vy_model.adapter. Interface ticket, not this file's job to close.",
+      "adapter_derived_at": null,
+      "gate": "passed",
+      "_gate_note": "GRANDFATHERED, not re-derived through the new §7.1 gate machinery. This is the model that WON the historical bake-offs the D0 battery is required to replay (`charm-grok` 38-2, `charm-luna` 17-18 tie+specificity win) — retroactive evidence, not a fresh judged run. A real D0/D1/D5 pass against it is WS-BATTERY's M6 row, named here as a follow-up rather than silently assumed done."
+    },
+
+    "grok-4-20-non-reasoning": {
+      "_role": "vision-lane CANDIDATE (context/decisions.md `vision-model`) — the recommended-not-yet-wired move this ticket exists to prove the gate machinery on first (SPEC §0.3, §7.1: 'the already-recommended vision-lane grok move ... is wired THROUGH the new gate as the first end-to-end adapter derivation').",
+      "provider": "xai",
+      "billing": "credits",
+      "_billing_note": "Azure AI Foundry, Microsoft-for-Startups credits — the deployment context/measurements.md `vision-fab` and `charm-grok` were actually run against ('Tested against the actual Foundry deployment, which currently serves grok-4.20-beta-0309-non-reasoning — a beta build that could change underneath us').",
+      "card_risk": false,
+      "_card_risk_note": "Evidenced eligible: real measured calls against the credits deployment already ran (vision-fab, charm-grok) with no surprise-billing noted anywhere in context/. Re-confirm against the live Microsoft-for-Startups eligible-model list before any real spend regardless — the credits-partner trap (context/decisions.md) is a silent failure mode by design, so 'no problem yet' is not the same claim as 'confirmed safe forever'.",
+      "prefix_cache": false,
+      "_prefix_cache_note": "NOT measured for this model — no cache-hit-rate number exists in context/ for the grok/vision lane the way `cache-9x` exists for gemini/chat. Conservative default per SPEC §7.1: 'else x9.2'; the derivation harness's Derive phase (scripts/derive-adapter.mjs) is where this becomes a real number.",
+      "residency": "us",
+      "max_tokens_mode": "visible_only",
+      "_max_tokens_mode_note": "measured: context/measurements.md `reasoning-split` — 'on xAI deployments max_tokens caps VISIBLE output only, so 0 of 984 turns truncated ... even with up to 2,305 hidden reasoning tokens.' grok-4-20 is the exact model family measured (matched against its own -non-reasoning/-reasoning pair).",
+      "effort_map": {},
+      "_effort_map_note": "not yet measured for this lane — SPEC §7.2 phase 1 (bracket semantics, max_tokens semantics, effort x lane grid n=5/cell, tag-vocabulary compliance) is exactly the job scripts/derive-adapter.mjs's Derive phase runs; this stays empty until that phase's real (non-smoke) pass lands a measured grid.",
+      "adapter": {},
+      "adapter_derived_at": null,
+      "gate": "untested",
+      "_gate_note": "GATED, NOT LIVE — deliberately not 'passed'. Evidence is strong on fabrication and latency (context/measurements.md `vision-fab`: 0/32 fabrications vs luna's 1, terra's 2, maverick's 3; 428ms median vs incumbent's 2,136ms; 288 vs 1,078 image tokens) but context/decisions.md `vision-model` is explicit: 'Conditional on `grok-quiet`: it returned NO_COMMENT on 15 of 16 frames ... when pushed to engage it fabricated on a small probe. Retune the directive, then re-measure fabrication. Do not ship on n=6.' The real gate run this candidate needs is that retuned-directive measurement — Phase D work per this ticket's own scope, not simulated as real here. See the M5 report for the SYNTHETIC staged gate-run proof (recorded then removed) that exercises the state machine without pretending grok-quiet is resolved."
+    },
+
+    "grok-4-1-fast-reasoning": {
+      "_role": "extraction-lane incumbent, LIVE (context/decisions.md `extract-model`).",
+      "provider": "xai",
+      "billing": "credits",
+      "_billing_note": "Azure first (api/consolidate.js AZ_ENDPOINT/AZ_KEY), OpenRouter fallback — 'a bad Azure minute must cost a slower extraction, never a lost memory.' Azure returned DeploymentNotFound on 7.5% of 40 calls in a separate battery, so the fallback below is a measured need, not defensive plumbing.",
+      "card_risk": false,
+      "_card_risk_note": "already live and billing successfully via the credits deployment (api/consolidate.js, shipping).",
+      "prefix_cache": false,
+      "_prefix_cache_note": "not measured — extraction runs off the critical path by design (context/decisions.md `extract-model`: 'nobody waits on it'), so no latency-driven caching measurement exists for this lane the way `cache-9x` exists for chat.",
+      "residency": "us",
+      "max_tokens_mode": "visible_only",
+      "_max_tokens_mode_note": "measured: context/measurements.md `reasoning-split` names grok-4-1-fast-(non-)reasoning as one of the two matched-pair families tested directly.",
+      "effort_map": {},
+      "adapter": {},
+      "adapter_derived_at": null,
+      "gate": "passed",
+      "_gate_note": "GRANDFATHERED — already the shipping extraction incumbent (api/consolidate.js EXTRACT_MODEL_AZURE), not yet run through the new §7.1 gate machinery. Same follow-up note as the chat incumbent above."
+    },
+
+    "google/gemini-3.1-flash-lite": {
+      "_role": "extraction-lane FALLBACK (api/consolidate.js EXTRACT_MODEL_FALLBACK) — a different MODEL from api/chat.js's free-pool/OpenRouter TRANSPORT fallback for one model; this is the router's model-level fallback slot for the extraction lane specifically.",
+      "provider": "google",
+      "billing": "cash",
+      "card_risk": false,
+      "prefix_cache": false,
+      "_prefix_cache_note": "not measured for this model/lane.",
+      "residency": "us",
+      "max_tokens_mode": "total",
+      "_max_tokens_mode_note": "not directly measured — same assumed-default caveat as the chat incumbent row.",
+      "effort_map": {},
+      "adapter": {},
+      "adapter_derived_at": null,
+      "gate": "passed",
+      "_gate_note": "GRANDFATHERED — already the shipping fallback path for extraction (api/consolidate.js), not yet run through the new §7.1 gate machinery."
+    }
+  },
+
+  "lanes": {
+    "chat": { "incumbent": "google/gemini-3.6-flash", "candidates": [], "fallback": null },
+    "vision": { "incumbent": "google/gemini-3.6-flash", "candidates": ["grok-4-20-non-reasoning"], "fallback": null },
+    "extraction": { "incumbent": "grok-4-1-fast-reasoning", "candidates": [], "fallback": "google/gemini-3.1-flash-lite" }
+  }
+}
