@@ -15,7 +15,14 @@ import { cultureNote } from "./culture";
 import { recallMemories, forgetMemories, resolveForget, takeRelBundle } from "./memory";
 import { innerContext, overlaps, type Inner } from "./inner";
 import { diag } from "./diag";
-import { compile } from "./compiler";
+import { compile, hashCore, hashManifest } from "./compiler";
+// WS-MANIFEST Phase D prep (docs/SPEC.md §7.3 "chat lane call-site
+// adoption"): router.ts stays WS-ROUTER's exclusively (§13) — this is a
+// read of its exported pure functions, not an edit, same discipline as the
+// clock.ts import just below. `Lane` deliberately has no "live" member
+// (router.ts's own header) — the realtime call lane never reaches this
+// file at all (compiler.fixtures.ts's own note), so nothing here routes it.
+import { route, toTelemetryDetail, type ModelRow, type LaneConfig, type RoutedCandidate } from "./router";
 // WS-INTEGRATE seam 2 (age-tier hard-refusal, WS-SAFETY's ticket, verbatim):
 // gatesFor(getAgeTier()) is called FRESH per compile below — never
 // memoized — so a tier that tightens mid-session takes effect on the very
@@ -28,11 +35,73 @@ const CLAUDE_MODEL = "claude-opus-5";
 // Default brain: Gemini 3.6 Flash — the best modern-Hinglish register we
 // auditioned (vs deepseek, kimi, minimax, llama). Overridable via model slug.
 export const OPENROUTER_DEFAULT_MODEL = "google/gemini-3.6-flash";
+
+// ── WS-MANIFEST Phase D prep: chat-lane router call-site adoption ──────────
+// Hand-kept MIRROR of config/models.json's `models["google/gemini-3.6-flash"]`
+// + `lanes.chat` rows — NOT an import of that JSON file, for the same reason
+// api/chat.js mirrors compiler.ts's OPERATIONAL_CORE_CAP instead of importing
+// it (see that file's own comment): this module ships in the browser/
+// Capacitor bundle, and config/models.json's `with { type: "json" }` import
+// assertion is a Node/Vercel-function pattern (api/route.js,
+// scripts/derive-adapter.mjs) this tsconfig does not enable for src/. Keep
+// the two in sync by hand — scripts/verify-chat-lane-route.mjs asserts they
+// agree AND that both agree with today's hardcoded OPENROUTER_DEFAULT_MODEL,
+// so a drift fails loudly instead of silently routing the wrong model.
+const CHAT_LANE_MODELS: Record<string, ModelRow> = {
+  [OPENROUTER_DEFAULT_MODEL]: {
+    model: OPENROUTER_DEFAULT_MODEL,
+    provider: "google",
+    billing: "cash",
+    card_risk: false,
+    prefix_cache: true,
+    residency: "us",
+    max_tokens_mode: "total",
+    adapter_derived_at: null,
+    gate: "passed",
+  },
+};
+const CHAT_LANE_CONFIG: LaneConfig = { incumbent: OPENROUTER_DEFAULT_MODEL, candidates: [], fallback: null };
+
+/**
+ * Consults router.ts's route() for Lane "chat" — SPEC §7.3's "chat lane
+ * call-site adoption". Today CHAT_LANE_CONFIG has zero candidates, so this
+ * can only ever return the incumbent: BEHAVIOR IS UNCHANGED, this is
+ * observability wired in ahead of the first real candidate, not a live
+ * routing decision yet (§7.1: "the already-recommended vision-lane grok move
+ * ... proving the router on a low-stakes lane before it touches a brain
+ * lane" — chat is a brain lane, so it waits its turn deliberately).
+ * `route()` only omits a row when `eligibility()` rejects it; the one row
+ * above is `gate:"passed"`, `card_risk:false`, and no health/quota state is
+ * threaded in here, so the empty-candidates branch below is unreachable
+ * under today's mirror and exists only so a future drift in the mirror
+ * degrades to "silently keep working" rather than "the chat lane goes dark".
+ */
+export function routeChatLane(): RoutedCandidate {
+  const decision = route("chat", CHAT_LANE_CONFIG, CHAT_LANE_MODELS)[0];
+  return (
+    decision ?? {
+      model: OPENROUTER_DEFAULT_MODEL,
+      role: "incumbent",
+      adapter_version: "baseline",
+      gate: "passed",
+    }
+  );
+}
+export { CHAT_LANE_MODELS, CHAT_LANE_CONFIG };
+
 // Serverless proxy that holds an OpenRouter key server-side — the zero-config
 // brain. On the website it's same-origin; the Android app crosses origins.
 const PROXY_URL = Capacitor.isNativePlatform()
   ? "https://meera-silk.vercel.app/api/chat"
   : "/api/chat";
+
+// SPEC §3.3/§7.3 compile.manifest throttle: "core_hash changes rarely — emit
+// full record on change, per-turn record small." Module-level so it survives
+// across turns within one app run (a fresh install/reload naturally treats
+// its first turn as a change, which is correct — there is nothing to diff
+// against yet). Not persisted; a cold start re-emitting one full record is
+// the honest behavior, not a bug to work around.
+let lastCoreHash: string | null = null;
 
 export type ThinkMode = "chat" | "call";
 
@@ -463,6 +532,11 @@ async function openrouterThink(
   system: string,
   turns: Turn[],
   maxTokens = 700,
+  // SPEC §7.3 chat-lane adoption: the caller's routed decision for Lane
+  // "chat" (routeChatLane().model — today always OPENROUTER_DEFAULT_MODEL,
+  // see that function's doc). A user's own openrouterModel override still
+  // wins, exactly as before this seam landed.
+  defaultModel = OPENROUTER_DEFAULT_MODEL,
 ): Promise<string | null> {
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -473,7 +547,7 @@ async function openrouterThink(
         "X-Title": "Meera",
       },
       body: JSON.stringify({
-        model: keys.openrouterModel?.trim() || OPENROUTER_DEFAULT_MODEL,
+        model: keys.openrouterModel?.trim() || defaultModel,
         messages: [{ role: "system", content: system }, ...turns],
         max_tokens: maxTokens,
       }),
@@ -500,6 +574,8 @@ async function proxyThink(
   // calls stream tokens so speech can start on the first sentence
   onDelta?: (delta: string) => void,
   noThink = false,
+  // SPEC §7.3 chat-lane adoption — see openrouterThink's identical parameter.
+  defaultModel = OPENROUTER_DEFAULT_MODEL,
 ): Promise<string | null> {
   try {
     const res = await fetch(PROXY_URL, {
@@ -509,7 +585,7 @@ async function proxyThink(
         system,
         system_tail: systemTail || undefined,
         messages: turns,
-        model: keys.openrouterModel?.trim() || OPENROUTER_DEFAULT_MODEL,
+        model: keys.openrouterModel?.trim() || defaultModel,
         max_tokens: maxTokens,
         ...(onDelta ? { stream: true } : {}),
         ...(noThink ? { no_think: true } : {}),
@@ -706,6 +782,45 @@ export async function think(
   if (mode === "chat")
     diag("chat", "tail_built", { tail: sysTail.length, over: sysTail.length > 14000 });
 
+  // ── WS-MANIFEST Phase D prep (docs/SPEC.md §3.3/§7.3): compile.manifest
+  // telemetry + chat-lane router call-site adoption. Both computed once,
+  // here, so the diag record below and the model actually handed to
+  // openrouterThink/proxyThink further down can never disagree with each
+  // other — the same "compute once, reuse" discipline moment.ts's gate
+  // already uses for T4/T6.
+  const chatRoute = routeChatLane();
+  diag("chat", "route.decision", toTelemetryDetail("chat", chatRoute));
+
+  const coreHash = hashCore(sysCore);
+  const manifestHash = hashManifest(compiled.sections ?? {});
+  // "core_hash changes rarely — emit full record on change, per-turn record
+  // small" (ticket text, SPEC §3.3/§7.3). `lastCoreHash` is module state so
+  // this compares against the PREVIOUS turn in this app run, not this turn
+  // against itself.
+  const coreChanged = coreHash !== lastCoreHash;
+  lastCoreHash = coreHash;
+  diag("chat", "compile.manifest", {
+    // small, every turn — SPEC §7.3's required field set. Hashes and counts
+    // only: diag.ts's content-free contract, never a character of the
+    // actual prompt.
+    core_hash: coreHash,
+    manifest_hash: manifestHash,
+    adapter_version: chatRoute.adapter_version,
+    model: chatRoute.model,
+    medium: mode === "call" ? "voice" : "text",
+    tail_bytes: sysTail.length,
+    core_changed: coreChanged,
+    // full record ONLY on a core_hash change (a deploy or persona edit,
+    // not an ordinary turn) — per-block byte sizes and the raw core length,
+    // still structural, never prompt text.
+    ...(coreChanged
+      ? {
+          core_bytes: sysCore.length,
+          sections: compiled.sections ?? {},
+        }
+      : {}),
+  });
+
   const turns = toTurns(history, latest);
 
   // watch-together: attach what's on their screen to the current turn
@@ -740,7 +855,7 @@ export async function think(
   const maxTokens = mode === "call" ? 400 : 700;
   let text: string | null = null;
   const fullSystem = sysCore + sysTail;
-  if (keys.openrouterKey) text = await openrouterThink(keys, fullSystem, turns, maxTokens);
+  if (keys.openrouterKey) text = await openrouterThink(keys, fullSystem, turns, maxTokens, chatRoute.model);
   if (!text && keys.apiKey) text = await claudeThink(keys, fullSystem, turns);
   if (!text)
     text = await proxyThink(
@@ -751,6 +866,7 @@ export async function think(
       maxTokens,
       mode === "call" ? onDelta : undefined,
       mode === "call",
+      chatRoute.model,
     );
   if (!text) {
     // every brain unreachable. crisis/honesty replies still go out; anything
@@ -849,7 +965,7 @@ export async function think(
             ? "This is what the internet says rather than a source worth trusting — keep it loose, hedge it, never assert it."
             : "If it doesn't state a city, a date or a unit, don't invent one; say the number loosely rather than precisely."
         }\nThese came from LOOKING IT UP, not from your own experience — never restate them as something you personally saw, used or checked on your own phone. Weave in only the part that answers what they asked; if it doesn't actually answer it, say you couldn't find it properly. Never mention "searching" or "results", and do NOT output another [search: …] marker.`;
-      const second = await proxyThink(keys, sysCore, tailWithFacts, turns, maxTokens);
+      const second = await proxyThink(keys, sysCore, tailWithFacts, turns, maxTokens, undefined, false, chatRoute.model);
       if (second) {
         const p2 = parseBubbles(second);
         p2.learned = local.learned;

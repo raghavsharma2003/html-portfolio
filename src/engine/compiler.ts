@@ -172,6 +172,20 @@ export interface CompiledPrompt {
   tail: string;
   // core + tail — what actually goes to the model (fullSystem in brain.ts)
   system: string;
+  // ── WS-MANIFEST (docs/SPEC.md §3.3/§7.3 compile.manifest telemetry) ──
+  // Byte-count-only breakdown of THIS turn's TAIL assembly, keyed roughly by
+  // TAIL_MANIFEST id ("watch" and "culture" are real appended blocks that
+  // don't have a manifest row yet — see CORE_MANIFEST's own "not-yet-modeled"
+  // bookkeeping precedent above; T10 folds SEARCH_DECISION+FORGET_DECISION,
+  // the appended-last set). Computed as `tail.length` deltas around each
+  // append, so it can never disagree with what was actually assembled and
+  // never requires reproducing any of the block content itself — no prompt
+  // text crosses this boundary, only lengths (diag.ts's content-free
+  // contract, honored one layer up because the compiler is what knows the
+  // shape). Optional so `oldOracle.ts`'s frozen pre-extraction return literal
+  // (typed against this same interface, by design never touched again per
+  // its own header) keeps type-checking without ever having to compute it.
+  sections?: Record<string, number>;
 }
 
 /**
@@ -202,15 +216,36 @@ export function compile(input: CompileInput): CompiledPrompt {
 
   let tail = parts.tail;
 
+  // ── WS-MANIFEST §3.3/§7.3 telemetry: per-block byte deltas, tracked
+  // alongside assembly rather than reconstructed after the fact, so a
+  // future reordering of this function can never make `sections` lie about
+  // what actually happened. `_track` never reads block content, only
+  // `tail.length` — see the CompiledPrompt.sections doc above.
+  const sections: Record<string, number> = {
+    // ids TAIL_MANIFEST declares but nothing in this function produces bytes
+    // for yet (CompiledPrompt.sections should answer "what fired" for every
+    // manifest id, not just the ones with code behind them today) — see
+    // those rows' own `sourceStatus` in the MANIFEST section below.
+    T9: 0,
+    "T8-multiparty": 0,
+  };
+  let _mark = tail.length;
+  const _track = (id: string) => {
+    sections[id] = tail.length - _mark;
+    _mark = tail.length;
+  };
+
   // ── her carried interior — FIRST in the tail (see brain.ts's original
   // comment: api/chat.js keeps the first N chars of the tail and cuts the
   // end, so if anything is ever lost it must be the recall list, never
   // where she actually is) ──
   tail += input.innerThread;
+  _track("T1");
 
   // watch mode goes in early, not at point of use — same reasoning: it must
   // outlive a long tail's truncation before recall/herLife do
   if (input.watching) tail += WATCH_MODE_NOTE;
+  _track("watch");
 
   // ── T2 rel.snapshot / T3 india.dynamic / T4 dyadic.active — SPEC §3.2
   // TAIL_ORDER positions T2,T3,T4 between T1 (above) and T5 (memories,
@@ -234,12 +269,22 @@ export function compile(input: CompileInput): CompiledPrompt {
       });
       if (t2.text) tail += `\n\n${t2.text}`;
     }
+    _track("T2");
     const t3 = renderIndiaDynamic(input.relBundle.rituals, input.relBundle.homeRegion, input.relBundle.currency);
     if (t3.text) tail += `\n\n${t3.text}`;
+    _track("T3");
     if (romanceOk) {
       const t4 = renderDyadicActive(input.relBundle.patterns, gate!.moment);
       if (t4.text) tail += `\n\n${t4.text}`;
     }
+    _track("T4");
+  } else {
+    // relBundle absent: T2/T3/T4 never ran, but the record should say so as
+    // an explicit 0, not an absent key — "did this block fire" is exactly
+    // what manifest_hash's usage half needs to be able to answer.
+    sections.T2 = 0;
+    sections.T3 = 0;
+    sections.T4 = 0;
   }
 
   if (input.memories) {
@@ -248,6 +293,7 @@ export function compile(input: CompileInput): CompiledPrompt {
 - A memory is not a live update. Anything with a date, a plan or a situation in it may already have happened or changed, so an old one gets talked about as old ("us december wali shaadi ho gayi na?") instead of announced as if it's still ahead — and then you let them tell you where it stands.
 ${input.memories}`;
   }
+  _track("T5");
 
   // ── T6 we.callbacks — SPEC §3.2 TAIL_ORDER: between T5 (above) and T7
   // (herLife, below). `pulled` comes from the SAME gate computed above
@@ -258,23 +304,33 @@ ${input.memories}`;
     const t6 = renderWeCallbacks(input.relBundle.weEpisodes, input.relBundle.phrases, gate.pulled);
     if (t6.text) tail += `\n\n${t6.text}`;
   }
+  _track("T6");
 
   if (input.herLife) {
     tail += `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are now fixed between you two, not open to reinvention. Same job, same people, same flat, same plans, same things you did. Add new texture freely; never say anything that contradicts a line here, and never re-tell one as if it's news:\n${input.herLife}`;
   }
+  _track("T7");
   // her forward-facing life goes right after her past-facing one (see
   // brain.ts's original note on herLife recency-eviction vs a want staying
   // the same object across weeks)
   tail += input.innerWants;
+  // T8 taste.rows is FUSED into innerWants (inner.ts's wants/owed/taste
+  // concatenation, not this compiler's — see the CORE_MANIFEST T8
+  // sourceStatus note), so this delta over-counts by whatever inner.ts put
+  // in wants/owed too. Labeled honestly (as "T8") rather than claiming a
+  // precision this function doesn't have without an inner.ts interface split.
+  _track("T8");
 
   if (input.mode === "chat" && !input.isDirective) tail += input.cultureNoteText;
+  _track("culture"); // no manifest row yet — see CompiledPrompt.sections doc
   // dead last, chat only — see SEARCH_DECISION in persona.ts for why
   // position is the entire mechanism here
   if (input.mode === "chat") tail += SEARCH_DECISION;
   // both lanes — see FORGET_DECISION in persona.ts
   tail += FORGET_DECISION;
+  _track("T10");
 
-  return { core, tail, system: core + tail };
+  return { core, tail, system: core + tail, sections };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -636,6 +692,47 @@ export function hashCore(text: string): string {
 
 export function coresByteIdentical(a: string, b: string): boolean {
   return a === b;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 6. compile.manifest TELEMETRY — SPEC §3.3 ("per-turn core-hash logging ...
+//    to meera_diag") / §7.3 ("Every turn logs {model, adapter_version,
+//    core_hash, manifest_hash, snapshot_ver}"). This function is the only
+//    new piece compiler.ts contributes toward that record: a structural
+//    fingerprint, never prompt text, so it stays inside diag.ts's
+//    content-free contract even though the actual diag() call is the call
+//    site's job (brain.ts stays the I/O layer; compile() and this function
+//    both stay pure — see the file header's two-jobs split).
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * "hash of the section-manifest layout + budgets actually used" (§7.3).
+ * Two halves, both structural, folded into one fingerprint:
+ *   - LAYOUT: CORE_MANIFEST/TAIL_MANIFEST ids+budgets(+dropPriority) and the
+ *     three cap constants — the deploy-time shape, changes only when this
+ *     file's manifest declarations change (a real deploy, same cadence as
+ *     core_hash's "changes rarely").
+ *   - USAGE: which of THIS turn's tracked sections (`CompiledPrompt.sections`
+ *     — see compile()) rendered nonzero bytes, order-independent (sorted by
+ *     id) so two turns with the same set of live blocks hash equal even if
+ *     object key insertion order differed. This is the "actually used" half:
+ *     it moves when relBundle/watching/etc. flip a block from empty to
+ *     present, independently of whether persona content (core_hash) changed
+ *     at all.
+ * Byte lengths themselves are deliberately NOT hashed in — that would make
+ * manifest_hash re-derive core_hash's job with extra steps; presence
+ * (0-or-nonzero) is the coarser, cheaper signal this fingerprint is for.
+ */
+export function hashManifest(sections: Record<string, number>): string {
+  const layout = [
+    ...CORE_MANIFEST.map((b) => `${b.id}:${b.budget}`),
+    ...TAIL_MANIFEST.map((b) => `${b.id}:${b.budget}:${b.dropPriority}`),
+    `CAP:${CORE_CAP}:${TAIL_CAP}:${SYSTEM_MAX}`,
+  ];
+  const usage = Object.keys(sections)
+    .sort()
+    .map((id) => `${id}=${sections[id] > 0 ? 1 : 0}`);
+  return hashCore([...layout, ...usage].join("|"));
 }
 
 export { CRISIS_LINES };

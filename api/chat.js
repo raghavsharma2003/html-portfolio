@@ -6,6 +6,21 @@ import { withGeminiKey, isQuota, poolSize } from "./_gkeys.js";
 
 import { OPENROUTER_KEY } from "./_config.js";
 
+// SPEC §7.3 chat-lane call-site adoption: the router decision now happens
+// UPSTREAM of this file, in brain.ts's routeChatLane() (src/engine/router.ts
+// mirror, kept in sync with config/models.json's chat lane — see that
+// function's own doc, proven equal to this constant by
+// scripts/verify-chat-lane-route.mjs). This proxy stays a dumb pass-through
+// on purpose: it never imports src/ (this file's own long-standing rule,
+// see OPERATIONAL_CORE_CAP below) and never imports config/models.json
+// either, so it keeps working even if router.ts or the seed file is broken —
+// it just accepts whatever `model` the caller sends, same as before this
+// seam existed. `DEFAULT_MODEL` below is this file's OWN fallback for a
+// request that omits `model` entirely (or sends something ALLOWED_MODEL
+// rejects), not a second router — it must equal brain.ts's
+// OPENROUTER_DEFAULT_MODEL / routeChatLane() default by construction (both
+// mirror config/models.json's chat incumbent), and the same verify script
+// checks that value at the source of truth.
 const DEFAULT_MODEL = "google/gemini-3.6-flash";
 const ALLOWED_MODEL = /^[a-z0-9-]+\/[a-z0-9.:-]+$/i;
 // Headroom over the current core, so her personality can keep growing without
