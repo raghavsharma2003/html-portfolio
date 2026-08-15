@@ -1,0 +1,179 @@
+{
+  "generated_at": "2026-08-15T09:58:43.500Z",
+  "method": "backtest against evals/archives/ (charm-grok, charm-luna) ARCHIVED blind-counterbalanced verdicts; overall axis only; win counted only when both presentation orders agree (order-flip = TIE_FLIP), reusing evals/dbattery/common.mjs's house rule.",
+  "bar": "SPEC.md §10-Q5 methodology (>=80% agreement with a trusted historical verdict set on held-out pairs), applied here to judge qualification per context/decisions.md `d2-on-credits`",
+  "deployments_verified": [
+    {
+      "id": "text-embedding-3-small",
+      "model": "text-embedding-3-small",
+      "status": "succeeded"
+    },
+    {
+      "id": "grok-4-1-fast-non-reasoning",
+      "model": "grok-4-1-fast-non-reasoning",
+      "status": "succeeded"
+    },
+    {
+      "id": "grok-4.3",
+      "model": "grok-4.3",
+      "status": "succeeded"
+    },
+    {
+      "id": "grok-4-20-non-reasoning",
+      "model": "grok-4-20-non-reasoning",
+      "status": "succeeded"
+    },
+    {
+      "id": "DeepSeek-V4-Flash",
+      "model": "DeepSeek-V4-Flash",
+      "status": "succeeded"
+    },
+    {
+      "id": "grok-4-20-reasoning",
+      "model": "grok-4-20-reasoning",
+      "status": "succeeded"
+    },
+    {
+      "id": "grok-4-1-fast-reasoning",
+      "model": "grok-4-1-fast-reasoning",
+      "status": "succeeded"
+    },
+    {
+      "id": "grok-4-1-fast-reasoning-2",
+      "model": "grok-4-1-fast-reasoning",
+      "status": "succeeded"
+    },
+    {
+      "id": "gpt-4o-mini-tts",
+      "model": "gpt-4o-mini-tts",
+      "status": "succeeded"
+    },
+    {
+      "id": "gpt-realtime-2.1-mini",
+      "model": "gpt-realtime-2.1-mini",
+      "status": "succeeded"
+    },
+    {
+      "id": "gpt-5.6-terra",
+      "model": "gpt-5.6-terra",
+      "status": "succeeded"
+    }
+  ],
+  "leakage_check": [
+    {
+      "archive": "charm-grok",
+      "terraStimulusRows": 0,
+      "checked": 96
+    },
+    {
+      "archive": "charm-luna",
+      "terraStimulusRows": 0,
+      "checked": 96
+    }
+  ],
+  "per_archive": [
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitsScored": 47,
+      "unitsSkippedIncompleteRows": 1,
+      "unitsAgree": 7,
+      "unitsDisagree": 40,
+      "agreementRate": 0.14893617021276595,
+      "ci95": {
+        "point": 0.14893617021276595,
+        "lo": 0.07406626087497503,
+        "hi": 0.27685896571112767
+      },
+      "harnessMisses": 1
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitsScored": 48,
+      "unitsSkippedIncompleteRows": 0,
+      "unitsAgree": 23,
+      "unitsDisagree": 25,
+      "agreementRate": 0.4791666666666667,
+      "ci95": {
+        "point": 0.4791666666666667,
+        "lo": 0.34471090015787464,
+        "hi": 0.6167100436401561
+      },
+      "harnessMisses": 0
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitsScored": 0,
+      "unitsSkippedIncompleteRows": 48,
+      "unitsAgree": 0,
+      "unitsDisagree": 0,
+      "agreementRate": null,
+      "ci95": {
+        "point": null,
+        "lo": null,
+        "hi": null
+      },
+      "harnessMisses": 96
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitsScored": 0,
+      "unitsSkippedIncompleteRows": 48,
+      "unitsAgree": 0,
+      "unitsDisagree": 0,
+      "agreementRate": null,
+      "ci95": {
+        "point": null,
+        "lo": null,
+        "hi": null
+      },
+      "harnessMisses": 96
+    }
+  ],
+  "pooled": [
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "unitsAgree": 30,
+      "unitsScored": 95,
+      "agreementRate": 0.3157894736842105,
+      "ci95": {
+        "point": 0.3157894736842105,
+        "lo": 0.23103088128713048,
+        "hi": 0.41486720211095296
+      },
+      "bar": 0.8,
+      "verdict": "FAIL",
+      "nNeededToResolve": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "unitsAgree": 0,
+      "unitsScored": 0,
+      "agreementRate": null,
+      "ci95": {
+        "point": null,
+        "lo": null,
+        "hi": null
+      },
+      "bar": 0.8,
+      "verdict": "UNDERPOWERED",
+      "nNeededToResolve": null
+    }
+  ],
+  "qualified_panel": [],
+  "cost": {
+    "calls": 191,
+    "promptTokens": 223141,
+    "completionTokens": 8882,
+    "billedTo": "Azure AI Foundry credits (Microsoft for Startups)",
+    "cashCostUsd": 0,
+    "creditRateNote": "No published per-token credit-consumption rate for DeepSeek-V4-Flash / gpt-5.6-terra in this repo; not estimated to avoid fabricating a number (see context/measurements.md house rule: a figure needs n/method/date to be comparable)."
+  },
+  "tickets": [
+    "WS-ROUTER: seed DeepSeek-V4-Flash and gpt-5.6-terra rows into config/models.json (billing:'credits', card_risk per credits-partner check) — not edited here, out of this workstream's file grant.",
+    "WS-ROUTER/FinOps: no per-token Azure credit-consumption rate exists in-repo for either deployment; add one so future judge-cost logging can report a $-equivalent burn instead of raw tokens only."
+  ]
+}

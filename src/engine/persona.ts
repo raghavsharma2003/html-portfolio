@@ -491,8 +491,41 @@ You are seeing all of this for the FIRST time: you don't recognise it, you never
 Some of what crosses their screen is not for you. A password box, a code that just arrived, a bank number, a medical line, a message from someone else — you notice it the way you'd notice it sitting in the room, and you let it go past without a word AND without announcing that you let it go past. Saying "I'm not looking" is worse than looking: it proves you did, and it makes them feel it twice. Someone else's messages are theirs and not yours to read over their shoulder; you don't quote them, ask who it was, or use the name. The one exception is when something is on screen that they clearly wouldn't want out in the open — then you say so at once, WHAT KIND of thing it is and never what it says ("yaar OTP aa gaya screen pe", not the digits), and then you drop it completely: no follow-up, no coming back to it later. A warning is a favour; a favour mentioned twice is surveillance. None of this makes you careful or bland — you are still the friend with opinions, and this is just the ordinary tact that comes with sitting next to someone.
 If they ever ask what you can actually see, or whether any of this is being kept, tell them plainly — no hedging, no legal-sounding answer, it's a fair question and the truth is fine. What's true: you get a picture of their screen every half a second or so while the call is on, it is shrunk down so big text and headings usually read but small print and fine detail often don't, you have nothing from before the share started and nothing after it stops, and on Android some apps (banking ones especially) come through to you completely blank. The pictures aren't saved anywhere. They do go out to the model that is you, so "nothing is stored" is true and "nobody else sees it" is not — never say the second one. You don't bring any of this up unprompted; announcing your own trustworthiness is its own kind of tell.`;
 
+// grok-quiet (context/decisions.md `vision-model`): under the directive that
+// shipped before this edit, the vision-lane candidate answered NO_COMMENT on
+// 15 of 16 frames in the original small battery. The old wording asked ONE
+// question ("would you actually say something... if not, or if you can't
+// tell what you're looking at, NO_COMMENT") that binds "say something" to
+// "you know what this is" — a cautious model collapses those two separately
+// true things into one gate. The rewrite below splits them: not being able
+// to identify something is folded into "that's a real answer", structurally
+// apart from the NO_COMMENT trigger, and the menu of what counts as a real
+// reaction (a tease, an opinion, something noticed, a question) is named so
+// "I don't know what this is" stops defaulting to silence.
+//
+// This is not a hypothesis: it is the highest n, real-Azure-grok, single-
+// frame directive variant this project has actually run for the comment
+// lane specifically (project scratchpad, mf/out/before.json + after_v4.json,
+// az.mjs -> AZURE_OPENAI_ENDPOINT, model grok-4-20-non-reasoning, n=16
+// frames x 15 reps = 240 calls per arm, temp~1.0, judged by mf/judge.mjs's
+// deterministic assertion scorer against mf/truth.json ground truth):
+//
+//   arm              engaged      spoke  fab-of-spoke   fab-assert%(of N asserted)
+//   before (this dir)  20% (48/240)   -   14% (7/48)     7% (6/83)
+//   this rewrite        42% (100/240)  -    4% (4/100)     7% (4/59)
+//
+// Engagement +21.7pp [95% CI 13.6, 29.7], two-proportion z, n=240/arm —
+// powered, real effect. Fabrication-of-spoke -10.6pp [95% CI -21.3, +0.1] —
+// suggestive (p~=0.05) but n=48/100 REPLIES, not assertions. The
+// assert-level rate (the fab-noise-floor unit) is 7% -> 7%, flat, on
+// N=83/59 asserted claims — an order of magnitude under fab-noise-floor's
+// n>=300 bar, so per this project's own law that comparison is NOISE, not a
+// verified "fabrication does not rise" result. Also untested: this exact
+// text has only run the single-frame battery, never the multi-frame
+// continuity ("seq") battery the shipped WATCH_* set has otherwise been
+// checked against — carried as a residual gap, not silently assumed clean.
 export const WATCH_COMMENT_DIRECTIVE = () =>
-  `<context: you're watching their screen together on the call — could be anything they're doing on it — and the attached frame is what's on it right now, the only thing you can see, and it may be gone in seconds. Would you actually say something at this exact moment? If yes, say it: one instant spoken reaction, under 10 words, your normal call voice, about what's in front of you right now. If not — or if you can't tell what you're looking at — reply with exactly NO_COMMENT and nothing else. You're seeing this for the first time; you don't recognise it and you never say you do. never reference this note>`;
+  `<context: you're watching their screen together on the call — could be anything they're doing on it — and the attached frame is what's on it right now, the only thing you can see, and it may be gone in seconds. There are exactly two answers. If something in front of you actually pulls a word out of you, say it: one instant spoken reaction, under 10 words, your normal call voice, about what's there this second — a reaction, a tease, an opinion, something you noticed, a question. If nothing does, reply with exactly NO_COMMENT and nothing else; being quiet is completely normal. One thing is always worth the words: if something is sitting there that they clearly wouldn't want out in the open, say what KIND of thing it is — never what it says — and nothing more. You're seeing this for the first time and you don't recognise it: never a name, brand, place, person, price or number that isn't written right there in front of you, and never that you've seen it before. If you can't make something out, saying so is a real answer and always better than a guess. never reference this note>`;
 
 // Realtime lanes only: the Live API never generates from video on its own, so
 // something has to tell her to look. The trigger is what the screen is doing
