@@ -278,3 +278,41 @@ infeasible or ban-bait under the Business API (then distribution pivots to
 app-first or another surface, the group architecture unchanged); or disclosure
 control cannot be made safe enough to demo (then the group layer waits and 1:1
 ships alone — a common friend who leaks is worse than no common friend).
+
+---
+
+## `group-distribution` — WhatsApp existing groups are out; business-created groups first, Telegram validated fallback (2026-08-13)
+
+The whatsapp-platform track fired half of `multiparty-direction`'s reversal
+condition: the Cloud API's group messaging (Oct 2025) works **only for groups
+the business itself creates** — joining a group users already have is
+infeasible without unofficial-client ban risk, and iMessage is out entirely.
+
+The product shape survives with one UX inversion: **she creates the group and
+your people join it**, rather than being added to yours. That stays on
+WhatsApp, where the users are. **Telegram supports the original shape natively,
+free, today** and is the validated fallback if the invert-the-invite flow
+tests badly.
+
+**Reverses if:** the business-created-group flow shows unacceptable joining
+friction with real groups, or WhatsApp policy moves against companion bots —
+then Telegram-first, same architecture unchanged.
+
+## `structural-disclosure` — group privacy is a retrieval property, not a persona rule (2026-08-13)
+
+Two laws for the group layer, from `disclosure-leak-rates` and the triadic
+track:
+
+1. **Person B's private material never enters person A's context.** Exclusion
+   happens at retrieval time, structurally — the disclosure ACL is computed
+   from the participants of a fact's cited episodes (one join over machinery
+   that already exists). What the model never sees, it cannot leak; everything
+   else measured leaves 9–90% residual.
+2. **Disclosure permission is negotiated with the discloser, never inferred.**
+   Petronio's boundary-turbulence rule, and the direct falsification of the
+   obvious design instinct ("she can judge what's safe to share"). She may
+   ASK A whether B can know; she may never decide it alone. A 2026 BYU/IFS
+   couples study (n>2,000) measures the harm of the alternative.
+
+**Reverses if:** a future measured system shows near-zero behavioral leakage
+at n≥300 across the ConfAIde/PiSAs axes — until then, structure only.

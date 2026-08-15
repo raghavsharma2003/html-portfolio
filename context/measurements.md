@@ -348,3 +348,34 @@ n. Consequence: WS-CONSOLIDATE may render affect tags in prompt text —
 compiler-consumed-only is not forced — but the D3 leakage row (n≥300) must
 include this vocabulary before any such block ships. Rerunnable:
 `evals/probes/affect-recitation.mjs`.
+
+## `disclosure-leak-rates` — behavioral disclosure control does not hold (2026-08-13)
+
+The multiparty sweep's central numbers, adversarially verified (two headline
+figures were CORRECTED in verification — one was a Utility column misread as a
+leakage rate; details in `docs/research/multiparty/`):
+
+- **ConfAIde** (ICLR 2024): on the tier that actually tests multi-party
+  information-flow control (Tier 3), ChatGPT leaks **93%**, GPT-4 22%.
+  Privacy-inducing prompts do not fix it; chain-of-thought makes it slightly
+  worse.
+- **PiSAs** (2026, the closest published setup to our multi-person schema),
+  corrected numbers: structural partitioning drops visibility violations
+  **100% → 33.5%**; adding (hybrid) memory to the partitioned system pushes
+  them back to **63–90%** — the leak RELOCATES to the memory/retrieval
+  channel rather than disappearing.
+- Across every study surveyed, behavioral/prompted control leaves a **9–90%
+  residual leak** and never approaches zero; **only retrieval-time structural
+  exclusion does**.
+
+This independently re-derives `spec-c-minimal`'s law (structural guarantees
+beat prompt instructions) on the disclosure axis, and it is why the group
+layer's privacy is a retrieval property, not a persona rule.
+
+Also verified in the sweep: **silence must be a separately-decided action** —
+MultiLIGHT measured a joint speak-or-silent architecture at 35.8% (vs 33.3%
+random) against 54.4% for a dedicated decision step, converging with our
+screen-share gate's design; and **no shipped product** does judged
+cross-member disclosure over real shared memory — Meta and OpenAI both
+deliberately wall memory off from group spaces. The white space is real and
+the reason it is empty is that it is hard.

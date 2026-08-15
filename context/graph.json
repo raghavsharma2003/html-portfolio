@@ -339,6 +339,24 @@
       "id": "age-tier-cliff",
       "kind": "open",
       "title": "Wiring the age hard-refusal makes every current user minor-safe until a verification lane exists"
+    },
+    {
+      "id": "disclosure-leak-rates",
+      "kind": "measurement",
+      "title": "Behavioral disclosure control leaves 9-90% residual leak; only structural exclusion holds",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "structural-disclosure",
+      "kind": "decision",
+      "title": "Group privacy is a retrieval property, not a persona rule",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "group-distribution",
+      "kind": "decision",
+      "title": "WhatsApp business-created groups first; Telegram validated fallback",
+      "at": "2026-08-13"
     }
   ],
   "edges": [
@@ -656,6 +674,26 @@
       "src": "age-tier-cliff",
       "rel": "part_of",
       "dst": "relational-state"
+    },
+    {
+      "src": "structural-disclosure",
+      "rel": "measured_by",
+      "dst": "disclosure-leak-rates"
+    },
+    {
+      "src": "structural-disclosure",
+      "rel": "part_of",
+      "dst": "multiparty-direction"
+    },
+    {
+      "src": "group-distribution",
+      "rel": "part_of",
+      "dst": "multiparty-direction"
+    },
+    {
+      "src": "disclosure-leak-rates",
+      "rel": "constrains",
+      "dst": "multiparty-direction"
     }
   ]
 }
