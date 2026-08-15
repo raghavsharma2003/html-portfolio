@@ -625,3 +625,48 @@ commodity. Three frontier-adjacent models, all competent chatbots, agree with
 carefully-validated human-aligned verdicts a THIRD to HALF of the time — and
 one prefers its own vendor 16×. Any lab running LLM-judged evals without a
 backtest against trusted verdicts is measuring judge taste, not their product.
+
+---
+
+## `visiongate-powered` — engagement doubles, fabrication does not detectably rise (2026-08-15)
+
+The confirmatory run `visiongate-interim` demanded. Both arms
+grok-4-20-non-reasoning on the 16-frame stimulus set at app fidelity,
+differing only in WATCH_COMMENT_DIRECTIVE (pre-retune vs shipped v4b).
+Assertion-level fabrication, both arms past the n≥300 `fab-noise-floor` bar
+for the first time:
+
+| arm | fabrication | n |
+|---|---|---|
+| before (pre-retune) | 10.2% [7.3, 14.1] | 313 |
+| v4b (shipped) | 11.2% [9.1, 13.8] | 695 |
+
+Difference +1.0pp, 95% CI [−3.1, +5.1], p=0.64 — no detected rise. NOT an
+equivalence claim: a true rise up to ~5pp is inside the CI. Engagement:
++21.3pp (20.4%→41.7%, archived matched n=240/arm, p=4.9e-7), and the new
+batches widen the gap further. Method: n=3,201 new calls (2,656 gen + 545
+judge), Azure credits, $0 cash; independently re-tallied from the raw judged
+rows by the coordinator (32/313 and 78/695 reconcile exactly, with 6/83 of
+the before-arm carried from the fully-judged archive). Full corpus:
+`evals/archives/visiongate-confirm/`.
+
+Answers the standing gate question: engagement can be doubled without a
+detectable fabrication cost. Supersedes `visiongate-interim`'s numbers —
+including correcting its 6.8% v4b figure, which was a partial-judging
+artifact (see rejected.md).
+
+## `vision-drift-4day` — the Foundry deployment shifted behavior in 4 days (2026-08-15)
+
+Discovered inside the confirmatory run, not sought: both arms' engagement
+rate moved materially between the Aug-11 archive and the Aug-15 run —
+before-arm 20.4% (n=240) → 7.9% (n=720) → 7.3% (n=1,360); v4b-arm 41.7%
+(n=240) → 57.1% (n=560). The two new before-arm batches agree with each
+other (7.9/7.3) and disagree with the archive, so this reads as deployment
+drift, not batch noise. Direction WIDENS the v4b advantage. Consistent with
+config/models.json's flagged risk that grok-4-20 on this Foundry deployment
+is "a beta build that could change underneath us." Consequence: any gate
+evidence for this model is date-stamped evidence; the weekly drift monitor
+should re-run this exact archived battery (harness + stimuli preserved in
+evals/archives/visiongate-confirm/) rather than a proxy. Two-point
+observation, not yet a trend — n for the trend claim is 2 runs, below any
+sensible bar.

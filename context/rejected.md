@@ -267,3 +267,21 @@ session schema (`session.type`, `audio.input`/`audio.output`) — the
 then fails at session level, so a raw handshake probe reports it as working when
 it is not. And WebSockets need `NODE_USE_ENV_PROXY=1` here or Node ignores
 `HTTPS_PROXY` and hangs silently, which looks exactly like a dead endpoint.
+
+---
+
+## Comparing a fully-judged arm to a partially-judged arm (2026-08-15)
+
+`visiongate-interim` reported v4b fabrication at 6.8% (n=59) and called the
+comparison "flat". The confirmatory run found only 33 of the 100 archived
+v4b spoken replies had ever been judged; 67 sat generated-but-unscored.
+Judging that same already-paid-for data — zero new generation — moved the
+archived-only v4b rate to 12.0% (21/175), HIGHER than the archived
+before-arm's 7.2%. The "flat" read was an artifact of incomplete scoring on
+one arm, invisible because nothing tracked judged-vs-generated counts per
+arm. What breaks: any cross-arm judged comparison where the denominator of
+one arm is a subset chosen by judging progress rather than by design.
+The rule now: a judged comparison is only reportable when every generated
+unit in BOTH arms has been scored, or the unscored remainder is excluded
+from both by an explicit, logged sampling rule. (The powered run's numbers
+absorbed and corrected this — see `visiongate-powered`.)

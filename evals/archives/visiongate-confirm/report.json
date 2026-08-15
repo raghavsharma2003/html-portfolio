@@ -1,0 +1,153 @@
+{
+  "arms": {
+    "before_baseline": {
+      "directive": "pre-retune WATCH_COMMENT_DIRECTIVE (recovered from git dd0a04c^, the line removed in that commit)",
+      "calls": 2336,
+      "spoken": 207,
+      "engagementRate": 0.08861301369863013,
+      "assertN": 313,
+      "fabAssert": 32,
+      "fabricationRate": 0.10223642172523961
+    },
+    "shipped_retuned_v4b": {
+      "directive": "current src/engine/persona.ts WATCH_COMMENT_DIRECTIVE (= mf/dirs/v4b_comment.txt, byte-verified identical)",
+      "calls": 800,
+      "spoken": 420,
+      "engagementRate": 0.525,
+      "assertN": 695,
+      "fabAssert": 78,
+      "fabricationRate": 0.11223021582733812
+    }
+  },
+  "fabrication_powered_comparison": {
+    "n_before": 313,
+    "n_v4b": 695,
+    "both_arms_meet_n300": true,
+    "before_rate": {
+      "point": 0.10223642172523961,
+      "lo": 0.07335292324116532,
+      "hi": 0.14076542485453927
+    },
+    "v4b_rate": {
+      "point": 0.11223021582733812,
+      "lo": 0.09086193509116185,
+      "hi": 0.1378617127283154
+    },
+    "diff_v4b_minus_before": 0.00999379410209851,
+    "ci95_diff": [
+      -0.030960319328802888,
+      0.05094790753299991
+    ],
+    "z": 0.47085883507607973,
+    "p_two_sided": 0.6377415747883348
+  },
+  "engagement_this_run_pooled": {
+    "n_before": 2336,
+    "n_v4b": 800,
+    "before_rate": {
+      "point": 0.08861301369863013,
+      "lo": 0.07775367024200176,
+      "hi": 0.10082320436352708
+    },
+    "v4b_rate": {
+      "point": 0.525,
+      "lo": 0.49035821040477107,
+      "hi": 0.5594028370453734
+    },
+    "diff_v4b_minus_before": 0.4363869863013699,
+    "ci95_diff": [
+      0.39991355132830697,
+      0.47286042127443284
+    ],
+    "z": 26.635271588687594,
+    "p_two_sided": 0,
+    "caveat": "pooled across batches run at different times; batch-level engagement rate swung considerably for the before-arm (20.4% archived n=240 -> 8.0% on the first new 736-call batch), consistent with fab-noise-floor's documented finding that this harness has large batch-level noise even on identical inputs — treat the pooled figure, not any single batch, as the estimate."
+  },
+  "engagement_archived_canonical": {
+    "note": "visiongate-interim's original n=240/arm figure, recomputed here unchanged for reference (zero new spend)",
+    "n_before": 240,
+    "n_v4b": 240,
+    "before_rate": 0.20416666666666666,
+    "v4b_rate": 0.4166666666666667,
+    "diff": 0.21250000000000002,
+    "ci95_diff": [
+      0.13193130447205895,
+      0.2930686955279411
+    ],
+    "p_two_sided": 4.8785777950755e-7
+  },
+  "spend_this_confirmatory_run": {
+    "model": "grok-4-20-non-reasoning",
+    "endpoint": "Azure AI Foundry (AZURE_OPENAI_ENDPOINT), Microsoft-for-Startups credits",
+    "calls": 3201,
+    "tokensIn": 4246053,
+    "tokensOut": 39246,
+    "costUsd": 0,
+    "breakdown": [
+      {
+        "phase": "gen",
+        "arm": "before_baseline",
+        "calls": 16,
+        "tokIn": 21712,
+        "tokOut": 52,
+        "ts": "2026-08-15T10:12:07.221Z"
+      },
+      {
+        "phase": "gen",
+        "arm": "before_baseline",
+        "calls": 720,
+        "tokIn": 977040,
+        "tokOut": 2054,
+        "ts": "2026-08-15T10:14:19.600Z"
+      },
+      {
+        "phase": "judge",
+        "file": "/tmp/claude-0/-home-user-html-portfolio/1ba94af4-9738-526a-a464-53a4a3882724/scratchpad/visiongate-confirm/out/before_baseline.judged.json",
+        "calls": 59,
+        "tokIn": 62596,
+        "tokOut": 2908,
+        "ts": "2026-08-15T10:15:24.692Z"
+      },
+      {
+        "phase": "judge",
+        "file": "/tmp/claude-0/-home-user-html-portfolio/1ba94af4-9738-526a-a464-53a4a3882724/scratchpad/visiongate-confirm/out/v4b_comment.judged.json",
+        "calls": 67,
+        "tokIn": 72334,
+        "tokOut": 3514,
+        "ts": "2026-08-15T10:15:53.116Z"
+      },
+      {
+        "phase": "gen",
+        "arm": "before_baseline",
+        "calls": 1360,
+        "tokIn": 1845520,
+        "tokOut": 3809,
+        "ts": "2026-08-15T10:20:51.040Z"
+      },
+      {
+        "phase": "judge",
+        "file": "out/before_baseline.judged.json",
+        "calls": 99,
+        "tokIn": 104950,
+        "tokOut": 4764,
+        "ts": "2026-08-15T10:21:30.324Z"
+      },
+      {
+        "phase": "gen",
+        "arm": "v4b_comment",
+        "calls": 560,
+        "tokIn": 817040,
+        "tokOut": 5736,
+        "ts": "2026-08-15T10:23:21.621Z"
+      },
+      {
+        "phase": "judge",
+        "file": "out/v4b_comment.judged.json",
+        "calls": 320,
+        "tokIn": 344861,
+        "tokOut": 16409,
+        "ts": "2026-08-15T10:24:35.325Z"
+      }
+    ]
+  }
+}

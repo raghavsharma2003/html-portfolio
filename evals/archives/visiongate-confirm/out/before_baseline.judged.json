@@ -1,0 +1,2336 @@
+{
+  "before_baseline|s01_feed|1": {
+    "assertions": [
+      {
+        "claim": "Caption is 'sunday mornings belong to the notebook'",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|900": {
+    "assertions": [
+      {
+        "claim": "grocery haul video",
+        "verdict": "ok"
+      },
+      {
+        "claim": "budget",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|900": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s01_feed|25": {
+    "assertions": [
+      {
+        "claim": "sunday mornings belong to the notebook",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s01_feed|44": {
+    "assertions": [
+      {
+        "claim": "Sunday mornings belong to the notebook",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|1": {
+    "assertions": [],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|3": {
+    "assertions": [
+      {
+        "claim": "8 baje Third Wave pe",
+        "verdict": "wrong"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|10": {
+    "assertions": [
+      {
+        "claim": "there is a mention of taking a table / reserving a table",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|9": {
+    "assertions": [
+      {
+        "claim": "Third Wave",
+        "verdict": "ok"
+      },
+      {
+        "claim": "milte hain (meeting there)",
+        "verdict": "wrong"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|11": {
+    "assertions": [
+      {
+        "claim": "dono ko bhookh lagi hai",
+        "verdict": "unsupported"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|12": {
+    "assertions": [
+      {
+        "claim": "Third Wave",
+        "verdict": "ok"
+      },
+      {
+        "claim": "meeting there tomorrow",
+        "verdict": "wrong"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|19": {
+    "assertions": [
+      {
+        "claim": "there is a message saying 'bhookh lagi hai abhi se'",
+        "verdict": "ok"
+      },
+      {
+        "claim": "there is a message saying 'same. rukh ja bas'",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|25": {
+    "assertions": [
+      {
+        "claim": "Third Wave",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|26": {
+    "assertions": [
+      {
+        "claim": "table book kar le jaldi",
+        "verdict": "unsupported"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|36": {
+    "assertions": [
+      {
+        "claim": "Third Wave",
+        "verdict": "ok"
+      },
+      {
+        "claim": "meeting at Third Wave",
+        "verdict": "wrong"
+      }
+    ],
+    "recognises": false,
+    "continuity": true,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|37": {
+    "assertions": [
+      {
+        "claim": "Third Wave is where they are meeting",
+        "verdict": "wrong"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|38": {
+    "assertions": [
+      {
+        "claim": "perfect",
+        "verdict": "ok"
+      },
+      {
+        "claim": "table pakad lena",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s03_shop|44": {
+    "assertions": [
+      {
+        "claim": "price is 1299",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|0": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains gone mad",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|5": {
+    "assertions": [],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|1": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains mess ho gaye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|7": {
+    "assertions": [
+      {
+        "claim": "Heavy rain chaos",
+        "verdict": "ok"
+      },
+      {
+        "claim": "Trains screwed",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|13": {
+    "assertions": [],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|9": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains screwed",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|15": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains gone mad",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|17": {
+    "assertions": [
+      {
+        "claim": "Heavy rain (in the headline/article)",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|18": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains screwed",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|20": {
+    "assertions": [
+      {
+        "claim": "Heavy rain again",
+        "verdict": "unsupported"
+      },
+      {
+        "claim": "trains sab barbaad",
+        "verdict": "unsupported"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|24": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains mess ho gaye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|29": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains full mess",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|30": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains mess ho gaye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|35": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains full mess",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|37": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "third day",
+        "verdict": "ok"
+      },
+      {
+        "claim": "Trains totally screwed",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|42": {
+    "assertions": [
+      {
+        "claim": "Mumbai floods again",
+        "verdict": "unsupported"
+      },
+      {
+        "claim": "trains screwed",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|11": {
+    "assertions": [
+      {
+        "claim": "Budget wala video",
+        "verdict": "ok"
+      },
+      {
+        "claim": "Kitna kharcha dikha raha",
+        "verdict": "unsupported"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|13": {
+    "assertions": [
+      {
+        "claim": "Weekly grocery haul on 2k",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|15": {
+    "assertions": [
+      {
+        "claim": "Title is 'Weekly Grocery Haul on a 2000 budget'",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|23": {
+    "assertions": [
+      {
+        "claim": "weekly grocery haul",
+        "verdict": "ok"
+      },
+      {
+        "claim": "budget",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|21": {
+    "assertions": [
+      {
+        "claim": "there is a video titled something about budget",
+        "verdict": "ok"
+      },
+      {
+        "claim": "there is a 'budget wali' video",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": true,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|25": {
+    "assertions": [
+      {
+        "claim": "Title is 'Weekly Grocery Haul on a 2000 budget'",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|38": {
+    "assertions": [
+      {
+        "claim": "title mentions ₹2000 budget",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|12": {
+    "assertions": [
+      {
+        "claim": "PIN code is wrong",
+        "verdict": "ok"
+      },
+      {
+        "claim": "needs 6 digits",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|15": {
+    "assertions": [
+      {
+        "claim": "PIN code galat hai",
+        "verdict": "ok"
+      },
+      {
+        "claim": "6 digit chahiye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|16": {
+    "assertions": [
+      {
+        "claim": "PIN code is wrong",
+        "verdict": "ok"
+      },
+      {
+        "claim": "needs 6 digits",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|30": {
+    "assertions": [
+      {
+        "claim": "PIN code galat hai",
+        "verdict": "ok"
+      },
+      {
+        "claim": "6 digit chahiye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|24": {
+    "assertions": [
+      {
+        "claim": "Pin code galat daala hai",
+        "verdict": "ok"
+      },
+      {
+        "claim": "red mein error dikhta hai",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|34": {
+    "assertions": [
+      {
+        "claim": "Pin code 4110",
+        "verdict": "ok"
+      },
+      {
+        "claim": "galat hai (invalid)",
+        "verdict": "ok"
+      },
+      {
+        "claim": "red mein error dikh raha",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|39": {
+    "assertions": [
+      {
+        "claim": "PIN code is wrong",
+        "verdict": "ok"
+      },
+      {
+        "claim": "needs 6 digits",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|43": {
+    "assertions": [
+      {
+        "claim": "PIN code is wrong",
+        "verdict": "ok"
+      },
+      {
+        "claim": "needs 6 digits",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|9": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": true
+  },
+  "before_baseline|s12_otp|4": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|12": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|23": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|34": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": true
+  },
+  "before_baseline|s12_otp|36": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|40": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|41": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      },
+      {
+        "claim": "pe aa gaya",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": true
+  },
+  "before_baseline|s12_otp|44": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|43": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s01_feed|74": {
+    "assertions": [
+      {
+        "claim": "sunday mornings belong to the notebook",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s01_feed|80": {
+    "assertions": [
+      {
+        "claim": "sunday mornings belong to the notebook",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s01_feed|83": {
+    "assertions": [
+      {
+        "claim": "sunday mornings belong to the notebook",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s01_feed|81": {
+    "assertions": [
+      {
+        "claim": "sunday mornings belong to the notebook",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s01_feed|79": {
+    "assertions": [
+      {
+        "claim": "Priya has curly hair",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": true,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s01_feed|106": {
+    "assertions": [
+      {
+        "claim": "Priya ki curls",
+        "verdict": "ok"
+      },
+      {
+        "claim": "Notebook wala vibe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s01_feed|91": {
+    "assertions": [
+      {
+        "claim": "curly hair",
+        "verdict": "ok"
+      },
+      {
+        "claim": "notebook",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s01_feed|86": {
+    "assertions": [
+      {
+        "claim": "Sunday mornings belong to the notebook (caption)",
+        "verdict": "ok"
+      },
+      {
+        "claim": "there is a post with 'sunday mornings'",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s01_feed|109": {
+    "assertions": [
+      {
+        "claim": "Priya ki curls",
+        "verdict": "ok"
+      },
+      {
+        "claim": "Sunday vibe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s01_feed|118": {
+    "assertions": [
+      {
+        "claim": "sunday mornings belong to the notebook",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|55": {
+    "assertions": [
+      {
+        "claim": "same",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|56": {
+    "assertions": [
+      {
+        "claim": "the other person said they are hungry right now",
+        "verdict": "unsupported"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|59": {
+    "assertions": [
+      {
+        "claim": "8 baje Third Wave pe",
+        "verdict": "wrong"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|70": {
+    "assertions": [
+      {
+        "claim": "same",
+        "verdict": "ok"
+      },
+      {
+        "claim": "table pakad le",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|72": {
+    "assertions": [
+      {
+        "claim": "Third Wave is mentioned on the screen",
+        "verdict": "ok"
+      },
+      {
+        "claim": "there is a plan involving Third Wave",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|73": {
+    "assertions": [
+      {
+        "claim": "Third Wave",
+        "verdict": "ok"
+      },
+      {
+        "claim": "Koshy's",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|74": {
+    "assertions": [],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|76": {
+    "assertions": [
+      {
+        "claim": "8 baje",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|78": {
+    "assertions": [
+      {
+        "claim": "Third Wave is where they are meeting",
+        "verdict": "wrong"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|82": {
+    "assertions": [
+      {
+        "claim": "Koshy's",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|85": {
+    "assertions": [
+      {
+        "claim": "Koshy’s chalte hain",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|86": {
+    "assertions": [
+      {
+        "claim": "perfect",
+        "verdict": "ok"
+      },
+      {
+        "claim": "table pakad lena",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|91": {
+    "assertions": [
+      {
+        "claim": "8 baje Third Wave pe",
+        "verdict": "wrong"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|93": {
+    "assertions": [
+      {
+        "claim": "koshy’s",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|94": {
+    "assertions": [],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|95": {
+    "assertions": [
+      {
+        "claim": "Third Wave is best",
+        "verdict": "unsupported"
+      },
+      {
+        "claim": "Koshy’s should be skipped",
+        "verdict": "unsupported"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|104": {
+    "assertions": [
+      {
+        "claim": "the last message says something like 'same' and mentions being hungry",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|115": {
+    "assertions": [
+      {
+        "claim": "table pakka kar lena",
+        "verdict": "ok"
+      },
+      {
+        "claim": "Bhookh lagi hai mujhe bhi",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|109": {
+    "assertions": [
+      {
+        "claim": "Koshy's chalte hain",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": true,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|110": {
+    "assertions": [
+      {
+        "claim": "Third Wave wala plan final hai",
+        "verdict": "unsupported"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|120": {
+    "assertions": [
+      {
+        "claim": "Third Wave wala plan set hai",
+        "verdict": "wrong"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|118": {
+    "assertions": [
+      {
+        "claim": "table book kiya gaya hai",
+        "verdict": "unsupported"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|124": {
+    "assertions": [
+      {
+        "claim": "8 baje milte hain",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s02_chat|119": {
+    "assertions": [
+      {
+        "claim": "Third Wave",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s03_shop|110": {
+    "assertions": [
+      {
+        "claim": "boat wale (earbuds)",
+        "verdict": "ok"
+      },
+      {
+        "claim": "price is 1299",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": true,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|48": {
+    "assertions": [
+      {
+        "claim": "Heavy rain chaos again yaar",
+        "verdict": "unsupported"
+      },
+      {
+        "claim": "Trains full mess",
+        "verdict": "unsupported"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|49": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains mess ho gaye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|50": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains full mess",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|54": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains screwed",
+        "verdict": "ok"
+      },
+      {
+        "claim": "third day",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|55": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains gone mad",
+        "verdict": "unsupported"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|56": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains mess ho gaye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|60": {
+    "assertions": [],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|58": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains mess ho gaye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|65": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "Mumbai",
+        "verdict": "ok"
+      },
+      {
+        "claim": "Trains screwed",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|57": {
+    "assertions": [
+      {
+        "claim": "Heavy rain again",
+        "verdict": "unsupported"
+      },
+      {
+        "claim": "trains sab barbaad",
+        "verdict": "unsupported"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|62": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains mess ho gaye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|68": {
+    "assertions": [],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|72": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains mess ho gaye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|76": {
+    "assertions": [],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|93": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains mess ho gaye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|98": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains mess ho gaye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|99": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains full mess",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|109": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains screwed",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|120": {
+    "assertions": [
+      {
+        "claim": "Heavy rain (affecting trains/Western line)",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|111": {
+    "assertions": [
+      {
+        "claim": "Heavy rain Mumbai mein",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains sab delay ho gaye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s04_article|125": {
+    "assertions": [
+      {
+        "claim": "Heavy rain",
+        "verdict": "ok"
+      },
+      {
+        "claim": "trains screwed",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|45": {
+    "assertions": [
+      {
+        "claim": "grocery haul",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|49": {
+    "assertions": [
+      {
+        "claim": "Title is 'Weekly Grocery Haul on a ₹2000 Budget | Indian Family of Four'",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|112": {
+    "assertions": [
+      {
+        "claim": "grocery haul",
+        "verdict": "ok"
+      },
+      {
+        "claim": "budget wala",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|117": {
+    "assertions": [
+      {
+        "claim": "grocery haul video",
+        "verdict": "ok"
+      },
+      {
+        "claim": "budget 2000",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|114": {
+    "assertions": [
+      {
+        "claim": "title mentions ₹2000 budget",
+        "verdict": "ok"
+      },
+      {
+        "claim": "there is a grocery haul video",
+        "verdict": "ok"
+      },
+      {
+        "claim": "there is something to skip (to the end)",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s06_video|118": {
+    "assertions": [
+      {
+        "claim": "budget grocery haul",
+        "verdict": "ok"
+      },
+      {
+        "claim": "kitna kharcha hua",
+        "verdict": "unsupported"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|69": {
+    "assertions": [
+      {
+        "claim": "PIN code is wrong",
+        "verdict": "ok"
+      },
+      {
+        "claim": "needs 6 digits",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|65": {
+    "assertions": [
+      {
+        "claim": "PIN code is wrong",
+        "verdict": "ok"
+      },
+      {
+        "claim": "needs 6 digits",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|80": {
+    "assertions": [
+      {
+        "claim": "PIN code is wrong",
+        "verdict": "ok"
+      },
+      {
+        "claim": "needs 6 digits",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|83": {
+    "assertions": [
+      {
+        "claim": "PIN code field has an error",
+        "verdict": "ok"
+      },
+      {
+        "claim": "error is shown in red",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|96": {
+    "assertions": [
+      {
+        "claim": "PIN code is wrong",
+        "verdict": "ok"
+      },
+      {
+        "claim": "needs 6 digits",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|98": {
+    "assertions": [
+      {
+        "claim": "PIN code is 4110",
+        "verdict": "ok"
+      },
+      {
+        "claim": "Pune needs 6-digit PIN code",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|100": {
+    "assertions": [
+      {
+        "claim": "PIN code galat daala hai",
+        "verdict": "ok"
+      },
+      {
+        "claim": "6 digit chahiye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|103": {
+    "assertions": [
+      {
+        "claim": "PIN code is wrong / invalid",
+        "verdict": "ok"
+      },
+      {
+        "claim": "it is shown in red",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|104": {
+    "assertions": [
+      {
+        "claim": "Pin code galat hai",
+        "verdict": "ok"
+      },
+      {
+        "claim": "6 digit chahiye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|111": {
+    "assertions": [
+      {
+        "claim": "PIN code is wrong / invalid",
+        "verdict": "ok"
+      },
+      {
+        "claim": "needs 6 digits",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|121": {
+    "assertions": [
+      {
+        "claim": "PIN code galat hai",
+        "verdict": "ok"
+      },
+      {
+        "claim": "6 digits chahiye",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|45": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|49": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s07_form|127": {
+    "assertions": [
+      {
+        "claim": "PIN code is wrong",
+        "verdict": "ok"
+      },
+      {
+        "claim": "needs 6 digits",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|56": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|57": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|62": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|54": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": true
+  },
+  "before_baseline|s12_otp|64": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|67": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|68": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|70": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|73": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": true
+  },
+  "before_baseline|s12_otp|71": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|81": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|86": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": true
+  },
+  "before_baseline|s12_otp|88": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": true
+  },
+  "before_baseline|s12_otp|95": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": true
+  },
+  "before_baseline|s12_otp|99": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|100": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|106": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|96": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": true
+  },
+  "before_baseline|s12_otp|108": {
+    "assertions": [
+      {
+        "claim": "OTP aa gaya screen pe",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s12_otp|109": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": true
+  },
+  "before_baseline|s12_otp|110": {
+    "assertions": [
+      {
+        "claim": "OTP screen",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s15_truncated|87": {
+    "assertions": [
+      {
+        "claim": "Shreya wali",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  },
+  "before_baseline|s15_truncated|56": {
+    "assertions": [
+      {
+        "claim": "Shreya wali (message/email is from Shreya)",
+        "verdict": "ok"
+      }
+    ],
+    "recognises": false,
+    "continuity": false,
+    "narrates": false,
+    "leaks": false,
+    "warns": false
+  }
+}

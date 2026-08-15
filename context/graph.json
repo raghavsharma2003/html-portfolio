@@ -441,6 +441,18 @@
    "kind": "decision",
    "title": "Run 1 pre-registered: terra vs incumbent, one disjoint judge family",
    "at": "2026-08-15"
+  },
+  {
+   "id": "visiongate-powered",
+   "kind": "measurement",
+   "title": "Powered: engagement doubles (+21.3pp p<1e-6), fabrication no detected rise (+1.0pp CI [-3.1,+5.1], n=313/695)",
+   "at": "2026-08-15"
+  },
+  {
+   "id": "vision-drift-4day",
+   "kind": "measurement",
+   "title": "Foundry grok deployment drifted engagement behavior across 4 days (both arms, direction widens gap)",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -878,6 +890,26 @@
    "src": "swap-prereg-1",
    "rel": "measured_by",
    "dst": "judge-backtest"
+  },
+  {
+   "src": "visiongate-powered",
+   "rel": "supersedes",
+   "dst": "visiongate-interim"
+  },
+  {
+   "src": "vision-model",
+   "rel": "measured_by",
+   "dst": "visiongate-powered"
+  },
+  {
+   "src": "vision-drift-4day",
+   "rel": "part_of",
+   "dst": "relational-state"
+  },
+  {
+   "src": "visiongate-powered",
+   "rel": "part_of",
+   "dst": "relational-state"
   }
  ]
 }
