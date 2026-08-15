@@ -334,6 +334,11 @@
       "kind": "decision",
       "title": "The relational OS extends to shared group memory; disclosure control is the core",
       "at": "2026-08-13"
+    },
+    {
+      "id": "age-tier-cliff",
+      "kind": "open",
+      "title": "Wiring the age hard-refusal makes every current user minor-safe until a verification lane exists"
     }
   ],
   "edges": [
@@ -641,6 +646,16 @@
       "src": "spec-c-minimal",
       "rel": "constrains",
       "dst": "multiparty-direction"
+    },
+    {
+      "src": "age-tier-cliff",
+      "rel": "blocks",
+      "dst": "multiparty-direction"
+    },
+    {
+      "src": "age-tier-cliff",
+      "rel": "part_of",
+      "dst": "relational-state"
     }
   ]
 }

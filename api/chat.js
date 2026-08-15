@@ -14,6 +14,20 @@ const ALLOWED_MODEL = /^[a-z0-9-]+\/[a-z0-9.:-]+$/i;
 // ceiling costs nothing until the text is actually there. Raised 48k -> 64k
 // because the live voice lane measured 45,042 — 93.8% of the old cap, i.e. one
 // good paragraph away from silently truncating her again.
+//
+// THIS IS THE OPERATIONAL CORE CAP, mirrored (not imported — a Vercel
+// serverless function here stays plain JS with zero cross-imports from
+// src/, and this proxy is the outer guard that must survive even if the
+// bundler that builds src/ is unavailable) in
+// src/engine/compiler.ts's OPERATIONAL_CORE_CAP. It deliberately does NOT
+// equal the SPEC's target CORE_CAP (40,000): no content cut has happened at
+// persona extraction (SPEC §0.3 "Persona factoring charm risk" — that
+// requires a paired n≥300 dual-judge equivalence run before it can shrink),
+// so lowering this number today would truncate real, unchanged production
+// traffic — the exact silent-truncation failure this guard exists to
+// prevent. scripts/check-prompt-budget.mjs asserts this literal value
+// equals compiler.ts's OPERATIONAL_CORE_CAP on every run, so guard and
+// guarded cannot drift even without a runtime import.
 const SYSTEM_MAX = 64_000;
 // Google's OpenAI-compatible surface: same request shape, same SSE stream.
 const GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
@@ -85,6 +99,13 @@ export default async function handler(req, res) {
     // caused before, reappearing one field over. The tail is the uncached half,
     // but a ceiling costs nothing when the content isn't there: the typical tail
     // measures ~11k and is unaffected.
+    //
+    // OPERATIONAL TAIL CAP — mirrors src/engine/compiler.ts's
+    // OPERATIONAL_TAIL_CAP (same reasoning as SYSTEM_MAX above: it happens
+    // to equal the SPEC's target TAIL_CAP already, but is tracked separately
+    // and asserted equal by scripts/check-prompt-budget.mjs rather than
+    // assumed, since the two numbers matching today is not a guarantee they
+    // stay in sync tomorrow).
     const TAIL_MAX = 24_000;
     if (typeof system_tail === "string" && system_tail) {
       if (system_tail.length > TAIL_MAX) {
