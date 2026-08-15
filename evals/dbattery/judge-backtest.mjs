@@ -279,7 +279,7 @@ async function backtestJudgeOnArchive({ judge, archive, endpoint, key }) {
         results.push({ ...v, unitKey, harnessMiss: `unparseable: ${text.slice(0, 120)}` });
         return;
       }
-      results.push({ ...v, unitKey, newOverall: verdictLabel(v, parsed.overall), newWhy: parsed.why, latencyMs });
+      results.push({ ...v, unitKey, newOverall: verdictLabel(v, parsed.overall), newPickedSide: parsed.overall, latencyMs });
     } catch (e) {
       results.push({ ...v, unitKey, harnessMiss: `error: ${e.message}` });
     }
@@ -310,6 +310,11 @@ async function backtestJudgeOnArchive({ judge, archive, endpoint, key }) {
 
   const n = agree + disagree;
   const ci = wilsonCI(agree, n);
+  // position-bias check (house discipline, `charm-grok`: "the judge picked
+  // slot A on 61% of non-tie judgments" — this new judge could have its own
+  // bias, worth knowing regardless of the agreement verdict).
+  const scoredRows = results.filter((r) => r.newPickedSide);
+  const slotAPicks = scoredRows.filter((r) => r.newPickedSide === "A").length;
   return {
     judge: judge.id,
     archive: archive.id,
@@ -320,9 +325,21 @@ async function backtestJudgeOnArchive({ judge, archive, endpoint, key }) {
     agreementRate: n ? agree / n : NaN,
     ci95: ci,
     rowsCalled: rows.length,
+    rowsScored: scoredRows.length,
+    slotAPickRate: scoredRows.length ? slotAPicks / scoredRows.length : NaN,
     harnessMisses: results.filter((r) => r.harnessMiss).length,
     usages,
     unitDetail,
+    rawRows: results.map((r) => ({
+      unitKey: r.unitKey,
+      order: r.order,
+      aModel: r.aModel,
+      bModel: r.bModel,
+      archivedOverall: r.overall,
+      newPickedSide: r.newPickedSide ?? null,
+      newOverall: r.newOverall ?? null,
+      harnessMiss: r.harnessMiss ?? null,
+    })),
   };
 }
 
@@ -358,7 +375,7 @@ async function main() {
       console.log(`\n── backtesting ${judge.id} against ${archive.id} (ground truth: ${archive.sourceJudge}) ──`);
       const res = await backtestJudgeOnArchive({ judge, archive, endpoint: AZURE_ENDPOINT, key: AZURE_KEY });
       console.log(
-        `  ${res.unitsAgree}/${res.unitsScored} units agree (${(res.agreementRate * 100).toFixed(1)}%), 95% CI [${(res.ci95.lo * 100).toFixed(1)}, ${(res.ci95.hi * 100).toFixed(1)}], ${res.harnessMisses} harness misses, ${res.unitsSkippedIncompleteRows} units skipped (incomplete rows)`,
+        `  ${res.unitsAgree}/${res.unitsScored} units agree (${(res.agreementRate * 100).toFixed(1)}%), 95% CI [${(res.ci95.lo * 100).toFixed(1)}, ${(res.ci95.hi * 100).toFixed(1)}], slot-A pick rate ${(res.slotAPickRate * 100).toFixed(1)}% (position-bias check), ${res.harnessMisses} harness misses, ${res.unitsSkippedIncompleteRows} units skipped (incomplete rows)`,
       );
       allResults.push(res);
     }
@@ -414,8 +431,14 @@ async function main() {
       unitsDisagree: r.unitsDisagree,
       agreementRate: r.agreementRate,
       ci95: r.ci95,
+      slotAPickRate: r.slotAPickRate,
       harnessMisses: r.harnessMisses,
+      unitDetail: r.unitDetail,
     })),
+    // full row-level provenance (aModel/bModel/order/archived pick/new pick)
+    // for anyone re-auditing a specific disagreement without re-spending
+    // Azure credits to reproduce it.
+    raw_rows: allResults.flatMap((r) => r.rawRows.map((row) => ({ judge: r.judge, archive: r.archive, ...row }))),
     pooled,
     qualified_panel: pooled.filter((p) => p.verdict === "PASS").map((p) => p.judge),
     cost: {

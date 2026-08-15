@@ -411,6 +411,12 @@
       "kind": "measurement",
       "title": "humans& ($480M seed): thesis-identical, zero published mechanism",
       "at": "2026-08-15"
+    },
+    {
+      "id": "visiongate-interim",
+      "kind": "measurement",
+      "title": "Watch engagement doubles (powered); fabrication flat (underpowered)",
+      "at": "2026-08-15"
     }
   ],
   "edges": [
@@ -808,6 +814,16 @@
       "src": "humansand-scan",
       "rel": "constrains",
       "dst": "relational-state"
+    },
+    {
+      "src": "visiongate-interim",
+      "rel": "measured_by",
+      "dst": "fab-noise-floor"
+    },
+    {
+      "src": "vision-model",
+      "rel": "measured_by",
+      "dst": "visiongate-interim"
     }
   ]
 }

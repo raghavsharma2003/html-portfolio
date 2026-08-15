@@ -542,3 +542,31 @@ identity that compound are the next layer. They have the thesis and the
 capital; we have the built mechanism, the citation-enforced memory, and the
 only battery that has said no to three real swaps. **Threat: LOW today,
 WATCH** — re-scan on any memory/relational publication or consumer pivot.
+
+## `visiongate-interim` — engagement doubles, powered; fabrication flat, underpowered (2026-08-15)
+
+The retuned watch directive (the real v4b text from the archived mf/ battery,
+recomputed offline from saved raw+judged data — zero new API calls):
+
+| | baseline | retuned |
+|---|---|---|
+| engaged on a stop | 20% | **41.7%** (+21.7pp, CI [13.6, 29.7], p<0.0001, n=240/arm) |
+| fabrication (assertion level) | 7.2% (n=83) | 6.8% (n=59) |
+
+Engagement is a real, powered effect. Fabrication is **directionally flat but
+an order of magnitude under the n≥300 bar** — per `fab-noise-floor`, not yet a
+result. The gate therefore DOES NOT CLEAR until the confirmatory run lands.
+Corroboration across six archived variants: engagement rises every time the
+flat movement-narration ban loosens; fabrication spikes only on variants that
+say "lean toward speaking" — the shipped text does not.
+
+Two exposures stated plainly: the evidence is grok-arm while the incumbent
+(gemini) serves the live lane today, and the multi-frame continuity battery
+has not run for this text.
+
+**A process lesson worth the node:** the task brief quoted a prior agent's
+summary figures (+81% lines, +5.2pp fab) that exist NOWHERE in logged
+evidence — a summary that was never logged to context/ and does not match the
+raw data it summarized. The agent checked, refused the figure, and recomputed.
+Unlogged claims drift; raw data does not. This is the logging discipline
+proving its own worth.
