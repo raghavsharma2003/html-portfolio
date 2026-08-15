@@ -695,6 +695,7 @@ export const PERSON_TABLES = [
   { table: "meera_tel",         key: "device_id", lane: "legacy" },
   { table: "meera_tel_session", key: "device_id", lane: "legacy" },
   { table: "vy_episode",          key: "person_id", lane: "relational" },
+  { table: "vy_taste_candidate",  key: "person_id", lane: "relational" },
   { table: "vy_visual_assertion", key: "person_id", lane: "relational" },
   { table: "vy_shared_moment",    key: "person_id", lane: "relational" },
   { table: "vy_fact",             key: "person_id", lane: "relational" },

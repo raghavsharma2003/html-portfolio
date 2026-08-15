@@ -1,0 +1,39 @@
+{
+  "_comment": "SPEC.md §10-Q6: 'the file is the signature.' WS-RELSTATE (M4), owned exclusively per §13. Consumed by api/consolidate.js's loadDecayConfig() (frozen, WS-CONSOLIDATE) — that reader is forward-compatible and already ships the identical numbers as its fallback default, so this file's arrival changes nothing at the moment it lands and everything the first time these numbers are edited without touching consolidate.js.",
+
+  "half_life_days": {
+    "user": 60,
+    "world": 60,
+    "self_in_relation": 60,
+    "relationship": 90,
+    "india": 90,
+    "meera": 180
+  },
+  "half_life_days_keys_comment": "Keys are exactly vy_fact.kind's CHECK enum (db/schema.sql) — consolidate.js's decay loop does `for (const [kind, days] of Object.entries(hl)) update vy_fact ... where kind = $2`, so a key that isn't a real kind is a silent no-op, and a real kind missing here never decays. Do not add or rename keys without checking that enum first.",
+
+  "never_decay": {
+    "safety_hold": "vy_episode.safety_hold = true — excluded from decay entirely, not just slow (§4.1.7, §9.1). Not touched by need_p recompute regardless of kind.",
+    "identity_kinds": "vy_fact kind='meera' (her own continuity facts) carries the longest half-life (180d) rather than true exemption — SPEC §10-Q6 groups 'identity kinds' with phrases as decay-exempt in prose, but the schema has no boolean for it and consolidate.js decays every kind present in half_life_days uniformly. Recorded as a deviation: true exemption would need a code change in consolidate.js (frozen, WS-CONSOLIDATE-owned) to skip kind='meera', or a very long half-life here as the practical substitute, which is what this file does today.",
+    "phrases": "vy_phrase (shared-language ledger) has no need_p column and is never touched by the decay loop — structurally exempt already, no config needed."
+  },
+
+  "decay_semantics": "need_p only (SPEC §4.1.7): decay moves ACT-R retrieval priority, never t_invalid, never a delete. Decayed ≠ forgotten — she is honestly fuzzy ('yaad dila na'), never claims deletion. Deletion happens exclusively through forget/DPDP ops (api/memory.js, frozen). Decay and honest-forget must never collide by construction: this file cannot delete anything, only rank it lower.",
+
+  "tier_compaction": {
+    "trigger": "tier-0 episodes older than threshold_days AND importance below the trailing median for that person",
+    "threshold_days": 30,
+    "target_tier": 1,
+    "mechanism": "collapse into weekly digests citing members via superseded_by back-links; compacted episodes' vy_embedding rows deleted (SPEC §2.5 storage math — embeddings dominate, and a compacted summary gets exactly one new embedding)",
+    "owner": "SPEC §4.1.8 names this WS-CONSOLIDATE's nightly-pass step 8; not yet wired in api/consolidate.js as of this file landing (frozen file, out of WS-RELSTATE's edit scope) — schedule recorded here per the interface, wiring is an interface ticket to WS-CONSOLIDATE"
+  },
+
+  "_signature": {
+    "artifact_role": "SPEC §10-Q6: 'Owner signs the file as persona canon.' This block is the signature slot, populated by WS-RELSTATE at build time per the M4 exit gate ('decay.json owner-signed', SPEC §11 M4 row).",
+    "status": "UNSIGNED — drafted by the build agent from the SPEC's own pre-registered defaults (§10-Q6: 'episodic half-life ~60 days of non-use'; consolidate.js's documented fallback numbers), not by the human owner. An agent cannot manufacture the owner's consent to ship these forgetting-curve numbers as product spec; that is a human action this file structurally leaves open rather than fabricates.",
+    "numbers_source": "consolidate.js loadDecayConfig() fallback (api/consolidate.js lines ~87-95, frozen/WS-CONSOLIDATE) — this file's half_life_days is byte-identical to that fallback by design, so landing it is a no-op for current behavior and the first real decision point is the next edit.",
+    "signed_by": null,
+    "signed_at": null,
+    "reversal_condition": "Per SPEC §10-Q6: 'D4 carries a graceful-transience probe so the curve is evaluated, not vibes.' These numbers reverse when that probe (WS-BATTERY, D4) measures user-perceived forgetting against the curve and finds a mismatch — never on vibes, per the same sentence.",
+    "pending_action": "Human owner reviews half_life_days against product intent, then fills signed_by/signed_at and flips status to SIGNED. Recorded as a gate deviation in the WS-RELSTATE M4 report: the artifact exists and is correct-by-construction against the spec's own numbers, but the signature itself needs the owner, not the agent."
+  }
+}
