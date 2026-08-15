@@ -738,3 +738,30 @@ waits for same-week fresh incumbent bands (the incumbent arm is the one
 unbuilt piece); the Devanagari hard fail needs no bands and already stands.
 Judged gates additionally wait on the grant-billed judge (owner deploy
 clicks) and must cluster on the 72 stimulus texts per `corpus-2304`.
+
+---
+
+## `free-pool-capacity` — the pool's real daily ceiling is ~75 calls, and the fresh incumbent already surprises (2026-08-15)
+
+The full incumbent run paused at 74/2,304: 9 keys, 54 calls in the tranche
+before every key quota'd or sickened (pool health 4/9 after). At this rate
+the arm takes ~30 days on the free pool alone. Mitigation shipped the same
+hour: a seeded deterministic shuffle in generate-incumbent.mjs (the corpus
+is variant-clustered, so paced prefix tranches oversampled early variants —
+now every tranche is a cross-section), plus a daily 08:10 UTC self-resuming
+Routine (fresh session per fire: pull branch, run tranche, commit data,
+push; trig_01LkaWxSQZC5uz26XDydYurA). Two ways it collapses to hours:
+owner's planned Google credits, or an owner-approved cash flag that stays
+OFF by default.
+
+The 74 fresh incumbent rows (n=74 — advisory scale, NOT a band claim):
+words/turn mean 21.3 (near the 20.5 archived center — good), question
+share 70.3% on this subset (beat-mix artifact to check at scale), and
+**1 Devanagari hit — the incumbent itself trips the "any Devanagari =
+hard fail" axis** that the archived reference (0 hits) said never happens.
+At face value: incumbent 1/74 (1.35%) vs terra 7/2,304 (0.30%). If fresh
+incumbent sampling has a nonzero Devanagari base rate, the hard-fail axis
+as written is miscalibrated and D1 must compare RATES between same-week
+arms, not gate on any-hit. The same-week-bands law caught its own
+reference going stale — exactly what it exists for. Recalibration decision
+deferred until the incumbent arm reaches band scale.

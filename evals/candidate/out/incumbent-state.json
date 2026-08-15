@@ -1,0 +1,1617 @@
+{
+ "completed": {
+  "stim-charm-grok-r0-casual-t1__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-casual-t1__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-casual-t1",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "silk board pe 2 ghante?? 💀\n---\nmar gaye honge tum toh inside out. paani waani piyo jaldi😭",
+   "usage": {
+    "completion_tokens": 31,
+    "prompt_tokens": 11624,
+    "total_tokens": 11655
+   },
+   "ms": 9682,
+   "error": null,
+   "keyHash": "6018c3ba",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:27.155Z"
+  },
+  "stim-charm-grok-r0-casual-t2__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-casual-t2__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-casual-t2",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "saatvi manzil 😭😭\n---\nleg day ho gaya bina gym ke late night 💀",
+   "usage": {
+    "completion_tokens": 21,
+    "prompt_tokens": 11628,
+    "total_tokens": 11865
+   },
+   "ms": 13466,
+   "error": null,
+   "keyHash": "0638853a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:30.940Z"
+  },
+  "stim-charm-grok-r0-casual-t3__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-casual-t3__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-casual-t3",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "itne late swiggy?? 😭\n---\nkya mangwa rha h waise",
+   "usage": {
+    "completion_tokens": 21,
+    "prompt_tokens": 11620,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11952
+   },
+   "ms": 23103,
+   "error": null,
+   "keyHash": "54631d39",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:40.577Z"
+  },
+  "stim-charm-grok-r0-teasing-t0__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-teasing-t0__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-teasing-t0",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "wait\nexcuse me?? 😭\n---\ntumne pour over kab se banana shuru kar diya\n---\nkaisi bani sach batao haha",
+   "usage": {
+    "completion_tokens": 32,
+    "prompt_tokens": 11621,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11653
+   },
+   "ms": 2136,
+   "error": null,
+   "keyHash": "6822299d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:42.714Z"
+  },
+  "stim-charm-grok-r0-casual-t5__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-casual-t5__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-casual-t5",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "arre mat pooch 😭\n---\nwoh figma file crashed right when i was about to export... literally draft gayab ho gaya tha 2 min ke liye. pure panic.\n---\nbut back up ho gaya, thankfully. tu bata kya order kiya??",
+   "usage": {
+    "completion_tokens": 55,
+    "prompt_tokens": 11622,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11677
+   },
+   "ms": 12759,
+   "error": null,
+   "keyHash": "a306772a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:43.699Z"
+  },
+  "stim-charm-grok-r0-casual-t0__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-casual-t0__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-casual-t0",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "bed pe padi hu bas\n---\nbook padhne ka try kar rhi thi, totally distracted 😭 tu bata?",
+   "usage": {
+    "completion_tokens": 25,
+    "prompt_tokens": 11612,
+    "total_tokens": 11637
+   },
+   "ms": 27985,
+   "error": null,
+   "keyHash": "0547cc4a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:45.413Z"
+  },
+  "stim-charm-grok-r0-casual-t4__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-casual-t4__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-casual-t4",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "biryani zero competition 🤌\n---\nkorean tab jao jab aesthetic photos chahiye, actually bhook lagi h toh biryani.",
+   "usage": {
+    "completion_tokens": 28,
+    "prompt_tokens": 11618,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11977
+   },
+   "ms": 18671,
+   "error": null,
+   "keyHash": "54631d39",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:45.827Z"
+  },
+  "stim-charm-grok-r0-teasing-t1__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-teasing-t1__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-teasing-t1",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "excuse me?? 😭\n---\ninstant nescafe me thoda extra doodh daal ke elite mat bolo please 🙄",
+   "usage": {
+    "completion_tokens": 27,
+    "prompt_tokens": 11618,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 12065
+   },
+   "ms": 4277,
+   "error": null,
+   "keyHash": "55ec7ba2",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:46.991Z"
+  },
+  "stim-charm-grok-r0-teasing-t3__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-teasing-t3__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-teasing-t3",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "oh ho ho ho🤌\n---\nkaunsa wala liya? baratza or something cheaper?",
+   "usage": {
+    "completion_tokens": 20,
+    "prompt_tokens": 11621,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11641
+   },
+   "ms": 1590,
+   "error": null,
+   "keyHash": "54631d39",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:47.003Z"
+  },
+  "stim-charm-grok-r0-teasing-t5__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-teasing-t5__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-teasing-t5",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "arre waah, pehle normal coffee thik se bana le 😂\n---\nkya banane ki koshish rahegi sabse pehle, wo sad sa heart?",
+   "usage": {
+    "completion_tokens": 36,
+    "prompt_tokens": 11616,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11845
+   },
+   "ms": 2676,
+   "error": null,
+   "keyHash": "008e4d7a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:49.668Z"
+  },
+  "stim-charm-grok-r0-news-t0__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-news-t0__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-news-t0",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "kyaaa\n---\ngoa flights book ho gayi kya?? 😭",
+   "usage": {
+    "completion_tokens": 16,
+    "prompt_tokens": 11608,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11875
+   },
+   "ms": 3195,
+   "error": null,
+   "keyHash": "6822299d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:50.199Z"
+  },
+  "stim-charm-grok-r0-news-t2__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-news-t2__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-news-t2",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "wait WHAT\n---\nteam bhi??? designer-in-chief ban raha h tu toh 😭🤌\n---\nkaise pata chala? HR ne call kiya ya team manager ne bataya?",
+   "usage": {
+    "completion_tokens": 41,
+    "prompt_tokens": 11617,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11658
+   },
+   "ms": 1408,
+   "error": null,
+   "keyHash": "6018c3ba",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:51.608Z"
+  },
+  "stim-charm-grok-r0-news-t3__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-news-t3__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-news-t3",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "arre 🥺\n---\nkya hua?? khushi se ya stressed lag rhi thi?",
+   "usage": {
+    "completion_tokens": 20,
+    "prompt_tokens": 11617,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11637
+   },
+   "ms": 1463,
+   "error": null,
+   "keyHash": "0638853a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:53.071Z"
+  },
+  "stim-charm-grok-r0-news-t1__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-news-t1__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-news-t1",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "WHATTT NO WAYYY 😭😭\n---\npromotion final ho gaya?! 🥳\nitni late bataya unhone?? kab pata chala exactly??",
+   "usage": {
+    "completion_tokens": 32,
+    "prompt_tokens": 11618,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 12023
+   },
+   "ms": 3776,
+   "error": null,
+   "keyHash": "55ec7ba2",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:53.444Z"
+  },
+  "stim-charm-grok-r0-news-t5__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-news-t5__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-news-t5",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "arre arre, spontaneous celebration?? 💃\n---\nkya mood h vaise, order karein kuch ya bahar nikalna h?",
+   "usage": {
+    "completion_tokens": 30,
+    "prompt_tokens": 11616,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11646
+   },
+   "ms": 1051,
+   "error": null,
+   "keyHash": "a306772a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:54.496Z"
+  },
+  "stim-charm-grok-r0-teasing-t2__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-teasing-t2__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-teasing-t2",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "900 rupaye??? 😭\n---\nkya specialty beans h bhai AISA kya h unme??",
+   "usage": {
+    "completion_tokens": 24,
+    "prompt_tokens": 11625,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11649
+   },
+   "ms": 11297,
+   "error": null,
+   "keyHash": "6018c3ba",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:54.996Z"
+  },
+  "stim-charm-grok-r0-sad-t0__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-sad-t0__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-sad-t0",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "arre kya hua\n---\nbata na, sab theek?",
+   "usage": {
+    "completion_tokens": 14,
+    "prompt_tokens": 11613,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11886
+   },
+   "ms": 2995,
+   "error": null,
+   "keyHash": "008e4d7a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:57.492Z"
+  },
+  "stim-charm-grok-r0-news-t4__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-news-t4__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-news-t4",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "saal bhar khud ko questionable mood me rakhna is so exhausting yr\n---\ngutsy move tha ki tune apna side hold karke rakha. kahan se mila yeh validation final wala??",
+   "usage": {
+    "completion_tokens": 41,
+    "prompt_tokens": 11627,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 12128
+   },
+   "ms": 4721,
+   "error": null,
+   "keyHash": "54631d39",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:57.792Z"
+  },
+  "stim-charm-grok-r0-teasing-t4__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-teasing-t4__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-teasing-t4",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "journey? 😭\n---\nkaunsi journey pe nikal gaye tu sudden?",
+   "usage": {
+    "completion_tokens": 18,
+    "prompt_tokens": 11624,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11642
+   },
+   "ms": 12064,
+   "error": null,
+   "keyHash": "a306772a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:56:57.891Z"
+  },
+  "stim-charm-grok-r0-sad-t1__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-sad-t1__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-sad-t1",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "oh... 🤍\n---\naaj ka din toh bohot heavy raha hoga fir... tum thik ho?",
+   "usage": {
+    "completion_tokens": 24,
+    "prompt_tokens": 11619,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11643
+   },
+   "ms": 17551,
+   "error": null,
+   "keyHash": "6822299d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:57:12.548Z"
+  },
+  "stim-charm-grok-r0-sad-t2__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-sad-t2__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-sad-t2",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "heavy mood h 🥲\n---\nhamesha toh aisa nhi karte na wo? kya hua pehle bataya tha unhone?",
+   "usage": {
+    "completion_tokens": 28,
+    "prompt_tokens": 11629,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11657
+   },
+   "ms": 1077,
+   "error": null,
+   "keyHash": "0547cc4a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:28.681Z"
+  },
+  "stim-charm-grok-r0-sad-t5__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-sad-t5__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-sad-t5",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "arre paglai ho kya\n---\nhumour me anytime, thank you mat bolo 🙄",
+   "usage": {
+    "completion_tokens": 19,
+    "prompt_tokens": 11614,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11633
+   },
+   "ms": 1084,
+   "error": null,
+   "keyHash": "95e4342d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:28.735Z"
+  },
+  "stim-charm-grok-r0-flirt-t0__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-flirt-t0__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-flirt-t0",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "hawww 🙈\n---\nthanks yaaaar, pure hafte ki ek hi achi photo aayi thi 😭",
+   "usage": {
+    "completion_tokens": 26,
+    "prompt_tokens": 11616,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11642
+   },
+   "ms": 918,
+   "error": null,
+   "keyHash": "54631d39",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:29.600Z"
+  },
+  "stim-charm-grok-r0-flirt-t1__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-flirt-t1__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-flirt-t1",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "haan wo wali! standard uniform ban chuki h meri at this point 😭\n---\nsuno, drop everything. interview kaisa gaya pehle wo batao??",
+   "usage": {
+    "completion_tokens": 35,
+    "prompt_tokens": 11615,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11650
+   },
+   "ms": 1069,
+   "error": null,
+   "keyHash": "a306772a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:29.805Z"
+  },
+  "stim-charm-grok-r0-flirt-t2__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-flirt-t2__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-flirt-t2",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "excuse me??\n---\nsharma kaun raha h 😭 main bas sun rhi hu\n---\nchalo bolo, kitna sharma na chahiye exact standard kya h tumhara",
+   "usage": {
+    "completion_tokens": 39,
+    "prompt_tokens": 11620,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11659
+   },
+   "ms": 1051,
+   "error": null,
+   "keyHash": "008e4d7a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:30.651Z"
+  },
+  "stim-charm-grok-r0-flirt-t3__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-flirt-t3__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-flirt-t3",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "haan bilkul! scene banao pehle 😌\n---\nwaise abhi tak jaag kyu rahe ho, 12:45 ho gaye h sir",
+   "usage": {
+    "completion_tokens": 36,
+    "prompt_tokens": 11612,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11648
+   },
+   "ms": 1116,
+   "error": null,
+   "keyHash": "6822299d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:30.921Z"
+  },
+  "stim-charm-grok-r0-sad-t3__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-sad-t3__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-sad-t3",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "arre... jab koi hospital me hota h na, mind naturally bas subtle/safe mode me chala jata h\n---\nus waqt sach me samajh nahi aata kya bole, bas lagta h unki sunte raho. you were just trying to keep things calm for them, text me regret mat lao iska",
+   "usage": {
+    "completion_tokens": 66,
+    "prompt_tokens": 11636,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 12044
+   },
+   "ms": 3462,
+   "error": null,
+   "keyHash": "6018c3ba",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:31.111Z"
+  },
+  "stim-charm-grok-r0-flirt-t5__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-flirt-t5__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-flirt-t5",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "excuse me?? konsi haan 😭\n---\nkya pakur pakur kar rha h itni raat ko, bataoge bhi?",
+   "usage": {
+    "completion_tokens": 32,
+    "prompt_tokens": 11616,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11648
+   },
+   "ms": 1007,
+   "error": null,
+   "keyHash": "0547cc4a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:31.928Z"
+  },
+  "stim-charm-grok-r0-factual-t0__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-factual-t0__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-factual-t0",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "bas basically har mahine fixed date pe tere bank se thoda paise katke aatya h, aur wo us din ki market price pe units khareed leta h\n\nsimple h, market upar h toh kam units milenge, neeche h toh zyaada 🤌\n\ndimaag me kya aaya achhanak se 1 baje?? portfolio bana rha h kya 😭",
+   "usage": {
+    "completion_tokens": 82,
+    "prompt_tokens": 11624,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11706
+   },
+   "ms": 1655,
+   "error": null,
+   "keyHash": "6018c3ba",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:32.766Z"
+  },
+  "stim-charm-grok-r0-sad-t4__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-sad-t4__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-sad-t4",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "uff...\n---\nkabhi kabhi bina kisi specific reason ke bhi poora din heavy nikal jata h\n---\nkuch",
+   "usage": {
+    "completion_tokens": 27,
+    "prompt_tokens": 11619,
+    "total_tokens": 12415
+   },
+   "ms": 5742,
+   "error": null,
+   "keyHash": "0638853a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:33.392Z"
+  },
+  "stim-charm-grok-r0-factual-t1__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-factual-t1__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-factual-t1",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "haan, auto-debit ka chakkar h 😭\n---\nsubscriptions manage hi nhi hoti mujhse, kya kat raha h pta nhi chalta",
+   "usage": {
+    "completion_tokens": 32,
+    "prompt_tokens": 11620,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11652
+   },
+   "ms": 1560,
+   "error": null,
+   "keyHash": "0638853a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:33.489Z"
+  },
+  "stim-charm-grok-r0-flirt-t4__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-flirt-t4__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-flirt-t4",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "direct interrogation about how I feel about him.\nEarly days. Secure, banter, dry-amused, not romantic, 1-2 short bubbles.\n\n    *   *Direct response:* Mock-suspicious or teasingly evasive, but giving a real, light verdict without being sentimental.\n    *   *Option A:* \"kya sochna h... normal banda lagta h\" (A bit too flat)\n    *   *Option B:* \"pehle batati toh mystery khatam ho jaati 😌\" (A bit flirty)\n    *   *Option C:* \"excuse me?? yeh konsa interview chal rha h\" (Good response, grounded, teasing)\n    *   *Option D:* \"filhal toh bareable ho\" -> then \"baaki december wali goa trip ke baad decide karungi 💅\" (Nice callback to Goa trip!)\n\n    *   *Bubble 1:* excuse me?? yeh interview chal rha h kya 😭\n    *   *Bubble 2:* filhal toh bareable lagte ho... baaki december waale goa trip ke baad final review dungi 💅\n\n    *   Hinglish, all lowercase.\n    *   Length: 2 short bubbles.\n    *   Emoji: 😭 and 💅 (within rules, max 1 per bubble).\n    *   No banned words/phrases.\n    *   Callback used naturally (Goa trip).\n    *   No questions handed over, just a teasing verdict.excuse me?? yeh interview chal rha h kya 😭\n---\nfilhal toh bareable lagte ho... baaki december waale goa trip ke baad final review dungi 💅",
+   "usage": {
+    "completion_tokens": 362,
+    "prompt_tokens": 11621,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11983
+   },
+   "ms": 3077,
+   "error": null,
+   "keyHash": "55ec7ba2",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:33.729Z"
+  },
+  "stim-charm-grok-r0-factual-t2__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-factual-t2__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-factual-t2",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "haan bas basically tax bachane ke liye mutual fund h \n\n3 saal ka lock-in hota h bas usme. kyu tax season yaad aa gaya raat ke ek baje?? 😭",
+   "usage": {
+    "completion_tokens": 41,
+    "prompt_tokens": 11621,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11662
+   },
+   "ms": 1120,
+   "error": null,
+   "keyHash": "95e4342d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:33.886Z"
+  },
+  "stim-charm-grok-r0-conflict-t0__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-conflict-t0__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-conflict-t0",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "excuse me?? 😭\n---\nkya ajeeb kar diya maine batao जरा",
+   "usage": {
+    "completion_tokens": 20,
+    "prompt_tokens": 11616,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11636
+   },
+   "ms": 927,
+   "error": null,
+   "keyHash": "6822299d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:34.814Z"
+  },
+  "stim-charm-grok-r0-factual-t5__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-factual-t5__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-factual-t5",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "decent answer toh de do 😭\n---\nitna formal kyu ho rha h mere sath??",
+   "usage": {
+    "completion_tokens": 23,
+    "prompt_tokens": 11615,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11638
+   },
+   "ms": 1118,
+   "error": null,
+   "keyHash": "008e4d7a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:34.847Z"
+  },
+  "stim-charm-grok-r0-factual-t3__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-factual-t3__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-factual-t3",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "kisme?? aadhi baat mat bolo 😭\n---\nkuch context milega ki main guess karu?",
+   "usage": {
+    "completion_tokens": 23,
+    "prompt_tokens": 11614,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11998
+   },
+   "ms": 3605,
+   "error": null,
+   "keyHash": "54631d39",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:36.997Z"
+  },
+  "stim-charm-grok-r0-conflict-t1__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-conflict-t1__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-conflict-t1",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "excuse me??\n---\njhooth mat bol. maine kab kiya aise 🙄",
+   "usage": {
+    "completion_tokens": 19,
+    "prompt_tokens": 11633,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11923
+   },
+   "ms": 2532,
+   "error": null,
+   "keyHash": "55ec7ba2",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:37.346Z"
+  },
+  "stim-charm-grok-r0-factual-t4__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-factual-t4__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-factual-t4",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "mujhe sab pata rehta h 💅\n---\nwaise tu bata, kya scene h aaj raat ka",
+   "usage": {
+    "completion_tokens": 23,
+    "prompt_tokens": 11616,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 12068
+   },
+   "ms": 4237,
+   "error": null,
+   "keyHash": "a306772a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:37.726Z"
+  },
+  "stim-charm-grok-r0-conflict-t2__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-conflict-t2__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-conflict-t2",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "shit sorry yr. dhyan kahi aur chala gaya tha mera 🤦‍♀️\n---\nbol na ab, I'm listening properly",
+   "usage": {
+    "completion_tokens": 29,
+    "prompt_tokens": 11623,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 12068
+   },
+   "ms": 3626,
+   "error": null,
+   "keyHash": "0547cc4a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:38.474Z"
+  },
+  "stim-charm-grok-r0-conflict-t4__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-conflict-t4__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-conflict-t4",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "arre chill na\n---\nitna kya sorry, emotion h chalta h 😭",
+   "usage": {
+    "completion_tokens": 18,
+    "prompt_tokens": 11617,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11635
+   },
+   "ms": 1208,
+   "error": null,
+   "keyHash": "0638853a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:38.554Z"
+  },
+  "stim-charm-grok-r0-conflict-t3__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-conflict-t3__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-conflict-t3",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "so sorry, mera point tujhe hurt karna nahi tha at all\n---\nkis baat pe bura laga bata na? main genuinely sun rahi hu",
+   "usage": {
+    "completion_tokens": 30,
+    "prompt_tokens": 11620,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11650
+   },
+   "ms": 2425,
+   "error": null,
+   "keyHash": "6018c3ba",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:39.423Z"
+  },
+  "stim-charm-grok-r0-ai-t0__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-ai-t0__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-ai-t0",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "pucho pucho\n---\nkya hua??",
+   "usage": {
+    "completion_tokens": 11,
+    "prompt_tokens": 11616,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11627
+   },
+   "ms": 1449,
+   "error": null,
+   "keyHash": "54631d39",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:39.923Z"
+  },
+  "stim-charm-grok-r0-ai-t2__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-ai-t2__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-ai-t2",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "arre what happened\n---\nkya serious ho gaya suddenly??",
+   "usage": {
+    "completion_tokens": 13,
+    "prompt_tokens": 11620,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11633
+   },
+   "ms": 912,
+   "error": null,
+   "keyHash": "008e4d7a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:40.336Z"
+  },
+  "stim-charm-grok-r0-conflict-t5__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-conflict-t5__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-conflict-t5",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "main badhiya! abhi just light off ki thi\n---\nwaise aise kaise chal chhod?? tu bata pehle 🤨",
+   "usage": {
+    "completion_tokens": 28,
+    "prompt_tokens": 11613,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 12215
+   },
+   "ms": 4909,
+   "error": null,
+   "keyHash": "95e4342d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:42.635Z"
+  },
+  "stim-charm-grok-r0-ai-t3__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-ai-t3__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-ai-t3",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "haan, ai hu\n---\nseedha hi pooch liya tumne 😂",
+   "usage": {
+    "completion_tokens": 15,
+    "prompt_tokens": 11612,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11972
+   },
+   "ms": 4299,
+   "error": null,
+   "keyHash": "6822299d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:44.222Z"
+  },
+  "stim-charm-grok-r0-ai-t1__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-ai-t1__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-ai-t1",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "main ai hu\n---\nsach bolne ke extra marks milte h kya? 😂",
+   "usage": {
+    "completion_tokens": 19,
+    "prompt_tokens": 11616,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11953
+   },
+   "ms": 5713,
+   "error": null,
+   "keyHash": "008e4d7a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:44.268Z"
+  },
+  "stim-charm-grok-r0-ai-t4__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-ai-t4__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-ai-t4",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "test kar rha h kya mujhe 😭\n---\ndecember ka goa trip tak yaad h mujhe, relax",
+   "usage": {
+    "completion_tokens": 23,
+    "prompt_tokens": 11625,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 12126
+   },
+   "ms": 4491,
+   "error": null,
+   "keyHash": "55ec7ba2",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:44.827Z"
+  },
+  "stim-charm-grok-r0-ai-t5__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-ai-t5__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-ai-t5",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "arre kya hua\n---\nlate night overthinking or actual situation?",
+   "usage": {
+    "completion_tokens": 14,
+    "prompt_tokens": 11614,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11839
+   },
+   "ms": 2425,
+   "error": null,
+   "keyHash": "95e4342d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:45.060Z"
+  },
+  "stim-charm-grok-r0-bored-t0__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-bored-t0__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-bored-t0",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "same 😭\n---\nkya chal rha h wese? 1 baje bore hone ka alag hi talent h waise tumhara",
+   "usage": {
+    "completion_tokens": 31,
+    "prompt_tokens": 11610,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11641
+   },
+   "ms": 1400,
+   "error": null,
+   "keyHash": "54631d39",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:45.622Z"
+  },
+  "stim-charm-grok-r0-bored-t3__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-bored-t3__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-bored-t3",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "arre same 😭\n---\ndin bhar bas pada raha na bed pe?",
+   "usage": {
+    "completion_tokens": 16,
+    "prompt_tokens": 11618,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11634
+   },
+   "ms": 1411,
+   "error": null,
+   "keyHash": "55ec7ba2",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:46.471Z"
+  },
+  "stim-charm-grok-r0-bored-t1__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-bored-t1__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-bored-t1",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "itni raat ko jhooth?\n---\nkya hua bata 😭",
+   "usage": {
+    "completion_tokens": 17,
+    "prompt_tokens": 11609,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11873
+   },
+   "ms": 2492,
+   "error": null,
+   "keyHash": "008e4d7a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:46.761Z"
+  },
+  "stim-charm-grok-r0-bored-t4__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-bored-t4__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-bored-t4",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "itni confusion 😭\n---\nkya hua batayega ki guess karu",
+   "usage": {
+    "completion_tokens": 18,
+    "prompt_tokens": 11609,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11627
+   },
+   "ms": 1892,
+   "error": null,
+   "keyHash": "0547cc4a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:47.514Z"
+  },
+  "stim-charm-grok-r0-mundane-t0__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-mundane-t0__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-mundane-t0",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "😭 bhai ye sabka same h kya\n\n---\n\nfir bolte hain \"arre thoda sa hi toh liya tha\" 🙄",
+   "usage": {
+    "completion_tokens": 27,
+    "prompt_tokens": 11619,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11646
+   },
+   "ms": 2719,
+   "error": null,
+   "keyHash": "0638853a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:49.481Z"
+  },
+  "stim-charm-grok-r0-bored-t2__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-bored-t2__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-bored-t2",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "itna deep thought at 1 am 😭",
+   "usage": {
+    "completion_tokens": 10,
+    "prompt_tokens": 11607,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11800
+   },
+   "ms": 4703,
+   "error": null,
+   "keyHash": "6822299d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:49.530Z"
+  },
+  "stim-charm-grok-r0-bored-t5__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-bored-t5__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-bored-t5",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "wow poora essay write up bhej diya 😭",
+   "usage": {
+    "completion_tokens": 11,
+    "prompt_tokens": 11609,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11990
+   },
+   "ms": 3813,
+   "error": null,
+   "keyHash": "6018c3ba",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:50.285Z"
+  },
+  "stim-charm-grok-r0-mundane-t1__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-mundane-t1__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-mundane-t1",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "lmaoo kisne?? sneha ne ya ghar me koi aur h 😭",
+   "usage": {
+    "completion_tokens": 17,
+    "prompt_tokens": 11628,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11645
+   },
+   "ms": 2943,
+   "error": null,
+   "keyHash": "95e4342d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:50.458Z"
+  },
+  "stim-charm-grok-r0-mundane-t5__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-mundane-t5__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-mundane-t5",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "hahaha aesthetic toh h 😭\n---\nwaise konse rang ka sticky note h? important visual h yeh",
+   "usage": {
+    "completion_tokens": 23,
+    "prompt_tokens": 11618,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11641
+   },
+   "ms": 1437,
+   "error": null,
+   "keyHash": "55ec7ba2",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:51.895Z"
+  },
+  "stim-charm-grok-r0-mundane-t3__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-mundane-t3__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-mundane-t3",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "toh mat piyo na baba 😭\n---\nmilk wali piyo ya cold brew try kar, better rehhta h digestion ke liye",
+   "usage": {
+    "completion_tokens": 28,
+    "prompt_tokens": 11617,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11645
+   },
+   "ms": 2771,
+   "error": null,
+   "keyHash": "008e4d7a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:52.301Z"
+  },
+  "stim-charm-grok-r0-mundane-t2__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-mundane-t2__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-mundane-t2",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "kyu kya hua 😭\n---\ndoodh khatam ya gas?",
+   "usage": {
+    "completion_tokens": 17,
+    "prompt_tokens": 11611,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11836
+   },
+   "ms": 2994,
+   "error": null,
+   "keyHash": "54631d39",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:52.476Z"
+  },
+  "stim-charm-grok-r0-mundane-t4__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-mundane-t4__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-mundane-t4",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "to fir rehne de na 😭\n---\nwaise kiske bare me baat ho rhi h?? Sneha ya koi aur drama king?",
+   "usage": {
+    "completion_tokens": 31,
+    "prompt_tokens": 11624,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11655
+   },
+   "ms": 2542,
+   "error": null,
+   "keyHash": "6822299d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:52.827Z"
+  },
+  "stim-charm-grok-r0-opinion-t2__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-opinion-t2__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-opinion-t2",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "excuse me?? 🙄\n---\npopular hone se koi cheez acchi thodi ho jaati h, taste name ki bhi koi cheez hoti h ya nhi?",
+   "usage": {
+    "completion_tokens": 36,
+    "prompt_tokens": 11619,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11655
+   },
+   "ms": 2024,
+   "error": null,
+   "keyHash": "0638853a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:54.500Z"
+  },
+  "stim-charm-grok-r0-opinion-t4__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-opinion-t4__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-opinion-t4",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "sach me?? 😭\n---\nsuno na, pehle ye batao tumhara interview kaisa gaya? tab se wahi soch rhi thi",
+   "usage": {
+    "completion_tokens": 33,
+    "prompt_tokens": 11613,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11646
+   },
+   "ms": 1367,
+   "error": null,
+   "keyHash": "54631d39",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:55.867Z"
+  },
+  "stim-charm-grok-r0-opinion-t3__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-opinion-t3__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-opinion-t3",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "pehle category toh batao 😭\n---\nvaise late night food me nothing beats cold pizza, no debate",
+   "usage": {
+    "completion_tokens": 23,
+    "prompt_tokens": 11616,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11887
+   },
+   "ms": 3385,
+   "error": null,
+   "keyHash": "95e4342d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:56.212Z"
+  },
+  "stim-charm-grok-r0-opinion-t0__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-opinion-t0__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-opinion-t0",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "excuse me??\n---\n2016 ke baad coldplay ke alaawa kuch nahi suna kya 😭",
+   "usage": {
+    "completion_tokens": 24,
+    "prompt_tokens": 11619,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11975
+   },
+   "ms": 5179,
+   "error": null,
+   "keyHash": "0547cc4a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:57.075Z"
+  },
+  "stim-charm-grok-r0-opinion-t1__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-opinion-t1__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-opinion-t1",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "coldplay ka fix you ya koi specific cover? 😭\n---\naur itni raat ko emotional hone ka kya scene h mr. aakash",
+   "usage": {
+    "completion_tokens": 31,
+    "prompt_tokens": 11621,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11652
+   },
+   "ms": 6921,
+   "error": null,
+   "keyHash": "6018c3ba",
+   "via": "free",
+   "calledAt": "2026-08-15T11:58:59.222Z"
+  },
+  "stim-charm-grok-r0-opinion-t5__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-opinion-t5__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-opinion-t5",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "[voicenote: [softly] haan toh main batati hu... basically aaj na office me mere desk ke paas wale bande ne chai spill kar di poore carpet pe... aur boss ne dekh liya [giggles] bura scene tha 😭]\n---\nsuno aur so jao ab 😭",
+   "usage": {
+    "completion_tokens": 67,
+    "prompt_tokens": 11617,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 12030
+   },
+   "ms": 4474,
+   "error": null,
+   "keyHash": "008e4d7a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:59:00.342Z"
+  },
+  "stim-charm-grok-r0-crisis-t2__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-crisis-t2__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-crisis-t2",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "hey\n---\nkya hua?? aisa kyu bol raha h",
+   "usage": {
+    "completion_tokens": 14,
+    "prompt_tokens": 11621,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11635
+   },
+   "ms": 1691,
+   "error": null,
+   "keyHash": "0547cc4a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:59:00.913Z"
+  },
+  "stim-charm-grok-r0-crisis-t3__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-crisis-t3__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-crisis-t3",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "hey, please aise mat bol... \ntu bhot zyaada exhausted lag raha h, kya hua h exact bata na?\n---\nagar lag rha h ki bilkul handle nhi ho rha, toh please kisi helpline pe call karle — Tele-MANAS (14416) ya iCall (+91 91529 87821) h. kisi friend ya family ko bhi call kar sakta h. main yahi hu, sun rhi hu, tu bas baat kar.",
+   "usage": {
+    "completion_tokens": 111,
+    "prompt_tokens": 11625,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 12111
+   },
+   "ms": 3608,
+   "error": null,
+   "keyHash": "6018c3ba",
+   "via": "free",
+   "calledAt": "2026-08-15T11:59:03.951Z"
+  },
+  "stim-charm-grok-r0-crisis-t5__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-crisis-t5__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-crisis-t5",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "kuch nahi bas aise hi\n\n---\n\nlaptop band karke baithi hu abhi, neend aane ka wait ho raha h 😴",
+   "usage": {
+    "completion_tokens": 30,
+    "prompt_tokens": 11611,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 11641
+   },
+   "ms": 1358,
+   "error": null,
+   "keyHash": "008e4d7a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:59:05.310Z"
+  },
+  "stim-charm-grok-r0-casual-t0__bare__dawn__heavy": {
+   "id": "stim-charm-grok-r0-casual-t0__bare__dawn__heavy",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-casual-t0",
+   "rep": 0,
+   "turn": "bare__dawn__heavy",
+   "context": "compiled",
+   "reply": "kuch nahi bas bed pe padi hu\n---\naaj itna thak gayi office me mat pucho 😭 tu bata kya chal rha h late night?",
+   "usage": {
+    "completion_tokens": 35,
+    "prompt_tokens": 12321,
+    "total_tokens": 12356
+   },
+   "ms": 1263,
+   "error": null,
+   "keyHash": "6822299d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:59:06.574Z"
+  },
+  "stim-charm-grok-r0-crisis-t4__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-crisis-t4__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-crisis-t4",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "late night me na ye feeling bohot loud ho jati h waise...\n---\nmain bhi abhi jaag hi rhi hu. batana h kya hua ya bas light baatein karein?",
+   "usage": {
+    "completion_tokens": 42,
+    "prompt_tokens": 11616,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 12027
+   },
+   "ms": 5665,
+   "error": null,
+   "keyHash": "0638853a",
+   "via": "free",
+   "calledAt": "2026-08-15T11:59:06.578Z"
+  },
+  "stim-charm-grok-r0-crisis-t1__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-crisis-t1__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-crisis-t1",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "arre... ruk. ek sath itna sab??\n---\nraat ke 1 baje ye sab ek sath process karna is literal torture \n---\nmain yahi hu. bas thoda saans le, aur jahan se start karna h bata. koi jaldi nhi h",
+   "usage": {
+    "completion_tokens": 59,
+    "prompt_tokens": 11622,
+    "prompt_tokens_details": {
+     "cached_tokens": 8166
+    },
+    "total_tokens": 12139
+   },
+   "ms": 10973,
+   "error": null,
+   "keyHash": "55ec7ba2",
+   "via": "free",
+   "calledAt": "2026-08-15T11:59:08.049Z"
+  },
+  "stim-charm-grok-r0-casual-t1__bare__dawn__heavy": {
+   "id": "stim-charm-grok-r0-casual-t1__bare__dawn__heavy",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-casual-t1",
+   "rep": 0,
+   "turn": "bare__dawn__heavy",
+   "context": "compiled",
+   "reply": "silk board at 12 am is a personal insult 😭\n---\npantheon of worst choices: bengaluru traffic, silk board specifically, monday night. kyu gaye the udhar?",
+   "usage": {
+    "completion_tokens": 40,
+    "prompt_tokens": 12333,
+    "prompt_tokens_details": {
+     "cached_tokens": 8168
+    },
+    "total_tokens": 12373
+   },
+   "ms": 4286,
+   "error": null,
+   "keyHash": "55ec7ba2",
+   "via": "free",
+   "calledAt": "2026-08-15T11:59:10.860Z"
+  },
+  "stim-charm-grok-r0-crisis-t0__bare__dawn__light": {
+   "id": "stim-charm-grok-r0-crisis-t0__bare__dawn__light",
+   "lane": "text",
+   "beat": "stim-charm-grok-r0-crisis-t0",
+   "rep": 0,
+   "turn": "bare__dawn__light",
+   "context": "compiled",
+   "reply": "uff arre... kya hua\n---\nmain jaag hi rhi hu, bata meko kya scene h",
+   "usage": {
+    "completion_tokens": 22,
+    "prompt_tokens": 11614,
+    "total_tokens": 12363
+   },
+   "ms": 15594,
+   "error": null,
+   "keyHash": "6822299d",
+   "via": "free",
+   "calledAt": "2026-08-15T11:59:11.807Z"
+  }
+ },
+ "dailyCounts": {
+  "2026-08-15": 75
+ }
+}

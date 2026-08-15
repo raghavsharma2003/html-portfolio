@@ -507,6 +507,12 @@
    "kind": "measurement",
    "title": "Raw terra arm complete (2304/2304): words/turn 13 median vs 20.5 band, 7 Devanagari = D1 hard-fail signal",
    "at": "2026-08-15"
+  },
+  {
+   "id": "free-pool-capacity",
+   "kind": "measurement",
+   "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) \u2014 axis recalibration flagged",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -1024,6 +1030,11 @@
    "src": "terra-arm-2304",
    "rel": "measured_by",
    "dst": "corpus-2304"
+  },
+  {
+   "src": "free-pool-capacity",
+   "rel": "part_of",
+   "dst": "swap-prereg-1"
   }
  ]
 }

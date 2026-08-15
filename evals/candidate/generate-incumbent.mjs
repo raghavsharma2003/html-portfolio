@@ -115,6 +115,25 @@ async function buildPool(limit) {
     .split("\n")
     .filter(Boolean)
     .map((line) => JSON.parse(line));
+  // Deterministic seeded shuffle BEFORE the limit slice. The corpus is
+  // variant-clustered (72 stimuli x 32 variants written in variant order),
+  // so a paused prefix run oversamples early variants — the smoke's first
+  // 20 rows were all one variant, and the first free-pool tranche (74) was
+  // nearly as skewed. Free-pool pacing means every tranche IS a prefix, so
+  // the order must be a cross-section. Seed is fixed → identical order
+  // every invocation → resumable state stays valid (keyed by row id).
+  let seed = 0x5eed;
+  const rand = () => {
+    // mulberry32 (same PRNG family the dbattery mock uses)
+    seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = compact.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [compact[i], compact[j]] = [compact[j], compact[i]];
+  }
   const wanted = limit ? compact.slice(0, limit) : compact;
 
   const { found, missing } = await getRowsByIds(wanted.map((r) => r.id));

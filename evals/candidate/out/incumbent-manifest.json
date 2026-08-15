@@ -1,0 +1,49 @@
+{
+ "model": "google/gemini-3.6-flash",
+ "transportModelId": "gemini-3.6-flash",
+ "endpoint": "google-ai-studio-free-pool (api/_gkeys.js), OpenRouter cash fallback only with --allow-cash",
+ "lane": "chat",
+ "params": {
+  "reasoning_effort": "low",
+  "max_tokens": 800,
+  "temperature": "not set by production on either lane (provider default) — recorded, not invented"
+ },
+ "productionRefs": {
+  "api/chat.js:24": "DEFAULT_MODEL",
+  "api/chat.js:46": "SYSTEM_MAX (OPERATIONAL_CORE_CAP mirror)",
+  "api/chat.js:48": "GEMINI_OPENAI_URL",
+  "api/chat.js:144": "effort = no_think === true ? \"minimal\" : \"low\" — chat lane uses \"low\"",
+  "api/chat.js:145-150": "request body shape (model, messages, max_tokens)",
+  "api/chat.js:90-96": "system content array + cache_control, mirrored (tail omitted — see file header)",
+  "api/chat.js:178": "free-model bare id, strips \"google/\"",
+  "api/chat.js:181-224": "free-pool call via api/_gkeys.js withGeminiKey, reasoning_effort field",
+  "api/chat.js:197-208": "empty-200-is-exhausted guard, mirrored",
+  "api/chat.js:226-246": "paid OpenRouter fallback shape, reasoning:{effort} — only used with --allow-cash",
+  "config/models.json": "models[\"google/gemini-3.6-flash\"].effort_map.chat confirms \"low\" is correct, \"minimal\" is BROKEN"
+ },
+ "date": "2026-08-15T11:59:11.810Z",
+ "contextSource": "evals/candidate/corpus/corpus.jsonl — identical ids/order to the terra arm; every unit's sha256 checked against the committed index before use. {system,user} byte-identical across arms by construction (tail omitted, matching the terra arm's own pool build).",
+ "dailyCap": 2304,
+ "allowCash": false,
+ "counts": {
+  "total": 2304,
+  "completed": 74,
+  "remaining": 2230,
+  "note": "ALL turns are context:\"compiled\" (single-turn corpus stimuli), same as the terra arm."
+ },
+ "smoke": {
+  "n": 74,
+  "nonEmpty": 74,
+  "errors": 0,
+  "nonEmptyRate": 1,
+  "wordsPerTurn": {
+   "n": 74,
+   "mean": 21.2972972972973,
+   "median": 17,
+   "p90": 30
+  },
+  "questionShare": 0.7027027027027027,
+  "mediaTagRate": 0.013513513513513514,
+  "devanagariHits": 1
+ }
+}
