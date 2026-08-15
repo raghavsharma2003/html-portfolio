@@ -395,7 +395,20 @@ async function main() {
     else if (ci.hi < bar) verdict = "FAIL";
     else verdict = "UNDERPOWERED";
     const nNeeded = verdict === "UNDERPOWERED" ? nToResolve(ci.point, bar) : null;
-    return { judge: judge.id, unitsAgree: agree, unitsScored: n, agreementRate: n ? agree / n : NaN, ci95: ci, bar, verdict, nNeededToResolve: nNeeded };
+    const rowsScored = parts.reduce((a, r) => a + r.rowsScored, 0);
+    const slotAPicks = parts.reduce((a, r) => a + Math.round(r.slotAPickRate * r.rowsScored), 0);
+    return {
+      judge: judge.id,
+      unitsAgree: agree,
+      unitsScored: n,
+      agreementRate: n ? agree / n : NaN,
+      ci95: ci,
+      bar,
+      verdict,
+      nNeededToResolve: nNeeded,
+      slotAPickRate: rowsScored ? slotAPicks / rowsScored : NaN,
+      slotAPickRateNote: "house baseline (charm-grok, context/measurements.md): 61% slot-A. A pooled rate well above that indicates position bias dominating this judge's picks rather than content, which is itself part of why unit-level (both-orders-agree) agreement with ground truth comes out low.",
+    };
   });
 
   console.log(`\n── POOLED (both archives) — the 80% bar (SPEC §10-Q5 methodology) ──`);
@@ -441,6 +454,12 @@ async function main() {
     raw_rows: allResults.flatMap((r) => r.rawRows.map((row) => ({ judge: r.judge, archive: r.archive, ...row }))),
     pooled,
     qualified_panel: pooled.filter((p) => p.verdict === "PASS").map((p) => p.judge),
+    reversal_note:
+      pooled.every((p) => p.verdict === "FAIL")
+        ? "Both credit-billed judge candidates FAILED the >=80% bar with CIs that do not straddle it — context/decisions.md `d2-on-credits`'s own pre-registered reversal condition has fired: 'the credit-billed judges fail the 80% agreement backtest — then one premium judge family is paid in cash and the run costs ~$400, not $834, since only one family needs buying.' Logging this into context/decisions.md is out of this workstream's file grant (Fable per CLAUDE.md's model policy) — reported here so the coordinator can act on it."
+        : pooled.some((p) => p.verdict === "PASS")
+          ? "At least one credit-billed judge PASSED — d2-on-credits stands as designed, no reversal."
+          : "Mixed/underpowered result — see per-judge verdicts before deciding whether d2-on-credits's reversal condition applies.",
     cost: {
       calls: allUsages.length,
       promptTokens: tokIn,
