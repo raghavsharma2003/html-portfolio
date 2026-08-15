@@ -16,12 +16,7 @@ export {
   applyDropOrder,
   CRISIS_LINES,
 } from "../compiler";
-export {
-  lintBlock,
-  checkAppendedLastExactlyTwo,
-  checkDecisionPositions,
-  checkCoreByteStable,
-} from "../shapelint";
+export { lintLine, lintBlock, checkAppendedLastExactlyTwo, checkDecisionPositions } from "../shapelint";
 export {
   buildSystemPromptParts,
   buildSpeechStyle,

@@ -26,7 +26,7 @@ execSync(
   { stdio: "inherit", cwd: ROOT },
 );
 
-const { compile, compileOld, FIXTURES } = await import(BUNDLE);
+const { compile, compileOld, FIXTURES, checkCoreByteStable } = await import(BUNDLE);
 
 let failed = 0;
 let checked = 0;
@@ -47,9 +47,12 @@ for (const { id, input } of FIXTURES) {
     continue;
   }
   // double-compile byte-identity (§3.3): same input, called twice, must be
-  // byte-identical — this is the CI shape of the cache-9x guard.
+  // byte-identical — this is the CI shape of the cache-9x guard, via
+  // shapelint.ts's checkCoreByteStable (the same function prod core-hash
+  // sampling would use).
   const a2 = compile(input);
-  if (a2.core !== a.core || a2.tail !== a.tail) {
+  const stability = checkCoreByteStable(a.core, a2.core);
+  if (!stability.stable || a2.tail !== a.tail) {
     failed++;
     console.log(`FAIL  ${id}  (double-compile mismatch — non-determinism in compile())`);
   }

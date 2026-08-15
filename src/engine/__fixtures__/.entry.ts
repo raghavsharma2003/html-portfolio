@@ -4,3 +4,4 @@
 export { compile, hashCore } from "../compiler";
 export { compileOld } from "./oldOracle";
 export { FIXTURES } from "./compiler.fixtures";
+export { checkCoreByteStable } from "../shapelint";

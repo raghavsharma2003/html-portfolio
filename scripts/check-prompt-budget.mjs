@@ -76,6 +76,8 @@ const {
   CRISIS_LINES,
   checkAppendedLastExactlyTwo,
   checkDecisionPositions,
+  lintLine,
+  lintBlock,
   buildSystemPromptParts,
   buildSpeechStyle,
   WATCH_MODE_NOTE,
@@ -195,6 +197,41 @@ console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts
   if (!liveCore.includes(CRISIS_LINES)) {
     failed = true;
     console.log("FAIL  live lane core is missing CRISIS_LINES");
+  }
+}
+
+// ── shape-lint self-check (SPEC §3.3, `recited-prompt` law) ────────────────
+// Proves lintLine/lintBlock actually catch the two measured failure shapes
+// (sentence-shaped English, first-person-Meera line-initial) on a clean vs.
+// a deliberately bad sample — a linter nobody has shown catches anything is
+// not a guard. This does NOT lint persona.ts's core prose (see shapelint.ts
+// header): it lints the shape real TAIL content rows are meant to have.
+console.log("\n── shape-lint self-check (does the linter actually catch the recited-prompt shape?) ──");
+{
+  const telegraphic = "- goa trip (event, 2 days ago): planned with college friends for december";
+  const recitable = "I told him I was so tired yesterday and it really helped.";
+  const cleanReport = lintLine(telegraphic);
+  const badReport = lintLine(recitable);
+  if (cleanReport.reasons.length) {
+    failed = true;
+    console.log(`FAIL  telegraphic sample flagged (false positive): ${cleanReport.reasons.join("; ")}`);
+  } else {
+    console.log(`  ok  telegraphic sample passes clean: "${telegraphic}"`);
+  }
+  if (!badReport.reasons.length) {
+    failed = true;
+    console.log(`FAIL  sentence-shaped first-person sample was NOT caught (false negative): "${recitable}"`);
+  } else {
+    console.log(`  ok  recited-prompt-shaped sample caught: ${badReport.reasons.join("; ")}`);
+  }
+  // and a block-level pass over a fixture's actual memory content, with the
+  // allowlist proven to exempt what it's supposed to (CRISIS_LINES-style verbatim rows)
+  const block = lintBlock(`${telegraphic}\n${recitable}`, [recitable]);
+  if (block.violations.length !== 0 || block.linesChecked !== 1) {
+    failed = true;
+    console.log(`FAIL  lintBlock allowlist did not exempt the allowlisted line as expected`);
+  } else {
+    console.log(`  ok  lintBlock allowlist exempts the one allowlisted line, still catches nothing else wrong`);
   }
 }
 
