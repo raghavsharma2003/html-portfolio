@@ -247,7 +247,11 @@ async function backtestJudgeOnArchive({ judge, archive, creds, caller }) {
     }
     const user = `Reply A (full conversation):\n${transcript(aTurns)}\n\nReply B (full conversation):\n${transcript(bTurns)}`;
     try {
-      const { text, usage } = await caller(judge, { system: RUBRIC, user, maxTokens: 120, creds });
+      // maxTokens comes from the judge config (default 120): Cohere's
+      // command-a writes preamble despite the rubric and ate the whole 120
+      // cap before the verdict on 192/192 calls — a hardcoded 120 here
+      // silently overrode its config's 400 and reproduced the failure.
+      const { text, usage } = await caller(judge, { system: RUBRIC, user, maxTokens: judge.maxTokens ?? 120, creds });
       if (usage) usages.push(usage);
       const parsed = parseVerdict(text);
       if (!parsed) {
