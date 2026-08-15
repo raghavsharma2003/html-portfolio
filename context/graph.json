@@ -405,6 +405,12 @@
       "kind": "decision",
       "title": "The relational engine exists and its battery can say no",
       "at": "2026-08-15"
+    },
+    {
+      "id": "humansand-scan",
+      "kind": "measurement",
+      "title": "humans& ($480M seed): thesis-identical, zero published mechanism",
+      "at": "2026-08-15"
     }
   ],
   "edges": [
@@ -797,6 +803,11 @@
       "src": "phase-c-complete",
       "rel": "measured_by",
       "dst": "d0-battery-validated"
+    },
+    {
+      "src": "humansand-scan",
+      "rel": "constrains",
+      "dst": "relational-state"
     }
   ]
 }

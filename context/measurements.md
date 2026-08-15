@@ -521,3 +521,24 @@ once", so this number should be paired with an ear-judged listen (D6)
 before it changes anything, not acted on from the Hz alone. Logged to
 `evals/dbattery/prosody-baseline-log.json` (2 runs so far; drift alarm
 thresholds: f0 ±8%, duration ±20%, hard alarm on any model-string change).
+
+## `humansand-scan` — the company the owner asked about is humans& (2026-08-15)
+
+Full corpus: `docs/research/humansand.md`. The owner's "humanand.ai" is
+**humans& at humansand.ai** (humanand.ai does not resolve — verified by DNS).
+Real and very funded: **$480M seed at $4.48B**, closed 2026-01-20 (TechCrunch/
+Forbes/Crunchbase corroborating). Team: Eric Zelikman (ex-xAI, STaR), Noah
+Goodman (Stanford), Andi Peng (ex-Anthropic), ~20 people.
+
+What there is to take today: **almost nothing mechanical.** Their entire
+public technical output is one GPU-systems blog post (NVFP4 quantization for
+RL training) — zero published work on memory, disclosure, persona, or
+multi-party mechanisms. Their stated product is enterprise/collaboration
+"connective tissue," not companionship. No shipped product, no waitlist.
+
+The real signal: their "stranger problem" framing is **thesis-level identical
+to `relational-state`** — a $4.48B seed validates the bet that memory and
+identity that compound are the next layer. They have the thesis and the
+capital; we have the built mechanism, the citation-enforced memory, and the
+only battery that has said no to three real swaps. **Threat: LOW today,
+WATCH** — re-scan on any memory/relational publication or consumer pivot.
