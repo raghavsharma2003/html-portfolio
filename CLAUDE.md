@@ -100,3 +100,19 @@ Almost every claim in `context/` is measured, and several widely-held
 assumptions in it turned out to be false when tested. Prefer measuring to
 reasoning, and when you cannot measure something, say so in the commit rather
 than implying coverage you do not have.
+
+## Model policy (owner directive, 2026-08-13)
+
+**Fable runs the main loop and everything important**: phase reviews, judge
+synthesis, architecture decisions, anything that becomes a `context/` entry or
+a commit. **Sonnet/Opus run the rest**: build workstreams, research sweeps,
+verification fan-outs, mechanical batteries. Rationale: the main loop hit
+Fable's usage limit mid-build once (two workstreams died in flight); important
+judgment is worth the scarce budget, bulk execution is not.
+
+## Logging is not optional
+
+This is a long, deep project. Every phase output, measurement, rejection and
+decision goes to `context/` (and `docs/` for full corpora) BEFORE the next
+phase starts — the graph is what stops tokens being spent re-deriving what a
+previous session already paid for. If it isn't logged, it didn't happen.
