@@ -78,7 +78,7 @@ export const byLane = (turns, lane) => turns.filter((t) => t.lane === lane);
 
 // ── bootstrap CI (deterministic PRNG — reproducible across CI runs) ────────
 
-function mulberry32(seed) {
+export function mulberry32(seed) {
   return function () {
     seed |= 0;
     seed = (seed + 0x6d2b79f5) | 0;

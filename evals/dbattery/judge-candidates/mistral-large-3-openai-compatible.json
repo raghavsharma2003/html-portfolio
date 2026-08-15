@@ -1,0 +1,14 @@
+{
+  "id": "mistral/mistral-large-3",
+  "family": "mistral",
+  "provider": "openai-compatible",
+  "model": "mistral-large-latest",
+  "baseURL": "https://api.mistral.ai/v1",
+  "apiKeyEnv": "MEERA_JUDGE_MISTRAL_API_KEY",
+  "temperature": 0,
+  "maxTokens": 300,
+  "pricing": null,
+  "_pricing_note": "INTENTIONALLY null -- see the identical note on the other candidate files in this directory. Fill in from Mistral's live pricing page before a real run.",
+  "_notes": "The 'openai-compatible base URL' provider shape the task brief named explicitly, demonstrated with a FOURTH plausible premium family (beyond the brief's three named examples) so all of judge-provider.mjs's non-azure/non-openrouter provider paths have at least one concrete candidate file, not just the two the brief happened to name. Mistral's native API speaks the OpenAI chat/completions shape closely enough that judge-provider.mjs's callOpenAIStyle() should work unmodified -- UNVERIFIED, never called live. No family-affinity confound with either arm of any comparison measured in this repo so far (neither incumbent nor any tested candidate is Mistral-family).",
+  "_status": "NEVER CALLED. Config shape only -- see judge-candidates/README.md."
+}

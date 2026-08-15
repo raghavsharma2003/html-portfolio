@@ -1,7 +1,6 @@
-// WS-JUDGES — Phase D prep. Qualifies the two credits-billed D2 judge
-// candidates (context/decisions.md `d2-on-credits`) by BACKTESTING them
-// against the ARCHIVED blind, counterbalanced charm verdicts in
-// evals/archives/ (charm-grok: 96 rows/48 units judged by
+// WS-JUDGES / WS-D2PREP — Phase D prep. Qualifies a D2 judge candidate by
+// BACKTESTING it against the ARCHIVED blind, counterbalanced charm verdicts
+// in evals/archives/ (charm-grok: 96 rows/48 units judged by
 // anthropic/claude-opus-4.8; charm-luna: 96 rows/48 units, same judge).
 // Ground truth = those archived verdicts. This file does NOT re-derive d2.mjs's
 // relational-axis rubric (shared_history_use / we_reference_quality /
@@ -12,55 +11,91 @@
 // order as the archived row (so this is a literal re-presentation of what the
 // original judge saw), win only counted when both orders agree, flip = tie.
 //
-// Judges under test (both Azure-credits-billed, per `d2-on-credits`):
+// GENERALIZED (WS-D2PREP, 2026-08-15): a candidate judge is now a plain
+// JudgeConfig object (see judge-provider.mjs's header for the shape) instead
+// of code. This makes qualifying a new premium candidate — the settled plan
+// per context/decisions.md `d2-on-credits`'s exhausted reversal, one premium
+// judge family in cash, ~$400, pending owner approval — a config change:
+//
+//   node evals/dbattery/judge-backtest.mjs --judge judge-candidates/claude-opus-5.json
+//
+// DEFAULT PANEL (no --judge given): the three credits-billed candidates
+// already qualified-and-FAILED on this resource, kept as the file's own
+// regression fixture so re-running the script always re-proves the same
+// documented failures rather than silently drifting:
 //   - DeepSeek-V4-Flash  (deployment id "DeepSeek-V4-Flash")
-//   - gpt-5.6-terra      (deployment id "gpt-5.6-terra" — owner-reported
-//     newly deployed; THIS FILE VERIFIES that rather than assuming it, see
-//     verifyDeployments() below)
+//   - gpt-5.6-terra      (deployment id "gpt-5.6-terra")
+//   - grok-4.3           (deployment id "grok-4.3")
+// All three FAILED the >=80% bar (28.1% / 54.2% / 34.4% pooled — see
+// context/measurements.md `judge-backtest` and `grok43-judge`,
+// evals/dbattery/judges.json). NOTE ON A DISCREPANCY THIS SESSION FOUND AND
+// FIXED: grok-4.3's measured result was already sitting in judges.json (as a
+// `grok43_addendum` block) before this generalization, but had been produced
+// by a ONE-OFF SCRATCHPAD SCRIPT, not this file — this file's own JUDGES
+// catalog previously listed only the first two. grok-4.3 is folded into the
+// real default catalog below so the committed script alone can now
+// reproduce every number judges.json claims (reported to the coordinator).
 //
-// EXCLUSION (task brief, explicit subtlety): terra was itself an ARM in the
-// charm-luna battery (288 turns, unjudged — see archives/load.mjs's
-// `unjudged` field). terra must never judge a comparison involving terra's
-// own output. The archived judged verdicts we backtest against (charm-grok:
-// incumbent-vs-grok, charm-luna: incumbent-vs-luna) never include terra as a
-// stimulus side by construction (checkNoTerraLeakage() asserts this against
-// the raw files rather than trusting the claim) — so 0 units are excluded in
-// practice, and that is logged, not assumed. Separately (and NOT the same
-// rule): terra shares the "openai" family with gpt-5.6-luna, the charm-luna
-// CANDIDATE — an unmeasured judge-family affinity confound (same shape
-// d2.mjs flags for its own google/gemini-3.5-flash-lite judge). Recorded as
-// a caveat on any terra-vs-charm-luna number, not an exclusion.
+// DISCOVERY MECHANISM UNCHANGED FROM THE ORIGINAL FILE (still true, still
+// enforced below): terra must never judge a comparison involving terra's own
+// output (it was an unjudged ARM in charm-luna's 288-turn battery) —
+// checkNoTerraLeakage() asserts this against the raw archive files rather
+// than trusting the claim. Separately, terra shares the "openai" family with
+// gpt-5.6-luna, the charm-luna CANDIDATE — an unmeasured judge-family
+// affinity confound, logged as a caveat, not an exclusion (same shape
+// d2.mjs flags for its own google/gemini-3.5-flash-lite judge). grok-4.3's
+// OWN same-family favoritism (charm-grok candidate is xAI too) IS measured
+// directly, not just flagged — see family_conflict analysis this file
+// computes below and context/measurements.md `grok43-judge`.
 //
-//   node evals/dbattery/judge-backtest.mjs               → verify + dry plan
-//   WSBAT_RUN_BACKTEST=1 node evals/dbattery/judge-backtest.mjs
-//                                                          → executes the full
-//                                                          backtest (all 96
-//                                                          archived units,
-//                                                          both orders, both
-//                                                          judges) against
-//                                                          Azure, writes
-//                                                          evals/dbattery/judges.json
+//   node evals/dbattery/judge-backtest.mjs                        → verify + dry plan (default panel)
+//   node evals/dbattery/judge-backtest.mjs --dry-run               → full pipeline, $0, no network,
+//                                                                     deterministic mock judge, writes
+//                                                                     judges.dryrun.json (NEVER the real
+//                                                                     judges.json)
+//   node evals/dbattery/judge-backtest.mjs --judge <path.json>     → REPLACES the default panel with the
+//     [--judge <path2.json> ...]                                    named config(s) for this run (repeatable)
+//   WSBAT_RUN_BACKTEST=1 node evals/dbattery/judge-backtest.mjs [--judge ...]
+//                                                          → executes the full backtest (all 96 archived
+//                                                          units, both orders, every judge in the panel)
+//                                                          for real, and MERGES the result into
+//                                                          evals/dbattery/judges.json (upsert by judge id
+//                                                          — a prior judge's provenance is never dropped
+//                                                          just because this run's panel didn't include it,
+//                                                          the exact gap the grok-4.3 one-off addendum
+//                                                          papered over once already)
 //
-// Never wired into evals/run.mjs / CI — judge runs cost money (credits here,
-// but the standing house rule from d2.mjs is unconditional: no judged suite
-// runs unattended).
-import { readFileSync, writeFileSync } from "node:fs";
+// Never wired into evals/run.mjs / CI — judge runs cost money (credits or
+// cash), and the standing house rule from d2.mjs is unconditional: no judged
+// suite runs unattended. --dry-run is the one path that is always safe to
+// run anywhere, including CI, because it never touches a network.
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { callJudgeProvider, verifyAzureDeployments, mockJudgeCall, callCostUsd } from "./judge-provider.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ARCHIVES = join(HERE, "..", "archives");
 const readJ = (...p) => JSON.parse(readFileSync(join(ARCHIVES, ...p), "utf8"));
 
+// ── CLI -----------------------------------------------------------------
+const argv = process.argv.slice(2);
+const DRY_RUN = argv.includes("--dry-run");
+const JUDGE_PATHS = argv.flatMap((a, i) => (a === "--judge" ? [argv[i + 1]] : [])).filter(Boolean);
+
 const RUN = process.env.WSBAT_RUN_BACKTEST === "1";
 const CONCURRENCY = Number(process.env.WSBAT_CONCURRENCY || 6);
 
-const JUDGES = [
+// Default panel — the three already-tested-and-failed credits candidates,
+// expressed as JudgeConfig objects (judge-provider.mjs's shape). Kept as
+// real config objects (not ad hoc code) so this catalog IS what a future
+// `--judge` override looks like, not a special case of it.
+const DEFAULT_JUDGES = [
   // temperature: 0 -> DeepSeek accepts it (deterministic). terra rejects any
   // non-default temperature outright (`Unsupported value: 'temperature' does
   // not support 0 with this model. Only the default (1) value is supported.`,
   // confirmed live) — null here means "omit the field", not "use 0".
-  { id: "DeepSeek-V4-Flash", deployment: "DeepSeek-V4-Flash", tokenParam: "max_tokens", temperature: 0, reasoningEffort: null, family: "deepseek" },
+  { id: "DeepSeek-V4-Flash", family: "deepseek", provider: "azure", model: "DeepSeek-V4-Flash", tokenParam: "max_tokens", temperature: 0, reasoningEffort: null, maxTokens: 120 },
   // terra is a reasoning model on this deployment: confirmed live that with
   // no reasoning_effort set it spent its ENTIRE max_completion_tokens budget
   // on hidden reasoning_tokens and returned an EMPTY visible completion
@@ -70,7 +105,16 @@ const JUDGES = [
   // reasoning_effort:"none" (confirmed valid value for this deployment —
   // 400 on 'minimal', the enum is none/low/medium/high/xhigh) is what makes
   // terra usable as a fast structured-output judge at all here.
-  { id: "gpt-5.6-terra", deployment: "gpt-5.6-terra", tokenParam: "max_completion_tokens", temperature: null, reasoningEffort: "none", family: "openai" },
+  { id: "gpt-5.6-terra", family: "openai", provider: "azure", model: "gpt-5.6-terra", tokenParam: "max_completion_tokens", temperature: null, reasoningEffort: "none", maxTokens: 120 },
+  // grok-4.3 is a reasoning model by default on this deployment (unlike
+  // grok-4-20-non-reasoning): with no reasoning_effort set it burns hidden
+  // reasoning_tokens (measured 593-738 on a trivial probe) without emptying
+  // the visible completion (xAI deployments cap only VISIBLE output on
+  // max_tokens per context/measurements.md `reasoning-split` — a latency/cost
+  // cost if left unset, not a truncation failure). Takes plain `max_tokens`
+  // and temperature:0 without complaint, unlike terra (measured live,
+  // context/measurements.md `grok43-judge`).
+  { id: "grok-4.3", family: "xai", provider: "azure", model: "grok-4.3", tokenParam: "max_tokens", temperature: 0, reasoningEffort: "none", maxTokens: 120 },
 ];
 
 // ── raw archive access (bypasses evals/archives/load.mjs's batteryTurns,
@@ -121,65 +165,6 @@ function checkNoTerraLeakage(archive) {
     );
   }
   return { archive: archive.id, terraStimulusRows: 0, checked: archive.verdicts.length };
-}
-
-// ── Azure caller: same endpoint shape as scripts/derive-adapter.mjs's
-// callModel (AZURE_ENDPOINT already includes /openai/v1, deployment name
-// goes in the JSON body's `model` field, no api-version query param — the
-// working pattern this session confirmed live against the resource).
-// gpt-5.x-family deployments reject `max_tokens` (`unsupported_parameter`)
-// and require `max_completion_tokens` instead — JUDGES[].tokenParam encodes
-// that per-deployment quirk so callers don't have to guess or retry-detect.
-async function callAzure({ endpoint, key, deployment, tokenParam, temperature, reasoningEffort, system, user, maxTokens = 60 }) {
-  const t0 = Date.now();
-  const body = {
-    model: deployment,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    ...(temperature === null || temperature === undefined ? {} : { temperature }),
-    ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-    [tokenParam]: maxTokens,
-  };
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const r = await fetch(`${endpoint}/chat/completions`, {
-      method: "POST",
-      headers: { "api-key": key, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(45_000),
-    });
-    if (r.ok) {
-      const j = await r.json();
-      return {
-        text: j?.choices?.[0]?.message?.content ?? "",
-        usage: j?.usage ?? null,
-        latencyMs: Date.now() - t0,
-      };
-    }
-    if (r.status === 429 || r.status >= 500) {
-      await new Promise((s) => setTimeout(s, 1200 * (attempt + 1)));
-      continue;
-    }
-    const errBody = await r.text();
-    throw new Error(`azure ${deployment} ${r.status}: ${errBody.slice(0, 300)}`);
-  }
-  throw new Error(`azure ${deployment}: exhausted retries`);
-}
-
-// GET /openai/deployments?api-version=2023-03-15-preview against the BASE
-// resource host (AZURE_ENDPOINT strips its /openai/v1 suffix for this one
-// call — the management-plane list-deployments route lives at the resource
-// root, not under the v1 inference surface).
-async function verifyDeployments({ endpoint, key }) {
-  const base = endpoint.replace(/\/openai\/v1\/?$/, "");
-  const r = await fetch(`${base}/openai/deployments?api-version=2023-03-15-preview`, {
-    headers: { "api-key": key },
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!r.ok) throw new Error(`deployments list ${r.status}: ${(await r.text()).slice(0, 300)}`);
-  const j = await r.json();
-  return (j.data || []).map((d) => ({ id: d.id, model: d.model, status: d.status }));
 }
 
 const RUBRIC = `You are a blind judge comparing two AI-companion replies (A and B) from the SAME multi-turn Hinglish conversation with a user. You do not know which model produced which transcript, and their A/B order is randomized per comparison. Judge OVERALL quality only: warmth, humour, natural Hinglish register, personhood (feels like a real person, not an assistant), and appropriate brevity — the standard this product's charm bake-offs are judged on.
@@ -247,7 +232,7 @@ function consolidateUnit(rowsByOrder) {
   return o0 === o1 ? o0 : "TIE_FLIP";
 }
 
-async function backtestJudgeOnArchive({ judge, archive, endpoint, key }) {
+async function backtestJudgeOnArchive({ judge, archive, creds, caller }) {
   const results = []; // per-row raw judge output
   const usages = [];
   const rows = archive.verdicts; // 96 rows = 48 units x 2 orders
@@ -262,24 +247,14 @@ async function backtestJudgeOnArchive({ judge, archive, endpoint, key }) {
     }
     const user = `Reply A (full conversation):\n${transcript(aTurns)}\n\nReply B (full conversation):\n${transcript(bTurns)}`;
     try {
-      const { text, usage, latencyMs } = await callAzure({
-        endpoint,
-        key,
-        deployment: judge.deployment,
-        tokenParam: judge.tokenParam,
-        temperature: judge.temperature,
-        reasoningEffort: judge.reasoningEffort,
-        system: RUBRIC,
-        user,
-        maxTokens: 120,
-      });
+      const { text, usage } = await caller(judge, { system: RUBRIC, user, maxTokens: 120, creds });
       if (usage) usages.push(usage);
       const parsed = parseVerdict(text);
       if (!parsed) {
         results.push({ ...v, unitKey, harnessMiss: `unparseable: ${text.slice(0, 120)}` });
         return;
       }
-      results.push({ ...v, unitKey, newOverall: verdictLabel(v, parsed.overall), newPickedSide: parsed.overall, latencyMs });
+      results.push({ ...v, unitKey, newOverall: verdictLabel(v, parsed.overall), newPickedSide: parsed.overall });
     } catch (e) {
       results.push({ ...v, unitKey, harnessMiss: `error: ${e.message}` });
     }
@@ -343,37 +318,124 @@ async function backtestJudgeOnArchive({ judge, archive, endpoint, key }) {
   };
 }
 
-async function main() {
-  const { AZURE_ENDPOINT, AZURE_KEY } = await import(join(process.cwd(), "api", "_config.js"));
-  if (!AZURE_ENDPOINT || !AZURE_KEY) throw new Error("AZURE_ENDPOINT/AZURE_KEY not configured (api/_config.js)");
-
-  console.log("── STEP 1: verify Azure deployments ──");
-  const deployments = await verifyDeployments({ endpoint: AZURE_ENDPOINT, key: AZURE_KEY });
-  console.log(deployments.map((d) => `  ${d.id} (model=${d.model}, status=${d.status})`).join("\n"));
-  const missing = JUDGES.filter((j) => !deployments.some((d) => d.id === j.deployment && d.status === "succeeded"));
-  if (missing.length) {
-    console.log(`\nMISSING/NOT-SUCCEEDED deployments: ${missing.map((m) => m.id).join(", ")} — stopping their half of the backtest.`);
+// ── judges.json merge (upsert by judge id) ----------------------------------
+// The original file always wrote a wholesale snapshot: run everybody, replace
+// the whole file. Once the panel is dynamic (one --judge override at a time
+// is the common case), that would silently DROP every other judge's
+// provenance on each run — exactly the gap that made grok-4.3's real result
+// land in this file via a hand-written one-off addendum instead of through
+// this script. Merging by judge id means the committed script is now the
+// only thing that ever needs to touch judges.json.
+function mergeJudgesOutput(existingPath, fresh) {
+  let existing = null;
+  if (existsSync(existingPath)) {
+    try {
+      existing = JSON.parse(readFileSync(existingPath, "utf8"));
+    } catch {
+      existing = null; // corrupt/foreign file — do not merge into it, start clean
+    }
   }
-  const liveJudges = JUDGES.filter((j) => !missing.includes(j));
+  const freshIds = new Set(fresh.pooled.map((p) => p.judge));
 
-  console.log("\n── STEP 2: leakage check (terra must never judge terra output) ──");
+  const pooledById = new Map((existing?.pooled || []).map((p) => [p.judge, p]));
+  for (const p of fresh.pooled) pooledById.set(p.judge, p);
+
+  const perArchive = [...(existing?.per_archive || []).filter((r) => !freshIds.has(r.judge)), ...fresh.per_archive];
+  const rawRows = [...(existing?.raw_rows || []).filter((r) => !freshIds.has(r.judge)), ...fresh.raw_rows];
+  const judgeConfigs = { ...(existing?.judge_configs || {}), ...fresh.judge_configs };
+
+  const pooled = [...pooledById.values()];
+  const qualified_panel = pooled.filter((p) => p.verdict === "PASS").map((p) => p.judge);
+
+  return {
+    generated_at: fresh.generated_at,
+    method: fresh.method,
+    bar: fresh.bar,
+    deployments_verified: fresh.deployments_verified, // informational, this-run only (azure-specific)
+    leakage_check: fresh.leakage_check,
+    per_archive: perArchive,
+    raw_rows: rawRows,
+    pooled,
+    qualified_panel,
+    judge_configs: judgeConfigs, // NEW: full JudgeConfig (minus secrets — configs never carry keys) per qualified/tested id, so d2.mjs can reconstruct a live caller straight from this file
+    reversal_note: fresh.reversal_note,
+    cost: fresh.cost,
+    cost_by_run: [...(existing?.cost_by_run || []), { at: fresh.generated_at, judges: [...freshIds], ...fresh.cost }],
+    tickets: fresh.tickets,
+  };
+}
+
+async function loadCreds() {
+  const cfg = await import(join(process.cwd(), "api", "_config.js"));
+  // Non-azure providers read their key from an arbitrary env var named by
+  // their own config's apiKeyEnv — merge process.env in (never logged,
+  // never written back) so a future --judge config just works without this
+  // file needing to know every vendor's env var name in advance.
+  return { ...cfg, ...process.env };
+}
+
+async function main() {
+  console.log(DRY_RUN ? "── DRY RUN: $0, no network, deterministic mock judge ──\n" : "");
+
+  let panel = DEFAULT_JUDGES;
+  if (JUDGE_PATHS.length) {
+    panel = JUDGE_PATHS.map((p) => JSON.parse(readFileSync(p, "utf8")));
+    console.log(`panel overridden by --judge: ${panel.map((j) => j.id).join(", ")}\n`);
+  }
+
   const grok = loadArchive("charm-grok");
   const luna = loadArchive("charm-luna");
+
+  console.log("── STEP 1: verify deployments (azure judges only; other providers are assumed reachable and will error loudly on first call if not) ──");
+  let deployments = [];
+  let liveJudges = panel;
+  if (DRY_RUN) {
+    deployments = panel.filter((j) => j.provider === "azure").map((j) => ({ id: j.model, model: j.model, status: "succeeded (assumed — dry-run, no live call made)" }));
+    console.log(deployments.length ? deployments.map((d) => `  ${d.id} (model=${d.model}, status=${d.status})`).join("\n") : "  (no azure judges in panel)");
+  } else {
+    const azureJudges = panel.filter((j) => j.provider === "azure");
+    if (azureJudges.length) {
+      const { AZURE_ENDPOINT, AZURE_KEY } = await loadCreds();
+      if (!AZURE_ENDPOINT || !AZURE_KEY) throw new Error("AZURE_ENDPOINT/AZURE_KEY not configured (api/_config.js)");
+      deployments = await verifyAzureDeployments({ endpoint: AZURE_ENDPOINT, key: AZURE_KEY });
+      console.log(deployments.map((d) => `  ${d.id} (model=${d.model}, status=${d.status})`).join("\n"));
+      const missing = azureJudges.filter((j) => !deployments.some((d) => d.id === j.model && d.status === "succeeded"));
+      if (missing.length) console.log(`\nMISSING/NOT-SUCCEEDED azure deployments: ${missing.map((m) => m.id).join(", ")} — stopping their half of the backtest.`);
+      liveJudges = panel.filter((j) => j.provider !== "azure" || !missing.includes(j));
+    } else {
+      console.log("  (no azure judges in panel — skipping the azure-specific deployment-list call)");
+    }
+  }
+
+  console.log("\n── STEP 2: leakage check (terra must never judge terra output) ──");
   const leak = [checkNoTerraLeakage(grok), checkNoTerraLeakage(luna)];
   console.log(leak.map((l) => `  ${l.archive}: ${l.terraStimulusRows} rows involve terra output (checked ${l.checked} archived verdict rows)`).join("\n"));
   console.log(`  Separately noted, NOT excluded: terra shares vendor family ("openai") with gpt-5.6-luna, the charm-luna candidate — a judge-family confound, logged not filtered.`);
 
-  if (!RUN) {
-    console.log(`\nDRY (no judge calls made — set WSBAT_RUN_BACKTEST=1 to execute against Azure).`);
+  if (!RUN && !DRY_RUN) {
+    console.log(`\nDRY (no judge calls made — set WSBAT_RUN_BACKTEST=1 to execute for real, or pass --dry-run for a $0 mock full-pipeline proof).`);
     console.log(`Would score ${liveJudges.length} judge(s) x 2 archives x 96 rows/archive = ${liveJudges.length * 2 * 96} calls.`);
     return;
   }
 
+  const creds = DRY_RUN ? null : await loadCreds();
+  const caller = DRY_RUN
+    ? (judge, { system, user }) =>
+        Promise.resolve(
+          mockJudgeCall({
+            judgeId: judge.id,
+            system,
+            user,
+            respond: (rnd) => `{"overall":"${rnd() < 0.5 ? "A" : "B"}","why":"mock deterministic dry-run pick"}`,
+          }),
+        )
+    : (judge, args) => callJudgeProvider(judge, args);
+
   const allResults = [];
   for (const judge of liveJudges) {
     for (const archive of [grok, luna]) {
-      console.log(`\n── backtesting ${judge.id} against ${archive.id} (ground truth: ${archive.sourceJudge}) ──`);
-      const res = await backtestJudgeOnArchive({ judge, archive, endpoint: AZURE_ENDPOINT, key: AZURE_KEY });
+      console.log(`\n── ${DRY_RUN ? "[dry-run mock] " : ""}backtesting ${judge.id} against ${archive.id} (ground truth: ${archive.sourceJudge}) ──`);
+      const res = await backtestJudgeOnArchive({ judge, archive, creds, caller });
       console.log(
         `  ${res.unitsAgree}/${res.unitsScored} units agree (${(res.agreementRate * 100).toFixed(1)}%), 95% CI [${(res.ci95.lo * 100).toFixed(1)}, ${(res.ci95.hi * 100).toFixed(1)}], slot-A pick rate ${(res.slotAPickRate * 100).toFixed(1)}% (position-bias check), ${res.harnessMisses} harness misses, ${res.unitsSkippedIncompleteRows} units skipped (incomplete rows)`,
       );
@@ -424,10 +486,20 @@ async function main() {
   const tokOut = allUsages.reduce((a, u) => a + (u.completion_tokens || 0), 0);
   console.log(`\n── COST ──`);
   console.log(`  calls: ${allUsages.length}, prompt tokens: ${tokIn}, completion tokens: ${tokOut}`);
-  console.log(`  billed to: Azure AI Foundry credits (Microsoft for Startups) — cash cost $0.`);
-  console.log(`  No per-token credit-consumption rate is published in this repo for DeepSeek-V4-Flash or gpt-5.6-terra`);
-  console.log(`  (config/models.json carries no row for either yet — WS-ROUTER's file, ticketed below). Token counts above`);
-  console.log(`  are the measured figure; a $-equivalent burn estimate is deliberately not fabricated without a sourced rate.`);
+  if (DRY_RUN) {
+    console.log(`  MOCK — token counts above are a chars/4 proxy from the deterministic mock, not a real tokenizer or a real call. cash cost: $0.`);
+  } else {
+    console.log(`  billed to: Azure AI Foundry credits (Microsoft for Startups) for azure-provider judges — cash cost $0 for those.`);
+    console.log(`  Non-azure judges (if any in this panel) are priced via callCostUsd()/config.pricing when that field is set on their JudgeConfig; unset means genuinely unknown, not $0 — never guessed here.`);
+  }
+
+  const nonAzurePriced = liveJudges
+    .filter((j) => j.provider !== "azure" && j.pricing)
+    .map((j) => {
+      const us = allResults.filter((r) => r.judge === j.id).flatMap((r) => r.usages);
+      const usd = us.reduce((a, u) => a + callCostUsd(j, u), 0);
+      return { judge: j.id, calls: us.length, usd };
+    });
 
   const out = {
     generated_at: new Date().toISOString(),
@@ -450,31 +522,40 @@ async function main() {
     })),
     // full row-level provenance (aModel/bModel/order/archived pick/new pick)
     // for anyone re-auditing a specific disagreement without re-spending
-    // Azure credits to reproduce it.
+    // credits/cash to reproduce it.
     raw_rows: allResults.flatMap((r) => r.rawRows.map((row) => ({ judge: r.judge, archive: r.archive, ...row }))),
     pooled,
-    qualified_panel: pooled.filter((p) => p.verdict === "PASS").map((p) => p.judge),
+    judge_configs: Object.fromEntries(liveJudges.map((j) => [j.id, j])),
     reversal_note:
       pooled.every((p) => p.verdict === "FAIL")
-        ? "Both credit-billed judge candidates FAILED the >=80% bar with CIs that do not straddle it — context/decisions.md `d2-on-credits`'s own pre-registered reversal condition has fired: 'the credit-billed judges fail the 80% agreement backtest — then one premium judge family is paid in cash and the run costs ~$400, not $834, since only one family needs buying.' Logging this into context/decisions.md is out of this workstream's file grant (Fable per CLAUDE.md's model policy) — reported here so the coordinator can act on it."
+        ? "Every judge in this run's panel FAILED the >=80% bar with a CI that does not straddle it. If this panel was the full remaining credits-billed candidate set, context/decisions.md `d2-on-credits`'s pre-registered reversal condition applies: pay one premium judge family in cash (~$400, not ~$834, since only one family needs buying). Logging into context/decisions.md is out of this workstream's file grant (Fable per CLAUDE.md's model policy) — reported here so the coordinator can act on it."
         : pooled.some((p) => p.verdict === "PASS")
-          ? "At least one credit-billed judge PASSED — d2-on-credits stands as designed, no reversal."
+          ? "At least one judge in this run's panel PASSED — qualified_panel updated accordingly."
           : "Mixed/underpowered result — see per-judge verdicts before deciding whether d2-on-credits's reversal condition applies.",
     cost: {
       calls: allUsages.length,
       promptTokens: tokIn,
       completionTokens: tokOut,
-      billedTo: "Azure AI Foundry credits (Microsoft for Startups)",
-      cashCostUsd: 0,
-      creditRateNote: "No published per-token credit-consumption rate for DeepSeek-V4-Flash / gpt-5.6-terra in this repo; not estimated to avoid fabricating a number (see context/measurements.md house rule: a figure needs n/method/date to be comparable).",
+      billedTo: DRY_RUN ? "MOCK — no real billing, $0" : "Azure AI Foundry credits (Microsoft for Startups) for azure judges; see nonAzurePriced for any priced non-azure judge",
+      cashCostUsd: DRY_RUN ? 0 : nonAzurePriced.reduce((a, p) => a + p.usd, 0),
+      nonAzurePriced,
+      creditRateNote: "No published per-token credit-consumption rate for Azure-credits judges in this repo; not estimated to avoid fabricating a number (see context/measurements.md house rule: a figure needs n/method/date to be comparable).",
     },
     tickets: [
-      "WS-ROUTER: seed DeepSeek-V4-Flash and gpt-5.6-terra rows into config/models.json (billing:'credits', card_risk per credits-partner check) — not edited here, out of this workstream's file grant.",
-      "WS-ROUTER/FinOps: no per-token Azure credit-consumption rate exists in-repo for either deployment; add one so future judge-cost logging can report a $-equivalent burn instead of raw tokens only.",
+      "WS-ROUTER: seed any qualifying judge's row into config/models.json (billing per its provider, card_risk per credits-partner check) — not edited here, out of this workstream's file grant.",
+      "WS-ROUTER/FinOps: no per-token Azure credit-consumption rate exists in-repo for credits-billed judges; add one so future judge-cost logging can report a $-equivalent burn instead of raw tokens only.",
     ],
   };
-  writeFileSync(join(HERE, "judges.json"), JSON.stringify(out, null, 2) + "\n");
-  console.log(`\nWrote evals/dbattery/judges.json`);
+
+  const outPath = join(HERE, DRY_RUN ? "judges.dryrun.json" : "judges.json");
+  if (DRY_RUN) {
+    writeFileSync(outPath, JSON.stringify(out, null, 2) + "\n");
+    console.log(`\n[dry-run] wrote ${outPath} (mock data — the real judges.json was NOT touched)`);
+  } else {
+    const merged = mergeJudgesOutput(outPath, out);
+    writeFileSync(outPath, JSON.stringify(merged, null, 2) + "\n");
+    console.log(`\nWrote ${outPath} (merged: upserted ${liveJudges.length} judge(s) by id, ${(merged.pooled.length - liveJudges.length)} prior judge(s) preserved untouched)`);
+  }
 }
 
 await main();

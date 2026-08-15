@@ -1,0 +1,13 @@
+{
+  "id": "anthropic/claude-opus-5",
+  "family": "anthropic",
+  "provider": "anthropic",
+  "model": "claude-opus-5",
+  "baseURL": "https://api.anthropic.com",
+  "apiKeyEnv": "MEERA_JUDGE_ANTHROPIC_API_KEY",
+  "maxTokens": 120,
+  "pricing": null,
+  "_pricing_note": "INTENTIONALLY null, not a guess. context/measurements.md's own house rule ('a figure needs n/method/date to be comparable') applies to $/token the same as any other number here. d2.mjs's callCostUsd() returns NaN when pricing is null and --max-spend FAILS CLOSED on NaN (aborts rather than assuming $0) -- fill this in from Anthropic's live pricing page immediately before a real run, not from memory.",
+  "_notes": "Native Anthropic Messages API, not OpenRouter -- the house precedent for an Anthropic judge so far (d2.mjs's current anthropic/claude-opus-4.8 row, judge-backtest.mjs's sourceJudge for both archives) has always gone through OpenRouter. This config exists as the 'via API' alternative the task brief named explicitly. No reasoning_effort / temperature quirks are known for this deployment because it has never been called -- CONFIRM against a single live probe call before trusting maxTokens=120 is enough (judge-backtest.mjs's RUBRIC asks for a ~12-word 'why', d2.mjs's asks for a one-sentence 'notes' -- 120 was sized for the shorter judge-backtest.mjs rubric).",
+  "_status": "NEVER CALLED. Config shape only -- see judge-candidates/README.md."
+}

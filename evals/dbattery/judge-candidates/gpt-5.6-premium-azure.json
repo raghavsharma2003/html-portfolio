@@ -1,0 +1,14 @@
+{
+  "id": "azure/gpt-5.6-premium",
+  "family": "openai",
+  "provider": "azure",
+  "model": "REPLACE_WITH_REAL_DEPLOYMENT_NAME",
+  "tokenParam": "max_completion_tokens",
+  "temperature": 1,
+  "reasoningEffort": "none",
+  "maxTokens": 120,
+  "pricing": null,
+  "_pricing_note": "INTENTIONALLY null. Azure OpenAI deployments here so far have all been billed against Microsoft-for-Startups CREDITS (cash cost $0, no published per-token credit-consumption rate in this repo -- see judges.json's creditRateNote). If THIS deployment is instead cash-billed (owner's premium-judge plan), pull the real $/token from the Azure pricing page before firing and fill this in; do not assume credits just because prior Azure judges here were credits.",
+  "_notes": "Deliberately NOT gpt-5.6-terra's deployment id -- terra already FAILED qualification decisively (54.2% pooled, context/measurements.md `judge-backtest`) and is excluded here on purpose so this file cannot be mistaken for a re-test of a known failure. `tokenParam`/`temperature`/`reasoningEffort` are copied from terra's CONFIRMED-LIVE deployment quirks (gpt-5.x-family Azure deployments reject max_tokens and non-default temperature; reasoning models need reasoning_effort:'none' or they silently burn the whole budget on hidden reasoning and return an EMPTY completion) as a starting guess for a same-family deployment -- RE-VERIFY live before a real run, a different gpt-5.6 deployment can have different accepted params.",
+  "_status": "NEVER CALLED. model id is a placeholder -- fill in the real Azure deployment name before use. See judge-candidates/README.md."
+}

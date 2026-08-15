@@ -1,0 +1,13 @@
+{
+  "id": "google/gemini-3.6-pro",
+  "family": "google",
+  "provider": "openrouter",
+  "model": "google/gemini-3.6-pro",
+  "apiKeyEnv": "OPENROUTER_KEY",
+  "temperature": 0,
+  "maxTokens": 300,
+  "pricing": null,
+  "_pricing_note": "INTENTIONALLY null. Pull the live per-token prompt/completion rate from openrouter.ai's model page immediately before a real run (the pattern d2.mjs's printPricedProposal() already follows for its two current OpenRouter judges: 'pricing pulled live from OpenRouter at authoring time') -- do not carry this session's memory of some other model's price onto this one.",
+  "_notes": "apiKeyEnv is OPENROUTER_KEY on purpose, matching judge-provider.mjs's own default for the openrouter provider and the existing api/_config.js field d2.mjs/common.mjs already read -- no new key needed for this candidate. CAUTION (structural, not this-model-specific): this repo's incumbent chat model IS google/gemini-3.6-flash (config/models.json) -- a gemini-family judge scoring a comparison where a gemini-family arm is a contestant carries the same same-family-affinity confound d2.mjs already flags for its own google/gemini-3.5-flash-lite judge, and grok-4.3's backtest measured EXACTLY this failure mode for a same-vendor judge (context/measurements.md `grok43-judge`: ~16x same-vendor preference on the conflicted archive). Chat-lane D2 comparisons that do not include a gemini-family arm sidestep this; comparisons that do should treat this judge's verdict as suspect until backtested per-archive, not just pooled.",
+  "_status": "NEVER CALLED. Config shape only -- see judge-candidates/README.md."
+}
