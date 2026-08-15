@@ -357,6 +357,12 @@
       "kind": "decision",
       "title": "WhatsApp business-created groups first; Telegram validated fallback",
       "at": "2026-08-13"
+    },
+    {
+      "id": "recall-v2",
+      "kind": "measurement",
+      "title": "Semantic recall lands: DB p50 40ms, embed call is the bottleneck",
+      "at": "2026-08-13"
     }
   ],
   "edges": [
@@ -694,6 +700,16 @@
       "src": "disclosure-leak-rates",
       "rel": "constrains",
       "dst": "multiparty-direction"
+    },
+    {
+      "src": "recall-v2",
+      "rel": "supersedes",
+      "dst": "semantic-recall"
+    },
+    {
+      "src": "recall-v2",
+      "rel": "part_of",
+      "dst": "relational-state"
     }
   ]
 }

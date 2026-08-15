@@ -379,3 +379,26 @@ screen-share gate's design; and **no shipped product** does judged
 cross-member disclosure over real shared memory — Meta and OpenAI both
 deliberately wall memory off from group spaces. The white space is real and
 the reason it is empty is that it is hard.
+
+## `recall-v2` — semantic recall lands; the bottleneck is the embed call, not the DB (2026-08-13)
+
+M3's gates, verified independently on live production data:
+
+- **8/8 semantic-recall pairs** where query and stored fact share zero
+  4+-letter tokens (asserted mechanically) and the keyword path is
+  structurally unable to fire — the failure class `semantic-recall` logged
+  weeks ago is closed.
+- **Person-filtered halfvec exact scan: p50 40 ms** (n=15) — the DB side has
+  6× headroom under the 250 ms budget. **The embed network call is the real
+  cost: p50 ~305 ms alone**, so the full semantic round trip runs 400–534 ms
+  and is therefore run CONCURRENTLY with the keyword path rather than
+  serially — no added latency against shipped behavior. §3.3's "one embed
+  call ≤250 ms" did not survive contact with the real API; whoever integrates
+  T5 inherits this number.
+- **Citation rejection observed live**: an uncited vy_fact insert refused by
+  the DB (23514), handled without a crash path.
+- **Costs, measured not estimated**: in-turn provisional tier adds no model
+  call (~$0.000001/turn embed); nightly finalize ≈ $0.0007/person/night
+  worst-case cash (≈$21/mo at 1,000 DAU, independently confirming §4.3's
+  arithmetic); backfill enrichment ≈ $0.00027/episode, 4.6× under the spec's
+  estimate; re-run idempotency costs $0 in 489 ms.
