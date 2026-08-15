@@ -765,3 +765,19 @@ as written is miscalibrated and D1 must compare RATES between same-week
 arms, not gate on any-hit. The same-week-bands law caught its own
 reference going stale — exactly what it exists for. Recalibration decision
 deferred until the incumbent arm reaches band scale.
+
+---
+
+## `deepseek-pro-judge` — the full-size DeepSeek fails judging the same way the small one did (2026-08-15)
+
+DeepSeek-V4-Pro vs archived blind verdicts: pooled 29/94 = 30.9%, 95% CI
+[22.4, 40.8] — FAIL against the 80% bar with the CI entirely below it, and
+the same slot-A position bias profile as Flash (64.6%/67.0% vs Flash's
+80%). Scale did not fix the pathology; the DeepSeek family is out as a
+judge regardless of size. Method: 190 calls, both orders, agreement-only,
+Azure credits, $0 cash, transport guard active (0 transport misses in the
+scored arms). Also this run: Mistral-Large-3 INVALID-RUN (transport) — its
+API rejects max_completion_tokens as extra_forbidden; verified live, config
+fixed to plain max_tokens, re-run fired. Cohere quirk verified while at
+it: replies arrive inside <|START_TEXT|> markers the verdict regex parses
+through.

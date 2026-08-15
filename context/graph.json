@@ -513,6 +513,12 @@
    "kind": "measurement",
    "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) \u2014 axis recalibration flagged",
    "at": "2026-08-15"
+  },
+  {
+   "id": "deepseek-pro-judge",
+   "kind": "measurement",
+   "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash \u2014 family out at any size",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -1035,6 +1041,16 @@
    "src": "free-pool-capacity",
    "rel": "part_of",
    "dst": "swap-prereg-1"
+  },
+  {
+   "src": "deepseek-pro-judge",
+   "rel": "part_of",
+   "dst": "judge-grant-only"
+  },
+  {
+   "src": "deepseek-pro-judge",
+   "rel": "measured_by",
+   "dst": "judge-backtest"
   }
  ]
 }

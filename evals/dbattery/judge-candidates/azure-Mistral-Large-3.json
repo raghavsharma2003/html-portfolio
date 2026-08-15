@@ -5,10 +5,11 @@
   "model": "Mistral-Large-3",
   "deployment": "Mistral-Large-3",
   "maxTokens": 120,
-  "tokenParam": "max_completion_tokens",
+  "tokenParam": "max_tokens",
   "temperature": 1,
   "pricing": null,
   "_pricing_note": "Azure credits (sold-directly-by-Azure class, same billing evidenced for grok/DeepSeek-Flash on this resource) \u2014 cash $0; pricing null is fine for the backtest, which is not --max-spend gated. Confirm the deployment actually bills to credits after the first backtest via Cost Management, per the credits-partner house rule.",
   "_notes": "Deployment name assumes the Foundry default (= model id) \u2014 verifyAzureDeployments() checks the real name before any judged call and fails loudly if the owner named it differently. tokenParam/temperature start from the terra precedent for this resource; the first probe call confirms quirks. Plan: docs/SWAP-TEST-PREREG.md Amendment 2 (judge-grant-only).",
-  "_status": "DEPLOYED 2026-08-15 (owner click), backtest fired same day"
+  "_status": "DEPLOYED 2026-08-15 (owner click), backtest fired same day",
+  "_quirks_note": "VERIFIED live 2026-08-15: max_completion_tokens is extra_forbidden (422) \u2014 plain max_tokens + temperature accepted (200)."
 }
