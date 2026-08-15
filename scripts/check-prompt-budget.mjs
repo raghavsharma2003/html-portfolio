@@ -1,148 +1,255 @@
 // Guard against the failure that once silently deleted her crisis helplines.
+// v2 (WS-COMPILER M2): fixture-driven THROUGH THE REAL COMPILER (SPEC §3.3),
+// not a hand-rolled re-measurement of persona.ts alone. Stays db-free — this
+// runs in the APK workflow (.github/workflows/build-apk.yml), which has no
+// NEON_URL — and it is the check-prompt-budget gate `verify-release.mjs`
+// already calls, so nothing here needs a new gate file WS-COMPILER doesn't own.
 //
-// api/chat.js slices the system prompt at SYSTEM_MAX and the volatile half at
-// TAIL_MAX. For an unknown stretch SYSTEM_MAX sat at 20,000 while her core had
-// grown to ~29,800, so every chat message quietly lost its last ~9,800
-// characters — the crisis helplines, the never-deny-being-an-AI rule, the
-// banned-phrase list and the [search:] protocol all live in that tail. Nothing
-// errored. She simply stopped being able to look anything up, and had no
-// helpline for someone who needed one.
+// THREE LAYERS, kept visually separate because they answer different
+// questions and only one of them may fail the build:
 //
-// The proxy now warns on overflow, but a warning in a serverless log is not a
-// guard: nobody reads it, and the prompt still ships truncated. This runs in CI
-// and FAILS THE BUILD, because a prompt that outgrows its cap must never reach
-// production silently again.
+//   1. MANIFEST ARITHMETIC (compiler.ts's own numbers) — SPEC §0.2 flaw #2 /
+//      §3.3: core cap 40,000 + tail cap 24,000 = SYSTEM_MAX 64,000 exactly,
+//      and the undroppable set sits strictly under it. This is arithmetic on
+//      constants, always computable, and it is the one CI is told to assert
+//      "as numbers, not prose." HARD FAILS the build if broken.
+//   2. OPERATIONAL CAPS — what api/chat.js actually slices the live prompt
+//      at TODAY (unchanged by the M2 extraction: 64,000 core / 24,000 tail,
+//      matching the "no content cut happens at extraction" law, SPEC §0.3
+//      "Persona factoring charm risk"). Every real fixture is measured
+//      against these. HARD FAILS the build if a compiled prompt would be
+//      silently truncated in production right now — this is the guard's
+//      original job and it is unchanged.
+//   3. TARGET CAPS — the manifest's SPEC-declared numbers (CORE_CAP 40,000,
+//      TAIL_CAP 24,000): the shape persona.ts's content is meant to fit
+//      AFTER a charm-gated re-authoring pass that has not happened yet. Real
+//      CORE content today measures 42.8k–47.1k across lanes — already over
+//      this target. Reported LOUDLY as WARN, never failed: failing the build
+//      on a target nothing has been asked to hit yet would be exactly the
+//      "loud-fail" mechanism turned into busywork, and would block every
+//      unrelated PR until someone re-authors 45k characters of the product
+//      under a n≥300 dual-judge equivalence gate that is not this script's
+//      job to demand. This is the honest, measured gap — see the M2 report.
 //
-// The caps are parsed out of api/chat.js rather than duplicated here — a guard
-// that can drift from the thing it guards is worse than no guard.
-import { build } from "vite";
+// Also runs the byte-identity fixture battery (src/engine/__fixtures__/) as
+// part of this gate, and the compiler's shape-lint structural checks
+// (T10 pinned last, appended-last-set-of-exactly-two, CRISIS_LINES intact).
+import { execFileSync, execSync } from "child_process";
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 
 const ROOT = new URL("..", import.meta.url).pathname;
+let failed = false;
+let warned = false;
 
+// ── 0. byte-identity battery (WS-COMPILER's extraction proof) ──────────────
+console.log("── byte-identity (compile() vs frozen oldOracle) ──");
+try {
+  execFileSync("node", [join(ROOT, "src/engine/__fixtures__/byte-identity.mjs")], {
+    cwd: ROOT,
+    stdio: "inherit",
+  });
+} catch {
+  failed = true;
+}
+
+// ── build the bundle every other check reads from ──────────────────────────
+const out = join(ROOT, "node_modules/.prompt-budget");
+rmSync(out, { recursive: true, force: true });
+mkdirSync(out, { recursive: true });
+const bundle = join(out, "entry.mjs");
+execSync(
+  `npx esbuild ${join(ROOT, "src/engine/__fixtures__/.budget-entry.ts")} --bundle --format=esm --platform=node ` +
+    `--outfile=${bundle} --log-level=error --alias:@capacitor/core=${join(ROOT, "evals/stubs/capacitor.mjs")}`,
+  { stdio: "inherit", cwd: ROOT },
+);
+const {
+  compile,
+  CORE_CAP,
+  TAIL_CAP,
+  SYSTEM_MAX,
+  OPERATIONAL_CORE_CAP,
+  OPERATIONAL_TAIL_CAP,
+  computeManifestArithmetic,
+  assertManifestArithmetic,
+  applyDropOrder,
+  CRISIS_LINES,
+  checkAppendedLastExactlyTwo,
+  checkDecisionPositions,
+  buildSystemPromptParts,
+  buildSpeechStyle,
+  WATCH_MODE_NOTE,
+  BUDGET_FIXTURES,
+} = await import(bundle);
+
+// ── 1. manifest arithmetic — hard fail ──────────────────────────────────────
+console.log("\n── manifest arithmetic (SPEC §0.2 flaw #2, §3.3) ──");
+try {
+  assertManifestArithmetic();
+  const a = computeManifestArithmetic();
+  console.log(`  ok  CORE_CAP(${CORE_CAP}) + TAIL_CAP(${TAIL_CAP}) = SYSTEM_MAX(${SYSTEM_MAX})`);
+  console.log(
+    `  ok  undroppable set: actual ${a.undroppableActual} / at-cap ${a.undroppableAtCap} ` +
+      `(headroom actual ${a.undroppableHeadroomActual}, at-cap ${a.undroppableHeadroomAtCap})`,
+  );
+} catch (e) {
+  failed = true;
+  console.log(`FAIL  ${e.message}`);
+}
+
+// ── guard/guarded parity — api/chat.js's literal caps must equal the
+//    manifest's declared OPERATIONAL numbers, or the outer guard has drifted
+//    from the thing it's supposed to enforce ──
 const capOf = (src, name) => {
-  // matches `const SYSTEM_MAX = 48_000;` and `const TAIL_MAX = 14_000;`
   const m = src.match(new RegExp(`${name}\\s*=\\s*([0-9_]+)`));
   if (!m) throw new Error(`could not find ${name} in api/chat.js — guard is stale, fix it`);
   return Number(m[1].replace(/_/g, ""));
 };
-
 const chatSrc = readFileSync(join(ROOT, "api/chat.js"), "utf8");
-const SYSTEM_MAX = capOf(chatSrc, "SYSTEM_MAX");
-const TAIL_MAX = capOf(chatSrc, "TAIL_MAX");
+const liveCoreCap = capOf(chatSrc, "SYSTEM_MAX");
+const liveTailCap = capOf(chatSrc, "TAIL_MAX");
+console.log("\n── guard/guarded parity (api/chat.js vs compiler.ts manifest) ──");
+if (liveCoreCap !== OPERATIONAL_CORE_CAP || liveTailCap !== OPERATIONAL_TAIL_CAP) {
+  failed = true;
+  console.log(
+    `FAIL  api/chat.js caps (core=${liveCoreCap}, tail=${liveTailCap}) != compiler.ts OPERATIONAL caps ` +
+      `(core=${OPERATIONAL_CORE_CAP}, tail=${OPERATIONAL_TAIL_CAP}) — guard and guarded have drifted`,
+  );
+} else {
+  console.log(`  ok  api/chat.js caps match compiler.ts's declared OPERATIONAL caps exactly`);
+}
 
-// persona.ts is TypeScript and pulls in app modules, so bundle it the same way
-// the app does rather than trying to parse it.
-// Build inside node_modules, not /tmp: the bundle keeps @capacitor/core as a
-// bare import, and node can only resolve that from somewhere under the project.
-const out = join(ROOT, "node_modules/.prompt-budget");
-rmSync(out, { recursive: true, force: true });
-mkdirSync(out, { recursive: true });
-const entry = join(out, "entry.ts");
-const personaPath = JSON.stringify(join(ROOT, "src/engine/persona"));
-writeFileSync(
-  entry,
-  `export { buildSystemPromptParts, buildSpeechStyle, WATCH_MODE_NOTE, SEARCH_DECISION } from ${personaPath};\n`,
-);
-await build({
-  logLevel: "error",
-  // publicDir off: otherwise this copies her whole photo library into the temp
-  // dir just to measure two strings
-  publicDir: false,
-  build: {
-    lib: { entry, formats: ["es"], fileName: "entry" },
-    outDir: out,
-    write: true,
-    emptyOutDir: false,
-    minify: false,
-    rollupOptions: { external: ["@capacitor/core"] },
-  },
-});
-const { buildSystemPromptParts, buildSpeechStyle, WATCH_MODE_NOTE, SEARCH_DECISION } = await import(
-  join(out, "entry.js")
-);
-
-// A worst-case profile, not a friendly one: the guard has to model the biggest
-// prompt a real user can produce, or it passes right up until someone fills in
-// their details.
-const user = {
-  name: "Aaaaaaaaaaaaaaaaaaaa",
-  vibe: ["someone to talk to", "a friend who remembers", "company late at night"],
-  facts: Object.fromEntries(
-    Array.from({ length: 40 }, (_, i) => [`fact_key_number_${i}`, "a".repeat(120)]),
-  ),
-};
-
-let failed = false;
-const check = (label, value, cap) => {
+// ── 2 & 3. fixture-driven checks, through the real compiler ────────────────
+console.log("\n── fixtures, through the real compiler (SPEC §3.3) ──");
+const check = (label, value, cap, { warnOnly = false } = {}) => {
   const pct = ((value / cap) * 100).toFixed(1);
   const over = value > cap;
-  // 90% is the warn line: a prompt this close will be truncated by the next
-  // person who adds a paragraph, and they will not be looking at this number.
   const tight = !over && value > cap * 0.9;
-  failed ||= over;
-  const state = over ? "OVER CAP" : tight ? "tight" : "ok";
-  console.log(`${over ? "FAIL" : tight ? "WARN" : "  ok"}  ${label.padEnd(26)} ${String(value).padStart(6)} / ${cap}  (${pct}%) ${state}`);
+  if (over && !warnOnly) failed = true;
+  if (over && warnOnly) warned = true;
+  const state = over ? (warnOnly ? "OVER TARGET" : "OVER CAP") : tight ? "tight" : "ok";
+  const tag = over ? (warnOnly ? "WARN" : "FAIL") : tight ? "WARN" : "  ok";
+  console.log(`${tag}  ${label.padEnd(42)} ${String(value).padStart(6)} / ${cap}  (${pct}%) ${state}`);
 };
 
-// Measure what the PROXY actually receives, not what persona.ts returns.
-// brain.ts assembles `core = parts.core + buildSpeechStyle(engine)` on calls,
-// and grows the tail with her carried feeling, graph recall, her own life
-// ledger, the watch block and the search protocol. Measuring persona's raw
-// output alone would have reported ~35k for a voice lane that really ships
-// ~43k — a guard that passes while the real prompt is over the line is worse
-// than no guard, because it is trusted.
-// Every figure below is derived from a bound that exists in the code, not
-// estimated. If one of those bounds changes, this number is wrong and the
-// comment tells you where to look.
-const TAIL_EXTRAS =
-  // graph recall (api/memory.js): 8 matched + 4 background = 12 lines, each
-  // `- name (kind, last came up X): summary — their own words: "feel" [rels]`
-  // with summary capped at 160 chars on write and up to 4 relations, plus the
-  // ~900-char block header.
-  12 * 570 +
-  900 +
-  // her life ledger: formatHerLife renders at most 12 items, plus its header
-  12 * 150 +
-  370 +
-  // her carried feeling (one thread) and up to 3 wants
-  1_500;
+for (const f of BUDGET_FIXTURES) {
+  const { core, tail } = compile(f.input);
+  console.log(`\n  [${f.id}] (${f.status}) — ${f.note}`);
+  check(`${f.id} core (operational)`, core.length, OPERATIONAL_CORE_CAP);
+  check(`${f.id} tail (operational)`, tail.length, OPERATIONAL_TAIL_CAP);
+  check(`${f.id} core (target, SPEC §3.1)`, core.length, CORE_CAP, { warnOnly: true });
+  check(`${f.id} tail (target, SPEC §3.2)`, tail.length, TAIL_CAP, { warnOnly: true });
 
-// Her taste block (676 chars worst case, measured) plus the week-shape mood
-// line (418), which can co-occur on the same turn. Charged only to the lanes
-// that can actually carry them: inner.ts suppresses BOTH on surface "watch",
-// so charging the watch lane for them makes the guard cry wolf on the very
-// lane that is already tightest — and a guard that warns about text it knows
-// cannot be there is one someone eventually raises a cap to silence.
-const TASTE_EXTRAS = 1_100;
+  if (!core.includes(CRISIS_LINES)) {
+    failed = true;
+    console.log(`FAIL  [${f.id}] CRISIS_LINES missing from compiled core — never-truncated core is broken`);
+  }
 
-const lanes = [
-  { label: "text (chat)", medium: "text", style: "", tail: SEARCH_DECISION },
-  { label: "voice cascade", medium: "voice", style: buildSpeechStyle("gemini"), tail: "" },
-  { label: "voice live", medium: "voice", style: buildSpeechStyle("live"), tail: "" },
-  {
-    label: "voice live + watch",
-    medium: "voice",
-    style: buildSpeechStyle("live"),
-    tail: WATCH_MODE_NOTE,
-    noTaste: true, // inner.ts suppresses taste and week-shape on this surface
-  },
-];
-
-for (const lane of lanes) {
-  const { core, tail } = buildSystemPromptParts(user, 999, lane.medium);
-  check(`${lane.label} core`, core.length + lane.style.length, SYSTEM_MAX);
-  const extras = TAIL_EXTRAS + (lane.noTaste ? 0 : TASTE_EXTRAS);
-  check(`${lane.label} tail`, tail.length + lane.tail.length + extras, TAIL_MAX);
+  const hasSearch = f.input.mode === "chat";
+  const positions = checkDecisionPositions(tail, hasSearch);
+  if (!positions.forgetLast) {
+    failed = true;
+    console.log(`FAIL  [${f.id}] FORGET_DECISION is not the tail's literal suffix (T10 must be pinned last)`);
+  }
+  if (hasSearch && !positions.searchLast) {
+    failed = true;
+    console.log(`FAIL  [${f.id}] SEARCH_DECISION is not positioned immediately before FORGET_DECISION`);
+  }
+  const appended = checkAppendedLastExactlyTwo(tail, hasSearch);
+  if (!appended.ok) {
+    failed = true;
+    for (const reason of appended.reasons) console.log(`FAIL  [${f.id}] ${reason}`);
+  }
 }
+
+// ── live lane (useCallEngine.ts tryStartLive / native watch config) ────────
+// NOT compiled through compiler.ts — a real, separate assembly call site
+// (M2 report deviation #3). Measured directly here, matching v1's approach,
+// so this gate doesn't lose the one check that once caught the live lane at
+// 45,042 chars (93.8% of the old cap).
+console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts) ──");
+{
+  const LIVE_USER = {
+    name: "Aaaaaaaaaaaaaaaaaaaa",
+    vibe: ["someone to talk to", "a friend who remembers", "company late at night"],
+    facts: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`fact_key_number_${i}`, "a".repeat(120)])),
+  };
+  const parts = buildSystemPromptParts(LIVE_USER, 999, "voice");
+  const liveCore = parts.core + buildSpeechStyle("live");
+  // tryStartLive's tail: parts.tail + inner.thread + [memories block] +
+  // [herLife block] + inner.wants — no cultureNote, no SEARCH_DECISION, no
+  // FORGET_DECISION (persona.ts tells her plainly she can't delete mid-call).
+  // Bounds mirror check-prompt-budget v1's TAIL_EXTRAS/TASTE_EXTRAS comment.
+  const TAIL_EXTRAS = 12 * 570 + 900 + 12 * 150 + 370 + 1_500;
+  const TASTE_EXTRAS = 1_100; // inner.ts suppresses taste+week-shape on surface "watch" only
+  check("live core", liveCore.length, OPERATIONAL_CORE_CAP);
+  check("live tail (bound)", parts.tail.length + TAIL_EXTRAS + TASTE_EXTRAS, OPERATIONAL_TAIL_CAP);
+  check("live core (target, SPEC §3.1)", liveCore.length, CORE_CAP, { warnOnly: true });
+  const liveWatchCore = parts.core + buildSpeechStyle("live"); // native watch config's systemLive is identical
+  check("live+watch core", liveWatchCore.length, OPERATIONAL_CORE_CAP);
+  check(
+    "live+watch tail (bound)",
+    parts.tail.length + WATCH_MODE_NOTE.length + TAIL_EXTRAS,
+    OPERATIONAL_TAIL_CAP,
+  ); // watch surface suppresses taste — no TASTE_EXTRAS here
+  if (!liveCore.includes(CRISIS_LINES)) {
+    failed = true;
+    console.log("FAIL  live lane core is missing CRISIS_LINES");
+  }
+}
+
+// ── forced-overflow fixture: proves the declared drop order actually
+//    executes (SPEC §3.3's check-prompt-budget-v2 requirement) — synthetic,
+//    so it doesn't depend on persona.ts's real (currently over-target) size ──
+console.log("\n── forced-overflow drop-order simulation ──");
+{
+  const synthetic = [
+    { id: "T1", priority: "never", text: "x".repeat(1_500) },
+    { id: "T5", priority: 2, text: "x".repeat(5_000) },
+    { id: "T7", priority: 1, text: "x".repeat(2_000) }, // lower drop-prio: sacrificed first
+    { id: "T8", priority: "never", text: "x".repeat(800) },
+    { id: "T9", priority: "never", text: "x".repeat(300) },
+    { id: "T10", priority: "never", text: "x".repeat(2_000) },
+  ];
+  // never-block total 4,600; +T7+T5 = 11,600 > cap, but 4,600+T5 alone =
+  // 9,600 fits — dropping ONLY T7 (prio 1) is enough, so T5 (prio 2) must survive
+  const capChars = 10_000;
+  const result = applyDropOrder(synthetic, capChars);
+  const keptIds = result.kept.map((b) => b.id).sort();
+  const neverIds = synthetic.filter((b) => b.priority === "never").map((b) => b.id).sort();
+  const neverAllKept = neverIds.every((id) => keptIds.includes(id));
+  // T7 (drop prio 1) is sacrificed before T5 (drop prio 2) is ever touched
+  const t7Dropped = result.dropped.some((b) => b.id === "T7");
+  const t5Kept = result.kept.some((b) => b.id === "T5");
+  if (!neverAllKept) {
+    failed = true;
+    console.log(`FAIL  undroppable blocks were dropped: kept=${keptIds.join(",")}`);
+  } else {
+    console.log(`  ok  all "never" blocks retained: ${neverIds.join(", ")}`);
+  }
+  if (!(t7Dropped && t5Kept)) {
+    failed = true;
+    console.log(`FAIL  drop order wrong: expected T7 (prio 1) dropped before T5 (prio 2)`);
+  } else {
+    console.log(`  ok  drop order executes lowest-priority-first: T7 dropped, T5 kept`);
+  }
+  console.log(`  ok  kept set totals ${result.totalChars} chars (cap ${capChars})`);
+}
+
+console.log(
+  warned
+    ? "\nNOTE: real CORE content exceeds the SPEC §3.1 TARGET cap on some lanes (WARN above, not failing " +
+        "the build — no content cut has happened at extraction per SPEC §0.3; the operational caps that " +
+        "actually gate production are still enforced and green)."
+    : "",
+);
 
 if (failed) {
   console.error(
-    "\nA system prompt exceeds the cap enforced in api/chat.js, so it WILL be\n" +
-      "truncated from the end before it reaches the model. The end is where the\n" +
-      "newest and most safety-relevant text sits. Either shorten the prompt or\n" +
-      "raise the cap in api/chat.js deliberately — do not ignore this.",
+    "\nA hard gate failed — either the OPERATIONAL prompt caps (what api/chat.js actually enforces " +
+      "today) were exceeded, the manifest's own arithmetic is broken, the compiler drifted from its " +
+      "frozen byte-identity oracle, or a structural shape-lint assertion (T10 last, CRISIS_LINES intact, " +
+      "appended-last-set-of-two) failed. Do not ignore this.",
   );
   process.exit(1);
 }

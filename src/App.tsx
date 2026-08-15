@@ -5,8 +5,10 @@ import Onboarding from "./components/Onboarding";
 import Chat from "./components/Chat";
 import CallVoice from "./components/CallVoice";
 import AuthSheet from "./components/AuthSheet";
+import ClockCard from "./components/ClockCard";
 import { unlockAudio } from "./voice/speech";
 import { diagStart } from "./engine/diag";
+import { startSessionClock } from "./engine/clock";
 import { tel, telIdentify, telRoute } from "./engine/telemetry";
 import { prewarmLiveToken } from "./voice/liveCall";
 import { primeCulture } from "./engine/culture";
@@ -100,6 +102,15 @@ export default function App() {
   useEffect(() => {
     telIdentify(state.deviceId, state.auth?.userId ?? null);
   }, [state.deviceId, state.auth?.userId]);
+
+  // Session clock (SPEC §9.3): starts once she is actually being used, not
+  // during onboarding. startSessionClock is idempotent — the timer itself
+  // starts once per app lifetime — but every call still updates which
+  // device it reports under, so a sign-out's fresh device id is picked up
+  // without restarting the continuous-use stretch.
+  useEffect(() => {
+    if (state.onboarded) startSessionClock(state.deviceId);
+  }, [state.onboarded, state.deviceId]);
 
   // ── silent auto-update ──
   // A long-lived tab keeps running old code after a deploy (that's how bug
@@ -278,6 +289,7 @@ export default function App() {
         />
       ) : (
         <>
+          <ClockCard />
           <Chat
             state={state}
             setState={setState}

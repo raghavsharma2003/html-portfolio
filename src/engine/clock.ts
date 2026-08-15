@@ -142,6 +142,10 @@ let current: ClockFire | null = null;
 let cardShownAtMs = 0; // continuous_ms when the last card fired (for T9)
 let subs: ((f: ClockFire | null) => void)[] = [];
 let interval: ReturnType<typeof setInterval> | null = null;
+// wall-clock timestamp the page went hidden, 0 when visible. This is its own
+// tracked span rather than trusting clockTick's dt on the next visible tick —
+// see the visibilitychange listener below for why.
+let hiddenAt = 0;
 
 const rand = () => Math.random().toString(36).slice(2, 8);
 const newSid = () => `clk-${Date.now().toString(36)}-${rand()}`;
@@ -309,9 +313,35 @@ export function startSessionClock(deviceId: string) {
   sinceBeat = Infinity;
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", () => {
-      // returning from hidden: the hidden span is a gap. clockTick's own
-      // dt check handles the reset; this just stops the span accumulating.
-      if (document.visibilityState === "visible") lastTickAt = nowFn();
+      // FIX (found reviewing the partial build): the old version of this
+      // handler set `lastTickAt = nowFn()` unconditionally on return-to-
+      // visible and left gap detection to clockTick's own dt check. That is
+      // exactly backwards on the platform this matters most on: when a
+      // mobile WebView is backgrounded, the OS typically freezes JS
+      // execution entirely — no interval ticks fire during the gap — and on
+      // resume this visibilitychange callback runs BEFORE the interval's
+      // next tick. Stamping lastTickAt here first means clockTick's dt on
+      // its next tick is small (~tickMs), so the real elapsed gap (which
+      // could be hours) is silently erased and "timers frozen counts too"
+      // (the comment at the top of this file, and vy_session's own 30-min
+      // reset semantics) never actually fires for the case it was written
+      // for. Tracked and verified via the Playwright harness in
+      // scratchpad/wssafety.
+      //
+      // Fix: track the hidden span explicitly (hiddenAt), independent of
+      // whether any tick ran during it, and resolve the gap the moment
+      // visibility returns — using the SAME resetStretch() clockTick would
+      // have used, so behavior stays single-sourced.
+      if (document.visibilityState === "hidden") {
+        if (!hiddenAt) hiddenAt = nowFn();
+        return;
+      }
+      // visible again
+      const gap = hiddenAt ? nowFn() - hiddenAt : 0;
+      hiddenAt = 0;
+      if (gap >= GAP_RESET_MS) resetStretch();
+      // either way, hidden time must not be added to cms on the next tick
+      lastTickAt = nowFn();
     });
   }
   if (!interval && typeof setInterval !== "undefined") interval = setInterval(clockTick, tickMs);
@@ -437,6 +467,7 @@ export function __resetClockForTest() {
   pendingBreak = 0;
   current = null;
   cardShownAtMs = 0;
+  hiddenAt = 0;
   subs = [];
   try {
     localStorage.removeItem(STORE_KEY);

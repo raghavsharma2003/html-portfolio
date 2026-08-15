@@ -8,21 +8,14 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { Capacitor } from "@capacitor/core";
-import {
-  buildSystemPromptParts,
-  buildSpeechStyle,
-  WATCH_MODE_NOTE,
-  SEARCH_DECISION,
-  FORGET_DECISION,
-  type UserProfile,
-  type VoiceEngine,
-} from "./persona";
+import { type UserProfile, type VoiceEngine } from "./persona";
 import { tagFromSeed } from "./photoCatalog";
 import { heartReply, type HeartReply } from "./localHeart";
 import { cultureNote } from "./culture";
 import { recallMemories, forgetMemories, resolveForget } from "./memory";
 import { innerContext, overlaps, type Inner } from "./inner";
 import { diag } from "./diag";
+import { compile } from "./compiler";
 import type { Message } from "../state/store";
 
 const CLAUDE_MODEL = "claude-opus-5";
@@ -624,19 +617,8 @@ export async function think(
     local.photo = undefined;
   }
 
-  // on a call the core itself is voice-native: no texting register, no
-  // photo/gif protocols, and an explicit "they are SPEAKING, not typing"
-  // framing — she must never ask about typos on a phone call
-  const parts = buildSystemPromptParts(user, history.length, mode === "call" ? "voice" : "text");
-  // everything static rides in the cacheable core (call style rules are
-  // static too); everything per-turn rides in the tail after the breakpoint
-  const sysCore = parts.core + (mode === "call" ? buildSpeechStyle(voiceEngine) : "");
-  let sysTail = parts.tail;
-
-  // ── her carried interior ──
-  // Goes FIRST in the tail, right after parts.tail: api/chat.js keeps the
-  // FIRST n chars and cuts the END, so if anything is ever lost it must
-  // be the recall list (re-derivable next turn), never where she actually is.
+  // her carried interior — I/O (Date.now/history) stays here; the compiler
+  // is a pure function over the resolved strings (SPEC §3, compiler.ts).
   // A carried feeling reaches her only on the first turn back after a real
   // gap, and never on a message SHE initiated — see the charter in inner.ts.
   const lastMsgAt = history.length ? history[history.length - 1].at || 0 : 0;
@@ -653,17 +635,12 @@ export async function think(
     // companion who arrives with a take she was not asked for is exhausting.
     userText: isDirective ? "" : latest,
   });
-  sysTail += inner.thread;
 
-  // Watch mode goes in EARLY, not at the point of use. api/chat.js keeps the
-  // FIRST n chars of the tail and drops the rest, and this block carries the
-  // discretion rules (what she looks away from on their screen) and the honest
-  // answer about what is retained. It grew past 3.4k with those, so appending
-  // it after recall + herLife + wants made it the first casualty of a long
-  // tail — a silent truncation that removes a privacy rule is the same failure
-  // that once removed the crisis helplines.
+  // Watch mode goes in EARLY in the tail, not at the point of use — see
+  // compiler.compile()'s comment: api/chat.js keeps the FIRST n chars and
+  // drops the rest, so the watch discretion rules must outlive a long tail's
+  // truncation before recall/herLife do.
   const watching = Boolean(watchFrame) && mode === "call";
-  if (watching) sysTail += WATCH_MODE_NOTE;
 
   // graph-memory recall: what she knows about their world, woven into
   // context. On live calls the lookup is done ONCE at pickup and passed in
@@ -674,19 +651,23 @@ export async function think(
       : keys.deviceId
         ? await recallMemories(keys.deviceId, latest)
         : "";
-  if (memories) {
-    sysTail += `\n\nWHAT YOU REMEMBER ABOUT THEM — from your earlier conversations, each tagged with when it last came up. These are real: when they touch on one, you KNOW it and you say the specific detail rather than making them repeat themselves. Two things keep it honest:
-- Something being listed here is not a reason to say it. It comes out only where it actually fits, one at a time, woven into normal talk — never several at once, never as a list, never with any mention of remembering.
-- A memory is not a live update. Anything with a date, a plan or a situation in it may already have happened or changed, so an old one gets talked about as old ("us december wali shaadi ho gayi na?") instead of announced as if it's still ahead — and then you let them tell you where it stands.
-${memories}`;
-  }
-  if (keys.herLife) {
-    sysTail += `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are now fixed between you two, not open to reinvention. Same job, same people, same flat, same plans, same things you did. Add new texture freely; never say anything that contradicts a line here, and never re-tell one as if it's news:\n${keys.herLife}`;
-  }
-  // her forward-facing life goes right after her past-facing one: herLife is
-  // what she HAS said and is recency-evicted; a want is the same object next
-  // week that it was this week, which is what makes her week 4 differ from day 1
-  sysTail += inner.wants;
+
+  const compiled = compile({
+    user,
+    messageCount: history.length,
+    medium: mode === "call" ? "voice" : "text",
+    mode,
+    voiceEngine,
+    isDirective,
+    watching,
+    innerThread: inner.thread,
+    innerWants: inner.wants,
+    memories,
+    herLife: keys.herLife || "",
+    cultureNoteText: mode === "chat" && !isDirective ? cultureNote(latest) : "",
+  });
+  const sysCore = compiled.core;
+  let sysTail = compiled.tail;
   diag("chat", "inner_tail", {
     tail: sysTail.length,
     thread: inner.thread.length,
@@ -695,22 +676,6 @@ ${memories}`;
     // trips, the interior is not the thing that should be dropped
     over: sysTail.length > 14000,
   });
-
-  // Cultural currency, pulled not pushed. This is "" unless THEY just said
-  // something in today's recognition index — she can never raise any of it
-  // first, which is the whole design (see src/engine/culture.ts). Chat only:
-  // on a call there is no room for a paragraph about a meme.
-  if (mode === "chat" && !isDirective) sysTail += cultureNote(latest);
-  // dead last, and chat only — see SEARCH_DECISION in persona.ts for why
-  // position is the entire mechanism here
-  if (mode === "chat") sysTail += SEARCH_DECISION;
-  // Both lanes, unlike the search rule: "bhool ja jo tune call pe dekha" said
-  // ON a call is the canonical case for this feature, and the cascade call
-  // lane goes through this same path. (The realtime live lane never reaches
-  // here at all — it produces sound and nothing else — which is why the live
-  // brief tells her plainly that she cannot delete mid-call instead of letting
-  // her agree and do nothing.)
-  sysTail += FORGET_DECISION;
   // api/chat.js keeps the first 14000 chars of the tail, and the decision rule
   // is the last thing in it — so if this ever trips, the rule is the first
   // casualty and the trim has to happen in recall instead

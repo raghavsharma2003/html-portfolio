@@ -2659,6 +2659,87 @@ input {
   border: 0;
 }
 
+/* ─── Session clock card (SPEC §9.3) — app-voiced, never her ───────────────
+   Floats above everything else on screen, chat AND call, because a
+   statutory disclosure/break notice is not allowed to be silenced by
+   whatever the user happens to have open — including the settings sheet.
+   Deliberately not a modal: no scrim, no width but its own content, no
+   pointer-events trap on the rest of the screen (§9.3, "does not
+   interrupt her"). Its own opaque surface (not a translucent chrome) is
+   what lets one card read correctly over both the light chat ground and
+   the dark call ground without a second stylesheet. */
+.clockcard-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--safe-top) + 10px);
+  z-index: 32; /* above .call (20) and .sheet (31) on purpose */
+  display: flex;
+  justify-content: center;
+  padding: 0 calc(var(--safe-right) + 14px) 0 calc(var(--safe-left) + 14px);
+  pointer-events: none;
+}
+.clockcard {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 420px;
+  width: 100%;
+  padding: 13px 10px 13px 14px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-float);
+  border: 0.5px solid var(--hairline);
+  animation: msg-in var(--d-state) var(--ease-out);
+}
+@starting-style {
+  .clockcard {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.96);
+  }
+}
+.cc-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.clockcard[data-kind="break"] .cc-icon {
+  color: var(--accent-warm);
+}
+.cc-body {
+  flex: 1;
+  min-width: 0;
+}
+.cc-title {
+  font-size: var(--t-ui);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin-bottom: 2px;
+}
+.cc-text {
+  font-size: var(--t-sub);
+  line-height: 1.42;
+  color: var(--ink-dim);
+}
+.cc-close {
+  position: relative;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-dim);
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.cc-close:active {
+  transform: scale(0.92);
+  background: var(--surface-2);
+}
+
 /* ─── reduced motion: fewer and gentler, not zero ──────────────────────────
    Opacity and colour still carry meaning, so they stay. Spatial travel and
    every ambient infinite loop go. */
@@ -2667,6 +2748,7 @@ input {
   .chat-notice,
   .reply-chip,
   .watch-chip,
+  .clockcard,
   .story-gate,
   .story-view,
   .chat-empty,
