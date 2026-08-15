@@ -519,6 +519,12 @@
    "kind": "measurement",
    "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash \u2014 family out at any size",
    "at": "2026-08-15"
+  },
+  {
+   "id": "mistral-judge",
+   "kind": "measurement",
+   "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A \u2014 most extreme position bias measured",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -1051,6 +1057,11 @@
    "src": "deepseek-pro-judge",
    "rel": "measured_by",
    "dst": "judge-backtest"
+  },
+  {
+   "src": "mistral-judge",
+   "rel": "part_of",
+   "dst": "judge-grant-only"
   }
  ]
 }

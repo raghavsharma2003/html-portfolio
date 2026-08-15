@@ -781,3 +781,18 @@ API rejects max_completion_tokens as extra_forbidden; verified live, config
 fixed to plain max_tokens, re-run fired. Cohere quirk verified while at
 it: replies arrive inside <|START_TEXT|> markers the verdict regex parses
 through.
+
+---
+
+## `mistral-judge` — Mistral-Large-3 fails with the most extreme position bias yet measured (2026-08-15)
+
+Pooled 28/96 = 29.2%, 95% CI [21.0, 38.9] — FAIL, CI entirely below the 80%
+bar. Slot-A pick rate 90.6%/88.5% per archive: this judge is barely reading
+the transcripts at all, it is picking the first slot nine times in ten.
+Method: 192 calls, both orders, agreement-only, Azure credits, $0 cash,
+0 transport misses (the fixed max_tokens shape worked). Running tally of
+credit-judge qualification: DeepSeek-Flash 28.1% / terra 54.2% / grok-4.3
+34.4% / DeepSeek-Pro 30.9% / Mistral-Large-3 29.2% — all FAIL. Remaining:
+Cohere (in flight), gpt-5.6-sol (owner quota pending), and the reopened
+anthropic-on-AWS path (AWS Activate credits verifiably apply to Claude on
+Bedrock since 2024-04 — the opposite of Azure's marketplace exclusion).

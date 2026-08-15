@@ -2,7 +2,7 @@
   "id": "command-a-plus-05-2026",
   "family": "cohere",
   "provider": "azure",
-  "model": "command-a-plus-05-2026",
+  "model": "Cohere-command-a-plus-05-2026",
   "deployment": "Cohere-command-a-plus-05-2026",
   "maxTokens": 120,
   "tokenParam": "max_tokens",
