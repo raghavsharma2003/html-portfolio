@@ -453,6 +453,12 @@
    "kind": "measurement",
    "title": "Foundry grok deployment drifted engagement behavior across 4 days (both arms, direction widens gap)",
    "at": "2026-08-15"
+  },
+  {
+   "id": "swap-prereg-amend-1",
+   "kind": "decision",
+   "title": "Amendment 1: paired fresh generation through the real compiler; archive replay impossible (0 served prompts stored)",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -910,6 +916,11 @@
    "src": "visiongate-powered",
    "rel": "part_of",
    "dst": "relational-state"
+  },
+  {
+   "src": "swap-prereg-amend-1",
+   "rel": "part_of",
+   "dst": "swap-prereg-1"
   }
  ]
 }

@@ -411,3 +411,32 @@ of the single ~$400 family (the `d2-on-credits` reversal, already fired).
 byte-identical served prompts (then the prereg is amended, committed, before
 any run), or the owner declines the cash (then the run stops at D1 and says
 only what deterministic axes can say).
+
+---
+
+## `swap-prereg-amend-1` — archive replay is dead; paired fresh generation through the real compiler (2026-08-15)
+
+`swap-prereg-1`'s named reversal condition fired within hours, before any
+run: WS-CANDGEN measured the archives and found NO stored served prompts at
+all (charm-grok/charm-luna keep `{user, reply, usage}` plus one shared
+persona string; realtime-azure has no chat-lane data), a 288-distinct-turn
+ceiling, byte-identical count zero. The bake-off rigs were ad-hoc dialects
+that never touched src/engine/compiler.ts.
+
+Amendment 1 (in docs/SWAP-TEST-PREREG.md, committed before any confirmatory
+data): both arms are generated fresh from ≥2,000 distinct contexts compiled
+by the REAL engine, same bytes to both models — byte-identity across arms by
+construction, which is the identity the comparison needs. Strictly stronger:
+the claim under test is the relational engine's identity-carrying, and now
+the engine itself compiles the test. Costs the incumbent arm's generation
+(free Gemini daily pool, paced so production never starves; OpenRouter
+overflow ~$0–30 cash, already priced).
+
+Kept from WS-CANDGEN regardless: the terra client with quirks baked in,
+resumability, the smoke proof (25/25 non-empty, words/turn median 19.0 —
+in-band), and the projection method (~21.6M tokens/arm, credits).
+
+**Reverses if:** the compiler-driven corpus cannot reach 2,000 distinct
+(stimulus, compiled-state) pairs without repeat-sampling collapse — then the
+run reports at the n it honestly has, labeled as such, and D1-only claims
+are scoped to that n.

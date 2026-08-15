@@ -31,15 +31,39 @@ as a JUDGE against archived blind verdicts (bar: 80%) — it reads Hinglish
 teasing as "mocking". That disqualifies it from refereeing, not from being
 refereed; candidates need no qualification, the battery exists to judge them.
 
-## The context premise
+## The context premise — AMENDED, see Amendment 1
 
-Every candidate turn is generated under the compiled context the incumbent
-saw, **byte-identical** where the archive stores the served prompt.
-WS-CANDGEN reports exactly how many archived turns carry full served prompts;
-turns without one are marked `reconstructed` and EXCLUDED from byte-identical
-claims. If the byte-identical corpus comes in under 2,000 turns, this
-pre-registration is amended (committed amendment) before the run — not
-silently padded with reconstructions.
+~~Every candidate turn is generated under the compiled context the incumbent
+saw, **byte-identical** where the archive stores the served prompt.~~
+WS-CANDGEN measured the premise and it failed completely: **no archive
+stores a full served prompt** (the bake-off rigs were ad-hoc dialects that
+never went through the real compiler), and the replayable pool ceilings at
+288 distinct turns — all reconstructed, none byte-identical. The named
+reversal condition fired before any run, which is the pre-registration
+doing its job.
+
+### Amendment 1 (2026-08-15, before any confirmatory data)
+
+**Paired fresh generation replaces archive replay.** ≥2,000 distinct
+contexts are compiled through the REAL engine (`src/engine/compiler.ts` —
+beat scripts crossed with relational-state fixtures, so the compiled context
+varies even where a stimulus line repeats), and each compiled prompt is
+served to BOTH arms. Byte-identity across arms holds **by construction** —
+the same bytes go to both models — which is the identity the comparison
+actually needs; identity to historical traffic never was available and is
+not claimed. A context is "distinct" at the (stimulus, compiled-state) pair
+level, and the corpus manifest records the pairing.
+
+This is stronger than the original design, not weaker: the arms are now
+tested under the actual relational engine whose identity-carrying is the
+company claim, rather than under bake-off rigs that predate it, and the D1
+incumbent bands get re-derived from the same-week incumbent arm — the drift
+law satisfied by construction instead of by scheduling. Cost consequence:
+the incumbent arm must now be generated too (free Gemini daily pool first,
+production's own path; OpenRouter overflow is the ~$0–30 cash residue
+already priced in `d2-on-credits`). The free pool is a shared DAILY budget
+with production — the full incumbent run is paced across days or overflowed,
+never allowed to starve the live app.
 
 ## Gate sequence and frozen parameters
 
