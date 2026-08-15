@@ -316,3 +316,22 @@ track:
 
 **Reverses if:** a future measured system shows near-zero behavioral leakage
 at n≥300 across the ConfAIde/PiSAs axes — until then, structure only.
+
+---
+
+## `phase-c-complete` — the relational engine exists and its battery can say no (2026-08-15)
+
+Phase C closed with §14 met: eight workstreams (eval, schema, safety,
+compiler, consolidate, relstate, integrate, router, battery), each behind its
+own gate, ~2 days of fleet work. The load-bearing properties, all proven not
+promised: byte-identity with no relational data (83/83), forget reaches every
+derived row including taste candidates, citations are DB-enforced, pull-only
+holds 0/300, the D0 battery flags all three known-bad archives and passes a
+true sham. Residual: compile.manifest telemetry (ticketed, Phase D prep).
+
+**Phase D (the swap test) is now runnable and priced:** a powered D2 run is
+$2.78/comparison — ≈$834 for n=300 both-orders two-judges against one
+candidate. The real vision-lane gate run (grok, needs the retuned-directive
+measurement) is the natural first candidate. **Reverses nothing** — this node
+records completion; the program's reversal conditions live on
+relational-state and spec-c-minimal.

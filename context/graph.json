@@ -399,6 +399,12 @@
       "kind": "measurement",
       "title": "Synthesized voice measures ~212-214Hz, ~50Hz below the 266Hz anchor",
       "at": "2026-08-15"
+    },
+    {
+      "id": "phase-c-complete",
+      "kind": "decision",
+      "title": "The relational engine exists and its battery can say no",
+      "at": "2026-08-15"
     }
   ],
   "edges": [
@@ -781,6 +787,16 @@
       "src": "prosody-baseline-f0-gap",
       "rel": "part_of",
       "dst": "relational-state"
+    },
+    {
+      "src": "phase-c-complete",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "phase-c-complete",
+      "rel": "measured_by",
+      "dst": "d0-battery-validated"
     }
   ]
 }

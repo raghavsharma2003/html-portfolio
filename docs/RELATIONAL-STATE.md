@@ -23,6 +23,21 @@ D. SWAP TEST  offline judge-based fingerprinting first, then consented cohort
 E. USERS      only when the owner is satisfied
 ```
 
+## Phase C: COMPLETE (2026-08-15)
+
+§14's definition of done is met: the battery runs end to end from the repo,
+FLAGS all three archived bake-offs on deterministic axes (the luna lesson —
+parity is not a pass — made structural, since judged units sit below the
+noise floor and are excluded from flag decisions by design), returns "no
+difference" on a true sham through the real router, and the gate machinery
+has refused a candidate. Eight workstreams, each landed behind its own eval
+gate, every milestone reviewed and committed separately.
+
+One residual, ticketed not hidden: compile.manifest telemetry
+(core_hash/manifest_hash/adapter_version per turn) is not yet emitted, so
+replay proves determinism and transcript fidelity but not byte-identity to
+the ORIGINAL served prompt. First task of Phase D prep.
+
 ## Phase A: COMPLETE (2026-08-13)
 
 Output: `docs/research/RESEARCH.md` (synthesis) plus the ten track files beside
