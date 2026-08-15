@@ -16,6 +16,14 @@
 
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
+// WS-CONSOLIDATE (M3) deltas to opRemember/opRecall only — see the two
+// functions below for the marked sections. embedOne/toHalfvecLiteral back
+// opRecall's semantic pre-filter (SPEC §0.3: halfvec, person-filtered exact
+// scan, no HNSW); openOrExtendEpisode/touchEpisode back opRemember's in-turn
+// provisional tier (SPEC §0.2.1/§4.1) and are shared with api/episodes.js and
+// api/consolidate.js so the boundary rule lives in exactly one place.
+import { embedOne, embedBatch, toHalfvecLiteral } from "./_embed.js";
+import { openOrExtendEpisode, touchEpisode } from "./episodes.js";
 
 import {
   OPENROUTER_KEY,
@@ -199,12 +207,44 @@ async function opRecall(device, body) {
       ).catch(() => []),
     );
   }
-  const [bgRaw, matchedRaw = []] = await Promise.all(fetches);
+  // ── WS-CONSOLIDATE (M3) delta: semantic pre-filter over vy_fact, run
+  // CONCURRENTLY with the keyword fetches above so it adds no serial latency
+  // — SPEC §0.3: person-filtered EXACT SCAN over halfvec, no HNSW (a
+  // multi-tenant ANN index silently starves the 10^0-10^3-row per-dyad
+  // corpora this product actually has). This is what closes
+  // `semantic-recall`: a query and a stored fact can share zero surface
+  // words and still be the same thing — "kaam stress" vs "office pressure"
+  // is the repo's own documented case (context/decisions.md
+  // `spec-c-minimal`). Embedding is an enhancement, never a hard dependency:
+  // any failure here degrades silently to the keyword-only behaviour this
+  // function already had.
+  const semanticFetch = (async () => {
+    const trimmed = String(body.query || "").trim();
+    if (trimmed.length < 3) return [];
+    const vec = await embedOne(trimmed).catch(() => null);
+    if (!vec) return [];
+    const person = await personIdFor(device);
+    const lit = toHalfvecLiteral(vec);
+    return q(
+      `select f.id, f.kind, f.name, f.body, f.feel, f.created_at
+         from vy_embedding e
+         join vy_fact f on f.id = e.owner_id and f.person_id = e.person_id
+        where e.person_id = $1 and e.owner_kind = 'fact'
+          and f.t_invalid is null and f.retracted_at is null
+        order by e.v <=> $2::halfvec
+        limit 6`,
+      [person, lit],
+      2_500,
+    ).catch(() => []);
+  })();
+
+  const [[bgRaw, matchedRaw = []], semanticRaw] = await Promise.all([Promise.all(fetches), semanticFetch]);
   const background = Array.isArray(bgRaw) ? bgRaw : [];
   const matched = Array.isArray(matchedRaw) ? matchedRaw : [];
+  const semantic = (Array.isArray(semanticRaw) ? semanticRaw : []).slice(0, 4);
   const seen = new Map();
   for (const n of [...matched, ...background]) seen.set(n.id, n);
-  if (!seen.size) return { memories: "" };
+  if (!seen.size && !semantic.length) return { memories: "" };
 
   const idArr = [...seen.keys()];
   const edges = await q(
@@ -269,6 +309,25 @@ async function opRecall(device, body) {
         .map(line)
         .join("\n")}`,
     );
+
+  // semantic hits render in their own labelled block — never merged silently
+  // into "RELEVANT", because a semantic match is a weaker, differently-earned
+  // signal than an exact word hit and the two must stay distinguishable to
+  // anyone reading a diag trace later. Deduped against anything the keyword
+  // path already surfaced by name.
+  const namesShown = new Set([...matched, ...background].map((n) => String(n.name || "").toLowerCase()));
+  const semanticOnly = semantic.filter((f) => f && !namesShown.has(String(f.name || "").toLowerCase()));
+  if (semanticOnly.length) {
+    const factLine = (f) => {
+      const felt = f.feel ? ` — their own words for it: "${f.feel}"` : "";
+      return `- ${f.name} (${f.kind}, last came up ${ageLabel(f.created_at)}): ${f.body}${felt}`;
+    };
+    blocks.push(
+      `ALSO RELEVANT (no shared words with what they said, but the same thing):\n${semanticOnly
+        .map(factLine)
+        .join("\n")}`,
+    );
+  }
 
   // touch recall time (awaited — serverless kills post-response work)
   await q(`update meera_nodes set last_recalled = now() where device_id = $1 and id = any($2)`, [
@@ -472,6 +531,102 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
       [device, e.src, e.dst, e.relation],
     ).catch(() => {});
   }
+
+  // ── WS-CONSOLIDATE (M3) delta: in-turn provisional tier (SPEC §0.2.1,
+  // §4.1 — fixes C-flaw-1, the same-day memory gap). Deterministic and
+  // cheap: no new model call, it only persists what the extraction above
+  // already produced. A provisional episode is the citation anchor a
+  // same-day fact needs to satisfy `vy_fact_cite_or_authored`; the nightly
+  // pass (api/consolidate.js) re-segments and re-derives with full
+  // citations and supersedes every row written here. Second-class for
+  // state on purpose: rel-state events and patterns are NEVER written from
+  // 16-turn context — only episodes and facts are.
+  try {
+    const person = await personIdFor(device);
+    // meera_log is ground truth for the channel; the client contract this
+    // op was built against (src/engine/memory.ts, frozen elsewhere) never
+    // sent one, so the true value is read off the row that was just logged
+    // rather than guessed.
+    const latestLog = await q(
+      `select channel from meera_log where device_id = $1 order by id desc limit 1`,
+      [device],
+    ).catch(() => []);
+    const channel = latestLog[0]?.channel === "call" ? "call" : "chat";
+    const ep = await openOrExtendEpisode(person, device, channel);
+    if (ep) {
+      const bits = [...kept.slice(0, 3).map((n) => n.name), ...self.slice(0, 2).map((s) => s.slice(0, 30))];
+      const summary = (bits.length ? bits.join(", ") : "chat stretch").slice(0, 110);
+      await touchEpisode(ep.id, { summary });
+
+      // idempotent within one open episode: a device may call `remember`
+      // many times across the same stretch, and a fresh row per call would
+      // flood the fact table with duplicates the nightly pass would just
+      // have to collapse again.
+      const already = await q(
+        `select lower(name) as name from vy_fact where person_id = $1 and citations = array[$2]::bigint[]`,
+        [person, ep.id],
+      ).catch(() => []);
+      const written = new Set(already.map((r) => r.name));
+
+      // her own life facts go through the SAME suppression list a user's
+      // forget scope produced (§9.1 step 9's discipline, applied here too):
+      // a term filtered out of nodes must not walk back in as `kind='meera'`
+      const selfKept = self.filter((s) => !suppressed.some((rx) => rx.test(s)));
+
+      const toWrite = [
+        ...kept
+          .filter((n) => !written.has(n.name))
+          .map((n) => ({
+            kind: "user",
+            name: n.name,
+            body: `${n.name}: ${n.summary}`.slice(0, 160),
+            feel: n.feel || "",
+          })),
+        ...selfKept
+          .filter((line) => !written.has(`meera:${line.slice(0, 40)}`.toLowerCase()))
+          .map((line) => ({
+            kind: "meera",
+            name: `meera:${line.slice(0, 40)}`.toLowerCase().slice(0, 60),
+            body: line.slice(0, 160),
+            feel: "",
+          })),
+      ];
+
+      // Same-day SEMANTIC recall, not just same-day recall: embed right here
+      // so a fact told this morning is findable this afternoon by meaning,
+      // not only by shared words — the gap `semantic-recall` was closed for.
+      // One batched call for the whole turn's new facts; embedding is an
+      // enhancement (embedBatch degrades to nulls on failure), so a bad
+      // embed call costs the semantic layer for these rows, never the fact
+      // write itself.
+      const vecs = toWrite.length ? await embedBatch(toWrite.map((f) => f.body)).catch(() => []) : [];
+      for (let i = 0; i < toWrite.length; i++) {
+        const f = toWrite[i];
+        if (written.has(f.name)) continue;
+        const ins = await q(
+          `insert into vy_fact (person_id, kind, name, body, feel, provenance, confidence, citations, provisional)
+           values ($1,$2,$3,$4,$5,'extracted',0.7,$6::bigint[],true) returning id`,
+          [person, f.kind, f.name, f.body, f.feel, [ep.id]],
+        ).catch(() => []);
+        written.add(f.name);
+        const vec = vecs[i];
+        const factId = ins[0]?.id;
+        if (factId && vec) {
+          await q(
+            `insert into vy_embedding (owner_kind, owner_id, person_id, v)
+             values ('fact', $1, $2, $3::halfvec)
+             on conflict (owner_kind, owner_id) do update set v = excluded.v, at = now()`,
+            [factId, person, toHalfvecLiteral(vec)],
+          ).catch(() => {});
+        }
+      }
+    }
+  } catch {
+    // the provisional tier is an enhancement layered on top of an already-
+    // working graph write; it must never cost the client its self/inner
+    // state above, which is why this whole block is fenced off from it
+  }
+
   return { ok: true, extracted: kept.length, self, ...interior };
 }
 

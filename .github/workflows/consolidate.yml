@@ -1,0 +1,92 @@
+# Nightly finalize — SPEC §4.1, §11 (M3 exit gate: "GH-Actions cron").
+#
+# 03:30 IST = 22:00 UTC the previous calendar day (same arithmetic as
+# culture.yml's own comment: subtract 5:30, wrap the day). Chosen to land
+# after the day's activity has quieted (FINALIZE_QUIET_MS in
+# api/consolidate.js only picks up episodes idle 30+ minutes) and before
+# the next Indian morning.
+#
+# Runs `node api/consolidate.js` DIRECTLY on the runner rather than curling
+# a deployed endpoint (culture.yml's pattern) — a Vercel serverless function
+# has a hard execution ceiling that a per-person LLM-derivation batch can
+# realistically exceed, and §4.3's own arithmetic assumes the batch runs
+# off Vercel's clock. That is why this workflow needs the SAME
+# secrets-reconstructed api/_config.js deploy-web.yml builds (mirrored
+# below) rather than culture.yml's zero-secrets curl.
+#
+# GH Actions minutes are a budget (context: api/_gkeys.js's daily-budget
+# discipline, applied here to compute instead of API quota). §4.3 prices
+# this at <20 min/night even at 1,000 DAU; today's real user count is far
+# below that, so the ceiling below is generous headroom, not a measured
+# need.
+#
+# Failure posture DIFFERS from culture.yml on purpose: a finalize run that
+# HALTS (entailment refutation >2%, api/consolidate.js's own halt) must go
+# RED, loudly — that halt is this repo's "page the owner" mechanism (SPEC
+# §4.2 layer 3), not a degrade-quietly case like a missed culture refresh.
+# A late pass costs nothing (episode_id stays null, picked up next run,
+# §12 failure mode 7: "a missed pass is late, never lost"); a silenced halt
+# would cost the citation law's only alarm.
+name: consolidate
+
+on:
+  schedule:
+    - cron: "0 22 * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "max persons to process this run"
+        default: "25"
+      dry_run:
+        description: "true = derive and report, write nothing"
+        default: "false"
+
+concurrency:
+  group: consolidate
+  cancel-in-progress: false # never abandon a run mid-write; let it finish or fail
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # api/_config.js is gitignored; every workflow that touches the live
+      # database or a paid model reconstructs it from secrets the same way
+      # (deploy-web.yml is the precedent this mirrors).
+      - name: Reconstruct api/_config.js
+        env:
+          OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
+          GOOGLE_KEY: ${{ secrets.GOOGLE_KEY }}
+          GOOGLE_KEYS: ${{ secrets.GOOGLE_KEYS }}
+          GOOGLE_PAID_KEY: ${{ secrets.GOOGLE_PAID_KEY }}
+          NEON_URL: ${{ secrets.NEON_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          AZURE_KEY: ${{ secrets.AZURE_KEY }}
+          AZURE_ENDPOINT: ${{ secrets.AZURE_ENDPOINT }}
+        run: node scripts/write-config.mjs
+
+      # write-config.mjs itself refuses (exit 1, loudly) when OPENROUTER_KEY
+      # or NEON_URL is missing — no separate check needed here.
+
+      - name: Nightly finalize
+        run: |
+          node api/consolidate.js \
+            --limit "${{ github.event.inputs.limit || '25' }}" \
+            ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+
+      # Zero-orphan integrity sweep + citation discipline (SPEC §4.1.11,
+      # §4.2 layer 4) — read-only, run against the SAME database the
+      # finalize pass just wrote to, every night, not just at PR time.
+      - name: Zero-orphan sweep
+        run: node scripts/relcheck.mjs
+
+      - name: Citation discipline
+        run: node scripts/check-citations.mjs

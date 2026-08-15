@@ -78,6 +78,46 @@ check(
     where not exists (select 1 from vy_person p where p.person_id = d.person_id)`,
 );
 
+// ── WS-CONSOLIDATE (M3) additions, per §13's ADD-only grant ──────────────
+//
+// meera_log.episode_id is the finalize cursor itself (api/consolidate.js,
+// scripts/migrate/backfill-episodes.mjs): "unconsolidated" means null, so a
+// dangling non-null value would silently hide log rows from every future
+// finalize AND future backfill pass — a cursor that lies is worse than one
+// that is merely slow.
+check(
+  "meera_log.episode_id resolves",
+  `select count(*)::int n from meera_log l
+    where l.episode_id is not null
+      and not exists (select 1 from vy_episode e where e.id = l.episode_id)`,
+);
+
+// The writer-window law (SPEC §4.2 layer 2) is enforced AT WRITE TIME by
+// api/consolidate.js and the backfill script (an out-of-window citation is
+// rejected before insert, never salvaged) — this re-proves it held against
+// the DATA every episode a derivation run actually wrote ever produced,
+// the same "constraint, then prove it against data" pattern
+// check-citations.mjs already uses for the schema CHECKs.
+check(
+  "vy_derivation episode writes stay inside their own input window",
+  `select count(*)::int n from vy_derivation d
+    cross join lateral jsonb_to_recordset(d.wrote) as w("table" text, id bigint)
+    join vy_episode e on w."table" = 'vy_episode' and e.id = w.id
+   where e.log_from is not null and e.log_to is not null
+     and (e.log_from < d.input_from or e.log_to > d.input_to)`,
+);
+
+// The entailment audit's halt condition (SPEC §4.2 layer 3) only means
+// something if a "refuted" verdict actually DID something: the fact it
+// judged must be retracted, not left standing as if the audit never ran.
+check(
+  "refuted-audit facts are retracted",
+  `select count(*)::int n from vy_derivation d
+    cross join lateral jsonb_to_recordset(d.wrote) as w("table" text, id bigint)
+    join vy_fact f on w."table" = 'vy_fact' and f.id = w.id
+   where d.audit_status = 'refuted' and f.retracted_at is null`,
+);
+
 let failed = 0;
 const t0 = Date.now();
 
