@@ -1,0 +1,12 @@
+{
+  "id": "anthropic/claude-opus-4.8",
+  "family": "anthropic",
+  "provider": "openrouter",
+  "model": "anthropic/claude-opus-4.8",
+  "apiKeyEnv": "OPENROUTER_KEY",
+  "maxTokens": 120,
+  "pricing": { "prompt_per_token": 0.000005, "completion_per_token": 0.000025 },
+  "_pricing_note": "Fetched live 2026-08-15 from openrouter.ai/api/v1/models ($5/M prompt, $25/M completion). Re-fetch before any future run — rates move.",
+  "_notes": "The house-precedent judge itself — the model that produced BOTH archives' ground-truth blind verdicts. Its backtest is therefore TEST-RETEST reliability (self-agreement across time/sampling), not independent qualification; fab-noise-floor's 13.6pp spread on byte-identical input means even self-agreement clearing 80% is a real measurement, not a formality. Cash-billed via OpenRouter, authorized under context/decisions.md judge-cash-approved.",
+  "_status": "authorized 2026-08-15 (judge-cash-approved)"
+}

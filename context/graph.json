@@ -459,6 +459,18 @@
    "kind": "decision",
    "title": "Amendment 1: paired fresh generation through the real compiler; archive replay impossible (0 served prompts stored)",
    "at": "2026-08-15"
+  },
+  {
+   "id": "judge-cash-approved",
+   "kind": "decision",
+   "title": "Owner approves ~$400 premium judge; backtest opus-5 AND opus-4.8, pick best over 80%",
+   "at": "2026-08-15"
+  },
+  {
+   "id": "beyond-meera",
+   "kind": "decision",
+   "title": "Owner directive: research layer must be product-agnostic; Meera is instance one, funded with the $400",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -921,6 +933,21 @@
    "src": "swap-prereg-amend-1",
    "rel": "part_of",
    "dst": "swap-prereg-1"
+  },
+  {
+   "src": "judge-cash-approved",
+   "rel": "part_of",
+   "dst": "swap-prereg-1"
+  },
+  {
+   "src": "judge-cash-approved",
+   "rel": "supersedes",
+   "dst": "d2-on-credits"
+  },
+  {
+   "src": "beyond-meera",
+   "rel": "part_of",
+   "dst": "relational-state"
   }
  ]
 }

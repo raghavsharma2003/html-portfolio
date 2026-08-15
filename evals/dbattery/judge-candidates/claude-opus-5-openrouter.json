@@ -1,0 +1,12 @@
+{
+  "id": "anthropic/claude-opus-5",
+  "family": "anthropic",
+  "provider": "openrouter",
+  "model": "anthropic/claude-opus-5",
+  "apiKeyEnv": "OPENROUTER_KEY",
+  "maxTokens": 120,
+  "pricing": { "prompt_per_token": 0.000005, "completion_per_token": 0.000025 },
+  "_pricing_note": "Fetched live 2026-08-15 from openrouter.ai/api/v1/models ($5/M prompt, $25/M completion). Re-fetch before any future run — rates move.",
+  "_notes": "OpenRouter-routed, same transport as the house-precedent opus-4.8 judge (both archives' ground-truth verdicts). Epistemics: this backtest is a genuine CROSS-MODEL agreement measure against opus-4.8's archived verdicts — unlike opus-4.8's own backtest, which is test-retest. Cash-billed via OpenRouter, authorized under context/decisions.md judge-cash-approved.",
+  "_status": "authorized 2026-08-15 (judge-cash-approved)"
+}

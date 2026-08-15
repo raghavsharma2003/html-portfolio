@@ -440,3 +440,35 @@ in-band), and the projection method (~21.6M tokens/arm, credits).
 (stimulus, compiled-state) pairs without repeat-sampling collapse — then the
 run reports at the n it honestly has, labeled as such, and D1-only claims
 are scoped to that n.
+
+---
+
+## `judge-cash-approved` — the owner approves the ~$400 premium judge (2026-08-15)
+
+Verbatim: "yes approved for the 400$ judge, use it and continue". The
+d2-on-credits reversal is now funded: one premium judge family in cash.
+Qualification order: backtest BOTH anthropic/claude-opus-5 and
+anthropic/claude-opus-4.8 via OpenRouter (~$1 each at the live $5/M-in
+$25/M-out rate, fetched 2026-08-15 from openrouter.ai/api/v1/models) against
+the archived blind verdicts, pick the best that clears 80%. Note the
+epistemics honestly: the archived ground truth WAS produced by opus-4.8, so
+its own backtest is test-retest reliability (self-agreement across time and
+sampling), while opus-5's is a real cross-model agreement measure. Either
+clearing 80% is informative — fab-noise-floor showed 13.6pp spread on
+byte-identical input, so even self-agreement at 80%+ is not a given.
+
+## `beyond-meera` — the research layer must be product-agnostic (owner directive, 2026-08-15)
+
+Verbatim: "we need to create something which will enable us to do more
+things using it and we wont be just sticking to meera only but the
+fundamental research we are doning should be scalable and flexible for other
+usecases as well. and thats why i'm approving 400$". This was already the
+thesis (graph: "Meera is instance one") — now it is a funded directive with
+teeth: infrastructure built for the swap test (judge qualification, battery
+runners, corpus compiler, gate machinery) must not hardcode Meera
+specifics where a parameter would do. Not a rewrite mandate — an audit lens
+for every new piece and a generalization pass where it is cheap.
+
+**Reverses if:** generalization measurably costs Meera quality or speed
+(the standing never-trade-away rule outranks it) — then the specific
+generalization is dropped and the conflict logged here.
