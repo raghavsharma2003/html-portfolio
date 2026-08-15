@@ -1,0 +1,38 @@
+{
+  "baseline": {
+    "date": "2026-08-15T09:02:30.938Z",
+    "model": "google/gemini-3.1-flash-tts-preview",
+    "voice": "Aoede",
+    "medianF0": 212.38938053097345,
+    "meanDurationS": 3.9519999999999995,
+    "medianWordsPerSec": 2.1844660194174756,
+    "totalBytes": 948480,
+    "linesWithVoicedFrames": 5,
+    "linesTotal": 5
+  },
+  "runs": [
+    {
+      "date": "2026-08-15T09:02:30.938Z",
+      "model": "google/gemini-3.1-flash-tts-preview",
+      "voice": "Aoede",
+      "medianF0": 212.38938053097345,
+      "meanDurationS": 3.9519999999999995,
+      "medianWordsPerSec": 2.1844660194174756,
+      "totalBytes": 948480,
+      "linesWithVoicedFrames": 5,
+      "linesTotal": 5
+    },
+    {
+      "date": "2026-08-15T09:02:45.636Z",
+      "model": "google/gemini-3.1-flash-tts-preview",
+      "voice": "Aoede",
+      "medianF0": 214.28571428571428,
+      "meanDurationS": 3.7359999999999998,
+      "medianWordsPerSec": 2.393617021276596,
+      "totalBytes": 896640,
+      "linesWithVoicedFrames": 5,
+      "linesTotal": 5
+    }
+  ],
+  "lastAlarm": false
+}

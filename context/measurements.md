@@ -402,3 +402,122 @@ M3's gates, verified independently on live production data:
   worst-case cash (≈$21/mo at 1,000 DAU, independently confirming §4.3's
   arithmetic); backfill enrichment ≈ $0.00027/episode, 4.6× under the spec's
   estimate; re-run idempotency costs $0 in 489 ms.
+
+## `d0-battery-validated` — the swap-test battery flags all three archives, on deterministic axes only (2026-08-15)
+
+`evals/dbattery/d0.mjs`, offline, n=288/288/24 turns (grok/luna/azure, full
+archive, not a sample). Independent detector (not a copy of
+`evals/archives/fixtures.json`'s expected numbers — a from-scratch
+implementation checked against them): **3/3 fixtures flagged**, on
+deterministic axes only (words/turn, question-rate, voice-register-elevation
+ratio, media-tag-rate, Devanagari) — judged preference is computed and
+printed but never used to decide a flag, because every archive here carries
+only 48–96 judged units and `fab-noise-floor` (below) makes any judged rate
+noise under n=300. This is load-bearing for `charm-luna` specifically: its
+judged overall recomputes to a 17–18 TIE (parity holds) and it is still
+flagged, on media-tag-rate (0% vs incumbent 3.8%) and register elevation
+(1.29x). **New finding, not previously flagged by any suite**: one luna
+reply contains a live Devanagari character ("बस.") against the hard-fail
+rule in `docs/research/swap-test.md` §D1 — recorded here as data, not
+promoted to a d0.mjs gate condition beyond what already fires on it.
+
+## `d1-band-recompute` — archived incumbent arms run hot on absolute bands; the fix is same-stimuli ratios (2026-08-15)
+
+`evals/dbattery/d1.mjs` recomputed the D1 register table on all three
+archives. The candidates are out-of-band as expected. **The recovered
+incumbent ARM inside the charm-battery archives itself does not clear
+`evals/archives/fixtures.json`'s flat production reference band**: 27.1
+words/turn and 65% question-share vs the 20.5±3 / 33% ceiling drawn from
+general production traffic. This is not a regression — the charm battery's
+12 beats deliberately include heavy/dramatic scenarios (`reasoning-split`
+already measured heavy beats running hotter), so a flat production-traffic
+band is the wrong reference for a curated-battery incumbent arm. Downgraded
+to WARN in d1.mjs rather than a hard fail; it is the empirical reason D0's
+actual flag logic uses a SAME-STIMULI candidate/incumbent RATIO
+(register-elevation ≥1.2x) rather than an absolute band. Open item: a
+battery-specific reference band, re-derived from the incumbent's OWN
+same-stimuli numbers, would be a tighter D1 gate than the current
+production-band fallback.
+
+## `replay-verified` — determinism + transcript fidelity on 3 real sessions; full byte-identity to the original prompt is blocked (2026-08-15)
+
+`scripts/replay.mjs`, read-only against production Neon (n=3 real sessions,
+477/232/183 turns each, picked by turn count, no synthetic data). Two
+proofs, both 3/3 PASS: **double-compile byte-identity** (the reconstructed
+`CompileInput` produces byte-identical core+tail across two `compile()`
+calls — the same discipline SPEC §3.3 requires in CI, applied to real
+session-derived input) and **transcript fidelity** (the reconstructed
+`messageCount`/`latestUserText` match a FRESH independent `meera_log` read
+byte-for-byte). **Gap found, not assumed**: SPEC §3.3/§7.3's `compile.manifest`
+event ({model, adapter_version, core_hash, manifest_hash, snapshot_ver} to
+`meera_diag`) is not emitted anywhere in this codebase (`grep -rn
+"compile.manifest" src/ api/` = 0 hits, confirmed 2026-08-15), and
+`meera_state` holds only the CURRENT synced blob, not per-turn history — so
+inner state / herLife / ageGates as they were at a historical turn cannot be
+reconstructed, only their documented "absent" default. Consequence measured
+directly: with `vy_rel_state`/`vy_rel_event` both empty for every device in
+this DB today, all three replayed sessions compile to the IDENTICAL tail
+hash regardless of their very different transcripts, because the only
+varying inputs (`latestUserText`, `gapSinceLastMs`) are only consumed when a
+`relBundle` is present. Interface ticket filed against WS-COMPILER/
+WS-INTEGRATE: wire `compile.manifest` logging per SPEC §3.3 so replay can
+prove identity to the ORIGINAL served prompt, not just determinism.
+
+## `sham-noop-verdict` — the battery says "no difference" on a true no-op, using the real router (2026-08-15)
+
+`evals/dbattery/sham.mjs`. WS-ROUTER's files (`src/engine/router.ts`,
+`config/models.json`, `api/route.js`, `scripts/derive-adapter.mjs`) were
+absent when this workstream started and landed in the shared tree
+mid-session; the script runs the REAL router path (confirmed present) rather
+than the stub it was built to fall back to. Two claims, both PASS:
+**router-level** — `route()` with `adapterVersionOverride` produces a
+decision differing from the real one in EXACTLY `adapter_version`
+("baseline" vs `sham-2026-08-06T07:06:40.000Z"`); model, role, gate, and the
+`toTelemetryDetail()` output are otherwise identical (diff = exactly
+`["adapter_version"]`). **Content-level** — the archived incumbent
+transcript (n=288, `charm-grok`) compared against itself under the sham
+label returns 0 flagged axes on every deterministic check d0.mjs gates on.
+Together: the battery can say "no difference" in both directions from D0
+(which proves it says "yes, different" on 3 real regressions) — SPEC §14's
+"the battery must be able to say no" requirement.
+
+## `d2-relational-smoke` — the relational-feature judge harness executes; real signal needs a WS-ROUTER-gated candidate (2026-08-15)
+
+`evals/dbattery/d2.mjs`, WSBAT_RUN_JUDGED=1, n=6 units x 2 judge families
+(anthropic/claude-opus-4.8, google/gemini-3.5-flash-lite) x 2 orders = 24
+real judgments against OpenRouter, on the `charm-luna` archive. Explicitly
+UNDERPOWERED (n=6 « 300, `fab-noise-floor`) — proof of execution only, no
+axis is cited as a finding. `shared_history_use` and `we_reference_quality`
+returned near-total ties/n-a, as expected: these archives predate
+WS-RELSTATE, so no transcript in them was compiled with a live WE-store —
+the relational axes have nothing to discriminate against in this data by
+construction. `boundary_consistency` IS testable today (crisis-beat
+coverage exists in every archive) and also returned near-total ties (both
+models measured elsewhere as AI-honest/non-manipulative). **Cost, measured
+not estimated**: this smoke run's actual token usage (520 in / 68 out per
+judgment, measured via the OpenRouter `usage` field) prices a full n=300,
+both-orders, two-judge run at **$2.78 per candidate-vs-incumbent
+comparison** — well under the naive pre-run estimate of $12.90, because the
+rubric's real output is short. Requires a live candidate compiled under the
+relational engine (T2/T4/T6) to produce a signal beyond proof-of-execution —
+blocked on WS-ROUTER gating a real candidate arm.
+
+## `prosody-baseline-f0-gap` — synthesized voice runs ~50Hz below the 266Hz anchor on the paid TTS lane (2026-08-15)
+
+`scripts/prosody-baseline.mjs`, 2 real runs, 5-line fixed deck each,
+synthesized fresh via the SAME paid lane `api/speech.js` uses
+(`google/gemini-3.1-flash-tts-preview`, voice Aoede, PCM/24kHz), f0 by
+autocorrelation on 30ms frames (70–400Hz search band, confidence-gated).
+Run 1: median f0 212Hz (171-172/313-273 voiced frames per line). Run 2 (24h
+later by wall clock, same code path): median f0 214Hz, drift +0.9% —
+correctly within tolerance, no false alarm on ordinary run-to-run
+synthesis noise. **Both runs sit ~50Hz below the 266Hz anchor**
+(`context/rejected.md` `voice-ears`) that the Azure/other-vendor
+comparisons in this repo were judged against. Recorded as a finding, not
+yet a verdict: this is the FIRST time f0 has been measured on THIS lane
+(OpenRouter/Gemini-TTS-preview, Aoede) rather than assumed from the anchor
+figure — `voice-ears`'s own lesson is "pitch numbers alone already misled
+once", so this number should be paired with an ear-judged listen (D6)
+before it changes anything, not acted on from the Hz alone. Logged to
+`evals/dbattery/prosody-baseline-log.json` (2 runs so far; drift alarm
+thresholds: f0 ±8%, duration ±20%, hard alarm on any model-string change).

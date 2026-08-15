@@ -23,7 +23,21 @@ execSync(
   { stdio: "inherit", cwd: ROOT },
 );
 
-const suites = { parse: "parse.mjs", persona: "persona-invariants.mjs", fixtures: "fixtures.mjs" };
+const suites = {
+  parse: "parse.mjs",
+  persona: "persona-invariants.mjs",
+  fixtures: "fixtures.mjs",
+  // WS-BATTERY (SPEC §13/§14): D0/D1 are offline and deterministic — no
+  // judge, no model call, no cost — so they run here, in CI, on every build,
+  // same as the suites above. D2 and up are judged/generative (real money)
+  // and are DELIBERATELY NOT in this map: run them by hand via
+  // `node evals/dbattery/d2.mjs` (gated internally behind
+  // WSBAT_RUN_JUDGED=1 — see that file's header). Keeping them out of this
+  // object, rather than adding an in-loop skip, is the mechanism that makes
+  // "D2+ never runs in CI" true by construction instead of by remembering.
+  d0: "dbattery/d0.mjs",
+  d1: "dbattery/d1.mjs",
+};
 const pick = process.argv[2];
 let failed = 0;
 for (const [name, file] of Object.entries(suites)) {
