@@ -363,6 +363,42 @@
       "kind": "measurement",
       "title": "Semantic recall lands: DB p50 40ms, embed call is the bottleneck",
       "at": "2026-08-13"
+    },
+    {
+      "id": "d0-battery-validated",
+      "kind": "measurement",
+      "title": "D0 flags all 3 archives on deterministic axes only, judged data excluded",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "d1-band-recompute",
+      "kind": "measurement",
+      "title": "Archived incumbent arms run hot on the flat production band; ratio is the real gate",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "replay-verified",
+      "kind": "measurement",
+      "title": "Determinism + transcript fidelity on 3 real sessions; compile.manifest gap found",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "sham-noop-verdict",
+      "kind": "measurement",
+      "title": "Battery says no-difference on a real router relabel (one-bit diff)",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "d2-relational-smoke",
+      "kind": "measurement",
+      "title": "Relational judge harness executes; priced full run at $2.78/comparison",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "prosody-baseline-f0-gap",
+      "kind": "measurement",
+      "title": "Synthesized voice measures ~212-214Hz, ~50Hz below the 266Hz anchor",
+      "at": "2026-08-15"
     }
   ],
   "edges": [
@@ -708,6 +744,41 @@
     },
     {
       "src": "recall-v2",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "d0-battery-validated",
+      "rel": "measured_by",
+      "dst": "charm-luna"
+    },
+    {
+      "src": "d0-battery-validated",
+      "rel": "constrains",
+      "dst": "spec-c-minimal"
+    },
+    {
+      "src": "d1-band-recompute",
+      "rel": "caused_by",
+      "dst": "d0-battery-validated"
+    },
+    {
+      "src": "replay-verified",
+      "rel": "blocks",
+      "dst": "spec-c-minimal"
+    },
+    {
+      "src": "sham-noop-verdict",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "d2-relational-smoke",
+      "rel": "measured_by",
+      "dst": "fab-noise-floor"
+    },
+    {
+      "src": "prosody-baseline-f0-gap",
       "rel": "part_of",
       "dst": "relational-state"
     }
