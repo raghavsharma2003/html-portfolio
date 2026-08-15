@@ -285,3 +285,17 @@ The rule now: a judged comparison is only reportable when every generated
 unit in BOTH arms has been scored, or the unscored remainder is excluded
 from both by an explicit, logged sampling rule. (The powered run's numbers
 absorbed and corrected this — see `visiongate-powered`.)
+
+---
+
+## Treating archive turn-count as stimulus diversity (2026-08-15)
+
+The prereg and the WS-CANDGEN brief both spoke of "288 archived distinct
+turns". WS-CORPUS measured the pool and found 72 distinct texts duplicated
+4× (2 archives × 2 reps replaying one beat script). Nothing was wrong with
+the archives — the error was upstream, in letting a row count stand in for
+a diversity count. What breaks: any design sized on rows-not-distinct
+(the naive variant crossing would have silently capped at 576 of the
+"required" 2,000+ distinct contexts). The rule: diversity claims are
+distinct-count claims, measured by hashing the thing that must differ,
+never read off len().

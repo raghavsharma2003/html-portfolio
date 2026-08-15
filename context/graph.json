@@ -471,6 +471,18 @@
    "kind": "decision",
    "title": "Owner directive: research layer must be product-agnostic; Meera is instance one, funded with the $400",
    "at": "2026-08-15"
+  },
+  {
+   "id": "corpus-2304",
+   "kind": "measurement",
+   "title": "Swap corpus: 2,304 sha-distinct compiled contexts (72 texts x 32 variants), deterministic",
+   "at": "2026-08-15"
+  },
+  {
+   "id": "compiler-now-seam",
+   "kind": "open",
+   "title": "Compiler has no `now` seam: persona/relstate/india default new Date() internally; corpus pins via global Date subclass",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -946,6 +958,16 @@
   },
   {
    "src": "beyond-meera",
+   "rel": "part_of",
+   "dst": "relational-state"
+  },
+  {
+   "src": "corpus-2304",
+   "rel": "part_of",
+   "dst": "swap-prereg-1"
+  },
+  {
+   "src": "compiler-now-seam",
    "rel": "part_of",
    "dst": "relational-state"
   }

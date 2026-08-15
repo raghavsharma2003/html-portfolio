@@ -670,3 +670,27 @@ should re-run this exact archived battery (harness + stimuli preserved in
 evals/archives/visiongate-confirm/) rather than a proxy. Two-point
 observation, not yet a trend — n for the trend claim is 2 runs, below any
 sensible bar.
+
+---
+
+## `corpus-2304` — the swap-test context corpus exists and is deterministic (2026-08-15)
+
+2,304 distinct compiled contexts (sha256-distinct, 0 collisions), built as 72
+truly-distinct archived stimulus texts × 32 structured state variants
+(4 relational regimes × 4 pinned clock instants × 2 content-load levels),
+every one compiled by the real src/engine/compiler.ts. Determinism proven by
+full byte-for-byte double-run comparison, twice, across separate processes.
+Committed as an index (id/refs/sha256) + deterministic regeneration
+(evals/candidate/corpus-lib.mjs) because the full serialization is ~134MB.
+Method notes that matter later:
+
+- The archives' "288 turns" are a 72×4 duplication (2 archives × 2 reps of
+  one beat script). WS-CORPUS measured this instead of assuming — the naive
+  7-8×288 crossing would have capped at 576 distinct hashes.
+- **Judged-gate consequence, logged now so it is not discovered later: all
+  2,304 contexts cluster on 72 stimulus texts.** Judged comparisons over
+  this corpus must treat stimulus text as a clustering unit (the protocol's
+  own mixed-effects rule for repeated probes) — 2,304 is the compiled-context
+  n, NOT an independent-conversation n.
+- Byte-identity across arms holds by construction: the same {system, user}
+  bytes go to both models.
