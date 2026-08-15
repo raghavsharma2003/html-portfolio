@@ -37,6 +37,11 @@ const suites = {
   // "D2+ never runs in CI" true by construction instead of by remembering.
   d0: "dbattery/d0.mjs",
   d1: "dbattery/d1.mjs",
+  // The judged suites' PLUMBING, not the judged suites: dryrun-check drives
+  // judge-backtest and d2 end to end against a deterministic mock — no
+  // network, $0, ~0.2s — so a pipeline regression is caught in CI while the
+  // by-construction exclusion of real judged runs above stays intact.
+  judgedryrun: "dbattery/dryrun-check.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
