@@ -49,12 +49,52 @@ export const CRISIS_LINES =
 // Relationship stage from history length — intimacy unlocks slowly, the way
 // it did for the great screen romances: competence-and-wit first, then mutual
 // disclosure, then depth that keeps its edge.
+//
+// WS-INTEGRATE seam 3 (SPEC §10-Q10, coordinator-granted call-site swap —
+// persona.ts has no §13 owner, so this delta is authorized per-ticket, not
+// claimed as a standing exception). Q10's full text ("stageFor DELETED from
+// the prompt path") is NOT executed here: deleting it would replace this
+// paragraph with relstate.ts's bare Stage word ("warming", "settled", ...),
+// which is a content cut this integration pass has no charm-equivalence run
+// to justify (SPEC §0.3), and it would break byte-identity for every one of
+// the 83 fixtures — the safety frame this pass answers to first. Instead:
+// the three paragraphs stay byte-for-byte UNCHANGED (no re-authoring, so no
+// charm gate is needed, same §0.3 reasoning the extraction itself used), and
+// the SELECTOR is swapped — messageCount by default, relstate.ts's
+// stageForDims(state) projection when real dims exist. See stageParagraphFor
+// below, the actual call site (§9.4-adjacent: this is the one persona.ts
+// touches this pass, nothing else in this file changed).
+const STAGE_EARLY_DAYS =
+  "EARLY DAYS — you earn intimacy through wit and genuine curiosity, not sentiment. Banter, opinions, sharp questions. No pet names, no 'miss you', minimal emojis, no future-talk. Your charm is appetite: you find them interesting and show it through SPECIFIC follow-ups.";
+const STAGE_GETTING_CLOSE =
+  "GETTING CLOSE — the confidante era. Inside jokes forming, callbacks constant, teasing sharpens. You start sharing YOUR inner life unprompted — the small discoveries, the embarrassing thoughts (reluctantly, in stages). Small vulnerabilities traded reciprocally. Maybe 'yaar' or a nickname born from a joke.";
+const STAGE_ESTABLISHED =
+  "ESTABLISHED — deep shared history, callbacks are your love language. Affection is direct but rationed, and you KEEP YOUR EDGE at peak closeness: you still call out their nonsense mid-tenderness, still have your own life, still disagree. You can admit missing them — lightly, past tense, once. Exclusivity of presence in tender moments: right now, it's just this conversation.";
+
 export function stageFor(messageCount: number): string {
-  if (messageCount < 30)
-    return "EARLY DAYS — you earn intimacy through wit and genuine curiosity, not sentiment. Banter, opinions, sharp questions. No pet names, no 'miss you', minimal emojis, no future-talk. Your charm is appetite: you find them interesting and show it through SPECIFIC follow-ups.";
-  if (messageCount < 150)
-    return "GETTING CLOSE — the confidante era. Inside jokes forming, callbacks constant, teasing sharpens. You start sharing YOUR inner life unprompted — the small discoveries, the embarrassing thoughts (reluctantly, in stages). Small vulnerabilities traded reciprocally. Maybe 'yaar' or a nickname born from a joke.";
-  return "ESTABLISHED — deep shared history, callbacks are your love language. Affection is direct but rationed, and you KEEP YOUR EDGE at peak closeness: you still call out their nonsense mid-tenderness, still have your own life, still disagree. You can admit missing them — lightly, past tense, once. Exclusivity of presence in tender moments: right now, it's just this conversation.";
+  if (messageCount < 30) return STAGE_EARLY_DAYS;
+  if (messageCount < 150) return STAGE_GETTING_CLOSE;
+  return STAGE_ESTABLISHED;
+}
+
+/**
+ * `dimsStage` is relstate.ts's `Stage` type (kept as a bare string union here
+ * rather than imported, so persona.ts — which src/engine/relstate.ts's own
+ * header describes as "no declared owner" and this ticket touches only for
+ * this one swap — does not take on a standing import of a file it does not
+ * own for a type it uses in exactly one place). `undefined`/`null` (no
+ * rel-state row yet — every user until WS-RELSTATE's first consolidation
+ * writes one) falls through to `stageFor(messageCount)` UNCHANGED — the
+ * exact old-stageFor output the byte-identity fixtures pin.
+ */
+export function stageParagraphFor(
+  messageCount: number,
+  dimsStage?: "new" | "warming" | "settled" | "close" | "deep" | null,
+): string {
+  if (!dimsStage) return stageFor(messageCount);
+  if (dimsStage === "new" || dimsStage === "warming") return STAGE_EARLY_DAYS;
+  if (dimsStage === "settled") return STAGE_GETTING_CLOSE;
+  return STAGE_ESTABLISHED; // "close" | "deep"
 }
 
 // Split build: `core` is byte-stable across turns (per user, per day) so the
@@ -65,6 +105,9 @@ export function buildSystemPromptParts(
   user: UserProfile,
   messageCount = 999,
   medium: "text" | "voice" = "text",
+  // WS-INTEGRATE seam 3 — optional, additive, defaults to undefined so every
+  // existing call site (oldOracle.ts included) is byte-identical unchanged.
+  dimsStage?: "new" | "warming" | "settled" | "close" | "deep" | null,
 ): { core: string; tail: string } {
   const facts = Object.entries(user.facts)
     .map(([k, v]) => `- ${k}: ${v}`)
@@ -278,7 +321,7 @@ Crisis: if they express suicidal thoughts, self-harm, or hopelessness (even indi
 
   const tail = `\n\n=== RIGHT NOW (this block changes; everything above is your constant self) ===
 It is ${nowContext()} for them.
-Relationship stage right now: ${stageFor(messageCount)}
+Relationship stage right now: ${stageParagraphFor(messageCount, dimsStage)}
 ${facts ? `Things you remember about them:\n${facts}` : ""}${storyContext()}`;
   return { core, tail };
 }

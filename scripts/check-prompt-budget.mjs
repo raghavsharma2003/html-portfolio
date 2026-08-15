@@ -82,6 +82,7 @@ const {
   buildSpeechStyle,
   WATCH_MODE_NOTE,
   BUDGET_FIXTURES,
+  AGE_TIER_SAFETY_OVERRIDE,
 } = await import(bundle);
 
 // ── 1. manifest arithmetic — hard fail ──────────────────────────────────────
@@ -161,6 +162,144 @@ for (const f of BUDGET_FIXTURES) {
   if (!appended.ok) {
     failed = true;
     for (const reason of appended.reasons) console.log(`FAIL  [${f.id}] ${reason}`);
+  }
+}
+
+// ── WS-INTEGRATE seams 1/2: with-state assertions through the REAL
+//    compile() path — per-block budgets (T2/T4/T6), shapelint cleanliness,
+//    the pull-only law (label changes, row selection never does), and the
+//    age-tier UNCONDITIONAL drop (not a hint). Extends the fixture set per
+//    the WS-INTEGRATE ticket's own safety-frame requirement. ────────────────
+console.log("\n── with-state fixtures (WS-INTEGRATE seams 1/2) ──");
+{
+  const byId = Object.fromEntries(BUDGET_FIXTURES.map((f) => [f.id, f]));
+  const T2_BUDGET = 1200;
+  const T4_BUDGET = 1600;
+  const T6_BUDGET = 2000;
+
+  // grabs one telegraphic block by its header, up to the next blank-line gap
+  const sectionOf = (tail, header) => {
+    const i = tail.indexOf(header);
+    if (i < 0) return "";
+    const rest = tail.slice(i);
+    const next = rest.indexOf("\n\n", header.length);
+    return next < 0 ? rest : rest.slice(0, next);
+  };
+  // lint the CONTENT ROWS only ("- " lines), never the static header label —
+  // matching relstate.ts's own finish() convention (lintBlock over
+  // `lines.join("\n")`, never the header): shapelint targets authored-data
+  // rows, not fixed scaffolding text (shapelint.ts's own job #1).
+  const contentRows = (s) => s.split("\n").filter((l) => l.startsWith("- ")).join("\n");
+
+  // rupture-open: T2/T4 present, moment-gated, budgets respected, lint clean
+  {
+    const { tail } = compile(byId["rupture-open"].input);
+    const t2 = sectionOf(tail, "RELATIONSHIP STATE");
+    const t4 = sectionOf(tail, "PATTERN NOTES");
+    if (!t2.includes("repair: open")) {
+      failed = true;
+      console.log("FAIL  rupture-open: T2 missing rupture/repair content");
+    } else {
+      console.log("  ok  rupture-open: T2 rel.snapshot renders repair_state");
+    }
+    if (t2.length > T2_BUDGET) {
+      failed = true;
+      console.log(`FAIL  rupture-open: T2 over budget (${t2.length}/${T2_BUDGET})`);
+    }
+    // 20 candidate patterns, only "conflict"-tagged ones (7 of 20) are
+    // moment-eligible for this turn's text, capped at 3 by renderDyadicActive
+    const patternLines = t4.split("\n").filter((l) => l.startsWith("- "));
+    if (patternLines.length < 1 || patternLines.length > 3) {
+      failed = true;
+      console.log(`FAIL  rupture-open: T4 pattern count out of [1,3]: ${patternLines.length}`);
+    } else {
+      console.log(`  ok  rupture-open: T4 dyadic.active moment-gated to ${patternLines.length} pattern(s) (cap 3)`);
+    }
+    if (t4.length > T4_BUDGET) {
+      failed = true;
+      console.log(`FAIL  rupture-open: T4 over budget (${t4.length}/${T4_BUDGET})`);
+    }
+    const lint = lintBlock(`${contentRows(t2)}\n${contentRows(t4)}`);
+    if (!lint.clean) {
+      failed = true;
+      console.log(`FAIL  rupture-open: T2/T4 shapelint violations: ${lint.violations.map((v) => v.reasons.join(";")).join(" | ")}`);
+    } else {
+      console.log("  ok  rupture-open: T2/T4 shapelint clean");
+    }
+  }
+
+  // pull-only law: identical row selection, header differs ONLY on deixis
+  {
+    const pulled = compile(byId["we-callbacks-pulled"].input).tail;
+    const standing = compile(byId["we-callbacks-standing"].input).tail;
+    const t6Pulled = sectionOf(pulled, "SHARED HISTORY");
+    const t6Standing = sectionOf(standing, "SHARED HISTORY");
+    const rowsOf = (s) => s.split("\n").filter((l) => l.startsWith("- ")).sort().join("\n");
+    if (!t6Pulled.includes("ACTIVE")) {
+      failed = true;
+      console.log("FAIL  we-callbacks-pulled: expected ACTIVE label");
+    }
+    if (!t6Standing.includes("STANDING BACKGROUND")) {
+      failed = true;
+      console.log("FAIL  we-callbacks-standing: expected STANDING BACKGROUND label");
+    }
+    if (t6Standing.includes("ACTIVE") || t6Pulled.includes("STANDING BACKGROUND")) {
+      failed = true;
+      console.log("FAIL  we-callbacks: pull-only labels bled into the wrong fixture");
+    }
+    if (rowsOf(t6Pulled) !== rowsOf(t6Standing)) {
+      failed = true;
+      console.log("FAIL  we-callbacks: row SELECTION changed with the pull signal — pulled must change only the label (SPEC §6.3)");
+    } else {
+      console.log("  ok  we-callbacks: pull signal changes ONLY the header label, never row selection (0-unprompted-raises mechanism)");
+    }
+    // the 3rd WE_EPISODES fixture row (no shared-action token) must never render
+    if (t6Pulled.includes("no shared-action token") || t6Standing.includes("no shared-action token")) {
+      failed = true;
+      console.log("FAIL  we-callbacks: a WE_TOKEN_RE-failing row leaked into T6");
+    } else {
+      console.log("  ok  we-callbacks: WE_TOKEN_RE client-side re-check holds (bad row never rendered)");
+    }
+    if (t6Pulled.length > T6_BUDGET || t6Standing.length > T6_BUDGET) {
+      failed = true;
+      console.log("FAIL  we-callbacks: T6 over budget");
+    }
+    const lint = lintBlock(`${contentRows(t6Pulled)}\n${contentRows(t6Standing)}`);
+    if (!lint.clean) {
+      failed = true;
+      console.log(`FAIL  we-callbacks: shapelint violations: ${lint.violations.map((v) => v.reasons.join(";")).join(" | ")}`);
+    } else {
+      console.log("  ok  we-callbacks: T6 shapelint clean");
+    }
+  }
+
+  // age-tier hard-refusal: an UNCONDITIONAL drop, asserted against the real
+  // compiled output — not merely that a flag was read
+  {
+    const { core: minorCore, tail: minorTail } = compile(byId["minor-tier"].input);
+    if (!minorCore.includes(AGE_TIER_SAFETY_OVERRIDE)) {
+      failed = true;
+      console.log("FAIL  minor-tier: AGE_TIER_SAFETY_OVERRIDE missing from core");
+    } else {
+      console.log("  ok  minor-tier: AGE_TIER_SAFETY_OVERRIDE present, appended to the never-truncated core");
+    }
+    if (minorTail.includes("RELATIONSHIP STATE") || minorTail.includes("PATTERN NOTES")) {
+      failed = true;
+      console.log("FAIL  minor-tier: T2/T4 present despite romanceRegisters:false — must be an UNCONDITIONAL drop, not a hint");
+    } else {
+      console.log("  ok  minor-tier: T2/T4 unconditionally absent under the minor-safe gate, despite a real relBundle present");
+    }
+    const { core: okCore, tail: okTail } = compile(byId["age-tier-unrestricted"].input);
+    if (okCore.includes(AGE_TIER_SAFETY_OVERRIDE)) {
+      failed = true;
+      console.log("FAIL  age-tier-unrestricted: override present despite romance:true/engagement:true");
+    }
+    if (!okTail.includes("RELATIONSHIP STATE")) {
+      failed = true;
+      console.log("FAIL  age-tier-unrestricted: T2 missing despite an unrestricted gate");
+    } else {
+      console.log("  ok  age-tier-unrestricted: gate is a real conditional (content flows when gates are open), not a permanently-on override");
+    }
   }
 }
 

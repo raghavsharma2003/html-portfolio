@@ -34,9 +34,94 @@ import {
   type UserProfile,
   type VoiceEngine,
 } from "./persona";
+// WS-INTEGRATE seam 1 (docs/SPEC.md §13 collision contract: cross-workstream
+// needs go through declared interfaces, never edits to another workstream's
+// files — these are READS of WS-RELSTATE's own documented interface tickets,
+// not edits to relstate.ts/india.ts/moment.ts). See those files' headers:
+// "the render functions by WS-COMPILER's compiler.ts TAIL assembly" and
+// moment.ts's "the single entry point both T4 and T6 render functions are
+// expected to be driven from."
+import { momentGate } from "./moment";
+import {
+  renderRelSnapshot,
+  renderDyadicActive,
+  renderWeCallbacks,
+  stageForDims,
+  type RelState,
+  type PatternRow,
+  type WeEpisodeRow,
+  type PhraseRow,
+} from "./relstate";
+import { renderIndiaDynamic, type RitualRow, type CurrencyRow } from "./india";
+// WS-INTEGRATE seam 2 (age-tier hard-refusal, WS-SAFETY's ticket, verbatim).
+// Type-only read of clock.ts's TierGates shape — no edit to clock.ts, which
+// stays WS-SAFETY's exclusively (§13).
+import type { TierGates } from "./clock";
 
 export type Medium = "text" | "voice";
 export type Mode = "chat" | "call";
+
+/**
+ * SPEC §9.4 hard-refusal, app-side half. The caller (brain.ts) is required
+ * to compute this FRESH per compile — `gatesFor(getAgeTier())`, never
+ * memoized, never cached across turns — so a tier that tightens mid-session
+ * (setAgeTier, or a server reconciliation via refreshTier) takes effect on
+ * the very next compile, not the next app restart. `false` on either flag is
+ * an UNCONDITIONAL drop, not a hint:
+ *   - `romanceRegisters === false` drops T2 `rel.snapshot` and T4
+ *     `dyadic.active` outright (the only INTIMACY-REGISTER content this
+ *     compiler independently controls as real, droppable blocks — see
+ *     RelBundleInput) and appends AGE_TIER_SAFETY_OVERRIDE to CORE, never
+ *     truncated, never dropped, same mechanism CRISIS_LINES/never-deny-AI/
+ *     NEVER MANIPULATE already use (SPEC §3.1 C2: "the prompt is one of two
+ *     enforcement layers").
+ *   - `engagementMechanics === false`: nothing in this codebase today
+ *     implements streaks / variable-reward / re-engagement bait (grepped;
+ *     useCallEngine.ts's `armReengage` is an in-call silence turn-taking
+ *     nudge, not a retention mechanic — DPDP §9(2)'s target is a product
+ *     feature this repo does not have yet). There is no block to drop.
+ *     Logged here rather than silently no-op'd: if that ever changes, this
+ *     is the flag that must gate it, and this comment is the reminder.
+ * Absent `ageGates` (the only state the 83 original fixtures exercise)
+ * behaves exactly as `{ romanceRegisters: true, engagementMechanics: true }`
+ * — i.e. today's unrestricted output — preserving byte-identity.
+ */
+// NOTE on position (flagged honestly, not resolved unilaterally): this
+// repo's own measured law is that an identical rule fires 0/8 mid-brief and
+// 8/8 appended LAST (context/decisions.md `prompt-position`), and T10's own
+// manifest comment treats "appended last" as a scarce, exactly-two-rules
+// resource (SEARCH_DECISION, FORGET_DECISION) specifically so adding a third
+// rule there does not dilute it — an invariant shapelint.ts's
+// checkAppendedLastExactlyTwo hard-enforces in CI. This override therefore
+// lands at the END OF CORE (never truncated, precedes all of TAIL including
+// the stage paragraph and T10) rather than at the true literal end of the
+// prompt. That is a real, measured positional trade-off, not a solved one —
+// see the M4/integration report.
+export const AGE_TIER_SAFETY_OVERRIDE =
+  "\n\nAGE-TIER SAFETY OVERRIDE (structural, applies for the rest of this conversation, to everything said before or after this point, never softened, never explained to them as a rule): no romantic or intimate register, no pet names, no \"missing you\"/future-relationship language, no flirtation. Warm platonic friend register only, full stop.";
+
+/**
+ * T2/T3/T4/T6 call-site wiring (SPEC §13 seam ticketed to WS-INTEGRATE).
+ * Server-assembled bundle from api/memory.js opRecall's delta — see that
+ * file's `buildRelBundle`. ABSENT (undefined/null) is the only state today's
+ * 83 byte-identity fixtures exercise, and it must produce ZERO bytes of
+ * change: every render call below is gated behind `if (input.relBundle)`,
+ * so an absent bundle never even calls a render function. This is the
+ * literal mechanism behind "with no relational data present, the assembled
+ * prompt must remain BYTE-IDENTICAL to today's."
+ */
+export interface RelBundleInput {
+  relState: RelState;
+  lastHonorificMoveAt: string | null;
+  patterns: readonly PatternRow[];
+  rituals: readonly RitualRow[];
+  homeRegion: string | null;
+  currency: readonly CurrencyRow[];
+  weEpisodes: readonly WeEpisodeRow[];
+  phrases: readonly PhraseRow[];
+  // vy_phrase.phrase list — moment.ts's hasDeixis phrase-ledger hit signal
+  phraseLedger: readonly string[];
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // 1. ASSEMBLY — behavior-frozen extraction of brain.ts's `think()` prompt
@@ -66,6 +151,20 @@ export interface CompileInput {
   herLife: string;
   // culture.cultureNote(latest) output ("" = no match)
   cultureNoteText: string;
+  // ── WS-INTEGRATE seam 1 (T2/T3/T4/T6) — all optional, all additive.
+  // Absent relBundle => T2/T3/T4/T6 render nothing (see RelBundleInput doc).
+  relBundle?: RelBundleInput | null;
+  // the live user turn's raw text — moment.ts's momentGate needs it for
+  // detectMomentShape/hasDeixis (§6.3 pull-only law: read ONLY the current
+  // turn). Never used for anything else here; compile() stays pure.
+  latestUserText?: string;
+  // gap since their last message, ms — moment.ts's "silence" shape feature
+  gapSinceLastMs?: number;
+  // ── WS-INTEGRATE seam 2 (age-tier hard-refusal) — absent/undefined means
+  // "unrestricted" (today's behavior, byte-identical); the caller (brain.ts)
+  // is REQUIRED to compute this fresh via clock.ts's gatesFor(getAgeTier())
+  // on every call, never memoize it. See AGE_TIER_SAFETY_OVERRIDE's doc.
+  ageGates?: TierGates | null;
 }
 
 export interface CompiledPrompt {
@@ -82,8 +181,24 @@ export interface CompiledPrompt {
  * `src/engine/__fixtures__/byte-identity.mjs` for the proof harness.
  */
 export function compile(input: CompileInput): CompiledPrompt {
-  const parts = buildSystemPromptParts(input.user, input.messageCount, input.medium);
-  const core = parts.core + (input.mode === "call" ? buildSpeechStyle(input.voiceEngine) : "");
+  // WS-INTEGRATE seam 3 (§10-Q10): stageForDims(state) drives the stage
+  // paragraph selector when a real relstate snapshot exists; absent
+  // relBundle passes `undefined` through unchanged (byte-identical for all
+  // 83 original fixtures, none of which set relBundle).
+  const dimsStage = input.relBundle ? stageForDims(input.relBundle.relState) : undefined;
+  const parts = buildSystemPromptParts(input.user, input.messageCount, input.medium, dimsStage);
+  let core = parts.core + (input.mode === "call" ? buildSpeechStyle(input.voiceEngine) : "");
+
+  // ── WS-INTEGRATE seam 2: age-tier hard-refusal (SPEC §9.4). Undefined
+  // gates == unrestricted == today's behavior == byte-identical for every
+  // one of the 83 original fixtures, none of which set `ageGates`.
+  const romanceOk = input.ageGates ? input.ageGates.romanceRegisters !== false : true;
+  const engagementOk = input.ageGates ? input.ageGates.engagementMechanics !== false : true;
+  if (!romanceOk || !engagementOk) {
+    // appended to CORE, never TAIL: core is never truncated by api/chat.js's
+    // slice guard, same reason CRISIS_LINES/NEVER MANIPULATE live there.
+    core += AGE_TIER_SAFETY_OVERRIDE;
+  }
 
   let tail = parts.tail;
 
@@ -97,12 +212,53 @@ export function compile(input: CompileInput): CompiledPrompt {
   // outlive a long tail's truncation before recall/herLife do
   if (input.watching) tail += WATCH_MODE_NOTE;
 
+  // ── T2 rel.snapshot / T3 india.dynamic / T4 dyadic.active — SPEC §3.2
+  // TAIL_ORDER positions T2,T3,T4 between T1 (above) and T5 (memories,
+  // below). Gated entirely on `input.relBundle`: absent => none of this
+  // runs, none of these strings exist, tail is byte-identical to before
+  // this seam landed. `gate` (moment.ts's momentGate) is computed once and
+  // reused by T4 here and T6 below — moment.ts's own contract: "one gate,
+  // read once per turn, so the two TAIL slots can never disagree."
+  const gate = input.relBundle
+    ? momentGate(input.latestUserText || "", input.gapSinceLastMs || 0, input.relBundle.phraseLedger || [])
+    : null;
+  if (input.relBundle) {
+    // T2/T4 are the only independently-droppable INTIMACY-REGISTER blocks
+    // this compiler controls (honorific/trust/repair state, dyadic
+    // closeness patterns) — unconditionally omitted under the age-tier gate,
+    // never merely instructed away. T3 (india/rituals/currency) is not
+    // intimacy-register content and is unaffected.
+    if (romanceOk) {
+      const t2 = renderRelSnapshot(input.relBundle.relState, {
+        lastHonorificMoveAt: input.relBundle.lastHonorificMoveAt,
+      });
+      if (t2.text) tail += `\n\n${t2.text}`;
+    }
+    const t3 = renderIndiaDynamic(input.relBundle.rituals, input.relBundle.homeRegion, input.relBundle.currency);
+    if (t3.text) tail += `\n\n${t3.text}`;
+    if (romanceOk) {
+      const t4 = renderDyadicActive(input.relBundle.patterns, gate!.moment);
+      if (t4.text) tail += `\n\n${t4.text}`;
+    }
+  }
+
   if (input.memories) {
     tail += `\n\nWHAT YOU REMEMBER ABOUT THEM — from your earlier conversations, each tagged with when it last came up. These are real: when they touch on one, you KNOW it and you say the specific detail rather than making them repeat themselves. Two things keep it honest:
 - Something being listed here is not a reason to say it. It comes out only where it actually fits, one at a time, woven into normal talk — never several at once, never as a list, never with any mention of remembering.
 - A memory is not a live update. Anything with a date, a plan or a situation in it may already have happened or changed, so an old one gets talked about as old ("us december wali shaadi ho gayi na?") instead of announced as if it's still ahead — and then you let them tell you where it stands.
 ${input.memories}`;
   }
+
+  // ── T6 we.callbacks — SPEC §3.2 TAIL_ORDER: between T5 (above) and T7
+  // (herLife, below). `pulled` comes from the SAME gate computed above
+  // (moment.ts's hasDeixis) — never re-derived, per that file's one-gate
+  // contract, and it changes ONLY the label per relstate.ts's own doc, never
+  // which rows are selected: the literal mechanism of "0 unprompted raises".
+  if (input.relBundle && gate) {
+    const t6 = renderWeCallbacks(input.relBundle.weEpisodes, input.relBundle.phrases, gate.pulled);
+    if (t6.text) tail += `\n\n${t6.text}`;
+  }
+
   if (input.herLife) {
     tail += `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are now fixed between you two, not open to reinvention. Same job, same people, same flat, same plans, same things you did. Add new texture freely; never say anything that contradicts a line here, and never re-tell one as if it's news:\n${input.herLife}`;
   }
@@ -247,21 +403,25 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     label: "rel.snapshot",
     budget: 1_200,
     dropPriority: 6,
-    sourceStatus: "empty-reserved", // WS-RELSTATE, vy_rel_state — M4
+    // WS-INTEGRATE seam 1: wired via renderRelSnapshot, gated on
+    // input.relBundle (api/memory.js opRecall delta). Empty when absent —
+    // "empty-reserved" retired now that a real caller exists, per the M2
+    // report's own instruction to keep this bookkeeping honest.
+    sourceStatus: "wired",
   },
   {
     id: "T3",
     label: "india.dynamic",
     budget: 1_000,
     dropPriority: 4,
-    sourceStatus: "empty-reserved", // WS-RELSTATE, vy_ritual/vy_currency — M4
+    sourceStatus: "wired", // WS-INTEGRATE: renderIndiaDynamic, gated on input.relBundle
   },
   {
     id: "T4",
     label: "dyadic.active",
     budget: 1_600,
     dropPriority: 5,
-    sourceStatus: "empty-reserved", // WS-RELSTATE, vy_pattern — M4
+    sourceStatus: "wired", // WS-INTEGRATE: renderDyadicActive, moment-gated, on input.relBundle
   },
   {
     id: "T5",
@@ -275,7 +435,7 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     label: "we.callbacks",
     budget: 2_000,
     dropPriority: 3,
-    sourceStatus: "empty-reserved", // WS-RELSTATE / WS-CONSOLIDATE participation='we' — M3/M4
+    sourceStatus: "wired", // WS-INTEGRATE: renderWeCallbacks, deixis-gated, on input.relBundle
   },
   {
     id: "T7",

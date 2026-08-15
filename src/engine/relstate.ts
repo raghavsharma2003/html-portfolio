@@ -647,7 +647,7 @@ export async function computeCsRatio(q: QueryFn, personId: string): Promise<numb
     `with recent as (
        select l.content from meera_log l
        join vy_person_device d on d.device_id = l.device_id
-       where d.person_id = $1 and l.role = 'user'
+       where d.person_id = $1 and l.role = 'me'
        order by l.at desc limit 200
      )
      select count(*)::int as total,

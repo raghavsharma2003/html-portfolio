@@ -163,6 +163,120 @@ function ageLabel(at) {
   return "over a year ago";
 }
 
+// ── WS-INTEGRATE seam 1 delta (scoped to opRecall only — docs/SPEC.md §13
+// collision contract: cross-workstream needs go through declared interfaces,
+// never edits to another workstream's files. This is new code serving
+// opRecall alone; opRemember/opForget/opLog etc. are untouched). Builds the
+// server-side relstate bundle src/engine/compiler.ts's RelBundleInput
+// consumes — field names mirror it and relstate.ts's/india.ts's row types
+// exactly, since the RENDER functions stay client-side (relstate.ts's own
+// header: "the render functions by WS-COMPILER's compiler.ts TAIL
+// assembly"); this only supplies their raw, already-fetched inputs.
+//
+// Returns null when no vy_rel_state row exists yet for this person (no
+// consolidation has run) — that null is the byte-identity safety frame:
+// compile() never even calls a render function without a bundle, so a
+// person with no relational data produces the exact same prompt as today.
+async function fetchRelBundle(person) {
+  const stateRows = await q(`select * from vy_rel_state where person_id = $1`, [person], 2_500).catch(() => []);
+  if (!stateRows.length) return null;
+  const s = stateRows[0];
+  const [honorificRow, patterns, rituals, currency, profile, weEpisodes, phrases] = await Promise.all([
+    q(
+      `select at from vy_rel_event where person_id = $1 and dim = 'honorific' order by at desc limit 1`,
+      [person],
+    ).catch(() => []),
+    // renderDyadicActive (relstate.ts) does the moment-match + top-3 slice
+    // client-side; server hands over every currently-eligible pattern
+    // (bounded to 20) so the moment gate has real candidates to filter.
+    q(
+      `select id, person_id, moment, if_shape, then_note, self_in_relation, citations,
+              support_count, distinct_days, prompt_eligible, times_contradicted, t_invalid, last_used
+         from vy_pattern
+        where person_id = $1 and t_invalid is null and prompt_eligible = true
+        order by support_count desc limit 20`,
+      [person],
+    ).catch(() => []),
+    q(
+      `select person_id, key, last_at, count, cold_last, citations from vy_ritual where person_id = $1`,
+      [person],
+    ).catch(() => []),
+    q(
+      `select person_id, topic, kind, last_used, uses, citations from vy_currency where person_id = $1`,
+      [person],
+    ).catch(() => []),
+    q(`select home_region from vy_india_profile where person_id = $1`, [person]).catch(() => []),
+    // participation='we' only (renderWeCallbacks' own WE_TOKEN_RE re-checks
+    // this client-side too — belt-and-braces, cheap, matches shapelint's own
+    // two-layer convention)
+    q(
+      `select id, summary, started_at as at from vy_episode
+        where person_id = $1 and participation = 'we' and superseded_by is null
+        order by started_at desc limit 10`,
+      [person],
+    ).catch(() => []),
+    q(
+      `select phrase, gloss from vy_phrase where person_id = $1
+        order by last_used desc nulls last, coined_at desc limit 20`,
+      [person],
+    ).catch(() => []),
+  ]);
+
+  return {
+    relState: {
+      person_id: s.person_id,
+      honorific: s.honorific,
+      cs_ratio: s.cs_ratio === null || s.cs_ratio === undefined ? null : Number(s.cs_ratio),
+      cs_on_stress: s.cs_on_stress,
+      trust: Number(s.trust),
+      rupture_open: Boolean(s.rupture_open),
+      repair_state: s.repair_state,
+      ritual_density: Number(s.ritual_density),
+      pacing_gap_s: s.pacing_gap_s === null || s.pacing_gap_s === undefined ? null : Number(s.pacing_gap_s),
+      snapshot_ver: Number(s.snapshot_ver),
+      updated_at: s.updated_at,
+    },
+    lastHonorificMoveAt: honorificRow[0]?.at ?? null,
+    patterns: patterns.map((p) => ({
+      id: Number(p.id),
+      person_id: p.person_id,
+      moment: p.moment,
+      if_shape: p.if_shape,
+      then_note: p.then_note,
+      self_in_relation: p.self_in_relation || "",
+      citations: p.citations || [],
+      support_count: Number(p.support_count),
+      distinct_days: Number(p.distinct_days),
+      prompt_eligible: Boolean(p.prompt_eligible),
+      times_contradicted: Number(p.times_contradicted),
+      t_invalid: p.t_invalid ?? null,
+      last_used: p.last_used ?? null,
+    })),
+    rituals: rituals.map((r) => ({
+      person_id: r.person_id,
+      key: r.key,
+      last_at: r.last_at ?? null,
+      count: Number(r.count),
+      cold_last: Boolean(r.cold_last),
+      citations: r.citations || [],
+    })),
+    homeRegion: profile[0]?.home_region ?? null,
+    currency: currency.map((c) => ({
+      person_id: c.person_id,
+      topic: c.topic,
+      kind: c.kind,
+      last_used: c.last_used ?? null,
+      uses: Number(c.uses),
+      citations: c.citations || [],
+    })),
+    weEpisodes: weEpisodes.map((e) => ({ id: Number(e.id), summary: e.summary || "", at: e.at })),
+    phrases: phrases.map((p) => ({ phrase: p.phrase, gloss: p.gloss || "" })),
+    // hasDeixis' phrase-ledger-hit signal — same rows as `phrases`, reduced
+    // to bare strings so moment.ts never has to know the row shape
+    phraseLedger: phrases.map((p) => p.phrase),
+  };
+}
+
 async function opRecall(device, body) {
   const query = String(body.query || "").toLowerCase();
   const words = [...new Set(query.match(/[a-z]{4,}|[ऀ-ॿ]{3,}/g) || [])]
@@ -218,12 +332,15 @@ async function opRecall(device, body) {
   // `spec-c-minimal`). Embedding is an enhancement, never a hard dependency:
   // any failure here degrades silently to the keyword-only behaviour this
   // function already had.
+  // hoisted so semanticFetch and the WS-INTEGRATE relBundleFetch below share
+  // one personIdFor lookup instead of two
+  const personPromise = personIdFor(device);
   const semanticFetch = (async () => {
     const trimmed = String(body.query || "").trim();
     if (trimmed.length < 3) return [];
     const vec = await embedOne(trimmed).catch(() => null);
     if (!vec) return [];
-    const person = await personIdFor(device);
+    const person = await personPromise;
     const lit = toHalfvecLiteral(vec);
     return q(
       `select f.id, f.kind, f.name, f.body, f.feel, f.created_at
@@ -237,14 +354,27 @@ async function opRecall(device, body) {
       2_500,
     ).catch(() => []);
   })();
+  // WS-INTEGRATE seam 1: run concurrently with everything else in this
+  // function — one extra batched round trip, never a serial one (SPEC §3.3
+  // retrieval-budget discipline). Any failure degrades to `relstate: null`,
+  // same as the "no consolidation yet" case — never blocks recall.
+  const relBundleFetch = personPromise.then((person) => fetchRelBundle(person)).catch(() => null);
 
-  const [[bgRaw, matchedRaw = []], semanticRaw] = await Promise.all([Promise.all(fetches), semanticFetch]);
+  const [[bgRaw, matchedRaw = []], semanticRaw, relBundle] = await Promise.all([
+    Promise.all(fetches),
+    semanticFetch,
+    relBundleFetch,
+  ]);
   const background = Array.isArray(bgRaw) ? bgRaw : [];
   const matched = Array.isArray(matchedRaw) ? matchedRaw : [];
   const semantic = (Array.isArray(semanticRaw) ? semanticRaw : []).slice(0, 4);
   const seen = new Map();
   for (const n of [...matched, ...background]) seen.set(n.id, n);
-  if (!seen.size && !semantic.length) return { memories: "" };
+  // relstate is independent of graph recall — a person with no matched/
+  // background/semantic memories yet may still have a real relstate bundle
+  // (or vice versa), so it rides both return paths, never conditioned on
+  // `seen.size`.
+  if (!seen.size && !semantic.length) return { memories: "", relstate: relBundle };
 
   const idArr = [...seen.keys()];
   const edges = await q(
@@ -335,7 +465,7 @@ async function opRecall(device, body) {
     idArr,
   ]).catch(() => {});
 
-  return { memories: blocks.join("\n") };
+  return { memories: blocks.join("\n"), relstate: relBundle };
 }
 
 async function opRemember(device, body) {

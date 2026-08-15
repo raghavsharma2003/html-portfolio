@@ -12,10 +12,16 @@ import { type UserProfile, type VoiceEngine } from "./persona";
 import { tagFromSeed } from "./photoCatalog";
 import { heartReply, type HeartReply } from "./localHeart";
 import { cultureNote } from "./culture";
-import { recallMemories, forgetMemories, resolveForget } from "./memory";
+import { recallMemories, forgetMemories, resolveForget, takeRelBundle } from "./memory";
 import { innerContext, overlaps, type Inner } from "./inner";
 import { diag } from "./diag";
 import { compile } from "./compiler";
+// WS-INTEGRATE seam 2 (age-tier hard-refusal, WS-SAFETY's ticket, verbatim):
+// gatesFor(getAgeTier()) is called FRESH per compile below — never
+// memoized — so a tier that tightens mid-session takes effect on the very
+// next turn. clock.ts stays WS-SAFETY's exclusively (§13); this is a read
+// of its exported gate function, not an edit.
+import { gatesFor, getAgeTier } from "./clock";
 import type { Message } from "../state/store";
 
 const CLAUDE_MODEL = "claude-opus-5";
@@ -651,6 +657,18 @@ export async function think(
       : keys.deviceId
         ? await recallMemories(keys.deviceId, latest)
         : "";
+  // WS-INTEGRATE seam 1 (T2/T3/T4/T6): the relstate bundle rode the SAME
+  // op:"recall" response `memories` just resolved from (memory.ts's
+  // takeRelBundle — see that file's header for why this isn't its own
+  // network call). Chat lane only: the call lane's memory lookup happens
+  // once at pickup in useCallEngine.ts, outside this function, and is out of
+  // scope for this seam (§13 collision contract — useCallEngine.ts is a
+  // different ticket). Absent deviceId, absent bundle, or a directive turn
+  // (no live user text to gate on — moment.ts's pull-only law reads ONLY the
+  // real turn) all fall through to `null`, and compile() renders nothing for
+  // any of them — the byte-identity default.
+  const relBundle =
+    mode === "call" || isDirective || !keys.deviceId ? null : takeRelBundle(keys.deviceId);
 
   const compiled = compile({
     user,
@@ -665,6 +683,12 @@ export async function think(
     memories,
     herLife: keys.herLife || "",
     cultureNoteText: mode === "chat" && !isDirective ? cultureNote(latest) : "",
+    relBundle,
+    latestUserText: isDirective ? "" : latest,
+    gapSinceLastMs: lastMsgAt ? Math.max(0, Date.now() - lastMsgAt) : 0,
+    // fresh every call — see the import comment above; getAgeTier() reads
+    // clock.ts's live module state, never a value carried across turns here
+    ageGates: gatesFor(getAgeTier()),
   });
   const sysCore = compiled.core;
   let sysTail = compiled.tail;

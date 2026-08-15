@@ -237,6 +237,25 @@ export function messagesAfterForget(messages: Message[], target: ForgetTarget): 
   });
 }
 
+// WS-INTEGRATE seam 1: opRecall's response now also carries a server-
+// assembled relstate bundle (api/memory.js's fetchRelBundle — field names
+// mirror compiler.ts's RelBundleInput exactly). This file is unowned by any
+// §13 workstream, and its ONE existing network call to op:"recall" is the
+// only client-side carrier for that field — duplicating the request in
+// brain.ts to also read it would double a round trip Chat.tsx's
+// prefetchRecall() already races against a 2s timeout, a latency regression
+// the owner's standing "speed and quality are never traded away" instruction
+// forbids. So the same response is read twice, additively: `recallMemories`
+// keeps its exact existing signature and return value (a string) for every
+// existing caller (brain.ts's mode==="call" prefetch in useCallEngine.ts
+// included), and the bundle rides a tiny last-value cache a caller can pull
+// right after `recallMemories`/`prefetchRecall`'s promise resolves — see
+// `takeRelBundle` below. A caller that never calls it simply never reads the
+// field; nothing about `recallMemories`'s own behavior changes.
+import type { RelBundleInput } from "./compiler";
+
+let lastBundle: { device: string; query: string; bundle: RelBundleInput | null } | null = null;
+
 function runRecall(device: string, query: string): Promise<string> {
   try {
     // measured: ~165ms warm, ~900ms cold. 2s is generous headroom and still
@@ -244,7 +263,10 @@ function runRecall(device: string, query: string): Promise<string> {
     const timeout = new Promise<string>((r) => setTimeout(() => r(""), 2000));
     const fetchIt = post({ op: "recall", device, query })
       .then((r) => (r.ok ? r.json() : { memories: "" }))
-      .then((d) => (typeof d?.memories === "string" ? d.memories : ""))
+      .then((d) => {
+        lastBundle = { device, query, bundle: (d?.relstate as RelBundleInput | null | undefined) ?? null };
+        return typeof d?.memories === "string" ? d.memories : "";
+      })
       .catch(() => "");
     return Promise.race([fetchIt, timeout]);
   } catch {
@@ -268,4 +290,21 @@ export async function recallMemories(device: string, query: string): Promise<str
     return p;
   }
   return runRecall(device, query);
+}
+
+/**
+ * Pulls whatever relstate bundle rode the LAST resolved recall for this
+ * device (consumed once, so a stale bundle from an unrelated earlier query
+ * can never leak into a later turn — call it immediately after awaiting
+ * `recallMemories`/a `prefetchRecall`'d promise for the same device). `null`
+ * covers three cases identically, on purpose: no bundle has landed yet, the
+ * server found no vy_rel_state row for this person (no consolidation has
+ * run), or the request timed out — every one of them means "render nothing,"
+ * which is exactly the T2/T3/T4/T6 byte-identity default.
+ */
+export function takeRelBundle(device: string): RelBundleInput | null {
+  if (!lastBundle || lastBundle.device !== device) return null;
+  const b = lastBundle.bundle;
+  lastBundle = null;
+  return b;
 }

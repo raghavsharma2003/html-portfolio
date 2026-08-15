@@ -485,6 +485,294 @@ async function finalizePerson(person, { dryRun = false } = {}) {
   return rep;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// WS-INTEGRATE seam 4 — deriveAndWriteRelEvents orchestrator (SPEC §13:
+// "WS-RELSTATE, M4, which DEPENDS on this workstream" — this file's own
+// header names vy_pattern/vy_rel_event writes OUT OF SCOPE for exactly that
+// reason; this seam is the dependent step that closes the loop, run AFTER
+// finalize and BEFORE relcheck per the ticket).
+//
+// WHERE THE ORCHESTRATOR LIVES AND WHY: relstate.ts (src/engine/relstate.ts)
+// is a NEW function's natural home per its own exports (honorificShift,
+// detectAddressTerm, writeRelEvent, refreshDerivedDims are all already
+// there, pure or QueryFn-injected) — but that file is bundled into the
+// CLIENT via Vite (its own header: "src/engine/*.ts is the CLIENT bundle").
+// This script runs as `node api/consolidate.js` directly on a GH Actions
+// runner with NO bundler in the loop (consolidate.yml's own comment: "off
+// Vercel's clock", no esbuild step) — Node 22 cannot import a .ts file
+// without a loader this workflow does not configure. So a live import is not
+// possible, exactly as the ticket anticipated ("relstate.ts... NOT possible
+// — it's client-bundled").
+//
+// RESOLUTION TAKEN: this file already established the precedent for exactly
+// this situation — see `telegraphic`/`wordCount` above and their own comment
+// ("deliberately NOT importing src/engine/shapelint.ts... cross-bundling it
+// here would be an untested dependency on a build path nothing in this repo
+// currently exercises"). The honorific hysteresis and derived-dims math
+// below follow that SAME precedent: duplicated here as plain JS, each block
+// commented with the exact relstate.ts function/constants it mirrors, so a
+// drift is auditable at a glance rather than silently possible. This is
+// smaller and lower-risk than introducing a new shared pure-JS module (a
+// third file to keep in sync instead of two, and a new ownership question
+// §13 does not answer) — noted as the alternative the ticket allowed and the
+// reason it was not taken.
+//
+// SCOPE CUT, STATED PLAINLY: this orchestrator derives and writes ONLY
+// honorific rel-events (fully deterministic: regex address-term detection +
+// relstate.ts's own hysteresis thresholds, mirrored exactly below) and
+// refreshes the three derived dims (cs_ratio/ritual_density/pacing_gap_s —
+// pure SQL, zero judgement, safe to port verbatim). It does NOT derive
+// trust/rupture/repair/code-switch rel-events or vy_pattern rows. Those
+// require actual JUDGEMENT of what happened in an episode — a real
+// extraction step (an LLM prompt, review, and its own citation/entailment
+// discipline), not something a deterministic integration pass may safely
+// improvise. Fabricating that judgement here would risk exactly the
+// confabulation / importance-inflation failure modes SPEC repeatedly rejects
+// elsewhere in this same file. TICKETED BACK to WS-RELSTATE/WS-CONSOLIDATE
+// as a real extraction-prompt-delta feature, not wired here.
+// ─────────────────────────────────────────────────────────────────────────
+
+// mirrors relstate.ts's padT/TU_MARKERS/AAP_MARKERS/TUM_MARKERS/detectAddressTerm exactly
+const padT = (s) =>
+  " " +
+  String(s)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim() +
+  " ";
+const TU_MARKERS = [" tu ", " tera ", " teri ", " tere ", " tujhe ", " tujhko "];
+const AAP_MARKERS = [" aap ", " aapka ", " aapki ", " aapke ", " aapko ", " aapse "];
+const TUM_MARKERS = [" tum ", " tumhe ", " tumhara ", " tumhari ", " tumhare ", " tumko "];
+function detectAddressTerm(text) {
+  const hay = padT(String(text || ""));
+  const candidates = [
+    [AAP_MARKERS, "aap"],
+    [TU_MARKERS, "tu"],
+    [TUM_MARKERS, "tum"],
+  ];
+  let bestTerm = null;
+  let bestIdx = -1;
+  for (const [markers, term] of candidates) {
+    for (const m of markers) {
+      const idx = hay.lastIndexOf(m);
+      if (idx >= 0 && idx > bestIdx) {
+        bestIdx = idx;
+        bestTerm = term;
+      }
+    }
+  }
+  return bestTerm;
+}
+
+// mirrors relstate.ts's HONORIFIC_ORDER/HONORIFIC_MIN_EPISODES/
+// HONORIFIC_MIN_SPAN_DAYS/MS_PER_DAY/honorificShift exactly (explicitInvite
+// detection is not implemented here — deterministic evidence accumulation
+// only, the same scope cut as this file's own extraction prompt never
+// proposing rel-events today)
+const HONORIFIC_ORDER = { aap: 0, tum: 1, tu: 2 };
+const HONORIFIC_MIN_EPISODES = 3;
+const HONORIFIC_MIN_SPAN_DAYS = 7;
+const MS_PER_DAY = 86_400_000;
+function honorificShift(current, evidence, ruptureOpen, now = new Date()) {
+  if (ruptureOpen && HONORIFIC_ORDER[current] > HONORIFIC_ORDER.aap) {
+    const next = current === "tu" ? "tum" : "aap";
+    return { next, direction: "regress", citations: [], note: `rupture: regress ${current}->${next}` };
+  }
+  const byTerm = new Map();
+  for (const e of evidence) {
+    if (new Date(e.at).getTime() > now.getTime()) continue;
+    if (HONORIFIC_ORDER[e.term] <= HONORIFIC_ORDER[current]) continue;
+    const arr = byTerm.get(e.term) ?? [];
+    arr.push(e);
+    byTerm.set(e.term, arr);
+  }
+  let best = null;
+  for (const [term, rows] of byTerm) {
+    const distinctEpisodes = new Set(rows.map((r) => r.episodeId));
+    if (distinctEpisodes.size < HONORIFIC_MIN_EPISODES) continue;
+    const times = rows.map((r) => new Date(r.at).getTime()).sort((a, b) => a - b);
+    const spanDays = (times[times.length - 1] - times[0]) / MS_PER_DAY;
+    if (spanDays < HONORIFIC_MIN_SPAN_DAYS) continue;
+    if (!best || HONORIFIC_ORDER[term] > HONORIFIC_ORDER[best.term]) best = { term, rows };
+  }
+  if (!best) return null;
+  const citations = [...new Set(best.rows.map((r) => r.episodeId))].sort((a, b) => a - b);
+  const spanDays = (
+    (new Date(best.rows[best.rows.length - 1].at).getTime() - new Date(best.rows[0].at).getTime()) /
+    MS_PER_DAY
+  ).toFixed(1);
+  return {
+    next: best.term,
+    direction: "advance",
+    citations,
+    note: `${citations.length} episodes over ${spanDays}d: ${current}->${best.term}`,
+  };
+}
+
+// mirrors relstate.ts's HINDI_MARKER_WORDS/computeCsRatio/computeRitualDensity/
+// computePacingGapS/refreshDerivedDims exactly — pure SQL, zero JS judgement,
+// so verbatim porting carries none of the confabulation risk the pattern/
+// trust cut above is avoiding.
+const HINDI_MARKER_WORDS = [
+  "hai", "hain", "tha", "thi", "the", "kya", "kyun", "kyu", "nahi", "nhi",
+  "haan", "haa", "mera", "meri", "mere", "tera", "teri", "tere", "tum",
+  "tumhara", "tumhari", "aap", "aapka", "hum", "humara", "yaar", "bhai",
+  "kar", "karo", "karna", "raha", "rahi", "rahe", "gaya", "gayi", "gaye",
+  "acha", "accha", "theek", "matlab", "bas", "abhi", "kal", "aaj",
+];
+async function refreshDerivedDims(person) {
+  const pattern = HINDI_MARKER_WORDS.map((w) => `\\m${w}\\M`).join("|");
+  const [csRows, ritualRows, pacingRows] = await Promise.all([
+    q(
+      `with recent as (
+         select l.content from meera_log l
+         join vy_person_device d on d.device_id = l.device_id
+         where d.person_id = $1 and l.role = 'me'
+         order by l.at desc limit 200
+       )
+       select count(*)::int as total, count(*) filter (where content ~* $2)::int as hindi_hits
+         from recent`,
+      [person, pattern],
+    ).catch(() => []),
+    q(
+      `select count(*) filter (where last_at > now() - interval '30 days')::real
+                / greatest(count(*), 1)::real as density
+         from vy_ritual where person_id = $1`,
+      [person],
+    ).catch(() => []),
+    q(
+      `select percentile_cont(0.5) within group (order by gap_s) as pacing_gap_s
+         from (
+           select extract(epoch from started_at - lag(started_at) over (order by started_at)) as gap_s
+             from vy_episode where person_id = $1 and started_at > now() - interval '30 days'
+         ) s where gap_s is not null`,
+      [person],
+    ).catch(() => []),
+  ]);
+  const total = Number(csRows[0]?.total ?? 0);
+  const csRatio = total < 10 ? null : Math.round((Number(csRows[0]?.hindi_hits ?? 0) / total) * 1000) / 1000;
+  const ritualDensity = Math.round((Number(ritualRows[0]?.density ?? 0)) * 1000) / 1000;
+  const pv = pacingRows[0]?.pacing_gap_s;
+  const pacingGapS = pv === null || pv === undefined ? null : Math.round(Number(pv));
+  await q(
+    `update vy_rel_state set cs_ratio = $2, ritual_density = $3, pacing_gap_s = $4 where person_id = $1`,
+    [person, csRatio, ritualDensity, pacingGapS],
+  ).catch(() => {});
+  return { csRatio, ritualDensity, pacingGapS };
+}
+
+// how far back "freshly finalized" looks — one nightly cycle's worth, plus
+// slack, so a missed/halted prior run is self-healing rather than silently
+// skipped (this file's own "a missed pass is late, never lost" philosophy)
+const RELDERIVE_LOOKBACK_H = 30;
+
+async function findPersonsWithFreshEpisodes(limit) {
+  const rows = await q(
+    `select distinct person_id from vy_episode
+      where provisional = false and created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
+      order by person_id limit $1`,
+    [limit],
+  ).catch(() => []);
+  return rows.map((r) => r.person_id);
+}
+
+/** One person's honorific derivation: gather address-term evidence from
+ *  their freshly-finalized episodes' own log spans, run it through the
+ *  mirrored hysteresis, write a cited vy_rel_event if it moved, refresh the
+ *  three derived dims. Returns a per-person report for the run summary. */
+async function deriveRelEventsForPerson(person, { dryRun = false } = {}) {
+  const rep = { person, episodes_scanned: 0, honorific_evidence: 0, honorific_moved: false, dims_refreshed: false };
+  const episodes = await q(
+    `select id, log_from, log_to, started_at from vy_episode
+      where person_id = $1 and provisional = false
+        and created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
+        and log_from is not null and log_to is not null
+      order by started_at asc limit 200`,
+    [person],
+  ).catch(() => []);
+  rep.episodes_scanned = episodes.length;
+  if (!episodes.length) return rep;
+
+  const stateRows = await q(`select honorific, rupture_open from vy_rel_state where person_id = $1`, [
+    person,
+  ]).catch(() => []);
+  // no vy_rel_state row yet: schema default (§2.4) — matches
+  // relstate.ts's initialRelState() exactly
+  const current = stateRows[0]?.honorific ?? "tum";
+  const ruptureOpen = Boolean(stateRows[0]?.rupture_open ?? false);
+
+  const evidence = [];
+  for (const ep of episodes) {
+    const rows = await q(
+      // meera_log.role is 'her'/'me' (api/memory.js opLog's own insert
+      // shape), NOT 'user' — the user's own turns are role='me'. Noted
+      // because relstate.ts's computeCsRatio (already-landed WS-RELSTATE
+      // code, mirrored verbatim below in refreshDerivedDims for fidelity)
+      // filters on l.role = 'me', which cannot match any row under this
+      // schema; flagged in the integration report as a likely pre-existing
+      // bug rather than "fixed" here bug-compatibly. This query is new code
+      // with no such mirror obligation, so it uses the real value.
+      `select content, at from meera_log
+        where device_id in (select device_id from vy_person_device where person_id = $1
+                             union select $1::uuid)
+          and role = 'me' and id between $2 and $3`,
+      [person, ep.log_from, ep.log_to],
+    ).catch(() => []);
+    for (const r of rows) {
+      const term = detectAddressTerm(r.content);
+      if (term) evidence.push({ term, episodeId: ep.id, at: r.at });
+    }
+  }
+  rep.honorific_evidence = evidence.length;
+
+  const move = honorificShift(current, evidence, ruptureOpen);
+  if (move && !dryRun) {
+    // relstate.ts's writeRelEvent: >=1 citation enforced here too (cheaper
+    // than the round trip to the DB's own CHECK, same reasoning as that
+    // function's own comment)
+    if (move.citations.length >= 1) {
+      await q(
+        `insert into vy_rel_event (person_id, dim, from_v, to_v, direction, note, citations)
+         values ($1,'honorific',$2,$3,$4,$5,$6)`,
+        [person, current, move.next, move.direction, telegraphic(move.note, 160), move.citations],
+      ).catch(() => {});
+      await q(`update vy_rel_state set honorific = $2 where person_id = $1`, [person, move.next]).catch(
+        () => {},
+      );
+      rep.honorific_moved = true;
+    }
+  } else if (move && dryRun) {
+    rep.honorific_moved = true; // reported, not written
+  }
+
+  if (!dryRun) {
+    await refreshDerivedDims(person);
+    rep.dims_refreshed = true;
+  }
+  return rep;
+}
+
+/** The orchestrator itself — SPEC §13 seam 4. Runs AFTER finalize, BEFORE
+ *  relcheck (consolidate.yml wiring below). Independent of runConsolidation
+ *  (own person cursor, own limit) so a partial/halted finalize run still
+ *  lets already-finalized episodes get their honorific pass — "late, never
+ *  lost" applies here too. */
+export async function runRelEventDerivation({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null } = {}) {
+  const t0 = Date.now();
+  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit);
+  const reports = [];
+  for (const person of persons) reports.push(await deriveRelEventsForPerson(person, { dryRun }));
+  return {
+    ok: true,
+    persons_processed: reports.length,
+    honorific_events_written: reports.filter((r) => r.honorific_moved).length,
+    dims_refreshed: reports.filter((r) => r.dims_refreshed).length,
+    ms: Date.now() - t0,
+    reports,
+  };
+}
+
 /** The run itself: pick eligible people, finalize each, halt on a runaway
  *  entailment refutation rate. */
 export async function runConsolidation({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null } = {}) {
@@ -550,11 +838,21 @@ export default async function handler(req, res) {
 // against the secrets-built api/_config.js (mirrors deploy-web.yml's
 // reconstruction step) — no Vercel function timeout in the loop, matching
 // culture.yml's precedent of the workflow driving the actual work itself.
+//
+// `--derive-rel-events` runs the WS-INTEGRATE seam-4 orchestrator instead of
+// finalize — a SEPARATE CLI mode (not interleaved into runConsolidation's
+// own loop) so consolidate.yml can sequence it as its own step, explicitly
+// AFTER "Nightly finalize" and BEFORE "Zero-orphan sweep", per the ticket.
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2);
   const limitArg = args.includes("--limit") ? Number(args[args.indexOf("--limit") + 1]) : DEFAULT_PERSON_LIMIT;
   const dryRun = args.includes("--dry-run");
   const personArg = args.includes("--person") ? args[args.indexOf("--person") + 1] : null;
+  if (args.includes("--derive-rel-events")) {
+    const out = await runRelEventDerivation({ limit: limitArg, dryRun, onlyPerson: personArg });
+    console.log(JSON.stringify(out, null, 2));
+    process.exit(0);
+  }
   const out = await runConsolidation({ limit: limitArg, dryRun, onlyPerson: personArg });
   console.log(JSON.stringify(out, null, 2));
   process.exit(out.halted ? 1 : 0);

@@ -15,6 +15,7 @@ export {
   assertManifestArithmetic,
   applyDropOrder,
   CRISIS_LINES,
+  AGE_TIER_SAFETY_OVERRIDE,
 } from "../compiler";
 export { lintLine, lintBlock, checkAppendedLastExactlyTwo, checkDecisionPositions } from "../shapelint";
 export {

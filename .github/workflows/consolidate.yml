@@ -82,6 +82,17 @@ jobs:
             --limit "${{ github.event.inputs.limit || '25' }}" \
             ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
 
+      # WS-INTEGRATE seam 4: honorific rel-events + derived-dims refresh
+      # (SPEC §13 — the WS-RELSTATE-dependent step this workstream's own
+      # OUT-OF-SCOPE comment named). Deliberately AFTER finalize (needs
+      # today's newly-finalized episodes as its evidence) and BEFORE the
+      # zero-orphan sweep (so a bad write here is caught by the SAME sweep
+      # that already covers vy_rel_event's citations, same run). Never
+      # halts the job on its own — a missed honorific pass is late, never
+      # lost, same posture as a missed finalize pass.
+      - name: Derive rel-events
+        run: node api/consolidate.js --derive-rel-events --limit "${{ github.event.inputs.limit || '25' }}"
+
       # Zero-orphan integrity sweep + citation discipline (SPEC §4.1.11,
       # §4.2 layer 4) — read-only, run against the SAME database the
       # finalize pass just wrote to, every night, not just at PR time.

@@ -65,6 +65,28 @@ import { countNamedEntities, tel, telSubId } from "../engine/telemetry";
 
 export type CallPhase = "connecting" | "live" | "ended";
 
+// WS-INTEGRATE seam 5 (SPEC §13, api/episodes.js's own "no client call site
+// posts here yet" ticket). Telemetry-style, fire-and-forget ONLY: this
+// function is never awaited by anything on the call path, its promise is
+// always caught, and it touches no ref, no state setter, no audio/barge-in
+// primitive this file owns — a failure here is indistinguishable from the
+// request never having been made. Mirrors src/engine/memory.ts's BASE
+// pattern (same-origin on web, absolute on the Capacitor app).
+const EPISODES_BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+function postEpisodeCallEnd(device: string) {
+  if (!device) return;
+  try {
+    void fetch(`${EPISODES_BASE}/api/episodes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ op: "call_end", device }),
+      keepalive: true, // survives the tab/screen tearing down right after hangup
+    }).catch(() => {});
+  } catch {
+    /* never let telemetry throw into the call path */
+  }
+}
+
 export function useCallEngine(
   state: AppState,
   setState: React.Dispatch<React.SetStateAction<AppState>>,
@@ -1891,6 +1913,10 @@ ${recallRef.current}`
     });
     flushDiag(); // the call's whole timeline lands before the screen goes away
     diagEnd("call"); // later chat events must not inherit this call's id
+    // WS-INTEGRATE seam 5: closes the call's provisional episode precisely at
+    // hangup instead of waiting out openOrExtendEpisode's 45-minute gap rule.
+    // Fire-and-forget, never awaited — see postEpisodeCallEnd's own comment.
+    postEpisodeCallEnd(stateRef.current.deviceId);
     // the chat shows a call record, never the transcript
     const secs = elapsedRef.current;
     const mmssStr = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
