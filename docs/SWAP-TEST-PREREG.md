@@ -110,6 +110,29 @@ this deviation does not carry — that run buys the second judge.
 until the owner approves the spend.** Generation and D1 are credits and
 proceed without it.
 
+### Amendment 2 (2026-08-15, before any judged run): the judge is grant-billed, and anthropic is out
+
+The owner's approval was ~$400-equivalent **from the Azure grant, not cash**
+(`judge-grant-only`). Verified same day: Claude is on Microsoft Foundry
+(GA 2026-06-29) but Marketplace/CCU-billed — explicitly NOT eligible for
+Microsoft-for-Startups credits, and it silently charges the card on file.
+The anthropic judge family is therefore unavailable to this run.
+
+Revised judge selection, qualification bar unchanged (≥80% vs archived
+blind verdicts, transport-invalid runs refused by the harness):
+
+1. **Preferred: a family disjoint from both arms** that clears 80%, from
+   the credits-billing class ("sold directly by Azure", evidenced by grok
+   and DeepSeek-Flash billing on this resource): DeepSeek-V4-Pro,
+   Mistral-Large-3, command-a-plus-05-2026, Llama-4-Maverick.
+2. **Fallback: gpt-5.6-sol** — premium, but openai-family like the
+   candidate; its charm-luna backtest cell directly measures own-family
+   favoritism (the grok-4.3 failure mode). Usable only if no disjoint
+   family clears, with the measured bias disclosed in the run report.
+
+The original one-anthropic-family deviation is void — its justification
+(family disjoint from both arms) transfers to option 1 unchanged.
+
 ## Decision rules
 
 - **All gates pass** → a real `vy_gate_run` row is written (the machinery's

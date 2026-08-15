@@ -1,0 +1,14 @@
+{
+  "id": "Mistral-Large-3",
+  "family": "mistral",
+  "provider": "azure",
+  "model": "Mistral-Large-3",
+  "deployment": "Mistral-Large-3",
+  "maxTokens": 120,
+  "tokenParam": "max_completion_tokens",
+  "temperature": 1,
+  "pricing": null,
+  "_pricing_note": "Azure credits (sold-directly-by-Azure class, same billing evidenced for grok/DeepSeek-Flash on this resource) — cash $0; pricing null is fine for the backtest, which is not --max-spend gated. Confirm the deployment actually bills to credits after the first backtest via Cost Management, per the credits-partner house rule.",
+  "_notes": "Deployment name assumes the Foundry default (= model id) — verifyAzureDeployments() checks the real name before any judged call and fails loudly if the owner named it differently. tokenParam/temperature start from the terra precedent for this resource; the first probe call confirms quirks. Plan: docs/SWAP-TEST-PREREG.md Amendment 2 (judge-grant-only).",
+  "_status": "awaiting owner deployment click in Foundry"
+}

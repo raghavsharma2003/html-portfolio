@@ -495,6 +495,12 @@
    "kind": "decision",
    "title": "Meera-specificity map landed: router/schema person-generic; Hindi rel-dimensions + meera_log anchor are the two structural items",
    "at": "2026-08-15"
+  },
+  {
+   "id": "judge-grant-only",
+   "kind": "decision",
+   "title": "$400 is grant burn not cash; Claude-on-Foundry confirmed credits-ineligible (card trap); qualify Azure-direct premium families",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -992,6 +998,16 @@
    "src": "generalization-audit",
    "rel": "part_of",
    "dst": "beyond-meera"
+  },
+  {
+   "src": "judge-grant-only",
+   "rel": "supersedes",
+   "dst": "judge-cash-approved"
+  },
+  {
+   "src": "judge-grant-only",
+   "rel": "part_of",
+   "dst": "swap-prereg-1"
   }
  ]
 }

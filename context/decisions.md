@@ -490,3 +490,41 @@ this entry; it prices future ones.
 
 **Reverses if:** a second-persona build finds the map materially wrong —
 then the audit is re-run and this entry superseded.
+
+---
+
+## `judge-grant-only` — the $400 is grant burn, not cash; the owner said so twice (2026-08-15)
+
+Correction of `judge-cash-approved`, in the owner's words: "why that 450$ we
+cant use from openrouter only from the azure/foundery 5k$ grant.!!" The
+approval was always ~$400-equivalent FROM THE GRANT. No further cash spends;
+the ~$1.80 OpenRouter backtest fragment is sunk.
+
+Re-verified 2026-08-15 with sources, because it was load-bearing: Claude IS
+on Microsoft Foundry now (GA 2026-06-29, Opus 4.8 + Haiku 4.5 via Messages
+API) but is **Marketplace/CCU-billed and NOT eligible for Microsoft for
+Startups credits** — Microsoft Q&A threads and a March 2026 Register story
+document the exact trap: credit balance untouched while the card on file is
+silently charged. `credits-partner` stands confirmed. **Do not deploy Claude
+on this Foundry resource.**
+
+Revised qualification plan (bar unchanged, ≥80% vs archived verdicts):
+backtest the premium "sold directly by Azure" models — credits-billing class
+evidenced by grok/DeepSeek-Flash on this resource:
+
+- **Family-disjoint from both arms** (preferred, prereg logic intact):
+  DeepSeek-V4-Pro, Mistral-Large-3, command-a-plus-05-2026 (Cohere),
+  Llama-4-Maverick.
+- **gpt-5.6-sol** (frontier reasoning) as the premium fallback — shares
+  the openai family with candidate terra AND with charm-luna's candidate,
+  so its charm-luna backtest cell directly measures its own-family
+  favoritism the same way grok-4.3's did (16×, caught). Qualifies only with
+  that bias measured and disclosed; prereg amendment required if used.
+
+Owner clicks needed: deploy the five above in Foundry (same flow as
+previous deployments). Backtests cost pennies of credits each.
+
+**Reverses if:** every credits-billable premium family fails the 80% bar —
+then the honest options are a held-out-validated rubric adaptation (overfit
+risk pre-registered) or the D-battery reporting deterministic axes only,
+and the owner decides.
