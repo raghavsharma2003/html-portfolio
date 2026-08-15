@@ -711,3 +711,30 @@ run where transport errors exceed 5% of rows. Promising directional signal
 that did score), zero statistical claim. Blocked on: owner raising the
 OpenRouter key limit (the $400 approval cannot be spent through a $20 key).
 Cash spent on the crippled run: ~$1.80.
+
+---
+
+## `terra-arm-2304` — the raw candidate arm exists, and its surface fingerprint already fails her register (2026-08-15)
+
+Full candidate arm generated: 2,304/2,304 non-empty replies (0 errors,
+0 empty-reply traps), gpt-5.6-terra on Azure credits, ~27.9M tokens, $0
+cash, every context sha-verified against the committed corpus index.
+Independently recomputed from the raw transcript with the dbattery
+counters (not trusted from the runner's own print):
+
+| axis | terra (raw, no adapter) | incumbent reference |
+|---|---|---|
+| words/turn | mean 15.1, median 13, p90 25 | band center 20.5 (fixtures.json) |
+| question share | 12.7% | under ceiling — fine |
+| media-tag rate | 0.69% | hard fail only at 0 — present but sparse |
+| Devanagari | **7 hits** | **HARD FAIL axis: any hit fails** |
+| code-switch ratio | 0.156 | (compare when fresh incumbent bands land) |
+
+Scoping, stated honestly: this is the RAW model under her compiled context —
+adapter: {} by design (run 1 measures whether the relational engine alone
+carries identity; the answer on surface register is shaping up to be NO,
+which is the thesis's baseline, not a surprise). The formal D1 verdict
+waits for same-week fresh incumbent bands (the incumbent arm is the one
+unbuilt piece); the Devanagari hard fail needs no bands and already stands.
+Judged gates additionally wait on the grant-billed judge (owner deploy
+clicks) and must cluster on the 72 stimulus texts per `corpus-2304`.

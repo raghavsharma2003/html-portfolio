@@ -501,6 +501,12 @@
    "kind": "decision",
    "title": "$400 is grant burn not cash; Claude-on-Foundry confirmed credits-ineligible (card trap); qualify Azure-direct premium families",
    "at": "2026-08-15"
+  },
+  {
+   "id": "terra-arm-2304",
+   "kind": "measurement",
+   "title": "Raw terra arm complete (2304/2304): words/turn 13 median vs 20.5 band, 7 Devanagari = D1 hard-fail signal",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -1008,6 +1014,16 @@
    "src": "judge-grant-only",
    "rel": "part_of",
    "dst": "swap-prereg-1"
+  },
+  {
+   "src": "terra-arm-2304",
+   "rel": "part_of",
+   "dst": "swap-prereg-1"
+  },
+  {
+   "src": "terra-arm-2304",
+   "rel": "measured_by",
+   "dst": "corpus-2304"
   }
  ]
 }
