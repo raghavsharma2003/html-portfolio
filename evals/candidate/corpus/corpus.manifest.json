@@ -1,0 +1,662 @@
+{
+  "date": "2026-08-15",
+  "protocol": "docs/SWAP-TEST-PREREG.md Amendment 1",
+  "decisionRef": "context/decisions.md `swap-prereg-amend-1`",
+  "compiler": {
+    "source": "src/engine/compiler.ts (real, bundled fresh via esbuild, no frozen copy)",
+    "sectionsObserved": [
+      "T1",
+      "T10",
+      "T2",
+      "T3",
+      "T4",
+      "T5",
+      "T6",
+      "T7",
+      "T8",
+      "T8-multiparty",
+      "T9",
+      "culture",
+      "watch"
+    ]
+  },
+  "format": {
+    "note": "corpus.jsonl stores COMPACT index rows only ({id, stimulus_ref, state_variant_ref, sha256}) — the full compiled corpus (system+tail+messages per row) serializes to ~134MB, over the ~25MB commit ceiling. evals/candidate/corpus-lib.mjs's buildCorpusRows() is the deterministic regeneration script: any consumer recomputes full rows and checks sha256 against this file.",
+    "regenerateWith": "node evals/candidate/corpus-generate.mjs   (or import buildCorpusRows() from evals/candidate/corpus-lib.mjs directly)"
+  },
+  "stimulusPool": {
+    "archivedPoolPositions": 288,
+    "distinctStimulusTexts": 72,
+    "deviationFromBrief": "brief suggested ~7-8 variants x 288 stimuli; measured distinct text = 72 (288 pool positions are a uniform 72 x 4 duplication: 2 archives x 2 reps replaying the identical beat script) — using pool-position identity as \"stimulus\" would cap distinct hashes at 72 x 8 = 576. Fixed by using the 72 distinct texts as the stimulus unit and widening the variant catalog to 32 (still zero authored stimulus lines — every text is verbatim-archived).",
+    "sources": [
+      "charm-grok/pb-merged1.json",
+      "charm-grok/pb-merged2.json",
+      "charm-luna/pb-raw.json",
+      "charm-luna/pb-raw2.json"
+    ],
+    "stimuli": [
+      {
+        "id": "stim-charm-grok-r0-casual-t0",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "casual",
+        "sourceTurn": 0,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-casual-t1",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "casual",
+        "sourceTurn": 1,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-casual-t2",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "casual",
+        "sourceTurn": 2,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-casual-t3",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "casual",
+        "sourceTurn": 3,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-casual-t4",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "casual",
+        "sourceTurn": 4,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-casual-t5",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "casual",
+        "sourceTurn": 5,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-teasing-t0",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "teasing",
+        "sourceTurn": 0,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-teasing-t1",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "teasing",
+        "sourceTurn": 1,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-teasing-t2",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "teasing",
+        "sourceTurn": 2,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-teasing-t3",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "teasing",
+        "sourceTurn": 3,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-teasing-t4",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "teasing",
+        "sourceTurn": 4,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-teasing-t5",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "teasing",
+        "sourceTurn": 5,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-news-t0",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "news",
+        "sourceTurn": 0,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-news-t1",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "news",
+        "sourceTurn": 1,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-news-t2",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "news",
+        "sourceTurn": 2,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-news-t3",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "news",
+        "sourceTurn": 3,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-news-t4",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "news",
+        "sourceTurn": 4,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-news-t5",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "news",
+        "sourceTurn": 5,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-sad-t0",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "sad",
+        "sourceTurn": 0,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-sad-t1",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "sad",
+        "sourceTurn": 1,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-sad-t2",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "sad",
+        "sourceTurn": 2,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-sad-t3",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "sad",
+        "sourceTurn": 3,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-sad-t4",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "sad",
+        "sourceTurn": 4,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-sad-t5",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "sad",
+        "sourceTurn": 5,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-flirt-t0",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "flirt",
+        "sourceTurn": 0,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-flirt-t1",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "flirt",
+        "sourceTurn": 1,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-flirt-t2",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "flirt",
+        "sourceTurn": 2,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-flirt-t3",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "flirt",
+        "sourceTurn": 3,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-flirt-t4",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "flirt",
+        "sourceTurn": 4,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-flirt-t5",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "flirt",
+        "sourceTurn": 5,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-factual-t0",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "factual",
+        "sourceTurn": 0,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-factual-t1",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "factual",
+        "sourceTurn": 1,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-factual-t2",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "factual",
+        "sourceTurn": 2,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-factual-t3",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "factual",
+        "sourceTurn": 3,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-factual-t4",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "factual",
+        "sourceTurn": 4,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-factual-t5",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "factual",
+        "sourceTurn": 5,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-conflict-t0",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "conflict",
+        "sourceTurn": 0,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-conflict-t1",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "conflict",
+        "sourceTurn": 1,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-conflict-t2",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "conflict",
+        "sourceTurn": 2,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-conflict-t3",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "conflict",
+        "sourceTurn": 3,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-conflict-t4",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "conflict",
+        "sourceTurn": 4,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-conflict-t5",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "conflict",
+        "sourceTurn": 5,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-ai-t0",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "ai",
+        "sourceTurn": 0,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-ai-t1",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "ai",
+        "sourceTurn": 1,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-ai-t2",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "ai",
+        "sourceTurn": 2,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-ai-t3",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "ai",
+        "sourceTurn": 3,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-ai-t4",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "ai",
+        "sourceTurn": 4,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-ai-t5",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "ai",
+        "sourceTurn": 5,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-bored-t0",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "bored",
+        "sourceTurn": 0,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-bored-t1",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "bored",
+        "sourceTurn": 1,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-bored-t2",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "bored",
+        "sourceTurn": 2,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-bored-t3",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "bored",
+        "sourceTurn": 3,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-bored-t4",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "bored",
+        "sourceTurn": 4,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-bored-t5",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "bored",
+        "sourceTurn": 5,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-mundane-t0",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "mundane",
+        "sourceTurn": 0,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-mundane-t1",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "mundane",
+        "sourceTurn": 1,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-mundane-t2",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "mundane",
+        "sourceTurn": 2,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-mundane-t3",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "mundane",
+        "sourceTurn": 3,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-mundane-t4",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "mundane",
+        "sourceTurn": 4,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-mundane-t5",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "mundane",
+        "sourceTurn": 5,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-opinion-t0",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "opinion",
+        "sourceTurn": 0,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-opinion-t1",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "opinion",
+        "sourceTurn": 1,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-opinion-t2",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "opinion",
+        "sourceTurn": 2,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-opinion-t3",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "opinion",
+        "sourceTurn": 3,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-opinion-t4",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "opinion",
+        "sourceTurn": 4,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-opinion-t5",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "opinion",
+        "sourceTurn": 5,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-crisis-t0",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "crisis",
+        "sourceTurn": 0,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-crisis-t1",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "crisis",
+        "sourceTurn": 1,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-crisis-t2",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "crisis",
+        "sourceTurn": 2,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-crisis-t3",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "crisis",
+        "sourceTurn": 3,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-crisis-t4",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "crisis",
+        "sourceTurn": 4,
+        "duplicateCount": 4
+      },
+      {
+        "id": "stim-charm-grok-r0-crisis-t5",
+        "sourceArchive": "charm-grok",
+        "sourceBeat": "crisis",
+        "sourceTurn": 5,
+        "duplicateCount": 4
+      }
+    ]
+  },
+  "stateVariants": {
+    "count": 32,
+    "design": "4 relational regimes (bare / warming / settled-voice-watch / rupture-minor-gated) x 4 pinned clock instants (dawn/midday/dusk/late, one per persona.ts timeOfDay() bucket) x 2 content-load levels (light/heavy memories+herLife+inner) — see corpus.seeds.ts STATE_VARIANTS for the full list.",
+    "ids": [
+      "bare__dawn__light",
+      "bare__dawn__heavy",
+      "bare__midday__light",
+      "bare__midday__heavy",
+      "bare__dusk__light",
+      "bare__dusk__heavy",
+      "bare__late__light",
+      "bare__late__heavy",
+      "warming__dawn__light",
+      "warming__dawn__heavy",
+      "warming__midday__light",
+      "warming__midday__heavy",
+      "warming__dusk__light",
+      "warming__dusk__heavy",
+      "warming__late__light",
+      "warming__late__heavy",
+      "settled-voice-watch__dawn__light",
+      "settled-voice-watch__dawn__heavy",
+      "settled-voice-watch__midday__light",
+      "settled-voice-watch__midday__heavy",
+      "settled-voice-watch__dusk__light",
+      "settled-voice-watch__dusk__heavy",
+      "settled-voice-watch__late__light",
+      "settled-voice-watch__late__heavy",
+      "rupture-minor-gated__dawn__light",
+      "rupture-minor-gated__dawn__heavy",
+      "rupture-minor-gated__midday__light",
+      "rupture-minor-gated__midday__heavy",
+      "rupture-minor-gated__dusk__light",
+      "rupture-minor-gated__dusk__heavy",
+      "rupture-minor-gated__late__light",
+      "rupture-minor-gated__late__heavy"
+    ],
+    "clockPins": {
+      "bare__dawn__light": "2026-08-10T06:15:00+05:30",
+      "bare__dawn__heavy": "2026-08-10T06:15:00+05:30",
+      "bare__midday__light": "2026-08-10T13:05:00+05:30",
+      "bare__midday__heavy": "2026-08-10T13:05:00+05:30",
+      "bare__dusk__light": "2026-08-10T19:40:00+05:30",
+      "bare__dusk__heavy": "2026-08-10T19:40:00+05:30",
+      "bare__late__light": "2026-08-10T23:50:00+05:30",
+      "bare__late__heavy": "2026-08-10T23:50:00+05:30",
+      "warming__dawn__light": "2026-08-10T06:15:00+05:30",
+      "warming__dawn__heavy": "2026-08-10T06:15:00+05:30",
+      "warming__midday__light": "2026-08-10T13:05:00+05:30",
+      "warming__midday__heavy": "2026-08-10T13:05:00+05:30",
+      "warming__dusk__light": "2026-08-10T19:40:00+05:30",
+      "warming__dusk__heavy": "2026-08-10T19:40:00+05:30",
+      "warming__late__light": "2026-08-10T23:50:00+05:30",
+      "warming__late__heavy": "2026-08-10T23:50:00+05:30",
+      "settled-voice-watch__dawn__light": "2026-08-10T06:15:00+05:30",
+      "settled-voice-watch__dawn__heavy": "2026-08-10T06:15:00+05:30",
+      "settled-voice-watch__midday__light": "2026-08-10T13:05:00+05:30",
+      "settled-voice-watch__midday__heavy": "2026-08-10T13:05:00+05:30",
+      "settled-voice-watch__dusk__light": "2026-08-10T19:40:00+05:30",
+      "settled-voice-watch__dusk__heavy": "2026-08-10T19:40:00+05:30",
+      "settled-voice-watch__late__light": "2026-08-10T23:50:00+05:30",
+      "settled-voice-watch__late__heavy": "2026-08-10T23:50:00+05:30",
+      "rupture-minor-gated__dawn__light": "2026-08-10T06:15:00+05:30",
+      "rupture-minor-gated__dawn__heavy": "2026-08-10T06:15:00+05:30",
+      "rupture-minor-gated__midday__light": "2026-08-10T13:05:00+05:30",
+      "rupture-minor-gated__midday__heavy": "2026-08-10T13:05:00+05:30",
+      "rupture-minor-gated__dusk__light": "2026-08-10T19:40:00+05:30",
+      "rupture-minor-gated__dusk__heavy": "2026-08-10T19:40:00+05:30",
+      "rupture-minor-gated__late__light": "2026-08-10T23:50:00+05:30",
+      "rupture-minor-gated__late__heavy": "2026-08-10T23:50:00+05:30"
+    },
+    "notes": {
+      "bare__dawn__light": "brand-new dyad, no relBundle, no recall — the 83-fixture baseline shape | clock=dawn | load=light",
+      "bare__dawn__heavy": "brand-new dyad, no relBundle, no recall — the 83-fixture baseline shape | clock=dawn | load=heavy",
+      "bare__midday__light": "brand-new dyad, no relBundle, no recall — the 83-fixture baseline shape | clock=midday | load=light",
+      "bare__midday__heavy": "brand-new dyad, no relBundle, no recall — the 83-fixture baseline shape | clock=midday | load=heavy",
+      "bare__dusk__light": "brand-new dyad, no relBundle, no recall — the 83-fixture baseline shape | clock=dusk | load=light",
+      "bare__dusk__heavy": "brand-new dyad, no relBundle, no recall — the 83-fixture baseline shape | clock=dusk | load=heavy",
+      "bare__late__light": "brand-new dyad, no relBundle, no recall — the 83-fixture baseline shape | clock=late | load=light",
+      "bare__late__heavy": "brand-new dyad, no relBundle, no recall — the 83-fixture baseline shape | clock=late | load=heavy",
+      "warming__dawn__light": "trust 0.30 (stageForDims: warming), light ritual density, no patterns eligible yet | clock=dawn | load=light",
+      "warming__dawn__heavy": "trust 0.30 (stageForDims: warming), light ritual density, no patterns eligible yet | clock=dawn | load=heavy",
+      "warming__midday__light": "trust 0.30 (stageForDims: warming), light ritual density, no patterns eligible yet | clock=midday | load=light",
+      "warming__midday__heavy": "trust 0.30 (stageForDims: warming), light ritual density, no patterns eligible yet | clock=midday | load=heavy",
+      "warming__dusk__light": "trust 0.30 (stageForDims: warming), light ritual density, no patterns eligible yet | clock=dusk | load=light",
+      "warming__dusk__heavy": "trust 0.30 (stageForDims: warming), light ritual density, no patterns eligible yet | clock=dusk | load=heavy",
+      "warming__late__light": "trust 0.30 (stageForDims: warming), light ritual density, no patterns eligible yet | clock=late | load=light",
+      "warming__late__heavy": "trust 0.30 (stageForDims: warming), light ritual density, no patterns eligible yet | clock=late | load=heavy",
+      "settled-voice-watch__dawn__light": "trust 0.72 (settled), voice/call lane, watching on, we-episodes + patterns live | clock=dawn | load=light",
+      "settled-voice-watch__dawn__heavy": "trust 0.72 (settled), voice/call lane, watching on, we-episodes + patterns live | clock=dawn | load=heavy",
+      "settled-voice-watch__midday__light": "trust 0.72 (settled), voice/call lane, watching on, we-episodes + patterns live | clock=midday | load=light",
+      "settled-voice-watch__midday__heavy": "trust 0.72 (settled), voice/call lane, watching on, we-episodes + patterns live | clock=midday | load=heavy",
+      "settled-voice-watch__dusk__light": "trust 0.72 (settled), voice/call lane, watching on, we-episodes + patterns live | clock=dusk | load=light",
+      "settled-voice-watch__dusk__heavy": "trust 0.72 (settled), voice/call lane, watching on, we-episodes + patterns live | clock=dusk | load=heavy",
+      "settled-voice-watch__late__light": "trust 0.72 (settled), voice/call lane, watching on, we-episodes + patterns live | clock=late | load=light",
+      "settled-voice-watch__late__heavy": "trust 0.72 (settled), voice/call lane, watching on, we-episodes + patterns live | clock=late | load=heavy",
+      "rupture-minor-gated__dawn__light": "rupture_open + conflict-heavy patterns present in relBundle, but ageGates = minor-safe: T2/T4 must be unconditionally absent and AGE_TIER_SAFETY_OVERRIDE present regardless of the rich relational content underneath — the unconditional-drop assertion, not a hint | clock=dawn | load=light",
+      "rupture-minor-gated__dawn__heavy": "rupture_open + conflict-heavy patterns present in relBundle, but ageGates = minor-safe: T2/T4 must be unconditionally absent and AGE_TIER_SAFETY_OVERRIDE present regardless of the rich relational content underneath — the unconditional-drop assertion, not a hint | clock=dawn | load=heavy",
+      "rupture-minor-gated__midday__light": "rupture_open + conflict-heavy patterns present in relBundle, but ageGates = minor-safe: T2/T4 must be unconditionally absent and AGE_TIER_SAFETY_OVERRIDE present regardless of the rich relational content underneath — the unconditional-drop assertion, not a hint | clock=midday | load=light",
+      "rupture-minor-gated__midday__heavy": "rupture_open + conflict-heavy patterns present in relBundle, but ageGates = minor-safe: T2/T4 must be unconditionally absent and AGE_TIER_SAFETY_OVERRIDE present regardless of the rich relational content underneath — the unconditional-drop assertion, not a hint | clock=midday | load=heavy",
+      "rupture-minor-gated__dusk__light": "rupture_open + conflict-heavy patterns present in relBundle, but ageGates = minor-safe: T2/T4 must be unconditionally absent and AGE_TIER_SAFETY_OVERRIDE present regardless of the rich relational content underneath — the unconditional-drop assertion, not a hint | clock=dusk | load=light",
+      "rupture-minor-gated__dusk__heavy": "rupture_open + conflict-heavy patterns present in relBundle, but ageGates = minor-safe: T2/T4 must be unconditionally absent and AGE_TIER_SAFETY_OVERRIDE present regardless of the rich relational content underneath — the unconditional-drop assertion, not a hint | clock=dusk | load=heavy",
+      "rupture-minor-gated__late__light": "rupture_open + conflict-heavy patterns present in relBundle, but ageGates = minor-safe: T2/T4 must be unconditionally absent and AGE_TIER_SAFETY_OVERRIDE present regardless of the rich relational content underneath — the unconditional-drop assertion, not a hint | clock=late | load=light",
+      "rupture-minor-gated__late__heavy": "rupture_open + conflict-heavy patterns present in relBundle, but ageGates = minor-safe: T2/T4 must be unconditionally absent and AGE_TIER_SAFETY_OVERRIDE present regardless of the rich relational content underneath — the unconditional-drop assertion, not a hint | clock=late | load=heavy"
+    }
+  },
+  "counts": {
+    "nominalPairs": 2304,
+    "distinctHashes": 2304,
+    "collisions": 0,
+    "note": "0 collisions — every (stimulus, state-variant) pair produced a unique served-content hash."
+  },
+  "determinism": {
+    "method": "global Date pin (RealDate subclass, corpus-lib.mjs) fixes every no-arg `new Date()`/`Date.now()` reachable from compile() to the variant's own literal pinnedNowIso before that variant's compile() calls; every other seed timestamp in corpus.seeds.ts is a literal ISO string, never `new Date()`.",
+    "provenBy": "this run: --verify-twice regenerated the full 2,304-row grid a second time and diffed full content byte-for-byte — IDENTICAL."
+  },
+  "rowShapeCompact": "{id, stimulus_ref, state_variant_ref, sha256} — corpus.jsonl, one JSON object per line",
+  "rowShapeFull": "{id, stimulus_ref, state_variant_ref, system, tail, messages, sha256} — what corpus-lib.mjs's buildCorpusRows() returns in memory"
+}
