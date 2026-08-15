@@ -1,0 +1,39 @@
+{
+ "model": "gpt-5.6-terra",
+ "endpoint": "azure-foundry",
+ "params": {
+  "max_completion_tokens": 400,
+  "temperature": 1,
+  "reasoning_effort": "none"
+ },
+ "date": "2026-08-15T11:50:05.022Z",
+ "contextSource": "evals/candidate/corpus/corpus.jsonl (WS-CORPUS, Amendment 1) — every unit's sha256 checked against the committed index before use",
+ "disclosedConfound": "temperature pinned to 1 by Terra's API; incumbent runs production sampling (typically lower/variable temperature) — a real, disclosed confound per docs/SWAP-TEST-PREREG.md, not hidden.",
+ "counts": {
+  "byteIdentical": 0,
+  "compiled": 2304,
+  "total": 2304,
+  "note": "ALL turns are context:\"compiled\" — freshly compiled through the real src/engine/compiler.ts and byte-identical ACROSS ARMS by construction (Amendment 1), never claimed identical to historical/archived traffic (byteIdentical=0 keeps that older, still-true, still-separate claim visible)."
+ },
+ "poolCeiling": {
+  "corpusRows": 2304,
+  "note": "evals/candidate/corpus/corpus.manifest.json carries the full corpus provenance (2,304 nominal pairs, 72 distinct stimulus texts x 32 state variants — see corpus-generate.mjs's header for why 72, not 288)."
+ },
+ "smoke": {
+  "n": 2304,
+  "nonEmpty": 2304,
+  "errors": 0,
+  "nonEmptyRate": 1,
+  "wordsPerTurn": {
+   "n": 2304,
+   "mean": 15.147135416666666,
+   "median": 13,
+   "p90": 25
+  },
+  "questionShare": 0.1271701388888889,
+  "mediaTagRate": 0.006944444444444444,
+  "meanPromptTokens": 12081.128472222223,
+  "meanCompletionTokens": 27.220052083333332,
+  "meanMs": 5154.418402777777
+ }
+}
