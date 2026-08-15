@@ -335,3 +335,19 @@ candidate. The real vision-lane gate run (grok, needs the retuned-directive
 measurement) is the natural first candidate. **Reverses nothing** — this node
 records completion; the program's reversal conditions live on
 relational-state and spec-c-minimal.
+
+---
+
+## `adult-default` — unverified maps to adult gates until launch (2026-08-15)
+
+The owner's decision, in their own words: the product is 18+, its only
+current users are known adults (the owner is 24), and "we will solve this
+when we make it live in some other way." So `gatesFor("unverified")` returns
+adult gates for the pre-launch period. The minor tier's frozen configuration,
+the clock card, and every structural piece stay intact and tested — one
+mapping flipped, nothing dismantled.
+
+**Reverses at public launch, non-negotiably:** the safety-reg research is
+unambiguous that age-tiering is converging on mandatory (FTC 6(b), state
+bills, China's rules), so `age-tier-cliff` stays OPEN as the launch-blocking
+item rather than being closed by this decision.

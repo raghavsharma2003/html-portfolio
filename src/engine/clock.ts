@@ -57,8 +57,14 @@ const MINOR_HARD_GATES: TierGates = Object.freeze({
 });
 
 const GATE_CONFIG: Record<Exclude<AgeTier, "minor">, TierGates> = {
-  // §0.3 adjudication: unverified = minor-safe defaults, structurally.
-  unverified: Object.freeze({ engagementMechanics: false, romanceRegisters: false }),
+  // OWNER DECISION 2026-08-15 (adult-default in context/decisions.md), which
+  // supersedes the §0.3 launch posture FOR THE PRE-LAUNCH PERIOD: the product
+  // is declared 18+ and its only users today are known adults, so unverified
+  // maps to adult gates. The minor branch below stays frozen and intact — the
+  // reversal condition is public launch, where verification returns (the
+  // safety-reg research is unambiguous that age-tiering is converging on
+  // mandatory). Flip THIS mapping back, nothing else, when that day comes.
+  unverified: Object.freeze({ engagementMechanics: true, romanceRegisters: true }),
   adult_verified: Object.freeze({ engagementMechanics: true, romanceRegisters: true }),
 };
 

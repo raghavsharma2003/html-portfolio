@@ -54,7 +54,7 @@ export default function ClockCard() {
   // CA SB 243's minor-specific posting requirement ("may not be suitable for
   // certain young users") — cheap to include correctly since the tier is
   // already on the fire event, minor-safe (unverified/minor) only.
-  const minorSafe = fire.tier !== "adult_verified";
+  const minorSafe = fire.tier === "minor"; // adult-default: only the explicit minor tier shows the SB-243 line
 
   return (
     <div className="clockcard-wrap" role="status" aria-live="polite">
