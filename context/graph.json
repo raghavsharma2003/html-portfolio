@@ -423,6 +423,12 @@
       "kind": "measurement",
       "title": "Both credit-billed judges fail qualification (28%, 54% vs 80% bar)",
       "at": "2026-08-15"
+    },
+    {
+      "id": "grok43-judge",
+      "kind": "measurement",
+      "title": "grok-4.3 fails as judge; 16x same-vendor favoritism measured",
+      "at": "2026-08-15"
     }
   ],
   "edges": [
@@ -835,6 +841,11 @@
       "src": "judge-backtest",
       "rel": "measured_by",
       "dst": "charm-grok"
+    },
+    {
+      "src": "grok43-judge",
+      "rel": "part_of",
+      "dst": "relational-state"
     }
   ]
 }

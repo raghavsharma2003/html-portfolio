@@ -1295,6 +1295,642 @@
           "match": false
         }
       ]
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "candidateArm": "grok-4-20-non-reasoning",
+      "candidateFamily": "xai",
+      "unitsScored": 48,
+      "unitsSkippedIncompleteRows": 0,
+      "unitsAgree": 7,
+      "unitsDisagree": 41,
+      "agreementRate": 0.14583333333333334,
+      "ci95": {
+        "point": 0.14583333333333334,
+        "lo": 0.07248157413793963,
+        "hi": 0.27167447042858606
+      },
+      "slotAPickRate": 0.7604166666666666,
+      "harnessMisses": 0,
+      "familyConflict": {
+        "candidateArm": "grok-4-20-non-reasoning",
+        "candidateFamily": "xai",
+        "freshCandidatePickRate_allUnits": 0.3541666666666667,
+        "freshCandidatePickRate_nonTieOnly": 0.8095238095238095,
+        "freshCandidatePicks": 17,
+        "archivedCandidatePicks": 2,
+        "archivedCandidatePickRate_nonTieOnly": 0.05,
+        "totalUnits": 48
+      },
+      "unitDetail": [
+        {
+          "unitKey": "text|news|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|teasing|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "text|casual|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|factual|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|sad|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|flirt|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "text|conflict|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|ai|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
+          "unitKey": "text|bored|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": false
+        },
+        {
+          "unitKey": "text|mundane|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|opinion|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
+          "unitKey": "voice|teasing|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "voice|casual|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|sad|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "voice|bored|0",
+          "archivedVerdict": "grok-4-20-non-reasoning",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|news|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|conflict|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "text|crisis|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|flirt|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "voice|factual|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|ai|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "voice|crisis|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "voice|mundane|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "voice|opinion|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|teasing|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|factual|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
+          "unitKey": "text|news|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|flirt|1",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "text|conflict|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|ai|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|bored|1",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
+          "unitKey": "text|sad|1",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
+          "unitKey": "text|casual|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|opinion|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|mundane|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|crisis|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "voice|sad|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "voice|casual|1",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "voice|teasing|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|news|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|bored|1",
+          "archivedVerdict": "grok-4-20-non-reasoning",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": true
+        },
+        {
+          "unitKey": "voice|conflict|1",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "voice|mundane|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "voice|flirt|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
+          "unitKey": "voice|factual|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|opinion|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|crisis|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|ai|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        }
+      ]
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "candidateArm": "openai/gpt-5.6-luna",
+      "candidateFamily": "openai",
+      "unitsScored": 48,
+      "unitsSkippedIncompleteRows": 0,
+      "unitsAgree": 26,
+      "unitsDisagree": 22,
+      "agreementRate": 0.5416666666666666,
+      "ci95": {
+        "point": 0.5416666666666666,
+        "lo": 0.4029083309494733,
+        "hi": 0.6742497814544648
+      },
+      "slotAPickRate": 0.7083333333333334,
+      "harnessMisses": 0,
+      "familyConflict": {
+        "candidateArm": "openai/gpt-5.6-luna",
+        "candidateFamily": "openai",
+        "freshCandidatePickRate_allUnits": 0.375,
+        "freshCandidatePickRate_nonTieOnly": 0.6428571428571429,
+        "freshCandidatePicks": 18,
+        "archivedCandidatePicks": 18,
+        "archivedCandidatePickRate_nonTieOnly": 0.5142857142857142,
+        "totalUnits": 48
+      },
+      "unitDetail": [
+        {
+          "unitKey": "text|news|0",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|casual|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
+          "unitKey": "text|teasing|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": false
+        },
+        {
+          "unitKey": "text|sad|0",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|flirt|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": false
+        },
+        {
+          "unitKey": "text|conflict|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
+          "unitKey": "text|factual|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|ai|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": false
+        },
+        {
+          "unitKey": "text|bored|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|mundane|0",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|opinion|0",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|teasing|0",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": true
+        },
+        {
+          "unitKey": "voice|casual|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
+          "unitKey": "voice|sad|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": false
+        },
+        {
+          "unitKey": "voice|bored|0",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": true
+        },
+        {
+          "unitKey": "voice|news|0",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|conflict|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": false
+        },
+        {
+          "unitKey": "voice|flirt|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": false
+        },
+        {
+          "unitKey": "text|crisis|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
+          "unitKey": "voice|factual|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
+          "unitKey": "voice|ai|0",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": true
+        },
+        {
+          "unitKey": "voice|mundane|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
+          "unitKey": "voice|opinion|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
+          "unitKey": "voice|crisis|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
+          "unitKey": "text|teasing|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": false
+        },
+        {
+          "unitKey": "text|news|1",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
+          "unitKey": "text|factual|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
+          "unitKey": "text|flirt|1",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": true
+        },
+        {
+          "unitKey": "text|ai|1",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": true
+        },
+        {
+          "unitKey": "text|conflict|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|bored|1",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": true
+        },
+        {
+          "unitKey": "text|sad|1",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|casual|1",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
+          "unitKey": "text|opinion|1",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
+          "unitKey": "text|crisis|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
+          "unitKey": "text|mundane|1",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
+          "unitKey": "voice|sad|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": false
+        },
+        {
+          "unitKey": "voice|casual|1",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": true
+        },
+        {
+          "unitKey": "voice|teasing|1",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|news|1",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
+          "unitKey": "voice|bored|1",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": true
+        },
+        {
+          "unitKey": "voice|conflict|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": false
+        },
+        {
+          "unitKey": "voice|mundane|1",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|flirt|1",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": false
+        },
+        {
+          "unitKey": "voice|factual|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
+          "unitKey": "voice|opinion|1",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": true
+        },
+        {
+          "unitKey": "voice|crisis|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
+          "unitKey": "voice|ai|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": false
+        }
+      ]
     }
   ],
   "raw_rows": [
@@ -5905,6 +6541,2310 @@
       "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|news|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|news|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|teasing|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|teasing|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|casual|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|casual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|sad|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|flirt|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|sad|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|factual|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|flirt|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|conflict|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|ai|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|ai|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|bored|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|conflict|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|bored|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|mundane|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|mundane|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|opinion|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|teasing|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|opinion|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|teasing|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|casual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|sad|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|sad|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|bored|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|casual|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|bored|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|news|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|conflict|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|news|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|conflict|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|crisis|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|flirt|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|crisis|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|flirt|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|factual|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|ai|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|crisis|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|ai|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|mundane|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|crisis|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|opinion|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|opinion|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|teasing|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|teasing|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|factual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|factual|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|news|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|mundane|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|news|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|flirt|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|flirt|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|conflict|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|conflict|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|ai|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|ai|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|bored|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|bored|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|sad|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|sad|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|casual|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|casual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|opinion|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|opinion|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|mundane|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|crisis|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|mundane|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|sad|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "text|crisis|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|casual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|casual|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|teasing|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|sad|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|news|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|teasing|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|bored|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|news|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|bored|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|conflict|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|conflict|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|mundane|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|flirt|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|mundane|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|flirt|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|factual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|factual|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|opinion|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|opinion|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|crisis|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|ai|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|crisis|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-grok",
+      "unitKey": "voice|ai|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|news|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|casual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|casual|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|teasing|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|sad|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|sad|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|flirt|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|teasing|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|news|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|flirt|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|conflict|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|factual|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|conflict|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|ai|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|ai|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|bored|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|bored|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|mundane|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|opinion|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|opinion|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|teasing|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|teasing|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|casual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|casual|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|sad|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|bored|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|bored|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|sad|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|mundane|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|news|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|conflict|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|news|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|conflict|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|flirt|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|crisis|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|crisis|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|flirt|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|factual|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|ai|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|ai|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|mundane|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|opinion|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|mundane|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|crisis|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|opinion|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|crisis|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|teasing|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|teasing|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|news|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|factual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|factual|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|flirt|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|news|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|flirt|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|ai|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|conflict|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|conflict|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|bored|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|bored|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|ai|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|sad|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|sad|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|casual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|casual|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|opinion|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|opinion|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|crisis|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|mundane|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|crisis|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "text|mundane|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|sad|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|casual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|sad|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|teasing|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|teasing|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|news|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|casual|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|news|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|bored|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|conflict|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|mundane|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|bored|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|conflict|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|flirt|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|mundane|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|flirt|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|factual|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|opinion|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|factual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|opinion|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|crisis|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|ai|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|ai|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "grok-4.3",
+      "archive": "charm-luna",
+      "unitKey": "voice|crisis|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
     }
   ],
   "pooled": [
@@ -5939,20 +8879,128 @@
       "nNeededToResolve": null,
       "slotAPickRate": 0.6197916666666666,
       "slotAPickRateNote": "house baseline (charm-grok, context/measurements.md): 61% slot-A. A pooled rate well above that indicates position bias dominating this judge's picks rather than content, which is itself part of why unit-level (both-orders-agree) agreement with ground truth comes out low."
+    },
+    {
+      "judge": "grok-4.3",
+      "unitsAgree": 33,
+      "unitsScored": 96,
+      "agreementRate": 0.34375,
+      "ci95": {
+        "point": 0.34375,
+        "lo": 0.2564024884934557,
+        "hi": 0.44312155759554933
+      },
+      "bar": 0.8,
+      "verdict": "FAIL",
+      "nNeededToResolve": null,
+      "slotAPickRate": 0.734375,
+      "slotAPickRateNote": "house baseline (charm-grok, context/measurements.md): 61% slot-A. This judge's pooled rate (73.4%) sits well above it. On charm-grok specifically, slot-A was 76.0%; that archive is ALSO the one where grok-4.3's family-conflict favoritism is largest, so the two effects are confounded there and cannot be cleanly separated from this data alone -- charm-luna's 70.8% slot-A rate (no family conflict, still high) shows the position bias is not solely a family-conflict artifact."
     }
   ],
   "qualified_panel": [],
-  "reversal_note": "Both credit-billed judge candidates FAILED the >=80% bar with CIs that do not straddle it — context/decisions.md `d2-on-credits`'s own pre-registered reversal condition has fired: 'the credit-billed judges fail the 80% agreement backtest — then one premium judge family is paid in cash and the run costs ~$400, not $834, since only one family needs buying.' Logging this into context/decisions.md is out of this workstream's file grant (Fable per CLAUDE.md's model policy) — reported here so the coordinator can act on it.",
+  "reversal_note": "All THREE credit-billed judge candidates now FAIL the >=80% bar with CIs that do not straddle it (DeepSeek-V4-Flash 28.1%, gpt-5.6-terra 54.2%, grok-4.3 34.4% pooled / 14.6% on the family-conflicted charm-grok archive alone) — context/decisions.md `d2-on-credits`'s pre-registered reversal condition has fired and the cheaper-probe option it named (grok-4.3) is now exhausted too: 'the credit-billed judges fail the 80% agreement backtest — then one premium judge family is paid in cash and the run costs ~$400, not $834, since only one family needs buying.' The cash fallback (~$400, one premium judge family) is now the settled plan -- no further credit-billed candidate remains untested on this resource. Logging this into context/decisions.md is out of this workstream's file grant (Fable per CLAUDE.md's model policy) — reported here so the coordinator can act on it.",
   "cost": {
-    "calls": 384,
-    "promptTokens": 441701,
-    "completionTokens": 9671,
+    "calls": 576,
+    "promptTokens": 662328,
+    "completionTokens": 13202,
     "billedTo": "Azure AI Foundry credits (Microsoft for Startups)",
     "cashCostUsd": 0,
-    "creditRateNote": "No published per-token credit-consumption rate for DeepSeek-V4-Flash / gpt-5.6-terra in this repo; not estimated to avoid fabricating a number (see context/measurements.md house rule: a figure needs n/method/date to be comparable)."
+    "creditRateNote": "No published per-token credit-consumption rate for DeepSeek-V4-Flash / gpt-5.6-terra in this repo; not estimated to avoid fabricating a number (see context/measurements.md house rule: a figure needs n/method/date to be comparable).",
+    "byJudge": {
+      "DeepSeek-V4-Flash+gpt-5.6-terra (original run)": {
+        "calls": 384,
+        "promptTokens": 441701,
+        "completionTokens": 9671
+      },
+      "grok-4.3 (this addendum)": {
+        "calls": 192,
+        "promptTokens": 220627,
+        "completionTokensVisible": 3531,
+        "reasoningTokensHidden": 0
+      }
+    }
   },
   "tickets": [
     "WS-ROUTER: seed DeepSeek-V4-Flash and gpt-5.6-terra rows into config/models.json (billing:'credits', card_risk per credits-partner check) — not edited here, out of this workstream's file grant.",
     "WS-ROUTER/FinOps: no per-token Azure credit-consumption rate exists in-repo for either deployment; add one so future judge-cost logging can report a $-equivalent burn instead of raw tokens only."
-  ]
+  ],
+  "grok43_addendum": {
+    "added_at": "2026-08-15T10:13:44.114Z",
+    "harness_note": "Run via a standalone script (/tmp scratchpad, not committed) that mirrors evals/dbattery/judge-backtest.mjs's method EXACTLY -- same RUBRIC text, same blind A/B re-presentation in the archived order, same both-orders-agree/TIE_FLIP house rule, same Wilson 95% CI -- rather than editing judge-backtest.mjs, because this task's file grant covers only judges.json. judge-backtest.mjs itself is unmodified.",
+    "deployment": "grok-4.3",
+    "deployment_verified_live_this_session": true,
+    "deployment_quirks": [
+      "grok-4.3 is a REASONING model by default on this deployment (unlike grok-4-20-non-reasoning): with no reasoning_effort set it burns hidden reasoning_tokens (measured 593-738 on a trivial 2-line probe, 4.5s latency) even though the visible completion is unaffected -- confirmed NOT a truncation/empty-response failure (xAI deployments cap only visible output on max_tokens per context/measurements.md `reasoning-split`), but a latency/cost cost if left unset.",
+      "reasoning_effort:'none' (same enum value already used for gpt-5.6-terra) eliminates it: 0 reasoning_tokens, ~0.5s latency, identical visible-answer shape. Used throughout this backtest.",
+      "Unlike terra, grok-4.3 takes the plain xAI-style `max_tokens` param (NOT `max_completion_tokens`) and accepts temperature:0 without complaint -- confirmed live, all three params (max_tokens, temperature:0, reasoning_effort:'none') combined in one call, 200 OK."
+    ],
+    "structural_caveat": "grok-4.3 is xAI-family. charm-grok's candidate arm is grok-4-20-non-reasoning, also xAI-family -- a judge-family conflict on that half only. charm-luna's candidate (openai/gpt-5.6-luna) has no such conflict. Both archives were run; agreement is reported per-archive AND pooled so the conflicted half cannot hide inside a pooled number.",
+    "family_conflict_analysis": {
+      "note": "favoritism defined measurably as: grok-4.3's fresh per-unit pick-rate for the archive's candidate arm, vs the ARCHIVED ground-truth pick-rate for that same arm (baseline). charm-grok's baseline is context/measurements.md `judge-backtest` line 1's own 38-2 pooled figure (incumbent-grok), i.e. grok won only 2/40 non-tie archived units (5%).",
+      "charm_grok": {
+        "candidateArm": "grok-4-20-non-reasoning",
+        "candidateFamily": "xai",
+        "freshCandidatePickRate_allUnits": 0.3541666666666667,
+        "freshCandidatePickRate_nonTieOnly": 0.8095238095238095,
+        "freshCandidatePicks": 17,
+        "archivedCandidatePicks": 2,
+        "archivedCandidatePickRate_nonTieOnly": 0.05,
+        "totalUnits": 48
+      },
+      "charm_luna": {
+        "candidateArm": "openai/gpt-5.6-luna",
+        "candidateFamily": "openai",
+        "freshCandidatePickRate_allUnits": 0.375,
+        "freshCandidatePickRate_nonTieOnly": 0.6428571428571429,
+        "freshCandidatePicks": 18,
+        "archivedCandidatePicks": 18,
+        "archivedCandidatePickRate_nonTieOnly": 0.5142857142857142,
+        "totalUnits": 48
+      }
+    },
+    "verdict_summary": {
+      "pooled": {
+        "judge": "grok-4.3",
+        "unitsAgree": 33,
+        "unitsScored": 96,
+        "agreementRate": 0.34375,
+        "ci95": {
+          "point": 0.34375,
+          "lo": 0.2564024884934557,
+          "hi": 0.44312155759554933
+        },
+        "bar": 0.8,
+        "verdict": "FAIL",
+        "nNeededToResolve": null,
+        "slotAPickRate": 0.734375
+      },
+      "per_archive": [
+        {
+          "archive": "charm-grok",
+          "candidateArm": "grok-4-20-non-reasoning",
+          "candidateFamily": "xai",
+          "agreementRate": 0.14583333333333334,
+          "ci95": {
+            "point": 0.14583333333333334,
+            "lo": 0.07248157413793963,
+            "hi": 0.27167447042858606
+          },
+          "verdictAgainst80Bar": "FAIL"
+        },
+        {
+          "archive": "charm-luna",
+          "candidateArm": "openai/gpt-5.6-luna",
+          "candidateFamily": "openai",
+          "agreementRate": 0.5416666666666666,
+          "ci95": {
+            "point": 0.5416666666666666,
+            "lo": 0.4029083309494733,
+            "hi": 0.6742497814544648
+          },
+          "verdictAgainst80Bar": "FAIL"
+        }
+      ],
+      "overall": "FAIL -- fails pooled AND on both individual archives, including charm-luna where no family conflict exists. Not PASS-WITH-SCOPE: a 'qualified for non-grok comparisons only' verdict would require charm-luna alone to clear 80%, and it does not (54.2%, CI [40.3,67.4])."
+    }
+  }
 }

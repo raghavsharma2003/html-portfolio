@@ -601,3 +601,27 @@ The d2-on-credits reversal condition FIRED as pre-registered: one premium
 judge family in cash (~$400). One cheaper probe remains first: grok-4.3 is
 also credit-billed and untested as a judge — its family conflicts only with
 grok-arm comparisons, which the chat-lane D2 need not include.
+
+## `grok43-judge` — the third credit judge fails, with same-vendor favoritism measured (2026-08-15)
+
+grok-4.3, same full-population backtest: **34.4% pooled agreement [25.6,
+44.3], FAIL** — and on the archive where its own vendor's model is a
+contestant, it picked the xAI arm **81.0%** of the time against a ground
+truth of **5.0%** (the 38–2 anti-grok result). A ~16× same-vendor preference,
+measured cleanly. Even on the conflict-free archive it fails (54.2%, CI upper
+67.4% < 80%), so this is judgment noise plus favoritism, not favoritism
+alone. Slot-A position bias 70–76% against the 61% house baseline.
+
+Quirk banked: grok-4.3 silently burns 593–738 hidden reasoning tokens per
+call unless reasoning_effort:"none" — but unlike terra it does not empty out.
+
+**All three credit-billed judge candidates have now failed** (28.1% / 54.2% /
+34.4% against an 80% bar). The d2-on-credits reversal is fully exhausted:
+**one premium judge family in cash, ~$400, is the settled plan** — awaiting
+the owner's spend approval, the single cash line item of Phase D.
+
+The meta-finding is worth more than the failures: judge quality is not a
+commodity. Three frontier-adjacent models, all competent chatbots, agree with
+carefully-validated human-aligned verdicts a THIRD to HALF of the time — and
+one prefers its own vendor 16×. Any lab running LLM-judged evals without a
+backtest against trusted verdicts is measuring judge taste, not their product.
