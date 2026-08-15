@@ -328,6 +328,12 @@
       "kind": "measurement",
       "title": "Short structured tags do not recite (n=84, bound 7.1%)",
       "at": "2026-08-13"
+    },
+    {
+      "id": "multiparty-direction",
+      "kind": "decision",
+      "title": "The relational OS extends to shared group memory; disclosure control is the core",
+      "at": "2026-08-13"
     }
   ],
   "edges": [
@@ -625,6 +631,16 @@
       "src": "affect-recitation",
       "rel": "caused_by",
       "dst": "recited-prompt"
+    },
+    {
+      "src": "multiparty-direction",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "spec-c-minimal",
+      "rel": "constrains",
+      "dst": "multiparty-direction"
     }
   ]
 }

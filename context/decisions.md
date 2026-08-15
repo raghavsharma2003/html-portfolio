@@ -247,3 +247,34 @@ envelope) — in which case the claim narrows to gate-and-adapter plus
 migration-UX on the same engine, and the consented cohort does not run on the
 strong claim; or the citation law starves consolidation past its
 pre-registered response ladder.
+
+---
+
+## `multiparty-direction` — the relational OS extends to shared memory across a group (2026-08-13)
+
+The owner's direction: one AI as a **common friend to a group** — couple,
+family, friend circle. Each member talks to her 1:1; she knows each person
+deeply; she can reference one person to another the way a mutual friend does;
+and she participates in the group's shared space as well. Distribution begins
+on WhatsApp groups/communities, migrating users to the app later. The 1:1
+relational OS remains the foundation and ships first — the group layer is what
+it must be shaped to support.
+
+**The research core this adds — and the breakthrough candidate:** disclosure
+control. What may she tell A about B? A mutual friend's entire value sits in
+judged disclosure — knowing what was told in confidence, what is safe to
+relay, what to actively bridge ("arre, B was just talking about that"). Done
+wrong it is not a bug, it is a betrayal engine. Provenance-gated disclosure
+(every fact already carries citations to episodes; episodes carry WHO was
+present) is the mechanism the schema already half-supports: vy_person is
+separate from devices, episodes are participant-scoped, and the WE-store is
+dyadic by construction.
+
+Sequencing unchanged by the owner's own words: crack the relational OS first,
+then per-use-case personas for WhatsApp and in-app.
+
+**Reverses if:** the WhatsApp platform track shows bots in user groups are
+infeasible or ban-bait under the Business API (then distribution pivots to
+app-first or another surface, the group architecture unchanged); or disclosure
+control cannot be made safe enough to demo (then the group layer waits and 1:1
+ships alone — a common friend who leaks is worse than no common friend).
