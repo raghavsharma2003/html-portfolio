@@ -351,3 +351,32 @@ mapping flipped, nothing dismantled.
 unambiguous that age-tiering is converging on mandatory (FTC 6(b), state
 bills, China's rules), so `age-tier-cliff` stays OPEN as the launch-blocking
 item rather than being closed by this decision.
+
+---
+
+## `d2-on-credits` — the swap test runs on the Azure grant, not cash (2026-08-15)
+
+The owner has no cash; the $834 D2 pricing assumed OpenRouter-billed judges
+(claude-opus-4.8 + gemini-3.5-flash-lite — the measured $2.78/comparison).
+Restructured to ride the $5k Azure grant instead:
+
+- **Judge family 1: DeepSeek-V4-Flash** — already deployed on the resource,
+  Azure-billed, credits-eligible, and family-distinct from both arms.
+- **Judge family 2: an Azure OpenAI chat deployment** (one owner click in
+  Foundry, same flow as previous deployments) — first-party billed, eligible.
+  Anthropic judges are structurally unavailable on credits (`credits-partner`:
+  excluded outright), and Gemini does not exist on Azure.
+- **Candidate-arm generation on Azure** (credits); incumbent-arm generation on
+  the free Gemini daily pool with OpenRouter overflow — the only cash residue,
+  est. $0–30.
+- **Validation before spending the full n=300:** new judges must clear the
+  ≥80% agreement bar (SPEC §10-Q5) against the ARCHIVED blind verdicts in
+  evals/archives/ — a cheap credits-billed backtest. Trading judge pedigree
+  for free money is only sound if the trade is measured first.
+
+Net: ~$800-equivalent grant burn from $5k (which also funds extraction,
+backfill, drift — comfortable), ~$0–30 cash.
+
+**Reverses if:** the credit-billed judges fail the 80% agreement backtest —
+then one premium judge family is paid in cash and the run costs ~$400, not
+$834, since only one family needs buying.
