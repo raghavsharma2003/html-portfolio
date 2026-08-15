@@ -525,6 +525,12 @@
    "kind": "measurement",
    "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A \u2014 most extreme position bias measured",
    "at": "2026-08-15"
+  },
+  {
+   "id": "cohere-judge",
+   "kind": "measurement",
+   "title": "Cohere disqualified for cause (protocol-unfit at rubric scale); Azure disjoint-family branch EXHAUSTED",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -1060,6 +1066,11 @@
   },
   {
    "src": "mistral-judge",
+   "rel": "part_of",
+   "dst": "judge-grant-only"
+  },
+  {
+   "src": "cohere-judge",
    "rel": "part_of",
    "dst": "judge-grant-only"
   }

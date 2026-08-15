@@ -796,3 +796,28 @@ credit-judge qualification: DeepSeek-Flash 28.1% / terra 54.2% / grok-4.3
 Cohere (in flight), gpt-5.6-sol (owner quota pending), and the reopened
 anthropic-on-AWS path (AWS Activate credits verifiably apply to Claude on
 Bedrock since 2024-04 — the opposite of Azure's marketplace exclusion).
+
+---
+
+## `cohere-judge` — command-a-plus disqualified for cause; the Azure disjoint-family branch is exhausted (2026-08-15)
+
+Four runs, each fixing a real layer: (1) 422s from a borrowed token param —
+transport guard fired; (2) 120-token cap ate every verdict — parse guard
+added; (3) config cap silently overridden by a hardcoded 120 at the call
+site — fixed; (4) properly configured (max_tokens 400,
+reasoning_effort:none verified live to stop the hidden-reasoning burn), it
+STILL parses on only a minority of calls (82-95 misses/96 rows per archive)
+— it writes long prose despite the ONLY-JSON contract, and the minority
+that parsed drifts 64.3% slot-A. Verdict: DISQUALIFIED FOR CAUSE (cannot
+follow the judging protocol at rubric scale), not scored on agreement —
+insufficient parsed n for a rate claim, and the protocol is part of the
+job. All credits, $0 cash.
+
+**Branch conclusion:** every Azure-direct family disjoint from both swap
+arms has now been tried and failed — DeepSeek (Flash 28.1%, Pro 30.9%),
+Mistral-Large-3 (29.2%, 90% slot-A), Cohere (protocol-unfit). Per prereg
+Amendment 2 the remaining paths are gpt-5.6-sol (owner quota pending;
+family-shared with the candidate, bias measured in its own backtest) and
+anthropic Claude on AWS Bedrock (family-disjoint, premium, AWS Activate
+credits verified applicable — the strongest remaining option, needs owner
+Bedrock setup).

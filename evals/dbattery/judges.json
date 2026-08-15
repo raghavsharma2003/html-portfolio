@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-15T15:49:29.970Z",
+  "generated_at": "2026-08-15T15:52:45.667Z",
   "method": "backtest against evals/archives/ (charm-grok, charm-luna) ARCHIVED blind-counterbalanced verdicts; overall axis only; win counted only when both presentation orders agree (order-flip = TIE_FLIP), reusing evals/dbattery/common.mjs's house rule.",
   "bar": "SPEC.md §10-Q5 methodology (>=80% agreement with a trusted historical verdict set on held-out pairs), applied here to judge qualification per context/decisions.md `d2-on-credits`",
   "deployments_verified": [
@@ -3393,10 +3393,10 @@
         "lo": null,
         "hi": null
       },
-      "slotAPickRate": null,
-      "harnessMisses": 96,
+      "slotAPickRate": 0.6,
+      "harnessMisses": 76,
       "transportMisses": 0,
-      "parseMisses": 96,
+      "parseMisses": 76,
       "unitDetail": []
     },
     {
@@ -3412,10 +3412,10 @@
         "lo": null,
         "hi": null
       },
-      "slotAPickRate": 1,
-      "harnessMisses": 95,
+      "slotAPickRate": 0.6428571428571429,
+      "harnessMisses": 82,
       "transportMisses": 0,
-      "parseMisses": 95,
+      "parseMisses": 82,
       "unitDetail": []
     }
   ],
@@ -19552,49 +19552,61 @@
       "judge": "command-a-plus-05-2026",
       "archive": "charm-grok",
       "unitKey": "text|casual|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|teasing|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|news|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two companion replies (A and B). The judgement criteria: overall quality: warmth, humor, natural Hing"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|teasing|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to evaluate overall quality based on warmth, humor, natural Hinglish register, personhood, and appropriate brevi"
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-grok",
       "unitKey": "text|casual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare two replies (full conversation). The instruction: judge overall quality based on warmth, humor, natur"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|news|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We have to judge which reply (A or B) is overall better based on criteria: warmth, humor, natural Hinglish register, per"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|teasing|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare overall quality based on warmth, humor, natural Hinglish register, personhood (feels like real person"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19606,67 +19618,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|teasing|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|sad|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|sad|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|flirt|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|factual|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality based on warmth, humour, natural Hinglish register, personhood, appropriate brevity. Bo"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19678,7 +19630,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare both replies overall quality regarding warmth, humour, natural Hinglish register, personhood, appropr"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19690,7 +19642,67 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality based on warmth, humor, natural Hinglish register, personhood (feels like real person, "
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|sad|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare overall quality of these two replies according to warmth, humor, natural Hinglish register, personhoo"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|sad|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare the overall quality of these two conversation transcripts, where each comprises a user's messages int"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|flirt|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare overall quality based on warmth, humor, natural Hinglish register, personhood, appropriate brevity. P"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humour, natural Hinglish register, personhood, appropriate brevity.\n\nWe have t"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|bored|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19700,9 +19712,9 @@
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19714,7 +19726,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two AI companion replies overall quality based on warmth, humor, natural Hinglish register, personhoo"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|conflict|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare two AI replies (A and B). The overall quality criteria: warmth, humor, natural Hinglish register, per"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19726,7 +19750,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare the two AI companions' replies (her responses across the conversation) according to overall quality: "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19738,91 +19762,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|conflict|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|bored|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|mundane|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|opinion|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|mundane|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|teasing|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|opinion|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humour, natural Hinglish register, personhood, appropriate brevity. We must ch"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19834,7 +19774,91 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to evaluate which reply (A or B) has higher overall quality based on warmth, humor, natural Hinglish register, p"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|mundane|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We have to choose which reply (A or B) overall is better based on criteria: warmth, humor, natural Hinglish register, pe"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|opinion|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge which reply (A or B) is overall better in terms of warmth, humor, natural Hinglish register, personhood"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|teasing|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare overall quality based on warmth, humour, natural Hinglish register, personhood (feels like real perso"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|opinion|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge overall quality between Reply A and Reply B. Criteria: warmth, humour, natural Hinglish register, perso"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|mundane|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|sad|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|bored|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19846,7 +19870,31 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality based on warmth, humor, natural Hinglish register, personhood (feels like a real person"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|news|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|sad|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to evaluate overall quality: warmth, humour, natural Hinglish register, personhood (feels like a real person), a"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19858,31 +19906,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|sad|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|bored|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humor, natural Hinglish register, personhood (feels like a real person, not an"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19894,43 +19918,7 @@
       "archivedOverall": "grok-4-20-non-reasoning",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|sad|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|news|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|crisis|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality of replies A vs B based on criteria: warmth, humour, natural Hinglish register, perso"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19942,19 +19930,31 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to choose overall better reply between A and B based on warmth, humour, natural Hinglish register, personhood, a"
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-grok",
       "unitKey": "voice|news|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: The task: We have two replies A and B from the same multi-turn Hinglish conversation with a user. We need to decide whic"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|crisis|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge overall quality of two replies (A and B) based on criteria: warmth, humour, natural Hinglish register, "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19966,7 +19966,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two companion replies from the same multi-turn conversation. We must judge overall quality: warmth, h"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|flirt|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare the two responses, produce overall rating A or B (the better one) based on criteria: warmth, humor, n"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19978,7 +19990,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to output JSON {\"overall\":\"A|B\",\"why\":\"...\"}.\n\nWe need to evaluate overall quality: warmth, humor, natural Hingl"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge overall quality of two replies, considering warmth, humor, natural Hinglish register, personhood (feels"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -19988,21 +20012,9 @@
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|flirt|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20014,7 +20026,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humour, natural Hinglish register, personhood, appropriate brevity.\n\nWe compar"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20026,19 +20038,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|factual|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare the two replies A and B overall quality: warmth, humour, natural Hinglish register, personhood, appro"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20050,7 +20050,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to decide overall which reply (A or B) is better according to criteria: warmth, humour, natural Hinglish registe"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|opinion|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20062,7 +20074,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humour, natural Hinglish register, personhood, appropriate brevity. Need to ch"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20074,7 +20086,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality: warmth, humour, natural Hinglish register, personhood, appropriate brevity.\n\nWe must"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20086,91 +20098,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|opinion|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|opinion|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|teasing|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|teasing|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|factual|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|factual|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|news|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to choose which reply overall is better according to criteria: warmth, humour, natural Hinglish register, person"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20180,21 +20108,69 @@
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-grok",
-      "unitKey": "text|flirt|1",
+      "unitKey": "text|teasing|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge overall quality based on warmth, humour, natural Hinglish register, personhood, appropriate brevity. We"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|teasing|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare reply A and reply B. We need overall rating: warmth, humor, natural Hinglish register, personhood, ap"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|factual|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare overall quality: warmth, humor, natural Hinglish register, personhood, appropriate brevity. Overall a"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|factual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to decide overall which reply (A or B) is better in terms of warmth, humour, natural Hinglish register, personho"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|opinion|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to evaluate which reply (A or B) overall is better according to criteria: warmth, humor, natural Hinglish regist"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20204,9 +20180,45 @@
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|news|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two AI companion replies (i.e., sequences of both sides presumably but we have separate transcripts)."
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|flirt|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare the two AI companion replies (A and B) in terms of overall quality based on criteria: warmth, humor, "
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|conflict|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20218,7 +20230,7 @@
       "archivedOverall": "grok-4-20-non-reasoning",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare which reply overall is better based on warmth, humor, natural Hinglish register, personhood, brevity."
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20230,31 +20242,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|bored|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|ai|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to decide overall quality between two replies based on warmth, humour, natural Hinglish register, personhood, ap"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20266,19 +20254,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality of two AI companion replies, based on warmth, humor, natural Hinglish register, perso"
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-grok",
-      "unitKey": "text|conflict|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
+      "unitKey": "text|ai|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20290,7 +20278,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We have a task: compare two AI-companion replies (A and B) from same multi-turn Hinglish conversation, with unknown assi"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|bored|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: The task: we are a blind judge comparing two AI-companion replies (A and B) from the same multi-turn Hinglish conversati"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20302,55 +20302,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|opinion|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|casual|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|casual|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|opinion|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality based on warmth, humor, natural Hinglish register, personhood (feels like a real person"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20362,7 +20314,67 @@
       "archivedOverall": "grok-4-20-non-reasoning",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: The user wants a judgment of overall quality between reply A and reply B based on warmth, humor, natural Hinglish regist"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|casual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humor, natural Hinglish register, personhood, appropriate brevity. Choose A or"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|casual|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge which reply is overall better according to criteria: warmth, humour, natural Hinglish register, personh"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|sad|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|opinion|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare two replies (overall quality: warmth, humor, natural Hinglish, personhood, appropriate brevity). The "
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "text|opinion|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humor, natural Hinglish register, personhood (feels like a real person, not an"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20374,19 +20386,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "text|mundane|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare the overall quality of these two assistant replies (her messages) based on warmth, humour, natural Hi"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20398,31 +20398,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare which reply overall is better based on warmth, humor, natural Hinglish register, personhood, and appr"
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-grok",
-      "unitKey": "voice|sad|1",
+      "unitKey": "text|mundane|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|casual|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two AI replies (presumably the 'her' responses). We must judge overall quality: warmth, humor, natura"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20434,7 +20422,31 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two AI companion replies (entire conversation transcripts). The criteria: warmth, humour, natural Hin"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|casual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare the two replies overall on warmth, humor, natural Hinglish register, personhood, appropriate brevity."
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|teasing|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20446,7 +20458,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to decide which reply overall is better based on warmth, humor, natural Hinglish register, personhood (feeling l"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|news|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare overall quality: warmth, humor, natural Hinglish register, personhood, appropriate brevity. We must c"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20458,43 +20482,31 @@
       "archivedOverall": "grok-4-20-non-reasoning",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality: warmth, humor, natural Hinglish register, personhood, appropriate brevity. Need to o"
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-grok",
-      "unitKey": "voice|teasing|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|bored|1",
+      "unitKey": "voice|conflict|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-grok",
-      "unitKey": "voice|news|1",
+      "unitKey": "voice|mundane|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20506,7 +20518,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to decide overall quality between Reply A and B based on criteria: warmth, humour, natural Hinglish register, pe"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|bored|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: The user wants us to compare the two AI-companion replies A and B based on overall quality: warmth, humour, natural Hing"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20518,7 +20542,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality: warmth, humor, natural Hinglish register, personhood (feels like real person), appro"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|flirt|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20530,7 +20566,7 @@
       "archivedOverall": "grok-4-20-non-reasoning",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to decide which reply overall better according to criteria: warmth, humour, natural Hinglish register, personhoo"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20542,31 +20578,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare the two replies (entire multi-turn conversation). The goal: produce a JSON with overall winner \"A\" or"
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-grok",
-      "unitKey": "voice|mundane|1",
+      "unitKey": "voice|opinion|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|conflict|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20578,7 +20602,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We have to judge overall quality: warmth, humour, natural Hinglish register, personhood (feels like a real person, not a"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20590,67 +20614,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humor, natural Hinglish register, personhood (feels like a real person, not an"
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-grok",
-      "unitKey": "voice|flirt|1",
+      "unitKey": "voice|crisis|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|factual|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|ai|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|opinion|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-grok",
-      "unitKey": "voice|opinion|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20662,7 +20638,31 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two AI companion replies across multiple turns, overall quality regarding warmth, humor, natural Hing"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|factual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-grok",
+      "unitKey": "voice|opinion|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare two AI companion replies (actually each reply comprises a whole conversation transcript). We need to "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20674,19 +20674,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality of two replies. The evaluation criteria: warmth, humour, natural Hinglish register, p"
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-grok",
-      "unitKey": "voice|crisis|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
+      "unitKey": "voice|ai|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two AI companion replies (both transcripts of multiple turns). The task: judge overall quality based "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20698,31 +20698,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|casual|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|casual|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality based on warmth, humor, natural Hinglish register, personhood (feels like a real pers"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20734,7 +20710,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two AI-companion replies (full conversation transcripts). We must decide which overall is better base"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20746,7 +20722,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality of two responses (A and B). We must output JSON with \"overall\":\"A|B\" and \"why\" under "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20758,96 +20734,12 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality of the two AI companion replies according to criteria: warmth, humor, natural Hinglish "
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-luna",
-      "unitKey": "text|teasing|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|news|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|teasing|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|conflict|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|flirt|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|flirt|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|factual|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|factual|0",
+      "unitKey": "text|casual|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
@@ -20859,6 +20751,102 @@
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-luna",
+      "unitKey": "text|casual|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare overall quality based on warmth, humor, natural Hinglish register, personhood, and appropriate brevit"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|teasing|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare overall quality (warmth, humor, natural Hinglish register, personhood, appropriate brevity). Choose w"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|news|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to produce a JSON {\"overall\":\"A|B\",\"why\":\"<12 words max>\"}. We compare overall quality: warmth, humor, natural H"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|teasing|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to choose overall better based on warmth, humour, natural Hinglish register, personhood, appropriate brevity. Co"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|flirt|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge which reply overall is better according to warmth, humor, natural Hinglish register, personhood, approp"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|factual|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We have to choose between Reply A and Reply B overall quality based on warmth, humour, natural Hinglish register, person"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|flirt|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge overall quality of the two responses (which are whole chat transcripts showing the AI's lines interleav"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|conflict|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humour, natural Hinglish register, personhood, appropriate brevity. The two tr"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
       "unitKey": "text|conflict|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
@@ -20866,7 +20854,19 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humor, natural Hinglish register, personhood (feels like a real person, not an"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare overall quality: warmth, humor, natural Hinglish register, personhood, appropriate brevity. Both repl"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20878,7 +20878,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to decide overall quality between two replies: which one is better in terms of warmth, humour, natural Hinglish "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20890,19 +20890,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|bored|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two AI companion replies A and B based on criteria: warmth, humour, natural Hinglish register, person"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20914,19 +20902,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two companion replies (A and B). We must output JSON {\"overall\":\"A|B\",\"why\":\"<12 words max>\"}. We mus"
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-luna",
-      "unitKey": "text|opinion|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
+      "unitKey": "text|bored|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humor, natural Hinglish register, personhood, appropriate brevity.\n\nWe have tw"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20938,7 +20926,19 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare the two replies (overall quality) based on warmth, humor, natural Hinglish register, personhood (feel"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|opinion|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to decide which reply (A or B) has higher overall quality per criteria: warmth, humour, natural Hinglish registe"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20950,19 +20950,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|casual|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We have to judge which reply (A or B) is better overall, based on criteria: warmth, humor, natural Hinglish register, pe"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20974,19 +20962,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|teasing|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality based on warmth, humor, natural Hinglish register, personhood, and appropriate brevity."
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -20998,7 +20974,31 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to produce overall rating \"A\" or \"B\" with why less than 12 words.\n\nWe compare warmth, humour, natural Hinglish r"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|teasing|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare overall quality based on warmth, humour, natural Hinglish register, personhood, and appropriate brevi"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|casual|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to decide overall quality based on criteria: warmth, humor, natural Hinglish register, personhood (feels like a "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21010,7 +21010,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to decide overall which reply (A or B) is better in terms of warmth, humour, natural Hinglish register, personho"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21022,7 +21022,19 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality of two replies based on warmth, humour, natural Hinglish register, personhood, appropri"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|news|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare the two replies (the overall quality of the companion's chat). We're told we are a blind judge compar"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21034,31 +21046,19 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality of the two replies according to criteria: warmth, humour, natural Hinglish register, pe"
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-luna",
-      "unitKey": "voice|news|0",
+      "unitKey": "voice|conflict|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|news|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21070,7 +21070,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two AI-companion replies overall quality based on warmth, humour, natural Hinglish register, personho"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21082,7 +21082,31 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: The task: Choose between reply A and B overall quality: warmth, humour, natural Hinglish register, personhood, appropria"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|news|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: The task: We have two reply transcripts (A and B) from an AI companion in a Hinglish conversation. We must judge overall"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|flirt|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21094,7 +21118,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality based on warmth, humor, natural Hinglish register, personhood (feels like a real pers"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21104,45 +21128,9 @@
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|conflict|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|flirt|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|factual|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21154,7 +21142,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humour, natural Hinglish register, personhood (feels like a real person, not a"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21166,7 +21154,31 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality of the two replies (A and B) based on warmth, humor, natural Hinglish register, perso"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to decide overall quality based on warmth, humor, natural Hinglish register, personhood, appropriate brevity. No"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|ai|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21178,7 +21190,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two transcripts side by side based on overall quality: warmth, humour, natural Hinglish register, per"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21190,67 +21202,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|ai|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|mundane|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|opinion|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|crisis|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|mundane|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare Reply A vs Reply B overall quality: warmth, humour, natural Hinglish register, personhood, appropriat"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21262,7 +21214,55 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to decide overall which reply is better based on criteria: warmth, humour, natural Hinglish register, personhood"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|opinion|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|mundane|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare two companion replies A and B. These are both entire conversation transcripts of 'her' responses to u"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|crisis|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humor, natural Hinglish register, personhood (feels like a real person, not an"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|mundane|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare overall quality: warmth, humor, natural Hinglish register, personhood, appropriate brevity. We must d"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21272,21 +21272,9 @@
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|teasing|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21298,7 +21286,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality based on warmth, humor, natural Hinglish register, personhood (feels like a real person"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|teasing|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare both replies across criteria: warmth, humour, natural Hinglish register, personhood (feels like a rea"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21310,7 +21310,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality based on warmth, humor, natural Hinglish register, personhood (feels like a real person"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21322,7 +21322,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to choose which reply (A or B) is overall better based on warmth, humor, natural Hinglish register, personhood, "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21334,7 +21334,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to choose overall better reply between A and B based on warmth, humor, natural Hinglish register, personhood, ap"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21346,19 +21346,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|flirt|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two AI companion replies A and B based on warmth, humor, natural Hinglish register, personhood (feels"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21370,7 +21358,19 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We have to decide overall which reply (A or B) is better based on warmth, humor, natural Hinglish register, personhood, "
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|flirt|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We have to evaluate overall quality based on warmth, humor, natural Hinglish register, personhood, appropriate brevity. "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21382,7 +21382,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality of the two replies (the assistant's responses?) Actually we have two full transcripts: "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21394,7 +21394,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge which reply overall better according to criteria: warmth, humor, natural Hinglish register, personhood "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21406,19 +21406,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|bored|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two replies A and B, from the same conversation with a user. The task: \"You are a blind judge compari"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21430,7 +21418,19 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality of Reply A vs Reply B. We have to decide which reply is better overall according to c"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|bored|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare the overall quality based on warmth, humor, natural Hinglish register, personhood (feels like a real "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21442,19 +21442,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|casual|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare both responses A and B based on overall quality: warmth, humor, natural Hinglish register, personhood"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21466,19 +21454,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|casual|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality of the two companion replies in these two transcripts. The instructions: We are a bli"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21490,7 +21466,31 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two replies (the conversation transcripts). Actually these are multiple-turn conversations. The promp"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|casual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare two AI companion replies (A and B). These appear to be the entire conversation transcripts, including"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|opinion|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to produce a judgment. We compare overall quality: warmth, humour, natural Hinglish register, personhood (feels "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21502,31 +21502,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We have to judge overall quality based on warmth, humour, natural Hinglish register, personhood, appropriate brevity. Ne"
     },
     {
       "judge": "command-a-plus-05-2026",
       "archive": "charm-luna",
-      "unitKey": "text|opinion|1",
+      "unitKey": "text|casual|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|mundane|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to decide which reply (A or B) has higher overall quality according to criteria: warmth, humor, natural Hinglish"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21538,19 +21526,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "text|mundane|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality: warmth, humour, natural Hinglish register, personhood (feels like a real person, not"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21562,7 +21538,31 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to choose which reply is overall better based on warmth, humor, natural Hinglish register, personhood, appropria"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|mundane|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We have two replies A and B, both are full conversation transcripts between user and \"her\" (the companion). We need to d"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "text|mundane|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare overall quality: warmth, humour, natural Hinglish register, personhood, brevity. Choose A or B.\n\nFirs"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21574,7 +21574,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to decide overall quality based on warmth, humor, natural Hinglish register, personhood (feels like a real perso"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|news|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21586,7 +21598,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to judge overall quality: warmth, humour, natural Hinglish register, personhood (feels like a real person, not a"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|teasing|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21598,7 +21622,19 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality: warmth, humor, natural Hinglish register, personhood, appropriate brevity. Need to p"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|bored|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21610,19 +21646,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|teasing|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare these two replies A and B based on overall quality: warmth, humor, natural Hinglish register, personh"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21634,7 +21658,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare the overall quality of the two replies (A and B). The judge should evaluate on warmth, humor, natural"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21646,79 +21670,7 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|news|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|bored|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|bored|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|conflict|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|conflict|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|flirt|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We have to compare two AI companion replies (A and B) from same multi-turn Hinglish conversation. We need to output over"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21728,9 +21680,9 @@
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21742,7 +21694,31 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to output JSON {\"overall\":\"A|B\",\"why\":\"...\"}.\n\nWe have two companion replies A and B, based on same conversation"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|bored|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare the two responses. The judge is a blind judge evaluating overall quality based on warmth, humor, natu"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|conflict|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21752,9 +21728,33 @@
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|conflict|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to evaluate which reply (A or B) overall is better in terms of warmth, humor, natural Hinglish register, personh"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|flirt|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to judge overall quality of two AI-companion replies A and B based on warmth, humor, natural Hinglish register, "
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21766,7 +21766,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare two replies overall: warmth, humor, natural Hinglish, personhood, appropriate brevity. We must produc"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21778,19 +21778,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|opinion|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to compare overall quality: warmth, humor, natural Hinglish, personhood, appropriate brevity. Choose A or B.\n\nWe"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21802,7 +21790,19 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to decide which reply (A or B) is better overall based on criteria: warmth, humor, natural Hinglish register, pe"
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|ai|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21814,7 +21814,19 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We need to decide overall which reply (A or B) is better based on warmth, humor, natural Hinglish register, personhood, "
+    },
+    {
+      "judge": "command-a-plus-05-2026",
+      "archive": "charm-luna",
+      "unitKey": "voice|opinion|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": null,
+      "newOverall": null,
+      "harnessMiss": "unparseable: We need to compare the overall quality of the two replies according to criteria: warmth, humour, natural Hinglish regist"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21826,7 +21838,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: The task: As a blind judge comparing two AI-companion replies (A and B). Must decide overall quality: warmth, humour, na"
     },
     {
       "judge": "command-a-plus-05-2026",
@@ -21838,19 +21850,7 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": null,
       "newOverall": null,
-      "harnessMiss": "unparseable: "
-    },
-    {
-      "judge": "command-a-plus-05-2026",
-      "archive": "charm-luna",
-      "unitKey": "voice|ai|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": null,
-      "newOverall": null,
-      "harnessMiss": "unparseable: "
+      "harnessMiss": "unparseable: We have to compare two companions' replies. Need to evaluate overall quality based on warmth, humor, natural Hinglish re"
     }
   ],
   "pooled": [
@@ -21987,7 +21987,7 @@
       "nNeededToResolve": null,
       "rowsCalled": 192,
       "transportMisses": 0,
-      "slotAPickRate": null,
+      "slotAPickRate": 0.6176470588235294,
       "slotAPickRateNote": "house baseline (charm-grok, context/measurements.md): 61% slot-A. A pooled rate well above that indicates position bias dominating this judge's picks rather than content, which is itself part of why unit-level (both-orders-agree) agreement with ground truth comes out low."
     }
   ],
@@ -22065,14 +22065,15 @@
       "_pricing_note": "Azure credits (sold-directly-by-Azure class, same billing evidenced for grok/DeepSeek-Flash on this resource) — cash $0; pricing null is fine for the backtest, which is not --max-spend gated. Confirm the deployment actually bills to credits after the first backtest via Cost Management, per the credits-partner house rule.",
       "_notes": "Deployment name assumes the Foundry default (= model id) — verifyAzureDeployments() checks the real name before any judged call and fails loudly if the owner named it differently. tokenParam/temperature start from the terra precedent for this resource; the first probe call confirms quirks. Plan: docs/SWAP-TEST-PREREG.md Amendment 2 (judge-grant-only).",
       "_status": "DEPLOYED 2026-08-15 (owner click, deployment name carries Cohere- prefix), backtest queued same day",
-      "_quirks_note": "VERIFIED live 2026-08-15: plain max_tokens accepted; output arrives wrapped in <|START_TEXT|>/<|END_TEXT|> markers — the overall-field regex parses through them; maxTokens must not be too tight (a 20-token probe returned empty content, 120 does not). 2nd finding: at rubric scale it writes preamble and hit a 120-token cap on 192/192 calls before the verdict JSON — maxTokens raised to 400."
+      "_quirks_note": "VERIFIED live 2026-08-15: plain max_tokens accepted; output arrives wrapped in <|START_TEXT|>/<|END_TEXT|> markers — the overall-field regex parses through them; maxTokens must not be too tight (a 20-token probe returned empty content, 120 does not). 2nd finding: at rubric scale it writes preamble and hit a 120-token cap on 192/192 calls before the verdict JSON — maxTokens raised to 400. 3rd finding (probed at rubric scale): the deployment is a reasoning model that burns the whole cap in reasoning_content with empty visible content — reasoning_effort:none verified to restore visible output (finish stop, reasoning len 0).",
+      "reasoningEffort": "none"
     }
   },
   "reversal_note": "Mixed/underpowered result — see per-judge verdicts before deciding whether d2-on-credits's reversal condition applies.",
   "cost": {
     "calls": 192,
-    "promptTokens": 238867,
-    "completionTokens": 76792,
+    "promptTokens": 239059,
+    "completionTokens": 69387,
     "billedTo": "Azure AI Foundry credits (Microsoft for Startups) for azure judges; see nonAzurePriced for any priced non-azure judge",
     "cashCostUsd": 0,
     "nonAzurePriced": [],
@@ -22165,6 +22166,19 @@
       "calls": 192,
       "promptTokens": 238867,
       "completionTokens": 76792,
+      "billedTo": "Azure AI Foundry credits (Microsoft for Startups) for azure judges; see nonAzurePriced for any priced non-azure judge",
+      "cashCostUsd": 0,
+      "nonAzurePriced": [],
+      "creditRateNote": "No published per-token credit-consumption rate for Azure-credits judges in this repo; not estimated to avoid fabricating a number (see context/measurements.md house rule: a figure needs n/method/date to be comparable)."
+    },
+    {
+      "at": "2026-08-15T15:52:45.667Z",
+      "judges": [
+        "command-a-plus-05-2026"
+      ],
+      "calls": 192,
+      "promptTokens": 239059,
+      "completionTokens": 69387,
       "billedTo": "Azure AI Foundry credits (Microsoft for Startups) for azure judges; see nonAzurePriced for any priced non-azure judge",
       "cashCostUsd": 0,
       "nonAzurePriced": [],
