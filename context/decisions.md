@@ -380,3 +380,34 @@ backfill, drift — comfortable), ~$0–30 cash.
 **Reverses if:** the credit-billed judges fail the 80% agreement backtest —
 then one premium judge family is paid in cash and the run costs ~$400, not
 $834, since only one family needs buying.
+
+---
+
+## `swap-prereg-1` — the first swap run is pre-registered: terra vs incumbent, one judge family (2026-08-15)
+
+`docs/SWAP-TEST-PREREG.md` freezes run 1 of the offline battery: candidate
+gpt-5.6-terra (Azure, credits) vs incumbent google/gemini-3.6-flash, chat
+lane only, gates D1→D5 in order with the 10 pp margins and n≥300 from the
+protocol. The commit introducing that file is the timestamp; later edits are
+amendments and must say so.
+
+Two judgment calls made here rather than in the protocol:
+
+- **One judge family, not two** — a pre-registered deviation. The two-judge
+  rule guards same-family affinity (measured once: grok-4.3, 16× own-family
+  favoritism). The anthropic judge family is disjoint from BOTH arms
+  (google incumbent, openai candidate), so that failure mode has no path in
+  this pairing, and the second ~$400 family would buy protection against a
+  confound this run cannot express. Does not carry to any run where an arm
+  IS anthropic-family.
+- **Terra's judge failure (54.2%) does not taint its candidacy** — judging
+  competence and being-judged are different roles; the battery exists
+  precisely to score candidates that have proven nothing.
+
+Spend: generation + D1 on credits now; judged gates wait for owner approval
+of the single ~$400 family (the `d2-on-credits` reversal, already fired).
+
+**Reverses if:** WS-CANDGEN finds the archives cannot supply ≥2,000
+byte-identical served prompts (then the prereg is amended, committed, before
+any run), or the owner declines the cash (then the run stops at D1 and says
+only what deterministic axes can say).
