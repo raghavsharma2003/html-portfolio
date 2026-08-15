@@ -483,6 +483,18 @@
    "kind": "open",
    "title": "Compiler has no `now` seam: persona/relstate/india default new Date() internally; corpus pins via global Date subclass",
    "at": "2026-08-15"
+  },
+  {
+   "id": "judge-run-transport-invalid",
+   "kind": "measurement",
+   "title": "Premium backtest crippled by $20 OpenRouter key limit; INVALID-RUN; harness now self-invalidates transport-crippled runs",
+   "at": "2026-08-15"
+  },
+  {
+   "id": "generalization-audit",
+   "kind": "decision",
+   "title": "Meera-specificity map landed: router/schema person-generic; Hindi rel-dimensions + meera_log anchor are the two structural items",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -970,6 +982,16 @@
    "src": "compiler-now-seam",
    "rel": "part_of",
    "dst": "relational-state"
+  },
+  {
+   "src": "judge-run-transport-invalid",
+   "rel": "part_of",
+   "dst": "judge-cash-approved"
+  },
+  {
+   "src": "generalization-audit",
+   "rel": "part_of",
+   "dst": "beyond-meera"
   }
  ]
 }

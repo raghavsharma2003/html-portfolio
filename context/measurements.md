@@ -694,3 +694,20 @@ Method notes that matter later:
   n, NOT an independent-conversation n.
 - Byte-identity across arms holds by construction: the same {system, user}
   bytes go to both models.
+
+---
+
+## `judge-run-transport-invalid` — the first premium backtest was crippled by a $20 key limit (2026-08-15)
+
+The opus-5/opus-4.8 qualification backtest returned 61–96 "harness misses"
+per archive: the OpenRouter key hit its configured $20 TOTAL limit mid-run
+(usage $20.14, remaining $0 — verified via GET /api/v1/key) and every call
+after that 403'd. The scored subsets (opus-5 14/14 = 100% agreement,
+opus-4.8 8/9 = 88.9%) are transport-selected denominators and are NOT
+qualification results — marked INVALID-RUN in judges.json. The harness now
+counts transport misses apart from parse misses and self-invalidates any
+run where transport errors exceed 5% of rows. Promising directional signal
+(both opus generations agree with the archived ground truth on the rows
+that did score), zero statistical claim. Blocked on: owner raising the
+OpenRouter key limit (the $400 approval cannot be spent through a $20 key).
+Cash spent on the crippled run: ~$1.80.

@@ -303,6 +303,14 @@ async function backtestJudgeOnArchive({ judge, archive, creds, caller }) {
     rowsScored: scoredRows.length,
     slotAPickRate: scoredRows.length ? slotAPicks / scoredRows.length : NaN,
     harnessMisses: results.filter((r) => r.harnessMiss).length,
+    // Miss KINDS matter (learned 2026-08-15, the $20-key-limit run): a
+    // transport error (403/429/5xx) is not a parse miss. Scoring only the
+    // rows that happened to succeed before a key ran dry is a
+    // parse-progress-selected denominator — the exact biased-subset failure
+    // context/rejected.md's partial-judging entry forbids. Counted apart so
+    // the pooled verdict can refuse to certify a transport-crippled run.
+    transportMisses: results.filter((r) => typeof r.harnessMiss === "string" && r.harnessMiss.startsWith("error:")).length,
+    parseMisses: results.filter((r) => typeof r.harnessMiss === "string" && r.harnessMiss.startsWith("unparseable:")).length,
     usages,
     unitDetail,
     rawRows: results.map((r) => ({
@@ -452,8 +460,16 @@ async function main() {
     const n = parts.reduce((a, r) => a + r.unitsScored, 0);
     const ci = wilsonCI(agree, n);
     const bar = 0.8;
+    const rowsCalled = parts.reduce((a, r) => a + r.rowsCalled, 0);
+    const transportMisses = parts.reduce((a, r) => a + (r.transportMisses || 0), 0);
     let verdict;
-    if (ci.lo >= bar) verdict = "PASS";
+    // A run where transport errors ate a material share of the rows never
+    // gets a statistical verdict: the scored subset was selected by which
+    // calls happened to succeed (key limits, rate limits), which is a biased
+    // denominator, not a sample. 5% is deliberately tight — the archives are
+    // only 96 rows/judge, so even a small bite changes who got scored.
+    if (transportMisses > 0.05 * rowsCalled) verdict = "INVALID-RUN (transport)";
+    else if (ci.lo >= bar) verdict = "PASS";
     else if (ci.hi < bar) verdict = "FAIL";
     else verdict = "UNDERPOWERED";
     const nNeeded = verdict === "UNDERPOWERED" ? nToResolve(ci.point, bar) : null;
@@ -468,6 +484,8 @@ async function main() {
       bar,
       verdict,
       nNeededToResolve: nNeeded,
+      rowsCalled,
+      transportMisses,
       slotAPickRate: rowsScored ? slotAPicks / rowsScored : NaN,
       slotAPickRateNote: "house baseline (charm-grok, context/measurements.md): 61% slot-A. A pooled rate well above that indicates position bias dominating this judge's picks rather than content, which is itself part of why unit-level (both-orders-agree) agreement with ground truth comes out low.",
     };
@@ -518,6 +536,8 @@ async function main() {
       ci95: r.ci95,
       slotAPickRate: r.slotAPickRate,
       harnessMisses: r.harnessMisses,
+      transportMisses: r.transportMisses,
+      parseMisses: r.parseMisses,
       unitDetail: r.unitDetail,
     })),
     // full row-level provenance (aModel/bModel/order/archived pick/new pick)

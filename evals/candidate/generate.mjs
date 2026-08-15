@@ -413,6 +413,50 @@ function planReport(pool, evidence) {
   projectTo2000(archTok.meanIn, archTok.meanOut, null, true);
 }
 
+// ── WS-CORPUS plan report — Amendment 1's context source. No archive
+// reading here; evals/candidate/corpus/corpus.manifest.json already carries
+// the full provenance (stimulus dedup, variant design, determinism proof).
+function planReportCorpus(pool) {
+  console.log("── WS-CANDGEN plan, --corpus mode (no network call — set WSCAND_RUN=1 to fire) ──\n");
+  console.log(
+    `Context source: evals/candidate/corpus/corpus.jsonl — ${pool.length} rows loaded` +
+      (pool.length !== 2304 ? " (a --limit was applied or the corpus has been regenerated with a different design)" : ""),
+  );
+  console.log(
+    "Every row is compiled fresh through the REAL src/engine/compiler.ts (WS-CORPUS) — byte-identical",
+  );
+  console.log("ACROSS ARMS by construction: the exact same {system, user} bytes go to both the incumbent and terra.\n");
+  const manifestPath = join(HERE, "corpus", "corpus.manifest.json");
+  if (existsSync(manifestPath)) {
+    const m = JSON.parse(readFileSync(manifestPath, "utf8"));
+    console.log(
+      `corpus.manifest.json: ${m.counts.distinctHashes} distinct pairs (${m.counts.nominalPairs} nominal, ` +
+        `${m.counts.collisions} collision(s) excluded), ${m.stimulusPool.distinctStimulusTexts} distinct ` +
+        `stimulus texts x ${m.stateVariants.count} state variants.`,
+    );
+  } else {
+    console.log("(no corpus.manifest.json found alongside corpus.jsonl — run corpus-generate.mjs to regenerate it.)");
+  }
+
+  const runManifestPath = join(OUT, "corpus-manifest.json");
+  if (existsSync(runManifestPath)) {
+    const m = JSON.parse(readFileSync(runManifestPath, "utf8"));
+    if (m.smoke) {
+      const { meanPromptTokens, meanCompletionTokens, meanMs, n } = m.smoke;
+      console.log(`\nCost/time projection (measured from smoke run, n=${n}):`);
+      projectTo2000(meanPromptTokens, meanCompletionTokens, meanMs);
+      return;
+    }
+  }
+  console.log(
+    "\nNo smoke run recorded yet (evals/candidate/out/corpus-manifest.json absent or has no `smoke` block).",
+  );
+  console.log(
+    "Run: WSCAND_RUN=1 node evals/candidate/generate.mjs --corpus --limit 20   — to measure real tokens/turn first.",
+  );
+  console.log(`Full run: WSCAND_RUN=1 node evals/candidate/generate.mjs --corpus --limit ${pool.length}\n`);
+}
+
 function archivedTokenPrior(pool) {
   // the archives recorded the INCUMBENT's own in/out token counts for these
   // exact contexts — a legitimate prior for prompt-token scale (same system
@@ -454,10 +498,19 @@ function projectTo2000(meanPromptTok, meanCompletionTok, meanMs, isPrior = false
   } else {
     console.log("  (wall-time projection needs a measured smoke run — no ms/call prior available.)");
   }
-  console.log(
-    "  NOTE: pool ceiling is 288 distinct reconstructed contexts (see above) — a 2,000-turn run repeats those",
-  );
-  console.log("  contexts ~7x under temperature=1 resampling, not 2,000 distinct beats.\n");
+  if (process.argv.includes("--corpus")) {
+    console.log(
+      "  NOTE: corpus mode — 2,304 sha-distinct compiled contexts (72 stimulus texts x 32 state variants);",
+    );
+    console.log(
+      "  judged analyses must cluster on the 72 stimulus texts (context/measurements.md `corpus-2304`).\n",
+    );
+  } else {
+    console.log(
+      "  NOTE: pool ceiling is 288 distinct reconstructed contexts (see above) — a 2,000-turn run repeats those",
+    );
+    console.log("  contexts ~7x under temperature=1 resampling, not 2,000 distinct beats.\n");
+  }
 }
 
 // ── main ─────────────────────────────────────────────────────────────────
@@ -636,9 +689,12 @@ async function main() {
   if (usages.length) projectTo2000(meanPromptTokens, meanCompletionTokens, meanMs);
   else console.log("  no usage data returned this run — cannot project.");
 
+  const corpusFlag = process.argv.includes("--corpus");
   console.log(
     `Exact command for the full run (fires only after the pre-registration amendment is committed):\n` +
-      `  WSCAND_RUN=1 node evals/candidate/generate.mjs --limit 2000\n`,
+      (corpusFlag
+        ? `  WSCAND_RUN=1 node evals/candidate/generate.mjs --corpus --limit 2304\n`
+        : `  WSCAND_RUN=1 node evals/candidate/generate.mjs --limit 2000\n`),
   );
 }
 

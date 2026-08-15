@@ -472,3 +472,21 @@ for every new piece and a generalization pass where it is cheap.
 **Reverses if:** generalization measurably costs Meera quality or speed
 (the standing never-trade-away rule outranks it) — then the specific
 generalization is dropped and the conflict logged here.
+
+---
+
+## `generalization-audit` — the beyond-meera map exists; two structural items named (2026-08-15)
+
+Full map in docs/GENERALIZATION-AUDIT.md. The short version that should
+survive compaction: the router/gate machinery and the vy_ schema are already
+person-generic (a second AI person is config + fixtures away); the compiler
+is one static persona import away from a seam; the battery mechanism is
+universal but its rubrics and word lists name Meera and Hinglish. The two
+STRUCTURAL items — where reuse is real work, not string edits — are (1) the
+Hindi-specific relational-health dimensions (tu/tum/aap honorific CHECK,
+code-switch-under-stress, and their derivation code), and (2) the legacy
+meera_log layer the citation chain anchors to. No rewrite is scheduled by
+this entry; it prices future ones.
+
+**Reverses if:** a second-persona build finds the map materially wrong —
+then the audit is re-run and this entry superseded.
