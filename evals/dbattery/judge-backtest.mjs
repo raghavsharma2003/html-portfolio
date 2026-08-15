@@ -469,6 +469,11 @@ async function main() {
     // denominator, not a sample. 5% is deliberately tight — the archives are
     // only 96 rows/judge, so even a small bite changes who got scored.
     if (transportMisses > 0.05 * rowsCalled) verdict = "INVALID-RUN (transport)";
+    // Same logic for parse misses at scale: 192/192 unparseable replies is a
+    // harness/config mismatch (Cohere's 120-token cap ate every verdict), not
+    // an underpowered sample — a run that scored almost nothing it called
+    // must say so, not borrow the label of a small-n result.
+    else if (parts.reduce((a, r) => a + (r.parseMisses || 0), 0) > 0.5 * rowsCalled) verdict = "INVALID-RUN (parse)";
     else if (ci.lo >= bar) verdict = "PASS";
     else if (ci.hi < bar) verdict = "FAIL";
     else verdict = "UNDERPOWERED";
