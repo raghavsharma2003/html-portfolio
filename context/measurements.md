@@ -570,3 +570,34 @@ evidence — a summary that was never logged to context/ and does not match the
 raw data it summarized. The agent checked, refused the figure, and recomputed.
 Unlogged claims drift; raw data does not. This is the logging discipline
 proving its own worth.
+
+## `judge-backtest` — both credit-billed judges fail qualification, decisively (2026-08-15)
+
+Full-population re-judging of all archived blind verdicts (96 units × 2 orders
+× 2 archives, same transcripts, same slot order — a re-presentation, not a
+re-sample), on Azure credits, $0 cash, 384 calls:
+
+| judge | agreement | 95% CI | slot-A bias | verdict |
+|---|---|---|---|---|
+| DeepSeek-V4-Flash | 28.1% | [20.1, 37.8] | **80.2%** | FAIL |
+| gpt-5.6-terra | 54.2% | [44.2, 63.8] | 62.0% | FAIL |
+
+Neither CI straddles the 80% bar — clean fails, not underpowered. The
+MECHANISMS matter more than the scores: DeepSeek has severe position bias
+(picks slot A ~80% regardless of content), which collapses the both-orders-
+agree rule into constant flips. Terra's failure is genuine taste mismatch —
+spot-checked: it repeatedly scores authentic Hinglish teasing as
+"mocking/dismissive" and prefers generic supportive replies, the exact
+opposite of this product's charm bar. An OpenAI-family judge misreading
+Hinglish register rhymes with the Indi-RomCoM findings and is worth
+remembering whenever a judge is chosen for this product.
+
+Terra deployment quirks, paid for once: rejects max_tokens (wants
+max_completion_tokens), rejects temperature≠1, and with no reasoning_effort
+set it silently burns the whole budget on hidden reasoning and returns EMPTY
+completions — reasoning_effort:"none" required.
+
+The d2-on-credits reversal condition FIRED as pre-registered: one premium
+judge family in cash (~$400). One cheaper probe remains first: grok-4.3 is
+also credit-billed and untested as a judge — its family conflicts only with
+grok-arm comparisons, which the chat-lane D2 need not include.

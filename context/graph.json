@@ -417,6 +417,12 @@
       "kind": "measurement",
       "title": "Watch engagement doubles (powered); fabrication flat (underpowered)",
       "at": "2026-08-15"
+    },
+    {
+      "id": "judge-backtest",
+      "kind": "measurement",
+      "title": "Both credit-billed judges fail qualification (28%, 54% vs 80% bar)",
+      "at": "2026-08-15"
     }
   ],
   "edges": [
@@ -824,6 +830,11 @@
       "src": "vision-model",
       "rel": "measured_by",
       "dst": "visiongate-interim"
+    },
+    {
+      "src": "judge-backtest",
+      "rel": "measured_by",
+      "dst": "charm-grok"
     }
   ]
 }

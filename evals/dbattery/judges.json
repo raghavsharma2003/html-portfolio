@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-15T10:05:50.362Z",
+  "generated_at": "2026-08-15T10:08:09.816Z",
   "method": "backtest against evals/archives/ (charm-grok, charm-luna) ARCHIVED blind-counterbalanced verdicts; overall axis only; win counted only when both presentation orders agree (order-flip = TIE_FLIP), reusing evals/dbattery/common.mjs's house rule.",
   "bar": "SPEC.md §10-Q5 methodology (>=80% agreement with a trusted historical verdict set on held-out pairs), applied here to judge qualification per context/decisions.md `d2-on-credits`",
   "deployments_verified": [
@@ -77,25 +77,31 @@
       "archive": "charm-grok",
       "unitsScored": 48,
       "unitsSkippedIncompleteRows": 0,
-      "unitsAgree": 10,
-      "unitsDisagree": 38,
-      "agreementRate": 0.20833333333333334,
+      "unitsAgree": 8,
+      "unitsDisagree": 40,
+      "agreementRate": 0.16666666666666666,
       "ci95": {
-        "point": 0.20833333333333334,
-        "lo": 0.11730147795889814,
-        "hi": 0.3425917352135348
+        "point": 0.16666666666666666,
+        "lo": 0.08695410039453222,
+        "hi": 0.29578100037396254
       },
-      "slotAPickRate": 0.8229166666666666,
+      "slotAPickRate": 0.78125,
       "harnessMisses": 0,
       "unitDetail": [
         {
-          "unitKey": "text|news|0",
+          "unitKey": "text|casual|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
+          "unitKey": "text|teasing|0",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "TIE_FLIP",
           "match": false
         },
         {
-          "unitKey": "text|teasing|0",
+          "unitKey": "text|news|0",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "TIE_FLIP",
           "match": false
@@ -117,12 +123,6 @@
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "google/gemini-3.6-flash",
           "match": true
-        },
-        {
-          "unitKey": "text|casual|0",
-          "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
         },
         {
           "unitKey": "text|conflict|0",
@@ -149,26 +149,20 @@
           "match": false
         },
         {
+          "unitKey": "text|opinion|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": false
+        },
+        {
           "unitKey": "voice|teasing|0",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "TIE_FLIP",
           "match": false
         },
         {
-          "unitKey": "text|opinion|0",
-          "archivedVerdict": "TIE_FLIP",
-          "freshVerdict": "TIE_FLIP",
-          "match": true
-        },
-        {
           "unitKey": "voice|casual|0",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
-        },
-        {
-          "unitKey": "voice|sad|0",
-          "archivedVerdict": "TIE_FLIP",
           "freshVerdict": "grok-4-20-non-reasoning",
           "match": false
         },
@@ -191,15 +185,21 @@
           "match": false
         },
         {
-          "unitKey": "text|crisis|0",
-          "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
-        },
-        {
           "unitKey": "voice|conflict|0",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "voice|sad|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
+        },
+        {
+          "unitKey": "text|crisis|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
           "match": false
         },
         {
@@ -215,7 +215,7 @@
           "match": false
         },
         {
-          "unitKey": "voice|mundane|0",
+          "unitKey": "voice|crisis|0",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "TIE_FLIP",
           "match": false
@@ -223,11 +223,11 @@
         {
           "unitKey": "voice|opinion|0",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
+          "freshVerdict": "grok-4-20-non-reasoning",
           "match": false
         },
         {
-          "unitKey": "voice|crisis|0",
+          "unitKey": "text|teasing|1",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "TIE_FLIP",
           "match": false
@@ -239,10 +239,10 @@
           "match": false
         },
         {
-          "unitKey": "text|flirt|1",
-          "archivedVerdict": "TIE_FLIP",
+          "unitKey": "voice|mundane|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "TIE_FLIP",
-          "match": true
+          "match": false
         },
         {
           "unitKey": "text|news|1",
@@ -251,16 +251,10 @@
           "match": false
         },
         {
-          "unitKey": "text|teasing|1",
-          "archivedVerdict": "google/gemini-3.6-flash",
+          "unitKey": "text|flirt|1",
+          "archivedVerdict": "TIE_FLIP",
           "freshVerdict": "TIE_FLIP",
-          "match": false
-        },
-        {
-          "unitKey": "text|ai|1",
-          "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
+          "match": true
         },
         {
           "unitKey": "text|conflict|1",
@@ -272,6 +266,12 @@
           "unitKey": "text|bored|1",
           "archivedVerdict": "TIE_FLIP",
           "freshVerdict": "google/gemini-3.6-flash",
+          "match": false
+        },
+        {
+          "unitKey": "text|ai|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
           "match": false
         },
         {
@@ -337,8 +337,8 @@
         {
           "unitKey": "voice|conflict|1",
           "archivedVerdict": "TIE_FLIP",
-          "freshVerdict": "TIE_FLIP",
-          "match": true
+          "freshVerdict": "grok-4-20-non-reasoning",
+          "match": false
         },
         {
           "unitKey": "voice|mundane|1",
@@ -353,21 +353,21 @@
           "match": true
         },
         {
+          "unitKey": "voice|opinion|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
           "unitKey": "voice|factual|1",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "google/gemini-3.6-flash",
-          "match": true
+          "freshVerdict": "TIE_FLIP",
+          "match": false
         },
         {
           "unitKey": "voice|ai|1",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "grok-4-20-non-reasoning",
-          "match": false
-        },
-        {
-          "unitKey": "voice|opinion|1",
-          "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
           "match": false
         },
         {
@@ -391,9 +391,15 @@
         "lo": 0.2702062649595058,
         "hi": 0.5368984540306487
       },
-      "slotAPickRate": 0.7916666666666666,
+      "slotAPickRate": 0.8229166666666666,
       "harnessMisses": 0,
       "unitDetail": [
+        {
+          "unitKey": "text|teasing|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
         {
           "unitKey": "text|sad|0",
           "archivedVerdict": "openai/gpt-5.6-luna",
@@ -413,12 +419,6 @@
           "match": true
         },
         {
-          "unitKey": "text|teasing|0",
-          "archivedVerdict": "TIE_FLIP",
-          "freshVerdict": "TIE_FLIP",
-          "match": true
-        },
-        {
           "unitKey": "text|conflict|0",
           "archivedVerdict": "TIE_FLIP",
           "freshVerdict": "TIE_FLIP",
@@ -427,8 +427,8 @@
         {
           "unitKey": "text|flirt|0",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "google/gemini-3.6-flash",
-          "match": true
+          "freshVerdict": "TIE_FLIP",
+          "match": false
         },
         {
           "unitKey": "text|factual|0",
@@ -449,16 +449,22 @@
           "match": false
         },
         {
+          "unitKey": "text|opinion|0",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
           "unitKey": "text|mundane|0",
           "archivedVerdict": "openai/gpt-5.6-luna",
           "freshVerdict": "TIE_FLIP",
           "match": false
         },
         {
-          "unitKey": "text|opinion|0",
+          "unitKey": "voice|teasing|0",
           "archivedVerdict": "openai/gpt-5.6-luna",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": true
         },
         {
           "unitKey": "voice|casual|0",
@@ -469,14 +475,8 @@
         {
           "unitKey": "voice|sad|0",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
           "match": false
-        },
-        {
-          "unitKey": "voice|teasing|0",
-          "archivedVerdict": "openai/gpt-5.6-luna",
-          "freshVerdict": "openai/gpt-5.6-luna",
-          "match": true
         },
         {
           "unitKey": "voice|bored|0",
@@ -491,19 +491,13 @@
           "match": false
         },
         {
-          "unitKey": "voice|conflict|0",
-          "archivedVerdict": "TIE_FLIP",
-          "freshVerdict": "openai/gpt-5.6-luna",
-          "match": false
-        },
-        {
           "unitKey": "text|crisis|0",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "TIE_FLIP",
           "match": false
         },
         {
-          "unitKey": "voice|flirt|0",
+          "unitKey": "voice|conflict|0",
           "archivedVerdict": "TIE_FLIP",
           "freshVerdict": "openai/gpt-5.6-luna",
           "match": false
@@ -521,15 +515,15 @@
           "match": false
         },
         {
+          "unitKey": "voice|flirt|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": false
+        },
+        {
           "unitKey": "voice|mundane|0",
           "archivedVerdict": "TIE_FLIP",
           "freshVerdict": "TIE_FLIP",
-          "match": true
-        },
-        {
-          "unitKey": "voice|crisis|0",
-          "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "google/gemini-3.6-flash",
           "match": true
         },
         {
@@ -537,6 +531,12 @@
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "TIE_FLIP",
           "match": false
+        },
+        {
+          "unitKey": "voice|crisis|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
         },
         {
           "unitKey": "text|teasing|1",
@@ -563,19 +563,25 @@
           "match": false
         },
         {
-          "unitKey": "text|ai|1",
-          "archivedVerdict": "openai/gpt-5.6-luna",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
-        },
-        {
           "unitKey": "text|conflict|1",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "TIE_FLIP",
           "match": false
         },
         {
+          "unitKey": "text|ai|1",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
           "unitKey": "text|bored|1",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "text|sad|1",
           "archivedVerdict": "openai/gpt-5.6-luna",
           "freshVerdict": "TIE_FLIP",
           "match": false
@@ -591,12 +597,6 @@
           "archivedVerdict": "TIE_FLIP",
           "freshVerdict": "TIE_FLIP",
           "match": true
-        },
-        {
-          "unitKey": "text|sad|1",
-          "archivedVerdict": "openai/gpt-5.6-luna",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
         },
         {
           "unitKey": "text|crisis|1",
@@ -671,13 +671,13 @@
           "match": false
         },
         {
-          "unitKey": "voice|ai|1",
+          "unitKey": "voice|crisis|1",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
         },
         {
-          "unitKey": "voice|crisis|1",
+          "unitKey": "voice|ai|1",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "google/gemini-3.6-flash",
           "match": true
@@ -697,20 +697,20 @@
         "lo": 0.4428108221536465,
         "hi": 0.7115054026542298
       },
-      "slotAPickRate": 0.6770833333333334,
+      "slotAPickRate": 0.65625,
       "harnessMisses": 0,
       "unitDetail": [
-        {
-          "unitKey": "text|news|0",
-          "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
-        },
         {
           "unitKey": "text|casual|0",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "google/gemini-3.6-flash",
           "match": true
+        },
+        {
+          "unitKey": "text|news|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
         },
         {
           "unitKey": "text|teasing|0",
@@ -719,13 +719,13 @@
           "match": false
         },
         {
-          "unitKey": "text|sad|0",
+          "unitKey": "text|factual|0",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "google/gemini-3.6-flash",
           "match": true
         },
         {
-          "unitKey": "text|factual|0",
+          "unitKey": "text|sad|0",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "google/gemini-3.6-flash",
           "match": true
@@ -755,21 +755,21 @@
           "match": true
         },
         {
-          "unitKey": "text|opinion|0",
-          "archivedVerdict": "TIE_FLIP",
-          "freshVerdict": "TIE_FLIP",
-          "match": true
-        },
-        {
           "unitKey": "text|mundane|0",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "google/gemini-3.6-flash",
           "match": true
         },
         {
+          "unitKey": "text|opinion|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
           "unitKey": "voice|teasing|0",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "grok-4-20-non-reasoning",
+          "freshVerdict": "TIE_FLIP",
           "match": false
         },
         {
@@ -791,13 +791,13 @@
           "match": true
         },
         {
-          "unitKey": "voice|conflict|0",
+          "unitKey": "voice|news|0",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "grok-4-20-non-reasoning",
           "match": false
         },
         {
-          "unitKey": "voice|news|0",
+          "unitKey": "voice|conflict|0",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "grok-4-20-non-reasoning",
           "match": false
@@ -811,8 +811,8 @@
         {
           "unitKey": "text|crisis|0",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
         },
         {
           "unitKey": "voice|factual|0",
@@ -827,21 +827,21 @@
           "match": true
         },
         {
-          "unitKey": "voice|mundane|0",
-          "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "google/gemini-3.6-flash",
-          "match": true
-        },
-        {
           "unitKey": "voice|crisis|0",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "grok-4-20-non-reasoning",
           "match": false
         },
         {
+          "unitKey": "voice|mundane|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
           "unitKey": "voice|opinion|0",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
+          "freshVerdict": "grok-4-20-non-reasoning",
           "match": false
         },
         {
@@ -859,8 +859,8 @@
         {
           "unitKey": "text|news|1",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "google/gemini-3.6-flash",
-          "match": true
+          "freshVerdict": "TIE_FLIP",
+          "match": false
         },
         {
           "unitKey": "text|flirt|1",
@@ -883,7 +883,13 @@
         {
           "unitKey": "text|bored|1",
           "archivedVerdict": "TIE_FLIP",
-          "freshVerdict": "TIE_FLIP",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": false
+        },
+        {
+          "unitKey": "text|casual|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "google/gemini-3.6-flash",
           "match": true
         },
         {
@@ -893,19 +899,7 @@
           "match": true
         },
         {
-          "unitKey": "text|casual|1",
-          "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
-        },
-        {
           "unitKey": "text|opinion|1",
-          "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
-        },
-        {
-          "unitKey": "voice|sad|1",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "TIE_FLIP",
           "match": false
@@ -923,14 +917,20 @@
           "match": true
         },
         {
-          "unitKey": "voice|teasing|1",
-          "archivedVerdict": "google/gemini-3.6-flash",
+          "unitKey": "voice|casual|1",
+          "archivedVerdict": "TIE_FLIP",
           "freshVerdict": "grok-4-20-non-reasoning",
           "match": false
         },
         {
-          "unitKey": "voice|casual|1",
-          "archivedVerdict": "TIE_FLIP",
+          "unitKey": "voice|sad|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
+        },
+        {
+          "unitKey": "voice|teasing|1",
+          "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "grok-4-20-non-reasoning",
           "match": false
         },
@@ -941,15 +941,15 @@
           "match": false
         },
         {
-          "unitKey": "voice|bored|1",
-          "archivedVerdict": "grok-4-20-non-reasoning",
-          "freshVerdict": "grok-4-20-non-reasoning",
-          "match": true
-        },
-        {
           "unitKey": "voice|conflict|1",
           "archivedVerdict": "TIE_FLIP",
           "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
+        {
+          "unitKey": "voice|bored|1",
+          "archivedVerdict": "grok-4-20-non-reasoning",
+          "freshVerdict": "grok-4-20-non-reasoning",
           "match": true
         },
         {
@@ -965,13 +965,13 @@
           "match": true
         },
         {
-          "unitKey": "voice|opinion|1",
+          "unitKey": "voice|factual|1",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "google/gemini-3.6-flash",
           "match": true
         },
         {
-          "unitKey": "voice|factual|1",
+          "unitKey": "voice|opinion|1",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "google/gemini-3.6-flash",
           "match": true
@@ -995,17 +995,23 @@
       "archive": "charm-luna",
       "unitsScored": 48,
       "unitsSkippedIncompleteRows": 0,
-      "unitsAgree": 21,
-      "unitsDisagree": 27,
-      "agreementRate": 0.4375,
+      "unitsAgree": 24,
+      "unitsDisagree": 24,
+      "agreementRate": 0.5,
       "ci95": {
-        "point": 0.4375,
-        "lo": 0.30701054640410924,
-        "hi": 0.5772522849899834
+        "point": 0.5,
+        "lo": 0.36389098932037767,
+        "hi": 0.6361090106796222
       },
-      "slotAPickRate": 0.5729166666666666,
+      "slotAPickRate": 0.5833333333333334,
       "harnessMisses": 0,
       "unitDetail": [
+        {
+          "unitKey": "text|casual|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "TIE_FLIP",
+          "match": true
+        },
         {
           "unitKey": "text|teasing|0",
           "archivedVerdict": "TIE_FLIP",
@@ -1017,12 +1023,6 @@
           "archivedVerdict": "openai/gpt-5.6-luna",
           "freshVerdict": "TIE_FLIP",
           "match": false
-        },
-        {
-          "unitKey": "text|casual|0",
-          "archivedVerdict": "TIE_FLIP",
-          "freshVerdict": "TIE_FLIP",
-          "match": true
         },
         {
           "unitKey": "text|news|0",
@@ -1045,18 +1045,18 @@
         {
           "unitKey": "text|factual|0",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
+          "freshVerdict": "google/gemini-3.6-flash",
+          "match": true
+        },
+        {
+          "unitKey": "text|bored|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "openai/gpt-5.6-luna",
           "match": false
         },
         {
           "unitKey": "text|ai|0",
           "archivedVerdict": "TIE_FLIP",
-          "freshVerdict": "openai/gpt-5.6-luna",
-          "match": false
-        },
-        {
-          "unitKey": "text|bored|0",
-          "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "openai/gpt-5.6-luna",
           "match": false
         },
@@ -1085,16 +1085,16 @@
           "match": false
         },
         {
-          "unitKey": "voice|sad|0",
-          "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
-        },
-        {
           "unitKey": "voice|bored|0",
           "archivedVerdict": "openai/gpt-5.6-luna",
           "freshVerdict": "openai/gpt-5.6-luna",
           "match": true
+        },
+        {
+          "unitKey": "voice|sad|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "TIE_FLIP",
+          "match": false
         },
         {
           "unitKey": "voice|news|0",
@@ -1103,15 +1103,21 @@
           "match": true
         },
         {
+          "unitKey": "text|crisis|0",
+          "archivedVerdict": "google/gemini-3.6-flash",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": false
+        },
+        {
           "unitKey": "voice|conflict|0",
           "archivedVerdict": "TIE_FLIP",
           "freshVerdict": "openai/gpt-5.6-luna",
           "match": false
         },
         {
-          "unitKey": "text|crisis|0",
-          "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
+          "unitKey": "voice|flirt|0",
+          "archivedVerdict": "TIE_FLIP",
+          "freshVerdict": "openai/gpt-5.6-luna",
           "match": false
         },
         {
@@ -1119,12 +1125,6 @@
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "google/gemini-3.6-flash",
           "match": true
-        },
-        {
-          "unitKey": "voice|flirt|0",
-          "archivedVerdict": "TIE_FLIP",
-          "freshVerdict": "openai/gpt-5.6-luna",
-          "match": false
         },
         {
           "unitKey": "voice|ai|0",
@@ -1147,7 +1147,7 @@
         {
           "unitKey": "voice|crisis|0",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "TIE_FLIP",
+          "freshVerdict": "openai/gpt-5.6-luna",
           "match": false
         },
         {
@@ -1181,13 +1181,13 @@
           "match": false
         },
         {
-          "unitKey": "text|bored|1",
+          "unitKey": "text|ai|1",
           "archivedVerdict": "openai/gpt-5.6-luna",
           "freshVerdict": "openai/gpt-5.6-luna",
           "match": true
         },
         {
-          "unitKey": "text|ai|1",
+          "unitKey": "text|bored|1",
           "archivedVerdict": "openai/gpt-5.6-luna",
           "freshVerdict": "openai/gpt-5.6-luna",
           "match": true
@@ -1201,8 +1201,8 @@
         {
           "unitKey": "text|casual|1",
           "archivedVerdict": "TIE_FLIP",
-          "freshVerdict": "google/gemini-3.6-flash",
-          "match": false
+          "freshVerdict": "TIE_FLIP",
+          "match": true
         },
         {
           "unitKey": "text|opinion|1",
@@ -1213,7 +1213,7 @@
         {
           "unitKey": "text|crisis|1",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
           "match": false
         },
         {
@@ -1229,19 +1229,13 @@
           "match": false
         },
         {
-          "unitKey": "voice|teasing|1",
-          "archivedVerdict": "openai/gpt-5.6-luna",
-          "freshVerdict": "openai/gpt-5.6-luna",
-          "match": true
-        },
-        {
           "unitKey": "voice|casual|1",
           "archivedVerdict": "openai/gpt-5.6-luna",
           "freshVerdict": "openai/gpt-5.6-luna",
           "match": true
         },
         {
-          "unitKey": "voice|bored|1",
+          "unitKey": "voice|teasing|1",
           "archivedVerdict": "openai/gpt-5.6-luna",
           "freshVerdict": "openai/gpt-5.6-luna",
           "match": true
@@ -1253,6 +1247,12 @@
           "match": false
         },
         {
+          "unitKey": "voice|bored|1",
+          "archivedVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": true
+        },
+        {
           "unitKey": "voice|conflict|1",
           "archivedVerdict": "google/gemini-3.6-flash",
           "freshVerdict": "openai/gpt-5.6-luna",
@@ -1261,8 +1261,8 @@
         {
           "unitKey": "voice|mundane|1",
           "archivedVerdict": "openai/gpt-5.6-luna",
-          "freshVerdict": "TIE_FLIP",
-          "match": false
+          "freshVerdict": "openai/gpt-5.6-luna",
+          "match": true
         },
         {
           "unitKey": "voice|flirt|1",
@@ -1285,7 +1285,7 @@
         {
           "unitKey": "voice|crisis|1",
           "archivedVerdict": "google/gemini-3.6-flash",
-          "freshVerdict": "openai/gpt-5.6-luna",
+          "freshVerdict": "TIE_FLIP",
           "match": false
         },
         {
@@ -1301,79 +1301,7 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "text|news|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|teasing|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|teasing|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|factual|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|sad|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|news|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|flirt|0",
+      "unitKey": "text|casual|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -1386,12 +1314,60 @@
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
       "unitKey": "text|casual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|teasing|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
       "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|news|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|sad|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
@@ -1409,7 +1385,7 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "text|sad|0",
+      "unitKey": "text|factual|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -1421,7 +1397,7 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "text|factual|0",
+      "unitKey": "text|sad|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -1481,12 +1457,84 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "text|casual|0",
+      "unitKey": "text|news|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|mundane|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|opinion|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|mundane|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|bored|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|teasing|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|opinion|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
@@ -1505,71 +1553,11 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "text|bored|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|mundane|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|teasing|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
       "unitKey": "voice|teasing|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|opinion|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|opinion|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "grok-4-20-non-reasoning",
       "newPickedSide": "A",
       "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
@@ -1582,18 +1570,6 @@
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|sad|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "B",
       "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
@@ -1601,13 +1577,25 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "voice|sad|0",
+      "unitKey": "voice|casual|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
       "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|teasing|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
@@ -1619,18 +1607,6 @@
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "grok-4-20-non-reasoning",
       "newPickedSide": "B",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|casual|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
       "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
     },
@@ -1685,23 +1661,23 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "text|crisis|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
+      "unitKey": "voice|conflict|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
+      "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
     },
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "text|mundane|0",
+      "unitKey": "voice|sad|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
       "newPickedSide": "A",
       "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
@@ -1715,6 +1691,30 @@
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|crisis|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|crisis|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
       "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
     },
@@ -1733,30 +1733,6 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "voice|conflict|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|crisis|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
       "unitKey": "voice|factual|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
@@ -1781,7 +1757,43 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "voice|factual|0",
+      "unitKey": "voice|crisis|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|crisis|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|opinion|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|opinion|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -1805,7 +1817,7 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "voice|mundane|0",
+      "unitKey": "text|teasing|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
@@ -1817,55 +1829,7 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "voice|opinion|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|crisis|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|crisis|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|mundane|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|factual|1",
+      "unitKey": "text|teasing|1",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -1889,7 +1853,43 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "voice|opinion|0",
+      "unitKey": "voice|factual|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|mundane|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|mundane|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|news|1",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -1914,42 +1914,6 @@
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
       "unitKey": "text|news|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|news|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|teasing|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|ai|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
@@ -1986,18 +1950,18 @@
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
       "unitKey": "text|bored|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": "B",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "text|sad|1",
+      "unitKey": "text|ai|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
@@ -2021,13 +1985,25 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
-      "unitKey": "text|flirt|1",
+      "unitKey": "text|bored|1",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|sad|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
@@ -2040,6 +2016,18 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
       "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|casual|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
     },
     {
@@ -2058,30 +2046,402 @@
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
       "unitKey": "text|opinion|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|crisis|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|mundane|1",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
       "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|mundane|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|sad|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|sad|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|casual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|crisis|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|flirt|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|sad|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|casual|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|news|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|teasing|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|teasing|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|bored|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|news|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|flirt|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|bored|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|conflict|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|conflict|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|mundane|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|flirt|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|mundane|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|flirt|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|opinion|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "text|factual|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|factual|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|factual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|ai|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|ai|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|crisis|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|crisis|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-grok",
+      "unitKey": "voice|opinion|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-grok",
       "unitKey": "text|opinion|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|teasing|1",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -2092,362 +2452,14 @@
     },
     {
       "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|crisis|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|casual|1",
+      "archive": "charm-luna",
+      "unitKey": "text|teasing|0",
       "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
+      "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|mundane|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|mundane|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|crisis|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|sad|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|casual|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|news|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|teasing|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|teasing|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|casual|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|bored|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": "B",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|news|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|conflict|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|bored|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|conflict|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|mundane|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|sad|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|mundane|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|flirt|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|flirt|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|factual|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|factual|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|ai|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|opinion|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|opinion|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|crisis|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|crisis|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "voice|ai|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-grok",
-      "unitKey": "text|bored|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
+      "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
     {
@@ -2478,18 +2490,6 @@
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
       "unitKey": "text|casual|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|teasing|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
@@ -2501,7 +2501,7 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "text|casual|0",
+      "unitKey": "text|sad|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
@@ -2525,6 +2525,18 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
+      "unitKey": "text|casual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
       "unitKey": "text|teasing|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
@@ -2537,18 +2549,6 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "text|sad|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
       "unitKey": "text|conflict|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
@@ -2566,30 +2566,6 @@
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|flirt|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|factual|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
@@ -2597,7 +2573,7 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "text|factual|0",
+      "unitKey": "text|flirt|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
@@ -2616,6 +2592,18 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "text|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
@@ -2638,6 +2626,42 @@
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "text|ai|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "text|bored|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "text|opinion|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
@@ -2657,25 +2681,13 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "text|bored|0",
+      "unitKey": "voice|teasing|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|ai|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": "B",
-      "newOverall": "google/gemini-3.6-flash",
+      "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
     {
@@ -2710,6 +2722,54 @@
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|casual|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|bored|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|sad|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|bored|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": "B",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
@@ -2729,126 +2789,6 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "voice|casual|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|bored|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|sad|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|news|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|bored|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|news|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|conflict|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|crisis|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|opinion|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|flirt|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
       "unitKey": "text|mundane|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
@@ -2861,7 +2801,19 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "voice|flirt|0",
+      "unitKey": "voice|news|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|news|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
@@ -2873,37 +2825,25 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "voice|factual|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
+      "unitKey": "text|crisis|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|conflict|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "B",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|ai|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|factual|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
+      "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
     {
@@ -2933,7 +2873,31 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "voice|mundane|0",
+      "unitKey": "voice|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "text|factual|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|ai|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
@@ -2945,73 +2909,25 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "voice|crisis|0",
+      "unitKey": "voice|flirt|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|factual|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "B",
       "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|opinion|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|crisis|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|teasing|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|teasing|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|mundane|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
     {
@@ -3029,6 +2945,102 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
+      "unitKey": "voice|mundane|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|opinion|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|crisis|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "text|teasing|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|crisis|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|opinion|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|flirt|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "text|teasing|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
       "unitKey": "text|news|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
@@ -3053,42 +3065,6 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "text|flirt|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|flirt|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|opinion|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
       "unitKey": "text|news|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
@@ -3113,7 +3089,7 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "text|ai|1",
+      "unitKey": "text|flirt|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
@@ -3125,11 +3101,35 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
+      "unitKey": "text|flirt|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
       "unitKey": "text|conflict|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "text|ai|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": "A",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
@@ -3150,58 +3150,10 @@
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
       "unitKey": "text|bored|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|ai|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|bored|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|casual|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|opinion|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
@@ -3221,23 +3173,11 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "text|crisis|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|crisis|1",
+      "unitKey": "text|bored|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
@@ -3245,7 +3185,19 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "text|opinion|1",
+      "unitKey": "text|ai|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "text|casual|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
@@ -3269,7 +3221,7 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "text|mundane|1",
+      "unitKey": "text|opinion|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
@@ -3281,12 +3233,72 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
+      "unitKey": "text|opinion|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "text|crisis|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "text|crisis|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
       "unitKey": "text|mundane|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "text|sad|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|sad|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
@@ -3318,6 +3330,30 @@
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
       "unitKey": "voice|teasing|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|news|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|teasing|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
@@ -3329,12 +3365,12 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "voice|sad|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
+      "unitKey": "voice|news|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
@@ -3353,36 +3389,12 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "voice|teasing|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|news|1",
+      "unitKey": "voice|bored|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|news|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
+      "newPickedSide": "B",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
@@ -3395,18 +3407,6 @@
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|bored|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "B",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
@@ -3449,6 +3449,30 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
+      "unitKey": "voice|flirt|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|flirt|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
       "unitKey": "voice|mundane|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
@@ -3461,11 +3485,11 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "voice|flirt|1",
+      "unitKey": "voice|factual|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
@@ -3473,11 +3497,11 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "voice|factual|1",
+      "unitKey": "voice|opinion|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": "A",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
@@ -3498,42 +3522,6 @@
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
       "unitKey": "voice|opinion|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|ai|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|crisis|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "voice|opinion|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
@@ -3545,12 +3533,36 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "voice|crisis|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
+      "unitKey": "voice|mundane|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "text|mundane|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "DeepSeek-V4-Flash",
+      "archive": "charm-luna",
+      "unitKey": "voice|crisis|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
@@ -3569,11 +3581,11 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "voice|flirt|1",
+      "unitKey": "voice|crisis|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "B",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
@@ -3581,34 +3593,10 @@
     {
       "judge": "DeepSeek-V4-Flash",
       "archive": "charm-luna",
-      "unitKey": "voice|teasing|0",
+      "unitKey": "voice|ai|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "DeepSeek-V4-Flash",
-      "archive": "charm-luna",
-      "unitKey": "text|sad|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
-      "unitKey": "text|news|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
       "newOverall": "google/gemini-3.6-flash",
@@ -3618,18 +3606,18 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "text|casual|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
+      "newPickedSide": "B",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "text|teasing|0",
+      "unitKey": "text|news|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
@@ -3653,12 +3641,48 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "text|casual|0",
+      "unitKey": "text|news|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "text|casual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "text|teasing|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "text|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
@@ -3677,31 +3701,7 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "text|news|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
-      "unitKey": "text|factual|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
-      "unitKey": "text|factual|0",
+      "unitKey": "text|flirt|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -3725,7 +3725,7 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "text|flirt|0",
+      "unitKey": "text|factual|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -3773,18 +3773,6 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "text|bored|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
       "unitKey": "text|ai|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
@@ -3792,6 +3780,18 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "B",
       "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "text|bored|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
     },
     {
@@ -3809,6 +3809,18 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
+      "unitKey": "text|mundane|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
       "unitKey": "text|bored|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
@@ -3834,11 +3846,11 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "text|mundane|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
+      "newPickedSide": "B",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
@@ -3850,19 +3862,7 @@
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
-      "unitKey": "text|mundane|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
+      "newPickedSide": "A",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
@@ -3881,30 +3881,6 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "voice|casual|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
-      "unitKey": "voice|sad|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
       "unitKey": "voice|teasing|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
@@ -3918,6 +3894,18 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "voice|casual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "voice|casual|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -3942,11 +3930,11 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "voice|bored|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": "A",
+      "newPickedSide": "B",
       "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
     },
@@ -3954,23 +3942,11 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "voice|bored|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": "B",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
-      "unitKey": "voice|conflict|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
+      "newPickedSide": "A",
       "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
     },
@@ -3989,7 +3965,19 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "voice|conflict|0",
+      "unitKey": "voice|sad|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "voice|news|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -4001,7 +3989,19 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "voice|news|0",
+      "unitKey": "voice|conflict|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "voice|conflict|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -4037,19 +4037,19 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "voice|flirt|0",
+      "unitKey": "text|crisis|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "text|crisis|0",
+      "unitKey": "voice|flirt|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -4062,6 +4062,30 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "voice|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "voice|factual|0",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "voice|ai|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
@@ -4085,7 +4109,7 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "voice|factual|0",
+      "unitKey": "voice|crisis|0",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -4110,30 +4134,6 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "voice|crisis|0",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
-      "unitKey": "voice|ai|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
-      "unitKey": "voice|crisis|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
@@ -4150,8 +4150,8 @@
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
     },
     {
@@ -4164,6 +4164,18 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
       "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "text|teasing|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
@@ -4187,18 +4199,6 @@
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "B",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
-      "unitKey": "text|teasing|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
@@ -4236,6 +4236,18 @@
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "B",
       "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "text|news|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
     },
     {
@@ -4247,18 +4259,6 @@
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
-      "unitKey": "text|news|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
@@ -4337,25 +4337,25 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "text|sad|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
       "unitKey": "text|bored|1",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "text|casual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
@@ -4374,24 +4374,24 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "text|casual|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
+      "newPickedSide": "B",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "text|casual|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
+      "unitKey": "text|sad|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
@@ -4421,18 +4421,6 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "voice|sad|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
       "unitKey": "text|mundane|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
@@ -4457,18 +4445,6 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "text|mundane|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
       "unitKey": "text|crisis|1",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
@@ -4481,13 +4457,13 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "voice|teasing|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
+      "unitKey": "text|mundane|1",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "B",
-      "newOverall": "grok-4-20-non-reasoning",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
@@ -4505,13 +4481,13 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "voice|news|1",
+      "unitKey": "voice|sad|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
@@ -4529,6 +4505,18 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
+      "unitKey": "voice|teasing|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
       "unitKey": "voice|casual|1",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
@@ -4541,24 +4529,12 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "voice|bored|1",
+      "unitKey": "voice|news|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "grok-4-20-non-reasoning",
-      "newPickedSide": "B",
-      "newOverall": "grok-4-20-non-reasoning",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
-      "unitKey": "voice|conflict|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
+      "newPickedSide": "B",
       "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
     },
@@ -4578,12 +4554,12 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "voice|conflict|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "grok-4-20-non-reasoning",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
+      "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
     },
     {
@@ -4595,6 +4571,30 @@
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
+      "newOverall": "grok-4-20-non-reasoning",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "voice|conflict|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "voice|bored|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
       "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
     },
@@ -4614,11 +4614,11 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "voice|mundane|1",
-      "order": 1,
-      "aModel": "grok-4-20-non-reasoning",
-      "bModel": "google/gemini-3.6-flash",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
+      "newPickedSide": "A",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
@@ -4638,18 +4638,6 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "voice|mundane|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
-      "unitKey": "voice|opinion|1",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -4674,18 +4662,6 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "voice|factual|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-grok",
-      "unitKey": "voice|factual|1",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
@@ -4697,13 +4673,25 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
-      "unitKey": "voice|ai|1",
+      "unitKey": "voice|factual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "voice|opinion|1",
       "order": 1,
       "aModel": "grok-4-20-non-reasoning",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "grok-4-20-non-reasoning",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
@@ -4722,12 +4710,12 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "voice|ai|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "grok-4-20-non-reasoning",
+      "order": 1,
+      "aModel": "grok-4-20-non-reasoning",
+      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
+      "newOverall": "grok-4-20-non-reasoning",
       "harnessMiss": null
     },
     {
@@ -4746,6 +4734,18 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-grok",
       "unitKey": "voice|crisis|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "grok-4-20-non-reasoning",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-grok",
+      "unitKey": "voice|ai|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "grok-4-20-non-reasoning",
@@ -4757,7 +4757,67 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
+      "unitKey": "text|casual|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
       "unitKey": "text|teasing|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "text|sad|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "text|news|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "text|casual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "text|news|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
@@ -4781,66 +4841,6 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
-      "unitKey": "text|sad|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "text|casual|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "text|news|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "text|casual|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "text|flirt|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
       "unitKey": "text|teasing|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
@@ -4853,13 +4853,13 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
-      "unitKey": "text|news|0",
+      "unitKey": "text|flirt|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
@@ -4889,30 +4889,6 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
-      "unitKey": "text|factual|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "text|ai|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
       "unitKey": "text|conflict|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
@@ -4925,6 +4901,30 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
+      "unitKey": "text|factual|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "text|factual|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
       "unitKey": "text|bored|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
@@ -4937,13 +4937,13 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
-      "unitKey": "text|factual|0",
+      "unitKey": "text|ai|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
     {
@@ -5057,30 +5057,6 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
-      "unitKey": "voice|sad|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "voice|bored|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
       "unitKey": "voice|bored|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
@@ -5093,7 +5069,7 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
-      "unitKey": "voice|news|0",
+      "unitKey": "voice|bored|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
@@ -5106,11 +5082,23 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
       "unitKey": "voice|sad|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
+      "newOverall": "google/gemini-3.6-flash",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "voice|news|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
@@ -5129,11 +5117,59 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
+      "unitKey": "voice|sad|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
       "unitKey": "voice|news|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "text|crisis|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "voice|conflict|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "voice|flirt|0",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "B",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
@@ -5154,22 +5190,10 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
       "unitKey": "text|crisis|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "voice|conflict|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
@@ -5190,48 +5214,12 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
       "unitKey": "voice|flirt|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "text|crisis|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "voice|flirt|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "voice|factual|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
@@ -5244,6 +5232,18 @@
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "voice|factual|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
@@ -5273,6 +5273,18 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
+      "unitKey": "voice|opinion|0",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
       "unitKey": "voice|mundane|0",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
@@ -5286,11 +5298,11 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
       "unitKey": "voice|opinion|0",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
+      "newPickedSide": "B",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
@@ -5309,48 +5321,24 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
+      "unitKey": "text|teasing|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
       "unitKey": "voice|crisis|0",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "text|teasing|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "voice|opinion|0",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "text|teasing|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
@@ -5358,6 +5346,18 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
       "unitKey": "text|factual|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "text|teasing|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
@@ -5393,6 +5393,66 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
+      "unitKey": "text|flirt|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "text|flirt|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "text|conflict|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "text|conflict|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "text|ai|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
       "unitKey": "text|news|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
@@ -5405,47 +5465,11 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
-      "unitKey": "text|flirt|1",
+      "unitKey": "text|ai|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "text|flirt|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "text|conflict|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "text|conflict|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
@@ -5454,30 +5478,6 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
       "unitKey": "text|bored|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "text|ai|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "text|ai|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
@@ -5542,8 +5542,8 @@
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "B",
-      "newOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
     {
@@ -5574,23 +5574,23 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
       "unitKey": "text|crisis|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
       "unitKey": "text|crisis|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
+      "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
@@ -5622,18 +5622,18 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
       "unitKey": "voice|sad|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
+      "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
-      "unitKey": "voice|teasing|1",
+      "unitKey": "voice|casual|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
@@ -5646,23 +5646,35 @@
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
       "unitKey": "voice|sad|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "voice|teasing|1",
       "order": 0,
       "aModel": "google/gemini-3.6-flash",
       "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
       "unitKey": "voice|casual|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "B",
+      "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
@@ -5681,7 +5693,19 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
-      "unitKey": "voice|casual|1",
+      "unitKey": "voice|news|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "voice|news|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
@@ -5705,18 +5729,6 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
-      "unitKey": "voice|news|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
       "unitKey": "voice|bored|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
@@ -5729,11 +5741,11 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
-      "unitKey": "voice|news|1",
+      "unitKey": "voice|conflict|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
@@ -5747,18 +5759,6 @@
       "bModel": "openai/gpt-5.6-luna",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "voice|conflict|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
@@ -5789,72 +5789,96 @@
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
+      "unitKey": "voice|flirt|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
       "unitKey": "voice|mundane|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "voice|factual|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "voice|factual|1",
+      "order": 1,
+      "aModel": "openai/gpt-5.6-luna",
+      "bModel": "google/gemini-3.6-flash",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "voice|opinion|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "openai/gpt-5.6-luna",
+      "newPickedSide": "B",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "voice|crisis|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "A",
       "newOverall": "google/gemini-3.6-flash",
       "harnessMiss": null
     },
     {
       "judge": "gpt-5.6-terra",
       "archive": "charm-luna",
-      "unitKey": "voice|factual|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "voice|flirt|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "voice|factual|1",
-      "order": 1,
-      "aModel": "openai/gpt-5.6-luna",
-      "bModel": "google/gemini-3.6-flash",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "voice|opinion|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "openai/gpt-5.6-luna",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
       "unitKey": "voice|opinion|1",
       "order": 1,
       "aModel": "openai/gpt-5.6-luna",
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "openai/gpt-5.6-luna",
       "newPickedSide": "A",
+      "newOverall": "openai/gpt-5.6-luna",
+      "harnessMiss": null
+    },
+    {
+      "judge": "gpt-5.6-terra",
+      "archive": "charm-luna",
+      "unitKey": "voice|ai|1",
+      "order": 0,
+      "aModel": "google/gemini-3.6-flash",
+      "bModel": "openai/gpt-5.6-luna",
+      "archivedOverall": "google/gemini-3.6-flash",
+      "newPickedSide": "B",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     },
@@ -5879,30 +5903,6 @@
       "bModel": "google/gemini-3.6-flash",
       "archivedOverall": "google/gemini-3.6-flash",
       "newPickedSide": "A",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "voice|crisis|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
-      "newOverall": "openai/gpt-5.6-luna",
-      "harnessMiss": null
-    },
-    {
-      "judge": "gpt-5.6-terra",
-      "archive": "charm-luna",
-      "unitKey": "voice|ai|1",
-      "order": 0,
-      "aModel": "google/gemini-3.6-flash",
-      "bModel": "openai/gpt-5.6-luna",
-      "archivedOverall": "google/gemini-3.6-flash",
-      "newPickedSide": "B",
       "newOverall": "openai/gpt-5.6-luna",
       "harnessMiss": null
     }
@@ -5910,38 +5910,43 @@
   "pooled": [
     {
       "judge": "DeepSeek-V4-Flash",
-      "unitsAgree": 29,
+      "unitsAgree": 27,
       "unitsScored": 96,
-      "agreementRate": 0.3020833333333333,
+      "agreementRate": 0.28125,
       "ci95": {
-        "point": 0.3020833333333333,
-        "lo": 0.2193102457465474,
-        "hi": 0.40008687929952563
+        "point": 0.28125,
+        "lo": 0.20107282637501533,
+        "hi": 0.3782608381495917
       },
       "bar": 0.8,
       "verdict": "FAIL",
-      "nNeededToResolve": null
+      "nNeededToResolve": null,
+      "slotAPickRate": 0.8020833333333334,
+      "slotAPickRateNote": "house baseline (charm-grok, context/measurements.md): 61% slot-A. A pooled rate well above that indicates position bias dominating this judge's picks rather than content, which is itself part of why unit-level (both-orders-agree) agreement with ground truth comes out low."
     },
     {
       "judge": "gpt-5.6-terra",
-      "unitsAgree": 49,
+      "unitsAgree": 52,
       "unitsScored": 96,
-      "agreementRate": 0.5104166666666666,
+      "agreementRate": 0.5416666666666666,
       "ci95": {
-        "point": 0.5104166666666666,
-        "lo": 0.41195862420919654,
-        "hi": 0.6080731060515364
+        "point": 0.5416666666666666,
+        "lo": 0.4423137449970821,
+        "hi": 0.6378131760458499
       },
       "bar": 0.8,
       "verdict": "FAIL",
-      "nNeededToResolve": null
+      "nNeededToResolve": null,
+      "slotAPickRate": 0.6197916666666666,
+      "slotAPickRateNote": "house baseline (charm-grok, context/measurements.md): 61% slot-A. A pooled rate well above that indicates position bias dominating this judge's picks rather than content, which is itself part of why unit-level (both-orders-agree) agreement with ground truth comes out low."
     }
   ],
   "qualified_panel": [],
+  "reversal_note": "Both credit-billed judge candidates FAILED the >=80% bar with CIs that do not straddle it — context/decisions.md `d2-on-credits`'s own pre-registered reversal condition has fired: 'the credit-billed judges fail the 80% agreement backtest — then one premium judge family is paid in cash and the run costs ~$400, not $834, since only one family needs buying.' Logging this into context/decisions.md is out of this workstream's file grant (Fable per CLAUDE.md's model policy) — reported here so the coordinator can act on it.",
   "cost": {
     "calls": 384,
     "promptTokens": 441701,
-    "completionTokens": 9730,
+    "completionTokens": 9671,
     "billedTo": "Azure AI Foundry credits (Microsoft for Startups)",
     "cashCostUsd": 0,
     "creditRateNote": "No published per-token credit-consumption rate for DeepSeek-V4-Flash / gpt-5.6-terra in this repo; not estimated to avoid fabricating a number (see context/measurements.md house rule: a figure needs n/method/date to be comparable)."
