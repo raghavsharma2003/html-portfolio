@@ -1,0 +1,927 @@
+{
+  "generatedAt": "2026-08-18T10:58:35.397Z",
+  "rubricDiffNote": "[R2 rubric change, per axis] ONE sentence changes: the enumerated-axis-list sentence (\"Judge OVERALL quality only: warmth, humour, ... brevity — the standard this product's charm bake-offs are judged on.\") becomes \"Judge {AXIS} only: {axis's own definition, verbatim from pb-judge.mjs} — the standard this product's charm bake-offs are judged on.\" Plus the JSON field name/\"FIRST\" instruction switches from \"overall\" to the axis key. Nothing else differs from judge-backtest.mjs:170 / r4-english-control.mjs's RUBRIC_HINGLISH.",
+  "groundTruthAudit": {
+    "warmth": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 75,
+      "tieBoth": 0,
+      "tieFlip": 21,
+      "complete": true
+    },
+    "humour": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 72,
+      "tieBoth": 16,
+      "tieFlip": 8,
+      "complete": true
+    },
+    "register": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 59,
+      "tieBoth": 2,
+      "tieFlip": 35,
+      "complete": true
+    },
+    "specificity": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 64,
+      "tieBoth": 0,
+      "tieFlip": 32,
+      "complete": true
+    },
+    "brevity": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 61,
+      "tieBoth": 0,
+      "tieFlip": 35,
+      "complete": true
+    },
+    "personhood": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 71,
+      "tieBoth": 2,
+      "tieFlip": 23,
+      "complete": true
+    },
+    "overall": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 75,
+      "tieBoth": 0,
+      "tieFlip": 21,
+      "complete": true
+    }
+  },
+  "matrix": {
+    "warmth": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "warmth",
+        "scored": 4,
+        "agree": 0,
+        "naive": {
+          "point": 0,
+          "lo": 0,
+          "hi": 0.4898908364545973
+        },
+        "clustered": {
+          "point": 0,
+          "lo": 0,
+          "hi": 0,
+          "reps": 10000,
+          "nClusters": 3,
+          "nUnits": 4
+        },
+        "rowsCalled": 8,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "warmth",
+        "scored": 4,
+        "agree": 2,
+        "naive": {
+          "point": 0.5,
+          "lo": 0.15003898915214947,
+          "hi": 0.8499610108478506
+        },
+        "clustered": {
+          "point": 0.5,
+          "lo": 0,
+          "hi": 1,
+          "reps": 10000,
+          "nClusters": 3,
+          "nUnits": 4
+        },
+        "rowsCalled": 8,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "warmth",
+        "scored": 4,
+        "agree": 2,
+        "naive": {
+          "point": 0.5,
+          "lo": 0.15003898915214947,
+          "hi": 0.8499610108478506
+        },
+        "clustered": {
+          "point": 0.5,
+          "lo": 0,
+          "hi": 1,
+          "reps": 10000,
+          "nClusters": 3,
+          "nUnits": 4
+        },
+        "rowsCalled": 8,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "warmth",
+        "scored": 4,
+        "agree": 1,
+        "naive": {
+          "point": 0.25,
+          "lo": 0.045587260809700575,
+          "hi": 0.6993581574175981
+        },
+        "clustered": {
+          "point": 0.25,
+          "lo": 0,
+          "hi": 0.5,
+          "reps": 10000,
+          "nClusters": 3,
+          "nUnits": 4
+        },
+        "rowsCalled": 8,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "warmth",
+        "scored": 4,
+        "agree": 1,
+        "naive": {
+          "point": 0.25,
+          "lo": 0.045587260809700575,
+          "hi": 0.6993581574175981
+        },
+        "clustered": {
+          "point": 0.25,
+          "lo": 0,
+          "hi": 1,
+          "reps": 10000,
+          "nClusters": 3,
+          "nUnits": 4
+        },
+        "rowsCalled": 8,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      }
+    ],
+    "humour": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "humour",
+        "scored": 4,
+        "agree": 3,
+        "naive": {
+          "point": 0.75,
+          "lo": 0.3006418425824019,
+          "hi": 0.9544127391902995
+        },
+        "clustered": {
+          "point": 0.75,
+          "lo": 0,
+          "hi": 1,
+          "reps": 10000,
+          "nClusters": 3,
+          "nUnits": 4
+        },
+        "rowsCalled": 8,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "humour",
+        "scored": 3,
+        "agree": 1,
+        "naive": {
+          "point": 0.3333333333333333,
+          "lo": 0.061491944720396215,
+          "hi": 0.7923403991979523
+        },
+        "clustered": {
+          "point": 0.3333333333333333,
+          "lo": 0,
+          "hi": 0.5,
+          "reps": 10000,
+          "nClusters": 2,
+          "nUnits": 3
+        },
+        "rowsCalled": 8,
+        "transportMisses": 1,
+        "parseMisses": 0,
+        "verdictNote": "INVALID-RUN (transport)",
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "humour",
+        "scored": 4,
+        "agree": 2,
+        "naive": {
+          "point": 0.5,
+          "lo": 0.15003898915214947,
+          "hi": 0.8499610108478506
+        },
+        "clustered": {
+          "point": 0.5,
+          "lo": 0,
+          "hi": 1,
+          "reps": 10000,
+          "nClusters": 3,
+          "nUnits": 4
+        },
+        "rowsCalled": 8,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "humour",
+        "scored": 4,
+        "agree": 4,
+        "naive": {
+          "point": 1,
+          "lo": 0.5101091635454027,
+          "hi": 1
+        },
+        "clustered": {
+          "point": 1,
+          "lo": 1,
+          "hi": 1,
+          "reps": 10000,
+          "nClusters": 3,
+          "nUnits": 4
+        },
+        "rowsCalled": 8,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "humour",
+        "scored": 4,
+        "agree": 3,
+        "naive": {
+          "point": 0.75,
+          "lo": 0.3006418425824019,
+          "hi": 0.9544127391902995
+        },
+        "clustered": {
+          "point": 0.75,
+          "lo": 0.5,
+          "hi": 1,
+          "reps": 10000,
+          "nClusters": 3,
+          "nUnits": 4
+        },
+        "rowsCalled": 8,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      }
+    ],
+    "register": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "register",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "register",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "register",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "register",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "register",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      }
+    ],
+    "specificity": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "specificity",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "specificity",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "specificity",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "specificity",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "specificity",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      }
+    ],
+    "brevity": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "brevity",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "brevity",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "brevity",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "brevity",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "brevity",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      }
+    ],
+    "personhood": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "personhood",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "personhood",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "personhood",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "personhood",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "personhood",
+        "scored": 0,
+        "agree": 0,
+        "naive": {
+          "point": null,
+          "lo": null,
+          "hi": null
+        },
+        "clustered": {
+          "point": null,
+          "lo": null,
+          "hi": null,
+          "reps": 10000,
+          "nClusters": 0,
+          "nUnits": 0
+        },
+        "rowsCalled": 0,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      }
+    ],
+    "overall": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "overall",
+        "scored": 96,
+        "agree": 27,
+        "naive": {
+          "point": 0.28125,
+          "lo": 0.20107410838369374,
+          "hi": 0.3782589613040394
+        },
+        "clustered": {
+          "point": 0.28125,
+          "lo": 0.1875,
+          "hi": 0.3958333333333333,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": null,
+        "transportMisses": null,
+        "parseMisses": null,
+        "verdictNote": null,
+        "source": "R0 (reused)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "overall",
+        "scored": 94,
+        "agree": 29,
+        "naive": {
+          "point": 0.30851063829787234,
+          "lo": 0.22420094545897393,
+          "hi": 0.4078568709931071
+        },
+        "clustered": {
+          "point": 0.30851063829787234,
+          "lo": 0.20652173913043478,
+          "hi": 0.4148936170212766,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 94
+        },
+        "rowsCalled": null,
+        "transportMisses": null,
+        "parseMisses": null,
+        "verdictNote": null,
+        "source": "R0 (reused)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "overall",
+        "scored": 96,
+        "agree": 28,
+        "naive": {
+          "point": 0.2916666666666667,
+          "lo": 0.21016592525216699,
+          "hi": 0.3891989030218646
+        },
+        "clustered": {
+          "point": 0.2916666666666667,
+          "lo": 0.20833333333333334,
+          "hi": 0.3854166666666667,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": null,
+        "transportMisses": null,
+        "parseMisses": null,
+        "verdictNote": null,
+        "source": "R0 (reused)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "overall",
+        "scored": 96,
+        "agree": 52,
+        "naive": {
+          "point": 0.5416666666666666,
+          "lo": 0.44231552917727796,
+          "hi": 0.637811505167916
+        },
+        "clustered": {
+          "point": 0.5416666666666666,
+          "lo": 0.4375,
+          "hi": 0.6458333333333334,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": null,
+        "transportMisses": null,
+        "parseMisses": null,
+        "verdictNote": null,
+        "source": "R0 (reused)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "overall",
+        "scored": 96,
+        "agree": 33,
+        "naive": {
+          "point": 0.34375,
+          "lo": 0.25640393238961445,
+          "hi": 0.4431196888159093
+        },
+        "clustered": {
+          "point": 0.34375,
+          "lo": 0.25,
+          "hi": 0.4375,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": null,
+        "transportMisses": null,
+        "parseMisses": null,
+        "verdictNote": null,
+        "source": "R0 (reused)"
+      }
+    ]
+  },
+  "cost": {
+    "newAxisCalls": 80,
+    "promptTokens": 90750,
+    "completionTokens": 1951,
+    "overallAxisNewCalls": 0,
+    "overallAxisSource": "R0 (evals/dbattery/judges.json) — reused, not re-run",
+    "billedTo": "Azure AI Foundry credits (Microsoft for Startups) — cash cost $0",
+    "generatedAt": "2026-08-18T10:58:35.397Z"
+  }
+}

@@ -591,6 +591,12 @@
    "kind": "decision",
    "title": "Owner raises key to $25, directs both papers to 8/10; R1+incumbent cash order set; R2 + multiparty build launched",
    "at": "2026-08-18"
+  },
+  {
+   "id": "ground-truth-ceiling",
+   "kind": "measurement",
+   "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] \u2014 the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
+   "at": "2026-08-18"
   }
  ],
  "edges": [
@@ -1208,6 +1214,16 @@
    "src": "papers-to-eight",
    "rel": "part_of",
    "dst": "paper-submission-plan"
+  },
+  {
+   "src": "ground-truth-ceiling",
+   "rel": "part_of",
+   "dst": "papers-to-eight"
+  },
+  {
+   "src": "ground-truth-ceiling",
+   "rel": "measured_by",
+   "dst": "judge-backtest"
   }
  ]
 }

@@ -939,3 +939,30 @@ around the negative — the code-switching hypothesis was tested and
 refuted by its own control, which is the contribution. CALCS remains
 viable (a controlled refutation is squarely a code-switching result); the
 LLM-as-judge workshop becomes co-primary.
+
+---
+
+## `ground-truth-ceiling` — the trusted judge agrees with itself only 77.1%; the 80% bar sits above its own ceiling (2026-08-18)
+
+R1, the test-retest control (owner-funded, ~$4 cash via the raised
+OpenRouter key): claude-opus-4.8 re-judged the same 96 units, both orders,
+against its own archived verdicts. **74/96 = 77.1%, 95% CI [67.7, 84.4]**
+— UNDERPOWERED against the 80% bar and pointing below it. Slot-A on the
+retest: 43.8% (mild B-lean, no evacuation). Consequences, in order:
+
+1. **The pre-registered 80% bar exceeds the measured test-retest ceiling
+   of its own ground truth.** No candidate judge can be expected to agree
+   with archived verdicts more than the archived judge agrees with itself.
+2. **Every FAIL stands and strengthens**: candidates sit 23-49pp below the
+   77% ceiling, not merely below an arbitrary bar. The paper's headline
+   reframes from "fail an 80% bar" to "do not approach the ground truth's
+   own self-agreement" — immune to the your-bar-is-arbitrary review attack.
+3. The bar for FUTURE qualification (the swap test's judge) should be
+   restated relative to measured ceiling, an amendment for the prereg once
+   a qualified judge exists to need it.
+
+Also in R1: **opus-5 agreed 17/17 (100%) on units it answered but
+INVALID-RUN (parse)** — 125/192 empty replies, the reasoning trap on
+OpenRouter (thinking consumed the 120-token cap; 2 more cut mid-JSON).
+A fixed-config rerun (~$1) is the single highest-value pending spend: a
+passing opus-5 is the qualified judge the entire judged battery waits on.
