@@ -11,6 +11,12 @@
 // person_id before and after, not by dropping a namespace.
 import { q } from "../api/_db.js";
 
+// Meera's agent id — mirrored, asserted by scripts/verify-agent-id.mjs.
+// Migration 010 dropped the transitional column defaults, so every writer
+// into an agent-scoped table must name it explicitly or fail loudly.
+const MEERA_AGENT_ID = "a0000000-0000-4000-8000-000000000001";
+
+
 const MARKER = "wsdepth-test";
 
 export async function makeFixturePerson() {
@@ -43,11 +49,11 @@ export async function insertLogRow(deviceId, { content, at, role = "me" }) {
  *  finalizePerson itself does). */
 export async function insertEpisode(personId, deviceId, { logFrom, logTo, startedAt, summary, affect = [], importance = 1.0 }) {
   const [{ id }] = await q(
-    `insert into vy_episode (person_id, device_id, channel, participation, started_at, ended_at,
+    `insert into vy_episode (person_id, agent_id, device_id, channel, participation, started_at, ended_at,
        boundary_reason, log_from, log_to, summary, affect_tags, importance, provisional)
-     values ($1,$2,'chat','user',$3,$3,'topic',$4,$5,$6,$7::jsonb,$8,false)
+     values ($1,($9)::uuid,$2,'chat','user',$3,$3,'topic',$4,$5,$6,$7::jsonb,$8,false)
      returning id`,
-    [personId, deviceId, startedAt.toISOString(), logFrom, logTo, `${MARKER}: ${summary}`, JSON.stringify(affect), importance],
+    [personId, deviceId, startedAt.toISOString(), logFrom, logTo, `${MARKER}: ${summary}`, JSON.stringify(affect), importance, MEERA_AGENT_ID],
   );
   await q(`update meera_log set episode_id = $1 where device_id = $2 and id between $3 and $4`, [id, deviceId, logFrom, logTo]);
   return id;

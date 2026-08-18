@@ -197,3 +197,32 @@ drop index if exists vy_rel_state_person_compat_ix;
 drop index if exists vy_ritual_person_compat_ix;
 drop index if exists vy_currency_person_compat_ix;
 drop index if exists vy_india_profile_person_compat_ix;
+
+-- ── 3. widen the two person-only unique indexes that are NOT PKs ───────────
+--
+-- Added by the coordinator after WS-AGENTSCOPE named them as an interface
+-- ticket rather than a blocker. They were right that these do not block 010;
+-- they are, however, the same class of defect one level down, and leaving
+-- them would make 010 a half-fix.
+--
+--   vy_kin_ix    unique (person_id, lower(name))
+--   vy_phrase_ix unique (person_id, lower(phrase))
+--
+-- Neither is a primary key, so neither shows up in a PK audit — but both are
+-- ON CONFLICT arbiters (src/engine/india.ts writeKin, api/consolidate.js
+-- capturePhrasesForPerson), and both are person-only. The consequence is
+-- exactly the one `pk-is-an-arbiter` describes: two agents cannot record the
+-- same kin name or coin the same phrase with the same person, and the second
+-- one fails 23505 rather than doing anything visible.
+--
+-- Two agents legitimately CAN know that this person's chachi is called Bua,
+-- and can each coin the same phrase with them independently — those are
+-- separate relationships and separate rows. The index has to say so.
+--
+-- Both call sites are migrated in the same change that applies this.
+-- Idempotent: drop-then-create, and both tables hold zero rows.
+
+drop index if exists vy_kin_ix;
+create unique index if not exists vy_kin_ix on vy_kin (agent_id, person_id, lower(name));
+drop index if exists vy_phrase_ix;
+create unique index if not exists vy_phrase_ix on vy_phrase (agent_id, person_id, lower(phrase));

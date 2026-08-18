@@ -48,6 +48,25 @@ export type Direction = "advance" | "regress" | "reset" | "init";
  *  way. */
 export const RESERVED_UNUSED_DIMS = ["ritual", "pacing"] as const;
 
+/** Meera's agent id — MIRRORED, not imported, and asserted equal by
+ *  `scripts/verify-agent-id.mjs` on every run.
+ *
+ *  Importing it from `./agents/registry` would be the obvious move and is the
+ *  wrong one: registry pulls in `agents/meera` which pulls in the ~45k-char
+ *  `persona.ts`, so every bundle that touches rel-state would carry her whole
+ *  personality. Same reasoning as `OPERATIONAL_CORE_CAP`, which is mirrored
+ *  between `api/chat.js` and `compiler.ts` rather than imported across the
+ *  serverless boundary, and guarded by a script for exactly this reason.
+ *
+ *  This is the DEFAULT for callers that predate the agent layer. Once
+ *  migration 010 drops the transitional `agent_id` column defaults, a caller
+ *  that forgets to pass one still writes Meera's rows through this constant
+ *  rather than failing — which is deliberate for the writers below, because
+ *  they are reached through the client bundle where there is no request
+ *  context to carry an agent. A second agent's writers pass `agentId`
+ *  explicitly. */
+export const MEERA_AGENT_ID = "a0000000-0000-4000-8000-000000000001";
+
 export interface RelEvent {
   id: number;
   person_id: string;
@@ -548,15 +567,19 @@ export interface WriteRelEventResult {
   lintReasons: string[];
 }
 
-export async function writeRelEvent(q: QueryFn, input: WriteRelEventInput): Promise<WriteRelEventResult> {
+export async function writeRelEvent(
+  q: QueryFn,
+  input: WriteRelEventInput,
+  agentId: string = MEERA_AGENT_ID,
+): Promise<WriteRelEventResult> {
   if (!input.citations || input.citations.length < 1) {
     throw new Error(`vy_rel_event requires >=1 citation (dim=${input.dim}, person=${input.person_id})`);
   }
   const lint = lintLine(input.note);
   const rows = await q(
-    `insert into vy_rel_event (person_id, dim, from_v, to_v, direction, note, citations)
-     values ($1,$2,$3,$4,$5,$6,$7) returning id`,
-    [input.person_id, input.dim, input.from_v, input.to_v, input.direction, input.note, input.citations],
+    `insert into vy_rel_event (person_id, agent_id, dim, from_v, to_v, direction, note, citations)
+     values ($1,($8)::uuid,$2,$3,$4,$5,$6,$7) returning id`,
+    [input.person_id, input.dim, input.from_v, input.to_v, input.direction, input.note, input.citations, agentId],
   );
   return { id: Number(rows[0]?.id), lintClean: lint.reasons.length === 0, lintReasons: lint.reasons };
 }
@@ -569,12 +592,14 @@ export async function writeRelEvent(q: QueryFn, input: WriteRelEventInput): Prom
 export async function rebuildSnapshotFromDb(
   q: QueryFn,
   personId: string,
-  opts: { bumpVersion?: boolean } = {},
+  opts: { bumpVersion?: boolean; agentId?: string } = {},
 ): Promise<RelState> {
+  const agentId = opts.agentId ?? MEERA_AGENT_ID;
   const rows = await q(
     `select id, person_id, dim, from_v, to_v, direction, note, citations, at
-       from vy_rel_event where person_id = $1 order by at asc, id asc`,
-    [personId],
+       from vy_rel_event where person_id = $1 and agent_id = ($2)::uuid
+      order by at asc, id asc`,
+    [personId, agentId],
   );
   const events: RelEvent[] = rows.map((r: any) => ({
     id: Number(r.id),
@@ -587,16 +612,19 @@ export async function rebuildSnapshotFromDb(
     citations: r.citations,
     at: r.at,
   }));
-  const existing = await q(`select snapshot_ver from vy_rel_state where person_id = $1`, [personId]);
+  const existing = await q(
+    `select snapshot_ver from vy_rel_state where person_id = $1 and agent_id = ($2)::uuid`,
+    [personId, agentId],
+  );
   const baseVer = existing.length ? Number(existing[0].snapshot_ver) : 0;
   const state = replaySnapshot(personId, events, { bumpVersion: opts.bumpVersion, baseVer });
 
   await q(
     `insert into vy_rel_state
-       (person_id, honorific, cs_ratio, cs_on_stress, trust, rupture_open, repair_state,
+       (person_id, agent_id, honorific, cs_ratio, cs_on_stress, trust, rupture_open, repair_state,
         ritual_density, pacing_gap_s, snapshot_ver, updated_at)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())
-     on conflict (person_id) do update set
+     values ($1,($11)::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())
+     on conflict (agent_id, person_id) do update set
        honorific = excluded.honorific, cs_ratio = excluded.cs_ratio,
        cs_on_stress = excluded.cs_on_stress, trust = excluded.trust,
        rupture_open = excluded.rupture_open, repair_state = excluded.repair_state,
@@ -613,6 +641,7 @@ export async function rebuildSnapshotFromDb(
       state.ritual_density,
       state.pacing_gap_s,
       state.snapshot_ver,
+      agentId,
     ],
   );
   return state;
@@ -721,16 +750,20 @@ export interface WritePatternInput {
   citations: number[];
 }
 
-export async function writePattern(q: QueryFn, input: WritePatternInput): Promise<number> {
+export async function writePattern(
+  q: QueryFn,
+  input: WritePatternInput,
+  agentId: string = MEERA_AGENT_ID,
+): Promise<number> {
   if (!input.citations || input.citations.length < 2) {
     throw new Error(
       `vy_pattern requires >=2 citations (one instance is an anecdote) — got ${input.citations?.length ?? 0}`,
     );
   }
   const rows = await q(
-    `insert into vy_pattern (person_id, moment, if_shape, then_note, self_in_relation, citations)
-     values ($1,$2,$3,$4,$5,$6) returning id`,
-    [input.person_id, input.moment, input.if_shape, input.then_note, input.self_in_relation ?? "", input.citations],
+    `insert into vy_pattern (person_id, agent_id, moment, if_shape, then_note, self_in_relation, citations)
+     values ($1,($7)::uuid,$2,$3,$4,$5,$6) returning id`,
+    [input.person_id, input.moment, input.if_shape, input.then_note, input.self_in_relation ?? "", input.citations, agentId],
   );
   return Number(rows[0]?.id);
 }

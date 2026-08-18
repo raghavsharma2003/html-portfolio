@@ -115,24 +115,25 @@ for (const p of PAIRS) {
   cleanupDevices.push(device);
   // one citation-anchor episode, shaped like a real provisional row
   const ep = await q(
-    `insert into vy_episode (person_id, device_id, channel, participation, started_at, ended_at,
+    `insert into vy_episode (person_id, agent_id, device_id, channel, participation, started_at, ended_at,
        boundary_reason, summary, provisional)
-     values ($1,$1,'chat','user',now(),now(),'gap','wscons-test- eval anchor',true)
+     values ($1,($2)::uuid,$1,'chat','user',now(),now(),'gap','wscons-test- eval anchor',true)
      returning id`,
-    [device],
+    [device, MEERA_AGENT_ID],
   );
   const episodeId = ep[0].id;
   const vec = await embedOne(p.body);
   const fact = await q(
-    `insert into vy_fact (person_id, kind, name, body, provenance, confidence, citations, provisional)
-     values ($1,'user','wscons-test-eval',$2,'extracted',0.8,$3::bigint[],true)
+    `insert into vy_fact (person_id, agent_id, kind, name, body, provenance, confidence, citations, provisional)
+     values ($1,($4)::uuid,'user','wscons-test-eval',$2,'extracted',0.8,$3::bigint[],true)
      returning id`,
-    [device, p.body, [episodeId]],
+    [device, p.body, [episodeId], MEERA_AGENT_ID],
   );
   if (vec) {
     await q(
-      `insert into vy_embedding (owner_kind, owner_id, person_id, v) values ('fact',$1,$2,$3::halfvec)`,
-      [fact[0].id, device, toHalfvecLiteral(vec)],
+      `insert into vy_embedding (owner_kind, owner_id, person_id, agent_id, v)
+         values ('fact',$1,$2,($4)::uuid,$3::halfvec)`,
+      [fact[0].id, device, toHalfvecLiteral(vec), MEERA_AGENT_ID],
     );
   }
 

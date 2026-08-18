@@ -1400,7 +1400,7 @@ async function capturePhrasesForPerson(person, { dryRun = false, agentId = MEERA
   await q(
     `insert into vy_phrase (agent_id, person_id, phrase, origin_episode, coined_at, last_used, uses)
      values (${agentValue("$5")},$1,$2,$3, now(), now(), $4)
-     on conflict (person_id, lower(phrase)) do nothing`,
+     on conflict (agent_id, person_id, lower(phrase)) do nothing`,
     [person, gram, originEpisode, evidence.days.size, agentId],
   ).catch(() => {});
   return rep;

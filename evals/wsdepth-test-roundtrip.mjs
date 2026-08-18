@@ -70,13 +70,14 @@ try {
   // events (ep1 decrease, ep3 increase) so the fold's per-dim independence
   // is exercised in the same pass.
   await q(
-    `insert into vy_rel_event (person_id, dim, from_v, to_v, direction, note, citations, at) values
-       ($1,'rupture','closed','open','advance','conflict-shaped episode: rupture opens',$2,$5),
-       ($1,'trust','0.300','0.220','regress','withdrawal after the conflict',$2,$5),
-       ($1,'repair','open','repairing','advance','their signal: repair begins',$3,$6),
-       ($1,'repair','repairing','repaired','advance','their signal sustained: repaired, rupture closes',$4,$7),
-       ($1,'trust','0.220','0.300','advance','warmth returned after repair',$4,$7)`,
-    [personId, [ep1], [ep2], [ep3], day(0).toISOString(), day(3).toISOString(), day(6).toISOString()],
+    `insert into vy_rel_event (person_id, agent_id, dim, from_v, to_v, direction, note, citations, at) values
+       ($1,($8)::uuid,'rupture','closed','open','advance','conflict-shaped episode: rupture opens',$2,$5),
+       ($1,($8)::uuid,'trust','0.300','0.220','regress','withdrawal after the conflict',$2,$5),
+       ($1,($8)::uuid,'repair','open','repairing','advance','their signal: repair begins',$3,$6),
+       ($1,($8)::uuid,'repair','repairing','repaired','advance','their signal sustained: repaired, rupture closes',$4,$7),
+       ($1,($8)::uuid,'trust','0.220','0.300','advance','warmth returned after repair',$4,$7)`,
+    [personId, [ep1], [ep2], [ep3], day(0).toISOString(), day(3).toISOString(), day(6).toISOString(),
+     "a0000000-0000-4000-8000-000000000001"],
   );
 
   const state = await rebuildSnapshotFromDb(qfn, personId, { bumpVersion: true });

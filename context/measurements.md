@@ -1198,3 +1198,70 @@ feature name implies; keeping them is defensible if her ambient presence is
 meant to be independent of what is on screen. It is a product call, and
 `scene.ts` belongs to the watch charter, so it is flagged rather than
 changed.
+
+---
+
+## `strict-exposed-13` — dropping the transitional defaults surfaced 13 writers that would have mis-filed rows (2026-08-18)
+
+Migration 010 drops the `agent_id` column defaults 009 introduced, so a writer
+that forgets the column fails loudly instead of silently filing another
+agent's memory under Meera. Applied to the live DB; the failures it produced
+are the measurement.
+
+Thirteen writers had to be fixed before every gate went green again:
+
+| file | writers |
+|---|---|
+| `src/engine/relstate.ts` | vy_rel_event, vy_rel_state, vy_pattern |
+| `src/engine/india.ts` | vy_kin, vy_ritual, vy_currency, vy_india_profile |
+| `api/episodes.js` | vy_episode, vy_visual_assertion, vy_shared_moment |
+| `scripts/migrate/backfill-episodes.mjs` | vy_episode, vy_fact ×2, vy_embedding ×2, vy_derivation |
+| `scripts/semantic-recall-eval.mjs` | vy_episode, vy_fact, vy_embedding |
+| `evals/wsdepth-fixtures.mjs`, `evals/wsdepth-test-roundtrip.mjs` | vy_episode, vy_rel_event |
+
+**Five of them are inside `.catch()` swallows** (`backfill-episodes.mjs`'s
+fact and embedding writers, `episodes.js`'s three). Under 009's defaults they
+were already writing correct rows by luck; under 010 without the fix they
+would have thrown into a swallow and written nothing, with no error, no log
+line and no failing test — `relstate-zero-rows` for the third time, and the
+reason 010 exists at all.
+
+Two non-PK unique indexes were widened in the same pass, added by the
+coordinator after WS-AGENTSCOPE named them as an interface ticket rather than
+a blocker: `vy_kin_ix (person_id, lower(name))` and `vy_phrase_ix (person_id,
+lower(phrase))` are `ON CONFLICT` arbiters that are not primary keys, so they
+do not appear in a PK audit — but they are the same defect one level down.
+Two agents legitimately can both know that this person's chachi is called Bua,
+and can each coin the same phrase with them; the index has to say so. Now
+`(agent_id, person_id, lower(...))`.
+
+**Verified after, all re-run by the coordinator:** verify-release --mp 8/8,
+G-E1 isolation 0 cross-agent rows across n=320 with the negative control
+catching 656, tgbot 101/101, surface 184/184, multimodal 27/27, wsdepth
+round-trip green (this one matters most — it drives the REAL
+`rebuildSnapshotFromDb` against the composite key), multi-owner forget green.
+Two agents holding `vy_rel_state` for the same person was measured directly:
+impossible before 010, works after, fixture torn down to zero rows.
+
+**Correction to an earlier claim in this file's `never-scheduled` entry and to
+what was reported to the owner.** The hourly sweep will NOT clear the 2,025-row
+historical backlog. `runConsolidation` finalizes PROVISIONAL episodes —
+`findEligiblePersons` selects on `provisional = true` — and provisional
+episodes are opened by `opRemember` during a live session. The backlog is raw
+`meera_log` rows with `episode_id is null` and no episode ever opened over
+them, precisely because the live path that opens them mostly never ran.
+Measured directly: a real `runConsolidation({onlyPerson})` against the person
+with the largest lag (479 pending rows) processed 1 person, finalized **0**
+episodes and made **0** model calls.
+
+So the two backfills are COMPLEMENTARY, not a duplicated design fork:
+`scripts/migrate/backfill-episodes.mjs` segments raw log into episodes with
+cheap deterministic boundaries (this is what clears the backlog), and
+`scripts/backfill-consolidate.mjs` / the sweep run the full extraction pass
+over episodes that exist. Clearing history needs the first, then the second.
+The sweep alone covers go-forward traffic only.
+
+n/a for n — a census of writers plus a single measured consolidation run.
+Method: apply 010 live via `db/migrations/apply.mjs`, run every gate, fix each
+failure, re-run; `runConsolidation({onlyPerson, limit:1, dryRun:false})`
+against the highest-lag person for the backlog measurement. Date 2026-08-18.

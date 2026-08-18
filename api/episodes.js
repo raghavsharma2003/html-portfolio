@@ -18,6 +18,7 @@
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { personIdFor } from "./memory.js";
+import { MEERA_AGENT_ID } from "./_agentscope.js";
 
 export const GAP_MS = 45 * 60_000;
 
@@ -42,12 +43,13 @@ export const GAP_MS = 45 * 60_000;
 // that only exists once api/consolidate.js's finalizePerson (or the
 // backfill script) writes the FINAL episode — see that file's own
 // WE_TOKEN_RE port for the classification this file cannot honestly do.
-export async function openOrExtendEpisode(person, device, channel, { gapMs = GAP_MS, participation = "user" } = {}) {
+export async function openOrExtendEpisode(person, device, channel, { gapMs = GAP_MS, participation = "user", agentId = MEERA_AGENT_ID } = {}) {
   const open = await q(
     `select id, ended_at, started_at from vy_episode
-      where person_id = $1 and provisional = true and superseded_by is null and channel = $2
+      where person_id = $1 and agent_id = ($3)::uuid and provisional = true
+        and superseded_by is null and channel = $2
       order by started_at desc limit 1`,
-    [person, channel],
+    [person, channel, agentId],
   ).catch(() => []);
   const now = Date.now();
   if (open[0]) {
@@ -74,11 +76,11 @@ export async function openOrExtendEpisode(person, device, channel, { gapMs = GAP
   const reason = open[0] ? "channel" : "gap";
   const ins = await q(
     `insert into vy_episode
-       (person_id, device_id, channel, participation, started_at, ended_at,
+       (person_id, agent_id, device_id, channel, participation, started_at, ended_at,
         boundary_reason, log_from, log_to, summary, provisional)
-     values ($1,$2,$3,$4,$5,now(),$6,$7,$8,'',true)
+     values ($1,($9)::uuid,$2,$3,$4,$5,now(),$6,$7,$8,'',true)
      returning id`,
-    [person, device, channel, participation, startedAt.toISOString(), reason, logFrom, logTo],
+    [person, device, channel, participation, startedAt.toISOString(), reason, logFrom, logTo, agentId],
   ).catch(() => []);
   return ins[0] ? { id: ins[0].id, extended: false } : null;
 }
@@ -108,25 +110,25 @@ export async function touchEpisode(id, { logTo, summary, close = false } = {}) {
 // No new model call here — the extraction already happened in the existing
 // vision pipeline (api/chat.js's screen-share call); this only persists its
 // structured output as citation-bearing rows.
-export async function writeVisualAssertion(person, episodeId, { claim, extractorModel, confidence, illegible }) {
+export async function writeVisualAssertion(person, episodeId, { claim, extractorModel, confidence, illegible }, agentId = MEERA_AGENT_ID) {
   const c = String(claim || "").trim().slice(0, 200);
   if (!c || !extractorModel) return null;
   const ins = await q(
     `insert into vy_visual_assertion
-       (episode_id, person_id, claim, extractor_model, confidence, declared_illegible)
-     values ($1,$2,$3,$4,$5,$6) returning id`,
-    [episodeId, person, c, String(extractorModel).slice(0, 60), Number(confidence) || 0, illegible === true],
+       (episode_id, person_id, agent_id, claim, extractor_model, confidence, declared_illegible)
+     values ($1,$2,($7)::uuid,$3,$4,$5,$6) returning id`,
+    [episodeId, person, c, String(extractorModel).slice(0, 60), Number(confidence) || 0, illegible === true, agentId],
   ).catch(() => []);
   return ins[0]?.id ?? null;
 }
 
-export async function writeSharedMoment(person, episodeId, { assertionId, reaction }) {
+export async function writeSharedMoment(person, episodeId, { assertionId, reaction }, agentId = MEERA_AGENT_ID) {
   const r = String(reaction || "").trim().slice(0, 160);
   if (!r) return null;
   const ins = await q(
-    `insert into vy_shared_moment (episode_id, person_id, assertion_id, reaction)
-     values ($1,$2,$3,$4) returning id`,
-    [episodeId, person, assertionId ?? null, r],
+    `insert into vy_shared_moment (episode_id, person_id, agent_id, assertion_id, reaction)
+     values ($1,$2,($5)::uuid,$3,$4) returning id`,
+    [episodeId, person, assertionId ?? null, r, agentId],
   ).catch(() => []);
   return ins[0]?.id ?? null;
 }

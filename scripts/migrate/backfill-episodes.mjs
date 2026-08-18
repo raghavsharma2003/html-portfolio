@@ -36,6 +36,14 @@ import { q } from "../../api/_db.js";
 import { embedBatch, toHalfvecLiteral, embedCostSnapshot } from "../../api/_embed.js";
 import { AZURE_ENDPOINT, AZURE_KEY, OPENROUTER_KEY } from "../../api/_config.js";
 
+// Meera's agent id — mirrored, asserted by scripts/verify-agent-id.mjs.
+// Migration 010 dropped the transitional column defaults, so every writer
+// into an agent-scoped table names it explicitly or fails loudly. Note the
+// .catch() swallows below: without an explicit agent_id these would have
+// failed SILENTLY post-010 — the relstate-zero-rows shape, again.
+const MEERA_AGENT_ID = "a0000000-0000-4000-8000-000000000001";
+
+
 const AZ_ENDPOINT = process.env.AZURE_ENDPOINT || AZURE_ENDPOINT;
 const AZ_KEY = process.env.AZURE_API_KEY || AZURE_KEY;
 const OR_KEY = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY;
@@ -114,11 +122,11 @@ async function backfillBoundaries(device) {
     const channel = span.every((r) => r.channel === "call") ? "call" : "chat";
     const ins = await q(
       `insert into vy_episode
-         (person_id, device_id, channel, participation, started_at, ended_at,
+         (person_id, agent_id, device_id, channel, participation, started_at, ended_at,
           boundary_reason, log_from, log_to, summary, importance, tier, provisional)
-       values ($1,$1,$2,'user',$3,$4,'backfill',$5,$6,'',1.0,0,false)
+       values ($1,($7)::uuid,$1,$2,'user',$3,$4,'backfill',$5,$6,'',1.0,0,false)
        returning id`,
-      [device, channel, span[0].at, span[span.length - 1].at, span[0].id, span[span.length - 1].id],
+      [device, channel, span[0].at, span[span.length - 1].at, span[0].id, span[span.length - 1].id, MEERA_AGENT_ID],
     );
     const epId = ins[0].id;
     await q(`update meera_log set episode_id = $1 where device_id = $2 and id between $3 and $4`, [
@@ -166,16 +174,16 @@ async function legacyQuarantine(device, person) {
       continue;
     }
     const ins = await q(
-      `insert into vy_fact (person_id, kind, name, body, feel, provenance, confidence, citations, provisional)
-       values ($1,'user',$2,$3,$4,'legacy',0.6,'{}',false) returning id`,
-      [person, n.name.toLowerCase().slice(0, 60), `${n.name}: ${n.summary}`.slice(0, 160), n.feel || ""],
+      `insert into vy_fact (person_id, agent_id, kind, name, body, feel, provenance, confidence, citations, provisional)
+       values ($1,($5)::uuid,'user',$2,$3,$4,'legacy',0.6,'{}',false) returning id`,
+      [person, n.name.toLowerCase().slice(0, 60), `${n.name}: ${n.summary}`.slice(0, 160), n.feel || "", MEERA_AGENT_ID],
     ).catch(() => []);
     if (ins[0] && vecs[i]) {
-      await q(`insert into vy_embedding (owner_kind, owner_id, person_id, v) values ('fact',$1,$2,$3::halfvec)`, [
-        ins[0].id,
-        person,
-        toHalfvecLiteral(vecs[i]),
-      ]).catch(() => {});
+      await q(
+        `insert into vy_embedding (owner_kind, owner_id, person_id, agent_id, v)
+           values ('fact',$1,$2,($4)::uuid,$3::halfvec)`,
+        [ins[0].id, person, toHalfvecLiteral(vecs[i]), MEERA_AGENT_ID],
+      ).catch(() => {});
     }
     if (ins[0]) written++;
   }
@@ -259,26 +267,26 @@ async function enrichEpisode(person, ep, rxs) {
     for (let i = 0; i < facts.length; i++) {
       const f = facts[i];
       const ins = await q(
-        `insert into vy_fact (person_id, kind, name, body, feel, provenance, confidence, citations, provisional)
-         values ($1,$2,$3,$4,$5,'extracted',0.75,$6::bigint[],false) returning id`,
-        [person, f.kind, f.name, f.body, f.feel, [ep.id]],
+        `insert into vy_fact (person_id, agent_id, kind, name, body, feel, provenance, confidence, citations, provisional)
+         values ($1,($7)::uuid,$2,$3,$4,$5,'extracted',0.75,$6::bigint[],false) returning id`,
+        [person, f.kind, f.name, f.body, f.feel, [ep.id], MEERA_AGENT_ID],
       ).catch(() => []);
       if (ins[0]) {
         written++;
         if (vecs[i]) {
-          await q(`insert into vy_embedding (owner_kind, owner_id, person_id, v) values ('fact',$1,$2,$3::halfvec)`, [
-            ins[0].id,
-            person,
-            toHalfvecLiteral(vecs[i]),
-          ]).catch(() => {});
+          await q(
+            `insert into vy_embedding (owner_kind, owner_id, person_id, agent_id, v)
+               values ('fact',$1,$2,($4)::uuid,$3::halfvec)`,
+            [ins[0].id, person, toHalfvecLiteral(vecs[i]), MEERA_AGENT_ID],
+          ).catch(() => {});
         }
       }
     }
   }
   await q(
-    `insert into vy_derivation (person_id, model, prompt_hash, input_from, input_to, wrote)
-     values ($1,$2,'backfill-enrich',$3,$4,$5::jsonb)`,
-    [person, AZ_KEY ? EXTRACT_MODEL_AZURE : EXTRACT_MODEL_FALLBACK, ep.log_from, ep.log_to, JSON.stringify([{ table: "vy_episode", id: ep.id }])],
+    `insert into vy_derivation (person_id, agent_id, model, prompt_hash, input_from, input_to, wrote)
+     values ($1,($6)::uuid,$2,'backfill-enrich',$3,$4,$5::jsonb)`,
+    [person, AZ_KEY ? EXTRACT_MODEL_AZURE : EXTRACT_MODEL_FALLBACK, ep.log_from, ep.log_to, JSON.stringify([{ table: "vy_episode", id: ep.id }]), MEERA_AGENT_ID],
   ).catch(() => {});
   return { ok: true, facts: written };
 }
