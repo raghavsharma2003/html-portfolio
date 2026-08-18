@@ -621,6 +621,12 @@
    "kind": "measurement",
    "title": "Gate 0: prompt arm leaks 57-98%, SQL predicate 0/31,122 (negative control valid); migration 008 LIVE",
    "at": "2026-08-18"
+  },
+  {
+   "id": "depth-writers-landed",
+   "kind": "measurement",
+   "title": "Trust/pattern/phrase writers live in the nightly chain; conservatism proven by refusal; round-trip byte-identical",
+   "at": "2026-08-18"
   }
  ],
  "edges": [
@@ -1263,6 +1269,11 @@
    "src": "gate0-structural",
    "rel": "part_of",
    "dst": "multiparty-v1-design"
+  },
+  {
+   "src": "depth-writers-landed",
+   "rel": "part_of",
+   "dst": "relational-wedge"
   }
  ]
 }

@@ -1056,3 +1056,22 @@ no-cascade rule). Interface tickets: check-prompt-budget's drop-order
 fixture no longer mirrors the manifest; vy_embedding rows of surviving
 room facts die with a member's wipe (retrieval-quality, needs a
 write-path rule + migration).
+
+---
+
+## `depth-writers-landed` — trust, patterns, and phrases have writers; tonight is night one (2026-08-18)
+
+WS-DEPTH shipped behind full gates (6/6, byte-identity 83/83, invariants
+138/138, relcheck 27/27, whole-DB before/after counts identical): nightly
+trust/rupture/repair derivation (fixed anchored step 0.08 through the real
+rate limiter and state machine — LLM decides PRESENCE with citations,
+never magnitude; round-trip rebuild byte-identical), pattern extraction
+through the existing ≥2-citation writePattern (≤2/night, 60-day evidence
+pool), and deterministic phrase capture (≥3 distinct days, measured
+corpus stoplist from 751 live messages, substring dedup after testing
+caught shrinking-variant recapture, ≤1/night). Conservatism verified in
+smoke: a "friend betrayed me" episode wrote NO rupture — not a rupture
+between the user and her. All three group-guarded twice (explicit
+group_id filter + structural person_id null). 4 of ≤10 smoke calls used.
+Remaining from the judgment-writers ticket: only the call-lane rel bundle
+(latency seam).
