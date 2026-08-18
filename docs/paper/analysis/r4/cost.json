@@ -1,0 +1,10 @@
+{
+  "translationCalls": 8,
+  "translationPromptTokens": 5285,
+  "translationCompletionTokens": 3452,
+  "judgeCalls": 40,
+  "judgePromptTokens": 41057,
+  "judgeCompletionTokens": 942,
+  "billedTo": "Azure AI Foundry credits (Microsoft for Startups) — cash cost $0",
+  "generatedAt": "2026-08-18T09:37:31.078Z"
+}

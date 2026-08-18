@@ -747,6 +747,67 @@ that *within-family scaling is not a mitigation*. Cross-family selection was als
 not a mitigation here: five families were tried (deepseek, openai, xai, mistral,
 cohere) and every one failed.
 
+### 5.8 [R5] Clustered confidence intervals: the FAILs survive an honest interval
+
+Gap **G4** (§8 L4, §10 C19): the 96 pooled units are not 96 independent trials.
+They cluster on **12 affective beats** — each beat contributes 8 units to the
+pool (2 lanes × 2 replicates × 2 archives) — and a judge's mistake on, say, the
+*teasing* beat is a property of how that judge reads teasing, not eight
+independent coin flips. The binomial Wilson CIs in §5.1/T3 are therefore
+anti-conservative. This section re-derives every headline agreement CI with
+clustering handled honestly, at **$0**, offline, from the same two committed
+sources as the rest of §5
+(`docs/paper/analysis/clustered-cis.mjs`, run: `node docs/paper/analysis/clustered-cis.mjs`).
+
+**Method.** A nonparametric cluster (block) bootstrap, clusters = beat (12
+levels): each of 10,000 replicates resamples 12 beats **with replacement**
+from the 12 observed beats and carries every unit belonging to a resampled
+beat along as a whole block (units are never resampled apart from their
+cluster — that is what makes it a cluster bootstrap rather than the ordinary
+percentile bootstrap `evals/dbattery/common.mjs` already has). The replicate
+statistic is the pooled agreement rate over every unit in every resampled
+block; the reported interval is the 2.5th/97.5th percentile of that
+distribution. Seeded via the same `mulberry32` PRNG the rest of this programme
+uses (`evals/dbattery/common.mjs`, imported not reimplemented) — same input
+always produces the same interval, on any machine.
+
+| judge | n (units) | beats | naive 95% CI (Wilson) | **clustered 95% CI (bootstrap)** | Δ width | naive verdict | clustered verdict | changed? |
+|---|---|---|---|---|---|---|---|---|
+| DeepSeek-V4-Flash | 96 | 12 | [20.1%, 37.8%] | **[18.8%, 39.6%]** | +3.1pp | FAIL | FAIL | no |
+| gpt-5.6-terra | 96 | 12 | [44.2%, 63.8%] | **[43.8%, 64.6%]** | +1.3pp | FAIL | FAIL | no |
+| grok-4.3 | 96 | 12 | [25.6%, 44.3%] | **[25.0%, 43.8%]** | +0.1pp | FAIL | FAIL | no |
+| DeepSeek-V4-Pro | 94 | 12 | [22.4%, 40.8%] | **[20.7%, 41.5%]** | +2.5pp | FAIL | FAIL | no |
+| Mistral-Large-3 | 96 | 12 | [21.0%, 38.9%] | **[20.8%, 38.5%]** | −0.2pp | FAIL | FAIL | no |
+| *(invalid ref.)* anthropic/claude-opus-5 | 14 | 8 | [78.5%, 100.0%] | [100.0%, 100.0%] | −21.5pp | UNDERPOWERED | *PASS* | **YES** |
+| *(invalid ref.)* anthropic/claude-opus-4.8 | 9 | 9 | [56.5%, 98.0%] | [66.7%, 100.0%] | −8.2pp | UNDERPOWERED | UNDERPOWERED | no |
+
+**Verdict-change answer, stated plainly: no substantive verdict changes.**
+Every one of the five scorable, valid-run candidate judges — the entire set
+the paper's FAIL claim (C1) rests on — stays **FAIL** under an honestly
+clustered interval; clustering widens each interval by roughly 1–3
+percentage points (it can only ever widen, since it estimates the same point
+from fewer effectively-independent clusters) and every widened interval still
+sits far below the 80% bar (clustered interval highs run 38.5%–64.6% against
+an 80% bar). The two rows that *do* flip are both the **anthropic reference
+runs already marked `INVALID (transport)`** in §5.1/§4.6 — their denominators
+(14/14 and 8/9) were selected by which calls beat a $20 OpenRouter key limit,
+not by the qualification protocol, and were never real qualification results
+to begin with. A transport-crippled n of 14 producing a degenerate
+all-agree cluster bootstrap (every resample is 100% because every observed
+unit already agrees) is exactly the kind of noise those rows already carry a
+warning label for — it is not a new finding, and the paper must not cite it
+as one.
+
+**What this run buys and does not buy.** It converts §8 L4 from an
+acknowledged-but-unaddressed limitation into a closed one: the paper's central
+quantitative claim (all five judges FAIL) now has an interval that is honest
+about clustering, not merely binomial. It does **not** change the paper's
+n — 96 units is still 96 units, clustered into 12 beats, and a reviewer
+asking "how many *effectively independent* observations is this?" gets a
+franker answer post-R5 than pre-R5 (12, not 96, for the purpose of the
+variance estimate) even though the point estimates and the substantive
+verdicts are unchanged. `[R5]`
+
 ---
 
 ## §6 Related work — annotated citation list

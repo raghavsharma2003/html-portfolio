@@ -1,0 +1,939 @@
+[
+  {
+    "judge": "DeepSeek-V4-Pro",
+    "archive": "charm-grok",
+    "unitKey": "text|teasing|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "grok-4-20-non-reasoning",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 1185,
+      "completion_tokens": 26,
+      "total_tokens": 1211,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "gpt-5.6-terra",
+    "archive": "charm-grok",
+    "unitKey": "text|teasing|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "grok-4-20-non-reasoning",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "completion_tokens": 25,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 11,
+        "engine_ttft_ms": 141,
+        "engine_ttlt_ms": 426,
+        "pre_inference_ms": 336,
+        "service_tbt_ms": 12,
+        "service_ttft_ms": 887,
+        "service_ttlt_ms": 1171,
+        "total_duration_ms": 847,
+        "user_visible_ttft_ms": 551
+      },
+      "prompt_tokens": 1152,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1177
+    }
+  },
+  {
+    "judge": "grok-4.3",
+    "archive": "charm-grok",
+    "unitKey": "text|teasing|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "grok-4-20-non-reasoning",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 1141,
+      "completion_tokens": 15,
+      "total_tokens": 1156,
+      "audio_prompt_tokens": 0,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0,
+        "text_tokens": 1141,
+        "image_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "num_sources_used": 0
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Flash",
+    "archive": "charm-grok",
+    "unitKey": "text|teasing|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "grok-4-20-non-reasoning",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 1185,
+      "completion_tokens": 26,
+      "total_tokens": 1211,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Pro",
+    "archive": "charm-grok",
+    "unitKey": "text|teasing|0",
+    "order": 1,
+    "aModel": "grok-4-20-non-reasoning",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "grok-4-20-non-reasoning",
+    "usage": {
+      "prompt_tokens": 1184,
+      "completion_tokens": 28,
+      "total_tokens": 1212,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Flash",
+    "archive": "charm-grok",
+    "unitKey": "text|teasing|0",
+    "order": 1,
+    "aModel": "grok-4-20-non-reasoning",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "grok-4-20-non-reasoning",
+    "usage": {
+      "prompt_tokens": 1184,
+      "completion_tokens": 30,
+      "total_tokens": 1214,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "gpt-5.6-terra",
+    "archive": "charm-grok",
+    "unitKey": "text|teasing|0",
+    "order": 1,
+    "aModel": "grok-4-20-non-reasoning",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "grok-4-20-non-reasoning",
+    "usage": {
+      "completion_tokens": 27,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 10,
+        "engine_ttft_ms": 233,
+        "engine_ttlt_ms": 500,
+        "pre_inference_ms": 169,
+        "service_tbt_ms": 16,
+        "service_ttft_ms": 783,
+        "service_ttlt_ms": 1095,
+        "total_duration_ms": 1033,
+        "user_visible_ttft_ms": 614
+      },
+      "prompt_tokens": 1151,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1178
+    }
+  },
+  {
+    "judge": "grok-4.3",
+    "archive": "charm-grok",
+    "unitKey": "text|teasing|0",
+    "order": 1,
+    "aModel": "grok-4-20-non-reasoning",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "grok-4-20-non-reasoning",
+    "usage": {
+      "prompt_tokens": 1140,
+      "completion_tokens": 16,
+      "total_tokens": 1156,
+      "audio_prompt_tokens": 0,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0,
+        "text_tokens": 1140,
+        "image_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "num_sources_used": 0
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Pro",
+    "archive": "charm-grok",
+    "unitKey": "text|news|0",
+    "order": 1,
+    "aModel": "grok-4-20-non-reasoning",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "B",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 1076,
+      "completion_tokens": 28,
+      "total_tokens": 1104,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Flash",
+    "archive": "charm-grok",
+    "unitKey": "text|news|0",
+    "order": 1,
+    "aModel": "grok-4-20-non-reasoning",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "grok-4-20-non-reasoning",
+    "usage": {
+      "prompt_tokens": 1076,
+      "completion_tokens": 26,
+      "total_tokens": 1102,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "gpt-5.6-terra",
+    "archive": "charm-grok",
+    "unitKey": "text|news|0",
+    "order": 1,
+    "aModel": "grok-4-20-non-reasoning",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "grok-4-20-non-reasoning",
+    "usage": {
+      "completion_tokens": 26,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 10,
+        "engine_ttft_ms": 193,
+        "engine_ttlt_ms": 453,
+        "pre_inference_ms": 94,
+        "service_tbt_ms": 10,
+        "service_ttft_ms": 627,
+        "service_ttlt_ms": 879,
+        "total_duration_ms": 791,
+        "user_visible_ttft_ms": 534
+      },
+      "prompt_tokens": 1046,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1072
+    }
+  },
+  {
+    "judge": "Mistral-Large-3",
+    "archive": "charm-grok",
+    "unitKey": "text|teasing|0",
+    "order": 1,
+    "aModel": "grok-4-20-non-reasoning",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "grok-4-20-non-reasoning",
+    "usage": {
+      "prompt_tokens": 1254,
+      "completion_tokens": 29,
+      "total_tokens": 1283,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "Mistral-Large-3",
+    "archive": "charm-grok",
+    "unitKey": "text|teasing|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "grok-4-20-non-reasoning",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 1255,
+      "completion_tokens": 28,
+      "total_tokens": 1283,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "grok-4.3",
+    "archive": "charm-grok",
+    "unitKey": "text|news|0",
+    "order": 1,
+    "aModel": "grok-4-20-non-reasoning",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "grok-4-20-non-reasoning",
+    "usage": {
+      "prompt_tokens": 1038,
+      "completion_tokens": 16,
+      "total_tokens": 1054,
+      "audio_prompt_tokens": 0,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0,
+        "text_tokens": 1038,
+        "image_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "num_sources_used": 0
+    }
+  },
+  {
+    "judge": "Mistral-Large-3",
+    "archive": "charm-grok",
+    "unitKey": "text|news|0",
+    "order": 1,
+    "aModel": "grok-4-20-non-reasoning",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "grok-4-20-non-reasoning",
+    "usage": {
+      "prompt_tokens": 1104,
+      "completion_tokens": 27,
+      "total_tokens": 1131,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Flash",
+    "archive": "charm-grok",
+    "unitKey": "text|news|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "grok-4-20-non-reasoning",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 1075,
+      "completion_tokens": 20,
+      "total_tokens": 1095,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "grok-4.3",
+    "archive": "charm-grok",
+    "unitKey": "text|news|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "grok-4-20-non-reasoning",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 1037,
+      "completion_tokens": 16,
+      "total_tokens": 1053,
+      "audio_prompt_tokens": 0,
+      "prompt_tokens_details": {
+        "cached_tokens": 140,
+        "audio_tokens": 0,
+        "text_tokens": 1037,
+        "image_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "num_sources_used": 0
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Pro",
+    "archive": "charm-grok",
+    "unitKey": "text|news|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "grok-4-20-non-reasoning",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 1075,
+      "completion_tokens": 29,
+      "total_tokens": 1104,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "gpt-5.6-terra",
+    "archive": "charm-grok",
+    "unitKey": "text|news|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "grok-4-20-non-reasoning",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "completion_tokens": 24,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 15,
+        "engine_ttft_ms": 155,
+        "engine_ttlt_ms": 515,
+        "pre_inference_ms": 206,
+        "service_tbt_ms": 18,
+        "service_ttft_ms": 607,
+        "service_ttlt_ms": 979,
+        "total_duration_ms": 822,
+        "user_visible_ttft_ms": 401
+      },
+      "prompt_tokens": 1045,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1069
+    }
+  },
+  {
+    "judge": "Mistral-Large-3",
+    "archive": "charm-luna",
+    "unitKey": "text|casual|0",
+    "order": 1,
+    "aModel": "openai/gpt-5.6-luna",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "A",
+    "newOverall": "openai/gpt-5.6-luna",
+    "usage": {
+      "prompt_tokens": 952,
+      "completion_tokens": 28,
+      "total_tokens": 980,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Pro",
+    "archive": "charm-luna",
+    "unitKey": "text|casual|0",
+    "order": 1,
+    "aModel": "openai/gpt-5.6-luna",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "A",
+    "newOverall": "openai/gpt-5.6-luna",
+    "usage": {
+      "prompt_tokens": 928,
+      "completion_tokens": 25,
+      "total_tokens": 953,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "grok-4.3",
+    "archive": "charm-luna",
+    "unitKey": "text|casual|0",
+    "order": 1,
+    "aModel": "openai/gpt-5.6-luna",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "A",
+    "newOverall": "openai/gpt-5.6-luna",
+    "usage": {
+      "prompt_tokens": 897,
+      "completion_tokens": 16,
+      "total_tokens": 913,
+      "audio_prompt_tokens": 0,
+      "prompt_tokens_details": {
+        "cached_tokens": 140,
+        "audio_tokens": 0,
+        "text_tokens": 897,
+        "image_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "num_sources_used": 0
+    }
+  },
+  {
+    "judge": "Mistral-Large-3",
+    "archive": "charm-grok",
+    "unitKey": "text|news|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "grok-4-20-non-reasoning",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 1103,
+      "completion_tokens": 29,
+      "total_tokens": 1132,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Pro",
+    "archive": "charm-luna",
+    "unitKey": "text|casual|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "openai/gpt-5.6-luna",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 927,
+      "completion_tokens": 32,
+      "total_tokens": 959,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "gpt-5.6-terra",
+    "archive": "charm-luna",
+    "unitKey": "text|casual|0",
+    "order": 1,
+    "aModel": "openai/gpt-5.6-luna",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "B",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "completion_tokens": 22,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 10,
+        "engine_ttft_ms": 169,
+        "engine_ttlt_ms": 397,
+        "pre_inference_ms": 238,
+        "service_tbt_ms": 13,
+        "service_ttft_ms": 800,
+        "service_ttlt_ms": 1009,
+        "total_duration_ms": 844,
+        "user_visible_ttft_ms": 562
+      },
+      "prompt_tokens": 913,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 935
+    }
+  },
+  {
+    "judge": "gpt-5.6-terra",
+    "archive": "charm-luna",
+    "unitKey": "text|casual|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "openai/gpt-5.6-luna",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "completion_tokens": 25,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 13,
+        "engine_ttft_ms": 126,
+        "engine_ttlt_ms": 444,
+        "pre_inference_ms": 147,
+        "service_tbt_ms": 14,
+        "service_ttft_ms": 742,
+        "service_ttlt_ms": 987,
+        "total_duration_ms": 948,
+        "user_visible_ttft_ms": 595
+      },
+      "prompt_tokens": 912,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 937
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Flash",
+    "archive": "charm-luna",
+    "unitKey": "text|casual|0",
+    "order": 1,
+    "aModel": "openai/gpt-5.6-luna",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "A",
+    "newOverall": "openai/gpt-5.6-luna",
+    "usage": {
+      "prompt_tokens": 928,
+      "completion_tokens": 24,
+      "total_tokens": 952,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "grok-4.3",
+    "archive": "charm-luna",
+    "unitKey": "text|casual|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "openai/gpt-5.6-luna",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 896,
+      "completion_tokens": 17,
+      "total_tokens": 913,
+      "audio_prompt_tokens": 0,
+      "prompt_tokens_details": {
+        "cached_tokens": 140,
+        "audio_tokens": 0,
+        "text_tokens": 896,
+        "image_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "num_sources_used": 0
+    }
+  },
+  {
+    "judge": "Mistral-Large-3",
+    "archive": "charm-luna",
+    "unitKey": "text|casual|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "openai/gpt-5.6-luna",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 951,
+      "completion_tokens": 30,
+      "total_tokens": 981,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "Mistral-Large-3",
+    "archive": "charm-luna",
+    "unitKey": "text|news|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "openai/gpt-5.6-luna",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 1068,
+      "completion_tokens": 30,
+      "total_tokens": 1098,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "gpt-5.6-terra",
+    "archive": "charm-luna",
+    "unitKey": "text|news|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "openai/gpt-5.6-luna",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "B",
+    "newOverall": "openai/gpt-5.6-luna",
+    "usage": {
+      "completion_tokens": 25,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 128,
+        "engine_ttlt_ms": 317,
+        "pre_inference_ms": 104,
+        "service_tbt_ms": 8,
+        "service_ttft_ms": 594,
+        "service_ttlt_ms": 779,
+        "total_duration_ms": 683,
+        "user_visible_ttft_ms": 491
+      },
+      "prompt_tokens": 1020,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1045
+    }
+  },
+  {
+    "judge": "grok-4.3",
+    "archive": "charm-luna",
+    "unitKey": "text|news|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "openai/gpt-5.6-luna",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 1016,
+      "completion_tokens": 16,
+      "total_tokens": 1032,
+      "audio_prompt_tokens": 0,
+      "prompt_tokens_details": {
+        "cached_tokens": 140,
+        "audio_tokens": 0,
+        "text_tokens": 1016,
+        "image_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "num_sources_used": 0
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Flash",
+    "archive": "charm-luna",
+    "unitKey": "text|news|0",
+    "order": 1,
+    "aModel": "openai/gpt-5.6-luna",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "A",
+    "newOverall": "openai/gpt-5.6-luna",
+    "usage": {
+      "prompt_tokens": 1045,
+      "completion_tokens": 26,
+      "total_tokens": 1071,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Pro",
+    "archive": "charm-luna",
+    "unitKey": "text|news|0",
+    "order": 1,
+    "aModel": "openai/gpt-5.6-luna",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "A",
+    "newOverall": "openai/gpt-5.6-luna",
+    "usage": {
+      "prompt_tokens": 1045,
+      "completion_tokens": 24,
+      "total_tokens": 1069,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Flash",
+    "archive": "charm-luna",
+    "unitKey": "text|news|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "openai/gpt-5.6-luna",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 1044,
+      "completion_tokens": 20,
+      "total_tokens": 1064,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "gpt-5.6-terra",
+    "archive": "charm-luna",
+    "unitKey": "text|news|0",
+    "order": 1,
+    "aModel": "openai/gpt-5.6-luna",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "A",
+    "newOverall": "openai/gpt-5.6-luna",
+    "usage": {
+      "completion_tokens": 26,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 12,
+        "engine_ttft_ms": 183,
+        "engine_ttlt_ms": 503,
+        "pre_inference_ms": 88,
+        "service_tbt_ms": 13,
+        "service_ttft_ms": 646,
+        "service_ttlt_ms": 957,
+        "total_duration_ms": 885,
+        "user_visible_ttft_ms": 558
+      },
+      "prompt_tokens": 1021,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1047
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Pro",
+    "archive": "charm-luna",
+    "unitKey": "text|news|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "openai/gpt-5.6-luna",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 1044,
+      "completion_tokens": 26,
+      "total_tokens": 1070,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "grok-4.3",
+    "archive": "charm-luna",
+    "unitKey": "text|news|0",
+    "order": 1,
+    "aModel": "openai/gpt-5.6-luna",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "newPickedSide": "A",
+    "newOverall": "openai/gpt-5.6-luna",
+    "usage": {
+      "prompt_tokens": 1017,
+      "completion_tokens": 16,
+      "total_tokens": 1033,
+      "audio_prompt_tokens": 0,
+      "prompt_tokens_details": {
+        "cached_tokens": 140,
+        "audio_tokens": 0,
+        "text_tokens": 1017,
+        "image_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "num_sources_used": 0
+    }
+  },
+  {
+    "judge": "DeepSeek-V4-Flash",
+    "archive": "charm-luna",
+    "unitKey": "text|casual|0",
+    "order": 0,
+    "aModel": "google/gemini-3.6-flash",
+    "bModel": "openai/gpt-5.6-luna",
+    "archivedOverall": "google/gemini-3.6-flash",
+    "newPickedSide": "A",
+    "newOverall": "google/gemini-3.6-flash",
+    "usage": {
+      "prompt_tokens": 927,
+      "completion_tokens": 23,
+      "total_tokens": 950,
+      "audio_prompt_tokens": 0
+    }
+  },
+  {
+    "judge": "Mistral-Large-3",
+    "archive": "charm-luna",
+    "unitKey": "text|news|0",
+    "order": 1,
+    "aModel": "openai/gpt-5.6-luna",
+    "bModel": "google/gemini-3.6-flash",
+    "archivedOverall": "openai/gpt-5.6-luna",
+    "harnessMiss": "error: The operation was aborted due to timeout"
+  }
+]
