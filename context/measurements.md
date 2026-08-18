@@ -906,3 +906,36 @@ chips all correctly skip — topic seeding needs one new onboarding
 question, ticketed), closeness card from the model's own band vocabulary.
 Deployed and verified serving 4/4. First real-user rel-state rows appear
 at tonight's cron; new signups get theirs at onboarding.
+
+---
+
+## `r5-clustered-cis` — the FAIL verdicts survive honest clustering (2026-08-18)
+
+The 96 judged units cluster on 12 beats; naive binomial CIs were
+anti-conservative. Cluster bootstrap (beat-level, 10,000 reps, seeded):
+CI widths move at most +3.1pp and every scorable judge stays FAIL against
+the 80% bar. The two rows that flip are the transport-invalid anthropic
+fragments (degenerate n) — already labeled, not results. Method file:
+docs/paper/analysis/clustered-cis.mjs, deterministic, coordinator-rerun
+identical. $0.
+
+## `r4-english-control` — translation does NOT rescue the judges; the failure is deeper than code-switching (2026-08-18)
+
+The causal control for the paper's original headline: same 96 units,
+faithfully machine-translated to monolingual English (spot-check 10 units,
+single rater, register/sarcasm/domain terms preserved), re-judged by the
+same five failed judges, same both-orders protocol, same ground truth.
+Recovery per judge: +6.6, +5.6, +3.7, +3.1, −3.1pp — ALL inside the
+project's own 13.6pp fab-noise-floor, every English CI overlapping its
+Hinglish CI, no judge near 80% in English either. Clean negative:
+code-switched register is NOT the mechanism; these judges fail at the
+affective companion judgment itself. Confound stated: the translator
+(terra) is a panel member — on this tenant every available translator is
+either a judge or an arm's author; carried as a limitation, not hidden.
+1,152 calls, ~1.23M tokens, Azure credits, $0 cash.
+
+**Coordinator framing directive from this result:** the paper retitles
+around the negative — the code-switching hypothesis was tested and
+refuted by its own control, which is the contribution. CALCS remains
+viable (a controlled refutation is squarely a code-switching result); the
+LLM-as-judge workshop becomes co-primary.

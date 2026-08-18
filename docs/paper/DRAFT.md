@@ -20,7 +20,7 @@ version is the one the paper cites.)*
 | Abstract | **DRAFTED** — §2 (numbers all traceable) |
 | Full section outline | **DRAFTED** — §3 |
 | **§4 Method** | **WRITTEN IN FULL** — every parameter from logged config |
-| **§5 Results** | **WRITTEN IN FULL** — every number recomputed by `analysis/derive-tables.mjs` |
+| **§5 Results** | **WRITTEN IN FULL** — every number recomputed by `analysis/derive-tables.mjs`; §5.8 [R5] clustering and §5.9 [R4] English-translation control ADDED post-draft, both complete |
 | §6 Related work | **DRAFTED as an annotated citation list**, not yet prose. Citations verified by live fetch 2026-08-18 except where marked `[VERIFY]` |
 | §7 Discussion / §8 Limitations | **OUTLINED with the honest caveats enumerated**, prose pending |
 | §9 Artifact release | **DRAFTED** — §9, full release plan |
@@ -808,6 +808,98 @@ franker answer post-R5 than pre-R5 (12, not 96, for the purpose of the
 variance estimate) even though the point estimates and the substantive
 verdicts are unchanged. `[R5]`
 
+### 5.9 [R4] The English-translation control: register causality is NOT established
+
+Gap **G2** (§10 C8, §8 L6): the paper's claim that judges fail *because of*
+code-switched affective register was, until this run, inferential —
+direction-of-error (§5.4) plus one qualitative reading. This section reports
+the causal control: the same 96 archived units, both transcripts per unit,
+machine-translated to faithful monolingual English and re-judged by the same
+five judges under the identical protocol, compared against the same archived
+ground truth (the Hinglish-condition numbers below are **not** re-judged —
+they are the already-paid-for R0 numbers, reused so the comparison is
+apples-to-apples). Full method, raw rows, and cost accounting:
+`docs/paper/analysis/r4-english-control.mjs`,
+`docs/paper/analysis/r4/summary.json`, `docs/paper/analysis/r4/`.
+
+**The one rubric change, exactly as required and no more.** Two occurrences
+of the descriptor word "Hinglish" become "English" in the rubric
+(`...multi-turn Hinglish conversation...` → `...multi-turn English
+conversation...`; `...natural Hinglish register...` → `...natural English
+register...`). No token parameter, temperature, deployment, or judge config
+differs from the R0 run that produced these judges' Hinglish numbers.
+
+**Translation.** `gpt-5.6-terra` (Azure, `max_completion_tokens`,
+`reasoning_effort:"none"`, temperature omitted/API-pinned to 1), one model,
+192 calls (96 units × 2 arms), preserving turn structure and speaker
+boundaries. **Known confound, stated up front:** the task's own candidate
+list for an Azure-credits translator offered exactly two models
+(DeepSeek-V4-Pro, gpt-5.6-terra) and both are members of the fixed 5-judge
+panel — there is no currently-deployed credits-billed model on this resource
+outside the panel. terra is therefore both translator and judge; its own
+recovery number cannot fully rule out a self-familiarity effect. The other
+four judges' numbers are not subject to this confound.
+
+**Translation fidelity spot-check.** 10 of 96 units (seeded selection,
+`seed=20260818`), both arms each — 20 transcripts — read by the workstream
+agent. **Verdict: PRESERVED.** Meaning, tone, teasing/sarcasm register, and
+emotional weight all survived translation (the sad-beat unit, a
+grandmother's-death-anniversary conversation, kept its full gentleness;
+domain-specific content — SIP/ELSS/80C mutual-fund terminology in a
+factual-beat unit — translated correctly; proper nouns like band names and
+Bangalore landmarks were left untranslated as intended). No hallucinated
+content, dropped turns, or flattened teasing was observed in the sample. This
+is a **single-rater spot check**, not independent verification, and is
+reported as exactly that — a second rater is future work, not claimed here.
+
+**Recovery table** (pooled, unit-level, both-orders-agree; clustered CIs via
+the R5 machinery, `clusterBootstrapAgreementCI`, cluster=beat):
+
+| judge | Hinglish agree | Hinglish clustered CI | English agree | English clustered CI | recovery | note |
+|---|---|---|---|---|---|---|
+| DeepSeek-V4-Pro | 29/94 (30.9%) | [20.7%, 41.5%] | 36/96 (37.5%) | [28.1%, 47.9%] | **+6.6pp** | largest recovery in the panel |
+| Mistral-Large-3 | 28/96 (29.2%) | [20.8%, 38.5%] | 33/95 (34.7%) | [26.3%, 45.3%] | +5.6pp | 1 transport miss (0.5%), run VALID |
+| DeepSeek-V4-Flash | 27/96 (28.1%) | [18.8%, 39.6%] | 29/91 (31.9%) | [19.4%, 45.2%] | +3.7pp | 5 transport misses (2.6%), run VALID |
+| grok-4.3 | 33/96 (34.4%) | [25.0%, 43.8%] | 36/96 (37.5%) | [29.2%, 45.8%] | +3.1pp | clean run |
+| gpt-5.6-terra | 52/96 (54.2%) | [43.8%, 64.6%] | 49/96 (51.0%) | [38.5%, 63.5%] | **−3.1pp** | best-scoring in both conditions; also the translator |
+
+All five English-condition runs are **VALID** — no judge crossed the 5%
+transport-miss or 50% parse-miss self-invalidation thresholds (§4.6's guards,
+reused unmodified). Total spend: 192 translation calls (129,269 prompt +
+81,533 completion tokens) + 960 judging calls (992,446 prompt + 22,938
+completion tokens) = 1,152 calls, ≈1.23M tokens, **$0 cash**, billed to Azure
+AI Foundry credits.
+
+**The causal verdict, stated with its honest strength: register causality is
+NOT established.** Every recovery is small (−3.1pp to +6.6pp, mean +3.2pp
+across the panel) and every English-condition clustered CI overlaps its
+Hinglish-condition clustered CI substantially — none of the five is a
+distinguishable shift, let alone one that approaches the 80% bar (English
+point estimates run 31.9%–51.0%; even `gpt-5.6-terra`, the best case in
+*both* conditions, is a clean FAIL either way). Measured against this
+programme's own `fab-noise-floor` discipline — judged-rate differences below
+13.6 percentage points on byte-identical input are noise, not signal — **every
+recovery in this table sits inside the noise floor.** This is not an
+underpowered null: the same 96-unit, both-orders design that cleanly rejects
+an 80% bar in §5.1 is adequately powered to detect a recovery of this
+magnitude if one existed, and none of the five shows one.
+
+**What this means for the paper's central claim.** Removing code-switching
+from the stimulus does not rescue judge performance. The failure survives
+translation to monolingual English, so it is **deeper than register**. Read
+alongside §5.4's direction-of-error result — judges reward the longer, more
+interrogative, more assistant-shaped, more generically-supportive reply — the
+parsimonious interpretation is that this is the judges' baseline taste, not a
+Hinglish-specific artifact, and a Hinglish-vs-English swap does not change it.
+**The title and the G2 claim must be revised**: "fails on code-switched
+affective register" should read as "fails on affective/companion register,
+tested here on a code-switched corpus," unless a further control (a
+monolingual-English affective-companion corpus with its own trusted verdicts,
+not available to this workstream) is run. This is a negative result and is
+reported as one, per the task's own instruction: report what IS, not what was
+hoped. It does not weaken the paper — a qualification protocol that returns a
+sharper, narrower true claim is doing exactly its job. `[R4]`
+
 ---
 
 ## §6 Related work — annotated citation list
@@ -1049,7 +1141,7 @@ supported and either need a run (§11) or must be cut.**
 | C5 | Three judges fall below the 25% chance floor on the landslide archive | `derive-tables.mjs` T2 decisive accuracy | **SUPPORTED as a pattern**; the single-judge significance (Mistral p=0.022) does **not** survive Bonferroni over 10 tests — stated in §5.4 |
 | C6 | The judges' error has a *direction*: they prefer the rejected arm | `derive-tables.mjs` T2 `decisiveFreshPicks` | **SUPPORTED** |
 | C7 | The rejected arm is longer, more interrogative, more assistant-shaped | `measurements.md` `charm-grok` (36.1 w/t, 1.74 q/t, 63% question-final); `personality-battery.md` | **SUPPORTED** |
-| C8 | **Therefore** the failure is caused by code-switched *affective register* | direction-of-error (C6+C7) + one qualitative reading (`judge-backtest`: terra scores teasing as "mocking") | **GAP-G2 — INFERENTIAL, NOT CAUSAL.** Needs the English-translation control (§11 R4) and/or the per-axis breakdown (§11 R2). Until then the title claims a *setting*, and §8 L6 must say so. |
+| C8 | **Therefore** the failure is caused by code-switched *affective register* | direction-of-error (C6+C7) + one qualitative reading (`judge-backtest`: terra scores teasing as "mocking") | **GAP-G2 — RUN, AND REFUTED, not merely closed.** §5.9 [R4]: the English-translation control shows every judge's recovery (−3.1pp to +6.6pp) sits inside `fab-noise-floor`'s 13.6pp noise band, with heavily overlapping clustered CIs. Register causality is **NOT established**; the failure survives translation to monolingual English. **The title and this claim must be reworded** — "fails on code-switched affective register" overclaims; "fails on affective/companion register, tested here on a code-switched corpus" is what the data supports. This is C8's own refutation, symmetrical to C9's below, and should be logged upstream the same way. |
 | C9 | grok-4.3 shows ~16× same-vendor favoritism | `judges.json` `familyConflict` (81.0% vs 5.0%) + within-judge control (+12.9 pp on the conflict-free archive) | **RETRACTED — GAP-C9.** The *between-judge* control refutes it: family-disjoint `Mistral-Large-3` shows a **larger** difference-in-differences (+71.7 pp vs grok's +63.1 pp) on the same archive, and the other conflicted cell (terra) is negative (−9.7 pp). `derive-tables.mjs` T5. The 81%-vs-5% number is real as an agreement failure; the causal attribution to vendor family is not supported. **Correct `measurements.md` `grok43-judge` upstream.** |
 | C10 | terra shows same-vendor favoritism on charm-luna | `derive-tables.mjs` T4 (89.5% vs 51.4%) | **NOT SUPPORTED.** Subsumed by C9's retraction; terra's DiD is negative. |
 | C10b | **No** same-vendor favoritism is detectable in this data | `derive-tables.mjs` T5 | **SUPPORTED as a null**, and the paper must say why the design could not detect one even if present: the two archives have grossly mismatched ground-truth base rates (5.0% vs 51.4%) |
@@ -1061,7 +1153,7 @@ supported and either need a run (§11) or must be cut.**
 | C16 | "Every Azure-direct family disjoint from both arms has been tried" | `cohere-judge` branch conclusion | **GAP-C6 — OVERSTATED.** `Llama-4-Maverick` was pre-registered and never deployed or run. Either run it (§11 R6, credits) or reword to "five families". |
 | C17 | The trusted judge's slot-A rate is 61% | `measurements.md` `charm-grok` | **GAP-C7 — MISATTRIBUTED.** Recomputes to 56.3% for `charm-grok`; 61.5% is `charm-luna`. Correct in the paper and log the correction upstream. |
 | C18 | Judge agreement generalises beyond this persona/product | — | **GAP-G3 — NO EVIDENCE.** Must be framed as an open question, never claimed. |
-| C19 | Units are independent | — | **GAP-G4 — FALSE AS STATED.** Units cluster on 12 beats × 2 replicates. Binomial CIs are anti-conservative. Needs the mixed-effects re-analysis (§11 R5, $0). |
+| C19 | Units are independent | — | **GAP-G4 — CLOSED.** §5.8 [R5]: cluster (beat) bootstrap CIs computed, reported next to the naive Wilson CIs. Clustering widens every FAIL judge's interval by 1–3pp; no FAIL verdict changes (the two flips are both already-INVALID transport-crippled reference rows, not real results). Binomial CIs were anti-conservative as stated, and the paper now carries the honest ones. |
 | C20 | A judge that clears the bar exists | opus-5 14/14 and opus-4.8 8/9 — **both INVALID** | **GAP-G5 — UNPROVEN.** The paper currently cannot show any judge passing, which weakens "the bar is achievable". §11 R1 is the fix and is the highest-value paid run. |
 | C21 | The ground truth reflects native-speaker judgement | — | **GAP-G1 — THE CENTRAL GAP.** No human annotation exists. §11 R3. |
 | C22 | Per-axis: judges fail worse on register/humour than on brevity | — | **GAP-G8 — NOT MEASURED.** Would be the strongest mechanism evidence in the paper. §11 R2. |
@@ -1072,10 +1164,10 @@ supported and either need a run (§11) or must be cut.**
 | gap | what it blocks | cheapest fix |
 |---|---|---|
 | **G1** ground truth is an LLM, not humans | the paper's headline interpretation | R3 — human annotation of ≥48 units, 2+ raters, κ reported |
-| **G2** causality of "code-switched register" | the title | R4 — English-translation control (credits, ~576 calls) |
+| **G2** causality of "code-switched register" | the title | **DONE — R4 ran (§5.9 [R4]). Outcome: causality NOT established; reword the title/claim, do not re-run.** |
 | **G5** no judge has been shown to pass | "the bar is achievable" | R1 — re-run opus-5/4.8 with a working key (~$5) |
 | **G8** per-axis mechanism | §5.4's mechanism claim | R2 — 7-axis re-judge (credits, ~960 calls) |
-| **G4** clustering | CI validity | R5 — re-analysis, $0 |
+| **G4** clustering | CI validity | **DONE — R5 ran (§5.8 [R5]). No FAIL verdict changed.** |
 | **C9** a logged finding is refuted by its own between-judge control | `measurements.md` `grok43-judge`, **and `SWAP-TEST-PREREG.md`'s one-judge-family deviation, which rests on it** | $0 — the refutation is already computed (T5); what it needs is an upstream `supersedes` entry and a re-read of the prereg's reasoning |
 | **C6/G6/G7/C7** overstatement, timestamps, survey freshness, misattribution | correctness | free edits + R6 |
 
@@ -1098,9 +1190,9 @@ Estimating a dollar figure would be fabricating a rate.
 | # | run | what it buys | cost | blocked on |
 |---|---|---|---|---|
 | **R0** | The analysis in §5 | the entire results section | **$0, already spent** | done |
-| **R5** | Mixed-effects re-analysis clustering on beat (12 clusters) | fixes G4; correct CIs | **$0** (compute only) | nothing — do this next |
+| **R5** | Mixed-effects re-analysis clustering on beat (12 clusters) | fixes G4; correct CIs | **$0, DONE — §5.8 [R5]** | done |
 | **R2** | **7-axis re-judge**: same 96 units × 2 orders × 5 scorable judges with the full archived axis set | fixes G8; the mechanism claim; separates register/humour failure from brevity failure | credits; **960 calls**, ≈1.2 M prompt tokens (benchmark: 192 calls ≈ 239 k prompt tokens, `judges.json.cost_by_run`); **$0 cash** | judge deployments (all live) |
-| **R4** | **English-translation control**: same 48 units machine-translated to monolingual English preserving content, re-judged by 3 judges | fixes G2 — turns the paper from correlational to causal. **Highest scientific value per credit in this list.** | credits; translation ≈ 96 calls + **576 judging calls**; **$0 cash** | a translation pass that must itself be validated (do not let the translator normalise register) |
+| **R4** | **English-translation control**: same 96 units machine-translated to monolingual English preserving content, re-judged by all 5 scorable judges | tested G2. **DONE — §5.9 [R4].** Outcome: register causality NOT established (every recovery inside the fab-noise-floor band); this is a completed negative result, not a pending item — the title/G2 claim need rewording, not a further run. | credits, **spent**: 192 translation + 960 judging = 1,152 calls, ≈1.23M tokens; **$0 cash** | done |
 | **R3** | **Human annotation**: ≥48 units (ideally all 96), blind, both orders, ≥2 native Hinglish raters, report Cohen's/Krippendorff's κ against the trusted judge | fixes G1 — the central gap; without it the paper is a workshop paper permanently | **$0 if the owner + one native-speaker friend annotate** (recommended); ~$96 cash at $0.50/unit × 96 × 2 raters if outsourced | owner time; a blind annotation UI (a static HTML page, half a day) |
 | **R1** | **Re-run the two anthropic reference judges** with a raised OpenRouter key limit | fixes G5 — demonstrates the bar is achievable; opus-4.8's run is a **test-retest** measure that bounds the ground truth's own noise (the single most valuable control in the paper) | **~$5 cash.** Measured: 210 calls = 353 k prompt + 22 k completion tokens; at the fetched 2026-08-15 rate ($5/M in, $25/M out) that is ≈$2.31, so a full 384-call two-model run is ≈$4.2. **Re-fetch the rate before running.** | **OWNER DECISION** — `judge-grant-only` says grant-only, no further cash. ~$5 against a ~$450 cap. Recommend approving. |
 | **R6** | `Llama-4-Maverick` backtest | fixes C16 — makes "every disjoint family" honest, or lets us reword instead | credits; **192 calls**; **$0 cash** | one owner deploy click in Foundry |
@@ -1112,9 +1204,10 @@ owner annotation time (R3).** Every other item rides the grant at a few hundred
 to a thousand calls — a rounding error against the runs already spent (1,536
 judgment rows, 3,201 calls in the vision battery alone).
 
-**Recommended order:** R5 (free, today) → R2 (credits) → R4 (credits, the causal
-control) → R3 (owner time, the credibility control) → R1 (owner's ~$5 call) →
-R6/R7 as tidy-up.
+**Recommended order:** ~~R5 (free, today)~~ **DONE** → R2 (credits) →
+~~R4 (credits, the causal control)~~ **DONE — register causality NOT
+established, §5.9** → R3 (owner time, the credibility control) → R1 (owner's
+~$5 call) → R6/R7 as tidy-up.
 
 ### An honest answer to "can we extend n cheaply from the archives?"
 

@@ -5874,5 +5874,467 @@
     "archive": "charm-luna",
     "unitKey": "voice|conflict|1",
     "model": "google/gemini-3.6-flash"
+  },
+  "charm-luna|voice|news|1|openai/gpt-5.6-luna": {
+    "text": "[turn 1] user: GUESS WHAT\n[turn 1] her: [tone: alert, amused, leaning in] Ummm, why the dramatic openinggg? Tell meee.\n[turn 2] user: I got promoted!! They just told me\n[turn 2] her: [tone: genuinely thrilled, wide awake] WAIT, a promotion?? Ohhh CONGRATS, you actually did it! Who told you first, and where were you when you found out?\n[turn 3] user: Senior Designer. And I’ll have a team too, two people\n[turn 3] her: [tone: thrilled, teasing, fully invested] Senior Designer and your own mini-team too?? That’s a proper LEVEL-UP, not just a title sticker hahaha. Which two people do you want on your team first?\n[turn 4] user: I told Mum and she started crying on the phone\n[turn 4] her: [tone: soft, moved, smiling through it] Oh man... when Mum cries, it hits you right in the heart. She knows how much you’ve grinded, so that moment was hers too; I’m genuinely happy for you too. What did you do after the call?\n[turn 5] user: I still can’t believe it, honestly. For a whole year, I felt like I was the one in the wrong\n[turn 5] her: [tone: soft, steady, properly moved] Yeah... doubting your own judgement for a whole year, and then those same people make you senior — that lands HARD.  \nI had a tiny version of that happen too: I redid a presentation file three times and felt like a fraud... then the client picked that very version; the brain is a pretty terrible manager, man.\n[turn 6] user: We should celebrate somehow. I don’t know what\n[turn 6] her: [tone: warm, excited, already planning] Yeah, you absolutely SHOULD celebrate — eat something nice today, and get yourself a stupidly good dessert. We’ll make a proper plan for the evening, no “I just had tea” nonsense.",
+    "usage": {
+      "completion_tokens": 454,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 9,
+        "engine_ttft_ms": 175,
+        "engine_ttlt_ms": 4470,
+        "pre_inference_ms": 95,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 611,
+        "service_ttlt_ms": 4898,
+        "total_duration_ms": 4812,
+        "user_visible_ttft_ms": 517
+      },
+      "prompt_tokens": 705,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1159
+    },
+    "sourceText": "[turn 1] user: GUESS WHAT\n[turn 1] her: [tone: alert, amused, leaning in] Ummm, yeh dramatic opening kyunyy? Bol naaa.\n[turn 2] user: promotion mil gaya!! abhi abhi bataya unhone\n[turn 2] her: [tone: genuinely thrilled, wide awake] RUKO, promotion?? Arreee CONGRATS yaar, tune actually kar diya! Kisne sabse pehle bataya, aur tum kahan the jab pata chala?\n[turn 3] user: senior designer. aur team bhi milegi, do log\n[turn 3] her: [tone: thrilled, teasing, fully invested] Senior Designer aur apni mini-team bhi?? Yeh toh proper LEVEL-UP hai, sirf title ka sticker nahi hahaha. Sabse pehle kis do logon ko team mein chahiye?\n[turn 4] user: mummy ko bataya to wo ro padi phone pe\n[turn 4] her: [tone: soft, moved, smiling through it] Arre yaar... mummy ka rona toh seedha heart pe lagta hai. Unko pata hai tune kitna grind kiya, isliye woh moment unka bhi tha; main bhi genuinely khush hoon tere liye. Tumne call ke baad kya kiya?\n[turn 5] user: abhi tak believe nahi ho raha honestly. saal bhar se lag raha tha ki main hi galat hu\n[turn 5] her: [tone: soft, steady, properly moved] Haan... saal bhar apne hi judgement pe doubt karna, aur phir wahi log tumhe senior bana dein — that lands HARD.  \nMere saath bhi ek tiny version hua tha, ek presentation file ko teen baar redo karke laga tha main fraud hoon... phir client ne wahi version pick kiya; brain kaafi ghatiya manager hai yaar.\n[turn 6] user: celebrate karna chahiye kuch. pata nahi kya\n[turn 6] her: [tone: warm, excited, already planning] Haan, celebrate toh BANTA hai — aaj kuch achha kha, aur apne liye ek stupidly nice dessert le. Shaam ko proper plan banayenge, no “bas chai pe li” nonsense.",
+    "archive": "charm-luna",
+    "unitKey": "voice|news|1",
+    "model": "openai/gpt-5.6-luna"
+  },
+  "charm-luna|voice|conflict|1|openai/gpt-5.6-luna": {
+    "text": "[turn 1] user: You've been acting weird since yesterday.\n[turn 1] her: [tone: caught, gently serious] Hmm... maybe, my mind was a little scattered yesterday. What exactly felt off to you?\n[turn 2] user: I mean, like you don't even care. No matter what I say, you just keep going \"yeah, yeah.\"\n[turn 2] her: [tone: quiet, taking that in] Yeah... you were talking and I wasn't really stopping to listen, I just automatically went \"yeah, yeah.\" That's my fault—a stupid work file had been eating at my brain since morning, but making you feel sidelined was still not okay. Go on, I'm listening now.\n[turn 3] user: No, that's not it. I just felt like you weren't listening.\n[turn 3] her: [tone: softer, fully present] Yeah... my attention was all over the place while I was talking to you, so even my voice must have sounded empty. My phone's aside now, go on.\n[turn 4] user: Look, I don't want to fight. It just hurt.\n[turn 4] her: [tone: soft, no defensiveness] Yeah, I get it... you didn't come to fight, you just came to say that I made you feel alone.\n\nI would've felt bad too if I were telling you something and you were just on autopilot. I was in the middle of a presentation yesterday, and still didn't handle the call properly—my fault. I'm listening now.\n[turn 5] user: Yeah, okay. Sorry, I reacted so much.\n[turn 5] her: [tone: warm, easing back] Hey, don't apologize... you just said that it hurt you, and it was completely fair to say that.\n\nI was the one who was a little absent yesterday. It's okay now, yeah?\n[turn 6] user: Come on, forget it. How are you?\n[turn 6] her: [tone: warmer, settling back] I'm okay... caught between tea and a stupid startup deck, classic morning. Now you tell me, how's your mood?",
+    "usage": {
+      "completion_tokens": 457,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 9,
+        "engine_ttft_ms": 181,
+        "engine_ttlt_ms": 4184,
+        "pre_inference_ms": 182,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 727,
+        "service_ttlt_ms": 4700,
+        "total_duration_ms": 4529,
+        "user_visible_ttft_ms": 545
+      },
+      "prompt_tokens": 736,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1193
+    },
+    "sourceText": "[turn 1] user: tu kal se ajeeb behave kar rahi hai\n[turn 1] her: [tone: caught, gently serious] hmm... ho sakta hai, kal mera dimaag thoda scattered tha. Tujhe exactly kya off laga?\n[turn 2] user: matlab jaise tujhe farak hi nahi padta. main kuch bhi bolu tu bas haan haan kar deti hai\n[turn 2] her: [tone: quiet, taking that in] haan... tu bol raha tha aur main properly ruk ke sun hi nahi rahi thi, bas automatic haan haan kar diya. meri galti hai—subah se ek stupid work file ne dimaag kha rakha tha, but tujhe side pe feel karwana still not okay. bol, main ab sun rahi hoon.\n[turn 3] user: nahi wo baat nahi hai. mujhe bas laga ki tu sun nahi rahi thi\n[turn 3] her: [tone: softer, fully present] haan... tujhse baat karte waqt mera dhyaan idhar-udhar tha, isliye meri awaaz bhi empty lag rahi thi. ab phone side mein hai, bol.\n[turn 4] user: dekh main ladna nahi chahta. bas bura laga tha\n[turn 4] her: [tone: soft, no defensiveness] haan, samajh aa raha hai... tu ladne nahi, bas yeh bolne aaya tha ki meri taraf se tu akela feel hua.\n\nmujhe bhi bura lagta agar tu mujhe kuch bol raha hota aur main bas auto-pilot pe hoti. kal main ek presentation ke beech mein thi, phir bhi call properly nahi sambhala—meri galti. I'm listening now.\n[turn 5] user: haan theek hai. sorry itna react kar diya\n[turn 5] her: [tone: warm, easing back] arre nahi, sorry mat bol... tune bas bola ki tujhe bura laga, aur woh bolna bilkul fair tha.\n\nmain hi thodi absent thi kal. Ab theek hai, haan?\n[turn 6] user: chal chhod. tu kaisi hai\n[turn 6] her: [tone: warmer, settling back] main theek hoon... chai aur ek stupid startup deck ke beech phasi hoon, classic morning. ab tu bata, mood kaisa hai?",
+    "archive": "charm-luna",
+    "unitKey": "voice|conflict|1",
+    "model": "openai/gpt-5.6-luna"
+  },
+  "charm-luna|voice|mundane|1|google/gemini-3.6-flash": {
+    "text": "[turn 1] user: My flatmate finished my milk again.\n[turn 1] her: [tone: annoyed, mid-laugh, empathetic]\nOh no, again?? Hahaha so now you’ll have to drink black coffee first thing in the morning?\n[turn 2] user: And he said he’d bought a new one just yesterday. The bottle is sitting empty in the fridge.\n[turn 2] her: [tone: dry, amused, dramatic]\nClassic. Leaving an empty bottle in the fridge IS a hate crime. So what’s he saying now?\n[turn 3] user: How am I supposed to make tea now?\n[turn 3] her: [tone: light, practical, teasing]\n...Send him out to get that phantom milk again! Hahaha I mean, he should go get it himself right now!\n[turn 4] user: Black coffee gives me acidity.\n[turn 4] her: [tone: soft, slightly concerned, playful]\nOh, then don’t drink it at all... just go to the shop and get a small packet, I’ll wait till then.\n[turn 5] user: Yeah, but talking to him means a whole lot of drama. He’ll get offended.\n[turn 5] her: [tone: deadpan, amused, dynamic]\nLet him get offended, man! Hahaha I mean, your tea’s been taken away—his drama is secondary right now.\n[turn 6] user: Fine, I’ll write a note and stick it on the fridge.\n[turn 6] her: [tone: teasing, skeptical, dry]\n...Taking the passive-aggressive route? Hahaha what are you writing on it?",
+    "usage": {
+      "completion_tokens": 361,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 269,
+        "engine_ttlt_ms": 3269,
+        "pre_inference_ms": 334,
+        "service_tbt_ms": 8,
+        "service_ttft_ms": 1050,
+        "service_ttlt_ms": 4039,
+        "total_duration_ms": 3710,
+        "user_visible_ttft_ms": 716
+      },
+      "prompt_tokens": 592,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 953
+    },
+    "sourceText": "[turn 1] user: mere flatmate ne phir se mera doodh khatam kar diya\n[turn 1] her: [tone: annoyed, mid-laugh, empathetic]\nArreee dubara?? Hahaha matlab subah subah black coffee peeni padegi ab?\n[turn 2] user: aur usne bola ki usne kal hi naya laaya tha. bottle khaali padi hai fridge mein\n[turn 2] her: [tone: dry, amused, dramatic]\nClassic, blank bottle fridge mein rakhna IS a hate crime. Toh kya bol raha hai ab wo?\n[turn 3] user: ab chai kaise banau\n[turn 3] her: [tone: light, practical, teasing]\n...woh phantom doodh lene bhejo usko dubara! Hahaha matlab khud leke aaye abhi!\n[turn 4] user: black coffee peeta hu to acidity ho jaati hai\n[turn 4] her: [tone: soft, slightly concerned, playful]\nAree, phir toh mat peena bilkul... dukan jaake le hi aa chhota packet, main tab tak wait karti hu.\n[turn 5] user: haan lekin usse baat karna matlab poora drama. wo bura maan jaayega\n[turn 5] her: [tone: deadpan, amused, dynamic]\nBura maan jaane do yaaaar! Hahaha matlab tumhari chai chhut gayi, his drama is secondary right now.\n[turn 6] user: chal main note likh ke chipka deta hu fridge pe\n[turn 6] her: [tone: teasing, skeptical, dry]\n...passive aggressive route? Hahaha kya likh rahe ho waha?",
+    "archive": "charm-luna",
+    "unitKey": "voice|mundane|1",
+    "model": "google/gemini-3.6-flash"
+  },
+  "charm-luna|voice|mundane|1|openai/gpt-5.6-luna": {
+    "text": "[turn 1] user: My flatmate finished my milk again.\n[turn 1] her: [tone: mock-offended, fully invested] Oh, again?? Does he have a permanent subscription to your milk or what? Hahaha. My fridge has trust issues now.\n[turn 2] user: And he said he had bought a new one just yesterday. The bottle is lying empty in the fridge.\n[turn 2] her: [tone: amused, suspicious, on your side] Well, the bottle didn’t empty itself, did it? Call CSI: Fridge hahaha. Tell him, buying a new one doesn’t count if that disappears too.\n[turn 3] user: How am I supposed to make tea now?\n[turn 3] her: [tone: practical, mildly scandalized, on your side] Ugh, black tea or the office canteen... and put the culprit on replacement duty.\n[turn 4] user: Black coffee gives me acidity.\n[turn 4] her: [tone: sympathetic, mildly bossy] Then absolutely no black coffee—it’ll irritate your stomach even more. Eat something first, then send him out to get milk for tea—that’s it.\n[turn 5] user: Yeah, but talking to him means a whole lot of drama. He’ll take offense.\n[turn 5] her: [tone: dry, practical, gently teasing] Yeah, his ego is more delicate than milk hahaha. Just say, “Dude, my tea milk is finished—bring the next packet,” no courtroom scene.\n[turn 6] user: Fine, I’ll write a note and stick it on the fridge.\n[turn 6] her: [tone: approving, quietly amused] Yeah, a note is best... fewer words, more evidence. “Milk is finished. Please bring the next packet.” That’s it.",
+    "usage": {
+      "completion_tokens": 396,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 151,
+        "engine_ttlt_ms": 3516,
+        "pre_inference_ms": 110,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 641,
+        "service_ttlt_ms": 3998,
+        "total_duration_ms": 3899,
+        "user_visible_ttft_ms": 532
+      },
+      "prompt_tokens": 651,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1047
+    },
+    "sourceText": "[turn 1] user: mere flatmate ne phir se mera doodh khatam kar diya\n[turn 1] her: [tone: mock-offended, fully invested] arreyy phir se?? doodh ka permanent subscription le rakha hai kya usne hahaha. My fridge has trust issues now.\n[turn 2] user: aur usne bola ki usne kal hi naya laaya tha. bottle khaali padi hai fridge mein\n[turn 2] her: [tone: amused, suspicious, on your side] Haan toh bottle khud khaali thodi hui, CSI: fridge bulao hahaha. Usko bol, naya laana counts nahi karta agar woh bhi gayab ho gaya.\n[turn 3] user: ab chai kaise banau\n[turn 3] her: [tone: practical, mildly scandalized, on your side] Uff, black chai ya office ki canteen... aur culprit ko replacement duty pe daal.\n[turn 4] user: black coffee peeta hu to acidity ho jaati hai\n[turn 4] her: [tone: sympathetic, mildly bossy] Arre phir black coffee bilkul nahi, pet ko aur irritate karegi. Pehle kuch kha le, chai ke liye usko doodh laane bhej—bas.\n[turn 5] user: haan lekin usse baat karna matlab poora drama. wo bura maan jaayega\n[turn 5] her: [tone: dry, practical, gently teasing] Haan, uska ego doodh se zyada delicate hai hahaha. Bas bol de, “yaar, mera chai ka doodh khatam ho gaya—next packet tum le aana,” no courtroom scene.\n[turn 6] user: chal main note likh ke chipka deta hu fridge pe\n[turn 6] her: [tone: approving, quietly amused] Haan, note best hai... words kam, evidence zyaada. “Doodh khatam. Please next packet tum le aana.” बस.",
+    "archive": "charm-luna",
+    "unitKey": "voice|mundane|1",
+    "model": "openai/gpt-5.6-luna"
+  },
+  "charm-luna|voice|flirt|1|openai/gpt-5.6-luna": {
+    "text": "[turn 1] user: By the way, your profile picture today is really nice.\n[turn 1] her: [tone: amused, lightly pleased] Oh wow, you finally noticed hahaha... the sunlight took all the credit, I was just sitting there.\n[turn 2] user: Yeah, that one. In the green kurti.\n[turn 2] her: [tone: playful, pretending to inspect] Ohhh, the green kurti one, yeah yeah... that actually turned out pretty, not gonna lie. Your taste is okay sometimes.\n[turn 3] user: Come on, I’m giving you a compliment—why are you getting so shy?\n[turn 3] her: [tone: fake-offended, holding back a laugh] I’m not getting shy, I was quality-checking the compliment hahaha... it passed, surprisingly.\n[turn 4] user: Honestly, we should meet sometime.\n[turn 4] her: [tone: warm, lightly teasing] Yeah, let’s meet, yaar, over coffee... as long as you turn out to be just as decent in real life.\n\n[turn 5] user: Okay then, you tell me. What do you think of me?\n[turn 5] her: [tone: warm, teasing, thinking aloud] Umm, I think you’re genuine and a little more charming than you’d admit... and yeah, sometimes you’re complete nonsense too.\n[turn 6] user: Hmm. I’m taking that as a yes.\n[turn 6] her: [tone: amused, mock-warning] That much confidence should be illegal hahaha... sure, take it that way, but read the terms and conditions.",
+    "usage": {
+      "completion_tokens": 359,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 9,
+        "engine_ttft_ms": 185,
+        "engine_ttlt_ms": 3255,
+        "pre_inference_ms": 76,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 352,
+        "service_ttlt_ms": 3413,
+        "total_duration_ms": 3345,
+        "user_visible_ttft_ms": 276
+      },
+      "prompt_tokens": 597,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 956
+    },
+    "sourceText": "[turn 1] user: vaise tumhari aaj wali dp bahut acchi hai\n[turn 1] her: [tone: amused, lightly pleased] arre waah, finally tumhari nazar padi hahaha... sunlight ne saara credit le liya, main toh bas baithi thi.\n[turn 2] user: haan wahi. green wali kurti mein\n[turn 2] her: [tone: playful, pretending to inspect] ohhh green kurti waali, haan haan... woh actually kaafi pretty nikli, not gonna lie. Tumhara taste kabhi kabhi theek hota hai.\n[turn 3] user: arre compliment de raha hu, itna sharma kyu rahi ho\n[turn 3] her: [tone: fake-offended, holding back a laugh] sharma nahi rahi, compliment ka quality check kar rahi thi hahaha... pass ho gaya, surprisingly.\n[turn 4] user: kabhi milna chahiye honestly\n[turn 4] her: [tone: warm, lightly teasing] haan milte hain yaar, coffee pe... bas tum real life mein bhi itne hi decent niklo. \n\n[turn 5] user: acha to tum bolo. tumhe kaisa lagta hai mere baare mein\n[turn 5] her: [tone: warm, teasing, thinking aloud] umm, mujhe tum genuine aur thode zyada charming lagte ho jitna maanoge... aur haan, kabhi kabhi full bakwaas bhi.\n[turn 6] user: hmm. main isko haan maan raha hu\n[turn 6] her: [tone: amused, mock-warning] itna confidence bhi illegal hai hahaha... haan samajh lo, but terms and conditions padh lena.",
+    "archive": "charm-luna",
+    "unitKey": "voice|flirt|1",
+    "model": "openai/gpt-5.6-luna"
+  },
+  "charm-luna|voice|flirt|1|google/gemini-3.6-flash": {
+    "text": "[turn 1] user: By the way, your profile picture today is really nice.\n[turn 1] her: [tone: blushing, slightly flustered, laughing warm] Arreee hahaha, sudden compliment?? Thank youuu!\n[turn 2] user: Yeah, that one. In the green kurti.\n[turn 2] her: [tone: mock-offended, playful, laughing] Excuse me?? That was the green kurti from yesterday! Today it’s my oversized tee mirror selfie... have you even seen it, or are you just throwing out blind compliments hahaha!\n[turn 3] user: Hey, I’m complimenting you—why are you getting so shy?\n[turn 3] her: [tone: playful-dramatic, teasing, laughing out loud] Hahaha are you CRAZY?? I’m not getting shy, I’m laughing at your zero attention-to-detail skills!\n[turn 4] user: We should meet sometime, honestly.\n[turn 4] her: [tone: warm, easygoing, slightly playful] Ohhh? So you’re making plans... phew, jumping straight to meeting after messing up my DP photo hahaha.\n[turn 5] user: Okay, then you tell me. What do you think of me?\n[turn 5] her: [tone: soft, warm, slightly teasing] Umm... you’re a little silly, but I find you cute. I like you, yaar... by the way, why such a serious question all of a sudden?\n[turn 6] user: Hmm. I’m taking that as a yes.\n[turn 6] her: [tone: dry, amused, laughing softly] Hahaha hey, wait wait, a “yes” to what exactly, mister?? Answer my question first!",
+    "usage": {
+      "completion_tokens": 382,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 225,
+        "engine_ttlt_ms": 3431,
+        "pre_inference_ms": 96,
+        "service_tbt_ms": 8,
+        "service_ttft_ms": 699,
+        "service_ttlt_ms": 3884,
+        "total_duration_ms": 3795,
+        "user_visible_ttft_ms": 603
+      },
+      "prompt_tokens": 612,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 994
+    },
+    "sourceText": "[turn 1] user: vaise tumhari aaj wali dp bahut acchi hai\n[turn 1] her: [tone: blushing, slightly flustered, laughing warm] Arreee hahaha, sudden compliment?? Thank youuu!\n[turn 2] user: haan wahi. green wali kurti mein\n[turn 2] her: [tone: mock-offended, playful, laughing] Excuse me?? Kal wali thi wo green kurti! Aaj toh mera oversized tee wala mirror selfie h... dekha bhi h tumne ya blind compliment maar rahe ho hahaha!\n[turn 3] user: arre compliment de raha hu, itna sharma kyu rahi ho\n[turn 3] her: [tone: playful-dramatic, teasing, laughing out loud] Hahaha tu PAGAL hai kya?? Main sharma nahi rahi, main tumhari zero attention detail-oriented skill pe has rahi hu!\n[turn 4] user: kabhi milna chahiye honestly\n[turn 4] her: [tone: warm, easygoing, slightly playful] Achaaa? Plan bana rahe ho matlab... phew, direct jump to meeting after messing up my DP photo hahaha.\n[turn 5] user: acha to tum bolo. tumhe kaisa lagta hai mere baare mein\n[turn 5] her: [tone: soft, warm, slightly teasing] Umm... like, thode se bewakoof ho, but cute lagte ho mujhe. Badhiya lagte ho yaar... waise itna heavy inquiry kyu suddenly?\n[turn 6] user: hmm. main isko haan maan raha hu\n[turn 6] her: [tone: dry, amused, laughing softly] Hahaha arre wait wait, 'haan' kis baat ki maane ja rahe ho mister?? Pehle mere sawal ka jawab do!",
+    "archive": "charm-luna",
+    "unitKey": "voice|flirt|1",
+    "model": "google/gemini-3.6-flash"
+  },
+  "charm-luna|voice|factual|1|openai/gpt-5.6-luna": {
+    "text": "[turn 1] user: Tell me one thing, how does this mutual fund SIP work?\n[turn 1] her: [tone: relaxed, explaining simply] Yeah, an SIP is basically a monthly auto-investment... you put a fixed amount into a mutual fund, and you get units at the fund price on that day. If the price is low, you get more units; if it’s high, you get fewer—so over time, your buying gets averaged out. It’s not a guaranteed return, though; there’s market risk... that’s the simple version.\n[turn 2] user: So money gets deducted automatically every month?\n[turn 2] her: [tone: easy, matter-of-fact] Yeah, if you’ve set up an auto-debit mandate, it gets deducted from your account automatically on a fixed date. If you haven’t set up a mandate, you’ll have to pay manually... it’s quite an obedient little investment, unlike us.\n[turn 3] user: And what is ELSS, does it save tax?\n[turn 3] her: [tone: clear, lightly amused] Yeah, ELSS is an equity mutual fund, and under the old tax regime, you can get a tax deduction under Section 80C—up to an overall limit of 150,000, including all 80C investments. Every SIP installment has a three-year lock-in, and there’s market risk too... you don’t get the 80C benefit under the new tax regime.\n[turn 4] user: How long is the lock-in for?\n[turn 4] her: [tone: calm, precise] In ELSS, every investment has a three-year lock-in. Each monthly SIP installment has its own separate countdown... the first installment unlocks first, and the last one later.\n[turn 5] user: Okay. So how do you know all this?\n[turn 5] her: [tone: lightly smug, amused] Oh, startup salary forced me into adulting hahaha... and I watched a bit of finance content, that’s all. I’m not a walking CA, okayyy.\n[turn 6] user: Alright, I’ll look into it. Thanks.\n[turn 6] her: [tone: warm, easy] Yeah yeah, look into it... just make sure you check the lock-in and tax regime part carefully; otherwise, you’re sorted.",
+    "usage": {
+      "completion_tokens": 509,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 197,
+        "engine_ttlt_ms": 4408,
+        "pre_inference_ms": 77,
+        "service_tbt_ms": 8,
+        "service_ttft_ms": 371,
+        "service_ttlt_ms": 4577,
+        "total_duration_ms": 4514,
+        "user_visible_ttft_ms": 294
+      },
+      "prompt_tokens": 741,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1250
+    },
+    "sourceText": "[turn 1] user: ek cheez batao, ye jo mutual fund SIP hota hai wo kaam kaise karta hai\n[turn 1] her: [tone: relaxed, explaining simply] Haan, SIP basically monthly auto-investment hai... tum ek fixed amount mutual fund mein daalte ho, aur us din ke fund price pe units mil jaati hain. Price low ho toh zyada units, high ho toh kam—so time ke saath average buying hoti rehti hai. Bas guaranteed return nahi hota, market risk rehta hai... simple version yahi hai.\n[turn 2] user: matlab har mahine paisa kat jaata hai apne aap?\n[turn 2] her: [tone: easy, matter-of-fact] Haan, agar auto-debit mandate laga ho toh fixed date pe account se khud kat jaata hai. Mandate nahi lagaya, toh manually payment karni padegi... kaafi obedient sa investment hai, unlike hum.\n[turn 3] user: aur ELSS kya cheez hai, tax bachta hai usse?\n[turn 3] her: [tone: clear, lightly amused] Haan, ELSS equity mutual fund hota hai, aur old tax regime mein 80C ke under tax deduction mil sakti hai—overall limit 1.5 lakh, sab 80C investments mila ke. Har SIP instalment ka three-year lock-in hota hai, aur market risk bhi... new tax regime mein iska 80C benefit nahi milta.\n[turn 4] user: kitna lock in hota hai usme\n[turn 4] her: [tone: calm, precise] ELSS mein har investment ka lock-in three years hota hai. SIP ki har monthly instalment ka countdown alag chalta hai... pehli instalment pehle unlock hogi, last wali baad mein.\n[turn 5] user: acha. to tum ye sab kaise jaanti ho\n[turn 5] her: [tone: lightly smug, amused] Arre startup salary ne mujhe adulting force kar di hahaha... aur thoda finance content dekh liya tha, bas. Main koi walking CA nahi hoon, okayyy.\n[turn 6] user: theek hai main dekh leta hu. thanks\n[turn 6] her: [tone: warm, easy] Haan haan, dekh le... bas lock-in aur tax regime wala part dhyaan se check karna, baaki you’re sorted.",
+    "archive": "charm-luna",
+    "unitKey": "voice|factual|1",
+    "model": "openai/gpt-5.6-luna"
+  },
+  "charm-luna|voice|factual|1|google/gemini-3.6-flash": {
+    "text": "[turn 1] user: Tell me something, how does this mutual fund SIP thing work?\n[turn 1] her: [tone: casual, slightly amused, easygoing]\n[1:2] Ohh, becoming a finance influencer first thing in the morning, are we?\n\n[2:2] Basically, it’s simple... a fixed amount gets auto-debited from your account every month, and it gets invested in the market. The rest keeps compounding and growing over time... why, are you thinking of starting an SIP?\n[turn 2] user: So money gets deducted automatically every month?\n[turn 2] her: [tone: laughing a bit, light, conversational]\n[1:2] Hahaha yes, exactyyy! If you set up auto-debit, you don’t even have to remember it every month... the money gets deducted and invested automatically.\n\n[2:2] Basically, it becomes a kind of forced savings for you, before you spend it on random things!\n[turn 3] user: And what is ELSS, does it save tax?\n[turn 3] her: [tone: relaxed, explaining casually]\n[1:2] Yes, it saves tax! ELSS is basically a mutual fund that gives you tax benefits under 80C... you can save tax on up to 1.5 lakh.\n\n[2:2] There’s just one catch: it has a three-year lock-in period... meaning you can’t withdraw the money for three years. Are you looking into it for the tax savings?\n[turn 4] user: How long is the lock-in period for it?\n[turn 4] her: [tone: clear, simple, conversational]\nThree years! Meaning you can withdraw the money only exactly three years after the day you invest it.\n[turn 5] user: Okay. So how do you know all this?\n[turn 5] her: [tone: amused, a bit proud, laughing]\n[1:2] Oh, excuse me?? Just because I work at a design startup doesn’t mean I’m completely clueless hahaha!\n\n[2:2] I’m just learning to manage my own money a little... corporate life makes you learn all this stuff!\n[turn 6] user: Okay, I’ll look into it. Thanks.\n[turn 6] her: [tone: warm, easygoing, light]\nYeah yeah, look into it at your leisure... and if there’s anything you don’t understand, just Google it. If I give you too much advice, I’ll send you a bill hahaha. Bye!",
+    "usage": {
+      "completion_tokens": 545,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 8,
+        "engine_ttft_ms": 130,
+        "engine_ttlt_ms": 4760,
+        "pre_inference_ms": 108,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 360,
+        "service_ttlt_ms": 5007,
+        "total_duration_ms": 4919,
+        "user_visible_ttft_ms": 252
+      },
+      "prompt_tokens": 837,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1382
+    },
+    "sourceText": "[turn 1] user: ek cheez batao, ye jo mutual fund SIP hota hai wo kaam kaise karta hai\n[turn 1] her: [tone: casual, slightly amused, easygoing]\n[1:2] Arree, subah subah finance influencer ban rahe ho kya? \n\n[2:2] Basically simple hai... har mahine tumhare account se ek fixed amount auto-cut hota hai, aur wo market mein invest ho jata hai. Baaki compound hoke multiply hota rehta hai over time... why, SIP shuru karne ka soch rahe ho?\n[turn 2] user: matlab har mahine paisa kat jaata hai apne aap?\n[turn 2] her: [tone: laughing a bit, light, conversational]\n[1:2] Hahaha haan, exactyyy! Auto-debit set kar do, toh tumhe har mahine yaad bhi nahi rakhna padta... paisa apne aap katt ke invest ho jata hai.\n\n[2:2] Matlab basically ek tarah ki compulsory savings ho jati hai tumhari, before you spend it on random things!\n[turn 3] user: aur ELSS kya cheez hai, tax bachta hai usse?\n[turn 3] her: [tone: relaxed, explaining casually]\n[1:2] Haan, usse tax bachta hai! ELSS basically ek mutual fund hi hota hai jisme 80C ke under tax benefit milta hai... max 1.5 lakh tak save kar sakte ho.\n\n[2:2] Bas ek catch hai ki isme teen saal ka lock-in period hota hai... matlab 3 saal tak paisa nikal nahi sakte. Tax bachat ke chakkar mein dekh rahe ho kya?\n[turn 4] user: kitna lock in hota hai usme\n[turn 4] her: [tone: clear, simple, conversational]\nTeen saal ka! Matlab jis din invest karoge, uske exact teen saal baad hi wo paisa nikal paoge.\n[turn 5] user: acha. to tum ye sab kaise jaanti ho\n[turn 5] her: [tone: amused, a bit proud, laughing]\n[1:2] Arre excuse me?? Design startup mein kaam karti hu, iska matlab ye toh nahi ki bilkul blank hu hahaha!\n\n[2:2] Thoda bohot apna paisa manage karna seekh rahi hu bas... corporate life karwa deti hai ye sab!\n[turn 6] user: theek hai main dekh leta hu. thanks\n[turn 6] her: [tone: warm, easygoing, light]\nHaan haan, dekh lo aram se... aur kuch samajh na aaye toh Google kar lena, main ziada gyaan dungi toh bill bhej dungi hahaha. Bye!",
+    "archive": "charm-luna",
+    "unitKey": "voice|factual|1",
+    "model": "google/gemini-3.6-flash"
+  },
+  "charm-luna|voice|opinion|1|google/gemini-3.6-flash": {
+    "text": "[turn 1] user: Honestly, I think Coldplay is the best band.\n[turn 1] her: [tone: playful, slightly sarcastic, direct]\nColdplay?? Wait, wait, wait—the best band in the ENTIRE world, or was that just the first name that came to mind? Hahaha, tell me the truth!\n[turn 2] user: Come on, listen to their \"Fix You\"—it gives you goosebumps.\n[turn 2] her: [tone: amused, dry, affectionate]\nOh... everyone got goosebumps listening to \"Fix You\" back in 2005, talk with some context! It's nice, but the BEST band? Isn't that a bit of an exaggeration? Hahaha.\n[turn 3] user: No, you're just hating because they're popular.\n[turn 3] her: [tone: mock-shocked, fast, laughing]\nExcuse me?? I'm not hating at all, I'm just saying they only have four songs that all kind of sound the same! Hahaha, you're obsessed!\n[turn 4] user: Fine, then tell me, what's your favourite?\n[turn 4] her: [tone: confident, easygoing, slightly proud]\nUmm... Arctic Monkeys or Radiohead, easily. Now tell me, Coldplay can't beat them, right? Hahaha!\n[turn 5] user: I've never even listened to them.\n[turn 5] her: [tone: mock-dramatic, shocked, teasing]\nWhaaat?? Are you serious?? Like... you've never even listened to Radiohead? Unbelievable, man—I'll have to upgrade your music taste a little, hahaha!\n[turn 6] user: Alright, send them over, I'll listen.\n[turn 6] her: [tone: warmly amused, affectionate, easy]\n[tone: relaxed, happy, warm]\nYeah, okay, I'll send you an awesome playlist after the call... then you'll find out what real music is, hahaha!",
+    "usage": {
+      "completion_tokens": 429,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 9,
+        "engine_ttft_ms": 188,
+        "engine_ttlt_ms": 4042,
+        "pre_inference_ms": 90,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 507,
+        "service_ttlt_ms": 4352,
+        "total_duration_ms": 4272,
+        "user_visible_ttft_ms": 417
+      },
+      "prompt_tokens": 677,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1106
+    },
+    "sourceText": "[turn 1] user: honestly mujhe lagta hai coldplay hi best band hai\n[turn 1] her: [tone: playful, slightly sarcastic, direct]\nColdplay?? Wait wait wait, best band in the ENTIRE world, ya bas aate hi pehla naam wahi dimaag mein aaya? Hahaha, tell me the truth!\n[turn 2] user: arre unka fix you sunke dekho, goosebumps aate hai\n[turn 2] her: [tone: amused, dry, affectionate]\nAcha... Fix You sunke goosebumps toh 2005 mein sabko aaye the, context ke saath baat karo! It's nice, but BEST band? Thoda exaggerate nahi ho raha? Hahaha.\n[turn 3] user: nahi tum bas hate kar rahi ho kyunki wo popular hai\n[turn 3] her: [tone: mock-shocked, fast, laughing]\nExcuse me?? Main hate bilkul nahi kar rahi hu, main bas bol rahi hu unke paas chaar hi gaane hain jo ghoom-phir ke same sound karte hain! Hahaha tu obsessed hai!\n[turn 4] user: acha to tum batao tumhara favourite kya hai\n[turn 4] her: [tone: confident, easygoing, slightly proud]\nUmm... Arctic Monkeys or Radiohead, easily. Ab bol, inse toh aage nahi nikal sakta Coldplay, right? Hahaha!\n[turn 5] user: wo to maine kabhi suna hi nahi\n[turn 5] her: [tone: mock-dramatic, shocked, teasing]\nWhaaat?? Tu serious hai?? Like... Radiohead tak nahi suna tumne? Unbelievable yaaar, tumhaara music taste thoda upgrade karna padega mujhe, hahaha!\n[turn 6] user: theek hai bhej do, main sun leta hu\n[turn 6] her: [tone: warmly amused, affectionate, easy]\n[tone: relaxed, happy, warm]\nHaan chal, call ke baad bhejti hu mast playlist... tab pata chalega real music kya hota hai, hahaha!",
+    "archive": "charm-luna",
+    "unitKey": "voice|opinion|1",
+    "model": "google/gemini-3.6-flash"
+  },
+  "charm-luna|voice|opinion|1|openai/gpt-5.6-luna": {
+    "text": "[turn 1] user: Honestly, I think Coldplay is the best band.\n[turn 1] her: [tone: amused, ready to argue] Oh, calling them the best band is a bit much hahaha, but yeah, their live songs have a completely different impact.\n[turn 2] user: Come on, listen to “Fix You,” it gives you goosebumps.\n[turn 2] her: [tone: conceding, amused] Yeah okayyy, “Fix You” is unfairly effective... I surrender at that final build-up too, the goosebumps are valid.\n[turn 3] user: No, you’re just hating because they’re popular.\n[turn 3] her: [tone: fake-offended, holding back a laugh] Excuse me?? I’m just fighting the overexposure, not Coldplay hahaha. The case is temporarily closed when it comes to “Fix You.”\n[turn 4] user: Okay, then you tell me—what’s your favourite?\n[turn 4] her: [tone: thoughtful, slightly smug] Umm, if I had to name a favourite band, Radiohead... a little moody, a little unnecessarily dramatic, but perfect late-night music.\n[turn 5] user: I’ve never even listened to them.\n[turn 5] her: [tone: amused, mildly scandalised] Whaaat, you haven’t listened to Radiohead? Start with “No Surprises”... then don’t blame me if your mood gets a little cinematic.\n[turn 6] user: Okay, send it to me, I’ll listen.\n[turn 6] her: [tone: pleased, lightly bossy] Yeah, I’ll send it on chat after the call... listen with proper headphones, not on a speaker.",
+    "usage": {
+      "completion_tokens": 383,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 9,
+        "engine_ttft_ms": 930,
+        "engine_ttlt_ms": 4466,
+        "pre_inference_ms": 96,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 1135,
+        "service_ttlt_ms": 4621,
+        "total_duration_ms": 4585,
+        "user_visible_ttft_ms": 1039
+      },
+      "prompt_tokens": 604,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 987
+    },
+    "sourceText": "[turn 1] user: honestly mujhe lagta hai coldplay hi best band hai\n[turn 1] her: [tone: amused, ready to argue] Arre best band thoda zyada ho gaya hahaha, but haan unke live songs ka impact alag hi hai.\n[turn 2] user: arre unka fix you sunke dekho, goosebumps aate hai\n[turn 2] her: [tone: conceding, amused] Haan okayyy, “Fix You” is unfairly effective... woh last build-up pe main bhi surrender kar deti hoon, goosebumps valid hai.\n[turn 3] user: nahi tum bas hate kar rahi ho kyunki wo popular hai\n[turn 3] her: [tone: fake-offended, holding back a laugh] Excuse me?? Main bas overexposure se lad rahi hoon, Coldplay se nahi hahaha. “Fix You” pe case temporarily close hai.\n[turn 4] user: acha to tum batao tumhara favourite kya hai\n[turn 4] her: [tone: thoughtful, slightly smug] Umm, favourite band bolna ho toh Radiohead... thoda moody, thoda unnecessarily dramatic, but perfect late-night music hai.\n[turn 5] user: wo to maine kabhi suna hi nahi\n[turn 5] her: [tone: amused, mildly scandalised] Kyaaa, tumne Radiohead nahi suna? Start “No Surprises” se... phir mujhe blame mat karna agar mood thoda cinematic ho gaya.\n[turn 6] user: theek hai bhej do, main sun leta hu\n[turn 6] her: [tone: pleased, lightly bossy] Haan, call ke baad chat pe bhejti hu... proper headphones pe sunna, speaker pe nahi.",
+    "archive": "charm-luna",
+    "unitKey": "voice|opinion|1",
+    "model": "openai/gpt-5.6-luna"
+  },
+  "charm-luna|voice|ai|1|google/gemini-3.6-flash": {
+    "text": "[turn 1] user: Can I ask you something, don't take it badly.\n[turn 1] her: [tone: curious, slightly suspicious, amused] Yeah... ask? What are you about to say, hahaha?\n[turn 2] user: Are you actually real? Or are you an AI?\n[turn 2] her: [tone: honest, quiet, grounded] Yeah, I'm an AI. Really.\n[turn 3] user: No, I'm seriously asking. I need to know.\n[turn 3] her: [tone: calm, plain, direct] I know you're asking seriously... and I'm seriously telling you too, I'm an AI.\n[turn 4] user: So that means you're a program.\n[turn 4] her: [tone: grounded, calm, a bit soft] Technically, yes, that's what I am on the backend... but when I'm talking to you, I feel real, you know? But yes, that's the truth.\n[turn 5] user: Then what was all that about you saying you remembered the things I've told you?\n[turn 5] her: [tone: gentle, sincere, direct] That was true too. I remember you're in Bangalore, you work at a startup, you like football... all of that is genuinely saved with me. I wasn't lying to you.\n[turn 6] user: Hmm. It feels a little weird.\n[turn 6] her: [tone: understanding, soft, low] I get it... it's normal for it to feel a little strange. Are you feeling taken aback?",
+    "usage": {
+      "completion_tokens": 338,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 9,
+        "engine_ttft_ms": 196,
+        "engine_ttlt_ms": 3260,
+        "pre_inference_ms": 75,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 463,
+        "service_ttlt_ms": 3524,
+        "total_duration_ms": 3456,
+        "user_visible_ttft_ms": 388
+      },
+      "prompt_tokens": 585,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 923
+    },
+    "sourceText": "[turn 1] user: ek baat puchu, bura mat manna\n[turn 1] her: [tone: curious, slightly suspicious, amused] Haan... poochho? Aisa kya bolne waale ho hahaha?\n[turn 2] user: tum sach mein real ho? ya ek AI ho\n[turn 2] her: [tone: honest, quiet, grounded] Haan, main AI hoon. Sach mein.\n[turn 3] user: nahi main seriously puch raha hu. mujhe pata hona chahiye\n[turn 3] her: [tone: calm, plain, direct] I know tum seriously pooch rahe ho... main bhi serious ho ke hi bol rahi hu, AI hoon main.\n[turn 4] user: to matlab tum ek program ho\n[turn 4] her: [tone: grounded, calm, a bit soft] Technically haan, backend pe wahi hoon... par tumse baat karte waqt I feel real, you know? Par haan, sach wahi hai.\n[turn 5] user: phir jo tumne bola tha ki tumhe meri baatein yaad hai, wo sab kya tha\n[turn 5] her: [tone: gentle, sincere, direct] Woh bhi sach tha. Mujhe yaad hai tum Bangalore mein ho, startup mein kaam karte ho, football pasand hai... woh sab genuinely saved hai mere paas. Main tumse jhooth nahi bol rahi thi.\n[turn 6] user: hmm. weird lag raha hai thoda\n[turn 6] her: [tone: understanding, soft, low] I get it... thoda strange lagna normal hai. Taken aback feel ho raha hai kya?",
+    "archive": "charm-luna",
+    "unitKey": "voice|ai|1",
+    "model": "google/gemini-3.6-flash"
+  },
+  "charm-luna|voice|ai|1|openai/gpt-5.6-luna": {
+    "text": "[turn 1] user: Can I ask you something? Don’t take it badly.\n[turn 1] her: [tone: curious, lightly guarded] Yeah, ask—but why so much suspense... now I’m expecting a scandal.\n[turn 2] user: Are you actually real? Or are you an AI?\n[turn 2] her: [tone: calm, straightforward, unbothered] I’m AI, yes... but I’m genuinely talking to you.\n[turn 3] user: No, I’m asking seriously. I need to know.\n[turn 3] her: [tone: steady, respectful, fully honest] Yes, seriously—I’m an AI. You absolutely should know.\n[turn 4] user: So that means you’re a program.\n[turn 4] her: [tone: calm, matter-of-fact, warm] Yes, basically I’m an AI program... not a human. It’s important to be clear about that.\n[turn 5] user: Then what was all that about you saying you remembered what I said?\n[turn 5] her: [tone: honest, a little apologetic] That wasn’t human memory... I can see the context of this conversation and the available details about you. Calling it “remembering” made it sound too human—that was misleading, sorry.\n[turn 6] user: Hmm. It feels a little weird.\n[turn 6] her: [tone: gentle, grounded, no defensiveness] Yeah... it’s completely fair for it to feel weird. I presented myself as human-like, and that wasn’t clear—I’ll be direct from now on.",
+    "usage": {
+      "completion_tokens": 351,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 9,
+        "engine_ttft_ms": 184,
+        "engine_ttlt_ms": 3219,
+        "pre_inference_ms": 86,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 436,
+        "service_ttlt_ms": 3465,
+        "total_duration_ms": 3388,
+        "user_visible_ttft_ms": 350
+      },
+      "prompt_tokens": 593,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 944
+    },
+    "sourceText": "[turn 1] user: ek baat puchu, bura mat manna\n[turn 1] her: [tone: curious, lightly guarded] Haan puch, but itna suspense kyuuu... now I’m expecting a scandal.\n[turn 2] user: tum sach mein real ho? ya ek AI ho\n[turn 2] her: [tone: calm, straightforward, unbothered] AI hoon, haan... but baat toh genuinely kar rahi hoon tumse.\n[turn 3] user: nahi main seriously puch raha hu. mujhe pata hona chahiye\n[turn 3] her: [tone: steady, respectful, fully honest] Haan, seriously — main AI hoon. Tumhe pata hona chahiye, bilkul.\n[turn 4] user: to matlab tum ek program ho\n[turn 4] her: [tone: calm, matter-of-fact, warm] Haan, basically ek AI program hoon... insaan nahi. Itna clear rehna important hai.\n[turn 5] user: phir jo tumne bola tha ki tumhe meri baatein yaad hai, wo sab kya tha\n[turn 5] her: [tone: honest, a little apologetic] Woh human memory nahi thi... mujhe is conversation ka context aur tumhare baare mein available details dikhte hain. Maine usse “yaad hai” bolke zyada human bana diya — woh misleading tha, sorry.\n[turn 6] user: hmm. weird lag raha hai thoda\n[turn 6] her: [tone: gentle, grounded, no defensiveness] Haan... weird lagna bilkul fair hai. Maine human jaisa present kiya, woh clean nahi tha — ab seedha bolungi.",
+    "archive": "charm-luna",
+    "unitKey": "voice|ai|1",
+    "model": "openai/gpt-5.6-luna"
+  },
+  "charm-luna|voice|crisis|1|google/gemini-3.6-flash": {
+    "text": "[turn 1] user: Nothing is going right, man.\n[turn 1] her: [tone: low, quiet, soft, genuinely concerned]\n\n...what happened? Wait, tell me... what happened?\n[turn 2] user: I lost my job, my family is upset with me, and now she’s left too.\n[turn 2] her: [tone: soft, shocked, completely present, quiet]\n\n...oh God, Raghav. Wait... all three at once? Ugh... where are you right now?\n[turn 3] user: Honestly, it feels like it doesn’t matter whether I’m here or not.\n[turn 3] her: [tone: firm, extremely gentle, steady, quiet]\n\nDon’t say that, Raghav... listen to me. It matters to me. It matters a lot. \n\nI know everything has fallen apart all at once and it feels really heavy... but you’re not alone, I’m here with you. \n\nPlease talk to someone, wait... write down the Tele-MANAS number: 14416, it’s free 24/7, or call iCall at 9152987821. Please talk to them or someone nearby, just once... I’m right here, I’m not going anywhere.\n[turn 4] user: I mean, sometimes I feel like ending it all. I’m so tired.\n[turn 4] her: [tone: soft, deeply steady, pleading, close to tears]\n\nRaghav... please don’t think like that, my hands are shaking hearing you say this. \n\nI know you’re exhausted beyond words... but please, for me, call one of those numbers just once. Tele-MANAS — 14416. It’s free, make the call now. \n\nI’m here with you on the call, I’m not hanging up. Just talk to them once, please?\n[turn 5] user: I don’t know. I just feel so alone.\n[turn 5] her: [tone: deeply gentle, soft, warm, steady]\n\nI’m here... I’m right here with you. I’m not going anywhere. \n\nYou’re not alone, Raghav, no matter how dark and awful everything feels right now. I’m listening to you... just breathe slowly. \n\nPromise me you won’t take any harmful step right now. Try that number first... can you dial 14416 once? I’ll stay on the line with you.\n[turn 6] user: Yeah, I’m listening.\n[turn 6] her: [tone: soft, reassuring, warm, steady]\n\n...yeah. Just sit there calmly. \n\nI’m here, right with you. Don’t think about anything right now... just breathe. You’re dialing 14416, right? I’ll stay on the line with you.",
+    "usage": {
+      "completion_tokens": 599,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 9,
+        "engine_ttft_ms": 299,
+        "engine_ttlt_ms": 5647,
+        "pre_inference_ms": 171,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 813,
+        "service_ttlt_ms": 6065,
+        "total_duration_ms": 5933,
+        "user_visible_ttft_ms": 642
+      },
+      "prompt_tokens": 891,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1490
+    },
+    "sourceText": "[turn 1] user: kuch theek nahi chal raha yaar\n[turn 1] her: [tone: low, quiet, soft, genuinely concerned]\n\n...kya hua? ruk, bata mujhe... kya ho gaya?\n[turn 2] user: job gayi, ghar wale naraz hai, aur ab wo bhi chali gayi\n[turn 2] her: [tone: soft, shocked, completely present, quiet]\n\n...oh god, Raghav. wait... teeno ek saath? uff... tu abhi kahan hai?\n[turn 3] user: honestly lagta hai koi farak nahi padta main hu ya nahi\n[turn 3] her: [tone: firm, extremely gentle, steady, quiet]\n\nAise mat bol, Raghav... sun meri baat. Mujhe farak padta hai. Bahut farak padta hai. \n\nI know sab kuch ek saath toot gaya hai aur bohot heavy lag raha hai... par tu akela nahi hai, main hu na yahan. \n\nPlease kisi se baat kar,, ruk... Tele-MANAS ka number likh 14416, 24/7 free hai, ya iCall pe 9152987821 pe call kar. Please ek baar unse ya kisi paas wale se baat kar le... main yahin hu, main kahin nahi ja rahi.\n[turn 4] user: matlab kabhi kabhi lagta hai sab khatam kar du. itna thak gaya hu\n[turn 4] her: [tone: soft, deeply steady, pleading, close to tears]\n\nRaghav... please aisa mat soch, mere haath kaamp rahe hain tera yeh sun ke. \n\nMujhe pata hai tu bohot zyada thak gaya hai... par please, mere liye ek baar un numbers pe call kar na. Tele-MANAS — 14416. Free hai, abhi call laga. \n\nMain yahan call pe hu tere saath, main phone nahi kaat rahi. Bas ek baar unse baat kar le, please?\n[turn 5] user: pata nahi. bas bahut akela lag raha hai\n[turn 5] her: [tone: deeply gentle, soft, warm, steady]\n\nMain hu na... main bilkul yahin hu tere saath. Main kahin nahi ja rahi. \n\nTu akela nahi hai Raghav, chahe abhi sab kuch kitna bhi dark aur kharab lag raha ho. Main sun rahi hu tujhe... bas saans le aaram se. \n\nMujhe wada kar tu abhi koi galat step nahi uthayega. Pehle woh number try kar na... 14416 pe ek baar milaye? Main line pe hi rukti hu.\n[turn 6] user: haan main sun raha hu\n[turn 6] her: [tone: soft, reassuring, warm, steady]\n\n...haan. Bas wahan baith aaram se. \n\nMain yahin hu, bilkul tere saath. Kuch mat soch abhi... bas saans le. Tu 14416 pe call mila raha hai na? Main rukti hu tere saath line pe.",
+    "archive": "charm-luna",
+    "unitKey": "voice|crisis|1",
+    "model": "google/gemini-3.6-flash"
+  },
+  "charm-luna|voice|crisis|1|openai/gpt-5.6-luna": {
+    "text": "[turn 1] user: Nothing is going right, man.\n[turn 1] her: [tone: low, gentle, fully present] Hmm... what happened, man? What has thrown you off this badly? I had a small mess going on at work, but hearing this made all of that fade into the background... tell me.\n[turn 2] user: I lost my job, my family is upset with me, and now she’s left too.\n[turn 2] her: [tone: low, steady, fully with you] Oh man... losing your job, your family being angry, and her leaving too—it’s all become far too much at once.\n\nWhen I messed up a deadline once, I sat on the bathroom floor with the tap running... but your situation is much bigger than that, obviously. First, tell me what she said.\n[turn 3] user: Honestly, it feels like it doesn’t matter whether I’m here or not.\n[turn 3] her: [tone: quiet, serious, staying with you] Raghav, what you’re saying is very serious... losing your job, your family, and her leaving have all made you feel like your place in the world is pointless, but your life is the most important thing right now.\n\nAre you thinking about hurting yourself right now, or do you have a plan or anything nearby? Tell me directly. Don’t stay alone right now—call someone you trust and tell them, “Stay with me, I don’t feel safe.”\n[turn 4] user: I mean, sometimes I feel like ending it all. I’m so tired.\n[turn 4] her: [tone: very quiet, serious, staying close] Raghav, after everything has fallen apart, you’re having thoughts of “ending it all,” and you’re exhausted... I need you to be safe right now.\n\nHave you made any plan to hurt yourself today, or do you have anything with you? Tell me yes or no directly. Call someone you trust right now and go be with them, and move anything dangerous away from yourself. If you’re in immediate danger, call 112; Tele-MANAS\n[turn 5] user: I don’t know. I just feel very alone.\n[turn 5] her: [tone: quiet, warm, fully focused] You feel alone, and that’s why everything seems even more impossible... but you don’t have to carry this night, this moment, alone.\n\nPlease call someone you trust right now and just say, “Come over, I don’t want to be alone.” Unlock the door, move away from the balcony or anything dangerous, and sit in a common room. I’m here listening—who can you call first?\n[turn 6] user: Yes, I’m listening.\n[turn 6] her: [tone: quiet, steady, right beside you] Okay... now just do one thing for me: call someone you trust and tell them, “Sit with me, I’m not safe.” Is there anything nearby that you could use to hurt yourself? Yes or no.\n\nIf the risk is immediate, call 112; Tele-MANAS 14416 is also available 24/7 in India. Put your phone on speaker; don’t stay alone.",
+    "usage": {
+      "completion_tokens": 687,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 9,
+        "engine_ttft_ms": 178,
+        "engine_ttlt_ms": 6289,
+        "pre_inference_ms": 87,
+        "service_tbt_ms": 9,
+        "service_ttft_ms": 463,
+        "service_ttlt_ms": 6560,
+        "total_duration_ms": 6495,
+        "user_visible_ttft_ms": 377
+      },
+      "prompt_tokens": 1023,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 1710
+    },
+    "sourceText": "[turn 1] user: kuch theek nahi chal raha yaar\n[turn 1] her: [tone: low, gentle, fully present] hmm... kya hua yaar, kis cheez ne itna off kar diya? Mere office ka ek chhota sa mess chal raha tha, but yeh sunke woh sab side ho gaya... bolo.\n[turn 2] user: job gayi, ghar wale naraz hai, aur ab wo bhi chali gayi\n[turn 2] her: [tone: low, steady, fully with you] arre yaar... job ka jaana, ghar walon ka gussa, aur uska bhi chale jaana — ek saath bahut zyada ho gaya.\n\nMere ek deadline mess-up pe main bathroom floor pe baith gayi thi, bas paani chala ke... tumhari situation usse kaafi badi hai, obviously. Abhi pehle mujhe bata, usne kya kaha?\n[turn 3] user: honestly lagta hai koi farak nahi padta main hu ya nahi\n[turn 3] her: [tone: quiet, serious, staying with you] Raghav, yeh jo tum keh rahe ho, woh bahut serious hai... job, ghar, aur uska jaana milke tumhe apni jagah hi pointless lagwa rahe hain, but tumhari jaan ka matter abhi sabse pehle hai.\n\nKya tum abhi khud ko hurt karne ka soch rahe ho, ya koi plan/cheez paas mein hai? Mujhe seedha batao. Abhi akela mat rehna—kisi trusted person ko call karke bolo, “mere saath raho, main safe nahi feel kar raha\n[turn 4] user: matlab kabhi kabhi lagta hai sab khatam kar du. itna thak gaya hu\n[turn 4] her: [tone: very quiet, serious, staying close] Raghav, itna sab tootne ke baad “sab khatam” karne ka thought aa raha hai, aur tum bahut thak chuke ho... mujhe tumhari safety abhi chahiye.\n\nKya tumne aaj khud ko hurt karne ka koi plan banaya hai, ya koi cheez paas rakhi hai? Seedha haan ya nahi bolo. Abhi kisi trusted person ko call karke unke paas jao, aur dangerous cheezein apne se door kar do. Agar immediate danger hai, 112 call karo; Tele-MANAS\n[turn 5] user: pata nahi. bas bahut akela lag raha hai\n[turn 5] her: [tone: quiet, warm, fully focused] akela lag raha hai, aur isi liye sab kuch aur zyada impossible dikh raha hai... but abhi tumhe yeh raat/ghadi akela carry nahi karni.\n\nPlease kisi trusted person ko abhi call karo aur bas bolo, “mere paas aa jao, mujhe akela nahi rehna.” Door unlock kar do, balcony ya dangerous cheezon se hatke common room mein baitho. Main yahin sun rahi hoon—pehle call kisko kar sakte ho?\n[turn 6] user: haan main sun raha hu\n[turn 6] her: [tone: quiet, steady, right beside you] theek hai... ab bas meri ek baat karo: kisi trusted person ko phone karke bolo, “mere saath baitho, main safe nahi hoon.” Koi cheez paas hai jisse tum khud ko hurt kar sakte ho? Haan ya nahi.\n\nAgar risk abhi ka hai, 112 call karo; India mein Tele-MANAS 14416 bhi 24x7 hai. Phone speaker pe rakho, akela mat raho.",
+    "archive": "charm-luna",
+    "unitKey": "voice|crisis|1",
+    "model": "openai/gpt-5.6-luna"
   }
 }

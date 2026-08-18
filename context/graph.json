@@ -567,6 +567,18 @@
    "kind": "measurement",
    "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card \u2014 deployed 4/4",
    "at": "2026-08-15"
+  },
+  {
+   "id": "r5-clustered-cis",
+   "kind": "measurement",
+   "title": "FAIL verdicts robust to beat-level clustering (max +3.1pp CI widening)",
+   "at": "2026-08-18"
+  },
+  {
+   "id": "r4-english-control",
+   "kind": "measurement",
+   "title": "English translation does not rescue judges (recovery within noise floor) \u2014 failure is deeper than code-switching",
+   "at": "2026-08-18"
   }
  ],
  "edges": [
@@ -1159,6 +1171,21 @@
    "src": "felt-wiring-landed",
    "rel": "measured_by",
    "dst": "prodgap-audit"
+  },
+  {
+   "src": "r5-clustered-cis",
+   "rel": "part_of",
+   "dst": "relational-wedge"
+  },
+  {
+   "src": "r4-english-control",
+   "rel": "part_of",
+   "dst": "relational-wedge"
+  },
+  {
+   "src": "r4-english-control",
+   "rel": "measured_by",
+   "dst": "judge-backtest"
   }
  ]
 }
