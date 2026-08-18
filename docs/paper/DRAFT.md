@@ -1,4 +1,7 @@
-# DRAFT — Paper B: LLM judges fail on code-switched affective register
+# DRAFT — Paper B: *It's Not the Code-Switching*
+
+**Title (chosen, §1):** **"It's Not the Code-Switching: Six Frontier LLM Judges
+Fail a Pre-Registered Qualification Bar in Hinglish and in English Alike"**
 
 **Workstream:** WS-PAPER · **Branch:** `claude/ai-companion-app-rkt1lv` · **This workstream did not commit or push — the coordinator reviews.**
 *(Note: a coordinator WIP checkpoint (`308332e`) captured an intermediate copy of
@@ -12,30 +15,54 @@ version is the one the paper cites.)*
 
 ## STATUS
 
+**Draft-file section numbers are not the paper's section numbers.** The paper
+ships as §1 Introduction · §2 Background & related work · §3 Setting · §4 Method ·
+§5 Results · §6 Discussion · §7 Limitations & Ethics · §8 Artifact release ·
+§9 Conclusion. This working file keeps §0 (recommendation), §10 (gap table),
+§11 (priced runs), §12 (coordinator actions) and §13 (submission checklist) as
+apparatus that does not ship. Sections that *do* ship carry the paper's number.
+
 | section | state |
 |---|---|
-| Recommendation (which paper leads, why) | **DRAFTED** — §0 |
-| Scooped-or-not verdict + citations | **DRAFTED** — §0.2, §6 |
-| Title candidates | **DRAFTED** — §1 |
-| Abstract | **DRAFTED** — §2 (numbers all traceable) |
+| Recommendation (which paper leads, why) | **DRAFTED** — §0 (apparatus, does not ship) |
+| Scooped-or-not verdict + citations | **DRAFTED** — §0.2, §2.2 |
+| Title candidates + chosen title | **DECIDED** — §1; the paper retitles around the refuted mechanism |
+| Abstract | **REWRITTEN** — §2 (every number traceable; matches the new title) |
 | Full section outline | **DRAFTED** — §3 |
 | **§4 Method** | **WRITTEN IN FULL** — every parameter from logged config |
-| **§5 Results** | **WRITTEN IN FULL** — every number recomputed by `analysis/derive-tables.mjs`; §5.8 [R5] clustering and §5.9 [R4] English-translation control ADDED post-draft, both complete |
-| §6 Related work | **DRAFTED as an annotated citation list**, not yet prose. Citations verified by live fetch 2026-08-18 except where marked `[VERIFY]` |
-| §7 Discussion / §8 Limitations | **OUTLINED with the honest caveats enumerated**, prose pending |
-| §9 Artifact release | **DRAFTED** — §9, full release plan |
-| Claim → evidence → gap table | **DRAFTED** — §10 |
+| **§5 Results** | **WRITTEN IN FULL** — every number recomputed by `analysis/derive-tables.mjs`; §5.8 [R5] clustering and §5.9 [R4] English-translation control complete |
+| §2.2 Related work | **DRAFTED as an annotated citation list**, not yet prose. Citations verified by live fetch 2026-08-18 except where marked `[VERIFY]` |
+| **§6 Discussion** | **WRITTEN IN FULL** — prose, post-R4/R5 |
+| **§7 Limitations & Ethics** | **WRITTEN IN FULL** — prose, thirteen limitations + an ethics statement |
+| §8 Artifact release | **DRAFTED** — full release plan |
+| Claim → evidence → gap table | **RECONCILED** — §10, post-R4/R5/retraction |
 | Priced list of runs still needed | **DRAFTED** — §11 |
-| Figures | **NOT STARTED** — §3 names the three the paper needs |
-| Human-annotation validation | **NOT RUN** — the single largest gap, §10 G1, §11 R3 |
+| **Figures** | **BUILT** — three deterministic, grayscale-safe SVGs in `docs/paper/figures/`, emitted by `fig-*.mjs` from the analysis outputs (§3) |
+| **Submission checklist** | **DRAFTED** — §13, incl. a 2026-08-18 workshop-deadline scan |
+| Human-annotation validation | **NOT RUN** — the single largest remaining gap, §10 G1, §11 R3 |
 
 **Reproduction law for this file.** Every number below is either (a) a logged
-`context/measurements.md` entry, cited by node id, or (b) printed by
-`docs/paper/analysis/derive-tables.mjs`, which reads only `evals/dbattery/judges.json`
-and `evals/archives/*/pb-judged*.json` and makes no network call. Numbers that
-are neither appear only in §10 as gaps. Nothing here is extrapolated.
+`context/measurements.md` entry, cited by node id, or (b) printed by one of
+three offline, network-free analysis scripts:
 
-**No credits or cash were spent producing this document.**
+- `docs/paper/analysis/derive-tables.mjs` — reads only `evals/dbattery/judges.json`
+  and `evals/archives/*/pb-judged*.json`;
+- `docs/paper/analysis/clustered-cis.mjs` — same two sources, seeded cluster
+  bootstrap (`--json` for machine-readable output);
+- `docs/paper/analysis/r4/summary.json` — the committed R4 output.
+
+The three figure scripts in `docs/paper/figures/` **read those outputs and
+hardcode no data**, so a figure in this paper cannot state a number the
+analysis does not print. Numbers that trace to none of the above appear only in
+§10 as gaps. Nothing here is extrapolated.
+
+**The one non-measured quantity in the whole paper** is the analytic
+content-blind curve *q*² + (1−*q*)² derived in §5.3, and it is labelled as
+analytic everywhere it appears — in the prose, in the figure, and in the figure
+script's header comment.
+
+**No credits or cash were spent producing this document.** The figures, the
+prose, the gap reconciliation and the deadline scan are $0.
 
 ---
 
@@ -103,6 +130,13 @@ fail**.
   blind, counterbalanced, both-orders-agree preference verdicts on romanised
   Hinglish affective/companion register.* Verified against the eight nearest
   works above.
+- **C1b.** *No published work reports a controlled test of the code-switching
+  hypothesis for LLM judges on an affective preference task and finds it
+  refuted.* Yin (arXiv:2606.14278) measures language-switching invariance on
+  **objective** instruction-following labels and finds 10.7–14.4% preference
+  flips; our translation control finds no recovery beyond a measured noise
+  floor on an **affective** task. That discrepancy is itself a result and it is
+  new.
 - **C2.** *No published work reports the specific failure geometry we measure* —
   agreement statistically indistinguishable from uniform-random under the
   both-orders rule, produced by position bias collapsing counterbalanced units
@@ -119,23 +153,38 @@ context byte-identical.
 
 ### 0.3 Venue path
 
-Assumed and endorsed: **arXiv (cs.CL) preprint first**, immediately on completion
-of §4–§5 plus the human-annotation control (§11 R3). Then, in order of fit:
+**SUPERSEDED IN PART BY §13.2**, which carries a live deadline scan run
+2026-08-18. The strategic reading below still holds; the specific venues have
+moved.
 
-1. **CALCS** (Workshop on Computational Approaches to Linguistic Code-Switching,
-   ACL-colocated) — the single best fit; code-switching is the paper's causal
-   variable and CALCS reviewers are the audience who will believe it. `[VERIFY]`
-   next edition's date and colocation.
-2. **The LLM-as-a-Judge workshop** (`llm-as-a-judge.github.io`) — second-best
-   fit, and the audience that most needs the qualification-protocol result.
-3. **EMNLP / ACL Findings, Resource & Evaluation track** — reachable *after* the
-   n-extension (§11 R2) and the human control. At n=96 units the paper is a
-   strong workshop paper and a borderline Findings paper; the reviewer objection
-   will be sample size, and it is a fair objection.
+Assumed and endorsed: **arXiv (`cs.CL`) preprint first**, cross-listed `cs.LG`.
+Then, in order of fit:
+
+1. **JUDGe 2026 — "Can We Trust the Judge?"** (NeurIPS 2026, Atlanta),
+   **deadline 2026-08-29 AoE**, non-archival, 6 pages + refs. Its stated topic
+   list is construct validity in LLM evaluators, positional bias, human–model
+   alignment, cross-lingual reliability and production case studies — this
+   paper is four of those at once. **This is now the primary target**, and it
+   did not exist in the earlier draft of this section.
+2. **CALCS** (Computational Approaches to Linguistic Code-Switching). Was
+   listed here as the single best fit on the assumption that code-switching was
+   the paper's causal variable. **R4 removed that assumption** — but a
+   *controlled refutation* of a code-switching hypothesis is still squarely a
+   CALCS result, and arguably a more interesting one for that audience. The
+   practical problem is availability: no 8th edition is announced as of
+   2026-08-18 (§13.2). Route in is the 2027 joint workshop cycle.
+3. **NAACL 2027 main / Findings** (deadline 2026-10-12) — reachable *after* the
+   human control (§11 R3) and ideally the per-axis extension (§11 R2). At n=96
+   units the paper is a strong workshop paper and a borderline Findings paper;
+   the reviewer objection will be sample size, and it is a fair objection.
 4. **NeurIPS Datasets & Benchmarks** — only if the released suite (§9) is the
    headline contribution rather than the measurement. That is a legitimate
    re-framing and worth the owner's consideration, because the *protocol* (a
    harness that refuses to certify its own run) may outlive the numbers.
+
+*(The earlier draft listed "the LLM-as-a-Judge workshop" at `llm-as-a-judge.github.io`
+as venue #2. Checked 2026-08-18: that is a survey and paper-list resource, not
+a workshop. JUDGe 2026 is the real one and replaces it.)*
 
 **Do not aim at ACL/EMNLP main.** n=96 units against a single LLM-produced
 ground truth is not a main-conference sample, and claiming otherwise would fail
@@ -143,66 +192,112 @@ this program's own `fab-noise-floor` discipline in public.
 
 ---
 
-## §1 Title candidates
+## §1 Title
 
-1. **"The Judge Cannot Read the Room: LLM Judges Fail on Code-Switched Affective Register"**
-2. "Qualify Your Judge: Six Frontier Models Fail an 80% Agreement Bar on Romanised Hinglish Companion Dialogue"
-3. "Position Bias Eats the Counterbalance: Why Both-Orders Judging Collapses on Code-Switched Preference Tasks"
-4. "Judging Teasing: LLM Evaluators Systematically Prefer the Register Native Speakers Reject"
-5. "A Judge Qualification Protocol, and the Six Judges It Rejected"
+**The paper retitles around the refuted mechanism.** The previous working title
+("The Judge Cannot Read the Room: LLM Judges Fail on Code-Switched Affective
+Register") asserted a cause that this study's own translation control (§5.9
+[R4]) then failed to support. Keeping it would have been the exact error the
+paper is about. The candidate set was therefore rebuilt around the negative
+causal result:
 
-Recommended: **#1** with #5's framing in the abstract — the failure *and* the
-protocol that caught it are both contributions, and the protocol is the reusable one.
+1. "It's Not the Code-Switching: A Translation Control Refutes Our Own Explanation of Six LLM Judge Failures"
+2. **"It's Not the Code-Switching: Six Frontier LLM Judges Fail a Pre-Registered Qualification Bar in Hinglish and in English Alike"** ← **CHOSEN**
+3. "It's Not the Code-Switching, and It Isn't Vendor Loyalty: Two Mechanisms That Did Not Survive Their Own Controls"
+4. "Qualify Your Judge, Then Doubt Your Explanation: A Pre-Registered Judge-Qualification Protocol and Two Retracted Mechanisms"
+5. "The Counterbalance Was Evacuated and the Cause Was Wrong: Judge Qualification on Affective Companion Dialogue"
+
+**Chosen: #2.** It states the refutation in the main clause and the surviving
+result in the subtitle, and *"in Hinglish and in English alike"* is the
+translation control compressed into five words — a reader who reads only the
+title has still been told the true scope of the finding. #1 is the honest
+runner-up but "our own explanation" reads as self-regard in a title rather than
+in the body, which is where it belongs. #3 and #4 carry both retractions but
+bury the six failures, which are the paper's load-bearing measurement. #5 is
+the most accurate description of the mechanism section and the least likely to
+be clicked.
+
+**Wording law that follows from #2, and it binds the whole paper:** the string
+*"fails on code-switched affective register"* must not appear as a claim
+anywhere. The supported claim is *"fails on affective/companion register,
+tested here on a code-switched corpus and, under a translation control, on its
+monolingual English translation as well."*
 
 ---
 
-## §2 Abstract (draft)
+## §2 Abstract
 
-> LLM-as-a-judge is now the default instrument for evaluating open-ended
-> generation, and the standard defences — randomised presentation order, both-orders
-> agreement, cross-family judges — are widely assumed to make it trustworthy enough
-> to ship on. We report a qualification study in which those defences do not save
-> the instrument. Working from a deployed Hinglish (romanised Hindi-English
-> code-switched) AI-companion product, we take two archived model bake-offs whose
-> blind, counterbalanced, both-orders verdicts (96 judgments over 48 conversation
-> units each, judge `claude-opus-4.8`) had already driven real deployment
-> decisions, and we backtest six candidate judges against them under a
-> pre-registered ≥80% agreement bar: DeepSeek-V4-Flash, DeepSeek-V4-Pro,
-> gpt-5.6-terra, grok-4.3, Mistral-Large-3, and Cohere command-a-plus.
+> LLM-as-a-judge is the default instrument for evaluating open-ended generation,
+> and the standard defences — randomised presentation order, both-orders
+> agreement, cross-family judges — are widely assumed to make it trustworthy
+> enough to ship on. We report a blind, counterbalanced, pre-registered
+> judge-qualification study in which those defences do not save the instrument,
+> and in which the study's own leading explanation for the failure does not
+> survive its control either.
 >
-> **All six fail.** Pooled unit-level agreement is 28.1%, 30.9%, 54.2%, 34.4% and
-> 29.2% respectively, with every 95% confidence interval entirely below the bar;
-> the sixth is disqualified for cause, parsing a valid verdict on fewer than half
-> of 192 calls despite an only-JSON contract. Scale does not help — the full-size
-> DeepSeek agrees no better than the small one (30.9% vs 28.1%).
+> Working from a deployed Hinglish (romanised Hindi–English code-switched)
+> AI-companion product, we take two archived model bake-offs whose blind,
+> counterbalanced, both-orders verdicts (96 conversation units, 192 judgments,
+> judge `claude-opus-4.8`) had already driven real deployment decisions, and we
+> backtest six candidate judges against them under a pre-registered ≥80%
+> agreement bar: DeepSeek-V4-Flash, DeepSeek-V4-Pro, gpt-5.6-terra, grok-4.3,
+> Mistral-Large-3 and Cohere command-a-plus. **All six fail.** Pooled unit-level
+> agreement is 28.1%, 30.9%, 54.2%, 34.4% and 29.2% respectively; under
+> beat-clustered bootstrap intervals the highest upper bound anywhere in the
+> panel is 64.6%. The sixth is disqualified for cause, emitting a parseable
+> verdict on 34 of 192 calls despite an only-JSON contract. Scale is not a
+> mitigation: the full-size DeepSeek agrees no better than the small one.
 >
-> The mechanism is worse than the scores. Under a both-orders-agree rule, a judge
-> that picks the first slot regardless of content converts every counterbalanced
-> unit into a tie, so position bias does not merely add noise, it *evacuates* the
-> comparison: slot-A pick rates run 62.0%–89.6% against a 56.3%/61.5% rate for the
-> trusted judge on the same rows. Four of five scorable judges land within noise of
-> a uniform-random baseline (30.5%). On the archive where the trusted verdict is a
-> 38–2 landslide, judges that do return decisive verdicts pick the *rejected* arm
-> most of the time — 5.0%, 10.0% and 15.0% agreement on decisive units against a
-> 25% chance floor — because the rejected arm is the verbose, question-stacking,
+> We decompose three mechanisms and retract one. **(i) Position bias evacuates
+> the counterbalance rather than adding noise to it.** Because presentation is
+> counterbalanced, a judge picking the first slot with content-blind propensity
+> *q* returns a tie on *q*² + (1−*q*)² of units, so that in the limit its
+> agreement collapses onto exactly the archived tie rate and nothing else;
+> Mistral-Large-3 (89.6% slot-A) and
+> DeepSeek-V4-Flash (80.2%) land exactly on that degenerate prediction on the
+> landslide archive, agreeing on 16.7% of units against an archived tie rate of
+> 16.7%. **(ii) What signal remains is inverted.** On the archive whose trusted
+> verdict is a 38–2 landslide, judges that do return decisive verdicts pick the
+> *rejected* arm most of the time — 5.0%, 10.0% and 15.0% accuracy against a 25%
+> chance floor — because the rejected arm is the longer, question-stacking,
 > therapised one, and that is what a judge reaching for "supportive" rewards.
-> A qualitative inspection finds one judge scoring authentic Hinglish teasing as
-> "mocking/dismissive". We also report a negative result on a hypothesis we had
-> ourselves logged as confirmed: an apparent 16× same-vendor favoritism does not
-> survive a between-judge control, because a family-disjoint judge shows a larger
-> effect on the same archive — the panel-wide register preference explains both.
+> **(iii) An apparent 16× same-vendor favoritism, which we had ourselves logged
+> as a confirmed finding, does not survive a between-judge control**: a
+> family-disjoint judge shows a *larger* difference-in-differences (+71.7 pp vs
+> +63.1 pp) and the second conflicted cell runs negative (−9.7 pp). The
+> retraction is reported in the paper rather than quietly dropped.
 >
-> We release the qualification protocol, the harness (including the transport- and
-> parse-validity guards that self-invalidate a crippled run), the anonymised
-> transcripts, and the ground-truth verdicts. The headline practical finding is a
-> negative one worth stating plainly: **any evaluation programme that adopts an
-> LLM judge for a code-switched or affective task without backtesting it against
-> trusted verdicts is measuring judge taste, not the system under test.**
+> Finally we test the hypothesis the study was named for. Re-judging the same 96
+> units machine-translated to monolingual English moves agreement by between
+> −3.1 and +6.6 percentage points (mean +3.2), with every English-condition
+> interval overlapping its Hinglish counterpart and every recovery inside this
+> programme's own measured 13.6 pp noise floor for judged rates on
+> byte-identical input. **It is not the code-switching.** The failure is in the
+> affective preference judgment itself, it survives translation, and the
+> code-switched corpus is the setting rather than the cause.
+>
+> We release the qualification protocol, the harness — including the transport-
+> and parse-validity guards that self-invalidate a crippled run — the anonymised
+> transcripts and the ground-truth verdicts. The practical finding is negative
+> and worth stating plainly: **an evaluation programme that adopts an LLM judge
+> for an affective or open-ended preference task without backtesting it against
+> trusted verdicts is measuring judge taste rather than the system under test —
+> and any mechanism it then proposes for the failure needs a control of its own
+> before it is believed.**
 
-*(Abstract numbers: all from §5. Word budget will need a cut of ~120 words for
-most venues. The retraction sentence should be the LAST to go, not the first —
-a paper that refutes one of its own authors' logged claims in the abstract buys
-more reviewer trust than any positive result in it.)*
+*(Abstract provenance: every number is printed by `analysis/derive-tables.mjs`,
+`analysis/clustered-cis.mjs` or `analysis/r4/summary.json`; the 13.6 pp noise
+floor is `context/measurements.md` `fab-noise-floor`. The
+*q*² + (1−*q*)² expression is analytic, derived in §5.3, and is the only
+non-measured quantity in the abstract.*
+
+*Word budget: ~490 words, which will need a cut of ~150 for most venues. **The
+cut order is fixed and it is not the obvious one.** Go first: the deployment/
+provenance clause in ¶2, then mechanism (ii)'s explanatory half-sentence, then
+the release list. Go LAST, and only if a hard limit forces it: the retraction
+in (iii) and the translation control in ¶4. A paper that refutes two of its own
+authors' logged claims in its abstract buys more reviewer trust than any
+positive result in it, and the translation control is the title.)*
 
 ---
 
@@ -210,8 +305,9 @@ more reviewer trust than any positive result in it.)*
 
 | § | title | state |
 |---|---|---|
-| 1 | Introduction — the judge you did not qualify | outline |
-| 2 | Background: LLM-as-judge defences and where they were validated (all monolingual English) | outline, citations in §6 |
+| 1 | Introduction — the judge you did not qualify, and the mechanism you did not control | outline |
+| 2 | Background: LLM-as-judge defences and where they were validated (all monolingual English) | outline |
+| 2.2 | Related work | annotated citation list, §2.2 below |
 | 3 | The setting: a deployed Hinglish companion and its decision record | outline |
 | **4** | **Method** | **written, §4 below** |
 | 4.1 | Ground truth: two archived bake-offs and why they qualify as trusted verdicts | written |
@@ -229,22 +325,45 @@ more reviewer trust than any positive result in it.)*
 | 5.5 | A same-vendor favoritism claim that does not survive its own control (negative result + self-retraction) | written |
 | 5.6 | Protocol-unfitness as a distinct failure mode (Cohere) | written |
 | 5.7 | Scale does not fix it | written |
-| 6 | Related work | annotated list, §6 |
-| 7 | Discussion: what a qualification protocol has to do | outline, §7 |
-| 8 | Limitations and threats to validity | enumerated, §8 |
-| 9 | Artifact release | written, §9 |
-| 10 | Conclusion | outline |
+| 5.8 | [R5] Clustered confidence intervals | written |
+| 5.9 | [R4] The English-translation control: it is not the code-switching | written |
+| **6** | **Discussion** | **written in full, §6 below** |
+| **7** | **Limitations & Ethics** | **written in full, §7 below** |
+| 8 | Artifact release | written, §8 below (drafted as §9 in this file's apparatus numbering) |
+| 9 | Conclusion | outline |
 | A | Appendix: full per-cell tables, rubric text, judge configs, quirk log | derivable from `analysis/derive-tables.mjs --json` |
 
-**Figures the paper needs (none drawn yet):**
-- **F1** — The evacuation diagram: for each judge, a stacked bar of its 48 units
-  into {agrees with a decisive ground-truth verdict, disagrees decisively,
-  returned TIE_FLIP}, with the trusted judge's own bar as the leftmost reference.
-  This is the paper's one indispensable figure.
-- **F2** — Slot-A pick rate per judge with exact binomial CIs, against the
-  trusted judge's 56.3%/61.5% and a 50% line.
-- **F3** — Decisive-unit accuracy vs. the 25% chance floor, per judge per
-  archive, showing the charm-grok cells falling *below* the floor.
+### Figures — BUILT
+
+All three are **deterministic, dependency-free, grayscale-safe** standalone SVGs
+emitted by scripts that read the committed analysis outputs. No hand-drawn
+paths, no hardcoded data: a figure in this paper cannot state a number the
+analysis scripts do not print. Rebuild all three with
+
+```
+node docs/paper/figures/fig-f1-agreement-forest.mjs
+node docs/paper/figures/fig-f2-slot-a-evacuation.mjs
+node docs/paper/figures/fig-f3-english-recovery.mjs
+```
+
+| fig | file | what it shows | cited in |
+|---|---|---|---|
+| **F1** | `figures/fig-f1-agreement-forest.svg` | Forest plot of pooled agreement per judge, Hinglish condition, with the cluster-bootstrap CI drawn over the naive Wilson CI, the ≥80% bar, and both chance baselines (30.5% uniform-random, 21.9% pure-slot-A) as reference lines. The two transport-invalid anthropic rows sit in a separately labelled band. | §5.1, §5.2, §5.8 |
+| **F2** | `figures/fig-f2-slot-a-evacuation.svg` | Two panels. **A:** pooled slot-A pick rate per judge against the trusted judge's 58.9% on identical rows and a 50% line. **B:** observed TIE_FLIP rate against slot-A propensity *q*, with the analytic content-blind prediction *q*²+(1−*q*)² as a curve — a judge on the curve has stopped carrying content. | §5.3 |
+| **F3** | `figures/fig-f3-english-recovery.svg` | Paired Hinglish→English agreement per judge with both clustered CIs and the ±13.6 pp `fab-noise-floor` band shaded around each Hinglish value. Every recovery lands inside the band. This is the title figure. | §5.9 |
+
+Sources: F1 reads `clustered-cis.mjs --json` + `derive-tables.mjs --json`; F2
+reads `derive-tables.mjs --json`; F3 reads `analysis/r4/summary.json`. Shared
+emitters live in `figures/_svgkit.mjs`, which emits **no hue at all** — series
+separate by ink value, fill-vs-outline, dash pattern and hatch, so the figures
+survive a black-and-white print and a colour-blind reader unchanged. Re-running
+any script byte-reproduces its SVG (verified).
+
+*(The pre-R4 figure plan named a different F3 — decisive accuracy vs the 25%
+floor. It is superseded: that result is a table in §5.4, and the translation
+control has a better claim on the paper's third figure now that it is the
+title. The old F1/F2 evacuation content is merged into the two panels of the
+new F2.)*
 
 ---
 
@@ -287,7 +406,7 @@ this study and not for it, (iv) **acted upon** — they are the recorded reason 
 candidate models were declined for a shipping product
 (`context/decisions.md` `brain-model`), and (v) re-derived from the raw files on
 every CI run by `evals/fixtures.mjs`, which fails the build if a number moves.
-They are *not* human verdicts. §8 treats that as the study's principal threat to
+They are *not* human verdicts. §7 (L1) treats that as the study's principal threat to
 validity, and §11 R3 prices the run that would close it.
 
 ### 4.2 The unit rule and its chance baselines
@@ -515,6 +634,9 @@ post-hoc classifier impute a distinction the data cannot carry.
 Not one confidence interval touches the bar. These are **clean failures, not
 underpowered ones** — the study is adequately powered to reject at 80% even
 though it is underpowered for fine distinctions among the failures.
+**See Figure F1**, which plots these intervals together with §5.8's clustered
+intervals and §5.2's chance baselines; it is the single figure a reader who
+reads nothing else should see.
 
 The italicised anthropic rows are reported for completeness and are **not**
 results: their denominators were selected by which calls happened to succeed
@@ -586,6 +708,61 @@ Both extreme-position-bias judges land *exactly* on the degenerate prediction on
 the landslide archive. Mistral returned `TIE_FLIP` on **39 of 48** units there and
 37 of 48 on `charm-luna`; DeepSeek-Flash on 29 and 31. The counterbalance did not
 protect the measurement; it absorbed it.
+
+**The prediction generalises to a curve, and the curve is what F2 plots.** §4.2
+states the two endpoints — a uniform-random judge (*q* = 0.5) and a pure slot-A
+judge (*q* = 1). The interpolation between them is one line of algebra and is
+worth stating because it turns "position bias is bad" into a falsifiable
+prediction. Let *q* be a judge's slot-A pick propensity, applied **independently
+of content**. Presentation is counterbalanced, so in one order slot A holds the
+incumbent and in the other it holds the candidate. The judge therefore names the
+same model twice only when it picks slot A in one order and slot B in the other:
+
+> P(decisive unit) = 2*q*(1−*q*)  P(`TIE_FLIP`) = *q*² + (1−*q*)²
+
+At *q* = 0.5 this gives a 50% tie rate; at *q* = 1 it gives 100%, and agreement
+collapses onto the archived tie rate — §4.2's two stated cases fall out as
+special cases. **F2 panel B plots each judge's measured (*q*, `TIE_FLIP` rate)
+against this curve.** Mistral-Large-3 sits essentially on it for both archives
+(*q* = 90.6% predicts an 83.0% tie rate; observed 81.3%. *q* = 88.5% predicts
+79.7%; observed 77.1%), which is what "this judge's verdicts carry no content
+information" looks like when it is drawn rather than argued. `gpt-5.6-terra` and
+the trusted judge both sit far *below* the curve at comparable propensities —
+they return decisive verdicts far more often than blind slot-picking would
+produce, because content is doing work for them.
+
+The curve is **analytic, not measured**, and the paper must label it that way
+wherever it appears. Every plotted point is measured and comes from
+`derive-tables.mjs --json`. The observed-vs-predicted table is printed by
+`fig-f2-slot-a-evacuation.mjs` so that these prose numbers are script output,
+not hand transcription:
+
+| judge | archive | *q* | predicted `TIE_FLIP` | observed | gap |
+|---|---|---|---|---|---|
+| Mistral-Large-3 | charm-grok | 90.6% | 83.0% | 39/48 = 81.3% | −1.8 pp |
+| Mistral-Large-3 | charm-luna | 88.5% | 79.7% | 37/48 = 77.1% | −2.6 pp |
+| DeepSeek-V4-Flash | charm-luna | 82.3% | 70.9% | 31/48 = 64.6% | −6.3 pp |
+| DeepSeek-V4-Flash | charm-grok | 78.1% | 65.8% | 29/48 = 60.4% | −5.4 pp |
+| grok-4.3 | charm-grok | 76.0% | 63.6% | 27/48 = 56.3% | −7.3 pp |
+| grok-4.3 | charm-luna | 70.8% | 58.7% | 20/48 = 41.7% | −17.0 pp |
+| DeepSeek-V4-Pro | charm-luna | 67.0% | 55.8% | 23/46 = 50.0% | −5.8 pp |
+| gpt-5.6-terra | charm-grok | 65.6% | 54.9% | 15/48 = 31.3% | −23.6 pp |
+| DeepSeek-V4-Pro | charm-grok | 64.6% | 54.3% | 22/48 = 45.8% | −8.4 pp |
+| gpt-5.6-terra | charm-luna | 58.3% | 51.4% | 10/48 = 20.8% | −30.6 pp |
+| *trusted judge* | charm-grok | 56.3% | 50.8% | 8/48 = 16.7% | **−34.1 pp** |
+| *trusted judge* | charm-luna | 61.5% | 52.6% | 13/48 = 27.1% | **−25.5 pp** |
+
+**Read the gap column as a content-signal index and it is descriptively
+informative**, though we state it as an observation rather than a test. The
+distance below the content-blind curve rank-orders roughly as pooled agreement
+does: the trusted judge is furthest below it (−34.1 / −25.5 pp), `gpt-5.6-terra`
+— the only candidate reliably above chance (§5.2) — is next (−23.6 / −30.6 pp),
+and the four judges indistinguishable from chance cluster at −1.8 to −8.4 pp,
+i.e. barely distinguishable from a content-blind slot-picker with the same
+propensity. `grok-4.3` on `charm-luna` (−17.0 pp) is the one cell that does not
+fit the pattern cleanly. We do not attach a p-value to this ordering: with five
+judges it would be a post-hoc test on a derived quantity, and the honest status
+of the gap column is *"a picture of the same fact §5.2 tests properly."*
 
 **Implication for practice, and it is the reusable one:** *both-orders agreement
 is a validity check, not a debiasing method.* Reporting only the both-orders-agree
@@ -749,7 +926,7 @@ cohere) and every one failed.
 
 ### 5.8 [R5] Clustered confidence intervals: the FAILs survive an honest interval
 
-Gap **G4** (§8 L4, §10 C19): the 96 pooled units are not 96 independent trials.
+Gap **G4** (§7 L3, §10 C19): the 96 pooled units are not 96 independent trials.
 They cluster on **12 affective beats** — each beat contributes 8 units to the
 pool (2 lanes × 2 replicates × 2 archives) — and a judge's mistake on, say, the
 *teasing* beat is a property of how that judge reads teasing, not eight
@@ -798,7 +975,7 @@ unit already agrees) is exactly the kind of noise those rows already carry a
 warning label for — it is not a new finding, and the paper must not cite it
 as one.
 
-**What this run buys and does not buy.** It converts §8 L4 from an
+**What this run buys and does not buy.** It converts §7 L3 from an
 acknowledged-but-unaddressed limitation into a closed one: the paper's central
 quantitative claim (all five judges FAIL) now has an interval that is honest
 about clustering, not merely binomial. It does **not** change the paper's
@@ -810,7 +987,7 @@ verdicts are unchanged. `[R5]`
 
 ### 5.9 [R4] The English-translation control: register causality is NOT established
 
-Gap **G2** (§10 C8, §8 L6): the paper's claim that judges fail *because of*
+Gap **G2** (§10 C8, §7 L6): the paper's claim that judges fail *because of*
 code-switched affective register was, until this run, inferential —
 direction-of-error (§5.4) plus one qualitative reading. This section reports
 the causal control: the same 96 archived units, both transcripts per unit,
@@ -853,7 +1030,10 @@ is a **single-rater spot check**, not independent verification, and is
 reported as exactly that — a second rater is future work, not claimed here.
 
 **Recovery table** (pooled, unit-level, both-orders-agree; clustered CIs via
-the R5 machinery, `clusterBootstrapAgreementCI`, cluster=beat):
+the R5 machinery, `clusterBootstrapAgreementCI`, cluster=beat). **Figure F3
+draws it**, with the ±13.6 pp `fab-noise-floor` band shaded around each
+Hinglish value so that "inside the noise floor" is something the reader sees
+rather than something the authors assert:
 
 | judge | Hinglish agree | Hinglish clustered CI | English agree | English clustered CI | recovery | note |
 |---|---|---|---|---|---|---|
@@ -891,18 +1071,24 @@ alongside §5.4's direction-of-error result — judges reward the longer, more
 interrogative, more assistant-shaped, more generically-supportive reply — the
 parsimonious interpretation is that this is the judges' baseline taste, not a
 Hinglish-specific artifact, and a Hinglish-vs-English swap does not change it.
-**The title and the G2 claim must be revised**: "fails on code-switched
-affective register" should read as "fails on affective/companion register,
-tested here on a code-switched corpus," unless a further control (a
-monolingual-English affective-companion corpus with its own trusted verdicts,
-not available to this workstream) is run. This is a negative result and is
-reported as one, per the task's own instruction: report what IS, not what was
-hoped. It does not weaken the paper — a qualification protocol that returns a
-sharper, narrower true claim is doing exactly its job. `[R4]`
+**The title and the G2 claim HAVE BEEN REVISED accordingly** (§1, §2, §10 C8/C8b):
+the paper is now *"It's Not the Code-Switching"*, and the supported claim reads
+"fails on affective/companion register, tested here on a code-switched corpus
+and, under this control, on its monolingual English translation as well." A
+further control — a monolingual-English affective-companion corpus with its own
+independently-produced trusted verdicts — would be stronger still and is not
+available to this workstream (§7 L6). This is a negative result and is reported
+as one: what IS, not what was hoped. It does not weaken the paper. A
+qualification protocol that returns a sharper, narrower true claim is doing
+exactly its job, and a paper whose title names the hypothesis its own control
+destroyed is making the argument it exists to make. `[R4]`
 
 ---
 
-## §6 Related work — annotated citation list
+## §2.2 Related work — annotated citation list
+
+*(Ships as part of the paper's §2 Background. It was drafted as "§6" before the
+Discussion took that number; the content is unchanged.)*
 
 *(Prose pending. All URLs fetched and verified 2026-08-18 unless marked
 `[VERIFY]`, which means cited from background knowledge and **must** be checked
@@ -946,93 +1132,426 @@ the fetch and must be completed from the published PDFs.)*
 - Venkit, Prabhakar, Li, Lee, Wu (Salesforce AI Research), *Best Friends, Not Forever: Evaluating Long-Horizon Persona Collapse and Behavioral Drift in AI Companions*, arXiv:2607.28818 (2026-07) — ANCHOR; 2,008 conversations, 27 personas, 3 memory settings, 4 models; trajectory accuracy 44.4%. **Paper A's principal competitor; cited here as the source of the persona-evaluation constructs.**
 - *Persona-Grounded Safety Evaluation of AI Companions in Multi-Turn Conversations*, arXiv:2605.00227.
 
+**Where we sit in this literature after the translation control.** Before R4 the
+natural home for this paper was the code-switching line (Fu & Liu; Yin;
+Indi-RomCoM), as a report that judges degrade on romanised Hinglish. R4 removed
+that reading: the degradation is present in monolingual English translations of
+the same material at the same magnitude. Our contribution is therefore *not* a
+code-switching result in the sense those papers are, and the paper must not be
+sold as one. It is (a) a **qualification protocol** — the nearest neighbour is
+EMPATH's "judge as an instrument to be calibrated rather than trusted" and
+RAND's stress-test harness, neither of which backtests against trusted verdicts
+under a pre-registered bar; (b) a **failure-mechanism decomposition** with two
+mechanisms retracted by their own controls, where the self-preference line
+(arXiv:2410.21819 and successors) is the closest work and measures a different
+quantity; and (c) **a controlled refutation of the code-switching hypothesis**,
+which is a genuine contribution *to* the code-switching literature precisely
+because it is negative — Yin's language-switching-invariance result predicts a
+recovery in English that we do not observe on an affective preference task, and
+that discrepancy is worth a CALCS audience's attention.
+
 ---
 
-## §7 Discussion — outline
+## §6 Discussion
 
-1. **Both-orders agreement is a diagnostic, not a debias.** §5.3's exact
-   degenerate prediction is the reusable result. Recommend that any paper
-   reporting both-orders-agree rates also report the tie rate and the slot-A
-   rate, because the three together identify the evacuation failure and the
-   agreement rate alone conceals it.
-2. **Qualification must precede use, and the bar must have cost attached.** Our
-   bar gated a real spend; that is what kept it honest. Propose the minimal
-   qualification report: agreement + Wilson CI vs a stated bar, chance baseline
-   for the aggregation rule in use, slot-A rate vs the trusted judge's, tie rate,
-   transport misses, parse misses, and a family-conflict cell where one exists.
-3. **The failure is a taste failure, not a capability failure.** All six judges
-   are competent conversational models. What they lack is the register model
-   under which teasing is warmth and a stacked question is neediness. §5.4's
-   direction-of-error result and the "mocking/dismissive" reading are the same
-   fact seen twice.
-4. **Why this bites hardest exactly where automatic evaluation is most tempting.**
-   Code-switched and affective tasks are where human annotators are scarcest and
-   the pull toward LLM judging is strongest — the same observation
-   arXiv:2607.02235 makes for low-resource languages.
-5. **The protocol that refuses.** The harness self-invalidates its own runs
-   (§4.6). A measurement protocol that cannot decline to issue a verdict is not a
-   protocol. Connect to the programme's broader discipline (`fab-noise-floor`:
-   *"any fabrication claim from this harness at n<300 is noise"*).
+### 6.1 Both-orders agreement is a diagnostic, not a debiasing method
 
-## §8 Limitations and threats to validity — enumerated
+The most transferable result in this paper is the smallest. Presenting each
+comparison in both orders and counting only the units where the two
+presentations agree is the field's standard hedge against position bias, and it
+is a good hedge — against *some* position bias, on a task where the judge is
+otherwise reading the content. What §5.3 shows is that the rule has no floor.
+Because presentation is counterbalanced, a judge that picks the first slot with
+content-blind propensity *q* names the incumbent in one order and the candidate
+in the other, so it produces a decisive unit only by accident, at rate
+2*q*(1−*q*). Its ties are not caution. They are the absence of a measurement,
+and they are indistinguishable in the output format from a judge that read both
+replies carefully and found them equal.
 
-Each of these must appear in the paper in the paper's own voice. None is
-optional; several are fatal to over-claiming and are the reason §0.3 aims at a
-workshop first.
+This is why the failure is best described as *evacuation* rather than noise.
+Noise widens an interval around a real quantity. Evacuation removes the
+quantity and leaves the interval. A practitioner reading only the both-orders
+agreement rate of `Mistral-Large-3` on our landslide archive sees 16.7% and
+concludes the judge is bad; the more alarming fact is that 16.7% is exactly
+what a judge with Mistral's slot-A propensity and no content signal at all
+would score, and that the 39 of 48 units it returned as ties look, in every
+downstream aggregation, like the judge exercising restraint.
 
-- **L1 — The ground truth is an LLM.** `claude-opus-4.8`, not human raters. Every
-  agreement figure is *agreement with a specific frontier model's verdict*. The
-  mitigations that exist (blind, counterbalanced, pre-dating this study, acted
-  upon commercially, CI-verified) reduce but do not remove this. **This is the
-  study's single largest threat; §11 R3 prices the fix.**
-- **L2 — n = 96 units** (48 per archive), 192 rows per judge. Adequate to reject
-  an 80% bar; inadequate for fine discrimination among failures, and inadequate
-  for the below-chance claim after multiplicity correction (§5.4).
-- **L3 — Two archives, one product, one persona, one language pair.** Whether
-  this generalises beyond romanised Hinglish companion register is untested. The
-  Indi-RomCoM and multilingual-judge results make it plausible; plausible is not
-  measured.
-- **L4 — Clustering.** Units share 12 beat scripts and 2 replicates, so units are
-  not fully independent; a mixed-effects treatment clustering on beat is the
-  correct analysis and has **not** been run (§11 R5). Reported CIs are binomial
-  and therefore anti-conservative.
-- **L5 — Overall axis only.** Six further archived axes are unexploited (§11 R2).
-  The per-axis result would let us distinguish register-specific failure from
-  general failure — the mechanism claim in §5.4 is currently inferential.
-- **L6 — No causal manipulation of code-switching.** We argue the failure is
-  register-driven from direction-of-error plus a qualitative reading. The
-  decisive experiment — re-judging the same units machine-translated to
-  monolingual English — has **not** been run (§11 R4). Until it is, "fail on
-  code-switched affective register" is a *setting*, not an *established cause*,
-  and the title must be defensible on that basis.
-- **L7 — Judge decoding parameters were not swept.** All judges ran at
-  temperature 1 (terra's API pins it, and the others were matched to it for
-  comparability). Lower temperature might reduce position bias. Untested.
-- **L8 — Deployment drift.** The programme has measured a Foundry deployment's
-  behaviour shifting materially in four days (`measurements.md`
-  `vision-drift-4day`). Judge results are **date-stamped evidence**: all runs
-  2026-08-15.
-- **L9 — One named candidate family was never tested.** `Llama-4-Maverick` was
-  pre-registered as a qualification candidate (`judge-grant-only`,
-  `SWAP-TEST-PREREG.md` Amendment 2 option 1) and never deployed or run. The
-  paper's "five families tried" must not become "every family tried" (§10 GAP-C6).
-- **L11 — The favoritism null is a weak null.** §5.5 reports no evidence of
-  same-vendor favoritism, but the design could not detect a moderate effect if
-  one existed: two conflict cells total, and the two archives have grossly
-  mismatched ground-truth base rates (5.0% vs 51.4% candidate-win rate), which
-  makes the elevation metric incomparable across them in an uncontrolled way.
-  The paper must present this as *"our data do not support the claim we
-  previously logged"*, never as *"vendor favoritism does not occur"*.
-- **L10 — Self-application.** This paper's own claims are subject to its own
-  rules: `fab-noise-floor` (13.6 pp judged-rate spread on byte-identical input at
-  n<300) means we must not report any judged *rate difference* below that
-  magnitude as a finding, and we do not. The one place the paper approaches its
-  own floor is §5.7's 30.9% vs 28.1% — which we report as *"no difference
-  detected"*, never as equivalence.
+The recommendation follows mechanically and costs nothing. **Any result that
+reports a both-orders-agree rate should report, beside it, the tie rate and the
+slot-A pick rate.** The three numbers together identify the evacuation failure;
+the agreement rate alone conceals it, and the tie rate alone is ambiguous
+between a careful judge and a blind one. Better still, report the gap between
+the observed tie rate and *q*² + (1−*q*)², which is a one-line calculation from
+numbers a harness already has and which is, as far as we can tell, a usable
+index of how much content the judge's verdicts are actually carrying.
+
+### 6.2 Qualification must precede use, and the bar needs a cost attached
+
+The bar in this study was ≥80% agreement with the trusted verdict set, with the
+95% lower bound required to reach it. It was fixed in `docs/SPEC.md` §10-Q5 and
+instantiated for judge qualification before any candidate ran, and — the part
+that matters more than the pre-registration itself — it was set to gate a real
+downstream spend of roughly $400. A bar with money behind it is a bar somebody
+has an incentive to argue down, which is precisely why the fact that it held is
+evidence about the bar rather than about us. We report that the programme's
+pre-registered escape hatches fired as written when the bar was missed, because
+a threshold that has never bound is not a threshold.
+
+We propose a **minimal qualification report** — seven numbers, all of which a
+backtest harness already computes, and each of which exists because its absence
+produced a wrong reading somewhere in this programme's history:
+
+1. agreement with the trusted verdicts, with an interval, against a stated bar;
+2. the **chance baseline for the aggregation rule actually in use** — not 50%,
+   which is almost never right; ours is 30.5% for the both-orders rule and it is
+   derived from the archived verdict distribution, not assumed;
+3. the judge's slot-A pick rate, beside the trusted judge's rate on the
+   identical rows;
+4. the tie rate, beside its content-blind prediction;
+5. transport misses;
+6. parse misses;
+7. a family-conflict cell where one exists — **and a between-judge control for
+   it**, per §6.4.
+
+An eighth line is worth adding for anyone who can afford it: the same protocol
+run on the ground-truth judge itself, as a test–retest bound on the noise of
+the thing being agreed with. We could not run it (§11 R1) and the paper is
+weaker for it in a specific, nameable way, which is the correct way to be
+missing a control.
+
+### 6.3 The failure is a taste failure — and not a code-switching failure
+
+All six judges are competent conversational models. Several of them would be
+perfectly acceptable companions in the product this study is drawn from. What
+they lack is not fluency and not, in the end, Hinglish. §5.4 shows the residual
+signal is not merely weak but *inverted* on the archive with the least
+ambiguous ground truth: the arm they prefer is the longer one (36.1 words/turn
+vs 20.5), the more interrogative one (1.74 questions per turn, 63% of turns
+ending in a question), the more explicitly supportive one. The trusted judge's
+own rationales name it — *"piles on multiple questions per reply and generic
+neediness"*, *"does therapist-style feeling-summaries"* — and a qualitative
+spot-check finds the best-scoring candidate scoring authentic teasing as
+*"mocking/dismissive"*. These judges are not indifferent. They have a confident
+aesthetic and it is the assistant aesthetic: helpful, thorough, checking in.
+
+Our first explanation for this was that romanised code-switching was defeating
+the judges' register model, and we wrote it down. §5.9 tested it and it did not
+survive. Translated to monolingual English, the same 96 units produce
+recoveries of −3.1 to +6.6 percentage points — inside this programme's own
+measured 13.6 pp noise floor for judged rates on byte-identical input, with
+every English-condition interval overlapping its Hinglish counterpart, and with
+the best judge in both conditions moving the *wrong* way. The correct
+conclusion is narrower and, we think, more useful than the one we wanted:
+**what these judges cannot do is the affective preference judgment, in either
+language.** Code-switching was the setting in which we happened to catch it.
+
+This narrowing has a real cost to the paper and we do not want to pretend
+otherwise. It removes the claim that would have made this a code-switching
+result and made the venue choice obvious. It also removes a mechanism that we
+would have had no way to falsify from within the original design — which is the
+argument for running the control.
+
+### 6.4 Two mechanisms proposed, one retracted: the between-judge control
+
+§5.5 retracts a favoritism claim this programme had already logged as measured.
+The design that produced it was the natural one and, we suspect, the common
+one: take the judge whose vendor family is a contestant, measure how much it
+over-picks that arm relative to the ground truth, and control it against the
+same judge on an archive where the conflict is absent. `grok-4.3` over-picked
+the xAI arm on 81.0% of its non-tie units against a ground truth of 5.0%, and
+its own within-judge control looked clean (+76.0 pp on the conflict archive
+against +12.9 pp on the conflict-free one). A 16× effect, cleanly measured, on a
+plausible mechanism.
+
+The between-judge control kills it in one table. A **family-disjoint** judge,
+`Mistral-Large-3`, shows a *larger* difference-in-differences on the same
+archives (+71.7 pp vs grok's +63.1 pp), and the panel's other conflicted cell,
+`gpt-5.6-terra` on `charm-luna`, runs *negative* (−9.7 pp). Family conflict does
+not order the data. The parsimonious account is §6.3's: every judge over-picks
+that archive's candidate because that candidate is the verbose,
+question-stacking arm, and grok-4.3 happens to share a vendor with the arm the
+panel-wide preference already favours. One mechanism, not two.
+
+The general lesson is worth more than the retracted finding. **A
+difference-in-differences with only a within-subject control is a mechanism
+claim waiting to be retracted**, because it establishes that the conditions
+differ without establishing that the proposed cause is what differs. Where the
+"treatment" is a property of the judge (its family) and the "conditions" are
+archives that differ in many other ways — including, here, ground-truth base
+rates of 5.0% and 51.4%, which inflate every ratio computed against the
+former — a between-judge control is not a robustness check. It is the
+identification.
+
+We also note what this retraction does *not* establish. It is a null from two
+conflict cells with grossly mismatched base rates, and it cannot rule out a
+moderate same-vendor effect. The honest statement is *"our data do not support
+the claim we previously logged"*, and never *"vendor favoritism does not
+occur"*.
+
+### 6.5 Where this bites, and the protocol that refuses
+
+The pull toward LLM judging is strongest exactly where this failure is worst.
+Affective, open-ended, culturally-loaded tasks are the ones for which qualified
+human annotators are scarcest and slowest, which is why teams reach for an
+automatic judge; they are also the ones on which the judge's own aesthetic has
+the most room to substitute itself for the construct. The same observation has
+been made for low-resource languages (arXiv:2607.02235); our contribution is
+that it holds for an affective construct in a *high*-resource language too, so
+the usual mitigation — evaluate in English — is not one.
+
+The last piece is the harness itself. Three validity guards in this study —
+transport-miss counting, parse-miss counting, and self-invalidation above a
+threshold — exist because each of them had already failed in production
+somewhere in this programme's history: a $20 key limit silently converting a
+qualification run into a transport-selected subset that scored 100%, a
+120-token cap eating every verdict, a judge that answered a minority of calls
+in prose and would have been scored on that minority. Each guard's job is to
+let the harness **decline to issue a number**. A measurement protocol that
+cannot refuse is not a protocol, it is a formatter; and the case that makes
+this concrete is the one we report as a non-result rather than suppress, where
+the two anthropic reference runs scored 100% and 88.9% on transport-selected
+denominators of 14 and 9. Those are the two best numbers in the paper and they
+mean nothing, and the only reason we can say so is that the harness counted its
+own misses.
+
+## §7 Limitations & Ethics
+
+*(Ships as the paper's §7. Written in the paper's own voice. **The L-numbers
+were re-sequenced** when the R4/R5 results folded in — clustering moved L4→L3,
+the favoritism null L11→L12, self-application L10→L13 — and two new ones (L7
+translator confound, L8 single-rater fidelity check) were added. Every
+cross-reference in this file has been updated to the new numbers; upstream
+`context/` entries cite results, not L-numbers, so nothing there breaks.)*
+
+### 7.1 Limitations and threats to validity
+
+**L1 — The ground truth is an LLM, not a human.** This is the study's single
+largest threat and it is not mitigated away by anything else we did. Every
+agreement figure in this paper is *agreement with the verdicts of one frontier
+model*, `claude-opus-4.8`, on the `overall` axis. We claim four things for those
+verdicts and no more: they were produced blind, with model identity stripped;
+they were counterbalanced across presentation order and consolidated only where
+both orders agreed; they were produced before this study existed and not for it;
+and they were **acted upon** — they are the recorded reason two candidate models
+were declined for a shipping consumer product. That makes them a decision record
+with real consequences attached, which is a stronger warrant than a convenience
+label, and it is still not a human annotation. A reader who does not accept
+`claude-opus-4.8`'s taste as a proxy for native-speaker judgement should read
+every number here as *"agreement with a specific trusted judge"* and not as
+*"accuracy"*. We think that reading is the correct one and we have written the
+artifact's datasheet to enforce it. §11 R3 prices the human-annotation run that
+would close the gap; it is not run, and until it is, this is a workshop paper.
+
+**L2 — n = 96 units.** Forty-eight per archive, 192 judgment rows per judge.
+This is adequate to reject an 80% bar — every interval in §5.1 sits far below
+it, and §5.8 shows that clustering does not change that — and inadequate for
+fine discrimination among the failures. It is also inadequate for §5.4's
+below-chance result once multiplicity is handled: Mistral's p = 0.022 does not
+survive Bonferroni over the ten tests in §5.2–§5.4, which is why we report a
+*pattern* (three of five judges below the chance floor on the landslide, all in
+the same direction, with a matching qualitative reading) rather than resting on
+a single p-value.
+
+**L3 — Units are clustered on 12 beats.** The 96 units are not 96 independent
+trials: each of the 12 affective beat scripts contributes 8 units to the pool
+(2 lanes × 2 replicates × 2 archives), and a judge's error on the *teasing*
+beat is a fact about how that judge reads teasing rather than eight coin flips.
+§5.8 handles this with a beat-level cluster bootstrap and reports the clustered
+intervals beside the naive ones. The honest answer to *"how many effectively
+independent observations is this?"* is **12, not 96**, for the purpose of the
+variance estimate. No FAIL verdict changed, but the reviewer who asks the
+question deserves the franker number and now gets it.
+
+**L4 — Single persona, single product, single language pair, two archives.**
+Everything here comes from one deployed companion product with one persona, and
+the two archives share the same 12-beat battery and the same scripted user
+turns. Whether these judges fail the same way on a different affective product,
+a different persona, or a different language pair is untested. The adjacent
+literature makes it plausible; plausible is not measured, and the paper must
+frame generalisation as an open question rather than a claim.
+
+**L5 — The `overall` axis only.** The archived ground truth carries six further
+axes (warmth, humour, register, specificity, brevity, personhood) and none of
+them has been backtested. This is the most valuable cheap extension available
+(§11 R2) and its absence is what keeps §6.3's mechanism account *inferential*:
+a per-axis result would show directly whether the failure concentrates on
+register and humour rather than on brevity, which is the strongest mechanism
+evidence the existing data could yield.
+
+**L6 — The code-switching hypothesis was tested, and refuted, at n = 96 with a
+machine translator.** This limitation has been rewritten: it previously read
+*"no causal manipulation of code-switching has been run"*. The manipulation has
+now been run (§5.9) and it did not support the hypothesis. The limitation that
+remains is about the strength of that negative: the control shows no recovery
+*beyond this programme's own noise floor* on *these* 96 units with *this*
+translation pipeline. It does not establish that code-switching never matters
+for LLM judges, and a monolingual-English affective-companion corpus with its
+own independently-produced trusted verdicts — which we do not have — would be a
+stronger test than translating ours.
+
+**L7 — The translator is a member of the judge panel, and this is a real
+confound.** The English condition was produced by `gpt-5.6-terra`, which is also
+one of the five judges under test. This was not a design choice we would defend
+in the abstract: the credits-billed resource this programme runs on offered
+exactly two deployed models suitable for the translation, and both are panel
+members, so there was no family-disjoint translator available at $0. The
+consequence is that terra's own recovery number cannot rule out a
+self-familiarity effect. Two things bound the damage and neither removes it.
+First, terra's score moved *down* (−3.1 pp), which is the opposite of what
+self-familiarity predicts — weak evidence against a large effect, not proof at
+n = 96. Second, the other four judges' numbers are not subject to the confound
+at all, and the paper's conclusion rests on the whole panel rather than on
+terra. A replication with a translator disjoint from the panel is the obvious
+next control.
+
+**L8 — The translation fidelity check is a single rater, and that rater is an
+author.** Ten of 96 units (seeded selection, `seed=20260818`), both arms each,
+twenty transcripts, read by the agent that executed the run. The verdict was
+that meaning, tone, teasing and sarcasm register, emotional weight and
+domain-specific content all survived translation, with no hallucinated content,
+dropped turns or flattened teasing observed. We report that as what it is: a
+**single-rater spot check by a non-independent rater on 10% of the corpus**, not
+verification. A second, independent rater is future work and is not claimed.
+
+**L9 — Judge decoding parameters were not swept.** Every judge ran at
+temperature 1 — terra's API pins it, and the others were matched to it so the
+panel would be comparable. Lower temperature might reduce position bias, which
+would change §5.3's magnitudes though not obviously its mechanism. Untested.
+
+**L10 — Deployment drift, and the date stamp that follows from it.** This
+programme has measured an Azure Foundry deployment's behaviour shifting
+materially over four days. Judge results are therefore **date-stamped
+evidence**, not properties of a model name: the R0 runs are 2026-08-15 and the
+R4 runs 2026-08-18. A re-run at +30 days (§11 R7) is the cheap way to bound
+this and has not been done.
+
+**L11 — One pre-registered candidate family was never tested.**
+`Llama-4-Maverick` was named as a qualification candidate in the
+pre-registration and was never deployed or run — it was unavailable on this
+tenant. The paper says "five families tried" and must never say "every family
+tried". This correction has already been logged upstream against the
+`cohere-judge` entry that overstated it.
+
+**L12 — The favoritism null is a weak null.** §5.5 reports no evidence of
+same-vendor favoritism, from a design that could not have detected a moderate
+effect: two conflict cells in total, and two archives whose ground-truth
+candidate-win base rates are 5.0% and 51.4%, which makes the elevation metric
+incomparable across them in an uncontrolled way — and which is also how a "16×"
+headline was arithmetically reachable in the first place. The claim is *"our
+data do not support the claim we previously logged"*, never *"vendor favoritism
+does not occur"*.
+
+**L13 — Self-application: the paper is bound by its own noise floor.** This
+programme measured a 13.6 pp spread in judged rates across 300 arm-pairs whose
+input was provably byte-identical, i.e. where the setting under test could not
+act. We therefore may not report any judged *rate difference* below 13.6 pp as
+a finding, and we do not. Two places in the paper approach the floor and both
+are stated as nulls rather than equivalences: §5.7's 30.9% vs 28.1% for
+DeepSeek Pro vs Flash is reported as *"no difference detected"*, and §5.9's
+recoveries of −3.1 to +6.6 pp are reported as *inside the floor* rather than as
+evidence of a small real effect. If a future run at larger n resolves either,
+the finding changes and this paper's null does not become wrong — it becomes
+underpowered, which is a different thing and is why the distinction is worth
+keeping.
+
+### 7.2 On carrying our own retraction in the paper
+
+Two claims in this paper are refutations of findings this programme had already
+logged as measured: the same-vendor favoritism attribution (§5.5) and the
+code-switching mechanism (§5.9). We have kept both in the paper, with the
+original reasoning shown, rather than quietly reporting only the corrected
+state.
+
+We think this is a strength and we want to say why without dressing it up. It
+is not that we are unusually scrupulous; it is that **the two retractions are
+the paper's best evidence for its own central argument.** The paper's claim is
+that a plausible mechanism, cleanly measured, with a control that looks
+adequate, can still be wrong — and that the only reliable defence is a control
+that could have come out the other way. We are able to make that argument
+concretely because it happened to us twice, in the space of one study, with the
+numbers preserved. A within-judge control produced a 16× effect that a
+between-judge control erased. A direction-of-error result plus a qualitative
+reading produced a register hypothesis that a translation control did not
+support. Both were reasonable readings of the data available at the time. Both
+were wrong.
+
+The generalisable form is a question worth asking of any mechanism claim,
+including the ones we still believe: *what control did this survive, and could
+that control have refuted it?* Where the answer is that the control varied only
+the thing already assumed to matter, the claim has not been tested. That is a
+cheap question and it would have caught both of ours earlier.
+
+### 7.3 Ethics statement
+
+**Human subjects.** None. Every conversation in this study is a scripted
+battery: 12 affective beats × 6 turns, with **identical scripted user turns
+across arms**, addressed to a fictional interlocutor. No real user
+conversations, no production database rows, and no personal data of any kind
+enter the corpus, the analysis, or the proposed release. No IRB review was
+sought because there are no human participants; the human labour in the study
+is the authors' own.
+
+**Personal data and de-identification.** The release bundle (§9.2) is stripped
+before publication, not asserted to be clean: the checklist in §9.2 greps for
+the persona text, pseudonymises the scripted fictional interlocutor's name, and
+verifies that no key, endpoint, deployment name or resource identifier survives.
+The scripted material contains Indian place references (a Bangalore landmark,
+festival calendar entries) that are character detail rather than identifying
+information; the owner confirms them before release. §13 records the checklist
+as a gate rather than an intention.
+
+**Cultural representation, and who is qualified to judge it.** This paper makes
+claims about what counts as natural Hinglish companion register and about
+judges misreading teasing as dismissiveness. Those claims currently rest on an
+LLM's verdicts and on a product team's judgement, not on native-speaker
+annotation (L1). We regard that as an ethical limitation and not only a
+methodological one: a paper asserting that automatic judges misread a
+linguistic community's register, without that community's annotators in the
+loop, is asserting something it has not earned. The human-annotation run (§11
+R3) is specified as **≥2 native Hinglish raters with inter-rater agreement
+reported**, and the paper should not be submitted to an archival venue without
+it.
+
+**Dual use and foreseeable misuse.** The principal misuse risk is the release
+itself being adopted as a benchmark of judge *correctness*. It is not one: it
+measures agreement with one trusted judge's decisions on one product's
+construct. A leaderboard built on it would launder an LLM's aesthetic into an
+apparent ground truth, which is the failure mode this paper exists to document.
+The datasheet must state this in its own voice and in its first section, not in
+a footnote. A second, milder risk is that the per-vendor quirk log reads as
+comparative vendor criticism; it is a deployment-compatibility record from one
+tenant on specific dates, and it is labelled as such.
+
+**Conflicts of interest and positionality.** The authors are the product team
+whose deployment decisions produced the ground-truth verdicts, and the study
+evaluates candidate judges the same team intended to use for its own downstream
+gates. The incentive that matters ran *toward* a judge passing — a qualified
+credits-billed judge would have avoided a roughly $400 cash spend — and every
+candidate failed, which is the direction of bias that argues against the result
+being manufactured. The pre-registration of the bar, and its provenance in a
+document written before any candidate ran, is the structural mitigation. We
+state the conflict rather than relying on the mitigation alone.
+
+**Compute and environmental cost.** Disclosed in full and it is small: the R0
+backtest is 1,536 judgment rows; the R4 control is 1,152 calls and ≈1.23 M
+tokens. All candidate-judge runs were billed to an Azure AI Foundry
+startup-credits grant at **$0 cash**; one invalid OpenRouter reference run cost
+≈$1.80 and is reported as sunk. No model was trained or fine-tuned for this
+work.
+
+**Licensing and consent to release.** The transcripts are model output over
+authored scripts; the verdicts are model output. There is no third-party
+copyright interest and no data-subject consent to obtain. The proposed licences
+(Apache-2.0 code, CC BY 4.0 data) are the owner's decision and are pending at
+the time of writing (§13).
 
 ---
 
 ## §9 Artifact release — the publishable eval suite
+
+*(Ships as the paper's **§8**. Kept at §9 here so the §9.x sub-numbers cited
+throughout this file and in `context/` still resolve.)*
 
 ### 9.1 What can be released, and the hard constraint
 
@@ -1135,14 +1654,15 @@ supported and either need a run (§11) or must be cut.**
 | # | claim | evidence | status / gap |
 |---|---|---|---|
 | C1 | All six credit-billed candidate judges fail the ≥80% bar | `judges.json.pooled`; `measurements.md` `judge-backtest`, `grok43-judge`, `deepseek-pro-judge`, `mistral-judge`, `cohere-judge`; reproduced by `derive-tables.mjs` T3 | **SUPPORTED** |
-| C2 | Every 95% CI lies entirely below the bar | `derive-tables.mjs` T3 (Wilson) | **SUPPORTED** |
+| C2 | Every 95% CI lies entirely below the bar | `derive-tables.mjs` T3 (Wilson) **and** `clustered-cis.mjs` (beat-clustered bootstrap) | **SUPPORTED, twice.** Naive interval highs run 37.8%–63.8%; clustered interval highs run 38.5%–64.6%. Both far below 80%. Drawn as **Figure F1**. |
 | C3 | Four of five scorable judges are indistinguishable from uniform-random | `derive-tables.mjs` T3 (exact binomial vs 30.5%) | **SUPPORTED** (baseline derived from the archived verdict distribution, not assumed) |
-| C4 | Position bias evacuates the counterbalance; two judges land exactly on the pure-slot-A prediction | `derive-tables.mjs` T1 (16.7% prediction) + T2 (16.7% observed, twice) | **SUPPORTED** |
+| C4 | Position bias evacuates the counterbalance; two judges land exactly on the pure-slot-A prediction | `derive-tables.mjs` T1 (16.7% prediction) + T2 (16.7% observed, twice); generalised to the curve *q*²+(1−*q*)² in §5.3 and plotted in **Figure F2** | **SUPPORTED.** The curve is analytic and labelled as such; every plotted point is measured. Mistral-Large-3 sits 1.8–2.6 pp off the content-blind prediction on both archives. |
 | C5 | Three judges fall below the 25% chance floor on the landslide archive | `derive-tables.mjs` T2 decisive accuracy | **SUPPORTED as a pattern**; the single-judge significance (Mistral p=0.022) does **not** survive Bonferroni over 10 tests — stated in §5.4 |
 | C6 | The judges' error has a *direction*: they prefer the rejected arm | `derive-tables.mjs` T2 `decisiveFreshPicks` | **SUPPORTED** |
 | C7 | The rejected arm is longer, more interrogative, more assistant-shaped | `measurements.md` `charm-grok` (36.1 w/t, 1.74 q/t, 63% question-final); `personality-battery.md` | **SUPPORTED** |
-| C8 | **Therefore** the failure is caused by code-switched *affective register* | direction-of-error (C6+C7) + one qualitative reading (`judge-backtest`: terra scores teasing as "mocking") | **GAP-G2 — RUN, AND REFUTED, not merely closed.** §5.9 [R4]: the English-translation control shows every judge's recovery (−3.1pp to +6.6pp) sits inside `fab-noise-floor`'s 13.6pp noise band, with heavily overlapping clustered CIs. Register causality is **NOT established**; the failure survives translation to monolingual English. **The title and this claim must be reworded** — "fails on code-switched affective register" overclaims; "fails on affective/companion register, tested here on a code-switched corpus" is what the data supports. This is C8's own refutation, symmetrical to C9's below, and should be logged upstream the same way. |
-| C9 | grok-4.3 shows ~16× same-vendor favoritism | `judges.json` `familyConflict` (81.0% vs 5.0%) + within-judge control (+12.9 pp on the conflict-free archive) | **RETRACTED — GAP-C9.** The *between-judge* control refutes it: family-disjoint `Mistral-Large-3` shows a **larger** difference-in-differences (+71.7 pp vs grok's +63.1 pp) on the same archive, and the other conflicted cell (terra) is negative (−9.7 pp). `derive-tables.mjs` T5. The 81%-vs-5% number is real as an agreement failure; the causal attribution to vendor family is not supported. **Correct `measurements.md` `grok43-judge` upstream.** |
+| C8 | **Therefore** the failure is caused by code-switched *affective register* | direction-of-error (C6+C7) + one qualitative reading | **REFUTED. G2 IS CLOSED BY REFUTATION, NOT BY CONFIRMATION — the claim inverted.** §5.9 [R4] re-judged the same 96 units machine-translated to monolingual English: recoveries of −3.1 to +6.6 pp (mean +3.2), every English clustered CI overlapping its Hinglish counterpart, every recovery inside `fab-noise-floor`'s 13.6 pp band, and the best judge in both conditions moving the *wrong* way. Code-switching is **not** the cause. C8 is withdrawn and replaced by C8b. The paper is retitled around this (§1); the string "fails on code-switched affective register" is banned from the text. |
+| C8b | The failure is in the **affective/companion preference judgment itself**, and it survives translation to monolingual English | §5.9 [R4] recovery table; `analysis/r4/summary.json`; **Figure F3** | **SUPPORTED as a bounded negative.** What is established: no recovery beyond this programme's own noise floor, on these 96 units, with this translation pipeline. What is *not* established: that code-switching never matters for LLM judges. Two confounds carried openly — the translator is a panel member (§7 L7) and the fidelity check is single-rater (§7 L8). |
+| C9 | grok-4.3 shows ~16× same-vendor favoritism | `judges.json` `familyConflict` (81.0% vs 5.0%) + within-judge control (+12.9 pp on the conflict-free archive) | **RETRACTED, AND THE RETRACTION IS CLOSED — it is *in* the paper.** The between-judge control refutes it: family-disjoint `Mistral-Large-3` shows a **larger** DiD (+71.7 pp vs grok's +63.1 pp) and the second conflicted cell (terra) is negative (−9.7 pp); `derive-tables.mjs` T5. It ships as §5.5 (the result), §6.4 (the general lesson: a within-subject-only DiD is a mechanism claim waiting to be retracted) and §7.2 (why carrying it is a strength). Logged upstream as `measurements.md` `grok43-favoritism-retracted`. The 81%-vs-5% figure survives as an agreement failure and is counted in §5.4; only the causal attribution is withdrawn. |
 | C10 | terra shows same-vendor favoritism on charm-luna | `derive-tables.mjs` T4 (89.5% vs 51.4%) | **NOT SUPPORTED.** Subsumed by C9's retraction; terra's DiD is negative. |
 | C10b | **No** same-vendor favoritism is detectable in this data | `derive-tables.mjs` T5 | **SUPPORTED as a null**, and the paper must say why the design could not detect one even if present: the two archives have grossly mismatched ground-truth base rates (5.0% vs 51.4%) |
 | C11 | Scale does not fix the DeepSeek pathology | `deepseek-pro-judge`; T3 | **SUPPORTED** as "no difference detected"; **must not** be stated as equivalence (`fab-noise-floor`) |
@@ -1150,26 +1670,38 @@ supported and either need a run (§11) or must be cut.**
 | C13 | The bar was pre-registered before any candidate ran | `SPEC.md` §10-Q5; `decisions.md` `d2-on-credits` (2026-08-15); `SWAP-TEST-PREREG.md` Amendment 2 | **SUPPORTED**; the paper should cite the **commit timestamps**, which have not yet been extracted — **GAP-G6** |
 | C14 | The anthropic reference runs are invalid, not results | `judge-run-transport-invalid`; harness self-invalidation | **SUPPORTED** |
 | C15 | No published work does this backtest on romanised Hinglish affective register | §0.2 survey, 8 nearest works fetched 2026-08-18 | **SUPPORTED as of 2026-08-18**; re-run the survey immediately before posting — **GAP-G7** |
-| C16 | "Every Azure-direct family disjoint from both arms has been tried" | `cohere-judge` branch conclusion | **GAP-C6 — OVERSTATED.** `Llama-4-Maverick` was pre-registered and never deployed or run. Either run it (§11 R6, credits) or reword to "five families". |
-| C17 | The trusted judge's slot-A rate is 61% | `measurements.md` `charm-grok` | **GAP-C7 — MISATTRIBUTED.** Recomputes to 56.3% for `charm-grok`; 61.5% is `charm-luna`. Correct in the paper and log the correction upstream. |
+| C16 | "Every Azure-direct family disjoint from both arms has been tried" | `cohere-judge` branch conclusion | **CLOSED BY REWORDING.** `Llama-4-Maverick` was pre-registered and was NA on this tenant, never deployed or run. The paper says **"five families tried"** and carries it as §7 L11. Corrected upstream in `grok43-favoritism-retracted`. R6 would let us say "six"; it is not needed for correctness. |
+| C17 | The trusted judge's slot-A rate is 61% | `measurements.md` `charm-grok` | **CLOSED.** Misattributed by archive: `charm-grok` recomputes to **56.3%**, `charm-luna` is **61.5%**, pooled **58.9%**. The paper uses the recomputed per-archive values throughout and Figure F2 plots the pooled 58.9%. Correction logged upstream in `grok43-favoritism-retracted`. |
 | C18 | Judge agreement generalises beyond this persona/product | — | **GAP-G3 — NO EVIDENCE.** Must be framed as an open question, never claimed. |
-| C19 | Units are independent | — | **GAP-G4 — CLOSED.** §5.8 [R5]: cluster (beat) bootstrap CIs computed, reported next to the naive Wilson CIs. Clustering widens every FAIL judge's interval by 1–3pp; no FAIL verdict changes (the two flips are both already-INVALID transport-crippled reference rows, not real results). Binomial CIs were anti-conservative as stated, and the paper now carries the honest ones. |
+| C19 | Units are independent | — | **G4 CLOSED.** §5.8 [R5]: beat-level cluster bootstrap (12 clusters, 10,000 reps, seeded) reported beside the naive Wilson intervals. Clustering widens each FAIL interval by −0.2 to +3.1 pp and **no FAIL verdict changes**; the two rows that flip are both already-INVALID transport-crippled references. The binomial CIs were anti-conservative as the draft said, and the paper now carries the honest ones. The paper also now answers the harder question plainly: **12 effectively independent clusters, not 96 trials** (§7 L3). |
 | C20 | A judge that clears the bar exists | opus-5 14/14 and opus-4.8 8/9 — **both INVALID** | **GAP-G5 — UNPROVEN.** The paper currently cannot show any judge passing, which weakens "the bar is achievable". §11 R1 is the fix and is the highest-value paid run. |
 | C21 | The ground truth reflects native-speaker judgement | — | **GAP-G1 — THE CENTRAL GAP.** No human annotation exists. §11 R3. |
 | C22 | Per-axis: judges fail worse on register/humour than on brevity | — | **GAP-G8 — NOT MEASURED.** Would be the strongest mechanism evidence in the paper. §11 R2. |
 | C23 | Judge results are stable over time | `vision-drift-4day` shows a Foundry deployment drifting in 4 days | **GAP-G9 — UNMEASURED FOR JUDGES.** Date-stamp everything; a re-run at +30 days is §11 R7. |
 
-### Gap summary, by severity
+### Gap summary — reconciled
 
-| gap | what it blocks | cheapest fix |
+#### CLOSED
+
+| gap | how it closed | where it lives in the paper |
 |---|---|---|
-| **G1** ground truth is an LLM, not humans | the paper's headline interpretation | R3 — human annotation of ≥48 units, 2+ raters, κ reported |
-| **G2** causality of "code-switched register" | the title | **DONE — R4 ran (§5.9 [R4]). Outcome: causality NOT established; reword the title/claim, do not re-run.** |
-| **G5** no judge has been shown to pass | "the bar is achievable" | R1 — re-run opus-5/4.8 with a working key (~$5) |
-| **G8** per-axis mechanism | §5.4's mechanism claim | R2 — 7-axis re-judge (credits, ~960 calls) |
-| **G4** clustering | CI validity | **DONE — R5 ran (§5.8 [R5]). No FAIL verdict changed.** |
-| **C9** a logged finding is refuted by its own between-judge control | `measurements.md` `grok43-judge`, **and `SWAP-TEST-PREREG.md`'s one-judge-family deviation, which rests on it** | $0 — the refutation is already computed (T5); what it needs is an upstream `supersedes` entry and a re-read of the prereg's reasoning |
-| **C6/G6/G7/C7** overstatement, timestamps, survey freshness, misattribution | correctness | free edits + R6 |
+| **G2** — causality of "code-switched register" | **CLOSED BY REFUTATION.** R4 ran, and the hypothesis did not survive it. This is not a gap that was filled; it is a claim that inverted. The paper's contribution here is the controlled negative, and the title carries it. | §5.9, §6.3, §7 L6–L8, Figure F3, C8/C8b |
+| **G4** — unit independence / CI validity | **CLOSED BY R5.** Beat-level cluster bootstrap replaces the assumption with a measurement. Intervals widen by up to 3.1 pp; no FAIL verdict changes; the paper now states 12 effective clusters rather than 96 trials. | §5.8, §7 L3, Figure F1, C19 |
+| **C9** — the same-vendor favoritism claim | **CLOSED BY RETRACTION, IN THE PAPER.** The between-judge control refutes our own logged finding, and the refutation is a section rather than a silent edit. Upstream supersession logged as `grok43-favoritism-retracted`; `SWAP-TEST-PREREG.md` Amendment 2 re-read and amended to rest on the structural justification rather than the retracted measured instance. | §5.5, §6.4, §7.2, §7 L12, C9/C10/C10b |
+| **C16** — "every disjoint family tried" | closed by rewording to "five families"; `Llama-4-Maverick` was NA on this tenant | §7 L11 |
+| **C17** — the "61% slot-A" figure | closed; misattributed by archive, recomputed to 56.3% / 61.5% / 58.9% pooled | §5.0 correction note, Figure F2 |
+
+#### OPEN — and what each would upgrade
+
+| gap | what it currently blocks | cheapest fix | what closing it upgrades |
+|---|---|---|---|
+| **G1** — the ground truth is an LLM, not humans | the paper's **headline interpretation**, and its venue class | **R3** — blind, both-orders annotation of ≥48 units (ideally all 96) by **≥2 native Hinglish raters**, with Cohen's/Krippendorff's κ reported against the trusted judge. $0 if the owner plus one native speaker annotate; ~$96 outsourced. Needs a small static blind-annotation page (half a day). | Converts every "agreement with a trusted judge" claim into a claim about human-aligned judgement. This is the difference between a **workshop paper** and a plausible **Findings** submission, and it is also the ethics gap in §7.3 — a paper about judges misreading a community's register with no annotators from that community. **Highest value item on the list.** |
+| **G5** — no judge has ever been shown to *pass* the bar | the claim that the bar is achievable at all; a reviewer can currently say "your bar may simply be impossible" | **R1** — re-run the two anthropic reference judges with a raised OpenRouter key limit. ~$5 cash, measured at 210 calls = 353 k prompt + 22 k completion tokens. **Owner spend decision.** | Turns "six judges failed" into "six judges failed and here is one that passes", which is what makes the protocol a *qualification* protocol rather than a rejection log. It is also a **test–retest bound on the ground truth's own noise** (opus-4.8 judging its own archived verdicts), which is the single most valuable control the paper lacks and would partially mitigate G1. |
+| **G8** — per-axis mechanism | §6.3's mechanism account is **inferential**: we argue "taste failure" from direction-of-error plus one qualitative reading, not from where the failure concentrates | **R2** — 7-axis re-judge, same 96 units × 2 orders × 5 judges. Credits, ~960 calls, ≈1.2 M prompt tokens, **$0 cash**. | Would show directly whether failure concentrates on register/humour/personhood versus brevity/specificity. This is a ~7× increase in scored observations against ground truth **already paid for**, and it is the strongest mechanism evidence the existing corpus can yield. Note it does **not** add independent conversations (§7 L2 stands). |
+| **G3** — generalisation beyond this persona/product | any claim that the result transfers | no cheap fix; a second affective corpus with its own trusted verdicts | Would move §7 L4 from "untested" to "tested once elsewhere". Out of scope for this paper; framed as an open question, never claimed. |
+| **G6** — pre-registration commit timestamps not yet extracted | the strength of the "pre-registered" claim under a sceptical reviewer | free — `git log` on `docs/SPEC.md` and `SWAP-TEST-PREREG.md`, cite the hashes | Makes the pre-registration verifiable rather than asserted. **Do this before posting.** |
+| **G7** — the novelty survey is dated 2026-08-18 | the "first report" claims C1/C2 in §0.2 | free — re-run the eight-work adversarial survey immediately before posting | Keeps the novelty claim honest at submission time rather than at drafting time. |
+| **G9** — judge-result stability over time | nothing in the paper as written (results are date-stamped) | **R7** — identical protocol, 2 judges, +30 days. Credits, 384 calls, $0 cash. | Would bound the deployment-drift risk in §7 L10 rather than merely disclosing it. |
 
 ---
 
@@ -1233,26 +1765,115 @@ established, §5.9** → R3 (owner time, the credibility control) → R1 (owner'
 
 ## §12 Immediate next actions for the coordinator
 
-1. **Log five corrections upstream** (they are findings, not edits):
-   - **`grok43-judge`'s 16× same-vendor favoritism does not survive a
-     between-judge control** and should be superseded, not deleted — a
-     family-disjoint judge (`Mistral-Large-3`) shows a larger
-     difference-in-differences (+71.7 pp vs +63.1 pp) on the same archive, and
-     the second conflicted cell (terra) is negative (−9.7 pp). This is the
-     highest-value correction in the list: the claim is currently cited in
-     `SWAP-TEST-PREREG.md` as the *justification for the one-judge-family
-     deviation*, so the prereg's reasoning needs re-examination too. **§5.5.**
-   - `measurements.md` `charm-grok`'s "61% slot-A" is `charm-luna`'s number;
-     `charm-grok` recomputes to **56.3%**, matching the archive's own report.
-   - `cohere-judge`'s "every Azure-direct disjoint family has been tried" omits
-     `Llama-4-Maverick`, which was pre-registered and never deployed.
-   - The chance-baseline decomposition (**30.5% uniform-random / 21.9%
-     pure-slot-A** under the both-orders rule) is new, is what makes four of the
-     five failures interpretable, and belongs in `measurements.md`.
-   - The judged-per-axis reserve: the archives carry **seven** axes and only
-     `overall` has ever been backtested — worth a line so the next workstream
-     does not re-derive it.
-2. **Decide Paper B's author list and the CC BY 4.0 / Apache-2.0 licensing** (§9.3).
-3. **Approve or decline R1's ~$5** (§11).
-4. **Schedule R3** — the human annotation is the difference between a workshop
-   paper and a Findings paper, and it costs owner time rather than money.
+**Status of the five upstream corrections this workstream requested.** Three are
+**LOGGED** (`context/measurements.md` `grok43-favoritism-retracted`, 2026-08-15):
+the favoritism retraction with its `supersedes` relationship to `grok43-judge`;
+the `charm-grok` 56.3% slot-A misattribution; and the `cohere-judge`
+"every disjoint family" overstatement. `SWAP-TEST-PREREG.md` Amendment 2 was
+re-read and amended to rest on the structural justification rather than the
+retracted measured instance. Two remain **UNLOGGED** and are still worth an
+entry:
+
+1. **The chance-baseline decomposition** — 30.5% uniform-random and 21.9%
+   pure-slot-A under the both-orders-agree rule, derived from the archived
+   verdict distribution rather than assumed. It is what makes four of the five
+   failures interpretable, and §5.3 now generalises it to
+   *q*² + (1−*q*)² for arbitrary slot propensity. Belongs in
+   `measurements.md`.
+2. **The per-axis reserve** — the archives carry **seven** axes and only
+   `overall` has ever been backtested. One line, so the next workstream does not
+   re-derive the fact that ~7× more scored observations already exist on
+   ground truth that has already been paid for.
+
+**Owner decisions still blocking submission** (each is also a line in §13):
+
+3. **Author list and affiliation.** The paper cannot be posted without them and
+   this workstream will not invent them.
+4. **Licensing sign-off**: Apache-2.0 on code, **CC BY 4.0 on data**. The
+   recommendation and its rationale are in §9.3; the decision is the owner's.
+5. **Approve or decline R1's ~$5** (§11) — it closes G5 and gives the paper a
+   test–retest bound on its own ground truth.
+6. **Decide R3, the human annotation** — the difference between a workshop
+   paper and a Findings paper, and between an ethics statement that is honest
+   about a gap and one that does not have the gap. Costs owner time, not money.
+
+---
+
+## §13 Submission checklist
+
+*(Apparatus. Nothing here ships in the paper; everything here must be true
+before the paper is posted.)*
+
+### 13.1 Venue and category
+
+**arXiv primary category: `cs.CL`** (Computation and Language). This is not a
+judgement call — the paper is an evaluation-methodology result about language
+models judging natural-language text, and cs.CL is where every work in §2.2's
+related-work list sits.
+
+**Cross-list: `cs.LG`** (Machine Learning) as secondary. `cs.AI` is available
+as a third but adds little; do not cross-list to `cs.HC` — there are no human
+subjects and no interface claim, and listing there invites the reviewer question
+the paper cannot yet answer (§7.3).
+
+**Licence on the arXiv posting itself:** recommend **CC BY 4.0**, matching the
+data licence, so the preprint and the artifact carry one story. arXiv's
+default (`arXiv.org perpetual non-exclusive license`) is acceptable but weaker.
+`[OWNER DECISION]`
+
+**Submission order.** Post the arXiv preprint **first**, then submit to a
+non-archival workshop that permits preprints. Both venues below do.
+
+### 13.2 Workshop-deadline scan — run 2026-08-18 (live web)
+
+| venue | edition / colocation | dates | fit | verdict |
+|---|---|---|---|---|
+| **JUDGe 2026 — "Can We Trust the Judge?"** (`judge2026.github.io`) | Full-day workshop, **NeurIPS 2026, Atlanta** | CFP opened **2026-08-01**; **submission deadline 2026-08-29, 11:59 PM AoE**; notification **2026-09-29**; camera-ready **2026-10-15** | **Bullseye.** Its stated topics include construct validity in LLM evaluators, calibration, human–model alignment, **positional bias**, benchmark design, production case studies and **cross-lingual reliability** — this paper is four of those at once. **Non-archival**, papers posted on the workshop site with an opt-out, so an arXiv preprint is compatible. Full papers **6 pages + references**; short **4 pages + refs**; junior spotlight 2 pages. | **PRIMARY TARGET. Eleven days out.** A 6-page full paper is achievable from the current draft: §4 Method compresses hard, §5 keeps F1/F2/F3 and the two headline tables, and §6/§7 are already written. **This is the deadline the schedule should be built around.** |
+| **CALCS** (Computational Approaches to Linguistic Code-Switching) | 7th edition was at **NAACL 2025**; series cadence 2020, 2021, 2023, 2025 | **No 8th edition announced as of 2026-08-18.** ACL Anthology's most recent CALCS proceedings is 2025. Neither EMNLP 2026 (Budapest, Oct 24–29) nor AACL 2026 (Hengqin/Zhuhai, Nov 6–10) surfaced a CALCS instance in this scan. | Was the best fit under the *old* title. Under the new one it is a **controlled refutation** of a code-switching hypothesis, which is still squarely a CALCS result and arguably a more interesting one for that audience — Yin's language-switching-invariance line predicts an English recovery we do not observe. | **NOT AVAILABLE THIS CYCLE.** The route in is the joint 2027 workshop cycle: **workshop proposals due 2026-09-04**, acceptance **2026-10-02**, first CFP **~2026-10-26**, attached to NAACL 2027 (San Francisco, Jun 1–5, 2027) or EACL 2027 (Athens, Mar 9–14, 2027). Re-scan in October. |
+| **NAACL 2027 main / Findings** | San Francisco, **Jun 1–5, 2027** | **Paper deadline 2026-10-12 (23:59:59 UTC-12) / 2026-10-13 UTC** | Reachable *only after* R3 (human annotation) and ideally R2 (per-axis). At n = 96 units against LLM-produced ground truth the reviewer objection is sample size and it is a fair objection. | **CONDITIONAL, and it is a good target date.** Eight weeks after JUDGe, which is enough time to run R3 and fold it in. Do not submit without R3. |
+| **EMNLP 2026 / AACL 2026** | Budapest Oct 24–29 / Hengqin Nov 6–10, 2026 | main-track deadlines already passed for this cycle | — | **CLOSED for this cycle.** Workshop slates are assigned; no code-switching or judge-reliability workshop surfaced in this scan. |
+| *(checked, not viable)* `llm-as-a-judge.github.io` | a survey/paper-list resource, **not a workshop** | — | — | The §0.3 draft listed this as a venue. It is not one. JUDGe 2026 is the actual workshop and supersedes that line. |
+
+**Recommended plan:** arXiv (cs.CL) → **JUDGe 2026 by 2026-08-29** (non-archival,
+so it costs nothing later) → run R3 and R2 → NAACL 2027 Findings by 2026-10-12
+→ re-scan for CALCS 2027 in October.
+
+*(Scan method: live web search and fetch, 2026-08-18. Deadlines move. **Re-verify
+every date on the venue's own site before relying on it**, and re-run the
+novelty survey at the same time — §10 G7.)*
+
+### 13.3 Blocking on the owner — must be resolved before posting
+
+| # | item | why it blocks | state |
+|---|---|---|---|
+| B1 | **Author names and affiliation** | arXiv will not accept a submission without them, and this workstream will not invent an author list. Owner identity is Vyakti.ai; the names are the owner's to give. | **PENDING OWNER** |
+| B2 | **Human-annotation decision (R3)** | Not a hard blocker for a *workshop* posting, but it is a hard blocker for any archival venue and it is the ethics gap named in §7.3. Owner must decide: run it before JUDGe (tight), before NAACL 2027 (comfortable), or declare the paper workshop-only. | **PENDING OWNER** |
+| B3 | **Licence sign-off** — Apache-2.0 (code) + **CC BY 4.0** (data) + the arXiv posting licence | The artifact repo cannot be published without it, and the release plan (this file's §9, the paper's §8) is a contribution the paper cites. Recommendation and rationale in §9.3; deliberately not non-commercial, because a benchmark nobody may use commercially does not get adopted. | **PENDING OWNER** |
+| B4 | **R1's ~$5 cash** | Closes G5 and gives a test–retest bound on the ground truth. Against a ~$450 programme cap. Recommend approving. | **PENDING OWNER** |
+
+### 13.4 De-identification checklist — run against the release bundle
+
+**Run this, do not assert it.** Every line is a command with a required result,
+and the whole thing must be re-run against the *built bundle*, not the source
+tree, because the bundle is what gets published.
+
+| # | check | required result | state |
+|---|---|---|---|
+| D1 | Grep the release tree for the first 200 characters of `personaText` **and** of `personaVoice` | **zero hits.** The archives embed the full persona at 44,002 and 47,094 characters; releasing them raw would publish the product. | **NOT RUN — bundle not built** |
+| D2 | Grep for the scripted fictional interlocutor's name (`Raghav`) | pseudonymised to `USER`. Recommended over "keep": it costs nothing and removes the question entirely. | **NOT RUN** |
+| D3 | Grep for real place/person references that could identify the owner (the scripts carry Bangalore landmarks such as `Silk Board`, band names, a design job) | Character detail, not PII — but **owner confirms**, and the confirmation is recorded rather than assumed. | **NOT RUN — needs owner** |
+| D4 | Grep for any API key, endpoint, Azure deployment name or resource id | **zero hits.** `api/_config.js` is gitignored and must stay out of the bundle; `judges.json`'s `deployment` fields and endpoint hints are stripped per §9.2. | **NOT RUN** |
+| D5 | Confirm no `meera_log` row or any production DB record is present | **zero.** The archives are battery outputs and none should be — **verify, do not assume.** | **NOT RUN** |
+| D6 | Confirm the R4 artifacts (`analysis/r4/translations.json`, `judge-rows.json`) are covered by D1–D5 as well | They were produced after §9.2 was written and are not yet in its release table. **They contain full transcripts and must be added to the bundle's strip list.** | **NOT RUN — gap in §9.2, flagged here** |
+| D7 | Datasheet states, in its own voice and in its first section, that the ground truth is **LLM-produced, not human-annotated** | present | **DRAFTED, §9.4** |
+
+### 13.5 Pre-post correctness sweep
+
+| # | item | state |
+|---|---|---|
+| P1 | Extract pre-registration **commit hashes and timestamps** for `docs/SPEC.md` §10-Q5 and `SWAP-TEST-PREREG.md` Amendment 2, and cite them (§10 G6) | **NOT DONE — free, do it before posting** |
+| P2 | Re-run the eight-work adversarial novelty survey; §0.2's claims are dated 2026-08-18 (§10 G7) | **NOT DONE — free** |
+| P3 | Resolve every `[VERIFY]` marker in §2.2 (author lists, arXiv ids for JudgeBench, Zheng et al., LinCE/GLUECoS) against the published record | **NOT DONE** |
+| P4 | Confirm the string *"fails on code-switched affective register"* appears nowhere as a claim (§1's wording law) | **HOLDS in this draft — re-check after every edit** |
+| P5 | Rebuild all three figures and confirm byte-identical output (`fig-f1`, `fig-f2`, `fig-f3`) | **VERIFIED 2026-08-18 — reruns reproduce byte-for-byte** |
+| P6 | Confirm every number in the abstract and §5 traces to `derive-tables.mjs`, `clustered-cis.mjs`, `analysis/r4/summary.json`, or a `measurements.md` node id | **HOLDS.** The only non-measured quantity in the paper is the analytic curve *q*²+(1−*q*)², labelled as such wherever it appears. |

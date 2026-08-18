@@ -622,3 +622,37 @@ Days, Three Rooms" on the owner's friend groups, within-subject retention.
 **Reverses if:** Gate 0 cannot reach 0 ACL violations structurally, or the
 pilot shows rooms do not out-retain 1:1 (the wedge's core bet, also
 relational-wedge's own reversal).
+
+---
+
+## `paper-submission-plan` — JUDGe 2026 (NeurIPS) by Aug 29; the paper is drafted around its own refutations (2026-08-18)
+
+The draft is arXiv-submittable modulo owner inputs. Title: "It's Not the
+Code-Switching: Six Frontier LLM Judges Fail a Pre-Registered
+Qualification Bar in Hinglish and in English Alike." The paper's spine is
+its two self-retractions (the favoritism claim killed by a between-judge
+control; the code-switching mechanism killed by the translation control) —
+presented as the paper's best evidence for its own thesis, since both were
+reasonable readings and both were wrong. A wording law is enforced in-doc:
+"fails on code-switched affective register" may not appear as a claim.
+
+Venue plan (live-scanned 2026-08-18): arXiv cs.CL → **JUDGe 2026 @
+NeurIPS, deadline 2026-08-29 AoE, non-archival, 6pp** (the workshop's own
+topic list includes positional bias, construct validity, cross-lingual
+reliability — four direct hits) → R3 human annotation + R2 per-axis →
+NAACL 2027 Findings (2026-10-12) → CALCS 2027 re-scan in October (no 2026
+edition exists; llm-as-a-judge.github.io is a paper list, not a venue —
+corrected from the earlier scan).
+
+Before posting, mechanical: de-identification checklist §13.4 must
+actually RUN against a built release bundle (D6: the r4 artifacts contain
+full transcripts and join the strip list), pre-registration commit hashes
+inserted, novelty re-survey. Owner-blocking: author names/affiliation,
+R3 annotation decision (owner + one native rater, ~2h, upgrades venue
+tier), license sign-off (Apache-2.0 / CC BY 4.0), optional ~$5 R1.
+
+**Reverses if:** JUDGe's non-archival status or dates change on re-check
+during submission week, or R3 produces human verdicts that disagree with
+the archived ground truth enough to change a headline number — in which
+case the paper reports that too (it would be the third self-correction,
+and the strongest).

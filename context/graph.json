@@ -579,6 +579,12 @@
    "kind": "measurement",
    "title": "English translation does not rescue judges (recovery within noise floor) \u2014 failure is deeper than code-switching",
    "at": "2026-08-18"
+  },
+  {
+   "id": "paper-submission-plan",
+   "kind": "decision",
+   "title": "Target JUDGe 2026 @ NeurIPS (Aug 29 AoE); draft complete around two self-retractions; owner inputs pending",
+   "at": "2026-08-18"
   }
  ],
  "edges": [
@@ -1186,6 +1192,11 @@
    "src": "r4-english-control",
    "rel": "measured_by",
    "dst": "judge-backtest"
+  },
+  {
+   "src": "paper-submission-plan",
+   "rel": "part_of",
+   "dst": "relational-wedge"
   }
  ]
 }
