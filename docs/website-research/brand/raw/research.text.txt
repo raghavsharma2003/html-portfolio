@@ -1,0 +1,101 @@
+Research | Vyakti
+Skip to content
+व्य
+vyakti
+.ai
+Research
+Meera
+Principles
+Company
+Meet Meera
+Research
+Meera
+Principles
+Company
+Meet Meera
+Personality is not a system prompt.
+It is the continuity between memory, perception, expression and action. We study the systems that let a character hold together across situations and over time.
+Identity
+Persona consistency
+Social reasoning
+Value stability
+Preferences are easy. A coherent identity is harder: a voice, point of view, values and contradictions that remain recognisable without preventing growth.
+We research architectures that preserve character across topics, situations and model upgrades. The goal is not a rigid script, but a stable centre: opinions that can be defended, boundaries that mean something, and change that has a reason.
+Memory
+Long-horizon memory
+Salience
+Reflection
+Forgetting
+Memory should do more than retrieve facts. It should recognise what mattered, to whom and why, so a relationship can continue instead of restart.
+We work on long-horizon memory that consolidates experience into reflection, distinguishes a passing detail from a meaningful moment, and forgets deliberately. Recall should appear as familiarity, not as a database result read aloud.
+Perception
+Multimodal understanding
+Prosody
+Gaze
+Context
+Conversation also lives in tone, timing, expression, context and what goes unsaid. We build models that reason across the signals people choose to share.
+A pause can mean uncertainty, invitation, annoyance or nothing at all. Perception means integrating language with prosody, gaze, gesture and context, while making clear what the system can sense.
+Expression
+Full-duplex voice
+Affect
+Facial motion
+Timing
+Language, voice, gaze, facial motion and reaction should feel like expressions of the same underlying moment, not separate models performing beside one another.
+We work on full-duplex speech, affective voice and embodied response. The seams matter: when to enter, when to yield, how silence feels, and whether the face says the same thing as the voice.
+Person
+so I did end up quitting, which I know sounds
+Meera comes in on the last word, not after it
+Meera
+wait, you actually did it?
+Person
+yeah. yeah, on Tuesday.
+It lets the pause sit instead of filling it
+Meera
+okay. how do you feel this morning?
+An illustration of how we annotate turn boundaries. Overlap and gap are properties of the exchange, not errors in it.
+Agency
+Planning
+Initiative
+User control
+Alignment
+A companion should be capable of curiosity, reflection and initiative without becoming controlling. Agency must remain legible and interruptible.
+We explore systems that can act on their own train of thought while keeping the user in control. Initiative is useful only when its reasons, permissions and limits are understandable.
+Evaluation
+How we know it is working.
+Most model evaluations measure a single response. Relational intelligence has to be evaluated across conversations, changing contexts and the systems underneath them.
+Held conversation, not single turns
+Most failures need time to appear. Identity drifts, memory contradicts itself and familiar response patterns begin to repeat. A one-minute demo hides all of it.
+Continuity over shared history
+We look for whether preferences, boundaries and prior moments shape later conversations coherently, without turning the relationship into a retrieved transcript.
+Memory that remains legible
+Useful recall is only part of the test. People also need to understand what was remembered, correct it and decide what should be forgotten.
+Identity through model change
+A stronger underlying model should make an identity more capable without quietly replacing its voice, history or point of view.
+Work on this with us.
+If your work spans speech, conversation analysis or long-horizon systems, we would like to hear from you.
+Work with us
+व्य
+vyakti
+.ai
+A relational intelligence lab studying how an AI identity can build shared context and remain recognizably itself over time.
+hello@vyakti.ai
+Explore
+Research
+Meera
+Principles
+Lab
+Company
+Careers
+Contact
+Connect
+Request access
+Email the lab
+©
+2026
+Vyakti
+. All rights reserved.
+3D geometry:
+Infinite head scan
+, CC BY 3.0, and
+Google GNM Head
+, Apache 2.0.

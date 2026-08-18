@@ -1,0 +1,67 @@
+Company | Vyakti
+Skip to content
+व्य
+vyakti
+.ai
+Research
+Meera
+Principles
+Company
+Meet Meera
+Research
+Meera
+Principles
+Company
+Meet Meera
+A small lab with one question.
+Vyakti takes its name from the Sanskrit word for a person: the individual, that which is made manifest. The question is whether a machine can sustain identity, history and presence without pretending to be human.
+How we work.
+Behaviour before benchmarks
+The score exists to describe the behaviour. When the two disagree, we believe the conversation and rewrite the metric.
+Say what does not work
+Every system has a range where it works reliably and a range where it does not. Reporting only the first obscures the work still required.
+Research through one product
+Research that never reaches real use stays theoretical. Meera is where the work has to survive contact with time, context and shared history.
+Culture is not a setting
+There is no neutral way to have a conversation. Building as though there is produces a system that is subtly wrong for everyone.
+Careers
+People we hope to meet.
+If your work overlaps with these areas, write and tell us which part of the problem you would take on.
+Speech and voice
+Speech-to-speech modelling, prosody and expressive synthesis. You have shipped audio models and care about how they sound to a person, not only how they score.
+Conversation systems
+Turn-taking, endpointing and full-duplex dialogue. Comfortable with real-time constraints and with linguistics literature that predates deep learning.
+Long-horizon evaluation
+Designing the studies that tell us whether any of this is working. Experimental design, human subjects, and a healthy suspicion of your own results.
+Design engineering
+The surfaces people meet these systems through. Interface, motion and sound, built to the standard the research is held to.
+Introduce yourself
+General
+hello@vyakti.ai
+Hiring
+careers@vyakti.ai
+व्य
+vyakti
+.ai
+A relational intelligence lab studying how an AI identity can build shared context and remain recognizably itself over time.
+hello@vyakti.ai
+Explore
+Research
+Meera
+Principles
+Lab
+Company
+Careers
+Contact
+Connect
+Request access
+Email the lab
+©
+2026
+Vyakti
+. All rights reserved.
+3D geometry:
+Infinite head scan
+, CC BY 3.0, and
+Google GNM Head
+, Apache 2.0.
