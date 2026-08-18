@@ -70,6 +70,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           AZURE_KEY: ${{ secrets.AZURE_KEY }}
+          # the Telegram surface (api/tg.js) — WEBHOOK_SECRET is what
+          # authenticates the webhook; without it api/tg.js refuses every update
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          TELEGRAM_BOT_USERNAME: ${{ secrets.TELEGRAM_BOT_USERNAME }}
           AZURE_ENDPOINT: ${{ secrets.AZURE_ENDPOINT }}
         run: node scripts/write-config.mjs
 
@@ -92,6 +97,22 @@ jobs:
       # lost, same posture as a missed finalize pass.
       - name: Derive rel-events
         run: node api/consolidate.js --derive-rel-events --limit "${{ github.event.inputs.limit || '25' }}"
+
+      # WS-DEPTH: the three depth writers left out of the seam-4 orchestrator
+      # above on purpose (its own SCOPE CUT comment). Same posture as the
+      # honorific step: never halts the job, a missed pass is late, never
+      # lost. Chained in this order (trust/repair -> patterns -> phrases)
+      # because pattern extraction's dedup check and phrase capture's
+      # existing-phrase check are both cheaper/more accurate after the
+      # night's rel-state has already moved.
+      - name: Derive trust/repair
+        run: node api/consolidate.js --derive-trust-repair --limit "${{ github.event.inputs.limit || '25' }}"
+
+      - name: Extract patterns
+        run: node api/consolidate.js --extract-patterns --limit "${{ github.event.inputs.limit || '25' }}"
+
+      - name: Capture phrases
+        run: node api/consolidate.js --capture-phrases --limit "${{ github.event.inputs.limit || '25' }}"
 
       # Zero-orphan integrity sweep + citation discipline (SPEC §4.1.11,
       # §4.2 layer 4) — read-only, run against the SAME database the

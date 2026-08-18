@@ -131,7 +131,13 @@ async function opLog(device, body) {
 // like "what have you been doing" matches every summary containing "been" or
 // "what", and those nodes are then handed to her as relevant facts — which is
 // how she ends up confidently telling them something unrelated and wrong.
-const RECALL_STOP = new Set([
+//
+// EXPORTED (WS-DEPTH): api/consolidate.js's phrase-capture writer reuses this
+// exact list as half of its common-phrase stoplist (the other half is a
+// corpus-measured n-gram list — see that file) rather than duplicating it,
+// since both files already live server-side under api/ with no bundler
+// boundary between them (unlike relstate.ts's client-bundle constraint).
+export const RECALL_STOP = new Set([
   "that", "this", "then", "than", "when", "what", "have", "having", "been", "with", "your", "yours",
   "just", "like", "know", "knew", "about", "they", "them", "their", "there", "here", "from", "some",
   "were", "will", "would", "could", "should", "shall", "being", "does", "doing", "done", "going",

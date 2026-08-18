@@ -29,12 +29,18 @@
 //   6. suppression — every write filtered against meera_forget first.
 //
 // OUT OF SCOPE, deliberately, per the §13 file-ownership collision contract:
-// vy_pattern / vy_rel_event writes (WS-RELSTATE, M4, which DEPENDS on this
-// workstream rather than the reverse — this file supplies the citable
-// ground truth patterns will cite), taste nomination (WS-RELSTATE's
-// api/taste-queue.js), tier-compaction's weekly-digest form (logged as a
-// deferred M3→M4 handoff below), prosody baseline (WS-BATTERY's
-// scripts/prosody-baseline.mjs).
+// taste nomination (WS-RELSTATE's api/taste-queue.js), tier-compaction's
+// weekly-digest form (logged as a deferred M3→M4 handoff below), prosody
+// baseline (WS-BATTERY's scripts/prosody-baseline.mjs).
+//
+// NO LONGER OUT OF SCOPE (WS-DEPTH, 2026-08-18): trust/rupture/repair
+// rel-event derivation and vy_pattern writes were carved out of the seam-4
+// orchestrator below with an explicit "TICKETED BACK... not wired here"
+// comment — that comment is now stale. The trust/repair deriver, the
+// pattern extractor, and a new deterministic phrase-capture writer live in
+// their own section further down this file, chained after the honorific
+// orchestrator. See that section's header for why they are separate
+// functions rather than folded into deriveRelEventsForPerson.
 import { q } from "./_db.js";
 import { embedBatch, toHalfvecLiteral } from "./_embed.js";
 import { AZURE_ENDPOINT, AZURE_KEY, OPENROUTER_KEY } from "./_config.js";
@@ -47,7 +53,7 @@ import { AZURE_ENDPOINT, AZURE_KEY, OPENROUTER_KEY } from "./_config.js";
 // handler function at all), so this adds one more module load and nothing
 // else to that path.
 import { allow, ipOf } from "./_ratelimit.js";
-import { personIdFor } from "./memory.js";
+import { personIdFor, RECALL_STOP } from "./memory.js";
 
 const AZ_ENDPOINT = process.env.AZURE_ENDPOINT || AZURE_ENDPOINT;
 const AZ_KEY = process.env.AZURE_API_KEY || AZURE_KEY;
@@ -556,14 +562,25 @@ async function finalizePerson(person, { dryRun = false } = {}) {
 // relstate.ts's own hysteresis thresholds, mirrored exactly below) and
 // refreshes the three derived dims (cs_ratio/ritual_density/pacing_gap_s —
 // pure SQL, zero judgement, safe to port verbatim). It does NOT derive
-// trust/rupture/repair/code-switch rel-events or vy_pattern rows. Those
-// require actual JUDGEMENT of what happened in an episode — a real
-// extraction step (an LLM prompt, review, and its own citation/entailment
-// discipline), not something a deterministic integration pass may safely
-// improvise. Fabricating that judgement here would risk exactly the
-// confabulation / importance-inflation failure modes SPEC repeatedly rejects
-// elsewhere in this same file. TICKETED BACK to WS-RELSTATE/WS-CONSOLIDATE
-// as a real extraction-prompt-delta feature, not wired here.
+// trust/rupture/repair/code-switch rel-events or vy_pattern rows — those
+// require actual JUDGEMENT of what happened in an episode, not something a
+// deterministic integration pass may safely improvise.
+//
+// WS-DEPTH (2026-08-18) closes the trust/rupture/repair and pattern half of
+// that ticket, plus a third, deterministic phrase-capture writer — see the
+// "WS-DEPTH" section below runRelEventDerivation. Kept as SEPARATE functions
+// from deriveRelEventsForPerson rather than folded in, for one reason worth
+// stating: honorific derivation is a pure deterministic fold over regex
+// evidence (no LLM call, cannot confabulate), while trust/rupture/repair and
+// pattern extraction are real LLM judgement calls with their own prompt,
+// their own writer-window citation validation, and their own conservative
+// "ambiguous days write NOTHING" posture — mixing a call that cannot be
+// wrong with calls that must fail closed into one function would make the
+// wrong half of that sentence harder to audit at a glance. code_switch
+// derivation (csDirectionFromSignals) stays out of scope: not named in this
+// workstream's mandate, and no caller anywhere classifies retreat_l2 vs
+// intensify_l1 today, so wiring only the write half without the classifier
+// would be dead code.
 // ─────────────────────────────────────────────────────────────────────────
 
 // mirrors relstate.ts's padT/TU_MARKERS/AAP_MARKERS/TUM_MARKERS/detectAddressTerm exactly
@@ -835,6 +852,504 @@ export async function runRelEventDerivation({ limit = DEFAULT_PERSON_LIMIT, dryR
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WS-DEPTH (2026-08-18) — the three depth writers left out of the seam-4
+// orchestrator above on purpose (see that section's SCOPE CUT comment):
+// trust/rupture/repair rel-event derivation, dyadic pattern extraction, and
+// deterministic phrase capture. Chained AFTER runRelEventDerivation, same
+// dry-run flag support, same person cursor discipline, same fail-soft
+// posture ("a bad night costs a night, never a wrong write").
+//
+// GROUP GUARD (context/decisions.md `multiparty-v1-design`: "Group episodes
+// are state-inert in v1"): every episode/log query below filters
+// `group_id is null` EXPLICITLY, in addition to the structural guarantee
+// that a group episode's person_id is NULL by construction (migration
+// 008a) and so could never match `person_id = $1` anyway — belt-and-braces,
+// the same two-layer convention WE_TOKEN_RE and the honorific writer's own
+// pre-DB citation check already use in this file.
+//
+// CITATION LAW, same shape as finalizePerson's writer-window validation
+// (§4.2 layer 2): every prompt below hands the model a NUMBERED batch and
+// the model may cite ONLY by index into that batch. An index outside the
+// batch cannot exist in the model's output space; a signal whose mapped
+// citation set ends up empty is DROPPED, never written with zero citations
+// — the DB's own CHECK constraints (vy_rel_event_cited, vy_pattern_needs_two)
+// would refuse it anyway, but failing here is cheaper and gives the caller a
+// concrete reason instead of a generic constraint violation, same reasoning
+// relstate.ts's writeRelEvent/writePattern give for their own pre-DB checks.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// mirrors relstate.ts's clampTrustDelta/moveTrust exactly (source of truth:
+// src/engine/relstate.ts TRUST_MAX_DELTA_PER_DAY/clampTrustDelta/moveTrust —
+// same mirror-don't-import resolution as honorificShift above, same reason:
+// this script runs bare under Node with no bundler, relstate.ts is the
+// client bundle).
+const TRUST_MAX_DELTA_PER_DAY = 0.05;
+export function clampTrustDelta(rawDelta, lastMoveAt, now = new Date()) {
+  if (rawDelta === 0) return 0;
+  const days = lastMoveAt ? Math.max(0, (now.getTime() - new Date(lastMoveAt).getTime()) / MS_PER_DAY) : 1;
+  const maxAbs = TRUST_MAX_DELTA_PER_DAY * days;
+  const sign = Math.sign(rawDelta);
+  return sign * Math.min(Math.abs(rawDelta), maxAbs);
+}
+export function moveTrust(current, rawDelta, lastMoveAt, now = new Date()) {
+  const clamped = clampTrustDelta(rawDelta, lastMoveAt, now);
+  const next = Math.max(0, Math.min(1, current + clamped));
+  const direction = clamped > 0 ? "advance" : clamped < 0 ? "regress" : "init";
+  return { next, direction, delta: next - current };
+}
+
+// mirrors relstate.ts's ruptureRepairShift exactly, EXCEPT for how its two
+// booleans are produced: relstate.ts's own doc comment says conflictSignal
+// comes from "moment.ts's classifier" and theirRepairSignal must be "an
+// explicit affirmative FROM THE USER's own turn" — here the conservative
+// extraction prompt below plays both roles, gated by the same "CLEAR
+// evidence only, else present:false" instruction every prompt in this
+// section carries. The state-machine math itself is untouched: same four
+// branches, same priority order (regress-on-re-rupture checked before any
+// repair advance, so a fresh rupture arriving mid-repair cannot be shadowed).
+export function ruptureRepairShift(state, conflictSignal, theirRepairSignal) {
+  if (conflictSignal && !state.ruptureOpen) {
+    return { ruptureOpen: true, repairState: "open", dim: "rupture", direction: "advance", note: "conflict-shaped episode: rupture opens" };
+  }
+  if (conflictSignal && state.ruptureOpen && state.repairState !== "open") {
+    return { ruptureOpen: true, repairState: "open", dim: "repair", direction: "regress", note: "re-rupture during repair: repair regresses to open" };
+  }
+  if (state.ruptureOpen && state.repairState === "open" && theirRepairSignal) {
+    return { ruptureOpen: state.ruptureOpen, repairState: "repairing", dim: "repair", direction: "advance", note: "their signal: repair begins" };
+  }
+  if (state.ruptureOpen && state.repairState === "repairing" && theirRepairSignal) {
+    return { ruptureOpen: false, repairState: "repaired", dim: "repair", direction: "advance", note: "their signal sustained: repaired, rupture closes" };
+  }
+  return null;
+}
+
+// Fixed, ANCHORED nightly trust step — never an LLM-self-rated magnitude
+// (same anti-inflation reasoning as IMPORTANCE_ANCHORS above: a model asked
+// "how much" inflates; a model asked "did this happen, yes or no" does not).
+// The rate limit (clampTrustDelta, ±0.05/day) is what actually bounds the
+// real movement regardless of this constant's size, so 0.08 here is
+// deliberately ABOVE the daily cap — one clear night's evidence should be
+// enough to use the full daily allowance, not a fraction of it.
+const TRUST_STEP = 0.08;
+
+// Cost/latency ceiling per person, same reasoning as LOG_BATCH_CAP: a
+// chatty person's whole history is never pulled into one extraction call.
+const TRUST_REPAIR_MAX_EPISODES = 40;
+const PATTERN_LOOKBACK_DAYS = 60;
+const PATTERN_MAX_EPISODES = 60;
+const PATTERN_MIN_EPISODES_TO_TRY = 4; // below this there is nothing to find a REGULARITY in
+const PATTERN_CAP_PER_NIGHT = 2; // "accumulation should feel geological, not chatty"
+const PATTERN_MOMENTS = ["conflict", "vulnerable", "silence", "teasing", "stress", "planning", "celebration", "boredom"];
+
+/** Today's freshly-finalized 1:1 episodes for one person, with the fields
+ *  the trust/repair prompt needs (summary + affect, already telegraphic and
+ *  already citation-anchored by finalizePerson's own entailment discipline).
+ *  GROUP GUARD applied (see section header). */
+async function fetchFreshEpisodesForPerson(person, limitN = TRUST_REPAIR_MAX_EPISODES) {
+  return q(
+    `select id, log_from, log_to, started_at, summary, affect_tags, importance from vy_episode
+      where person_id = $1 and provisional = false and group_id is null
+        and created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
+      order by started_at asc limit $2`,
+    [person, limitN],
+  ).catch(() => []);
+}
+
+/** A person's broader recent history for pattern-finding (behavioral
+ *  regularities need more than one day's evidence) — GROUP GUARD applied,
+ *  superseded episodes excluded (a compacted/replaced summary is not
+ *  citable ground truth). */
+async function fetchHistoryEpisodesForPerson(person, { days = PATTERN_LOOKBACK_DAYS, limitN = PATTERN_MAX_EPISODES } = {}) {
+  return q(
+    `select id, log_from, log_to, started_at, summary, affect_tags, importance from vy_episode
+      where person_id = $1 and provisional = false and group_id is null and superseded_by is null
+        and started_at > now() - interval '${days} days'
+      order by started_at asc limit $2`,
+    [person, limitN],
+  ).catch(() => []);
+}
+
+function renderEpisodeBatch(episodes) {
+  return episodes
+    .map((e, i) => {
+      const affect = Array.isArray(e.affect_tags) ? e.affect_tags.map((a) => a.tag).filter(Boolean).join(",") : "";
+      const day = new Date(e.started_at).toISOString().slice(0, 10);
+      return `[${i}] (${day})${affect ? ` [${affect}]` : ""} ${e.summary}`;
+    })
+    .join("\n");
+}
+
+/** Maps model-proposed indices back to real episode ids, dropping anything
+ *  outside the numbered batch — the writer-window validation this whole
+ *  section's citation law depends on. */
+export function mapEpisodeCitations(idxArr, episodes) {
+  if (!Array.isArray(idxArr)) return [];
+  const idxs = [...new Set(idxArr.filter((n) => Number.isInteger(n) && n >= 0 && n < episodes.length))];
+  return idxs.map((i) => episodes[i].id).sort((a, b) => a - b);
+}
+
+function trustRepairPrompt(batchText) {
+  return `You are reviewing a companion app's recent conversation history with ONE real person, already segmented into dated episodes, looking ONLY for CLEAR evidence of trust movement or a relationship rupture/repair. Reply with ONLY JSON, this exact shape:
+{"trust_move":{"present":false,"direction":"increase|decrease","citations":[],"note":""},
+"rupture":{"present":false,"citations":[],"note":""},
+"repair_signal":{"present":false,"citations":[],"note":""}}
+
+RULES, hard:
+- CLEAR evidence only. If it is ambiguous, arguable, or you would be inferring rather than reading it off the episodes, set "present":false for that field. A missed signal is recoverable tomorrow; a wrong one is not — when in doubt, say nothing.
+- "citations" must be indices from the numbered list below, never invented, and non-empty whenever "present" is true.
+- "trust_move": present only when the person did something that concretely signals trusting her MORE (real vulnerability shared, a returned confidence, explicit reliance on her) or LESS (withdrawal, sudden guardedness, a stated loss of trust) — never routine warmth or a good mood.
+- "rupture": present only when something genuinely hurt or damaged the RELATIONSHIP in this stretch (a real conflict, offense, or hurt between them and her) — not a bad day about something unrelated.
+- "repair_signal": present only when THE PERSON THEMSELVES explicitly signals repair — an apology, a reaching-back-out after distance, a stated wish to move past a conflict. Never her own words, never inferred from her side.
+
+EPISODES (numbered, dated, affect-tagged where known):
+${batchText}`;
+}
+
+/** One person's trust/rupture/repair pass: extract, validate citations
+ *  against the numbered batch, apply the mirrored state machine, write AT
+ *  MOST one rupture/repair event and one trust event per run (the state
+ *  machine itself only ever proposes one rupture/repair move at a time).
+ *  Returns a per-person report for the run summary. */
+async function deriveTrustRepairForPerson(person, { dryRun = false } = {}) {
+  const rep = { person, episodes_scanned: 0, trust_moved: false, rupture_or_repair_moved: false };
+  const episodes = await fetchFreshEpisodesForPerson(person);
+  rep.episodes_scanned = episodes.length;
+  if (!episodes.length) return rep;
+
+  const raw = await llm([{ role: "user", content: trustRepairPrompt(renderEpisodeBatch(episodes)) }], 500);
+  if (!raw) return rep; // a failed derivation is a late pass, never a wrong write
+  const parsed = parseJsonLoose(raw);
+  if (!parsed) return rep;
+
+  const stateRows = await q(`select trust, rupture_open, repair_state from vy_rel_state where person_id = $1`, [person]).catch(() => []);
+  const currentTrust = stateRows[0] ? Number(stateRows[0].trust) : 0.3;
+  const ruptureOpen = Boolean(stateRows[0]?.rupture_open ?? false);
+  const repairState = stateRows[0]?.repair_state ?? "none";
+  const inputFrom = Math.min(...episodes.map((e) => e.log_from ?? Infinity).filter(Number.isFinite));
+  const inputTo = Math.max(...episodes.map((e) => e.log_to ?? -Infinity).filter(Number.isFinite));
+  let wrote = [];
+
+  // ── rupture/repair: one state-machine move at most, mirrored exactly ──
+  const conflictSignal = Boolean(parsed?.rupture?.present);
+  const repairSignal = Boolean(parsed?.repair_signal?.present);
+  if (conflictSignal || repairSignal) {
+    const move = ruptureRepairShift({ ruptureOpen, repairState }, conflictSignal, repairSignal);
+    if (move) {
+      const citeSource = move.dim === "rupture" || move.direction === "regress" ? parsed?.rupture?.citations : parsed?.repair_signal?.citations;
+      const citations = mapEpisodeCitations(citeSource, episodes);
+      if (citations.length) {
+        rep.rupture_or_repair_moved = true;
+        if (!dryRun) {
+          const fromV = move.dim === "rupture" ? (ruptureOpen ? "open" : "closed") : repairState;
+          const toV = move.dim === "rupture" ? "open" : move.repairState;
+          const note = move.dim === "rupture" ? parsed?.rupture?.note : parsed?.repair_signal?.note ?? parsed?.rupture?.note;
+          await q(
+            `insert into vy_rel_event (person_id, dim, from_v, to_v, direction, note, citations)
+             values ($1,$2,$3,$4,$5,$6,$7)`,
+            [person, move.dim, fromV, toV, move.direction, telegraphic(note || move.note, 160), citations],
+          ).catch(() => {});
+          await q(
+            `insert into vy_rel_state (person_id, rupture_open, repair_state) values ($1,$2,$3)
+             on conflict (person_id) do update set rupture_open = $2, repair_state = $3`,
+            [person, move.ruptureOpen, move.repairState],
+          ).catch(() => {});
+          wrote.push({ table: "vy_rel_event", dim: move.dim });
+        }
+      }
+    }
+  }
+
+  // ── trust: independent scalar dim, rate-limited by clampTrustDelta ──
+  if (parsed?.trust_move?.present) {
+    const citations = mapEpisodeCitations(parsed.trust_move.citations, episodes);
+    if (citations.length) {
+      const lastTrustRows = await q(
+        `select at from vy_rel_event where person_id = $1 and dim = 'trust' order by at desc limit 1`,
+        [person],
+      ).catch(() => []);
+      const lastMoveAt = lastTrustRows[0]?.at ?? null;
+      const sign = parsed.trust_move.direction === "decrease" ? -1 : 1;
+      const move = moveTrust(currentTrust, sign * TRUST_STEP, lastMoveAt);
+      if (move.delta !== 0) {
+        rep.trust_moved = true;
+        if (!dryRun) {
+          await q(
+            `insert into vy_rel_event (person_id, dim, from_v, to_v, direction, note, citations)
+             values ($1,'trust',$2,$3,$4,$5,$6)`,
+            [person, currentTrust.toFixed(3), move.next.toFixed(3), move.direction, telegraphic(parsed.trust_move.note, 160), citations],
+          ).catch(() => {});
+          await q(
+            `insert into vy_rel_state (person_id, trust) values ($1,$2)
+             on conflict (person_id) do update set trust = $2`,
+            [person, move.next],
+          ).catch(() => {});
+          wrote.push({ table: "vy_rel_event", dim: "trust" });
+        }
+      }
+    }
+  }
+
+  if (!dryRun && wrote.length && Number.isFinite(inputFrom) && Number.isFinite(inputTo)) {
+    await q(
+      `insert into vy_derivation (person_id, model, prompt_hash, input_from, input_to, wrote)
+       values ($1,$2,'trust_repair',$3,$4,$5::jsonb)`,
+      [person, AZ_KEY ? EXTRACT_MODEL_AZURE : EXTRACT_MODEL_FALLBACK, inputFrom, inputTo, JSON.stringify(wrote)],
+    ).catch(() => {});
+  }
+  return rep;
+}
+
+/** The orchestrator — same person cursor (findPersonsWithFreshEpisodes) as
+ *  runRelEventDerivation, run independently so a partial honorific pass
+ *  never blocks this one. */
+export async function runTrustRepairDerivation({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null } = {}) {
+  const t0 = Date.now();
+  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit);
+  const reports = [];
+  for (const person of persons) reports.push(await deriveTrustRepairForPerson(person, { dryRun }));
+  return {
+    ok: true,
+    persons_processed: reports.length,
+    trust_events_written: reports.filter((r) => r.trust_moved).length,
+    rupture_repair_events_written: reports.filter((r) => r.rupture_or_repair_moved).length,
+    ms: Date.now() - t0,
+    reports,
+  };
+}
+
+// ── pattern extraction: dyadic if-then regularities, gated on writePattern's
+//    own >=2-citation rule (mirrored here, same as its DB CHECK) ──
+
+function patternPrompt(batchText) {
+  return `You are looking for GENUINE behavioral regularities in one person's history with a companion app — the kind of "if-then" you would only notice about someone after knowing them for months. "we both like coffee" is a SHARED TASTE, not a pattern, and must never be proposed. "goes quiet after work stress, wants distraction not questions" IS a pattern. Reply with ONLY JSON, this exact shape:
+{"patterns":[{"moment":"conflict|vulnerable|silence|teasing|stress|planning|celebration|boredom","if_shape":"telegraphic, <=14 words, no terminal punctuation","then_note":"telegraphic guidance, <=14 words, no terminal punctuation","self_in_relation":"telegraphic, how to BE with them here, <=14 words","citations":[0,3]}]}
+
+RULES, hard:
+- Propose AT MOST 2 patterns. An empty array is the correct, expected answer most nights — do not force one to exist.
+- A pattern is REAL only if you can point to >=2 DISTINCT numbered episodes below where the SAME regularity clearly happened. One instance is an anecdote, not a pattern — "citations" must have >=2 distinct indices, never invented, never outside the numbered list.
+- Never propose a pattern that is really just a fact about them, a shared interest, or a single memorable event. Only a recurring IF (a situation or mood) -> THEN (what actually helps, or actually happens).
+- Telegraphic notes only: no capital-start-plus-period prose, never a full sentence, never her own first-person voice.
+
+EPISODES (numbered, dated):
+${batchText}`;
+}
+
+/** One person's pattern-extraction pass. Dedupes against this person's own
+ *  existing active patterns (same moment + same normalized if_shape) so a
+ *  regularity already on record is not re-proposed nightly. */
+async function extractPatternsForPerson(person, { dryRun = false } = {}) {
+  const rep = { person, episodes_scanned: 0, proposed: 0, written: 0, rejected: 0, deduped: 0 };
+  const episodes = await fetchHistoryEpisodesForPerson(person);
+  rep.episodes_scanned = episodes.length;
+  if (episodes.length < PATTERN_MIN_EPISODES_TO_TRY) return rep;
+
+  const existing = await q(
+    `select moment, if_shape from vy_pattern where person_id = $1 and t_invalid is null`,
+    [person],
+  ).catch(() => []);
+  const dedupeKey = (m, s) => `${m}::${String(s).toLowerCase().trim()}`;
+  const seen = new Set(existing.map((p) => dedupeKey(p.moment, p.if_shape)));
+
+  const raw = await llm([{ role: "user", content: patternPrompt(renderEpisodeBatch(episodes)) }], 700);
+  if (!raw) return rep;
+  const parsed = parseJsonLoose(raw);
+  const proposals = Array.isArray(parsed?.patterns) ? parsed.patterns.slice(0, PATTERN_CAP_PER_NIGHT) : [];
+  rep.proposed = proposals.length;
+
+  for (const p of proposals) {
+    const moment = PATTERN_MOMENTS.includes(p?.moment) ? p.moment : null;
+    const ifShape = telegraphic(p?.if_shape, 120);
+    const thenNote = telegraphic(p?.then_note, 120);
+    const selfInRelation = telegraphic(p?.self_in_relation, 120);
+    const citations = mapEpisodeCitations(p?.citations, episodes);
+    if (!moment || !ifShape || !thenNote || citations.length < 2) {
+      rep.rejected++;
+      continue;
+    }
+    if (seen.has(dedupeKey(moment, ifShape))) {
+      rep.deduped++;
+      continue;
+    }
+    if (dryRun) {
+      rep.written++;
+      continue;
+    }
+    try {
+      await q(
+        `insert into vy_pattern (person_id, moment, if_shape, then_note, self_in_relation, citations)
+         values ($1,$2,$3,$4,$5,$6)`,
+        [person, moment, ifShape, thenNote, selfInRelation, citations],
+      );
+      rep.written++;
+      seen.add(dedupeKey(moment, ifShape));
+    } catch {
+      rep.rejected++;
+    }
+  }
+  return rep;
+}
+
+export async function runPatternExtraction({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null } = {}) {
+  const t0 = Date.now();
+  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit);
+  const reports = [];
+  for (const person of persons) reports.push(await extractPatternsForPerson(person, { dryRun }));
+  return {
+    ok: true,
+    persons_processed: reports.length,
+    patterns_written: reports.reduce((s, r) => s + r.written, 0),
+    patterns_deduped: reports.reduce((s, r) => s + r.deduped, 0),
+    ms: Date.now() - t0,
+    reports,
+  };
+}
+
+// ── phrase capture: DETERMINISTIC, no LLM. A genuine shared phrase is a
+//    user-authored 2-5 word token sequence that recurred on >=3 DISTINCT
+//    days and is not a generic Hinglish filler — precision over recall,
+//    since these get spoken back by her (T6 renderWeCallbacks) and a false
+//    positive there is the recited-prompt law's worst case: a line she
+//    never should have "remembered". ──
+
+const PHRASE_MIN_WORDS = 2;
+const PHRASE_MAX_WORDS = 5;
+const PHRASE_MIN_DISTINCT_DAYS = 3;
+const PHRASE_CAP_PER_NIGHT = 1;
+const PHRASE_SCAN_LIMIT = 1500; // cost/latency ceiling, same reasoning as LOG_BATCH_CAP
+
+// measured 2026-08-18: n-gram frequency scan over meera_log (role='me',
+// n=751 rows, 37 distinct devices at scan time) — the phrases here are the
+// ones said by the MOST DISTINCT DEVICES, i.e. generic across many dyads
+// ("photo bhejo na", "kya kar rahe ho") rather than distinctive to one
+// relationship. This is the "top corpus n-grams" half of the stoplist the
+// spec calls for; RECALL_STOP (imported from api/memory.js) and
+// HINDI_MARKER_WORDS (this file, above) supply the per-token half. Static
+// and dated on purpose (same authored-constant convention as
+// IMPORTANCE_ANCHORS/HINDI_MARKER_WORDS) rather than a live per-run query —
+// a stoplist that is too fresh would just be re-measuring this person's own
+// phrase back at itself on a slow day.
+const CORPUS_COMMON_PHRASES = new Set([
+  "रही है", "है क्या", "रहा हूं", "kya kar", "bhejo na", "photo bhejo", "na apni",
+  "photo bhejo na", "bhejo na apni", "photo bhejo na apni", "आवाज आ", "आ रही",
+  "आवाज आ रही", "आ रही है", "आवाज आ रही है", "कर रहे", "रहे हो", "साथ में",
+  "कह रहा", "नहीं है", "मैं तो", "ek photo", "apni abhi", "abhi kya",
+  "ek photo bhejo", "na apni abhi", "apni abhi kya", "abhi kya kar",
+  "ek photo bhejo na", "bhejo na apni abhi", "na apni abhi kya",
+  "apni abhi kya kar", "ek photo bhejo na apni", "photo bhejo na apni abhi",
+  "bhejo na apni abhi kya", "na apni abhi kya kar", "i m", "are you",
+  "kar raha", "raha kya", "raha hai", "kuch nhi", "क्या कर", "मैं कह",
+  "मैं कह रहा", "कह रहा हूं", "मैं कह रहा हूं", "do you", "ho raha", "rahi hai",
+  "रही है क्या", "क्या कर रहे", "कर रहे हो", "क्या कर रहे हो", "कुछ नहीं",
+  "मैं भी", "है ना", "नहीं कर", "रहा था",
+]);
+
+export function tokenizePhrase(s) {
+  return String(s)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\p{M}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+}
+
+/** One person's deterministic phrase-capture pass: scan their own turns,
+ *  count 2-5 word n-grams by distinct day, filter the stoplists, and write
+ *  AT MOST ONE new phrase — the most-recurring surviving candidate — citing
+ *  the episode it was FIRST said in (vy_phrase.origin_episode is a single
+ *  bigint by schema design, "the coining episode", not a citations array;
+ *  the >=3-distinct-day recurrence requirement is the evidence bar, this is
+ *  which one anchor episode gets stored per that column's own shape). */
+async function capturePhrasesForPerson(person, { dryRun = false } = {}) {
+  const rep = { person, rows_scanned: 0, candidates: 0, written: 0 };
+  const devices = await q(`select device_id from vy_person_device where person_id = $1`, [person]).catch(() => []);
+  const deviceIds = devices.length ? devices.map((d) => d.device_id) : [person];
+  const rows = await q(
+    `select content, at, episode_id from meera_log
+      where device_id = any($1::uuid[]) and role = 'me' and group_id is null and episode_id is not null
+      order by at desc limit $2`,
+    [deviceIds, PHRASE_SCAN_LIMIT],
+  ).catch(() => []);
+  rep.rows_scanned = rows.length;
+  if (!rows.length) return rep;
+
+  const existing = await q(`select lower(phrase) as p from vy_phrase where person_id = $1`, [person]).catch(() => []);
+  const existingPhrases = new Set(existing.map((r) => r.p));
+  // Substring-aware, not just exact-match: a night AFTER "chai pe scene set
+  // karo" is captured must not then capture "chai pe scene set" or "pe
+  // scene set karo aaj" the following night — those are near-duplicate
+  // variants of the SAME already-stored utterance (found live in this
+  // workstream's own fixture test: the exact-match-only version kept
+  // capturing one-word-shorter substrings of what it had just written,
+  // night after night).
+  const overlapsExisting = (gram) => {
+    for (const ep of existingPhrases) {
+      if (gram.includes(ep) || ep.includes(gram)) return true;
+    }
+    return false;
+  };
+
+  const ngrams = new Map(); // gram -> { days: Set<string>, episodeAt: Map<episodeId, Date> }
+  for (const r of rows) {
+    const toks = tokenizePhrase(r.content);
+    const day = new Date(r.at).toISOString().slice(0, 10);
+    for (let n = PHRASE_MIN_WORDS; n <= PHRASE_MAX_WORDS; n++) {
+      for (let i = 0; i + n <= toks.length; i++) {
+        const slice = toks.slice(i, i + n);
+        const gram = slice.join(" ");
+        if (CORPUS_COMMON_PHRASES.has(gram)) continue;
+        if (overlapsExisting(gram)) continue;
+        if (slice.every((t) => RECALL_STOP.has(t) || HINDI_MARKER_WORDS.includes(t))) continue;
+        let e = ngrams.get(gram);
+        if (!e) {
+          e = { days: new Set(), episodeAt: new Map() };
+          ngrams.set(gram, e);
+        }
+        e.days.add(day);
+        const at = new Date(r.at);
+        if (!e.episodeAt.has(r.episode_id) || at < e.episodeAt.get(r.episode_id)) e.episodeAt.set(r.episode_id, at);
+      }
+    }
+  }
+
+  const candidates = [...ngrams.entries()]
+    .filter(([, e]) => e.days.size >= PHRASE_MIN_DISTINCT_DAYS)
+    .sort((a, b) => b[1].days.size - a[1].days.size || b[0].length - a[0].length);
+  rep.candidates = candidates.length;
+  if (!candidates.length) return rep;
+
+  const [gram, evidence] = candidates[0];
+  const originEpisode = [...evidence.episodeAt.entries()].sort((a, b) => a[1] - b[1])[0][0];
+  rep.written = 1;
+  if (dryRun) return rep;
+  await q(
+    `insert into vy_phrase (person_id, phrase, origin_episode, coined_at, last_used, uses)
+     values ($1,$2,$3, now(), now(), $4)
+     on conflict (person_id, lower(phrase)) do nothing`,
+    [person, gram, originEpisode, evidence.days.size],
+  ).catch(() => {});
+  return rep;
+}
+
+export async function runPhraseCapture({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null } = {}) {
+  const t0 = Date.now();
+  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit);
+  const reports = [];
+  for (const person of persons) reports.push(await capturePhrasesForPerson(person, { dryRun }));
+  return {
+    ok: true,
+    persons_processed: reports.length,
+    phrases_written: reports.reduce((s, r) => s + r.written, 0),
+    ms: Date.now() - t0,
+    reports,
+  };
+}
+// (PHRASE_CAP_PER_NIGHT is enforced by construction above — candidates[0]
+// only — kept as a named constant for readability/tests rather than a
+// magic 1.)
+void PHRASE_CAP_PER_NIGHT;
+
 // One-time catch-up (GAP 1, WS-FELT) for episodes FINALIZED BEFORE the
 // insert-time classification fix above existed: they are stuck at
 // participation='user' forever even though their own summary genuinely
@@ -974,6 +1489,12 @@ export default async function handler(req, res) {
 // finalize — a SEPARATE CLI mode (not interleaved into runConsolidation's
 // own loop) so consolidate.yml can sequence it as its own step, explicitly
 // AFTER "Nightly finalize" and BEFORE "Zero-orphan sweep", per the ticket.
+//
+// `--derive-trust-repair` / `--extract-patterns` / `--capture-phrases`
+// (WS-DEPTH) are the same shape — separate CLI modes, chained by
+// consolidate.yml as their own steps AFTER "Derive rel-events" (honorific)
+// and BEFORE "Zero-orphan sweep", same fail-soft posture: any one of these
+// three failing does not block the others or the sweep.
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2);
   const limitArg = args.includes("--limit") ? Number(args[args.indexOf("--limit") + 1]) : DEFAULT_PERSON_LIMIT;
@@ -981,6 +1502,21 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const personArg = args.includes("--person") ? args[args.indexOf("--person") + 1] : null;
   if (args.includes("--derive-rel-events")) {
     const out = await runRelEventDerivation({ limit: limitArg, dryRun, onlyPerson: personArg });
+    console.log(JSON.stringify(out, null, 2));
+    process.exit(0);
+  }
+  if (args.includes("--derive-trust-repair")) {
+    const out = await runTrustRepairDerivation({ limit: limitArg, dryRun, onlyPerson: personArg });
+    console.log(JSON.stringify(out, null, 2));
+    process.exit(0);
+  }
+  if (args.includes("--extract-patterns")) {
+    const out = await runPatternExtraction({ limit: limitArg, dryRun, onlyPerson: personArg });
+    console.log(JSON.stringify(out, null, 2));
+    process.exit(0);
+  }
+  if (args.includes("--capture-phrases")) {
+    const out = await runPhraseCapture({ limit: limitArg, dryRun, onlyPerson: personArg });
     console.log(JSON.stringify(out, null, 2));
     process.exit(0);
   }
