@@ -1,0 +1,2 @@
+/_next/static/immutable/chunks/0wx-z7y741wpk.css
+/_next/static/immutable/chunks/3intbjzc3zwnz.css

@@ -1,0 +1,6 @@
+/_next/static/immutable/media/797e433ab948586e-s.p.1v5bejj26fx9h.woff2
+/_next/static/immutable/media/797e433ab948586e-s.p.1v5bejj26fx9h.woff2\
+/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz-h9nw.woff2
+/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz-h9nw.woff2\
+/_next/static/immutable/media/e92fa6abd9c612ef-s.p.0flwvp-hpug-q.woff2
+/_next/static/immutable/media/e92fa6abd9c612ef-s.p.0flwvp-hpug-q.woff2\

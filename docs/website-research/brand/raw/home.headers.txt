@@ -1,0 +1,33 @@
+HTTP/1.1 200 Connection Established
+
+HTTP/2 308 
+cache-control: public, max-age=0, must-revalidate
+content-type: text/plain
+date: Tue, 18 Aug 2026 14:12:40 GMT
+location: https://www.vyakti.ai/
+refresh: 0;url=https://www.vyakti.ai/
+server: Vercel
+strict-transport-security: max-age=63072000
+x-vercel-id: iad1::m8dv8-1787062360629-efdb048bf578
+
+HTTP/1.1 200 Connection Established
+
+HTTP/2 200 
+accept-ranges: bytes
+access-control-allow-origin: *
+age: 350807
+cache-control: public, max-age=0, must-revalidate
+content-disposition: inline
+content-type: text/html; charset=utf-8
+date: Tue, 18 Aug 2026 14:12:42 GMT
+etag: "30b0e5149b060a802b5da30ccdb90db7"
+server: Vercel
+strict-transport-security: max-age=63072000
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+x-matched-path: /
+x-nextjs-prerender: 1
+x-nextjs-stale-time: 300
+x-vercel-cache: HIT
+x-vercel-id: iad1::k5qm4-1787062362187-245962bf85cb
+content-length: 54165
+
