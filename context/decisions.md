@@ -528,3 +528,53 @@ previous deployments). Backtests cost pennies of credits each.
 then the honest options are a held-out-validated rubric adaptation (overfit
 risk pre-registered) or the D-battery reporting deterministic axes only,
 and the owner decides.
+
+---
+
+## `relational-wedge` — the strategy re-rank: own the relationship layer, wedge with the shared friend (owner decision, 2026-08-15)
+
+Owner approved all four recommendations verbatim ("okay lets do 1,2,3,4
+all"), with build order and constraints in their words: "1st we need to
+build to a level that users can instantly sense the value and love the
+product", integrations (Discord/Telegram/WhatsApp) are for distribution
+after the product is loveable, "our internal structure and system should be
+amazing", more-than-text functionality comes later, and the swap run
+proceeds capped: "only use the 400-500 credits only and create really good
+evals that we could actually publish and a paper that we could actually
+publish and use the foundery grant for this only."
+
+The re-rank (supersedes emphasis, not work):
+
+1. **"Any model → same personality" is dead as a product claim.** Our own
+   instrument killed it (terra-arm-2304: model sets the ceiling). The swap
+   machinery is now internal QA, insurance, drift defense, and a
+   PUBLICATION — not the roadmap's center.
+2. **The durable asset is the relational state layer** — model-complement,
+   not model-substitute: citations, honest forget, rel-state, India schema,
+   multiparty. Gets MORE valuable with continual learning, near-zero
+   tokens, faster models (labs' learning lives in their weights:
+   unexportable, unauditable, un-deletable — we are the system of record
+   that feeds any brain).
+3. **The wedge: multiparty shared-memory companion** (couple/group/family
+   common friend), Telegram-first per the WhatsApp verdict. Novel
+   (structural-disclosure research done), Indian (group-centric), and
+   self-distributing (groups invite; groups don't churn like individuals).
+4. **Business model: the group is the paying unit** — amortizes the heavy-
+   user cost problem (₹2,260/mo heavy user vs pooled willingness-to-pay).
+   B2B (customer-memory for Indian SMBs) is logged as expansion, not now.
+5. **Swap run 1 continues under a hard cap** (~$400–500 grant-equivalent,
+   prefer Foundry; sol-when-quota-clears is the preferred judge, AWS
+   Bedrock the fallback inside the same cap) and its deliverable is now
+   twofold: the gate verdict AND a publishable paper + releasable eval
+   suite. Two papers identified in the logged data: (A) identity-ceiling
+   under byte-identical relational context; (B) LLM-judge unreliability on
+   code-switched affective register (six-judge failure corpus is already
+   data-complete).
+6. **Meera stays instance one** — register perfected on the best available
+   model, not averaged across bad ones.
+
+**Reverses if:** the multiparty pilot shows groups do NOT retain better
+than 1:1 (the wedge's core assumption), or a lab ships cross-person shared
+memory with real privacy walls (the "labs can't build this" premise), or
+the adapter loop cheaply lifts arbitrary models into register-band (which
+would resurrect swap-as-product).

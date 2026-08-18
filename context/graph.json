@@ -531,6 +531,12 @@
    "kind": "measurement",
    "title": "Cohere disqualified for cause (protocol-unfit at rubric scale); Azure disjoint-family branch EXHAUSTED",
    "at": "2026-08-15"
+  },
+  {
+   "id": "relational-wedge",
+   "kind": "decision",
+   "title": "Strategy re-rank: relationship layer is the asset, multiparty is the wedge, swap = QA + paper (capped)",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -1073,6 +1079,16 @@
    "src": "cohere-judge",
    "rel": "part_of",
    "dst": "judge-grant-only"
+  },
+  {
+   "src": "relational-wedge",
+   "rel": "part_of",
+   "dst": "relational-state"
+  },
+  {
+   "src": "relational-wedge",
+   "rel": "supersedes",
+   "dst": "multiparty-direction"
   }
  ]
 }
