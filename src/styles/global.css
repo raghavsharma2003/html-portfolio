@@ -1959,6 +1959,37 @@ button {
   color: var(--ink-dim);
 }
 
+/* GAP 4 (WS-FELT) — closeness card: read-only, no press state (it isn't a
+   button), quiet relative to .srow so it reads as a fact about the
+   relationship rather than another setting to tap. */
+.rel-card {
+  margin: 14px 0 4px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  border: 0.5px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rel-card-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.rel-card-body {
+  font-size: var(--t-ui);
+  color: var(--ink);
+  line-height: 1.4;
+}
+.rel-card-sub {
+  font-size: var(--t-sub);
+  color: var(--ink-dim);
+  line-height: 1.4;
+}
+
 /* destructive confirmation: the thing being destroyed is named, in words,
    and the safe choice is the one your thumb is already on */
 .confirm-body {

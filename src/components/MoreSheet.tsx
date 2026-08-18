@@ -15,6 +15,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { AppState } from "../state/store";
 import { HER_NAME } from "../engine/persona";
+import { fetchRelState } from "../engine/memory";
+import { bandTrust, bandPacing } from "../engine/relstate";
+import type { RelBundleInput } from "../engine/compiler";
 import {
   ChevronIcon,
   CloseIcon,
@@ -24,6 +27,32 @@ import {
   PersonIcon,
   TrashIcon,
 } from "./icons";
+
+// GAP 4 (WS-FELT) — closeness card copy. App chrome, never a line she says
+// (same discipline ClockCard.tsx's own header states for its strings), and
+// deliberately never the raw numbers underneath (owner's bar: no trust
+// score, no percentages — a relationship, not a stat sheet). Built ONLY
+// from bands relstate.ts already computes for the model itself
+// (bandTrust/bandPacing) plus the honorific enum, so the UI can never say
+// something the model's own view of the relationship disagrees with.
+const HONORIFIC_LABEL: Record<string, string> = {
+  tu: "She's easy and informal with you",
+  tum: "You're warming up to each other",
+  aap: "Still finding your footing together",
+};
+const TRUST_LABEL: Record<string, string> = {
+  new: "just starting to open up",
+  building: "getting more comfortable with every conversation",
+  steady: "settled into a steady rhythm",
+  strong: "trusts you with a lot",
+  deep: "deeply comfortable together",
+};
+const PACING_LABEL: Record<string, string> = {
+  frequent: "You talk often",
+  regular: "You check in regularly",
+  sparse: "You catch up now and then",
+  occasional: "You reconnect every so often",
+};
 
 const VIBES = [
   "someone to talk to",
@@ -61,6 +90,22 @@ export default function MoreSheet({
   const [name, setName] = useState(state.user.name || "");
   const [vibe, setVibe] = useState<string[]>(state.user.vibe || []);
   const sheet = useRef<HTMLDivElement>(null);
+
+  // GAP 4 (WS-FELT) — closeness card data. Fetched once per sheet open, not
+  // wired to `takeRelBundle`'s consume-once cache (that one is tied to the
+  // chat lane's own recall timing and may already be spent by the time
+  // someone opens Settings). `null` covers "no consolidation has run yet"
+  // and "request failed/timed out" identically — both render nothing,
+  // which is the correct default (absence, not a placeholder stat).
+  const [relBundle, setRelBundle] = useState<RelBundleInput | null>(null);
+  useEffect(() => {
+    let live = true;
+    if (state.deviceId) fetchRelState(state.deviceId).then((b) => live && setRelBundle(b));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.deviceId]);
 
   // Escape closes, and focus starts inside the sheet rather than wherever
   // the page happened to leave it — a sheet you can only leave by finding
@@ -122,6 +167,27 @@ export default function MoreSheet({
           <>
             <h3>Settings</h3>
             <p className="hint">Everything about you, and about this conversation.</p>
+            {relBundle && (
+              <div className="rel-card" aria-label="Relationship depth">
+                <span className="rel-card-title">Where things stand</span>
+                <span className="rel-card-body">
+                  {HONORIFIC_LABEL[relBundle.relState.honorific] ?? HONORIFIC_LABEL.tum} — she's{" "}
+                  {TRUST_LABEL[bandTrust(relBundle.relState.trust)] ?? TRUST_LABEL.building}.
+                </span>
+                {(() => {
+                  const pacing = PACING_LABEL[bandPacing(relBundle.relState.pacing_gap_s)];
+                  const hasRituals = relBundle.rituals.length > 0;
+                  const hasWe = relBundle.weEpisodes.length > 0;
+                  if (!pacing && !hasRituals && !hasWe) return null;
+                  const bits = [
+                    pacing,
+                    hasRituals ? "you've built a few things you always do together" : null,
+                    hasWe ? "there are things only the two of you bring up" : null,
+                  ].filter(Boolean);
+                  return <span className="rel-card-sub">{bits.join(" · ")}</span>;
+                })()}
+              </div>
+            )}
             <div className="sheet-rows">
               <button className="srow" data-tel="more.profile" onClick={() => setView("profile")}>
                 <span className="sicon">
