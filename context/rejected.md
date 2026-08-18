@@ -418,3 +418,49 @@ database — and for anything that runs on a schedule, assert that the schedule
 has a completed run. An interface ticket naming an unclaimed call site is a
 known defect, not documentation; it belongs in a task list where it will be
 picked up, not only in a header comment where it will be read once.
+
+---
+
+## `pk-is-an-arbiter` — changing a primary key silently breaks every upsert that names it (2026-08-18)
+
+Caught by WS-AGENT-SCHEMA during migration 009, **before** it shipped, which
+is the only reason this is a short entry instead of a long one.
+
+Migration 009 makes four tables agent-scoped by widening their primary keys:
+`vy_rel_state (person_id)` → `(agent_id, person_id)`, and the same for
+`vy_ritual`, `vy_currency`, `vy_india_profile`. The design reviewed clean —
+additive column, backfilled default, composite key, new index.
+
+**What the design missed: a primary key is also the `ON CONFLICT` arbiter.**
+Postgres resolves `on conflict (person_id) do update` by inferring a unique
+index on exactly those columns. Widen the key and that index no longer exists,
+so the statement stops resolving. Ten live upsert sites name the old key:
+`api/memory.js:535,:1503`, `api/consolidate.js:726,:820,:1055,:1085`,
+`src/engine/relstate.ts:599`, `src/engine/india.ts:154,:199,:341`.
+
+**Seven of the ten are inside `.catch()` swallows.** That is
+`relstate-zero-rows` a second time and by a different route: writers that
+silently do not write, with no error, no log line, and no failing test,
+because the eval fixtures create their own rows. The eighth,
+`rebuildRelState` at `api/memory.js:1503`, is NOT swallowed and sits inside
+the forget cascade — it would have broken the forget-completeness gate
+outright, which is the one place this repo would have noticed.
+
+**Why the obvious mitigation does not work.** The migration sets a column
+DEFAULT for `agent_id` so existing writers keep working. A default fills a
+value; it does not create an index. The arbiter needs the index, so the
+default rescues INSERTs and does nothing for the conflict clause. Two
+mechanisms that look like the same mechanism.
+
+**The fix that shipped:** each composite key is paired with a transitional
+unique index on the old person-only key (`*_person_compat_ix`), scoped to
+exactly the same lifetime as the transitional default, and dropped by the same
+migration 010 that migrates the call sites. Verified live: all four old-key
+arbiters still insert AND take the conflict path.
+
+**What breaks generally:** any key change, in any schema, where upserts name
+the old key — and the damage is proportional to how many of those call sites
+swallow errors. The rule: **changing a unique or primary key is a change to
+every `ON CONFLICT` that names it.** Grep for the arbiter columns before
+touching the key, not after, and treat a swallowed write as a site that will
+never tell you it stopped working.
