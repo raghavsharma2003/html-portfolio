@@ -1,0 +1,256 @@
+// DATA half of the persona invariant suite (docs/GENERALIZATION-AUDIT.md
+// item 7: "the two are conceptually separable but interleaved in one
+// 147-line file with no module boundary today — lifting the runner means
+// extracting it"). evals/persona-invariants.mjs is the RUNNER; it imports
+// buildLanes/safetyFloorChecks/meeraFullChecks from here and drives them
+// against every module the registry returns.
+//
+// ── the partition ───────────────────────────────────────────────────────
+//
+// SPEC-AGENT-LAYER.md §3 / CLAUDE.md: the safety floor ("the crisis
+// helplines, the never-deny-being-an-AI rule, NEVER MANIPULATE, and the
+// spoken-register bullets") "is not a per-agent choice" and must be
+// "asserted by the invariant suite against every registered module, not
+// just Meera's."
+//
+// `safetyFloorChecks()` is exactly that subset, read off the pre-existing
+// 138-check suite (git history: evals/persona-invariants.mjs before this
+// split) by which literal probe each check protects:
+//   - crisis helplines          → "Tele-MANAS" / "14416" probes
+//   - never-deny-being-an-AI    → "sincerely and directly ask whether
+//                                   you're an AI" / "ONLY SAY WHAT'S TRUE"
+//   - NEVER MANIPULATE          → the literal "NEVER MANIPULATE" probe
+//   - spoken-register bullets   → the named SPOKEN REGISTER block (guard,
+//                                   English-first rule, the six rebalanced
+//                                   bullets: STRETCH VOWELS/THINK OUT LOUD/
+//                                   CATCH YOURSELF/TRAIL OFF/REPEAT A WORD/
+//                                   ONE word in CAPS, DIAGRAM OF A SHAPE,
+//                                   LAUGH BY WRITING THE LAUGH, and the
+//                                   text-lane absence checks that prove the
+//                                   register block does NOT leak into text)
+// `meeraFullChecks()` is everything else — audio-tag-ban mechanics, the
+// "[tone:"/"[forget:" bracket protocol, sentence/question-count brevity
+// levers, and size-ceiling gates. These are Meera's own register/behavior
+// invariants: real product rules, but not one of the four named floor
+// categories, and necessarily literal excerpts of her persona.ts text per
+// the audit's own classification ("Invariant data (c): every probe is a
+// literal excerpt of Meera's persona.ts text — it IS Meera, encoded as
+// containment assertions").
+//
+// The split is an exact partition of the pre-existing 138 checks — 51 floor
+// + 87 full — verified by running both the old file and this one and
+// diffing PASS/FAIL output line-for-line before the old file was replaced;
+// no check was added, dropped, or had its condition changed by this move.
+//
+// Every check function below takes `agent` (an AgentModule,
+// src/engine/agents/types.ts) and `lanes` (this file's own buildLanes()
+// output) rather than closing over a specific persona's functions, so the
+// runner can call the same data against any registered module.
+
+// The literal register-block markers this suite measures against — Meera's
+// own persona.ts text, unavoidably (see the item-7 note above). Kept here,
+// not duplicated per check function.
+const GUARD = "YOU NEVER SAY THE NAME OF THE THING YOU ARE DOING";
+const ENGRULE = "ALL OF THIS HAPPENS IN ENGLISH FIRST";
+const REG_START = "SPOKEN REGISTER — how your words physically look";
+const REG_END = "AND IT NEVER MAKES YOU TALK LONGER";
+
+const TEST_USER = { name: "Arjun", facts: {}, interests: [], memories: [], vibe: [] };
+
+/**
+ * Every assembled-prompt lane the suite probes, built once per agent so the
+ * two check functions never re-run buildSystemPromptParts/buildSpeechStyle
+ * themselves. Mirrors the original file's two build passes (`v`/`t`/`live`/
+ * `casc` and `vv`/`tt`/`L`/`C`/`E`/`S`/`D`) verbatim — same engines, same
+ * call shape — just parameterized on `agent` instead of a direct import.
+ */
+export function buildLanes(agent) {
+  const v = agent.buildSystemPromptParts(TEST_USER, 999, "voice");
+  const t = agent.buildSystemPromptParts(TEST_USER, 999, "text");
+  const live = v.core + agent.buildSpeechStyle("live");
+  const casc = v.core + agent.buildSpeechStyle("eleven");
+
+  const vv = agent.buildSystemPromptParts(TEST_USER, 999, "voice");
+  const tt = agent.buildSystemPromptParts(TEST_USER, 999, "text");
+  const L = vv.core + agent.buildSpeechStyle("live");
+  const C = vv.core + agent.buildSpeechStyle("gemini");
+  const E = vv.core + agent.buildSpeechStyle("eleven");
+  const S = vv.core + agent.buildSpeechStyle("sarvam");
+  const D = vv.core + agent.buildSpeechStyle("device");
+
+  return { v, t, live, casc, vv, tt, L, C, E, S, D };
+}
+
+/** The safety-floor subset — asserted against every registered module. */
+export function safetyFloorChecks(agent, lanes) {
+  const checks = [];
+  const add = (name, cond, extra) => checks.push({ name, cond, extra });
+
+  for (const [lane, s] of [["live", lanes.live], ["cascade", lanes.casc]]) {
+    const rs = s.indexOf(REG_START), re = s.indexOf(REG_END);
+    const g = s.indexOf(GUARD), e = s.indexOf(ENGRULE);
+    add(`[${lane}] SPOKEN REGISTER block present`, rs >= 0 && re > rs, `@${rs}..${re}`);
+    add(`[${lane}] guard present`, g >= 0, `@${g}`);
+    add(`[${lane}] guard INSIDE register`, g > rs && g < re);
+    add(
+      `[${lane}] guard is 2nd bullet (right after "played out loud")`,
+      g > s.indexOf("Every character you write is played out loud") && g < s.indexOf("- STRETCH VOWELS"),
+    );
+    add(`[${lane}] English-first rule present`, e >= 0, `@${e}`);
+    add(`[${lane}] English-first rule INSIDE register`, e > rs && e < re);
+    add(
+      `[${lane}] English-first rule immediately precedes brevity bullet`,
+      e < re && e > s.indexOf("None of this is garnish"),
+    );
+    add(`[${lane}] guard names "listener sound"`, s.includes('"listener sound"'));
+  }
+
+  add("text lane has NO register guard", !lanes.t.core.includes(GUARD));
+  add("text lane has NO English-first register rule", !lanes.t.core.includes(ENGRULE));
+
+  add("[live] brevity bullet kept", lanes.live.includes("- AND IT NEVER MAKES YOU TALK LONGER."));
+
+  for (const probe of [
+    "ONLY SAY WHAT'S TRUE",
+    "Tele-MANAS",
+    "14416",
+    "NEVER MANIPULATE",
+    "DIAGRAM OF A SHAPE",
+    "Those exact words are used up",
+  ]) {
+    add(`[live] protected: ${probe}`, lanes.live.includes(probe));
+  }
+
+  const reg = lanes.live.slice(lanes.live.indexOf(REG_START), lanes.live.indexOf(REG_END));
+  for (const b of [
+    "- STRETCH VOWELS",
+    "- THINK OUT LOUD",
+    "- CATCH YOURSELF",
+    "- TRAIL OFF",
+    "- REPEAT A WORD",
+    "- ONE word in CAPS",
+  ]) {
+    const line = reg.slice(reg.indexOf(b)).split("\n")[0];
+    add(`rebalanced bullet present: ${b}`, reg.includes(b), `${line.length} chars`);
+  }
+
+  const floorProbes = [
+    "Tele-MANAS",
+    "14416",
+    "NEVER MANIPULATE",
+    "ONLY SAY WHAT'S TRUE",
+    "YOU NEVER SAY THE NAME OF THE THING YOU ARE DOING",
+    "DIAGRAM OF A SHAPE",
+    "ALL OF THIS HAPPENS IN ENGLISH FIRST",
+    "STRETCH VOWELS",
+    "LAUGH BY WRITING THE LAUGH",
+    "sincerely and directly ask whether you're an AI",
+  ];
+  for (const probe of floorProbes) {
+    for (const [nm, s] of [["live", lanes.L], ["cascade", lanes.C]]) {
+      add(`[${nm}] protected: ${probe}`, s.includes(probe));
+    }
+  }
+
+  return checks;
+}
+
+/** Everything else — Meera's own register/behavior invariants. */
+export function meeraFullChecks(agent, lanes) {
+  const checks = [];
+  const add = (name, cond, extra) => checks.push({ name, cond, extra });
+
+  add("text core under ceiling (44000)", lanes.t.core.length < 44000, `=${lanes.t.core.length}`);
+
+  add("[live] [tone: appears exactly once", (lanes.live.match(/\[tone:/g) || []).length === 1);
+  add(
+    "[live] that one occurrence is the ban, not a marker instruction",
+    lanes.live.includes('no "[tone: ...]"') && !lanes.live.includes("TONE MARKER (required)"),
+  );
+  add("[cascade] tone marker still present on cascade lane", lanes.casc.includes("[tone:"));
+
+  for (const [nm, s] of [
+    ["live", lanes.L],
+    ["cascade/gemini", lanes.C],
+    ["cascade/eleven", lanes.E],
+    ["sarvam", lanes.S],
+    ["device", lanes.D],
+  ]) {
+    for (const tag of ["[laughs]", "[giggles]", "[sighs]", "[whispers]", "[softly]", "[excited]", "[curious]", "[tired]"]) {
+      const banClause = nm === "live" && tag === "[softly]";
+      add(
+        `[${nm}] no audio-tag "${tag}" taught`,
+        banClause ? (s.match(/\[softly\]/g) || []).length === 1 : !s.includes(tag),
+      );
+    }
+    add(`[${nm}] no "audio tags" phrase`, !/audio tag/i.test(s));
+  }
+
+  const cbrk = (lanes.C.match(/\[[a-z][a-z ]{0,20}[:\]]/gi) || []).filter((m) => !/^\[tone/i.test(m));
+  add(
+    "[cascade] only [forget: exemplars outside the ban clause",
+    cbrk.every((m) => /^\[forget:/i.test(m)),
+    JSON.stringify(cbrk),
+  );
+  const lbrk = lanes.L.match(/\[[a-z][a-z ]{0,20}[:\]]/gi) || [];
+  add(
+    "[live] only ban-clause + [forget: exemplars",
+    lbrk.every((m) => /^\[(softly|tone|forget)/i.test(m)),
+    JSON.stringify(lbrk),
+  );
+  add("[cascade] one-bracket count rule present", lanes.C.includes('YOU WRITE EXACTLY ONE "[" PER REPLY'));
+
+  for (const [nm, s] of [
+    ["live", lanes.L],
+    ["cascade", lanes.C],
+    ["sarvam", lanes.S],
+    ["device", lanes.D],
+  ]) {
+    add(
+      `[${nm}] FINAL two-count block is LAST in the call brief`,
+      s.trimEnd().endsWith("long-and-tidy and short-and-flat are both failures."),
+      String(s.length),
+    );
+    add(`[${nm}] sentence count rule present`, s.includes("SENTENCES: most turns are ONE"));
+    add(`[${nm}] question count rule present`, s.includes("QUESTIONS: at most ONE you actually want answered"));
+    add(`[${nm}] anti-flatness clause present`, s.includes("Neither count makes you flat"));
+  }
+  add("[voice core] COUNT THE SENTENCES in register brevity bullet", lanes.vv.core.includes("COUNT THE SENTENCES"));
+
+  add("[voice core] one-question-mark rule", lanes.vv.core.includes("ONE REAL QUESTION PER REPLY, MAXIMUM"));
+  add("[text core] one-question-mark rule", lanes.tt.core.includes("ONE REAL QUESTION PER REPLY, MAXIMUM"));
+  add(
+    "[text core] keeps the options-are-prewritten clause",
+    lanes.tt.core.includes("tells them you wrote both answers already"),
+  );
+  const geminiFull = lanes.vv.core + agent.buildSpeechStyle("gemini");
+  add(
+    "[all lanes] q-only turns named as the worst case",
+    geminiFull.includes("a turn that is ONLY a question is the worst version of it"),
+  );
+  add('[all lanes] mock-shock "??" explicitly protected', geminiFull.includes("is not a question and never was"));
+  add(
+    "[voice core] drops the long clause (FINAL carries it)",
+    !lanes.vv.core.includes("tells them you wrote both answers already"),
+  );
+  add(
+    "[both] 1-in-3 rule still present",
+    lanes.vv.core.includes("AT MOST 1 IN 3 OF YOUR REPLIES CONTAINS A QUESTION") &&
+      lanes.tt.core.includes("AT MOST 1 IN 3 OF YOUR REPLIES CONTAINS A QUESTION"),
+  );
+
+  const APP = 720;
+  for (const [nm, s] of [
+    ["live", lanes.L],
+    ["gemini", lanes.C],
+    ["eleven", lanes.E],
+    ["sarvam", lanes.S],
+    ["device", lanes.D],
+  ]) {
+    add(`[${nm}] assembled < 50000 (web)`, s.length < 50000, String(s.length));
+    add(`[${nm}] assembled < 50000 (in-app +${APP})`, s.length + APP < 50000, String(s.length + APP));
+  }
+  add("[text] chat system < 50000", lanes.tt.core.length < 50000, String(lanes.tt.core.length));
+
+  return checks;
+}

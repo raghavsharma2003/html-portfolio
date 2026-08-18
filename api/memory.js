@@ -933,7 +933,37 @@ async function noteForgotten(device, terms) {
 // own behavioural record, and an entitlement is a financial record that must
 // not vanish for the other members when one member forgets. All three die with
 // their room, via vy_group's on-delete cascade, when the last participant
-// leaves (§3.1.2).
+// leaves (§3.1.2). vy_group and vy_group_turn DO carry agent_id after 009 —
+// being agent-scoped and being person-keyed are different questions.
+//
+// ── the agent layer (SPEC-AGENT-LAYER §2, §6) — one additive field ─────────
+//
+//   `agent`      — true on every table migration 009 gave an agent_id, i.e.
+//                  every table that holds THE RELATIONSHIP rather than the
+//                  person. It is a MARKER, not a filter: nothing in the wipe
+//                  loop reads it, and it deliberately changes nothing about
+//                  full-wipe behaviour.
+//
+// That last sentence is the whole design. A full wipe of a person deletes
+// their rows across ALL agents — it is their data, not the agent's — so the
+// existing wipe predicate (wipeWhereSql: the owning columns OR'd, plus
+// wipeWhere) is already exactly right and must not learn about agent_id.
+// G-E5's first half is the proven property (`a full person wipe leaves zero
+// rows`) and it may not regress; adding a field no code path reads is the only
+// way to record the scope without touching the predicate that carries it.
+//
+// The PER-AGENT wipe (G-E5's second half — delete one agent's rows, leave the
+// other agent's intact) is NOT implemented here. It needs an extra predicate
+// term and therefore an extra bound parameter, which renumbers $1..$n for the
+// whole-wipe path too, and the whole-wipe path is the one that may not break.
+// Deferred deliberately, with this note rather than silently: it wants its own
+// change and its own test, not a shared code path with the proven one.
+//
+// vy_kin and vy_india_profile are agent-scoped despite looking
+// person-intrinsic: "my mausi is called Bua at home" was told to SOMEONE
+// (§2). vy_episode_participant is NOT marked — it is the ACL join table and
+// takes its scope from the episode it points at, so an agent_id on it would be
+// a second, forgeable copy of a fact the join already carries.
 export const PERSON_TABLES = [
   { table: "meera_log",         key: "device_id", lane: "legacy",
     keys: ["device_id", "speaker_person_id"] },
@@ -942,7 +972,7 @@ export const PERSON_TABLES = [
   { table: "meera_forget",      key: "device_id", lane: "legacy" },
   { table: "meera_tel",         key: "device_id", lane: "legacy" },
   { table: "meera_tel_session", key: "device_id", lane: "legacy" },
-  { table: "vy_episode",          key: "person_id", lane: "relational",
+  { table: "vy_episode",          key: "person_id", lane: "relational", agent: true,
     // room episodes carry person_id NULL (008a), so `key` already selects only
     // the exclusive 1:1 rows; the shared spec is what handles the rest
     shared: {
@@ -953,30 +983,30 @@ export const PERSON_TABLES = [
       lastOut: "delete_row",         // … unless P was the last one in it
     } },
   { table: "vy_episode_participant", key: "person_id", lane: "relational" },
-  { table: "vy_taste_candidate",  key: "person_id", lane: "relational" },
-  { table: "vy_visual_assertion", key: "person_id", lane: "relational" },
-  { table: "vy_shared_moment",    key: "person_id", lane: "relational" },
-  { table: "vy_fact",             key: "person_id", lane: "relational",
+  { table: "vy_taste_candidate",  key: "person_id", lane: "relational", agent: true },
+  { table: "vy_visual_assertion", key: "person_id", lane: "relational", agent: true },
+  { table: "vy_shared_moment",    key: "person_id", lane: "relational", agent: true },
+  { table: "vy_fact",             key: "person_id", lane: "relational", agent: true,
     wipeWhere: "group_id is null" },
-  { table: "vy_rel_event",        key: "person_id", lane: "relational" },
-  { table: "vy_rel_state",        key: "person_id", lane: "relational" },
-  { table: "vy_pattern",          key: "person_id", lane: "relational" },
-  { table: "vy_phrase",           key: "person_id", lane: "relational",
+  { table: "vy_rel_event",        key: "person_id", lane: "relational", agent: true },
+  { table: "vy_rel_state",        key: "person_id", lane: "relational", agent: true },
+  { table: "vy_pattern",          key: "person_id", lane: "relational", agent: true },
+  { table: "vy_phrase",           key: "person_id", lane: "relational", agent: true,
     wipeWhere: "group_id is null",
     shared: { via: "vy_episode_participant", on: "origin_episode", person: "person_id",
               withdraw: "delete_join_row", lastOut: "delete_row" } },
-  { table: "vy_kin",              key: "person_id", lane: "relational" },
-  { table: "vy_ritual",           key: "person_id", lane: "relational" },
-  { table: "vy_currency",         key: "person_id", lane: "relational" },
-  { table: "vy_india_profile",    key: "person_id", lane: "relational" },
-  { table: "vy_embedding",        key: "person_id", lane: "relational" },
-  { table: "vy_derivation",       key: "person_id", lane: "relational" },
-  { table: "vy_session",          key: "person_id", lane: "relational" },
-  { table: "vy_group_member",     key: "person_id", lane: "relational",
+  { table: "vy_kin",              key: "person_id", lane: "relational", agent: true },
+  { table: "vy_ritual",           key: "person_id", lane: "relational", agent: true },
+  { table: "vy_currency",         key: "person_id", lane: "relational", agent: true },
+  { table: "vy_india_profile",    key: "person_id", lane: "relational", agent: true },
+  { table: "vy_embedding",        key: "person_id", lane: "relational", agent: true },
+  { table: "vy_derivation",       key: "person_id", lane: "relational", agent: true },
+  { table: "vy_session",          key: "person_id", lane: "relational", agent: true },
+  { table: "vy_group_member",     key: "person_id", lane: "relational", agent: true,
     // a full wipe removes the membership row outright (§3.1.4); a plain
     // "leave" sets left_at instead and never deletes the room for the others
     shared: { withdraw: "set_left_at" } },
-  { table: "vy_disclosure_grant", key: "granted_by", lane: "relational",
+  { table: "vy_disclosure_grant", key: "granted_by", lane: "relational", agent: true,
     keys: ["granted_by", "granted_to"],
     // grantor -> delete (it was their permission to give); grantee -> remove
     // them as a recipient. granted_to is a SCALAR in 008b, so a grant with its
@@ -990,6 +1020,17 @@ export const PERSON_TABLES = [
   // person's Telegram binding standing after a full wipe. Filed as relational,
   // where the manifest loop actually deletes it.
   { table: "vy_tg_person",        key: "person_id", lane: "relational" },
+  // 009's generalization of vy_tg_person (SPEC-AGENT-LAYER §4). Person-
+  // intrinsic, so NO `agent: true`: identity resolution is agent-independent —
+  // the same human, whoever they are talking to — and the agent enters at
+  // retrieval, not at identification. Filed lane "relational" for the same
+  // reason vy_tg_person is (see the note directly above): lane "person" members
+  // are skipped by the manifest wipe loop and taken by explicit guarded code,
+  // and no such code exists for this table, so lane "person" would leave a
+  // person's surface bindings standing after their own full wipe. It is also
+  // required for scripts/relcheck.mjs's manifest-coverage check, which fails
+  // any person-keyed vy_* table that is absent from this list.
+  { table: "vy_surface_identity", key: "person_id", lane: "relational" },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];

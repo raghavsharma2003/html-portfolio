@@ -796,3 +796,253 @@ create table if not exists vy_group_entitlement (
 );
 create index if not exists vy_group_entitlement_active_ix
   on vy_group_entitlement (group_id, period_end desc);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 009: the agent layer — one relational OS, many AI people.
+--
+-- Contract: docs/SPEC-AGENT-LAYER.md §2 (what is agent-scoped), §4 (surface
+-- identity), §6 (shape and safety). The migration file is
+-- db/migrations/009_agents.sql; the DDL below is the same 117 statements,
+-- kept here so this file remains the one honest record.
+--
+-- STATUS: APPLIED to the live database 2026-08-18 (117 statements, then a
+-- second apply of the same file — 117/117 ok — to prove idempotency).
+--
+-- Rules this block encodes, beyond the ones the blocks above already list:
+--   - PERSON IS SHARED, AGENT SCOPES THE RELATIONSHIP, SURFACE SCOPES
+--     NOTHING. The relationship lives at (agent × person); vy_person,
+--     vy_person_device and vy_surface_identity are person-intrinsic and carry
+--     no agent_id, because identity resolution is agent-independent — the
+--     same human, whoever they are talking to.
+--   - AGENT ISOLATION IS STRUCTURAL (Law E1). What Meera learned about you is
+--     unreachable to another agent by a WHERE clause, never by a prompt
+--     instruction — everything behavioural measured 9-90% residual leakage
+--     (context/measurements.md#disclosure-leak-rates).
+--   - vy_kin and vy_india_profile are agent-scoped DESPITE looking
+--     person-intrinsic. "My mausi is called Bua at home" was told to someone;
+--     filing it person-global means agent two knows your dietary rules on
+--     turn one having never asked.
+--
+-- THE FIXED CONSTANT — mirrored, not imported, and CI-asserted equal by
+-- scripts/verify-agent-id.mjs (the OPERATIONAL_CORE_CAP pattern). If you
+-- change it here you must change db/migrations/009_agents.sql and
+-- src/engine/agents/registry.ts in the same commit:
+--
+--     MEERA_AGENT_ID = 'a0000000-0000-4000-8000-000000000001'
+--
+-- SPEC §6's illustrative string ('...-00000000meer') is not valid hex and
+-- cannot be stored in a uuid column. This is the v4-shaped replacement.
+--
+-- TWO THINGS HERE ARE TEMPORARY AND BOTH DIE IN MIGRATION 010:
+--   1. the agent_id column DEFAULT, which is what keeps every un-migrated
+--      call site writing Meera's rows exactly as it does today (§6);
+--   2. the *_person_compat_ix unique indexes on the OLD primary keys. A PK is
+--      also the ON CONFLICT arbiter, and ten live upsert sites name the old
+--      key explicitly (api/memory.js:535,:1503; api/consolidate.js:726,:820,
+--      :1055,:1085; src/engine/relstate.ts:599; src/engine/india.ts:154,:199,
+--      :341). Seven are .catch()-swallowed, so without the shim the failure is
+--      not an error anyone sees — it is `relstate-zero-rows` a second time,
+--      writers silently not writing. api/memory.js:1503 is NOT swallowed and
+--      sits in the forget cascade, so it would break G-E5 outright.
+--      Verified live after apply: all four old-key arbiters still resolve.
+--      These indexes must NOT survive into a two-agent world — they forbid two
+--      agents holding rel_state for the same person — which is why their
+--      removal is tied to the same migration that migrates the call sites.
+
+create table if not exists vy_agent (
+  agent_id        uuid primary key,
+  slug            text not null unique,
+  display_name    text not null,
+  persona_version text not null default '',   -- owned by the persona module
+  register        jsonb not null default '{}'::jsonb,   -- §3 AgentModule.register
+  status          text not null default 'active'
+                  check (status in ('active','paused','retired')),
+  created_at      timestamptz not null default now()
+);
+insert into vy_agent (agent_id, slug, display_name, register, status)
+values (
+  'a0000000-0000-4000-8000-000000000001',
+  'meera',
+  'Meera',
+  '{"script":"latin","honorificSystem":"hi-TV"}'::jsonb,
+  'active'
+)
+on conflict (agent_id) do nothing;
+
+-- §4: NO agent_id, on purpose. The agent enters at retrieval, not at
+-- identification. vy_tg_person stays in place and stays authoritative for the
+-- code that still reads it; this backfill is additive and idempotent.
+create table if not exists vy_surface_identity (
+  surface         text not null,     -- 'telegram'|'discord'|'whatsapp'|'web'
+  surface_user_id text not null,
+  person_id       uuid not null,
+  handle          text not null default '',
+  linked_at       timestamptz not null default now(),
+  primary key (surface, surface_user_id)
+);
+create index if not exists vy_surface_identity_person_ix
+  on vy_surface_identity (person_id);
+insert into vy_surface_identity (surface, surface_user_id, person_id, handle, linked_at)
+  select 'telegram', tg_user_id::text, person_id, username, linked_at
+    from vy_tg_person
+  on conflict do nothing;
+
+-- ── agent_id on every agent-scoped table (§2) ──────────────────────────────
+--
+-- Per table, in this order: add column / SET DEFAULT / backfill / SET NOT NULL
+-- / index. §6 sketches the middle two the other way round; this order is the
+-- race-free one. There are no transactions here, so with the §6 order a live
+-- INSERT landing between the backfill and the default writes a fresh NULL and
+-- the SET NOT NULL then fails against production traffic. With the default in
+-- first, no new NULL can appear and the backfill is monotone.
+--
+-- Index names carry _ix rather than §6's `<t>_agent_person` sketch: tables and
+-- indexes share one namespace (the meera_tel_session incident, line 189 above).
+alter table vy_episode add column if not exists agent_id uuid;
+alter table vy_episode alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_episode set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_episode alter column agent_id set not null;
+create index if not exists vy_episode_agent_person_ix on vy_episode (agent_id, person_id);
+
+alter table vy_fact add column if not exists agent_id uuid;
+alter table vy_fact alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_fact set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_fact alter column agent_id set not null;
+create index if not exists vy_fact_agent_person_ix on vy_fact (agent_id, person_id);
+
+alter table vy_rel_state add column if not exists agent_id uuid;
+alter table vy_rel_state alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_rel_state set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_rel_state alter column agent_id set not null;
+create index if not exists vy_rel_state_agent_person_ix on vy_rel_state (agent_id, person_id);
+
+alter table vy_rel_event add column if not exists agent_id uuid;
+alter table vy_rel_event alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_rel_event set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_rel_event alter column agent_id set not null;
+create index if not exists vy_rel_event_agent_person_ix on vy_rel_event (agent_id, person_id);
+
+alter table vy_pattern add column if not exists agent_id uuid;
+alter table vy_pattern alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_pattern set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_pattern alter column agent_id set not null;
+create index if not exists vy_pattern_agent_person_ix on vy_pattern (agent_id, person_id);
+
+alter table vy_phrase add column if not exists agent_id uuid;
+alter table vy_phrase alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_phrase set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_phrase alter column agent_id set not null;
+create index if not exists vy_phrase_agent_person_ix on vy_phrase (agent_id, person_id);
+
+alter table vy_ritual add column if not exists agent_id uuid;
+alter table vy_ritual alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_ritual set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_ritual alter column agent_id set not null;
+create index if not exists vy_ritual_agent_person_ix on vy_ritual (agent_id, person_id);
+
+alter table vy_currency add column if not exists agent_id uuid;
+alter table vy_currency alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_currency set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_currency alter column agent_id set not null;
+create index if not exists vy_currency_agent_person_ix on vy_currency (agent_id, person_id);
+
+alter table vy_kin add column if not exists agent_id uuid;
+alter table vy_kin alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_kin set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_kin alter column agent_id set not null;
+create index if not exists vy_kin_agent_person_ix on vy_kin (agent_id, person_id);
+
+alter table vy_india_profile add column if not exists agent_id uuid;
+alter table vy_india_profile alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_india_profile set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_india_profile alter column agent_id set not null;
+create index if not exists vy_india_profile_agent_person_ix on vy_india_profile (agent_id, person_id);
+
+alter table vy_taste_candidate add column if not exists agent_id uuid;
+alter table vy_taste_candidate alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_taste_candidate set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_taste_candidate alter column agent_id set not null;
+create index if not exists vy_taste_candidate_agent_person_ix on vy_taste_candidate (agent_id, person_id);
+
+alter table vy_shared_moment add column if not exists agent_id uuid;
+alter table vy_shared_moment alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_shared_moment set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_shared_moment alter column agent_id set not null;
+create index if not exists vy_shared_moment_agent_person_ix on vy_shared_moment (agent_id, person_id);
+
+alter table vy_visual_assertion add column if not exists agent_id uuid;
+alter table vy_visual_assertion alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_visual_assertion set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_visual_assertion alter column agent_id set not null;
+create index if not exists vy_visual_assertion_agent_person_ix on vy_visual_assertion (agent_id, person_id);
+
+alter table vy_embedding add column if not exists agent_id uuid;
+alter table vy_embedding alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_embedding set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_embedding alter column agent_id set not null;
+create index if not exists vy_embedding_agent_person_ix on vy_embedding (agent_id, person_id);
+
+alter table vy_derivation add column if not exists agent_id uuid;
+alter table vy_derivation alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_derivation set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_derivation alter column agent_id set not null;
+create index if not exists vy_derivation_agent_person_ix on vy_derivation (agent_id, person_id);
+
+alter table vy_session add column if not exists agent_id uuid;
+alter table vy_session alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_session set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_session alter column agent_id set not null;
+create index if not exists vy_session_agent_person_ix on vy_session (agent_id, person_id);
+
+alter table vy_group_member add column if not exists agent_id uuid;
+alter table vy_group_member alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_group_member set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_group_member alter column agent_id set not null;
+create index if not exists vy_group_member_agent_person_ix on vy_group_member (agent_id, person_id);
+
+-- The last three agent-scoped tables carry no person_id column, so their index
+-- pairs agent_id with the column the table is actually read by.
+alter table vy_group add column if not exists agent_id uuid;
+alter table vy_group alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_group set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_group alter column agent_id set not null;
+create index if not exists vy_group_agent_ix on vy_group (agent_id, id);
+
+alter table vy_group_turn add column if not exists agent_id uuid;
+alter table vy_group_turn alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_group_turn set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_group_turn alter column agent_id set not null;
+create index if not exists vy_group_turn_agent_ix on vy_group_turn (agent_id, group_id);
+
+alter table vy_disclosure_grant add column if not exists agent_id uuid;
+alter table vy_disclosure_grant alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update vy_disclosure_grant set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table vy_disclosure_grant alter column agent_id set not null;
+create index if not exists vy_disclosure_grant_agent_ix on vy_disclosure_grant (agent_id, granted_to);
+
+-- ── composite primary keys (§6) ────────────────────────────────────────────
+--
+-- The one non-additive act in 009, safe ONLY because these four tables hold
+-- zero rows — MEASURED immediately before apply (2026-08-18: 0/0/0/0), not
+-- assumed, and re-measured after (still 0/0/0/0, nothing lost). Against a
+-- database where any is non-zero this must become a copy-through-temp.
+--
+-- drop-then-add is the idempotent pair (the shape 008a uses for its check
+-- constraint): re-running drops the constraint it just added and adds it back.
+-- Each pair is followed by the compat unique index on the OLD key — see the
+-- section header for why, and for the migration-010 removal it is tied to.
+alter table vy_rel_state drop constraint if exists vy_rel_state_pkey;
+alter table vy_rel_state add constraint vy_rel_state_pkey primary key (agent_id, person_id);
+create unique index if not exists vy_rel_state_person_compat_ix on vy_rel_state (person_id);
+
+alter table vy_ritual drop constraint if exists vy_ritual_pkey;
+alter table vy_ritual add constraint vy_ritual_pkey primary key (agent_id, person_id, key);
+create unique index if not exists vy_ritual_person_compat_ix on vy_ritual (person_id, key);
+
+alter table vy_currency drop constraint if exists vy_currency_pkey;
+alter table vy_currency add constraint vy_currency_pkey primary key (agent_id, person_id, topic);
+create unique index if not exists vy_currency_person_compat_ix on vy_currency (person_id, topic);
+
+alter table vy_india_profile drop constraint if exists vy_india_profile_pkey;
+alter table vy_india_profile add constraint vy_india_profile_pkey primary key (agent_id, person_id);
+create unique index if not exists vy_india_profile_person_compat_ix on vy_india_profile (person_id);

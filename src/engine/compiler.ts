@@ -24,16 +24,19 @@
 // persona.ts is READ-ONLY here — buildSystemPromptParts / buildSpeechStyle
 // stay exactly where they are; this file only calls them.
 
+// SPEC-AGENT-LAYER.md §3 (Law E2): the static persona import is replaced by
+// an INJECTED AgentModule, defaulting to Meera's — see CompileInput.agent
+// below. persona.ts's own types (UserProfile/VoiceEngine) still flow
+// through this file, forwarded from the agents module's own re-export
+// (agents/types.ts) rather than imported here directly, so persona.ts has
+// exactly one remaining reader in this seam: agents/meera.ts. Shape is
+// unchanged — these are the identical persona.ts type declarations.
 import {
-  buildSystemPromptParts,
-  buildSpeechStyle,
-  WATCH_MODE_NOTE,
-  SEARCH_DECISION,
-  FORGET_DECISION,
-  CRISIS_LINES,
+  type AgentModule,
   type UserProfile,
   type VoiceEngine,
-} from "./persona";
+} from "./agents/types";
+import { DEFAULT_AGENT } from "./agents/registry";
 // WS-INTEGRATE seam 1 (docs/SPEC.md §13 collision contract: cross-workstream
 // needs go through declared interfaces, never edits to another workstream's
 // files — these are READS of WS-RELSTATE's own documented interface tickets,
@@ -193,6 +196,14 @@ export interface CompileInput {
   // mirroring `phase-c-complete`'s 83/83 property. Every use below is gated
   // behind `if (input.roomBundle)`.
   roomBundle?: RoomBundleInput | null;
+  // ── SPEC-AGENT-LAYER.md §3 (Law E2) — the injected persona module. Absent
+  // (undefined) is the ONLY state the 83 byte-identity fixtures exercise,
+  // and defaults to DEFAULT_AGENT (Meera's module, agents/meera.ts) — a
+  // zero-content re-export of persona.ts's own functions/constants, so
+  // every existing call site keeps working with zero edits and the
+  // compiled bytes cannot move: compile() with no `agent` set calls the
+  // exact same function references oldOracle.ts calls directly.
+  agent?: AgentModule;
 }
 
 export interface CompiledPrompt {
@@ -228,8 +239,15 @@ export function compile(input: CompileInput): CompiledPrompt {
   // relBundle passes `undefined` through unchanged (byte-identical for all
   // 83 original fixtures, none of which set relBundle).
   const dimsStage = input.relBundle ? stageForDims(input.relBundle.relState) : undefined;
-  const parts = buildSystemPromptParts(input.user, input.messageCount, input.medium, dimsStage);
-  let core = parts.core + (input.mode === "call" ? buildSpeechStyle(input.voiceEngine) : "");
+  // SPEC-AGENT-LAYER.md §3: the injected agent, defaulting to Meera's
+  // module. Every call below that used to reach persona.ts directly now
+  // goes through `agent` instead — same functions, same references, when
+  // `input.agent` is absent (agents/meera.ts re-exports persona.ts's
+  // exports unchanged), so this is byte-identical to the prior static
+  // import for every one of the 83 fixtures.
+  const agent = input.agent ?? DEFAULT_AGENT;
+  const parts = agent.buildSystemPromptParts(input.user, input.messageCount, input.medium, dimsStage);
+  let core = parts.core + (input.mode === "call" ? agent.buildSpeechStyle(input.voiceEngine) : "");
 
   // ── WS-INTEGRATE seam 2: age-tier hard-refusal (SPEC §9.4). Undefined
   // gates == unrestricted == today's behavior == byte-identical for every
@@ -287,7 +305,7 @@ export function compile(input: CompileInput): CompiledPrompt {
 
   // watch mode goes in early, not at point of use — same reasoning: it must
   // outlive a long tail's truncation before recall/herLife do
-  if (input.watching) tail += WATCH_MODE_NOTE;
+  if (input.watching) tail += agent.WATCH_MODE_NOTE;
   _track("watch");
 
   // ── T2 rel.snapshot / T3 india.dynamic / T4 dyadic.active — SPEC §3.2
@@ -402,9 +420,9 @@ ${input.memories}`;
   _track("culture"); // no manifest row yet — see CompiledPrompt.sections doc
   // dead last, chat only — see SEARCH_DECISION in persona.ts for why
   // position is the entire mechanism here
-  if (input.mode === "chat") tail += SEARCH_DECISION;
+  if (input.mode === "chat") tail += agent.SEARCH_DECISION;
   // both lanes — see FORGET_DECISION in persona.ts
-  tail += FORGET_DECISION;
+  tail += agent.FORGET_DECISION;
   _track("T10");
 
   return { core, tail, system: core + tail, sections };
@@ -896,4 +914,8 @@ export function hashManifest(sections: Record<string, number>): string {
   return hashCore([...layout, ...usage].join("|"));
 }
 
-export { CRISIS_LINES };
+// Re-exported for call sites that import CRISIS_LINES from this file
+// (src/engine/__fixtures__/.budget-entry.ts) — DEFAULT_AGENT's value, which
+// is persona.ts's own CRISIS_LINES unchanged (agents/meera.ts re-exports it
+// verbatim), so this is byte-identical to the prior direct re-export.
+export const CRISIS_LINES = DEFAULT_AGENT.CRISIS_LINES;
