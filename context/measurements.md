@@ -821,3 +821,38 @@ family-shared with the candidate, bias measured in its own backtest) and
 anthropic Claude on AWS Bedrock (family-disjoint, premium, AWS Activate
 credits verified applicable — the strongest remaining option, needs owner
 Bedrock setup).
+
+---
+
+## `prodgap-audit` — the relational engine renders empty for every real user (2026-08-15)
+
+Traced the live turn path (brain.ts think → compile → api/chat.js) against
+every `insert into vy_*` in api/. Verdict, coordinator-verified at the
+cited lines: the engine's render half is wired and gated, and its write
+half mostly does not exist in production —
+
+- vy_episode.participation hardcoded 'user' at the finalize insert →
+  T6 we.callbacks renders "" for everyone, though WE_TOKEN_RE, the render
+  fn, shapelint and the compiler slot are all live and correct.
+- vy_phrase: zero INSERTs anywhere in api/ (read, exported, deleted —
+  never written).
+- vy_kin / vy_currency / vy_ritual / vy_india_profile: zero INSERTs;
+  renderIndiaDynamic runs every turn on empty arrays; only the authored
+  festival-calendar sliver can ever fire.
+- writePattern: zero live callers → T4 always empty.
+- Trust stays at schema default 0.3 forever (T2 derivation explicitly
+  scoped out of the deterministic pass, correctly — judgment work).
+- Voice call lane gets NO relational bundle by construction
+  (brain.ts:746 mode==='call' → null).
+- Onboarding discards name-adjacent vibe chips; first vy_rel_state row
+  exists only after the 03:30 IST cron — day 1 is relationally empty
+  regardless of message count.
+- Memory is reactive-only by design (every tail block ships
+  never-raise-unprompted; the only escapes are query-matched T5 and
+  user-deixis T6).
+
+WS-FELT is closing the five low-risk gaps (WE classification + catch-up,
+day-1 seed via onlyPerson consolidation, chips→vy_currency authored rows,
+closeness card, cs_ratio self-flagged SQL bug). Ticketed as judgment work,
+not flag flips: call-lane rel bundle (latency seam), trust/repair
+derivation, pattern extraction, phrase capture.

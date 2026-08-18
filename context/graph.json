@@ -537,6 +537,12 @@
    "kind": "decision",
    "title": "Strategy re-rank: relationship layer is the asset, multiparty is the wedge, swap = QA + paper (capped)",
    "at": "2026-08-15"
+  },
+  {
+   "id": "prodgap-audit",
+   "kind": "measurement",
+   "title": "Engine renders empty in prod: writers missing for we/phrases/india/patterns; trust frozen at 0.3; day-1 relationally empty",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -1089,6 +1095,16 @@
    "src": "relational-wedge",
    "rel": "supersedes",
    "dst": "multiparty-direction"
+  },
+  {
+   "src": "prodgap-audit",
+   "rel": "part_of",
+   "dst": "relational-wedge"
+  },
+  {
+   "src": "prodgap-audit",
+   "rel": "measured_by",
+   "dst": "phase-c-complete"
   }
  ]
 }
