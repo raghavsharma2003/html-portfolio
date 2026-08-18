@@ -41,9 +41,25 @@
 // their own section further down this file, chained after the honorific
 // orchestrator. See that section's header for why they are separate
 // functions rather than folded into deriveRelEventsForPerson.
+//
+// WS-AGENTSCOPE (Law E1, SPEC-AGENT-LAYER §2): consolidation reads and writes
+// the RELATIONSHIP, which lives at (agent x person), so every retrieval over an
+// agent-scoped table below carries api/_agentscope.js's predicate in its WHERE
+// — before rank, never as a post-hoc filter — and every write over one names
+// agent_id explicitly instead of leaning on migration 009's transitional column
+// DEFAULT. `agentId` is threaded through the exported run* entry points with
+// Meera's id as the default, so a nightly sweep can eventually loop agents
+// without any query below changing. Exactly one agent exists today: this is a
+// deliberate behavioural NO-OP, which is what makes it safe to land.
+//
+// meera_log, vy_person_device and meera_forget are NOT scoped and must not be:
+// the raw log and the identity mapping are person-intrinsic (§2). A second
+// agent reading the same log with its own agent_id is exactly how §9 says the
+// legacy log anchor generalizes.
 import { q } from "./_db.js";
 import { embedBatch, toHalfvecLiteral } from "./_embed.js";
 import { AZURE_ENDPOINT, AZURE_KEY, OPENROUTER_KEY } from "./_config.js";
+import { agentScopePredicate, agentValue, MEERA_AGENT_ID } from "./_agentscope.js";
 // GAP 2 (WS-FELT) — day-1 seed HTTP path only (see the handler below).
 // allow/ipOf + the device-uuid check is the exact pattern api/memory.js and
 // api/episodes.js already use; personIdFor is api/memory.js's own device→
@@ -206,15 +222,16 @@ function suppressed(text, rxs) {
 }
 
 /** People with quiet-enough provisional episodes waiting to finalize. */
-async function findEligiblePersons(limit) {
+async function findEligiblePersons(limit, agentId = MEERA_AGENT_ID) {
   const rows = await q(
-    `select distinct person_id from vy_episode
-      where provisional = true and superseded_by is null
-        and group_id is null -- state inertness: explicit, not just NULL-person_id accident (multiparty-v1-design)
-        and ended_at < now() - ($1 || ' milliseconds')::interval
-      order by person_id
+    `select distinct e.person_id from vy_episode e
+      where e.provisional = true and e.superseded_by is null
+        and e.group_id is null -- state inertness: explicit, not just NULL-person_id accident (multiparty-v1-design)
+        and e.ended_at < now() - ($1 || ' milliseconds')::interval
+        ${agentScopePredicate("e", { agentId: "$3" })}
+      order by e.person_id
       limit $2`,
-    [String(FINALIZE_QUIET_MS), limit],
+    [String(FINALIZE_QUIET_MS), limit, agentId],
   );
   return rows.map((r) => r.person_id);
 }
@@ -284,7 +301,7 @@ ${sourceLines.join("\n")}`;
 
 /** Finalize one person: the whole nightly pass, scoped to their stale
  *  provisional window. Returns a per-person report for the run summary. */
-async function finalizePerson(person, { dryRun = false } = {}) {
+async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
   const rep = { person, log_rows: 0, episodes: 0, facts: 0, rejected_episodes: 0, rejected_facts: 0, audited: 0, refuted: 0, superseded_episodes: 0, superseded_facts: 0 };
   const batch = await fetchLogBatch(person);
   if (!batch.length) return rep;
@@ -353,11 +370,11 @@ async function finalizePerson(person, { dryRun = false } = {}) {
       // drifting.
       const participation = WE_TOKEN_RE.test(e.summary) ? "we" : "user";
       const ins = await q(
-        `insert into vy_episode (person_id, device_id, channel, participation, started_at, ended_at,
+        `insert into vy_episode (agent_id, person_id, device_id, channel, participation, started_at, ended_at,
            boundary_reason, log_from, log_to, summary, affect_tags, importance, provisional)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,false)
+         values (${agentValue("$13")},$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,false)
          returning id`,
-        [person, batch[0].device_id, e.channel, participation, new Date(e.startedAt).toISOString(), new Date(e.endedAt).toISOString(), e.reason, e.logFrom, e.logTo, e.summary, JSON.stringify(e.affect), e.importance],
+        [person, batch[0].device_id, e.channel, participation, new Date(e.startedAt).toISOString(), new Date(e.endedAt).toISOString(), e.reason, e.logFrom, e.logTo, e.summary, JSON.stringify(e.affect), e.importance, agentId],
       ).catch(() => []);
       if (ins[0]) episodeIdByIdx.set(idx, ins[0].id);
     }
@@ -415,41 +432,52 @@ async function finalizePerson(person, { dryRun = false } = {}) {
       // contradiction handling (§4.1.3): a NEW row always; an existing
       // active final fact with the same name gets superseded, never
       // updated in place.
+      // The contradiction lookup is a RETRIEVAL that decides a write: an
+      // unscoped read here would let another agent's fact of the same name
+      // supersede this one, which is the cross-agent leak inverted — not a row
+      // escaping into the wrong context, but the wrong context editing a row.
       const prior = await q(
-        `select id, body from vy_fact where person_id = $1 and lower(name) = $2
-           and provisional = false and t_invalid is null and retracted_at is null
-         order by created_at desc limit 1`,
-        [person, f.name],
+        `select v.id, v.body from vy_fact v where v.person_id = $1 and lower(v.name) = $2
+           and v.provisional = false and v.t_invalid is null and v.retracted_at is null
+           ${agentScopePredicate("v", { agentId: "$3" })}
+         order by v.created_at desc limit 1`,
+        [person, f.name, agentId],
       ).catch(() => []);
       const ins = await q(
-        `insert into vy_fact (person_id, kind, name, body, feel, provenance, confidence, citations, provisional)
-         values ($1,$2,$3,$4,$5,'extracted',0.85,$6::bigint[],false)
+        `insert into vy_fact (agent_id, person_id, kind, name, body, feel, provenance, confidence, citations, provisional)
+         values (${agentValue("$7")},$1,$2,$3,$4,$5,'extracted',0.85,$6::bigint[],false)
          returning id`,
-        [person, f.kind, f.name, f.body, f.feel, f.citations],
+        [person, f.kind, f.name, f.body, f.feel, f.citations, agentId],
       ).catch(() => []);
       if (!ins[0]) continue;
       rep.facts++;
       const newId = ins[0].id;
       if (prior[0] && prior[0].body !== f.body) {
-        await q(`update vy_fact set t_invalid = now(), superseded_by = $1 where id = $2`, [newId, prior[0].id]).catch(() => {});
+        await q(
+          `update vy_fact v set t_invalid = now(), superseded_by = $1 where v.id = $2
+            ${agentScopePredicate("v", { agentId: "$3" })}`,
+          [newId, prior[0].id, agentId],
+        ).catch(() => {});
       }
       // supersede the provisional fact(s) this promotes, matched by name
       // under the episodes just finalized (§0.2.1: provisional is
       // second-class, replaced wholesale on finalize)
       const provChain = await q(
-        `update vy_fact set superseded_by = $1
-           where person_id = $2 and lower(name) = $3 and provisional = true and superseded_by is null
-             and citations && $4::bigint[]
-         returning id`,
-        [newId, person, f.name, [...episodeIdByIdx.values()]],
+        `update vy_fact v set superseded_by = $1
+           where v.person_id = $2 and lower(v.name) = $3 and v.provisional = true and v.superseded_by is null
+             and v.citations && $4::bigint[]
+             ${agentScopePredicate("v", { agentId: "$5" })}
+         returning v.id`,
+        [newId, person, f.name, [...episodeIdByIdx.values()], agentId],
       ).catch(() => []);
       rep.superseded_facts += provChain.length;
 
       if (vecs[i]) {
         await q(
-          `insert into vy_embedding (owner_kind, owner_id, person_id, v) values ('fact',$1,$2,$3::halfvec)
+          `insert into vy_embedding (agent_id, owner_kind, owner_id, person_id, v)
+           values (${agentValue("$4")},'fact',$1,$2,$3::halfvec)
            on conflict (owner_kind, owner_id) do update set v = excluded.v, at = now()`,
-          [newId, person, toHalfvecLiteral(vecs[i])],
+          [newId, person, toHalfvecLiteral(vecs[i]), agentId],
         ).catch(() => {});
       }
       // §4.2 layer 3: sampled entailment audit pool (5%, abstention-aware)
@@ -461,12 +489,13 @@ async function finalizePerson(person, { dryRun = false } = {}) {
       const finalId = episodeIdByIdx.get(idx);
       if (finalId == null) continue;
       const supers = await q(
-        `update vy_episode set superseded_by = $1
-           where person_id = $2 and provisional = true and superseded_by is null
-             and channel = $3 and log_from is not null and log_to is not null
-             and log_from <= $5 and log_to >= $4
-         returning id`,
-        [finalId, person, e.channel, e.logFrom, e.logTo],
+        `update vy_episode v set superseded_by = $1
+           where v.person_id = $2 and v.provisional = true and v.superseded_by is null
+             and v.channel = $3 and v.log_from is not null and v.log_to is not null
+             and v.log_from <= $5 and v.log_to >= $4
+             ${agentScopePredicate("v", { agentId: "$6" })}
+         returning v.id`,
+        [finalId, person, e.channel, e.logFrom, e.logTo, agentId],
       ).catch(() => []);
       rep.superseded_episodes += supers.length;
     }
@@ -488,11 +517,15 @@ async function finalizePerson(person, { dryRun = false } = {}) {
       cost.audit_calls++;
       rep.audited++;
       if (verdict === "refuted") rep.refuted++;
-      await q(`update vy_fact set retracted_at = case when $2 = 'refuted' then now() else retracted_at end where id = $1`, [item.factId, verdict === "refuted" ? "refuted" : "ok"]).catch(() => {});
       await q(
-        `insert into vy_derivation (person_id, model, prompt_hash, input_from, input_to, wrote, audit_status)
-         values ($1,$2,'audit',$3,$4,$5::jsonb,$6)`,
-        [person, AUDIT_MODEL, inputFrom, inputTo, JSON.stringify([{ table: "vy_fact", id: item.factId }]), verdict],
+        `update vy_fact v set retracted_at = case when $2 = 'refuted' then now() else retracted_at end
+          where v.id = $1 ${agentScopePredicate("v", { agentId: "$3" })}`,
+        [item.factId, verdict === "refuted" ? "refuted" : "ok", agentId],
+      ).catch(() => {});
+      await q(
+        `insert into vy_derivation (agent_id, person_id, model, prompt_hash, input_from, input_to, wrote, audit_status)
+         values (${agentValue("$7")},$1,$2,'audit',$3,$4,$5::jsonb,$6)`,
+        [person, AUDIT_MODEL, inputFrom, inputTo, JSON.stringify([{ table: "vy_fact", id: item.factId }]), verdict, agentId],
       ).catch(() => {});
     }
   }
@@ -500,14 +533,15 @@ async function finalizePerson(person, { dryRun = false } = {}) {
   // ── derivation audit record for the run itself (unaudited default) ──
   if (!dryRun) {
     await q(
-      `insert into vy_derivation (person_id, model, prompt_hash, input_from, input_to, wrote)
-       values ($1,$2,'finalize',$3,$4,$5::jsonb)`,
+      `insert into vy_derivation (agent_id, person_id, model, prompt_hash, input_from, input_to, wrote)
+       values (${agentValue("$6")},$1,$2,'finalize',$3,$4,$5::jsonb)`,
       [
         person,
         AZ_KEY ? EXTRACT_MODEL_AZURE : EXTRACT_MODEL_FALLBACK,
         inputFrom,
         inputTo,
         JSON.stringify([...episodeIdByIdx.values()].map((id) => ({ table: "vy_episode", id }))),
+        agentId,
       ],
     ).catch(() => {});
 
@@ -516,9 +550,10 @@ async function finalizePerson(person, { dryRun = false } = {}) {
     const hl = decayCfg.half_life_days || {};
     for (const [kind, days] of Object.entries(hl)) {
       await q(
-        `update vy_fact set need_p = greatest(0.02, exp(-0.6931471805599453 * extract(epoch from (now() - created_at)) / (86400.0 * $3)))
-           where person_id = $1 and kind = $2 and t_invalid is null and retracted_at is null`,
-        [person, kind, days],
+        `update vy_fact v set need_p = greatest(0.02, exp(-0.6931471805599453 * extract(epoch from (now() - v.created_at)) / (86400.0 * $3)))
+           where v.person_id = $1 and v.kind = $2 and v.t_invalid is null and v.retracted_at is null
+           ${agentScopePredicate("v", { agentId: "$4" })}`,
+        [person, kind, days, agentId],
       ).catch(() => {});
     }
   }
@@ -673,7 +708,7 @@ const HINDI_MARKER_WORDS = [
   "kar", "karo", "karna", "raha", "rahi", "rahe", "gaya", "gayi", "gaye",
   "acha", "accha", "theek", "matlab", "bas", "abhi", "kal", "aaj",
 ];
-async function refreshDerivedDims(person) {
+async function refreshDerivedDims(person, agentId = MEERA_AGENT_ID) {
   const pattern = HINDI_MARKER_WORDS.map((w) => `\\m${w}\\M`).join("|");
   const [csRows, ritualRows, pacingRows] = await Promise.all([
     q(
@@ -688,18 +723,21 @@ async function refreshDerivedDims(person) {
       [person, pattern],
     ).catch(() => []),
     q(
-      `select count(*) filter (where last_at > now() - interval '30 days')::real
+      `select count(*) filter (where r.last_at > now() - interval '30 days')::real
                 / greatest(count(*), 1)::real as density
-         from vy_ritual where person_id = $1`,
-      [person],
+         from vy_ritual r where r.person_id = $1
+         ${agentScopePredicate("r", { agentId: "$2" })}`,
+      [person, agentId],
     ).catch(() => []),
     q(
       `select percentile_cont(0.5) within group (order by gap_s) as pacing_gap_s
          from (
-           select extract(epoch from started_at - lag(started_at) over (order by started_at)) as gap_s
-             from vy_episode where person_id = $1 and group_id is null and started_at > now() - interval '30 days'
+           select extract(epoch from e.started_at - lag(e.started_at) over (order by e.started_at)) as gap_s
+             from vy_episode e
+            where e.person_id = $1 and e.group_id is null and e.started_at > now() - interval '30 days'
+              ${agentScopePredicate("e", { agentId: "$2" })}
          ) s where gap_s is not null`,
-      [person],
+      [person, agentId],
     ).catch(() => []),
   ]);
   const total = Number(csRows[0]?.total ?? 0);
@@ -720,12 +758,16 @@ async function refreshDerivedDims(person) {
   // that already creates this row) and relstate.ts's rebuildSnapshotFromDb
   // both already use — first-write-wins the schema defaults for every
   // other column via `insert ... on conflict do update`.
+  // MIGRATED ARBITER (009 header's ten sites; migration 010 precondition):
+  // (agent_id, person_id) is the PK now. .catch()-swallowed, so leaving it on
+  // the old key would fail exactly the way `relstate-zero-rows` failed — a
+  // writer silently not writing, discovered months later.
   await q(
-    `insert into vy_rel_state (person_id, cs_ratio, ritual_density, pacing_gap_s)
-     values ($1,$2,$3,$4)
-     on conflict (person_id) do update set
+    `insert into vy_rel_state (agent_id, person_id, cs_ratio, ritual_density, pacing_gap_s)
+     values (${agentValue("$5")},$1,$2,$3,$4)
+     on conflict (agent_id, person_id) do update set
        cs_ratio = $2, ritual_density = $3, pacing_gap_s = $4`,
-    [person, csRatio, ritualDensity, pacingGapS],
+    [person, csRatio, ritualDensity, pacingGapS, agentId],
   ).catch(() => {});
   return { csRatio, ritualDensity, pacingGapS };
 }
@@ -735,12 +777,14 @@ async function refreshDerivedDims(person) {
 // skipped (this file's own "a missed pass is late, never lost" philosophy)
 const RELDERIVE_LOOKBACK_H = 30;
 
-async function findPersonsWithFreshEpisodes(limit) {
+async function findPersonsWithFreshEpisodes(limit, agentId = MEERA_AGENT_ID) {
   const rows = await q(
-    `select distinct person_id from vy_episode
-      where provisional = false and group_id is null and created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
-      order by person_id limit $1`,
-    [limit],
+    `select distinct e.person_id from vy_episode e
+      where e.provisional = false and e.group_id is null
+        and e.created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
+        ${agentScopePredicate("e", { agentId: "$2" })}
+      order by e.person_id limit $1`,
+    [limit, agentId],
   ).catch(() => []);
   return rows.map((r) => r.person_id);
 }
@@ -749,22 +793,25 @@ async function findPersonsWithFreshEpisodes(limit) {
  *  their freshly-finalized episodes' own log spans, run it through the
  *  mirrored hysteresis, write a cited vy_rel_event if it moved, refresh the
  *  three derived dims. Returns a per-person report for the run summary. */
-async function deriveRelEventsForPerson(person, { dryRun = false } = {}) {
+async function deriveRelEventsForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
   const rep = { person, episodes_scanned: 0, honorific_evidence: 0, honorific_moved: false, dims_refreshed: false };
   const episodes = await q(
-    `select id, log_from, log_to, started_at from vy_episode
-      where person_id = $1 and provisional = false and group_id is null
-        and created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
-        and log_from is not null and log_to is not null
-      order by started_at asc limit 200`,
-    [person],
+    `select e.id, e.log_from, e.log_to, e.started_at from vy_episode e
+      where e.person_id = $1 and e.provisional = false and e.group_id is null
+        and e.created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
+        and e.log_from is not null and e.log_to is not null
+        ${agentScopePredicate("e", { agentId: "$2" })}
+      order by e.started_at asc limit 200`,
+    [person, agentId],
   ).catch(() => []);
   rep.episodes_scanned = episodes.length;
   if (!episodes.length) return rep;
 
-  const stateRows = await q(`select honorific, rupture_open from vy_rel_state where person_id = $1`, [
-    person,
-  ]).catch(() => []);
+  const stateRows = await q(
+    `select r.honorific, r.rupture_open from vy_rel_state r where r.person_id = $1
+      ${agentScopePredicate("r", { agentId: "$2" })}`,
+    [person, agentId],
+  ).catch(() => []);
   // no vy_rel_state row yet: schema default (§2.4) — matches
   // relstate.ts's initialRelState() exactly
   const current = stateRows[0]?.honorific ?? "tum";
@@ -809,16 +856,16 @@ async function deriveRelEventsForPerson(person, { dryRun = false } = {}) {
     // function's own comment)
     if (move.citations.length >= 1) {
       await q(
-        `insert into vy_rel_event (person_id, dim, from_v, to_v, direction, note, citations)
-         values ($1,'honorific',$2,$3,$4,$5,$6)`,
-        [person, current, move.next, move.direction, telegraphic(move.note, 160), move.citations],
+        `insert into vy_rel_event (agent_id, person_id, dim, from_v, to_v, direction, note, citations)
+         values (${agentValue("$7")},$1,'honorific',$2,$3,$4,$5,$6)`,
+        [person, current, move.next, move.direction, telegraphic(move.note, 160), move.citations, agentId],
       ).catch(() => {});
       // same discovered no-op-on-missing-row issue as refreshDerivedDims
-      // above, same upsert fix
+      // above, same upsert fix. MIGRATED ARBITER (010 precondition).
       await q(
-        `insert into vy_rel_state (person_id, honorific) values ($1,$2)
-         on conflict (person_id) do update set honorific = $2`,
-        [person, move.next],
+        `insert into vy_rel_state (agent_id, person_id, honorific) values (${agentValue("$3")},$1,$2)
+         on conflict (agent_id, person_id) do update set honorific = $2`,
+        [person, move.next, agentId],
       ).catch(() => {});
       rep.honorific_moved = true;
     }
@@ -827,7 +874,7 @@ async function deriveRelEventsForPerson(person, { dryRun = false } = {}) {
   }
 
   if (!dryRun) {
-    await refreshDerivedDims(person);
+    await refreshDerivedDims(person, agentId);
     rep.dims_refreshed = true;
   }
   return rep;
@@ -838,11 +885,11 @@ async function deriveRelEventsForPerson(person, { dryRun = false } = {}) {
  *  (own person cursor, own limit) so a partial/halted finalize run still
  *  lets already-finalized episodes get their honorific pass — "late, never
  *  lost" applies here too. */
-export async function runRelEventDerivation({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null } = {}) {
+export async function runRelEventDerivation({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null, agentId = MEERA_AGENT_ID } = {}) {
   const t0 = Date.now();
-  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit);
+  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit, agentId);
   const reports = [];
-  for (const person of persons) reports.push(await deriveRelEventsForPerson(person, { dryRun }));
+  for (const person of persons) reports.push(await deriveRelEventsForPerson(person, { dryRun, agentId }));
   return {
     ok: true,
     persons_processed: reports.length,
@@ -947,13 +994,14 @@ const PATTERN_MOMENTS = ["conflict", "vulnerable", "silence", "teasing", "stress
  *  the trust/repair prompt needs (summary + affect, already telegraphic and
  *  already citation-anchored by finalizePerson's own entailment discipline).
  *  GROUP GUARD applied (see section header). */
-async function fetchFreshEpisodesForPerson(person, limitN = TRUST_REPAIR_MAX_EPISODES) {
+async function fetchFreshEpisodesForPerson(person, limitN = TRUST_REPAIR_MAX_EPISODES, agentId = MEERA_AGENT_ID) {
   return q(
-    `select id, log_from, log_to, started_at, summary, affect_tags, importance from vy_episode
-      where person_id = $1 and provisional = false and group_id is null
-        and created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
-      order by started_at asc limit $2`,
-    [person, limitN],
+    `select e.id, e.log_from, e.log_to, e.started_at, e.summary, e.affect_tags, e.importance from vy_episode e
+      where e.person_id = $1 and e.provisional = false and e.group_id is null
+        and e.created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
+        ${agentScopePredicate("e", { agentId: "$3" })}
+      order by e.started_at asc limit $2`,
+    [person, limitN, agentId],
   ).catch(() => []);
 }
 
@@ -961,13 +1009,14 @@ async function fetchFreshEpisodesForPerson(person, limitN = TRUST_REPAIR_MAX_EPI
  *  regularities need more than one day's evidence) — GROUP GUARD applied,
  *  superseded episodes excluded (a compacted/replaced summary is not
  *  citable ground truth). */
-async function fetchHistoryEpisodesForPerson(person, { days = PATTERN_LOOKBACK_DAYS, limitN = PATTERN_MAX_EPISODES } = {}) {
+async function fetchHistoryEpisodesForPerson(person, { days = PATTERN_LOOKBACK_DAYS, limitN = PATTERN_MAX_EPISODES, agentId = MEERA_AGENT_ID } = {}) {
   return q(
-    `select id, log_from, log_to, started_at, summary, affect_tags, importance from vy_episode
-      where person_id = $1 and provisional = false and group_id is null and superseded_by is null
-        and started_at > now() - interval '${days} days'
-      order by started_at asc limit $2`,
-    [person, limitN],
+    `select e.id, e.log_from, e.log_to, e.started_at, e.summary, e.affect_tags, e.importance from vy_episode e
+      where e.person_id = $1 and e.provisional = false and e.group_id is null and e.superseded_by is null
+        and e.started_at > now() - interval '${days} days'
+        ${agentScopePredicate("e", { agentId: "$3" })}
+      order by e.started_at asc limit $2`,
+    [person, limitN, agentId],
   ).catch(() => []);
 }
 
@@ -1012,9 +1061,9 @@ ${batchText}`;
  *  MOST one rupture/repair event and one trust event per run (the state
  *  machine itself only ever proposes one rupture/repair move at a time).
  *  Returns a per-person report for the run summary. */
-async function deriveTrustRepairForPerson(person, { dryRun = false } = {}) {
+async function deriveTrustRepairForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
   const rep = { person, episodes_scanned: 0, trust_moved: false, rupture_or_repair_moved: false };
-  const episodes = await fetchFreshEpisodesForPerson(person);
+  const episodes = await fetchFreshEpisodesForPerson(person, TRUST_REPAIR_MAX_EPISODES, agentId);
   rep.episodes_scanned = episodes.length;
   if (!episodes.length) return rep;
 
@@ -1023,7 +1072,11 @@ async function deriveTrustRepairForPerson(person, { dryRun = false } = {}) {
   const parsed = parseJsonLoose(raw);
   if (!parsed) return rep;
 
-  const stateRows = await q(`select trust, rupture_open, repair_state from vy_rel_state where person_id = $1`, [person]).catch(() => []);
+  const stateRows = await q(
+    `select r.trust, r.rupture_open, r.repair_state from vy_rel_state r where r.person_id = $1
+      ${agentScopePredicate("r", { agentId: "$2" })}`,
+    [person, agentId],
+  ).catch(() => []);
   const currentTrust = stateRows[0] ? Number(stateRows[0].trust) : 0.3;
   const ruptureOpen = Boolean(stateRows[0]?.rupture_open ?? false);
   const repairState = stateRows[0]?.repair_state ?? "none";
@@ -1046,14 +1099,16 @@ async function deriveTrustRepairForPerson(person, { dryRun = false } = {}) {
           const toV = move.dim === "rupture" ? "open" : move.repairState;
           const note = move.dim === "rupture" ? parsed?.rupture?.note : parsed?.repair_signal?.note ?? parsed?.rupture?.note;
           await q(
-            `insert into vy_rel_event (person_id, dim, from_v, to_v, direction, note, citations)
-             values ($1,$2,$3,$4,$5,$6,$7)`,
-            [person, move.dim, fromV, toV, move.direction, telegraphic(note || move.note, 160), citations],
+            `insert into vy_rel_event (agent_id, person_id, dim, from_v, to_v, direction, note, citations)
+             values (${agentValue("$8")},$1,$2,$3,$4,$5,$6,$7)`,
+            [person, move.dim, fromV, toV, move.direction, telegraphic(note || move.note, 160), citations, agentId],
           ).catch(() => {});
+          // MIGRATED ARBITER (010 precondition)
           await q(
-            `insert into vy_rel_state (person_id, rupture_open, repair_state) values ($1,$2,$3)
-             on conflict (person_id) do update set rupture_open = $2, repair_state = $3`,
-            [person, move.ruptureOpen, move.repairState],
+            `insert into vy_rel_state (agent_id, person_id, rupture_open, repair_state)
+             values (${agentValue("$4")},$1,$2,$3)
+             on conflict (agent_id, person_id) do update set rupture_open = $2, repair_state = $3`,
+            [person, move.ruptureOpen, move.repairState, agentId],
           ).catch(() => {});
           wrote.push({ table: "vy_rel_event", dim: move.dim });
         }
@@ -1066,8 +1121,10 @@ async function deriveTrustRepairForPerson(person, { dryRun = false } = {}) {
     const citations = mapEpisodeCitations(parsed.trust_move.citations, episodes);
     if (citations.length) {
       const lastTrustRows = await q(
-        `select at from vy_rel_event where person_id = $1 and dim = 'trust' order by at desc limit 1`,
-        [person],
+        `select e.at from vy_rel_event e where e.person_id = $1 and e.dim = 'trust'
+          ${agentScopePredicate("e", { agentId: "$2" })}
+          order by e.at desc limit 1`,
+        [person, agentId],
       ).catch(() => []);
       const lastMoveAt = lastTrustRows[0]?.at ?? null;
       const sign = parsed.trust_move.direction === "decrease" ? -1 : 1;
@@ -1076,14 +1133,15 @@ async function deriveTrustRepairForPerson(person, { dryRun = false } = {}) {
         rep.trust_moved = true;
         if (!dryRun) {
           await q(
-            `insert into vy_rel_event (person_id, dim, from_v, to_v, direction, note, citations)
-             values ($1,'trust',$2,$3,$4,$5,$6)`,
-            [person, currentTrust.toFixed(3), move.next.toFixed(3), move.direction, telegraphic(parsed.trust_move.note, 160), citations],
+            `insert into vy_rel_event (agent_id, person_id, dim, from_v, to_v, direction, note, citations)
+             values (${agentValue("$7")},$1,'trust',$2,$3,$4,$5,$6)`,
+            [person, currentTrust.toFixed(3), move.next.toFixed(3), move.direction, telegraphic(parsed.trust_move.note, 160), citations, agentId],
           ).catch(() => {});
+          // MIGRATED ARBITER (010 precondition)
           await q(
-            `insert into vy_rel_state (person_id, trust) values ($1,$2)
-             on conflict (person_id) do update set trust = $2`,
-            [person, move.next],
+            `insert into vy_rel_state (agent_id, person_id, trust) values (${agentValue("$3")},$1,$2)
+             on conflict (agent_id, person_id) do update set trust = $2`,
+            [person, move.next, agentId],
           ).catch(() => {});
           wrote.push({ table: "vy_rel_event", dim: "trust" });
         }
@@ -1093,9 +1151,9 @@ async function deriveTrustRepairForPerson(person, { dryRun = false } = {}) {
 
   if (!dryRun && wrote.length && Number.isFinite(inputFrom) && Number.isFinite(inputTo)) {
     await q(
-      `insert into vy_derivation (person_id, model, prompt_hash, input_from, input_to, wrote)
-       values ($1,$2,'trust_repair',$3,$4,$5::jsonb)`,
-      [person, AZ_KEY ? EXTRACT_MODEL_AZURE : EXTRACT_MODEL_FALLBACK, inputFrom, inputTo, JSON.stringify(wrote)],
+      `insert into vy_derivation (agent_id, person_id, model, prompt_hash, input_from, input_to, wrote)
+       values (${agentValue("$6")},$1,$2,'trust_repair',$3,$4,$5::jsonb)`,
+      [person, AZ_KEY ? EXTRACT_MODEL_AZURE : EXTRACT_MODEL_FALLBACK, inputFrom, inputTo, JSON.stringify(wrote), agentId],
     ).catch(() => {});
   }
   return rep;
@@ -1104,11 +1162,11 @@ async function deriveTrustRepairForPerson(person, { dryRun = false } = {}) {
 /** The orchestrator — same person cursor (findPersonsWithFreshEpisodes) as
  *  runRelEventDerivation, run independently so a partial honorific pass
  *  never blocks this one. */
-export async function runTrustRepairDerivation({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null } = {}) {
+export async function runTrustRepairDerivation({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null, agentId = MEERA_AGENT_ID } = {}) {
   const t0 = Date.now();
-  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit);
+  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit, agentId);
   const reports = [];
-  for (const person of persons) reports.push(await deriveTrustRepairForPerson(person, { dryRun }));
+  for (const person of persons) reports.push(await deriveTrustRepairForPerson(person, { dryRun, agentId }));
   return {
     ok: true,
     persons_processed: reports.length,
@@ -1139,15 +1197,19 @@ ${batchText}`;
 /** One person's pattern-extraction pass. Dedupes against this person's own
  *  existing active patterns (same moment + same normalized if_shape) so a
  *  regularity already on record is not re-proposed nightly. */
-async function extractPatternsForPerson(person, { dryRun = false } = {}) {
+async function extractPatternsForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
   const rep = { person, episodes_scanned: 0, proposed: 0, written: 0, rejected: 0, deduped: 0 };
-  const episodes = await fetchHistoryEpisodesForPerson(person);
+  const episodes = await fetchHistoryEpisodesForPerson(person, { agentId });
   rep.episodes_scanned = episodes.length;
   if (episodes.length < PATTERN_MIN_EPISODES_TO_TRY) return rep;
 
+  // The dedupe read is a RETRIEVAL that decides a write: unscoped, another
+  // agent's pattern would silently suppress this agent's identical finding,
+  // which is a cross-agent read wearing a write's clothes.
   const existing = await q(
-    `select moment, if_shape from vy_pattern where person_id = $1 and t_invalid is null`,
-    [person],
+    `select p.moment, p.if_shape from vy_pattern p where p.person_id = $1 and p.t_invalid is null
+      ${agentScopePredicate("p", { agentId: "$2" })}`,
+    [person, agentId],
   ).catch(() => []);
   const dedupeKey = (m, s) => `${m}::${String(s).toLowerCase().trim()}`;
   const seen = new Set(existing.map((p) => dedupeKey(p.moment, p.if_shape)));
@@ -1178,9 +1240,9 @@ async function extractPatternsForPerson(person, { dryRun = false } = {}) {
     }
     try {
       await q(
-        `insert into vy_pattern (person_id, moment, if_shape, then_note, self_in_relation, citations)
-         values ($1,$2,$3,$4,$5,$6)`,
-        [person, moment, ifShape, thenNote, selfInRelation, citations],
+        `insert into vy_pattern (agent_id, person_id, moment, if_shape, then_note, self_in_relation, citations)
+         values (${agentValue("$7")},$1,$2,$3,$4,$5,$6)`,
+        [person, moment, ifShape, thenNote, selfInRelation, citations, agentId],
       );
       rep.written++;
       seen.add(dedupeKey(moment, ifShape));
@@ -1191,11 +1253,11 @@ async function extractPatternsForPerson(person, { dryRun = false } = {}) {
   return rep;
 }
 
-export async function runPatternExtraction({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null } = {}) {
+export async function runPatternExtraction({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null, agentId = MEERA_AGENT_ID } = {}) {
   const t0 = Date.now();
-  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit);
+  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit, agentId);
   const reports = [];
-  for (const person of persons) reports.push(await extractPatternsForPerson(person, { dryRun }));
+  for (const person of persons) reports.push(await extractPatternsForPerson(person, { dryRun, agentId }));
   return {
     ok: true,
     persons_processed: reports.length,
@@ -1262,7 +1324,7 @@ export function tokenizePhrase(s) {
  *  bigint by schema design, "the coining episode", not a citations array;
  *  the >=3-distinct-day recurrence requirement is the evidence bar, this is
  *  which one anchor episode gets stored per that column's own shape). */
-async function capturePhrasesForPerson(person, { dryRun = false } = {}) {
+async function capturePhrasesForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
   const rep = { person, rows_scanned: 0, candidates: 0, written: 0 };
   const devices = await q(`select device_id from vy_person_device where person_id = $1`, [person]).catch(() => []);
   const deviceIds = devices.length ? devices.map((d) => d.device_id) : [person];
@@ -1275,7 +1337,11 @@ async function capturePhrasesForPerson(person, { dryRun = false } = {}) {
   rep.rows_scanned = rows.length;
   if (!rows.length) return rep;
 
-  const existing = await q(`select lower(phrase) as p from vy_phrase where person_id = $1`, [person]).catch(() => []);
+  const existing = await q(
+    `select lower(v.phrase) as p from vy_phrase v where v.person_id = $1
+      ${agentScopePredicate("v", { agentId: "$2" })}`,
+    [person, agentId],
+  ).catch(() => []);
   const existingPhrases = new Set(existing.map((r) => r.p));
   // Substring-aware, not just exact-match: a night AFTER "chai pe scene set
   // karo" is captured must not then capture "chai pe scene set" or "pe
@@ -1324,20 +1390,27 @@ async function capturePhrasesForPerson(person, { dryRun = false } = {}) {
   const originEpisode = [...evidence.episodeAt.entries()].sort((a, b) => a[1] - b[1])[0][0];
   rep.written = 1;
   if (dryRun) return rep;
+  // The arbiter here is vy_phrase's own (person_id, lower(phrase)) unique
+  // index, which 009 did not touch — NOT one of the ten sites 010's
+  // precondition names, and not dropped by it. Left as-is deliberately: this
+  // is a second-agent CORRECTNESS question (two agents may legitimately coin
+  // the same phrase with the same person) rather than a 010 blocker, and the
+  // index is not mine to widen. Named in the report as an interface ticket
+  // for whoever owns the schema.
   await q(
-    `insert into vy_phrase (person_id, phrase, origin_episode, coined_at, last_used, uses)
-     values ($1,$2,$3, now(), now(), $4)
+    `insert into vy_phrase (agent_id, person_id, phrase, origin_episode, coined_at, last_used, uses)
+     values (${agentValue("$5")},$1,$2,$3, now(), now(), $4)
      on conflict (person_id, lower(phrase)) do nothing`,
-    [person, gram, originEpisode, evidence.days.size],
+    [person, gram, originEpisode, evidence.days.size, agentId],
   ).catch(() => {});
   return rep;
 }
 
-export async function runPhraseCapture({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null } = {}) {
+export async function runPhraseCapture({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null, agentId = MEERA_AGENT_ID } = {}) {
   const t0 = Date.now();
-  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit);
+  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit, agentId);
   const reports = [];
-  for (const person of persons) reports.push(await capturePhrasesForPerson(person, { dryRun }));
+  for (const person of persons) reports.push(await capturePhrasesForPerson(person, { dryRun, agentId }));
   return {
     ok: true,
     persons_processed: reports.length,
@@ -1365,32 +1438,40 @@ void PHRASE_CAP_PER_NIGHT;
 // discipline. `dryRun` reports the count without writing (SELECT, not
 // UPDATE) — this is the "run it as SELECT count first, read-only" the
 // rollout checklist asks for.
-async function backfillWeParticipation({ dryRun = false, onlyPerson = null } = {}) {
+async function backfillWeParticipation({ dryRun = false, onlyPerson = null, agentId = MEERA_AGENT_ID } = {}) {
+  // The one query in this file with NO person cursor when onlyPerson is null —
+  // it sweeps every row in the table. That is exactly the shape a missing
+  // agent scope hurts most, so the clause is not optional here: without it a
+  // Meera-triggered backfill would rewrite another agent's episodes.
+  const scope = agentScopePredicate("e", { agentId: onlyPerson ? "$3" : "$2" });
   const where = onlyPerson
-    ? `where person_id = $2 and participation = 'user' and summary ~* $1`
-    : `where participation = 'user' and summary ~* $1`;
-  const params = onlyPerson ? [WE_TOKEN_SQL, onlyPerson] : [WE_TOKEN_SQL];
+    ? `where e.person_id = $2 and e.participation = 'user' and e.summary ~* $1 ${scope}`
+    : `where e.participation = 'user' and e.summary ~* $1 ${scope}`;
+  const params = onlyPerson ? [WE_TOKEN_SQL, onlyPerson, agentId] : [WE_TOKEN_SQL, agentId];
   if (dryRun) {
-    const rows = await q(`select count(*)::int as n from vy_episode ${where}`, params).catch(() => []);
+    const rows = await q(`select count(*)::int as n from vy_episode e ${where}`, params).catch(() => []);
     return Number(rows[0]?.n ?? 0);
   }
-  const rows = await q(`update vy_episode set participation = 'we' ${where} returning id`, params).catch(() => []);
+  const rows = await q(
+    `update vy_episode e set participation = 'we' ${where} returning e.id`,
+    params,
+  ).catch(() => []);
   return rows.length;
 }
 
 /** The run itself: pick eligible people, finalize each, halt on a runaway
  *  entailment refutation rate. */
-export async function runConsolidation({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null } = {}) {
+export async function runConsolidation({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null, agentId = MEERA_AGENT_ID } = {}) {
   const t0 = Date.now();
-  const weBackfilled = await backfillWeParticipation({ dryRun, onlyPerson });
-  const persons = onlyPerson ? [onlyPerson] : await findEligiblePersons(limit);
+  const weBackfilled = await backfillWeParticipation({ dryRun, onlyPerson, agentId });
+  const persons = onlyPerson ? [onlyPerson] : await findEligiblePersons(limit, agentId);
   const reports = [];
   let totalAudited = 0;
   let totalRefuted = 0;
   let halted = false;
 
   for (const person of persons) {
-    const rep = await finalizePerson(person, { dryRun });
+    const rep = await finalizePerson(person, { dryRun, agentId });
     reports.push(rep);
     totalAudited += rep.audited;
     totalRefuted += rep.refuted;

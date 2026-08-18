@@ -38,16 +38,20 @@ export const TRIAL_DAYS = 14;
  *  quorum she is present, polite, and remembers nothing. */
 export const QUORUM = 2;
 
-/** Synthetic room device id — uuid v5 (RFC 4122 §4.3) over the Telegram chat
- *  id, in the standard DNS namespace. Deterministic on purpose: a room that is
- *  removed and re-added maps to the SAME synthetic device rather than
- *  accumulating orphans. It is in nobody's vy_person_device mapping by design
- *  (008b) — attribution of a room turn runs through speaker_person_id, never
- *  through this column. */
-export function roomDeviceId(tgChatId) {
+/** Per-surface seed prefix for the synthetic device ids below. Telegram's is
+ *  `tg` and may NEVER change: every room device already written is uuid-v5 of
+ *  `tg:<chat id>`, and a changed seed silently orphans them. */
+const DEVICE_SEED = { telegram: "tg", discord: "dc", whatsapp: "wa", web: "web" };
+
+/** Synthetic device id — uuid v5 (RFC 4122 §4.3) in the standard DNS
+ *  namespace, over a surface-qualified key. Deterministic on purpose: a room
+ *  that is removed and re-added maps to the SAME synthetic device rather than
+ *  accumulating orphans, and two surfaces can never collide on one. */
+export function surfaceDeviceId(surface, key) {
   const NS = "6ba7b810-9dad-11d1-80b4-00c04fd430c8".replace(/-/g, "");
+  const seed = `${DEVICE_SEED[surface] || surface}:${key}`;
   const h = createHash("sha1")
-    .update(Buffer.concat([Buffer.from(NS, "hex"), Buffer.from(`tg:${tgChatId}`, "utf8")]))
+    .update(Buffer.concat([Buffer.from(NS, "hex"), Buffer.from(seed, "utf8")]))
     .digest();
   h[6] = (h[6] & 0x0f) | 0x50;
   h[8] = (h[8] & 0x3f) | 0x80;
@@ -55,17 +59,62 @@ export function roomDeviceId(tgChatId) {
   return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20, 32)}`;
 }
 
+/** A room's synthetic device. It is in nobody's vy_person_device mapping by
+ *  design (008b) — attribution of a room turn runs through speaker_person_id,
+ *  never through this column. */
+export const surfaceRoomDeviceId = (surface, chatKey) => surfaceDeviceId(surface, chatKey);
+
+/** The Telegram spelling, kept because every device id already in the database
+ *  came out of it and because it is the identity `tg:` seed above. */
+export const roomDeviceId = (tgChatId) => surfaceDeviceId("telegram", tgChatId);
+
 // ── identity ──────────────────────────────────────────────────────────────
+//
+// AGENT-INDEPENDENT BY DESIGN (SPEC-AGENT-LAYER §4). vy_surface_identity has
+// no agent_id column and must never gain one: the same human on Telegram and
+// on the web is the same relationship, and the agent enters at RETRIEVAL, not
+// at IDENTIFICATION.
+//
+// Both vy_surface_identity and vy_tg_person exist during the transition (009
+// backfilled the first from the second and did NOT drop it). The read below
+// prefers the general table, falls back to the Telegram one, and BACKFILLS the
+// general one on the way past — so the legacy table drains itself under
+// ordinary traffic and the day it is dropped is a delete rather than a
+// migration. A missing vy_surface_identity relation (an older namespace, a
+// fixture schema built from 008 only) is not an error: `q` throws, the catch
+// yields null, and the legacy path answers.
+
+/** The surface -> person binding. Returns `{person_id, username, via}` or
+ *  null. Never creates anything. */
+export async function personForSurfaceUser(surface, surfaceUserId, t = ident) {
+  const key = String(surfaceUserId);
+  const rows = await q(
+    `select person_id, handle from ${t("vy_surface_identity")}
+      where surface = $1 and surface_user_id = $2`,
+    [surface, key],
+  ).catch(() => null);
+  if (rows && rows[0])
+    return { person_id: rows[0].person_id, username: rows[0].handle || "", via: "vy_surface_identity" };
+  // Only Telegram has a legacy table to fall back to. Every other surface
+  // resolves through vy_surface_identity or not at all.
+  if (surface !== "telegram") return null;
+  const legacy = await q(
+    `select person_id, username from ${t("vy_tg_person")} where tg_user_id = $1`,
+    [key],
+  ).catch(() => []);
+  if (!legacy[0]) return null;
+  await q(
+    `insert into ${t("vy_surface_identity")} (surface, surface_user_id, person_id, handle)
+     values ('telegram',$1,$2,$3) on conflict do nothing`,
+    [key, legacy[0].person_id, legacy[0].username || ""],
+  ).catch(() => {});
+  return { person_id: legacy[0].person_id, username: legacy[0].username || "", via: "vy_tg_person" };
+}
 
 /** The single Telegram -> person binding (008c). A person in three rooms is
  *  one vy_person row, three vy_group_member rows and one DM channel. */
-export async function personForTgUser(tgUserId, t = ident) {
-  const r = await q(
-    `select person_id, username from ${t("vy_tg_person")} where tg_user_id = $1`,
-    [String(tgUserId)],
-  ).catch(() => []);
-  return r[0] || null;
-}
+export const personForTgUser = (tgUserId, t = ident) =>
+  personForSurfaceUser("telegram", tgUserId, t);
 
 /**
  * The deep-link tap (§6.3 step 3). It is load-bearing rather than cosmetic: a
@@ -78,8 +127,14 @@ export async function personForTgUser(tgUserId, t = ident) {
  * at all (§6.4). Nothing here verifies age — it creates the row the rest of
  * the stack already gates on, and a 'minor' row is refused outright.
  */
-export async function linkTgPerson(tgUserId, { username = "", personId = null } = {}, t = ident) {
-  const existing = await personForTgUser(tgUserId, t);
+export async function linkSurfacePerson(
+  surface,
+  surfaceUserId,
+  { handle = "", personId = null } = {},
+  t = ident,
+) {
+  const key = String(surfaceUserId);
+  const existing = await personForSurfaceUser(surface, key, t);
   if (existing) return { personId: existing.person_id, created: false };
   let pid = personId;
   if (!pid) {
@@ -96,13 +151,26 @@ export async function linkTgPerson(tgUserId, { username = "", personId = null } 
   // adult-default: a known minor never gets a binding, so nothing they say in
   // any room can ever be written (§6.4 is enforced by the absence of this row)
   if (tier[0]?.age_tier === "minor") return null;
+  const name = String(handle || "").slice(0, 64);
+  // The legacy Telegram row is written FIRST and un-caught: it is still what
+  // roster() and the shipped forget cascade read for Telegram, so a failure
+  // there must surface rather than leave a half-bound person.
+  if (surface === "telegram")
+    await q(
+      `insert into ${t("vy_tg_person")} (tg_user_id, person_id, username)
+       values ($1,$2,$3) on conflict (tg_user_id) do nothing`,
+      [key, pid, name],
+    );
   await q(
-    `insert into ${t("vy_tg_person")} (tg_user_id, person_id, username)
-     values ($1,$2,$3) on conflict (tg_user_id) do nothing`,
-    [String(tgUserId), pid, String(username || "").slice(0, 64)],
-  );
+    `insert into ${t("vy_surface_identity")} (surface, surface_user_id, person_id, handle)
+     values ($1,$2,$3,$4) on conflict do nothing`,
+    [surface, key, pid, name],
+  ).catch(() => {});
   return { personId: pid, created: true };
 }
+
+export const linkTgPerson = (tgUserId, { username = "", personId = null } = {}, t = ident) =>
+  linkSurfacePerson("telegram", tgUserId, { handle: username, personId }, t);
 
 // ── room lifecycle ────────────────────────────────────────────────────────
 
@@ -115,15 +183,56 @@ export async function roomByChat(tgChatId, t = ident) {
   return r[0] || null;
 }
 
-export async function ensureRoom(tgChatId, { name = "", kind = "friend_group" } = {}, t = ident) {
+export async function ensureRoom(
+  tgChatId,
+  { name = "", kind = "friend_group", surface = "telegram" } = {},
+  t = ident,
+) {
   const have = await roomByChat(tgChatId, t);
   if (have) return have;
   await q(
     `insert into ${t("vy_group")} (name, kind, room_device_id, tg_chat_id)
      values ($1,$2,$3,$4) on conflict do nothing`,
-    [String(name || "").slice(0, 120), kind, roomDeviceId(tgChatId), String(tgChatId)],
+    [
+      String(name || "").slice(0, 120),
+      kind,
+      surfaceDeviceId(surface, tgChatId),
+      String(tgChatId),
+    ],
   );
   return await roomByChat(tgChatId, t);
+}
+
+/**
+ * THE ROOM BINDING IS STILL TELEGRAM-SHAPED, AND THAT IS A NAMED DEBT.
+ *
+ * `vy_group.tg_chat_id` is a `bigint` with a unique index. A Discord snowflake
+ * and a WhatsApp group id are numeric and fit; anything non-numeric does not,
+ * and two surfaces whose numeric ranges overlap would collide on a column
+ * whose name says Telegram. The honest generalization is
+ * `(surface, surface_chat_id)`, which is a migration, and migrations belong to
+ * WS-AGENT-SCHEMA — so this returns null for a chat key the column cannot
+ * hold, and the surface refuses the room lane FAIL-CLOSED with a named reason
+ * rather than writing a row that means something else.
+ *
+ * Filed: migration 010 replaces tg_chat_id with (surface, surface_chat_id),
+ * the same way vy_tg_person is being replaced by vy_surface_identity.
+ */
+export function chatKeyToChatId(chatKey) {
+  const s = String(chatKey ?? "");
+  return /^-?\d{1,19}$/.test(s) ? s : null;
+}
+
+export async function roomByChatKey(surface, chatKey, t = ident) {
+  const id = chatKeyToChatId(chatKey);
+  if (id === null) return null;
+  return await roomByChat(id, t);
+}
+
+export async function ensureRoomForChat(surface, chatKey, { name = "", kind = "friend_group" } = {}, t = ident) {
+  const id = chatKeyToChatId(chatKey);
+  if (id === null) return null;
+  return await ensureRoom(id, { name, kind, surface }, t);
 }
 
 /**
@@ -247,18 +356,38 @@ export async function roomEntitled(room, t = ident) {
  * ticket, not a thing to smuggle in here.
  */
 export async function roster(groupId, t = ident) {
-  const rows = await q(
+  // The handle now comes from vy_surface_identity when that table exists, and
+  // from vy_tg_person when it does not — the same transition fallback
+  // personForSurfaceUser runs, for the same reason. `distinct on` is required
+  // because a person may hold an identity on several surfaces and the address
+  // strip renders one name per member, not one per wire.
+  const wide = await q(
     `select m.person_id, m.quiet_level, m.linked_at,
-            coalesce(p.username,'') as username,
+            coalesce((select si.handle from ${t("vy_surface_identity")} si
+                       where si.person_id = m.person_id
+                       order by si.linked_at asc limit 1), '') as username,
             r.honorific
        from ${t("vy_group")}_member m
-       left join ${t("vy_tg_person")} p on p.person_id = m.person_id
        left join ${t("vy_rel_state")} r on r.person_id = m.person_id
       where m.group_id = $1 and m.left_at is null
       order by m.joined_at asc, m.person_id asc
       limit 6`,
     [groupId],
-  ).catch(() => []);
+  ).catch(() => null);
+  const rows =
+    wide ??
+    (await q(
+      `select m.person_id, m.quiet_level, m.linked_at,
+              coalesce(p.username,'') as username,
+              r.honorific
+         from ${t("vy_group")}_member m
+         left join ${t("vy_tg_person")} p on p.person_id = m.person_id
+         left join ${t("vy_rel_state")} r on r.person_id = m.person_id
+        where m.group_id = $1 and m.left_at is null
+        order by m.joined_at asc, m.person_id asc
+        limit 6`,
+      [groupId],
+    ).catch(() => []));
   return rows.map((r) => {
     const h = r.honorific === "aap" || r.honorific === "tu" || r.honorific === "tum" ? r.honorific : null;
     return {
@@ -326,12 +455,15 @@ export async function dmRecall(personId, { limit = 8 } = {}, t = ident) {
  *  DM turn is exclusively that person's and must fall inside their own
  *  device-keyed whole-wipe (the legacy forget scopes are device-keyed; see
  *  008a's header on why the room device deliberately is not). */
+export const surfaceDmDeviceId = (surface, surfaceUserId) =>
+  surfaceDeviceId(surface, `dm:${surfaceUserId}`);
+
 export function dmDeviceId(tgUserId) {
-  return roomDeviceId(`dm:${tgUserId}`);
+  return surfaceDmDeviceId("telegram", tgUserId);
 }
 
-export async function bindDmDevice(tgUserId, personId, t = ident) {
-  const dev = dmDeviceId(tgUserId);
+export async function bindSurfaceDmDevice(surface, surfaceUserId, personId, t = ident) {
+  const dev = surfaceDmDeviceId(surface, surfaceUserId);
   await q(
     `insert into ${t("vy_person")}_device (device_id, person_id) values ($1,$2)
      on conflict (device_id) do nothing`,
@@ -339,6 +471,9 @@ export async function bindDmDevice(tgUserId, personId, t = ident) {
   ).catch(() => {});
   return dev;
 }
+
+export const bindDmDevice = (tgUserId, personId, t = ident) =>
+  bindSurfaceDmDevice("telegram", tgUserId, personId, t);
 
 /**
  * PROACTIVE retrieval — the same predicate PLUS §3.2 ruling A

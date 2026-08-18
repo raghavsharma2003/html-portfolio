@@ -87,6 +87,94 @@ function postEpisodeCallEnd(device: string) {
   }
 }
 
+// ── WS-MULTIMODAL: watch → episodes, the other half of the same ticket ────
+// (SPEC-SELF-LAYER §4.2, `dead-writers`). api/episodes.js's `watch_visual` /
+// `watch_moment` ops have complete, correct writers with no caller. This is
+// the caller — but only for `watch_moment`, and that omission is deliberate,
+// not an oversight:
+//
+// `vy_visual_assertion` needs a real extractor — claim + extractor_model +
+// confidence, all REQUIRED by schema (vision-fab). This lane has no such
+// extractor: the live model's spoken line is a conversational reply, not a
+// structured vision-extraction call, and inventing a confidence number to
+// satisfy the column would be fabricating metadata about fabrication risk —
+// exactly the failure this whole feature exists to avoid. So this file never
+// calls `writeVisualAssertion` / posts `op:"watch_visual"`. What IS honest
+// and always available is what she actually SAID — true regardless of
+// whether the screen-reading behind it was — which is precisely why the
+// schema comment says a shared moment "survives correction of the claim it
+// reacted to" and why `assertion_id` is nullable: a moment is designed to
+// stand alone. Prefer under-recording (`speaker-id`'s asymmetry): a missed
+// moment is a mild loss, a moment wrongly tied to the wrong screen is not.
+//
+// A wake is a directive asking her to comment, not a guarantee she does, and
+// a line spoken later in the same call may be ordinary conversation, not a
+// reaction to any particular frame. So only a SHOW-class wake — the
+// deliberate "look at this", never the ambient "you've been sitting here a
+// while" `along`/`idle` classes — arms a short window, and only the FIRST
+// line she speaks inside it is treated as a reaction. The window is
+// consumed (cleared) by that first line whether or not it produces a write,
+// so a second unrelated line in the same call can never reuse it, and it is
+// re-armed fresh by the next successful show wake. Every suppressor that
+// already governs whether `wake()` fires at all — her own voice, quiet
+// floor, the FLAG_SECURE/blank gate baked into scene.ts's `pick()`, the
+// stale-frame gate, the per-minute ceiling, the look-away — therefore also
+// governs whether a moment can ever be recorded: nothing here can arm a
+// window `wake()` itself refused to open, so a suppressed or blacked-out
+// scene produces zero rows by construction, not by a second check.
+export interface PendingShowWake {
+  at: number;
+  cls: WakeClass;
+}
+// Generous enough for the live model to actually generate and start
+// speaking a first line after `direct()`; tight enough that conversation
+// minutes later in the same call cannot be mistaken for a reaction to one
+// specific frame.
+export const WATCH_MOMENT_WINDOW_MS = 12_000;
+
+/** Call exactly when `wake()` itself fires (i.e. after every suppressor has
+ *  already passed). Arms the window only for a deliberate SHOW class; an
+ *  ambient wake must never clobber a window already waiting on an earlier
+ *  show — pure function, no ref access, so it is directly testable. */
+export function armMomentWindow(
+  prior: PendingShowWake | null,
+  cls: WakeClass,
+  at: number,
+): PendingShowWake | null {
+  return isShowClass(cls) ? { at, cls } : prior;
+}
+
+/** Call on every line SHE speaks. Returns the wake to record as a shared
+ *  moment, or null when there is nothing to record (no pending wake, or the
+ *  window lapsed) — the caller clears the pending ref either way, so this
+ *  function's only job is the yes/no and it never mutates anything itself. */
+export function consumeMomentWindow(
+  pending: PendingShowWake | null,
+  at: number,
+  windowMs = WATCH_MOMENT_WINDOW_MS,
+): PendingShowWake | null {
+  if (!pending) return null;
+  return at - pending.at <= windowMs ? pending : null;
+}
+
+/** Fire-and-forget, same shape and same guarantees as postEpisodeCallEnd:
+ *  never awaited on the call path, never throws into it. The reaction text
+ *  is exactly what she said — never a paraphrase, never a claim about the
+ *  screen — matching the fabrication-guard reasoning above. */
+function postWatchMoment(device: string, reaction: string) {
+  if (!device || !reaction.trim()) return;
+  try {
+    void fetch(`${EPISODES_BASE}/api/episodes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ op: "watch_moment", device, reaction }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    /* never let telemetry throw into the call path */
+  }
+}
+
 export function useCallEngine(
   state: AppState,
   setState: React.Dispatch<React.SetStateAction<AppState>>,
@@ -182,6 +270,12 @@ export function useCallEngine(
   // their life. The price is losing some genuine memory ("they were shopping
   // for a bike") and that is the correct price.
   const watchTurnIds = useRef<Set<string>>(new Set());
+  // WS-MULTIMODAL: armed by a SHOW-class wake in the web watch lane's
+  // wake(), consumed by the next line she speaks (see armMomentWindow /
+  // consumeMomentWindow above). Only ever set inside startWebWatch's
+  // closure, so it stays null for the whole life of a native watch session
+  // — that lane has no scene.ts wake to arm it from (see report).
+  const pendingShowWake = useRef<PendingShowWake | null>(null);
 
   const log = (m: Message) => {
     if (watchSession.current && m.kind === "text") {
@@ -235,6 +329,14 @@ export function useCallEngine(
       words: wordsIn(text),
       paused: watchPrivate.current,
     });
+    // WS-MULTIMODAL: this line is the FIRST she has spoken since a SHOW-class
+    // wake armed the window (if any) — consume it unconditionally so a later,
+    // unrelated line in the same call can never inherit it. Re-checking
+    // watchPrivate here (not just at arm time) closes the one-tick race where
+    // the look-away engages between the wake firing and this line landing.
+    const moment = consumeMomentWindow(pendingShowWake.current, Date.now());
+    pendingShowWake.current = null;
+    if (moment && !watchPrivate.current) postWatchMoment(stateRef.current.deviceId, text);
   }
   const callId = useRef("");
 
@@ -1321,6 +1423,12 @@ ${recallRef.current}`
       wakeIdx = (wakeIdx + 1) % WAKE_CEILING;
       liveSession.current?.direct(noteFor(cls));
       scene.noteWake(cls, now);
+      // WS-MULTIMODAL: only past this point has every suppressor above
+      // already passed (her voice, quiet floor, stale/blank frame, show
+      // floor, ceiling) — arming here, and only here, is what makes a
+      // suppressed or blacked-out scene produce zero vy_shared_moment rows
+      // by construction rather than by a second, separately-fallible check.
+      pendingShowWake.current = armMomentWindow(pendingShowWake.current, cls, now);
       return true;
     };
     // Encode + send one frame right now. Returns whether it reached the socket
@@ -1448,6 +1556,7 @@ ${recallRef.current}`
       stream.getTracks().forEach((tr) => tr.stop());
       frameRef.current = null;
       watchSession.current = null;
+      pendingShowWake.current = null; // a wake from this share must never outlive it
       setWatching(false);
       if (stopped) return;
       stopped = true;
@@ -1633,6 +1742,7 @@ ${recallRef.current}`
     const s = watchSession.current;
     watchSession.current = null;
     frameRef.current = null;
+    pendingShowWake.current = null; // defense-in-depth; web's own cleanup() also clears this
     setWatching(false);
     // the web lane reports its own stop from inside its teardown (one place,
     // one record); the native lane has no such hook, so it is reported here
@@ -1989,6 +2099,8 @@ ${recallRef.current}`
         // the curtain: the cascade lane reads frameRef directly
         frameRef.current = null;
         setFrameAt(0);
+        // nor a pending reaction window from behind the closed curtain
+        pendingShowWake.current = null;
       }
     },
   };

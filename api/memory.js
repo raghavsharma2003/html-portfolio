@@ -24,6 +24,17 @@ import { q } from "./_db.js";
 // api/consolidate.js so the boundary rule lives in exactly one place.
 import { embedOne, embedBatch, toHalfvecLiteral } from "./_embed.js";
 import { openOrExtendEpisode, touchEpisode } from "./episodes.js";
+// WS-AGENTSCOPE (Law E1, SPEC-AGENT-LAYER §2): every retrieval over an
+// agent-scoped table carries the scope predicate in its WHERE, before rank, and
+// every write over one names agent_id explicitly instead of leaning on 009's
+// transitional column DEFAULT. One agent exists today, so this is a deliberate
+// behavioural NO-OP — which is exactly what makes it safe to land, and what the
+// existing gates re-passing unchanged is evidence of.
+//
+// The FORGET cascade below is deliberately NOT scoped: §6 rules that a whole
+// wipe of a person deletes their rows across all agents, because it is their
+// data and not the agent's, and G-E5 is a proven property that may not regress.
+import { agentScopePredicate, agentValue, MEERA_AGENT_ID } from "./_agentscope.js";
 
 import {
   OPENROUTER_KEY,
@@ -183,48 +194,64 @@ function ageLabel(at) {
 // consolidation has run) — that null is the byte-identity safety frame:
 // compile() never even calls a render function without a bundle, so a
 // person with no relational data produces the exact same prompt as today.
-async function fetchRelBundle(person) {
-  const stateRows = await q(`select * from vy_rel_state where person_id = $1`, [person], 2_500).catch(() => []);
+async function fetchRelBundle(person, agentId = MEERA_AGENT_ID) {
+  const stateRows = await q(
+    `select r.* from vy_rel_state r where r.person_id = $1
+      ${agentScopePredicate("r", { agentId: "$2" })}`,
+    [person, agentId],
+    2_500,
+  ).catch(() => []);
   if (!stateRows.length) return null;
   const s = stateRows[0];
   const [honorificRow, patterns, rituals, currency, profile, weEpisodes, phrases] = await Promise.all([
     q(
-      `select at from vy_rel_event where person_id = $1 and dim = 'honorific' order by at desc limit 1`,
-      [person],
+      `select e.at from vy_rel_event e where e.person_id = $1 and e.dim = 'honorific'
+        ${agentScopePredicate("e", { agentId: "$2" })}
+        order by e.at desc limit 1`,
+      [person, agentId],
     ).catch(() => []),
     // renderDyadicActive (relstate.ts) does the moment-match + top-3 slice
     // client-side; server hands over every currently-eligible pattern
     // (bounded to 20) so the moment gate has real candidates to filter.
     q(
-      `select id, person_id, moment, if_shape, then_note, self_in_relation, citations,
-              support_count, distinct_days, prompt_eligible, times_contradicted, t_invalid, last_used
-         from vy_pattern
-        where person_id = $1 and t_invalid is null and prompt_eligible = true
-        order by support_count desc limit 20`,
-      [person],
+      `select p.id, p.person_id, p.moment, p.if_shape, p.then_note, p.self_in_relation, p.citations,
+              p.support_count, p.distinct_days, p.prompt_eligible, p.times_contradicted, p.t_invalid, p.last_used
+         from vy_pattern p
+        where p.person_id = $1 and p.t_invalid is null and p.prompt_eligible = true
+        ${agentScopePredicate("p", { agentId: "$2" })}
+        order by p.support_count desc limit 20`,
+      [person, agentId],
     ).catch(() => []),
     q(
-      `select person_id, key, last_at, count, cold_last, citations from vy_ritual where person_id = $1`,
-      [person],
+      `select r.person_id, r.key, r.last_at, r.count, r.cold_last, r.citations from vy_ritual r
+        where r.person_id = $1 ${agentScopePredicate("r", { agentId: "$2" })}`,
+      [person, agentId],
     ).catch(() => []),
     q(
-      `select person_id, topic, kind, last_used, uses, citations from vy_currency where person_id = $1`,
-      [person],
+      `select c.person_id, c.topic, c.kind, c.last_used, c.uses, c.citations from vy_currency c
+        where c.person_id = $1 ${agentScopePredicate("c", { agentId: "$2" })}`,
+      [person, agentId],
     ).catch(() => []),
-    q(`select home_region from vy_india_profile where person_id = $1`, [person]).catch(() => []),
+    q(
+      `select i.home_region from vy_india_profile i where i.person_id = $1
+        ${agentScopePredicate("i", { agentId: "$2" })}`,
+      [person, agentId],
+    ).catch(() => []),
     // participation='we' only (renderWeCallbacks' own WE_TOKEN_RE re-checks
     // this client-side too — belt-and-braces, cheap, matches shapelint's own
     // two-layer convention)
     q(
-      `select id, summary, started_at as at from vy_episode
-        where person_id = $1 and participation = 'we' and superseded_by is null
-        order by started_at desc limit 10`,
-      [person],
+      `select e.id, e.summary, e.started_at as at from vy_episode e
+        where e.person_id = $1 and e.participation = 'we' and e.superseded_by is null
+        ${agentScopePredicate("e", { agentId: "$2" })}
+        order by e.started_at desc limit 10`,
+      [person, agentId],
     ).catch(() => []),
     q(
-      `select phrase, gloss from vy_phrase where person_id = $1
-        order by last_used desc nulls last, coined_at desc limit 20`,
-      [person],
+      `select p.phrase, p.gloss from vy_phrase p where p.person_id = $1
+        ${agentScopePredicate("p", { agentId: "$2" })}
+        order by p.last_used desc nulls last, p.coined_at desc limit 20`,
+      [person, agentId],
     ).catch(() => []),
   ]);
 
@@ -284,6 +311,11 @@ async function fetchRelBundle(person) {
 }
 
 async function opRecall(device, body) {
+  // The agent whose relationship is being read. One agent exists today, so this
+  // is Meera's id and every retrieval below is unchanged in behaviour; when a
+  // second agent ships it arrives from the surface's own routing, and the only
+  // thing that has to change is this line.
+  const agentId = MEERA_AGENT_ID;
   const query = String(body.query || "").toLowerCase();
   const words = [...new Set(query.match(/[a-z]{4,}|[ऀ-ॿ]{3,}/g) || [])]
     .filter((w) => !RECALL_STOP.has(w))
@@ -348,15 +380,23 @@ async function opRecall(device, body) {
     if (!vec) return [];
     const person = await personPromise;
     const lit = toHalfvecLiteral(vec);
+    // Both sides of this join are agent-scoped tables, so both carry the
+    // clause. Scoping only the embedding would leave the fact side reachable
+    // through a future join rewrite; scoping only the fact side would let
+    // another agent's vector decide the ORDER of Meera's rows. The predicate
+    // sits in the WHERE, above `order by e.v <=> ...` — a disqualified row that
+    // reaches the ranker still consumes one of the six slots.
     return q(
       `select f.id, f.kind, f.name, f.body, f.feel, f.created_at
          from vy_embedding e
          join vy_fact f on f.id = e.owner_id and f.person_id = e.person_id
         where e.person_id = $1 and e.owner_kind = 'fact'
           and f.t_invalid is null and f.retracted_at is null
+          ${agentScopePredicate("e", { agentId: "$3" })}
+          ${agentScopePredicate("f", { agentId: "$3" })}
         order by e.v <=> $2::halfvec
         limit 6`,
-      [person, lit],
+      [person, lit, agentId],
       2_500,
     ).catch(() => []);
   })();
@@ -364,7 +404,7 @@ async function opRecall(device, body) {
   // function — one extra batched round trip, never a serial one (SPEC §3.3
   // retrieval-budget discipline). Any failure degrades to `relstate: null`,
   // same as the "no consolidation yet" case — never blocks recall.
-  const relBundleFetch = personPromise.then((person) => fetchRelBundle(person)).catch(() => null);
+  const relBundleFetch = personPromise.then((person) => fetchRelBundle(person, agentId)).catch(() => null);
 
   const [[bgRaw, matchedRaw = []], semanticRaw, relBundle] = await Promise.all([
     Promise.all(fetches),
@@ -519,6 +559,7 @@ function chipToCurrencyKind(chip) {
 async function opSeedCurrency(device, body) {
   const chips = (Array.isArray(body.chips) ? body.chips : []).slice(0, 6);
   if (!chips.length) return { ok: true, written: 0, skipped: 0 };
+  const agentId = MEERA_AGENT_ID;
   const person = await personIdFor(device);
   let written = 0;
   let skipped = 0;
@@ -529,12 +570,19 @@ async function opSeedCurrency(device, body) {
       skipped++;
       continue;
     }
+    // MIGRATED ARBITER (009 header's ten sites; migration 010 precondition):
+    // the PK is now (agent_id, person_id, topic), so the arbiter names the
+    // composite key. Naming the old person-only key still resolves TODAY only
+    // through 009's `vy_currency_person_compat_ix`, which 010 drops — and this
+    // site is .catch()-swallowed, so the failure mode of not migrating it is
+    // not an error anyone sees, it is `relstate-zero-rows` a second time:
+    // writers silently not writing.
     await q(
-      `insert into vy_currency (person_id, topic, kind, last_used, uses, citations)
-       values ($1,$2,$3, now(), 1, '{}'::bigint[])
-       on conflict (person_id, topic) do update set
+      `insert into vy_currency (agent_id, person_id, topic, kind, last_used, uses, citations)
+       values (${agentValue("$4")},$1,$2,$3, now(), 1, '{}'::bigint[])
+       on conflict (agent_id, person_id, topic) do update set
          last_used = now(), uses = vy_currency.uses + 1`,
-      [person, topic, kind],
+      [person, topic, kind, agentId],
     ).catch(() => {});
     written++;
   }
@@ -745,6 +793,7 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
   // state on purpose: rel-state events and patterns are NEVER written from
   // 16-turn context — only episodes and facts are.
   try {
+    const agentId = MEERA_AGENT_ID;
     const person = await personIdFor(device);
     // meera_log is ground truth for the channel; the client contract this
     // op was built against (src/engine/memory.ts, frozen elsewhere) never
@@ -766,8 +815,10 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
       // flood the fact table with duplicates the nightly pass would just
       // have to collapse again.
       const already = await q(
-        `select lower(name) as name from vy_fact where person_id = $1 and citations = array[$2]::bigint[]`,
-        [person, ep.id],
+        `select lower(f.name) as name from vy_fact f
+          where f.person_id = $1 and f.citations = array[$2]::bigint[]
+          ${agentScopePredicate("f", { agentId: "$3" })}`,
+        [person, ep.id, agentId],
       ).catch(() => []);
       const written = new Set(already.map((r) => r.name));
 
@@ -807,19 +858,23 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
         const f = toWrite[i];
         if (written.has(f.name)) continue;
         const ins = await q(
-          `insert into vy_fact (person_id, kind, name, body, feel, provenance, confidence, citations, provisional)
-           values ($1,$2,$3,$4,$5,'extracted',0.7,$6::bigint[],true) returning id`,
-          [person, f.kind, f.name, f.body, f.feel, [ep.id]],
+          `insert into vy_fact (agent_id, person_id, kind, name, body, feel, provenance, confidence, citations, provisional)
+           values (${agentValue("$7")},$1,$2,$3,$4,$5,'extracted',0.7,$6::bigint[],true) returning id`,
+          [person, f.kind, f.name, f.body, f.feel, [ep.id], agentId],
         ).catch(() => []);
         written.add(f.name);
         const vec = vecs[i];
         const factId = ins[0]?.id;
         if (factId && vec) {
+          // The arbiter here is (owner_kind, owner_id) — a unique index 009 did
+          // not touch, so it is NOT one of the ten sites 010's precondition
+          // names. agent_id is still written explicitly: 010 drops the DEFAULT,
+          // and a writer that leans on it stops working that day.
           await q(
-            `insert into vy_embedding (owner_kind, owner_id, person_id, v)
-             values ('fact', $1, $2, $3::halfvec)
+            `insert into vy_embedding (agent_id, owner_kind, owner_id, person_id, v)
+             values (${agentValue("$4")}, 'fact', $1, $2, $3::halfvec)
              on conflict (owner_kind, owner_id) do update set v = excluded.v, at = now()`,
-            [factId, person, toHalfvecLiteral(vec)],
+            [factId, person, toHalfvecLiteral(vec), agentId],
           ).catch(() => {});
         }
       }
@@ -1512,14 +1567,31 @@ async function purgeRelational(device, scope, { logIds = [], rx = null, from = N
 // tell whether state moved, and a forget that moved state while the ver
 // held still would keep serving the forgotten state from a warm cache —
 // forget beats cache stability, explicitly.
-async function rebuildRelState(person) {
+// AGENT SCOPE (Law E1) and the one place it interacts with the forget lane.
+// The snapshot is a per-(agent, person) fold of that agent's OWN rel events, so
+// the replay is scoped and so is the row it writes. The forget cascade that
+// calls this is NOT scoped — §6: a wipe deletes the person's rows across all
+// agents, because it is their data. The two are consistent today because there
+// is one agent. They stop being consistent the day there are two: a partial
+// forget deletes every agent's rel events and then rebuilds only the caller's
+// snapshot, leaving the other agent's cache stale. The fix is a loop over the
+// agents holding rows for this person, and it belongs with whoever ships agent
+// two — named here rather than left to be discovered, and listed in
+// db/migrations/010_agent_strict.sql's header as a known follow-on.
+async function rebuildRelState(person, agentId = MEERA_AGENT_ID) {
   const evs = await q(
-    `select dim, to_v from vy_rel_event where person_id = $1 order by at, id`,
-    [person],
+    `select e.dim, e.to_v from vy_rel_event e where e.person_id = $1
+      ${agentScopePredicate("e", { agentId: "$2" })}
+      order by e.at, e.id`,
+    [person, agentId],
   );
   if (!evs.length) {
     // no evidence, no state: the defaults live in the schema, not in a row
-    await q(`delete from vy_rel_state where person_id = $1`, [person]);
+    await q(
+      `delete from vy_rel_state r where r.person_id = $1
+        ${agentScopePredicate("r", { agentId: "$2" })}`,
+      [person, agentId],
+    );
     return;
   }
   const s = { honorific: "tum", cs_on_stress: "unknown", trust: 0.3, rupture_open: false, repair_state: "none" };
@@ -1538,14 +1610,18 @@ async function rebuildRelState(person) {
       s.cs_on_stress = e.to_v;
     }
   }
+  // MIGRATED ARBITER (009 header's ten sites; migration 010 precondition). This
+  // is the one of the ten that is NOT .catch()-swallowed: it lives in the forget
+  // cascade, so an unresolvable arbiter here turns a whole-wipe into a hard
+  // error and breaks the G-E5 property outright.
   await q(
-    `insert into vy_rel_state (person_id, honorific, cs_on_stress, trust, rupture_open, repair_state, snapshot_ver)
-     values ($1,$2,$3,$4,$5,$6,1)
-     on conflict (person_id) do update set
+    `insert into vy_rel_state (agent_id, person_id, honorific, cs_on_stress, trust, rupture_open, repair_state, snapshot_ver)
+     values (${agentValue("$7")},$1,$2,$3,$4,$5,$6,1)
+     on conflict (agent_id, person_id) do update set
        honorific = $2, cs_on_stress = $3, trust = $4, rupture_open = $5, repair_state = $6,
        cs_ratio = null, ritual_density = 0, pacing_gap_s = null,
        snapshot_ver = vy_rel_state.snapshot_ver + 1, updated_at = now()`,
-    [person, s.honorific, s.cs_on_stress, s.trust, s.rupture_open, s.repair_state],
+    [person, s.honorific, s.cs_on_stress, s.trust, s.rupture_open, s.repair_state, agentId],
   );
 }
 
