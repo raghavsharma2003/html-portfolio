@@ -132,6 +132,18 @@ devices in `meera_log`, 40 `vy_person_device` rows) — the missing one falls
 back to `device_id` standing in for its own `person_id`, the same fallback
 `api/memory.js`'s `personIdFor` already uses.
 
+**Not agent-scoped, correct only while one agent exists.** Migration 009
+already added `vy_episode.agent_id` live (confirmed 2026-08-18), so
+`max(log_to)` above is silently "across all agents." That is exactly right
+today — there is exactly one agent (Meera) and every write defaults to her
+id — but the day a second agent gets its own consolidation path, this needs
+`group by person_id, agent_id` or one agent's progress will read as another's.
+Not done pre-emptively: `runConsolidation` has no `agentId` parameter yet
+either, and mirroring `MEERA_AGENT_ID` into these two files without a
+verified-mirror check (`scripts/verify-agent-id.mjs` only watches the
+migration/schema/registry trio) would be exactly the unverified duplicate
+this repo's own discipline warns against. Land both changes together.
+
 **Checking how far behind consolidation is**, any time:
 
 ```bash
@@ -176,7 +188,7 @@ and reports the same numbers (`GET /api/consolidate-sweep`, needs the secret).
 ## Idempotency / re-entrancy
 
 `api/consolidate-sweep.js` claims a person via a single atomic
-upsert-with-conditional-`WHERE` against its own `vy_consolidate_lease` table
+upsert-with-conditional-`WHERE` against its own `meera_consolidate_lease` table
 (created lazily, same pattern `api/taste-queue.js` already uses for a table
 outside `db/schema.sql`'s ownership) before calling `runConsolidation`, and
 releases it in a `finally` block. Neon's SQL-over-HTTP allows exactly one

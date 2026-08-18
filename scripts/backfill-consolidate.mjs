@@ -73,6 +73,14 @@ const LOG_BATCH_CAP = 220; // api/consolidate.js's own constant, duplicated — 
 const MAX_ROUNDS_PER_PERSON = 15; // ceil(2025/220) across the WHOLE backlog is 10; this is headroom, not a real expectation, and it exists so one stuck person can never hang the run
 const DEFAULT_PERSON_LIMIT = 200; // effectively "all of them" at today's scale (40 people) while still being an explicit, loggable number rather than "no limit"
 
+// NOT agent-scoped — correct only while exactly one agent (Meera) exists.
+// See api/consolidate-sweep.js's identical query for the full note: migration
+// 009 already added vy_episode.agent_id live, so this silently means "max
+// log_to across all agents" today. Fine now (one agent, one default); must
+// gain `group by person_id, agent_id` the day a second agent's own
+// consolidation path exists, alongside an agentId parameter on
+// runConsolidation itself — not pre-emptively duplicated here without a
+// verified mirror (scripts/verify-agent-id.mjs does not watch this file).
 async function findLaggingPersons(limit) {
   return q(
     `with pd as (

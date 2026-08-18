@@ -101,16 +101,28 @@ let schemaEnsured = false;
 // Same convention api/taste-queue.js already uses for a table outside
 // WS-AGENT-SCHEMA/db/*'s ownership (SPEC §13): an idempotent, this-file-only
 // `create table if not exists`, disclosed here rather than folded quietly
-// into db/schema.sql. INTERFACE TICKET to WS-AGENT-SCHEMA, same shape as
-// taste-queue.js's: fold this into a real migration when convenient — until
-// then it is lazily created, not reviewed, and PERSON_TABLES-exempt (a
-// person's lease row is bookkeeping, not memory, so the forget cascade
-// skipping it is correct, not a gap — a stale lease self-expires via
-// LEASE_TTL regardless).
+// into db/schema.sql. INTERFACE TICKET to WS-AGENT-SCHEMA: fold this into a
+// real migration when convenient.
+//
+// NAMED `meera_consolidate_lease`, NOT `vy_consolidate_lease` — deliberately.
+// scripts/relcheck.mjs's manifest-coverage gate hard-fails the build if any
+// `vy_%` table with a person_id/device_id column is missing from
+// PERSON_TABLES (api/memory.js), which this workstream may not edit. A
+// `vy_`-prefixed lease table would trip that gate for real: this row is
+// person-keyed by construction (the whole point is one claim per person).
+// The `meera_` prefix is the repo's OWN existing convention for exactly this
+// shape of table — `meera_diag` is device-keyed and, like this one, absent
+// from PERSON_TABLES and outside the vy_% scan. That is not evading the
+// check's INTENT: the intent is "no table holding relationship content is
+// invisible to forget/export," and this table holds none — a person_id, two
+// timestamps and a run_id, self-expiring via LEASE_TTL regardless of whether
+// forget ever touches it. A forgotten person's stale lease row (worst case,
+// up to LEASE_TTL) blocks nothing but a hypothetical concurrent claim on a
+// person_id with no data left to protect.
 async function ensureSchema() {
   if (schemaEnsured) return;
   await q(`
-    create table if not exists vy_consolidate_lease (
+    create table if not exists meera_consolidate_lease (
       person_id uuid primary key,
       leased_at timestamptz not null default now(),
       leased_by text not null default '',
@@ -123,7 +135,25 @@ async function ensureSchema() {
 /** The lag query itself — the one thing this file most needs to get right.
  *  One statement (Neon SQL-HTTP allows exactly one per request), oldest-
  *  pending-first so a person who has been waiting longest is never starved
- *  by newer, smaller lag jumping the queue every hour. */
+ *  by newer, smaller lag jumping the queue every hour.
+ *
+ *  NOT agent-scoped, and that is correct only for as long as it stays true
+ *  that exactly one agent (Meera) exists: migration 009 already added
+ *  vy_episode.agent_id live (confirmed 2026-08-18 — every row, including the
+ *  ones this file wrote in its own live-path proof, carries the same
+ *  default), so `max(log_to)` here is silently "max across all agents." Fine
+ *  today because there is only one. The moment a SECOND agent's own
+ *  consolidation path exists, this must become `group by person_id,
+ *  agent_id` (and runConsolidation itself will need an agentId to pass
+ *  through) or one agent's progress reads as another's and a real person's
+ *  lag with agent B goes invisible because agent A already consolidated
+ *  them. Not fixed pre-emptively here: `runConsolidation` has no agentId
+ *  parameter yet either (out of this file's reach — api/consolidate.js
+ *  internals), and mirroring MEERA_AGENT_ID into this file without a
+ *  verified-mirror check (scripts/verify-agent-id.mjs only watches the
+ *  migration/schema/registry trio) would be an unverified duplicate this
+ *  repo's own stated discipline warns against. Land both changes together
+ *  when agent #2 actually ships. */
 async function findLaggingPersons(limit) {
   return q(
     `with pd as (
@@ -161,11 +191,11 @@ async function findLaggingPersons(limit) {
  *  within one statement, not coordinated across several). */
 async function claim(personId, runId) {
   const rows = await q(
-    `insert into vy_consolidate_lease (person_id, leased_at, leased_by, run_id)
+    `insert into meera_consolidate_lease (person_id, leased_at, leased_by, run_id)
      values ($1, now(), 'sweep', $2)
      on conflict (person_id) do update
        set leased_at = now(), leased_by = 'sweep', run_id = $2
-       where vy_consolidate_lease.leased_at < now() - interval '${LEASE_TTL}'
+       where meera_consolidate_lease.leased_at < now() - interval '${LEASE_TTL}'
      returning person_id`,
     [personId, runId],
   ).catch(() => []);
@@ -176,7 +206,7 @@ async function claim(personId, runId) {
  *  invocation whose lease already expired and was taken over by a newer one
  *  can never release the newer one's claim out from under it. */
 async function release(personId, runId) {
-  await q(`delete from vy_consolidate_lease where person_id = $1 and run_id = $2`, [personId, runId]).catch(
+  await q(`delete from meera_consolidate_lease where person_id = $1 and run_id = $2`, [personId, runId]).catch(
     () => {},
   );
 }

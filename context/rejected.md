@@ -464,3 +464,35 @@ swallow errors. The rule: **changing a unique or primary key is a change to
 every `ON CONFLICT` that names it.** Grep for the arbiter columns before
 touching the key, not after, and treat a swallowed write as a site that will
 never tell you it stopped working.
+
+---
+
+## `dryrun-still-spends` — a dry-run flag that still calls the model (2026-08-18)
+
+`api/consolidate.js` accepts `--dry-run`, and its dry run **still calls the
+real extraction LLM**. What the flag skips is the database write and the audit
+call — not the spend. Found by WS-CONSOLIDATE-RUN while building a sweep whose
+whole safety story rested on "dry-run first, then report the cost".
+
+This is a trap rather than a bug, and the distinction matters: the flag does
+exactly what its implementation says, and the name says something else. Anyone
+reasoning about cost from the flag's name — which is the only reason to reach
+for it — reasons wrong, and reasons wrong in the direction of spending money
+they thought they were not spending. The free Gemini pool is a DAILY budget
+shared with production, so a "safe" dry run over 40 people is capable of
+starving the live app.
+
+**What was built instead:** the sweep's own dry-run and
+`scripts/backfill-consolidate.mjs --dry-run` never call `runConsolidation` at
+all. They are pure arithmetic over the lag query, verified to make zero model
+calls. Dry-run is also the DEFAULT in the backfill script; a real run needs an
+explicit flag.
+
+**The rule:** a dry-run flag means *no side effects that cost money or leave
+state*. If a flag only skips writes, it is `--no-write`, and it should be
+called that. Any harness that reports a projected cost must obtain that
+projection without incurring it, and must say which of the two it did.
+
+Related: `error-marked-done` (resumable state records outcomes, never
+attempts) — same family, both found in the same subsystem, both about a
+mechanism whose name promises more safety than its implementation delivers.
