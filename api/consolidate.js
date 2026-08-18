@@ -210,6 +210,7 @@ async function findEligiblePersons(limit) {
   const rows = await q(
     `select distinct person_id from vy_episode
       where provisional = true and superseded_by is null
+        and group_id is null -- state inertness: explicit, not just NULL-person_id accident (multiparty-v1-design)
         and ended_at < now() - ($1 || ' milliseconds')::interval
       order by person_id
       limit $2`,
@@ -696,7 +697,7 @@ async function refreshDerivedDims(person) {
       `select percentile_cont(0.5) within group (order by gap_s) as pacing_gap_s
          from (
            select extract(epoch from started_at - lag(started_at) over (order by started_at)) as gap_s
-             from vy_episode where person_id = $1 and started_at > now() - interval '30 days'
+             from vy_episode where person_id = $1 and group_id is null and started_at > now() - interval '30 days'
          ) s where gap_s is not null`,
       [person],
     ).catch(() => []),
@@ -737,7 +738,7 @@ const RELDERIVE_LOOKBACK_H = 30;
 async function findPersonsWithFreshEpisodes(limit) {
   const rows = await q(
     `select distinct person_id from vy_episode
-      where provisional = false and created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
+      where provisional = false and group_id is null and created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
       order by person_id limit $1`,
     [limit],
   ).catch(() => []);
@@ -752,7 +753,7 @@ async function deriveRelEventsForPerson(person, { dryRun = false } = {}) {
   const rep = { person, episodes_scanned: 0, honorific_evidence: 0, honorific_moved: false, dims_refreshed: false };
   const episodes = await q(
     `select id, log_from, log_to, started_at from vy_episode
-      where person_id = $1 and provisional = false
+      where person_id = $1 and provisional = false and group_id is null
         and created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
         and log_from is not null and log_to is not null
       order by started_at asc limit 200`,

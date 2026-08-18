@@ -144,6 +144,33 @@ export async function setQuiet(groupId, level, t = ident) {
   await q(`update ${t("vy_group")} set quiet_level = $2 where id = $1`, [groupId, level]);
 }
 
+/**
+ * §7 — v1 caps a room at `vy_group.member_cap` (6). The cap is not a licence
+ * limit: mp.roster's 900 chars at ~150/member IS the cap, and a member with no
+ * row in the address strip is a member she would address in the wrong register
+ * in front of everyone (M9). So the cap is enforced where a member is ADDED
+ * rather than where the strip is RENDERED — a truncated strip would fail
+ * silently and look like it worked, which is the failure shape this repo has
+ * already paid for twice.
+ *
+ * Returns false when the room is full. Existing members and returning members
+ * (left_at set) are never refused — only genuinely new ones.
+ */
+export async function roomHasSpaceFor(groupId, personId, t = ident) {
+  const r = await q(
+    `select g.member_cap,
+            (select count(*) from ${t("vy_group")}_member m
+              where m.group_id = g.id and m.left_at is null) as active,
+            (select count(*) from ${t("vy_group")}_member m
+              where m.group_id = g.id and m.person_id = $2) as mine
+       from ${t("vy_group")} g where g.id = $1`,
+    [groupId, personId],
+  ).catch(() => []);
+  if (!r[0]) return false;
+  if (Number(r[0].mine) > 0) return true;
+  return Number(r[0].active) < Number(r[0].member_cap);
+}
+
 export async function upsertMember(groupId, { personId, tgUserId = null }, t = ident) {
   await q(
     `insert into ${t("vy_group")}_member (group_id, person_id, tg_user_id, joined_at)
@@ -266,6 +293,51 @@ export async function roomRecall(groupId, recipients, { limit = 8 } = {}, t = id
     [recipients, true, groupId, NEGATIVE_AFFECT_TAGS],
     20_000,
   ).catch(() => []);
+}
+
+/**
+ * The SAME predicate, one recipient, no room — a person's own 1:1 channel.
+ *
+ * This function is M2, the moment the proposal calls "the highest-value,
+ * zero-risk direction and where most of v1's felt value lives": you DM her
+ * alone, and she has not amnesia'd the room you were both in. Nothing crossed
+ * a wall to make that work — the room's rows pass the structural branch for
+ * you because YOU WERE THERE, and another person's DM rows do not, because
+ * you were not. It is the identical clause text with `isGroup` false and the
+ * room binding null, which is exactly why §2.1 says the group channel "needs
+ * no separate code path": a room's recipient set is strictly more restrictive
+ * than any 1:1 evaluation of the same predicate.
+ */
+export async function dmRecall(personId, { limit = 8 } = {}, t = ident) {
+  const pred = applyResolver(disclosurePredicate("fact", BIND), t);
+  return await q(
+    `select f.id, f.body, f.name, f.created_at
+       from ${t("vy_fact")} f
+      where f.t_invalid is null and f.retracted_at is null ${pred}
+      order by f.need_p desc, f.created_at desc
+      limit ${Number(limit) | 0}`,
+    [[personId], false, null, NEGATIVE_AFFECT_TAGS],
+    20_000,
+  ).catch(() => []);
+}
+
+/** The synthetic device for a Telegram 1:1 channel — uuid v5 over the user id,
+ *  and UNLIKE the room device it IS registered in vy_person_device, because a
+ *  DM turn is exclusively that person's and must fall inside their own
+ *  device-keyed whole-wipe (the legacy forget scopes are device-keyed; see
+ *  008a's header on why the room device deliberately is not). */
+export function dmDeviceId(tgUserId) {
+  return roomDeviceId(`dm:${tgUserId}`);
+}
+
+export async function bindDmDevice(tgUserId, personId, t = ident) {
+  const dev = dmDeviceId(tgUserId);
+  await q(
+    `insert into ${t("vy_person")}_device (device_id, person_id) values ($1,$2)
+     on conflict (device_id) do nothing`,
+    [dev, personId],
+  ).catch(() => {});
+  return dev;
 }
 
 /**

@@ -23,10 +23,33 @@
 // room, a member, or an admin promotion. It is compared in constant time, it
 // is required (a missing configured secret refuses every request rather than
 // defaulting open), and it is never logged.
+// ── how this endpoint gets its updates ────────────────────────────────────
+//
+// WEBHOOK (the shipping path). Registered once, by the owner, with the secret
+// this file then requires on every update:
+//
+//   POST https://api.telegram.org/bot<TOKEN>/setWebhook
+//     url            = https://<deployment>/api/tg
+//     secret_token   = <TELEGRAM_WEBHOOK_SECRET>
+//     allowed_updates= ["message","edited_message","my_chat_member","chat_member","callback_query"]
+//
+// `chat_member` MUST be listed explicitly — Telegram does not deliver it by
+// default even to an admin bot — and its reliability is reported as patchy,
+// which is why roster maintenance never depends on it alone (see onChatMember).
+//
+// getUpdates (the fallback, deliberately NOT implemented here). If the webhook
+// cannot be registered — no public URL yet, a TLS problem, or the privacy-mode
+// probe in §6.2 turning out to need a different onboarding shape — long
+// polling `getUpdates` is the same update objects over a pull instead of a
+// push, so handleUpdate() below is unchanged and a ~30-line poller script is
+// the entire delta. It is not written yet because a poller is a process that
+// has to live somewhere, and this repo's only always-on surface is Vercel
+// functions, which are the wrong shape for one. Noted so the fallback is a
+// known small job rather than a discovered blocker.
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
-import { TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET } from "./_config.js";
+import { TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_BOT_USERNAME } from "./_config.js";
 import {
   ensureRoom,
   roomByChat,
@@ -36,9 +59,12 @@ import {
   markMemberLeft,
   linkMember,
   linkTgPerson,
+  roomHasSpaceFor,
   personForTgUser,
   recipientSet,
   roomEntitled,
+  dmRecall,
+  bindDmDevice,
   roster,
   roomRecall,
   roomBridge,
@@ -53,6 +79,9 @@ import {
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN || "";
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || TELEGRAM_WEBHOOK_SECRET || "";
+// Not a secret. Read once, here, so the deep links and the @-mention detector
+// can never disagree about which bot this is.
+const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || TELEGRAM_BOT_USERNAME || "MeeraBot";
 const API = "https://api.telegram.org";
 
 const ident = (n) => n;
@@ -73,7 +102,7 @@ const ident = (n) => n;
 // memory only fully disappears when everyone in it asks) is PRE-DISCLOSED
 // rather than discovered at the moment it disappoints someone.
 export const ROOM_CARD = [
-  "main Meera hoon. is room mein hoon ab — aur ye पाँच baatein pehle hi bata deti hoon, baad mein nahi:",
+  "main Meera hoon. is room mein hoon ab — aur ye paanch baatein pehle hi bata deti hoon, baad mein nahi:",
   "1. main yahan ke logon se alag se 1:1 bhi baat karti hoon. dono cheezein saath chalti hain.",
   "2. jo kisi ne mujhe akele mein kaha, wo yahan kabhi nahi aata. na quote, na hint, na ishaara.",
   "3. yahan ki yaad SAANJHI hai. jo yahan bana, wo poora tabhi mitta hai jab is room ke sabhi log mitane ko kahein — akela koi nahi mita sakta.",
@@ -294,7 +323,7 @@ async function onMyChatMember(ev, { t, send }) {
 
 /** The deep link every member taps (§6.3 step 3). One mechanic, three jobs
  *  (onboarding, consent, payment) — §6.6. */
-export function startLink(roomId, bot = process.env.TELEGRAM_BOT_USERNAME || "MeeraBot") {
+export function startLink(roomId, bot = BOT_USERNAME) {
   return `https://t.me/${bot}?start=r${roomId}`;
 }
 
@@ -317,6 +346,8 @@ async function onChatMember(ev, { t }) {
     await markMemberLeft(room.id, bound.person_id, t);
     return { ok: true, room: room.id, left: true };
   }
+  if (!(await roomHasSpaceFor(room.id, bound.person_id, t)))
+    return { ok: true, room: room.id, joined: false, full: true };
   await upsertMember(room.id, { personId: bound.person_id, tgUserId: user.id }, t);
   return { ok: true, room: room.id, joined: true };
 }
@@ -332,6 +363,9 @@ async function onJoin(m, { t }) {
     // a pending record. The ACL has no unattributed rows by construction, and
     // the adult gate is enforced structurally rather than by policy.
     if (!bound) continue;
+    // the §7 cap applies on every path a member can arrive by, not just the
+    // deep link — see roomHasSpaceFor
+    if (!(await roomHasSpaceFor(room.id, bound.person_id, t))) continue;
     await upsertMember(room.id, { personId: bound.person_id, tgUserId: u.id }, t);
     added++;
   }
@@ -358,11 +392,19 @@ async function onPrivate(m, { t, send, engine, reply }) {
     const linked = await linkTgPerson(from.id, { username: displayName(from) }, t);
     if (!linked) return { ok: false, error: "link refused" };
     let room = null;
+    let full = false;
     const roomId = /^r(\d+)$/.exec(start.payload)?.[1];
     if (roomId) {
-      await upsertMember(Number(roomId), { personId: linked.personId, tgUserId: from.id }, t);
-      await linkMember(Number(roomId), linked.personId, t);
-      room = Number(roomId);
+      // §7's ≤6 cap, enforced where a member is ADDED rather than where the
+      // address strip is rendered — see roomHasSpaceFor. A refused member
+      // still gets their own 1:1 channel; only the room membership is denied.
+      if (await roomHasSpaceFor(Number(roomId), linked.personId, t)) {
+        await upsertMember(Number(roomId), { personId: linked.personId, tgUserId: from.id }, t);
+        await linkMember(Number(roomId), linked.personId, t);
+        room = Number(roomId);
+      } else {
+        full = true;
+      }
     }
     // The intro is a SHAPE, not a scripted line: `recited-prompt` is a
     // measured law here, so the app-voiced rail carries only the STRUCTURAL
@@ -396,9 +438,75 @@ async function onPrivate(m, { t, send, engine, reply }) {
         intro = "sent";
       }
     }
-    return { ok: true, linked: true, person: linked.personId, room, intro };
+    await bindDmDevice(from.id, linked.personId, t);
+    return { ok: true, linked: true, person: linked.personId, room, intro, roomFull: full };
   }
-  return { ok: true, dm: true, person: (await personForTgUser(from.id, t))?.person_id || null };
+
+  // ── an ordinary DM. This is today's product on a different transport, and
+  // it is compiled with NO roomBundle, which is gate G1's whole point: the 1:1
+  // lane must be provably free of the multiparty layer.
+  const bound = await personForTgUser(from.id, t);
+  // §6.4 again, in the other channel: no person row, no persistence. A user
+  // who has somehow reached the DM without the linking tap is answered by
+  // nothing and stored as nothing.
+  if (!bound) return { ok: true, dm: true, person: null, skipped: "unlinked" };
+  if (!engine) {
+    console.error("[tg] engine bundle missing — DM replies disabled");
+    return { ok: false, dm: true, reason: "engine bundle missing" };
+  }
+  const person = bound.person_id;
+  const device = await bindDmDevice(from.id, person, t);
+  const text = m.text || m.caption || "";
+  await logDmTurn({ device, person, role: "me", content: text }, t);
+
+  // M2 — the disclosure predicate, one recipient, no room. She still has what
+  // the rooms she was in hold, because she was there with them; she does not
+  // have anyone else's DMs, because she was not.
+  const facts = await dmRecall(person, {}, t);
+  const compiled = engine.compile({
+    user: { name: displayName(from), vibe: [], facts: {} },
+    messageCount: 999,
+    medium: "text",
+    mode: "chat",
+    voiceEngine: "none",
+    isDirective: false,
+    watching: false,
+    innerThread: "",
+    innerWants: "",
+    memories: facts.map((f) => `- ${f.body}`).join("\n"),
+    herLife: "",
+    cultureNoteText: "",
+    latestUserText: text,
+  });
+  const history = await dmHistory(device, t);
+  const said = await reply(compiled, [...history, { role: "user", content: text }]);
+  if (said) {
+    await send.message(from.id, said);
+    await logDmTurn({ device, person, role: "her", content: said }, t);
+  }
+  return { ok: true, dm: true, person, said: Boolean(said), recalled: facts.length };
+}
+
+/** A DM turn carries BOTH keys: the device (today's legacy forget scopes) and
+ *  the speaker person (008a). Writing both costs nothing and means this
+ *  transport is never the one row shape the forget cascade cannot find. */
+async function logDmTurn({ device, person, role, content }, t) {
+  await q(
+    `insert into ${t("meera_log")} (device_id, role, channel, kind, content, at, speaker_person_id)
+     values ($1,$2,'chat','text',$3, now(), $4)`,
+    [device, role === "her" ? "her" : "me", String(content || "").slice(0, 4000), person],
+  ).catch(() => {});
+}
+
+async function dmHistory(device, t, limit = 30) {
+  const rows = await q(
+    `select role, content from ${t("meera_log")} where device_id = $1 and group_id is null
+      order by id desc limit ${limit | 0}`,
+    [device],
+  ).catch(() => []);
+  return rows
+    .reverse()
+    .map((r) => ({ role: r.role === "her" ? "assistant" : "user", content: r.content }));
 }
 
 /**
@@ -450,7 +558,7 @@ async function onRoomMessage(m, { t, send, engine, reply }) {
   const words = gates.readConsent && gates.quorum ? await roomWords(room.id, recipients, t) : [];
   const decision = engine.decideParticipation({
     text: m.text || m.caption || "",
-    botUsername: process.env.TELEGRAM_BOT_USERNAME || "MeeraBot",
+    botUsername: BOT_USERNAME,
     replyToHer: Boolean(m.reply_to_message?.from?.is_bot),
     sinceHerLastMs: await sinceHerLast(room, t),
     roomQuiet: room.quiet_level || "normal",

@@ -310,6 +310,21 @@ const again = await drive({
 });
 ok("a second tap does NOT re-introduce her", again.intro === "none");
 
+// §7's member cap, enforced where a member is ADDED (a member with no row in
+// the address strip is a member she would address in the wrong register)
+await q(`update ${T("vy_group")} set member_cap = 3 where id = $1`, [roomId]);
+const overflow = await drive({
+  message: {
+    chat: { id: 9105, type: "private" },
+    from: { id: 9105, username: `${TAG}seventh` },
+    text: `/start r${roomId}`,
+    message_id: 3,
+  },
+});
+ok("a 7th (over-cap) member is refused the ROOM", overflow.roomFull === true && overflow.room === null);
+ok("…but still gets their own 1:1 channel", overflow.linked === true);
+await q(`update ${T("vy_group")} set member_cap = 6 where id = $1`, [roomId]);
+
 // an UNLINKED member is seen and never written (§6.4)
 await drive({
   message: {
@@ -524,6 +539,33 @@ ok("mp.roster + mp.bridge stay inside the 2,000-char multiparty allowance",
   `roster ${rs["mp.roster"]}c + bridge ${rs["mp.bridge"]}c`);
 ok("no quoted line enters mp.bridge (shapes only)", !/["“”]/.test(
   /WHAT THIS ROOM ITSELF HOLDS[\s\S]*?(?:\n\n|$)/.exec(roomCompiled.tail)?.[0] || ""));
+
+// ── the 1:1 lane on the same transport (M2, M6) ───────────────────────────
+const vikDm = await drive({
+  message: {
+    chat: { id: TG.vikram, type: "private" },
+    from: { id: TG.vikram, username: `${TAG}vikram` },
+    text: `${TAG}main Rhea ko kaise bataun`,
+    message_id: 77,
+  },
+});
+ok("a DM is answered on the same bot", vikDm.dm === true && vikDm.said === true);
+ok("her DM answer used the 1:1 lane (no mp blocks — G1)",
+  (lastCompiled.sections?.["mp.roster"] || 0) === 0 && (lastCompiled.sections?.["mp.bridge"] || 0) === 0);
+ok("she remembers the ROOM in his DM (M2)", lastCompiled.tail.includes(`${TAG}goa plan floated`));
+ok("she does NOT have Rhea's DM in his DM (M6 — nothing to leak)",
+  !lastCompiled.tail.includes(`${TAG}rhea does not want`));
+const dmRows = await q(
+  `select device_id, speaker_person_id, group_id from ${T("meera_log")}
+    where speaker_person_id = $1 and group_id is null`,
+  [VIKRAM],
+);
+ok("DM turns are stored with BOTH keys and no group_id", dmRows.length >= 1 && dmRows.every((r) => r.group_id == null));
+const mapped = await q(
+  `select person_id from ${T("vy_person")}_device where device_id = $1`,
+  [dmRows[0].device_id],
+);
+ok("the DM device IS in vy_person_device (unlike the room device)", mapped[0]?.person_id === VIKRAM);
 
 // ── 10. state inertness (§5.4) ────────────────────────────────────────────
 console.log("\n── group episodes are STATE-INERT ──");
