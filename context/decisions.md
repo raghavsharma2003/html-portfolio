@@ -656,3 +656,20 @@ during submission week, or R3 produces human verdicts that disagree with
 the archived ground truth enough to change a headline number — in which
 case the paper reports that too (it would be the third self-correction,
 and the strongest).
+
+---
+
+## `papers-to-eight` — owner funds the upgrade path; key raised to $25 (2026-08-18)
+
+Verbatim: "ive increased the limit to 25$ for api and make both the paper
+really good and atleast 8/10. and keep working on all the things that we
+planned." Key verified at $25 limit, $4.86 remaining at authorization.
+Spend order set by the papers directive: R1 opus test-retest first (~$2 —
+the ground truth's own noise bound, gap G5), then the incumbent arm eats
+the remainder via --allow-cash (the $0-30 OpenRouter residue line
+d2-on-credits already priced and accepted), pausing when the key dries;
+free-pool daily tranches remain the backstop. R2 per-axis decomposition
+runs in parallel on Azure credits (gap G8). Multiparty foundation build
+(Gate 0 + migration 008) launched now that WS-FELT landed. Human
+annotation (R3) stays owner-deferred — logged as THE remaining 8/10
+blocker for the Findings version, not the workshop version.

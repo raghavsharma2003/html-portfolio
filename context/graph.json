@@ -585,6 +585,12 @@
    "kind": "decision",
    "title": "Target JUDGe 2026 @ NeurIPS (Aug 29 AoE); draft complete around two self-retractions; owner inputs pending",
    "at": "2026-08-18"
+  },
+  {
+   "id": "papers-to-eight",
+   "kind": "decision",
+   "title": "Owner raises key to $25, directs both papers to 8/10; R1+incumbent cash order set; R2 + multiparty build launched",
+   "at": "2026-08-18"
   }
  ],
  "edges": [
@@ -1197,6 +1203,11 @@
    "src": "paper-submission-plan",
    "rel": "part_of",
    "dst": "relational-wedge"
+  },
+  {
+   "src": "papers-to-eight",
+   "rel": "part_of",
+   "dst": "paper-submission-plan"
   }
  ]
 }
