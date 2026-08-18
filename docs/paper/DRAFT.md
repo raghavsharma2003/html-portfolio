@@ -9,7 +9,7 @@ Fail a Pre-Registered Qualification Bar in Hinglish and in English Alike"**
 the T5 between-judge control that produced §5.5's retraction. The working-tree
 version is the one the paper cites.)*
 **Mandate:** `context/decisions.md` `relational-wedge` §5 — owner verbatim: *"create really good evals that we could actually publish and a paper that we could actually publish."*
-**Owner identity:** Vyakti.ai. **Author list: PLACEHOLDER — the owner decides names.**
+**Authors (owner-provided 2026-08-18):** Raghav Sharma, Gaurav Sharma, Aryan Tiwari — Vyakti.ai.
 
 ---
 
@@ -1846,10 +1846,10 @@ novelty survey at the same time — §10 G7.)*
 
 | # | item | why it blocks | state |
 |---|---|---|---|
-| B1 | **Author names and affiliation** | arXiv will not accept a submission without them, and this workstream will not invent an author list. Owner identity is Vyakti.ai; the names are the owner's to give. | **PENDING OWNER** |
+| B1 | **Author names and affiliation** | Raghav Sharma, Gaurav Sharma, Aryan Tiwari — Vyakti.ai (owner-provided 2026-08-18). | **RESOLVED** |
 | B2 | **Human-annotation decision (R3)** | Not a hard blocker for a *workshop* posting, but it is a hard blocker for any archival venue and it is the ethics gap named in §7.3. Owner must decide: run it before JUDGe (tight), before NAACL 2027 (comfortable), or declare the paper workshop-only. | **PENDING OWNER** |
-| B3 | **Licence sign-off** — Apache-2.0 (code) + **CC BY 4.0** (data) + the arXiv posting licence | The artifact repo cannot be published without it, and the release plan (this file's §9, the paper's §8) is a contribution the paper cites. Recommendation and rationale in §9.3; deliberately not non-commercial, because a benchmark nobody may use commercially does not get adopted. | **PENDING OWNER** |
-| B4 | **R1's ~$5 cash** | Closes G5 and gives a test–retest bound on the ground truth. Against a ~$450 programme cap. Recommend approving. | **PENDING OWNER** |
+| B3 | **Licence sign-off** — Apache-2.0 (code) + **CC BY 4.0** (data) + the arXiv posting licence | Owner approved 2026-08-18 ("okay whatever u choose in license") — Apache-2.0 code, CC BY 4.0 data per §9.3's recommendation. | **RESOLVED** |
+| B4 | **R1's ~$5 cash** | Owner authorized 2026-08-18 ("leave the test or you can do it") — but BLOCKED on transport: the OpenRouter key remains at $0 of its $20 limit and no Anthropic/Bedrock key exists. Runs when the key limit is raised or Bedrock lands; not required for JUDGe. | **AUTHORIZED, TRANSPORT-BLOCKED** |
 
 ### 13.4 De-identification checklist — run against the release bundle
 
