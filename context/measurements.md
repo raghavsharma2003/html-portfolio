@@ -1075,3 +1075,23 @@ between the user and her. All three group-guarded twice (explicit
 group_id filter + structural person_id null). 4 of ≤10 smoke calls used.
 Remaining from the judgment-writers ticket: only the call-lane rel bundle
 (latency seam).
+
+---
+
+## `tgbot-landed` — the shared-friend surface is live and fail-closed (2026-08-18)
+
+WS-TGBOT reviewed and deployed: webhook at /api/tg (production-probed:
+401 without the secret — fail-closed verified live), room lifecycle with
+admin-bit consent, addressing + separate silence decision, all room
+retrieval through the disclosure predicate, mp slots live (371/2,000
+chars on the live path; rows drop whole, never trimmed), one-time intro
+as a shape, /chup /bolo /bhool /kya. 101/101 offline checks, byte-identity
+83/83 (1:1 path unchanged with roomBundle null). Engine ships to the
+serverless lane as a committed generated bundle with a staleness gate;
+missing bundle = silent + loud log, never a degraded prompt. The build's
+catch — inertness-by-NULL-accident — closed by the coordinator with four
+explicit group_id guards, gates re-run green. Ticketed: room fact/phrase
+derivation (M1/M3 wait on it), consent-card UX (tier owner-flagged OFF),
+Stars payments, react tuning, G6 latency. BLOCKED ON OWNER: BotFather
+token + webhook secret (TELEGRAM_BOT_TOKEN / TELEGRAM_WEBHOOK_SECRET /
+TELEGRAM_BOT_USERNAME) — then Ten Days, Three Rooms begins.

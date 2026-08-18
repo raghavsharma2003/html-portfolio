@@ -627,6 +627,12 @@
    "kind": "measurement",
    "title": "Trust/pattern/phrase writers live in the nightly chain; conservatism proven by refusal; round-trip byte-identical",
    "at": "2026-08-18"
+  },
+  {
+   "id": "tgbot-landed",
+   "kind": "measurement",
+   "title": "Telegram surface live + fail-closed (401 probed in prod); mp slots live; inertness guards explicit; pilot blocked only on bot token",
+   "at": "2026-08-18"
   }
  ],
  "edges": [
@@ -1274,6 +1280,11 @@
    "src": "depth-writers-landed",
    "rel": "part_of",
    "dst": "relational-wedge"
+  },
+  {
+   "src": "tgbot-landed",
+   "rel": "part_of",
+   "dst": "multiparty-v1-design"
   }
  ]
 }
