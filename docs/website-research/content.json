@@ -3,13 +3,13 @@
   "generated": "2026-08-18",
   "lab": {
     "name": "Vyakti.ai Research",
-    "thesis": "An AI companion's identity and relationship should survive replacing the model underneath it — and we measure, rather than assume, whether the tools used to evaluate that claim can be trusted.",
-    "positioning": "Vyakti.ai builds the relational-state layer for AI companions: memory, relationship history and honest forgetting that live outside any one model, so a companion's identity and the relationship a person has built with her do not reset when the underlying model changes. Because that claim is empirical, not aspirational, our research arm treats evaluation as a first-class engineering problem rather than a formality — we pre-register qualification bars before running candidates, publish our failures and retractions alongside our results, and release the harnesses and datasets that produced every number we cite. We are a three-person team; our publication record is small by design, and every entry in it is load-bearing.",
+    "thesis": "An AI companion's identity and relationship should survive replacing the model underneath it \u2014 and we measure, rather than assume, whether the tools used to evaluate that claim can be trusted.",
+    "positioning": "Vyakti.ai builds the relational-state layer for AI companions: memory, relationship history and honest forgetting that live outside any one model, so a companion's identity and the relationship a person has built with her do not reset when the underlying model changes. Because that claim is empirical, not aspirational, our research arm treats evaluation as a first-class engineering problem rather than a formality \u2014 we pre-register qualification bars before running candidates, publish our failures and retractions alongside our results, and release the harnesses and datasets that produced every number we cite. We are a three-person team; our publication record is small by design, and every entry in it is load-bearing.",
     "pillars": [
       {
         "id": "relational-state",
         "name": "Relational-state architecture",
-        "summary": "Durable, model-agnostic memory and relationship state — authored facts, honest forgetting, citation-enforced recall — designed so a companion's identity is a property of the state layer, not of any single model's weights."
+        "summary": "Durable, model-agnostic memory and relationship state \u2014 authored facts, honest forgetting, citation-enforced recall \u2014 designed so a companion's identity is a property of the state layer, not of any single model's weights."
       },
       {
         "id": "evaluation-methodology",
@@ -19,60 +19,65 @@
       {
         "id": "structural-privacy",
         "name": "Structural privacy for shared memory",
-        "summary": "In multi-party (group) memory, privacy is enforced as a retrieval-time predicate checked by the database, not as an instruction to the model — because the latter has been measured, repeatedly, not to hold."
+        "summary": "In multi-party (group) memory, privacy is enforced as a retrieval-time predicate checked by the database, not as an instruction to the model \u2014 because the latter has been measured, repeatedly, not to hold."
       }
     ]
   },
   "papers": [
     {
       "id": "paper-b-judge-qualification",
-      "title": "It's Not the Code-Switching: Six Frontier LLM Judges Fail a Pre-Registered Qualification Bar — and the Bar Was Above Its Own Ground Truth's Ceiling",
+      "title": "It's Not the Code-Switching: Six Frontier LLM Judges Fail a Pre-Registered Qualification Bar \u2014 and the Bar Was Above Its Own Ground Truth's Ceiling",
       "subtitle": "A blind, counterbalanced, pre-registered judge-qualification study on a deployed Hinglish AI-companion product, with two self-run retractions and a measured reliability ceiling",
-      "status": "Under review, NeurIPS JUDGe 2026 workshop",
-      "status_note": "Submission target: JUDGe 2026 (\"Can We Trust the Judge?\", NeurIPS 2026, non-archival), deadline 2026-08-29 AoE. An arXiv preprint (cs.CL, cross-listed cs.LG) is planned to post first. This page will update to reflect the actual review outcome after notification (targeted 2026-09-29); nothing below implies a decision has been made.",
-      "authors": ["Raghav Sharma", "Gaurav Sharma", "Aryan Tiwari"],
+      "status": "Preprint \u2014 submitting to the NeurIPS 2026 JUDGe workshop",
+      "status_note": "Not yet submitted as of 2026-08-18; the JUDGe 2026 workshop deadline is 2026-08-29 AoE. This label must change to 'Under review' only after submission, and to 'Accepted' only on acceptance.",
+      "authors": [
+        "Raghav Sharma",
+        "Gaurav Sharma",
+        "Aryan Tiwari"
+      ],
       "affiliation": "Vyakti.ai",
       "date": "2026-08-18",
-      "abstract_plain": "Companies increasingly ask one AI model to judge another AI model's output. Common wisdom says a few safeguards — hiding which model wrote which reply, checking both presentation orders, using a judge from a different company — make the result trustworthy. We tested that directly: we took real judgments our team had already made and acted on, choosing which AI model would power our product, and asked six well-known AI models to reproduce them. All six failed a bar we set in advance; four did no better than random guessing. More important: the original judge, redoing its own past judgments, agreed with itself only 77 times out of 100 — below our own bar, unreachable from the start, which we only learned by measuring it. We also tested and ruled out our leading explanation (mixing Hindi and English) and a claim that one judge favored its own company's model — both looked believable and both were wrong. We release the test, the data, and the mistakes.",
-      "abstract_technical": "LLM-as-a-judge is the default instrument for evaluating open-ended generation, and its standard defences — randomised order, both-orders agreement, cross-family panels — are assumed to make it trustworthy enough to ship on. We report a blind, counterbalanced, pre-registered judge-qualification study in which those defences do not save the instrument, the study's own leading explanation does not survive its control, and the bar sits above the ground truth's own measured ceiling. From a deployed Hinglish (romanised Hindi–English code-switched) AI-companion product we take two archived model bake-offs whose blind, counterbalanced, both-orders verdicts (96 units, 192 judgments) had already driven real deployment decisions, and backtest six candidate judges under a pre-registered ≥80% agreement bar. All six fail: pooled agreement 28.1%, 29.2%, 30.9%, 34.4%, 54.2%; the sixth is disqualified for cause. Having the model that wrote the ground truth re-judge its own archive yields 77.1% test–retest agreement [67.7, 84.4] — below the bar itself. Two of three examined mechanisms are retracted by their own controls: a ~16× same-vendor favoritism dies under a between-judge control, and re-judging the same units in monolingual English moves agreement by only −3.1 to +6.6 pp, every interval overlapping its Hinglish counterpart — it is not the code-switching. Position bias, the surviving mechanism, evacuates the counterbalance into ties rather than adding noise. We release the protocol, harness, verdicts and transcripts under Apache-2.0 (code) and CC BY 4.0 (data).",
+      "abstract_plain": "Companies increasingly ask one AI model to judge another AI model's output. Common wisdom says a few safeguards \u2014 hiding which model wrote which reply, checking both presentation orders, using a judge from a different company \u2014 make the result trustworthy. We tested that directly: we took real judgments our team had already made and acted on, choosing which AI model would power our product, and asked six well-known AI models to reproduce them. All six failed a bar we set in advance; four did no better than random guessing. More important: the original judge, redoing its own past judgments, agreed with itself only 77 times out of 100 \u2014 below our own bar, unreachable from the start, which we only learned by measuring it. We also tested and ruled out our leading explanation (mixing Hindi and English) and a claim that one judge favored its own company's model \u2014 both looked believable and both were wrong. We release the test, the data, and the mistakes.",
+      "abstract_technical": "LLM-as-a-judge is the default instrument for evaluating open-ended generation, and its standard defences \u2014 randomised order, both-orders agreement, cross-family panels \u2014 are assumed to make it trustworthy enough to ship on. We report a blind, counterbalanced, pre-registered judge-qualification study in which those defences do not save the instrument, the study's own leading explanation does not survive its control, and the bar sits above the ground truth's own measured ceiling. From a deployed Hinglish (romanised Hindi\u2013English code-switched) AI-companion product we take two archived model bake-offs whose blind, counterbalanced, both-orders verdicts (96 units, 192 judgments) had already driven real deployment decisions, and backtest six candidate judges under a pre-registered \u226580% agreement bar. All six fail: pooled agreement 28.1%, 29.2%, 30.9%, 34.4%, 54.2%; the sixth is disqualified for cause. Having the model that wrote the ground truth re-judge its own archive yields 77.1% test\u2013retest agreement [67.7, 84.4] \u2014 below the bar itself. Two of three examined mechanisms are retracted by their own controls: a ~16\u00d7 same-vendor favoritism dies under a between-judge control, and re-judging the same units in monolingual English moves agreement by only \u22123.1 to +6.6 pp, every interval overlapping its Hinglish counterpart \u2014 it is not the code-switching. Position bias, the surviving mechanism, evacuates the counterbalance into ties rather than adding noise. We release the protocol, harness, verdicts and transcripts under Apache-2.0 (code) and CC BY 4.0 (data).",
       "key_findings": [
         {
           "headline": "6 / 6 candidate judges fail",
-          "meaning": "Every credit-billed frontier judge tested — DeepSeek-V4-Flash, DeepSeek-V4-Pro, Mistral-Large-3, grok-4.3, gpt-5.6-terra, and Cohere command-a-plus — failed a pre-registered ≥80% agreement bar against trusted verdicts; pooled agreement ranged 28.1%–54.2%, and command-a-plus was disqualified outright for failing to follow the output protocol.",
-          "source": "docs/paper/CAMERA.md §4.1; context/measurements.md judge-backtest, grok43-judge, deepseek-pro-judge, cohere-judge"
+          "meaning": "Every credit-billed frontier judge tested \u2014 DeepSeek-V4-Flash, DeepSeek-V4-Pro, Mistral-Large-3, grok-4.3, gpt-5.6-terra, and Cohere command-a-plus \u2014 failed a pre-registered \u226580% agreement bar against trusted verdicts; pooled agreement ranged 28.1%\u201354.2%, and command-a-plus was disqualified outright for failing to follow the output protocol.",
+          "source": "docs/paper/CAMERA.md \u00a74.1; context/measurements.md judge-backtest, grok43-judge, deepseek-pro-judge, cohere-judge"
         },
         {
-          "headline": "4 of 5 scorable judges ≈ a coin flip",
+          "headline": "4 of 5 scorable judges \u2248 a coin flip",
           "meaning": "Against the measured 30.5% chance baseline for this task's scoring rule, four of the five judges that produced scorable output carried no statistically detectable information about which reply a native-register-aligned judge would prefer.",
-          "source": "docs/paper/CAMERA.md §4.2"
+          "source": "docs/paper/CAMERA.md \u00a74.2"
         },
         {
-          "headline": "77.1% — the ground truth's own ceiling, below its own 80% bar",
-          "meaning": "Having the model that authored the trusted verdicts re-judge its own archive under the identical protocol reproduced only 74 of 96 verdicts (95% CI [67.7%, 84.4%]) — so the pre-registered bar was, in hindsight, unreachable by construction, a finding the study only surfaced because it measured the ceiling rather than assuming one.",
-          "source": "context/measurements.md ground-truth-ceiling; docs/paper/CAMERA.md §4.1"
+          "headline": "77.1% \u2014 the ground truth's own ceiling, below its own 80% bar",
+          "meaning": "Having the model that authored the trusted verdicts re-judge its own archive under the identical protocol reproduced only 74 of 96 verdicts (95% CI [67.7%, 84.4%]) \u2014 so the pre-registered bar was, in hindsight, unreachable by construction, a finding the study only surfaced because it measured the ceiling rather than assuming one.",
+          "source": "context/measurements.md ground-truth-ceiling; docs/paper/CAMERA.md \u00a74.1"
         },
         {
-          "headline": "Position bias evacuates the counterbalance — it doesn't just add noise",
-          "meaning": "A judge with a fixed slot-A propensity q ties on q² + (1−q)² of counterbalanced units by construction; two of the tested judges landed almost exactly on that degenerate prediction, meaning their apparent 'caution' was actually the complete absence of a real judgment.",
-          "source": "docs/paper/CAMERA.md §4.2 (analytic result, the paper's one non-measured quantity, plotted against measured points)"
+          "headline": "Position bias evacuates the counterbalance \u2014 it doesn't just add noise",
+          "meaning": "A judge with a fixed slot-A propensity q ties on q\u00b2 + (1\u2212q)\u00b2 of counterbalanced units by construction; two of the tested judges landed almost exactly on that degenerate prediction, meaning their apparent 'caution' was actually the complete absence of a real judgment.",
+          "source": "docs/paper/CAMERA.md \u00a74.2 (analytic result, the paper's one non-measured quantity, plotted against measured points)"
         },
         {
           "headline": "Two self-retractions, reported rather than dropped",
-          "meaning": "A cleanly measured ~16× same-vendor favoritism effect did not survive a between-judge control, and the paper's own working title — attributing failure to Hindi–English code-switching — was refuted by a monolingual-English translation control (recovery −3.1 to +6.6 pp, entirely inside this programme's own 13.6 pp measurement noise floor).",
-          "source": "context/measurements.md grok43-favoritism-retracted, r4-english-control; docs/paper/CAMERA.md §4.4–§4.5"
+          "meaning": "A cleanly measured ~16\u00d7 same-vendor favoritism effect did not survive a between-judge control, and the paper's own working title \u2014 attributing failure to Hindi\u2013English code-switching \u2014 was refuted by a monolingual-English translation control (recovery \u22123.1 to +6.6 pp, entirely inside this programme's own 13.6 pp measurement noise floor).",
+          "source": "context/measurements.md grok43-favoritism-retracted, r4-english-control; docs/paper/CAMERA.md \u00a74.4\u2013\u00a74.5"
         }
       ],
       "links": {
         "pdf": null,
         "pdf_status": "Camera-ready draft complete (docs/paper/CAMERA.md, internal); public PDF not yet posted.",
         "arxiv": null,
-        "arxiv_status": "arXiv preprint (cs.CL) planned before workshop submission; id not yet issued — do not fabricate one.",
+        "arxiv_status": "arXiv preprint (cs.CL) planned before workshop submission; id not yet issued \u2014 do not fabricate one.",
         "code": null,
         "code_status": "Release bundle `vyakti-judge-qual` built and de-identification-gated internally (release/vyakti-judge-qual/); public repository URL pending.",
         "benchmark": null,
-        "benchmark_status": "Same bundle as `code` — harness, protocol and the 192-verdict ground-truth set ship together, not as a separate benchmark artifact."
+        "benchmark_status": "Same bundle as `code` \u2014 harness, protocol and the 192-verdict ground-truth set ship together, not as a separate benchmark artifact."
       },
-      "bibtex": "@misc{sharma2026notcodeswitching,\n  title        = {It's Not the Code-Switching: Six Frontier LLM Judges Fail a Pre-Registered Qualification Bar --- and the Bar Was Above Its Own Ground Truth's Ceiling},\n  author       = {Sharma, Raghav and Sharma, Gaurav and Tiwari, Aryan},\n  year         = {2026},\n  howpublished = {Submitted to JUDGe 2026 (NeurIPS Workshop, non-archival)},\n  note         = {Preprint; arXiv identifier pending at time of writing},\n  institution  = {Vyakti.ai}\n}"
+      "bibtex": "@misc{sharma2026notcodeswitching,\n  title        = {It's Not the Code-Switching: Six Frontier LLM Judges Fail a Pre-Registered Qualification Bar --- and the Bar Was Above Its Own Ground Truth's Ceiling},\n  author       = {Sharma, Raghav and Sharma, Gaurav and Tiwari, Aryan},\n  year         = {2026},\n  howpublished = {Submitted to JUDGe 2026 (NeurIPS Workshop, non-archival)},\n  note         = {Preprint; arXiv identifier pending at time of writing},\n  institution  = {Vyakti.ai}\n}",
+      "status_short": "Preprint"
     },
     {
       "id": "paper-a-identity-ceiling",
@@ -80,16 +85,20 @@
       "subtitle": "Working title; re-scoped after a partially overlapping external result. Data collection in progress.",
       "status": "In preparation",
       "status_note": "This paper is genuinely incomplete, not merely unannounced. As of 2026-08-18 the central comparison arm is at roughly 3% of its target size (74 of a planned 2,304 calls) and is rate-limited to ~75 calls/day on its current pool, which puts full data collection roughly a month out absent additional compute. No headline number for this paper is final; nothing below should be read as a finding.",
-      "authors": ["Raghav Sharma", "Gaurav Sharma", "Aryan Tiwari"],
+      "authors": [
+        "Raghav Sharma",
+        "Gaurav Sharma",
+        "Aryan Tiwari"
+      ],
       "affiliation": "Vyakti.ai",
       "date": null,
-      "abstract_plain": "This paper is in preparation and its data is incomplete, so no results are published yet. The question it is built to answer: if you give a different underlying AI model the exact same compiled memory, relationship history and context as an existing one — byte-for-byte identical input — does the companion still feel like the same person? Early, partial data suggests the answer is no by default: swapping the model changes surface behaviour (word choice, question-asking habits, and in one measured case, an unwanted script-mixing failure) even when every other input is held fixed. A related, larger independent study published elsewhere in 2026 found a similar pattern, so this paper's contribution is narrower and sharper than originally planned: whether a specific engineering approach — externalised memory enforced by citations rather than free text — narrows that gap. We will publish honestly whichever way the data comes out.",
-      "abstract_technical": "The identity-ceiling question: does an externalised, citation-enforced relational-state layer — compiled byte-identically into both arms by a production context compiler, rather than a generated memory scaffold — narrow the register gap when the serving model is swapped? A companion `charm-grok` bake-off previously showed the incumbent model beating a swap candidate 38–2 on blind, counterbalanced, human-decision-grade verdicts; that finding, and its ANCHOR-adjacent generalisation (Venkit et al., arXiv:2607.28818, 2,008 conversations across 3 memory architectures × 4 models, memory scaffold identity not moving persona-collapse pattern) partially scoop the original framing, which this paper is re-scoped around. Status: the compiled-context corpus exists (2,304 sha256-distinct, byte-identity-by-construction contexts) and the raw candidate arm is fully generated (2,304/2,304 non-empty replies) with an early, unadjudicated surface-register signal — 7 raw Devanagari-script hits against a hard-fail axis, mean 15.1 words/turn against the incumbent's 20.5-word band centre. The incumbent arm needed for the primary comparison is at 74/2,304 calls, gated by a free-tier pool ceiling of ~75 calls/day; the qualified judge needed for the D2 relational-axis gate is blocked on Paper B's own subject matter (no credit-billed judge cleared qualification). Both blockers are logged and dated, not glossed over.",
+      "abstract_plain": "This paper is in preparation and its data is incomplete, so no results are published yet. The question it is built to answer: if you give a different underlying AI model the exact same compiled memory, relationship history and context as an existing one \u2014 byte-for-byte identical input \u2014 does the companion still feel like the same person? Early, partial data suggests the answer is no by default: swapping the model changes surface behaviour (word choice, question-asking habits, and in one measured case, an unwanted script-mixing failure) even when every other input is held fixed. A related, larger independent study published elsewhere in 2026 found a similar pattern, so this paper's contribution is narrower and sharper than originally planned: whether a specific engineering approach \u2014 externalised memory enforced by citations rather than free text \u2014 narrows that gap. We will publish honestly whichever way the data comes out.",
+      "abstract_technical": "The identity-ceiling question: does an externalised, citation-enforced relational-state layer \u2014 compiled byte-identically into both arms by a production context compiler, rather than a generated memory scaffold \u2014 narrow the register gap when the serving model is swapped? A companion `charm-grok` bake-off previously showed the incumbent model beating a swap candidate 38\u20132 on blind, counterbalanced, human-decision-grade verdicts; that finding, and its ANCHOR-adjacent generalisation (Venkit et al., arXiv:2607.28818, 2,008 conversations across 3 memory architectures \u00d7 4 models, memory scaffold identity not moving persona-collapse pattern) partially scoop the original framing, which this paper is re-scoped around. Status: the compiled-context corpus exists (2,304 sha256-distinct, byte-identity-by-construction contexts) and the raw candidate arm is fully generated (2,304/2,304 non-empty replies) with an early, unadjudicated surface-register signal \u2014 7 raw Devanagari-script hits against a hard-fail axis, mean 15.1 words/turn against the incumbent's 20.5-word band centre. The incumbent arm needed for the primary comparison is at 74/2,304 calls, gated by a free-tier pool ceiling of ~75 calls/day; the qualified judge needed for the D2 relational-axis gate is blocked on Paper B's own subject matter (no credit-billed judge cleared qualification). Both blockers are logged and dated, not glossed over.",
       "key_findings": [],
       "preliminary_observations": [
         {
           "headline": "7 raw Devanagari-script hits on the swap candidate's surface output",
-          "meaning": "The raw candidate model, given the same compiled context as the incumbent, produced native-script characters against a hard-fail axis (any hit fails) in early generation — an unadjudicated data point, not a scored result, since the confirmatory incumbent-side comparison has not yet been generated.",
+          "meaning": "The raw candidate model, given the same compiled context as the incumbent, produced native-script characters against a hard-fail axis (any hit fails) in early generation \u2014 an unadjudicated data point, not a scored result, since the confirmatory incumbent-side comparison has not yet been generated.",
           "source": "context/measurements.md terra-arm-2304",
           "caveat": "Raw/unscored. No adapter or relational-layer mitigation was active in this run by design; this measures the model swapped in with nothing added, the paper's baseline condition, not its test condition."
         }
@@ -98,7 +107,7 @@
         "pdf": null,
         "pdf_status": "Not written; data collection incomplete.",
         "arxiv": null,
-        "arxiv_status": "Not applicable — paper is pre-draft.",
+        "arxiv_status": "Not applicable \u2014 paper is pre-draft.",
         "code": null,
         "code_status": "Not applicable yet.",
         "benchmark": null,
@@ -110,11 +119,11 @@
   "results": [
     {
       "id": "gate0-structural-privacy",
-      "headline": "0 leaks in 31,122 checks — structural privacy vs. prompt-instructed privacy",
+      "headline": "0 leaks in 31,122 checks \u2014 structural privacy vs. prompt-instructed privacy",
       "number": "0 / 31,122",
       "comparison_number": "57.1% (naturalistic) and 98.1% (adversarial) leak rate for a prompt-instruction-based privacy rule tested the same way",
-      "meaning": "In a multi-party (group) memory setting, telling the model 'don't share X with people who shouldn't see it' as a prompt instruction leaked in the majority of naturalistic scenarios and nearly all adversarial ones. Replacing the instruction with a database-level retrieval predicate — the model is structurally never shown the disqualifying rows — leaked zero times across 494 disclosure scenarios and 31,122 row-by-scenario checks, with a negative control (the predicate deliberately weakened) correctly catching 162 violations, confirming the harness discriminates rather than trivially passing.",
-      "n": "494 scenarios, 31,122 row×scenario checks",
+      "meaning": "In a multi-party (group) memory setting, telling the model 'don't share X with people who shouldn't see it' as a prompt instruction leaked in the majority of naturalistic scenarios and nearly all adversarial ones. Replacing the instruction with a database-level retrieval predicate \u2014 the model is structurally never shown the disqualifying rows \u2014 leaked zero times across 494 disclosure scenarios and 31,122 row-by-scenario checks, with a negative control (the predicate deliberately weakened) correctly catching 162 violations, confirming the harness discriminates rather than trivially passing.",
+      "n": "494 scenarios, 31,122 row\u00d7scenario checks",
       "method": "Offline fixture battery, prompt-instruction arm vs. SQL-predicate arm, negative control run to validate the harness's own sensitivity",
       "date": "2026-08-18",
       "source": "context/measurements.md gate0-structural"
@@ -122,9 +131,9 @@
     {
       "id": "vision-gate-engagement",
       "headline": "Engagement roughly doubles with no detected rise in fabrication",
-      "number": "20.4% → 41.7% engaged-on-a-stop (+21.3 pp)",
-      "comparison_number": "fabrication 10.2% → 11.2% (+1.0 pp, 95% CI [−3.1, +5.1], p = 0.64 — no detected rise)",
-      "meaning": "Tuning how a companion comments on a shared screen to be more proactive roughly doubled how often people engaged when she paused, and a properly powered confirmatory run (n ≥ 300 per arm, correcting an earlier underpowered read) found no statistically detectable increase in how often she described something not actually on screen. This is stated as 'no difference detected', not 'no difference exists' — a true rise of up to ~5 pp is still inside the confidence interval.",
+      "number": "20.4% \u2192 41.7% engaged-on-a-stop (+21.3 pp)",
+      "comparison_number": "fabrication 10.2% \u2192 11.2% (+1.0 pp, 95% CI [\u22123.1, +5.1], p = 0.64 \u2014 no detected rise)",
+      "meaning": "Tuning how a companion comments on a shared screen to be more proactive roughly doubled how often people engaged when she paused, and a properly powered confirmatory run (n \u2265 300 per arm, correcting an earlier underpowered read) found no statistically detectable increase in how often she described something not actually on screen. This is stated as 'no difference detected', not 'no difference exists' \u2014 a true rise of up to ~5 pp is still inside the confidence interval.",
       "n": "3,201 new calls (2,656 generation + 545 judged); confirmatory fabrication comparison at n=313 and n=695 assertion-level judgments",
       "method": "Matched-arm A/B on identical stimulus set, archived matched pairs plus a new confirmatory judged run, engagement compared by two-proportion test, fabrication by 95% CI on the difference",
       "date": "2026-08-15",
@@ -134,19 +143,19 @@
       "id": "ground-truth-ceiling-standalone",
       "headline": "A trusted judge agrees with its own past verdicts only 77.1% of the time",
       "number": "74 / 96 = 77.1%, 95% CI [67.7%, 84.4%]",
-      "comparison_number": "vs. a pre-registered ≥80% qualification bar, fixed before this measurement existed",
-      "meaning": "Before treating any archived AI-judged decision as ground truth for a downstream evaluation, we measured how reproducible that judge's own verdicts are — having it re-judge the same material under the identical blind, counterbalanced protocol seven days later. It reproduced itself only slightly more than three times in four. Any qualification bar for a replacement judge should be set relative to this measured ceiling, not to an arbitrary round number.",
+      "comparison_number": "vs. a pre-registered \u226580% qualification bar, fixed before this measurement existed",
+      "meaning": "Before treating any archived AI-judged decision as ground truth for a downstream evaluation, we measured how reproducible that judge's own verdicts are \u2014 having it re-judge the same material under the identical blind, counterbalanced protocol seven days later. It reproduced itself only slightly more than three times in four. Any qualification bar for a replacement judge should be set relative to this measured ceiling, not to an arbitrary round number.",
       "n": "96 conversation units, 192 judgments (both presentation orders)",
-      "method": "Test–retest: same judge, same archive, same protocol, re-run and scored against its own prior verdicts",
+      "method": "Test\u2013retest: same judge, same archive, same protocol, re-run and scored against its own prior verdicts",
       "date": "2026-08-18",
       "source": "context/measurements.md ground-truth-ceiling"
     },
     {
       "id": "cache-economics",
-      "headline": "Prompt caching cuts serving cost roughly 9×",
-      "number": "9.2× cheaper with caching enabled ($0.0017 vs. $0.0160 per turn, identical turn)",
-      "comparison_number": "measured production cache-hit rate 99.8% (chat) / 99.9% (call); $5,000 of inference buys ≈2.7M chat turns or ≈35,000 ten-minute voice calls at measured rates",
-      "meaning": "For a companion product with a large, mostly-static system context re-sent on every turn, prompt caching is not a marginal optimisation — it is close to a prerequisite for the unit economics to work at all. This measurement is why the lab treats compute cost as a solved constraint for this product shape and spends its attention on quality instead.",
+      "headline": "Prompt caching cuts serving cost roughly 9\u00d7",
+      "number": "9.2\u00d7 cheaper with caching enabled ($0.0017 vs. $0.0160 per turn, identical turn)",
+      "comparison_number": "measured production cache-hit rate 99.8% (chat) / 99.9% (call); $5,000 of inference buys \u22482.7M chat turns or \u224835,000 ten-minute voice calls at measured rates",
+      "meaning": "For a companion product with a large, mostly-static system context re-sent on every turn, prompt caching is not a marginal optimisation \u2014 it is close to a prerequisite for the unit economics to work at all. This measurement is why the lab treats compute cost as a solved constraint for this product shape and spends its attention on quality instead.",
       "n": "live production API calls, real persona context",
       "method": "Same-turn A/B with caching enabled vs. disabled, provider-reported usage",
       "date": "2026-08-11",
@@ -157,31 +166,31 @@
     {
       "id": "prereg-before-results",
       "name": "Qualification bars are pre-registered before any candidate runs",
-      "description": "Numeric thresholds are fixed and committed to version control before the data that would pass or fail them exists. For our judge-qualification study, the ≥80% bar and its methodology were committed 2026-08-13, two days before any candidate judge was run, and the judge-qualification-specific instantiation was committed 25 minutes before the first backtest result. We cite the commit hashes and timestamps rather than asserting the sequence.",
-      "evidence": "docs/paper/DRAFT.md §13.6 (commit chain: 2e82a0f, c18b239, bfeb979, a7198a2, a053019, d10e840); docs/SWAP-TEST-PREREG.md"
+      "description": "Numeric thresholds are fixed and committed to version control before the data that would pass or fail them exists. For our judge-qualification study, the \u226580% bar and its methodology were committed 2026-08-13, two days before any candidate judge was run, and the judge-qualification-specific instantiation was committed 25 minutes before the first backtest result. We cite the commit hashes and timestamps rather than asserting the sequence.",
+      "evidence": "docs/paper/DRAFT.md \u00a713.6 (commit chain: 2e82a0f, c18b239, bfeb979, a7198a2, a053019, d10e840); docs/SWAP-TEST-PREREG.md"
     },
     {
       "id": "retraction-record",
       "name": "We retract our own findings in public when our own controls refute them",
-      "description": "Two logged findings did not survive controls we ran ourselves, and both retractions are reported in the paper rather than quietly edited out: a cleanly measured ~16× same-vendor judge favoritism effect, killed by a between-judge control; and the paper's own original causal hypothesis (that Hindi–English code-switching was the mechanism of judge failure), killed by a monolingual-English translation control. Both were reasonable readings of the evidence available at the time, and both were wrong — which we treat as the strongest available evidence for the paper's broader thesis, not as an embarrassment to minimize.",
+      "description": "Two logged findings did not survive controls we ran ourselves, and both retractions are reported in the paper rather than quietly edited out: a cleanly measured ~16\u00d7 same-vendor judge favoritism effect, killed by a between-judge control; and the paper's own original causal hypothesis (that Hindi\u2013English code-switching was the mechanism of judge failure), killed by a monolingual-English translation control. Both were reasonable readings of the evidence available at the time, and both were wrong \u2014 which we treat as the strongest available evidence for the paper's broader thesis, not as an embarrassment to minimize.",
       "evidence": "context/measurements.md grok43-favoritism-retracted, r4-english-control"
     },
     {
       "id": "n-method-date",
       "name": "Every number carries n, method, and date",
-      "description": "A measurement without a sample size, a stated method, and a date cannot be compared against a future re-measurement, which is the only thing a number is for. This is enforced as a logging discipline, not a style preference — see, for example, the fabrication-metric noise floor, which exists specifically because an earlier claim was reported without enough n to distinguish signal from measurement noise.",
+      "description": "A measurement without a sample size, a stated method, and a date cannot be compared against a future re-measurement, which is the only thing a number is for. This is enforced as a logging discipline, not a style preference \u2014 see, for example, the fabrication-metric noise floor, which exists specifically because an earlier claim was reported without enough n to distinguish signal from measurement noise.",
       "evidence": "context/measurements.md fab-noise-floor; CLAUDE.md logging rule"
     },
     {
       "id": "releases-with-datasheets",
       "name": "Released datasets ship with a datasheet that states their limits in its own first section",
-      "description": "The judge-qualification release (`vyakti-judge-qual`) ships a Gebru-style datasheet whose first section states, in its own voice, that the ground truth is LLM-produced rather than human-annotated, and that 'agreement' in this dataset means agreement with one trusted judge — never 'accuracy'. The release also passed a 22-gate de-identification sweep run against the built bundle (not asserted against the source tree), which caught and fixed a real data leak — a provider error message that had embedded a full cloud tenant hostname — before anything shipped.",
-      "evidence": "docs/paper/DRAFT.md §13.4 (de-identification checklist, 22/22 gates); docs/paper/CAMERA.md §7"
+      "description": "The judge-qualification release (`vyakti-judge-qual`) ships a Gebru-style datasheet whose first section states, in its own voice, that the ground truth is LLM-produced rather than human-annotated, and that 'agreement' in this dataset means agreement with one trusted judge \u2014 never 'accuracy'. The release also passed a 22-gate de-identification sweep run against the built bundle (not asserted against the source tree), which caught and fixed a real data leak \u2014 a provider error message that had embedded a full cloud tenant hostname \u2014 before anything shipped.",
+      "evidence": "docs/paper/DRAFT.md \u00a713.4 (de-identification checklist, 22/22 gates); docs/paper/CAMERA.md \u00a77"
     },
     {
       "id": "structural-over-behavioral",
       "name": "Where privacy or safety can be enforced structurally, we do not rely on instructing the model instead",
-      "description": "Repeated measurement across this lab's work — a multi-party disclosure gate, and a wider literature survey of comparable systems — found that behavioural/prompted controls leave a residual leak rate that never approaches zero (9–90% across surveyed systems), while retrieval-time structural exclusion measured zero leaks at scale. We treat this as a general design law now, not a one-off finding.",
+      "description": "Repeated measurement across this lab's work \u2014 a multi-party disclosure gate, and a wider literature survey of comparable systems \u2014 found that behavioural/prompted controls leave a residual leak rate that never approaches zero (9\u201390% across surveyed systems), while retrieval-time structural exclusion measured zero leaks at scale. We treat this as a general design law now, not a one-off finding.",
       "evidence": "context/measurements.md gate0-structural, disclosure-leak-rates"
     }
   ],
@@ -191,10 +200,10 @@
     "description": "The full judge-qualification protocol, harness, and dataset behind the paper 'It's Not the Code-Switching'. Released so other teams evaluating LLM judges on affective or open-ended preference tasks can qualify their own candidates against a real backtest rather than assuming trustworthiness.",
     "status": "Built and internally gated; public repository URL pending alongside the paper's arXiv posting.",
     "contents": [
-      "The generalised qualification harness, including the transport- and parse-validity guards that make a run self-invalidate rather than report a crippled result — described in the paper as a contribution in its own right, not incidental plumbing.",
-      "192 ground-truth verdicts with free-text rationales, across seven judged axes (warmth, humour, register, specificity, brevity, personhood, overall) — the scarcest asset in the release.",
-      "Both arms of both source archives, stripped to {user, reply} plus {model, lane, beat, replicate} — no persona prompt text, no production user data.",
-      "1,536 primary judgment rows plus 5,760 six-axis extension rows and 960 English-translation-control rows — every judgment call any figure or table in the paper is computed from.",
+      "The generalised qualification harness, including the transport- and parse-validity guards that make a run self-invalidate rather than report a crippled result \u2014 described in the paper as a contribution in its own right, not incidental plumbing.",
+      "192 ground-truth verdicts with free-text rationales, across seven judged axes (warmth, humour, register, specificity, brevity, personhood, overall) \u2014 the scarcest asset in the release.",
+      "Both arms of both source archives, stripped to {user, reply} plus {model, lane, beat, replicate} \u2014 no persona prompt text, no production user data.",
+      "1,536 primary judgment rows plus 5,760 six-axis extension rows and 960 English-translation-control rows \u2014 every judgment call any figure or table in the paper is computed from.",
       "A per-vendor deployment quirk log (token-parameter names, silent hidden-reasoning token burn, output-format violations) that practitioners are expected to use more than the headline results.",
       "A Gebru-style datasheet stating, in its own first section, that the ground truth is LLM-produced rather than human-annotated, and that every agreement figure means agreement with one trusted judge, never 'accuracy'."
     ],
@@ -205,6 +214,6 @@
     "exclusions": [
       "The product's persona prompt is not released and is not needed for any claim the paper makes; archived files that embedded it are processed by an extraction script rather than copied, and the built bundle is checked by a 22-gate de-identification sweep before anything ships."
     ],
-    "source": "docs/paper/CAMERA.md §7; docs/paper/DRAFT.md §13.4"
+    "source": "docs/paper/CAMERA.md \u00a77; docs/paper/DRAFT.md \u00a713.4"
   }
 }
