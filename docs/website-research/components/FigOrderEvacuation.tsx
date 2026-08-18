@@ -204,6 +204,7 @@ export function FigOrderEvacuation({
   }
 
   const ticksB = [40, 60, 80, 100];
+  const codeOrder = [...new Set(points.map((p) => p.code))];
 
   return (
     <div ref={narrowRef} className={className}>
@@ -315,11 +316,39 @@ export function FigOrderEvacuation({
             q² + (1−q)²
           </text>
 
+          {/* Same-judge pairs (one point per archive) can sit only a few px
+              apart at this data density — Mistral-Large-3's pair is the
+              tightest. A thin connector plus ONE shared code label (placed
+              at whichever archive point sits further from the curve, so it
+              lands in the more open space) reads cleaner than two "MIS"
+              strings fighting for the same few pixels, and doubles as a
+              visual echo of the dumbbell motif in Figure 3. */}
+          {codeOrder.map((code) => {
+            const group = points.filter((p) => p.code === code);
+            if (group.length < 2) return null;
+            const [a, b] = group;
+            return (
+              <line
+                key={`connector-${code}`}
+                x1={xB(a.q)}
+                y1={yB(a.tieFlipRate)}
+                x2={xB(b.q)}
+                y2={yB(b.tieFlipRate)}
+                stroke={a.onCurve ? EMBER : HAIRLINE}
+                strokeWidth={1}
+                opacity={0.6}
+              />
+            );
+          })}
           {points.map((p, i) => {
             const px = xB(p.q);
             const py = yB(p.tieFlipRate);
             const filled = p.archive === "charm-grok";
-            const lbl = narrow && !p.onCurve ? null : placeLabel(px, py, p.code);
+            const group = points.filter((q) => q.code === p.code);
+            const labelHere =
+              group.length < 2 ||
+              p === group.reduce((best, cur) => (cur.tieFlipRate > best.tieFlipRate ? cur : best));
+            const lbl = labelHere && !(narrow && !p.onCurve) ? placeLabel(px, py, p.code) : null;
             const color = p.onCurve ? EMBER : INK;
             return (
               <g key={`${p.judge}-${p.archive}`} {...anim(200 + i * 40)}>

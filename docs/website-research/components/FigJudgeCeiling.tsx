@@ -365,7 +365,7 @@ export function FigJudgeCeiling({
             tone="muted"
             verdict="CEILING"
             verdictColor={ASH}
-            labelSuffix={narrow ? "ceiling, not a candidate" : undefined}
+            labelSuffix={narrow ? "ceiling" : undefined}
           />
 
           {/* separator + invalid row */}
@@ -382,7 +382,7 @@ export function FigJudgeCeiling({
             tone="faded"
             verdict="INVALID"
             verdictColor={SLATE}
-            labelSuffix={narrow ? "invalid, not a result" : undefined}
+            labelSuffix={narrow ? "not a result" : undefined}
           />
 
           {/* axis */}
