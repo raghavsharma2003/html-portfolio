@@ -1383,6 +1383,16 @@ async function purgeRelational(device, scope, { logIds = [], rx = null, from = N
   }
 
   // ── step 2: which episodes die ──
+  //
+  // WS-AGENTSCOPE: everything from here down is the FORGET LANE and carries NO
+  // agent-scope clause, deliberately. §6: "a full wipe of a person deletes
+  // their rows across ALL agents (it is their data, not the agent's)". A
+  // partial forget takes the same reading — asking her to forget a thing means
+  // the thing is gone, not that one tenant stopped citing it. Adding the
+  // predicate here would silently narrow the proven G-E5 property, which is the
+  // one direction this file is not allowed to move. A LATER per-agent wipe
+  // ("forget what THIS agent knows") is a second scope value, not a change to
+  // this one, and it does not exist yet because no second agent does.
   const seeds = new Set();
   if (logIds.length) {
     const hit = await q(
