@@ -118,6 +118,15 @@ The owner's approval was ~$400-equivalent **from the Azure grant, not cash**
 Microsoft-for-Startups credits, and it silently charges the card on file.
 The anthropic judge family is therefore unavailable to this run.
 
+*(Amendment 2a, 2026-08-15: the "measured instance" this section's
+disjoint-family preference cited — grok-4.3's 16× same-vendor favoritism —
+was RETRACTED after a between-judge control showed family-disjoint judges
+exhibit the same or larger preference for the same arm; it was panel-wide
+register preference, not vendor loyalty (`grok43-favoritism-retracted`).
+The disjoint-family preference STANDS on structural grounds alone: a judge
+family disjoint from both arms gives the affinity confound no path,
+measured instance or not. All FAIL verdicts are unaffected.)*
+
 Revised judge selection, qualification bar unchanged (≥80% vs archived
 blind verdicts, transport-invalid runs refused by the harness):
 

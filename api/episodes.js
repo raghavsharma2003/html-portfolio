@@ -30,6 +30,18 @@ export const GAP_MS = 45 * 60_000;
  * every provisional row it re-segments, so an episode that has already been
  * finalized is never picked up here (superseded_by is not null by then).
  */
+// GAP 1 (WS-FELT) trace note: `participation` here is a caller-supplied
+// parameter, but every live caller (the `call_end`/`watch_visual`/
+// `watch_moment` ops in the handler below) omits it, so this default is
+// what actually ships. That is correct, not an oversight to "fix" by
+// wiring WE_TOKEN_RE in here too: the insert below always writes
+// `summary: ''` (a provisional row has no summary yet — nothing has been
+// derived from its content), so a regex classification at THIS point would
+// only ever see an empty string and could never legitimately produce 'we'.
+// Real classification needs the telegraphic summary a model derives, and
+// that only exists once api/consolidate.js's finalizePerson (or the
+// backfill script) writes the FINAL episode — see that file's own
+// WE_TOKEN_RE port for the classification this file cannot honestly do.
 export async function openOrExtendEpisode(person, device, channel, { gapMs = GAP_MS, participation = "user" } = {}) {
   const open = await q(
     `select id, ended_at, started_at from vy_episode

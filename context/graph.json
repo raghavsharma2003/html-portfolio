@@ -549,6 +549,12 @@
    "kind": "decision",
    "title": "Shared-friend v1 accepted: room-scoped disclosure as WHERE predicate, withdraw-not-delete, state-inert groups, Telegram admin-bit consent",
    "at": "2026-08-15"
+  },
+  {
+   "id": "grok43-favoritism-retracted",
+   "kind": "measurement",
+   "title": "RETRACTED: 16x same-vendor favoritism was panel-wide register preference (disjoint Mistral DiD larger); FAIL verdicts stand",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -1114,6 +1120,16 @@
   },
   {
    "src": "multiparty-v1-design",
+   "rel": "part_of",
+   "dst": "relational-wedge"
+  },
+  {
+   "src": "grok43-favoritism-retracted",
+   "rel": "supersedes",
+   "dst": "grok43-judge"
+  },
+  {
+   "src": "grok43-favoritism-retracted",
    "rel": "part_of",
    "dst": "relational-wedge"
   }

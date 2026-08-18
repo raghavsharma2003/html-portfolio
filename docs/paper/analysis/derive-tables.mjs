@@ -256,7 +256,37 @@ const familyCells = perCell
       ? (c.freshNonTiePickRateCandidate - c.archivedNonTiePickRateCandidate) * 100 : null,
   }));
 
-const out = { groundTruth, perCell, pooled: pooledOut, familyCells };
+// ── T5: the between-judge control on the favoritism claim ───────────────────
+// `measurements.md` grok43-judge reads grok-4.3's 81% pick rate for the xAI arm
+// (ground truth 5%) as ~16x same-vendor favoritism, controlled WITHIN the judge
+// by its conflict-free charm-luna cell. The BETWEEN-judge control is the one
+// that decides it: if family-disjoint judges show the same elevation on
+// charm-grok, the effect is not family, it is whatever makes every judge prefer
+// that arm. Difference-in-differences per judge = elevation(charm-grok) -
+// elevation(charm-luna), in percentage points.
+const didByJudge = [];
+{
+  const byJudge = new Map();
+  for (const f of familyCells) {
+    if (f.deltaPp == null) continue;
+    if (!byJudge.has(f.judge)) byJudge.set(f.judge, {});
+    byJudge.get(f.judge)[f.archive] = f;
+  }
+  for (const [judge, cells] of byJudge) {
+    const g = cells["charm-grok"], l = cells["charm-luna"];
+    if (!g || !l) continue;
+    didByJudge.push({
+      judge,
+      conflictArchive: g.conflict ? "charm-grok" : l.conflict ? "charm-luna" : null,
+      elevationGrokPp: g.deltaPp,
+      elevationLunaPp: l.deltaPp,
+      didPp: g.deltaPp - l.deltaPp,
+    });
+  }
+  didByJudge.sort((a, b) => b.didPp - a.didPp);
+}
+
+const out = { groundTruth, perCell, pooled: pooledOut, familyCells, didByJudge };
 
 if (asJson) { console.log(JSON.stringify(out, null, 2)); process.exit(0); }
 
@@ -313,5 +343,18 @@ for (const f of familyCells) {
     pct(f.freshCandidatePickRate), pct(f.groundTruthCandidatePickRate),
     f.deltaPp == null ? "n/a" : (f.deltaPp >= 0 ? "+" : "") + f.deltaPp.toFixed(1),
   ].map((s, i) => String(s).padEnd([26, 12, 10, 13, 10, 9][i])).join(""));
+}
+
+console.log("\n=== T5  Between-judge control on the favoritism claim (difference-in-differences) ===");
+console.log("If same-vendor favoritism is real, the judge with the family conflict on charm-grok");
+console.log("should show the largest DiD. It does not.\n");
+console.log(["judge", "conflict on", "elev. grok", "elev. luna", "DiD pp"].map((s, i) => s.padEnd([26, 14, 12, 12, 9][i])).join(""));
+for (const d of didByJudge) {
+  console.log([
+    d.judge, d.conflictArchive ?? "-",
+    (d.elevationGrokPp >= 0 ? "+" : "") + d.elevationGrokPp.toFixed(1),
+    (d.elevationLunaPp >= 0 ? "+" : "") + d.elevationLunaPp.toFixed(1),
+    (d.didPp >= 0 ? "+" : "") + d.didPp.toFixed(1),
+  ].map((s, i) => String(s).padEnd([26, 14, 12, 12, 9][i])).join(""));
 }
 console.log("");

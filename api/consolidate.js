@@ -38,6 +38,16 @@
 import { q } from "./_db.js";
 import { embedBatch, toHalfvecLiteral } from "./_embed.js";
 import { AZURE_ENDPOINT, AZURE_KEY, OPENROUTER_KEY } from "./_config.js";
+// GAP 2 (WS-FELT) — day-1 seed HTTP path only (see the handler below).
+// allow/ipOf + the device-uuid check is the exact pattern api/memory.js and
+// api/episodes.js already use; personIdFor is api/memory.js's own device→
+// person resolver (already imported the same way by api/episodes.js — same
+// precedent, not a new coupling). Neither import is touched by the CLI/cron
+// path this file also serves (`node api/consolidate.js` never calls the
+// handler function at all), so this adds one more module load and nothing
+// else to that path.
+import { allow, ipOf } from "./_ratelimit.js";
+import { personIdFor } from "./memory.js";
 
 const AZ_ENDPOINT = process.env.AZURE_ENDPOINT || AZURE_ENDPOINT;
 const AZ_KEY = process.env.AZURE_API_KEY || AZURE_KEY;
@@ -161,6 +171,21 @@ function telegraphic(s, cap = 160) {
 function wordCount(s) {
   return s.trim().split(/\s+/).filter(Boolean).length;
 }
+
+// mirrors relstate.ts's WE_TOKEN_RE exactly (source of truth:
+// src/engine/relstate.ts, SPEC §6.3's own shape-lint rule for WE-summaries:
+// "a we-summary with no dono/saath/we/together token pair is rejected") —
+// same verbatim-port precedent as HINDI_MARKER_WORDS/computeCsRatio further
+// down this file (deterministic regex, zero LLM judgement, so a duplicate
+// carries none of the confabulation risk the pattern/trust cut elsewhere in
+// this file is avoiding). Two shapes of the one rule: the JS RegExp
+// classifies participation at insert time below (finalizePerson); the ~*
+// SQL pattern (WE_TOKEN_SQL, Postgres ARE word-boundary syntax — same `\m`/
+// `\M` convention HINDI_MARKER_WORDS already uses, since POSIX `\b` is not a
+// word boundary in Postgres advanced regex) powers the one-time catch-up
+// backfill for rows written before this classification existed.
+const WE_TOKEN_RE = /\b(dono|dono[nm]e|saath|sath|we|together|hum(dono)?|humne)\b/i;
+const WE_TOKEN_SQL = `\\m(dono|dono[nm]e|saath|sath|we|together|hum(dono)?|humne)\\M`;
 
 async function suppressionRegexes(person) {
   const rows = await q(
@@ -311,12 +336,21 @@ async function finalizePerson(person, { dryRun = false } = {}) {
   const episodeIdByIdx = new Map();
   if (!dryRun) {
     for (const [idx, e] of acceptedEpIdx) {
+      // GAP 1 (WS-FELT): participation was hardcoded 'user' here regardless
+      // of content, so T6 we.callbacks (relstate.ts's renderWeCallbacks,
+      // gated on participation='we' at the api/memory.js query) rendered ""
+      // for every real user even though the summary itself carried a WE
+      // token. Classify with the same WE_TOKEN_RE relstate.ts's own
+      // renderWeCallbacks re-checks client-side (belt-and-braces, see that
+      // function's own comment) — one rule, checked in both places, never
+      // drifting.
+      const participation = WE_TOKEN_RE.test(e.summary) ? "we" : "user";
       const ins = await q(
         `insert into vy_episode (person_id, device_id, channel, participation, started_at, ended_at,
            boundary_reason, log_from, log_to, summary, affect_tags, importance, provisional)
-         values ($1,$2,$3,'user',$4,$5,$6,$7,$8,$9,$10::jsonb,$11,false)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,false)
          returning id`,
-        [person, batch[0].device_id, e.channel, new Date(e.startedAt).toISOString(), new Date(e.endedAt).toISOString(), e.reason, e.logFrom, e.logTo, e.summary, JSON.stringify(e.affect), e.importance],
+        [person, batch[0].device_id, e.channel, participation, new Date(e.startedAt).toISOString(), new Date(e.endedAt).toISOString(), e.reason, e.logFrom, e.logTo, e.summary, JSON.stringify(e.affect), e.importance],
       ).catch(() => []);
       if (ins[0]) episodeIdByIdx.set(idx, ins[0].id);
     }
@@ -655,8 +689,24 @@ async function refreshDerivedDims(person) {
   const ritualDensity = Math.round((Number(ritualRows[0]?.density ?? 0)) * 1000) / 1000;
   const pv = pacingRows[0]?.pacing_gap_s;
   const pacingGapS = pv === null || pv === undefined ? null : Math.round(Number(pv));
+  // DISCOVERED, not one of the five named gaps but load-bearing to all of
+  // them: this was a plain UPDATE, which no-ops when no vy_rel_state row
+  // exists yet — and nothing in the normal (non-forget) path ever INSERTs
+  // the first one (confirmed against the live DB: 0 rows for 40 real
+  // vy_person rows). api/memory.js's fetchRelBundle short-circuits to
+  // `relstate: null` whenever the row is missing, so this single no-op was
+  // silently voiding GAP 1/3/4's entire effect for every real user — the
+  // WE-episode fix, the currency rows, the closeness card all read from
+  // the same bundle this creates. Upsert, matching the shape
+  // rebuildRelState (this file's own forget-cascade rebuild, the one place
+  // that already creates this row) and relstate.ts's rebuildSnapshotFromDb
+  // both already use — first-write-wins the schema defaults for every
+  // other column via `insert ... on conflict do update`.
   await q(
-    `update vy_rel_state set cs_ratio = $2, ritual_density = $3, pacing_gap_s = $4 where person_id = $1`,
+    `insert into vy_rel_state (person_id, cs_ratio, ritual_density, pacing_gap_s)
+     values ($1,$2,$3,$4)
+     on conflict (person_id) do update set
+       cs_ratio = $2, ritual_density = $3, pacing_gap_s = $4`,
     [person, csRatio, ritualDensity, pacingGapS],
   ).catch(() => {});
   return { csRatio, ritualDensity, pacingGapS };
@@ -705,14 +755,22 @@ async function deriveRelEventsForPerson(person, { dryRun = false } = {}) {
   const evidence = [];
   for (const ep of episodes) {
     const rows = await q(
-      // meera_log.role is 'her'/'me' (api/memory.js opLog's own insert
-      // shape), NOT 'user' — the user's own turns are role='me'. Noted
-      // because relstate.ts's computeCsRatio (already-landed WS-RELSTATE
-      // code, mirrored verbatim below in refreshDerivedDims for fidelity)
-      // filters on l.role = 'me', which cannot match any row under this
-      // schema; flagged in the integration report as a likely pre-existing
-      // bug rather than "fixed" here bug-compatibly. This query is new code
-      // with no such mirror obligation, so it uses the real value.
+      // GAP 5 (WS-FELT), correcting a stale comment that stood here: this
+      // file self-flagged relstate.ts's computeCsRatio (mirrored verbatim
+      // in refreshDerivedDims below) as filtering on `l.role = 'me'`, which
+      // it claimed "cannot match any row under this schema" — but
+      // meera_log.role IS 'her'/'me' (api/memory.js opLog's own insert
+      // shape; confirmed against db/schema.sql, which has no CHECK and so
+      // is silent, and against the one file that actually writes rows).
+      // The user's own turns ARE role='me'; that filter matches, in both
+      // this query and refreshDerivedDims's mirror of it. There is no
+      // mismatch (this is the same class of bug as the role='user' typo
+      // relstate.ts itself once carried and already fixed — see that
+      // file's own history — but that fix had already landed by the time
+      // this comment was written, so the "flagged as a likely pre-existing
+      // bug" note above was simply never true. The stale claim is removed;
+      // this query and refreshDerivedDims's `l.role = 'me'` filter are both
+      // already correct as written — no SQL changed.
       `select content, at from meera_log
         where device_id in (select device_id from vy_person_device where person_id = $1
                              union select $1::uuid)
@@ -737,9 +795,13 @@ async function deriveRelEventsForPerson(person, { dryRun = false } = {}) {
          values ($1,'honorific',$2,$3,$4,$5,$6)`,
         [person, current, move.next, move.direction, telegraphic(move.note, 160), move.citations],
       ).catch(() => {});
-      await q(`update vy_rel_state set honorific = $2 where person_id = $1`, [person, move.next]).catch(
-        () => {},
-      );
+      // same discovered no-op-on-missing-row issue as refreshDerivedDims
+      // above, same upsert fix
+      await q(
+        `insert into vy_rel_state (person_id, honorific) values ($1,$2)
+         on conflict (person_id) do update set honorific = $2`,
+        [person, move.next],
+      ).catch(() => {});
       rep.honorific_moved = true;
     }
   } else if (move && dryRun) {
@@ -773,10 +835,38 @@ export async function runRelEventDerivation({ limit = DEFAULT_PERSON_LIMIT, dryR
   };
 }
 
+// One-time catch-up (GAP 1, WS-FELT) for episodes FINALIZED BEFORE the
+// insert-time classification fix above existed: they are stuck at
+// participation='user' forever even though their own summary genuinely
+// carries a WE token, because finalize never revisits a row once written.
+// Idempotent by construction — a row this UPDATE touches is set to 'we',
+// which removes it from the WHERE clause, so running it every nightly pass
+// (cheap: one indexed UPDATE) never re-touches a row twice and never races
+// the insert-time fix (new rows are already classified correctly and simply
+// never match `participation = 'user'` AND the WE pattern at the same time
+// unless the pattern is genuinely present — the same rule, twice). Scoped
+// to `onlyPerson` when given, same as the rest of this file's cursor
+// discipline. `dryRun` reports the count without writing (SELECT, not
+// UPDATE) — this is the "run it as SELECT count first, read-only" the
+// rollout checklist asks for.
+async function backfillWeParticipation({ dryRun = false, onlyPerson = null } = {}) {
+  const where = onlyPerson
+    ? `where person_id = $2 and participation = 'user' and summary ~* $1`
+    : `where participation = 'user' and summary ~* $1`;
+  const params = onlyPerson ? [WE_TOKEN_SQL, onlyPerson] : [WE_TOKEN_SQL];
+  if (dryRun) {
+    const rows = await q(`select count(*)::int as n from vy_episode ${where}`, params).catch(() => []);
+    return Number(rows[0]?.n ?? 0);
+  }
+  const rows = await q(`update vy_episode set participation = 'we' ${where} returning id`, params).catch(() => []);
+  return rows.length;
+}
+
 /** The run itself: pick eligible people, finalize each, halt on a runaway
  *  entailment refutation rate. */
 export async function runConsolidation({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null } = {}) {
   const t0 = Date.now();
+  const weBackfilled = await backfillWeParticipation({ dryRun, onlyPerson });
   const persons = onlyPerson ? [onlyPerson] : await findEligiblePersons(limit);
   const reports = [];
   let totalAudited = 0;
@@ -799,6 +889,7 @@ export async function runConsolidation({ limit = DEFAULT_PERSON_LIMIT, dryRun = 
   return {
     ok: !halted,
     halted,
+    we_backfilled: weBackfilled,
     persons_processed: reports.length,
     persons_eligible: persons.length,
     episodes_finalized: reports.reduce((s, r) => s + r.episodes, 0),
@@ -816,6 +907,8 @@ export async function runConsolidation({ limit = DEFAULT_PERSON_LIMIT, dryRun = 
   };
 }
 
+const DEVICE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -823,6 +916,44 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   try {
     const body = req.body || {};
+
+    // GAP 2 (WS-FELT) — day-1 seed: a SAFE, NARROW path for the client
+    // itself to ask for a single-person consolidation right after
+    // onboarding, so the relational engine has something to render before
+    // the first 03:30 IST cron ever runs (Onboarding.tsx's fire-and-forget
+    // call). This is the only branch of this handler a browser is meant to
+    // reach, so it is the only branch that gets device-identity auth +
+    // rate limiting — the exact pattern api/memory.js/api/episodes.js use
+    // (UUID check + allow()), copied rather than invented. The part that
+    // keeps this from being an arbitrary-person trigger: `onlyPerson` and
+    // `limit` are DERIVED from the resolved device, never taken from the
+    // request body — a caller can only ever seed their OWN device's
+    // person, one person, one pass. Failure here must be invisible to the
+    // caller (fire-and-forget), but the endpoint itself still answers
+    // honestly; the client is the one that ignores the response.
+    if (typeof body.device === "string") {
+      if (!DEVICE_UUID.test(body.device)) return res.status(400).json({ error: "device uuid required" });
+      if (!allow(ipOf(req), "consolidate_seed", 6)) return res.status(429).json({ error: "slow down" });
+      const person = await personIdFor(body.device);
+      const out = await runConsolidation({ limit: 1, dryRun: false, onlyPerson: person });
+      // Chained, same order the nightly cron uses (consolidate.yml: finalize
+      // THEN --derive-rel-events) — finalize alone produces FINAL episodes
+      // but never touches vy_rel_state itself; without this second step a
+      // day-1 seed would finalize episodes and still render nothing, since
+      // fetchRelBundle short-circuits on a missing vy_rel_state row. Cheap
+      // to always attempt (deriveRelEventsForPerson no-ops in ~1 query when
+      // there is nothing fresh to scan) and never blocks the response the
+      // client is discarding anyway.
+      const relOut = await runRelEventDerivation({ limit: 1, dryRun: false, onlyPerson: person }).catch(
+        () => null,
+      );
+      return res.status(out.halted ? 500 : 200).json({ ...out, rel_event_derivation: relOut });
+    }
+
+    // Unrestricted admin/cron/smoke-test path, unchanged — the nightly
+    // workflow calls this file's exported functions directly (never this
+    // HTTP handler), so the only real callers here are manual on-demand
+    // runs and the smoke test the file's header already documents.
     const out = await runConsolidation({
       limit: Number(body.limit) || DEFAULT_PERSON_LIMIT,
       dryRun: body.dryRun === true,

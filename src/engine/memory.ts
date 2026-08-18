@@ -308,3 +308,45 @@ export function takeRelBundle(device: string): RelBundleInput | null {
   lastBundle = null;
   return b;
 }
+
+// GAP 2 (WS-FELT) — day-1 seed. Telemetry-style, fire-and-forget ONLY,
+// same discipline as useCallEngine.ts's postEpisodeCallEnd (its own
+// comment: "never awaited by anything ... its promise is always caught").
+// Called once, right after onboarding, so the relational engine has
+// something to render before the first 03:30 IST cron ever runs — the
+// cron remains the backstop regardless of whether this call lands.
+export function seedDayOneConsolidation(device: string) {
+  if (!device) return;
+  try {
+    void fetch(`${BASE}/api/consolidate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device }),
+      keepalive: true, // survives onboarding's own screen transition right after
+    }).catch(() => {});
+  } catch {
+    /* never let a seed attempt throw into onboarding */
+  }
+}
+
+// GAP 4 (WS-FELT) — closeness card. A dedicated read of the same relstate
+// bundle op:"recall" already carries (api/memory.js's fetchRelBundle), so
+// MoreSheet gets a fresh read on its own schedule instead of depending on
+// `takeRelBundle`'s consume-once cache, which is tied to the chat lane's
+// own recall timing and may be stale or already consumed by the time
+// someone opens Settings. Same 2s-timeout discipline as runRecall — a slow
+// network must not hang a settings sheet. `null` on any failure, same as
+// every other "no data yet" case in this file.
+export async function fetchRelState(device: string): Promise<RelBundleInput | null> {
+  if (!device) return null;
+  try {
+    const timeout = new Promise<null>((r) => setTimeout(() => r(null), 2500));
+    const fetchIt = post({ op: "recall", device, query: "" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => (d?.relstate as RelBundleInput | null | undefined) ?? null)
+      .catch(() => null);
+    return await Promise.race([fetchIt, timeout]);
+  } catch {
+    return null;
+  }
+}

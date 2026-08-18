@@ -24,8 +24,11 @@ doubled-tone-marker bug fired there. Mechanism: 36.1 words/turn vs 20.5, 1.74
 questions/turn, 63% of turns ending in a question, and in chat one turn in five
 losing bubbles to the 4-bubble parser cap.
 
-**Position bias was real** — the judge picked slot A on 61% of non-tie
-judgments. That is why both orders are always run.
+**Position bias was real** — the judge picked slot A on ~~61%~~ **56.3%**
+of non-tie judgments (AMENDED 2026-08-15: the 61% figure belongs to
+charm-luna; recomputed from raw rows in docs/paper/analysis/
+derive-tables.mjs — see `grok43-favoritism-retracted`). That is why both
+orders are always run.
 
 Tested against the **actual Foundry deployment**, which currently serves
 `grok-4.20-beta-0309-non-reasoning` — a beta build that could change underneath
@@ -859,3 +862,31 @@ day-1 seed via onlyPerson consolidation, chips→vy_currency authored rows,
 closeness card, cs_ratio self-flagged SQL bug). Ticketed as judgment work,
 not flag flips: call-lane rel bundle (latency seam), trust/repair
 derivation, pattern extraction, phrase capture.
+
+---
+
+## `grok43-favoritism-retracted` — the 16× same-vendor favoritism claim does not survive its control (2026-08-15)
+
+WS-PAPER ran the between-judge control the original measurement lacked,
+coordinator-reproduced from raw judges.json rows (docs/paper/analysis/
+derive-tables.mjs): if same-vendor favoritism were real, the judge with
+the family conflict on charm-grok should show the largest elevation for
+that archive's candidate arm. It does not — family-DISJOINT Mistral shows
++83.9pp (DiD +71.7) vs grok-4.3's own-family +76.0pp (DiD +63.1), and
+terra's conflicted cell (charm-luna) runs NEGATIVE (−9.7 DiD). Every
+failed judge prefers the verbose question-stacking arm regardless of
+family; the opus judges (small parsed subset) sit near zero on both.
+`grok43-judge`'s favoritism attribution is RETRACTED; its FAIL verdict
+stands untouched (34.4% pooled is a fail whatever the mechanism).
+
+Also corrected in the same pass: `cohere-judge`'s "every Azure-direct
+disjoint family tried and failed" overstated — Llama-4-Maverick was NA on
+this tenant, never tried; and the 61% slot-A figure this program has been
+citing as charm-grok's belongs to charm-luna (charm-grok's is 56.3%).
+
+Consequence for the prereg: Amendment 2's one-judge-family deviation loses
+its "measured instance" of the affinity confound but keeps its structural
+justification (a judge family disjoint from both arms gives the confound
+no path). Prereg amended to say exactly that. The lesson logged where it
+belongs: a difference-in-differences without a between-judge control is a
+mechanism claim waiting to be retracted.
