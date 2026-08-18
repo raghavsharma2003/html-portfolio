@@ -1,0 +1,14 @@
+{
+  "id": "example-openrouter-judge",
+  "family": "example-vendor",
+  "provider": "openrouter",
+  "model": "vendor/model-name",
+  "apiKeyEnv": "JUDGE_OPENROUTER_KEY",
+  "tokenParam": "max_tokens",
+  "temperature": 0,
+  "reasoningEffort": null,
+  "maxTokens": 400,
+  "pricing": { "promptPerToken": 0.000005, "completionPerToken": 0.000025 },
+  "_pricing_note": "Rates move. Re-fetch before every run; a stale rate is worse than no rate because it looks authoritative.",
+  "_maxTokens_note": "400, not 120. A reasoning model can spend an entire small cap on hidden reasoning and return an empty visible completion — which is exactly how this study lost its most flattering result (128 of 192 replies empty). Size the cap for the model, then check the parse-miss count before believing anything."
+}

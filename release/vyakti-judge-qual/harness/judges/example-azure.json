@@ -1,0 +1,14 @@
+{
+  "id": "example-azure-judge",
+  "family": "example-vendor",
+  "provider": "azure",
+  "model": "YOUR-DEPLOYMENT-NAME",
+  "apiKeyEnv": "JUDGE_AZURE_KEY",
+  "tokenParam": "max_tokens",
+  "temperature": 1,
+  "reasoningEffort": null,
+  "maxTokens": 120,
+  "pricing": null,
+  "_pricing_note": "null means UNKNOWN, which is not zero. costUsd() returns NaN for it on purpose, so a spend cap cannot be silently certified against a rate nobody has.",
+  "_endpoint_note": "The endpoint is read from the JUDGE_AZURE_ENDPOINT environment variable, never from this file. No config in this repo ever carries a key, a URL, or a resource identifier."
+}

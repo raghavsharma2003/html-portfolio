@@ -1,0 +1,14 @@
+{
+  "id": "example-reasoning-judge",
+  "family": "example-vendor",
+  "provider": "azure",
+  "model": "YOUR-REASONING-DEPLOYMENT",
+  "apiKeyEnv": "JUDGE_AZURE_KEY",
+  "tokenParam": "max_completion_tokens",
+  "temperature": null,
+  "reasoningEffort": "none",
+  "maxTokens": 400,
+  "pricing": null,
+  "_temperature_note": "null means OMIT THE FIELD, not send 0. Several reasoning deployments reject any explicit temperature other than their default and return 400.",
+  "_reasoningEffort_note": "\"none\" is what stops the deployment spending its whole visible budget on hidden reasoning tokens. Verify live: probe one call and check that visible content is non-empty before spending a run."
+}

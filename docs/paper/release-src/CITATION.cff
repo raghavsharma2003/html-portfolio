@@ -1,0 +1,50 @@
+cff-version: 1.2.0
+title: >-
+  vyakti-judge-qual: a judge-qualification protocol, harness and
+  backtest corpus for LLM-as-a-judge on affective preference tasks
+message: >-
+  If you use this suite or its data, please cite the accompanying
+  paper. Please also read DATASHEET.md: the ground truth here is
+  LLM-produced, not human-annotated, and agreement with it is not
+  accuracy.
+type: dataset
+authors:
+  - family-names: Sharma
+    given-names: Raghav
+    affiliation: Vyakti.ai
+  - family-names: Sharma
+    given-names: Gaurav
+    affiliation: Vyakti.ai
+  - family-names: Tiwari
+    given-names: Aryan
+    affiliation: Vyakti.ai
+license: Apache-2.0
+license-url: https://www.apache.org/licenses/LICENSE-2.0
+keywords:
+  - LLM-as-a-judge
+  - evaluation
+  - construct validity
+  - position bias
+  - code-switching
+  - Hinglish
+  - test-retest reliability
+preferred-citation:
+  type: conference-paper
+  title: >-
+    It's Not the Code-Switching: Six Frontier LLM Judges Fail a
+    Pre-Registered Qualification Bar - and the Bar Was Above Its Own
+    Ground Truth's Ceiling
+  year: 2026
+  collection-title: >-
+    JUDGe 2026: Can We Trust the Judge? Workshop at NeurIPS 2026
+    (non-archival)
+  authors:
+    - family-names: Sharma
+      given-names: Raghav
+      affiliation: Vyakti.ai
+    - family-names: Sharma
+      given-names: Gaurav
+      affiliation: Vyakti.ai
+    - family-names: Tiwari
+      given-names: Aryan
+      affiliation: Vyakti.ai

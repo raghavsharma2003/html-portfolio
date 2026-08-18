@@ -1,0 +1,36 @@
+Creative Commons Attribution 4.0 International (CC BY 4.0)
+SPDX-License-Identifier: CC-BY-4.0
+
+This licence applies to the DATA in this repository:
+  data/**  (transcripts, ground-truth verdicts, judge rows, run summaries)
+
+The CODE (harness/**, analysis/**) is licensed separately under Apache-2.0;
+see LICENSE-CODE.
+
+You are free to:
+  Share  - copy and redistribute the material in any medium or format
+  Adapt  - remix, transform, and build upon the material
+for any purpose, including commercially.
+
+Under the following term:
+  Attribution - You must give appropriate credit, provide a link to the
+  licence, and indicate if changes were made. You may do so in any reasonable
+  manner, but not in any way that suggests the licensor endorses you or your
+  use. See CITATION.cff.
+
+No additional restrictions - You may not apply legal terms or technological
+measures that legally restrict others from doing anything the licence permits.
+
+The full legal code is at:
+  https://creativecommons.org/licenses/by/4.0/legalcode
+The human-readable deed is at:
+  https://creativecommons.org/licenses/by/4.0/
+
+CC BY 4.0 was chosen deliberately over a non-commercial or share-alike licence:
+a qualification protocol nobody may use commercially does not get adopted, and
+adoption is the point of releasing one. The commercial protection for the
+product this data came from lives in an unreleased system prompt, not here.
+
+A REQUEST THAT IS NOT A LICENCE TERM, because we will not encumber the licence
+with it: please do not present this data as a benchmark of judge CORRECTNESS.
+Its ground truth is LLM-produced, not human-annotated. See DATASHEET.md.

@@ -1,0 +1,25 @@
+{
+  "note": "Counts asserted by the builder against the built tree, so a silently truncated extraction fails loudly rather than shipping.",
+  "archives": {
+    "charm-grok": {
+      "units": 96,
+      "verdicts": 96
+    },
+    "charm-luna": {
+      "units": 96,
+      "verdicts": 96
+    }
+  },
+  "judge_rows": {
+    "r0_overall": 1536,
+    "r2_per_axis": 5760,
+    "r4_english": 960
+  },
+  "r4_english_transcripts": 192,
+  "place_references_retained": {
+    "Silk Board": 50,
+    "silk board": 30,
+    "Bangalore": 40,
+    "Bandra": 1
+  }
+}

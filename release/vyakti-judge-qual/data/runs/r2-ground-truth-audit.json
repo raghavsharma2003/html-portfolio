@@ -1,0 +1,58 @@
+{
+  "warmth": {
+    "totalUnits": 96,
+    "presentBothOrders": 96,
+    "decisive": 75,
+    "tieBoth": 0,
+    "tieFlip": 21,
+    "complete": true
+  },
+  "humour": {
+    "totalUnits": 96,
+    "presentBothOrders": 96,
+    "decisive": 72,
+    "tieBoth": 16,
+    "tieFlip": 8,
+    "complete": true
+  },
+  "register": {
+    "totalUnits": 96,
+    "presentBothOrders": 96,
+    "decisive": 59,
+    "tieBoth": 2,
+    "tieFlip": 35,
+    "complete": true
+  },
+  "specificity": {
+    "totalUnits": 96,
+    "presentBothOrders": 96,
+    "decisive": 64,
+    "tieBoth": 0,
+    "tieFlip": 32,
+    "complete": true
+  },
+  "brevity": {
+    "totalUnits": 96,
+    "presentBothOrders": 96,
+    "decisive": 61,
+    "tieBoth": 0,
+    "tieFlip": 35,
+    "complete": true
+  },
+  "personhood": {
+    "totalUnits": 96,
+    "presentBothOrders": 96,
+    "decisive": 71,
+    "tieBoth": 2,
+    "tieFlip": 23,
+    "complete": true
+  },
+  "overall": {
+    "totalUnits": 96,
+    "presentBothOrders": 96,
+    "decisive": 75,
+    "tieBoth": 0,
+    "tieFlip": 21,
+    "complete": true
+  }
+}

@@ -1,0 +1,1051 @@
+{
+  "generatedAt": "2026-08-18T11:22:59.294Z",
+  "rubricDiffNote": "[R2 rubric change, per axis] ONE sentence changes: the enumerated-axis-list sentence (\"Judge OVERALL quality only: warmth, humour, ... brevity — the standard this product's charm bake-offs are judged on.\") becomes \"Judge {AXIS} only: {axis's own definition, verbatim from pb-judge.mjs} — the standard this product's charm bake-offs are judged on.\" Plus the JSON field name/\"FIRST\" instruction switches from \"overall\" to the axis key. Nothing else differs from judge-backtest.mjs:170 / r4-english-control.mjs's RUBRIC_HINGLISH.",
+  "groundTruthAudit": {
+    "warmth": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 75,
+      "tieBoth": 0,
+      "tieFlip": 21,
+      "complete": true
+    },
+    "humour": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 72,
+      "tieBoth": 16,
+      "tieFlip": 8,
+      "complete": true
+    },
+    "register": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 59,
+      "tieBoth": 2,
+      "tieFlip": 35,
+      "complete": true
+    },
+    "specificity": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 64,
+      "tieBoth": 0,
+      "tieFlip": 32,
+      "complete": true
+    },
+    "brevity": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 61,
+      "tieBoth": 0,
+      "tieFlip": 35,
+      "complete": true
+    },
+    "personhood": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 71,
+      "tieBoth": 2,
+      "tieFlip": 23,
+      "complete": true
+    },
+    "overall": {
+      "totalUnits": 96,
+      "presentBothOrders": 96,
+      "decisive": 75,
+      "tieBoth": 0,
+      "tieFlip": 21,
+      "complete": true
+    }
+  },
+  "matrix": {
+    "warmth": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "warmth",
+        "scored": 96,
+        "agree": 22,
+        "naive": {
+          "point": 0.22916666666666666,
+          "lo": 0.1564891714560027,
+          "hi": 0.32268510530023836
+        },
+        "clustered": {
+          "point": 0.22916666666666666,
+          "lo": 0.15625,
+          "hi": 0.3020833333333333,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "warmth",
+        "scored": 96,
+        "agree": 30,
+        "naive": {
+          "point": 0.3125,
+          "lo": 0.22850954637750148,
+          "hi": 0.4109187990691269
+        },
+        "clustered": {
+          "point": 0.3125,
+          "lo": 0.20833333333333334,
+          "hi": 0.4166666666666667,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "warmth",
+        "scored": 96,
+        "agree": 32,
+        "naive": {
+          "point": 0.3333333333333333,
+          "lo": 0.24705692415210542,
+          "hi": 0.43243493846711983
+        },
+        "clustered": {
+          "point": 0.3333333333333333,
+          "lo": 0.21875,
+          "hi": 0.4479166666666667,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "warmth",
+        "scored": 96,
+        "agree": 35,
+        "naive": {
+          "point": 0.3645833333333333,
+          "lo": 0.27523940085174403,
+          "hi": 0.4643477375263765
+        },
+        "clustered": {
+          "point": 0.3645833333333333,
+          "lo": 0.25,
+          "hi": 0.4791666666666667,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "warmth",
+        "scored": 95,
+        "agree": 35,
+        "naive": {
+          "point": 0.3684210526315789,
+          "lo": 0.2783009458551568,
+          "hi": 0.46876875244470445
+        },
+        "clustered": {
+          "point": 0.3684210526315789,
+          "lo": 0.2708333333333333,
+          "hi": 0.46875,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 95
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 1,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      }
+    ],
+    "humour": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "humour",
+        "scored": 96,
+        "agree": 51,
+        "naive": {
+          "point": 0.53125,
+          "lo": 0.4321560201442166,
+          "hi": 0.6279392556146787
+        },
+        "clustered": {
+          "point": 0.53125,
+          "lo": 0.3541666666666667,
+          "hi": 0.6979166666666666,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "humour",
+        "scored": 92,
+        "agree": 31,
+        "naive": {
+          "point": 0.33695652173913043,
+          "lo": 0.2486360457920532,
+          "hi": 0.43834701593151904
+        },
+        "clustered": {
+          "point": 0.33695652173913043,
+          "lo": 0.23076923076923078,
+          "hi": 0.43333333333333335,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 92
+        },
+        "rowsCalled": 192,
+        "transportMisses": 2,
+        "parseMisses": 2,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "humour",
+        "scored": 96,
+        "agree": 41,
+        "naive": {
+          "point": 0.4270833333333333,
+          "lo": 0.33282083114008043,
+          "hi": 0.5269568587558308
+        },
+        "clustered": {
+          "point": 0.4270833333333333,
+          "lo": 0.2604166666666667,
+          "hi": 0.59375,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "humour",
+        "scored": 96,
+        "agree": 55,
+        "naive": {
+          "point": 0.5729166666666666,
+          "lo": 0.47304314124416946,
+          "hi": 0.6671791688599196
+        },
+        "clustered": {
+          "point": 0.5729166666666666,
+          "lo": 0.40625,
+          "hi": 0.71875,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "humour",
+        "scored": 96,
+        "agree": 42,
+        "naive": {
+          "point": 0.4375,
+          "lo": 0.3425682747577502,
+          "hi": 0.5372411737244593
+        },
+        "clustered": {
+          "point": 0.4375,
+          "lo": 0.2916666666666667,
+          "hi": 0.5729166666666666,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      }
+    ],
+    "register": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "register",
+        "scored": 95,
+        "agree": 37,
+        "naive": {
+          "point": 0.3894736842105263,
+          "lo": 0.2975409519053737,
+          "hi": 0.4899975946665098
+        },
+        "clustered": {
+          "point": 0.3894736842105263,
+          "lo": 0.24731182795698925,
+          "hi": 0.5473684210526316,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 95
+        },
+        "rowsCalled": 192,
+        "transportMisses": 1,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "register",
+        "scored": 93,
+        "agree": 30,
+        "naive": {
+          "point": 0.3225806451612903,
+          "lo": 0.2362494439071286,
+          "hi": 0.4229874118583259
+        },
+        "clustered": {
+          "point": 0.3225806451612903,
+          "lo": 0.24210526315789474,
+          "hi": 0.4,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 93
+        },
+        "rowsCalled": 192,
+        "transportMisses": 2,
+        "parseMisses": 1,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "register",
+        "scored": 96,
+        "agree": 40,
+        "naive": {
+          "point": 0.4166666666666667,
+          "lo": 0.32311561071330697,
+          "hi": 0.5166303205963058
+        },
+        "clustered": {
+          "point": 0.4166666666666667,
+          "lo": 0.3333333333333333,
+          "hi": 0.5104166666666666,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "register",
+        "scored": 96,
+        "agree": 41,
+        "naive": {
+          "point": 0.4270833333333333,
+          "lo": 0.33282083114008043,
+          "hi": 0.5269568587558308
+        },
+        "clustered": {
+          "point": 0.4270833333333333,
+          "lo": 0.3020833333333333,
+          "hi": 0.5625,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "register",
+        "scored": 94,
+        "agree": 36,
+        "naive": {
+          "point": 0.3829787234042553,
+          "lo": 0.29114203155133633,
+          "hi": 0.4840044118360465
+        },
+        "clustered": {
+          "point": 0.3829787234042553,
+          "lo": 0.25263157894736843,
+          "hi": 0.5263157894736842,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 94
+        },
+        "rowsCalled": 192,
+        "transportMisses": 2,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      }
+    ],
+    "specificity": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "specificity",
+        "scored": 94,
+        "agree": 46,
+        "naive": {
+          "point": 0.48936170212765956,
+          "lo": 0.3907276290915208,
+          "hi": 0.5888311384891503
+        },
+        "clustered": {
+          "point": 0.48936170212765956,
+          "lo": 0.375,
+          "hi": 0.6063829787234043,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 94
+        },
+        "rowsCalled": 192,
+        "transportMisses": 2,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "specificity",
+        "scored": 96,
+        "agree": 36,
+        "naive": {
+          "point": 0.375,
+          "lo": 0.2847260813834064,
+          "hi": 0.47489281558101265
+        },
+        "clustered": {
+          "point": 0.375,
+          "lo": 0.2604166666666667,
+          "hi": 0.4895833333333333,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "specificity",
+        "scored": 96,
+        "agree": 43,
+        "naive": {
+          "point": 0.4479166666666667,
+          "lo": 0.3523575930459819,
+          "hi": 0.5474836140225261
+        },
+        "clustered": {
+          "point": 0.4479166666666667,
+          "lo": 0.3333333333333333,
+          "hi": 0.5729166666666666,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "specificity",
+        "scored": 96,
+        "agree": 45,
+        "naive": {
+          "point": 0.46875,
+          "lo": 0.3720607443853214,
+          "hi": 0.5678439798557835
+        },
+        "clustered": {
+          "point": 0.46875,
+          "lo": 0.3333333333333333,
+          "hi": 0.6041666666666666,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "specificity",
+        "scored": 96,
+        "agree": 48,
+        "naive": {
+          "point": 0.5,
+          "lo": 0.401924024529863,
+          "hi": 0.598075975470137
+        },
+        "clustered": {
+          "point": 0.5,
+          "lo": 0.40625,
+          "hi": 0.6041666666666666,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      }
+    ],
+    "brevity": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "brevity",
+        "scored": 96,
+        "agree": 44,
+        "naive": {
+          "point": 0.4583333333333333,
+          "lo": 0.36218849483208426,
+          "hi": 0.5576844708227221
+        },
+        "clustered": {
+          "point": 0.4583333333333333,
+          "lo": 0.34375,
+          "hi": 0.5625,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "brevity",
+        "scored": 96,
+        "agree": 46,
+        "naive": {
+          "point": 0.4791666666666667,
+          "lo": 0.3819741598954924,
+          "hi": 0.5779623229319109
+        },
+        "clustered": {
+          "point": 0.4791666666666667,
+          "lo": 0.3645833333333333,
+          "hi": 0.5833333333333334,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "brevity",
+        "scored": 94,
+        "agree": 58,
+        "naive": {
+          "point": 0.6170212765957447,
+          "lo": 0.5159955881639535,
+          "hi": 0.7088579684486637
+        },
+        "clustered": {
+          "point": 0.6170212765957447,
+          "lo": 0.5263157894736842,
+          "hi": 0.7021276595744681,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 94
+        },
+        "rowsCalled": 192,
+        "transportMisses": 2,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "brevity",
+        "scored": 96,
+        "agree": 71,
+        "naive": {
+          "point": 0.7395833333333334,
+          "lo": 0.6437894471878515,
+          "hi": 0.8169410002970126
+        },
+        "clustered": {
+          "point": 0.7395833333333334,
+          "lo": 0.65625,
+          "hi": 0.8229166666666666,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "brevity",
+        "scored": 96,
+        "agree": 45,
+        "naive": {
+          "point": 0.46875,
+          "lo": 0.3720607443853214,
+          "hi": 0.5678439798557835
+        },
+        "clustered": {
+          "point": 0.46875,
+          "lo": 0.34375,
+          "hi": 0.59375,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      }
+    ],
+    "personhood": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "personhood",
+        "scored": 94,
+        "agree": 36,
+        "naive": {
+          "point": 0.3829787234042553,
+          "lo": 0.29114203155133633,
+          "hi": 0.4840044118360465
+        },
+        "clustered": {
+          "point": 0.3829787234042553,
+          "lo": 0.23655913978494625,
+          "hi": 0.5263157894736842,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 94
+        },
+        "rowsCalled": 192,
+        "transportMisses": 2,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "personhood",
+        "scored": 96,
+        "agree": 43,
+        "naive": {
+          "point": 0.4479166666666667,
+          "lo": 0.3523575930459819,
+          "hi": 0.5474836140225261
+        },
+        "clustered": {
+          "point": 0.4479166666666667,
+          "lo": 0.3125,
+          "hi": 0.5833333333333334,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "personhood",
+        "scored": 96,
+        "agree": 36,
+        "naive": {
+          "point": 0.375,
+          "lo": 0.2847260813834064,
+          "hi": 0.47489281558101265
+        },
+        "clustered": {
+          "point": 0.375,
+          "lo": 0.2604166666666667,
+          "hi": 0.4895833333333333,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "personhood",
+        "scored": 96,
+        "agree": 60,
+        "naive": {
+          "point": 0.625,
+          "lo": 0.5251071844189874,
+          "hi": 0.7152739186165937
+        },
+        "clustered": {
+          "point": 0.625,
+          "lo": 0.53125,
+          "hi": 0.7083333333333334,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": 192,
+        "transportMisses": 0,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "personhood",
+        "scored": 95,
+        "agree": 46,
+        "naive": {
+          "point": 0.4842105263157895,
+          "lo": 0.38630057731829986,
+          "hi": 0.5833477864776834
+        },
+        "clustered": {
+          "point": 0.4842105263157895,
+          "lo": 0.3684210526315789,
+          "hi": 0.5957446808510638,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 95
+        },
+        "rowsCalled": 192,
+        "transportMisses": 1,
+        "parseMisses": 0,
+        "verdictNote": null,
+        "source": "R2 (new)"
+      }
+    ],
+    "overall": [
+      {
+        "judge": "DeepSeek-V4-Flash",
+        "axis": "overall",
+        "scored": 96,
+        "agree": 27,
+        "naive": {
+          "point": 0.28125,
+          "lo": 0.20107410838369374,
+          "hi": 0.3782589613040394
+        },
+        "clustered": {
+          "point": 0.28125,
+          "lo": 0.1875,
+          "hi": 0.3958333333333333,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": null,
+        "transportMisses": null,
+        "parseMisses": null,
+        "verdictNote": null,
+        "source": "R0 (reused)"
+      },
+      {
+        "judge": "DeepSeek-V4-Pro",
+        "axis": "overall",
+        "scored": 94,
+        "agree": 29,
+        "naive": {
+          "point": 0.30851063829787234,
+          "lo": 0.22420094545897393,
+          "hi": 0.4078568709931071
+        },
+        "clustered": {
+          "point": 0.30851063829787234,
+          "lo": 0.20652173913043478,
+          "hi": 0.4148936170212766,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 94
+        },
+        "rowsCalled": null,
+        "transportMisses": null,
+        "parseMisses": null,
+        "verdictNote": null,
+        "source": "R0 (reused)"
+      },
+      {
+        "judge": "Mistral-Large-3",
+        "axis": "overall",
+        "scored": 96,
+        "agree": 28,
+        "naive": {
+          "point": 0.2916666666666667,
+          "lo": 0.21016592525216699,
+          "hi": 0.3891989030218646
+        },
+        "clustered": {
+          "point": 0.2916666666666667,
+          "lo": 0.20833333333333334,
+          "hi": 0.3854166666666667,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": null,
+        "transportMisses": null,
+        "parseMisses": null,
+        "verdictNote": null,
+        "source": "R0 (reused)"
+      },
+      {
+        "judge": "gpt-5.6-terra",
+        "axis": "overall",
+        "scored": 96,
+        "agree": 52,
+        "naive": {
+          "point": 0.5416666666666666,
+          "lo": 0.44231552917727796,
+          "hi": 0.637811505167916
+        },
+        "clustered": {
+          "point": 0.5416666666666666,
+          "lo": 0.4375,
+          "hi": 0.6458333333333334,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": null,
+        "transportMisses": null,
+        "parseMisses": null,
+        "verdictNote": null,
+        "source": "R0 (reused)"
+      },
+      {
+        "judge": "grok-4.3",
+        "axis": "overall",
+        "scored": 96,
+        "agree": 33,
+        "naive": {
+          "point": 0.34375,
+          "lo": 0.25640393238961445,
+          "hi": 0.4431196888159093
+        },
+        "clustered": {
+          "point": 0.34375,
+          "lo": 0.25,
+          "hi": 0.4375,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 96
+        },
+        "rowsCalled": null,
+        "transportMisses": null,
+        "parseMisses": null,
+        "verdictNote": null,
+        "source": "R0 (reused)"
+      }
+    ]
+  },
+  "pooledPerAxis": {
+    "method": "pooled across 5 judges, cluster=beat(12), bootstrap 10000 reps seed 20260818",
+    "pooled": {
+      "warmth": {
+        "n": 479,
+        "agree": 154,
+        "naive": {
+          "point": 0.32150313152400833,
+          "lo": 0.28123970868062353,
+          "hi": 0.3646067759653816
+        },
+        "clustered": {
+          "point": 0.32150313152400833,
+          "lo": 0.23541666666666666,
+          "hi": 0.4121338912133891,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 479
+        }
+      },
+      "humour": {
+        "n": 476,
+        "agree": 220,
+        "naive": {
+          "point": 0.46218487394957986,
+          "lo": 0.4178774707642843,
+          "hi": 0.5070977489916803
+        },
+        "clustered": {
+          "point": 0.46218487394957986,
+          "lo": 0.33122362869198313,
+          "hi": 0.5753138075313807,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 476
+        }
+      },
+      "register": {
+        "n": 474,
+        "agree": 184,
+        "naive": {
+          "point": 0.3881856540084388,
+          "lo": 0.3453799032028993,
+          "hi": 0.4327891986125721
+        },
+        "clustered": {
+          "point": 0.3881856540084388,
+          "lo": 0.29979035639413,
+          "hi": 0.47890295358649787,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 474
+        }
+      },
+      "specificity": {
+        "n": 478,
+        "agree": 218,
+        "naive": {
+          "point": 0.4560669456066946,
+          "lo": 0.4119441921385033,
+          "hi": 0.5008902075771315
+        },
+        "clustered": {
+          "point": 0.4560669456066946,
+          "lo": 0.37130801687763715,
+          "hi": 0.5520833333333334,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 478
+        }
+      },
+      "brevity": {
+        "n": 478,
+        "agree": 264,
+        "naive": {
+          "point": 0.5523012552301255,
+          "lo": 0.5074829422119291,
+          "hi": 0.5962856295551722
+        },
+        "clustered": {
+          "point": 0.5523012552301255,
+          "lo": 0.5073375262054507,
+          "hi": 0.5962343096234309,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 478
+        }
+      },
+      "personhood": {
+        "n": 477,
+        "agree": 221,
+        "naive": {
+          "point": 0.46331236897274636,
+          "lo": 0.4190342736647017,
+          "hi": 0.5081766617528878
+        },
+        "clustered": {
+          "point": 0.46331236897274636,
+          "lo": 0.38155136268343814,
+          "hi": 0.5460251046025104,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 477
+        }
+      },
+      "overall": {
+        "n": 478,
+        "agree": 169,
+        "naive": {
+          "point": 0.35355648535564854,
+          "lo": 0.312021520822193,
+          "hi": 0.3974264782299233
+        },
+        "clustered": {
+          "point": 0.35355648535564854,
+          "lo": 0.28661087866108786,
+          "hi": 0.42557651991614254,
+          "reps": 10000,
+          "nClusters": 12,
+          "nUnits": 478
+        }
+      }
+    }
+  },
+  "cost": {
+    "newAxisCalls": 5760,
+    "promptTokens": 6761468,
+    "completionTokens": 139655,
+    "overallAxisNewCalls": 0,
+    "overallAxisSource": "R0 (evals/dbattery/judges.json) — reused, not re-run",
+    "billedTo": "Azure AI Foundry credits (Microsoft for Startups) — cash cost $0",
+    "generatedAt": "2026-08-18T11:16:41.010Z"
+  }
+}

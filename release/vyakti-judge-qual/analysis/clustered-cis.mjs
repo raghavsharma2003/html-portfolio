@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// docs/paper/analysis/clustered-cis.mjs — WS-PAPER-R, run R5.
+// analysis/clustered-cis.mjs — WS-PAPER-R, run R5.
 //
 // Gap G4 (DRAFT.md §10 C19 / §8 L4): the 96 judged units are NOT independent
 // Bernoulli trials. They cluster on 12 affective beats — each beat contributes
@@ -27,25 +27,25 @@
 // their cluster, which is the entire point of a cluster bootstrap). The
 // replicate's statistic is the pooled agreement rate over every unit in every
 // resampled block. 10,000 replicates, percentile CI, seeded via the SAME
-// mulberry32 PRNG evals/dbattery/common.mjs already uses elsewhere in this
+// mulberry32 PRNG harness/rng.mjs already uses elsewhere in this
 // programme (imported, not reimplemented) so "seeded, deterministic" means
 // the same thing here that it means everywhere else in the repo.
 //
 // No external stats library. No network. No judges.json write.
 //
-// Run:  node docs/paper/analysis/clustered-cis.mjs
-//       node docs/paper/analysis/clustered-cis.mjs --json
+// Run:  node analysis/clustered-cis.mjs
+//       node analysis/clustered-cis.mjs --json
 //
-// Reusable by R4 (docs/paper/analysis/r4-english-control.mjs imports
+// Reusable by R4 (analysis/r4-english-control.mjs imports
 // `clusterBootstrapAgreementCI` below) so the Hinglish-vs-English comparison
 // gets the same honest interval treatment, not a second ad hoc one.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { mulberry32 } from "../../../evals/dbattery/common.mjs";
+import { mulberry32 } from "../harness/rng.mjs";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const asJson = process.argv.includes("--json");
 const read = (p) => JSON.parse(readFileSync(resolve(ROOT, p), "utf8"));
 // Only run the R5 analysis/printing below when this file is executed
@@ -107,10 +107,10 @@ export function clusterBootstrapAgreementCI(units, { reps = 10000, alpha = 0.05,
 if (isMain) {
 // ── load the same two sources derive-tables.mjs reads ───────────────────────
 const ARCHIVES = [
-  { id: "charm-grok", file: "evals/archives/charm-grok/pb-judged-grok.json" },
-  { id: "charm-luna", file: "evals/archives/charm-luna/pb-judged.json" },
+  { id: "charm-grok", file: "data/archives/charm-grok/verdicts.json" },
+  { id: "charm-luna", file: "data/archives/charm-luna/verdicts.json" },
 ];
-const J = read("evals/dbattery/judges.json");
+const J = { ...read("data/runs/r0-pooled.json"), raw_rows: readFileSync(resolve(ROOT, "data/judge-rows/r0-overall.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)) };
 
 // unitKey convention throughout this programme: `${lane}|${beat}|${rep}`
 // (judge-backtest.mjs:241, derive-tables.mjs, common.mjs). Beat is the
@@ -173,7 +173,7 @@ table.sort((a, b) => order.indexOf(a.judge) - order.indexOf(b.judge));
 
 const anyVerdictChanged = table.some((t) => t.verdictChanged);
 
-const out = { method: "cluster (block) bootstrap, clusters=beat (12), 10000 reps, seed=20260818, percentile CI, mulberry32 PRNG (evals/dbattery/common.mjs)", bar: BAR, table, anyVerdictChanged };
+const out = { method: "cluster (block) bootstrap, clusters=beat (12), 10000 reps, seed=20260818, percentile CI, mulberry32 PRNG (harness/rng.mjs)", bar: BAR, table, anyVerdictChanged };
 
 if (asJson) { console.log(JSON.stringify(out, null, 2)); process.exit(0); }
 

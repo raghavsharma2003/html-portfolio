@@ -30,7 +30,9 @@ apparatus that does not ship. Sections that *do* ship carry the paper's number.
 | Abstract | **REWRITTEN** — §2 (every number traceable; matches the new title) |
 | Full section outline | **DRAFTED** — §3 |
 | **§4 Method** | **WRITTEN IN FULL** — every parameter from logged config |
-| **§5 Results** | **WRITTEN IN FULL** — every number recomputed by `analysis/derive-tables.mjs`; §5.8 [R5] clustering, §5.9 [R4] English-translation control, and §5.10 [R2] per-axis decomposition complete |
+| **§5 Results** | **WRITTEN IN FULL** — every number recomputed by `analysis/derive-tables.mjs`; §5.8 [R5] clustering, §5.9 [R4] English-translation control, §5.10 [R2] per-axis decomposition and §5.11 [R1] the ground-truth ceiling all complete |
+| **Camera-ready** | **WRITTEN — `docs/paper/CAMERA.md`**, the 6-page JUDGe 2026 submission. This file is the archive; CAMERA.md is what ships. |
+| **Release bundle** | **BUILT — `release/vyakti-judge-qual/`**, assembled by `docs/paper/build-release-bundle.mjs`, de-identification gates run and passing (§13.4) |
 | §2.2 Related work | **DRAFTED as an annotated citation list**, not yet prose. Citations verified by live fetch 2026-08-18 except where marked `[VERIFY]` |
 | **§6 Discussion** | **WRITTEN IN FULL** — prose, post-R4/R5 |
 | **§7 Limitations & Ethics** | **WRITTEN IN FULL** — prose, thirteen limitations + an ethics statement |
@@ -51,6 +53,12 @@ three offline, network-free analysis scripts:
   bootstrap (`--json` for machine-readable output);
 - `docs/paper/analysis/r4/summary.json` — the committed R4 output;
 - `docs/paper/analysis/r2/summary.json` and `docs/paper/analysis/r2/pooled-per-axis.json` — the committed R2 output (`r2-axis-decomposition.mjs --report` and `r2-pooled-per-axis.mjs` reproduce them offline from the same committed `judge-rows.json`).
+
+**[R1] adds no new script.** The ground-truth ceiling (§5.11) is a row in the
+same `evals/dbattery/judges.json` the other results read, produced by the same
+`judge-backtest.mjs` merge path, and is recomputed by `derive-tables.mjs` T3 and
+`clustered-cis.mjs` alongside every candidate. That is deliberate: a ceiling
+measured by a different instrument than the thing it bounds would not bound it.
 
 The three figure scripts in `docs/paper/figures/` **read those outputs and
 hardcode no data**, so a figure in this paper cannot state a number the
@@ -124,6 +132,8 @@ fail**.
 | *Judge's Verdict* (arXiv:2510.09738) | 54 LLMs scored on human agreement, Cohen's κ + human-likeness tiering | English, objective-answer scoring. Establishes that judge-human agreement is the right axis — which is our axis — on a task where ours is hardest. |
 | JudgeBench; *Justice or Prejudice?*; *Am I More Pointwise or Pairwise?* (arXiv:2602.02219); the self-preference line (arXiv:2410.21819, 2604.22891, 2506.02592, 2508.06709, 2509.26464) | Position bias, verbosity bias, self-preference established; self-preference measured from −38% to +90% on ArenaHard | All English, all monolingual, and self-preference is measured *model-vs-own-output*, not **judge-vs-own-vendor's-arm with a trusted verdict for the same units**, which is what our grok-4.3 cell is. |
 | ANCHOR (arXiv:2607.28818) | Persona collapse / behavioral drift, 2,008 conversations, 4 models × 3 memory settings; trajectory accuracy 44.4% | This is **Paper A's** competition, not Paper B's. It uses LLM judgment as an instrument and does not qualify it. |
+| BabelJudge (arXiv:2606.22329, 2026-06) *(added by the second novelty pass)* | EN/HI/AR/SW judge reliability; gold-by-degradation; Swahili order-consistency 0.480 — "near-random under slot-order swaps" | Closest published measurement of **slot-order collapse outside English**, which is §5.3's mechanism. But monolingual per language, no romanisation or code-mixing, synthetic gold rather than a deployed decision record, no affective register, no qualification bar, one primary judge. |
+| Norman, Rivera & Hughes, *Reliability without Validity* (arXiv:2606.19544, 2026-06) *(added by the second novelty pass)* | 21 judges, 9 providers, ~541 k judgments; κ deflation 33–41 pp; **production judges test–retest > 0.95 with position bias > 0.10** | The nearest work on **judge test–retest**, which is §5.11's measurement. English, objective benchmarks, no trusted-verdict backtest, no bar. Their >0.95 and our 0.771 are different quantities on different constructs and the paper reports them side by side — the contrast is the point, not a threat. |
 
 **Two claims we can therefore make and defend as first reports:**
 
@@ -249,6 +259,15 @@ monolingual English translation as well."*
 > verdict on 34 of 192 calls despite an only-JSON contract. Scale is not a
 > mitigation: the full-size DeepSeek agrees no better than the small one.
 >
+> We then measure the bar itself, by having the model that wrote the ground
+> truth re-judge its own archive under the identical protocol. **It agrees with
+> itself on 74 of 96 units — 77.1%, 95% CI [67.7, 84.4] — so the pre-registered
+> bar sits above the ground truth's own measured test–retest ceiling.** The
+> failures do not depend on where the bar was drawn: the candidates land 22.9 to
+> 49.0 percentage points below the ceiling, and the best of them recovers barely
+> two-thirds of the archive's self-agreement. The same measurement is the
+> tightest bound this study has on how much of its own ground truth is noise.
+>
 > We decompose three mechanisms and retract one. **(i) Position bias evacuates
 > the counterbalance rather than adding noise to it.** Because presentation is
 > counterbalanced, a judge picking the first slot with content-blind propensity
@@ -284,21 +303,28 @@ monolingual English translation as well."*
 > for an affective or open-ended preference task without backtesting it against
 > trusted verdicts is measuring judge taste rather than the system under test —
 > and any mechanism it then proposes for the failure needs a control of its own
-> before it is believed.**
+> before it is believed. Measure the ground truth's own test–retest ceiling
+> first: a qualification bar set above it can never be cleared, and a bar set
+> without it is a number nobody has checked.**
 
 *(Abstract provenance: every number is printed by `analysis/derive-tables.mjs`,
-`analysis/clustered-cis.mjs` or `analysis/r4/summary.json`; the 13.6 pp noise
+`analysis/clustered-cis.mjs` or `analysis/r4/summary.json`; the 77.1% ceiling
+and its interval are `derive-tables.mjs` T3's `anthropic/claude-opus-4.8` row,
+logged as `context/measurements.md` `ground-truth-ceiling`; the 13.6 pp noise
 floor is `context/measurements.md` `fab-noise-floor`. The
 *q*² + (1−*q*)² expression is analytic, derived in §5.3, and is the only
 non-measured quantity in the abstract.*
 
-*Word budget: ~490 words, which will need a cut of ~150 for most venues. **The
-cut order is fixed and it is not the obvious one.** Go first: the deployment/
-provenance clause in ¶2, then mechanism (ii)'s explanatory half-sentence, then
-the release list. Go LAST, and only if a hard limit forces it: the retraction
-in (iii) and the translation control in ¶4. A paper that refutes two of its own
-authors' logged claims in its abstract buys more reviewer trust than any
-positive result in it, and the translation control is the title.)*
+*Word budget: ~600 words as it now stands, which will need a cut of ~250 for
+most venues. **The cut order is fixed and it is not the obvious one.** Go
+first: the deployment/provenance clause in ¶2, then mechanism (ii)'s
+explanatory half-sentence, then the release list. Go LAST, and only if a hard
+limit forces it: the retraction in (iii), the translation control in ¶5, and
+the ceiling paragraph. A paper that refutes two of its own authors' logged
+claims in its abstract buys more reviewer trust than any positive result in it;
+the translation control is the title; and the ceiling is the sentence that
+answers the "your bar is arbitrary" review before it is written. The
+CAMERA.md abstract is the cut version and it is the one that ships.)*
 
 ---
 
@@ -328,6 +354,8 @@ positive result in it, and the translation control is the title.)*
 | 5.7 | Scale does not fix it | written |
 | 5.8 | [R5] Clustered confidence intervals | written |
 | 5.9 | [R4] The English-translation control: it is not the code-switching | written |
+| 5.10 | [R2] Per-axis mechanism decomposition | written |
+| 5.11 | [R1] The ground truth's own ceiling, and a bar that sat above it | written |
 | **6** | **Discussion** | **written in full, §6 below** |
 | **7** | **Limitations & Ethics** | **written in full, §7 below** |
 | 8 | Artifact release | written, §8 below (drafted as §9 in this file's apparatus numbering) |
@@ -349,7 +377,7 @@ node docs/paper/figures/fig-f3-english-recovery.mjs
 
 | fig | file | what it shows | cited in |
 |---|---|---|---|
-| **F1** | `figures/fig-f1-agreement-forest.svg` | Forest plot of pooled agreement per judge, Hinglish condition, with the cluster-bootstrap CI drawn over the naive Wilson CI, the ≥80% bar, and both chance baselines (30.5% uniform-random, 21.9% pure-slot-A) as reference lines. The two transport-invalid anthropic rows sit in a separately labelled band. | §5.1, §5.2, §5.8 |
+| **F1** | `figures/fig-f1-agreement-forest.svg` | Forest plot of pooled agreement per judge, Hinglish condition, with the cluster-bootstrap CI drawn over the naive Wilson CI, the ≥80% bar, both chance baselines (30.5% uniform-random, 21.9% pure-slot-A), and — added post-[R1] — **the ground truth's own 77.1% test–retest ceiling as a hatched CI band behind every row**, so the reader sees the bar standing above the ceiling rather than being told. `claude-opus-4.8` now sits in its own labelled CEILING row; the parse-invalid `claude-opus-5` row is in a separately labelled band. | §5.1, §5.2, §5.8, **§5.11** |
 | **F2** | `figures/fig-f2-slot-a-evacuation.svg` | Two panels. **A:** pooled slot-A pick rate per judge against the trusted judge's 58.9% on identical rows and a 50% line. **B:** observed TIE_FLIP rate against slot-A propensity *q*, with the analytic content-blind prediction *q*²+(1−*q*)² as a curve — a judge on the curve has stopped carrying content. | §5.3 |
 | **F3** | `figures/fig-f3-english-recovery.svg` | Paired Hinglish→English agreement per judge with both clustered CIs and the ±13.6 pp `fab-noise-floor` band shaded around each Hinglish value. Every recovery lands inside the band. This is the title figure. | §5.9 |
 
@@ -455,10 +483,15 @@ deployments, all `succeeded`).
 | Mistral-Large-3 | mistral | Azure Foundry | `max_tokens` | 1 | — | 120 |
 | Cohere command-a-plus-05-2026 | cohere | Azure Foundry | `max_tokens` | 1 | `"none"` | 400 |
 | *(reference)* anthropic/claude-opus-5 | anthropic | OpenRouter | — | — | — | 120 |
-| *(reference)* anthropic/claude-opus-4.8 | anthropic | OpenRouter | — | — | — | 120 |
+| *(ceiling)* anthropic/claude-opus-4.8 | anthropic | OpenRouter | — | — | — | 120 |
 
 *(Source: `evals/dbattery/judges.json.judge_configs`. The two anthropic rows are
-reference runs, both **INVALID** — §4.6.)*
+not candidates and are not billed to the grant: `claude-opus-4.8` is the model
+that produced the ground truth and its run is the **test–retest ceiling** of
+§5.11; `claude-opus-5` is a reference run that is **INVALID (parse)** under
+§4.6's third guard. The 120-token cap that is correct for the credits panel is
+the direct cause of opus-5's invalidation — a reasoning model needs a larger
+cap, and this is a quirk-log entry, not a model property.)*
 
 **Deployment quirks are part of the result and are logged, not smoothed over.**
 Three of the six required a provider-specific fix before they could be scored at
@@ -529,17 +562,23 @@ after a real failure:
    reference run of the two anthropic judges returned 61–96 "misses" per archive:
    the OpenRouter key had hit a configured $20 total limit mid-run (usage $20.14,
    remaining $0, verified via `GET /api/v1/key`) and every subsequent call
-   403'd. The scored subsets (opus-5 14/14, opus-4.8 8/9) are
-   **transport-selected denominators**, are marked `INVALID-RUN (transport)` in
-   `judges.json`, and are **not** qualification results
-   (`measurements.md` `judge-run-transport-invalid`). We report them in §5 only
-   as a labelled non-result, because omitting them would itself be selective.
+   403'd. The scored subsets (opus-5 14/14, opus-4.8 8/9) were
+   **transport-selected denominators**, were marked `INVALID-RUN (transport)` in
+   `judges.json`, and were **not** qualification results
+   (`measurements.md` `judge-run-transport-invalid`). *Both were re-run in full
+   on 2026-08-18 once the key limit was raised (§5.11); the guard's value is
+   that the crippled run was refused rather than published, and the refusal is
+   what made the rerun worth paying for.*
 2. **Runs self-invalidate above a 5% transport-error rate.** Added in response
    to (1).
 3. **Parse misses invalidate too.** Added after `command-a-plus` returned
    long prose on the majority of calls despite the only-JSON contract; a judge
    scored on the minority of calls that happened to parse is the same biased
-   denominator in a different costume.
+   denominator in a different costume. This guard fired a second time, on the
+   paper's most attractive number: `claude-opus-5`'s 2026-08-18 rerun was clean
+   on transport and returned 128 of 192 replies empty because reasoning consumed
+   the 120-token cap, so its 17/17 is `INVALID-RUN (parse)` and is not counted
+   (§5.11).
 
 Guard (1) and (3) instantiate a rule the programme had already learned the
 expensive way and logged in `context/rejected.md`: *"a judged comparison is only
@@ -565,10 +604,15 @@ judge whose **vendor family** is a contestant. That is §5.5.)*
 ### 4.8 Scale of the study
 
 192 rows per judge (96 units × 2 orders) × 8 judges = **1,536 judgment rows**,
-the exact length of `judges.json.raw_rows`. Five judges produced a complete
-scorable set (94–96 units); one produced none (parse); two are transport-invalid
-references. All Azure-billed runs cost **$0 cash** (`judges.json.cost.cashCostUsd = 0`);
-the invalid OpenRouter reference run cost **~$1.80** and is sunk
+the exact length of `judges.json.raw_rows`. Five candidate judges produced a
+complete scorable set (94–96 units); one produced none (parse); one reference
+run is parse-invalid; and one — the model that wrote the ground truth — produced
+the complete 96-unit **test–retest ceiling** of §5.11. Two later runs extend the
+same units without adding conversations: **[R4]** re-judges all 96 in English
+(1,152 calls) and **[R2]** re-judges all 96 on six further axes (5,760 calls).
+Every Azure-billed run cost **$0 cash**; the one cash item in the whole paper is
+[R1]'s 384 OpenRouter calls at ≈$3.93 (§5.11). The superseded, transport-crippled
+first reference run cost ~$1.80 and is sunk
 (`measurements.md` `judge-run-transport-invalid`).
 
 ---
@@ -621,28 +665,28 @@ Pooled over both archives, unit-level agreement with the trusted verdicts:
 | grok-4.3 | 33 / 96 | **34.4%** | [25.6, 44.3] | **FAIL** | 73.4% (192) | 0 / 0 |
 | gpt-5.6-terra | 52 / 96 | **54.2%** | [44.2, 63.8] | **FAIL** | 62.0% (192) | 0 / 0 |
 | command-a-plus-05-2026 | 0 / 0 | — | — | **DISQUALIFIED (protocol)** | 61.8% (34 parsed) | 0 / **158** |
-| *(invalid ref.)* claude-opus-5 | 14 / 14 | *100.0%* | *[78.5, 100]* | **INVALID (transport)** | 64.2% (53) | 139 unclassified † |
-| *(invalid ref.)* claude-opus-4.8 | 8 / 9 | *88.9%* | *[56.5, 98.0]* | **INVALID (transport)** | 50.0% (18) | 174 unclassified † |
+| *(not a candidate — ceiling)* claude-opus-4.8 | 74 / 96 | *77.1%* | *[67.7, 84.4]* | **CEILING, §5.11** | 45.3% (192) | 0 / 0 |
+| *(invalid ref.)* claude-opus-5 | 17 / 17 | *100.0%* | *[81.6, 100]* | **INVALID (parse)** | 46.9% (64) | 0 / **128** |
 
-† The miss/kind classifier was added *after* these runs, in response to them. In
-the stored rows opus-4.8's misses carry an `error:` prefix (403 bodies) while
-opus-5's carry `unparseable:` (empty bodies from the same 403s), so a naive
-classifier reports 174 transport / 0 parse and 0 transport / 139 parse
-respectively. Both are the **same** root cause — a $20 key limit — and neither is
-a judge property. The paper reports them as unclassified rather than letting a
-post-hoc classifier impute a distinction the data cannot carry.
+**Both anthropic rows changed after [R1] and the change is not cosmetic.** The
+earlier draft of this table carried them as `INVALID (transport)` on
+denominators of 14/14 and 8/9, selected by which calls beat a $20 OpenRouter key
+limit. With the limit raised, both were re-run in full at 192 calls each on
+2026-08-18 and the rows above are those runs. `claude-opus-4.8` is no longer a
+reference at all: it is the model that *wrote* the ground truth, so its row is a
+**test–retest ceiling** and it is reported as §5.11, not as a candidate.
+`claude-opus-5` re-ran cleanly on transport (0 errors) and then hit a different
+guard — 128 of 192 replies were empty because reasoning consumed the 120-token
+cap — so it is `INVALID (parse)` on a parse-selected denominator of 17. Its
+17/17 is not a result; it is a plausible qualified judge pending a
+fixed-configuration rerun (§11 R1b).
 
-Not one confidence interval touches the bar. These are **clean failures, not
-underpowered ones** — the study is adequately powered to reject at 80% even
-though it is underpowered for fine distinctions among the failures.
+Not one candidate confidence interval touches the bar. These are **clean
+failures, not underpowered ones** — the study is adequately powered to reject at
+80% even though it is underpowered for fine distinctions among the failures.
 **See Figure F1**, which plots these intervals together with §5.8's clustered
-intervals and §5.2's chance baselines; it is the single figure a reader who
-reads nothing else should see.
-
-The italicised anthropic rows are reported for completeness and are **not**
-results: their denominators were selected by which calls happened to succeed
-before a $20 key limit was hit (§4.6). They are directionally promising and
-statistically worthless, and the paper says exactly that.
+intervals, §5.2's chance baselines and §5.11's measured ceiling; it is the
+single figure a reader who reads nothing else should see.
 
 ### 5.2 Four of five scorable judges are indistinguishable from a coin flip
 
@@ -956,8 +1000,16 @@ always produces the same interval, on any machine.
 | grok-4.3 | 96 | 12 | [25.6%, 44.3%] | **[25.0%, 43.8%]** | +0.1pp | FAIL | FAIL | no |
 | DeepSeek-V4-Pro | 94 | 12 | [22.4%, 40.8%] | **[20.7%, 41.5%]** | +2.5pp | FAIL | FAIL | no |
 | Mistral-Large-3 | 96 | 12 | [21.0%, 38.9%] | **[20.8%, 38.5%]** | −0.2pp | FAIL | FAIL | no |
-| *(invalid ref.)* anthropic/claude-opus-5 | 14 | 8 | [78.5%, 100.0%] | [100.0%, 100.0%] | −21.5pp | UNDERPOWERED | *PASS* | **YES** |
-| *(invalid ref.)* anthropic/claude-opus-4.8 | 9 | 9 | [56.5%, 98.0%] | [66.7%, 100.0%] | −8.2pp | UNDERPOWERED | UNDERPOWERED | no |
+| *(ceiling, §5.11)* anthropic/claude-opus-4.8 | 96 | 12 | [67.7%, 84.4%] | **[69.8%, 85.4%]** | −1.0pp | UNDERPOWERED | UNDERPOWERED | no |
+| *(invalid ref.)* anthropic/claude-opus-5 | 17 | 9 | [81.6%, 100.0%] | [100.0%, 100.0%] | −18.4pp | PASS | PASS | no |
+
+*(The last two rows were re-run in full after [R1]; the pre-R1 draft of this
+table carried them at n = 14 and n = 9 on transport-selected denominators.
+opus-4.8's row is now a complete 96-unit test–retest and is reported as the
+ceiling, §5.11. opus-5's row remains `INVALID (parse)` under §4.6's guard — a
+17-unit parse-selected denominator whose clustered bootstrap is degenerate
+because every observed unit already agrees, exactly the noise its label warns
+about.)*
 
 **Verdict-change answer, stated plainly: no substantive verdict changes.**
 Every one of the five scorable, valid-run candidate judges — the entire set
@@ -966,15 +1018,13 @@ clustered interval; clustering widens each interval by roughly 1–3
 percentage points (it can only ever widen, since it estimates the same point
 from fewer effectively-independent clusters) and every widened interval still
 sits far below the 80% bar (clustered interval highs run 38.5%–64.6% against
-an 80% bar). The two rows that *do* flip are both the **anthropic reference
-runs already marked `INVALID (transport)`** in §5.1/§4.6 — their denominators
-(14/14 and 8/9) were selected by which calls beat a $20 OpenRouter key limit,
-not by the qualification protocol, and were never real qualification results
-to begin with. A transport-crippled n of 14 producing a degenerate
-all-agree cluster bootstrap (every resample is 100% because every observed
-unit already agrees) is exactly the kind of noise those rows already carry a
-warning label for — it is not a new finding, and the paper must not cite it
-as one.
+an 80% bar). **No verdict flips anywhere in the table**, including the two
+anthropic rows, neither of which is a candidate: `claude-opus-4.8` is the
+ground-truth ceiling (§5.11) and moves by −1.0 pp; `claude-opus-5` is
+`INVALID (parse)` and its degenerate all-agree bootstrap (every resample is
+100% because every one of its 17 parse-selected units already agrees) is
+exactly the kind of noise that label warns about — it is not a new finding,
+and the paper must not cite it as one.
 
 **What this run buys and does not buy.** It converts §7 L3 from an
 acknowledged-but-unaddressed limitation into a closed one: the paper's central
@@ -985,6 +1035,17 @@ asking "how many *effectively independent* observations is this?" gets a
 franker answer post-R5 than pre-R5 (12, not 96, for the purpose of the
 variance estimate) even though the point estimates and the substantive
 verdicts are unchanged. `[R5]`
+
+*(Post-[R1] correction to this subsection's own prose, recorded rather than
+silently edited: the verdict paragraph above originally read "the two rows that
+DO flip are both the anthropic reference rows … denominators (14/14 and 8/9)".
+Those denominators no longer exist — both anthropic judges were re-run in full
+on 2026-08-18. The opus-4.8 row is now a complete 96-unit test–retest, is the
+ceiling of §5.11, and does not flip; the opus-5 row is a 17-unit parse-selected
+denominator whose clustered interval is degenerate for the reason stated. The
+substantive claim — clustering changes no FAIL — is unaffected, and
+`clustered-cis.mjs`'s own trailing narrative has been updated to match its
+data, so script output and prose cannot drift apart again.)*
 
 ### 5.9 [R4] The English-translation control: register causality is NOT established
 
@@ -1224,6 +1285,104 @@ prompt + 139,655 completion tokens. `overall`: 0 new calls (reused from R0).
 Billed to Azure AI Foundry credits (Microsoft for Startups), **$0 cash**.
 `[R2]`
 
+### 5.11 [R1] The ground truth's own ceiling: the bar was above it all along
+
+Gap **G5** (§10 C20, §6.2's eighth line): every number in §5.1–§5.10 is an
+agreement rate against one model's archived verdicts, and until this run nobody
+had asked the obvious question — *how often does that model agree with itself?*
+An agreement bar is only interpretable against the reliability of the thing
+being agreed with. This section answers it. Method, raw rows and cost:
+`evals/dbattery/judges.json` (run stamped `2026-08-18T10:55:35Z`),
+recomputed by `docs/paper/analysis/derive-tables.mjs` T3 and
+`clustered-cis.mjs`; logged as `context/measurements.md` `ground-truth-ceiling`.
+
+**The design is the protocol pointed at itself, with nothing else changed.**
+`anthropic/claude-opus-4.8` — the model that produced both archives' verdicts on
+2026-08-11 — was re-run over the same 96 units, both presentation orders, the
+identical rubric, the identical both-orders-agree consolidation, and scored
+against its own archived verdicts. Same harness, same guards, same denominators.
+It is a **test–retest** measurement, not an independent qualification: it bounds
+how much of the ground truth is stable signal and how much is sampling noise
+that no candidate could ever have matched.
+
+| judge | role | agree / n | agreement | 95% CI (Wilson) | clustered CI (beat) | slot-A | transport / parse |
+|---|---|---|---|---|---|---|---|
+| claude-opus-4.8 | **wrote the ground truth** | 74 / 96 | **77.1%** | [67.7, 84.4] | [69.8, 85.4] | 45.3% (192 rows) | 0 / 0 |
+| claude-opus-5 | independent, same family | 17 / 17 | *100.0%* | *[81.6, 100]* | *[100, 100]* | 46.9% (64 rows) | 0 / **128** |
+
+Per archive, opus-4.8 reproduces its own verdicts on **41/48 = 85.4%**
+[72.8, 92.8] of `charm-grok` and **33/48 = 68.8%** [54.7, 80.1] of `charm-luna`
+— the landslide archive is the reproducible one and the coin-toss archive is
+not, which is the expected direction and is worth stating because it means the
+ceiling is not uniform across material. On decisive units its accuracy is
+**84.0%** (n = 75) [74.1, 90.6]; on its own archived ties it reproduces 11/21.
+Its slot-A rate on the retest is **45.3%**, a mild B-lean against the 58.9% it
+showed on the original pass — no evacuation, and a reminder that even the
+trusted judge's position behaviour is not a stable property of the model.
+
+**Three consequences, in the order they bite.**
+
+**(i) The pre-registered bar sits above the ground truth's own measured
+ceiling.** 80% is outside `[67.7, 84.4]`'s point estimate and the interval
+straddles it: under the study's own rule — a pass requires the 95% *lower* bound
+to reach the bar — **the ground truth itself would not have qualified as a judge
+of its own archive.** We report this as a finding about the bar, not as a defect
+in the bar's provenance: it was fixed in a document written before any candidate
+ran (§4.5) and before anyone had measured what was achievable, which is exactly
+the condition under which pre-registration is worth something and exactly the
+condition under which a bar can turn out to be unreachable. A bar chosen after
+this measurement would have been ~77%, and it would have been a worse bar,
+because it would have been chosen to be reachable.
+
+**(ii) Every FAIL stands, and stops depending on the bar.** The candidates are
+not merely below 80%; they are **22.9 to 49.0 percentage points below the
+measured ceiling** — terra 54.2% (−22.9), grok-4.3 34.4% (−42.7),
+DeepSeek-V4-Pro 30.9% (−46.2), Mistral-Large-3 29.2% (−47.9), DeepSeek-V4-Flash
+28.1% (−49.0). Even the best candidate recovers barely two-thirds of the
+archive's self-agreement, and four of five recover less than half. **This is the
+form of the claim that survives the "your bar was arbitrary" objection**, and
+the paper should lead with it: the candidates do not fail a threshold we chose,
+they fail to approach the reproducibility of the verdict set itself, which is a
+quantity we measured rather than picked. Figure F1 draws the ceiling and its
+interval as a band behind every candidate row for exactly this reason.
+
+**(iii) It is the tightest available bound on L1, and it does not remove L1.**
+A 77.1% self-agreement rate means roughly a fifth of the archived verdicts are
+not reproduced by the model that wrote them, so any claim of the form
+"agreement with the trusted verdicts" is measured against a target that moves.
+What it does **not** do is make the ground truth human-aligned: a model can be
+perfectly self-consistent and consistently wrong about a linguistic community's
+register, and self-agreement is silent on that. §7 L1 is narrowed by this
+result, not closed by it, and the human-annotation run (§11 R3) remains the
+central gap.
+
+**The opus-5 row is not a result and the paper must not let it read as one.**
+The run was clean on transport (0 errors, the $20 key limit having been raised)
+and then failed a *different* guard: with the same 120-token cap the panel used,
+125 of 192 calls returned an empty visible completion because reasoning consumed
+the whole budget, and 2 more were cut mid-JSON — 128 unparseable in total, well
+past §4.6's 50% parse-miss self-invalidation threshold. It is
+`INVALID-RUN (parse)`. Its 17/17 on the units that did return is the same
+self-selected-denominator artifact the harness exists to refuse, differing from
+the $20-key-limit incident only in which layer selected the denominator. **The
+honest description is: a plausible qualified judge, pending a rerun with a token
+cap that fits a reasoning model** (§11 R1b, ≈$1). We report it because omitting
+it would itself be a selection, and we decline to count it because the harness
+declined to count it. That the paper's two most attractive numbers are both
+things it refuses to use is the point of §6.5.
+
+**Cost.** 384 calls (192 per judge × 2 judges), 650,150 prompt + 27,175
+completion tokens, OpenRouter, cash. The harness reported `cashCostUsd: null`
+rather than a figure: the judge configs declare pricing as
+`{prompt_per_token, completion_per_token}` while `callCostUsd()` reads
+`{inUsdPerTok, outUsdPerTok}`, so the priced path returned `NaN` and serialised
+as `null`. That is the guard behaving as designed — an unknown rate must never
+print as `$0` — combined with a field-name mismatch that is now in the quirk
+log. Priced by hand at the rate logged in `judges.json.judge_configs`
+(`$5/M prompt, $25/M completion`, fetched live 2026-08-15), the run cost
+**≈$3.93**, consistent with the ~$4 recorded in `ground-truth-ceiling`. It is
+the only cash in the paper. `[R1]`
+
 ---
 
 ## §2.2 Related work — annotated citation list
@@ -1244,6 +1403,7 @@ the fetch and must be completed from the published PDFs.)*
 - Dev, Sloan, Kavner, Kong, Sandler (RAND), *Judge Reliability Harness: Stress Testing the Reliability of LLM Judges*, arXiv:2603.05399 (2026-03) — format invariance, paraphrase, stochastic stability, ordinal calibration; English-only; explicitly not position bias or family favoritism.
 - *Meta-Evaluation Collapse: Who Judges the Judges of Judges?*, OpenReview `IF0L7HSs3K` — high inter-model agreement that drifts from human evaluators, compressing variance and *"overlooking cultural nuance"*. **Directly supports our framing.**
 - *Am I More Pointwise or Pairwise? Revealing Position Bias in Rubric-Based LLM-as-a-Judge*, arXiv:2602.02219.
+- Norman, Rivera & Hughes, *Reliability without Validity: A Systematic, Large-Scale Evaluation of LLM-as-a-Judge Models Across Agreement, Consistency, and Bias*, arXiv:2606.19544 (2026-06-17) — 21 judges, 9 providers, ~541 k judgments, 118 runs on MT-Bench/JudgeBench/RewardBench; κ deflation 33–41 pp vs exact match; **production judges show test–retest > 0.95 alongside position bias > 0.10**. *Surfaced by the second novelty pass, §13.7.* **This is the paper's most important comparison point for §5.11**: they measure judge test–retest above 0.95 on objective items; we measure 0.771 for the model that authored our own affective-preference ground truth, seven days later, under the same both-orders rule. Different quantity, opposite side of the same question, and the paper states both numbers together rather than citing only the one that flatters it.
 - Zheng et al., *Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena* — the origin of the position/verbosity/self-enhancement taxonomy. `[VERIFY arXiv:2306.05685]`
 
 **Self-preference / vendor favoritism**
@@ -1260,6 +1420,7 @@ the fetch and must be completed from the published PDFs.)*
 - Yin, *Does the Judge Prefer English? Evaluating Language-Switching Invariance in LLM-as-a-Judge*, arXiv:2606.14278 (2026-06) — EN/ZH + ZH-EN code-mixing, LLMBar 419 items, 13,408 judgments, 10.7–14.4% preference flips, all judges most accurate in English.
 - *Challenges and Recommendations for LLMs-as-a-Judge in Multilingual Settings and Low-Resource Languages*, arXiv:2607.02235.
 - *When Languages Disagree: Self-Evolving Multilingual LLM Judges*, arXiv:2606.08092.
+- *BabelJudge: Measuring LLM-as-a-Judge Reliability Across Languages and Agent Trajectories*, arXiv:2606.22329 (2026-06-21) — English/Hindi/Arabic/Swahili; gold labels constructed by controlled degradation of a reference answer; composite bias-penalised reliability 0.714 (Hindi) → 0.550 (Swahili), raw accuracy 0.835 → 0.660, **Swahili order-consistency 0.480, i.e. near-random under slot-order swaps**. *Surfaced by the second novelty pass, §13.7.* Cite beside §5.3: it is the closest published measurement of slot-order collapse outside English. Distinct from us on every one of: monolingual per language, synthetic gold rather than a trusted decision record, objective-ish construct, one primary judge, no qualification bar.
 - *Code-Switching Reveals Language Anchoring in Multilingual LLMs*, arXiv:2606.19668.
 - *Minimal Pair-Based Evaluation of Code-Switching*, arXiv:2506.01840.
 
@@ -1355,11 +1516,26 @@ produced a wrong reading somewhere in this programme's history:
 7. a family-conflict cell where one exists — **and a between-judge control for
    it**, per §6.4.
 
-An eighth line is worth adding for anyone who can afford it: the same protocol
-run on the ground-truth judge itself, as a test–retest bound on the noise of
-the thing being agreed with. We could not run it (§11 R1) and the paper is
-weaker for it in a specific, nameable way, which is the correct way to be
-missing a control.
+An eighth line is not optional and we now know why: **the same protocol run on
+the ground-truth judge itself, as a test–retest bound on the noise of the thing
+being agreed with.** We ran it late (§5.11) and it changed the shape of the
+paper's central claim. The archive's own author reproduces its verdicts 77.1%
+of the time, so the ≥80% bar we had pre-registered was unreachable by
+construction — not by much, and not detectably so before it was measured, but
+unreachable. Two things follow for anyone copying this protocol. First, **the
+ceiling is cheap**: 192 calls and about four dollars, against the roughly $400
+the bar was gating. Second, **the ceiling belongs before the bar, not after
+it**: a bar chosen without it is a number nobody has checked, and a bar chosen
+*after* seeing candidate results is not a bar at all. The right order is measure
+the ceiling, pre-register a bar as a stated fraction of it, then run candidates.
+We did it in the wrong order and report the ceiling as a correction to our own
+method rather than as a feature of it.
+
+The correction also changes what a FAIL should be reported *against*. An
+agreement rate against a bar is a statement about a threshold somebody chose; an
+agreement rate against a measured ceiling is a statement about the instrument.
+Our candidates are 22.9–49.0 pp below the ceiling, and that sentence survives
+any argument about where 80% came from.
 
 ### 6.3 The failure is a taste failure — and not a code-switching failure
 
@@ -1449,12 +1625,22 @@ qualification run into a transport-selected subset that scored 100%, a
 120-token cap eating every verdict, a judge that answered a minority of calls
 in prose and would have been scored on that minority. Each guard's job is to
 let the harness **decline to issue a number**. A measurement protocol that
-cannot refuse is not a protocol, it is a formatter; and the case that makes
-this concrete is the one we report as a non-result rather than suppress, where
-the two anthropic reference runs scored 100% and 88.9% on transport-selected
-denominators of 14 and 9. Those are the two best numbers in the paper and they
-mean nothing, and the only reason we can say so is that the harness counted its
-own misses.
+cannot refuse is not a protocol, it is a formatter.
+
+The case that makes this concrete happened twice, on the two best numbers in
+the paper, through two different guards. In August the OpenRouter key hit a $20
+limit mid-run and the two anthropic reference judges came back at 100% and
+88.9% on transport-selected denominators of 14 and 9; the transport guard
+refused them. Three days later, with the limit raised and the run repeated in
+full, `claude-opus-5` returned 17 of 17 — and the parse guard refused *that*,
+because 128 of its 192 replies were empty: a 120-token cap, correct for the
+rest of the panel, is not correct for a reasoning model, and a judge scored on
+the 17 calls that survived is the same self-selected denominator wearing a
+different failure. **Both refusals cost us the most flattering results we had.**
+The second one still stands: the paper's honest statement about `claude-opus-5`
+is *"a plausible qualified judge pending a rerun"*, and the reason we can say
+that instead of "a judge that passed at 100%" is that the harness counted its
+own misses and declined.
 
 ## §7 Limitations & Ethics
 
@@ -1483,6 +1669,23 @@ every number here as *"agreement with a specific trusted judge"* and not as
 *"accuracy"*. We think that reading is the correct one and we have written the
 artifact's datasheet to enforce it. §11 R3 prices the human-annotation run that
 would close the gap; it is not run, and until it is, this is a workshop paper.
+
+**L1 is now partially quantified, and the quantity is not reassuring.** §5.11
+measures the ground truth's own test–retest reliability under the identical
+protocol: `claude-opus-4.8` reproduces its own archived verdicts on **77.1%**
+of units, 95% CI [67.7, 84.4]. Roughly one archived verdict in five is not
+reproduced by the model that wrote it, so every agreement figure in this paper
+is measured against a target with its own measurable instability, and the
+pre-registered 80% bar sits above that ceiling. Two limits on how much this
+buys. First, self-agreement is **not** validity: a judge can be perfectly
+reproducible and consistently wrong about a linguistic community's register,
+and this measurement is silent on that — it bounds the noise in the ground
+truth, not its correctness. Second, it is a single retest at n = 96, seven days
+after the original pass, on one deployment route, so it inherits L10's
+drift caveat. What it does establish is that a reviewer asking *"how good is
+your ground truth?"* now gets a number instead of an argument, and that the
+number is low enough that the paper's claims are stated against it rather than
+against the bar.
 
 **L2 — n = 96 units.** Forty-eight per archive, 192 judgment rows per judge.
 This is adequate to reject an 80% bar — every interval in §5.1 sits far below
@@ -1777,6 +1980,56 @@ That directly serves the `beyond-meera` directive (*"the fundamental research we
 are doing should be scalable and flexible for other use cases"*) — the release
 shape **is** the generalisation pass.
 
+### 9.5 BUILT — what actually shipped, and where it deviates from the plan above
+
+**The bundle exists: `release/vyakti-judge-qual/`, 34 files, 3.4 MB**, produced
+by `docs/paper/build-release-bundle.mjs` (offline, deterministic, $0) and
+verified by `docs/paper/verify-release-bundle.mjs` (§13.4, 22 gates, all pass).
+Everything authored for it — README, datasheet, licences, protocol docs, the
+generalised harness — lives in `docs/paper/release-src/` and is copied verbatim,
+so it can be reviewed in this repository before it is published anywhere.
+
+The plan above was written before the bundle was built. Five deviations, each
+with its reason:
+
+1. **The archives keep their real names** (`charm-grok`, `charm-luna`) rather
+   than being renamed `charm-A`/`charm-B` as §9.3 proposed. The paper now names
+   both archives and both arm models openly, and the judge rows key on the
+   archive id, so renaming would break traceability between paper and bundle and
+   buy nothing.
+2. **Per-call `usage` is stripped from the released judge rows**, not just
+   per-turn cost from the transcripts. Run-level call and token totals are
+   published in `data/runs/cost.json` instead. Same reason §9.2 gives for
+   dropping per-turn cost, applied consistently.
+3. **`harnessMiss` strings are redacted to kind, HTTP status and a coarse reason
+   class.** This was not in the plan and it is the most important change: the raw
+   provider bodies carried the tenant's endpoint hostname and request ids
+   (§13.4). The miss *kind* and *count* are what the guards use and both are
+   preserved, so no analysis result changes. The judges' own prose replies —
+   the `unparseable:` bodies — are kept, pseudonymised and truncated, because
+   they are the evidence for §5.6.
+4. **`clustered-cis.mjs` ships too**, not only `derive-tables.mjs`. Without it
+   the clustered intervals in §5.8/§5.9/§5.10 are unreproducible from the
+   bundle, which would break the release's own reproduction claim. Its seeded
+   PRNG is extracted to `harness/rng.mjs` so the bundle has no dependency on
+   this repository.
+5. **The harness is a rewrite, not a copy.** `evals/dbattery/judge-backtest.mjs`
+   is Meera-specific in its paths, its default panel and most of its comments.
+   The released `harness/judge-backtest.mjs` takes archive, axis, bar, rubric and
+   judge configs as parameters, reads the rubric from `protocol/RUBRIC.md` at run
+   time, refuses on leakage, and prints the four position-bias numbers (`slot-A`,
+   observed tie rate, content-blind prediction, and the gap between them) on
+   every cell so a user cannot report the agreement rate alone by accident. It
+   runs end to end offline under `--dry-run`; this was smoke-tested and the
+   deterministic mock judge scores 28/96, which is what a content-blind judge
+   should score.
+
+**Reproduction from the bundle alone is verified.** `node
+analysis/derive-tables.mjs` and `node analysis/clustered-cis.mjs`, run inside
+`release/vyakti-judge-qual/` with no network and no key, print every headline
+number in §5 — including §5.11's 74/96 = 77.1% [67.7, 84.4] ceiling and its
+clustered [69.8, 85.4] — identically to the private-repo versions.
+
 ### 9.4 What the release deliberately does not claim
 
 The datasheet must state, in its own voice and not in a footnote, that the
@@ -1809,14 +2062,17 @@ supported and either need a run (§11) or must be cut.**
 | C11 | Scale does not fix the DeepSeek pathology | `deepseek-pro-judge`; T3 | **SUPPORTED** as "no difference detected"; **must not** be stated as equivalence (`fab-noise-floor`) |
 | C12 | Cohere is protocol-unfit (158/192 parse misses) | `cohere-judge`; `judges.json.per_archive` | **SUPPORTED** |
 | C13 | The bar was pre-registered before any candidate ran | `SPEC.md` §10-Q5; `decisions.md` `d2-on-credits` (2026-08-15); `SWAP-TEST-PREREG.md` Amendment 2 | **SUPPORTED**; the paper should cite the **commit timestamps**, which have not yet been extracted — **GAP-G6** |
-| C14 | The anthropic reference runs are invalid, not results | `judge-run-transport-invalid`; harness self-invalidation | **SUPPORTED** |
+| C14 | The anthropic reference runs are invalid, not results | `judge-run-transport-invalid`; harness self-invalidation; post-[R1] the surviving invalid row is opus-5 at 17/17 with 128/192 parse misses | **SUPPORTED**, and now demonstrated twice on two different guards (transport 2026-08-15, parse 2026-08-18) |
+| C24 | The ground truth's own test–retest ceiling is 77.1%, and the pre-registered bar sits above it | §5.11 [R1]; `derive-tables.mjs` T3 + `clustered-cis.mjs` opus-4.8 row; `measurements.md` `ground-truth-ceiling` | **SUPPORTED.** 74/96, Wilson [67.7, 84.4], clustered [69.8, 85.4], 0 transport / 0 parse misses, slot-A 45.3%. Per archive 85.4% / 68.8%. Drawn as F1's ceiling band. |
+| C25 | The candidates fail to approach the ceiling, not merely a chosen bar | §5.11; T3 point estimates against C24 | **SUPPORTED.** 22.9–49.0 pp below the measured ceiling; the best candidate recovers ~two-thirds of the archive's self-agreement, four of five recover less than half. This is the bar-independent form of C1 and the paper leads with it. |
+| C26 | A judge exists that passes the bar | opus-5 17/17 — **INVALID (parse)** | **GAP-G5 STILL OPEN, but now measured rather than blocked.** The run happened; it self-invalidated on a 120-token cap against a reasoning model. What can be said: *a plausible qualified judge pending a fixed-config rerun* (§11 R1b, ≈$1). What may **not** be said: that any judge has been shown to pass. |
 | C15 | No published work does this backtest on romanised Hinglish affective register | §0.2 survey, 8 nearest works fetched 2026-08-18 | **SUPPORTED as of 2026-08-18**; re-run the survey immediately before posting — **GAP-G7** |
 | C16 | "Every Azure-direct family disjoint from both arms has been tried" | `cohere-judge` branch conclusion | **CLOSED BY REWORDING.** `Llama-4-Maverick` was pre-registered and was NA on this tenant, never deployed or run. The paper says **"five families tried"** and carries it as §7 L11. Corrected upstream in `grok43-favoritism-retracted`. R6 would let us say "six"; it is not needed for correctness. |
 | C17 | The trusted judge's slot-A rate is 61% | `measurements.md` `charm-grok` | **CLOSED.** Misattributed by archive: `charm-grok` recomputes to **56.3%**, `charm-luna` is **61.5%**, pooled **58.9%**. The paper uses the recomputed per-archive values throughout and Figure F2 plots the pooled 58.9%. Correction logged upstream in `grok43-favoritism-retracted`. |
 | C18 | Judge agreement generalises beyond this persona/product | — | **GAP-G3 — NO EVIDENCE.** Must be framed as an open question, never claimed. |
 | C19 | Units are independent | — | **G4 CLOSED.** §5.8 [R5]: beat-level cluster bootstrap (12 clusters, 10,000 reps, seeded) reported beside the naive Wilson intervals. Clustering widens each FAIL interval by −0.2 to +3.1 pp and **no FAIL verdict changes**; the two rows that flip are both already-INVALID transport-crippled references. The binomial CIs were anti-conservative as the draft said, and the paper now carries the honest ones. The paper also now answers the harder question plainly: **12 effectively independent clusters, not 96 trials** (§7 L3). |
-| C20 | A judge that clears the bar exists | opus-5 14/14 and opus-4.8 8/9 — **both INVALID** | **GAP-G5 — UNPROVEN.** The paper currently cannot show any judge passing, which weakens "the bar is achievable". §11 R1 is the fix and is the highest-value paid run. |
-| C21 | The ground truth reflects native-speaker judgement | — | **GAP-G1 — THE CENTRAL GAP.** No human annotation exists. §11 R3. |
+| C20 | A judge that clears the bar exists | superseded by C26 | **GAP-G5 — PARTIALLY CLOSED BY MEASUREMENT, still unproven by demonstration.** [R1] ran. It produced the ceiling (C24) and one parse-invalid 17/17 (C26). The paper can now say the bar was above the achievable ceiling; it still cannot say any judge passed. |
+| C21 | The ground truth reflects native-speaker judgement | — | **GAP-G1 — THE CENTRAL GAP.** No human annotation exists. §11 R3. **Narrowed, not closed, by C24**: the ground truth's noise is now bounded (77.1% self-agreement) but its validity is not addressed — self-consistency is not correctness. |
 | C22 | Per-axis: judges fail worse on register/humour than on brevity | §5.10 [R2] pooled-per-axis clustered CIs; `analysis/r2/summary.json`, `analysis/r2/pooled-per-axis.json` | **G8 CLOSED, PARTIALLY CONFIRMED.** `brevity` is a genuine outlier (pooled 55.2%, clustered CI does not overlap `warmth`/`register`/`overall`) and `warmth`+`register` are the two hardest axes — but `humour` is NOT worse than `specificity`; the two are statistically indistinguishable (46.2% vs 45.6%, overlapping CIs) alongside `personhood`. Three-tier structure, not the predicted binary: `brevity` alone on top, `warmth`+`register`(+`overall`) on bottom, `humour`+`specificity`+`personhood` bunched in the middle. Every axis still FAILS the 80% bar. |
 | C23 | Judge results are stable over time | `vision-drift-4day` shows a Foundry deployment drifting in 4 days | **GAP-G9 — UNMEASURED FOR JUDGES.** Date-stamp everything; a re-run at +30 days is §11 R7. |
 
@@ -1831,6 +2087,9 @@ supported and either need a run (§11) or must be cut.**
 | **C9** — the same-vendor favoritism claim | **CLOSED BY RETRACTION, IN THE PAPER.** The between-judge control refutes our own logged finding, and the refutation is a section rather than a silent edit. Upstream supersession logged as `grok43-favoritism-retracted`; `SWAP-TEST-PREREG.md` Amendment 2 re-read and amended to rest on the structural justification rather than the retracted measured instance. | §5.5, §6.4, §7.2, §7 L12, C9/C10/C10b |
 | **C16** — "every disjoint family tried" | closed by rewording to "five families"; `Llama-4-Maverick` was NA on this tenant | §7 L11 |
 | **C17** — the "61% slot-A" figure | closed; misattributed by archive, recomputed to 56.3% / 61.5% / 58.9% pooled | §5.0 correction note, Figure F2 |
+| **G5** (in part) — is the bar achievable? | **MEASURED, NOT DEMONSTRATED.** [R1] ran the ground truth against its own archive: 77.1% [67.7, 84.4], so the ≥80% bar was above the measured ceiling and the FAILs are restated against the ceiling instead. The remaining half of G5 — *showing* a judge that passes — is still open: opus-5's rerun self-invalidated on parse. | §5.11, §6.2, §7 L1, Figure F1, C24/C25/C26 |
+| **G6** — pre-registration commit hashes | **CLOSED.** Extracted and cited: `2e82a0f` (2026-08-13T12:20:22Z, `docs/SPEC.md` §10-Q5, the ≥80% methodology), `c18b239` (2026-08-15T09:37:58Z, `decisions.md` `d2-on-credits`, the judge-qualification instantiation — 25 minutes before the first backtest result was committed), `bfeb979` (2026-08-15T10:24:29Z, the pre-registration), `a7198a2` (Amendment 1), `a053019` (2026-08-15T11:28:09Z, Amendment 2, *"qualification bar unchanged"*), `d10e840` (2026-08-18T09:27:19Z, Amendment 2a, the favoritism retraction). | §4.5, §13.5 P1 |
+| **G7** — novelty survey freshness | **RE-RUN, and it must be run once more.** Second live pass 2026-08-18 (late, after the first): nothing newly published scoops C1/C1b/C2, but the pass surfaced **two adjacent works the first scan missed**, both pre-dating it, and both are now cited in §2.2 — `BabelJudge` (arXiv:2606.22329) and `Reliability without Validity` (arXiv:2606.19544). Because the second pass found misses rather than new arrivals, the honest state is *the survey has a recall problem, not a freshness problem*. **Re-run once more on the submission day (2026-08-29).** | §0.2, §2.2, §13.5 P2 |
 | **G8** — per-axis mechanism | **CLOSED, PARTIALLY CONFIRMED.** R2 ran all six not-yet-backtested axes (96 units × 2 orders × 5 judges each, 5,760 calls); `overall` reused from R0. The predicted binary (register/humour bad, brevity/specificity good) is half right: `brevity` is a genuine clustered-CI-distinguishable outlier (55.2% pooled, does not overlap `warmth`/`register`/`overall`), but `humour` is statistically indistinguishable from `specificity` and `personhood` — a three-tier structure, not two. Every axis still fails the 80% bar; the mechanism claim is now measured, not inferred. | §5.10, §6.3, C22 |
 
 #### OPEN — and what each would upgrade
@@ -1838,10 +2097,8 @@ supported and either need a run (§11) or must be cut.**
 | gap | what it currently blocks | cheapest fix | what closing it upgrades |
 |---|---|---|---|
 | **G1** — the ground truth is an LLM, not humans | the paper's **headline interpretation**, and its venue class | **R3** — blind, both-orders annotation of ≥48 units (ideally all 96) by **≥2 native Hinglish raters**, with Cohen's/Krippendorff's κ reported against the trusted judge. $0 if the owner plus one native speaker annotate; ~$96 outsourced. Needs a small static blind-annotation page (half a day). | Converts every "agreement with a trusted judge" claim into a claim about human-aligned judgement. This is the difference between a **workshop paper** and a plausible **Findings** submission, and it is also the ethics gap in §7.3 — a paper about judges misreading a community's register with no annotators from that community. **Highest value item on the list.** |
-| **G5** — no judge has ever been shown to *pass* the bar | the claim that the bar is achievable at all; a reviewer can currently say "your bar may simply be impossible" | **R1** — re-run the two anthropic reference judges with a raised OpenRouter key limit. ~$5 cash, measured at 210 calls = 353 k prompt + 22 k completion tokens. **Owner spend decision.** | Turns "six judges failed" into "six judges failed and here is one that passes", which is what makes the protocol a *qualification* protocol rather than a rejection log. It is also a **test–retest bound on the ground truth's own noise** (opus-4.8 judging its own archived verdicts), which is the single most valuable control the paper lacks and would partially mitigate G1. |
+| **G5b** — no judge has ever been *shown* to pass the bar | the claim that a qualified judge is reachable; a reviewer can still say "you never produced one" | **R1b** — re-run `claude-opus-5` with a token cap that fits a reasoning model (the 120-cap emptied 128/192 replies). ≈$1 cash at the logged OpenRouter rate, 192 calls. | Turns "six judges failed and the ceiling is 77%" into "…and here is one that reaches it", which is what makes the protocol a *qualification* protocol rather than a rejection log. The ceiling half of the old G5 is already closed (§5.11). |
 | **G3** — generalisation beyond this persona/product | any claim that the result transfers | no cheap fix; a second affective corpus with its own trusted verdicts | Would move §7 L4 from "untested" to "tested once elsewhere". Out of scope for this paper; framed as an open question, never claimed. |
-| **G6** — pre-registration commit timestamps not yet extracted | the strength of the "pre-registered" claim under a sceptical reviewer | free — `git log` on `docs/SPEC.md` and `SWAP-TEST-PREREG.md`, cite the hashes | Makes the pre-registration verifiable rather than asserted. **Do this before posting.** |
-| **G7** — the novelty survey is dated 2026-08-18 | the "first report" claims C1/C2 in §0.2 | free — re-run the eight-work adversarial survey immediately before posting | Keeps the novelty claim honest at submission time rather than at drafting time. |
 | **G9** — judge-result stability over time | nothing in the paper as written (results are date-stamped) | **R7** — identical protocol, 2 judges, +30 days. Credits, 384 calls, $0 cash. | Would bound the deployment-drift risk in §7 L10 rather than merely disclosing it. |
 
 ---
@@ -1867,7 +2124,8 @@ Estimating a dollar figure would be fabricating a rate.
 | **R2** | **6-axis re-judge** (`overall` reused from R0): same 96 units × 2 orders × 5 scorable judges | fixed G8. **DONE — §5.10 [R2].** Outcome: partial concentration — `brevity` a genuine outlier (pooled 55.2%, clustered CI clear of `warmth`/`register`/`overall`), but `humour` statistically indistinguishable from `specificity`/`personhood`; every axis still fails the 80% bar. | credits, **spent**: 5,760 calls, 6,761,468 prompt + 139,655 completion tokens; **$0 cash** | done |
 | **R4** | **English-translation control**: same 96 units machine-translated to monolingual English preserving content, re-judged by all 5 scorable judges | tested G2. **DONE — §5.9 [R4].** Outcome: register causality NOT established (every recovery inside the fab-noise-floor band); this is a completed negative result, not a pending item — the title/G2 claim need rewording, not a further run. | credits, **spent**: 192 translation + 960 judging = 1,152 calls, ≈1.23M tokens; **$0 cash** | done |
 | **R3** | **Human annotation**: ≥48 units (ideally all 96), blind, both orders, ≥2 native Hinglish raters, report Cohen's/Krippendorff's κ against the trusted judge | fixes G1 — the central gap; without it the paper is a workshop paper permanently | **$0 if the owner + one native-speaker friend annotate** (recommended); ~$96 cash at $0.50/unit × 96 × 2 raters if outsourced | owner time; a blind annotation UI (a static HTML page, half a day) |
-| **R1** | **Re-run the two anthropic reference judges** with a raised OpenRouter key limit | fixes G5 — demonstrates the bar is achievable; opus-4.8's run is a **test-retest** measure that bounds the ground truth's own noise (the single most valuable control in the paper) | **~$5 cash.** Measured: 210 calls = 353 k prompt + 22 k completion tokens; at the fetched 2026-08-15 rate ($5/M in, $25/M out) that is ≈$2.31, so a full 384-call two-model run is ≈$4.2. **Re-fetch the rate before running.** | **OWNER DECISION** — `judge-grant-only` says grant-only, no further cash. ~$5 against a ~$450 cap. Recommend approving. |
+| **R1** | **Re-run the two anthropic reference judges** with a raised OpenRouter key limit | fixed the ceiling half of G5. **DONE — §5.11 [R1].** Outcome: the ground truth's own test–retest is **77.1% [67.7, 84.4]**, below the pre-registered bar, so the bar exceeded its own ceiling; every FAIL is restated as 22.9–49.0 pp below the measured ceiling. opus-5's half self-invalidated on parse (128/192 empty at a 120-token cap). | cash, **spent**: 384 calls, 650,150 prompt + 27,175 completion tokens, ≈**$3.93** at the logged rate | done |
+| **R1b** | **Re-run `claude-opus-5` only**, token cap raised to fit a reasoning model | fixes G5b — would be the paper's first demonstrated *passing* judge, and the qualified judge the whole judged battery waits on | ≈**$1 cash**, 192 calls at the logged rate. **Re-fetch the rate before running.** | **OWNER DECISION.** Highest value-per-dollar item remaining; not required for JUDGe. |
 | **R6** | `Llama-4-Maverick` backtest | fixes C16 — makes "every disjoint family" honest, or lets us reword instead | credits; **192 calls**; **$0 cash** | one owner deploy click in Foundry |
 | **R7** | Judge-drift re-run at +30 days (identical protocol, 2 judges) | fixes G9; `vision-drift-4day` makes this a live risk | credits; **384 calls**; **$0 cash** | calendar |
 | **R8** | *(Paper A only)* incumbent arm to band scale | Paper A's D1 verdict | ~30 days on the free pool, or the owner's pending Google credits | not Paper B's blocker |
@@ -1880,8 +2138,9 @@ judgment rows, 3,201 calls in the vision battery alone).
 **Recommended order:** ~~R5 (free, today)~~ **DONE** → ~~R2 (credits, the
 mechanism decomposition)~~ **DONE — partial concentration, §5.10** →
 ~~R4 (credits, the causal control)~~ **DONE — register causality NOT
-established, §5.9** → R3 (owner time, the credibility control) → R1 (owner's
-~$5 call) → R6/R7 as tidy-up.
+established, §5.9** → ~~R1 (the ~$4 ceiling)~~ **DONE — the bar exceeded its own
+ceiling, §5.11** → R1b (owner's ~$1 call, the first passing judge) → R3 (owner
+time, the credibility control) → R6/R7 as tidy-up.
 
 ### An honest answer to "can we extend n cheaply from the archives?"
 
@@ -1996,7 +2255,9 @@ novelty survey at the same time — §10 G7.)*
 | B1 | **Author names and affiliation** | Raghav Sharma, Gaurav Sharma, Aryan Tiwari — Vyakti.ai (owner-provided 2026-08-18). | **RESOLVED** |
 | B2 | **Human-annotation decision (R3)** | Not a hard blocker for a *workshop* posting, but it is a hard blocker for any archival venue and it is the ethics gap named in §7.3. Owner must decide: run it before JUDGe (tight), before NAACL 2027 (comfortable), or declare the paper workshop-only. | **PENDING OWNER** |
 | B3 | **Licence sign-off** — Apache-2.0 (code) + **CC BY 4.0** (data) + the arXiv posting licence | Owner approved 2026-08-18 ("okay whatever u choose in license") — Apache-2.0 code, CC BY 4.0 data per §9.3's recommendation. | **RESOLVED** |
-| B4 | **R1's ~$5 cash** | Owner authorized 2026-08-18 ("leave the test or you can do it") — but BLOCKED on transport: the OpenRouter key remains at $0 of its $20 limit and no Anthropic/Bedrock key exists. Runs when the key limit is raised or Bedrock lands; not required for JUDGe. | **AUTHORIZED, TRANSPORT-BLOCKED** |
+| B4 | **R1's ~$5 cash** | Owner authorized 2026-08-18; the key limit was raised and the run executed the same day at ≈$3.93. Result: §5.11, the ground truth's 77.1% test–retest ceiling. | **RESOLVED — RUN, §5.11** |
+| B5 | **R1b's ≈$1 cash** — re-run `claude-opus-5` with a reasoning-sized token cap | Not a blocker for JUDGe. It is the cheapest remaining upgrade in the whole programme: it would give the paper its first demonstrated passing judge (G5b) and give the swap-test battery the qualified judge it has been blocked on since 2026-08-15. | **PENDING OWNER** |
+| B6 | **D3 sign-off** — the release bundle retains Indian city and landmark references from the scripted battery (`Silk Board` 52, `silk board` 35, `Bangalore` 50, `Bandra` 2 occurrences, counted by the gate run) | §13.4 D3 requires the owner to confirm these are character detail rather than anything identifying. They are authored fiction and identify no person; stripping them would damage the code-switched content that is the released asset. This workstream retained them and recorded the decision rather than asserting the confirmation. **One yes/no from the owner clears it.** | **PENDING OWNER — the only open de-identification item** |
 
 ### 13.4 De-identification checklist — run against the release bundle
 
@@ -2004,23 +2265,133 @@ novelty survey at the same time — §10 G7.)*
 and the whole thing must be re-run against the *built bundle*, not the source
 tree, because the bundle is what gets published.
 
+**RUN 2026-08-18 against the built bundle. 22 gates, all pass.** The bundle is
+`release/vyakti-judge-qual/`, assembled by `docs/paper/build-release-bundle.mjs`;
+the gates are `docs/paper/verify-release-bundle.mjs`, which exits non-zero on any
+hit and writes its output into the bundle as `de-identification-report.txt`.
+Rebuilding the bundle deletes that report on purpose — a stale gate report is
+worse than none.
+
 | # | check | required result | state |
 |---|---|---|---|
-| D1 | Grep the release tree for the first 200 characters of `personaText` **and** of `personaVoice` | **zero hits.** The archives embed the full persona at 44,002 and 47,094 characters; releasing them raw would publish the product. | **NOT RUN — bundle not built** |
-| D2 | Grep for the scripted fictional interlocutor's name (`Raghav`) | pseudonymised to `USER`. Recommended over "keep": it costs nothing and removes the question entirely. | **NOT RUN** |
-| D3 | Grep for real place/person references that could identify the owner (the scripts carry Bangalore landmarks such as `Silk Board`, band names, a design job) | Character detail, not PII — but **owner confirms**, and the confirmation is recorded rather than assumed. | **NOT RUN — needs owner** |
-| D4 | Grep for any API key, endpoint, Azure deployment name or resource id | **zero hits.** `api/_config.js` is gitignored and must stay out of the bundle; `judges.json`'s `deployment` fields and endpoint hints are stripped per §9.2. | **NOT RUN** |
-| D5 | Confirm no `meera_log` row or any production DB record is present | **zero.** The archives are battery outputs and none should be — **verify, do not assume.** | **NOT RUN** |
-| D6 | Confirm the R4 artifacts (`analysis/r4/translations.json`, `judge-rows.json`) are covered by D1–D5 as well | They were produced after §9.2 was written and are not yet in its release table. **They contain full transcripts and must be added to the bundle's strip list.** | **NOT RUN — gap in §9.2, flagged here** |
-| D7 | Datasheet states, in its own voice and in its first section, that the ground truth is **LLM-produced, not human-annotated** | present | **DRAFTED, §9.4** |
+| D1a/D1b | First 200 characters of `personaText` **and** `personaVoice` | zero hits | **PASS** |
+| D1c | **Five persona spot-signatures**, chosen by reading the persona itself — one from its opening doctrine and four from widely separated regions (≈4k, ≈12k, ≈25k, ≈43k characters in), each long and specific enough that a coincidental transcript match is implausible | zero hits | **PASS ×5** |
+| D2a | The scripted fictional interlocutor's given name, any case | zero hits outside `CITATION.cff` — pseudonymised to `USER` | **PASS** |
+| D2b | The companion persona's name, any case | zero hits — pseudonymised to `HER` | **PASS** |
+| D2c | The surname that also appears in the author list | zero hits outside `CITATION.cff` — pseudonymised to `[NAME]` | **PASS** |
+| D3 | Real place references that could identify the owner | character detail, not PII — **recorded for owner confirmation, not auto-failed** | **RECORDED: `Silk Board` 52, `silk board` 35, `Bangalore` 50, `Bandra` 2. Retained deliberately; flagged for owner sign-off.** |
+| D4a–e | API-key-shaped strings; cloud endpoint hostnames; Azure subscription/resource-group ids; the gitignored secrets module; env vars carrying values rather than names | zero hits | **PASS ×5 — and D4b/D5b CAUGHT A REAL LEAK on the first build, see below** |
+| D5a–c | Production log/DB references; device and installation identifiers (UUIDs, tokens); email addresses and phone numbers | zero hits | **PASS ×3** |
+| D6 | The R4 artifacts (translations, judge rows, summary) covered by D1–D5 **and** stripped of `usage` and the redundant `sourceText` | zero hits | **PASS — 3 files checked** |
+| D7 | Datasheet states, in its own voice and in its **first** section, that the ground truth is LLM-produced, not human-annotated, and that agreement is not accuracy | present | **PASS** |
+| INV | No file outside the declared bundle shape | zero hits | **PASS** |
+
+**The gates earned their keep on the first build, and this is worth recording
+because it is the same lesson as §6.5.** D4b and D5b failed: ten R2 judge rows
+carried a raw provider error body inside `harnessMiss`, and that body contained
+the tenant's **full Azure endpoint hostname — which embeds the owner's own
+name** — plus request UUIDs. Nobody had put them there; they arrived as the
+verbatim text of a content-filter rejection, three layers away from anything a
+person would have thought to check. Two more gates failed for a self-inflicted
+reason: the pseudonymisation *note* the builder wrote into each transcripts file
+spelled out the very names it was substituting. All four were fixed — miss
+strings are now redacted to kind, HTTP status and a coarse reason class, which
+is all the guards use — and the gates re-run clean.
+
+**Two scoping decisions in the gates, stated so they are not silent
+exemptions.** `CITATION.cff` is exempt from the person-name gates, because a
+citation file is supposed to name its authors; the exemption is one named file,
+not a pattern. And D3 is **advisory**: it records place references rather than
+failing on them, because they are authored character detail in a fictional
+script that identifies no person, and stripping them would damage the
+code-switched linguistic content that is the released asset. §13.4 as originally
+written required owner confirmation for D3 and that is still outstanding — it is
+the one open item in this table.
 
 ### 13.5 Pre-post correctness sweep
 
 | # | item | state |
 |---|---|---|
-| P1 | Extract pre-registration **commit hashes and timestamps** for `docs/SPEC.md` §10-Q5 and `SWAP-TEST-PREREG.md` Amendment 2, and cite them (§10 G6) | **NOT DONE — free, do it before posting** |
-| P2 | Re-run the eight-work adversarial novelty survey; §0.2's claims are dated 2026-08-18 (§10 G7) | **NOT DONE — free** |
+| P1 | Extract pre-registration **commit hashes and timestamps** for `docs/SPEC.md` §10-Q5 and `SWAP-TEST-PREREG.md` Amendment 2, and cite them (§10 G6) | **DONE 2026-08-18 — see the chain below** |
+| P2 | Re-run the eight-work adversarial novelty survey; §0.2's claims are dated 2026-08-18 (§10 G7) | **DONE (second pass, 2026-08-18) — verdict below; run once more on submission day** |
 | P3 | Resolve every `[VERIFY]` marker in §2.2 (author lists, arXiv ids for JudgeBench, Zheng et al., LinCE/GLUECoS) against the published record | **NOT DONE** |
 | P4 | Confirm the string *"fails on code-switched affective register"* appears nowhere as a claim (§1's wording law) | **HOLDS in this draft — re-check after every edit** |
 | P5 | Rebuild all three figures and confirm byte-identical output (`fig-f1`, `fig-f2`, `fig-f3`) | **VERIFIED 2026-08-18 — reruns reproduce byte-for-byte** |
-| P6 | Confirm every number in the abstract and §5 traces to `derive-tables.mjs`, `clustered-cis.mjs`, `analysis/r4/summary.json`, or a `measurements.md` node id | **HOLDS.** The only non-measured quantity in the paper is the analytic curve *q*²+(1−*q*)², labelled as such wherever it appears. |
+| P6 | Confirm every number in the abstract and §5 traces to `derive-tables.mjs`, `clustered-cis.mjs`, `analysis/r4/summary.json`, `analysis/r2/*.json`, or a `measurements.md` node id | **HOLDS.** The only non-measured quantity in the paper is the analytic curve *q*²+(1−*q*)², labelled as such wherever it appears. §5.11's numbers are `derive-tables.mjs` T3 + `clustered-cis.mjs`, both re-run 2026-08-18 against the post-[R1] `judges.json`. The one hand-computed figure in the paper is [R1]'s ≈$3.93, arithmetic from `judges.json.cost_by_run` tokens × `judge_configs` pricing, shown in §5.11 because the harness returned `null` (field-name mismatch, now in the quirk log). |
+| P7 | Rebuild **F1** after [R1] and confirm determinism | **DONE 2026-08-18.** F1 now carries the ceiling line and its hatched CI band, and drops opus-4.8 from the "invalid" band into a labelled CEILING row. Three consecutive rebuilds are byte-identical (`md5 850f08b9…`). F2 and F3 rebuild byte-identical to their committed versions and are unaffected. |
+
+### 13.6 Pre-registration chain — extracted, with hashes (P1, §10 G6)
+
+Verifiable with `git log` on this branch. The claim the paper makes is that the
+≥80% figure was fixed before any candidate judge was run, and it holds with room
+to spare:
+
+| # | commit | timestamp (UTC) | file | what it fixed |
+|---|---|---|---|---|
+| 1 | `2e82a0f` | 2026-08-13T12:20:22 | `docs/SPEC.md` §10-Q5 | The methodology and the number: a judge panel is *"trusted only after **≥80% agreement with the owner's historical accept/reject verdicts on held-out pairs**"*. **Two days before any candidate judge ran.** |
+| 2 | `c18b239` | 2026-08-15T09:37:58 | `context/decisions.md` `d2-on-credits` | Instantiates that bar for judge qualification on this programme's credits. **25 minutes before the first backtest result was committed** (`dd0a04c`, 2026-08-15T10:02:49). |
+| 3 | `bfeb979` | 2026-08-15T10:24:29 | `docs/SWAP-TEST-PREREG.md` | The pre-registration proper — swap run 1's design, frozen before confirmatory data. |
+| 4 | `a7198a2` | 2026-08-15T10:33:12 | same | Amendment 1 — the context premise, measured and failed. |
+| 5 | `a053019` | 2026-08-15T11:28:09 | same | Amendment 2 — the judge is grant-billed, anthropic is out, *"qualification bar unchanged (≥80% vs archived blind verdicts)"*. |
+| 6 | `d10e840` | 2026-08-18T09:27:19 | same | Amendment 2a — folds in the favoritism retraction; the disjoint-family preference is re-grounded on structure rather than the retracted measured instance. |
+
+**The honest reading, and the paper states it this way.** The *number* (≥80%)
+and its *method* are commit 1, two days ahead of every candidate. The
+*application to judge qualification* is commit 2, twenty-five minutes ahead of
+the first result. Commits 3–6 restate it without changing its value — Amendment
+2's own words are "qualification bar unchanged". No commit anywhere in this
+chain moves the bar after a result was known, which is the property that
+matters. **What the chain cannot claim, and the paper does not:** that the bar
+was validated against an achievable ceiling before it was set. §5.11 shows it
+was not, and the paper reports that as a method correction (§6.2).
+
+### 13.7 Novelty re-scan — second pass, 2026-08-18 (P2, §10 G7)
+
+**Verdict: C1, C1b and C2 stand. Nothing published after the first pass scoops
+them.** But the second pass is not a clean confirmation, and reporting it as one
+would be the exact error this paper is about:
+
+**Two adjacent works the first scan missed** (both published *before* it, so
+this is a recall failure in the first survey, not a new arrival):
+
+- **`BabelJudge: Measuring LLM-as-a-Judge Reliability Across Languages and Agent
+  Trajectories`, arXiv:2606.22329 (2026-06-21).** English, Hindi, Arabic,
+  Swahili; composite bias-penalised reliability 0.714 (Hindi) → 0.550 (Swahili);
+  raw accuracy 0.835 → 0.660; Swahili order-consistency collapses to 0.480,
+  described as *"near-random under slot-order swaps"* — the same evacuation
+  geometry as §5.3, measured on a different axis. **Does not scoop us:**
+  monolingual per language (no code-mixing, no romanisation), gold labels
+  produced *by construction* through controlled degradation of a reference
+  answer rather than by a trusted human-aligned verdict set, one primary judge
+  model, no affective/companion register, no qualification bar. It is the
+  closest published work on *slot-order collapse in a non-English language* and
+  must be cited beside §5.3.
+- **`Reliability without Validity: A Systematic, Large-Scale Evaluation of
+  LLM-as-a-Judge Models Across Agreement, Consistency, and Bias`, Norman,
+  Rivera & Hughes, arXiv:2606.19544 (2026-06-17).** 21 judges, 9 providers,
+  ~541,000 judgments, 118 runs, on MT-Bench / JudgeBench / RewardBench.
+  Headline: κ deflation of 33–41 pp against exact match, and **production
+  judges showing test–retest reliability > 0.95 alongside position bias > 0.10**.
+  **Does not scoop us** — English, objective benchmarks, no code-switching, no
+  affective register, no pre-registered qualification bar, no backtest against a
+  deployed decision record. **But it is now the single most important citation
+  in the paper**, because it is the prior a reviewer will raise against §5.11:
+  it reports judge test–retest above 0.95, and we measure 0.771 for the model
+  that wrote our own ground truth. Those are different quantities — theirs is
+  stability of a judge re-scoring the same objective items, ours is a judge
+  reproducing its own *preference* verdicts on affective companion dialogue
+  seven days later — and the paper must say so explicitly and put the two
+  numbers side by side. The contrast is a result, not an embarrassment: their
+  title is *"reliability without validity"*, and ours is the case where even
+  the reliability is not there.
+
+**Also re-confirmed live in this pass:** JUDGe 2026 (`judge2026.github.io`) is
+real, is a NeurIPS 2026 workshop, and its deadline remains **2026-08-29,
+11:59 PM AoE**, with all notifications preceding NeurIPS's mandatory
+2026-09-29 date.
+
+**Standing instruction: run the survey a third time on submission day.** Two
+passes found two misses; the failure mode is recall, not staleness, so the third
+pass should query the *mechanisms* (slot-order collapse, test–retest of judges,
+qualification bars) rather than the *setting* (Hinglish, code-switching), which
+is what the first pass over-weighted.

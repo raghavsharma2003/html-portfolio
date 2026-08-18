@@ -1,0 +1,72 @@
+=== De-identification gates — DRAFT.md §13.4, run against the BUILT bundle ===
+bundle: release/vyakti-judge-qual  (33 files, 3401 KB)
+
+[PASS    ] D1a        first 200 chars of personaText (44,002 chars total)
+            required: zero hits
+
+[PASS    ] D1b        first 200 chars of personaVoice (47,094 chars total)
+            required: zero hits
+
+[PASS    ] D1c/S1     persona spot-signature — S1 personaText/Voice opening doctrine: "a DIAGRAM OF A SHAPE, never a line to send…"
+            required: zero hits
+
+[PASS    ] D1c/S2     persona spot-signature — S2 personaText ~4k: "Mirror their energy and length…"
+            required: zero hits
+
+[PASS    ] D1c/S3     persona spot-signature — S3 personaText ~12k: "bring back souvenirs, in whatever words the exci…"
+            required: zero hits
+
+[PASS    ] D1c/S4     persona spot-signature — S4 personaVoice ~25k: "Never install a ritual — only christen ones that…"
+            required: zero hits
+
+[PASS    ] D1c/S5     persona spot-signature — S5 personaVoice ~43k: "opens with a listener sound that fits the mood…"
+            required: zero hits
+
+[PASS    ] D2a        the scripted interlocutor's given name (any case)
+            required: zero hits outside CITATION.cff — pseudonymised to USER
+
+[PASS    ] D2b        the companion persona's name (any case)
+            required: zero hits — pseudonymised to HER
+
+[PASS    ] D2c        the surname that also appears in the author list
+            required: zero hits outside CITATION.cff — pseudonymised to [NAME]
+
+[RECORDED] D3         real place references that could identify the owner
+            required: character detail, not PII — RECORDED for owner confirmation, not auto-failed
+            found:    Silk Board=52, silk board=35, Bangalore=50, Bandra=2
+            note:     Retained deliberately. These are Indian city/landmark references inside an authored fictional script; they identify no person, and removing them would damage the code-switched content that is the released asset. FLAGGED FOR OWNER SIGN-OFF before publication (DRAFT.md §13.4 D3 requires owner confirmation, recorded rather than assumed).
+
+[PASS    ] D4a        API-key-shaped strings (sk-*, azure 32-hex, bearer literals)
+            required: zero hits
+
+[PASS    ] D4b        cloud endpoint hostnames
+            required: zero hits
+
+[PASS    ] D4c        Azure subscription / resource-group identifiers
+            required: zero hits
+
+[PASS    ] D4d        the private repo's secrets module
+            required: zero hits
+
+[PASS    ] D4e        environment variables carrying values rather than names
+            required: zero hits
+
+[PASS    ] D5a        production log or DB table references
+            required: zero hits
+
+[PASS    ] D5b        device / installation identifiers (UUIDs, FCM tokens, IMEIs)
+            required: zero hits
+
+[PASS    ] D5c        email addresses and phone numbers
+            required: zero hits
+
+[PASS    ] D6         R4 artifacts (3 files) covered by D1-D5 and stripped of usage/sourceText
+            required: zero hits
+
+[PASS    ] D7         DATASHEET.md states in its FIRST section that the ground truth is LLM-produced, not human-annotated, and that agreement is not accuracy
+            required: present
+
+[PASS    ] INV        no file outside the declared bundle shape
+            required: zero hits
+
+RESULT: all 22 gates pass (D3 is advisory and RECORDED, pending owner sign-off).

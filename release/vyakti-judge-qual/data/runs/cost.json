@@ -1,0 +1,116 @@
+{
+  "note": "Per-run call and token totals. Per-CALL usage objects are stripped from the released judge rows; these aggregates replace them. Azure-billed runs are $0 cash against a Microsoft-for-Startups grant; the only cash item is R1.",
+  "R0_and_R1": [
+    {
+      "at": "2026-08-15T10:52:01.887Z",
+      "judges": [
+        "anthropic/claude-opus-5",
+        "anthropic/claude-opus-4.8"
+      ],
+      "calls": 210,
+      "promptTokens": 353337,
+      "completionTokens": 21665,
+      "billedTo": "Azure AI Foundry credits (Microsoft for Startups) for azure judges; see nonAzurePriced for any priced non-azure judge",
+      "cashCostUsd": null
+    },
+    {
+      "at": "2026-08-15T12:03:39.149Z",
+      "judges": [
+        "DeepSeek-V4-Pro",
+        "Mistral-Large-3"
+      ],
+      "calls": 190,
+      "promptTokens": 226881,
+      "completionTokens": 5440,
+      "billedTo": "Azure AI Foundry credits (Microsoft for Startups) for azure judges; see nonAzurePriced for any priced non-azure judge",
+      "cashCostUsd": 0
+    },
+    {
+      "at": "2026-08-15T15:44:08.834Z",
+      "judges": [
+        "Mistral-Large-3"
+      ],
+      "calls": 192,
+      "promptTokens": 231279,
+      "completionTokens": 5531,
+      "billedTo": "Azure AI Foundry credits (Microsoft for Startups) for azure judges; see nonAzurePriced for any priced non-azure judge",
+      "cashCostUsd": 0
+    },
+    {
+      "at": "2026-08-15T15:45:37.781Z",
+      "judges": [
+        "command-a-plus-05-2026"
+      ],
+      "calls": 192,
+      "promptTokens": 238867,
+      "completionTokens": 23040,
+      "billedTo": "Azure AI Foundry credits (Microsoft for Startups) for azure judges; see nonAzurePriced for any priced non-azure judge",
+      "cashCostUsd": 0
+    },
+    {
+      "at": "2026-08-15T15:46:56.915Z",
+      "judges": [
+        "command-a-plus-05-2026"
+      ],
+      "calls": 192,
+      "promptTokens": 238867,
+      "completionTokens": 23040,
+      "billedTo": "Azure AI Foundry credits (Microsoft for Startups) for azure judges; see nonAzurePriced for any priced non-azure judge",
+      "cashCostUsd": 0
+    },
+    {
+      "at": "2026-08-15T15:49:29.970Z",
+      "judges": [
+        "command-a-plus-05-2026"
+      ],
+      "calls": 192,
+      "promptTokens": 238867,
+      "completionTokens": 76792,
+      "billedTo": "Azure AI Foundry credits (Microsoft for Startups) for azure judges; see nonAzurePriced for any priced non-azure judge",
+      "cashCostUsd": 0
+    },
+    {
+      "at": "2026-08-15T15:52:45.667Z",
+      "judges": [
+        "command-a-plus-05-2026"
+      ],
+      "calls": 192,
+      "promptTokens": 239059,
+      "completionTokens": 69387,
+      "billedTo": "Azure AI Foundry credits (Microsoft for Startups) for azure judges; see nonAzurePriced for any priced non-azure judge",
+      "cashCostUsd": 0
+    },
+    {
+      "at": "2026-08-18T10:55:35.755Z",
+      "judges": [
+        "anthropic/claude-opus-5",
+        "anthropic/claude-opus-4.8"
+      ],
+      "calls": 384,
+      "promptTokens": 650150,
+      "completionTokens": 27175,
+      "billedTo": "Azure AI Foundry credits (Microsoft for Startups) for azure judges; see nonAzurePriced for any priced non-azure judge",
+      "cashCostUsd": null
+    }
+  ],
+  "R1_cash_note": "The 2026-08-18 run reports cashCostUsd null, not 0: the judge configs declare pricing as {prompt_per_token, completion_per_token} while the cost helper reads {inUsdPerTok, outUsdPerTok}, so the priced path returned NaN and serialised as null. This is the guard behaving as designed (an unknown rate must never print as $0) plus a field-name mismatch, which is in QUIRKS.md. Priced by hand at the logged rate ($5/M prompt, $25/M completion, fetched 2026-08-15): 650150*5e-6 + 27175*25e-6 = $3.93.",
+  "R2": {
+    "newAxisCalls": 5760,
+    "promptTokens": 6761468,
+    "completionTokens": 139655,
+    "overallAxisNewCalls": 0,
+    "overallAxisSource": "R0 (evals/dbattery/judges.json) — reused, not re-run",
+    "billedTo": "Azure AI Foundry credits (Microsoft for Startups) — cash cost $0",
+    "generatedAt": "2026-08-18T11:16:41.010Z"
+  },
+  "R4": {
+    "translationCalls": 192,
+    "translationPromptTokens": 129269,
+    "translationCompletionTokens": 81533,
+    "judgeCalls": 960,
+    "judgePromptTokens": 992446,
+    "judgeCompletionTokens": 22938,
+    "billedTo": "Azure AI Foundry credits (Microsoft for Startups) — cash cost $0",
+    "generatedAt": "2026-08-18T09:45:00.651Z"
+  }
+}

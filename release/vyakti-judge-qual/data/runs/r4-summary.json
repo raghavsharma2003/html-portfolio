@@ -1,0 +1,42 @@
+{
+  "run": "R4 — English-translation control",
+  "generated_at": "2026-08-18",
+  "method": "Same 96 archived units (both transcripts per unit) machine-translated to faithful monolingual English by gpt-5.6-terra (Azure, max_completion_tokens, reasoning_effort:none, temperature omitted/API-pinned to 1), re-judged by the same 5 credits-billed judges that failed R0 (DeepSeek-V4-Flash, DeepSeek-V4-Pro, Mistral-Large-3, gpt-5.6-terra, grok-4.3; Cohere excluded, protocol-unfit stands), same both-orders-agree protocol, same rubric with only the language descriptor word changed ('Hinglish'->'English', 2 occurrences). Compared against the SAME archived ground truth used in R0 (no re-judging of the Hinglish condition — already paid for, evals/dbattery/judges.json). Clustered CIs via docs/paper/analysis/clustered-cis.mjs (cluster=beat, 12 clusters, cluster bootstrap, 10000 reps, seed 20260818).",
+  "known_confound": "gpt-5.6-terra is both the translator and one of the five judges under test — the only two Azure-credits models the task brief offered as translator candidates are both members of the fixed 5-judge panel. terra's own recovery number cannot fully rule out a self-familiarity effect; the other four judges' numbers are not subject to this confound. In the observed data terra's score moved in the OPPOSITE direction expected from self-favoritism (-3.1pp, a slight decline), which weakly argues against a large self-familiarity effect but is not proof at n=96.",
+  "recovery_table": [
+    { "judge": "DeepSeek-V4-Flash", "hinglish_agree": "27/96", "hinglish_pct": 28.1, "hinglish_clustered_ci": [18.8, 39.6], "english_agree": "29/91", "english_pct": 31.9, "english_clustered_ci": [19.4, 45.2], "recovery_pp": 3.7, "note": "5 English-condition rows dropped to a transport miss (5/192 = 2.6%, below the 5% self-invalidation threshold; run is VALID)" },
+    { "judge": "DeepSeek-V4-Pro", "hinglish_agree": "29/94", "hinglish_pct": 30.9, "hinglish_clustered_ci": [20.7, 41.5], "english_agree": "36/96", "english_pct": 37.5, "english_clustered_ci": [28.1, 47.9], "recovery_pp": 6.6, "note": "largest recovery in the panel; still far below the 80% bar, CIs overlap heavily with the Hinglish condition" },
+    { "judge": "Mistral-Large-3", "hinglish_agree": "28/96", "hinglish_pct": 29.2, "hinglish_clustered_ci": [20.8, 38.5], "english_agree": "33/95", "english_pct": 34.7, "english_clustered_ci": [26.3, 45.3], "recovery_pp": 5.6, "note": "1 English-condition row dropped to a transport miss (1/192 = 0.5%, VALID)" },
+    { "judge": "gpt-5.6-terra", "hinglish_agree": "52/96", "hinglish_pct": 54.2, "hinglish_clustered_ci": [43.8, 64.6], "english_agree": "49/96", "english_pct": 51.0, "english_clustered_ci": [38.5, 63.5], "recovery_pp": -3.1, "note": "the best-scoring judge in BOTH conditions; also the translator — see known_confound. Score moved slightly DOWN in English." },
+    { "judge": "grok-4.3", "hinglish_agree": "33/96", "hinglish_pct": 34.4, "hinglish_clustered_ci": [25.0, 43.8], "english_agree": "36/96", "english_pct": 37.5, "english_clustered_ci": [29.2, 45.8], "recovery_pp": 3.1, "note": "clean run, no misses" }
+  ],
+  "translation_spot_check": {
+    "n_units": 10,
+    "seed": 20260818,
+    "units_checked": [
+      "charm-luna|voice|opinion|0", "charm-luna|text|flirt|0", "charm-luna|text|bored|0",
+      "charm-luna|text|opinion|1", "charm-grok|voice|flirt|0", "charm-luna|voice|sad|0",
+      "charm-luna|text|factual|0", "charm-grok|text|opinion|0"
+    ],
+    "verdict": "PRESERVED, all 10 units, both arms each (20 transcripts reviewed). Meaning, tone, humour, teasing/sarcasm register, emotional weight (the sad-beat grandmother's-death-anniversary unit kept its full gentleness), and domain-specific content (SIP/ELSS/80C mutual-fund terminology in the factual-beat unit) were all preserved accurately. No hallucinated content, no dropped turns, no flattening of teasing into neutral phrasing observed in the sample. Proper nouns (Coldplay, Radiohead, Silk Board, Local Train) retained untranslated as intended. Reviewed by the agent executing this workstream, not by the owner or a second annotator — this is a single-rater spot check, not independent verification, and is reported as such.",
+    "raw_material": "full source+translation pairs for all 10 units are in the run log; translations.json holds all 192."
+  },
+  "causal_verdict": {
+    "statement": "G2 (\"judges fail BECAUSE of code-switched affective register\") is NOT supported by this control. Register causality is NOT established.",
+    "strength": "Clean negative result, not underpowered noise: every recovery is small (-3.1pp to +6.6pp, mean +3.2pp across the panel), every English-condition clustered CI overlaps its Hinglish-condition clustered CI substantially, and no judge's English-condition point estimate or CI upper bound approaches the 80% bar (English point estimates run 31.9%-51.0%; even the best case, terra, is still a clean FAIL). Under this project's own fab-noise-floor discipline (judged-rate differences below 13.6pp on byte-identical input are noise, not signal), every recovery in this table is inside the noise floor.",
+    "interpretation": "Removing code-switching from the stimulus does not rescue judge performance. The failure survives translation to monolingual English, so it is deeper than register/code-switching per se. This is consistent with (does not by itself prove, but is the parsimonious reading alongside) §5.4's direction-of-error finding: judges reward the longer, more interrogative, more assistant-shaped, more generically-supportive reply, and that verbosity/helpfulness-tuned preference is not a Hinglish-specific artifact — it appears to be the judges' baseline taste, which a Hinglish-vs-English swap does not change. The paper's title and G2 claim must be revised: 'fails on code-switched affective register' should read as 'fails on affective/companion register, tested here on a code-switched corpus' unless a further control (e.g. a monolingual-English affective-companion corpus with its own trusted verdicts) is run — which this workstream does not have budget or data for.",
+    "publishable_as": "a negative result reported plainly, per task instruction: what IS, not what was hoped."
+  },
+  "cost": {
+    "translation_calls": 192,
+    "translation_prompt_tokens": 129269,
+    "translation_completion_tokens": 81533,
+    "judging_calls": 960,
+    "judging_prompt_tokens": 992446,
+    "judging_completion_tokens": 22938,
+    "total_calls": 1152,
+    "total_tokens": 1226186,
+    "billed_to": "Azure AI Foundry credits (Microsoft for Startups)",
+    "cash_cost_usd": 0
+  }
+}
