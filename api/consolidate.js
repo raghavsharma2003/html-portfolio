@@ -1443,19 +1443,45 @@ async function backfillWeParticipation({ dryRun = false, onlyPerson = null, agen
   // it sweeps every row in the table. That is exactly the shape a missing
   // agent scope hurts most, so the clause is not optional here: without it a
   // Meera-triggered backfill would rewrite another agent's episodes.
-  const scope = agentScopePredicate("e", { agentId: onlyPerson ? "$3" : "$2" });
-  const where = onlyPerson
-    ? `where e.person_id = $2 and e.participation = 'user' and e.summary ~* $1 ${scope}`
-    : `where e.participation = 'user' and e.summary ~* $1 ${scope}`;
+  //
+  // Written as four COMPLETE statements rather than one shared `where` fragment
+  // so that each one carries the predicate visibly in its own text. That is not
+  // cosmetic: evals/agent/isolation.mjs's call-site arm reads these literals,
+  // and a statement whose scoping lives behind an interpolated variable reads
+  // to any reviewer — human or gate — exactly like a statement with no scoping
+  // at all.
   const params = onlyPerson ? [WE_TOKEN_SQL, onlyPerson, agentId] : [WE_TOKEN_SQL, agentId];
   if (dryRun) {
-    const rows = await q(`select count(*)::int as n from vy_episode e ${where}`, params).catch(() => []);
+    const rows = onlyPerson
+      ? await q(
+          `select count(*)::int as n from vy_episode e
+            where e.participation = 'user' and e.summary ~* $1 and e.person_id = $2
+            ${agentScopePredicate("e", { agentId: "$3" })}`,
+          params,
+        ).catch(() => [])
+      : await q(
+          `select count(*)::int as n from vy_episode e
+            where e.participation = 'user' and e.summary ~* $1
+            ${agentScopePredicate("e", { agentId: "$2" })}`,
+          params,
+        ).catch(() => []);
     return Number(rows[0]?.n ?? 0);
   }
-  const rows = await q(
-    `update vy_episode e set participation = 'we' ${where} returning e.id`,
-    params,
-  ).catch(() => []);
+  const rows = onlyPerson
+    ? await q(
+        `update vy_episode e set participation = 'we'
+          where e.participation = 'user' and e.summary ~* $1 and e.person_id = $2
+          ${agentScopePredicate("e", { agentId: "$3" })}
+          returning e.id`,
+        params,
+      ).catch(() => [])
+    : await q(
+        `update vy_episode e set participation = 'we'
+          where e.participation = 'user' and e.summary ~* $1
+          ${agentScopePredicate("e", { agentId: "$2" })}
+          returning e.id`,
+        params,
+      ).catch(() => []);
   return rows.length;
 }
 
