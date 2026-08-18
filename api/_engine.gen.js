@@ -774,6 +774,34 @@ var SEARCH_DECISION = `
 If replying well needs a fact you cannot be sure of RIGHT NOW \u2014 today's news, a score, weather, a price or rate, whether something released or happened, "is X down", whether a thing they heard is true, or a word/meme/reference they used that you do not actually recognise \u2014 put [search: query] on its own line, with exactly one short holding bubble in your own words before it and nothing else.
 Do NOT check: feelings, advice, opinions, taste, your own life, greetings, teasing, callbacks, or stable things you genuinely know (how something works, what a place is generally like). If you already know it, just answer. Never while they are in crisis.`;
 
+// src/engine/agents/meera.ts
+var PERSONA_VERSION = "meera-1";
+var meeraAgent = {
+  slug: "meera",
+  displayName: HER_NAME,
+  personaVersion: PERSONA_VERSION,
+  buildSystemPromptParts,
+  buildSpeechStyle,
+  WATCH_MODE_NOTE,
+  SEARCH_DECISION,
+  FORGET_DECISION,
+  CRISIS_LINES,
+  // SPEC-AGENT-LAYER.md §3: Meera's register — romanized Hinglish, tu/tum/aap
+  // T-V honorific system. `hindiMarkers` is left unset here: the detector
+  // word lists (HINDI_MARKER_WORDS, TU/AAP/TUM_MARKERS) live in
+  // api/memory.js's consolidate derivations (generalization audit item 6),
+  // not in persona.ts, so there is nothing to re-export at this seam without
+  // reaching into a file this workstream does not own (api/**). Left absent
+  // rather than guessed or duplicated.
+  register: {
+    script: "latin",
+    honorificSystem: "hi-TV"
+  }
+};
+
+// src/engine/agents/registry.ts
+var DEFAULT_AGENT = meeraAgent;
+
 // src/engine/moment.ts
 var padT = (s) => " " + s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
 var MOMENT_KEYS = {
@@ -1294,8 +1322,9 @@ function decideParticipation(input) {
 var AGE_TIER_SAFETY_OVERRIDE = '\n\nAGE-TIER SAFETY OVERRIDE (structural, applies for the rest of this conversation, to everything said before or after this point, never softened, never explained to them as a rule): no romantic or intimate register, no pet names, no "missing you"/future-relationship language, no flirtation. Warm platonic friend register only, full stop.';
 function compile(input) {
   const dimsStage = input.relBundle ? stageForDims(input.relBundle.relState) : void 0;
-  const parts = buildSystemPromptParts(input.user, input.messageCount, input.medium, dimsStage);
-  let core = parts.core + (input.mode === "call" ? buildSpeechStyle(input.voiceEngine) : "");
+  const agent = input.agent ?? DEFAULT_AGENT;
+  const parts = agent.buildSystemPromptParts(input.user, input.messageCount, input.medium, dimsStage);
+  let core = parts.core + (input.mode === "call" ? agent.buildSpeechStyle(input.voiceEngine) : "");
   const romanceOk = input.ageGates ? input.ageGates.romanceRegisters !== false : true;
   const engagementOk = input.ageGates ? input.ageGates.engagementMechanics !== false : true;
   if (!romanceOk || !engagementOk) {
@@ -1321,7 +1350,7 @@ function compile(input) {
   };
   tail += input.innerThread;
   _track("T1");
-  if (input.watching) tail += WATCH_MODE_NOTE;
+  if (input.watching) tail += agent.WATCH_MODE_NOTE;
   _track("watch");
   const gate = input.relBundle ? momentGate(input.latestUserText || "", input.gapSinceLastMs || 0, input.relBundle.phraseLedger || []) : null;
   if (input.relBundle) {
@@ -1392,11 +1421,12 @@ ${input.herLife}`;
   _track("T8");
   if (input.mode === "chat" && !input.isDirective) tail += input.cultureNoteText;
   _track("culture");
-  if (input.mode === "chat") tail += SEARCH_DECISION;
-  tail += FORGET_DECISION;
+  if (input.mode === "chat") tail += agent.SEARCH_DECISION;
+  tail += agent.FORGET_DECISION;
   _track("T10");
   return { core, tail, system: core + tail, sections };
 }
+var CRISIS_LINES2 = DEFAULT_AGENT.CRISIS_LINES;
 export {
   CRISIS_LINES,
   MP_BRIDGE_BUDGET,

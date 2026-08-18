@@ -1,6 +1,19 @@
-// The room data layer — WS-TGBOT. Everything api/tg.js needs to READ or WRITE
-// about a room, and nothing about Telegram itself (that is tg.js's job) and
-// nothing about how a block is rendered (that is src/engine/room.ts's).
+// The room data layer — WS-TGBOT, generalized to every surface by WS-SURFACE.
+// Everything api/_surface.js needs to READ or WRITE about a room and about who
+// a person is, and nothing about any particular wire (that is the adapter's
+// job) and nothing about how a block is rendered (that is src/engine/room.ts's).
+//
+// ── what WS-SURFACE changed here, and what it did not ─────────────────────
+//
+// Identity and the synthetic device ids gained a `surface` parameter, and the
+// Telegram spellings (personForTgUser, linkTgPerson, roomDeviceId, dmDeviceId,
+// roomByChat, ensureRoom) are now thin wrappers over the general ones rather
+// than separate implementations. The Telegram device SEED is frozen at `tg:`
+// because every device id already written depends on it.
+//
+// What did NOT change: every retrieval below still goes through
+// api/_disclosure.js, and there is still not one hand-written disclosure
+// condition in this file. A surface may not widen what she is allowed to know.
 //
 // ── the one law this file exists to keep ──────────────────────────────────
 //
