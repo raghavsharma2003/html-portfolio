@@ -45,6 +45,30 @@ Plus the two repo-wide laws that outrank everything:
   **No new rule may be appended last.** Position is a scarce resource and
   adding to it dilutes the mechanism that makes the existing two fire.
 
+### 0.1 One governance rule, because it is the easiest to break by accident
+
+`SPEC.md` §5's identity-core table marks taste as the **only** row LIFTED
+(proven). Relationship stance, warmth and felt familiarity are marked
+explicitly **NOT CLAIMED** — *"The model's gravity well… Hypothesis,
+pre-registered not asserted."*
+
+Nothing in this phase may quietly upgrade that. Growth, texture and untold life
+are **hypotheses with tables**, and they ship as pre-registered measurements
+with named reversal conditions (§11), not as claims that identity now survives
+better. The distinction is the whole reason `context/` exists, and a phase that
+builds five self-shaped tables is the single most likely place to lose it.
+
+Two more constraints the audit surfaced, both easy to trip:
+
+- **`participation='meera'` is a dead enum value.** The schema permits it;
+  nothing has ever written it (only `'user'` and `'we'` are produced). Do not
+  build on it without writing it first.
+- **Pull-only is a code law, not a preference.** `moment.ts:23-27`: *"every
+  exported function in this file answers 'does THIS turn ask for it' — none of
+  them may be called speculatively to decide what to volunteer."* Every new
+  render path in this phase inherits it, and §6.3's eval target of **0
+  unprompted raises / 60** applies to the new blocks too.
+
 ---
 
 ## 1. The dimension map — what exists, what is missing
@@ -63,8 +87,8 @@ Every dimension on the owner's list, with its class:
 | personality | `persona.ts` | A | correct — it is the product, one copy, invariant-protected |
 | behaviour | `vy_pattern` (if/then, ≥2 citations / ≥2 days) | P | exists |
 | sense of self | `vy_pattern.self_in_relation` | P | exists, per-relationship |
-| experience | `vy_fact` kind='meera', `STORIES` array | A | **authored constants — her life does not move** (§3) |
-| growth | — | **X** | **absent** (§2) |
+| experience | `vy_fact` kind='meera' (improvised then locked, cited), `STORIES` array (2 hardcoded entries) | P+A | **works, but scoped per-person — she has a different life per user** (§3) |
+| growth | — | **X** | **absent — nothing makes her different in November than in August** (§2) |
 | vibe / style | `vy_rel_state` honorific, cs_ratio, pacing | partial | **texture is missing** (§6) |
 | attitude | taste + patterns | A+P | exists |
 | ego | — | **X** | see §2 — folded into the self arc, deliberately not its own thing |
@@ -111,7 +135,7 @@ create table if not exists vy_self_arc (
   dim         text not null,        -- directness|patience|humour|boundaries|confidence
   note        text not null,        -- telegraphic, shape-linted, NON-AFFECTIVE
   from_note   text not null default '',
-  citations   bigint[] not null,    -- her own episodes (participation='meera'|'we')
+  citations   bigint[] not null,    -- episodes evidencing the change
   span_days   real not null default 0,
   superseded_by bigint,
   created_at  timestamptz not null default now(),
@@ -139,9 +163,36 @@ growth; nobody does.
 
 ## 3. A life that moves — and who she has told (fills: experience)
 
-**The gap.** Her life is authored constants: `STORIES` is a hand-edited array
-in `storyCatalog.ts`, and her self-facts are 8 rows. Publishing a new day means
-a developer editing a TypeScript file. She cannot have had a week.
+**The gap, and it is worse than "she has no life".** Measured by the WS-SELF-AUDIT
+sweep, her life today is in two places and neither is a life:
+
+- `STORIES` in `storyCatalog.ts` — two hardcoded entries, both dated
+  2026-08-09. Publishing a new day means a developer editing a TypeScript file
+  and redeploying. She cannot have had a week.
+- `vy_fact kind='meera'` — her improvised self-facts, written by
+  `api/memory.js:788-795` and `api/consolidate.js:262,393`. This part works as
+  designed: `persona.ts:253` tells her *"YOUR life is yours to improvise… the
+  one thing you don't invent is your own past"*, and the extraction locks each
+  improvisation into a cited fact precisely so she cannot re-invent herself two
+  turns later.
+
+**But `vy_fact.person_id` scopes it.** So her life is not one life — it is a
+separate, independently-improvised life *per user*. Two people can be told two
+different and contradictory versions of her flatmate, her job, her weekend.
+
+This directly contradicts the principle the taste table states in its own
+header (`inner.ts:203-207`): *"Meera is one person, not one person per
+install"* — honoured for taste, violated for self-facts, and named as a
+tradeoff nowhere in the repo.
+
+It is a live correctness bug, not only a missing feature, and **the multiparty
+wedge is where it detonates.** In a room of three people who share context by
+construction, three independently-improvised lives are one conversation away
+from being visibly incoherent. `multiparty-v1-design` made group episodes
+state-inert in v1, which contains the damage but does not fix it: the DM-side
+lives still diverge and the room can still see two of them.
+
+Agent-scoping her life is therefore not a Phase E2 nicety. It is the fix.
 
 **The mechanism, and it is the single highest-value item in this phase.** A
 life beat is agent-scoped; *who she has told* is per-relationship:
@@ -194,10 +245,31 @@ of bug waiting to happen.
 
 ## 4. Multimodal grounding — what she sees and hears becomes what she remembers
 
-**The gap.** `vy_episode.affect_tags` documents `source: 'text' | 'voice_v0'`,
-and `vy_visual_assertion` / `vy_shared_moment` exist and hold **0 rows**. The
-voice lane and the watch lane produce in-the-moment replies that vanish. The
-relational record is text-derived only.
+**The gap — and it is mostly wiring, not building.** WS-SELF-AUDIT traced all
+three paths:
+
+- `affect_tags[].source` is set in exactly one place, `api/consolidate.js:325`,
+  as the hardcoded literal `"text"` — **unconditionally, including for
+  `channel:'call'` episodes.** The schema's `'text' | 'voice_v0'` union is
+  aspirational; `voice_v0` is dead.
+- `vy_visual_assertion` and `vy_shared_moment` have **correct, complete writers
+  already** (`api/episodes.js:111-132`, exposed as the `watch_visual` /
+  `watch_moment` ops at `:164-178`). **No client calls them.** A repo-wide grep
+  for those op names outside `api/episodes.js` returns nothing, and
+  `src/watch/scene.ts` never references `/api/episodes`. The file says so
+  itself in an open interface ticket at `api/episodes.js:136-143`: the call
+  sites *"are outside every §13 workstream's file list, so wiring them is
+  unclaimed"*. The call-hangup half of that ticket is now stale — it IS wired,
+  via `useCallEngine.ts:79-82`'s `op:"call_end"`. The watch half is not.
+- Call **transcripts** do reach `meera_log` with `channel:'call'`, and
+  `finalizePerson` does not filter by channel, so spoken words become episodes
+  and facts like any other text. What is missing is not the words — it is
+  everything about *how* they were said.
+
+So the honest statement of this gap: her spoken words already accrue; her
+voice does not, and nothing she has ever watched with anyone was recorded.
+Two of the three fixes are call sites for code that already exists and is
+already correct.
 
 The owner's ask is not "she can see and hear" — she already can. It is that
 seeing and hearing should *accrue*. The multimodal claim worth making is:
@@ -308,9 +380,20 @@ only surface things it has seen twice:
 | | pattern | observation |
 |---|---|---|
 | claim | "when X, he does Y" | "he said X" |
-| needs | ≥2 citations / ≥2 days | 1 citation |
+| needs | ≥2 citations to write, **≥3 support / ≥2 days to be usable** | 1 citation |
 | risk of being wrong | assigns him a trait he does not have | misremembers a detail |
 | decay | contradiction count | unrefreshed → fades |
+
+**The real latency is worse than the ≥2 citations suggests**, and this is the
+number that justifies the whole section. `prompt_eligible` is a *generated
+column* requiring `support_count >= 3 AND distinct_days >= 2`
+(`db/schema.sql:434-435`), so a freshly-written 2-citation pattern is invisible
+until a **third** occurrence bumps it — and each bump is counted only by the
+nightly pass. Best case, measured through the actual gates: reveal on day 1,
+recur on days 2 and 3, three separate nightly crons, and then it renders only
+if the user's *next* message re-triggers the matching moment-shape in T4.
+**Earliest usable: the night of the third calendar day.** Multiplied by a cron
+that has never run (§5), the effective latency to date has been infinite.
 
 `vy_observation` is a thin store: `agent_id, person_id, note (telegraphic),
 citations (≥1), salience, last_seen, times_seen, t_invalid`. An observation

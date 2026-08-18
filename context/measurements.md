@@ -1095,3 +1095,71 @@ derivation (M1/M3 wait on it), consent-card UX (tier owner-flagged OFF),
 Stars payments, react tuning, G6 latency. BLOCKED ON OWNER: BotFather
 token + webhook secret (TELEGRAM_BOT_TOKEN / TELEGRAM_WEBHOOK_SECRET /
 TELEGRAM_BOT_USERNAME) — then Ten Days, Three Rooms begins.
+
+---
+
+## `never-scheduled` — no scheduled job has EVER run; the whole derived layer is empty (2026-08-18)
+
+Traced from a felt-product question ("is the relational layer ready to
+launch on?") to the live database and then to the GitHub Actions API.
+
+Live counts, `api/_db.js` against production:
+
+| table | rows |
+|---|---|
+| meera_log | 2,358 (41 distinct devices) |
+| vy_person | 40 |
+| vy_episode | **2** |
+| vy_fact | **8** |
+| vy_rel_state | **0** |
+| vy_rel_event | **0** |
+| vy_pattern / vy_phrase / vy_ritual / vy_currency / vy_kin | **0** |
+| vy_taste_candidate / vy_visual_assertion / vy_shared_moment | **0** |
+| vy_group / vy_group_member / vy_tg_person | **0** |
+| meera_culture | 5 (manual seed) |
+
+The two episodes are from a single consolidation on 2026-08-15 covering
+one person over log span 2173–2224. Latest log id is 2358.
+
+**Root cause, and it is not the code.** `.github/workflows/consolidate.yml`
+exists and is correct (`cron: "0 22 * * *"` = 03:30 IST, running
+`node api/consolidate.js` plus --derive-rel-events, --derive-trust-repair,
+--extract-patterns, --capture-phrases, then relcheck and check-citations).
+So do `culture.yml` and `drift.yml`. **GitHub schedules workflows only from
+the DEFAULT branch.** The default branch is `main`; all of this work lives on
+`claude/ai-companion-app-rkt1lv`, which is **252 commits ahead of main**, and
+`git ls-tree -r origin/main` shows no `.github/workflows` files at all.
+
+Verified against the API rather than inferred:
+- `list_workflows` returns 2 (build-apk, deploy-web). consolidate.yml,
+  culture.yml and drift.yml are **not registered at all**.
+- workflow runs with `event=schedule`, all workflows, all time:
+  **total_count = 0**.
+
+So: consolidation, the culture-index refresh and the drift monitor have never
+fired on schedule, once, ever. `felt-wiring-landed` (2026-08-15) closed with
+"first real-user rel-state rows appear at tonight's cron" — that cron did not
+exist as far as GitHub was concerned, and the sentence was never checked
+against a run.
+
+**What this reframes.** `prodgap-audit` diagnosed the write half as mostly
+missing and WS-FELT/WS-DEPTH built the writers. Both were correct and neither
+was sufficient, because a writer that is only ever invoked by a job that never
+runs is indistinguishable from a writer that does not exist. Every measured
+"the engine renders empty for every real user" number in this file has TWO
+causes stacked, and only one of them was ever addressed.
+
+**The generalizable lesson, which is the expensive part.** This repo gates
+heavily on offline evidence: fixtures, invariants, byte-identity, dry runs,
+live functional probes. All of it green. None of it could see this, because
+every gate answers "does the code do the right thing when invoked" and the
+failure was "nothing invokes it". A deploy is not an execution, and a
+committed cron is not a scheduled cron. **The check that was missing is the
+cheapest one available: does the job have a completed run, and when?**
+
+n/a for n — this is a census of production state and an API fact, not a
+sampled measurement. Method: direct SQL counts over `api/_db.js`;
+`mcp__github__actions_list` for `list_workflows` and for workflow runs
+filtered to `event=schedule`; `git ls-tree -r origin/main` and
+`git rev-list --count origin/main..HEAD` for branch divergence. Date
+2026-08-18.

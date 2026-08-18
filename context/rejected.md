@@ -333,3 +333,88 @@ complete only with a non-empty reply; a cash-lane failure halts the run
 like pool exhaustion. State repaired by purging errored entries (853 valid
 remain, honest count restored). The rule: resumable state records
 OUTCOMES, never attempts — an attempt is what retry exists for.
+
+---
+
+## `life-per-person` — her improvised life is scoped to the listener (2026-08-18)
+
+Not a rejected approach — a **live inconsistency found by the WS-SELF-AUDIT
+sweep**, filed here because it is the class of thing this file exists for:
+a design that is correct in every component and wrong in composition.
+
+`persona.ts:253` tells her *"YOUR life is yours to improvise… the one thing
+you don't invent is your own past"*, and that is deliberate and good. The
+extraction pipeline then locks each improvisation into `vy_fact kind='meera'`,
+cited to the episode it was said in (`api/memory.js:788-795`,
+`api/consolidate.js:262,393`), specifically so she cannot re-invent herself
+two turns later. Both halves are right.
+
+But `vy_fact.person_id` scopes the row. So the anti-contradiction guarantee
+holds **within one listener and only within one listener**. Across listeners
+there is no constraint at all: two users can be told two different,
+contradictory versions of her flatmate, her job, her weekend, and nothing in
+the system can notice.
+
+The repo already states the opposite principle, in the taste table's own
+header (`inner.ts:203-207`): *"Meera is one person, not one person per
+install"* — honoured for taste (authored, global, frozen), violated for
+self-facts (generated, per-person, accumulating). The tradeoff is named
+nowhere.
+
+**Where it detonates: the multiparty wedge.** In a room whose members share
+context by construction, three independently-improvised lives are one
+conversation away from being visibly incoherent — and "she told me she has a
+flatmate, she told you she lives alone" is not a memory bug the user
+forgives, because it reads as lying rather than forgetting.
+`multiparty-v1-design`'s state-inert group episodes contain the damage
+(nothing new diverges *in* the room) without fixing it: the DM-side lives
+still diverge and the room can still see two of them.
+
+**What breaks:** any product where two people who both talk to the same agent
+can compare notes. Which is precisely the product.
+
+**The rule:** state that belongs to the AGENT is scoped to the agent, not to
+the listener. Only state that belongs to the RELATIONSHIP is scoped to the
+person. `vy_fact kind='meera'` is on the wrong side of that line, and the fix
+(agent-scoped life, per-relationship told-ledger) is Phase E2 §3.
+
+**What would reverse it:** nothing measured — this is a structural
+observation, not a tradeoff with a defensible other side. The only reason to
+keep per-person lives would be deliberately running two different characters,
+which is what `agent_id` is for.
+
+---
+
+## `dead-writers` — correct code with no caller is indistinguishable from absent code (2026-08-18)
+
+Three instances found in one audit sweep, which is what makes it a law rather
+than an anecdote:
+
+1. `vy_visual_assertion` / `vy_shared_moment` — complete, correct writers at
+   `api/episodes.js:111-132`, exposed as ops at `:164-178`. **No client calls
+   them.** `src/watch/scene.ts` never references `/api/episodes`. Both tables
+   hold 0 rows. The file carries its own open interface ticket saying the call
+   sites are "outside every §13 workstream's file list, so wiring them is
+   unclaimed" — an honest note that nonetheless sat unactioned.
+2. `affect_tags[].source` — the schema declares `'text' | 'voice_v0'`;
+   `api/consolidate.js:325` writes the literal `"text"` unconditionally,
+   including for `channel:'call'`. `voice_v0` has never been written.
+3. `participation='meera'` — legal in the `vy_episode` CHECK constraint, never
+   produced by any writer. Only `'user'` and `'we'` exist in practice.
+
+Related but larger in blast radius: `never-scheduled` (measurements) — the
+nightly job that invokes most of the relational writers has never run,
+because the workflow lives only on a non-default branch.
+
+**The shared shape:** every gate this repo runs asks *"does the code do the
+right thing when invoked"*. Fixtures, invariants, byte-identity, dry runs and
+live functional probes all answer that question, and all were green. None of
+them can see *"nothing invokes it"*, and a schema enum is a promise, not an
+implementation.
+
+**The rule, and it is cheap:** a table that should have rows is a testable
+claim. Before declaring any writer landed, assert a row count against the live
+database — and for anything that runs on a schedule, assert that the schedule
+has a completed run. An interface ticket naming an unclaimed call site is a
+known defect, not documentation; it belongs in a task list where it will be
+picked up, not only in a header comment where it will be read once.
