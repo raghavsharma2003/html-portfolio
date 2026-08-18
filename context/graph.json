@@ -555,6 +555,18 @@
    "kind": "measurement",
    "title": "RETRACTED: 16x same-vendor favoritism was panel-wide register preference (disjoint Mistral DiD larger); FAIL verdicts stand",
    "at": "2026-08-15"
+  },
+  {
+   "id": "relstate-zero-rows",
+   "kind": "measurement",
+   "title": "vy_rel_state: 0 rows for 40 persons \u2014 UPDATE-writers with no INSERT owner; whole relational surface silently invisible",
+   "at": "2026-08-15"
+  },
+  {
+   "id": "felt-wiring-landed",
+   "kind": "measurement",
+   "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card \u2014 deployed 4/4",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -1132,6 +1144,21 @@
    "src": "grok43-favoritism-retracted",
    "rel": "part_of",
    "dst": "relational-wedge"
+  },
+  {
+   "src": "relstate-zero-rows",
+   "rel": "part_of",
+   "dst": "prodgap-audit"
+  },
+  {
+   "src": "felt-wiring-landed",
+   "rel": "part_of",
+   "dst": "relational-wedge"
+  },
+  {
+   "src": "felt-wiring-landed",
+   "rel": "measured_by",
+   "dst": "prodgap-audit"
   }
  ]
 }

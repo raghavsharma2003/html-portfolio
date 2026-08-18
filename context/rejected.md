@@ -299,3 +299,21 @@ a diversity count. What breaks: any design sized on rows-not-distinct
 "required" 2,000+ distinct contexts). The rule: diversity claims are
 distinct-count claims, measured by hashing the thing that must differ,
 never read off len().
+
+---
+
+## `relstate-zero-rows` — UPDATE-as-writer with no INSERT path (2026-08-15)
+
+vy_rel_state had ZERO rows for all 40 real users, ever. refreshDerivedDims
+and the honorific writer were plain UPDATEs — which no-op silently when the
+row they'd update does not exist — and the only INSERT lived behind the
+forget cascade's rebuild. Every downstream renderer null-checked the
+missing row and rendered nothing, so the whole relational surface degraded
+gracefully into invisibility: no error, no log line, no test failure,
+because the eval fixtures CREATE their own rows. What breaks: any "writer"
+that assumes someone else created the row, in a system where creation was
+never assigned to anyone. The rule: every table gets exactly one named
+first-row owner, and derivers are upserts unless there is a logged reason
+they must not be. (Fixed in WS-FELT: both writers upserted, day-1 seed
+creates the row; found only because a felt-product audit asked "who ever
+INSERTs this?" table by table.)

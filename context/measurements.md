@@ -890,3 +890,19 @@ justification (a judge family disjoint from both arms gives the confound
 no path). Prereg amended to say exactly that. The lesson logged where it
 belongs: a difference-in-differences without a between-judge control is a
 mechanism claim waiting to be retracted.
+
+---
+
+## `felt-wiring-landed` — the write half exists now; day-1 is no longer empty (2026-08-15)
+
+WS-FELT shipped behind full gates (verify-release 6/6 incl. live-DB,
+byte-identity 83/83, invariants green, 22/22 live functional checks, 0
+test residue): rel-state writers upserted (root cause: 0 rows / 40 persons
+— see rejected.md), WE classification live with nightly idempotent
+backfill (would-touch today: 0 — only 2 episodes exist in prod), day-1
+seed (device-scoped, rate-limited, fire-and-forget from onboarding, cron
+backstop), opSeedCurrency with honest mapping (today's 6 relational-intent
+chips all correctly skip — topic seeding needs one new onboarding
+question, ticketed), closeness card from the model's own band vocabulary.
+Deployed and verified serving 4/4. First real-user rel-state rows appear
+at tonight's cron; new signups get theirs at onboarding.
