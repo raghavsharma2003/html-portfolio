@@ -2253,7 +2253,7 @@ novelty survey at the same time — §10 G7.)*
 | # | item | why it blocks | state |
 |---|---|---|---|
 | B1 | **Author names and affiliation** | Raghav Sharma, Gaurav Sharma, Aryan Tiwari — Vyakti.ai (owner-provided 2026-08-18). | **RESOLVED** |
-| B2 | **Human-annotation decision (R3)** | Not a hard blocker for a *workshop* posting, but it is a hard blocker for any archival venue and it is the ethics gap named in §7.3. Owner must decide: run it before JUDGe (tight), before NAACL 2027 (comfortable), or declare the paper workshop-only. | **PENDING OWNER** |
+| B2 | **Human-annotation decision (R3)** | Owner confirmed 2026-08-18: workshop-only now (JUDGe, non-archival); R3 human annotation upgrades the NAACL Findings version later. | **RESOLVED** |
 | B3 | **Licence sign-off** — Apache-2.0 (code) + **CC BY 4.0** (data) + the arXiv posting licence | Owner approved 2026-08-18 ("okay whatever u choose in license") — Apache-2.0 code, CC BY 4.0 data per §9.3's recommendation. | **RESOLVED** |
 | B4 | **R1's ~$5 cash** | Owner authorized 2026-08-18; the key limit was raised and the run executed the same day at ≈$3.93. Result: §5.11, the ground truth's 77.1% test–retest ceiling. | **RESOLVED — RUN, §5.11** |
 | B5 | **R1b's ≈$1 cash** — re-run `claude-opus-5` with a reasoning-sized token cap | Not a blocker for JUDGe. It is the cheapest remaining upgrade in the whole programme: it would give the paper its first demonstrated passing judge (G5b) and give the swap-test battery the qualified judge it has been blocked on since 2026-08-15. | **PENDING OWNER** |
