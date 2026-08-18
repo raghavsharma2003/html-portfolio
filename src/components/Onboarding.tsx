@@ -4,12 +4,17 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { HER_NAME, type UserProfile } from "../engine/persona";
+import { seedDayOneConsolidation, seedCurrencyChips } from "../engine/memory";
 import meeraWalk from "../assets/moments/meera-walk.jpg";
 import meeraBeach from "../assets/moments/meera-beach.jpg";
 import meeraReading from "../assets/moments/meera-reading.jpg";
 
 interface Props {
   onDone: (user: UserProfile) => void;
+  // GAP 2/3 (WS-FELT): only needed to fire the two day-1 seed calls below —
+  // optional so any other caller/test constructing this component without a
+  // real device identity yet doesn't have to fabricate one.
+  deviceId?: string;
 }
 
 const VIBES = [
@@ -41,7 +46,7 @@ const stepAnim = reduced
       transition: { duration: 0.45, ease: [0.2, 0.9, 0.3, 1] as any },
     };
 
-export default function Onboarding({ onDone }: Props) {
+export default function Onboarding({ onDone, deviceId }: Props) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [vibe, setVibe] = useState<string[]>([]);
@@ -131,9 +136,18 @@ export default function Onboarding({ onDone }: Props) {
               </div>
               <button
                 className="btn-primary"
-                onClick={() =>
-                  onDone({ name: name.trim(), vibe: vibe.length ? vibe : ["company"], facts: {} })
-                }
+                onClick={() => {
+                  // GAP 2/3 (WS-FELT), fire-and-forget: never awaited, never
+                  // allowed to delay or fail this transition — the button
+                  // must feel exactly as instant as it did before either
+                  // call existed. The nightly cron remains the backstop for
+                  // both regardless of whether these land.
+                  if (deviceId) {
+                    seedDayOneConsolidation(deviceId);
+                    if (vibe.length) seedCurrencyChips(deviceId, vibe);
+                  }
+                  onDone({ name: name.trim(), vibe: vibe.length ? vibe : ["company"], facts: {} });
+                }}
               >
                 Start talking
               </button>

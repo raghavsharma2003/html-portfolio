@@ -282,6 +282,7 @@ export default function App() {
       <div className="ambient" />
       {!state.onboarded ? (
         <Onboarding
+          deviceId={state.deviceId}
           onDone={(user) => {
             track(state.deviceId, "onboarded", { vibe: user.vibe });
             setState((s) => ({ ...s, onboarded: true, user }));

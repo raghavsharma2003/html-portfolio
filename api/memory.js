@@ -468,6 +468,73 @@ async function opRecall(device, body) {
   return { memories: blocks.join("\n"), relstate: relBundle };
 }
 
+// GAP 3 (WS-FELT) — vibe chips → vy_currency. src/engine/india.ts's own
+// writeCurrencyUse (QueryFn-injected) is CLIENT-BUNDLED, same discipline as
+// relstate.ts (its own header: "nothing here imports api/_db.js") — it has
+// zero callers because nothing server-side can ever call it; this is the
+// small op that inserts the row directly instead, same precedent as
+// consolidate.js's WE_TOKEN_RE/HINDI_MARKER_WORDS ports (duplicate the
+// deterministic shape as plain JS, comment which file it mirrors).
+//
+// Citation law (SPEC §4.2, `vy_fact_cite_or_authored`): a chip the user
+// picked at onboarding is USER-AUTHORED, not derived from any episode —
+// there is nothing to cite yet, the same shape vy_fact's own 'authored'
+// provenance exempts from `cardinality(citations) >= 1`. vy_currency
+// itself carries no such CHECK in db/schema.sql (confirmed — only
+// vy_fact/vy_rel_event/vy_pattern/vy_kin/vy_taste_candidate do), so an
+// empty citations array is simply the correct, honest shape here: never a
+// fabricated citation to episodes that do not exist.
+//
+// Mapping is a CONTENT classifier, not a lookup keyed to today's 6 fixed
+// onboarding strings on purpose — a chip that carries no cricket/food/
+// place/film/festival signal is skipped, never shoehorned into the nearest
+// kind. (Traced honestly: none of Onboarding.tsx's current VIBES chips —
+// "someone to talk to", "late-night company", etc. — are topic/interest
+// data at all; they are relational-intent strings already consumed by
+// persona.ts's "what they came here for" line. Under this classifier all
+// six legitimately skip today. The machinery is still correct and ready:
+// any future topic-shaped chip ("cricket", "diwali", "bollywood") flows
+// through unchanged.)
+const CURRENCY_KIND_HINTS = {
+  cricket: /\b(cricket|ipl|bcci|wicket|virat|kohli|dhoni|rohit sharma|world cup)\b/i,
+  food: /\b(food|khana|biryani|chai|coffee|street food|dessert|sweets|cook(ing)?|restaurant)\b/i,
+  place: /\b(travel|trip|goa|kerala|manali|himalaya|hill station|beach|mumbai|delhi|bangalore|bengaluru|hyderabad|chennai|kolkata|pune)\b/i,
+  film: /\b(movie|movies|film|films|bollywood|cinema|series|web series|ott|show|actor|actress)\b/i,
+  festival: /\b(diwali|holi|eid|rakhi|raksha bandhan|navratri|durga puja|ganesh chaturthi|christmas|new year|festival)\b/i,
+};
+function chipToCurrencyKind(chip) {
+  const t = String(chip || "").toLowerCase();
+  for (const [kind, rx] of Object.entries(CURRENCY_KIND_HINTS)) {
+    if (rx.test(t)) return kind;
+  }
+  return null; // honest miss — never shoehorned into the nearest kind
+}
+
+async function opSeedCurrency(device, body) {
+  const chips = (Array.isArray(body.chips) ? body.chips : []).slice(0, 6);
+  if (!chips.length) return { ok: true, written: 0, skipped: 0 };
+  const person = await personIdFor(device);
+  let written = 0;
+  let skipped = 0;
+  for (const raw of chips) {
+    const kind = chipToCurrencyKind(raw);
+    const topic = String(raw || "").trim().toLowerCase().slice(0, 60);
+    if (!kind || !topic) {
+      skipped++;
+      continue;
+    }
+    await q(
+      `insert into vy_currency (person_id, topic, kind, last_used, uses, citations)
+       values ($1,$2,$3, now(), 1, '{}'::bigint[])
+       on conflict (person_id, topic) do update set
+         last_used = now(), uses = vy_currency.uses + 1`,
+      [person, topic, kind],
+    ).catch(() => {});
+    written++;
+  }
+  return { ok: true, written, skipped };
+}
+
 async function opRemember(device, body) {
   const recent = (Array.isArray(body.recent) ? body.recent : []).slice(-16);
   if (recent.length < 2) return { ok: true, extracted: 0 };
@@ -1473,6 +1540,7 @@ export default async function handler(req, res) {
     if (op === "upload_photo") return res.status(200).json(await opUploadPhoto(device, req.body));
     if (op === "describe") return res.status(200).json(await opDescribe(req.body));
     if (op === "recall") return res.status(200).json(await opRecall(device, req.body));
+    if (op === "seed_currency") return res.status(200).json(await opSeedCurrency(device, req.body));
     if (op === "remember") return res.status(200).json(await opRemember(device, req.body));
     if (op === "forget") return res.status(200).json(await opForget(device, req.body));
     return res.status(400).json({ error: "unknown op" });

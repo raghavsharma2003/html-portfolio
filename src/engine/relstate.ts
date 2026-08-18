@@ -817,14 +817,20 @@ export function renderRelSnapshot(
   return capToRenderResult(result, 1200);
 }
 
-function bandCsRatio(ratio: number): string {
+// GAP 4 (WS-FELT): exported so the closeness card (src/components/
+// MoreSheet.tsx) can render the exact same coarse bands the model itself
+// sees (renderRelSnapshot above) rather than reinventing thresholds — one
+// set of numbers, one place, never drifting between what she "knows" and
+// what the UI shows. No behavior change: these were already the module's
+// state-leak guard (§12.5), just not reachable outside it.
+export function bandCsRatio(ratio: number): string {
   if (ratio < 0.2) return "mostly english";
   if (ratio < 0.5) return "mixed, english-leaning";
   if (ratio < 0.8) return "mixed, hindi-leaning";
   return "mostly hindi";
 }
 
-function bandPacing(gapS: number | null): string {
+export function bandPacing(gapS: number | null): string {
   if (gapS === null) return "not enough data";
   const hours = gapS / 3600;
   if (hours < 6) return "frequent";

@@ -329,6 +329,15 @@ export function seedDayOneConsolidation(device: string) {
   }
 }
 
+// GAP 3 (WS-FELT) — vibe chips → vy_currency. Telemetry-style, fire-and-
+// forget, same discipline as seedDayOneConsolidation above — the chips are
+// a nicety, never a blocker, and a failed write here costs nothing but the
+// chip going unused (exactly what happens today).
+export function seedCurrencyChips(device: string, chips: string[]) {
+  if (!device || !chips.length) return;
+  post({ op: "seed_currency", device, chips }).catch(() => {});
+}
+
 // GAP 4 (WS-FELT) — closeness card. A dedicated read of the same relstate
 // bundle op:"recall" already carries (api/memory.js's fetchRelBundle), so
 // MoreSheet gets a fresh read on its own schedule instead of depending on
