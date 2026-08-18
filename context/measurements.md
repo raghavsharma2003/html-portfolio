@@ -1163,3 +1163,38 @@ sampled measurement. Method: direct SQL counts over `api/_db.js`;
 filtered to `event=schedule`; `git ls-tree -r origin/main` and
 `git rev-list --count origin/main..HEAD` for branch divergence. Date
 2026-08-18.
+
+---
+
+## `blank-guard-show-only` — the blackout guard covers SHOW classes only (2026-08-18)
+
+Found by WS-MULTIMODAL while proving that a FLAG_SECURE blackout produces no
+stored rows. Driving the real `SceneReader` through a blackout sequence
+(`evals/multimodal/scene-gate.mjs` part 1, offline, deterministic):
+`scene.ts`'s `pick()` refuses every SHOW class (`settle`/`reshow`/`point`/
+`switch`) when the frame is `blank`, **but the ambient branch carries no
+`!blank` guard at all** — an ambient `idle` wake still fires during a
+blackout.
+
+No content can leak through it: a blank frame is blank, so there is nothing
+read and nothing to describe. What it means is narrower and still worth
+knowing — she can make an ambient remark while the screen is secured, which
+is not what "blackout" implies to anyone reading the feature name.
+
+Recording is unaffected: `armMomentWindow` ignores non-SHOW classes
+categorically, so the multimodal write path emits zero rows during a
+blackout regardless. That is belt-and-braces by accident rather than by
+design, which is exactly why it is logged — the write path is safe today
+because of a second, independent gate, not because the first one holds.
+
+n/a for n — a behavioural property of a deterministic pure-geometry module,
+established by driving the real implementation rather than by sampling.
+Method: `evals/multimodal/scene-gate.mjs`, real `SceneReader`, scripted
+blackout sequence. Date 2026-08-18.
+
+**Open question, not resolved here:** whether the ambient branch SHOULD be
+blank-gated. Suppressing ambient wakes during a blackout is the reading the
+feature name implies; keeping them is defensible if her ambient presence is
+meant to be independent of what is on screen. It is a product call, and
+`scene.ts` belongs to the watch charter, so it is flagged rather than
+changed.
