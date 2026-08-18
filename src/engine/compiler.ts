@@ -227,7 +227,10 @@ export function compile(input: CompileInput): CompiledPrompt {
     // manifest id, not just the ones with code behind them today) — see
     // those rows' own `sourceStatus` in the MANIFEST section below.
     T9: 0,
-    "T8-multiparty": 0,
+    // multiparty v1 slots — declared, gated, and rendering zero bytes until a
+    // room exists (see TAIL_MANIFEST's mp.roster/mp.bridge rows and gate G1)
+    "mp.roster": 0,
+    "mp.bridge": 0,
   };
   let _mark = tail.length;
   const _track = (id: string) => {
@@ -306,6 +309,20 @@ ${input.memories}`;
   }
   _track("T6");
 
+  // ── mp.roster / mp.bridge — PROPOSAL-MULTIPARTY-V1 §5.2's insertion point,
+  // immediately after T6 `we.callbacks` and before T7. The slots exist here so
+  // the group layer lands as CONTENT in a declared slot rather than as a
+  // later reshuffle of this function; nothing writes them yet, so both track
+  // zero bytes and the assembled prompt is byte-identical to today's.
+  //
+  // Gate G1 (§5.1), non-negotiable and mirroring `phase-c-complete`'s 83/83
+  // property: for a person with no room membership the compiled output is
+  // byte-identical to today's. The multiparty layer must be provably free
+  // until a room exists — which is exactly what these two no-op tracks
+  // assert, since a byte would have to come from somewhere between them.
+  _track("mp.roster");
+  _track("mp.bridge");
+
   if (input.herLife) {
     tail += `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are now fixed between you two, not open to reinvention. Same job, same people, same flat, same plans, same things you did. Add new texture freely; never say anything that contradicts a line here, and never re-tell one as if it's news:\n${input.herLife}`;
   }
@@ -340,7 +357,9 @@ ${input.memories}`;
 //    honest bookkeeping the M2 report is built from.
 // ─────────────────────────────────────────────────────────────────────────
 
-export type DropPriority = "never" | 1 | 2 | 3 | 4 | 5 | 6;
+// 7 exists because mp.bridge takes priority 1 and everything below it
+// renumbers by one (PROPOSAL-MULTIPARTY-V1 §5.2).
+export type DropPriority = "never" | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export type SourceStatus =
   // this file computes it directly from a real, already-wired input
@@ -441,11 +460,24 @@ export const CORE_MANIFEST: readonly CoreBlock[] = [
 ] as const;
 
 // §3.2 — TAIL, drop priority 1 = first dropped, "never" = undroppable.
-// T8-multiparty is the owner's addition (context/decisions.md
-// `multiparty-direction`, logged as multiparty-direction): an empty,
-// documented slot for GROUP/DISCLOSURE context so the group layer lands as
-// content in a slot, not as edits to WS-COMPILER's files. Sized 0 now;
-// budget ≤2,000 is the reserved ceiling for whoever wires it.
+//
+// ── the multiparty correction (PROPOSAL-MULTIPARTY-V1 §0.2, accepted as
+//    context/decisions.md `multiparty-v1-design`) ─────────────────────────
+//
+// This manifest used to carry a row `T8-multiparty` (group.disclosure, budget
+// 0, "empty-reserved"), on the premise that SPEC reserved a T8 multiparty slot
+// at ≤2,000 chars. IT DID NOT. SPEC §3.2's T8 is `taste.rows` — budget 800,
+// drop priority `never`, a member of the CI-asserted undroppable set
+// (docs/SPEC.md:590). The premise was a propagated brief error, flagged twice
+// in the research sweep before the design proposal killed it.
+//
+// The 2,000-char allowance is real and is still spent — as TWO blocks at a NEW
+// insertion point after T6, rather than by colliding with taste.rows:
+//   mp.roster   900, undroppable, group channels only
+//   mp.bridge 1,100, drop priority 1 (first dropped)
+// Everything below mp.bridge renumbers by one. T10 stays PINNED LAST and
+// stays capped at exactly two rules — the appended-last set is not widened by
+// multiparty, because position is a scarce resource (`prompt-position`).
 export const TAIL_MANIFEST: readonly TailBlock[] = [
   {
     id: "T1",
@@ -458,7 +490,7 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     id: "T2",
     label: "rel.snapshot",
     budget: 1_200,
-    dropPriority: 6,
+    dropPriority: 7, // was 6 — renumbered by one below mp.bridge (§5.2)
     // WS-INTEGRATE seam 1: wired via renderRelSnapshot, gated on
     // input.relBundle (api/memory.js opRecall delta). Empty when absent —
     // "empty-reserved" retired now that a real caller exists, per the M2
@@ -469,35 +501,35 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     id: "T3",
     label: "india.dynamic",
     budget: 1_000,
-    dropPriority: 4,
+    dropPriority: 5, // was 4
     sourceStatus: "wired", // WS-INTEGRATE: renderIndiaDynamic, gated on input.relBundle
   },
   {
     id: "T4",
     label: "dyadic.active",
     budget: 1_600,
-    dropPriority: 5,
+    dropPriority: 6, // was 5
     sourceStatus: "wired", // WS-INTEGRATE: renderDyadicActive, moment-gated, on input.relBundle
   },
   {
     id: "T5",
     label: "recall.facts",
     budget: 6_000,
-    dropPriority: 2,
+    dropPriority: 3, // was 2
     sourceStatus: "wired", // input.memories — today's api/memory.js graph recall block
   },
   {
     id: "T6",
     label: "we.callbacks",
     budget: 2_000,
-    dropPriority: 3,
+    dropPriority: 4, // was 3
     sourceStatus: "wired", // WS-INTEGRATE: renderWeCallbacks, deixis-gated, on input.relBundle
   },
   {
     id: "T7",
     label: "herlife",
     budget: 1_000,
-    dropPriority: 1,
+    dropPriority: 2, // was 1 — mp.bridge now takes 1
     sourceStatus: "wired", // input.herLife — brain.ts's formatHerLife()
   },
   {
@@ -521,12 +553,44 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     dropPriority: "never",
     sourceStatus: "not-yet-modeled", // WS-SAFETY owns clock.ts/ClockCard.tsx concurrently — interface ticket filed
   },
-  // ── the owner's multiparty addition (context/decisions.md `multiparty-direction`) ──
+  // ── multiparty v1 (PROPOSAL-MULTIPARTY-V1 §5.2) ────────────────────────
+  // Declared at their real budgets and real drop priorities, rendering ZERO
+  // bytes: no live writer exists yet (WS-MP owns src/engine/room.ts). Same
+  // discipline as the rest of this engine — the slot exists, it is gated, and
+  // it is byte-stable — so the group layer lands later as CONTENT, never as a
+  // reshuffle of compile()'s assembly order.
   {
-    id: "T8-multiparty",
-    label: "group.disclosure",
-    budget: 0, // reserved; intended ceiling documented below, not enforced yet
-    dropPriority: 3,
+    id: "mp.roster",
+    label: "group.roster",
+    budget: 900,
+    // undroppable, and not for symmetry: dropping the address strip means
+    // addressing an elder wrongly in front of the family. Hindi kin address
+    // encodes rank grammatically (R5/R6), and the Indian family-group norm is
+    // that no one corrects someone higher in the hierarchy — so a dropped
+    // roster is not a degraded answer, it is a public insult.
+    dropPriority: "never",
+    // GROUP CHANNELS ONLY. In a group channel T2 `rel.snapshot` renders empty
+    // (there is no single dyad to snapshot — the per-member state is here);
+    // in a 1:1 channel this renders empty and T2 is exactly as today. The two
+    // are mutually exclusive by channel, which is what keeps the arithmetic
+    // cheap. ≤6 active members, telegraphic k:v, ~150 chars/member — and the
+    // ≤6 cap falls straight out of this budget.
+    sourceStatus: "empty-reserved",
+  },
+  {
+    id: "mp.bridge",
+    label: "group.bridge",
+    budget: 1_100,
+    dropPriority: 1, // first dropped; everything below renumbered by one
+    // ≤2 disclosure-filtered cross-person rows AS SHAPES, NEVER LINES; ≤2 room
+    // phrase-ledger hits; ≤1 open room plan row. Every row has already passed
+    // the §2.3 predicate in the WHERE clause (api/_disclosure.js) — THIS BLOCK
+    // RENDERS, IT NEVER DECIDES. Bridged content is doubly dangerous: a
+    // phrase-bank risk (`recited-prompt`) and another person's words in her
+    // mouth. What must never enter it — a quoted line, a sensitive row, a
+    // negatively-valenced row, a row from another room, a row whose grant is
+    // absent or invalidated, a row whose sole non-Meera speaker has left — is
+    // each a WHERE clause in that module, never a bullet in a prompt.
     sourceStatus: "empty-reserved",
   },
   {
@@ -538,16 +602,26 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
   },
 ] as const;
 
-// The reserved ceiling for T8-multiparty once WS-GROUP wires it — kept out
-// of TailBlock.budget (0 today) so the manifest's own arithmetic below stays
-// truthful about what ships now, per the owner's direction that it must land
-// as content in this slot, not as edits to WS-COMPILER's files.
-export const T8_MULTIPARTY_RESERVED_CEILING = 2_000;
+// The owner's 2,000-char multiparty allowance, now REALLY spent rather than
+// reserved: mp.roster 900 + mp.bridge 1,100. Kept as an exported constant
+// because it is the number the direction was written as, and because the
+// identity below is the cheapest possible guard against the two block budgets
+// quietly drifting away from the allowance they were carved out of.
+// (Formerly `T8_MULTIPARTY_RESERVED_CEILING`, against a T8 slot that turned
+// out not to exist — see the TAIL_MANIFEST header.)
+export const MP_ALLOWANCE = 2_000;
+
+/** @deprecated the T8 multiparty slot was a propagated brief error (§0.2);
+ *  the allowance lives in mp.roster + mp.bridge. Alias kept so the constant's
+ *  history is visible rather than deleted. */
+export const T8_MULTIPARTY_RESERVED_CEILING = MP_ALLOWANCE;
 
 // Fixed compile-time order — T10 is PINNED LAST (shapelint enforces this;
 // the appended-last set is capped at exactly two rules: SEARCH_DECISION and
-// FORGET_DECISION, both folded into T10). T8-multiparty sits directly before
-// T10 so a future group-context render never displaces the pinned position.
+// FORGET_DECISION, both folded into T10). mp.roster/mp.bridge sit at §5.2's
+// insertion point, immediately after T6 and before T7, matching compile()'s
+// actual assembly order — a manifest that ordered them anywhere else would be
+// documenting a layout this file does not produce.
 export const TAIL_ORDER: readonly string[] = [
   "T1",
   "T2",
@@ -555,10 +629,11 @@ export const TAIL_ORDER: readonly string[] = [
   "T4",
   "T5",
   "T6",
+  "mp.roster",
+  "mp.bridge",
   "T7",
   "T8",
   "T9",
-  "T8-multiparty",
   "T10",
 ] as const;
 
@@ -616,6 +691,32 @@ export function assertManifestArithmetic(): void {
   if (a.undroppableActual >= SYSTEM_MAX) {
     throw new Error(
       `undroppable set actual (${a.undroppableActual}) does not sit strictly under SYSTEM_MAX (${SYSTEM_MAX})`,
+    );
+  }
+  // multiparty allowance, as a number rather than a comment: the two blocks
+  // that replaced the non-existent T8 slot must still sum to the 2,000 chars
+  // the owner's direction allowed, or one of them has drifted (§5.2).
+  const mp = TAIL_MANIFEST.filter((b) => b.id === "mp.roster" || b.id === "mp.bridge");
+  const mpTotal = mp.reduce((sum, b) => sum + b.budget, 0);
+  if (mp.length !== 2 || mpTotal !== MP_ALLOWANCE) {
+    throw new Error(
+      `multiparty allowance broken: found ${mp.length} mp.* block(s) totalling ${mpTotal}, ` +
+        `expected mp.roster + mp.bridge = MP_ALLOWANCE(${MP_ALLOWANCE})`,
+    );
+  }
+  // drop priorities must stay a permutation with no duplicates — the renumber
+  // below mp.bridge is the kind of edit where two blocks silently end up
+  // sharing a priority and the declared drop order stops being an order.
+  const prios = TAIL_MANIFEST.filter((b) => b.dropPriority !== "never").map((b) => b.dropPriority);
+  if (new Set(prios).size !== prios.length) {
+    throw new Error(`duplicate TAIL drop priorities: [${prios.join(", ")}] — drop order is ambiguous`);
+  }
+  // the manifest must describe the layout compile() actually assembles
+  const ids = new Set(TAIL_MANIFEST.map((b) => b.id));
+  const missing = TAIL_ORDER.filter((id) => !ids.has(id));
+  if (missing.length || TAIL_ORDER.length !== TAIL_MANIFEST.length) {
+    throw new Error(
+      `TAIL_ORDER and TAIL_MANIFEST disagree: ${missing.length ? `unknown ids [${missing.join(", ")}]` : `${TAIL_ORDER.length} ordered vs ${TAIL_MANIFEST.length} declared`}`,
     );
   }
 }

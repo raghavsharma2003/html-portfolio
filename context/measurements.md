@@ -966,3 +966,19 @@ INVALID-RUN (parse)** — 125/192 empty replies, the reasoning trap on
 OpenRouter (thinking consumed the 120-token cap; 2 more cut mid-JSON).
 A fixed-config rerun (~$1) is the single highest-value pending spend: a
 passing opus-5 is the qualified judge the entire judged battery waits on.
+
+---
+
+## `incumbent-853` — 37% of the incumbent arm exists; fresh-incumbent surprises grow (2026-08-18)
+
+After the key-dry incident (rejected.md `error-marked-done`) the honest
+count is 853/2,304 incumbent turns (free pool + cash before the key died;
+key remaining $0). The 853 valid rows, dbattery counters: words/turn mean
+20.7 / median 18 (IN the archived band — good), media-tag 1.5%, Devanagari
+2 more hits (fresh incumbent total now 3/927 ≈ 0.32% — the hard-fail
+axis's incumbent base rate keeps not being zero), and **question share
+71.9%** vs the archived ~33% ceiling — either the corpus state-variants
+induce questioning or the incumbent drifted; the D1 bands MUST come from
+this same-week arm, which is exactly what the prereg's drift law ordered.
+Remaining 1,451 units: daily free-pool Routine (~75/day ≈ 19 days), or
+~$8 key top-up / Google credits collapse it to an hour. Owner's call.

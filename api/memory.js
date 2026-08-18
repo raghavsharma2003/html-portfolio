@@ -884,22 +884,81 @@ async function noteForgotten(device, terms) {
 //   person     — the identity mapping itself, deleted last and guarded
 // vy_model and vy_gate_run are deliberately absent: router roster and gate
 // audit are not user data (no person_id).
+//
+// ── multiparty v1 (PROPOSAL-MULTIPARTY-V1 §3.3) — three additive fields ────
+//
+// The entry shape {table, key, lane} assumes EXACTLY ONE OWNER PER ROW AND A
+// PLAIN OWNING COLUMN. Rooms break both assumptions, in two distinct ways, and
+// both are closed here BEFORE any room ingestion code exists — because the
+// first is a live data-deletion bug the moment a room turn is written.
+//
+//   `keys`       — OR over several owning columns. meera_log room turns are
+//                  written under a SYNTHETIC room device uuid
+//                  (vy_group.room_device_id) so the NOT NULL holds without
+//                  inventing a device for a room. That uuid appears in NOBODY's
+//                  vy_person_device mapping, so under the single-key manifest a
+//                  person's OWN room turns would survive their OWN full wipe.
+//                  Keying on speaker_person_id as well is what closes it — and
+//                  it is exactly why 008a's column had to land before any
+//                  ingestion: it is UNBACKFILLABLE.
+//
+//   `wipeWhere`  — restricts a whole-wipe to the EXCLUSIVE rows. `key` is
+//                  documented in §3.3 as selecting "exclusive rows (1:1)"; a
+//                  room-derived row carrying a member's person_id is held
+//                  TOGETHER, and hard-deleting it on that member's wipe would
+//                  erase the other participants' memory of something said in
+//                  front of them. Forget deletes what only I hold; it withdraws
+//                  what we hold together. Never applied to export: the row is
+//                  still A's to receive, it is just not A's to destroy.
+//
+//   `shared`     — the join-and-withdraw spec, executed by withdrawSharedRows()
+//                  below. `via`/`on`/`person` name the join table that carries
+//                  the ACL; `withdraw` is what a departure does; `lastOut` is
+//                  what happens when the departing person was the last one —
+//                  last one out closes the door, and the row plus its full
+//                  derived closure hard-deletes exactly as today.
+//
+// Because forget and export both read this manifest, one entry keeps both
+// consumers in sync BY CONSTRUCTION. That single-source property is the entire
+// reason this list exists (SPEC §9.2).
+//
+// vy_group, vy_group_turn and vy_group_entitlement are deliberately absent:
+// none is person-keyed. A room is not a person, its turn log is the room's
+// own behavioural record, and an entitlement is a financial record that must
+// not vanish for the other members when one member forgets. All three die with
+// their room, via vy_group's on-delete cascade, when the last participant
+// leaves (§3.1.2).
 export const PERSON_TABLES = [
-  { table: "meera_log",         key: "device_id", lane: "legacy" },
+  { table: "meera_log",         key: "device_id", lane: "legacy",
+    keys: ["device_id", "speaker_person_id"] },
   { table: "meera_nodes",       key: "device_id", lane: "legacy" },
   { table: "meera_edges",       key: "device_id", lane: "legacy" },
   { table: "meera_forget",      key: "device_id", lane: "legacy" },
   { table: "meera_tel",         key: "device_id", lane: "legacy" },
   { table: "meera_tel_session", key: "device_id", lane: "legacy" },
-  { table: "vy_episode",          key: "person_id", lane: "relational" },
+  { table: "vy_episode",          key: "person_id", lane: "relational",
+    // room episodes carry person_id NULL (008a), so `key` already selects only
+    // the exclusive 1:1 rows; the shared spec is what handles the rest
+    shared: {
+      via: "vy_episode_participant",
+      on: "episode_id",
+      person: "person_id",
+      withdraw: "delete_join_row",   // never delete the episode …
+      lastOut: "delete_row",         // … unless P was the last one in it
+    } },
+  { table: "vy_episode_participant", key: "person_id", lane: "relational" },
   { table: "vy_taste_candidate",  key: "person_id", lane: "relational" },
   { table: "vy_visual_assertion", key: "person_id", lane: "relational" },
   { table: "vy_shared_moment",    key: "person_id", lane: "relational" },
-  { table: "vy_fact",             key: "person_id", lane: "relational" },
+  { table: "vy_fact",             key: "person_id", lane: "relational",
+    wipeWhere: "group_id is null" },
   { table: "vy_rel_event",        key: "person_id", lane: "relational" },
   { table: "vy_rel_state",        key: "person_id", lane: "relational" },
   { table: "vy_pattern",          key: "person_id", lane: "relational" },
-  { table: "vy_phrase",           key: "person_id", lane: "relational" },
+  { table: "vy_phrase",           key: "person_id", lane: "relational",
+    wipeWhere: "group_id is null",
+    shared: { via: "vy_episode_participant", on: "origin_episode", person: "person_id",
+              withdraw: "delete_join_row", lastOut: "delete_row" } },
   { table: "vy_kin",              key: "person_id", lane: "relational" },
   { table: "vy_ritual",           key: "person_id", lane: "relational" },
   { table: "vy_currency",         key: "person_id", lane: "relational" },
@@ -907,9 +966,53 @@ export const PERSON_TABLES = [
   { table: "vy_embedding",        key: "person_id", lane: "relational" },
   { table: "vy_derivation",       key: "person_id", lane: "relational" },
   { table: "vy_session",          key: "person_id", lane: "relational" },
+  { table: "vy_group_member",     key: "person_id", lane: "relational",
+    // a full wipe removes the membership row outright (§3.1.4); a plain
+    // "leave" sets left_at instead and never deletes the room for the others
+    shared: { withdraw: "set_left_at" } },
+  { table: "vy_disclosure_grant", key: "granted_by", lane: "relational",
+    keys: ["granted_by", "granted_to"],
+    // grantor -> delete (it was their permission to give); grantee -> remove
+    // them as a recipient. granted_to is a SCALAR in 008b, so a grant with its
+    // single recipient removed is an empty grant: both roles collapse to the
+    // same delete, and `by_role` is that statement, not two.
+    shared: { withdraw: "by_role" } },
+  // RESOLUTION (WS-MPBUILD, flagged): §3.3's sketch files vy_tg_person under
+  // lane "person". That lane is not merely a label — its members are skipped
+  // by the manifest wipe loop and deleted by explicit guarded code below, and
+  // no such code exists for this table, so lane "person" would leave a
+  // person's Telegram binding standing after a full wipe. Filed as relational,
+  // where the manifest loop actually deletes it.
+  { table: "vy_tg_person",        key: "person_id", lane: "relational" },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];
+
+/** The owning columns of a manifest entry, always as an array. `key` stays the
+ *  primary one so every existing consumer keeps working unchanged; `keys` is
+ *  the multi-owner extension (§3.3). One helper, so forget and export can
+ *  never disagree about what "owns" a row. */
+export function keysOf(t) {
+  return t.keys && t.keys.length ? t.keys : [t.key];
+}
+
+/** `where` fragment for a manifest-driven WHOLE WIPE: the owning columns
+ *  OR'd together, plus the entry's exclusive-rows restriction if it has one.
+ *  Params are $1..$n in `keysOf` order. Forget only — export must not apply
+ *  `wipeWhere` (see the manifest header). */
+export function wipeWhereSql(t) {
+  const cols = keysOf(t)
+    .map((k, i) => `${k} = $${i + 1}`)
+    .join(" or ");
+  return t.wipeWhere ? `(${cols}) and ${t.wipeWhere}` : `(${cols})`;
+}
+
+/** Values for wipeWhereSql's params: device for device-keyed columns, person
+ *  for everything else — the same rule api/export.js has always used, stated
+ *  once instead of inline twice. */
+export function wipeParams(t, { device, person }) {
+  return keysOf(t).map((k) => (k === "device_id" ? device : person));
+}
 
 /** Device → person through the 001 mapping; an unmapped device IS its person
  *  (person_id := device_id cast, §2.1 — one code path for anonymous). */
@@ -945,6 +1048,135 @@ export async function personIdFor(device) {
 // Nothing here is .catch()-swallowed: the receipt ("haan, hata diya") may
 // only be sent once the delete actually happened, so a failed cascade must
 // fail the whole op, loudly, and the client keeps the forget pending.
+// ── multi-owner forget: WITHDRAW, not delete (PROPOSAL-MULTIPARTY-V1 §3) ───
+//
+//   Forget deletes what only I hold.
+//   Forget withdraws what we hold together.
+//   Forget never deletes what only you hold.
+//
+// The payoff of the §2.1 primitive lands here: because disclosure is a LIVE
+// JOIN over vy_episode_participant, dropping P's participant row stops the
+// content surfacing to P on the very next retrieval, and NO DERIVED-ROW
+// CASCADE STEP IS NEEDED AT ALL. There is nothing to chase, which is also
+// what makes this provable rather than merely careful.
+//
+// The one thing that is NOT withdraw-only is the last participant: when the
+// person leaving was the last one in a shared episode, the episode and its
+// full derived closure hard-delete exactly as today. Last one out closes the
+// door. The closure is deleted BEFORE the episodes it cites, not after, so no
+// intermediate state ever has a dangling citation for relcheck to find (there
+// are no transactions across q() calls — every statement must leave a
+// consistent-enough state on its own).
+//
+// Ruling B, pre-disclosed rather than discovered: a shared episode persists
+// until N-1 participants have withdrawn. That is correct — nobody should
+// unilaterally erase someone else's memory — and it WILL read as a broken
+// promise to someone who asked her to forget and later finds she still knows.
+// The room card says so before the room's first episode is recorded (§6.3),
+// and the receipt says it again at the moment of the partial delete (§3.4).
+// Reusing the 1:1 "haan, hata diya" here would be a trust violation of the
+// same shape as `silent-truncation`.
+export async function withdrawSharedRows(person, { dropAuthoredRoomTurns = true } = {}) {
+  const out = {
+    participant_rows: 0, room_turns: 0, grants: 0, memberships: 0,
+    episodes_closed: 0, facts_closed: 0, phrases_closed: 0, embeddings_closed: 0,
+  };
+
+  // 1. leave the ACL. P can no longer be disclosed TO, and can no longer be
+  //    attributed as someone who witnessed it, from the next retrieval on.
+  const left = await q(
+    `delete from vy_episode_participant where person_id = $1 returning episode_id`,
+    [person],
+    30_000,
+  );
+  out.participant_rows = left.length;
+
+  // 2. P's OWN authored room turns — never her replies to the room, never
+  //    another member's rows. This is the statement 008a's speaker_person_id
+  //    exists for; without it "delete my turns, leave theirs and hers" is not
+  //    implementable at row level.
+  if (dropAuthoredRoomTurns) {
+    const turns = await q(
+      `delete from meera_log where speaker_person_id = $1 and group_id is not null returning id`,
+      [person],
+      30_000,
+    );
+    out.room_turns = turns.length;
+  }
+
+  // 3. last one out. Only episodes P actually just left are candidates, and
+  //    only shared ones — a 1:1 episode is the manifest's business, not this
+  //    function's.
+  const epIds = [...new Set(left.map((r) => r.episode_id))];
+  if (epIds.length) {
+    const orphan = await q(
+      `select e.id from vy_episode e
+        where e.id = any($1::bigint[]) and e.group_id is not null
+          and not exists (select 1 from vy_episode_participant p where p.episode_id = e.id)`,
+      [epIds],
+      30_000,
+    );
+    const dead = orphan.map((r) => r.id);
+    if (dead.length) {
+      // derived closure FIRST (no dangling-citation window), episodes last
+      const facts = await q(
+        `delete from vy_fact where citations && $1::bigint[] returning id`,
+        [dead],
+        30_000,
+      );
+      out.facts_closed = facts.length;
+      const phrases = await q(
+        `delete from vy_phrase where origin_episode = any($1::bigint[]) returning id`,
+        [dead],
+        30_000,
+      );
+      out.phrases_closed = phrases.length;
+      const embs = await q(
+        `delete from vy_embedding
+          where (owner_kind = 'episode' and owner_id = any($1::bigint[]))
+             or (owner_kind = 'fact'    and owner_id = any($2::bigint[])) returning 1 as x`,
+        [dead, facts.map((r) => r.id)],
+        30_000,
+      );
+      out.embeddings_closed = embs.length;
+      // FK cascade takes the remaining participant rows, visual assertions and
+      // shared moments; vy_group_turn.episode_id is `on delete set null`, so
+      // the turn-level action log survives the episode it described — silence
+      // and speech are the room's own behavioural record, not the episode's.
+      const eps = await q(
+        `delete from vy_episode where id = any($1::bigint[]) returning id`,
+        [dead],
+        30_000,
+      );
+      out.episodes_closed = eps.length;
+    }
+  }
+
+  // 4. grants: the grantor's permission was theirs to give and dies with them;
+  //    the grantee stops being a recipient, and granted_to is scalar, so both
+  //    roles are the same delete (see the manifest's `by_role` note).
+  const grants = await q(
+    `delete from vy_disclosure_grant where granted_by = $1 or granted_to = $1 returning id`,
+    [person],
+    30_000,
+  );
+  out.grants = grants.length;
+
+  // 5. membership: leaving never deletes the room for the others. A full wipe
+  //    then removes the row itself through the manifest loop; orphaned-room
+  //    cleanup is a nightly sweep on the pattern of the zero-orphan sweep,
+  //    deliberately not inline here.
+  const mem = await q(
+    `update vy_group_member set left_at = now()
+      where person_id = $1 and left_at is null returning group_id`,
+    [person],
+    30_000,
+  );
+  out.memberships = mem.length;
+
+  return out;
+}
+
 async function purgeRelational(device, scope, { logIds = [], rx = null, from = NaN, to = NaN } = {}) {
   const person = await personIdFor(device);
   const out = {
@@ -954,13 +1186,18 @@ async function purgeRelational(device, scope, { logIds = [], rx = null, from = N
   };
 
   if (scope === "all") {
+    // shared rows FIRST (§3): withdraw P from every ACL, take P's own authored
+    // room turns, and hard-delete anything P was the last participant in —
+    // before the manifest loop deletes the participant rows the "last one out"
+    // computation reads. Order is the mechanism, not a preference.
+    out.shared = await withdrawSharedRows(person, { dropAuthoredRoomTurns: false });
     // manifest-driven: a table added to PERSON_TABLES is wiped here with no
     // further code — the wipe cannot lag the schema
     for (const t of PERSON_TABLES) {
       if (t.lane !== "relational") continue;
       const gone = await q(
-        `delete from ${t.table} where ${t.key} = $1 returning 1 as x`,
-        [person],
+        `delete from ${t.table} where ${wipeWhereSql(t)} returning 1 as x`,
+        wipeParams(t, { device, person }),
         30_000,
       );
       if (gone.length) out[t.table] = gone.length;
@@ -1297,6 +1534,19 @@ async function opForget(device, body) {
   let telemetry = 0;
   let relational = null; // the §9.1 v2 cascade over the vy_ store
 
+  // meera_log's owning columns, from the manifest (§3.3 `keys`). A room turn
+  // is written under the room's synthetic device uuid, which is in nobody's
+  // vy_person_device mapping — so device_id alone would leave a person's own
+  // room turns standing through their own forget. Reading the manifest rather
+  // than restating the columns is what keeps this in sync with export.
+  // Until room ingestion writes speaker_person_id it is NULL on every row, so
+  // the added disjunct matches nothing and behaviour today is unchanged.
+  const person = await personIdFor(device);
+  const LOG = PERSON_TABLES.find((t) => t.table === "meera_log");
+  const logOwner = keysOf(LOG).map((k, i) => `${k} = $${i + 1}`).join(" or ");
+  const logOwnerVals = wipeParams(LOG, { device, person });
+  const logP = (n) => `$${logOwnerVals.length + n}`; // 1-based extra params
+
   if (scope === "item") {
     const name = String(body.name || "").trim().toLowerCase().slice(0, 60);
     // a two-letter term would word-match half the log; a forget must be
@@ -1311,10 +1561,10 @@ async function opForget(device, body) {
       [device, name, rx],
     );
     edges = await dropEdgesFor(device, nodeRows.map((n) => n.id));
-    logRows = await q(`delete from meera_log where device_id = $1 and content ~* $2 returning id`, [
-      device,
-      rx,
-    ]);
+    logRows = await q(
+      `delete from meera_log where (${logOwner}) and content ~* ${logP(1)} returning id`,
+      [...logOwnerVals, rx],
+    );
     telemetry = await purgeTelemetry(device, { rx });
     // derived state: episodes citing the deleted rows, then everything citing
     // those episodes, lineage chased, snapshot replayed (§9.1 steps 2–6)
@@ -1329,9 +1579,9 @@ async function opForget(device, body) {
     const b = new Date(to).toISOString();
     const chan = body.channel === "call" ? "call" : body.channel === "chat" ? "chat" : null;
     logRows = await q(
-      `delete from meera_log where device_id = $1 and at >= $2 and at < $3${chan ? " and channel = $4" : ""}
+      `delete from meera_log where (${logOwner}) and at >= ${logP(1)} and at < ${logP(2)}${chan ? ` and channel = ${logP(3)}` : ""}
        returning id`,
-      chan ? [device, a, b, chan] : [device, a, b],
+      chan ? [...logOwnerVals, a, b, chan] : [...logOwnerVals, a, b],
     );
     // updated_at, not created_at. A node last written inside the window had
     // its summary rewritten FROM that window's words — an older node that
@@ -1362,7 +1612,7 @@ async function opForget(device, body) {
       to,
     });
   } else {
-    logRows = await q(`delete from meera_log where device_id = $1 returning id`, [device]);
+    logRows = await q(`delete from meera_log where ${logOwner} returning id`, logOwnerVals);
     nodeRows = await q(`delete from meera_nodes where device_id = $1 returning id, name`, [device]);
     const e = await q(`delete from meera_edges where device_id = $1 returning id`, [device]).catch(
       () => [],

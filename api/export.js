@@ -31,7 +31,7 @@
 
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
-import { PERSON_TABLES, personIdFor } from "./memory.js";
+import { PERSON_TABLES, keysOf, personIdFor } from "./memory.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -80,6 +80,11 @@ const ORDER = {
   vy_embedding: "owner_kind, owner_id",
   vy_derivation: "id",
   vy_session: "session_id",
+  // multiparty v1 (migration 008)
+  vy_episode_participant: "episode_id, person_id",
+  vy_group_member: "group_id, person_id",
+  vy_disclosure_grant: "id",
+  vy_tg_person: "tg_user_id",
   vy_person_device: "device_id",
   vy_person: "person_id",
 };
@@ -117,11 +122,24 @@ export default async function handler(req, res) {
 
     let firstTable = true;
     for (const t of PERSON_TABLES) {
-      const keyVal = t.key === "person_id" ? person : device;
+      // multi-owner tables (PROPOSAL-MULTIPARTY-V1 §3.3 `keys`): a room turn
+      // is owned by its SPEAKER, not by the room's synthetic device uuid, so
+      // an export keyed on device_id alone would silently omit a person's own
+      // room turns. Reading keysOf() rather than t.key is what keeps export
+      // and forget enumerating the same rows — the single-source property
+      // this manifest exists for (SPEC §9.2).
+      //
+      // `wipeWhere` is deliberately NOT applied here: a row held together is
+      // still A's to receive, it is just not A's to destroy. What A may
+      // receive is settled the same way disclosure is settled everywhere else
+      // — this query is itself a disclosure-filtered read with R = {A}.
       const cols = SELECT_OVERRIDE[t.table] || "*";
+      const owners = keysOf(t);
+      const where = owners.map((k, i) => `${k} = $${i + 1}`).join(" or ");
+      const params = owners.map((k) => (k === "device_id" ? device : person));
       const rows = await q(
-        `select ${cols} from ${t.table} where ${t.key} = $1 order by ${ORDER[t.table] || "1"}`,
-        [keyVal],
+        `select ${cols} from ${t.table} where ${where} order by ${ORDER[t.table] || "1"}`,
+        params,
         30_000,
       );
       res.write(`${firstTable ? "" : ","}${JSON.stringify(t.table)}:${JSON.stringify(rows.map(fixRow))}`);

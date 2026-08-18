@@ -21,29 +21,29 @@
   "api/chat.js:226-246": "paid OpenRouter fallback shape, reasoning:{effort} — only used with --allow-cash",
   "config/models.json": "models[\"google/gemini-3.6-flash\"].effort_map.chat confirms \"low\" is correct, \"minimal\" is BROKEN"
  },
- "date": "2026-08-15T11:59:11.810Z",
+ "date": "2026-08-18T11:06:14.376Z",
  "contextSource": "evals/candidate/corpus/corpus.jsonl — identical ids/order to the terra arm; every unit's sha256 checked against the committed index before use. {system,user} byte-identical across arms by construction (tail omitted, matching the terra arm's own pool build).",
  "dailyCap": 2304,
- "allowCash": false,
+ "allowCash": true,
  "counts": {
   "total": 2304,
-  "completed": 74,
-  "remaining": 2230,
+  "completed": 2304,
+  "remaining": 0,
   "note": "ALL turns are context:\"compiled\" (single-turn corpus stimuli), same as the terra arm."
  },
  "smoke": {
-  "n": 74,
-  "nonEmpty": 74,
-  "errors": 0,
-  "nonEmptyRate": 1,
+  "n": 2304,
+  "nonEmpty": 853,
+  "errors": 1451,
+  "nonEmptyRate": 0.3702256944444444,
   "wordsPerTurn": {
-   "n": 74,
-   "mean": 21.2972972972973,
-   "median": 17,
-   "p90": 30
+   "n": 853,
+   "mean": 20.685814771395076,
+   "median": 18,
+   "p90": 31
   },
-  "questionShare": 0.7027027027027027,
-  "mediaTagRate": 0.013513513513513514,
-  "devanagariHits": 1
+  "questionShare": 0.7186400937866354,
+  "mediaTagRate": 0.015240328253223915,
+  "devanagariHits": 2
  }
 }

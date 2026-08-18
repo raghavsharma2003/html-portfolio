@@ -118,6 +118,105 @@ check(
    where d.audit_status = 'refuted' and f.retracted_at is null`,
 );
 
+// ── WS-MPBUILD (multiparty v1, migration 008) ─────────────────────────────
+//
+// These run only once 008 is applied — the sweep is a gate, and a gate that
+// red-lights on a migration the owner has not deployed yet reports a deploy
+// state as a data defect. Which checks were skipped is printed, so "green"
+// never quietly means "did not look".
+const mpChecks = [];
+const mpCheck = (name, sql, params = []) => mpChecks.push({ name, sql, params });
+
+// The ACL join table is the security boundary (PROPOSAL-MULTIPARTY-V1 §2.1):
+// a participant row pointing at an episode that no longer exists would be an
+// ACL entry for nothing, and the FK's on-delete-cascade is what should make it
+// unrepresentable. Proven against data, same as the citation CHECKs above.
+mpCheck(
+  "vy_episode_participant episodes resolve",
+  `select count(*)::int n from vy_episode_participant p
+    where not exists (select 1 from vy_episode e where e.id = p.episode_id)`,
+);
+
+// Every shared episode must have at least one participant. A room episode
+// with an empty participant set is disclosable to NOBODY (the structural
+// branch's universal quantifier fails for any recipient), so it is memory
+// nobody can ever reach — which is exactly what "last one out closes the
+// door" is supposed to have deleted (§3.1.2).
+mpCheck(
+  "no room episode without participants",
+  `select count(*)::int n from vy_episode e
+    where e.group_id is not null
+      and not exists (select 1 from vy_episode_participant p where p.episode_id = e.id)`,
+);
+
+// The manifest's `key` is documented as selecting "exclusive rows (1:1)"
+// (api/memory.js PERSON_TABLES), and forget's whole-wipe relies on it: an
+// episode carrying BOTH a person_id and a group_id would be hard-deleted out
+// from under its co-participants by that one person's wipe. The writer split
+// is a law, so it is asserted rather than trusted.
+mpCheck(
+  "no episode is both 1:1-owned and room-owned",
+  `select count(*)::int n from vy_episode
+    where person_id is not null and group_id is not null`,
+);
+
+// THE CITATION LAW on the newest table that stores derived content. A grant
+// that cannot point at the moment consent was given must not exist — the
+// vy_grant_cited CHECK makes it unrepresentable, and this re-proves it held,
+// plus that the episode it cites is still there.
+mpCheck(
+  "no uncited disclosure grant",
+  `select count(*)::int n from vy_disclosure_grant where cardinality(citations) < 1`,
+);
+mpCheck("vy_disclosure_grant citations resolve", orphanCite("vy_disclosure_grant"));
+
+// v1's two disabled tiers, asserted as DATA rather than as a claim about the
+// predicate. Grants only ever fire INTO a room (§2.2/§2.4 clause 6), so a
+// grant with no group_id is a DM->DM carry sitting in the table waiting for a
+// predicate bug to find it.
+mpCheck(
+  "no roomless (DM->DM) disclosure grant",
+  `select count(*)::int n from vy_disclosure_grant where group_id is null`,
+);
+
+// Room isolation (§2.4 clause 4) reads group_id as a hint on derived rows;
+// a hint pointing at a room that no longer exists would make the clause
+// compare against nothing. No FK on hint columns (house law), so sweep it.
+mpCheck(
+  "vy_fact.group_id resolves",
+  `select count(*)::int n from vy_fact f
+    where f.group_id is not null
+      and not exists (select 1 from vy_group g where g.id = f.group_id)`,
+);
+mpCheck(
+  "vy_phrase.group_id resolves",
+  `select count(*)::int n from vy_phrase p
+    where p.group_id is not null
+      and not exists (select 1 from vy_group g where g.id = p.group_id)`,
+);
+mpCheck(
+  "vy_episode.group_id resolves",
+  `select count(*)::int n from vy_episode e
+    where e.group_id is not null
+      and not exists (select 1 from vy_group g where g.id = e.group_id)`,
+);
+mpCheck(
+  "meera_log.group_id resolves",
+  `select count(*)::int n from meera_log l
+    where l.group_id is not null
+      and not exists (select 1 from vy_group g where g.id = l.group_id)`,
+);
+
+// §6.4, "no person row, no persistence": a room turn that cannot be
+// attributed to a speaker can never be row-level forgotten by its author, and
+// speaker_person_id is UNBACKFILLABLE. One unattributed room row is a
+// permanent hole in someone's forget, so it is a zero, not a rate.
+mpCheck(
+  "no unattributed room turn",
+  `select count(*)::int n from meera_log
+    where group_id is not null and speaker_person_id is null`,
+);
+
 let failed = 0;
 const t0 = Date.now();
 
@@ -137,7 +236,15 @@ if (missing.length) {
   console.log(`  ok  manifest coverage (${keyed.length} person-keyed tables all listed)`);
 }
 
-for (const c of checks) {
+// migration 008 lands in three parts and is deployed by the owner, not by
+// this sweep; vy_episode_participant is 008a's table and stands in for all of
+// them (008b/008c cannot be applied without it).
+const [mpApplied] = await q(
+  `select to_regclass('public.vy_episode_participant') is not null as present`,
+);
+const mpOn = mpApplied?.present === true;
+
+for (const c of [...checks, ...(mpOn ? mpChecks : [])]) {
   const [row] = await q(c.sql, c.params, 30_000);
   const n = Number(row?.n ?? -1);
   if (n === 0) {
@@ -147,10 +254,18 @@ for (const c of checks) {
     console.log(`FAIL  ${c.name}: ${n} row(s)`);
   }
 }
+if (!mpOn) {
+  console.log(
+    `SKIP  ${mpChecks.length} multiparty check(s): migration 008 is not applied to this database ` +
+      `(vy_episode_participant absent). This is a deploy state, not a data defect — but the sweep ` +
+      `says so out loud, because "green" must never quietly mean "did not look".`,
+  );
+}
 
+const ran = checks.length + 1 + (mpOn ? mpChecks.length : 0);
 console.log(
   failed
     ? `\n${failed} integrity check(s) FAILED in ${Date.now() - t0}ms — the store is not trustworthy`
-    : `\nzero-orphan sweep green (${checks.length + 1} checks, ${Date.now() - t0}ms)`,
+    : `\nzero-orphan sweep green (${ran} checks${mpOn ? ", multiparty included" : ""}, ${Date.now() - t0}ms)`,
 );
 process.exit(failed ? 1 : 0);

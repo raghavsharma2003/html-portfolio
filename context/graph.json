@@ -597,6 +597,18 @@
    "kind": "measurement",
    "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] \u2014 the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
    "at": "2026-08-18"
+  },
+  {
+   "id": "error-marked-done",
+   "kind": "measurement",
+   "title": "Resume state poisoned: 1,451 errors recorded as done after key died; fixed + purged (853 honest)",
+   "at": "2026-08-18"
+  },
+  {
+   "id": "incumbent-853",
+   "kind": "measurement",
+   "title": "Incumbent arm 853/2304: words in-band, question share 71.9% vs 33% archived, Devanagari base rate 0.32%",
+   "at": "2026-08-18"
   }
  ],
  "edges": [
@@ -1224,6 +1236,16 @@
    "src": "ground-truth-ceiling",
    "rel": "measured_by",
    "dst": "judge-backtest"
+  },
+  {
+   "src": "error-marked-done",
+   "rel": "part_of",
+   "dst": "swap-prereg-1"
+  },
+  {
+   "src": "incumbent-853",
+   "rel": "part_of",
+   "dst": "swap-prereg-1"
   }
  ]
 }

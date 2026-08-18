@@ -317,3 +317,19 @@ first-row owner, and derivers are upserts unless there is a logged reason
 they must not be. (Fixed in WS-FELT: both writers upserted, day-1 seed
 creates the row; found only because a felt-product audit asked "who ever
 INSERTs this?" table by table.)
+
+---
+
+## `error-marked-done` — recording a failed call as a completed unit (2026-08-18)
+
+The incumbent generator's --allow-cash run hit a dry key mid-run: every
+subsequent call 403'd, and 1,451 errors were written into the resume state
+as completed units — the run then reported "COMPLETE: 2304/2304" at 37%
+real coverage. Two failures in one: (1) completion was defined as "a call
+happened" instead of "a reply exists"; (2) with cash as the last resort,
+a cash failure means every later call fails too — the run hammered a dead
+key 1,451 times instead of stopping at the first corpse. Fixed: a unit is
+complete only with a non-empty reply; a cash-lane failure halts the run
+like pool exhaustion. State repaired by purging errored entries (853 valid
+remain, honest count restored). The rule: resumable state records
+OUTCOMES, never attempts — an attempt is what retry exists for.

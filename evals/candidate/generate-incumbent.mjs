@@ -368,6 +368,25 @@ async function main() {
         return;
       }
 
+      // A unit is complete ONLY when it has a real reply. Learned 2026-08-18
+      // the expensive way: with --allow-cash and a dry key, every call 403'd,
+      // and 1,451 errors were recorded as completed units — poisoning the
+      // resume state into claiming 2304/2304 done at 37% real coverage
+      // (context/rejected.md `error-marked-done`). An errored or empty unit
+      // is left un-marked so the next invocation retries it, and a cash-lane
+      // failure while cash is the last resort stops the run like pool
+      // exhaustion does — hammering a dead key 1,451 times is not a retry
+      // strategy.
+      if (r.error || !r.text) {
+        if (allowCash) {
+          poolExhausted = true;
+          console.log(`\nSTOPPED: call failed with cash fallback enabled (${String(r.error).slice(0, 80)}) — key likely dry; unit left for retry.`);
+          saveState(state);
+          return;
+        }
+        saveState(state);
+        continue; // free-pool-only path: skip marking, let rotation retry later
+      }
       if (r.keyHash) keyHashCounts[r.keyHash] = (keyHashCounts[r.keyHash] || 0) + 1;
       state.completed[u.id] = {
         id: u.id,
