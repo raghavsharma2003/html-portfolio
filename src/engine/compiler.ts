@@ -53,6 +53,18 @@ import {
   type PhraseRow,
 } from "./relstate";
 import { renderIndiaDynamic, type RitualRow, type CurrencyRow } from "./india";
+// WS-TGBOT: the room layer (PROPOSAL-MULTIPARTY-V1 §5.2/§5.3, WS-MP's own
+// src/engine/room.ts per §9). Pure renderers only — no I/O crosses this
+// import, and an absent `roomBundle` means none of it is ever called, which
+// is the literal mechanism of gate G1's byte-identity property.
+import {
+  renderMpRoster,
+  renderMpBridge,
+  ROOM_MODE_NOTE,
+  MP_ROSTER_BUDGET,
+  MP_BRIDGE_BUDGET,
+  type RoomBundleInput,
+} from "./room";
 // WS-INTEGRATE seam 2 (age-tier hard-refusal, WS-SAFETY's ticket, verbatim).
 // Type-only read of clock.ts's TierGates shape — no edit to clock.ts, which
 // stays WS-SAFETY's exclusively (§13).
@@ -165,6 +177,22 @@ export interface CompileInput {
   // is REQUIRED to compute this fresh via clock.ts's gatesFor(getAgeTier())
   // on every call, never memoize it. See AGE_TIER_SAFETY_OVERRIDE's doc.
   ageGates?: TierGates | null;
+  // ── WS-TGBOT seam (PROPOSAL-MULTIPARTY-V1 §5.1's recipient descriptor, in
+  // the shape this compiler can actually consume: the RESOLVED roster and the
+  // ALREADY-DISCLOSURE-FILTERED bridge rows, never a room id and never a
+  // recipient set. That is deliberate and it is the §2.3 law made structural
+  // at this boundary — the predicate runs in the WHERE clause of the
+  // retrieval round trip (api/_disclosure.js), before ranking, and by the
+  // time anything reaches this pure function every disclosure question has
+  // already been answered by a join. A compiler that received a recipient set
+  // would be a compiler someone could later ask to filter, and a filter here
+  // is a post-hoc filter — the failure class §2.3 opens by refusing.
+  //
+  // ABSENT (undefined/null) is the ONLY state the 83 byte-identity fixtures
+  // exercise, and it must produce ZERO bytes of change: gate G1 (§5.1),
+  // mirroring `phase-c-complete`'s 83/83 property. Every use below is gated
+  // behind `if (input.roomBundle)`.
+  roomBundle?: RoomBundleInput | null;
 }
 
 export interface CompiledPrompt {
@@ -213,6 +241,18 @@ export function compile(input: CompileInput): CompiledPrompt {
     // slice guard, same reason CRISIS_LINES/NEVER MANIPULATE live there.
     core += AGE_TIER_SAFETY_OVERRIDE;
   }
+
+  // ── WS-TGBOT: the room note. Appended to CORE for the same reason
+  // AGE_TIER_SAFETY_OVERRIDE is — core is never truncated by api/chat.js's
+  // slice guard — and NOT to the appended-last set, which §0.1 law 4 closes
+  // to multiparty explicitly ("no multiparty rule goes there") and
+  // shapelint.ts's checkAppendedLastExactlyTwo hard-enforces. See
+  // ROOM_MODE_NOTE's own doc for the positional trade-off, stated rather than
+  // resolved. Safety is untouched by this: CRISIS_LINES, never-deny-AI and
+  // NEVER MANIPULATE are already in core and are ROOM-BLIND (§2.7) — nothing
+  // here softens, suppresses or restates them, and restating them here would
+  // itself be a `recited-prompt` surface.
+  if (input.roomBundle) core += ROOM_MODE_NOTE;
 
   let tail = parts.tail;
 
@@ -266,7 +306,13 @@ export function compile(input: CompileInput): CompiledPrompt {
     // closeness patterns) — unconditionally omitted under the age-tier gate,
     // never merely instructed away. T3 (india/rituals/currency) is not
     // intimacy-register content and is unaffected.
-    if (romanceOk) {
+    // §5.2: T2 and mp.roster are MUTUALLY EXCLUSIVE BY CHANNEL, which is what
+    // keeps the budget arithmetic cheap (group worst case 17,400 − 1,200 + 900
+    // + 1,100 = 18,200 against a 24,000 tail cap). In a group channel there is
+    // no single dyad to snapshot — the per-member state is in mp.roster — so
+    // T2 renders empty rather than snapshotting whichever dyad happened to be
+    // loaded, which would be one member's register applied to all six.
+    if (romanceOk && !input.roomBundle) {
       const t2 = renderRelSnapshot(input.relBundle.relState, {
         lastHonorificMoveAt: input.relBundle.lastHonorificMoveAt,
       });
@@ -318,9 +364,23 @@ ${input.memories}`;
   // Gate G1 (§5.1), non-negotiable and mirroring `phase-c-complete`'s 83/83
   // property: for a person with no room membership the compiled output is
   // byte-identical to today's. The multiparty layer must be provably free
-  // until a room exists — which is exactly what these two no-op tracks
-  // assert, since a byte would have to come from somewhere between them.
+  // until a room exists — which is exactly what the `if (input.roomBundle)`
+  // gate below buys, since a byte would have to come from somewhere between
+  // the two tracks.
+  //
+  // WS-TGBOT: both slots are now WIRED. src/engine/room.ts holds the two
+  // renderers; api/_room.js resolves what they render FROM, through
+  // api/_disclosure.js's predicate in the WHERE clause. This block renders,
+  // it never decides.
+  if (input.roomBundle) {
+    const roster = renderMpRoster(input.roomBundle.members, MP_ROSTER_BUDGET);
+    if (roster.text) tail += `\n\n${roster.text}`;
+  }
   _track("mp.roster");
+  if (input.roomBundle) {
+    const bridge = renderMpBridge(input.roomBundle.bridge, MP_BRIDGE_BUDGET);
+    if (bridge.text) tail += `\n\n${bridge.text}`;
+  }
   _track("mp.bridge");
 
   if (input.herLife) {
@@ -575,7 +635,7 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     // are mutually exclusive by channel, which is what keeps the arithmetic
     // cheap. ≤6 active members, telegraphic k:v, ~150 chars/member — and the
     // ≤6 cap falls straight out of this budget.
-    sourceStatus: "empty-reserved",
+    sourceStatus: "wired", // WS-TGBOT: room.ts renderMpRoster, gated on input.roomBundle
   },
   {
     id: "mp.bridge",
@@ -591,7 +651,7 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     // negatively-valenced row, a row from another room, a row whose grant is
     // absent or invalidated, a row whose sole non-Meera speaker has left — is
     // each a WHERE clause in that module, never a bullet in a prompt.
-    sourceStatus: "empty-reserved",
+    sourceStatus: "wired", // WS-TGBOT: room.ts renderMpBridge, gated on input.roomBundle
   },
   {
     id: "T10",

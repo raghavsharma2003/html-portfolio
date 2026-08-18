@@ -26,6 +26,15 @@ const STRINGS = [
   "SUPABASE_KEY",
   "AZURE_KEY",
   "AZURE_ENDPOINT",
+  // The Telegram surface (api/tg.js). TELEGRAM_WEBHOOK_SECRET is the only
+  // thing authenticating the webhook — api/tg.js refuses every update when it
+  // is unset, so a deploy without it is a bot that receives nothing rather
+  // than a bot that trusts anyone. TELEGRAM_BOT_USERNAME is not a secret; it
+  // rides the same rail because it is per-bot config and a staging bot must
+  // not need a code change.
+  "TELEGRAM_BOT_TOKEN",
+  "TELEGRAM_WEBHOOK_SECRET",
+  "TELEGRAM_BOT_USERNAME",
 ];
 
 // Refusing to overwrite a real local config is not politeness — running this

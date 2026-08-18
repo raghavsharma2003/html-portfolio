@@ -35,3 +35,23 @@ export const GOOGLE_PAID_KEY = "";
 // Azure OpenAI — memory extraction only, on the startup credits.
 export const AZURE_KEY = "";
 export const AZURE_ENDPOINT = "";
+
+// ── the Telegram surface (api/tg.js, PROPOSAL-MULTIPARTY-V1 §6) ───────────
+//
+// TELEGRAM_BOT_TOKEN — BotFather's token for the bot. It is the only
+// credential that can post as her, so it appears in exactly one expression in
+// this repo (tgCall in api/tg.js) and in no log line.
+//
+// TELEGRAM_WEBHOOK_SECRET — the `secret_token` passed to setWebhook. Telegram
+// then sends it back as the X-Telegram-Bot-Api-Secret-Token header on every
+// update, and it is the ONLY thing between the webhook and an anonymous POST
+// that could forge a room, a member, or an admin promotion. api/tg.js refuses
+// every request when this is unset: a webhook that defaults open is a webhook
+// that is open. Generate it as 64 random hex chars; it is not a password
+// anyone types.
+export const TELEGRAM_BOT_TOKEN = "";
+export const TELEGRAM_WEBHOOK_SECRET = "";
+// Not a secret — the bot's @username, used to build the deep links and to
+// detect an @-mention. Kept in env rather than hard-coded so a second bot
+// (staging) does not need a code change.
+export const TELEGRAM_BOT_USERNAME = "";

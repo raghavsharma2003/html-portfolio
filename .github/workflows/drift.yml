@@ -63,6 +63,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           AZURE_KEY: ${{ secrets.AZURE_KEY }}
+          # the Telegram surface (api/tg.js) — WEBHOOK_SECRET is what
+          # authenticates the webhook; without it api/tg.js refuses every update
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          TELEGRAM_BOT_USERNAME: ${{ secrets.TELEGRAM_BOT_USERNAME }}
           AZURE_ENDPOINT: ${{ secrets.AZURE_ENDPOINT }}
         run: node scripts/write-config.mjs
 
