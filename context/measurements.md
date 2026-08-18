@@ -372,10 +372,13 @@ This independently re-derives `spec-c-minimal`'s law (structural guarantees
 beat prompt instructions) on the disclosure axis, and it is why the group
 layer's privacy is a retrieval property, not a persona rule.
 
-Also verified in the sweep: **silence must be a separately-decided action** —
-MultiLIGHT measured a joint speak-or-silent architecture at 35.8% (vs 33.3%
-random) against 54.4% for a dedicated decision step, converging with our
-screen-share gate's design; and **no shipped product** does judged
+Also in the sweep: **silence as a separately-decided action** — AMENDED
+2026-08-15: docs/research/multiparty/MULTIPARTY.md §7 item 6 corrected this
+entry's original attribution ("do not cite MultiLIGHT as support for
+'always decide silence as a separate step'" — the 35.8%-vs-54.4% reading
+overstated what that benchmark measured). The separate silence step stands
+as a logged ENGINEERING BET converging with our screen-share gate's design,
+not as an externally measured law; and **no shipped product** does judged
 cross-member disclosure over real shared memory — Meta and OpenAI both
 deliberately wall memory off from group spaces. The white space is real and
 the reason it is empty is that it is hard.

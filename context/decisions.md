@@ -578,3 +578,47 @@ than 1:1 (the wedge's core assumption), or a lab ships cross-person shared
 memory with real privacy walls (the "labs can't build this" premise), or
 the adapter loop cheaply lifts arbitrary models into register-band (which
 would resurrect swap-as-product).
+
+---
+
+## `multiparty-v1-design` — the shared-friend design is judged and accepted (2026-08-15)
+
+docs/design/PROPOSAL-MULTIPARTY-V1.md (WS-MPDESIGN, coordinator-reviewed).
+The three load-bearing calls, accepted:
+
+1. **Disclosure defaults to the room, not the person.** Value flows
+   room→room and room→your-own-DM (recipient was present for every cited
+   episode — zero consent, zero judgment needed). DM→room needs one
+   explicit cited grant; DM→DM and cross-room are DISABLED in v1, not
+   defaulted off. Privacy is one numbered WHERE predicate before rank,
+   never a prompt instruction.
+2. **Multi-owner forget = withdraw, not delete**: drop your participant
+   row + your authored turns; the ACL is a live join so no derived
+   cascade; hard-delete when the last participant leaves. PERSON_TABLES
+   gains keys[] + a shared-row spec (also fixes the room-rows-outlive-
+   author wipe hole before it can exist).
+3. **Group episodes are state-inert in v1** (recall-eligible; no
+   rel-state/taste/pattern writes) — whether group register predicts 1:1
+   register is unmeasured, and an unmeasured channel does not get to move
+   the state layer the shipped product depends on.
+
+Coordinator rulings on its open questions: departed member's material
+stays retrievable for co-participants and loses only proactive bridge
+eligibility (accepted as v1 default; owner may overrule). ≤6 members
+(roster budget). Telegram privacy mode stays ON with per-room admin
+promotion as the consent artifact.
+
+Corrections it forced upstream, applied: the "T8-multiparty slot" premise
+was a propagated error (SPEC's T8 is taste.rows; the 2000-char intent now
+lives as mp.roster 900 + mp.bridge 1100 after T6); the MultiLIGHT
+silence-step attribution in measurements.md is amended to an engineering
+bet, per the research's own earlier correction.
+
+Build order: Gate 0 (offline prompt-vs-SQL fixture A/B, 0 ACL violations
+at n≥300) blocks everything; migration 008 lands in three parts; build
+starts AFTER WS-FELT lands (api/memory.js single-owner law). Pilot: "Ten
+Days, Three Rooms" on the owner's friend groups, within-subject retention.
+
+**Reverses if:** Gate 0 cannot reach 0 ACL violations structurally, or the
+pilot shows rooms do not out-retain 1:1 (the wedge's core bet, also
+relational-wedge's own reversal).

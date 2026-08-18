@@ -543,6 +543,12 @@
    "kind": "measurement",
    "title": "Engine renders empty in prod: writers missing for we/phrases/india/patterns; trust frozen at 0.3; day-1 relationally empty",
    "at": "2026-08-15"
+  },
+  {
+   "id": "multiparty-v1-design",
+   "kind": "decision",
+   "title": "Shared-friend v1 accepted: room-scoped disclosure as WHERE predicate, withdraw-not-delete, state-inert groups, Telegram admin-bit consent",
+   "at": "2026-08-15"
   }
  ],
  "edges": [
@@ -1105,6 +1111,11 @@
    "src": "prodgap-audit",
    "rel": "measured_by",
    "dst": "phase-c-complete"
+  },
+  {
+   "src": "multiparty-v1-design",
+   "rel": "part_of",
+   "dst": "relational-wedge"
   }
  ]
 }
