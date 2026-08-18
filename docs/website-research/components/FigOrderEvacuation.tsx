@@ -16,7 +16,7 @@
  * Site-native port of docs/paper/figures/fig-f2-slot-a-evacuation.mjs.
  */
 
-import { Fragment } from "react";
+import { Fragment, type SVGAttributes } from "react";
 import {
   ASH,
   EMBER,
@@ -117,30 +117,39 @@ export function FigOrderEvacuation({
   const titleId = `${uid}-title`;
   const descId = `${uid}-desc`;
 
-  const W = narrow ? 400 : 780;
+  const W = narrow ? 400 : 960;
   const LEFT = 14;
 
-  // Panel A geometry
-  const AX = narrow ? 66 : 148;
-  const AW = narrow ? W - AX - 74 : 236;
-  const rowH = narrow ? 30 : 28;
-  const aTop = narrow ? 96 : 90;
+  // Panel A geometry — desktop constants match the proven, non-colliding
+  // layout in docs/paper/figures/fig-f2-slot-a-evacuation.mjs (AX/AW/BX/BW/
+  // ROWH/PANEL_TOP) so the point cluster in Panel B keeps the spacing that
+  // layout was tuned for; only the mobile branch is a fresh, stacked layout.
+  const AX = narrow ? 66 : 152;
+  const AW = narrow ? W - AX - 74 : 300;
+  const rowH = narrow ? 30 : 30;
+  const aTop = narrow ? 100 : 86;
   const aRows = panelA.length + 1;
-  const aBottom = aTop + aRows * rowH + 6;
+  const aBottom = aTop + aRows * rowH + 8;
   const xA = scaleLinear(0, 100, AX, AX + AW);
 
   // Panel B geometry — stacked below Panel A on narrow, beside it on wide
-  const BX = narrow ? 54 : AX + AW + 96;
-  const BW = narrow ? W - BX - 24 : W - BX - 24;
-  const BY = narrow ? aBottom + 54 : aTop;
-  const BH = narrow ? 230 : aBottom - aTop;
+  const BX = narrow ? 54 : 552;
+  const BW = narrow ? W - BX - 24 : 336;
+  const BY = narrow ? aBottom + 56 : aTop;
+  const BH = narrow ? 240 : aBottom - aTop - 4;
   const xB = scaleLinear(40, 100, BX, BX + BW);
   const yB = scaleLinear(0, 100, BY + BH, BY);
 
-  const axisY = (narrow ? BY + BH : Math.max(aBottom, BY + BH)) + 8;
-  const H = axisY + (narrow ? 150 : 118);
+  // Bottom of the two panels' own axis captions ("share naming…" under A,
+  // "slot-A pick rate q…" under B) — the legend starts safely below BOTH,
+  // not below a generic axisY that under-counted Panel B's caption line and
+  // let it collide with the legend (caught in the first render pass).
+  const aCaptionY = aBottom + (narrow ? 8 : 2);
+  const bCaptionY = BY + BH + 30;
+  const legendY = Math.max(aCaptionY, bCaptionY) + (narrow ? 30 : 26);
+  const H = legendY + (narrow ? 130 : 64);
 
-  const anim = (delayMs: number): React.SVGAttributes<SVGElement> => ({
+  const anim = (delayMs: number): SVGAttributes<SVGElement> => ({
     style: {
       opacity: revealed ? 1 : 0,
       transform: revealed ? "translateY(0)" : "translateY(6px)",
@@ -162,17 +171,24 @@ export function FigOrderEvacuation({
     return pts.join(" ");
   })();
 
-  // deterministic label placement, adapted from fig-f2's own placer
+  // Deterministic label placement, ported directly from fig-f2's own placer
+  // (docs/paper/figures/fig-f2-slot-a-evacuation.mjs `placeLabel`) — six
+  // slots including the two diagonals, tried in the order that resolved the
+  // tight Mistral-Large-3 pair in the original figure. A narrower 4-slot
+  // version left MIS/MIS, GRK/DS-P and TER/GT colliding at this point
+  // density; the diagonals are load-bearing, not decoration.
   const placed: Array<{ x0: number; x1: number; y0: number; y1: number }> = [];
   function placeLabel(px: number, py: number, s: string) {
     const size = narrow ? 8 : 8.5;
-    const w = s.length * size * 0.6;
-    const h = size * 1.2;
+    const w = s.length * size * 0.58;
+    const h = size * 1.15;
     const slots = [
       { x: px + 7, y: py + 3.5, anchor: "start" as const },
       { x: px - 7, y: py + 3.5, anchor: "end" as const },
       { x: px, y: py - 8, anchor: "middle" as const },
-      { x: px, y: py + 15, anchor: "middle" as const },
+      { x: px, y: py + 14, anchor: "middle" as const },
+      { x: px + 7, y: py - 8, anchor: "start" as const },
+      { x: px - 7, y: py + 14, anchor: "end" as const },
     ];
     for (const sl of slots) {
       const x0 = sl.anchor === "end" ? sl.x - w : sl.anchor === "middle" ? sl.x - w / 2 : sl.x;
@@ -264,8 +280,8 @@ export function FigOrderEvacuation({
               </g>
             );
           })()}
-          <line x1={xA(50)} y1={aTop - 12} x2={xA(50)} y2={aBottom - 14} stroke={INK} strokeWidth={1.3} strokeDasharray="5 3" />
-          <text x={xA(50)} y={aTop - 16} fontFamily={FONT_MONO} fontSize={8.5} fontWeight={700} textAnchor="middle" fill={SLATE}>
+          <line x1={xA(50)} y1={aTop - 2} x2={xA(50)} y2={aBottom - 14} stroke={INK} strokeWidth={1.3} strokeDasharray="5 3" />
+          <text x={xA(50)} y={aTop - 4} fontFamily={FONT_MONO} fontSize={8.5} fontWeight={700} textAnchor="middle" fill={SLATE}>
             50%
           </text>
           <line x1={AX} y1={aBottom - 14} x2={AX + AW} y2={aBottom - 14} stroke={INK} strokeWidth={1} />
@@ -292,22 +308,27 @@ export function FigOrderEvacuation({
           <g {...anim(160)}>
             <path d={curveD} fill="none" stroke={ASH} strokeWidth={1.6} strokeDasharray="7 3" />
           </g>
-          <text x={BX + BW - 4} y={yB(92) - 6} fontFamily={FONT_MONO} fontSize={8.5} fontWeight={700} textAnchor="end" fill={ASH}>
-            analytic: q² + (1−q)²
+          <text x={xB(93)} y={yB(87) - 9} fontFamily={FONT_MONO} fontSize={8.5} fontWeight={700} textAnchor="end" fill={ASH}>
+            analytic, not measured
+          </text>
+          <text x={xB(93)} y={yB(87) + 3} fontFamily={FONT_MONO} fontSize={8.5} textAnchor="end" fill={ASH}>
+            q² + (1−q)²
           </text>
 
           {points.map((p, i) => {
             const px = xB(p.q);
             const py = yB(p.tieFlipRate);
             const filled = p.archive === "charm-grok";
-            const lbl = placeLabel(px, py, p.code);
+            const lbl = narrow && !p.onCurve ? null : placeLabel(px, py, p.code);
             const color = p.onCurve ? EMBER : INK;
             return (
               <g key={`${p.judge}-${p.archive}`} {...anim(200 + i * 40)}>
-                <circle cx={px} cy={py} r={4.2} fill={filled ? color : SURFACE} stroke={color} strokeWidth={1.7} />
-                <text x={lbl.x} y={lbl.y} fontFamily={FONT_MONO} fontSize={lbl.size} textAnchor={lbl.anchor} fill={p.onCurve ? EMBER : SLATE} fontWeight={p.onCurve ? 700 : 400}>
-                  {p.code}
-                </text>
+                <circle cx={px} cy={py} r={narrow ? 3.6 : 4.2} fill={filled ? color : SURFACE} stroke={color} strokeWidth={1.7} />
+                {lbl && (
+                  <text x={lbl.x} y={lbl.y} fontFamily={FONT_MONO} fontSize={lbl.size} textAnchor={lbl.anchor} fill={p.onCurve ? EMBER : SLATE} fontWeight={p.onCurve ? 700 : 400}>
+                    {p.code}
+                  </text>
+                )}
               </g>
             );
           })}
@@ -351,7 +372,7 @@ export function FigOrderEvacuation({
           </text>
 
           {/* legend */}
-          <g transform={`translate(0, ${axisY + 18})`}>
+          <g transform={`translate(0, ${legendY})`}>
             <circle cx={LEFT + 5} cy={0} r={4.2} fill={INK} />
             <text x={LEFT + 15} y={3.5} fontFamily={FONT_MONO} fontSize={9} fill={SLATE}>
               filled = charm-grok (38–2 landslide)
@@ -368,10 +389,10 @@ export function FigOrderEvacuation({
               GT = trusted judge, same rows
             </text>
           </g>
-          <text x={LEFT} y={axisY + (narrow ? 66 : 40)} fontFamily={FONT_MONO} fontSize={8} fill={EMBER} fontWeight={600}>
+          <text x={LEFT} y={legendY + (narrow ? 48 : 22)} fontFamily={FONT_MONO} fontSize={8} fill={EMBER} fontWeight={600}>
             ember = lands on the curve (content signal gone)
           </text>
-          <text x={LEFT} y={axisY + (narrow ? 80 : 54)} fontFamily={FONT_MONO} fontSize={8} fill={SLATE}>
+          <text x={LEFT} y={legendY + (narrow ? 62 : 36)} fontFamily={FONT_MONO} fontSize={8} fill={SLATE}>
             MIS Mistral-L3 · DS-F/DS-P DeepSeek-V4-Flash/Pro · GRK grok-4.3 · TER gpt-5.6-terra
           </text>
         </svg>

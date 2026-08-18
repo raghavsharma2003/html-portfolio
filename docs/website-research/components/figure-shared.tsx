@@ -20,6 +20,7 @@
 import {
   type ReactNode,
   type CSSProperties,
+  type RefObject,
   useEffect,
   useId,
   useRef,
@@ -79,7 +80,7 @@ export function usePrefersReducedMotion(): boolean {
 // observer also touches this node later, it's an idempotent class add — no
 // conflict.
 export function useSelfReveal<T extends HTMLElement>(): {
-  ref: React.RefObject<T | null>;
+  ref: RefObject<T | null>;
   revealed: boolean;
 } {
   const ref = useRef<T | null>(null);
@@ -118,7 +119,7 @@ export function useSelfReveal<T extends HTMLElement>(): {
 // own padding.
 export function useNarrow<T extends HTMLElement>(
   breakpoint = 520,
-): { ref: React.RefObject<T | null>; narrow: boolean } {
+): { ref: RefObject<T | null>; narrow: boolean } {
   const ref = useRef<T | null>(null);
   const [narrow, setNarrow] = useState(false);
 
@@ -155,13 +156,13 @@ export function FigureShell({
   caption: ReactNode;
   revealIndex?: number;
   revealed: boolean;
-  outerRef: React.RefObject<HTMLElement | null>;
+  outerRef: RefObject<HTMLElement | null>;
   ariaHidden?: boolean;
   className?: string;
 }) {
   return (
     <figure
-      ref={outerRef as React.RefObject<HTMLElement>}
+      ref={outerRef as RefObject<HTMLElement>}
       data-reveal={revealIndex}
       aria-hidden={ariaHidden}
       className={[

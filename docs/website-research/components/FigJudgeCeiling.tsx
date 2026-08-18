@@ -20,7 +20,7 @@
  * methods appendix point, not part of the page's headline claim.
  */
 
-import { Fragment } from "react";
+import { Fragment, type SVGAttributes } from "react";
 import {
   ASH,
   EMBER,
@@ -92,7 +92,7 @@ const DEFAULT_DISQUALIFIED: DisqualifiedJudge = {
 };
 
 const DEFAULT_CEILING: JudgeAgreementRow = {
-  judge: "claude-opus-4.8 (ground truth, re-judging its own archive)",
+  judge: "claude-opus-4.8",
   code: "GT",
   agree: 74,
   n: 96,
@@ -162,7 +162,7 @@ export function FigJudgeCeiling({
   const x = scaleLinear(0, 100, PADL, PADL + PLOTW);
   const ticks = narrow ? [0, 50, 80, 100] : [0, 20, 40, 60, 80, 100];
 
-  const anim = (delayMs: number): React.SVGAttributes<SVGElement> => ({
+  const anim = (delayMs: number): SVGAttributes<SVGElement> => ({
     style: {
       opacity: revealed ? 1 : 0,
       transform: revealed ? "scaleX(1)" : "scaleX(0.6)",
@@ -333,16 +333,20 @@ export function FigJudgeCeiling({
             <Row key={r.judge} r={r} y={rowY[i]} delay={80 + i * 60} tone="solid" verdict="FAIL" verdictColor={EMBER} />
           ))}
 
-          {/* disqualified — no bar, per assets-manifest rule: absent for cause, not "worst" */}
+          {/* disqualified — no bar, per assets-manifest rule: absent for cause, not "worst".
+              Detail text stays in the left label column, stacked under the name, so it
+              never runs across the plot and collides with the ceiling band or the bar. */}
           <g opacity={0.85}>
-            <text x={PADL - 10} y={yDisq + 4} fontFamily={FONT_MONO} fontSize={narrow ? 10.5 : 11} fontWeight={500} textAnchor="end" fill={SLATE}>
+            <text x={PADL - 10} y={yDisq + 2} fontFamily={FONT_MONO} fontSize={narrow ? 10.5 : 11} fontWeight={500} textAnchor="end" fill={SLATE}>
               {narrow ? disqualified.code : disqualified.judge}
             </text>
-            <line x1={PADL} y1={yDisq} x2={PADL + Math.min(PLOTW, 120)} y2={yDisq} stroke={SLATE} strokeWidth={1} strokeDasharray="2 3" />
-            <text x={narrow ? PADL : PADL + 130} y={narrow ? yDisq + 15 : yDisq + 4} fontFamily={FONT_MONO} fontSize={8.5} fill={SLATE} fontStyle="italic">
-              {disqualified.detail}
-            </text>
-            <text x={W - LEFT} y={yDisq + 4} fontFamily={FONT_MONO} fontSize={9.5} textAnchor="end" fill={SLATE} fontWeight={700}>
+            {!narrow && (
+              <text x={PADL - 10} y={yDisq + 14} fontFamily={FONT_MONO} fontSize={8} fill={SLATE} fontStyle="italic" textAnchor="end">
+                {disqualified.detail}
+              </text>
+            )}
+            <line x1={PADL} y1={yDisq + 2} x2={PADL + Math.min(PLOTW, 90)} y2={yDisq + 2} stroke={SLATE} strokeWidth={1} strokeDasharray="2 3" />
+            <text x={W - LEFT} y={yDisq + 6} fontFamily={FONT_MONO} fontSize={9.5} textAnchor="end" fill={SLATE} fontWeight={700}>
               DISQUALIFIED
             </text>
           </g>
