@@ -111,7 +111,7 @@ export function FigOrderEvacuation({
   revealIndex = 1,
   className,
 }: FigOrderEvacuationProps) {
-  const { ref, revealed } = useSelfReveal<HTMLElement>();
+  const { ref, revealed, reducedMotion } = useSelfReveal<HTMLElement>();
   const { ref: narrowRef, narrow } = useNarrow<HTMLDivElement>(560);
   const uid = useFigureId("fig-oe");
   const titleId = `${uid}-title`;
@@ -151,11 +151,12 @@ export function FigOrderEvacuation({
 
   const anim = (delayMs: number): SVGAttributes<SVGElement> => ({
     style: {
-      opacity: revealed ? 1 : 0,
-      transform: revealed ? "translateY(0)" : "translateY(6px)",
-      transition: revealed
-        ? `opacity 460ms var(--ease-out-quint, cubic-bezier(.23,1,.32,1)) ${delayMs}ms, transform 460ms var(--ease-out-quint, cubic-bezier(.23,1,.32,1)) ${delayMs}ms`
-        : "none",
+      opacity: revealed || reducedMotion ? 1 : 0,
+      transform: revealed || reducedMotion ? "translateY(0)" : "translateY(6px)",
+      transition:
+        !reducedMotion && revealed
+          ? `opacity 460ms var(--ease-out-quint, cubic-bezier(.23,1,.32,1)) ${delayMs}ms, transform 460ms var(--ease-out-quint, cubic-bezier(.23,1,.32,1)) ${delayMs}ms`
+          : "none",
     },
   });
 
@@ -211,6 +212,7 @@ export function FigOrderEvacuation({
       <FigureShell
         outerRef={ref}
         revealIndex={revealIndex}
+        reducedMotion={reducedMotion}
         revealed={revealed}
         caption={
           <>

@@ -79,7 +79,7 @@ export function FigEnglishControl({
   revealIndex = 2,
   className,
 }: FigEnglishControlProps) {
-  const { ref, revealed } = useSelfReveal<HTMLElement>();
+  const { ref, revealed, reducedMotion } = useSelfReveal<HTMLElement>();
   const { ref: narrowRef, narrow } = useNarrow<HTMLDivElement>(560);
   const uid = useFigureId("fig-ec");
   const hatchId = `${uid}-hatch`;
@@ -107,11 +107,12 @@ export function FigEnglishControl({
 
   const anim = (delayMs: number): SVGAttributes<SVGElement> => ({
     style: {
-      opacity: revealed ? 1 : 0,
-      transform: revealed ? "translateY(0)" : "translateY(8px)",
-      transition: revealed
-        ? `opacity 480ms var(--ease-out-quint, cubic-bezier(.23,1,.32,1)) ${delayMs}ms, transform 480ms var(--ease-out-quint, cubic-bezier(.23,1,.32,1)) ${delayMs}ms`
-        : "none",
+      opacity: revealed || reducedMotion ? 1 : 0,
+      transform: revealed || reducedMotion ? "translateY(0)" : "translateY(8px)",
+      transition:
+        !reducedMotion && revealed
+          ? `opacity 480ms var(--ease-out-quint, cubic-bezier(.23,1,.32,1)) ${delayMs}ms, transform 480ms var(--ease-out-quint, cubic-bezier(.23,1,.32,1)) ${delayMs}ms`
+          : "none",
     },
   });
 
@@ -120,6 +121,7 @@ export function FigEnglishControl({
       <FigureShell
         outerRef={ref}
         revealIndex={revealIndex}
+        reducedMotion={reducedMotion}
         revealed={revealed}
         caption={
           <>
@@ -181,8 +183,8 @@ export function FigEnglishControl({
                   {narrow ? r.code : r.judge}
                 </text>
                 {r.isTranslator && (
-                  <text x={PADL - 10} y={y + 10} fontFamily={FONT_MONO} fontSize={7.5} textAnchor="end" fill={SLATE} fontStyle="italic">
-                    also the translator
+                  <text x={PADL - 10} y={y + 10} fontFamily={FONT_MONO} fontSize={7} textAnchor="end" fill={SLATE} fontStyle="italic">
+                    {narrow ? "+ translator" : "also the translator"}
                   </text>
                 )}
 
@@ -212,8 +214,11 @@ export function FigEnglishControl({
                     </text>
                   </>
                 ) : (
-                  <text x={PADL - 10} y={y + 22} fontFamily={FONT_MONO} fontSize={8.5} textAnchor="end" fill={SLATE}>
-                    {pctStr(r.hinglishPct)}→{pctStr(r.englishPct)} ({ppStr(r.recoveryPp)})
+                  // Centered under the row, spanning the full plot width, so
+                  // this summary never runs off the card's left edge the way
+                  // an end-anchored label at the narrow label column would.
+                  <text x={PADL + PLOTW / 2} y={y + 24} fontFamily={FONT_MONO} fontSize={8.5} textAnchor="middle" fill={SLATE}>
+                    {pctStr(r.hinglishPct)} → {pctStr(r.englishPct)} ({ppStr(r.recoveryPp)})
                   </text>
                 )}
               </g>

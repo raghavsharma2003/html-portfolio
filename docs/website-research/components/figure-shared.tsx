@@ -82,6 +82,10 @@ export function usePrefersReducedMotion(): boolean {
 export function useSelfReveal<T extends HTMLElement>(): {
   ref: RefObject<T | null>;
   revealed: boolean;
+  /** True under prefers-reduced-motion. Callers must skip the transition
+   *  entirely when this is true, not merely skip the observer's wait — a
+   *  fade that still plays once revealed flips true is not "immediately". */
+  reducedMotion: boolean;
 } {
   const ref = useRef<T | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -109,7 +113,7 @@ export function useSelfReveal<T extends HTMLElement>(): {
     return () => observer.disconnect();
   }, [reduced]);
 
-  return { ref, revealed };
+  return { ref, revealed, reducedMotion: reduced };
 }
 
 // ── narrow-container hook (the mobile strategy switch) ───────────────────────
@@ -148,6 +152,7 @@ export function FigureShell({
   caption,
   revealIndex = 0,
   revealed,
+  reducedMotion = false,
   outerRef,
   ariaHidden = false,
   className = "",
@@ -156,6 +161,7 @@ export function FigureShell({
   caption: ReactNode;
   revealIndex?: number;
   revealed: boolean;
+  reducedMotion?: boolean;
   outerRef: RefObject<HTMLElement | null>;
   ariaHidden?: boolean;
   className?: string;
@@ -167,11 +173,15 @@ export function FigureShell({
       aria-hidden={ariaHidden}
       className={[
         "not-prose rounded-[var(--radius-lg,0.5rem)] border border-hairline bg-surface p-5 sm:p-8",
-        "transition-[opacity,transform] duration-[var(--duration-reveal,760ms)]",
-        revealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-[22px]",
+        // Reduced motion: no transition class at all, so the opacity/transform
+        // jump straight to their resolved values with zero animated frames —
+        // matching the site's own [data-reveal] !important override, not an
+        // approximation of it.
+        reducedMotion ? "" : "transition-[opacity,transform] duration-[var(--duration-reveal,760ms)]",
+        revealed || reducedMotion ? "opacity-100 translate-y-0" : "opacity-0 translate-y-[22px]",
         className,
       ].join(" ")}
-      style={{ transitionTimingFunction: EASE }}
+      style={reducedMotion ? undefined : { transitionTimingFunction: EASE }}
     >
       {children}
       <figcaption className="mt-6 border-t border-hairline pt-4 text-micro leading-relaxed text-slate">

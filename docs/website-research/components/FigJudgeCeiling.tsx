@@ -128,7 +128,7 @@ export function FigJudgeCeiling({
   revealIndex = 0,
   className,
 }: FigJudgeCeilingProps) {
-  const { ref, revealed } = useSelfReveal<HTMLElement>();
+  const { ref, revealed, reducedMotion } = useSelfReveal<HTMLElement>();
   const { ref: narrowRef, narrow } = useNarrow<HTMLDivElement>(560);
   const uid = useFigureId("fig-jc");
   const hatchId = `${uid}-hatch`;
@@ -164,12 +164,15 @@ export function FigJudgeCeiling({
 
   const anim = (delayMs: number): SVGAttributes<SVGElement> => ({
     style: {
-      opacity: revealed ? 1 : 0,
-      transform: revealed ? "scaleX(1)" : "scaleX(0.6)",
+      opacity: revealed || reducedMotion ? 1 : 0,
+      transform: revealed || reducedMotion ? "scaleX(1)" : "scaleX(0.6)",
       transformOrigin: `${x(0)}px 0`,
-      transition: revealed
-        ? `opacity 520ms var(--ease-out-quint, cubic-bezier(.23,1,.32,1)) ${delayMs}ms, transform 520ms var(--ease-out-quint, cubic-bezier(.23,1,.32,1)) ${delayMs}ms`
-        : "none",
+      // Reduced motion: always "none" — the resolved state above must render
+      // with zero animated frames, not merely skip the observer's wait.
+      transition:
+        !reducedMotion && revealed
+          ? `opacity 520ms var(--ease-out-quint, cubic-bezier(.23,1,.32,1)) ${delayMs}ms, transform 520ms var(--ease-out-quint, cubic-bezier(.23,1,.32,1)) ${delayMs}ms`
+          : "none",
     },
   });
 
@@ -251,6 +254,7 @@ export function FigJudgeCeiling({
       <FigureShell
         outerRef={ref}
         revealIndex={revealIndex}
+        reducedMotion={reducedMotion}
         revealed={revealed}
         caption={
           <>
