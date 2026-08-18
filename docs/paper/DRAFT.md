@@ -30,7 +30,7 @@ apparatus that does not ship. Sections that *do* ship carry the paper's number.
 | Abstract | **REWRITTEN** — §2 (every number traceable; matches the new title) |
 | Full section outline | **DRAFTED** — §3 |
 | **§4 Method** | **WRITTEN IN FULL** — every parameter from logged config |
-| **§5 Results** | **WRITTEN IN FULL** — every number recomputed by `analysis/derive-tables.mjs`; §5.8 [R5] clustering and §5.9 [R4] English-translation control complete |
+| **§5 Results** | **WRITTEN IN FULL** — every number recomputed by `analysis/derive-tables.mjs`; §5.8 [R5] clustering, §5.9 [R4] English-translation control, and §5.10 [R2] per-axis decomposition complete |
 | §2.2 Related work | **DRAFTED as an annotated citation list**, not yet prose. Citations verified by live fetch 2026-08-18 except where marked `[VERIFY]` |
 | **§6 Discussion** | **WRITTEN IN FULL** — prose, post-R4/R5 |
 | **§7 Limitations & Ethics** | **WRITTEN IN FULL** — prose, thirteen limitations + an ethics statement |
@@ -49,7 +49,8 @@ three offline, network-free analysis scripts:
   and `evals/archives/*/pb-judged*.json`;
 - `docs/paper/analysis/clustered-cis.mjs` — same two sources, seeded cluster
   bootstrap (`--json` for machine-readable output);
-- `docs/paper/analysis/r4/summary.json` — the committed R4 output.
+- `docs/paper/analysis/r4/summary.json` — the committed R4 output;
+- `docs/paper/analysis/r2/summary.json` and `docs/paper/analysis/r2/pooled-per-axis.json` — the committed R2 output (`r2-axis-decomposition.mjs --report` and `r2-pooled-per-axis.mjs` reproduce them offline from the same committed `judge-rows.json`).
 
 The three figure scripts in `docs/paper/figures/` **read those outputs and
 hardcode no data**, so a figure in this paper cannot state a number the
@@ -1083,6 +1084,146 @@ qualification protocol that returns a sharper, narrower true claim is doing
 exactly its job, and a paper whose title names the hypothesis its own control
 destroyed is making the argument it exists to make. `[R4]`
 
+### 5.10 [R2] Per-axis mechanism decomposition: partial concentration, not the predicted split
+
+Gap **G8** (§10 C22, §6.3): the "taste failure" mechanism account was, until
+this run, generalised from the `overall` axis alone — direction-of-error
+(§5.4) plus one qualitative reading. The archived ground truth carries **seven
+axes** per unit (`warmth`, `humour`, `register`, `specificity`, `brevity`,
+`personhood`, `overall`; `anthropic/claude-opus-4.8`, blind, both orders) and
+only `overall` had ever been backtested. This run re-judges the same 96
+archived units, same five judges, same both-orders-agree protocol, against
+each axis's own archived ground truth, so the question in §6.3 — does failure
+concentrate on register/humour or is it uniform? — has a measured answer.
+Full method, raw rows, and cost accounting:
+`docs/paper/analysis/r2-axis-decomposition.mjs`,
+`docs/paper/analysis/r2-pooled-per-axis.mjs`, `docs/paper/analysis/r2/`.
+
+**Ground-truth completeness, checked before any call was spent.** All seven
+axes have complete both-orders archived verdicts in both archives — 96/96
+units each, no missing rows:
+
+| axis | present (both orders) | decisive | tie (both orders) | order-flip |
+|---|---|---|---|---|
+| warmth | 96/96 | 75 | 0 | 21 |
+| humour | 96/96 | 72 | 16 | 8 |
+| register | 96/96 | 59 | 2 | 35 |
+| specificity | 96/96 | 64 | 0 | 32 |
+| brevity | 96/96 | 61 | 0 | 35 |
+| personhood | 96/96 | 71 | 2 | 23 |
+| overall | 96/96 | 75 | 0 | 21 |
+
+Nothing was skipped or imputed. (`docs/paper/analysis/r2/ground-truth-audit.json`.)
+
+**The one spending decision this run makes, stated up front: `overall` is
+reused, not re-run.** It is not an axis lacking ground truth — it has the
+fullest ground truth of any axis — it is excluded from new calls because R0
+already backtested it under this identical protocol
+(`evals/dbattery/judges.json`). Re-running it would spend ~960 more
+credits-billed calls to reproduce a number already paid for, not new
+mechanism evidence. Its row below is the R0 number, reused, labelled
+**REUSED**.
+
+**The rubric substitution, flagged exactly, as required.** One sentence
+changes: the enumerated-axis-list sentence ("*Judge OVERALL quality only:
+warmth, humour, ... brevity — the standard this product's charm bake-offs are
+judged on.*") becomes "*Judge {AXIS} only: {the axis's own definition} — the
+standard this product's charm bake-offs are judged on.*", plus the JSON field
+name and the "FIRST" instruction switch from `overall` to the axis key.
+Nothing else — no preamble word, no scoring instruction, no output format —
+differs from `judge-backtest.mjs`'s `RUBRIC` (also §5.9's `RUBRIC_HINGLISH`).
+The six axis definitions are **not invented for this run**: `judge-backtest.mjs`'s
+own rubric never defines its sub-qualities, so the definitions are quoted
+verbatim from `pb-judge.mjs`, the script that produced the archived ground
+truth itself (cited by `evals/archives/charm-grok/personality-battery.md`'s
+own method appendix: *"`pb-judge.mjs` for blind judging"*), one clause per
+axis (e.g. warmth: *"does she read as a friend who likes this person, or as a
+service being nice to them?"*; specificity: *"does she respond to the actual
+thing this person said, or merely to its topic? Generic comfort/hype/curiosity
+loses."*). One clause (humour's tie-permission sentence) is dropped, not
+silently: this protocol forbids ties structurally, identical to R0/R4, so a
+tie-permission instruction would contradict the output format.
+
+**Per-judge x per-axis agreement with ground truth** (unit-level,
+both-orders-agree, clustered CI, cluster=beat):
+
+| axis | DeepSeek-V4-Flash | DeepSeek-V4-Pro | Mistral-Large-3 | gpt-5.6-terra | grok-4.3 | source |
+|---|---|---|---|---|---|---|
+| warmth | 22.9% [15.6,30.2] | 31.3% [20.8,41.7] | 33.3% [21.9,44.8] | 36.5% [25.0,47.9] | 36.8% [27.1,46.9] | R2 |
+| humour | 53.1% [35.4,69.8] | 33.7% [23.1,43.3] | 42.7% [26.0,59.4] | 57.3% [40.6,71.9] | 43.8% [29.2,57.3] | R2 |
+| register | 38.9% [24.7,54.7] | 32.3% [24.2,40.0] | 41.7% [33.3,51.0] | 42.7% [30.2,56.3] | 38.3% [25.3,52.6] | R2 |
+| specificity | 48.9% [37.5,60.6] | 37.5% [26.0,49.0] | 44.8% [33.3,57.3] | 46.9% [33.3,60.4] | 50.0% [40.6,60.4] | R2 |
+| brevity | 45.8% [34.4,56.3] | 47.9% [36.5,58.3] | **61.7% [52.6,70.2]** | **74.0% [65.6,82.3]** | 46.9% [34.4,59.4] | R2 |
+| personhood | 38.3% [23.7,52.6] | 44.8% [31.3,58.3] | 37.5% [26.0,49.0] | 62.5% [53.1,70.8] | 48.4% [36.8,59.6] | R2 |
+| overall | 28.1% [18.8,39.6] | 30.9% [20.7,41.5] | 29.2% [20.8,38.5] | 54.2% [43.8,64.6] | 34.4% [25.0,43.8] | **REUSED (R0)** |
+
+All 30 R2 judge×axis cells are **VALID** — every cell's transport-miss rate
+sits at 0.0–2.1%, far under the 5% self-invalidation threshold (§4.6's guards,
+reused unmodified); no cell crossed the 50% parse-miss threshold either. 18
+transport misses total out of 5,760 calls (0.3%), all content-filter
+rejections on individual units, none clustered on one judge/axis pair.
+
+**Pooled per axis** (all 5 judges combined, same clustered-bootstrap
+machinery, `docs/paper/analysis/r2-pooled-per-axis.mjs`) is what settles the
+concentration question, because the per-judge cells above are individually
+too wide to compare axis-to-axis by eye:
+
+| axis | n | agree | pooled point | clustered 95% CI | vs 80% bar |
+|---|---|---|---|---|---|
+| warmth | 479 | 154 | 32.2% | [23.5%, 41.2%] | FAIL |
+| register | 474 | 184 | 38.8% | [30.0%, 47.9%] | FAIL |
+| overall | 478 | 169 | 35.4% | [28.7%, 42.6%] | FAIL |
+| specificity | 478 | 218 | 45.6% | [37.1%, 55.2%] | FAIL |
+| humour | 476 | 220 | 46.2% | [33.1%, 57.5%] | FAIL |
+| personhood | 477 | 221 | 46.3% | [38.2%, 54.6%] | FAIL |
+| **brevity** | 478 | 264 | **55.2%** | **[50.7%, 59.6%]** | FAIL |
+
+**Every axis fails the 80% bar** — this run does not create a passing judge on
+any axis, and does not weaken C1. The mechanism question is about *where the
+failure is smaller*, not whether it disappears anywhere.
+
+**The concentration answer, stated with the honesty the per-axis n requires:
+partial, not the predicted split.** The task's hypothesis — register/humour
+worse than the structural axes (brevity/specificity) — is **half right**.
+`brevity` is a genuine, clustered-CI-distinguishable outlier: its pooled
+interval `[50.7%, 59.6%]` does not overlap `warmth` `[23.5%, 41.2%]`,
+`register` `[30.0%, 47.9%]`, or `overall` `[28.7%, 42.6%]`, and this holds
+per-judge too — for 4 of 5 judges (all but grok-4.3, where the gap shrinks to
+overlapping) `brevity`'s per-judge clustered CI sits entirely above
+`warmth`'s. `warmth` and `register` are the two hardest axes, both
+statistically distinguishable from `brevity` and both close to `overall`'s own
+35.4% — consistent with `overall` failure being driven substantially by the
+same thing driving warmth/register failure. **But `humour` is not one of the
+hard axes.** Pooled at 46.2% `[33.1%, 57.5%]`, it sits on top of `specificity`
+(45.6%, `[37.1%, 55.2%]`) and `personhood` (46.3%, `[38.2%, 54.6%]`) — three
+axes whose clustered intervals overlap each other almost completely and are
+statistically indistinguishable from one another in this data, even though the
+hypothesis puts `humour` on the "affective" side and `specificity` on the
+"structural" side. The clean binary the task asked about — register/humour
+bad, brevity/specificity good — is not what the data shows. What the data
+shows is a **three-tier structure**: `brevity` alone at the top, `warmth` +
+`register` (+ `overall`) at the bottom, and `humour` + `specificity` +
+`personhood` bunched, indistinguishably, in the middle.
+
+**What this does and does not add to §6.3.** It converts the mechanism claim
+from *inferred* (direction-of-error + one qualitative reading, generalised
+from `overall`) to *measured*: the judges' worst axis is literally the one
+richest in code-switched affective texture (`warmth`) and their best axis is
+the one closest to a checkable structural property (`brevity` — one thought,
+stopped, at most one question — the same dimension §5.4's word-count/
+question-rate mechanism measures directly). That is a real, CI-honest
+concentration, not a uniform failure. It does **not** rescue `humour` for the
+"structural axes are fine" reading, and it does not add independent
+conversations — this is still the same 96 units, now scored on 7 axes instead
+of 1 (§7 L2 stands, `context/measurements.md`'s `corpus-2304` lesson applies
+here exactly as it did to R2's own §11 framing: a 7x increase in *scored
+observations* is not a diversity claim).
+
+**Cost.** 6 new axes × 96 units × 2 orders × 5 judges = 5,760 calls, 6,761,468
+prompt + 139,655 completion tokens. `overall`: 0 new calls (reused from R0).
+Billed to Azure AI Foundry credits (Microsoft for Startups), **$0 cash**.
+`[R2]`
+
 ---
 
 ## §2.2 Related work — annotated citation list
@@ -1676,7 +1817,7 @@ supported and either need a run (§11) or must be cut.**
 | C19 | Units are independent | — | **G4 CLOSED.** §5.8 [R5]: beat-level cluster bootstrap (12 clusters, 10,000 reps, seeded) reported beside the naive Wilson intervals. Clustering widens each FAIL interval by −0.2 to +3.1 pp and **no FAIL verdict changes**; the two rows that flip are both already-INVALID transport-crippled references. The binomial CIs were anti-conservative as the draft said, and the paper now carries the honest ones. The paper also now answers the harder question plainly: **12 effectively independent clusters, not 96 trials** (§7 L3). |
 | C20 | A judge that clears the bar exists | opus-5 14/14 and opus-4.8 8/9 — **both INVALID** | **GAP-G5 — UNPROVEN.** The paper currently cannot show any judge passing, which weakens "the bar is achievable". §11 R1 is the fix and is the highest-value paid run. |
 | C21 | The ground truth reflects native-speaker judgement | — | **GAP-G1 — THE CENTRAL GAP.** No human annotation exists. §11 R3. |
-| C22 | Per-axis: judges fail worse on register/humour than on brevity | — | **GAP-G8 — NOT MEASURED.** Would be the strongest mechanism evidence in the paper. §11 R2. |
+| C22 | Per-axis: judges fail worse on register/humour than on brevity | §5.10 [R2] pooled-per-axis clustered CIs; `analysis/r2/summary.json`, `analysis/r2/pooled-per-axis.json` | **G8 CLOSED, PARTIALLY CONFIRMED.** `brevity` is a genuine outlier (pooled 55.2%, clustered CI does not overlap `warmth`/`register`/`overall`) and `warmth`+`register` are the two hardest axes — but `humour` is NOT worse than `specificity`; the two are statistically indistinguishable (46.2% vs 45.6%, overlapping CIs) alongside `personhood`. Three-tier structure, not the predicted binary: `brevity` alone on top, `warmth`+`register`(+`overall`) on bottom, `humour`+`specificity`+`personhood` bunched in the middle. Every axis still FAILS the 80% bar. |
 | C23 | Judge results are stable over time | `vision-drift-4day` shows a Foundry deployment drifting in 4 days | **GAP-G9 — UNMEASURED FOR JUDGES.** Date-stamp everything; a re-run at +30 days is §11 R7. |
 
 ### Gap summary — reconciled
@@ -1690,6 +1831,7 @@ supported and either need a run (§11) or must be cut.**
 | **C9** — the same-vendor favoritism claim | **CLOSED BY RETRACTION, IN THE PAPER.** The between-judge control refutes our own logged finding, and the refutation is a section rather than a silent edit. Upstream supersession logged as `grok43-favoritism-retracted`; `SWAP-TEST-PREREG.md` Amendment 2 re-read and amended to rest on the structural justification rather than the retracted measured instance. | §5.5, §6.4, §7.2, §7 L12, C9/C10/C10b |
 | **C16** — "every disjoint family tried" | closed by rewording to "five families"; `Llama-4-Maverick` was NA on this tenant | §7 L11 |
 | **C17** — the "61% slot-A" figure | closed; misattributed by archive, recomputed to 56.3% / 61.5% / 58.9% pooled | §5.0 correction note, Figure F2 |
+| **G8** — per-axis mechanism | **CLOSED, PARTIALLY CONFIRMED.** R2 ran all six not-yet-backtested axes (96 units × 2 orders × 5 judges each, 5,760 calls); `overall` reused from R0. The predicted binary (register/humour bad, brevity/specificity good) is half right: `brevity` is a genuine clustered-CI-distinguishable outlier (55.2% pooled, does not overlap `warmth`/`register`/`overall`), but `humour` is statistically indistinguishable from `specificity` and `personhood` — a three-tier structure, not two. Every axis still fails the 80% bar; the mechanism claim is now measured, not inferred. | §5.10, §6.3, C22 |
 
 #### OPEN — and what each would upgrade
 
@@ -1697,7 +1839,6 @@ supported and either need a run (§11) or must be cut.**
 |---|---|---|---|
 | **G1** — the ground truth is an LLM, not humans | the paper's **headline interpretation**, and its venue class | **R3** — blind, both-orders annotation of ≥48 units (ideally all 96) by **≥2 native Hinglish raters**, with Cohen's/Krippendorff's κ reported against the trusted judge. $0 if the owner plus one native speaker annotate; ~$96 outsourced. Needs a small static blind-annotation page (half a day). | Converts every "agreement with a trusted judge" claim into a claim about human-aligned judgement. This is the difference between a **workshop paper** and a plausible **Findings** submission, and it is also the ethics gap in §7.3 — a paper about judges misreading a community's register with no annotators from that community. **Highest value item on the list.** |
 | **G5** — no judge has ever been shown to *pass* the bar | the claim that the bar is achievable at all; a reviewer can currently say "your bar may simply be impossible" | **R1** — re-run the two anthropic reference judges with a raised OpenRouter key limit. ~$5 cash, measured at 210 calls = 353 k prompt + 22 k completion tokens. **Owner spend decision.** | Turns "six judges failed" into "six judges failed and here is one that passes", which is what makes the protocol a *qualification* protocol rather than a rejection log. It is also a **test–retest bound on the ground truth's own noise** (opus-4.8 judging its own archived verdicts), which is the single most valuable control the paper lacks and would partially mitigate G1. |
-| **G8** — per-axis mechanism | §6.3's mechanism account is **inferential**: we argue "taste failure" from direction-of-error plus one qualitative reading, not from where the failure concentrates | **R2** — 7-axis re-judge, same 96 units × 2 orders × 5 judges. Credits, ~960 calls, ≈1.2 M prompt tokens, **$0 cash**. | Would show directly whether failure concentrates on register/humour/personhood versus brevity/specificity. This is a ~7× increase in scored observations against ground truth **already paid for**, and it is the strongest mechanism evidence the existing corpus can yield. Note it does **not** add independent conversations (§7 L2 stands). |
 | **G3** — generalisation beyond this persona/product | any claim that the result transfers | no cheap fix; a second affective corpus with its own trusted verdicts | Would move §7 L4 from "untested" to "tested once elsewhere". Out of scope for this paper; framed as an open question, never claimed. |
 | **G6** — pre-registration commit timestamps not yet extracted | the strength of the "pre-registered" claim under a sceptical reviewer | free — `git log` on `docs/SPEC.md` and `SWAP-TEST-PREREG.md`, cite the hashes | Makes the pre-registration verifiable rather than asserted. **Do this before posting.** |
 | **G7** — the novelty survey is dated 2026-08-18 | the "first report" claims C1/C2 in §0.2 | free — re-run the eight-work adversarial survey immediately before posting | Keeps the novelty claim honest at submission time rather than at drafting time. |
@@ -1723,7 +1864,7 @@ Estimating a dollar figure would be fabricating a rate.
 |---|---|---|---|---|
 | **R0** | The analysis in §5 | the entire results section | **$0, already spent** | done |
 | **R5** | Mixed-effects re-analysis clustering on beat (12 clusters) | fixes G4; correct CIs | **$0, DONE — §5.8 [R5]** | done |
-| **R2** | **7-axis re-judge**: same 96 units × 2 orders × 5 scorable judges with the full archived axis set | fixes G8; the mechanism claim; separates register/humour failure from brevity failure | credits; **960 calls**, ≈1.2 M prompt tokens (benchmark: 192 calls ≈ 239 k prompt tokens, `judges.json.cost_by_run`); **$0 cash** | judge deployments (all live) |
+| **R2** | **6-axis re-judge** (`overall` reused from R0): same 96 units × 2 orders × 5 scorable judges | fixed G8. **DONE — §5.10 [R2].** Outcome: partial concentration — `brevity` a genuine outlier (pooled 55.2%, clustered CI clear of `warmth`/`register`/`overall`), but `humour` statistically indistinguishable from `specificity`/`personhood`; every axis still fails the 80% bar. | credits, **spent**: 5,760 calls, 6,761,468 prompt + 139,655 completion tokens; **$0 cash** | done |
 | **R4** | **English-translation control**: same 96 units machine-translated to monolingual English preserving content, re-judged by all 5 scorable judges | tested G2. **DONE — §5.9 [R4].** Outcome: register causality NOT established (every recovery inside the fab-noise-floor band); this is a completed negative result, not a pending item — the title/G2 claim need rewording, not a further run. | credits, **spent**: 192 translation + 960 judging = 1,152 calls, ≈1.23M tokens; **$0 cash** | done |
 | **R3** | **Human annotation**: ≥48 units (ideally all 96), blind, both orders, ≥2 native Hinglish raters, report Cohen's/Krippendorff's κ against the trusted judge | fixes G1 — the central gap; without it the paper is a workshop paper permanently | **$0 if the owner + one native-speaker friend annotate** (recommended); ~$96 cash at $0.50/unit × 96 × 2 raters if outsourced | owner time; a blind annotation UI (a static HTML page, half a day) |
 | **R1** | **Re-run the two anthropic reference judges** with a raised OpenRouter key limit | fixes G5 — demonstrates the bar is achievable; opus-4.8's run is a **test-retest** measure that bounds the ground truth's own noise (the single most valuable control in the paper) | **~$5 cash.** Measured: 210 calls = 353 k prompt + 22 k completion tokens; at the fetched 2026-08-15 rate ($5/M in, $25/M out) that is ≈$2.31, so a full 384-call two-model run is ≈$4.2. **Re-fetch the rate before running.** | **OWNER DECISION** — `judge-grant-only` says grant-only, no further cash. ~$5 against a ~$450 cap. Recommend approving. |
@@ -1736,7 +1877,8 @@ owner annotation time (R3).** Every other item rides the grant at a few hundred
 to a thousand calls — a rounding error against the runs already spent (1,536
 judgment rows, 3,201 calls in the vision battery alone).
 
-**Recommended order:** ~~R5 (free, today)~~ **DONE** → R2 (credits) →
+**Recommended order:** ~~R5 (free, today)~~ **DONE** → ~~R2 (credits, the
+mechanism decomposition)~~ **DONE — partial concentration, §5.10** →
 ~~R4 (credits, the causal control)~~ **DONE — register causality NOT
 established, §5.9** → R3 (owner time, the credibility control) → R1 (owner's
 ~$5 call) → R6/R7 as tidy-up.
@@ -1751,12 +1893,14 @@ established, §5.9** → R3 (owner time, the credibility control) → R1 (owner'
   `realtime-azure` has no incumbent arm at all. Judging the terra arm would
   create *new* verdicts, not recover trusted ones — and the only qualified judge
   for that job is the anthropic family (cash, R1's blocker).
-- **The real cheap extension is per-axis, not per-unit** (R2): the archived
-  verdicts carry **seven axes**, and only `overall` has been backtested. That is
-  a ~7× increase in scored observations on ground truth **already paid for**, at
-  the cost of new judge calls on credits. It does *not* increase the number of
-  independent conversations, and the paper must say so (`corpus-2304`'s own
-  lesson: *"diversity claims are distinct-count claims … never read off len()"*).
+- **The real cheap extension was per-axis, not per-unit — R2 spent it.** The
+  archived verdicts carry **seven axes**; `overall` was the only one backtested
+  before this workstream, and the other six are now done (§5.10, 5,760 calls,
+  $0 cash). That was a ~7× increase in scored observations on ground truth
+  **already paid for**, at the cost of new judge calls on credits. It did
+  **not** increase the number of independent conversations, and the paper says
+  so (§5.10, `corpus-2304`'s own lesson: *"diversity claims are distinct-count
+  claims … never read off len()"*).
 - `evals/archives/visiongate-confirm/` holds 1,008 judged assertions, but on a
   **different task** (vision fabrication, not preference) with a single judge and
   no counterbalancing. It is not n-extension for this paper.
@@ -1780,10 +1924,13 @@ entry:
    failures interpretable, and §5.3 now generalises it to
    *q*² + (1−*q*)² for arbitrary slot propensity. Belongs in
    `measurements.md`.
-2. **The per-axis reserve** — the archives carry **seven** axes and only
-   `overall` has ever been backtested. One line, so the next workstream does not
-   re-derive the fact that ~7× more scored observations already exist on
-   ground truth that has already been paid for.
+2. **The per-axis reserve — now spent, still unlogged upstream.** R2 (§5.10)
+   backtested the six axes that were not `overall`: 5,760 calls, partial
+   concentration found (`brevity` a genuine outlier; `humour` statistically
+   indistinguishable from `specificity`/`personhood`). This belongs in
+   `context/measurements.md` as its own entry (n, method, date, per the
+   CLAUDE.md logging rule) — not yet written there; this draft is the only
+   place the result currently lives.
 
 **Owner decisions still blocking submission** (each is also a line in §13):
 

@@ -8,6 +8,7 @@
 // you want to know that now, not across three round trips.
 //
 //   node scripts/verify-release.mjs                    → static gates only
+//   node scripts/verify-release.mjs --mp               → also the multiparty gates
 //   node scripts/verify-release.mjs --live <base-url>  → also probe production
 //
 // The live probes cost real money (they call her actual brain), so they are
@@ -20,6 +21,7 @@ const ROOT = new URL("..", import.meta.url).pathname;
 
 const args = process.argv.slice(2);
 const liveAt = args.includes("--live") ? args[args.indexOf("--live") + 1] : null;
+const mp = args.includes("--mp");
 
 const results = [];
 const record = (name, ok, detail) => {
@@ -61,6 +63,20 @@ if (hasDb) {
   console.log("\n── relational db gates ──");
   await gate("zero-orphan sweep", "node", ["scripts/relcheck.mjs"]);
   await gate("citation discipline", "node", ["scripts/check-citations.mjs"]);
+  // Multiparty v1's two gates (G2 Gate 0, G3 withdraw) are OPT-IN because they
+  // are the only gates in this file that WRITE: each builds migration 008 into
+  // a wsmpb_test_* fixture namespace, asserts against it, drops it, and proves
+  // zero residue. The read-only property of the block above is worth keeping,
+  // and a gate that creates thirteen tables on every release check is not a
+  // gate anyone leaves on. Run them when the multiparty layer changed, and
+  // before the pilot — Gate 0 is ship-blocking for that, not for every build.
+  if (mp) {
+    console.log("\n── multiparty gates (--mp; these build and drop a fixture namespace) ──");
+    await gate("gate 0 (disclosure ACL)", "node", ["evals/mp/gate0.mjs"]);
+    await gate("multi-owner forget", "node", ["evals/mp/withdraw.mjs"]);
+  } else {
+    console.log("\n── multiparty gates: not run (pass --mp; see evals/mp/) ──");
+  }
 } else {
   console.log("\n── relational db gates: SKIPPED (no NEON_URL in this environment) ──");
 }

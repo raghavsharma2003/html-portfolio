@@ -1,9 +1,9 @@
 {
-  "newAxisCalls": 80,
-  "promptTokens": 90750,
-  "completionTokens": 1951,
+  "newAxisCalls": 5760,
+  "promptTokens": 6761468,
+  "completionTokens": 139655,
   "overallAxisNewCalls": 0,
   "overallAxisSource": "R0 (evals/dbattery/judges.json) — reused, not re-run",
   "billedTo": "Azure AI Foundry credits (Microsoft for Startups) — cash cost $0",
-  "generatedAt": "2026-08-18T10:58:35.397Z"
+  "generatedAt": "2026-08-18T11:16:41.010Z"
 }

@@ -610,3 +610,189 @@ create table if not exists vy_taste_candidate (
 );
 create index if not exists vy_taste_candidate_status_ix
   on vy_taste_candidate (status, created_at desc);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 008a/008b/008c: multiparty v1 — the shared-memory companion.
+--
+-- Contract: docs/design/PROPOSAL-MULTIPARTY-V1.md §4 (accepted,
+-- context/decisions.md `multiparty-v1-design`). Per-migration files live in
+-- db/migrations/008{a,b,c}_*.sql; the DDL below is the same statements, kept
+-- here so this file remains the one honest record.
+--
+-- STATUS: written and proven against the real engine in a fixture namespace
+-- (evals/mp/gate0.mjs and evals/mp/withdraw.mjs build the wsmpb_test_*
+-- namespace from these exact files and tear it down), NOT YET APPLIED to the
+-- live database — the owner deploys migrations, not a workstream.
+-- scripts/relcheck.mjs detects that and says which checks it skipped.
+--
+-- Rules this block encodes, beyond the ones the vy_ block above already lists:
+--   - DISCLOSURE IS A RETRIEVAL PROPERTY. Every privacy rule in v1 is a WHERE
+--     clause in api/_disclosure.js, never a sentence in a prompt: a model
+--     asked to decline while holding the answer leaks at 9-90%
+--     (context/measurements.md#disclosure-leak-rates), and a row that was
+--     never retrieved cannot.
+--   - THE ACL OF A DERIVED ROW IS THE PARTICIPANT SET OF THE EPISODES IT
+--     CITES. Not a permissions table, not a flag anyone sets — a join, and
+--     therefore unforgeable by a generated-text step.
+--   - FORGET WITHDRAWS WHAT WE HOLD TOGETHER. Dropping a participant row
+--     stops the content surfacing to that person on the next retrieval, with
+--     no derived-row cascade; the closure hard-deletes only when the last
+--     participant leaves (api/memory.js withdrawSharedRows).
+--   - NO PERSON ROW, NO PERSISTENCE. An unlinked room member's messages are
+--     never written anywhere, which enforces `adult-default` structurally
+--     rather than by policy.
+--   - meera_log.speaker_person_id is UNBACKFILLABLE and therefore lands
+--     BEFORE any ingestion code: a room message written without it is
+--     permanently unattributable and can never be row-level forgotten.
+
+-- ── 008a: speaker attribution and participants ─────────────────────────────
+alter table meera_log add column if not exists speaker_person_id uuid;
+alter table meera_log add column if not exists group_id bigint;
+create index if not exists meera_log_speaker_ix
+  on meera_log (speaker_person_id, id);
+create index if not exists meera_log_group_ix
+  on meera_log (group_id, id) where group_id is not null;
+
+-- person_id stays the primary/reporting owner for 1:1 episodes and is NULL for
+-- room episodes: PERSON_TABLES' `key` selects the exclusive (1:1) rows, and a
+-- room episode carrying one member's person_id would be hard-deleted out from
+-- under its co-participants by that member's whole-wipe.
+alter table vy_episode alter column person_id drop not null;
+alter table vy_episode add column if not exists group_id bigint;
+alter table vy_episode add column if not exists disclosure_scope text
+  not null default 'participants'
+  check (disclosure_scope in ('participants','participants_1to1','private'));
+alter table vy_episode add column if not exists disclosure_deny uuid[]
+  not null default '{}';
+alter table vy_episode drop constraint if exists vy_episode_participation_check;
+alter table vy_episode add constraint vy_episode_participation_check
+  check (participation in ('we','user','meera','group'));
+
+-- A JOIN TABLE, not an array column: the filter must be index-backed in both
+-- directions (who was at this episode / which episodes was this person at),
+-- `on delete cascade` is not expressible on a bare array, and participant
+-- withdrawal is a row delete.
+create table if not exists vy_episode_participant (
+  episode_id bigint not null references vy_episode(id) on delete cascade,
+  person_id  uuid   not null,
+  role       text   not null default 'participant'
+             check (role in ('participant','addressed','silent_present')),
+  primary key (episode_id, person_id)
+);
+create index if not exists vy_episode_participant_person_ix
+  on vy_episode_participant (person_id, episode_id);
+
+-- backfill: every existing 1:1 episode gets exactly one participant row, and
+-- is marked as a DM scope so it can never render into a room without a grant
+insert into vy_episode_participant (episode_id, person_id)
+  select id, person_id from vy_episode where person_id is not null
+  on conflict do nothing;
+update vy_episode set disclosure_scope = 'participants_1to1'
+ where person_id is not null and group_id is null
+   and disclosure_scope = 'participants';
+
+-- ── 008b: rooms, grants, turn log, retrieval hints ─────────────────────────
+create table if not exists vy_group (
+  id             bigint generated always as identity primary key,
+  name           text not null default '',
+  kind           text not null default 'friend_group'
+                 check (kind in ('couple','family','friend_group','other')),
+  room_device_id uuid not null,          -- synthetic; keeps meera_log NOT NULL
+  tg_chat_id     bigint,                 -- Telegram binding
+  read_consent_at timestamptz,           -- admin promotion observed = read consent
+  quiet_level    text not null default 'normal'
+                 check (quiet_level in ('normal','quiet','silent')),
+  member_cap     smallint not null default 6,
+  created_at     timestamptz not null default now()
+);
+create unique index if not exists vy_group_tg_chat_ix
+  on vy_group (tg_chat_id) where tg_chat_id is not null;
+
+-- membership governs the LIVE CHANNEL, never history
+create table if not exists vy_group_member (
+  group_id    bigint not null references vy_group(id) on delete cascade,
+  person_id   uuid   not null,
+  tg_user_id  bigint,
+  role        text   not null default '',
+  quiet_level text   not null default 'normal'
+              check (quiet_level in ('normal','quiet','silent')),
+  linked_at   timestamptz,               -- null = seen but not onboarded
+  joined_at   timestamptz not null default now(),
+  left_at     timestamptz,               -- null = currently active
+  primary key (group_id, person_id)
+);
+create index if not exists vy_group_member_person_ix
+  on vy_group_member (person_id) where left_at is null;
+
+-- CPM made literal: permission is NEGOTIATED and CITED, never inferred at read
+create table if not exists vy_disclosure_grant (
+  id           bigint generated always as identity primary key,
+  subject_kind text not null
+               check (subject_kind in ('fact','episode','phrase')),
+  subject_id   bigint not null,
+  granted_by   uuid not null,            -- whose information it is
+  granted_to   uuid not null,            -- who may receive it
+  group_id     bigint,                   -- v1: grants fire INTO a room only
+  act          text not null default 'gist'
+               check (act in ('gist','paraphrase','verbatim')),
+  citations    bigint[] not null,        -- the episode where consent was given
+  t_invalid    timestamptz,              -- revocation is belief change
+  created_at   timestamptz not null default now(),
+  constraint vy_grant_cited check (cardinality(citations) >= 1)
+);
+create index if not exists vy_grant_subject_ix
+  on vy_disclosure_grant (subject_kind, subject_id) where t_invalid is null;
+create index if not exists vy_grant_to_ix
+  on vy_disclosure_grant (granted_to) where t_invalid is null;
+create index if not exists vy_grant_cit_ix
+  on vy_disclosure_grant using gin (citations);
+
+-- silence must be an EVENT, not an absence
+create table if not exists vy_group_turn (
+  id         bigint generated always as identity primary key,
+  group_id   bigint not null references vy_group(id) on delete cascade,
+  episode_id bigint references vy_episode(id) on delete set null,
+  log_id     bigint,
+  action     text not null check (action in ('lurk','react','speak','bridge')),
+  addressed  boolean not null default false,
+  reason     text not null default '',   -- telegraphic, shape-linted
+  at         timestamptz not null default now()
+);
+create index if not exists vy_group_turn_group_ix
+  on vy_group_turn (group_id, at desc);
+
+-- retrieval hints and the room-isolation key (NEVER the security boundary —
+-- membership changes, episode-time participation cannot)
+alter table vy_fact   add column if not exists group_id bigint;
+alter table vy_phrase add column if not exists group_id bigint;
+alter table vy_fact   add column if not exists disclosure_deny uuid[]
+  not null default '{}';
+alter table vy_phrase add column if not exists disclosure_deny uuid[]
+  not null default '{}';
+create index if not exists vy_fact_group_ix
+  on vy_fact (group_id, need_p desc)
+  where group_id is not null and t_invalid is null and retracted_at is null;
+create unique index if not exists vy_phrase_group_ix
+  on vy_phrase (group_id, lower(phrase)) where group_id is not null;
+
+-- ── 008c: Telegram identity and the paying unit ────────────────────────────
+create table if not exists vy_tg_person (
+  tg_user_id bigint primary key,
+  person_id  uuid   not null,
+  username   text   not null default '',
+  linked_at  timestamptz not null default now()
+);
+create index if not exists vy_tg_person_person_ix on vy_tg_person (person_id);
+
+-- gates ROOM ingestion and ROOM replies only, never anyone's 1:1 relationship
+create table if not exists vy_group_entitlement (
+  group_id      bigint not null references vy_group(id) on delete cascade,
+  paid_by       uuid   not null,          -- a member, not the room
+  provider      text   not null default 'tg_stars',
+  charge_id     text   not null default '',
+  period_start  timestamptz not null default now(),
+  period_end    timestamptz not null,
+  primary key (group_id, period_start)
+);
+create index if not exists vy_group_entitlement_active_ix
+  on vy_group_entitlement (group_id, period_end desc);

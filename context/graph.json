@@ -1,1251 +1,1257 @@
 {
- "note": "Project memory as a graph. Nodes are things worth remembering; edges are how they relate. Detail lives in the .md files keyed by node id. Validate with `node scripts/context.mjs --check`.",
- "kinds": {
-  "decision": "a choice made, with rationale and a reversal condition",
-  "measurement": "a number, with n and method",
-  "rejection": "something tried that did not work, and what broke",
-  "component": "a part of the system",
-  "constraint": "a rule that bounds future work",
-  "open": "a known gap, unresolved"
- },
- "relations": {
-  "supersedes": "this replaced that",
-  "measured_by": "this decision rests on that measurement",
-  "constrains": "that bounds this",
-  "part_of": "this belongs to that component",
-  "caused_by": "this exists because of that",
-  "blocks": "this is blocked on that"
- },
- "nodes": [
-  {
-   "id": "brain-model",
-   "kind": "decision",
-   "title": "Her brain stays on gemini-3.6-flash",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "voice-model",
-   "kind": "decision",
-   "title": "Her voice stays on Gemini TTS",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "vision-model",
-   "kind": "decision",
-   "title": "Screen share should move to grok-4-20-non-reasoning",
-   "at": "2026-08-11",
-   "status": "recommended, not yet wired"
-  },
-  {
-   "id": "extract-model",
-   "kind": "decision",
-   "title": "Memory extraction uses a reasoning model",
-   "at": "2026-08-11",
-   "status": "live"
-  },
-  {
-   "id": "reasoning-live",
-   "kind": "decision",
-   "title": "Reasoning is banned from her live replies",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "charm-grok",
-   "kind": "measurement",
-   "title": "grok loses to the incumbent 38-2 on charm",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "charm-luna",
-   "kind": "measurement",
-   "title": "luna ties the incumbent on charm, wins specificity",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "reasoning-split",
-   "kind": "measurement",
-   "title": "Reasoning +55% light beats, -81% heavy beats",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "vision-fab",
-   "kind": "measurement",
-   "title": "Fabrication on real screenshots by model",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "voice-ears",
-   "kind": "measurement",
-   "title": "Azure TTS rejected by ear despite better numbers",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "cache-9x",
-   "kind": "measurement",
-   "title": "Prompt caching makes each turn 9.2x cheaper",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "cost-per-turn",
-   "kind": "measurement",
-   "title": "Cost per turn, measured",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "taste-consistency",
-   "kind": "measurement",
-   "title": "Stored taste took self-consistency 27% to 63%",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "backchannel",
-   "kind": "rejection",
-   "title": "She cannot make a sound while you talk",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "murmur-timbre",
-   "kind": "rejection",
-   "title": "The synthesised listening murmur",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "azure-tts",
-   "kind": "rejection",
-   "title": "Azure TTS for her voice",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "speaker-id",
-   "kind": "rejection",
-   "title": "Telling a second speaker from the owner",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "recited-prompt",
-   "kind": "rejection",
-   "title": "Sentence-shaped text in the prompt",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "credits-partner",
-   "kind": "constraint",
-   "title": "Azure credits do not cover partner models",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "prompt-position",
-   "kind": "constraint",
-   "title": "Rule position decides whether a rule fires",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "silent-truncation",
-   "kind": "constraint",
-   "title": "Prompt truncation is silent and eats the end",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "audio-floor",
-   "kind": "component",
-   "title": "The audio floor and barge-in arbiter"
-  },
-  {
-   "id": "persona",
-   "kind": "component",
-   "title": "persona.ts \u2014 where her personality lives"
-  },
-  {
-   "id": "inner",
-   "kind": "component",
-   "title": "inner.ts \u2014 carried feeling, wants, taste, mood arc"
-  },
-  {
-   "id": "memory-graph",
-   "kind": "component",
-   "title": "Graph memory + forget"
-  },
-  {
-   "id": "scene",
-   "kind": "component",
-   "title": "Screen-share scene model"
-  },
-  {
-   "id": "watchdog-field",
-   "kind": "open",
-   "title": "The barge-in watchdog fix is unproven in the field"
-  },
-  {
-   "id": "semantic-recall",
-   "kind": "open",
-   "title": "Recall is keyword matching, not semantic"
-  },
-  {
-   "id": "realtime-azure",
-   "kind": "rejection",
-   "title": "gpt-realtime-2.1-mini for the voice call lane",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "grok-quiet",
-   "kind": "open",
-   "title": "grok says nothing on 15/16 screen frames"
-  },
-  {
-   "id": "light-only",
-   "kind": "decision",
-   "title": "The app is light-themed, unconditionally",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "scene-hold-800",
-   "kind": "decision",
-   "title": "The landing hold is capped at 800ms, not 4000",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "wake-hold-curve",
-   "kind": "measurement",
-   "title": "Screen-share wake latency vs the landing hold ceiling",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "her-reaction-736",
-   "kind": "measurement",
-   "title": "Her own reaction time on a screen wake is 736ms",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "fab-noise-floor",
-   "kind": "measurement",
-   "title": "Fabrication rate spreads 13.6pp on identical input",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "frame-cadence",
-   "kind": "rejection",
-   "title": "Capturing screen frames faster",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "hold-scroll-floor",
-   "kind": "rejection",
-   "title": "Lowering HOLD_SCROLL_MIN",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "wake-dedupe",
-   "kind": "rejection",
-   "title": "Loosening one-reaction-per-thing to catch more stops",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "live-model-bake",
-   "kind": "measurement",
-   "title": "Every model that can serve the realtime call",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "live-floor",
-   "kind": "measurement",
-   "title": "Where the 1.4s live reply actually goes",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "live-model-swap",
-   "kind": "rejection",
-   "title": "Moving the realtime call off gemini-3.1-flash-live-preview",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "silence-tuning",
-   "kind": "rejection",
-   "title": "Shortening silenceDurationMs to speed her up",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "ack-bracket-direction",
-   "kind": "rejection",
-   "title": "A bracketed direction inside a backchannel clip",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "free-tts-daily",
-   "kind": "measurement",
-   "title": "The free TTS tier is a daily budget and it runs out",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "openrouter-no-stream",
-   "kind": "measurement",
-   "title": "The paid TTS lane cannot stream",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "openrouter-streaming",
-   "kind": "rejection",
-   "title": "Asking the paid TTS lane to stream",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "azure-realtime-shape",
-   "kind": "measurement",
-   "title": "What an Azure realtime session requires",
-   "at": "2026-08-11"
-  },
-  {
-   "id": "relational-state",
-   "kind": "decision",
-   "title": "The build target is the relational-state layer; Meera is instance one",
-   "at": "2026-08-13"
-  },
-  {
-   "id": "phase-a-research",
-   "kind": "measurement",
-   "title": "The relational-state research sweep (23 agents, verified)",
-   "at": "2026-08-13"
-  },
-  {
-   "id": "consolidation-citation",
-   "kind": "constraint",
-   "title": "No derived fact without a citation trail to source episodes",
-   "at": "2026-08-13"
-  },
-  {
-   "id": "sham-arm",
-   "kind": "constraint",
-   "title": "Swap detection must be measured against a sham arm",
-   "at": "2026-08-13"
-  },
-  {
-   "id": "spec-c-minimal",
-   "kind": "decision",
-   "title": "The relational-state architecture is C-minimal plus grafts",
-   "at": "2026-08-13"
-  },
-  {
-   "id": "affect-recitation",
-   "kind": "measurement",
-   "title": "Short structured tags do not recite (n=84, bound 7.1%)",
-   "at": "2026-08-13"
-  },
-  {
-   "id": "multiparty-direction",
-   "kind": "decision",
-   "title": "The relational OS extends to shared group memory; disclosure control is the core",
-   "at": "2026-08-13"
-  },
-  {
-   "id": "age-tier-cliff",
-   "kind": "open",
-   "title": "Wiring the age hard-refusal makes every current user minor-safe until a verification lane exists"
-  },
-  {
-   "id": "disclosure-leak-rates",
-   "kind": "measurement",
-   "title": "Behavioral disclosure control leaves 9-90% residual leak; only structural exclusion holds",
-   "at": "2026-08-13"
-  },
-  {
-   "id": "structural-disclosure",
-   "kind": "decision",
-   "title": "Group privacy is a retrieval property, not a persona rule",
-   "at": "2026-08-13"
-  },
-  {
-   "id": "group-distribution",
-   "kind": "decision",
-   "title": "WhatsApp business-created groups first; Telegram validated fallback",
-   "at": "2026-08-13"
-  },
-  {
-   "id": "recall-v2",
-   "kind": "measurement",
-   "title": "Semantic recall lands: DB p50 40ms, embed call is the bottleneck",
-   "at": "2026-08-13"
-  },
-  {
-   "id": "d0-battery-validated",
-   "kind": "measurement",
-   "title": "D0 flags all 3 archives on deterministic axes only, judged data excluded",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "d1-band-recompute",
-   "kind": "measurement",
-   "title": "Archived incumbent arms run hot on the flat production band; ratio is the real gate",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "replay-verified",
-   "kind": "measurement",
-   "title": "Determinism + transcript fidelity on 3 real sessions; compile.manifest gap found",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "sham-noop-verdict",
-   "kind": "measurement",
-   "title": "Battery says no-difference on a real router relabel (one-bit diff)",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "d2-relational-smoke",
-   "kind": "measurement",
-   "title": "Relational judge harness executes; priced full run at $2.78/comparison",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "prosody-baseline-f0-gap",
-   "kind": "measurement",
-   "title": "Synthesized voice measures ~212-214Hz, ~50Hz below the 266Hz anchor",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "phase-c-complete",
-   "kind": "decision",
-   "title": "The relational engine exists and its battery can say no",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "humansand-scan",
-   "kind": "measurement",
-   "title": "humans& ($480M seed): thesis-identical, zero published mechanism",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "visiongate-interim",
-   "kind": "measurement",
-   "title": "Watch engagement doubles (powered); fabrication flat (underpowered)",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "judge-backtest",
-   "kind": "measurement",
-   "title": "Both credit-billed judges fail qualification (28%, 54% vs 80% bar)",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "grok43-judge",
-   "kind": "measurement",
-   "title": "grok-4.3 fails as judge; 16x same-vendor favoritism measured",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "d2-on-credits",
-   "kind": "decision",
-   "title": "Swap-test judging restructured onto the Azure grant; reversal: one cash family ~$400",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "swap-prereg-1",
-   "kind": "decision",
-   "title": "Run 1 pre-registered: terra vs incumbent, one disjoint judge family",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "visiongate-powered",
-   "kind": "measurement",
-   "title": "Powered: engagement doubles (+21.3pp p<1e-6), fabrication no detected rise (+1.0pp CI [-3.1,+5.1], n=313/695)",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "vision-drift-4day",
-   "kind": "measurement",
-   "title": "Foundry grok deployment drifted engagement behavior across 4 days (both arms, direction widens gap)",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "swap-prereg-amend-1",
-   "kind": "decision",
-   "title": "Amendment 1: paired fresh generation through the real compiler; archive replay impossible (0 served prompts stored)",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "judge-cash-approved",
-   "kind": "decision",
-   "title": "Owner approves ~$400 premium judge; backtest opus-5 AND opus-4.8, pick best over 80%",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "beyond-meera",
-   "kind": "decision",
-   "title": "Owner directive: research layer must be product-agnostic; Meera is instance one, funded with the $400",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "corpus-2304",
-   "kind": "measurement",
-   "title": "Swap corpus: 2,304 sha-distinct compiled contexts (72 texts x 32 variants), deterministic",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "compiler-now-seam",
-   "kind": "open",
-   "title": "Compiler has no `now` seam: persona/relstate/india default new Date() internally; corpus pins via global Date subclass",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "judge-run-transport-invalid",
-   "kind": "measurement",
-   "title": "Premium backtest crippled by $20 OpenRouter key limit; INVALID-RUN; harness now self-invalidates transport-crippled runs",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "generalization-audit",
-   "kind": "decision",
-   "title": "Meera-specificity map landed: router/schema person-generic; Hindi rel-dimensions + meera_log anchor are the two structural items",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "judge-grant-only",
-   "kind": "decision",
-   "title": "$400 is grant burn not cash; Claude-on-Foundry confirmed credits-ineligible (card trap); qualify Azure-direct premium families",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "terra-arm-2304",
-   "kind": "measurement",
-   "title": "Raw terra arm complete (2304/2304): words/turn 13 median vs 20.5 band, 7 Devanagari = D1 hard-fail signal",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "free-pool-capacity",
-   "kind": "measurement",
-   "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) \u2014 axis recalibration flagged",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "deepseek-pro-judge",
-   "kind": "measurement",
-   "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash \u2014 family out at any size",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "mistral-judge",
-   "kind": "measurement",
-   "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A \u2014 most extreme position bias measured",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "cohere-judge",
-   "kind": "measurement",
-   "title": "Cohere disqualified for cause (protocol-unfit at rubric scale); Azure disjoint-family branch EXHAUSTED",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "relational-wedge",
-   "kind": "decision",
-   "title": "Strategy re-rank: relationship layer is the asset, multiparty is the wedge, swap = QA + paper (capped)",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "prodgap-audit",
-   "kind": "measurement",
-   "title": "Engine renders empty in prod: writers missing for we/phrases/india/patterns; trust frozen at 0.3; day-1 relationally empty",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "multiparty-v1-design",
-   "kind": "decision",
-   "title": "Shared-friend v1 accepted: room-scoped disclosure as WHERE predicate, withdraw-not-delete, state-inert groups, Telegram admin-bit consent",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "grok43-favoritism-retracted",
-   "kind": "measurement",
-   "title": "RETRACTED: 16x same-vendor favoritism was panel-wide register preference (disjoint Mistral DiD larger); FAIL verdicts stand",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "relstate-zero-rows",
-   "kind": "measurement",
-   "title": "vy_rel_state: 0 rows for 40 persons \u2014 UPDATE-writers with no INSERT owner; whole relational surface silently invisible",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "felt-wiring-landed",
-   "kind": "measurement",
-   "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card \u2014 deployed 4/4",
-   "at": "2026-08-15"
-  },
-  {
-   "id": "r5-clustered-cis",
-   "kind": "measurement",
-   "title": "FAIL verdicts robust to beat-level clustering (max +3.1pp CI widening)",
-   "at": "2026-08-18"
-  },
-  {
-   "id": "r4-english-control",
-   "kind": "measurement",
-   "title": "English translation does not rescue judges (recovery within noise floor) \u2014 failure is deeper than code-switching",
-   "at": "2026-08-18"
-  },
-  {
-   "id": "paper-submission-plan",
-   "kind": "decision",
-   "title": "Target JUDGe 2026 @ NeurIPS (Aug 29 AoE); draft complete around two self-retractions; owner inputs pending",
-   "at": "2026-08-18"
-  },
-  {
-   "id": "papers-to-eight",
-   "kind": "decision",
-   "title": "Owner raises key to $25, directs both papers to 8/10; R1+incumbent cash order set; R2 + multiparty build launched",
-   "at": "2026-08-18"
-  },
-  {
-   "id": "ground-truth-ceiling",
-   "kind": "measurement",
-   "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] \u2014 the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
-   "at": "2026-08-18"
-  },
-  {
-   "id": "error-marked-done",
-   "kind": "measurement",
-   "title": "Resume state poisoned: 1,451 errors recorded as done after key died; fixed + purged (853 honest)",
-   "at": "2026-08-18"
-  },
-  {
-   "id": "incumbent-853",
-   "kind": "measurement",
-   "title": "Incumbent arm 853/2304: words in-band, question share 71.9% vs 33% archived, Devanagari base rate 0.32%",
-   "at": "2026-08-18"
-  }
- ],
- "edges": [
-  {
-   "src": "d2-on-credits",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "brain-model",
-   "rel": "measured_by",
-   "dst": "charm-grok"
-  },
-  {
-   "src": "brain-model",
-   "rel": "measured_by",
-   "dst": "charm-luna"
-  },
-  {
-   "src": "voice-model",
-   "rel": "measured_by",
-   "dst": "voice-ears"
-  },
-  {
-   "src": "azure-tts",
-   "rel": "caused_by",
-   "dst": "voice-ears"
-  },
-  {
-   "src": "vision-model",
-   "rel": "measured_by",
-   "dst": "vision-fab"
-  },
-  {
-   "src": "vision-model",
-   "rel": "blocks",
-   "dst": "grok-quiet"
-  },
-  {
-   "src": "extract-model",
-   "rel": "measured_by",
-   "dst": "reasoning-split"
-  },
-  {
-   "src": "reasoning-live",
-   "rel": "measured_by",
-   "dst": "reasoning-split"
-  },
-  {
-   "src": "murmur-timbre",
-   "rel": "part_of",
-   "dst": "audio-floor"
-  },
-  {
-   "src": "backchannel",
-   "rel": "constrains",
-   "dst": "audio-floor"
-  },
-  {
-   "src": "speaker-id",
-   "rel": "constrains",
-   "dst": "audio-floor"
-  },
-  {
-   "src": "watchdog-field",
-   "rel": "part_of",
-   "dst": "audio-floor"
-  },
-  {
-   "src": "recited-prompt",
-   "rel": "constrains",
-   "dst": "persona"
-  },
-  {
-   "src": "prompt-position",
-   "rel": "constrains",
-   "dst": "persona"
-  },
-  {
-   "src": "silent-truncation",
-   "rel": "constrains",
-   "dst": "persona"
-  },
-  {
-   "src": "taste-consistency",
-   "rel": "part_of",
-   "dst": "inner"
-  },
-  {
-   "src": "semantic-recall",
-   "rel": "part_of",
-   "dst": "memory-graph"
-  },
-  {
-   "src": "extract-model",
-   "rel": "part_of",
-   "dst": "memory-graph"
-  },
-  {
-   "src": "grok-quiet",
-   "rel": "part_of",
-   "dst": "scene"
-  },
-  {
-   "src": "credits-partner",
-   "rel": "constrains",
-   "dst": "brain-model"
-  },
-  {
-   "src": "credits-partner",
-   "rel": "constrains",
-   "dst": "vision-model"
-  },
-  {
-   "src": "cache-9x",
-   "rel": "constrains",
-   "dst": "brain-model"
-  },
-  {
-   "src": "light-only",
-   "rel": "part_of",
-   "dst": "persona"
-  },
-  {
-   "src": "scene-hold-800",
-   "rel": "measured_by",
-   "dst": "wake-hold-curve"
-  },
-  {
-   "src": "scene-hold-800",
-   "rel": "part_of",
-   "dst": "scene"
-  },
-  {
-   "src": "frame-cadence",
-   "rel": "part_of",
-   "dst": "scene"
-  },
-  {
-   "src": "hold-scroll-floor",
-   "rel": "part_of",
-   "dst": "scene"
-  },
-  {
-   "src": "wake-dedupe",
-   "rel": "part_of",
-   "dst": "scene"
-  },
-  {
-   "src": "her-reaction-736",
-   "rel": "part_of",
-   "dst": "scene"
-  },
-  {
-   "src": "fab-noise-floor",
-   "rel": "constrains",
-   "dst": "vision-model"
-  },
-  {
-   "src": "fab-noise-floor",
-   "rel": "constrains",
-   "dst": "scene-hold-800"
-  },
-  {
-   "src": "live-model-swap",
-   "rel": "measured_by",
-   "dst": "live-model-bake"
-  },
-  {
-   "src": "live-model-swap",
-   "rel": "caused_by",
-   "dst": "live-model-bake"
-  },
-  {
-   "src": "silence-tuning",
-   "rel": "measured_by",
-   "dst": "live-floor"
-  },
-  {
-   "src": "live-model-bake",
-   "rel": "constrains",
-   "dst": "voice-model"
-  },
-  {
-   "src": "live-floor",
-   "rel": "constrains",
-   "dst": "audio-floor"
-  },
-  {
-   "src": "ack-bracket-direction",
-   "rel": "part_of",
-   "dst": "audio-floor"
-  },
-  {
-   "src": "ack-bracket-direction",
-   "rel": "caused_by",
-   "dst": "recited-prompt"
-  },
-  {
-   "src": "openrouter-streaming",
-   "rel": "caused_by",
-   "dst": "openrouter-no-stream"
-  },
-  {
-   "src": "free-tts-daily",
-   "rel": "constrains",
-   "dst": "voice-model"
-  },
-  {
-   "src": "openrouter-no-stream",
-   "rel": "constrains",
-   "dst": "voice-model"
-  },
-  {
-   "src": "realtime-azure",
-   "rel": "blocks",
-   "dst": "azure-realtime-shape"
-  },
-  {
-   "src": "azure-realtime-shape",
-   "rel": "constrains",
-   "dst": "audio-floor"
-  },
-  {
-   "src": "realtime-azure",
-   "rel": "caused_by",
-   "dst": "voice-ears"
-  },
-  {
-   "src": "realtime-azure",
-   "rel": "measured_by",
-   "dst": "live-model-bake"
-  },
-  {
-   "src": "relational-state",
-   "rel": "measured_by",
-   "dst": "charm-grok"
-  },
-  {
-   "src": "relational-state",
-   "rel": "caused_by",
-   "dst": "semantic-recall"
-  },
-  {
-   "src": "recited-prompt",
-   "rel": "constrains",
-   "dst": "relational-state"
-  },
-  {
-   "src": "prompt-position",
-   "rel": "constrains",
-   "dst": "relational-state"
-  },
-  {
-   "src": "relational-state",
-   "rel": "measured_by",
-   "dst": "phase-a-research"
-  },
-  {
-   "src": "consolidation-citation",
-   "rel": "constrains",
-   "dst": "relational-state"
-  },
-  {
-   "src": "sham-arm",
-   "rel": "constrains",
-   "dst": "relational-state"
-  },
-  {
-   "src": "phase-a-research",
-   "rel": "caused_by",
-   "dst": "charm-grok"
-  },
-  {
-   "src": "spec-c-minimal",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "spec-c-minimal",
-   "rel": "measured_by",
-   "dst": "taste-consistency"
-  },
-  {
-   "src": "spec-c-minimal",
-   "rel": "measured_by",
-   "dst": "phase-a-research"
-  },
-  {
-   "src": "consolidation-citation",
-   "rel": "constrains",
-   "dst": "spec-c-minimal"
-  },
-  {
-   "src": "affect-recitation",
-   "rel": "constrains",
-   "dst": "spec-c-minimal"
-  },
-  {
-   "src": "affect-recitation",
-   "rel": "caused_by",
-   "dst": "recited-prompt"
-  },
-  {
-   "src": "multiparty-direction",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "spec-c-minimal",
-   "rel": "constrains",
-   "dst": "multiparty-direction"
-  },
-  {
-   "src": "age-tier-cliff",
-   "rel": "blocks",
-   "dst": "multiparty-direction"
-  },
-  {
-   "src": "age-tier-cliff",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "structural-disclosure",
-   "rel": "measured_by",
-   "dst": "disclosure-leak-rates"
-  },
-  {
-   "src": "structural-disclosure",
-   "rel": "part_of",
-   "dst": "multiparty-direction"
-  },
-  {
-   "src": "group-distribution",
-   "rel": "part_of",
-   "dst": "multiparty-direction"
-  },
-  {
-   "src": "disclosure-leak-rates",
-   "rel": "constrains",
-   "dst": "multiparty-direction"
-  },
-  {
-   "src": "recall-v2",
-   "rel": "supersedes",
-   "dst": "semantic-recall"
-  },
-  {
-   "src": "recall-v2",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "d0-battery-validated",
-   "rel": "measured_by",
-   "dst": "charm-luna"
-  },
-  {
-   "src": "d0-battery-validated",
-   "rel": "constrains",
-   "dst": "spec-c-minimal"
-  },
-  {
-   "src": "d1-band-recompute",
-   "rel": "caused_by",
-   "dst": "d0-battery-validated"
-  },
-  {
-   "src": "replay-verified",
-   "rel": "blocks",
-   "dst": "spec-c-minimal"
-  },
-  {
-   "src": "sham-noop-verdict",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "d2-relational-smoke",
-   "rel": "measured_by",
-   "dst": "fab-noise-floor"
-  },
-  {
-   "src": "prosody-baseline-f0-gap",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "phase-c-complete",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "phase-c-complete",
-   "rel": "measured_by",
-   "dst": "d0-battery-validated"
-  },
-  {
-   "src": "humansand-scan",
-   "rel": "constrains",
-   "dst": "relational-state"
-  },
-  {
-   "src": "visiongate-interim",
-   "rel": "measured_by",
-   "dst": "fab-noise-floor"
-  },
-  {
-   "src": "vision-model",
-   "rel": "measured_by",
-   "dst": "visiongate-interim"
-  },
-  {
-   "src": "judge-backtest",
-   "rel": "measured_by",
-   "dst": "charm-grok"
-  },
-  {
-   "src": "grok43-judge",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "swap-prereg-1",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "swap-prereg-1",
-   "rel": "supersedes",
-   "dst": "d2-on-credits"
-  },
-  {
-   "src": "swap-prereg-1",
-   "rel": "measured_by",
-   "dst": "judge-backtest"
-  },
-  {
-   "src": "visiongate-powered",
-   "rel": "supersedes",
-   "dst": "visiongate-interim"
-  },
-  {
-   "src": "vision-model",
-   "rel": "measured_by",
-   "dst": "visiongate-powered"
-  },
-  {
-   "src": "vision-drift-4day",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "visiongate-powered",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "swap-prereg-amend-1",
-   "rel": "part_of",
-   "dst": "swap-prereg-1"
-  },
-  {
-   "src": "judge-cash-approved",
-   "rel": "part_of",
-   "dst": "swap-prereg-1"
-  },
-  {
-   "src": "judge-cash-approved",
-   "rel": "supersedes",
-   "dst": "d2-on-credits"
-  },
-  {
-   "src": "beyond-meera",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "corpus-2304",
-   "rel": "part_of",
-   "dst": "swap-prereg-1"
-  },
-  {
-   "src": "compiler-now-seam",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "judge-run-transport-invalid",
-   "rel": "part_of",
-   "dst": "judge-cash-approved"
-  },
-  {
-   "src": "generalization-audit",
-   "rel": "part_of",
-   "dst": "beyond-meera"
-  },
-  {
-   "src": "judge-grant-only",
-   "rel": "supersedes",
-   "dst": "judge-cash-approved"
-  },
-  {
-   "src": "judge-grant-only",
-   "rel": "part_of",
-   "dst": "swap-prereg-1"
-  },
-  {
-   "src": "terra-arm-2304",
-   "rel": "part_of",
-   "dst": "swap-prereg-1"
-  },
-  {
-   "src": "terra-arm-2304",
-   "rel": "measured_by",
-   "dst": "corpus-2304"
-  },
-  {
-   "src": "free-pool-capacity",
-   "rel": "part_of",
-   "dst": "swap-prereg-1"
-  },
-  {
-   "src": "deepseek-pro-judge",
-   "rel": "part_of",
-   "dst": "judge-grant-only"
-  },
-  {
-   "src": "deepseek-pro-judge",
-   "rel": "measured_by",
-   "dst": "judge-backtest"
-  },
-  {
-   "src": "mistral-judge",
-   "rel": "part_of",
-   "dst": "judge-grant-only"
-  },
-  {
-   "src": "cohere-judge",
-   "rel": "part_of",
-   "dst": "judge-grant-only"
-  },
-  {
-   "src": "relational-wedge",
-   "rel": "part_of",
-   "dst": "relational-state"
-  },
-  {
-   "src": "relational-wedge",
-   "rel": "supersedes",
-   "dst": "multiparty-direction"
-  },
-  {
-   "src": "prodgap-audit",
-   "rel": "part_of",
-   "dst": "relational-wedge"
-  },
-  {
-   "src": "prodgap-audit",
-   "rel": "measured_by",
-   "dst": "phase-c-complete"
-  },
-  {
-   "src": "multiparty-v1-design",
-   "rel": "part_of",
-   "dst": "relational-wedge"
-  },
-  {
-   "src": "grok43-favoritism-retracted",
-   "rel": "supersedes",
-   "dst": "grok43-judge"
-  },
-  {
-   "src": "grok43-favoritism-retracted",
-   "rel": "part_of",
-   "dst": "relational-wedge"
-  },
-  {
-   "src": "relstate-zero-rows",
-   "rel": "part_of",
-   "dst": "prodgap-audit"
-  },
-  {
-   "src": "felt-wiring-landed",
-   "rel": "part_of",
-   "dst": "relational-wedge"
-  },
-  {
-   "src": "felt-wiring-landed",
-   "rel": "measured_by",
-   "dst": "prodgap-audit"
-  },
-  {
-   "src": "r5-clustered-cis",
-   "rel": "part_of",
-   "dst": "relational-wedge"
-  },
-  {
-   "src": "r4-english-control",
-   "rel": "part_of",
-   "dst": "relational-wedge"
-  },
-  {
-   "src": "r4-english-control",
-   "rel": "measured_by",
-   "dst": "judge-backtest"
-  },
-  {
-   "src": "paper-submission-plan",
-   "rel": "part_of",
-   "dst": "relational-wedge"
-  },
-  {
-   "src": "papers-to-eight",
-   "rel": "part_of",
-   "dst": "paper-submission-plan"
-  },
-  {
-   "src": "ground-truth-ceiling",
-   "rel": "part_of",
-   "dst": "papers-to-eight"
-  },
-  {
-   "src": "ground-truth-ceiling",
-   "rel": "measured_by",
-   "dst": "judge-backtest"
-  },
-  {
-   "src": "error-marked-done",
-   "rel": "part_of",
-   "dst": "swap-prereg-1"
-  },
-  {
-   "src": "incumbent-853",
-   "rel": "part_of",
-   "dst": "swap-prereg-1"
-  }
- ]
+  "note": "Project memory as a graph. Nodes are things worth remembering; edges are how they relate. Detail lives in the .md files keyed by node id. Validate with `node scripts/context.mjs --check`.",
+  "kinds": {
+    "decision": "a choice made, with rationale and a reversal condition",
+    "measurement": "a number, with n and method",
+    "rejection": "something tried that did not work, and what broke",
+    "component": "a part of the system",
+    "constraint": "a rule that bounds future work",
+    "open": "a known gap, unresolved"
+  },
+  "relations": {
+    "supersedes": "this replaced that",
+    "measured_by": "this decision rests on that measurement",
+    "constrains": "that bounds this",
+    "part_of": "this belongs to that component",
+    "caused_by": "this exists because of that",
+    "blocks": "this is blocked on that"
+  },
+  "nodes": [
+    {
+      "id": "brain-model",
+      "kind": "decision",
+      "title": "Her brain stays on gemini-3.6-flash",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "voice-model",
+      "kind": "decision",
+      "title": "Her voice stays on Gemini TTS",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "vision-model",
+      "kind": "decision",
+      "title": "Screen share should move to grok-4-20-non-reasoning",
+      "at": "2026-08-11",
+      "status": "recommended, not yet wired"
+    },
+    {
+      "id": "extract-model",
+      "kind": "decision",
+      "title": "Memory extraction uses a reasoning model",
+      "at": "2026-08-11",
+      "status": "live"
+    },
+    {
+      "id": "reasoning-live",
+      "kind": "decision",
+      "title": "Reasoning is banned from her live replies",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "charm-grok",
+      "kind": "measurement",
+      "title": "grok loses to the incumbent 38-2 on charm",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "charm-luna",
+      "kind": "measurement",
+      "title": "luna ties the incumbent on charm, wins specificity",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "reasoning-split",
+      "kind": "measurement",
+      "title": "Reasoning +55% light beats, -81% heavy beats",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "vision-fab",
+      "kind": "measurement",
+      "title": "Fabrication on real screenshots by model",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "voice-ears",
+      "kind": "measurement",
+      "title": "Azure TTS rejected by ear despite better numbers",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "cache-9x",
+      "kind": "measurement",
+      "title": "Prompt caching makes each turn 9.2x cheaper",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "cost-per-turn",
+      "kind": "measurement",
+      "title": "Cost per turn, measured",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "taste-consistency",
+      "kind": "measurement",
+      "title": "Stored taste took self-consistency 27% to 63%",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "backchannel",
+      "kind": "rejection",
+      "title": "She cannot make a sound while you talk",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "murmur-timbre",
+      "kind": "rejection",
+      "title": "The synthesised listening murmur",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "azure-tts",
+      "kind": "rejection",
+      "title": "Azure TTS for her voice",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "speaker-id",
+      "kind": "rejection",
+      "title": "Telling a second speaker from the owner",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "recited-prompt",
+      "kind": "rejection",
+      "title": "Sentence-shaped text in the prompt",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "credits-partner",
+      "kind": "constraint",
+      "title": "Azure credits do not cover partner models",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "prompt-position",
+      "kind": "constraint",
+      "title": "Rule position decides whether a rule fires",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "silent-truncation",
+      "kind": "constraint",
+      "title": "Prompt truncation is silent and eats the end",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "audio-floor",
+      "kind": "component",
+      "title": "The audio floor and barge-in arbiter"
+    },
+    {
+      "id": "persona",
+      "kind": "component",
+      "title": "persona.ts — where her personality lives"
+    },
+    {
+      "id": "inner",
+      "kind": "component",
+      "title": "inner.ts — carried feeling, wants, taste, mood arc"
+    },
+    {
+      "id": "memory-graph",
+      "kind": "component",
+      "title": "Graph memory + forget"
+    },
+    {
+      "id": "scene",
+      "kind": "component",
+      "title": "Screen-share scene model"
+    },
+    {
+      "id": "watchdog-field",
+      "kind": "open",
+      "title": "The barge-in watchdog fix is unproven in the field"
+    },
+    {
+      "id": "semantic-recall",
+      "kind": "open",
+      "title": "Recall is keyword matching, not semantic"
+    },
+    {
+      "id": "realtime-azure",
+      "kind": "rejection",
+      "title": "gpt-realtime-2.1-mini for the voice call lane",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "grok-quiet",
+      "kind": "open",
+      "title": "grok says nothing on 15/16 screen frames"
+    },
+    {
+      "id": "light-only",
+      "kind": "decision",
+      "title": "The app is light-themed, unconditionally",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "scene-hold-800",
+      "kind": "decision",
+      "title": "The landing hold is capped at 800ms, not 4000",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "wake-hold-curve",
+      "kind": "measurement",
+      "title": "Screen-share wake latency vs the landing hold ceiling",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "her-reaction-736",
+      "kind": "measurement",
+      "title": "Her own reaction time on a screen wake is 736ms",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "fab-noise-floor",
+      "kind": "measurement",
+      "title": "Fabrication rate spreads 13.6pp on identical input",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "frame-cadence",
+      "kind": "rejection",
+      "title": "Capturing screen frames faster",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "hold-scroll-floor",
+      "kind": "rejection",
+      "title": "Lowering HOLD_SCROLL_MIN",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "wake-dedupe",
+      "kind": "rejection",
+      "title": "Loosening one-reaction-per-thing to catch more stops",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "live-model-bake",
+      "kind": "measurement",
+      "title": "Every model that can serve the realtime call",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "live-floor",
+      "kind": "measurement",
+      "title": "Where the 1.4s live reply actually goes",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "live-model-swap",
+      "kind": "rejection",
+      "title": "Moving the realtime call off gemini-3.1-flash-live-preview",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "silence-tuning",
+      "kind": "rejection",
+      "title": "Shortening silenceDurationMs to speed her up",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "ack-bracket-direction",
+      "kind": "rejection",
+      "title": "A bracketed direction inside a backchannel clip",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "free-tts-daily",
+      "kind": "measurement",
+      "title": "The free TTS tier is a daily budget and it runs out",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "openrouter-no-stream",
+      "kind": "measurement",
+      "title": "The paid TTS lane cannot stream",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "openrouter-streaming",
+      "kind": "rejection",
+      "title": "Asking the paid TTS lane to stream",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "azure-realtime-shape",
+      "kind": "measurement",
+      "title": "What an Azure realtime session requires",
+      "at": "2026-08-11"
+    },
+    {
+      "id": "relational-state",
+      "kind": "decision",
+      "title": "The build target is the relational-state layer; Meera is instance one",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "phase-a-research",
+      "kind": "measurement",
+      "title": "The relational-state research sweep (23 agents, verified)",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "consolidation-citation",
+      "kind": "constraint",
+      "title": "No derived fact without a citation trail to source episodes",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "sham-arm",
+      "kind": "constraint",
+      "title": "Swap detection must be measured against a sham arm",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "spec-c-minimal",
+      "kind": "decision",
+      "title": "The relational-state architecture is C-minimal plus grafts",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "affect-recitation",
+      "kind": "measurement",
+      "title": "Short structured tags do not recite (n=84, bound 7.1%)",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "multiparty-direction",
+      "kind": "decision",
+      "title": "The relational OS extends to shared group memory; disclosure control is the core",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "age-tier-cliff",
+      "kind": "open",
+      "title": "Wiring the age hard-refusal makes every current user minor-safe until a verification lane exists"
+    },
+    {
+      "id": "disclosure-leak-rates",
+      "kind": "measurement",
+      "title": "Behavioral disclosure control leaves 9-90% residual leak; only structural exclusion holds",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "structural-disclosure",
+      "kind": "decision",
+      "title": "Group privacy is a retrieval property, not a persona rule",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "group-distribution",
+      "kind": "decision",
+      "title": "WhatsApp business-created groups first; Telegram validated fallback",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "recall-v2",
+      "kind": "measurement",
+      "title": "Semantic recall lands: DB p50 40ms, embed call is the bottleneck",
+      "at": "2026-08-13"
+    },
+    {
+      "id": "d0-battery-validated",
+      "kind": "measurement",
+      "title": "D0 flags all 3 archives on deterministic axes only, judged data excluded",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "d1-band-recompute",
+      "kind": "measurement",
+      "title": "Archived incumbent arms run hot on the flat production band; ratio is the real gate",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "replay-verified",
+      "kind": "measurement",
+      "title": "Determinism + transcript fidelity on 3 real sessions; compile.manifest gap found",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "sham-noop-verdict",
+      "kind": "measurement",
+      "title": "Battery says no-difference on a real router relabel (one-bit diff)",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "d2-relational-smoke",
+      "kind": "measurement",
+      "title": "Relational judge harness executes; priced full run at $2.78/comparison",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "prosody-baseline-f0-gap",
+      "kind": "measurement",
+      "title": "Synthesized voice measures ~212-214Hz, ~50Hz below the 266Hz anchor",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "phase-c-complete",
+      "kind": "decision",
+      "title": "The relational engine exists and its battery can say no",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "humansand-scan",
+      "kind": "measurement",
+      "title": "humans& ($480M seed): thesis-identical, zero published mechanism",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "visiongate-interim",
+      "kind": "measurement",
+      "title": "Watch engagement doubles (powered); fabrication flat (underpowered)",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "judge-backtest",
+      "kind": "measurement",
+      "title": "Both credit-billed judges fail qualification (28%, 54% vs 80% bar)",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "grok43-judge",
+      "kind": "measurement",
+      "title": "grok-4.3 fails as judge; 16x same-vendor favoritism measured",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "d2-on-credits",
+      "kind": "decision",
+      "title": "Swap-test judging restructured onto the Azure grant; reversal: one cash family ~$400",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "swap-prereg-1",
+      "kind": "decision",
+      "title": "Run 1 pre-registered: terra vs incumbent, one disjoint judge family",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "visiongate-powered",
+      "kind": "measurement",
+      "title": "Powered: engagement doubles (+21.3pp p<1e-6), fabrication no detected rise (+1.0pp CI [-3.1,+5.1], n=313/695)",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "vision-drift-4day",
+      "kind": "measurement",
+      "title": "Foundry grok deployment drifted engagement behavior across 4 days (both arms, direction widens gap)",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "swap-prereg-amend-1",
+      "kind": "decision",
+      "title": "Amendment 1: paired fresh generation through the real compiler; archive replay impossible (0 served prompts stored)",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "judge-cash-approved",
+      "kind": "decision",
+      "title": "Owner approves ~$400 premium judge; backtest opus-5 AND opus-4.8, pick best over 80%",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "beyond-meera",
+      "kind": "decision",
+      "title": "Owner directive: research layer must be product-agnostic; Meera is instance one, funded with the $400",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "corpus-2304",
+      "kind": "measurement",
+      "title": "Swap corpus: 2,304 sha-distinct compiled contexts (72 texts x 32 variants), deterministic",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "compiler-now-seam",
+      "kind": "open",
+      "title": "Compiler has no `now` seam: persona/relstate/india default new Date() internally; corpus pins via global Date subclass",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "judge-run-transport-invalid",
+      "kind": "measurement",
+      "title": "Premium backtest crippled by $20 OpenRouter key limit; INVALID-RUN; harness now self-invalidates transport-crippled runs",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "generalization-audit",
+      "kind": "decision",
+      "title": "Meera-specificity map landed: router/schema person-generic; Hindi rel-dimensions + meera_log anchor are the two structural items",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "judge-grant-only",
+      "kind": "decision",
+      "title": "$400 is grant burn not cash; Claude-on-Foundry confirmed credits-ineligible (card trap); qualify Azure-direct premium families",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "terra-arm-2304",
+      "kind": "measurement",
+      "title": "Raw terra arm complete (2304/2304): words/turn 13 median vs 20.5 band, 7 Devanagari = D1 hard-fail signal",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "free-pool-capacity",
+      "kind": "measurement",
+      "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) — axis recalibration flagged",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "deepseek-pro-judge",
+      "kind": "measurement",
+      "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash — family out at any size",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "mistral-judge",
+      "kind": "measurement",
+      "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A — most extreme position bias measured",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "cohere-judge",
+      "kind": "measurement",
+      "title": "Cohere disqualified for cause (protocol-unfit at rubric scale); Azure disjoint-family branch EXHAUSTED",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "relational-wedge",
+      "kind": "decision",
+      "title": "Strategy re-rank: relationship layer is the asset, multiparty is the wedge, swap = QA + paper (capped)",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "prodgap-audit",
+      "kind": "measurement",
+      "title": "Engine renders empty in prod: writers missing for we/phrases/india/patterns; trust frozen at 0.3; day-1 relationally empty",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "multiparty-v1-design",
+      "kind": "decision",
+      "title": "Shared-friend v1 accepted: room-scoped disclosure as WHERE predicate, withdraw-not-delete, state-inert groups, Telegram admin-bit consent",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "grok43-favoritism-retracted",
+      "kind": "measurement",
+      "title": "RETRACTED: 16x same-vendor favoritism was panel-wide register preference (disjoint Mistral DiD larger); FAIL verdicts stand",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "relstate-zero-rows",
+      "kind": "measurement",
+      "title": "vy_rel_state: 0 rows for 40 persons — UPDATE-writers with no INSERT owner; whole relational surface silently invisible",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "felt-wiring-landed",
+      "kind": "measurement",
+      "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card — deployed 4/4",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "r5-clustered-cis",
+      "kind": "measurement",
+      "title": "FAIL verdicts robust to beat-level clustering (max +3.1pp CI widening)",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "r4-english-control",
+      "kind": "measurement",
+      "title": "English translation does not rescue judges (recovery within noise floor) — failure is deeper than code-switching",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "paper-submission-plan",
+      "kind": "decision",
+      "title": "Target JUDGe 2026 @ NeurIPS (Aug 29 AoE); draft complete around two self-retractions; owner inputs pending",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "papers-to-eight",
+      "kind": "decision",
+      "title": "Owner raises key to $25, directs both papers to 8/10; R1+incumbent cash order set; R2 + multiparty build launched",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "ground-truth-ceiling",
+      "kind": "measurement",
+      "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] — the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "error-marked-done",
+      "kind": "measurement",
+      "title": "Resume state poisoned: 1,451 errors recorded as done after key died; fixed + purged (853 honest)",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "incumbent-853",
+      "kind": "measurement",
+      "title": "Incumbent arm 853/2304: words in-band, question share 71.9% vs 33% archived, Devanagari base rate 0.32%",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "r2-axis-decomposition",
+      "kind": "measurement",
+      "title": "Per-axis judge failure partially concentrates: brevity a clustered-CI outlier (55.2%), humour indistinguishable from specificity/personhood — three tiers, not the predicted binary; every axis still fails 80% bar",
+      "at": "2026-08-18"
+    }
+  ],
+  "edges": [
+    {
+      "src": "d2-on-credits",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "brain-model",
+      "rel": "measured_by",
+      "dst": "charm-grok"
+    },
+    {
+      "src": "brain-model",
+      "rel": "measured_by",
+      "dst": "charm-luna"
+    },
+    {
+      "src": "voice-model",
+      "rel": "measured_by",
+      "dst": "voice-ears"
+    },
+    {
+      "src": "azure-tts",
+      "rel": "caused_by",
+      "dst": "voice-ears"
+    },
+    {
+      "src": "vision-model",
+      "rel": "measured_by",
+      "dst": "vision-fab"
+    },
+    {
+      "src": "vision-model",
+      "rel": "blocks",
+      "dst": "grok-quiet"
+    },
+    {
+      "src": "extract-model",
+      "rel": "measured_by",
+      "dst": "reasoning-split"
+    },
+    {
+      "src": "reasoning-live",
+      "rel": "measured_by",
+      "dst": "reasoning-split"
+    },
+    {
+      "src": "murmur-timbre",
+      "rel": "part_of",
+      "dst": "audio-floor"
+    },
+    {
+      "src": "backchannel",
+      "rel": "constrains",
+      "dst": "audio-floor"
+    },
+    {
+      "src": "speaker-id",
+      "rel": "constrains",
+      "dst": "audio-floor"
+    },
+    {
+      "src": "watchdog-field",
+      "rel": "part_of",
+      "dst": "audio-floor"
+    },
+    {
+      "src": "recited-prompt",
+      "rel": "constrains",
+      "dst": "persona"
+    },
+    {
+      "src": "prompt-position",
+      "rel": "constrains",
+      "dst": "persona"
+    },
+    {
+      "src": "silent-truncation",
+      "rel": "constrains",
+      "dst": "persona"
+    },
+    {
+      "src": "taste-consistency",
+      "rel": "part_of",
+      "dst": "inner"
+    },
+    {
+      "src": "semantic-recall",
+      "rel": "part_of",
+      "dst": "memory-graph"
+    },
+    {
+      "src": "extract-model",
+      "rel": "part_of",
+      "dst": "memory-graph"
+    },
+    {
+      "src": "grok-quiet",
+      "rel": "part_of",
+      "dst": "scene"
+    },
+    {
+      "src": "credits-partner",
+      "rel": "constrains",
+      "dst": "brain-model"
+    },
+    {
+      "src": "credits-partner",
+      "rel": "constrains",
+      "dst": "vision-model"
+    },
+    {
+      "src": "cache-9x",
+      "rel": "constrains",
+      "dst": "brain-model"
+    },
+    {
+      "src": "light-only",
+      "rel": "part_of",
+      "dst": "persona"
+    },
+    {
+      "src": "scene-hold-800",
+      "rel": "measured_by",
+      "dst": "wake-hold-curve"
+    },
+    {
+      "src": "scene-hold-800",
+      "rel": "part_of",
+      "dst": "scene"
+    },
+    {
+      "src": "frame-cadence",
+      "rel": "part_of",
+      "dst": "scene"
+    },
+    {
+      "src": "hold-scroll-floor",
+      "rel": "part_of",
+      "dst": "scene"
+    },
+    {
+      "src": "wake-dedupe",
+      "rel": "part_of",
+      "dst": "scene"
+    },
+    {
+      "src": "her-reaction-736",
+      "rel": "part_of",
+      "dst": "scene"
+    },
+    {
+      "src": "fab-noise-floor",
+      "rel": "constrains",
+      "dst": "vision-model"
+    },
+    {
+      "src": "fab-noise-floor",
+      "rel": "constrains",
+      "dst": "scene-hold-800"
+    },
+    {
+      "src": "live-model-swap",
+      "rel": "measured_by",
+      "dst": "live-model-bake"
+    },
+    {
+      "src": "live-model-swap",
+      "rel": "caused_by",
+      "dst": "live-model-bake"
+    },
+    {
+      "src": "silence-tuning",
+      "rel": "measured_by",
+      "dst": "live-floor"
+    },
+    {
+      "src": "live-model-bake",
+      "rel": "constrains",
+      "dst": "voice-model"
+    },
+    {
+      "src": "live-floor",
+      "rel": "constrains",
+      "dst": "audio-floor"
+    },
+    {
+      "src": "ack-bracket-direction",
+      "rel": "part_of",
+      "dst": "audio-floor"
+    },
+    {
+      "src": "ack-bracket-direction",
+      "rel": "caused_by",
+      "dst": "recited-prompt"
+    },
+    {
+      "src": "openrouter-streaming",
+      "rel": "caused_by",
+      "dst": "openrouter-no-stream"
+    },
+    {
+      "src": "free-tts-daily",
+      "rel": "constrains",
+      "dst": "voice-model"
+    },
+    {
+      "src": "openrouter-no-stream",
+      "rel": "constrains",
+      "dst": "voice-model"
+    },
+    {
+      "src": "realtime-azure",
+      "rel": "blocks",
+      "dst": "azure-realtime-shape"
+    },
+    {
+      "src": "azure-realtime-shape",
+      "rel": "constrains",
+      "dst": "audio-floor"
+    },
+    {
+      "src": "realtime-azure",
+      "rel": "caused_by",
+      "dst": "voice-ears"
+    },
+    {
+      "src": "realtime-azure",
+      "rel": "measured_by",
+      "dst": "live-model-bake"
+    },
+    {
+      "src": "relational-state",
+      "rel": "measured_by",
+      "dst": "charm-grok"
+    },
+    {
+      "src": "relational-state",
+      "rel": "caused_by",
+      "dst": "semantic-recall"
+    },
+    {
+      "src": "recited-prompt",
+      "rel": "constrains",
+      "dst": "relational-state"
+    },
+    {
+      "src": "prompt-position",
+      "rel": "constrains",
+      "dst": "relational-state"
+    },
+    {
+      "src": "relational-state",
+      "rel": "measured_by",
+      "dst": "phase-a-research"
+    },
+    {
+      "src": "consolidation-citation",
+      "rel": "constrains",
+      "dst": "relational-state"
+    },
+    {
+      "src": "sham-arm",
+      "rel": "constrains",
+      "dst": "relational-state"
+    },
+    {
+      "src": "phase-a-research",
+      "rel": "caused_by",
+      "dst": "charm-grok"
+    },
+    {
+      "src": "spec-c-minimal",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "spec-c-minimal",
+      "rel": "measured_by",
+      "dst": "taste-consistency"
+    },
+    {
+      "src": "spec-c-minimal",
+      "rel": "measured_by",
+      "dst": "phase-a-research"
+    },
+    {
+      "src": "consolidation-citation",
+      "rel": "constrains",
+      "dst": "spec-c-minimal"
+    },
+    {
+      "src": "affect-recitation",
+      "rel": "constrains",
+      "dst": "spec-c-minimal"
+    },
+    {
+      "src": "affect-recitation",
+      "rel": "caused_by",
+      "dst": "recited-prompt"
+    },
+    {
+      "src": "multiparty-direction",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "spec-c-minimal",
+      "rel": "constrains",
+      "dst": "multiparty-direction"
+    },
+    {
+      "src": "age-tier-cliff",
+      "rel": "blocks",
+      "dst": "multiparty-direction"
+    },
+    {
+      "src": "age-tier-cliff",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "structural-disclosure",
+      "rel": "measured_by",
+      "dst": "disclosure-leak-rates"
+    },
+    {
+      "src": "structural-disclosure",
+      "rel": "part_of",
+      "dst": "multiparty-direction"
+    },
+    {
+      "src": "group-distribution",
+      "rel": "part_of",
+      "dst": "multiparty-direction"
+    },
+    {
+      "src": "disclosure-leak-rates",
+      "rel": "constrains",
+      "dst": "multiparty-direction"
+    },
+    {
+      "src": "recall-v2",
+      "rel": "supersedes",
+      "dst": "semantic-recall"
+    },
+    {
+      "src": "recall-v2",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "d0-battery-validated",
+      "rel": "measured_by",
+      "dst": "charm-luna"
+    },
+    {
+      "src": "d0-battery-validated",
+      "rel": "constrains",
+      "dst": "spec-c-minimal"
+    },
+    {
+      "src": "d1-band-recompute",
+      "rel": "caused_by",
+      "dst": "d0-battery-validated"
+    },
+    {
+      "src": "replay-verified",
+      "rel": "blocks",
+      "dst": "spec-c-minimal"
+    },
+    {
+      "src": "sham-noop-verdict",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "d2-relational-smoke",
+      "rel": "measured_by",
+      "dst": "fab-noise-floor"
+    },
+    {
+      "src": "prosody-baseline-f0-gap",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "phase-c-complete",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "phase-c-complete",
+      "rel": "measured_by",
+      "dst": "d0-battery-validated"
+    },
+    {
+      "src": "humansand-scan",
+      "rel": "constrains",
+      "dst": "relational-state"
+    },
+    {
+      "src": "visiongate-interim",
+      "rel": "measured_by",
+      "dst": "fab-noise-floor"
+    },
+    {
+      "src": "vision-model",
+      "rel": "measured_by",
+      "dst": "visiongate-interim"
+    },
+    {
+      "src": "judge-backtest",
+      "rel": "measured_by",
+      "dst": "charm-grok"
+    },
+    {
+      "src": "grok43-judge",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "swap-prereg-1",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "swap-prereg-1",
+      "rel": "supersedes",
+      "dst": "d2-on-credits"
+    },
+    {
+      "src": "swap-prereg-1",
+      "rel": "measured_by",
+      "dst": "judge-backtest"
+    },
+    {
+      "src": "visiongate-powered",
+      "rel": "supersedes",
+      "dst": "visiongate-interim"
+    },
+    {
+      "src": "vision-model",
+      "rel": "measured_by",
+      "dst": "visiongate-powered"
+    },
+    {
+      "src": "vision-drift-4day",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "visiongate-powered",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "swap-prereg-amend-1",
+      "rel": "part_of",
+      "dst": "swap-prereg-1"
+    },
+    {
+      "src": "judge-cash-approved",
+      "rel": "part_of",
+      "dst": "swap-prereg-1"
+    },
+    {
+      "src": "judge-cash-approved",
+      "rel": "supersedes",
+      "dst": "d2-on-credits"
+    },
+    {
+      "src": "beyond-meera",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "corpus-2304",
+      "rel": "part_of",
+      "dst": "swap-prereg-1"
+    },
+    {
+      "src": "compiler-now-seam",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "judge-run-transport-invalid",
+      "rel": "part_of",
+      "dst": "judge-cash-approved"
+    },
+    {
+      "src": "generalization-audit",
+      "rel": "part_of",
+      "dst": "beyond-meera"
+    },
+    {
+      "src": "judge-grant-only",
+      "rel": "supersedes",
+      "dst": "judge-cash-approved"
+    },
+    {
+      "src": "judge-grant-only",
+      "rel": "part_of",
+      "dst": "swap-prereg-1"
+    },
+    {
+      "src": "terra-arm-2304",
+      "rel": "part_of",
+      "dst": "swap-prereg-1"
+    },
+    {
+      "src": "terra-arm-2304",
+      "rel": "measured_by",
+      "dst": "corpus-2304"
+    },
+    {
+      "src": "free-pool-capacity",
+      "rel": "part_of",
+      "dst": "swap-prereg-1"
+    },
+    {
+      "src": "deepseek-pro-judge",
+      "rel": "part_of",
+      "dst": "judge-grant-only"
+    },
+    {
+      "src": "deepseek-pro-judge",
+      "rel": "measured_by",
+      "dst": "judge-backtest"
+    },
+    {
+      "src": "mistral-judge",
+      "rel": "part_of",
+      "dst": "judge-grant-only"
+    },
+    {
+      "src": "cohere-judge",
+      "rel": "part_of",
+      "dst": "judge-grant-only"
+    },
+    {
+      "src": "relational-wedge",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "relational-wedge",
+      "rel": "supersedes",
+      "dst": "multiparty-direction"
+    },
+    {
+      "src": "prodgap-audit",
+      "rel": "part_of",
+      "dst": "relational-wedge"
+    },
+    {
+      "src": "prodgap-audit",
+      "rel": "measured_by",
+      "dst": "phase-c-complete"
+    },
+    {
+      "src": "multiparty-v1-design",
+      "rel": "part_of",
+      "dst": "relational-wedge"
+    },
+    {
+      "src": "grok43-favoritism-retracted",
+      "rel": "supersedes",
+      "dst": "grok43-judge"
+    },
+    {
+      "src": "grok43-favoritism-retracted",
+      "rel": "part_of",
+      "dst": "relational-wedge"
+    },
+    {
+      "src": "relstate-zero-rows",
+      "rel": "part_of",
+      "dst": "prodgap-audit"
+    },
+    {
+      "src": "felt-wiring-landed",
+      "rel": "part_of",
+      "dst": "relational-wedge"
+    },
+    {
+      "src": "felt-wiring-landed",
+      "rel": "measured_by",
+      "dst": "prodgap-audit"
+    },
+    {
+      "src": "r5-clustered-cis",
+      "rel": "part_of",
+      "dst": "relational-wedge"
+    },
+    {
+      "src": "r4-english-control",
+      "rel": "part_of",
+      "dst": "relational-wedge"
+    },
+    {
+      "src": "r4-english-control",
+      "rel": "measured_by",
+      "dst": "judge-backtest"
+    },
+    {
+      "src": "paper-submission-plan",
+      "rel": "part_of",
+      "dst": "relational-wedge"
+    },
+    {
+      "src": "papers-to-eight",
+      "rel": "part_of",
+      "dst": "paper-submission-plan"
+    },
+    {
+      "src": "ground-truth-ceiling",
+      "rel": "part_of",
+      "dst": "papers-to-eight"
+    },
+    {
+      "src": "ground-truth-ceiling",
+      "rel": "measured_by",
+      "dst": "judge-backtest"
+    },
+    {
+      "src": "error-marked-done",
+      "rel": "part_of",
+      "dst": "swap-prereg-1"
+    },
+    {
+      "src": "incumbent-853",
+      "rel": "part_of",
+      "dst": "swap-prereg-1"
+    }
+  ]
 }

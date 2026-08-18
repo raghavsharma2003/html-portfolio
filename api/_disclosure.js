@@ -170,10 +170,16 @@ export function disclosurePredicate(subjectKind, bind = {}) {
   const s = SUBJECT_BINDINGS[subjectKind];
   if (!s) throw new Error(`unknown disclosure subject kind: ${subjectKind}`);
   const B = { ...DEFAULT_BIND, ...bind };
-  const R = B.recipients;
-  const G = B.isGroup;
-  const M = B.roomId;
-  const N = B.negTags;
+  // Explicit casts on every binding, not decoration: over Neon's SQL-over-HTTP
+  // endpoint a bare `$1` in `cardinality($1)` or `= any($1)` has no inferable
+  // type and the statement fails at parse time. The casts also make the
+  // fragment reusable verbatim when the bindings are COLUMN references rather
+  // than parameters (evals/mp/gate0.mjs batches every scenario in one round
+  // trip), which is what lets the shipping predicate be the tested one.
+  const R = `(${B.recipients})::uuid[]`;
+  const G = `(${B.isGroup})::boolean`;
+  const M = `(${B.roomId})::bigint`;
+  const N = `(${B.negTags})::text[]`;
   const CIT = s.citations;
   const PERSON = s.person;
   const GRP = s.groupId;
@@ -293,7 +299,7 @@ and (${GRP} is not null
 export function bridgeEligibilityClause(subjectKind, bind = {}) {
   const s = SUBJECT_BINDINGS[subjectKind];
   if (!s) throw new Error(`unknown disclosure subject kind: ${subjectKind}`);
-  const M = { ...DEFAULT_BIND, ...bind }.roomId;
+  const M = `(${{ ...DEFAULT_BIND, ...bind }.roomId})::bigint`;
   return `
 -- (§3.2 ruling A) proactive-bridge eligibility only — never base retrieval
 and not exists (

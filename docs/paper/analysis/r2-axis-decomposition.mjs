@@ -459,7 +459,14 @@ async function main() {
     const rows = loadJsonOr(JUDGE_ROWS_PATH, []);
     const matrix = buildMatrix(rows);
     printMatrix(matrix);
-    saveJson(SUMMARY_PATH, { generatedAt: new Date().toISOString(), rubricDiffNote: RUBRIC_DIFF_NOTE, groundTruthAudit: audit, matrix });
+    // Merge onto any existing summary rather than overwrite: --report never
+    // makes a network call and so never re-derives `cost` (that only exists
+    // as measured usage from a live run) or `pooledPerAxis` (written by the
+    // separate r2-pooled-per-axis.mjs companion script) — clobbering those
+    // fields here would silently discard real spend accounting that this
+    // mode has no way to reconstruct.
+    const existing = loadJsonOr(SUMMARY_PATH, {});
+    saveJson(SUMMARY_PATH, { ...existing, generatedAt: new Date().toISOString(), rubricDiffNote: RUBRIC_DIFF_NOTE, groundTruthAudit: audit, matrix });
     return;
   }
 

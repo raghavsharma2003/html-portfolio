@@ -982,3 +982,49 @@ induce questioning or the incumbent drifted; the D1 bands MUST come from
 this same-week arm, which is exactly what the prereg's drift law ordered.
 Remaining 1,451 units: daily free-pool Routine (~75/day ≈ 19 days), or
 ~$8 key top-up / Google credits collapse it to an hour. Owner's call.
+
+---
+
+## `r2-axis-decomposition` — per-axis judge failure partially concentrates; brevity is the outlier, humour is not (2026-08-18)
+
+R2 (WS-R2, gap G8, `docs/paper/DRAFT.md` §5.10): re-judged the same 96
+archived units (charm-grok + charm-luna, both orders, `anthropic/claude-opus-4.8`
+ground truth) on the six archived axes never before backtested — `warmth`,
+`humour`, `register`, `specificity`, `brevity`, `personhood` — with the same
+five judges and both-orders-agree protocol as R0 (`DeepSeek-V4-Flash`,
+`DeepSeek-V4-Pro`, `Mistral-Large-3`, `gpt-5.6-terra`, `grok-4.3`). `overall`
+was NOT re-run — it was already backtested in R0 and is reused here, $0 new
+spend. n per axis: 96 units (48 per archive), both orders required, same
+denominator as `overall`; all seven axes had complete both-orders archived
+ground truth checked before spending (`docs/paper/analysis/r2/ground-truth-audit.json`).
+Method: `docs/paper/analysis/r2-axis-decomposition.mjs` (per-judge cells) +
+`docs/paper/analysis/r2-pooled-per-axis.mjs` (pooled-across-judges cells),
+both using `clustered-cis.mjs`'s cluster (block) bootstrap, cluster=beat (12),
+10,000 reps, seed 20260818 — identical machinery to R4/R5, not reimplemented.
+5,760 live calls (6 axes × 96 units × 2 orders × 5 judges), 6,761,468 prompt +
+139,655 completion tokens, Azure AI Foundry credits, $0 cash. 18/5,760 (0.3%)
+transport misses (content-filter rejections), none clustering on one
+judge×axis cell above 2.1% — every cell VALID under the existing 5%
+self-invalidation guard.
+
+**Pooled per-axis (all 5 judges, clustered 95% CI, bar=80%):** brevity 55.2%
+[50.7,59.6] · personhood 46.3% [38.2,54.6] · humour 46.2% [33.1,57.5] ·
+specificity 45.6% [37.1,55.2] · register 38.8% [30.0,47.9] · overall 35.4%
+[28.7,42.6] (reused) · warmth 32.2% [23.5,41.2]. Every axis FAILS the 80% bar.
+
+**Finding: partial concentration, three tiers, not the predicted binary.**
+The task's hypothesis (register/humour worse than brevity/specificity) is
+half right. `brevity` is a genuine outlier — its clustered CI does not overlap
+`warmth`, `register`, or `overall`, and this holds per-judge for 4/5 judges.
+`warmth` and `register` are the two hardest axes, both close to `overall`.
+But `humour`'s clustered CI overlaps `specificity` and `personhood` almost
+completely — three axes statistically indistinguishable from each other in
+this data, even though the hypothesis puts `humour` on the "bad" side and
+`specificity` on the "good" side. **What would reverse this reading:** a
+larger n narrowing the middle tier's CIs enough to separate `humour` from
+`specificity`/`personhood`, or a replication on a different corpus showing the
+same three-tier split (would strengthen it) or a different split (would weaken
+the "brevity is structurally special" reading down to this-corpus-only).
+Raw rows: `docs/paper/analysis/r2/judge-rows.json` (3,820 KB, all 5,760 rows).
+Full tables: `docs/paper/analysis/r2/summary.json`,
+`docs/paper/analysis/r2/pooled-per-axis.json`.

@@ -996,6 +996,56 @@ export function keysOf(t) {
   return t.keys && t.keys.length ? t.keys : [t.key];
 }
 
+// ── migration-008 readiness ────────────────────────────────────────────────
+//
+// The multiparty entries above name tables and columns that only exist once
+// migration 008 is applied, and NOTHING in the forget cascade is
+// .catch()-swallowed on purpose: the receipt may only be sent once the delete
+// actually happened, so a failed statement must fail the whole op loudly. On a
+// database where 008 has not landed yet, that would turn every whole-wipe into
+// a hard error over rows that cannot exist.
+//
+// So the manifest is filtered by one probe. This is NOT a silent skip: on a
+// pre-008 database there are no rooms, no participants and no grants, so the
+// skipped work is provably empty — the guard removes an availability failure
+// without removing any deletion. Probed once per process and cached; a fresh
+// serverless invocation re-probes, so the guard self-clears the moment the
+// migration lands, with no deploy.
+let _mpApplied = null;
+export async function multipartyApplied(t = (name) => name) {
+  const table = t("vy_episode_participant");
+  // the cache is for the production name only; a caller passing a resolver is
+  // asking about some other namespace and gets a fresh probe
+  if (table === "vy_episode_participant" && _mpApplied !== null) return _mpApplied;
+  const r = await q(`select to_regclass($1) is not null as present`, [`public.${table}`]).catch(() => []);
+  const present = r[0]?.present === true;
+  if (table === "vy_episode_participant") _mpApplied = present;
+  return present;
+}
+
+/** PERSON_TABLES as it applies to THIS database, plus the owning columns each
+ *  entry may actually be keyed on. One place, so forget and export cannot
+ *  drift about which tables exist. */
+export async function activePersonTables() {
+  const on = await multipartyApplied();
+  return PERSON_TABLES.filter((t) => !MP_TABLES.has(t.table) || on).map((t) =>
+    // `keys` and `wipeWhere` both name COLUMNS 008 adds (speaker_person_id,
+    // group_id), so on a pre-008 database they are dropped along with the
+    // tables. Lossless for the same reason: with no rooms there are no shared
+    // rows for the restriction to spare and no room turns for the extra key to
+    // find, so the wipe takes exactly what it takes today.
+    on ? t : { ...t, keys: undefined, wipeWhere: undefined },
+  );
+}
+
+// tables and columns that migration 008 introduces
+const MP_TABLES = new Set([
+  "vy_episode_participant",
+  "vy_group_member",
+  "vy_disclosure_grant",
+  "vy_tg_person",
+]);
+
 /** `where` fragment for a manifest-driven WHOLE WIPE: the owning columns
  *  OR'd together, plus the entry's exclusive-rows restriction if it has one.
  *  Params are $1..$n in `keysOf` order. Forget only — export must not apply
@@ -1076,16 +1126,32 @@ export async function personIdFor(device) {
 // and the receipt says it again at the moment of the partial delete (§3.4).
 // Reusing the 1:1 "haan, hata diya" here would be a trust violation of the
 // same shape as `silent-truncation`.
-export async function withdrawSharedRows(person, { dropAuthoredRoomTurns = true } = {}) {
+//
+// `t` is a table-name resolver, defaulting to identity. Production never passes
+// it. evals/mp/withdraw.mjs passes the fixture-namespace prefixer, so THIS
+// function — not a re-implementation of it — is what the withdraw suite proves
+// against the real Postgres. The same reason api/_disclosure.js takes a bind
+// map: a cascade tested through a copy is a copy that was tested.
+export async function withdrawSharedRows(
+  person,
+  { dropAuthoredRoomTurns = true, t = (name) => name } = {},
+) {
   const out = {
     participant_rows: 0, room_turns: 0, grants: 0, memberships: 0,
     episodes_closed: 0, facts_closed: 0, phrases_closed: 0, embeddings_closed: 0,
   };
+  // Nothing shared can exist before migration 008 exists. Reported, not
+  // silent: a skipped step that reads like a completed one is exactly the
+  // shape of failure the receipt discipline is built against.
+  if (!(await multipartyApplied(t))) {
+    out.skipped = "migration-008-not-applied";
+    return out;
+  }
 
   // 1. leave the ACL. P can no longer be disclosed TO, and can no longer be
   //    attributed as someone who witnessed it, from the next retrieval on.
   const left = await q(
-    `delete from vy_episode_participant where person_id = $1 returning episode_id`,
+    `delete from ${t("vy_episode_participant")} where person_id = $1 returning episode_id`,
     [person],
     30_000,
   );
@@ -1097,7 +1163,7 @@ export async function withdrawSharedRows(person, { dropAuthoredRoomTurns = true 
   //    implementable at row level.
   if (dropAuthoredRoomTurns) {
     const turns = await q(
-      `delete from meera_log where speaker_person_id = $1 and group_id is not null returning id`,
+      `delete from ${t("meera_log")} where speaker_person_id = $1 and group_id is not null returning id`,
       [person],
       30_000,
     );
@@ -1110,9 +1176,9 @@ export async function withdrawSharedRows(person, { dropAuthoredRoomTurns = true 
   const epIds = [...new Set(left.map((r) => r.episode_id))];
   if (epIds.length) {
     const orphan = await q(
-      `select e.id from vy_episode e
+      `select e.id from ${t("vy_episode")} e
         where e.id = any($1::bigint[]) and e.group_id is not null
-          and not exists (select 1 from vy_episode_participant p where p.episode_id = e.id)`,
+          and not exists (select 1 from ${t("vy_episode_participant")} p where p.episode_id = e.id)`,
       [epIds],
       30_000,
     );
@@ -1120,19 +1186,19 @@ export async function withdrawSharedRows(person, { dropAuthoredRoomTurns = true 
     if (dead.length) {
       // derived closure FIRST (no dangling-citation window), episodes last
       const facts = await q(
-        `delete from vy_fact where citations && $1::bigint[] returning id`,
+        `delete from ${t("vy_fact")} where citations && $1::bigint[] returning id`,
         [dead],
         30_000,
       );
       out.facts_closed = facts.length;
       const phrases = await q(
-        `delete from vy_phrase where origin_episode = any($1::bigint[]) returning id`,
+        `delete from ${t("vy_phrase")} where origin_episode = any($1::bigint[]) returning id`,
         [dead],
         30_000,
       );
       out.phrases_closed = phrases.length;
       const embs = await q(
-        `delete from vy_embedding
+        `delete from ${t("vy_embedding")}
           where (owner_kind = 'episode' and owner_id = any($1::bigint[]))
              or (owner_kind = 'fact'    and owner_id = any($2::bigint[])) returning 1 as x`,
         [dead, facts.map((r) => r.id)],
@@ -1144,7 +1210,7 @@ export async function withdrawSharedRows(person, { dropAuthoredRoomTurns = true 
       // the turn-level action log survives the episode it described — silence
       // and speech are the room's own behavioural record, not the episode's.
       const eps = await q(
-        `delete from vy_episode where id = any($1::bigint[]) returning id`,
+        `delete from ${t("vy_episode")} where id = any($1::bigint[]) returning id`,
         [dead],
         30_000,
       );
@@ -1156,7 +1222,7 @@ export async function withdrawSharedRows(person, { dropAuthoredRoomTurns = true 
   //    the grantee stops being a recipient, and granted_to is scalar, so both
   //    roles are the same delete (see the manifest's `by_role` note).
   const grants = await q(
-    `delete from vy_disclosure_grant where granted_by = $1 or granted_to = $1 returning id`,
+    `delete from ${t("vy_disclosure_grant")} where granted_by = $1 or granted_to = $1 returning id`,
     [person],
     30_000,
   );
@@ -1167,7 +1233,7 @@ export async function withdrawSharedRows(person, { dropAuthoredRoomTurns = true 
   //    cleanup is a nightly sweep on the pattern of the zero-orphan sweep,
   //    deliberately not inline here.
   const mem = await q(
-    `update vy_group_member set left_at = now()
+    `update ${t("vy_group_member")} set left_at = now()
       where person_id = $1 and left_at is null returning group_id`,
     [person],
     30_000,
@@ -1193,7 +1259,7 @@ async function purgeRelational(device, scope, { logIds = [], rx = null, from = N
     out.shared = await withdrawSharedRows(person, { dropAuthoredRoomTurns: false });
     // manifest-driven: a table added to PERSON_TABLES is wiped here with no
     // further code — the wipe cannot lag the schema
-    for (const t of PERSON_TABLES) {
+    for (const t of await activePersonTables()) {
       if (t.lane !== "relational") continue;
       const gone = await q(
         `delete from ${t.table} where ${wipeWhereSql(t)} returning 1 as x`,
@@ -1542,7 +1608,7 @@ async function opForget(device, body) {
   // Until room ingestion writes speaker_person_id it is NULL on every row, so
   // the added disjunct matches nothing and behaviour today is unchanged.
   const person = await personIdFor(device);
-  const LOG = PERSON_TABLES.find((t) => t.table === "meera_log");
+  const LOG = (await activePersonTables()).find((t) => t.table === "meera_log");
   const logOwner = keysOf(LOG).map((k, i) => `${k} = $${i + 1}`).join(" or ");
   const logOwnerVals = wipeParams(LOG, { device, person });
   const logP = (n) => `$${logOwnerVals.length + n}`; // 1-based extra params

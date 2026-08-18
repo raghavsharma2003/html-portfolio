@@ -31,7 +31,7 @@
 
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
-import { PERSON_TABLES, keysOf, personIdFor } from "./memory.js";
+import { activePersonTables, keysOf, personIdFor } from "./memory.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -120,8 +120,13 @@ export default async function handler(req, res) {
       }).slice(0, -1) + ',"tables":{',
     );
 
+    // activePersonTables(), not PERSON_TABLES: the manifest names tables
+    // migration 008 introduces, and an export must not 500 on a database where
+    // they do not exist yet. It is the same one probe forget uses, so the two
+    // consumers still enumerate the same list — which is the whole reason the
+    // manifest is a single source (SPEC §9.2).
     let firstTable = true;
-    for (const t of PERSON_TABLES) {
+    for (const t of await activePersonTables()) {
       // multi-owner tables (PROPOSAL-MULTIPARTY-V1 §3.3 `keys`): a room turn
       // is owned by its SPEAKER, not by the room's synthetic device uuid, so
       // an export keyed on device_id alone would silently omit a person's own
