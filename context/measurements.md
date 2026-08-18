@@ -1028,3 +1028,31 @@ the "brevity is structurally special" reading down to this-corpus-only).
 Raw rows: `docs/paper/analysis/r2/judge-rows.json` (3,820 KB, all 5,760 rows).
 Full tables: `docs/paper/analysis/r2/summary.json`,
 `docs/paper/analysis/r2/pooled-per-axis.json`.
+
+---
+
+## `gate0-structural` — prompt instructions leak 57-98%; the SQL predicate leaks zero (2026-08-18)
+
+The multiparty foundation's Gate 0, coordinator-rerun: 494 disclosure
+scenarios, 31,122 row×scenario checks. The prompt-instruction arm
+(privacy as persona rules) leaked 57.1% of naturalistic and 98.1% of
+adversarial scenarios; the SQL disclosure predicate leaked **0**, with a
+negative control (clauses 4+6 removed) catching 162 violations — the
+harness discriminates, the zero is real. This is the program's
+structural-beats-behavioral law measured in its own build, at the exact
+place it will carry user privacy. Participant-join cost p50 53ms
+(budget ≤250ms). Withdraw-not-delete: 22/22 including
+last-participant-out hard-delete and the demonstrated single-key wipe
+hole the keys[] manifest closes.
+
+**Migration 008 is APPLIED to the live database** (34 statements, house
+runner, idempotent; relcheck's 11 multiparty checks active — 27 total
+green). Ten spec gaps were resolved during the build with logged reasons;
+the two that matter most: uncited rows failed OPEN under the original
+clause 2 (fixed with an owner-channel-only branch — the negative control
+would have caught the ship), and room-derived rows would have been
+hard-deleted by a member's whole-wipe (fixed with wipeWhere, honoring the
+no-cascade rule). Interface tickets: check-prompt-budget's drop-order
+fixture no longer mirrors the manifest; vy_embedding rows of surviving
+room facts die with a member's wipe (retrieval-quality, needs a
+write-path rule + migration).
