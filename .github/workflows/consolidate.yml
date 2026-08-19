@@ -114,6 +114,26 @@ jobs:
       - name: Capture phrases
         run: node api/consolidate.js --capture-phrases --limit "${{ github.event.inputs.limit || '25' }}"
 
+      # WS-SELF (Phase E2, docs/SPEC-SELF-LAYER.md): texture, self-arc and
+      # observation decay. LAST of the derivation steps because every one of
+      # them reads rows the earlier steps wrote — put it earlier and it does
+      # not fail, it silently derives from yesterday.
+      #
+      # Same fail-soft posture as the three above: never halts the job. This
+      # one is the safest of the lot to miss — texture recomputes from a
+      # trailing window, an arc needs 42 days of evidence so one night is
+      # noise, and observation decay is idempotent by construction (a
+      # monotonic ceiling recomputed from an immutable reference, never a
+      # repeated multiply).
+      #
+      # NOTE for whoever reads this next: as of 2026-08-18 this workflow has
+      # never run on schedule. GitHub registers schedules only from the
+      # DEFAULT branch, and this file lives on a feature branch far ahead of
+      # it — see measurements `never-scheduled`. The Vercel sweep
+      # (api/consolidate-sweep.js) is what actually runs today.
+      - name: Derive self layer
+        run: node api/consolidate.js --derive-self --limit "${{ github.event.inputs.limit || '25' }}"
+
       # Zero-orphan integrity sweep + citation discipline (SPEC §4.1.11,
       # §4.2 layer 4) — read-only, run against the SAME database the
       # finalize pass just wrote to, every night, not just at PR time.
