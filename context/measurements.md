@@ -1265,3 +1265,40 @@ n/a for n — a census of writers plus a single measured consolidation run.
 Method: apply 010 live via `db/migrations/apply.mjs`, run every gate, fix each
 failure, re-run; `runConsolidation({onlyPerson, limit:1, dryRun:false})`
 against the highest-lag person for the backlog measurement. Date 2026-08-18.
+
+---
+
+## `blank-guard-parity` — the blackout asymmetry exists in BOTH twins (2026-08-18)
+
+`blank-guard-show-only` recorded that `src/watch/scene.ts` guards every SHOW
+class against a blank frame and leaves its ambient branch unguarded, so an
+ambient wake fires during a FLAG_SECURE blackout. WS-ANDROID-WATCH checked the
+Java twin and found the identical shape: `SceneReader.java`'s `pick()` guards
+`WAKE_SETTLE`/`RESHOW`/`POINT`/`SWITCH` with `!blank` and its `WAKE_ALONG` /
+`WAKE_IDLE` branches with nothing.
+
+Observed at runtime, not inferred: a 48-second scripted dark run produces an
+`idle` wake in the Java implementation.
+
+No content leaks either way — a blank frame has nothing to read — and neither
+write path stores anything during a blackout, because arming ignores non-SHOW
+classes and the native path now carries an explicit `if (blank) return;`.
+
+**What makes this worth its own entry is the test, not the bug.**
+`evals/multimodal/native-gate.mjs` compiles and RUNS the real
+`SceneReader.java` against the bundled `scene.ts` over identical frames and
+diffs the wake log tick-for-tick across seven scenarios — and it asserts
+**parity of the asymmetry** rather than the asymmetry itself. Fixing both twins
+passes; fixing one fails loudly.
+
+That is the correct shape for any pair of implementations required to stay
+identical, and this repo has exactly such a pair by design (`liveCall.ts` /
+`LiveWatchEngine.java`, `scene.ts` / `SceneReader.java`). A test that pins the
+CURRENT behaviour of one twin would have to be edited every time the behaviour
+legitimately changes, and would drift; a test that pins their AGREEMENT never
+needs editing and catches the only failure that matters, which is divergence.
+
+n/a for n — a behavioural property of two deterministic modules, established by
+executing both over the same scripted frames. Method:
+`node evals/multimodal/native-gate.mjs` (needs a JDK; reports UNVERIFIED and
+fails rather than skipping when javac is absent). Date 2026-08-18.
