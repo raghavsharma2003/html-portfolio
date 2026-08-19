@@ -746,3 +746,77 @@ product); or single-citation observations raise recall fabrication above the
 not merely for generalization.
 
 ---
+
+## `memory-field-survey` — three adopts from the frontier, and what we will not copy (2026-08-18)
+
+Owner directive: *"why dont we learn from graphiti, letta, mem0 and other
+frontier memory system (specially opensource) and get the best from them and
+implement it with our use case ... with no compromises of any kind."*
+
+`docs/research/MEMORY-FIELD-SURVEY.md` (1,090 lines) surveys Graphiti/Zep,
+Letta/MemGPT, Mem0, Cognee, A-MEM, HippoRAG(2), LangMem, MemoryBank and
+Generative Agents, each with an ADOPT / ADAPT / REJECT call against our actual
+tables, plus LoCoMo and LongMemEval scrutinised as targets. Raw notes and the
+source ledger in `-RAW.md`.
+
+**Three adopts, in priority order.**
+
+1. **Fix forget's MATCHING layer.** Our forget *propagation* is the strongest
+   in the field — hard delete reaching every derived row — but it only ever
+   fires on what the matcher selects, and the matcher is **purely lexical**:
+   `api/memory.js` builds a regex per stored term and tests it against a node's
+   name and summary. Coordinator-verified at `api/memory.js:782-789`. We are
+   Hinglish-first, so "my ex" / "woh ladki" / "us waali" are the same referent
+   restated across languages, and none of them match a term stored as a name.
+   The fix is an LLM hook at **mutation** time — never at recall, which L2
+   forbids outright — expanding a forget request into variant rows in
+   `meera_forget`, a table recall never reads and no prompt ever sees. **No
+   schema change.** Failure posture: fail the RECEIPT, never under-delete.
+2. **One nullable column makes us fully bi-temporal.** Graphiti's edges carry
+   four timestamps; we carry three. The missing one is `expired_at` — the
+   transaction time at which a belief changed. It is recoverable through
+   `superseded_by` → successor `created_at`, and **not recoverable at all**
+   when a fact is invalidated with no successor, which our schema permits
+   because `t_invalid` and `superseded_by` are independent columns.
+   Coordinator-verified: legal today, and **0 such rows exist yet** — so the
+   gap is latent rather than realised, which is the cheapest possible moment to
+   close it.
+3. **Make the four recall paths compete, and give facts one hop.** We run four
+   retrieval paths concurrently and then CONCATENATE them into labelled blocks,
+   so T5's 6,000 chars are spent by arrival order rather than by evidence.
+   Graphiti fuses with reciprocal rank before truncating. Separately, we never
+   traverse `vy_fact.citations` — we have a bipartite fact↔episode graph with a
+   GIN index and the only one-hop expansion we do walks the LEGACY
+   `meera_edges` instead.
+
+**What the field does NOT have, three of four claims verified.** Forget
+propagation as a field gap is independently corroborated (Graphiti's
+`remove_episode` deletes only edges where the episode is first in the list;
+Letta's MemFS documents deleted files as recoverable). Disclosure-as-predicate
+stands, with two coarse precedents named — Graphiti `group_id` and Cognee
+write-scope, both tenancy rather than per-row ACL. Register state and the
+told-ledger: no prior art found. One partial exception, named honestly: a 2026
+barrier-first repair contract is our shape, arrived at independently, as a
+formalism rather than a shipped property. A fifth differentiator we had not
+claimed: the citation CHECK constraint, against an audit finding 96% of 2,050
+real memory entries were silently system-created.
+
+**Rejected as a target: LoCoMo.** 6.4% key error and a judge that accepts
+62.81% of vague-but-adjacent answers. Optimising against it would move us the
+wrong way. Mem0's headline numbers are discounted three ways, including that
+Zep beats them inside their own comparison table, and both independent audits
+of Mem0 are flagged as published by competitors.
+
+**Embedding-first retrieval stays rejected**, on three grounds the benchmarks
+cannot see: our corpora are 10⁰–10³ rows per dyad at p50 40 ms, so recall@k is
+not the binding constraint; the benchmark judges reward adjacency; and pull-only
+*inverts the sign* of what those benchmarks measure. HippoRAG 2's gain over a
+fair baseline is real but modest (59.8 vs 57.0 F1).
+
+**Reverses if:** the forget-matcher rate we measure ourselves does not resemble
+the published one (the paper is one author on one adversarial surface — the
+mechanism is adopted, the numbers are not); or a fusion arm measurably worsens
+T5 quality, in which case concatenation was load-bearing for the
+matched-vs-background labelling and the labels matter more than the ranking.
+
+---
