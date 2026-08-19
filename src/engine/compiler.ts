@@ -437,7 +437,7 @@ ${input.memories}`;
 
 // 7 exists because mp.bridge takes priority 1 and everything below it
 // renumbers by one (PROPOSAL-MULTIPARTY-V1 §5.2).
-export type DropPriority = "never" | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type DropPriority = "never" | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
 export type SourceStatus =
   // this file computes it directly from a real, already-wired input
@@ -568,7 +568,7 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     id: "T2",
     label: "rel.snapshot",
     budget: 1_200,
-    dropPriority: 7, // was 6 — renumbered by one below mp.bridge (§5.2)
+    dropPriority: 10, // was 7 — renumbered by three for the self layer (T11-T13)
     // WS-INTEGRATE seam 1: wired via renderRelSnapshot, gated on
     // input.relBundle (api/memory.js opRecall delta). Empty when absent —
     // "empty-reserved" retired now that a real caller exists, per the M2
@@ -579,35 +579,35 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     id: "T3",
     label: "india.dynamic",
     budget: 1_000,
-    dropPriority: 5, // was 4
+    dropPriority: 8, // was 5 — +3 for the self layer
     sourceStatus: "wired", // WS-INTEGRATE: renderIndiaDynamic, gated on input.relBundle
   },
   {
     id: "T4",
     label: "dyadic.active",
     budget: 1_600,
-    dropPriority: 6, // was 5
+    dropPriority: 9, // was 6 — +3 for the self layer
     sourceStatus: "wired", // WS-INTEGRATE: renderDyadicActive, moment-gated, on input.relBundle
   },
   {
     id: "T5",
     label: "recall.facts",
     budget: 6_000,
-    dropPriority: 3, // was 2
+    dropPriority: 6, // was 3 — +3 for the self layer
     sourceStatus: "wired", // input.memories — today's api/memory.js graph recall block
   },
   {
     id: "T6",
     label: "we.callbacks",
     budget: 2_000,
-    dropPriority: 4, // was 3
+    dropPriority: 7, // was 4 — +3 for the self layer
     sourceStatus: "wired", // WS-INTEGRATE: renderWeCallbacks, deixis-gated, on input.relBundle
   },
   {
     id: "T7",
     label: "herlife",
     budget: 1_000,
-    dropPriority: 2, // was 1 — mp.bridge now takes 1
+    dropPriority: 5, // was 2 — +3 for the self layer
     sourceStatus: "wired", // input.herLife — brain.ts's formatHerLife()
   },
   {
@@ -659,7 +659,7 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     id: "mp.bridge",
     label: "group.bridge",
     budget: 1_100,
-    dropPriority: 1, // first dropped; everything below renumbered by one
+    dropPriority: 4, // was 1 — the self layer now takes 1-3 as first-dropped
     // ≤2 disclosure-filtered cross-person rows AS SHAPES, NEVER LINES; ≤2 room
     // phrase-ledger hits; ≤1 open room plan row. Every row has already passed
     // the §2.3 predicate in the WHERE clause (api/_disclosure.js) — THIS BLOCK
