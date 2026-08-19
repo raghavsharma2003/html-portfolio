@@ -496,3 +496,54 @@ projection without incurring it, and must say which of the two it did.
 Related: `error-marked-done` (resumable state records outcomes, never
 attempts) — same family, both found in the same subsystem, both about a
 mechanism whose name promises more safety than its implementation delivers.
+
+---
+
+## `rupture-never-closes` — a grudge with no expiry, in the one module the charter does not police (2026-08-18)
+
+Found by WS-AFFECT-RESEARCH while testing whether the owner's request for
+carried anger violates `inner.ts`'s G5. The answer turned out to be the
+opposite of the question: **the shipped code already implements the thing G5
+forbids**, and the request was pointing at real behaviour.
+
+`ruptureRepairShift` (`src/engine/relstate.ts:337-381`) closes `rupture_open`
+in exactly two places, both requiring `theirRepairSignal`. Coordinator-verified:
+across `relstate.ts` and `api/consolidate.js` the flag is set false only at
+initialisation (`:129`) and by event replay (`:512`, `:517`). **There is no
+time-based close anywhere.**
+
+So if the user never produces a repair signal, `rupture_open` stays true
+forever. And it is not inert while it sits there:
+
+- `:191-199` — the honorific re-advance bar (≥3 episodes / ≥7 days) is held
+  down for as long as it is open.
+- `:967-974` — `if (state.rupture_open) return state.trust < 0.45 ? "new" : "warming"`.
+  An open rupture **permanently caps her stage at "warming"**, whatever else
+  the relationship does.
+
+That is G5's own sentence implemented as code: *"a grudge-shaped mood the user
+has to service."* The charter lives in `inner.ts` and polices the carried
+thread; `relstate.ts` is a different module and was never checked against it.
+
+**Why nobody noticed:** `vy_rel_state` has zero rows in production
+(`never-scheduled`), so this has never executed against a real user. Two
+independent latent defects in the same subsystem, and the empty table hid both.
+
+**The fix is a discipline this repo already invented, one module over.**
+`inner.ts` separates the RECORD from the STANCE: `Thread.text` persists while
+`carry()` lapses on a half-life. Apply the same split here — `vy_rel_event`
+stays permanent and cited, and the per-turn stance derives from it and lapses.
+That also preserves the property that distinguishes Rusbult's *accommodation*
+from *neglect*: she can still raise it later. A stance that lapses is not
+amnesia.
+
+**What breaks generally:** any charter that names a module. G1–G8 say "her
+interior", and everyone read that as "inner.ts". Relational state is interior
+by any reasonable definition, and it sat outside the fence. A charter is a
+property of a SYSTEM, not of a file, and the next one written here should say
+which behaviours it governs rather than which module it lives in.
+
+**Reverses if:** a measured cohort shows a lapsing stance makes ruptures feel
+unreal — i.e. the permanence was accidentally doing work by making conflict
+consequential. That is an ear judgment and the owner's ear has overruled
+measurement on this class of question before.
