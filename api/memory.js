@@ -310,6 +310,23 @@ async function fetchRelBundle(person, agentId = MEERA_AGENT_ID) {
   };
 }
 
+/** The engine bundle, for the observation matcher only. Same shape and same
+ *  failure posture as api/_surface.js's loadEngine: tried once, cached, and a
+ *  missing bundle disables the feature loudly rather than degrading recall. */
+let _obsEngine;
+let _obsEngineTried = false;
+async function loadSelfEngineForRecall() {
+  if (_obsEngineTried) return _obsEngine;
+  _obsEngineTried = true;
+  try {
+    _obsEngine = await import("./_engine.gen.js");
+  } catch (e) {
+    console.error("[recall] engine bundle missing — observations disabled:", e?.message || "import failed");
+    _obsEngine = null;
+  }
+  return _obsEngine;
+}
+
 async function opRecall(device, body) {
   // The agent whose relationship is being read. One agent exists today, so this
   // is Meera's id and every retrieval below is unchanged in behaviour; when a
@@ -503,6 +520,44 @@ async function opRecall(device, body) {
         .map(factLine)
         .join("\n")}`,
     );
+  }
+
+  // ── vy_observation — noticing, at ONE citation (SPEC-SELF-LAYER §7) ──────
+  //
+  // Rides inside T5's existing 6,000-char budget rather than taking a slot of
+  // its own, and inherits T5's pull-only discipline unchanged: matchObservations
+  // returns [] before issuing any SQL when the turn carries no signal word, so
+  // there is no path that answers "what is salient about this person" absent a
+  // real question. `never raise unprompted` is not relaxed to make this feel
+  // more impressive.
+  //
+  // Labelled separately from RELEVANT and from ALSO RELEVANT because an
+  // observation is a differently-earned signal: one citation, recalling a
+  // detail, versus a fact that survived consolidation. Merging them would make
+  // a diag trace unable to say which store answered.
+  //
+  // RECALL_STOP is passed EXPLICITLY: observation.ts ships in the client bundle
+  // and must never statically import this file (it would drag api/_db.js and
+  // api/_config.js into the browser build — the exact failure relstate.ts's
+  // header warns about). Dependency injection, same treatment as QueryFn, not
+  // a second stopword list.
+  const engine = await loadSelfEngineForRecall();
+  const obsPerson = await personPromise.catch(() => null);
+  if (engine && obsPerson && words.length) {
+    try {
+      const obs = await engine.matchObservations(q, obsPerson, agentId, query, 3, RECALL_STOP);
+      if (obs.length) {
+        blocks.push(
+          `THINGS YOU NOTICED THEM SAY (one mention each, so treat them as details you remember — not as patterns, and never as a list):\n${obs
+            .map((o) => `- ${o.note}`)
+            .join("\n")}`,
+        );
+      }
+    } catch (e) {
+      // fail-soft: a missing bundle or a bad row costs the observation block,
+      // never the recall that the turn actually depends on.
+      console.error("[recall] observation match skipped:", String(e?.message || e).slice(0, 120));
+    }
   }
 
   // touch recall time (awaited — serverless kills post-response work)

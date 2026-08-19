@@ -2,6 +2,7 @@
 // Not a source file — edit persona.ts / compiler.ts / room.ts and re-run the
 // generator. `node scripts/build-engine-bundle.mjs --check` fails the build
 // when this file no longer matches its sources.
+var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __esm = (fn, res, err) => function __init() {
   if (err) throw err[0];
@@ -10,6 +11,10 @@ var __esm = (fn, res, err) => function __init() {
   } catch (e) {
     throw err = [e], e;
   }
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
 };
 
 // evals/stubs/capacitor.mjs
@@ -21,6 +26,42 @@ var init_capacitor = __esm({
 });
 
 // src/engine/storyCatalog.ts
+var storyCatalog_exports = {};
+__export(storyCatalog_exports, {
+  STORIES: () => STORIES,
+  activeStories: () => activeStories,
+  hasUnseenStory: () => hasUnseenStory,
+  markStorySeen: () => markStorySeen,
+  seenStoryIds: () => seenStoryIds,
+  storyAge: () => storyAge,
+  storyContext: () => storyContext,
+  storySrc: () => storySrc
+});
+function storyAge(s) {
+  const mins = Math.max(0, Math.round((Date.now() - s.at) / 6e4));
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.round(hours / 24)}d`;
+}
+function seenStoryIds() {
+  try {
+    const raw = localStorage.getItem(SEEN_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+function markStorySeen(id) {
+  try {
+    const seen = new Set(seenStoryIds());
+    seen.add(id);
+    localStorage.setItem(SEEN_KEY, JSON.stringify([...seen].slice(-40)));
+  } catch {
+  }
+}
 function storyContext() {
   const live = activeStories();
   if (!live.length) return "";
@@ -28,7 +69,7 @@ function storyContext() {
 
 YOUR CURRENT STORY (like an insta/whatsapp status they can see by tapping your profile photo): ${live.map((s) => s.desc).join("; then ")}. You posted it yourself, so you know exactly what's in it \u2014 if they mention it ("story dekhi", "kya padh rahi thi"), react naturally like someone whose story got noticed, never confused. Don't bring it up unprompted more than once.`;
 }
-var BASE, STORIES, activeStories;
+var BASE, STORIES, activeStories, storySrc, SEEN_KEY, hasUnseenStory;
 var init_storyCatalog = __esm({
   "src/engine/storyCatalog.ts"() {
     init_capacitor();
@@ -53,6 +94,12 @@ var init_storyCatalog = __esm({
       const newest = Math.max(...posted.map((s) => s.at));
       const day = new Date(newest).toDateString();
       return posted.filter((s) => new Date(s.at).toDateString() === day);
+    };
+    storySrc = (s) => `${BASE}${s.src}`;
+    SEEN_KEY = "meera.stories.seen.v1";
+    hasUnseenStory = () => {
+      const seen = seenStoryIds();
+      return activeStories().some((s) => !seen.includes(s.id));
     };
   }
 });
@@ -1069,6 +1116,7 @@ function lintBlock(text, allowlist = []) {
 }
 
 // src/engine/relstate.ts
+var MEERA_AGENT_ID = "a0000000-0000-4000-8000-000000000001";
 var MS_PER_DAY = 864e5;
 function honorificAgeLabel(lastMoveAt, now = /* @__PURE__ */ new Date()) {
   if (!lastMoveAt) return "unset";
@@ -1236,6 +1284,189 @@ ${lines.map((l) => `- ${l}`).join("\n")}` : "";
 
 // src/engine/texture.ts
 var TEXTURE_N_TURNS_FLOOR = 40;
+var TEXTURE_SCAN_LIMIT = 400;
+var TEXTURE_MEDIA_RE = /\[(gif|sent a meme gif|voicenote|photo|selfie|sticker)[:\]]/i;
+var TEXTURE_EMOJI_RE = /\p{Extended_Pictographic}/u;
+var TEASING_MARKERS = [
+  "joke",
+  "mazak",
+  "chill kar",
+  "chhed",
+  "tease",
+  "roast",
+  "savage",
+  "just kidding",
+  "obviously not",
+  "\u{1F644}",
+  "\u{1F60F}"
+];
+var HUMOUR_MARKERS = [
+  "lol",
+  "haha",
+  "hehe",
+  "lmao",
+  "\u{1F62D}",
+  "\u{1F602}",
+  "\u{1F480}"
+];
+var LAUGH_ELONGATION_RE = /(?:^| )(?:(?:ha|he){2,}h?|l+o+l+z?|lm+f?a+o+)(?: |$)/u;
+var PROFANITY_MARKERS = [
+  "fuck",
+  "fucking",
+  "fucked",
+  "shit",
+  "bullshit",
+  "bitch",
+  "damn",
+  "asshole",
+  "bhenchod",
+  "behenchod",
+  "bc",
+  "madarchod",
+  "mc",
+  "chutiya",
+  "chutiye",
+  "gandu",
+  "harami",
+  "kamina",
+  "kamine",
+  "saala",
+  "saali",
+  "bakchod",
+  "bakchodi",
+  "randi",
+  "lauda",
+  "chodu"
+];
+function padTexture(s) {
+  return " " + String(s || "").toLowerCase().replace(/(\p{Extended_Pictographic})/gu, " $1 ").replace(/[^\p{L}\p{N}\p{Extended_Pictographic}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
+}
+function rawWords(text) {
+  return String(text || "").split(/\s+/).filter(Boolean).length;
+}
+function percentile(nums, p) {
+  if (!nums.length) return 0;
+  const s = [...nums].sort((a, b) => a - b);
+  const idx = Math.min(s.length - 1, Math.max(0, Math.ceil(p / 100 * s.length) - 1));
+  return s[idx];
+}
+var hasAny = (padded, markers) => markers.some((m) => padded.includes(padTexture(m)));
+var r3 = (n) => Math.round(n * 1e3) / 1e3;
+function textureCounts(contents) {
+  const n = contents.length;
+  if (!n) {
+    return { teasing: 0, humour: 0, media_rate: 0, words_median: 0, emoji_rate: 0, profanity: 0, n_turns: 0 };
+  }
+  let teasing = 0;
+  let humour = 0;
+  let media = 0;
+  let emoji = 0;
+  let profanity = 0;
+  const words = [];
+  for (const raw of contents) {
+    const text = String(raw || "");
+    const padded = padTexture(text);
+    if (hasAny(padded, TEASING_MARKERS)) teasing++;
+    if (hasAny(padded, HUMOUR_MARKERS) || LAUGH_ELONGATION_RE.test(padded)) humour++;
+    if (hasAny(padded, PROFANITY_MARKERS)) profanity++;
+    if (TEXTURE_MEDIA_RE.test(text)) media++;
+    if (TEXTURE_EMOJI_RE.test(text)) emoji++;
+    words.push(rawWords(text));
+  }
+  return {
+    teasing: r3(teasing / n),
+    humour: r3(humour / n),
+    media_rate: r3(media / n),
+    words_median: percentile(words, 50),
+    emoji_rate: r3(emoji / n),
+    profanity: r3(profanity / n),
+    n_turns: n
+  };
+}
+var TEXTURE_SCAN_SQL = `select l.content
+       from meera_log l
+      where l.role = 'her'
+        and l.channel = 'chat'
+        and l.group_id is null
+        and l.device_id in (
+              select d.device_id from vy_person_device d where d.person_id = $1
+              union select $1::uuid)
+      order by l.id desc
+      limit $2`;
+async function deriveTexture(q, personId, agentId = MEERA_AGENT_ID) {
+  const rows = await q(TEXTURE_SCAN_SQL, [personId, TEXTURE_SCAN_LIMIT]);
+  const contents = (rows ?? []).map((r) => String(r?.content ?? ""));
+  const counts = textureCounts(contents);
+  return {
+    agent_id: agentId,
+    person_id: personId,
+    ...counts,
+    nickname: "",
+    avoid: [],
+    avoid_cites: []
+  };
+}
+async function upsertTexture(q, row) {
+  await q(
+    `insert into vy_rel_texture
+       (agent_id, person_id, teasing, humour, media_rate, words_median,
+        emoji_rate, profanity, n_turns, updated_at)
+     values (($1)::uuid,($2)::uuid,$3,$4,$5,$6,$7,$8,$9, now())
+     on conflict (agent_id, person_id) do update set
+       teasing = excluded.teasing, humour = excluded.humour,
+       media_rate = excluded.media_rate, words_median = excluded.words_median,
+       emoji_rate = excluded.emoji_rate, profanity = excluded.profanity,
+       n_turns = excluded.n_turns, updated_at = now()`,
+    [
+      row.agent_id,
+      row.person_id,
+      row.teasing,
+      row.humour,
+      row.media_rate,
+      row.words_median,
+      row.emoji_rate,
+      row.profanity,
+      row.n_turns
+    ]
+  );
+}
+async function refreshTexture(q, personId, agentId = MEERA_AGENT_ID) {
+  const row = await deriveTexture(q, personId, agentId);
+  await upsertTexture(q, row);
+  return row;
+}
+function pgTextArray(v) {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => String(x ?? "")).filter((s) => s.length > 0);
+}
+function pgBigintArray(v) {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => Number(x)).filter((n) => Number.isFinite(n));
+}
+async function readTexture(q, personId, agentId = MEERA_AGENT_ID) {
+  const rows = await q(
+    `select agent_id, person_id, teasing, humour, media_rate, words_median,
+            emoji_rate, profanity, nickname, avoid, avoid_cites, n_turns
+       from vy_rel_texture where agent_id = ($1)::uuid and person_id = ($2)::uuid`,
+    [agentId, personId]
+  );
+  const r = (rows ?? [])[0];
+  if (!r) return null;
+  return {
+    agent_id: String(r.agent_id),
+    person_id: String(r.person_id),
+    teasing: Number(r.teasing ?? 0),
+    humour: Number(r.humour ?? 0),
+    media_rate: Number(r.media_rate ?? 0),
+    words_median: Number(r.words_median ?? 0),
+    emoji_rate: Number(r.emoji_rate ?? 0),
+    profanity: Number(r.profanity ?? 0),
+    nickname: String(r.nickname ?? ""),
+    avoid: pgTextArray(r.avoid),
+    avoid_cites: pgBigintArray(r.avoid_cites),
+    n_turns: Number(r.n_turns ?? 0)
+  };
+}
 function bandTeasing(rate) {
   if (rate < 0.04) return "rare";
   if (rate < 0.12) return "light";
@@ -1296,11 +1527,46 @@ ${lines.map((l) => `- ${l}`).join("\n")}`;
 }
 
 // src/engine/selfarc.ts
+var SELF_ARC_DIMS = [
+  "boundaries",
+  "confidence",
+  "directness",
+  "humour",
+  "patience"
+];
 var MIN_CITATIONS = 3;
 var MIN_SPAN_DAYS = 42;
+var MS_PER_DAY2 = 864e5;
+var DEFAULT_LOOKBACK_DAYS = 540;
 var MAX_NOTE_WORDS = 9;
 var MAX_NOTE_CHARS = 80;
 var padT2 = (s) => " " + String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
+var DIM_MARKERS = {
+  boundaries: ["boundary", "boundaries", "decline", "declines", "declined", "refuse", "refuses", "refused", "limit", "limits", "mana", "cutoff", "unavailable"],
+  confidence: ["confident", "confidence", "unsure", "doubt", "doubts", "doubting", "hesitant", "hesitate", "hesitates", "apologise", "apologises", "apologize", "apologizes", "backtrack", "backtracks"],
+  directness: ["direct", "directly", "upfront", "blunt", "bluntly", "seedha", "sidha", "saaf", "straightforward", "hedges", "hedging", "softens"],
+  humour: ["joke", "jokes", "joking", "mazaak", "mazak", "funny", "tease", "teases", "teasing", "sarcasm", "sarcastic", "deadpan", "punchline"],
+  patience: ["patient", "patience", "patiently", "sabar", "rushes", "rushing", "hurries", "interrupts", "interrupting", "waits", "slower", "dheere", "jaldbaazi"]
+};
+function classifyDim(text) {
+  const hay = padT2(text);
+  let bestDim = null;
+  let bestHits = 0;
+  let tied = false;
+  for (const dim of SELF_ARC_DIMS) {
+    let hits = 0;
+    for (const m of DIM_MARKERS[dim]) if (hay.includes(` ${m} `)) hits++;
+    if (hits === 0) continue;
+    if (hits > bestHits) {
+      bestDim = dim;
+      bestHits = hits;
+      tied = false;
+    } else if (hits === bestHits) {
+      tied = true;
+    }
+  }
+  return tied ? null : bestDim;
+}
 var AFFECT_MARKERS = [
   "feel",
   "feels",
@@ -1403,6 +1669,198 @@ function checkArcNote(note) {
   if (narration.length) reasons.push(`narrates the change (never-narrate): ${narration.join(",")}`);
   return { ok: reasons.length === 0, reasons };
 }
+var norm = (s) => String(s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+function buildCandidates(facts) {
+  const refusals = [];
+  const byDim = /* @__PURE__ */ new Map();
+  for (const f of facts) {
+    const dim = classifyDim(`${f.name} ${f.body}`);
+    if (!dim) {
+      refusals.push(`fact ${f.fact_id}: no single dim decided (unclassified or tied)`);
+      continue;
+    }
+    const check = checkArcNote(f.body);
+    if (!check.ok) {
+      refusals.push(`fact ${f.fact_id} (${dim}): note refused \u2014 ${check.reasons.join("; ")}`);
+      continue;
+    }
+    const arr = byDim.get(dim) ?? [];
+    arr.push(f);
+    byDim.set(dim, arr);
+  }
+  const candidates = [];
+  for (const dim of SELF_ARC_DIMS) {
+    const rows = byDim.get(dim);
+    if (!rows || !rows.length) continue;
+    const sorted = [...rows].sort((a, b) => {
+      const t = new Date(a.first_at).getTime() - new Date(b.first_at).getTime();
+      return t !== 0 ? t : a.fact_id - b.fact_id;
+    });
+    const earliest = sorted[0];
+    const latest = [...sorted].sort((a, b) => {
+      const t = new Date(a.last_at).getTime() - new Date(b.last_at).getTime();
+      return t !== 0 ? t : a.fact_id - b.fact_id;
+    })[sorted.length - 1];
+    if (earliest.fact_id === latest.fact_id) {
+      refusals.push(`${dim}: one self-fact only \u2014 a repeat is stability, not a change`);
+      continue;
+    }
+    if (norm(earliest.body) === norm(latest.body)) {
+      refusals.push(`${dim}: before and after say the same thing \u2014 no change`);
+      continue;
+    }
+    const citations = [...new Set(sorted.flatMap((f) => f.episode_ids))].sort((a, b) => a - b);
+    if (citations.length < MIN_CITATIONS) {
+      refusals.push(`${dim}: ${citations.length} distinct citations, need >=${MIN_CITATIONS}`);
+      continue;
+    }
+    const times = sorted.flatMap((f) => [new Date(f.first_at).getTime(), new Date(f.last_at).getTime()]);
+    const spanDays = (Math.max(...times) - Math.min(...times)) / MS_PER_DAY2;
+    if (!(spanDays >= MIN_SPAN_DAYS)) {
+      refusals.push(`${dim}: span ${spanDays.toFixed(1)}d, need >=${MIN_SPAN_DAYS}d \u2014 not attempted`);
+      continue;
+    }
+    candidates.push({
+      dim,
+      note: latest.body.trim(),
+      from_note: earliest.body.trim(),
+      citations,
+      span_days: Math.round(spanDays * 10) / 10,
+      from_fact_id: earliest.fact_id,
+      note_fact_id: latest.fact_id
+    });
+  }
+  candidates.sort(
+    (a, b) => b.citations.length - a.citations.length || b.span_days - a.span_days || a.dim.localeCompare(b.dim)
+  );
+  return { candidates, refusals };
+}
+var EVIDENCE_SQL = `
+select f.id                                as fact_id,
+       f.name                              as name,
+       f.body                              as body,
+       array_agg(distinct e.id)            as episode_ids,
+       min(e.started_at)                   as first_at,
+       max(e.started_at)                   as last_at
+  from vy_fact f
+  join vy_episode e
+    on e.id = any(f.citations)
+   and e.agent_id = f.agent_id
+   and e.participation <> 'meera'
+   and e.superseded_by is null
+ where f.agent_id = ($1)::uuid
+   and f.kind = 'meera'
+   and f.t_invalid is null
+   and f.retracted_at is null
+   and f.superseded_by is null
+   and e.started_at >= ($2)::timestamptz
+ group by f.id, f.name, f.body
+ order by max(e.started_at) asc, f.id asc`;
+async function deriveSelfArc(q, agentId, opts = {}) {
+  if (!agentId) throw new Error("deriveSelfArc: agentId is required (vy_self_arc is strict from birth)");
+  const lookbackDays = opts.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
+  if (lookbackDays < MIN_SPAN_DAYS) {
+    throw new Error(
+      `deriveSelfArc: lookbackDays=${lookbackDays} is below MIN_SPAN_DAYS=${MIN_SPAN_DAYS} \u2014 a window shorter than the span floor can only ever produce refusals`
+    );
+  }
+  const now = opts.now ?? /* @__PURE__ */ new Date();
+  const since = new Date(now.getTime() - lookbackDays * MS_PER_DAY2).toISOString();
+  const rows = await q(EVIDENCE_SQL, [agentId, since]);
+  const facts = rows.map((r) => ({
+    fact_id: Number(r.fact_id),
+    name: String(r.name ?? ""),
+    body: String(r.body ?? ""),
+    episode_ids: toIdArray(r.episode_ids),
+    first_at: String(r.first_at),
+    last_at: String(r.last_at)
+  }));
+  const { candidates, refusals } = buildCandidates(facts);
+  const base = {
+    written: null,
+    candidate: null,
+    alsoRan: candidates.slice(1),
+    refusals,
+    evidenceFacts: facts.length,
+    attemptedInsert: false
+  };
+  if (!candidates.length) return base;
+  const chosen = candidates[0];
+  base.candidate = chosen;
+  const current = await q(
+    `select id, note from vy_self_arc where agent_id = ($1)::uuid and dim = $2 and superseded_by is null`,
+    [agentId, chosen.dim]
+  );
+  if (current.length && norm(String(current[0].note)) === norm(chosen.note)) {
+    base.refusals.push(`${chosen.dim}: already current (row ${current[0].id}) \u2014 nothing new`);
+    return base;
+  }
+  if (opts.dryRun) return base;
+  assertArcLegal(chosen);
+  base.attemptedInsert = true;
+  const inserted = await q(
+    `insert into vy_self_arc (agent_id, dim, note, from_note, citations, span_days)
+     values (($1)::uuid,$2,$3,$4,$5,$6)
+     returning id, agent_id, dim, note, from_note, citations, span_days, superseded_by, created_at`,
+    [agentId, chosen.dim, chosen.note, chosen.from_note, chosen.citations, chosen.span_days]
+  );
+  const written = rowToArc(inserted[0]);
+  await q(
+    `update vy_self_arc set superseded_by = $2
+      where agent_id = ($1)::uuid and dim = $3 and id <> $2 and superseded_by is null`,
+    [agentId, written.id, chosen.dim]
+  );
+  base.written = written;
+  return base;
+}
+function assertArcLegal(c) {
+  if (!c.citations || c.citations.length < MIN_CITATIONS) {
+    throw new Error(
+      `vy_self_arc requires >=${MIN_CITATIONS} citations (a change is not an anecdote) \u2014 got ${c.citations?.length ?? 0}`
+    );
+  }
+  if (!(c.span_days >= MIN_SPAN_DAYS)) {
+    throw new Error(
+      `vy_self_arc requires span_days >= ${MIN_SPAN_DAYS} (an arc is not a mood) \u2014 got ${c.span_days}`
+    );
+  }
+  for (const [field, value] of [["note", c.note], ["from_note", c.from_note]]) {
+    if (field === "from_note" && !String(value ?? "").trim()) continue;
+    const check = checkArcNote(value);
+    if (!check.ok) throw new Error(`vy_self_arc ${field} refused: ${check.reasons.join("; ")}`);
+  }
+}
+function toIdArray(v) {
+  if (Array.isArray(v)) return v.map((x) => Number(x)).filter((n) => Number.isFinite(n));
+  if (typeof v === "string") {
+    return v.replace(/^[{[]|[}\]]$/g, "").split(",").map((s) => Number(s.trim())).filter((n) => Number.isFinite(n));
+  }
+  return [];
+}
+function rowToArc(r) {
+  return {
+    id: Number(r.id),
+    agent_id: String(r.agent_id),
+    dim: String(r.dim),
+    note: String(r.note ?? ""),
+    from_note: String(r.from_note ?? ""),
+    citations: toIdArray(r.citations),
+    span_days: Number(r.span_days ?? 0),
+    superseded_by: r.superseded_by === null || r.superseded_by === void 0 ? null : Number(r.superseded_by),
+    created_at: String(r.created_at)
+  };
+}
+async function loadCurrentArcs(q, agentId) {
+  if (!agentId) throw new Error("loadCurrentArcs: agentId is required");
+  const rows = await q(
+    `select id, agent_id, dim, note, from_note, citations, span_days, superseded_by, created_at
+       from vy_self_arc
+      where agent_id = ($1)::uuid and superseded_by is null
+      order by created_at desc, id desc`,
+    [agentId]
+  );
+  return rows.map(rowToArc);
+}
 var SELF_ARC_BUDGET = 500;
 var SELF_ARC_MOMENTS = {
   boundaries: ["conflict", "vulnerable"],
@@ -1443,9 +1901,78 @@ function capToRenderResult2(result, budget) {
 }
 
 // src/engine/life.ts
+var LIFE_KINDS = ["work", "family", "health", "social", "place", "small"];
 var LIFE_UNTOLD_BUDGET = 700;
 var MAX_UNTOLD_BEATS = 2;
 var MAX_BEAT_CHARS = 110;
+var UNTOLD_SQL = `select l.id, l.at, l.beat, l.kind, l.arc_key, l.media
+       from vy_agent_life l
+       left join vy_agent_life_told t
+         on t.agent_id  = l.agent_id
+        and t.life_id   = l.id
+        and t.person_id = ($1)::uuid
+      where l.agent_id = ($2)::uuid
+        and l.status   = 'approved'
+        and l.at <= now()
+        and t.life_id is null
+      order by l.at desc
+      limit $3`;
+async function untoldFor(q, personId, agentId = MEERA_AGENT_ID, limit = MAX_UNTOLD_BEATS) {
+  const n = Math.max(0, Math.min(Math.floor(limit), 20));
+  if (n === 0) return [];
+  const rows = await q(UNTOLD_SQL, [personId, agentId, n]);
+  return rows.map(toUntoldRow);
+}
+function toUntoldRow(r) {
+  return {
+    id: Number(r.id),
+    at: String(r.at),
+    beat: String(r.beat ?? ""),
+    kind: LIFE_KINDS.includes(r.kind) ? r.kind : "small",
+    arc_key: String(r.arc_key ?? ""),
+    media: asArray(r.media)
+  };
+}
+async function markTold(q, agentId, lifeId, personId, episodeId) {
+  const ep = Number(episodeId);
+  const life = Number(lifeId);
+  if (!Number.isFinite(ep) || Math.floor(ep) <= 0) {
+    throw new Error(
+      `markTold requires the episode she told them IN (life ${String(lifeId)}, person ${personId}): told is an outcome, never an intent (error-marked-done)`
+    );
+  }
+  if (!Number.isFinite(life) || Math.floor(life) <= 0) {
+    throw new Error(`markTold requires a life beat id (got ${String(lifeId)})`);
+  }
+  const inserted = await q(
+    `insert into vy_agent_life_told (agent_id, life_id, person_id, episode_id, at)
+     select l.agent_id, l.id, e.person_id, e.id, now()
+       from vy_agent_life l
+       join vy_episode e
+         on e.id          = ($4)::bigint
+        and e.agent_id    = l.agent_id
+        and e.person_id   = ($3)::uuid
+        and e.provisional = false
+      where l.agent_id = ($1)::uuid
+        and l.id       = ($2)::bigint
+        and l.status   = 'approved'
+     on conflict (agent_id, life_id, person_id) do nothing
+     returning life_id`,
+    [agentId, Math.floor(life), personId, Math.floor(ep)]
+  );
+  if (inserted.length) return { recorded: true, already: false, reason: "" };
+  const existing = await q(
+    `select 1 from vy_agent_life_told
+      where agent_id = ($1)::uuid and life_id = ($2)::bigint and person_id = ($3)::uuid`,
+    [agentId, Math.floor(life), personId]
+  );
+  if (existing.length) return { recorded: true, already: true, reason: "already told" };
+  return {
+    recorded: false,
+    already: false,
+    reason: "no cited episode: episode must exist, be final (not provisional), and belong to this agent and this person; the beat must exist and be approved"
+  };
+}
 function whenLabel(atIso, now = Date.now()) {
   const t = new Date(atIso).getTime();
   if (!Number.isFinite(t)) return "recently";
@@ -1476,6 +2003,69 @@ ${lines.map((l) => `- ${l}`).join("\n")}` : "";
 function capToRenderResult3(result, budget) {
   if (result.text.length <= budget) return result;
   return { ...result, lint: { ...result.lint, violations: result.lint.violations + 1 } };
+}
+function lintBeat(beat) {
+  const trimmed = String(beat ?? "").trim();
+  const reasons = [];
+  if (!trimmed) reasons.push("empty");
+  if (trimmed.length > MAX_BEAT_CHARS) {
+    reasons.push(`too long: ${trimmed.length} chars (cap ${MAX_BEAT_CHARS})`);
+  }
+  reasons.push(...lintLine(trimmed).reasons);
+  if (/["“”']\s*\w[^"“”']*["“”']/.test(trimmed) || /\bsaid\s*[:,]/i.test(trimmed)) {
+    reasons.push("quoted speech: a beat is a shape, not a line she could recite");
+  }
+  return { clean: reasons.length === 0, reasons };
+}
+var storyArcKey = (storyId) => `story:${storyId}`;
+async function seedFromStories(q, stories, agentId = MEERA_AGENT_ID) {
+  const report = { inserted: 0, skipped: 0, approved: 0, pending: 0, details: [] };
+  for (const s of stories) {
+    const beat = String(s.desc ?? "").trim();
+    if (!beat) continue;
+    const arcKey = storyArcKey(String(s.id));
+    const lint = lintBeat(beat);
+    const status = lint.clean ? "approved" : "pending";
+    const media = s.src ? [{ src: s.src }] : [];
+    const rows = await q(
+      `insert into vy_agent_life (agent_id, at, beat, kind, arc_key, media, status)
+       select ($1)::uuid, ($2)::timestamptz, $3, 'small', $4, ($5)::jsonb, $6
+        where not exists (
+          select 1 from vy_agent_life where agent_id = ($1)::uuid and arc_key = $4)
+       returning id`,
+      [agentId, new Date(s.at).toISOString(), beat, arcKey, JSON.stringify(media), status]
+    );
+    const inserted = rows.length > 0;
+    if (inserted) {
+      report.inserted++;
+      if (status === "approved") report.approved++;
+      else report.pending++;
+    } else {
+      report.skipped++;
+    }
+    report.details.push({ arc_key: arcKey, status, inserted, reasons: lint.reasons });
+  }
+  return report;
+}
+async function seedFromStoryCatalog(q, agentId = MEERA_AGENT_ID) {
+  const { STORIES: STORIES2 } = await Promise.resolve().then(() => (init_storyCatalog(), storyCatalog_exports));
+  return seedFromStories(
+    q,
+    STORIES2.map((s) => ({ id: s.id, at: s.at, desc: s.desc, src: s.src })),
+    agentId
+  );
+}
+function asArray(v) {
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string") {
+    try {
+      const p = JSON.parse(v);
+      return Array.isArray(p) ? p : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 // src/engine/room.ts
@@ -1719,17 +2309,119 @@ ${t13.text}`;
   return { core, tail, system: core + tail, sections };
 }
 var CRISIS_LINES2 = DEFAULT_AGENT.CRISIS_LINES;
+
+// src/engine/observation.ts
+async function writeObservation(q, input) {
+  if (!input.citations || input.citations.length < 1) {
+    throw new Error(
+      `vy_observation requires >=1 citation (an observation recalls, it does not generalize \u2014 got ${input.citations?.length ?? 0} for ${input.personId})`
+    );
+  }
+  const trimmedNote = input.note.trim();
+  if (!trimmedNote) {
+    throw new Error(`vy_observation note must not be empty (${input.personId})`);
+  }
+  const lint = lintLine(trimmedNote);
+  if (lint.reasons.length) {
+    throw new Error(
+      `vy_observation note failed shape-lint (recited-prompt guard): ${lint.reasons.join("; ")} \u2014 "${trimmedNote}"`
+    );
+  }
+  const salience = input.salience ?? 0.5;
+  const rows = await q(
+    `insert into vy_observation (agent_id, person_id, note, citations, salience)
+     values ($1,$2,$3,$4,$5)
+     returning id`,
+    [input.agentId, input.personId, trimmedNote, input.citations, salience]
+  );
+  return Number(rows[0]?.id);
+}
+var NO_STOPWORDS = /* @__PURE__ */ new Set();
+function signalWords(queryText, stopwords) {
+  const lowered = String(queryText || "").toLowerCase();
+  const all = lowered.match(/[a-z]{4,}|[ऀ-ॿ]{3,}/g) || [];
+  const deduped = [...new Set(all)].filter((w) => !stopwords.has(w));
+  return deduped.slice(0, 6);
+}
+async function matchObservations(q, personId, agentId, queryText, limit = 3, stopwords = NO_STOPWORDS) {
+  const words = signalWords(queryText, stopwords);
+  if (!words.length) return [];
+  const clauses = [];
+  const params = [personId, agentId];
+  let p = 3;
+  for (const w of words) {
+    clauses.push(`note ~* $${p}`);
+    params.push(`\\m${w}\\M`);
+    p++;
+  }
+  params.push(Math.max(0, Math.floor(limit)));
+  const rows = await q(
+    `select id, note, citations, salience, times_seen, last_seen
+       from vy_observation
+      where person_id = $1 and agent_id = $2
+        and t_invalid is null and promoted_to is null
+        and (${clauses.join(" or ")})
+      order by salience desc, times_seen desc, last_seen desc
+      limit $${p}`,
+    params
+  );
+  return rows.map((r) => ({
+    id: Number(r.id),
+    note: r.note,
+    citations: (r.citations || []).map((c) => Number(c)),
+    salience: Number(r.salience),
+    times_seen: Number(r.times_seen),
+    last_seen: r.last_seen
+  }));
+}
+function observationEligibleForPromotion(o) {
+  return o.times_seen >= 2 && o.citations.length >= 2;
+}
+async function promoteObservation(q, obsId, patternId) {
+  await q(`update vy_observation set promoted_to = $2 where id = $1`, [obsId, patternId]);
+}
+var DEFAULT_OBSERVATION_HALF_LIFE_DAYS = 21;
+async function decayObservations(q, agentId, now = /* @__PURE__ */ new Date(), halfLifeDays = DEFAULT_OBSERVATION_HALF_LIFE_DAYS) {
+  const rows = await q(
+    `update vy_observation
+        set salience = least(
+              greatest(0, least(1, salience)),
+              greatest(0, least(1, power(0.5::real,
+                (extract(epoch from ($2::timestamptz - last_seen)) / 86400.0) / $3::real)))
+            )
+      where agent_id = $1 and t_invalid is null
+      returning id`,
+    [agentId, now.toISOString(), halfLifeDays]
+  );
+  return rows.length;
+}
 export {
   CRISIS_LINES,
+  MIN_SPAN_DAYS,
   MP_BRIDGE_BUDGET,
   MP_ROSTER_BUDGET,
   ROOM_INTRO_DIRECTIVE,
   ROOM_MEMBER_CAP,
   ROOM_MODE_NOTE,
+  TEXTURE_N_TURNS_FLOOR,
   UNADDRESSED_COOLDOWN_MS,
   compile,
+  decayObservations,
   decideParticipation,
+  deriveSelfArc,
+  deriveTexture,
   isExplicitlyAddressed,
+  loadCurrentArcs,
+  markTold,
+  matchObservations,
+  observationEligibleForPromotion,
+  promoteObservation,
+  readTexture,
+  refreshTexture,
   renderMpBridge,
-  renderMpRoster
+  renderMpRoster,
+  seedFromStoryCatalog,
+  untoldFor,
+  upsertTexture,
+  writeObservation
 };

@@ -1487,6 +1487,94 @@ async function backfillWeParticipation({ dryRun = false, onlyPerson = null, agen
 
 /** The run itself: pick eligible people, finalize each, halt on a runaway
  *  entailment refutation rate. */
+
+// ─────────────────────────────────────────────────────────────────────────
+// The self layer's nightly pass (Phase E2, docs/SPEC-SELF-LAYER.md).
+//
+// Chained AFTER phrase capture for the same reason phrase capture runs after
+// pattern extraction: every one of these reads rows the earlier steps wrote,
+// so running them earlier does not fail — it silently derives from yesterday.
+//
+// Posture matches the rest of the nightly chain: NEVER halts the job. A
+// missed self-layer pass is late, never lost (texture is recomputed from a
+// trailing window, an arc needs 42 days so one night is noise, and decay is
+// idempotent by construction). Only the finalize pass's entailment refutation
+// is allowed to halt, and that is deliberate — it is the citation law's only
+// alarm.
+//
+// The engine arrives through api/_engine.gen.js, not a src/ import: this file
+// is a plain-JS serverless function under the zero-imports-from-src rule, and
+// hand-porting four derivers into JS would be the mirrored-persona failure
+// serverEntry.ts exists to prevent, one level down. A missing bundle SKIPS
+// the pass loudly rather than degrading to a hand-rolled approximation.
+// ─────────────────────────────────────────────────────────────────────────
+let _selfEngine;
+let _selfEngineTried = false;
+async function loadSelfEngine() {
+  if (_selfEngineTried) return _selfEngine;
+  _selfEngineTried = true;
+  try {
+    _selfEngine = await import("./_engine.gen.js");
+  } catch (e) {
+    console.error("[self] engine bundle missing — self-layer pass skipped:", e?.message || "import failed");
+    _selfEngine = null;
+  }
+  return _selfEngine;
+}
+
+export async function runSelfLayer({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null, agentId = MEERA_AGENT_ID } = {}) {
+  const t0 = Date.now();
+  const engine = await loadSelfEngine();
+  if (!engine) return { ok: false, skipped: "engine-bundle-missing", ms: Date.now() - t0 };
+
+  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit, agentId);
+  let textures = 0;
+  const textureErrors = [];
+  for (const person of persons) {
+    try {
+      const row = await engine.deriveTexture(q, person, agentId);
+      if (!dryRun) await engine.upsertTexture(q, row);
+      textures++;
+    } catch (e) {
+      // per-person isolation: one malformed history must not cost the other
+      // 24 people their pass. Collected and reported, never swallowed silently.
+      textureErrors.push({ person, error: String(e?.message || e).slice(0, 160) });
+    }
+  }
+
+  // The arc is AGENT-scoped, not person-scoped — she is one person across all
+  // her relationships — so it runs exactly once per pass, not once per person.
+  let arc = null;
+  try {
+    arc = await engine.deriveSelfArc(q, agentId, { dryRun });
+  } catch (e) {
+    arc = { error: String(e?.message || e).slice(0, 160) };
+  }
+
+  // Decay moves retrieval priority only. config/decay.json's own law: it can
+  // never set t_invalid and never delete, so decay and honest-forget cannot
+  // collide by construction.
+  let decayed = 0;
+  if (!dryRun) {
+    try {
+      decayed = await engine.decayObservations(q, agentId);
+    } catch (e) {
+      decayed = -1;
+      console.error("[self] observation decay failed:", String(e?.message || e).slice(0, 160));
+    }
+  }
+
+  return {
+    ok: true,
+    persons_processed: persons.length,
+    textures_written: dryRun ? 0 : textures,
+    texture_errors: textureErrors,
+    arc,
+    observations_decayed: decayed,
+    ms: Date.now() - t0,
+  };
+}
+
 export async function runConsolidation({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null, agentId = MEERA_AGENT_ID } = {}) {
   const t0 = Date.now();
   const weBackfilled = await backfillWeParticipation({ dryRun, onlyPerson, agentId });
@@ -1620,6 +1708,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
   if (args.includes("--extract-patterns")) {
     const out = await runPatternExtraction({ limit: limitArg, dryRun, onlyPerson: personArg });
+    console.log(JSON.stringify(out, null, 2));
+    process.exit(0);
+  }
+  if (args.includes("--derive-self")) {
+    const out = await runSelfLayer({ limit: limitArg, dryRun, onlyPerson: personArg });
     console.log(JSON.stringify(out, null, 2));
     process.exit(0);
   }

@@ -47,3 +47,32 @@ export {
   type RoomAction,
 } from "./room";
 export { CRISIS_LINES, type UserProfile } from "./persona";
+
+// ── the self layer (Phase E2, docs/SPEC-SELF-LAYER.md) ─────────────────────
+// Exported here for the same reason room.ts is: api/consolidate.js is a
+// plain-JS serverless function under the standing zero-imports-from-src rule,
+// and the alternative — porting four derivers into JS by hand — is the
+// mirrored-persona failure this file was created to avoid, one level down.
+// A mirrored deriver is a second definition of what texture or growth MEANS,
+// and it drifts on the first edit to either copy.
+//
+// Nothing here is a render function except the three the compiler already
+// calls internally; these are the WRITE half, which only the nightly pass
+// needs.
+export {
+  deriveTexture,
+  upsertTexture,
+  refreshTexture,
+  readTexture,
+  TEXTURE_N_TURNS_FLOOR,
+  type TextureRow,
+} from "./texture";
+export { deriveSelfArc, loadCurrentArcs, MIN_SPAN_DAYS, type SelfArcRow } from "./selfarc";
+export { untoldFor, markTold, seedFromStoryCatalog, type UntoldRow } from "./life";
+export {
+  writeObservation,
+  matchObservations,
+  decayObservations,
+  observationEligibleForPromotion,
+  promoteObservation,
+} from "./observation";

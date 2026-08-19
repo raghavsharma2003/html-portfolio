@@ -673,3 +673,76 @@ runs in parallel on Azure credits (gap G8). Multiparty foundation build
 (Gate 0 + migration 008) launched now that WS-FELT landed. Human
 annotation (R3) stays owner-deferred — logged as THE remaining 8/10
 blocker for the Findings version, not the workshop version.
+
+## `self-layer` — growth, texture, untold life and noticing ship as tables, not as claims (2026-08-18)
+
+Phase E made the relational OS multi-tenant. Phase E2 makes what it stores
+worth being a tenant of. The owner's list — emotions, vibe, personality,
+growth, mood, cultural, attitude, behaviour, ego, sense of self, experience,
+taste, style, preferences, observation — was taken literally, mapped against
+what already existed, and only the genuinely absent items built.
+
+Most of the list already existed. Four things did not, and one thing on it was
+a live bug rather than a gap:
+
+1. **growth** — `vy_self_arc`, ≥3 citations spanning ≥42 days as CHECK
+   constraints, non-affective by construction. This is the one that had to be
+   argued rather than built: `inner.ts` G5 forbids an accumulating sad period,
+   so "add growth" reads as "add the thing G5 forbids". It is not, and the
+   distinction holds on every axis that mattered — a feeling fused to its
+   cause versus a claim about change, nine hours versus months,
+   retires-once-voiced versus superseded, serviceable by the user versus
+   nothing to fix, and the one the build added: an arc is the only self-state
+   whose cause CANNOT fall out of context, because the cause is a foreign key
+   rather than a sentence.
+2. **experience** — `vy_agent_life` + `vy_agent_life_told`. Fixes
+   `life-per-person`: her improvised life was locked against contradiction per
+   LISTENER, so two users could be told two contradictory versions of her
+   flatmate. Agent-scoping the life fixes it; the told-ledger is what makes it
+   feel human, rendered as an anti-join so she never re-narrates and can say
+   "I didn't tell you na" to someone who has not heard it.
+3. **vibe/style** — `vy_rel_texture`, derived by counting, rendered as coarse
+   bands, gated behind a 40-turn floor.
+4. **observation** — `vy_observation` at ONE citation, distinct from
+   `vy_pattern` because a pattern generalizes and an observation recalls.
+   Measured, the pattern path needs three calendar days and three nightly
+   passes before anything is usable.
+
+**Deliberately NOT built, and each for a measured reason:** an accumulating
+mood (G5/G8 — the value people imagine is already delivered by the thread, the
+failure it invites is not); an ego store (folded into taste and the arc, since
+a third home for her self-concept guarantees drift); model-generated life
+beats (G7's logic one step worse — a life she improvises has DATES to
+contradict); any UI for interior state (G4); push-based memory (the escapes
+stay query-matched T5 and user-deixis T6); a new appended-last rule (T10 stays
+capped at two — position is a scarce resource).
+
+**Two columns ship deliberately EMPTY**, which is the part most likely to be
+"fixed" by someone who does not read this: `vy_rel_texture.avoid` and
+`.nickname`. Every candidate signal for `avoid` was checked and rejected —
+most sharply, reading `meera_forget` would resurrect the exact term the user
+deleted, as an avoid topic. `nickname` already has a home in `vy_phrase` with
+an origin episode, and a second store is the `life-per-person` shape again.
+Both renderers are complete and fail closed so an owner-review writer can fill
+them later with no code change.
+
+**Governance, easy to break by accident:** SPEC §5 marks relationship stance,
+warmth and felt familiarity NOT CLAIMED — "hypothesis, pre-registered not
+asserted". This phase adds five tables and does NOT upgrade that. Growth,
+texture and untold life are hypotheses with tables and named reversal
+conditions, not evidence that identity survives better.
+
+Budget: TAIL 21,200 of 24,000, headroom 2,800, asserted by the manifest's own
+checker. The three new blocks take drop priorities 1-3 — first shed under
+pressure, ahead of everything Phase C proved it needs.
+
+**Reverses if:** the arc renders as self-narration in judged runs (a person
+who describes her own growth is a person nobody believes — then it becomes a
+retrieval bias with no slot); untold-life rendering measurably increases her
+self-initiated talk (G2's boundary); texture bands move judged register scores
+at all (texture varies rapport, not register, and the register is the
+product); or single-citation observations raise recall fabrication above the
+`fab-noise-floor`, in which case the ≥2 bar was load-bearing for accuracy and
+not merely for generalization.
+
+---
