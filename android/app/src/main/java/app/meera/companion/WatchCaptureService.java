@@ -507,6 +507,79 @@ public class WatchCaptureService extends Service {
     if (sent) {
       scene.noteWake(wake, now);
       if (wake == SceneReader.WAKE_START) startedWake = true;
+      // ONLY here — past every gate above and past the engine's own — may a
+      // wake be reported to the web layer for recording. See emitShowWake.
+      emitShowWake(wake, s.blank);
+    }
+  }
+
+  /**
+   * WS-ANDROID-WATCH: tell the web layer that a SHOW-class wake ACTUALLY WENT
+   * OUT, so useCallEngine.ts can arm the very same `vy_shared_moment` window
+   * the web screen-share lane arms (armMomentWindow / consumeMomentWindow /
+   * postWatchMoment). The native lane deliberately does NOT post to
+   * /api/episodes itself: one recording gate, one implementation, already
+   * shipped and covered by evals/multimodal — a second copy in Java is a
+   * second thing to drift.
+   *
+   * <p>This is a REPORT, not a decision, and its position is the mechanism.
+   * It sits inside {@code if (sent)}, which is reached only after: the
+   * look-away ({@code privateMode}, checked at the top of dispatch and again
+   * here), a frame that actually entered the socket and — for a SHOW — one
+   * captured while the screen was HELD ({@code FRAME_FRESH_MS} against
+   * {@code lastStillFrameAt}), and then the engine's own nudge() gates: her
+   * own voice ({@code speaking}), the quiet floor after theirs
+   * ({@code SHOW_QUIET_MS}/{@code IDLE_QUIET_MS}), the show floor
+   * ({@code SHOW_FLOOR_MS}), the ambient share and the hard per-minute
+   * ceiling. Upstream of all of it, SceneReader has already refused the wake
+   * for a scroll (translation, not a replacement), for an edge-anchored
+   * overlay (notification banner, keyboard, toast) and for a picture a wake
+   * was already spent on (`wake-dedupe`, which is NOT loosened here or
+   * anywhere: the "duplicate" pictures measure 0.00–0.77 MAD at 16x16 and no
+   * threshold separates them). A wake any of those refused never reaches this
+   * line, so a suppressed wake writes nothing — by construction, not by a
+   * second opinion.
+   *
+   * <p>The {@code blank} guard is EXPLICIT and deliberate. SceneReader's
+   * blank test (FLAG_SECURE window, lock screen, display asleep) guards every
+   * SHOW branch of pick() but NOT its ambient branches — an `idle`/`along`
+   * wake can still fire during a blackout, in the Java exactly as in
+   * scene.ts. Nothing recordable comes of that either way, because only SHOW
+   * classes are emitted and armed; but "safe because the other branch happens
+   * not to reach it" is luck, and the one instant on this platform where a
+   * stored row is least forgivable is the one the user protected. So blackout
+   * is refused by name, here, where the recording decision is made.
+   */
+  private void emitShowWake(int wake, boolean blank) {
+    if (privateMode) return; // the look-away, re-checked at the write decision
+    if (blank) return; // FLAG_SECURE / lock screen / display asleep — see above
+    if (!SceneReader.isShow(wake)) return; // ambient is never a shared moment
+    String cls = wakeName(wake);
+    if (cls == null) return;
+    try {
+      WatchPlugin.emitEvent("watchwake", new org.json.JSONObject().put("class", cls));
+    } catch (Exception ignored) {
+      // fire-and-forget: a failed report is a missed memory, never a broken
+      // call. Nothing on the capture or speech path depends on this line.
+    }
+  }
+
+  /** The SHOW classes, named exactly as src/watch/scene.ts's WakeClass union
+   *  spells them — the web layer narrows on these strings. Ambient classes
+   *  deliberately have no name here: an unnamed class cannot be armed, so a
+   *  future ambient emit would be inert rather than wrong. */
+  private static String wakeName(int wake) {
+    switch (wake) {
+      case SceneReader.WAKE_SETTLE:
+        return "settle";
+      case SceneReader.WAKE_RESHOW:
+        return "reshow";
+      case SceneReader.WAKE_POINT:
+        return "point";
+      case SceneReader.WAKE_SWITCH:
+        return "switch";
+      default:
+        return null;
     }
   }
 
