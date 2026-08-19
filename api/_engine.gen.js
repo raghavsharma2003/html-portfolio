@@ -2,8 +2,63 @@
 // Not a source file — edit persona.ts / compiler.ts / room.ts and re-run the
 // generator. `node scripts/build-engine-bundle.mjs --check` fails the build
 // when this file no longer matches its sources.
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res, err) => function __init() {
+  if (err) throw err[0];
+  try {
+    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  } catch (e) {
+    throw err = [e], e;
+  }
+};
+
 // evals/stubs/capacitor.mjs
-var Capacitor = { isNativePlatform: () => false };
+var Capacitor;
+var init_capacitor = __esm({
+  "evals/stubs/capacitor.mjs"() {
+    Capacitor = { isNativePlatform: () => false };
+  }
+});
+
+// src/engine/storyCatalog.ts
+function storyContext() {
+  const live = activeStories();
+  if (!live.length) return "";
+  return `
+
+YOUR CURRENT STORY (like an insta/whatsapp status they can see by tapping your profile photo): ${live.map((s) => s.desc).join("; then ")}. You posted it yourself, so you know exactly what's in it \u2014 if they mention it ("story dekhi", "kya padh rahi thi"), react naturally like someone whose story got noticed, never confused. Don't bring it up unprompted more than once.`;
+}
+var BASE, STORIES, activeStories;
+var init_storyCatalog = __esm({
+  "src/engine/storyCatalog.ts"() {
+    init_capacitor();
+    BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+    STORIES = [
+      {
+        id: "2026-08-09-1",
+        src: "/stories/2026-08-09-1.jpg",
+        at: (/* @__PURE__ */ new Date("2026-08-09T17:40:00+05:30")).getTime(),
+        desc: "golden-hour POV from your bed \u2014 open book in hand, sun on the pages, plants and your photo wall behind"
+      },
+      {
+        id: "2026-08-09-2",
+        src: "/stories/2026-08-09-2.jpg",
+        at: (/* @__PURE__ */ new Date("2026-08-09T17:44:00+05:30")).getTime(),
+        desc: "mirror selfie sitting cross-legged on the bed in the same golden light, oversized black tee, hair in a messy bun, notebook and book open in front of you"
+      }
+    ];
+    activeStories = () => {
+      const posted = STORIES.filter((s) => s.at <= Date.now());
+      if (!posted.length) return [];
+      const newest = Math.max(...posted.map((s) => s.at));
+      const day = new Date(newest).toDateString();
+      return posted.filter((s) => new Date(s.at).toDateString() === day);
+    };
+  }
+});
+
+// src/engine/persona.ts
+init_capacitor();
 
 // src/engine/photoCatalog.ts
 var PHOTO_TAGS = [
@@ -380,38 +435,8 @@ function memeMenu(n = 40) {
   return pool.slice(0, n).join('", "');
 }
 
-// src/engine/storyCatalog.ts
-var BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
-var STORIES = [
-  {
-    id: "2026-08-09-1",
-    src: "/stories/2026-08-09-1.jpg",
-    at: (/* @__PURE__ */ new Date("2026-08-09T17:40:00+05:30")).getTime(),
-    desc: "golden-hour POV from your bed \u2014 open book in hand, sun on the pages, plants and your photo wall behind"
-  },
-  {
-    id: "2026-08-09-2",
-    src: "/stories/2026-08-09-2.jpg",
-    at: (/* @__PURE__ */ new Date("2026-08-09T17:44:00+05:30")).getTime(),
-    desc: "mirror selfie sitting cross-legged on the bed in the same golden light, oversized black tee, hair in a messy bun, notebook and book open in front of you"
-  }
-];
-var activeStories = () => {
-  const posted = STORIES.filter((s) => s.at <= Date.now());
-  if (!posted.length) return [];
-  const newest = Math.max(...posted.map((s) => s.at));
-  const day = new Date(newest).toDateString();
-  return posted.filter((s) => new Date(s.at).toDateString() === day);
-};
-function storyContext() {
-  const live = activeStories();
-  if (!live.length) return "";
-  return `
-
-YOUR CURRENT STORY (like an insta/whatsapp status they can see by tapping your profile photo): ${live.map((s) => s.desc).join("; then ")}. You posted it yourself, so you know exactly what's in it \u2014 if they mention it ("story dekhi", "kya padh rahi thi"), react naturally like someone whose story got noticed, never confused. Don't bring it up unprompted more than once.`;
-}
-
 // src/engine/persona.ts
+init_storyCatalog();
 var IS_APP = Capacitor.isNativePlatform();
 var HER_NAME = "Meera";
 function timeOfDay() {
@@ -1209,6 +1234,250 @@ ${lines.map((l) => `- ${l}`).join("\n")}` : "";
   return result;
 }
 
+// src/engine/texture.ts
+var TEXTURE_N_TURNS_FLOOR = 40;
+function bandTeasing(rate) {
+  if (rate < 0.04) return "rare";
+  if (rate < 0.12) return "light";
+  if (rate < 0.25) return "regular";
+  return "constant";
+}
+function bandHumour(rate) {
+  if (rate < 0.06) return "quiet";
+  if (rate < 0.18) return "easy";
+  if (rate < 0.35) return "loud";
+  return "nonstop";
+}
+function bandProfanity(rate) {
+  if (rate <= 0) return "";
+  if (rate < 0.02) return "occasional";
+  if (rate < 0.08) return "easy";
+  return "free";
+}
+var TEXTURE_BUDGET = 600;
+var TEXTURE_HEADER = "HOW YOU TWO TALK \u2014 rapport only, context, never raise unprompted and never mention noticing it (your register, length, emoji and gif habits are unchanged by this):";
+function safeFreeText(value, maxChars) {
+  const v = String(value ?? "").trim();
+  if (!v) return null;
+  if (v.length > maxChars) return null;
+  if (/\d/.test(v)) return null;
+  if (lintLine(v).reasons.length) return null;
+  return v;
+}
+function renderTexture(row) {
+  const empty = { text: "", lint: { clean: true, violations: 0 } };
+  if (!row) return empty;
+  if (!Number.isFinite(row.n_turns) || row.n_turns < TEXTURE_N_TURNS_FLOOR) return empty;
+  const lines = [];
+  lines.push(`teasing: ${bandTeasing(row.teasing)}`);
+  lines.push(`humour: ${bandHumour(row.humour)}`);
+  const swearing = bandProfanity(row.profanity);
+  if (swearing) lines.push(`swearing: ${swearing}`);
+  const nick = safeFreeText(row.nickname, 24);
+  if (nick && nick.split(/\s+/).length <= 2) lines.push(`nickname: "${nick}"`);
+  const avoid = row.avoid ?? [];
+  const cites = row.avoid_cites ?? [];
+  if (avoid.length && avoid.length === cites.length) {
+    const safe = [];
+    for (let i = 0; i < avoid.length && safe.length < 3; i++) {
+      const cite = cites[i];
+      if (!Number.isFinite(cite) || Number(cite) <= 0) continue;
+      const topic = safeFreeText(avoid[i], 40);
+      if (topic) safe.push(topic);
+    }
+    for (const t of safe) lines.push(`avoid: ${t}`);
+  }
+  const text = `${TEXTURE_HEADER}
+${lines.map((l) => `- ${l}`).join("\n")}`;
+  const lint = lintBlock(lines.join("\n"));
+  let violations = lint.violations.length;
+  if (text.length > TEXTURE_BUDGET) violations++;
+  return { text, lint: { clean: violations === 0, violations } };
+}
+
+// src/engine/selfarc.ts
+var MIN_CITATIONS = 3;
+var MIN_SPAN_DAYS = 42;
+var MAX_NOTE_WORDS = 9;
+var MAX_NOTE_CHARS = 80;
+var padT2 = (s) => " " + String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
+var AFFECT_MARKERS = [
+  "feel",
+  "feels",
+  "felt",
+  "feeling",
+  "feelings",
+  "mood",
+  "moods",
+  "sad",
+  "sadness",
+  "happy",
+  "happiness",
+  "hurt",
+  "hurts",
+  "hurting",
+  "upset",
+  "angry",
+  "anger",
+  "annoyed",
+  "annoying",
+  "irritated",
+  "irritating",
+  "lonely",
+  "loneliness",
+  "miss",
+  "misses",
+  "missing",
+  "tired",
+  "exhausted",
+  "anxious",
+  "anxiety",
+  "scared",
+  "afraid",
+  "guilty",
+  "guilt",
+  "ashamed",
+  "proud",
+  "pride",
+  "excited",
+  "excitement",
+  "low",
+  "down",
+  "ache",
+  "aching",
+  "udaas",
+  "akela",
+  "akeli",
+  "pareshan",
+  "dukhi",
+  "dukh",
+  "dard",
+  "gussa",
+  "khush",
+  "thaki",
+  "thak",
+  "bored",
+  "boring",
+  "rona",
+  "roti"
+];
+var NARRATION_MARKERS = [
+  "used",
+  "become",
+  "becomes",
+  "became",
+  "becoming",
+  "changed",
+  "changing",
+  "change",
+  "grown",
+  "growing",
+  "growth",
+  "evolved",
+  "nowadays",
+  "pehle",
+  "earlier",
+  "before",
+  "lately",
+  "these",
+  "anymore",
+  "progress",
+  "journey"
+];
+function checkArcNote(note) {
+  const reasons = [];
+  const trimmed = String(note ?? "").trim();
+  if (!trimmed) return { ok: false, reasons: ["empty note"] };
+  if (trimmed.length > MAX_NOTE_CHARS) {
+    reasons.push(`too long: ${trimmed.length} chars (cap ${MAX_NOTE_CHARS})`);
+  }
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length > MAX_NOTE_WORDS) {
+    reasons.push(`too many words: ${words.length} (cap ${MAX_NOTE_WORDS}, set by the rendered line)`);
+  }
+  for (const r of lintLine(trimmed).reasons) reasons.push(`shapelint: ${r}`);
+  const hay = padT2(trimmed);
+  const affect = AFFECT_MARKERS.filter((m) => hay.includes(` ${m} `));
+  if (affect.length) reasons.push(`affect-shaped (G5): ${affect.join(",")}`);
+  const narration = NARRATION_MARKERS.filter((m) => hay.includes(` ${m} `));
+  if (narration.length) reasons.push(`narrates the change (never-narrate): ${narration.join(",")}`);
+  return { ok: reasons.length === 0, reasons };
+}
+var SELF_ARC_BUDGET = 500;
+var SELF_ARC_MOMENTS = {
+  boundaries: ["conflict", "vulnerable"],
+  confidence: ["celebration", "planning"],
+  directness: ["conflict", "planning"],
+  humour: ["teasing", "boredom"],
+  patience: ["conflict", "stress"]
+};
+function bandSpan(spanDays) {
+  if (spanDays < 84) return "6w+";
+  if (spanDays < 168) return "3m+";
+  if (spanDays < 365) return "6m+";
+  return "1y+";
+}
+function finish2(lines, header) {
+  const text = lines.length ? `${header}
+${lines.map((l) => `- ${l}`).join("\n")}` : "";
+  const lint = lintBlock(lines.join("\n"));
+  return { text, lint: { clean: lint.clean, violations: lint.violations.length } };
+}
+function renderSelfArc(rows, moment) {
+  const header = "SELF, OVER TIME (context only \u2014 never narrate this, never say you have changed, never raise it yourself):";
+  if (!moment || moment === "none") return finish2([], header);
+  const eligible = rows.filter((r) => r.superseded_by === null || r.superseded_by === void 0).filter((r) => (SELF_ARC_MOMENTS[r.dim] ?? []).includes(moment)).filter((r) => r.span_days >= MIN_SPAN_DAYS && r.citations.length >= MIN_CITATIONS).filter((r) => checkArcNote(r.note).ok).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime() || b.id - a.id
+  );
+  const row = eligible[0];
+  if (!row) return finish2([], header);
+  const lines = [`${row.dim} now: ${row.note} (${bandSpan(row.span_days)})`];
+  if (row.from_note.trim() && checkArcNote(row.from_note).ok) {
+    lines.push(`${row.dim} earlier: ${row.from_note}`);
+  }
+  return capToRenderResult2(finish2(lines, header), SELF_ARC_BUDGET);
+}
+function capToRenderResult2(result, budget) {
+  if (result.text.length <= budget) return result;
+  return { ...result, lint: { ...result.lint, violations: result.lint.violations + 1 } };
+}
+
+// src/engine/life.ts
+var LIFE_UNTOLD_BUDGET = 700;
+var MAX_UNTOLD_BEATS = 2;
+var MAX_BEAT_CHARS = 110;
+function whenLabel(atIso, now = Date.now()) {
+  const t = new Date(atIso).getTime();
+  if (!Number.isFinite(t)) return "recently";
+  const days = Math.floor((now - t) / 864e5);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  if (days < 14) return "last week";
+  if (days < 31) return `${Math.round(days / 7)} weeks ago`;
+  return `${Math.max(1, Math.round(days / 30))} months ago`;
+}
+function renderUntold(rows, turn) {
+  if (turn.sheInitiated) return finish3([], "");
+  const picked = rows.slice(0, MAX_UNTOLD_BEATS);
+  const now = Date.now();
+  const lines = picked.map((r) => `${r.kind}, ${whenLabel(r.at, now)}: ${r.beat}`);
+  const result = finish3(lines, UNTOLD_HEADER);
+  return capToRenderResult3(result, LIFE_UNTOLD_BUDGET);
+}
+var UNTOLD_HEADER = "YOUR LIFE \u2014 WHAT THEY HAVE NOT HEARD (context only, never raise unprompted). Here so you don't re-tell them something they already heard, and so you know what would be new to them. Not a list to get through; nothing here is a reason to start a topic. If they ask, or it comes up on its own, this is what they don't know yet:";
+var UNTOLD_WORST_CASE_CHARS = UNTOLD_HEADER.length + MAX_UNTOLD_BEATS * (1 + 2 + 24 + MAX_BEAT_CHARS);
+function finish3(lines, header) {
+  const text = lines.length ? `${header}
+${lines.map((l) => `- ${l}`).join("\n")}` : "";
+  const lint = lintBlock(lines.join("\n"));
+  return { text, lint: { clean: lint.clean, violations: lint.violations.length } };
+}
+function capToRenderResult3(result, budget) {
+  if (result.text.length <= budget) return result;
+  return { ...result, lint: { ...result.lint, violations: result.lint.violations + 1 } };
+}
+
 // src/engine/room.ts
 var MP_ROSTER_BUDGET = 900;
 var MP_BRIDGE_BUDGET = 1100;
@@ -1380,6 +1649,13 @@ ${t4.text}`;
     sections.T3 = 0;
     sections.T4 = 0;
   }
+  if (input.selfBundle?.texture) {
+    const t11 = renderTexture(input.selfBundle.texture);
+    if (t11.text) tail += `
+
+${t11.text}`;
+  }
+  _track("T11");
   if (input.memories) {
     tail += `
 
@@ -1417,6 +1693,22 @@ WHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE \u2014 you said these, so they
 ${input.herLife}`;
   }
   _track("T7");
+  if (input.selfBundle?.arc?.length) {
+    const t12 = renderSelfArc(input.selfBundle.arc, gate?.moment || "");
+    if (t12.text) tail += `
+
+${t12.text}`;
+  }
+  _track("T12");
+  if (input.selfBundle?.untold?.length) {
+    const t13 = renderUntold(input.selfBundle.untold, {
+      sheInitiated: input.selfBundle.sheInitiated === true
+    });
+    if (t13.text) tail += `
+
+${t13.text}`;
+  }
+  _track("T13");
   tail += input.innerWants;
   _track("T8");
   if (input.mode === "chat" && !input.isDirective) tail += input.cultureNoteText;

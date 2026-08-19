@@ -56,6 +56,15 @@ import {
   type PhraseRow,
 } from "./relstate";
 import { renderIndiaDynamic, type RitualRow, type CurrencyRow } from "./india";
+// ── self layer (Phase E2, docs/SPEC-SELF-LAYER.md) ──────────────────────────
+// Same seam discipline as relBundle above: every call below is gated behind
+// `if (input.selfBundle)`, so an absent bundle means none of these render
+// functions is ever called and the tail is byte-identical to before this
+// landed. The 83 byte-identity fixtures set no selfBundle, which is why they
+// still pass unchanged.
+import { renderTexture, type TextureRow } from "./texture";
+import { renderSelfArc, type SelfArcRow } from "./selfarc";
+import { renderUntold, type UntoldRow } from "./life";
 // WS-TGBOT: the room layer (PROPOSAL-MULTIPARTY-V1 §5.2/§5.3, WS-MP's own
 // src/engine/room.ts per §9). Pure renderers only — no I/O crosses this
 // import, and an absent `roomBundle` means none of it is ever called, which
@@ -147,6 +156,19 @@ export interface RelBundleInput {
 //    db-free, which is also what keeps check-prompt-budget.mjs db-free.
 // ─────────────────────────────────────────────────────────────────────────
 
+/** The self layer's three tail inputs. Every field optional and null-safe:
+ *  a caller that has only texture still renders texture, and the other two
+ *  slots stay empty rather than the whole bundle being all-or-nothing. */
+export interface SelfBundleInput {
+  texture?: TextureRow | null;
+  arc?: readonly SelfArcRow[] | null;
+  untold?: readonly UntoldRow[] | null;
+  /** G2: true on any turn SHE sent first. renderUntold REQUIRES this — the
+   *  module takes it as a required parameter so a forgetful call site is a
+   *  type error rather than a silent unprompted raise. */
+  sheInitiated?: boolean;
+}
+
 export interface CompileInput {
   user: UserProfile;
   messageCount: number;
@@ -169,6 +191,12 @@ export interface CompileInput {
   // ── WS-INTEGRATE seam 1 (T2/T3/T4/T6) — all optional, all additive.
   // Absent relBundle => T2/T3/T4/T6 render nothing (see RelBundleInput doc).
   relBundle?: RelBundleInput | null;
+
+  // Absent selfBundle => T11/T12/T13 render nothing. `sheInitiated` is the
+  // SAME flag inner.ts uses to suppress the carried thread (G2), threaded
+  // through rather than recomputed: two independent notions of "she started
+  // this turn" is exactly how one of them drifts.
+  selfBundle?: SelfBundleInput | null;
   // the live user turn's raw text — moment.ts's momentGate needs it for
   // detectMomentShape/hasDeixis (§6.3 pull-only law: read ONLY the current
   // turn). Never used for anything else here; compile() stays pure.
@@ -354,6 +382,25 @@ export function compile(input: CompileInput): CompiledPrompt {
     sections.T4 = 0;
   }
 
+  // ── T11 rel.texture — how she talks to THIS person specifically.
+  //
+  // Gated on selfBundle ALONE, deliberately OUTSIDE the relBundle branch
+  // above. Texture and rel-state travel together in today's recall bundle, so
+  // nesting this inside `if (input.relBundle)` would have worked and would
+  // have been an accidental coupling: a caller holding texture and no
+  // rel-state would have rendered nothing, silently, with no error to find.
+  // T2 is where the relationship IS (honorific, trust, repair); T11 is how it
+  // SOUNDS. Related, separately sourced, separately gated.
+  //
+  // Coarse bands only, and renderTexture returns "" below its own n_turns
+  // floor — a thin relationship renders nothing rather than a personality
+  // assigned at random from six turns.
+  if (input.selfBundle?.texture) {
+    const t11 = renderTexture(input.selfBundle.texture);
+    if (t11.text) tail += `\n\n${t11.text}`;
+  }
+  _track("T11");
+
   if (input.memories) {
     tail += `\n\nWHAT YOU REMEMBER ABOUT THEM — from your earlier conversations, each tagged with when it last came up. These are real: when they touch on one, you KNOW it and you say the specific detail rather than making them repeat themselves. Two things keep it honest:
 - Something being listed here is not a reason to say it. It comes out only where it actually fits, one at a time, woven into normal talk — never several at once, never as a list, never with any mention of remembering.
@@ -405,6 +452,24 @@ ${input.memories}`;
     tail += `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are now fixed between you two, not open to reinvention. Same job, same people, same flat, same plans, same things you did. Add new texture freely; never say anything that contradicts a line here, and never re-tell one as if it's news:\n${input.herLife}`;
   }
   _track("T7");
+  // ── T12 self.arc / T13 life.untold — both sit with T7 because all three
+  // are HER, not the relationship: what she has already told them (T7), how
+  // she has changed (T12), and what she has not told them yet (T13).
+  if (input.selfBundle?.arc?.length) {
+    const t12 = renderSelfArc(input.selfBundle.arc, gate?.moment || "");
+    if (t12.text) tail += `\n\n${t12.text}`;
+  }
+  _track("T12");
+  if (input.selfBundle?.untold?.length) {
+    // G2 is enforced INSIDE renderUntold via its required turn gate — it
+    // returns empty on any turn she initiated. Passed explicitly here so the
+    // suppression is visible at the call site too, not only in the module.
+    const t13 = renderUntold(input.selfBundle.untold, {
+      sheInitiated: input.selfBundle.sheInitiated === true,
+    });
+    if (t13.text) tail += `\n\n${t13.text}`;
+  }
+  _track("T13");
   // her forward-facing life goes right after her past-facing one (see
   // brain.ts's original note on herLife recency-eviction vs a want staying
   // the same object across weeks)
@@ -631,6 +696,33 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     dropPriority: "never",
     sourceStatus: "not-yet-modeled", // WS-SAFETY owns clock.ts/ClockCard.tsx concurrently — interface ticket filed
   },
+  // ── self layer (Phase E2, docs/SPEC-SELF-LAYER.md §8) ──────────────────
+  // These three take drop priorities 1-3: they are the FIRST things shed
+  // under pressure, ahead of everything Phase C proved it needs. That is the
+  // whole point of adding them at the bottom rather than the top — a
+  // relationship without texture is thinner, a relationship without
+  // recall.facts is amnesiac.
+  {
+    id: "T11",
+    label: "rel.texture",
+    budget: 600,
+    dropPriority: 1, // first dropped
+    sourceStatus: "wired", // renderTexture, gated on input.selfBundle.texture
+  },
+  {
+    id: "T12",
+    label: "self.arc",
+    budget: 500,
+    dropPriority: 2,
+    sourceStatus: "wired", // renderSelfArc, moment-gated, on input.selfBundle.arc
+  },
+  {
+    id: "T13",
+    label: "life.untold",
+    budget: 700,
+    dropPriority: 3,
+    sourceStatus: "wired", // renderUntold, G2 turn-gated, on input.selfBundle.untold
+  },
   // ── multiparty v1 (PROPOSAL-MULTIPARTY-V1 §5.2) ────────────────────────
   // Declared at their real budgets and real drop priorities, rendering ZERO
   // bytes: no live writer exists yet (WS-MP owns src/engine/room.ts). Same
@@ -705,11 +797,14 @@ export const TAIL_ORDER: readonly string[] = [
   "T2",
   "T3",
   "T4",
+  "T11",
   "T5",
   "T6",
   "mp.roster",
   "mp.bridge",
   "T7",
+  "T12",
+  "T13",
   "T8",
   "T9",
   "T10",
