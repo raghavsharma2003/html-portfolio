@@ -19,6 +19,15 @@ interface WatchNative {
     event: "watchturn",
     cb: (data: { who: string; text: string }) => void,
   ): Promise<PluginListenerHandle>;
+  /** A SHOW-class wake that ACTUALLY went out on the native side, after every
+   *  native suppressor passed (WatchCaptureService.emitShowWake). Liveness
+   *  only — it carries no picture, no claim and no text, just which class of
+   *  "they just showed you something" fired. The web layer uses it to arm the
+   *  same shared-moment window the web watch lane arms. */
+  addListener(
+    event: "watchwake",
+    cb: (data: { class: string }) => void,
+  ): Promise<PluginListenerHandle>;
   addListener(event: "stopped", cb: () => void): Promise<PluginListenerHandle>;
   removeAllListeners(): Promise<void>;
 }
@@ -68,6 +77,8 @@ interface Handlers {
   onFrame: (dataUrl: string) => void;
   onTurn: (who: "me" | "her", text: string) => void;
   onStopped: () => void;
+  /** Optional: older callers (and the web-only build) simply do not listen. */
+  onWake?: (cls: string) => void;
 }
 
 // ONE set of native listeners for the whole app lifetime, dispatching to the
@@ -86,6 +97,12 @@ function wireOnce(): Promise<void> {
       });
       await Watch.addListener("watchturn", ({ who, text }) => {
         if (text) handlers?.onTurn(who === "her" ? "her" : "me", text);
+      });
+      await Watch.addListener("watchwake", ({ class: cls }) => {
+        // dispatched to the session that owns the listeners right now; a wake
+        // from a share that has already been stopped finds handlers === null
+        // and dies here, exactly like a late turn does
+        if (cls) handlers?.onWake?.(cls);
       });
       await Watch.addListener("stopped", () => {
         // exactly one stop per session, however many the native side emits
@@ -120,6 +137,9 @@ export async function startWatch(
   onFrame: (dataUrl: string) => void,
   onTurn: (who: "me" | "her", text: string) => void,
   onStopped: () => void,
+  /** A SHOW-class wake that actually fired natively — see the listener above.
+   *  Optional so the signature stays backwards-compatible. */
+  onWake?: (cls: string) => void,
 ): Promise<WatchSession> {
   // a second start while one is live/starting would run a second consent
   // dialog and a second engine — two of her, offset by a second
@@ -127,7 +147,7 @@ export async function startWatch(
   starting = true;
   try {
     await wireOnce();
-    handlers = { onFrame, onTurn, onStopped };
+    handlers = { onFrame, onTurn, onStopped, onWake };
     try {
       await Watch.start({ config: JSON.stringify(config) }); // throws on denial
     } catch (e) {

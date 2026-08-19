@@ -23,6 +23,10 @@ function run(label, file) {
 const hasConfig = existsSync(`${ROOT}/api/_config.js`);
 
 const sceneOk = run("scene-gate.mjs (offline)", `${HERE}scene-gate.mjs`);
+// WS-ANDROID-WATCH: the native lane's half. Offline too, but it needs a JDK
+// (it compiles and RUNS the real SceneReader.java). Without javac it reports
+// UNVERIFIED and fails rather than skipping — same rule as db-writer below.
+const nativeOk = run("native-gate.mjs (offline, needs javac)", `${HERE}native-gate.mjs`);
 let dbOk = true;
 if (hasConfig) {
   dbOk = run("db-writer.mjs (real DB)", `${HERE}db-writer.mjs`);
@@ -34,5 +38,6 @@ if (hasConfig) {
   dbOk = false;
 }
 
-console.log(`\n${sceneOk && dbOk ? "ALL SUITES PASSED" : "SOME SUITES FAILED OR WERE UNVERIFIED"}`);
-process.exit(sceneOk && dbOk ? 0 : 1);
+const allOk = sceneOk && nativeOk && dbOk;
+console.log(`\n${allOk ? "ALL SUITES PASSED" : "SOME SUITES FAILED OR WERE UNVERIFIED"}`);
+process.exit(allOk ? 0 : 1);

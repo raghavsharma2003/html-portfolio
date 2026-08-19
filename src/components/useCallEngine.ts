@@ -122,6 +122,19 @@ function postEpisodeCallEnd(device: string) {
 // governs whether a moment can ever be recorded: nothing here can arm a
 // window `wake()` itself refused to open, so a suppressed or blacked-out
 // scene produces zero rows by construction, not by a second check.
+//
+// WS-ANDROID-WATCH: the NATIVE Android lane arms the same window through the
+// same two functions, from the "watchwake" bridge event. Its suppressors are
+// the Java twins of the ones above — SceneReader.java's geometry
+// (scroll-as-translation, edge-anchored overlays, and `wake-dedupe`, which is
+// not loosened anywhere), WatchCaptureService's look-away, blank and
+// held/fresh-frame gates, and LiveWatchEngine/WatchEngine.nudge()'s her-voice,
+// quiet-floor, show-floor, ambient-share and hard-ceiling gates — and the
+// event is emitted only INSIDE the branch where the wake demonstrably went
+// out. So the same sentence holds on both lanes: a suppressed wake arms
+// nothing, and what arms nothing writes nothing. The recording gate itself is
+// deliberately NOT reimplemented in Java; a second copy is a second thing to
+// drift, and this one is the shipped and tested one.
 export interface PendingShowWake {
   at: number;
   cls: WakeClass;
@@ -270,11 +283,18 @@ export function useCallEngine(
   // their life. The price is losing some genuine memory ("they were shopping
   // for a bike") and that is the correct price.
   const watchTurnIds = useRef<Set<string>>(new Set());
-  // WS-MULTIMODAL: armed by a SHOW-class wake in the web watch lane's
-  // wake(), consumed by the next line she speaks (see armMomentWindow /
-  // consumeMomentWindow above). Only ever set inside startWebWatch's
-  // closure, so it stays null for the whole life of a native watch session
-  // — that lane has no scene.ts wake to arm it from (see report).
+  // WS-MULTIMODAL: armed by a SHOW-class wake, consumed by the next line she
+  // speaks (see armMomentWindow / consumeMomentWindow above).
+  //
+  // WS-ANDROID-WATCH: BOTH lanes now arm it. The web lane arms inside
+  // startWebWatch's wake(); the NATIVE lane arms from the "watchwake" bridge
+  // event, which WatchCaptureService.emitShowWake sends only after its own
+  // copy of every suppressor has passed (the Java geometry, the frame/held
+  // gates, and LiveWatchEngine/WatchEngine.nudge's voice, quiet, show-floor
+  // and ceiling gates) — i.e. at exactly the point the web lane arms, one
+  // process further out. The recording gate itself is this one shared pair of
+  // pure functions, deliberately NOT reimplemented in Java: a second copy is
+  // a second thing to drift.
   const pendingShowWake = useRef<PendingShowWake | null>(null);
 
   const log = (m: Message) => {
@@ -1696,6 +1716,9 @@ ${recallRef.current}`
           if (!watchSession.current) return; // already torn down here
           watchSession.current = null;
           frameRef.current = null;
+          // a wake from this share must never outlive it — same rule the web
+          // lane's cleanup() applies, and this is the native lane's cleanup
+          pendingShowWake.current = null;
           setWatching(false);
           track(stateRef.current.deviceId, "watch_stopped_externally", {});
           tel("watch.stop", {
@@ -1710,6 +1733,33 @@ ${recallRef.current}`
           setTimeout(() => {
             if (alive.current && !mutedRef.current) startListening();
           }, 450);
+        },
+        (cls) => {
+          // WS-ANDROID-WATCH: a SHOW-class wake actually fired natively. This
+          // is the native twin of startWebWatch's
+          // `pendingShowWake.current = armMomentWindow(...)`, and it is the
+          // ONLY thing this callback may do: no fetch, no state, nothing on
+          // the call path. Everything that decides whether a moment gets
+          // stored is the shared pure pair below.
+          //
+          // The class is a plain string off a process boundary, not a typed
+          // union, and it is narrowed by armMomentWindow's own isShowClass —
+          // ONE predicate, the same one the web lane goes through, rather
+          // than a second copy that could disagree with it. Anything that is
+          // not a deliberate SHOW arms nothing: an ambient `along`/`idle`
+          // (including the one scene.ts and its Java twin CAN still fire
+          // during a FLAG_SECURE blackout, since only their SHOW branches
+          // carry a blank guard), and equally an unknown or malformed string.
+          // So a blacked-out or suppressed screen stores nothing even if the
+          // native side is the thing that is wrong. (evals/multimodal:
+          // scene-gate.mjs §4 checks exactly this boundary.)
+          if (!watchSession.current) return; // a wake outliving its share
+          if (watchPrivate.current) return; // look-away, re-checked at arm time
+          pendingShowWake.current = armMomentWindow(
+            pendingShowWake.current,
+            cls as WakeClass,
+            Date.now(),
+          );
         },
       );
       setWatching(true);

@@ -213,5 +213,33 @@ function makeGate() {
   );
 }
 
+// ── 4. WS-ANDROID-WATCH: the same gate, driven from the native bridge ──
+// The Android lane does not run scene.ts — it runs SceneReader.java and
+// reports a SHOW-class wake to JS as a "watchwake" event, which
+// useCallEngine.ts feeds into these same two functions. native-gate.mjs
+// proves the Java half (real compiled geometry) and the composition; what
+// belongs HERE is the property the bridge boundary rests on: the gate is
+// closed to anything that is not a deliberate SHOW, whatever arrives on it.
+// A string crossing a process boundary is not a typed union, so this is
+// checked rather than assumed.
+{
+  const at = 5_000_000;
+  for (const cls of ["along", "idle", "start"]) {
+    ok(`bridge: an ambient/start class ("${cls}") never arms a window`, armMomentWindow(null, cls, at) === null);
+  }
+  for (const junk of ["", "SETTLE", "settle ", "watch_visual", "undefined", "0"]) {
+    ok(
+      `bridge: an unrecognised class (${JSON.stringify(junk)}) never arms a window`,
+      armMomentWindow(null, junk, at) === null,
+    );
+  }
+  for (const cls of ["settle", "reshow", "point", "switch"]) {
+    ok(`bridge: the SHOW class "${cls}" arms exactly one window`, armMomentWindow(null, cls, at)?.cls === cls);
+  }
+  // an ambient wake arriving while a show window is open must not clobber it
+  const open = armMomentWindow(null, "settle", at);
+  ok("bridge: an ambient wake cannot clobber an open show window", armMomentWindow(open, "idle", at + 10) === open);
+}
+
 console.log(failed ? `\nFAILED (${failed})` : "\nPASSED");
 process.exit(failed ? 1 : 0);
