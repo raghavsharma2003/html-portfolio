@@ -23,7 +23,12 @@ import { q } from "./_db.js";
 // provisional tier (SPEC §0.2.1/§4.1) and are shared with api/episodes.js and
 // api/consolidate.js so the boundary rule lives in exactly one place.
 import { embedOne, embedBatch, toHalfvecLiteral } from "./_embed.js";
-import { openOrExtendEpisode, touchEpisode } from "./episodes.js";
+// WS-PHOTOS reuses writeVisualAssertion alongside the pair opRemember already
+// imports — it is the existing, correct, vision-fab-governed writer for
+// exactly this shape of thing (a claim about an image, with a confidence and
+// an extractor model attached), and api/episodes.js is off this workstream's
+// file list, so calling its export is the whole of "using" it.
+import { openOrExtendEpisode, touchEpisode, writeVisualAssertion } from "./episodes.js";
 // WS-AGENTSCOPE (Law E1, SPEC-AGENT-LAYER §2): every retrieval over an
 // agent-scoped table carries the scope predicate in its WHERE, before rank, and
 // every write over one names agent_id explicitly instead of leaning on 009's
@@ -2006,7 +2011,153 @@ async function opUploadPhoto(device, body) {
   return { url: `${SB_URL}/storage/v1/object/public/meera-photos/${path}` };
 }
 
+// ── WS-PHOTOS: the photo → relational record delta (docs/PHOTOS.md,
+// docs/SPEC-SELF-LAYER.md §4 point 3) ───────────────────────────────────────
+//
+// THE GAP this closes: opDescribe's output used to inform one reply, client-
+// side, and die there — `rememberFrom` (src/engine/memory.ts) filters its
+// 16-turn window to `m.kind === "text"` before it ever reaches opRemember, so
+// a photo message NEVER entered the extraction pass at all. Nothing about a
+// photo reached vy_episode or vy_fact by any route. This block is that route,
+// and it is entirely server-side: it rides the SAME "describe" call the
+// client already makes right after upload, so no client file changes.
+//
+// THE FABRICATION GUARD (vision-fab, visiongate-powered — context/
+// measurements.md) is the actual design constraint, not a footnote:
+// visiongate-powered measured 10.2%/11.2% [7.3,14.1]/[9.1,13.8] fabrication
+// for grok-4-20 — a STRONGER model than the "-lite" tier used here, given
+// MULTIPLE frames of continuity, scene-change gating, and a tuned directive,
+// at n>300. opDescribe has none of that: one downscaled JPEG, the cheapest
+// model tier, a single 110-char guess, no self-reported confidence, no
+// permission in its own prompt to say "can't tell". Treating its output as
+// more trustworthy than the measured, better-resourced lane would be
+// dishonest, so this path is deliberately more conservative than opRemember's
+// text-extraction default (confidence 0.7): see PHOTO_VISION_CONFIDENCE.
+//
+// THE DESIGN, and why it stops where it stops:
+//   1. An episode (channel 'chat' — see the comment at its call site for why
+//      no 'photo' value exists to use instead).
+//   2. The raw description as a vy_visual_assertion CLAIM — correctable,
+//      inspectable, cited to the episode, NEVER promoted into vy_fact. This
+//      is the watch lane's own law verbatim ("claims and reactions are
+//      SEPARATE OBJECTS... a later-corrected visual claim must not delete a
+//      genuine emotional beat") applied to the one photo has that the watch
+//      lane doesn't: no verified reaction to anchor a vy_shared_moment on.
+//      This workstream has no access to what she actually said back (that
+//      lives in api/chat.js's reply generation, outside these exclusive
+//      files), so writing to vy_shared_moment here would mean inventing a
+//      "reaction" — exactly the confident-placeholder failure this repo's
+//      `error-marked-done` law already names. Left unused for photos.
+//   3. The ONE thing this path writes to vy_fact: that a photo was shared.
+//      Nothing about its content. True regardless of whether the model read
+//      it correctly — the brief's own framing, applied. And unlike a normal
+//      provisional text fact, there is no second pass that could ever
+//      correct a photo-content claim: api/consolidate.js's nightly pass
+//      re-derives facts FROM meera_log, and meera_log only ever carries the
+//      `[photo] caption` marker (src/components/Chat.tsx logTurns), never the
+//      vision description — so the safety net that makes provisional TEXT
+//      facts acceptable (a stronger model reviews them with more context by
+//      morning) does not exist for photo content. That absence is why the
+//      claim stays in vy_visual_assertion and never crosses into vy_fact.
+//
+// A failed, empty, or refused description writes NOTHING — no episode touch,
+// no assertion, no fact — per lintPhotoDesc() below.
+
+const PHOTO_DESC_MODEL = "google/gemini-3.1-flash-lite";
+
+// Not model-self-reported: opDescribe's prompt never asks for a confidence
+// score (unlike the watch lane's real vision pipeline, which is outside this
+// file). A fabricated confidence number would be worse than an honest fixed
+// one, so this is a constant, and it is deliberately BELOW opRemember's 0.7
+// extracted-text default — see the block comment above for the measured
+// numbers this is conservative against.
+const PHOTO_VISION_CONFIDENCE = 0.35;
+
+// A model asked to "describe this photo in one factual line" tends to
+// apologize instead of returning nothing when it genuinely can't — that
+// apology must not become an episode/assertion/fact about a photo nobody
+// actually described.
+const PHOTO_REFUSAL_RE =
+  /^(i'?m sorry|sorry[, ]|i can'?t|i cannot|unable to|no image|cannot (see|view|describe)|can'?t (see|view|describe)|as an ai|i (do not|don't) have)/i;
+
+/** Telegraphic write-time lint (consolidate.js's `telegraphic()` / derive-
+ *  adapter.mjs's `shapeLint()` convention, duplicated here for the same
+ *  stated reason both of those give: no bundler boundary shared with
+ *  src/engine/shapelint.ts, and this is a different table's write-time
+ *  discipline, not the compiler's read-time authority). Returns null — never
+ *  an empty string — for anything that must write nothing. */
+export function lintPhotoDesc(raw) {
+  const t = String(raw || "").trim().replace(/\s+/g, " ");
+  if (t.length < 4) return null;
+  if (PHOTO_REFUSAL_RE.test(t)) return null;
+  return t.replace(/[.!?]+$/, "").slice(0, 140);
+}
+
+/** Stable per-photo key from the storage object name (`${device}/${ts}-
+ *  ${rand}.jpg` — opUploadPhoto's own naming), so a duplicate describe call
+ *  for the same photo (client retry, double-tap) cannot double-write the
+ *  event fact. Falls back to a URL tail for anything not shaped that way. */
+export function photoIdFromUrl(url) {
+  const m = /\/([0-9]+-[a-z0-9]+)\.jpe?g$/i.exec(String(url || ""));
+  return m ? m[1] : String(url || "").slice(-40);
+}
+
+/** The write path itself. Never throws — an enhancement layered on a call
+ *  whose primary job (handing the client a description) already happened;
+ *  this must never cost the client that response. */
+export async function recordPhotoMemory(device, url, rawDesc) {
+  const desc = lintPhotoDesc(rawDesc);
+  if (!desc) return { ok: true, wrote: false };
+  try {
+    const agentId = MEERA_AGENT_ID;
+    const person = await personIdFor(device);
+    // Closest LEGAL channel: vy_episode.channel's CHECK constraint (verified
+    // live) is exactly ('chat','call','watch','voicenote') — there is no
+    // 'photo' value, and adding one is a migration this workstream cannot
+    // apply. 'watch' is the live watch-TOGETHER lane, a different object
+    // under its own vision-fab governance; 'voicenote' is an audio message.
+    // A photo sent inline in the chat stream is, structurally, a chat-
+    // channel event, and meera_log already logs its `[photo]` marker under
+    // channel:'chat' (src/components/Chat.tsx logTurns) — so this reuses
+    // that value rather than overloading either of the other two.
+    const ep = await openOrExtendEpisode(person, device, "chat", { agentId });
+    if (!ep) return { ok: false, wrote: false };
+    await touchEpisode(ep.id, { summary: `photo: ${desc}`.slice(0, 110) });
+
+    // THE CLAIM — kept out of vy_fact. See the block comment above.
+    await writeVisualAssertion(
+      person,
+      ep.id,
+      { claim: desc, extractorModel: PHOTO_DESC_MODEL, confidence: PHOTO_VISION_CONFIDENCE, illegible: false },
+      agentId,
+    );
+
+    // THE EVENT — the ONLY thing this path writes to vy_fact, cited to the
+    // episode like any other fact, and marked sensitive: a photo may contain
+    // a person, a document, an address, a medical detail that text never
+    // would, and that cannot be verified either way from here.
+    const photoId = photoIdFromUrl(url);
+    const factName = `photo:${photoId}`.slice(0, 60);
+    const already = await q(
+      `select 1 from vy_fact f where f.person_id = $1 and f.name = $2
+        ${agentScopePredicate("f", { agentId: "$3" })} limit 1`,
+      [person, factName, agentId],
+    ).catch(() => []);
+    if (already.length) return { ok: true, wrote: false, episodeId: ep.id };
+    await q(
+      `insert into vy_fact
+         (agent_id, person_id, kind, name, body, provenance, confidence, citations, sensitive, provisional)
+       values (${agentValue("$5")},$1,'user',$2,$3,'extracted',0.9,$4::bigint[],true,true)`,
+      [person, factName, "shared a photo", [ep.id], agentId],
+    );
+    return { ok: true, wrote: true, episodeId: ep.id };
+  } catch {
+    return { ok: false, wrote: false };
+  }
+}
+
 async function opDescribe(body) {
+  const device = String(body.device || "");
   const url = String(body.url || "");
   if (!url.startsWith(`${SB_URL}/storage/v1/object/public/meera-photos/`)) return { desc: "" };
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -2017,7 +2168,7 @@ async function opDescribe(body) {
       "X-Title": "Meera",
     },
     body: JSON.stringify({
-      model: "google/gemini-3.1-flash-lite",
+      model: PHOTO_DESC_MODEL,
       max_tokens: 90,
       messages: [
         {
@@ -2035,7 +2186,17 @@ async function opDescribe(body) {
   });
   if (!res.ok) return { desc: "" };
   const data = await res.json();
-  return { desc: String(data?.choices?.[0]?.message?.content || "").trim().slice(0, 140) };
+  const desc = String(data?.choices?.[0]?.message?.content || "").trim().slice(0, 140);
+  // Fire-and-forget from the CLIENT's point of view is not the same thing as
+  // unawaited here: this function must finish writing before the response
+  // goes out (the handler does `await opDescribe(...)`), but describePhoto()
+  // is itself called from a background `.then()` in Chat.tsx that runs after
+  // the reply is already scheduled — so this added latency sits behind
+  // nothing the user is waiting on. `.catch` belt-and-braces on top of the
+  // try/catch already inside recordPhotoMemory: this path must never cost
+  // the client its `desc`.
+  if (UUID.test(device)) await recordPhotoMemory(device, url, desc).catch(() => {});
+  return { desc };
 }
 
 export default async function handler(req, res) {
