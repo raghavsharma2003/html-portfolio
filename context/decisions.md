@@ -820,3 +820,79 @@ T5 quality, in which case concatenation was load-bearing for the
 matched-vs-background labelling and the labels matter more than the ranking.
 
 ---
+
+## `speech-stack` — keep the incumbent, buy an instrument, and stop trusting the pitch anchor (2026-08-19)
+
+The owner sent a PhysicsWallah engineering article on code-mixed Hindi TTS/STT
+and asked for "at least 10X better tech than this in terms of performance,
+quality, etc." `docs/research/SPEECH-STACK.md` answers it. The article itself
+is summarised in `MEMORY-FIELD-SURVEY`-style detail there; what follows is what
+we decided.
+
+**Their pipeline solves a problem our primary lane does not have.** They
+transliterate romanised Hindi to Devanagari because a text-fed TTS engine
+otherwise reads it as English. Our primary voice is Gemini Live — speech to
+speech, native audio, **no text-to-speech step on the critical path**. There is
+nothing to transliterate. `api/speech.js` is the fallback lane only.
+
+**We already do the equivalent, in a better place, and nobody had written it
+down.** `src/voice/liveCall.ts:2465` pins `languageCode: "hi-IN"` on the live
+session, with a comment that dropping it "gives up the hi-IN phoneme handling
+her Hinglish depends on". That is the live-lane analogue of their front end and
+it is strictly better: no round trip, no added latency, no LID errors. The
+caveat is that the A/B behind that comment measured pitch range and pause rate,
+**not pronunciation** — so the belief is plausible and unproven.
+
+**Decisions.**
+1. **Do not build a transliteration front end.** We cannot buy theirs (only the
+   LID stage is released); the IndicXlit fallback is ~90%, i.e. one word in ten
+   wrong, in front of our weakest lane; and it adds a silent-corruption path to
+   the lane with the least streaming headroom. Cost would be ~75–160 ms
+   end-to-end, which is survivable — the reason is quality, not latency.
+2. **`azure-tts` decides it anyway.** Pronunciation correctness and accent
+   identity are different properties and only the second decides whether she is
+   her. A front end operates entirely on the first. It could take us 11/15 →
+   15/15 and the owner would not be able to hear the difference — or could hear
+   it and dislike it.
+3. **The pitch anchor is broken as a filter and must stop being used as one.**
+   Our shipped lane measures 212–214 Hz; we rejected Azure at 210 Hz using a
+   266 Hz anchor. Every future voice comparison is blocked on an ear listen
+   until that is resolved. This supersedes the implicit use of Hz as a
+   screening criterion.
+4. **10× on latency is not available.** 720 ms of the 1,370 ms floor is
+   untouchable prefill. The 10× that IS available is in **variance**: target
+   p90 at or under today's p50.
+5. **Guard her voice mechanically.** Four lanes name it — the cascade TTS
+   fallback, the live session, the ack clips, and the native watch engine — and
+   two of them cannot be configured. `scripts/verify-voice.mjs` asserts all four
+   agree, wired into `verify-release`. This bug already shipped once and was
+   reported as "multiple personalities".
+
+**Two unprotected things the survey found, both now named.**
+`src/engine/persona.ts:453` instructs her to EMIT mixed-script Devanagari when
+the engine is Sarvam — load-bearing for that whole lane (Sarvam's own docs say
+romanised input significantly reduces output quality) and protected by no
+invariant. And STT is three lanes, all `en-IN`, none chosen deliberately, none
+measured, with `persona.ts:391` acting as the error-correction layer in prompt
+text.
+
+**What transfers from the article regardless.** Their central finding — the
+correct answer is in the candidate beam 99.54% of the time while top-1 is right
+92.02%, so the failure is SELECTION not generation — is exactly the shape of
+`MEMORY-FIELD-SURVEY` adopt #3, where our four retrieval paths are concatenated
+rather than ranked. Their counter-example is the guard rail: `meine` never
+appears in the beam at all, and no chooser can fix a recall failure. Their
+Unicode result is a measurement law for us: half their apparent spelling error
+was an encoding variant the engine pronounces identically, so any pronunciation
+eval must normalise before scoring. And their LLM audit kills the shortcut we
+might have taken — Gemini 3 Flash left 20.78% of Hindi words untransliterated,
+and that is the model family we run.
+
+**Reverses if:** the live lane is measured to mispronounce romanised Hinglish
+after all (TEST L1 in the survey specifies the five-arm listen, including one
+arm isolating the `hi-IN` pin) — in which case there is no text stage to fix and
+the finding is far more serious than a front end would have been; or the ear
+listen shows the incumbent voice is not defensible, which reopens the whole
+comparison on axes other than Hz.
+
+---

@@ -44,6 +44,11 @@ const gate = async (name, cmd, cmdArgs) => {
 console.log("── static gates ──");
 await gate("typecheck", "npx", ["tsc", "-b"]);
 await gate("prompt budget", "node", ["scripts/check-prompt-budget.mjs"]);
+// Her voice must be the same voice on every lane that names it. The live lanes
+// cannot be configured, so every lane that CAN choose has to match them — and
+// when they disagreed once, a call that fell back mid-sentence swapped her for
+// a different woman and was reported as "multiple personalities".
+await gate("one voice", "node", ["scripts/verify-voice.mjs"]);
 await gate("web build", "npx", ["vite", "build"]);
 // The eval suite: parser cases, the persona invariants (crisis helplines,
 // never-deny-AI, NEVER MANIPULATE, spoken register), and the D0 fixture
