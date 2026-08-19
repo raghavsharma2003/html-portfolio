@@ -1054,6 +1054,16 @@ export const PERSON_TABLES = [
   { table: "vy_ritual",           key: "person_id", lane: "relational", agent: true },
   { table: "vy_currency",         key: "person_id", lane: "relational", agent: true },
   { table: "vy_india_profile",    key: "person_id", lane: "relational", agent: true },
+  // ── self layer (migration 011, docs/SPEC-SELF-LAYER.md) ──────────────────
+  // The three person-keyed tables of the self layer. vy_self_arc and
+  // vy_agent_life are deliberately ABSENT: they are agent-scoped, not
+  // person-keyed — her growth and her life are hers, and forgetting a person
+  // must not delete the agent's own biography. What forget DOES remove is the
+  // record of what she told THAT person (vy_agent_life_told), which is
+  // relationship state and belongs to them as much as to her.
+  { table: "vy_rel_texture",      key: "person_id", lane: "relational", agent: true },
+  { table: "vy_observation",      key: "person_id", lane: "relational", agent: true },
+  { table: "vy_agent_life_told",  key: "person_id", lane: "relational", agent: true },
   { table: "vy_embedding",        key: "person_id", lane: "relational", agent: true },
   { table: "vy_derivation",       key: "person_id", lane: "relational", agent: true },
   { table: "vy_session",          key: "person_id", lane: "relational", agent: true },
