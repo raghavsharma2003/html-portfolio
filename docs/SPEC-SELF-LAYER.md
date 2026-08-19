@@ -414,19 +414,34 @@ TAIL cap is 24,000. Current declared total is 17,400 (T1–T10), leaving 6,600.
 Multiparty v1 has already claimed 2,000 (mp.roster 900 + mp.bridge 1100, after
 T6). **Free: 4,600.**
 
+**Drop priority in `compiler.ts` runs the opposite way to how this section
+first stated it.** `TAIL_MANIFEST`'s own comment is the authority: *"drop
+priority 1 = first dropped"*. So the blocks that should go first take the
+LOWEST numbers, not the highest, and adding three of them renumbers every
+droppable block above. Corrected here rather than left as a footnote, because
+a manifest edit made from the wrong reading would silently protect the new
+blocks and shed `recall.facts` instead.
+
 | new slot | block | budget | drop prio | notes |
 |---|---|---|---|---|
-| T11 | `rel.texture` | 600 | 7 | coarse bands only; suppressed under the n_turns floor |
-| T12 | `self.arc` | 500 | 8 | ≤1 row, moment-gated |
-| T13 | `life.untold` | 700 | 9 | anti-join, untold beats only, ≤2 |
+| T11 | `rel.texture` | 600 | **1** (first dropped) | coarse bands only; suppressed under the n_turns floor |
+| T12 | `self.arc` | 500 | **2** | ≤1 row, moment-gated |
+| T13 | `life.untold` | 700 | **3** | anti-join, untold beats only, ≤2 |
 | — | observation | 0 | — | inside T5's existing 6,000 |
 | | **new total 1,800** | | | **remaining headroom 2,800** |
 
+Everything currently droppable shifts up by three: mp.bridge 1→4, T7 2→5,
+T5 3→6, T6 4→7, T3 5→8, T4 6→9, T2 7→10. `DropPriority`'s union type widens
+from 7 to 10. The manifest asserts drop priorities are a permutation with no
+duplicates — that assertion exists precisely because a renumber is the kind of
+edit where two blocks silently end up sharing a priority and the declared drop
+order stops being an order.
+
 New tail total: 21,200 of 24,000. The undroppable set is unchanged — **none of
-these three is undroppable**, and they take the lowest drop priorities in the
-file, so under pressure the compiler sheds texture, arc and untold life before
-it sheds anything Phase C proved it needs. T10 stays pinned last and stays
-capped at two.
+these three is undroppable**, and they now genuinely are the first three
+things shed, so under pressure the compiler drops texture, then arc, then
+untold life, before it touches anything Phase C proved it needs. T10 stays
+pinned last and stays capped at two.
 
 ---
 
