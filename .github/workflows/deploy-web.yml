@@ -8,7 +8,9 @@
 # This runs the same deploy a human would, on every push, so "deployed" stops
 # being a thing anyone has to remember.
 #
-# NEEDS ONE SECRET: VERCEL_TOKEN (Settings → Secrets → Actions). Without it the
+# NEEDS ONE SECRET: VERCEL_TOKEN, or VERCEL (Settings → Secrets and variables →
+# Actions → Repository secrets — NOT the Variables tab, NOT Environment
+# secrets; both look right and neither is read here). Without it the
 # job fails loudly rather than skipping quietly — a deploy workflow that
 # silently does nothing is worse than no workflow, because it looks like cover.
 name: Deploy web
@@ -46,12 +48,22 @@ jobs:
     steps:
       - name: Report whether deploys are configured
         id: check
+        # Accepts VERCEL_TOKEN or VERCEL. The secret was first added under the
+        # short name, the workflow read the long one, and the only symptom was
+        # `HAS_TOKEN: false` — a correct secret, in the right repository, in the
+        # right tab, silently not found. That is the same failure shape as the
+        # invalid `if:` this file already carries a comment about: the thing was
+        # there and nothing could see it.
+        #
+        # A fallback rather than a rename because renaming means re-pasting a
+        # token, and because a deploy that works under either name is strictly
+        # harder to break than one that insists on a spelling.
         env:
-          HAS_TOKEN: ${{ secrets.VERCEL_TOKEN != '' }}
+          HAS_TOKEN: ${{ (secrets.VERCEL_TOKEN || secrets.VERCEL) != '' }}
         run: |
           echo "has_token=$HAS_TOKEN" >> "$GITHUB_OUTPUT"
           if [ "$HAS_TOKEN" != "true" ]; then
-            echo "::warning title=Deploys are not configured::VERCEL_TOKEN is not set, so the site is NOT being deployed automatically and will lag the branch. Add it in Settings → Secrets → Actions."
+            echo "::warning title=Deploys are not configured::Neither VERCEL_TOKEN nor VERCEL is set, so the site is NOT being deployed automatically and will lag the branch. Add one in Settings → Secrets and variables → Actions → Repository secrets."
           else
             echo "deploys configured"
           fi
@@ -111,7 +123,9 @@ jobs:
 
       - name: Deploy to production
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          # Same fallback as the `configured` job above — these two MUST agree,
+          # or the gate says "configured" and the deploy runs tokenless.
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN || secrets.VERCEL }}
         # --archive=tgz: a plain upload of this tree (photos included) has
         # failed with "fetch failed" mid-transfer; the tarball path is what
         # actually completes.
