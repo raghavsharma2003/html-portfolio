@@ -1369,3 +1369,63 @@ n/a for n — an account fact plus a per-lane source audit and one live probe.
 Method: `GET https://openrouter.ai/api/v1/key` with the configured key;
 `grep` for `OPENROUTER_KEY` importers; `curl` against production `/api/chat`.
 Date 2026-08-19.
+
+---
+
+## `screen-share-triple-swap` — the voice change needs no failure at all (2026-08-19)
+
+WS-VOICE-LANE's closing finding, and it supersedes the leading hypothesis I
+gave the owner earlier today. I said the voice change was the live→cascade
+handoff, made more frequent by the exhausted key. That is real but it is the
+second mechanism. The first needs nothing to go wrong.
+
+**Android screen share is a designed triple swap.** Starting a share calls
+`claimVoice("native", …)` and stopping it calls `claimVoice("cascade", …)`.
+So one screen-share session moves her live → native → cascade: **two engine
+changes, one of them crossing model families**. Nothing has to fail. This alone
+accounts for the report.
+
+**Second mechanism, an asymmetry between the twins.** Gemini Live sends
+`goAway` before rotating a session. `LiveWatchEngine.java:1162` handles it by
+rotating and STAYING on the live model. `liveCall.ts` did not handle it at all,
+so a routine server rotation became a permanent cascade handoff. It now logs
+`goAway` with `sharing`, `upMs` and `framesSent` so the rate is measurable; it
+still does not rotate, because that touches the session lifecycle the arbiter,
+hold ring, echo coefficient and barge-in watchdog all hang off — measured
+first, changed second.
+
+**A correction to `one-key-two-jobs`, which I logged wrong.** I wrote that TTS
+"falls back to the Google-direct free pool" on exhaustion. For the TTS cascade
+that is backwards: the **free Google lane is primary and starts first**; the
+paid OpenRouter arm only arms at `PAID_ARM_MS = 1500` as a backup. So key
+exhaustion removes the BACKUP, not the primary. The consequence is worse than
+I described: when the free pool then 429s, `/api/speech` returns 502 and the
+chain falls through to **device TTS** — a platform engine, a bigger voice change
+than live→cascade, and one that `stripForDevice` does not sanitise for dashes
+(verified: it replaces `[tags]` with an ellipsis and strips emoji, and touches
+no punctuation).
+
+**Where the dash actually comes from, ranked.** A third path family bypasses
+`/api/speech` entirely — `elevenFetch`, `sarvamFetch` and device `speak()`
+(verified at `speech.ts:711-714`). So: (1) the cascade proxy, confirmed
+reachable and now sanitised; (2) **device TTS**, unsanitised, and platform
+engines are the family most likely to read a symbol from a dictionary rather
+than pause — not fixed, `speech.ts` was outside that workstream's ownership;
+(3) the live lane, where only persona.ts can fix it, because the model speaks
+the characters she emits.
+
+**The audio floor did not move, and this was measured rather than asserted:**
+echosim `exp1.mjs`, 5 couplings × 8 seeds × 2 arms = **80 simulated calls,
+before versus after byte-identical**.
+
+**Why the live lane must NOT import the sanitiser**, recorded so nobody
+"completes" it later: `liveCall.ts` deliberately has no imports beyond
+`./level` and `../engine/diag`, because `scratchpad/echosim` transpiles it
+standalone and that harness is the only thing that can prove the floor did not
+move. An import there costs the ability to test the most delicate file in the
+repo. `verify-voice.mjs` §4 now asserts the allowed-import list and was
+negative-tested by adding the import.
+
+n/a for n — a source audit plus one deterministic simulator run. Method:
+path enumeration over `liveCall.ts`/`speech.ts`/`api/speech.js`; `grep` for the
+claim sites; `node scratchpad/echosim/exp1.mjs`. Date 2026-08-19.

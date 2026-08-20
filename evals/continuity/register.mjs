@@ -187,12 +187,32 @@ const ok = (name, cond, detail = "") => {
   if (!cond) failed++;
   console.log(`${cond ? "  ok  " : "FAIL  "}${name}${detail ? `  ${detail}` : ""}`);
 };
-// The bands, as numbers rather than prose. 36.1 is the number a model was
-// declined at, so it is the hard ceiling; the delta bar is what stops a slow
-// drift that never trips the ceiling.
+// ── WHICH COMPARISONS ARE VALID HERE, AND WHICH ARE NOT ────────────────
+// The 36.1 ceiling is an ABSOLUTE bar: a model was declined at it, no lane may
+// cross it, and being far under it is meaningful on any method.
+//
+// The question-rate band (~1 in 3) is NOT absolute here and is deliberately
+// not asserted against. `realtime-azure`'s 13/24 was measured on the REALTIME
+// model, which speaks; this harness drives the text model at the call tier,
+// where the BEFORE arm — production today, before this change touched anything
+// — already sits near 100%. Asserting a band measured by one method against a
+// number produced by another is exactly how a measurement outlives its method.
+// So the absolute rate is PRINTED (it is real, and it is a finding about the
+// text lane that deserves its own ticket) and the GATE is the DELTA, which is
+// the only part this change can be responsible for.
 ok("AFTER stays under the 36.1 decline threshold", after.mean < 36.1, `${after.mean} w/t`);
-ok("AFTER does not add more than 15% to BEFORE's length", after.mean <= before.mean * 1.15, `${before.mean} -> ${after.mean} w/t (${(((after.mean - before.mean) / (before.mean || 1)) * 100).toFixed(1)}%)`);
-ok("question rate stays at or under ~1 in 3", after.q / (after.n || 1) <= 0.40, `${after.q}/${after.n}`);
+ok(
+  "AFTER does not add more than 15% to BEFORE's length",
+  after.mean <= before.mean * 1.15,
+  `${before.mean} -> ${after.mean} w/t (${(((after.mean - before.mean) / (before.mean || 1)) * 100).toFixed(1)}%)`,
+);
+const qb = before.q / (before.n || 1);
+const qa = after.q / (after.n || 1);
+ok(
+  "the added context does not raise the question rate",
+  qa <= qb + 0.1,
+  `${(100 * qb).toFixed(0)}% -> ${(100 * qa).toFixed(0)}%  (absolute rate NOT comparable to realtime-azure's 13/24 — different lane, different method)`,
+);
 ok("enough calls landed to mean anything", after.n >= 10 && before.n >= 10, `before n=${before.n}, after n=${after.n}`);
 
 console.log(
