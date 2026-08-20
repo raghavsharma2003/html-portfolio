@@ -84,6 +84,23 @@ class LiveWatchEngine {
   private static final int MIC_CHUNK = 3200; // 100ms @ 16k mono 16-bit
   private static final int MAX_RECONNECTS = 3; // then fall back to the cascade
   private static final int MAX_ROTATES = 6; // goAway storms must not spin
+  // ── goAway rotation: MIRRORED WITH src/voice/liveCall.ts ────────────────
+  // Every constant below has a twin of the same name in liveCall.ts, and
+  // scripts/verify-voice.mjs §6 fails the build if the two disagree. Same
+  // reason the voice NAME is mirrored and asserted: these two files are one
+  // behaviour with two implementations, and the only failure that matters is
+  // divergence. A rotation that fires at a different moment in the APK than on
+  // the web is a voice that behaves differently on the two surfaces.
+  //
+  // WHY THE ROTATION WAITS. rotate() flushes playback, so taking it the
+  // instant goAway lands cuts her off mid-word — the server, meanwhile, sends
+  // goAway with its own notice period (timeLeft) precisely so a client does
+  // not have to. So the rotation is held until she stops speaking, capped at
+  // ROTATE_WAIT_MAX_MS and never allowed past timeLeft - ROTATE_GRACE_MS.
+  private static final long ROTATE_DELAY_MS = 500; // old socket closed -> new one opened
+  private static final long ROTATE_GRACE_MS = 1200; // stay clear of the server's own deadline
+  private static final long ROTATE_WAIT_MAX_MS = 4000; // longest hold waiting for her to finish
+  private static final long ROTATE_POLL_MS = 120; // how often "is she still speaking" is re-asked
   private static final long DRAIN_GRACE_MS = 1500; // hold focus between quick turns
   // REALTIME means a backed-up uplink must DROP, not buffer — but VIDEO and
   // AUDIO share okhttp's ONE queueSize counter, so every threshold below is
@@ -493,6 +510,7 @@ class LiveWatchEngine {
   private volatile String base = "https://meera-silk.vercel.app";
   private volatile String system = "";
   private volatile String model = DEFAULT_MODEL;
+  private volatile boolean firstConnect = true; // the model is decided once per session
 
   private volatile boolean running = false;
   private volatile boolean ready = false;
@@ -606,6 +624,8 @@ class LiveWatchEngine {
   private volatile AudioTrack track;
   private volatile Thread playThread;
   private final AtomicInteger rotates = new AtomicInteger();
+  private volatile boolean rotatePending = false; // a goAway is being waited out
+  private volatile long rotateBy = 0; // the latest moment that wait may run to
   private volatile long lastVoiceAt = 0; // last input-transcription activity
   private volatile long lastNudgeAt = 0; // last "look at the screen" wake-up
   private volatile long lastFrameAt = 0; // last frame that actually entered the socket
@@ -666,6 +686,9 @@ class LiveWatchEngine {
       running = true;
     }
     attempts.set(0);
+    rotates.set(0);
+    rotatePending = false;
+    firstConnect = true; // a new session picks its model again; a rotation does not
     client =
         new OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -956,7 +979,20 @@ class LiveWatchEngine {
       retryOrDie();
       return;
     }
-    model = (mdl == null || mdl.isEmpty()) ? DEFAULT_MODEL : mdl;
+    // THE MODEL IS PINNED FOR THE LIFE OF THE SESSION. A rotation mints a fresh
+    // token and the token response carries a model with it — but a call that
+    // started on one model must not finish on another, because the same voice
+    // NAME on a different model is a different voice, which is the whole class
+    // of bug scripts/verify-voice.mjs exists for. So the first connect decides
+    // and every reconnect after it keeps that decision. Same rule, same reason,
+    // in the reconnect() of src/voice/liveCall.ts.
+    String offered = (mdl == null || mdl.isEmpty()) ? DEFAULT_MODEL : mdl;
+    if (firstConnect) {
+      model = offered;
+      firstConnect = false;
+    } else if (!offered.equals(model)) {
+      Log.w(TAG, "live-token offered " + offered + " mid-session; staying on " + model);
+    }
     OkHttpClient c = client;
     if (c == null) return;
     ready = false;
@@ -1011,9 +1047,53 @@ class LiveWatchEngine {
     main.postDelayed(() -> safeExecute(this::connect), delay);
   }
 
+  /**
+   * A goAway has arrived. Do not take it inside one of her sentences.
+   *
+   * rotate() flushes playback, so rotating the instant the message lands cuts
+   * her off mid-word — and the server sends goAway with its OWN notice period
+   * (`timeLeft`) precisely so a client does not have to. So the rotation is
+   * held until she is not speaking, capped at ROTATE_WAIT_MAX_MS, and never
+   * allowed past `timeLeft - ROTATE_GRACE_MS`: a rotation that arrives after
+   * the server has already hung up gives back everything the wait bought.
+   *
+   * Mirrored with `scheduleRotate` in src/voice/liveCall.ts — same constants,
+   * same rule, asserted by scripts/verify-voice.mjs §6.
+   *
+   * @param leftMs the server's own notice period in ms, or 0 when it gave none
+   */
+  private void scheduleRotate(long leftMs) {
+    if (!running || rotatePending) return;
+    if (rotates.get() >= MAX_ROTATES) {
+      // Budget spent. A goAway storm must not spin the token endpoint; let the
+      // close that follows land in retryOrDie() the way it did before.
+      Log.w(TAG, "goAway budget spent (" + MAX_ROTATES + ") — not rotating again");
+      return;
+    }
+    rotatePending = true;
+    long budget = leftMs > 0 ? Math.max(0, leftMs - ROTATE_GRACE_MS) : ROTATE_WAIT_MAX_MS;
+    rotateBy = System.currentTimeMillis() + Math.min(ROTATE_WAIT_MAX_MS, budget);
+    main.post(rotateWhenQuiet);
+  }
+
+  private final Runnable rotateWhenQuiet =
+      new Runnable() {
+        @Override
+        public void run() {
+          if (!running || !rotatePending) return;
+          if (speaking && System.currentTimeMillis() < rotateBy) {
+            main.postDelayed(this, ROTATE_POLL_MS);
+            return;
+          }
+          rotatePending = false;
+          safeExecute(LiveWatchEngine.this::rotate);
+        }
+      };
+
   /** goAway: the server is about to hang up — get ahead of it. Budgeted and
    *  paced: an unthrottled goAway storm would burn the token endpoint's
-   *  rate limit in seconds. */
+   *  rate limit in seconds. Reached only through scheduleRotate(), which owns
+   *  WHEN it happens. */
   private void rotate() {
     if (!running) return;
     if (rotates.incrementAndGet() > MAX_ROTATES) {
@@ -1035,7 +1115,7 @@ class LiveWatchEngine {
       } catch (Exception ignored) {
       }
     }
-    main.postDelayed(() -> safeExecute(this::connect), 500);
+    main.postDelayed(() -> safeExecute(this::connect), ROTATE_DELAY_MS);
   }
 
   private final class Sock extends WebSocketListener {
@@ -1160,7 +1240,19 @@ class LiveWatchEngine {
         return;
       }
       if (msg.has("goAway")) {
-        rotate();
+        // `timeLeft` is a protobuf Duration rendered as a string ("10s",
+        // "4.5s"); strip everything that is not a number so a unit suffix
+        // never turns a real notice period into "no notice given".
+        long leftMs = 0;
+        JSONObject ga = msg.optJSONObject("goAway");
+        if (ga != null) {
+          String raw = ga.optString("timeLeft", "").replaceAll("[^0-9.]", "");
+          try {
+            if (!raw.isEmpty()) leftMs = (long) (Double.parseDouble(raw) * 1000d);
+          } catch (Exception ignored) {
+          }
+        }
+        scheduleRotate(leftMs);
         return;
       }
       JSONObject sc = msg.optJSONObject("serverContent");

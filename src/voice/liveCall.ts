@@ -1088,6 +1088,58 @@ export function prewarmAckClips(base: string) {
   })();
 }
 
+/* ─── GOAWAY ROTATION — MIRRORED WITH LiveWatchEngine.java ───────────────────
+ *
+ * WHAT `goAway` IS. The Gemini Live server announces an impending hang-up of a
+ * session it is about to rotate. It is routine, expected and recoverable — and
+ * continuous video is exactly what shortens the time to it, which is why it
+ * shows up during screen share.
+ *
+ * WHAT IT USED TO COST. This file did not handle it. The close that followed
+ * landed in `onclose` → `teardown("closed")` → useCallEngine's
+ * `claimVoice("cascade", …)`, so a routine server rotation became a PERMANENT
+ * move from `gemini-3.1-flash-live-preview` (speech-to-speech) to
+ * `gemini-3.1-flash-tts-preview` (text-to-speech) for the rest of the call.
+ * Both lanes say "Aoede"; they are not the same voice, and that is the half of
+ * the "her whole voice changes" report that needed NO failure at all.
+ *
+ * WHAT IT DOES NOW. It rotates: a fresh socket, the SAME model, the SAME voice.
+ * `LiveWatchEngine.java` has always done this (`rotate()`, MAX_ROTATES = 6) and
+ * this file is the twin that had drifted. The two are pinned to each other by
+ * scripts/verify-voice.mjs §6, which asserts the CONSTANTS AND THE POLICY agree
+ * across the TS and the Java — the shape `blank-guard-parity` established: a
+ * test that pins two implementations AGREEING never needs editing, and catches
+ * the only failure that matters, which is divergence.
+ *
+ * THE MODEL IS PINNED FOR THE LIFE OF THE CALL. A rotation mints a new token,
+ * and `/api/live-token` returns a model with it — but the rotation deliberately
+ * KEEPS the model this call started on and discards the new one. Taking it
+ * would let a token-endpoint change swap model families mid-call, which is
+ * precisely the voice change this whole mechanism exists to stop. Same rule in
+ * the Java twin, same reason.
+ *
+ * THE MOMENT IS CHOSEN, NOT TAKEN. `goAway` carries the server's own notice
+ * period (`timeLeft`), so there is a budget to spend waiting. The rotation
+ * waits for her to stop speaking before it fires — up to ROTATE_WAIT_MAX_MS, and
+ * never past `timeLeft − ROTATE_GRACE_MS`, because a rotation that arrives after
+ * the server has already hung up gives back everything this bought. The Java
+ * twin waits on the same rule.
+ *
+ * WHAT A ROTATION STILL COSTS, stated because it is not fixed: the new session
+ * is a NEW session and has none of the conversation in it. Nothing is injected
+ * to recap it — an unprompted turn arriving out of a socket swap is a worse
+ * failure than a lost context window, and the recap would have to come from
+ * useCallEngine, which owns the transcript. `contextWindowCompression:
+ * { slidingWindow: {} }` in the setup block means the server was already
+ * dropping the oldest context on its own.
+ */
+const MAX_ROTATES = 6; // == LiveWatchEngine.MAX_ROTATES — goAway storms must not spin
+const ROTATE_DELAY_MS = 500; // == the Java rotate()'s postDelayed before reconnecting
+const ROTATE_GRACE_MS = 1200; // never rotate closer than this to the server's own deadline
+const ROTATE_WAIT_MAX_MS = 4000; // longest we will hold a rotation waiting for her to finish
+const ROTATE_POLL_MS = 120; // how often "is she still speaking" is re-asked
+const SETUP_TIMEOUT_MS = 10_000; // a socket that never reaches setupComplete is not a socket
+
 async function mintToken(base: string, budgetMs: number) {
   const t0 = Date.now();
   let won = false;
@@ -1193,7 +1245,28 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let ws: WebSocket | null = new WebSocket(`${WS_BASE}?access_token=${token}`);
   let dead = false;
   let muted = false;
+  /**
+   * This session has been ADOPTED — one socket reached `setupComplete` at some
+   * point. It is never cleared, because it is what decides whether a teardown
+   * owes the caller an `onEnded` (and therefore a cascade takeover). A rotation
+   * must not look like a session that never started.
+   */
   let ready = false;
+  /**
+   * The CURRENT socket has reached `setupComplete`. Cleared on every rotation,
+   * so nothing is written into a socket that has not finished its handshake.
+   * This is the flag the uplink tick and `sendFrame` guard on; `ready` above is
+   * a fact about the call, not about the socket.
+   */
+  let sockReady = false;
+  /** Stale-callback guard, mirroring `LiveWatchEngine.wsGen`. The initial
+   *  socket is generation 1; every rotation bumps it, and any handler whose own
+   *  generation no longer matches is a message from a socket we have replaced. */
+  let wsGen = 1;
+  let rotates = 0; // spent against MAX_ROTATES, per call
+  let rotatePending = false; // a goAway is being waited out
+  let rotateBy = 0; // the latest moment that wait may run to
+  let rotateTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ── uplink: mic → 16k PCM16. Wired once the stream lands, below. ──
   //
@@ -1325,6 +1398,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     return m;
   };
   let herTurnSeen = -1; // which of her turns the arbitration state belongs to
+  let sockSeen = -1; // which SOCKET the arbitration state belongs to (see below)
   const toPcm = (input: Float32Array, ratio: number, outLen: number) => {
     const p = new Int16Array(outLen);
     for (let i = 0; i < outLen; i++) {
@@ -1334,7 +1408,36 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     return p;
   };
   proc.onaudioprocess = (e) => {
-    if (dead || !ready || !ws || ws.readyState !== WebSocket.OPEN) return;
+    if (dead || !sockReady || !ws || ws.readyState !== WebSocket.OPEN) return;
+    // A REPLACED SOCKET MUST NOT INHERIT THE OLD ONE'S ARBITRATION STATE. The
+    // hold ring is audio addressed to a session that no longer exists; κ, the
+    // echo lock and the lag index describe a conversation that has ended;
+    // floorLost/floorClaimSince/floorReleasedAt describe a floor nobody is
+    // standing on any more. Cleared FIRST in the tick, before anything reads
+    // it. This is the exact block `LiveWatchEngine.java`'s mic pump already had
+    // (`sockSeen != wsGen`) and this twin did not — it costs nothing while a
+    // call never rotates, because `sockSeen` only ever moves when `wsGen` does.
+    if (sockSeen !== wsGen) {
+      sockSeen = wsGen;
+      hardHits.length = 0;
+      softHits.length = 0;
+      subLin.length = 0;
+      hold = [];
+      claimPeak = 0;
+      kappa = ECHO_KAPPA_SEED;
+      echoRing.length = 0;
+      echoHold.length = 0;
+      fitMic.length = 0;
+      fitHer.length = 0;
+      echoLocked = false;
+      echoLag = -1;
+      floorLost = false;
+      floorClaimSince = 0;
+      floorReleasedAt = 0;
+      gatedRun = 0;
+      prevPcm = null;
+      wasOpen = false;
+    }
     const input = e.inputBuffer.getChannelData(0);
     const N = input.length;
     // Sub-frame RMS. 85ms granularity cannot express a 550ms guard as
@@ -2380,6 +2483,139 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     // hard cut is only ever legitimate while the server is still generating
     diag("call", "floor_yield", { hard, fadeMs: Math.round(fadeMs), genDone: !genInFlight });
   };
+  /**
+   * Silence her NOW and re-arm for the next session. The twin of
+   * `LiveWatchEngine.flushPlayback()`, and it is called for the same reason: the
+   * old session's audio is still draining, and without this the new session
+   * starts talking over the tail of the old one — two of her at once, which is
+   * the worst-sounding failure this file can produce.
+   *
+   * It is deliberately NOT `yieldFloor(true)`. A yield is a courtesy to a person
+   * who has taken the floor and it schedules a fade against a playhead that is
+   * about to stop meaning anything; a rotation has no listener to be polite to
+   * and needs the buffer empty before the next socket speaks.
+   */
+  const flushPlayback = () => {
+    if (yieldTimer) clearTimeout(yieldTimer);
+    yieldTimer = null;
+    const doomed = liveSources;
+    liveSources = [];
+    for (const s of doomed) {
+      try {
+        s.stop();
+      } catch {
+        /* already done */
+      }
+    }
+    boundaries = [];
+    herLevels = [];
+    herEnv = []; // the audio these describe no longer exists
+    playhead = 0;
+    speakingUntil = 0;
+    discardTurn = false; // a fresh session's first turn is not a straggler
+    genInFlight = false; // whatever it was generating died with the socket
+    herTurnGen++; // and the arbiter's candidate does not cross the boundary
+    try {
+      const t = outCtx.currentTime;
+      outBus.gain.cancelScheduledValues(t);
+      outBus.gain.setValueAtTime(1, t); // ready for her first turn on the new socket
+    } catch {
+      /* ctx closed */
+    }
+    opts.onState("listening");
+  };
+
+  /**
+   * Take the rotation. Same model, same voice, same call — a new socket.
+   * `LiveWatchEngine.rotate()`, line for line in its policy: budget, generation
+   * bump, flush, close the old one, reconnect after ROTATE_DELAY_MS.
+   */
+  const rotate = () => {
+    if (dead) return;
+    if (rotates >= MAX_ROTATES) return; // guarded in scheduleRotate; belt and braces
+    rotates++;
+    const gen = ++wsGen;
+    const old = ws;
+    ws = null;
+    sockReady = false;
+    flushPlayback();
+    try {
+      old?.close(1000, "rotate");
+    } catch {
+      /* already closing */
+    }
+    diag("call", "live_rotate", {
+      n: rotates,
+      waitedMs: goAwayAt ? Date.now() - goAwayAt : -1,
+      framesSent,
+      sharing: framesSent > 0,
+    });
+    rotateTimer = setTimeout(() => {
+      rotateTimer = null;
+      void reconnect(gen);
+    }, ROTATE_DELAY_MS);
+  };
+
+  /** Mint a fresh single-use token and open the replacement socket. */
+  const reconnect = async (gen: number) => {
+    if (dead || gen !== wsGen) return;
+    let fresh: { token: string; model?: string };
+    try {
+      fresh = await mintToken(opts.base, 8000);
+    } catch {
+      // No token, no live lane. Hand the call back the way it went back before
+      // any of this existed, rather than leaving it on a socket that is gone.
+      diag("call", "live_rotate_failed", { n: rotates, why: "token" });
+      teardown("closed");
+      return;
+    }
+    if (dead || gen !== wsGen) return;
+    // `fresh.model` is DISCARDED ON PURPOSE — see the GOAWAY ROTATION header.
+    // The model this call started on is the model it finishes on; a token
+    // endpoint that started answering with a different one would otherwise
+    // change her voice mid-call, which is the bug this whole path exists for.
+    const sock = new WebSocket(`${WS_BASE}?access_token=${fresh.token}`);
+    ws = sock;
+    wire(sock, gen);
+  };
+
+  /**
+   * A goAway has arrived. Wait for a moment that is not inside one of her
+   * sentences, then rotate — but never past the deadline the server itself
+   * gave us. Mirrors `LiveWatchEngine.scheduleRotate`.
+   */
+  const rotateWhenQuiet = () => {
+    rotateTimer = null;
+    if (dead || !rotatePending) return;
+    if (speakingUntil > Date.now() && Date.now() < rotateBy) {
+      rotateTimer = setTimeout(rotateWhenQuiet, ROTATE_POLL_MS);
+      return;
+    }
+    rotatePending = false;
+    rotate();
+  };
+  const scheduleRotate = (leftMs: number) => {
+    if (dead || rotatePending) return;
+    if (rotates >= MAX_ROTATES) {
+      // Budget spent. Do NOT rotate again — a goAway storm would hammer
+      // /api/live-token. The close that follows lands in `onclose` and the call
+      // falls back to the cascade exactly as it did before any of this existed.
+      // Recorded rather than dropped: a lane change that happens because a
+      // budget quietly ran out is indistinguishable in telemetry from the
+      // unhandled-goAway bug this replaced, which is the whole reason it is
+      // being fixed.
+      diag("call", "live_rotate_spent", { n: rotates, framesSent, sharing: framesSent > 0 });
+      return;
+    }
+    rotatePending = true;
+    // `timeLeft` is the server's own notice period when it gives one. With no
+    // notice we still bound the wait: an unbounded one turns "rotate at a
+    // chosen moment" into "get hung up on mid-sentence anyway".
+    const budget = leftMs > 0 ? Math.max(0, leftMs - ROTATE_GRACE_MS) : ROTATE_WAIT_MAX_MS;
+    rotateBy = Date.now() + Math.min(ROTATE_WAIT_MAX_MS, budget);
+    rotateWhenQuiet();
+  };
+
   // she's "listening" again once the queued audio drains
   const stateTick = setInterval(() => {
     if (dead) return;
@@ -2405,6 +2641,11 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     clearInterval(stateTick);
     if (yieldTimer) clearTimeout(yieldTimer);
     yieldTimer = null;
+    // a rotation in flight must not outlive the call it was rotating
+    if (rotateTimer) clearTimeout(rotateTimer);
+    rotateTimer = null;
+    rotatePending = false;
+    wsGen++; // every in-flight socket callback is now stale
     flushTexts();
     try {
       proc?.disconnect();
@@ -2431,11 +2672,54 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     if (ready) opts.onEnded(reason);
   };
 
+  let resolveOpen!: () => void;
+  let rejectOpen!: (e: Error) => void;
   const opened = new Promise<void>((resolve, reject) => {
-    if (!ws) return reject(new Error("no ws"));
-    const failTimer = setTimeout(() => reject(new Error("live setup timeout")), 10_000);
-    ws.onopen = () => {
-      wsOpenMs = Date.now() - tPar;
+    resolveOpen = resolve;
+    rejectOpen = reject;
+  });
+
+  /**
+   * Attach the handlers to ONE socket. Called once for the socket this call
+   * started on (generation 1) and once per `goAway` rotation after that.
+   *
+   * `gen` is the whole safety story. A socket we have replaced can still
+   * deliver a message, an error and a close after `rotate()` has moved on, and
+   * every one of those events would otherwise be read as this call's — a stale
+   * `onclose` in particular would tear the call down and hand it to the cascade,
+   * which is the exact bug the rotation exists to prevent. So every handler
+   * checks its own generation first, the same way `LiveWatchEngine.Sock.stale()`
+   * does, and the handlers are otherwise byte-for-byte the ones that were here
+   * before rotation existed.
+   */
+  const wire = (sock: WebSocket, gen: number) => {
+    /** The socket this call STARTED on — the only one whose failure is a failure
+     *  to start rather than a failure to rotate. */
+    const first = gen === 1;
+    const stale = () => dead || gen !== wsGen;
+    let failTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      failTimer = null;
+      if (stale()) return;
+      if (first) rejectOpen(new Error("live setup timeout"));
+      // A ROTATION that never came up. Nothing will close this socket for us,
+      // so the call would sit on a dead lane forever; hand it back to the
+      // cascade, which is where an unhandled goAway put it before.
+      else teardown("closed");
+    }, SETUP_TIMEOUT_MS);
+    const clearFail = () => {
+      if (failTimer) clearTimeout(failTimer);
+      failTimer = null;
+    };
+    sock.onopen = () => {
+      if (stale()) {
+        try {
+          sock.close(1000, "stale");
+        } catch {
+          /* already gone */
+        }
+        return;
+      }
+      if (first) wsOpenMs = Date.now() - tPar;
       tSetupSent = Date.now();
       // stamped rather than estimated: this frame carries the whole live system
       // instruction (~70KB), which needs several round trips on a connection
@@ -2514,13 +2798,14 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
           },
       });
       setupBytes = setupFrame.length;
-      ws!.send(setupFrame);
+      sock.send(setupFrame);
     };
-    ws.onmessage = async (ev) => {
+    sock.onmessage = async (ev) => {
       let text: string;
       if (typeof ev.data === "string") text = ev.data;
       else if (ev.data instanceof Blob) text = await ev.data.text();
       else text = new TextDecoder().decode(ev.data as ArrayBuffer);
+      if (stale()) return; // a message from a socket we have already replaced
       let msg: any;
       try {
         msg = JSON.parse(text);
@@ -2529,8 +2814,26 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       }
       if (msg.setupComplete) {
         ready = true;
-        clearTimeout(failTimer);
+        sockReady = true;
+        clearFail();
         setupMs = Date.now() - tSetupSent;
+        if (!first) {
+          // A ROTATION IS NOT A CONNECT. The timing callback describes how long
+          // this call took to start and must not be overwritten by a mid-call
+          // reconnect; `live_rotated` is the record for that, and it carries the
+          // one number nobody could see before — how long she was off the live
+          // lane, which is the whole cost of the mechanism.
+          diag("call", "live_rotated", {
+            n: rotates,
+            gapMs: goAwayAt ? Date.now() - goAwayAt : -1,
+            setupMs,
+            framesSent,
+            sharing: framesSent > 0,
+          });
+          goAwayAt = 0;
+          opts.onState("listening");
+          return;
+        }
         const readyMs = Date.now() - tMint;
         // The two legs ran together, so the connect cost is the SLOWER of
         // them, not the sum. overlapMs is what that parallelism actually
@@ -2541,43 +2844,45 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
         const timing = { readyMs, micMs, wsOpenMs, setupMs, overlapMs, uplinkMs, setupBytes };
         opts.onTiming?.(timing);
         diag("call", "live_connect", { ...timing, mintMs, preminted: !!warmed });
-        resolve();
+        resolveOpen();
         opts.onState("listening");
         return;
       }
       // ── goAway: the server is about to hang up ────────────────────────
-      // OBSERVABILITY ONLY. Nothing here changes what this file does; it
-      // records WHY the socket is about to die, which is currently
-      // unknowable from outside and is the missing half of a real complaint.
+      // ROTATE. Same model, same voice, same call. The reasoning, the twin it
+      // is mirrored with and what a rotation still costs are all in the GOAWAY
+      // ROTATION header near the top of this file; what matters here is only
+      // that this message is NOT a reason to leave the live lane, and treating
+      // it as one is how a routine server rotation turned into a permanent
+      // handoff to a different model — the half of "her whole voice changes"
+      // that needed nothing to go wrong.
       //
-      // The owner reports her voice changing during screen share. Every lane
-      // agrees on her voice NAME (scripts/verify-voice.mjs proves it), so the
-      // change is a lane change: live (`gemini-3.1-flash-live-preview`,
-      // speech-to-speech) handing over to the cascade
-      // (`gemini-3.1-flash-tts-preview`, text-to-speech). The same name on a
-      // different model is a different voice.
-      //
-      // WHAT MAKES SCREEN SHARE THE PLACE IT HAPPENS. The native watch engine
-      // handles this message — `LiveWatchEngine.rotate()`, up to MAX_ROTATES
-      // = 6, opening a fresh session and STAYING on the live model. This file
-      // does not handle it at all: the close that follows lands in `onclose`,
-      // becomes `teardown("closed")`, and useCallEngine answers it with
-      // `claimVoice("cascade", …)` — a PERMANENT lane change for the rest of
-      // the call, from a routine, expected, recoverable server rotation.
-      // Continuous video is exactly what shortens the time to that rotation.
-      //
-      // Handling it properly means rotating the socket mid-call, which is a
-      // change to the session lifecycle the arbiter, the hold ring and the
-      // barge-in watchdog all hang off — not something to land next to a
-      // timbre fix. So this measures it first. See docs/VOICE-LANE.md.
+      // `leftMs` is recorded before it is spent, so a production trail can say
+      // whether the server gives usable notice and whether the wait for a quiet
+      // moment ever ran out. Screen share is expected to dominate this record:
+      // `sharing` is the only client-side evidence of that.
       if (msg.goAway) {
         goAwayAt = Date.now();
+        // `timeLeft` is a protobuf Duration rendered as a string of SECONDS
+        // with a unit suffix — "10s", "4.5s". The observability-only version of
+        // this line stripped the suffix and used the number as milliseconds,
+        // which made every real notice period read as ~10ms. Harmless while
+        // nothing consumed it; not harmless now that it decides how long the
+        // rotation may wait, so it is seconds → ms here.
+        const leftMs = Math.round(
+          (Number(String(msg.goAway.timeLeft ?? "").replace(/[^0-9.]/g, "")) || 0) * 1000,
+        );
         diag("call", "live_goaway", {
           // the server's own notice period, when it gives one
-          leftMs: Number(String(msg.goAway.timeLeft ?? "").replace(/[^0-9.]/g, "")) || 0,
+          leftMs,
           upMs: Date.now() - tSetupSent,
           framesSent,
+          sharing: framesSent > 0,
+          rotates,
+          budget: MAX_ROTATES,
+          speaking: speakingUntil > Date.now(),
         });
+        scheduleRotate(leftMs);
         return;
       }
       const sc = msg.serverContent;
@@ -2628,12 +2933,21 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
         flushTexts();
       }
     };
-    ws.onerror = () => {
-      clearTimeout(failTimer);
-      reject(new Error("live ws error"));
+    sock.onerror = () => {
+      if (stale()) return;
+      clearFail();
+      // A rejection after `opened` has already settled is a no-op, so this is
+      // only ever the initial socket failing to start. A rotation's socket dies
+      // through `onclose` below, like every other mid-call loss.
+      if (first) rejectOpen(new Error("live ws error"));
     };
-    ws.onclose = (ev) => {
-      clearTimeout(failTimer);
+    sock.onclose = (ev) => {
+      // THE ONE HANDLER THAT MUST NOT RUN FOR A REPLACED SOCKET. `rotate()`
+      // closes the old one deliberately; letting its close reach here would
+      // tear the call down and hand it to the cascade at the exact moment we
+      // were preventing precisely that.
+      if (stale()) return;
+      clearFail();
       // The one record that says whether a mid-call voice change was a broken
       // link or a scheduled server rotation, and whether a screen share was up
       // when it happened. Without `goAway` and `framesSent` here, every drop
@@ -2647,11 +2961,15 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
           upMs: Date.now() - tSetupSent,
           framesSent,
           sharing: framesSent > 0,
+          rotates,
         });
-      if (!ready) reject(new Error("live ws closed early"));
+      if (!ready) rejectOpen(new Error("live ws closed early"));
       else teardown("closed");
     };
-  });
+  };
+
+  if (ws) wire(ws, 1);
+  else rejectOpen(new Error("no ws"));
 
   opened.catch(() => {}); // the mic leg may reject first; never go unhandled
   // a stream that arrives after we've already given up must not stay live
@@ -2717,7 +3035,10 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       else send();
     },
     sendFrame: (b64Jpeg: string) => {
-      if (dead || !ready || !ws || ws.readyState !== WebSocket.OPEN) return false;
+      // `sockReady`, not `ready`: during a rotation the call is very much alive
+      // and the socket is not, and a frame written into a socket that has not
+      // finished its handshake is a frame thrown away.
+      if (dead || !sockReady || !ws || ws.readyState !== WebSocket.OPEN) return false;
       // NOT sampled into the congestion signal: the reading we would take
       // here is the sawtooth we ourselves are about to create.
       //
