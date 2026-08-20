@@ -714,6 +714,21 @@ every gate is blind. The rule: anything that runs the system but is not run BY
 the system needs its own lint, and the lint has to live somewhere the failure
 cannot take down with it.
 
+**Confirmed on the next push rather than assumed.** Run on `112fc7d`:
+`total_jobs: 2` (was 0), `created_at 08:13:59 → updated_at 08:14:06` — seven
+seconds of actual work where the previous fifteen runs finished in zero.
+`configured` succeeded, `deploy` **skipped** (grey, not red). The job log shows
+`HAS_TOKEN: false`, the annotation firing, and `Set output 'has_token'`. So both
+halves are verified: the file is valid again, and the gate branches on the real
+value.
+
+**And it immediately surfaced the thing it was built to surface.**
+`VERCEL_TOKEN` is genuinely not set in the repository's Actions secrets. The
+site has not auto-deployed since 2026-08-11, and will not start until the owner
+adds it. That fact was true for nine days and unreadable for nine days; it is
+now a loud annotation on every push. The workflow bug and the missing secret are
+independent — fixing the first is what made the second legible.
+
 **Reverses if:** GitHub adds the `secrets` context to job-level `if:` — in which
 case delete `secrets` from `ILLEGAL_IN_JOB_IF` and keep the rest.
 
