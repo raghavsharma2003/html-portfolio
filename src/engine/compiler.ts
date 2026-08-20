@@ -351,8 +351,33 @@ export function compile(input: CompileInput): CompiledPrompt {
   // this seam landed. `gate` (moment.ts's momentGate) is computed once and
   // reused by T4 here and T6 below — moment.ts's own contract: "one gate,
   // read once per turn, so the two TAIL slots can never disagree."
+  //
+  // ── WS-CONTINUITY: A BLANK TURN IS NOT A TURN ─────────────────────────
+  // moment.ts's own law is that the gate "reads ONLY the current user turn",
+  // and some turns do not exist: a call PICKUP has no user turn yet (it is
+  // them ringing her), and a chat directive is her opening the conversation.
+  //
+  // That state was unreachable until now — the chat lane nulls the whole
+  // bundle on a directive, so compile() never reached momentGate with an
+  // empty string — and routing the call lane through this compiler makes it
+  // reachable for the first time. It must be handled here, because measured,
+  // `momentGate("")` returns **"celebration"**: one celebration key is an
+  // emoji, padT() strips it to "" and pads it to "  ", and the padded empty
+  // haystack is also "  ", so an ABSENT turn matches. She would have walked
+  // into every pickup primed with how she is when they are celebrating.
+  //
+  // The defect is in moment.ts, which belongs to WS-RELSTATE (§13) and is not
+  // edited here — it is filed in the WS-CONTINUITY report. This guard is not
+  // merely a workaround for it either: "no turn, no moment" is the correct
+  // rule at this boundary regardless of how padT behaves, and stating it here
+  // is what makes the pull-only law hold for a lane that has no turn to pull
+  // from. Byte-identical for all 83 fixtures (none sets relBundle) and for
+  // every existing call site (all pass a real turn when they pass a bundle).
+  const hasTurn = (input.latestUserText || "").trim().length > 0;
   const gate = input.relBundle
-    ? momentGate(input.latestUserText || "", input.gapSinceLastMs || 0, input.relBundle.phraseLedger || [])
+    ? hasTurn
+      ? momentGate(input.latestUserText || "", input.gapSinceLastMs || 0, input.relBundle.phraseLedger || [])
+      : { moment: "none" as const, pulled: false }
     : null;
   if (input.relBundle) {
     // T2/T4 are the only independently-droppable INTIMACY-REGISTER blocks

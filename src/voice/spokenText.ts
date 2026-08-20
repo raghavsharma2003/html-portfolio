@@ -70,15 +70,15 @@
    beats generating it — the house pattern is MIRROR, then assert. */
 const SPOKEN_RULES_VERSION = "st1";
 
-function spokenTextCore(input) {
+function spokenTextCore(input = "") {
   if (typeof input !== "string" || !input) return "";
   let t = input;
 
   // A. INVISIBLES AND ENTITIES — normalised.
   // Zero-width joiners and soft hyphens are invisible on screen and are read by
   // some engines as a break mid-word; non-breaking spaces are just spaces.
-  t = t.replace(/[​-‍⁠﻿­]/g, "");
-  t = t.replace(/[   ]/g, " ");
+  t = t.replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, "");
+  t = t.replace(/[\u00A0\u2007\u202F]/g, " ");
   // Decoded to the CHARACTER, never to a word: "&" is spoken "and" by every
   // engine on its own, and putting the word there ourselves would be text she
   // never wrote.
@@ -114,11 +114,11 @@ function spokenTextCore(input) {
   // D. LINE STRUCTURE — the MARKER removed, the ITEM kept, joined as a list.
   // Runs BEFORE the dash rule on purpose: a line-leading "- " is a bullet, not
   // a dash, and treating it as one would put a comma in front of every item.
-  t = t.replace(/^[ \t]*([-*_=—–]{3,})[ \t]*$/gm, " ");
+  t = t.replace(/^[ \t]*([-*_=\u2014\u2013]{3,})[ \t]*$/gm, " ");
   t = t.replace(/^[ \t]*#{1,6}[ \t]+/gm, "");
   t = t.replace(/^[ \t]*>[ \t]?/gm, "");
-  t = t.replace(/^[ \t]*(?:[-*+•·▪‣◦][ \t]+|\d{1,2}[.)][ \t]+)/gm, "");
-  t = t.replace(/[•·▪‣◦]/g, ", ");
+  t = t.replace(/^[ \t]*(?:[-*+\u2022\u00B7\u25AA\u2023\u25E6][ \t]+|\d{1,2}[.)][ \t]+)/gm, "");
+  t = t.replace(/[\u2022\u00B7\u25AA\u2023\u25E6]/g, ", ");
 
   // E. MARKDOWN EMPHASIS — the MARKERS removed, the WORDS kept.
   // Not the same class as a stage direction: "*shrugs*" is an action the
@@ -128,10 +128,12 @@ function spokenTextCore(input) {
   t = t.replace(/`{1,3}/g, " ");
   t = t.replace(/(^|[\s(,.!?;:"'])(\*\*|__)(?=\S)([\s\S]*?\S)\2/g, "$1$3");
   t = t.replace(/(^|[\s(,.!?;:"'])([*_])(?=\S)([^*_\n]*?\S)\2(?![\w])/g, "$1$3");
-  // Anything still standing is not a word: an asterisk is a spoken asterisk,
-  // and a leftover underscore inside an identifier reads better as a gap
-  // between two words than as the word "underscore".
-  t = t.replace(/\*+/g, " ").replace(/_+/g, " ");
+  // Anything still standing is not a word: an asterisk is a spoken asterisk.
+  // An underscore is only removed at a word EDGE, where it is leftover markup —
+  // one BETWEEN two word characters is part of an address or a name
+  // ("priya_sharma@gmail.com") and "underscore" is exactly what a person says
+  // for it, so removing it there would break the thing it is holding together.
+  t = t.replace(/\*+/g, " ").replace(/(?<!\w)_+|_+(?!\w)/g, " ");
 
   // F. DASHES — REPLACED with the spoken equivalent, which is a PAUSE.
   // This is the reported bug, and the reason it is a replace and not a delete:
@@ -145,8 +147,8 @@ function spokenTextCore(input) {
   // Those are never touched. Only a dash that is punctuation gets replaced —
   // the true dash characters, a doubled ASCII hyphen, or a single hyphen with
   // whitespace on both sides.
-  t = t.replace(/\s*[‒-―]+\s*$/g, "");
-  t = t.replace(/[‒-―]+/g, ", ");
+  t = t.replace(/\s*[\u2012-\u2015]+\s*$/g, "");
+  t = t.replace(/[\u2012-\u2015]+/g, ", ");
   t = t.replace(/\s*-{2,}\s*/g, ", ");
   t = t.replace(/ +- +/g, ", ");
   t = t.replace(/[ ,]*-+\s*$/g, "");
@@ -155,8 +157,11 @@ function spokenTextCore(input) {
   // "→" most often means "then" or "to", but which one is a guess, and putting
   // a word she did not write into her mouth is the thing this repo calls
   // fabrication. A pause keeps the sentence intact and invents nothing.
-  t = t.replace(/[←-⇿⟰-⟿⬀-⬑]+/g, ", ");
+  t = t.replace(/[\u2190-\u21FF\u27F0-\u27FF\u2B00-\u2B11]+/g, ", ");
   t = t.replace(/(^|\s)(?:->|<-|=>|<=>|<->)(\s|$)/g, ", ");
+  // A pipe is the same class — a separator that some engines announce as
+  // "vertical bar". It never carries meaning she said out loud.
+  t = t.replace(/\s*\|+\s*/g, ", ");
 
   // H. PARENTHESES — the WORDS kept, the brackets become pauses.
   // Different from rule B and deliberately so: a parenthetical is an aside a

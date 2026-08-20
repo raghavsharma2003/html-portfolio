@@ -447,7 +447,12 @@ const GAP_MIN = 30 * 60_000;
 
 type TurnContent = string | Array<Record<string, unknown>>;
 
-function toTurns(history: Message[], latest: string) {
+// Exported for evals/continuity/seam3.mjs only (WS-CONTINUITY seam 3: the
+// spec asks the build to CHECK whether any reader treats a channel boundary
+// as "a new conversation" rather than taking its word for it — this is that
+// reader, and checking it requires being able to call it). Pure; no call site
+// changed.
+export function toTurns(history: Message[], latest: string) {
   const turns: Array<{ role: "user" | "assistant"; content: TurnContent }> = [];
   let lastChannel: "chat" | "call" = "chat";
   let prevAt = 0;
@@ -748,15 +753,36 @@ export async function think(
   // WS-INTEGRATE seam 1 (T2/T3/T4/T6): the relstate bundle rode the SAME
   // op:"recall" response `memories` just resolved from (memory.ts's
   // takeRelBundle — see that file's header for why this isn't its own
-  // network call). Chat lane only: the call lane's memory lookup happens
-  // once at pickup in useCallEngine.ts, outside this function, and is out of
-  // scope for this seam (§13 collision contract — useCallEngine.ts is a
-  // different ticket). Absent deviceId, absent bundle, or a directive turn
-  // (no live user text to gate on — moment.ts's pull-only law reads ONLY the
-  // real turn) all fall through to `null`, and compile() renders nothing for
-  // any of them — the byte-identity default.
+  // network call). Absent deviceId, absent bundle, or a directive turn (no
+  // live user text to gate on — moment.ts's pull-only law reads ONLY the real
+  // turn) all fall through to `null`, and compile() renders nothing for any of
+  // them — the byte-identity default.
+  //
+  // ── WS-CONTINUITY seam 1 (docs/SPEC-CONTINUITY.md §1) ──────────────────
+  // The `mode === "call"` arm used to be part of that null: "the call lane's
+  // memory lookup happens once at pickup in useCallEngine.ts, outside this
+  // function, and is out of scope for this seam (useCallEngine.ts is a
+  // different ticket)". That ticket is this one. The deferral was never a
+  // decision — its own comment says so — and its cost was T2/T3/T4/T6 going
+  // dark on every call, i.e. a structurally shallower person on the phone.
+  //
+  // The lanes differ ONLY in where the bundle comes from, never in what is
+  // rendered from it:
+  //   chat — pulled from takeRelBundle's consume-once cache, which brain.ts
+  //          has just refreshed by awaiting recallMemories two lines up.
+  //   call — handed in on `keys.relBundle`, fetched once during the RING
+  //          (rejected.md#murmur-timbre: the ring is already-idle time with
+  //          no call-path cost) and reused for every turn of the call, since
+  //          a spoken turn may not sit behind a network lookup (`live-floor`).
+  // Everything downstream — the moment gate, the render calls, the drop
+  // order, the age-tier drop — is the same code on both lanes, because there
+  // is now only one assembler.
   const relBundle =
-    mode === "call" || isDirective || !keys.deviceId ? null : takeRelBundle(keys.deviceId);
+    isDirective || !keys.deviceId
+      ? null
+      : mode === "call"
+        ? keys.relBundle ?? null
+        : takeRelBundle(keys.deviceId);
 
   const compiled = compile({
     user,

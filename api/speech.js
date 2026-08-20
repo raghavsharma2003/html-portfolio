@@ -18,6 +18,176 @@ import { withGeminiKey, isQuota, isTransient, poolSize, poolHealth } from "./_gk
 
 import { OPENROUTER_KEY } from "./_config.js";
 
+// ── WHERE TEXT STOPS BEING TEXT ─────────────────────────────────────────
+// The owner's report was "saying Dash dash in voice call". Nothing in this
+// repo ever separated what she WRITES from what she SAYS: the same string is
+// displayed in the chat and handed to a synthesiser, so every writing
+// convention in it — em-dashes, markdown, bullets, brackets, arrows, emoji,
+// URL protocols — was being read out loud.
+//
+// This is that seam, and it is deliberately HERE rather than in each client:
+// three different callers reach this endpoint (speech.ts's streaming and
+// complete-file paths, VoiceNote.tsx, and liveCall.ts's backchannel prewarm)
+// and only one of them strips anything today. A server-side seam covers all
+// three and covers every future one by construction. It also cannot be
+// skipped by an old APK that has not updated.
+//
+// The rules and their per-class reasoning live in src/voice/spokenText.ts.
+// The block below is MIRRORED FROM IT VERBATIM — a Vercel function cannot
+// import TypeScript (see scripts/build-engine-bundle.mjs's header) — and
+// `node scripts/verify-voice.mjs` compares the two regions character for
+// character on every release, so they cannot drift.
+//
+// ORDERING, which this depends on and which was verified rather than assumed:
+// media/protocol tags are parsed and ACTED ON upstream (brain.ts `parseReply`
+// lifts [tone:]/[voicenote:]/[forget:] out and performs the delete; speech.ts
+// strips the residue) BEFORE anything is POSTed here. That is what licenses
+// rule B to drop a surviving bracket segment whole.
+
+/* ─── SPOKEN-TEXT CORE — MIRRORED VERBATIM INTO api/speech.js ───────────────
+   Do not edit one copy. `node scripts/verify-voice.mjs` compares the two
+   regions character for character and fails when they differ. A Vercel
+   function cannot import TypeScript (see scripts/build-engine-bundle.mjs's
+   header for the same constraint), and this is small enough that mirroring it
+   beats generating it — the house pattern is MIRROR, then assert. */
+const SPOKEN_RULES_VERSION = "st1";
+
+function spokenTextCore(input = "") {
+  if (typeof input !== "string" || !input) return "";
+  let t = input;
+
+  // A. INVISIBLES AND ENTITIES — normalised.
+  // Zero-width joiners and soft hyphens are invisible on screen and are read by
+  // some engines as a break mid-word; non-breaking spaces are just spaces.
+  t = t.replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, "");
+  t = t.replace(/[\u00A0\u2007\u202F]/g, " ");
+  // Decoded to the CHARACTER, never to a word: "&" is spoken "and" by every
+  // engine on its own, and putting the word there ourselves would be text she
+  // never wrote.
+  t = t
+    .replace(/&amp;/gi, "&")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0*39;|&apos;/gi, "'")
+    .replace(/&lt;|&gt;/gi, " ");
+
+  // B. PROTOCOL SEGMENTS — the whole segment DROPPED, brackets and contents.
+  // Justified only by the ordering above: every bracket that carried meaning
+  // has already been parsed and acted on, so what is left is a leaked marker or
+  // a stage direction, and `ack-bracket-direction` measured what happens to
+  // those — they are performed as words. <…> is this app's own machine framing
+  // (liveCall.ts `direct()` sends "<context: …>"); {…} is template residue.
+  // Bounded lengths so a stray opener cannot swallow a whole reply.
+  t = t.replace(/<[^<>\n]{0,200}>/g, " ");
+  t = t.replace(/\{[^{}\n]{0,200}\}/g, " ");
+  t = t.replace(/\[[^\][\n]{0,200}\]/g, " ");
+  // An UNCLOSED tag at the very end is the truncation case brain.ts already
+  // guards for its own path; a synthesiser hands back "bracket laughs".
+  t = t.replace(/\[[^\][\n]{0,40}$/, " ");
+
+  // C. URLs — the PROTOCOL removed, the address KEPT.
+  // Not dropped, and this is a safety decision rather than a stylistic one. The
+  // crisis-helpline block this repo protects with an invariant suite can carry
+  // an address, and on a call the spoken copy is the ONLY copy — deleting it
+  // would delete the helpline. "aasra.info" is said fine by every engine;
+  // "h-t-t-p-s colon slash slash" is what actually had to go.
+  t = t.replace(/\bhttps?:\/\/(?:www\.)?/gi, " ").replace(/\bwww\./gi, " ");
+
+  // D. LINE STRUCTURE — the MARKER removed, the ITEM kept, joined as a list.
+  // Runs BEFORE the dash rule on purpose: a line-leading "- " is a bullet, not
+  // a dash, and treating it as one would put a comma in front of every item.
+  t = t.replace(/^[ \t]*([-*_=\u2014\u2013]{3,})[ \t]*$/gm, " ");
+  t = t.replace(/^[ \t]*#{1,6}[ \t]+/gm, "");
+  t = t.replace(/^[ \t]*>[ \t]?/gm, "");
+  t = t.replace(/^[ \t]*(?:[-*+\u2022\u00B7\u25AA\u2023\u25E6][ \t]+|\d{1,2}[.)][ \t]+)/gm, "");
+  t = t.replace(/[\u2022\u00B7\u25AA\u2023\u25E6]/g, ", ");
+
+  // E. MARKDOWN EMPHASIS — the MARKERS removed, the WORDS kept.
+  // Not the same class as a stage direction: "*shrugs*" is an action the
+  // caller's stripProtocol already dropped, but "**sach**" is emphasis on a
+  // real word and deleting the word loses what she said. The opener has to sit
+  // on a boundary so `snake_case` is not mistaken for emphasis.
+  t = t.replace(/`{1,3}/g, " ");
+  t = t.replace(/(^|[\s(,.!?;:"'])(\*\*|__)(?=\S)([\s\S]*?\S)\2/g, "$1$3");
+  t = t.replace(/(^|[\s(,.!?;:"'])([*_])(?=\S)([^*_\n]*?\S)\2(?![\w])/g, "$1$3");
+  // Anything still standing is not a word: an asterisk is a spoken asterisk.
+  // An underscore is only removed at a word EDGE, where it is leftover markup —
+  // one BETWEEN two word characters is part of an address or a name
+  // ("priya_sharma@gmail.com") and "underscore" is exactly what a person says
+  // for it, so removing it there would break the thing it is holding together.
+  t = t.replace(/\*+/g, " ").replace(/(?<!\w)_+|_+(?!\w)/g, " ");
+
+  // F. DASHES — REPLACED with the spoken equivalent, which is a PAUSE.
+  // This is the reported bug, and the reason it is a replace and not a delete:
+  // an em-dash between clauses is how she was told to cut herself off, so it
+  // carries real timing. Delete it and two clauses run together breathlessly;
+  // keep it and the engine says "dash". A comma is the pause token every
+  // synthesiser here already honours.
+  //
+  // THE TRAP, and where the line is drawn. A hyphen INSIDE a word is a
+  // spelling, not a dash: "well-known", "e-mail", "T-shirt", "1800-599-0019".
+  // Those are never touched. Only a dash that is punctuation gets replaced —
+  // the true dash characters, a doubled ASCII hyphen, or a single hyphen with
+  // whitespace on both sides.
+  t = t.replace(/\s*[\u2012-\u2015]+\s*$/g, "");
+  t = t.replace(/[\u2012-\u2015]+/g, ", ");
+  t = t.replace(/\s*-{2,}\s*/g, ", ");
+  t = t.replace(/ +- +/g, ", ");
+  t = t.replace(/[ ,]*-+\s*$/g, "");
+
+  // G. ARROWS — REPLACED with a pause, never with a word.
+  // "→" most often means "then" or "to", but which one is a guess, and putting
+  // a word she did not write into her mouth is the thing this repo calls
+  // fabrication. A pause keeps the sentence intact and invents nothing.
+  t = t.replace(/[\u2190-\u21FF\u27F0-\u27FF\u2B00-\u2B11]+/g, ", ");
+  t = t.replace(/(^|\s)(?:->|<-|=>|<=>|<->)(\s|$)/g, ", ");
+  // A pipe is the same class — a separator that some engines announce as
+  // "vertical bar". It never carries meaning she said out loud.
+  t = t.replace(/\s*\|+\s*/g, ", ");
+
+  // H. PARENTHESES — the WORDS kept, the brackets become pauses.
+  // Different from rule B and deliberately so: a parenthetical is an aside a
+  // person actually says out loud, so dropping the segment would drop real
+  // speech. Only the punctuation is a writing convention.
+  t = t.replace(/\s*[([]\s*/g, ", ").replace(/\s*[)\]]\s*/g, ", ");
+
+  // I. EMOJI AND PICTOGRAPHS — DROPPED.
+  // Engines disagree: some skip them, some announce the Unicode name aloud
+  // ("face with tears of joy"). There is no spoken equivalent to substitute,
+  // and her laughter is already written out as "hahaha" by her brief, so
+  // nothing is lost by removing them.
+  t = t.replace(
+    /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{2B55}\u{FE0F}\u{20E3}\u{2764}\u{2049}\u{203C}]/gu,
+    " ",
+  );
+
+  // J. ELLIPSES — KEPT, only absurd runs capped.
+  // NOT a writing convention here: "..." is load-bearing prosody in this
+  // product. persona.ts uses it as her softness and speech.ts turns it into an
+  // explicit thinking pause, and `stripTagsForPlainVoice` deliberately POSTs
+  // "…" to this very endpoint in place of a tag. Removing it would flatten her.
+  t = t.replace(/\.{4,}/g, "…").replace(/…{2,}/g, "…");
+
+  // K. TIDY. Collapsing the debris the rules above leave behind — doubled
+  // separators, a comma before a full stop, a phrase that now starts on
+  // punctuation.
+  t = t.replace(/[ \t]*\n[ \t]*/g, ", ");
+  t = t.replace(/\s+/g, " ");
+  t = t.replace(/\s+([,.;:!?…])/g, "$1");
+  t = t.replace(/([,;:])(?:\s*[,;:])+/g, "$1");
+  t = t.replace(/([,;:])\s*(?=[.!?…])/g, "");
+  t = t.replace(/^[\s,;:.!?…]+/, "");
+  t = t.replace(/[ ,;:]+$/, "");
+  t = t.trim();
+
+  // L. NOTHING SPEAKABLE LEFT. A reply that was only a tag, only emoji or only
+  // a separator must produce SILENCE, not a synthesiser reading punctuation.
+  // The caller is expected to refuse rather than send this upstream.
+  if (!/[\p{L}\p{N}]/u.test(t)) return "";
+  return t;
+}
+/* ─── END SPOKEN-TEXT CORE ─────────────────────────────────────────────── */
+
 const MODEL = "google/gemini-3.1-flash-tts-preview";
 // The free lane runs the same model directly. 2.5 was here briefly and cannot
 // stream: it answers a streaming request with HTTP 200 and ONE frame holding
@@ -108,6 +278,17 @@ export default async function handler(req, res) {
     if (typeof text !== "string" || !text.trim()) {
       return res.status(400).json({ error: "text required" });
     }
+    // THE SEAM. Past this line nothing may read `text` again — `spoken` is the
+    // only string that reaches a synthesiser, and the caller's own copy (the
+    // one on screen) is untouched because it never left the caller.
+    const spoken = spokenTextCore(text);
+    // A request whose whole content was a tag, an emoji or a separator has
+    // nothing to say. Refusing is the correct answer: synthesising the residue
+    // is how a voice note once read out the word "softly", and billing a
+    // generation for punctuation is pure waste. 422 rather than 400 so a caller
+    // can tell "you sent nothing" from "there was nothing speakable in what you
+    // sent" — the clients treat any non-2xx as "no clip", so neither is fatal.
+    if (!spoken) return res.status(422).json({ error: "nothing speakable in text" });
     const wantStream = stream === true;
     const voiceName = ALLOWED_VOICES.has(voice) ? voice : DEFAULT_VOICE;
     // per-utterance delivery mood, improvised by her brain from the actual
@@ -148,7 +329,20 @@ export default async function handler(req, res) {
           // header writes, no extra work on the request path.
           "X-Meera-Lane": lane,
           "X-Meera-Pool": poolHealth(),
-          "Access-Control-Expose-Headers": "X-Meera-Lane, X-Meera-Pool",
+          // WHICH MODEL AND WHICH VOICE ACTUALLY SPOKE. `verify-voice.mjs`
+          // proves the four lanes agree on her voice NAME; it cannot prove
+          // they sound alike, because the same name on a different model is a
+          // different voice, and this lane and the live call lane run
+          // different models by design (docs/VOICE-LANE.md). Until somebody
+          // measures that, a production sample must at least be able to SAY
+          // what produced it — an unattributable timbre complaint is exactly
+          // how the Leda/Aoede incident stayed open. Two more header writes,
+          // no extra work on the request path.
+          "X-Meera-Model": lane === "free" ? FREE_MODEL : MODEL,
+          "X-Meera-Voice": voiceName,
+          "X-Meera-Rules": SPOKEN_RULES_VERSION,
+          "Access-Control-Expose-Headers":
+            "X-Meera-Lane, X-Meera-Pool, X-Meera-Model, X-Meera-Voice, X-Meera-Rules",
         });
       }
       for (const h of L.held) res.write(h);
@@ -202,7 +396,7 @@ export default async function handler(req, res) {
                 {
                   parts: [
                     {
-                      text: `Say in a warm, natural Indian-accented Hinglish, ${mood}: ${text.slice(0, 1100)}`,
+                      text: `Say in a warm, natural Indian-accented Hinglish, ${mood}: ${spoken.slice(0, 1100)}`,
                     },
                   ],
                 },
@@ -298,7 +492,7 @@ export default async function handler(req, res) {
           // Kept SHORT — direction length adds real latency (~0.6s measured
           // between a full paragraph and none). Identity constant; the mood
           // comes from the conversation so delivery follows the call's flow.
-          input: `Warm 24-year-old Mumbai woman on a casual phone call with a close friend: natural Indian accent, easy Hinglish, real pacing, never performative, no laughs unless the words are laughter. Mood: ${mood}. Say: ${text.slice(0, 1100)}`,
+          input: `Warm 24-year-old Mumbai woman on a casual phone call with a close friend: natural Indian accent, easy Hinglish, real pacing, never performative, no laughs unless the words are laughter. Mood: ${mood}. Say: ${spoken.slice(0, 1100)}`,
           voice: voiceName,
           response_format: "pcm",
         }),
@@ -341,7 +535,7 @@ export default async function handler(req, res) {
         generate().then(settle, () => settle(null));
         // synthesis time scales with text length — a flat trigger would fire
         // the hedge on every long voice note (pure double cost, no win)
-        const hedgeT = setTimeout(launchHedge, Math.min(4000, 900 + text.length * 15));
+        const hedgeT = setTimeout(launchHedge, Math.min(4000, 900 + spoken.length * 15));
       });
 
     // The response is finished when the lane that OWNS the body is finished.
@@ -407,7 +601,13 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Meera-Lane", winner); // same attribution on the buffered path
     res.setHeader("X-Meera-Pool", poolHealth());
-    res.setHeader("Access-Control-Expose-Headers", "X-Meera-Lane, X-Meera-Pool");
+    res.setHeader("X-Meera-Model", winner === "free" ? FREE_MODEL : MODEL);
+    res.setHeader("X-Meera-Voice", voiceName);
+    res.setHeader("X-Meera-Rules", SPOKEN_RULES_VERSION);
+    res.setHeader(
+      "Access-Control-Expose-Headers",
+      "X-Meera-Lane, X-Meera-Pool, X-Meera-Model, X-Meera-Voice, X-Meera-Rules",
+    );
     return res.status(200).send(Buffer.concat([wavHeader(pcm.length), pcm]));
   } catch (e) {
     // once bytes are on the wire the status line is spent — all that is left

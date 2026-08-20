@@ -41,11 +41,21 @@ import {
   WATCH_SCENE_DIRECTIVE,
   WATCH_SHOW_DIRECTIVE,
   WATCH_START_DIRECTIVE,
-  buildSystemPromptParts,
-  buildSpeechStyle,
   type VoiceEngine,
 } from "../engine/persona";
-import { logTurns, rememberFrom, recallMemories } from "../engine/memory";
+// WS-CONTINUITY seam 1 (docs/SPEC-CONTINUITY.md §1): this file used to
+// hand-assemble its own system prompt out of buildSystemPromptParts +
+// buildSpeechStyle + parts.tail. It no longer imports either of those, and
+// that absence is the gate — a second prompt assembler cannot be reintroduced
+// here without also reintroducing an import, which is a visible diff.
+import { compile } from "../engine/compiler";
+import type { RelBundleInput } from "../engine/compiler";
+// Same freshness contract brain.ts's compile call site is under: computed at
+// the point of compile, never memoized across a call, so a tier that tightens
+// mid-session lands on the next compile. On this lane the "next compile" is
+// the next call — the live prompt is frozen at connect on purpose.
+import { gatesFor, getAgeTier } from "../engine/clock";
+import { logTurns, rememberFrom, recallForCall } from "../engine/memory";
 import { innerContext, applyInner, wantsForAppraisal } from "../engine/inner";
 import {
   ensureOverlay,
@@ -232,6 +242,26 @@ export function useCallEngine(
   // long-term graph memory, prefetched once at pickup (per-turn recall would
   // add latency to every spoken reply)
   const recallRef = useRef("");
+  // ── WS-CONTINUITY seam 1: THE RING FETCH ──────────────────────────────
+  // Her relational state (T2 rel.snapshot, T3 india.dynamic, T4 dyadic.active,
+  // T6 we.callbacks), on the SAME round trip the recall above already makes.
+  //
+  // `rejected.md#murmur-timbre` established the principle for a different
+  // feature and it is the whole reason this is affordable: the ring is
+  // already-idle time with no call-path cost. What was NOT affordable, and is
+  // what this replaces, is the old shape — the live prompt was assembled in
+  // the same synchronous tick this fetch was STARTED in, so `recallRef` was
+  // provably always "" at assembly and the realtime lane (the lane that takes
+  // most calls) has never once had graph recall in its prompt. She was not
+  // being asked to remember and failing; she was never handed the memory.
+  const relBundleRef = useRef<RelBundleInput | null>(null);
+  const ringFetch = useRef<Promise<void> | null>(null);
+  const ringFetchMs = useRef(-1);
+  // G-C4, as an assertion rather than a promise: the number of times a LIVE
+  // system prompt has been built on this call. It must be 1. A mid-call
+  // reassembly is a different person mid-sentence, and the failure is
+  // inaudible until she contradicts herself.
+  const liveAssemblies = useRef(0);
   // consecutive instant recognizer failures — backoff instead of hot-looping
   const srFails = useRef(0);
   const srStartedAt = useRef(0);
@@ -387,6 +417,13 @@ export function useCallEngine(
     // prompt at all: only when the last message is >45 min old, which on a
     // call means pickup and never a mid-call turn or a goodbye.
     inner: stateRef.current.inner,
+    // WS-CONTINUITY seam 1: the ring-fetched relational bundle, so the CASCADE
+    // lane's per-turn compile() renders T2/T3/T4/T6 exactly as chat does. Read
+    // through the ref (not captured) for the same reason every other callback
+    // here reads stateRef: a value captured at call start freezes her.
+    // `null` until the ring fetch lands, which is compile()'s render-nothing
+    // default — the same state as today, never a broken one.
+    relBundle: relBundleRef.current,
   });
 
   // ── realtime engine (Gemini Live, speech-to-speech): near-zero latency,
@@ -455,47 +492,117 @@ export function useCallEngine(
     }
   }
 
+  // ── WS-CONTINUITY seam 1: how long the ring may be spent on ────────────
+  // The ring is free time, not free rein. This is the only wait the connect
+  // path is allowed to take, and it is a RACE, never an await: a slow or dead
+  // network costs the call nothing but the relational slots it could not
+  // fetch. 900ms is chosen against the measured recall (~165ms warm, ~900ms
+  // cold, hard-capped at 2s inside runRecall) and against the connect budget
+  // (ring 1.1-2.4s + 3.5s of grace before the cascade takes the call), so the
+  // typical cost is ~165ms of a ~4.6s budget and the worst case is 900ms.
+  const RING_FETCH_DEADLINE_MS = 900;
+  async function awaitRingFetch(deadlineMs = RING_FETCH_DEADLINE_MS): Promise<void> {
+    const p = ringFetch.current;
+    if (!p) return;
+    await Promise.race([p, new Promise<void>((r) => setTimeout(r, deadlineMs))]);
+  }
+
   async function tryStartLive(): Promise<LiveSession | null> {
     if (typeof WebSocket === "undefined" || !navigator.mediaDevices?.getUserMedia) return null;
-    const parts = buildSystemPromptParts(stateRef.current.user, stateRef.current.messages.length, "voice");
-    // the live engine assembles its own prompt, so the memory framing has to
-    // match the corrected one in brain.ts: recall is retrieved by similarity,
-    // so "answer confidently" turned a near-miss into a confident lie, and a
-    // year-old plan into today's news
-    const herLife = formatHerLife(stateRef.current.herLife);
-    // where her own day left her. The thread is allowed here because a pickup
-    // IS a gap entry; it is never re-injected mid-call, so nothing interior can
-    // ever colour a goodbye (the live prompt is frozen at connect anyway).
+    // ── WS-CONTINUITY seam 1: wait out the RING FETCH, then compile ONCE ──
+    // Bounded, and bounded against the ring rather than against the reply
+    // floor: the live session has ring + 3500ms to connect before the cascade
+    // takes the call, and `live-floor` says a spoken reply's 1.4-1.5s is the
+    // MODEL, not the assembly. So the only thing this wait can spend is
+    // connect headroom, and the deadline is set well inside it. On expiry we
+    // compile with whatever landed — an absent bundle renders nothing, which
+    // is exactly today's behaviour, so the slow path degrades to the status
+    // quo instead of to a broken prompt or a delayed pickup.
+    await awaitRingFetch();
+    const nowAt = Date.now();
     const lastMsg = stateRef.current.messages[stateRef.current.messages.length - 1];
+    // WS-CONTINUITY seam 2. The gap test is NOT open-coded here — it lives
+    // inside innerContext (GAP_ENTRY_MS), which is the same gate the chat lane
+    // goes through, evaluated against `lastMsgAt`. And `messages` is the
+    // channel-blind store: chat turns, call turns and callmarks all land in
+    // it, so "the last message" already means the last message on ANY channel.
+    // That is what makes a pickup sixty seconds after texting a continuation
+    // (no thread) and a pickup after a day a re-entry (thread), without this
+    // lane owning a second copy of the rule. What was wrong was only the old
+    // comment above this block, which claimed a pickup is unconditionally a
+    // gap entry — see the report for the measurement.
+    const lastMsgAt = lastMsg?.at || 0;
     const inner = innerContext(stateRef.current.inner, {
-      now: Date.now(),
-      lastMsgAt: lastMsg?.at || 0,
+      now: nowAt,
+      lastMsgAt,
       surface: "pickup",
       // what they said last before calling — her taste is pulled from it, the
       // same way the chat lane does. A pickup is THEM calling HER, so this is
       // never her volunteering an opinion.
       userText: lastMsg?.text || "",
     });
-    const system =
-      parts.core +
-      buildSpeechStyle("live") +
-      parts.tail +
-      inner.thread +
-      (recallRef.current
-        ? `\n\nWHAT YOU REMEMBER ABOUT THEM — from your earlier conversations, each tagged with when it last came up. These are real: when they touch on one, you KNOW it and you say the specific detail, never play dumb. Two things keep it honest:
-- Something being listed here is not a reason to say it. It comes out only where it actually fits, one at a time, in normal talk — never as a list, never with any mention of remembering.
-- A memory is not a live update. Anything with a date or a plan in it may already have happened, so an old one gets asked about as old ("us december wali shaadi ho gayi na?") instead of announced as if it's still ahead — then you let them tell you where it stands.
-${recallRef.current}`
-        : "") +
-      // herLife and inner.wants must NOT share a header. The heading is about
-      // things she has already SAID and cannot now contradict; the wants block
-      // now also carries her taste, and filing an opinion under "what you have
-      // already told them" turns a standing preference into a claim that she
-      // once announced it.
-      (herLife
-        ? `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are fixed between you two, not open to reinvention. Same job, same people, same flat, same plans. Add new texture freely; never contradict a line here, and never re-tell one as if it's news:\n${herLife}`
-        : "") +
-      inner.wants;
+    // ── ONE ASSEMBLER (G-C6) ──────────────────────────────────────────────
+    // Everything below used to be a hand-rolled concatenation that shadowed
+    // compile() and drifted from it: its own shorter T5 and T7 headings, no
+    // T2/T3/T4/T6, no T11/T12/T13, no FORGET_DECISION, and no age-tier
+    // override. `medium: "voice"` and `voiceEngine: "live"` were already
+    // honoured by both the compiler and buildSpeechStyle — the call lane
+    // simply never asked.
+    const compiled = compile({
+      user: stateRef.current.user,
+      messageCount: stateRef.current.messages.length,
+      medium: "voice",
+      mode: "call",
+      voiceEngine: "live",
+      // A whole-call prompt is not a directive turn. The pickup line itself is
+      // delivered separately, as CALL_OPEN_DIRECTIVE through direct().
+      isDirective: false,
+      // The web share starts mid-call and the live prompt is frozen at
+      // connect, so the watch note cannot ride this compile; the native lane
+      // passes it separately, per frame that actually carries a picture.
+      watching: false,
+      innerThread: inner.thread,
+      innerWants: inner.wants,
+      // Fetched during the ring — before this it was provably always "".
+      memories: recallRef.current,
+      herLife: formatHerLife(stateRef.current.herLife),
+      // chat-only by construction inside compile(); passed empty for clarity
+      cultureNoteText: "",
+      relBundle: relBundleRef.current,
+      // T11/T12/T13 render nothing on EITHER lane in this app today: nothing
+      // client-side has a self bundle to give, because api/memory.js's
+      // op:"recall" carries `relstate` and no self rows (texture/arc/untold
+      // are read server-side through a QueryFn this process does not have).
+      // Stated as an explicit null rather than omitted so the gap is visible
+      // at the call site: the day opRecall ships those three the way it ships
+      // relstate, both lanes light up together, and neither lane is the one
+      // that has to be remembered.
+      selfBundle: null,
+      // moment.ts's pull-only law reads ONLY the live turn, and a pickup has
+      // no turn yet — so "" here, never the last thing they typed. That keeps
+      // T6 on its STANDING BACKGROUND heading ("do not raise any of this
+      // yourself") and leaves T4 unmomented, which is the 0-unprompted-raises
+      // property. The gap still speaks for itself below.
+      latestUserText: "",
+      gapSinceLastMs: lastMsgAt ? Math.max(0, nowAt - lastMsgAt) : 0,
+      // fresh at the point of compile, never memoized — same contract
+      // brain.ts is under. This is also the first time an age-tier refusal
+      // has ever reached the realtime lane.
+      ageGates: gatesFor(getAgeTier()),
+    });
+    const system = compiled.system;
+    liveAssemblies.current += 1;
+    diag("call", "live_prompt", {
+      // G-C4: this must read 1 for the whole call. Structural only — byte
+      // counts and which slots fired, never a character of the prompt.
+      assemblies: liveAssemblies.current,
+      core: compiled.core.length,
+      tail: compiled.tail.length,
+      ring_fetch_ms: ringFetchMs.current,
+      rel_bundle: Boolean(relBundleRef.current),
+      recall: recallRef.current.length,
+      sections: compiled.sections ?? {},
+    });
     let self: LiveSession | null = null;
     const s = await startLiveCall({
       base: LIVE_BASE,
@@ -644,15 +751,32 @@ ${recallRef.current}`
     // audible. Fetched HERE because the ring is the idle beat — the call path
     // itself may never wait on this.
     prewarmAckClips(LIVE_BASE);
-    // long-term memory for the whole call, fetched while the phone "rings"
+    // ── long-term memory AND her relational state, fetched while the phone
+    // "rings" (WS-CONTINUITY seam 1; rejected.md#murmur-timbre's principle) ──
+    // ONE round trip, the one this lane already made. It is started here, at
+    // the very top of the ring, and tryStartLive() races it below — so the
+    // fetch gets the whole head of the ring rather than being started in the
+    // same tick the prompt was assembled in, which is why the realtime lane
+    // used to compile with an empty recall every single time.
     const recent = state.messages
       .filter((m) => m.from === "me")
       .slice(-4)
       .map((m) => m.text)
       .join(" ");
-    recallMemories(state.deviceId, recent).then((m) => {
-      recallRef.current = m || "";
-    });
+    const tRing = Date.now();
+    ringFetch.current = recallForCall(state.deviceId, recent)
+      .then(({ memories, relBundle }) => {
+        recallRef.current = memories;
+        relBundleRef.current = relBundle;
+        ringFetchMs.current = Date.now() - tRing;
+      })
+      // A rejected ring fetch must never reject the connect that races it:
+      // this promise is awaited on the call path, so an unhandled rejection
+      // here would surface as "live failed to start" — the whole call lost to
+      // a memory lookup that was only ever an enhancement.
+      .catch(() => {
+        ringFetchMs.current = -1;
+      });
     // she improvises her own phone pickup — nothing scripted. The brain call
     // starts NOW, in parallel with the "ringing" beat, so pickup is instant.
     const greetPromise = think(
@@ -1637,37 +1761,61 @@ ${recallRef.current}`
       claimVoice("native", "watch_started");
       watchId.current = telSubId("watch");
       nativeWatchAt.current = Date.now();
-      // hand the native engine her full brain: cached persona core + call
-      // style, volatile tail + watch rules, and the comment directive
-      const parts = buildSystemPromptParts(stateRef.current.user, stateRef.current.messages.length, "voice");
+      // ── hand the native engine her full brain, from the ONE assembler ──
+      // WS-CONTINUITY seam 1 / G-C6: this was the THIRD hand-assembled prompt
+      // in the repo (chat's compile(), the live lane's, and this) and it had
+      // drifted furthest — its own one-line recall heading, its own merged
+      // herLife+wants heading, and none of the relational or decision slots.
+      // The native side still wants the pieces separately (core, tail and the
+      // watch note, so the note rides only on turns that actually carry a
+      // frame), and compile() returns exactly those pieces, so nothing about
+      // that split has to change.
+      //
+      // Two compiles, differing ONLY in voiceEngine: the native engine picks
+      // between them at runtime — the LIVE engine speaks natively, so tone
+      // markers and TTS directions (cascade machinery) make it stilted. The
+      // tail does not depend on voiceEngine, so both carry the same one.
+      const watchLastAt = stateRef.current.messages[stateRef.current.messages.length - 1]?.at || 0;
+      const watchNow = Date.now();
+      const watchInput = {
+        user: stateRef.current.user,
+        messageCount: stateRef.current.messages.length,
+        medium: "voice" as const,
+        mode: "call" as const,
+        isDirective: false,
+        // The note is handed over separately, below, precisely so the native
+        // side can withhold it on a frameless turn — so compile() must NOT
+        // bake it into the tail as well.
+        watching: false,
+        // innerContext returns thread:"" for "watch" on purpose; do not route
+        // around it.
+        innerThread: "",
+        innerWants: innerContext(stateRef.current.inner, {
+          now: watchNow,
+          lastMsgAt: watchLastAt,
+          surface: "watch" as const,
+        }).wants,
+        memories: recallRef.current,
+        herLife: formatHerLife(stateRef.current.herLife),
+        cultureNoteText: "",
+        relBundle: relBundleRef.current,
+        selfBundle: null,
+        // same pull-only reasoning as the live lane's compile: no live turn
+        // exists at the moment a share starts
+        latestUserText: "",
+        gapSinceLastMs: watchLastAt ? Math.max(0, watchNow - watchLastAt) : 0,
+        ageGates: gatesFor(getAgeTier()),
+      };
+      const cascadeCompiled = compile({ ...watchInput, voiceEngine: engine });
+      const liveCompiled = compile({ ...watchInput, voiceEngine: "live" });
       const config = {
         base: "https://meera-silk.vercel.app",
-        system: parts.core + buildSpeechStyle(engine),
-        // the LIVE engine speaks natively — tone markers and TTS directions
-        // are cascade machinery that make a speech-to-speech model stilted
-        systemLive: parts.core + buildSpeechStyle("live"),
+        system: cascadeCompiled.core,
+        systemLive: liveCompiled.core,
         // the watch note rides SEPARATELY: the native side appends it only on
         // turns that actually carry a frame, so she is never told "this is
         // what's on their screen right now" when no picture reached her
-        systemTail:
-          parts.tail +
-          (recallRef.current
-            ? `\n\nWHAT YOU REMEMBER ABOUT THEM — real, from earlier conversations, but a memory is not a live update: anything with a date or a plan in it may already have happened, so ask about it as past rather than announcing it as ahead.\n${recallRef.current}`
-            : "") +
-          // her own life, which this lane has been silently missing — plus what
-          // she currently wants. innerContext returns thread:"" for "watch" on
-          // purpose; do not route around it.
-          (() => {
-            const hl = formatHerLife(stateRef.current.herLife);
-            const w = innerContext(stateRef.current.inner, {
-              now: Date.now(),
-              lastMsgAt: stateRef.current.messages[stateRef.current.messages.length - 1]?.at || 0,
-              surface: "watch",
-            }).wants;
-            return hl || w
-              ? `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are fixed between you two. Add new texture freely; never contradict a line here:\n${hl}${w}`
-              : "";
-          })(),
+        systemTail: cascadeCompiled.tail,
         watchNote: WATCH_MODE_NOTE,
         directive: WATCH_COMMENT_DIRECTIVE(),
       };
