@@ -547,3 +547,45 @@ which behaviours it governs rather than which module it lives in.
 unreal — i.e. the permanence was accidentally doing work by making conflict
 consequential. That is an ear judgment and the owner's ear has overruled
 measurement on this class of question before.
+
+---
+
+## `selfbundle-never-set` — I wired the reader and forgot the writer (2026-08-19)
+
+Found by WS-HONESTY while investigating why she has no timeline. Phase E2
+landed T11 `rel.texture`, T12 `self.arc` and T13 `life.untold` into
+`compiler.ts`, each correctly gated behind `input.selfBundle`. The gating is
+right; the bug is that **nothing in the repo ever sets `selfBundle`**.
+Coordinator-verified: a repo-wide grep finds it only in `compiler.ts` (the
+reader) and twice in `useCallEngine.ts` as the literal `null`. `brain.ts`'s
+`compile({...})` passes `relBundle` and simply does not pass `selfBundle` at
+all.
+
+So all three self-layer slots render zero bytes on every lane, always. The
+tables are empty *and* the reader is dead — two independent reasons for the
+same silence, which is why the symptom looked like "the tables are empty".
+
+**This is `dead-writers` again, and this time I wrote it.** That entry says
+correct code with no caller is indistinguishable from absent code, and lists
+three instances. This is a fourth, created in the very phase that logged the
+first three, by the coordinator who logged them. The seam discipline made it
+invisible: an absent bundle renders nothing *by design*, so byte-identity
+83/83 passed, the prompt budget passed, and every gate was green — because
+every gate asked "does the code do the right thing when invoked" and nothing
+invoked it.
+
+**Why the existing guard did not catch it.** `compiler.ts`'s manifest carries a
+`sourceStatus` field, and I set these three rows to `"wired"` when I added
+them. That string was my own assertion, checked by nothing. A manifest that
+describes intent rather than observed behaviour is a comment with better
+syntax.
+
+**The rule, which is `dead-writers`' rule sharpened by a second visit:** a slot
+is not wired when a render function exists — it is wired when a REAL PROMPT
+CONTAINS ITS BYTES. The gate must assert the block's header appears in a
+compiled prompt for a person with real rows, not that a `sourceStatus` string
+says `"wired"`. Ticketed as T-H1 with exactly that gate.
+
+**What breaks generally:** any design where absence is the safe default. That
+property is what makes the seam safe to land incrementally, and it is the same
+property that makes a missing producer silent forever.

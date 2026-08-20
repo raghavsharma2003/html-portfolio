@@ -27,6 +27,12 @@ const suites = {
   parse: "parse.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
+  // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),
+  // so it belongs in CI by the same test the D0/D1 note below applies. Wired
+  // here rather than left as a standalone script because `dead-writers` is
+  // this repo's law and it does not stop being true for evals: a suite
+  // nothing invokes is indistinguishable from a suite that does not exist.
+  honesty: "honesty/run.mjs",
   // WS-BATTERY (SPEC §13/§14): D0/D1 are offline and deterministic — no
   // judge, no model call, no cost — so they run here, in CI, on every build,
   // same as the suites above. D2 and up are judged/generative (real money)
