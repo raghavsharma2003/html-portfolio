@@ -42,6 +42,10 @@ import { route, toTelemetryDetail, type ModelRow, type LaneConfig, type RoutedCa
 // next turn. clock.ts stays WS-SAFETY's exclusively (§13); this is a read
 // of its exported gate function, not an edit.
 import { gatesFor, getAgeTier } from "./clock";
+// The honesty gate. Pure, no I/O, no telemetry of its own — the diag() call
+// that records a block lives here, so honesty.ts stays a predicate an eval can
+// drive with plain objects.
+import { guardReply, openCommitments, allowedFrom, createStreamGuard } from "./honesty";
 import type { Message } from "../state/store";
 
 const CLAUDE_MODEL = "claude-opus-5";
@@ -964,6 +968,30 @@ export async function think(
   const maxTokens = mode === "call" ? 400 : 700;
   let text: string | null = null;
   const fullSystem = sysCore + sysTail;
+
+  // ── the honesty gate's context, assembled once per turn ────────────────
+  // Hoisted ABOVE the model call because the call lane has a second door out
+  // of this function — `onDelta` streams raw tokens into the TTS speaker while
+  // the rest is still generating — and that door opens before any reply
+  // exists to gate. See honesty.ts's "THE STREAMING DOOR".
+  //
+  // `trustedText` is provenance: her assembled brief (which carries
+  // CRISIS_LINES, so the helplines survive) and HIS own words. Never her own
+  // past output — see allowedFrom's note on why the chain must terminate at
+  // something that is not her.
+  const honestyCtx = {
+    trustedText: [fullSystem, latest, ...history.filter((m) => m.from === "me").map((m) => m.text || "")],
+    openItems: openCommitments(history),
+  };
+  const honestyAllowed = allowedFrom(honestyCtx.trustedText);
+  // The streaming door. Only class (A) — an identifier is a self-contained
+  // token and can be decided as it goes; a receipt claim needs a clause, and
+  // by the time a clause closes its first half has already been spoken. That
+  // limit is real and is stated rather than papered over: the spoken stream
+  // carries the (A) guarantee and not the (B) one, while the reply that is
+  // logged, remembered and spoken on every non-streaming path carries both.
+  const streamGuard = onDelta && mode === "call" ? createStreamGuard(onDelta, honestyAllowed) : null;
+
   if (keys.openrouterKey) text = await openrouterThink(keys, fullSystem, turns, maxTokens, chatRoute.model);
   if (!text && keys.apiKey) text = await claudeThink(keys, fullSystem, turns);
   if (!text)
@@ -973,10 +1001,14 @@ export async function think(
       sysTail,
       turns,
       maxTokens,
-      mode === "call" ? onDelta : undefined,
+      streamGuard ? (d: string) => streamGuard.push(d) : undefined,
       mode === "call",
       chatRoute.model,
     );
+  if (streamGuard) {
+    streamGuard.flush();
+    if (streamGuard.blocked) diag("call", "honesty_stream_block", { n: streamGuard.blocked });
+  }
   if (!text) {
     // every brain unreachable. crisis/honesty replies still go out; anything
     // else becomes an honest connectivity text — never fake conversation.
@@ -1002,7 +1034,32 @@ export async function think(
     };
   }
 
-  let parsed = parseBubbles(text);
+  // ── the honesty gate (src/engine/honesty.ts) ───────────────────────────
+  // Structural, on the OUTPUT path, because the prompt rule at persona.ts:255
+  // is mid-brief (38.6% through the file) and `prompt-position` measured an
+  // identical rule firing 0/8 there. `gate0-structural` is the law this
+  // follows: the prompt arm leaked 57–98%, the predicate leaked 0 of 31,122.
+  //
+  // Applied at EVERY parseBubbles site rather than once before `return`,
+  // because the holding bubble on the [search:] path is handed to the UI from
+  // inside that branch and would otherwise leave ungated. `dead-writers`
+  // sharpened: a gate the bytes can walk around is an absent gate.
+  const gate = (r: ParsedReply): ParsedReply => {
+    const { reply, findings } = guardReply(r, honestyCtx);
+    // Counts and rule names only — diag.ts never logs what she said, and the
+    // whole point of this event is that the string it caught must not travel.
+    if (findings.length) {
+      diag(mode === "call" ? "call" : "chat", "honesty_block", {
+        n: findings.length,
+        rules: [...new Set(findings.map((f) => f.rule))].join(","),
+        kinds: [...new Set(findings.map((f) => f.kind).filter(Boolean))].join(","),
+        open_items: honestyCtx.openItems.length,
+      });
+    }
+    return reply;
+  };
+
+  let parsed = gate(parseBubbles(text));
   parsed.learned = local.learned;
 
   // ── live web lookup: she asked for fresh facts ([search: …]) before
@@ -1076,7 +1133,7 @@ export async function think(
         }\nThese came from LOOKING IT UP, not from your own experience — never restate them as something you personally saw, used or checked on your own phone. Weave in only the part that answers what they asked; if it doesn't actually answer it, say you couldn't find it properly. Never mention "searching" or "results", and do NOT output another [search: …] marker.`;
       const second = await proxyThink(keys, sysCore, tailWithFacts, turns, maxTokens, undefined, false, chatRoute.model);
       if (second) {
-        const p2 = parseBubbles(second);
+        const p2 = gate(parseBubbles(second));
         p2.learned = local.learned;
         p2.search = undefined;
         p2.searchBroken = undefined;

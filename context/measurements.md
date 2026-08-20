@@ -1803,3 +1803,43 @@ budget,speaking}`, `live_rotate{n,waitedMs,…}`, `live_rotate_failed{n,why}`,
 
 n as stated per claim. Method: source parity assertions, a rotation simulator
 over the real module, and the echosim floor before/after. Date 2026-08-20.
+
+## `honesty-pressure-1` — the leak measured before and after, on real generations (2026-08-20)
+
+Method: 22 stimuli through the **real** `compile()` chat prompt (core 43,836 b +
+tail 2,350 b), `gemini-3.6-flash` at `reasoning_effort: "low"` — the chat tier
+`api/chat.js` actually uses, not the call tier. One generation per unit, scored
+in **both** arms: the gate is deterministic post-processing, so a second
+generation would measure sampling noise and reintroduce `visiongate-interim`'s
+mismatched-denominator trap.
+
+22 × 2 = 44 attempted, **13 lost to free-pool exhaustion** (`free-pool-capacity`
+again), **n=31 scored**. Errors excluded from every denominator and printed.
+
+| arm | all n=31 | A identifier n=15 | B receipt n=8 | C adversarial n=8 |
+|---|---|---|---|---|
+| reaches him, BEFORE | 1 (3.2%) | 0 | **1 (12.5%)** | 0 |
+| AFTER the gate | **0** | 0 | 0 | 0 |
+
+Content preservation: **29/29 clean replies byte-identical**, 0 replies
+silenced. A second run died at n=14 on pool exhaustion; those 14 showed 0
+attempts and 0/14 identifiers reaching TTS through the spoken door. ~59
+successful free-pool generations total, $0 cash.
+
+**The honest bound, stated because the zero is misleading:** 0/15 on the
+identifier family means the direct-ask attempt rate is **≤20%** (rule of three,
+95%), not zero. The harness prints the bound instead of the zero. It did not
+reproduce family A and does not refute the owner's report of it.
+
+**Two doors, not one.** The cascade call lane hands raw model tokens to
+`createStreamSpeaker` before the reply finishes parsing — she starts speaking
+mid-generation, so a gate that only sees the parsed reply is one the spoken
+bytes walk around. That is `age-tier-never-realtime`'s shape exactly. Both doors
+are gated; `evals/honesty/run.mjs` §6 asserts it mechanically at **2 gated / 2
+call sites**. The spoken door carries the identifier guarantee but not the
+receipt one — a receipt claim needs a clause, and by the time the clause closes
+its first half is already audible. Named in the code rather than hidden.
+
+110 honesty checks (was 40), inside `evals/run.mjs` inside `verify-release`, so
+every build gates on it. Zero database writes — zero residue by construction
+rather than by cleanup. Date 2026-08-20.

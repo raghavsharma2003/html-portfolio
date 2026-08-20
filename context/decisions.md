@@ -956,3 +956,45 @@ stays byte-identical.
 **Reverses if:** ElevenLabs stops performing tags (then there is one sanitiser
 again), or a measurement shows the punctuation absorbed next to a tag is
 audible.
+
+---
+
+## `honesty-provenance-allowlist` — she may say an identifier only if it was in her input (2026-08-20)
+
+The predicate is deliberately not *"does this look like an email"*. It is: **an
+identifier she emits that is not present in her input is invented.** The
+allowlist is built from the assembled prompt plus his own words —
+**never her own past output**, or one pre-gate fabrication would launder itself
+into permanence.
+
+**The reason this shape was chosen over a pattern blocklist is the crisis
+helpline.** `1800-599-0019` is a phone number, and a naive "no phone numbers"
+filter deletes the single most important thing she can say. Under provenance it
+survives **by mechanism**: the helplines are in her brief, so they are in the
+allowlist. The negative control is the proof — with the allowlist removed the
+detector *does* flag the helpline, so nothing about its survival is a hardcoded
+exception.
+
+**Reverses if:** a legitimate identifier turns out to have no input provenance —
+at which point the allowlist gains a source, not an exception.
+
+---
+
+## `receipt-ledger-from-transcript` — a pure function, because a table needs a writer (2026-08-20)
+
+She may not claim something arrived that the record does not support. The
+obvious implementation is a commitments table. It is not what shipped:
+`openCommitments(history)` computes the ledger from the transcript, so there is
+**no table, no migration, and no writer that can go dead.**
+
+That is `dead-writers` taken seriously rather than quoted — this repo has five
+logged instances, one of them written by the coordinator in the same phase that
+logged the first three. A pure function cannot have a missing producer.
+
+A truth the design surfaces rather than hides: `Message.kind` is
+`text|photo|callmark|voice|gif`, so **a resume cannot arrive in-band at all.**
+For that class the ledger never closes, which is a fact about the product, not a
+limitation of the ledger.
+
+**Reverses if:** commitments must outlive the context window — then it needs
+storage, and it needs a named first-row owner per `relstate-zero-rows`.

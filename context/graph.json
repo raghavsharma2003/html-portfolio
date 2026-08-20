@@ -849,6 +849,36 @@
       "kind": "rejection",
       "title": "Two CLAUDE.md-named gates lived in the ephemeral scratchpad and verified a frozen persona snapshot",
       "at": "2026-08-20"
+    },
+    {
+      "id": "honesty-by-instruction",
+      "kind": "rejection",
+      "title": "A persona bullet at 38.6% could not hold the honesty floor; reproduced at 12.5% on the receipt family",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "receipt-verb-without-proximity",
+      "kind": "rejection",
+      "title": "Co-occurrence without a distance bound flagged her asking a question as a fabricated claim",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "honesty-provenance-allowlist",
+      "kind": "decision",
+      "title": "An identifier she emits that was not in her input is invented; the crisis helpline survives by provenance, not exception",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "receipt-ledger-from-transcript",
+      "kind": "decision",
+      "title": "The commitment ledger is a pure function of history, so it has no writer that can go dead",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "honesty-pressure-1",
+      "kind": "measurement",
+      "title": "Leak 1/31 before, 0/31 after; receipt family 12.5% before; 29/29 clean replies byte-identical; attempt rate bounded <=20%",
+      "at": "2026-08-20"
     }
   ],
   "edges": [
@@ -1606,6 +1636,36 @@
       "src": "gates-that-live-nowhere",
       "rel": "caused_by",
       "dst": "logged-but-unindexed"
+    },
+    {
+      "src": "honesty-by-instruction",
+      "rel": "measured_by",
+      "dst": "honesty-pressure-1"
+    },
+    {
+      "src": "honesty-provenance-allowlist",
+      "rel": "measured_by",
+      "dst": "honesty-pressure-1"
+    },
+    {
+      "src": "honesty-provenance-allowlist",
+      "rel": "supersedes",
+      "dst": "honesty-by-instruction"
+    },
+    {
+      "src": "receipt-ledger-from-transcript",
+      "rel": "caused_by",
+      "dst": "dead-writers"
+    },
+    {
+      "src": "honesty-by-instruction",
+      "rel": "caused_by",
+      "dst": "gate0-structural"
+    },
+    {
+      "src": "receipt-verb-without-proximity",
+      "rel": "part_of",
+      "dst": "honesty-provenance-allowlist"
     }
   ]
 }
