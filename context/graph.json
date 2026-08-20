@@ -795,6 +795,12 @@
       "kind": "rejection",
       "title": "sourceStatus reports wired against a compile that rendered 0 of 3 blocks — an anti-signal, not a weak one",
       "at": "2026-08-20"
+    },
+    {
+      "id": "backfill-stage1-run",
+      "kind": "measurement",
+      "title": "Free stages run: 1,853 unclaimed log rows to 0, 131 episodes, 26 texture rows, 2 clearing the floor; arc still refuses",
+      "at": "2026-08-20"
     }
   ],
   "edges": [
@@ -1507,6 +1513,16 @@
       "src": "selflayer-rows-zero",
       "rel": "blocks",
       "dst": "call-parity-landed"
+    },
+    {
+      "src": "backfill-stage1-run",
+      "rel": "supersedes",
+      "dst": "selflayer-rows-zero"
+    },
+    {
+      "src": "backfill-stage1-run",
+      "rel": "measured_by",
+      "dst": "selflayer-delivery-gate"
     }
   ]
 }

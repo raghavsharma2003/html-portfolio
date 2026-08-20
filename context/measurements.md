@@ -1618,3 +1618,65 @@ from the first pass is T11 for two real people, not a lit-up layer.
 
 n=39 persons (full population), method: direct row counts and a read-only
 deriver run against production Neon. Date 2026-08-20.
+
+---
+
+## `backfill-stage1-run` — the derived layer is no longer empty, for the first time (2026-08-20)
+
+`never-scheduled` and `selflayer-rows-zero` were the binding constraint on
+everything shipped today: the call lane could finally read T2/T3/T4/T6/T11/T13
+and there was nothing to read. The free half of the migration path has now been
+run against production.
+
+**What was run, and why only half.** `scripts/migrate/backfill-episodes.mjs`
+has three stages: (1) boundaries, deterministic and free; (2) legacy
+quarantine, deterministic and free; (3) LLM enrichment, priced. There is no
+stage flag, but `--k 0` makes `salientBackfillEpisodes`' `limit $2` return zero
+rows, so the enrichment loop iterates zero times. Verified before running:
+`--all --dry-run --k 0` reported 0 candidates and 0 model calls of every kind.
+Stage 3 remains the owner's pending decision and was NOT run.
+
+**Measured, before → after (full population, not a sample):**
+
+| | before | after |
+|---|---|---|
+| `meera_log` rows with no episode | 1,853 | **0** |
+| `vy_episode` | 5 | 131 |
+| `vy_fact` provenance `legacy` | 1 | 90 |
+| `vy_rel_texture` | 1 (stale fixture) | 26 |
+| …of those, clearing the 40-turn render floor | 0 | **2** |
+| `vy_self_arc` | 0 | 0 |
+
+**Cost: zero cash and zero LLM calls** — `azure_calls 0, or_calls 0` — but **not
+zero credits**, and the difference matters enough to write down: the legacy
+quarantine made **23 Azure embedding calls, 1,327 tokens**, on grant credits.
+"Free" was the claim for the model tier; the embedder is a separate lane and it
+spent.
+
+**The self-layer pass then processed 25 persons and wrote 25 texture rows** with
+zero model calls (`runSelfLayer` calls only engine functions with `q` — read,
+not asserted). Before the backfill the identical command reported
+`persons_processed: 0`, because `findPersonsWithFreshEpisodes` requires
+`provisional = false` episodes inside a 30-hour window and there were none. The
+backfill writes `provisional = false` at `created_at = now()`, which is what
+unblocked it.
+
+**Independent confirmation of a prediction.** `selflayer-rows-zero` predicted
+from a read-only deriver run that **2 of 34** persons would clear the texture
+floor. The real pass wrote 26 rows of which exactly **2** clear it. A
+read-only projection and a live write agreeing exactly is the strongest evidence
+so far that `deriveTexture` is deterministic over the same input.
+
+**The arc still refuses, and that is correct.** `deriveSelfArc` found 3 evidence
+facts and rejected all three — *"no single dim decided (unclassified or tied)"*
+— against a CHECK requiring ≥3 citations and a ≥42-day span. It is behaving as
+`self-layer` specified: a growth claim it cannot support is not made.
+
+**So what a real user gets today** is T11 for two people and nothing else. That
+is a truthful floor, not a launch. The remaining lifts are stage 3 (owner
+decision, priced), the rel-state derivations that need real episode summaries
+stage 3 produces, and `T12`'s coupling to `relBundle`.
+
+n = 39 devices / 1,853 log rows / 25 persons, full population. Method:
+`backfill-episodes.mjs --all --k 0` then `consolidate.js --derive-self`, with
+direct row counts against production Neon before and after each. Date 2026-08-20.
