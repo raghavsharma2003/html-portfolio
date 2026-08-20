@@ -65,6 +65,18 @@ const suites = {
   // note above describes — run it by hand:
   //     node evals/self/wiring.mjs --live
   selfwiring: "self/wiring.mjs",
+  // WS-TRACE (docs/TRACE.md). The OFFLINE half: the content firewall, the
+  // correlator replayed over two REAL production turns, the tap's cost, and a
+  // structural check that no trace write sits on any reply path. No database,
+  // no network, no money, ~2s — so it belongs here by the same test the
+  // honesty and time suites are wired in under, and `dead-writers` does not
+  // stop being true for evals.
+  //
+  // Its LIVE half (evals/trace/roundtrip.mjs) is deliberately not in this map,
+  // for the same by-construction reason d2 and selfwiring --live are not: it
+  // needs NEON_URL and it WRITES. Run it by hand:
+  //     node evals/trace/roundtrip.mjs
+  trace: "trace/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

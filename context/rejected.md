@@ -1079,3 +1079,27 @@ someone tuning the other.
 the verb is nowhere near its subject. The useful property of the fix is that
 tightening can only *remove* flags, which is what makes the pre-calibration
 before-figure exact rather than an estimate.
+
+---
+
+## `engine-bundle-check-uncalled` — the guard existed, worked, caught real drift, and nothing ran it (2026-08-20)
+
+`scripts/build-engine-bundle.mjs --check` compares `api/_engine.gen.js` against
+the current `src/engine/` tree and fails when they diverge. It works. It caught
+genuine drift today — `persona.ts` and `compiler.ts` changes that had not been
+regenerated, meaning **the room path (`api/tg.js`) would ship a different Meera
+than the tree the gates test.**
+
+It is invoked by **nothing**: no workflow, no npm script, not `verify-release`.
+
+`dead-writers` again, and this time in the guard rather than in the writer —
+which is the more dangerous half, because a dead writer produces no data and a
+dead guard produces false confidence. It sits with `startup-failure-is-invisible`
+(a workflow that could not start), `logged-but-unindexed` (prose with no index
+row), and `gates-that-live-nowhere` (documented gates verifying a frozen copy):
+**four instances, one session, of a thing that exists and is connected to
+nothing.**
+
+The family is now large enough to state as a rule: *anything that checks the
+system must itself be checked by the system.* Every one of these was found by
+accident, and each was found only because something else went wrong nearby.

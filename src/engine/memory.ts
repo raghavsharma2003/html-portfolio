@@ -7,6 +7,7 @@ import { Capacitor } from "@capacitor/core";
 import type { Message } from "../state/store";
 import type { InnerPatch } from "./inner";
 import { diagTimer } from "./diag";
+import { traceServer, traceTurnId, tracePatch, type TraceChannel } from "./trace";
 
 const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
 
@@ -28,7 +29,28 @@ export function logTurns(device: string, msgs: Message[]) {
       content: m.text,
       at: m.at,
     }));
-  if (turns.length) post({ op: "log", device, turns }).catch(() => {});
+  if (!turns.length) return;
+  // WS-TRACE (docs/TRACE.md L2): op:"log" now returns the meera_log row ids it
+  // wrote, and the trace records them instead of the words. That is the whole
+  // content story — "what did she actually say on turn X" is a join, and it
+  // resolves to nothing once the person asks to be forgotten, which a copy
+  // stored here never would.
+  post({ op: "log", device, turns })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => {
+      const ids: number[] = Array.isArray(d?.ids) ? d.ids : [];
+      if (!ids.length) return;
+      const roles = turns.map((t) => t.role);
+      const mine = ids.filter((_, i) => roles[i] === "me");
+      const hers = ids.filter((_, i) => roles[i] === "her");
+      const channel: TraceChannel = turns[0].channel === "call" ? "call" : "chat";
+      if (!traceTurnId(channel)) return;
+      tracePatch(channel, {
+        ...(mine.length ? { in_log_id: mine[0] } : {}),
+        ...(hers.length ? { out_log_ids: hers } : {}),
+      });
+    })
+    .catch(() => {});
 }
 
 // Distils the recent conversation into her graph memory AND hands back the
@@ -273,11 +295,22 @@ function runRecall(device: string, query: string): Promise<string> {
     // measured: ~165ms warm, ~900ms cold. 2s is generous headroom and still
     // can't park a reply behind a slow lookup.
     const timeout = new Promise<string>((r) => setTimeout(() => r(""), 2000));
-    const fetchIt = post({ op: "recall", device, query })
+    // WS-TRACE (docs/TRACE.md §3.2): the open turn's id goes UP so the server
+    // can name it, and the retrieval leg comes back DOWN on the response this
+    // call was already making. Zero extra round trips, and no write anywhere on
+    // this path — which is what makes tracing free here rather than a lookup
+    // sitting in front of a reply.
+    //
+    // `traceTurnId()` is "" when no turn is open (a background refresh, a
+    // pre-warm), and the server simply omits the leg rather than inventing a
+    // turn for it. `dead-writers` in reverse: no id, no record, no pretence.
+    const turnId = traceTurnId("chat");
+    const fetchIt = post({ op: "recall", device, query, ...(turnId ? { turn_id: turnId } : {}) })
       .then((r) => (r.ok ? r.json() : { memories: "" }))
       .then((d) => {
         lastBundle = { device, query, bundle: (d?.relstate as RelBundleInput | null | undefined) ?? null };
         lastSelf = { device, query, bundle: (d?.self as SelfBundleInput | null | undefined) ?? null };
+        if (d?.trace) traceServer("chat", "retrieval", d.trace);
         return typeof d?.memories === "string" ? d.memories : "";
       })
       .catch(() => "");

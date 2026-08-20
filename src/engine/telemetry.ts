@@ -99,6 +99,13 @@ export function telSession() {
   return sessionId;
 }
 
+/** The device this session is attributed to, or "" before App identifies one.
+ *  Read by src/engine/trace.ts, which must not attribute a turn to a guess —
+ *  the trace holds its buffer until this is non-empty (docs/TRACE.md). */
+export function telDevice() {
+  return device;
+}
+
 export function telEnabled(on: boolean) {
   enabled = on;
 }
@@ -119,6 +126,21 @@ function clip(props: Record<string, unknown>): Record<string, unknown> {
   return props;
 }
 
+// ── the trace tap (WS-TRACE, docs/TRACE.md) ───────────────────────────────
+// A REGISTRATION, not an import. src/engine/trace.ts imports this module and
+// installs itself; this module gains no dependency in return. That direction is
+// load-bearing: telemetry.ts sits in liveCall.ts's transitive import graph (via
+// diag.ts), and evals/echosim/build.mjs transpiles liveCall.ts standalone by
+// rewriting a FIXED list of emitted files — an import added here would put an
+// unrewritten module in that graph and break the only proof the audio floor did
+// not move. Unset by default, so a build that never installs the tap behaves
+// exactly as it did before this line existed.
+type TelTap = (event: string, props: Record<string, unknown>) => void;
+let telTap: TelTap | null = null;
+export function setTelTap(fn: TelTap | null) {
+  telTap = fn;
+}
+
 /** Record one event. Never throws, never awaits, never blocks the caller. */
 export function tel(event: string, props: Record<string, unknown> = {}) {
   if (!enabled) return;
@@ -133,6 +155,16 @@ export function tel(event: string, props: Record<string, unknown> = {}) {
       event,
       props: clip(props),
     });
+    // After the record is buffered, never before: a throwing tap must not be
+    // able to cost telemetry an event. Its own body is caught too (trace.ts
+    // onTel), so this is belt and braces on the one path that must not fail.
+    if (telTap) {
+      try {
+        telTap(event, props);
+      } catch {
+        /* a tap failure is never a telemetry failure */
+      }
+    }
     if (!device) {
       // nowhere to send it yet. Hold a bounded tail rather than retaining
       // everything AND attempting a flush per event — that combination is

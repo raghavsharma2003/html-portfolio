@@ -998,3 +998,75 @@ limitation of the ledger.
 
 **Reverses if:** commitments must outlive the context window — then it needs
 storage, and it needs a named first-row owner per `relstate-zero-rows`.
+
+---
+
+## `trace-off-path` — the client is the only writer, and server legs ride the response (2026-08-20)
+
+Every turn is now reconstructible: seven legs, inside-out — ingress, retrieval,
+interior, assembly, model, egress, consolidation — into a denormalised spine
+(`meera_turn`) plus an append-only `meera_turn_leg`.
+
+**Nothing writes on a reply path.** `op:"recall"` and `/api/chat` *return* their
+legs on the response they were already sending (+593 B and ~350 B); the client
+buffers and posts them to `/api/trace` on a timer, at turn close, and at
+pagehide. `api/trace.js` is the only writer, is never on a reply path, and
+therefore **awaits** its write — `telemetry.ts` already paid for the lesson that
+a fire-and-forget write after a serverless response silently disappears.
+
+Three constraints forced this rather than taste: `q()` is one statement per
+request with no transactions; a serverless function that has already responded
+cannot be relied on to finish work; and the floors are 720 ms text / 1.4–1.5 s
+live, so an awaited write on-path would be a product regression to buy a
+diagnostic.
+
+The spine/leg split is likewise forced: legs arrive from different processes,
+out of order, and sometimes twice, so the spine is upserted with
+`least`/`greatest`/`+`/`||`/`coalesce` and converges under all three. Verified —
+a late, less-informed leg does not erase `lane`, `core_bytes` or `sections`.
+
+**Reverses if:** the runtime gains a reliable `waitUntil`, or a leg appears
+whose data cannot be known before the response is sent and cannot be carried
+home.
+
+---
+
+## `trace-retention-at-write` — pruning runs inside the writing statement (2026-08-20)
+
+Legs 30 days, spine 90. Enforced by a bounded CTE that deletes ≤200 rows past
+the horizon, prepended to every write batch — **not by a scheduled job**,
+because `never-scheduled` measured that no scheduled job has ever run in this
+repo. A retention policy that depends on a cron nobody has ever seen fire is a
+retention policy that does not exist.
+
+**Reverses if:** a scheduled job actually fires here at least once.
+
+---
+
+## `trace-references-not-copies` — row ids, byte counts and hashes; never content (2026-08-20)
+
+The trace stores **no message text, no prompt text, no recalled summaries, no
+search query, and none of her interior as words** — only ids, counts, bands and
+hashes.
+
+This is `structural-disclosure` turned on ourselves, and the mechanism is
+structural rather than a policy: `api/_trace.js`'s `sanitise()` caps every
+string at 64 characters and drops content-shaped keys by name, so a caller that
+hands it a transcript stores a count of what was refused. A reference also has a
+property a copy does not — **it resolves to nothing after a forget.**
+`meera_turn` and `meera_turn_leg` sit in `PERSON_TABLES` keyed by `device_id`,
+so a wipe takes the trace and an export includes it.
+
+`core_hash` + `manifest_hash` + the per-slot byte map answer every question a
+stored prompt would, at roughly 1/200th the size, and cannot leak.
+
+**What it does still expose, stated rather than glossed:** an operator with
+`NEON_URL` can see when a person talked, how long their messages were, which
+memory rows were retrieved, the shape of her interior, and what she was told.
+That is the same surface `meera_tel` + `meera_log` already grant — this adds
+structure, not content. The mitigations are the horizons and the **absence of a
+read path**: `api/trace.js` is POST-only and contains no `select`, so adding a
+viewer must be a diff that *creates* one.
+
+**Reverses if:** a question provably cannot be answered from a reference plus
+the row it points at.

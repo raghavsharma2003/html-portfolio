@@ -1843,3 +1843,91 @@ its first half is already audible. Named in the code rather than hidden.
 110 honesty checks (was 40), inside `evals/run.mjs` inside `verify-release`, so
 every build gates on it. Zero database writes — zero residue by construction
 rather than by cleanup. Date 2026-08-20.
+
+## `trace-overhead-zero` — the trace costs no statements and no measurable time (2026-08-20)
+
+| | measured | method |
+|---|---|---|
+| SQL statements added to `op:"recall"` | **12 → 12, zero** | counted at the fetch-to-Neon boundary, paired call |
+| SQL statements added to `/api/chat` | **0** | structural — the file imports no `_db.js`, asserted |
+| response bytes, `op:"recall"` | **+593 B** | median of 8, real device, real query |
+| client tap cost | **0.48–0.52 µs per event** | n=20,000 × 5 alternating blocks, medians, warm-up discarded |
+| ⇒ per turn (~8 events) | **~4 µs** against a 720 ms floor | arithmetic |
+| stored per turn | **4,456 B** (1,120 spine + 3,336 legs) | `pg_column_size`, one full 7-leg turn |
+| 500 turns/day | 2.2 MB/day → ~100 MB steady state | arithmetic |
+| audio floor | **byte-identical** | echosim 5×8×2 = 80 calls vs HEAD, coordinator-reproduced |
+
+**Wall-time is explicitly NOT the claim.** Four paired runs gave Δ −41, −322,
++94, −83 ms with a control-arm spread of 134–1,902 ms — the effect is under the
+noise floor, so the statement count carries the claim instead. The first
+arrangement of the tap measurement reported the *tapped* run as faster; that is
+not a result, it is a warning that the effect is below the noise, and it was
+redone as alternating blocks with medians.
+
+`diag.ts` was deliberately not touched — the tap went into `telemetry.ts`, which
+`diag()` forwards into, so one tap catches both *and* the direct `tel()` calls.
+A new import in `diag.ts` would have broken echosim's standalone transpile of
+`liveCall.ts`, which is the only proof the audio floor did not move.
+
+---
+
+## `nine-dark-tail-slots` — three separate investigations, now one queryable row (2026-08-20)
+
+Real production compile, 2026-08-20 11:56:56Z, replayed through the real
+correlator and read back with `scripts/trace.mjs --turn`:
+
+```
+core 43,868b   tail 5,141b
+T1 0b  T2 0b  T3 0b  T4 0b  T5 1,895b  T6 0b  T7 609b
+T8 0b  T9 0b  T10 1,280b  T11 220b  T12 0b  T13 0b
+watch 0b  culture 0b  mp.roster 0b  mp.bridge 0b
+```
+
+**Nine declared tail slots render zero bytes in production**: her carried
+interior (T1), the entire relational snapshot (T2/T3/T4/T6), and two thirds of
+the self layer (T12/T13). Only four render at all.
+
+This is `prodgap-audit`, `relstate-zero-rows` and `selflayer-rows-zero` visible
+simultaneously in a single row — the first time that state has been *queryable*
+rather than the conclusion of three separate investigations. And it is visible
+only because per-slot byte counts exist: nothing else in the system
+distinguishes a slot that is switched off from one that is empty from one that
+was never wired. That distinction is exactly what cost this session four
+separate debugging sessions.
+
+Derived flags, each an invariant already paid for once: `recall_empty`,
+`slot_zero`, `tail_over`, `core_over`, `fallback`, `no_person`, `empty_reply`.
+
+---
+
+## `both-lanes-dry` — production chat went down because our own evals spent the day's budget (2026-08-20)
+
+At ~12:30 UTC `/api/chat` began returning **502 `{"error":"upstream 403"}`** on
+production while `/api/speech` stayed 200. Cause, probed directly rather than
+inferred:
+
+- **all 9 free-pool Google keys return 429** (quota), probed individually with
+  the real model and endpoint the free lane uses
+- **OpenRouter is exhausted**: `limit 25, usage 25.021`
+
+Both lanes dry at once, so the chat proxy has nothing to fall through to.
+
+**It was our spend.** The honesty pressure run consumed ~59 free-pool
+generations in one afternoon against a pool whose measured real ceiling is ~75
+calls/day (`free-pool-capacity`), on top of the trace round-trips. This is
+`one-key-two-jobs` — *"the research budget and production share a key, and it
+just ran out"* — recurring with the free pool included this time, so there is no
+paid backstop.
+
+**Not caused by any code shipped today**, checked rather than assumed:
+`api/chat.js` last changed 2026-08-15 (`ce56048`); the honesty commit touched
+only `brain.ts`, `honesty.ts`, evals and `context/`. A clean checkout of HEAD
+deployed to production reproduces the same 502, which is what rules the code out.
+
+**What it costs to leave unfixed:** the owner cannot test the product on any day
+we run an eval. Splitting research and production credentials (#89) stops being
+housekeeping at this point — it is the difference between measuring the thing
+and being able to use it.
+
+n = 9 keys probed + 1 OpenRouter auth call. Method: direct provider calls with
+the production model/endpoint; status codes only, no keys printed. 2026-08-20.

@@ -879,6 +879,48 @@
       "kind": "measurement",
       "title": "Leak 1/31 before, 0/31 after; receipt family 12.5% before; 29/29 clean replies byte-identical; attempt rate bounded <=20%",
       "at": "2026-08-20"
+    },
+    {
+      "id": "trace-off-path",
+      "kind": "decision",
+      "title": "Seven-leg turn trace; server legs ride the response, the client is the only writer, nothing writes on a reply path",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "trace-retention-at-write",
+      "kind": "decision",
+      "title": "Retention is a bounded CTE prune inside the writing statement, because no scheduled job has ever run here",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "trace-references-not-copies",
+      "kind": "decision",
+      "title": "The trace stores row ids, counts and hashes, never content; sanitise() refuses structurally and a reference dies with a forget",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "trace-overhead-zero",
+      "kind": "measurement",
+      "title": "0 added SQL statements, +593B response, 0.48-0.52us per event, 4,456B per turn, audio floor byte-identical",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "nine-dark-tail-slots",
+      "kind": "measurement",
+      "title": "Production: 9 declared tail slots render 0 bytes; only T5/T7/T10/T11 render — three investigations in one queryable row",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "both-lanes-dry",
+      "kind": "measurement",
+      "title": "All 9 free keys 429 and OpenRouter 25.021/25; production chat 502 from our own eval spend, not from shipped code",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "engine-bundle-check-uncalled",
+      "kind": "rejection",
+      "title": "build-engine-bundle --check works, caught real drift, and is invoked by nothing — dead-writers in the guard",
+      "at": "2026-08-20"
     }
   ],
   "edges": [
@@ -1666,6 +1708,41 @@
       "src": "receipt-verb-without-proximity",
       "rel": "part_of",
       "dst": "honesty-provenance-allowlist"
+    },
+    {
+      "src": "trace-off-path",
+      "rel": "measured_by",
+      "dst": "trace-overhead-zero"
+    },
+    {
+      "src": "trace-references-not-copies",
+      "rel": "part_of",
+      "dst": "trace-off-path"
+    },
+    {
+      "src": "trace-retention-at-write",
+      "rel": "caused_by",
+      "dst": "never-scheduled"
+    },
+    {
+      "src": "nine-dark-tail-slots",
+      "rel": "measured_by",
+      "dst": "trace-overhead-zero"
+    },
+    {
+      "src": "nine-dark-tail-slots",
+      "rel": "supersedes",
+      "dst": "selflayer-rows-zero"
+    },
+    {
+      "src": "both-lanes-dry",
+      "rel": "caused_by",
+      "dst": "one-key-two-jobs"
+    },
+    {
+      "src": "engine-bundle-check-uncalled",
+      "rel": "caused_by",
+      "dst": "dead-writers"
     }
   ]
 }

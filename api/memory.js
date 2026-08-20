@@ -136,11 +136,23 @@ async function opLog(device, body) {
       Number.isFinite(t.at) ? new Date(t.at).toISOString() : new Date().toISOString(),
     );
   }
-  await q(
-    `insert into meera_log (device_id, role, channel, kind, content, at) values ${values.join(",")}`,
+  // WS-TRACE: `returning id` makes the trace's link to CONTENT a reference
+  // rather than a copy (docs/TRACE.md L2). meera_log is where what anybody said
+  // already lives; a turn record that names the row id can reconstruct the turn
+  // without ever storing a second copy of the words — and, unlike a copy, the
+  // reference goes away with the row when someone asks to be forgotten.
+  //
+  // Postgres returns RETURNING rows in the order a multi-row VALUES list was
+  // written, so `ids[i]` is `turns[i]`. That is an implementation property
+  // rather than a standard guarantee, which is why `role` and `at` ride along:
+  // a caller that needs certainty can match on those instead of on position.
+  const inserted = await q(
+    `insert into meera_log (device_id, role, channel, kind, content, at) values ${values.join(",")}
+     returning id, role, at`,
     params,
   );
-  return { ok: true };
+  const rows = Array.isArray(inserted) ? inserted : [];
+  return { ok: true, ids: rows.map((r) => Number(r.id)), rows };
 }
 
 // Query words that carry no retrieval signal. Without this filter a message
@@ -393,6 +405,18 @@ async function opRecall(device, body) {
   // second agent ships it arrives from the surface's own routing, and the only
   // thing that has to change is this line.
   const agentId = MEERA_AGENT_ID;
+  // ── WS-TRACE (docs/TRACE.md §3.2): the retrieval leg ────────────────────
+  // Every read this turn made, as ROW IDS and timings — never as a copy of what
+  // came back. It rides the response this function was already sending, so it
+  // costs zero extra round trips and zero extra latency: the alternative, a
+  // write from inside a lookup a reply is waiting on, is exactly what
+  // docs/TRACE.md L1 forbids.
+  //
+  // Why this leg is the one worth having: `realtime-recall-never` was a lane
+  // reading an empty recall string on EVERY call for months, invisible because
+  // nothing ever recorded how many bytes of memory a turn actually received.
+  // `memories_bytes` below is that number.
+  const traceT0 = Date.now();
   const query = String(body.query || "").toLowerCase();
   const words = [...new Set(query.match(/[a-z]{4,}|[ऀ-ॿ]{3,}/g) || [])]
     .filter((w) => !RECALL_STOP.has(w))
@@ -450,11 +474,25 @@ async function opRecall(device, body) {
   // hoisted so semanticFetch and the WS-INTEGRATE relBundleFetch below share
   // one personIdFor lookup instead of two
   const personPromise = personIdFor(device);
+  // WS-TRACE: the embedding call is the measured bottleneck of semantic recall
+  // (`recall-v2`: DB p50 40ms, the embed call is the rest), so the leg records
+  // it separately from the query it feeds. Mutated, not returned, so the
+  // concurrency below is untouched.
+  const traceSem = { ok: false, embed_ms: null, skipped: null };
   const semanticFetch = (async () => {
     const trimmed = String(body.query || "").trim();
-    if (trimmed.length < 3) return [];
+    if (trimmed.length < 3) {
+      traceSem.skipped = "short_query";
+      return [];
+    }
+    const tEmbed = Date.now();
     const vec = await embedOne(trimmed).catch(() => null);
-    if (!vec) return [];
+    traceSem.embed_ms = Date.now() - tEmbed;
+    if (!vec) {
+      traceSem.skipped = "no_vector";
+      return [];
+    }
+    traceSem.ok = true;
     const person = await personPromise;
     const lit = toHalfvecLiteral(vec);
     // Both sides of this join are agent-scoped tables, so both carry the
@@ -499,6 +537,39 @@ async function opRecall(device, body) {
   const semantic = (Array.isArray(semanticRaw) ? semanticRaw : []).slice(0, 4);
   const seen = new Map();
   for (const n of [...matched, ...background]) seen.set(n.id, n);
+
+  // ── WS-TRACE: the retrieval leg, built once and returned on both paths ───
+  // IDS AND COUNTS ONLY. "why did she say that" becomes
+  // `select * from meera_nodes where id = any(...)` run by an operator on
+  // demand — rather than a copy of every recalled summary sitting in a trace
+  // table for ninety days. docs/TRACE.md §4 states the boundary; this is the
+  // single most content-adjacent leg in the system and it holds no content.
+  const traceIds = (rows, n = 12) =>
+    (Array.isArray(rows) ? rows : []).slice(0, n).map((r) => Number(r.id)).filter(Number.isFinite);
+  const buildTrace = (memories, obsIds, blockLabels) => {
+    if (!body.turn_id) return undefined;
+    const person = personResolved;
+    return {
+      turn_id: String(body.turn_id).slice(0, 64),
+      person_id: person || null,
+      agent_id: agentId,
+      q_chars: query.length,
+      q_words_n: words.length,
+      ms_total: Date.now() - traceT0,
+      keyword: { matched_ids: traceIds(matched), background_ids: traceIds(background) },
+      semantic: { ...traceSem, fact_ids: traceIds(semantic) },
+      observations: { ids: obsIds || [], n: (obsIds || []).length },
+      relbundle: relBundleShape(relBundle),
+      selfbundle: selfBundleShape(selfBundle),
+      memories_bytes: memories.length,
+      blocks: blockLabels,
+    };
+  };
+  // resolved once here: personPromise has already settled by now (every fetch
+  // above awaited it), so this adds no wait — and a leg that could not name the
+  // person is the `relstate-zero-rows` shape, which the flag exists to catch.
+  const personResolved = await personPromise.catch(() => null);
+
   // relstate is independent of graph recall — a person with no matched/
   // background/semantic memories yet may still have a real relstate bundle
   // (or vice versa), so it rides both return paths, never conditioned on
@@ -506,7 +577,8 @@ async function opRecall(device, body) {
   // and rides both paths too: her arc and her untold life exist whether or not
   // this particular query matched a node, and the empty-memories path is
   // exactly the early-relationship case where texture is most of what she has.
-  if (!seen.size && !semantic.length) return { memories: "", relstate: relBundle, self: selfBundle };
+  if (!seen.size && !semantic.length)
+    return { memories: "", relstate: relBundle, self: selfBundle, trace: buildTrace("", [], []) };
 
   const idArr = [...seen.keys()];
   const edges = await q(
@@ -612,9 +684,11 @@ async function opRecall(device, body) {
   // a second stopword list.
   const engine = await loadSelfEngineForRecall();
   const obsPerson = await personPromise.catch(() => null);
+  const obsIds = [];
   if (engine && obsPerson && words.length) {
     try {
       const obs = await engine.matchObservations(q, obsPerson, agentId, query, 3, RECALL_STOP);
+      for (const o of obs) if (Number.isFinite(Number(o?.id))) obsIds.push(Number(o.id));
       if (obs.length) {
         blocks.push(
           `THINGS YOU NOTICED THEM SAY (one mention each, so treat them as details you remember — not as patterns, and never as a list):\n${obs
@@ -635,7 +709,52 @@ async function opRecall(device, body) {
     idArr,
   ]).catch(() => {});
 
-  return { memories: blocks.join("\n"), relstate: relBundle, self: selfBundle };
+  const memories = blocks.join("\n");
+  // WS-TRACE: block LABELS (the heading before the colon), never the lines
+  // under them. Which store answered is the diagnosable fact; what it answered
+  // with is in the rows the ids above point at.
+  const blockLabels = blocks.map((b) => b.slice(0, b.indexOf(":") + 1 || 24).slice(0, 40));
+  return {
+    memories,
+    relstate: relBundle,
+    self: selfBundle,
+    trace: buildTrace(memories, obsIds, blockLabels),
+  };
+}
+
+/** WS-TRACE: the SHAPE of a rel bundle — how many of each kind of row reached
+ *  the compiler, never a row. An empty bundle and an absent one look different
+ *  here on purpose: `relstate-zero-rows` was forty people with a bundle that
+ *  had no state in it, and "present but empty" is the only reading that says so. */
+function relBundleShape(b) {
+  if (!b) return { present: false };
+  const n = (v) => (Array.isArray(v) ? v.length : 0);
+  return {
+    present: true,
+    relstate_present: Boolean(b.relState),
+    we_episodes_n: n(b.weEpisodes),
+    phrases_n: n(b.phrases),
+    patterns_n: n(b.patterns),
+    rituals_n: n(b.rituals),
+    ledger_n: n(b.phraseLedger),
+    currency_n: n(b.currency),
+    home_region: Boolean(b.homeRegion),
+    honorific_move_at: b.lastHonorificMoveAt ? 1 : 0,
+  };
+}
+
+/** WS-TRACE: the same for the self bundle (T11/T12/T13). `selflayer-rows-zero`
+ *  is the measurement this exists to make queryable — a layer that shipped and
+ *  stayed empty, discovered only because someone went looking. */
+function selfBundleShape(b) {
+  if (!b) return { present: false };
+  const n = (v) => (Array.isArray(v) ? v.length : 0);
+  return {
+    present: true,
+    texture_present: Boolean(b.texture),
+    arc_n: n(b.arc),
+    untold_n: n(b.untold),
+  };
 }
 
 // GAP 3 (WS-FELT) — vibe chips → vy_currency. src/engine/india.ts's own
@@ -1151,6 +1270,17 @@ export const PERSON_TABLES = [
   { table: "meera_forget",      key: "device_id", lane: "legacy" },
   { table: "meera_tel",         key: "device_id", lane: "legacy" },
   { table: "meera_tel_session", key: "device_id", lane: "legacy" },
+  // ── the turn trace (migration 012, docs/TRACE.md §2.4) ───────────────────
+  // Filed exactly where meera_tel sits, and for the same two reasons. FORGET:
+  // a person's whole wipe must take their trace with it, and meera_turn_leg
+  // carries a device_id for no other purpose than being reachable by this
+  // clause — a detail table its own spine could be wiped without would leave
+  // rows standing after the receipt said they were gone. EXPORT: the rows are
+  // about that person and contain no conversation content (every column is a
+  // count, a byte length, a hash, a timing or a row id), so a DSAR that omitted
+  // them would be the wrong answer rather than a kind one.
+  { table: "meera_turn",        key: "device_id", lane: "legacy" },
+  { table: "meera_turn_leg",    key: "device_id", lane: "legacy" },
   { table: "vy_episode",          key: "person_id", lane: "relational", agent: true,
     // room episodes carry person_id NULL (008a), so `key` already selects only
     // the exclusive 1:1 rows; the shared spec is what handles the rest
