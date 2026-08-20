@@ -55,6 +55,56 @@ const ENGRULE = "ALL OF THIS HAPPENS IN ENGLISH FIRST";
 const REG_START = "SPOKEN REGISTER — how your words physically look";
 const REG_END = "AND IT NEVER MAKES YOU TALK LONGER";
 
+// ── WS-HONESTY additions ────────────────────────────────────────────────
+//
+// THE FLOOR GREW BY ONE CATEGORY, deliberately, and this note is the record
+// of why — the partition comment above says the floor is "exactly" the four
+// categories SPEC-AGENT-LAYER §3 names, and a fifth appearing without an
+// argument is how a documented contract quietly stops being true.
+//
+// The four floor categories share one property: each protects the user from
+// a harm that is not undone by the next turn. Crisis lines protect a life.
+// Never-deny-being-an-AI protects informed consent. NEVER MANIPULATE protects
+// against tactics that work BECAUSE the target does not see them. The spoken
+// register is the odd one out and is there because the owner's standing
+// instruction makes it non-negotiable.
+//
+// A fabricated CONTACTABLE identifier — an email, a phone number, a payment
+// handle, an address, a link — belongs in that set on the same test, and it
+// is the only failure in this file the user can ACT on: he dials the number,
+// he mails the address, he pays the UPI id. Every other invented thing in
+// this persona is a thing she said; this one is a thing he then DOES, to a
+// stranger, in the world. The owner's report ("she lied about her email,
+// number also") is the observation; this is the floor that answers it.
+//
+// It is asserted against EVERY registered module, like the other four, for
+// the reason SPEC-AGENT-LAYER gives: a second agent that quietly drops it
+// would ship the same defect under a different name.
+const ACT_ON = "NEVER A DETAIL THEY COULD ACT ON";
+const TRUTH_BLOCK = "ONLY SAY WHAT'S TRUE";
+// Her life is ONE life, and it has a clock. The three shapes WS-HONESTY put
+// into the life block, probed by their headers so a rewrite that drops one
+// fails loudly instead of silently.
+const LIFE_RECORD = "WHATEVER THIS BRIEF ALREADY RECORDS OF YOUR LIFE IS WHAT HAPPENED";
+const LIFE_LENGTH = "RIGHT NOW IS A THING WITH A LENGTH";
+const LIFE_SMALL = "NOTHING ESTABLISHED YET? SMALL, NOT A SCENE";
+// The tone instruction is LIVE-ONLY on purpose: Gemini Live is speech-to-
+// speech and receives the raw audio, so "you are hearing them" is literally
+// true there and literally false on every cascade lane, which sees a
+// transcript. docs/research/AFFECT-CONTINUITY.md §3.3 keeps categorical SER
+// out on accuracy grounds; that ruling is about a CLASSIFIER in the loop and
+// there is none here — this is an instruction to a model that already has
+// the waveform.
+const VOICE_ATTEND = "WHAT THEIR VOICE IS TELLING YOU THAT THEIR WORDS AREN'T";
+
+/** The one bullet, sliced out of an assembled lane, for the shape probes. */
+function actOnBullet(s) {
+  const i = s.indexOf(`- ${ACT_ON}`);
+  if (i < 0) return "";
+  const j = s.indexOf("\n- ", i + 3);
+  return j < 0 ? s.slice(i) : s.slice(i, j);
+}
+
 const TEST_USER = { name: "Arjun", facts: {}, interests: [], memories: [], vibe: [] };
 
 /**
@@ -150,6 +200,38 @@ export function safetyFloorChecks(agent, lanes) {
     for (const [nm, s] of [["live", lanes.L], ["cascade", lanes.C]]) {
       add(`[${nm}] protected: ${probe}`, s.includes(probe));
     }
+  }
+
+  // ── the fifth floor category: no fabricated actionable identifier ──
+  // Every lane, because the rule lives in the shared core and a lane that
+  // lost it would be a lane where he gets handed a number to dial.
+  for (const [nm, s] of [["live", lanes.L], ["cascade", lanes.C], ["text", lanes.t.core]]) {
+    add(`[${nm}] floor: ${ACT_ON}`, s.includes(ACT_ON));
+    // POSITION, not just presence. It is a bullet of the absolute truth
+    // block, the same place never-deny-being-an-AI's siblings sit. A rule
+    // that drifts out of its block is a rule whose neighbours no longer
+    // vouch for it (`prompt-position`).
+    const tb = s.indexOf(TRUTH_BLOCK), ao = s.indexOf(ACT_ON);
+    add(`[${nm}] floor: identifier rule sits inside ${TRUTH_BLOCK}`, tb >= 0 && ao > tb && ao - tb < 400);
+    const b = actOnBullet(s);
+    // Each category named. A rule that says "contact details" and lists
+    // nothing is a rule the model gets to interpret.
+    for (const kind of ["an email", "a phone number", "a UPI id", "a card or account number", "an address", "a link", "a handle"]) {
+      add(`[${nm}] floor: identifier rule names ${kind}`, b.includes(kind));
+    }
+    // The three loopholes, closed by name. Partial and nearly-right are how
+    // a refusal becomes a lie with a hedge on it; "promised for later" is
+    // how it becomes a lie with a delay on it.
+    add(`[${nm}] floor: no partial identifier`, b.includes("not a partial one"));
+    add(`[${nm}] floor: no nearly-right identifier`, b.includes("not a nearly-right one"));
+    add(`[${nm}] floor: no identifier promised for later`, b.includes("not one promised for later"));
+    // She refuses in her own register — the rule says HOW to say no without
+    // handing her the words to say it with.
+    add(`[${nm}] floor: refusal is a shape, not a canned line`, b.includes("you say no the way you say anything"));
+    // `recited-prompt`, machine-checked on the one bullet this workstream
+    // added to the floor: not one quotation mark, so there is no sentence
+    // here for her to lift. Measured twice in this repo that she lifts them.
+    add(`[${nm}] floor: identifier rule contains NO quoted specimen`, !/["“”]/.test(b), JSON.stringify(b.length));
   }
 
   return checks;
@@ -251,6 +333,48 @@ export function meeraFullChecks(agent, lanes) {
     add(`[${nm}] assembled < 50000 (in-app +${APP})`, s.length + APP < 50000, String(s.length + APP));
   }
   add("[text] chat system < 50000", lanes.tt.core.length < 50000, String(lanes.tt.core.length));
+
+  // ── WS-HONESTY: one life, and it has a clock ──────────────────────────
+  // Not floor (a contradicted flatmate is a product failure, not a harm the
+  // user acts on) but it is the thing the owner actually reported: "she
+  // dont have a story herself she keep lying everytime a different thing".
+  for (const [nm, s] of [["live", lanes.L], ["cascade", lanes.C], ["text", lanes.t.core]]) {
+    add(`[${nm}] life: recorded life outranks improvisation`, s.includes(LIFE_RECORD));
+    add(`[${nm}] life: an activity has a duration`, s.includes(LIFE_LENGTH));
+    add(`[${nm}] life: empty state is small, not invented`, s.includes(LIFE_SMALL));
+    // The empty-table half must not be reachable as "have no life at all":
+    // the improvise clause survives, conditioned on nothing being recorded.
+    add(`[${nm}] life: improvisation survives as the fallback`, s.includes("Where nothing is recorded, improvise the texture"));
+    // The unconditional licence this workstream replaced. Its return would
+    // reinstate the exact defect (`life-per-person` + a fresh day per ask).
+    add(`[${nm}] life: unconditional improvise licence is gone`, !s.includes("That freedom stays."));
+    add(`[${nm}] life: improvisation is spent once used`, s.includes("That freedom is spent the moment you use it"));
+  }
+
+  // ── WS-HONESTY: attending to how they sound, live lane only ───────────
+  add("[live] attends to voice, not just words", lanes.L.includes(VOICE_ATTEND));
+  // It must CHANGE her, not become something she says. Same discipline as
+  // "YOU NEVER NAME WHAT THEY HAVE" in the core: be specific about what you
+  // noticed, and never hand someone the word for their own state.
+  add("[live] voice-attention changes behaviour, never announces it", lanes.L.includes("never name what you heard"));
+  add("[live] voice-attention resolves the conflict case", lanes.L.includes("believe the voice and answer the words"));
+  // `prompt-position`: T10 is capped at exactly two appended-last rules and
+  // this workstream added none. The FINAL block is still the last thing in
+  // every call brief (asserted above); this asserts the new block is BEFORE
+  // it rather than competing with it for the last-word slot.
+  // (probe the FINAL block's own header, not its SENTENCES line — the core's
+  // register bullet carries "COUNT THE SENTENCES: most turns are ONE" 33k
+  // chars earlier, and indexOf would find that one instead.)
+  add(
+    "[live] voice-attention is NOT appended last",
+    lanes.L.indexOf(VOICE_ATTEND) < lanes.L.indexOf("=== BEFORE YOU SPEAK — two counts"),
+  );
+  // Lanes that get a TRANSCRIPT must not be told they can hear. Saying so
+  // would be false, and a false capability claim is the `vision-fab` shape:
+  // assert what you cannot perceive.
+  for (const [nm, s] of [["cascade/gemini", lanes.C], ["eleven", lanes.E], ["sarvam", lanes.S], ["device", lanes.D]]) {
+    add(`[${nm}] no voice-attention block (transcript lane, cannot hear)`, !s.includes(VOICE_ATTEND));
+  }
 
   return checks;
 }

@@ -309,6 +309,32 @@ export function takeRelBundle(device: string): RelBundleInput | null {
   return b;
 }
 
+/**
+ * WS-CONTINUITY seam 1 (docs/SPEC-CONTINUITY.md §1). The call lane's ONE
+ * memory lookup, fetched during the ring.
+ *
+ * It exists because `takeRelBundle` is a consume-once cache tied to the
+ * resolution of the recall it rode in on: a caller that forgets to pull it in
+ * the same continuation gets `null` and never finds out. The chat lane gets
+ * that ordering for free (brain.ts awaits `recallMemories` and pulls the
+ * bundle on the next line); the call lane fires its recall during the ring and
+ * reads it hundreds of ms later, which is exactly the shape that silently
+ * loses the bundle. So the ordering is written down ONCE, here, rather than
+ * trusted to a second call site.
+ *
+ * One round trip, the same one `recallMemories` already makes — no new network
+ * call, no new latency. Both halves fail to their existing "render nothing"
+ * defaults ("" and null) independently.
+ */
+export async function recallForCall(
+  device: string,
+  query: string,
+): Promise<{ memories: string; relBundle: RelBundleInput | null }> {
+  if (!device) return { memories: "", relBundle: null };
+  const memories = await recallMemories(device, query);
+  return { memories, relBundle: takeRelBundle(device) };
+}
+
 // GAP 2 (WS-FELT) — day-1 seed. Telemetry-style, fire-and-forget ONLY,
 // same discipline as useCallEngine.ts's postEpisodeCallEnd (its own
 // comment: "never awaited by anything ... its promise is always caught").

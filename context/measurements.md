@@ -1302,3 +1302,70 @@ n/a for n — a behavioural property of two deterministic modules, established b
 executing both over the same scripted frames. Method:
 `node evals/multimodal/native-gate.mjs` (needs a JDK; reports UNVERIFIED and
 fails rather than skipping when javac is absent). Date 2026-08-18.
+
+---
+
+## `one-key-two-jobs` — the research budget and production share a key, and it just ran out (2026-08-19)
+
+Found when WS-VOICES tried to synthesise six voice samples and got a 403 on
+its first call. Verified directly against OpenRouter's key endpoint rather
+than inferred from the error:
+
+```
+limit 25 · usage 25.021103776 · remaining -0.0211 · is_free_tier false
+```
+
+The key is **exhausted and 2 cents overdrawn**.
+
+**The spend itself was authorised and expected.** `papers-to-eight` raised the
+cap to $25 and explicitly directed the incumbent arm to "eat the remainder via
+--allow-cash", against the $0–30 OpenRouter residue `d2-on-credits` had already
+priced. The arm ran and did exactly that. Nothing went rogue.
+
+**What nobody priced is that the same key serves production.** `OPENROUTER_KEY`
+in `api/_config.js` is the only OpenRouter credential in the repo, and it is
+imported by `api/chat.js`, `api/speech.js`, `api/memory.js`, `api/search.js`,
+`api/culture.js` and `api/_embed.js` alike. A research run and the live product
+draw on one balance with nothing separating them.
+
+**Measured blast radius, per lane:**
+
+| lane | primary | on exhaustion | state |
+|---|---|---|---|
+| chat brain | OpenRouter | Google-direct free pool | **degraded, alive** |
+| TTS cascade | OpenRouter | Google-direct free pool | **degraded, alive** |
+| memory extraction | **Azure credits** | OpenRouter | alive on Azure |
+| embeddings | **Azure credits** | OpenRouter | alive on Azure |
+| live voice | Google direct free tier | — | alive |
+| web search | OpenRouter | none | **DEAD** |
+| culture index | OpenRouter | none | **DEAD** (never ran anyway — `never-scheduled`) |
+
+Live probe against production `POST /api/chat` while exhausted: **HTTP 200,
+correct reply, 4.81 s**. So the fallback works and the product is not down — it
+is running on the free pool, slowly.
+
+**The consequence that matters, and it is a live hypothesis for a real user
+report.** The owner reported "in the screen sharing everything changing the
+whole voice". `free-tts-daily` measured the free Google pool dying — *all nine
+keys together* — after a few dozen synthesis calls in one session. With the
+paid lane exhausted, every chat and TTS call now leans on that pool. A pool
+429 mid-call forces the live→cascade handoff, and the cascade is a **different
+model** — so the same voice name still sounds like a different woman. That is
+precisely the failure `api/speech.js`'s header documents from last time, now
+reachable by a second route that a voice-name guard cannot catch.
+
+**What breaks generally:** any setup where an experiment and the product draw
+on one budget. The experiment is bursty and finishes; the product is continuous
+and cannot. Whichever runs second gets the empty balance, and because the
+product degrades gracefully rather than failing loudly, nobody finds out from
+an alert — they find out from a user saying she sounded like a different
+person.
+
+**The rule:** production and research get separate credentials with separate
+caps, and the production one gets a balance alarm. Until they are separated,
+every `--allow-cash` run is a production incident with a delay fuse.
+
+n/a for n — an account fact plus a per-lane source audit and one live probe.
+Method: `GET https://openrouter.ai/api/v1/key` with the configured key;
+`grep` for `OPENROUTER_KEY` importers; `curl` against production `/api/chat`.
+Date 2026-08-19.

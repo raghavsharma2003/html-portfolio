@@ -174,7 +174,15 @@ export interface CompileInput {
   messageCount: number;
   medium: Medium;
   mode: Mode;
-  voiceEngine: VoiceEngine;
+  // `VoiceEngine | "live"` rather than `VoiceEngine`, because that is what
+  // `buildSpeechStyle` has always taken (agents/types.ts states it: "takes
+  // `VoiceEngine | "live"`, exactly as spec'd") and the realtime lane is the
+  // one caller that needs the "live" arm. WS-CONTINUITY seam 1: before this,
+  // the ONLY way to reach `buildSpeechStyle("live")` was to bypass compile()
+  // and hand-assemble — i.e. the type was itself part of why a second
+  // assembly path existed. Type-only widening: no runtime branch changes, no
+  // byte moves, all 83 fixtures pass "gemini"/"device" exactly as before.
+  voiceEngine: VoiceEngine | "live";
   // directive turns (open/nudge) never pull cultural currency — see brain.ts
   isDirective: boolean;
   // watch-together frame attached this turn (call lane only)

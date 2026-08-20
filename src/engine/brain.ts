@@ -15,7 +15,7 @@ import { cultureNote } from "./culture";
 import { recallMemories, forgetMemories, resolveForget, takeRelBundle } from "./memory";
 import { innerContext, overlaps, type Inner } from "./inner";
 import { diag } from "./diag";
-import { compile, hashCore, hashManifest } from "./compiler";
+import { compile, hashCore, hashManifest, type RelBundleInput } from "./compiler";
 // WS-MANIFEST Phase D prep (docs/SPEC.md §7.3 "chat lane call-site
 // adoption"): router.ts stays WS-ROUTER's exclusively (§13) — this is a
 // read of its exported pure functions, not an edit, same discipline as the
@@ -116,6 +116,18 @@ export interface BrainKeys {
   // her carried interior — one feeling in her own words, and what she wants.
   // Rendered into the VOLATILE tail only; it must never touch the cached core.
   inner?: Inner;
+  // ── WS-CONTINUITY seam 1 (docs/SPEC-CONTINUITY.md §1) ──────────────────
+  // The call lane's relational bundle, fetched ONCE during the ring (see
+  // useCallEngine.ts's `recallForCall`) and handed in here rather than pulled
+  // from `takeRelBundle`'s consume-once cache. The chat lane leaves this
+  // undefined and keeps pulling the cache exactly as before — one bundle per
+  // lane, from whichever source that lane's timing makes correct.
+  //
+  // Why it rides BrainKeys rather than a 12th positional parameter to
+  // think(): the call lane already assembles this object per turn
+  // (useCallEngine.ts's brainKeys()), so a lane that has a bundle ships it
+  // with everything else it knows, and think()'s signature stays readable.
+  relBundle?: RelBundleInput | null;
 }
 
 // how long ago she said it, in the shape a person would think it
