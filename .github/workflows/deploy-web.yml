@@ -32,13 +32,24 @@ jobs:
   # always red is a check nobody reads — which would hide the real deploy
   # failure it exists to catch. An annotation says it once per run, loudly, and
   # leaves red meaning "something broke".
+  #
+  # It also carries the answer for the deploy job, because `secrets` is NOT a
+  # context GitHub evaluates in a job-level `if:` — see the block below.
   configured:
     runs-on: ubuntu-latest
+    outputs:
+      # Safe to expose: this is the BOOLEAN of a comparison, never the token.
+      # GitHub would redact a secret's value from an output; "true"/"false"
+      # carries only whether one is set, which is the thing we need to branch on
+      # and the thing the annotation already says out loud.
+      has_token: ${{ steps.check.outputs.has_token }}
     steps:
       - name: Report whether deploys are configured
+        id: check
         env:
           HAS_TOKEN: ${{ secrets.VERCEL_TOKEN != '' }}
         run: |
+          echo "has_token=$HAS_TOKEN" >> "$GITHUB_OUTPUT"
           if [ "$HAS_TOKEN" != "true" ]; then
             echo "::warning title=Deploys are not configured::VERCEL_TOKEN is not set, so the site is NOT being deployed automatically and will lag the branch. Add it in Settings → Secrets → Actions."
           else
@@ -47,8 +58,22 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
+    needs: configured
     # Skipped (grey), not failed (red), when the token is absent.
-    if: ${{ secrets.VERCEL_TOKEN != '' }}
+    #
+    # This CANNOT read `secrets` directly. GitHub does not evaluate the secrets
+    # context in a job-level `if:`, and the failure mode is not a skipped job or
+    # a warning — the whole WORKFLOW FILE becomes invalid and the run dies at
+    # startup with ZERO jobs. It did, on every push from 2026-08-11 to
+    # 2026-08-20: 15 consecutive red runs, each finishing in the same second it
+    # started, `total_jobs: 0`. So the site stopped auto-deploying and the
+    # annotation job above — the thing that was supposed to SAY so — never ran
+    # either, because a startup failure takes the whole file down with it.
+    #
+    # The irony is the point: the comment above `configured` is about a check
+    # that is always red being a check nobody reads. This check then went always
+    # red for nine days for a different reason, and nobody read it.
+    if: needs.configured.outputs.has_token == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

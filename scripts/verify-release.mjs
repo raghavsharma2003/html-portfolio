@@ -44,6 +44,13 @@ const gate = async (name, cmd, cmdArgs) => {
 console.log("── static gates ──");
 await gate("typecheck", "npx", ["tsc", "-b"]);
 await gate("prompt budget", "node", ["scripts/check-prompt-budget.mjs"]);
+// The gates below all run the code. This one lints a file the code never reads,
+// which is exactly why nothing caught it: `deploy-web.yml` gated a job on the
+// `secrets` context, which GitHub does not evaluate there, so the file was
+// INVALID and every run died at startup with zero jobs. Nine days, fifteen red
+// runs, no auto-deploy, and the job whose purpose was to announce that the
+// deploy was unconfigured never ran either.
+await gate("workflow lint", "node", ["scripts/check-workflows.mjs"]);
 // Her voice must be the same voice on every lane that names it. The live lanes
 // cannot be configured, so every lane that CAN choose has to match them — and
 // when they disagreed once, a call that fell back mid-sentence swapped her for

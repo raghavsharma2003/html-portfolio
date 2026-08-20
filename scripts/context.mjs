@@ -45,6 +45,34 @@ if (args.includes("--check")) {
       problems.push(`${n.id} (${n.kind}) is in the graph but written up nowhere`);
     }
   }
+  // ...and the other direction, which is the one that actually drifted. The
+  // check above only ever asked "does this node have prose?". Nothing asked
+  // "does this prose have a node?", so an entry appended to a .md without a
+  // graph row passed --check forever while being invisible to `--node <id>`.
+  //
+  // It went unnoticed the whole time because appending prose is the part that
+  // FEELS like logging: the knowledge is written down, the file is longer, the
+  // session is logged. Only the index is missing, and an index is exactly the
+  // thing you do not notice the absence of until you query it. Sixteen entries
+  // had accumulated by 2026-08-20 — `dead-writers`, `never-scheduled` and
+  // `selfbundle-never-set` among them, i.e. the highest-value rejections in the
+  // file. `--node selfbundle-never-set` answered "no such node" while three
+  // paragraphs about it sat in rejected.md.
+  //
+  // CLAUDE.md tells the next session to query the graph. That instruction is
+  // only true if the graph is complete, so completeness is now a gate.
+  const HEADING = /^## `([a-z0-9-]+)`/gm;
+  for (const d of docs) {
+    if (d.f === "architecture.md") continue; // prose, not an entry list
+    for (const m of d.text.matchAll(HEADING)) {
+      if (!byId.has(m[1])) {
+        problems.push(
+          `${d.f} writes up \`${m[1]}\` but the graph has no such node — ` +
+            `\`--node ${m[1]}\` cannot find it, so nothing linking to it can exist`,
+        );
+      }
+    }
+  }
   if (problems.length) {
     console.error(`context graph: ${problems.length} problem(s)\n`);
     for (const p of problems) console.error("  - " + p);

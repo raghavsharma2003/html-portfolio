@@ -650,3 +650,118 @@ nobody thinks of as the same thing. The gate that replaces vigilance here is
 mechanical: `useCallEngine.ts` no longer imports `buildSystemPromptParts` or
 `buildSpeechStyle`, so a second assembler cannot return without a visible
 import diff.
+
+---
+
+## `startup-failure-is-invisible` — the deploy workflow was invalid for nine days, and the job that would have said so died with it (2026-08-20)
+
+`deploy-web.yml` gated its deploy job on:
+
+```yaml
+  deploy:
+    if: ${{ secrets.VERCEL_TOKEN != '' }}
+```
+
+GitHub does not evaluate the `secrets` context in a **job-level** `if:`. It is
+legal in `env:`, in `with:`, in a step — which is why it reads like every other
+line in the file and why it survived review. In a job `if:` it makes the whole
+**file** invalid.
+
+The failure mode is the part worth remembering. It is not a skipped job, not a
+warning, not a job that fails with a message. **The run dies at startup having
+dispatched zero jobs.** Measured on the actual runs: `created_at ==
+run_started_at == updated_at` to the second, `total_jobs: 0`, `conclusion:
+failure`, and `get_job_logs(failed_only)` returns *"No failed jobs found"* —
+there is nothing to read, because nothing ran.
+
+**Fifteen consecutive red runs, 2026-08-11 → 2026-08-20.** For nine days the
+site did not auto-deploy on push. The workflow existed, was on the branch, was
+triggered every time, and did nothing.
+
+**The bitter part.** The job immediately above the broken one is an annotation
+job whose only purpose is to say out loud "deploys are not configured" — added
+in `d3b0768` precisely because a check that is always red is a check nobody
+reads. That job has no `if:` and was not itself broken. It never ran once,
+because a startup failure takes the whole file down, **including the reporter**.
+A monitor that lives in the thing it monitors is not a monitor.
+
+**Why no gate caught it:** every gate in `verify-release` runs the code. This is
+a file the code never reads. `npx tsc -b`, the prompt budget, the eval suite,
+byte-identity — none of them can see a YAML file, and there is no local command
+that evaluates GitHub's context rules. The only feedback channel was a red check
+in a UI, and it was red for a reason nobody had reason to re-examine.
+
+**Fixed** by computing the boolean in a step, exposing it as a job output, and
+gating on `needs.configured.outputs.has_token == 'true'` — `needs` IS legal in a
+job `if:`. Exposing the comparison's boolean is safe: it carries whether a token
+is set, never the token, which is the same fact the annotation already prints.
+
+**Guarded** by `scripts/check-workflows.mjs`, wired into `verify-release` (8
+checks now, not 7). It scans for any context GitHub does not evaluate in a
+job-level `if:` — `secrets`, `env`, `steps`, `runner`, `job`, `matrix`,
+`strategy` — and it is a line scanner on purpose: the property being checked is
+*where an expression sits*, and a YAML parse throws away the indent distinction
+between a job key and a step key. Negative-tested by reintroducing the exact
+line and confirming exit 1 with the file and line number.
+
+**What breaks generally, and it is not about YAML.** This repo already knows
+that `dead-writers` code with no caller is indistinguishable from absent code,
+and that a scheduled workflow on a non-default branch never fires
+(`never-scheduled`). This is the third member of that family: **a job that
+cannot start is indistinguishable from a job that starts and does nothing.**
+The common cause is that all three live in the space *around* the code, where
+every gate is blind. The rule: anything that runs the system but is not run BY
+the system needs its own lint, and the lint has to live somewhere the failure
+cannot take down with it.
+
+**Reverses if:** GitHub adds the `secrets` context to job-level `if:` — in which
+case delete `secrets` from `ILLEGAL_IN_JOB_IF` and keep the rest.
+
+---
+
+## `logged-but-unindexed` — sixteen entries were written down and none of them were findable (2026-08-20)
+
+`--node selfbundle-never-set` answered *"no such node"* while three paragraphs
+about `selfbundle-never-set` sat in `rejected.md`. It was not the only one. A
+scan of `## \`id\`` headings against `graph.json` found **16 entries written up
+in the prose files with no row in the index**: `dead-writers`,
+`never-scheduled`, `pk-is-an-arbiter`, `dryrun-still-spends`,
+`rupture-never-closes`, `life-per-person`, `selfbundle-never-set`,
+`self-layer`, `memory-field-survey`, `speech-stack`, `adult-default`,
+`strict-exposed-13`, `blank-guard-parity`, `blank-guard-show-only`,
+`one-key-two-jobs`, `screen-share-triple-swap`.
+
+That list is not a random sample. It is disproportionately the **highest-value
+rejections in the file** — the ones CLAUDE.md means when it says *"read
+`rejected.md` FIRST"* — because they are the most recent, and the drift is
+recent.
+
+**Why `--check` passed the whole time.** It validated one direction: every node
+must have prose (*"in the graph but written up nowhere"*). Nothing validated the
+other: every prose entry must have a node. So the failure was not a bug in the
+checker; it was a hole in what the checker had been asked.
+
+**Why nobody noticed.** Appending prose is the part that *feels* like logging.
+The knowledge is written down, the file is longer, the session is logged, and
+`--check` says ok. Only the index is missing — and an index is precisely the
+thing whose absence is invisible until someone queries it. The queries that
+would have exposed it are the ones a *future* session runs, which is the same
+session that is now missing the entry.
+
+**This is the same family as `startup-failure-is-invisible` and
+`never-scheduled`**, and the family is now large enough to name: **the thing
+that reports on the work is not itself under test.** A workflow that cannot
+start, a writer with no caller, an entry with no index row — in every case the
+artefact exists, looks correct, and is not reachable, and in every case the
+mechanism that should have said so was inside the thing that failed.
+
+**Fixed** by backfilling all 16 and adding the reverse check to
+`scripts/context.mjs --check`: any `## \`id\`` heading in `decisions.md`,
+`measurements.md` or `rejected.md` with no node is now a hard failure.
+Negative-tested by appending a heading with no node and confirming exit 1.
+`architecture.md` is exempt — it is prose, not an entry list.
+
+**What breaks generally:** a validator written from one side of a relation
+enforces half of it, and the unenforced half is invisible precisely because the
+validator is green. When adding a consistency check, write both directions or
+say in the comment which direction you are not checking and why.

@@ -651,6 +651,114 @@
       "kind": "measurement",
       "title": "Call lane compiles: T2/T3/T4/T6 byte-identical to chat; G-C7 no lengthening (n=36/arm, 16.1 -> 12.9 w/t, direction unstable)",
       "at": "2026-08-20"
+    },
+    {
+      "id": "startup-failure-is-invisible",
+      "kind": "rejection",
+      "title": "secrets in a job-level if: makes the whole workflow invalid — 15 red runs, 0 jobs, 9 days with no auto-deploy",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "adult-default",
+      "kind": "decision",
+      "title": "unverified maps to adult gates until launch",
+      "at": "2026-08-15"
+    },
+    {
+      "id": "self-layer",
+      "kind": "decision",
+      "title": "growth, texture, untold life and noticing ship as tables, not as claims",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "memory-field-survey",
+      "kind": "decision",
+      "title": "three adopts from the frontier, and what we will not copy",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "speech-stack",
+      "kind": "decision",
+      "title": "keep the incumbent, buy an instrument, and stop trusting the pitch anchor",
+      "at": "2026-08-19"
+    },
+    {
+      "id": "never-scheduled",
+      "kind": "measurement",
+      "title": "no scheduled job has EVER run; the whole derived layer is empty",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "blank-guard-show-only",
+      "kind": "measurement",
+      "title": "the blackout guard covers SHOW classes only",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "strict-exposed-13",
+      "kind": "measurement",
+      "title": "dropping the transitional defaults surfaced 13 writers that would have mis-filed rows",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "blank-guard-parity",
+      "kind": "measurement",
+      "title": "the blackout asymmetry exists in BOTH twins",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "one-key-two-jobs",
+      "kind": "measurement",
+      "title": "the research budget and production share a key, and it just ran out",
+      "at": "2026-08-19"
+    },
+    {
+      "id": "screen-share-triple-swap",
+      "kind": "measurement",
+      "title": "the voice change needs no failure at all",
+      "at": "2026-08-19"
+    },
+    {
+      "id": "life-per-person",
+      "kind": "rejection",
+      "title": "her improvised life is scoped to the listener",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "dead-writers",
+      "kind": "rejection",
+      "title": "correct code with no caller is indistinguishable from absent code",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "pk-is-an-arbiter",
+      "kind": "rejection",
+      "title": "changing a primary key silently breaks every upsert that names it",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "dryrun-still-spends",
+      "kind": "rejection",
+      "title": "a dry-run flag that still calls the model",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "rupture-never-closes",
+      "kind": "rejection",
+      "title": "a grudge with no expiry, in the one module the charter does not police",
+      "at": "2026-08-18"
+    },
+    {
+      "id": "selfbundle-never-set",
+      "kind": "rejection",
+      "title": "I wired the reader and forgot the writer",
+      "at": "2026-08-19"
+    },
+    {
+      "id": "logged-but-unindexed",
+      "kind": "rejection",
+      "title": "16 entries written up with no graph row — --check validated one direction only",
+      "at": "2026-08-20"
     }
   ],
   "edges": [
@@ -1318,6 +1426,16 @@
       "src": "call-parity-landed",
       "rel": "constrains",
       "dst": "live-floor"
+    },
+    {
+      "src": "selfbundle-never-set",
+      "rel": "blocks",
+      "dst": "call-parity-landed"
+    },
+    {
+      "src": "selfbundle-never-set",
+      "rel": "caused_by",
+      "dst": "dead-writers"
     }
   ]
 }
