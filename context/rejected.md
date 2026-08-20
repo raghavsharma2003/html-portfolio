@@ -723,11 +723,18 @@ halves are verified: the file is valid again, and the gate branches on the real
 value.
 
 **And it immediately surfaced the thing it was built to surface.**
-`VERCEL_TOKEN` is genuinely not set in the repository's Actions secrets. The
-site has not auto-deployed since 2026-08-11, and will not start until the owner
-adds it. That fact was true for nine days and unreadable for nine days; it is
-now a loud annotation on every push. The workflow bug and the missing secret are
-independent — fixing the first is what made the second legible.
+`VERCEL_TOKEN` was genuinely not set in the repository's Actions secrets. The
+site had not auto-deployed since 2026-08-11, and could not start until the owner
+added it. That fact was true for nine days and unreadable for nine days; the fix
+made it a loud annotation on every push. The workflow bug and the missing secret
+were independent — fixing the first is what made the second legible.
+
+**Closed 2026-08-20:** the owner added `VERCEL_TOKEN`, so the `deploy` job stops
+skipping and the site tracks the branch again. The full chain took three
+findings in sequence — an invalid `if:`, a missing secret the invalid `if:` was
+hiding, and a nine-day-stale production build nobody could see — and only the
+first was a bug in the ordinary sense. The other two were consequences that had
+no way to report themselves.
 
 **Reverses if:** GitHub adds the `secrets` context to job-level `if:` — in which
 case delete `secrets` from `ILLEGAL_IN_JOB_IF` and keep the rest.
