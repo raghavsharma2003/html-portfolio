@@ -49,7 +49,6 @@
 
 import { attachAnalyser, detachAnalyser } from "./level";
 import { diag } from "../engine/diag";
-import { spokenText } from "./spokenText";
 
 const WS_BASE =
   "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";

@@ -290,9 +290,106 @@ try {
   FAIL("evals/voice/spoken.mjs failed — the sanitiser's own case battery is red (see above)");
 }
 
+/* ══ 4. WHY THE LIVE LANE IS NOT WIRED TO THE SANITISER ══════════════════ */
+//
+// `grep spokenText src/voice/liveCall.ts` returns nothing, and that looks like
+// the primary voice lane was forgotten. It was not. Written down here because
+// the next person will grep, find nothing, and "fix" it.
+//
+// EVERY PATH ON THE LIVE LANE WHERE TEXT MEETS AUDIO:
+//
+//   her own voice          `serverContent.modelTurn.parts[].inlineData.data`
+//                          is AUDIO. `gemini-3.1-flash-live-preview` is
+//                          speech-to-speech: the characters she emits are
+//                          turned into sound INSIDE the server and the client
+//                          never sees them before they are already a waveform.
+//                          There is no string to sanitise. If she says a dash
+//                          on this lane, the only place that can be fixed is
+//                          persona.ts — see docs/VOICE-LANE.md.
+//   her transcript         `outputAudioTranscription` → `onHerText` → the chat
+//                          log. This is the WRITTEN copy. Sanitising it would
+//                          be the exact bug this whole module exists to avoid:
+//                          only the spoken copy may be transformed.
+//   `opts.system`          text INTO the model, not text to be spoken.
+//   `direct(contextNote)`  a `clientContent` USER turn — machine framing that
+//                          useCallEngine deliberately writes as "<context: …>".
+//                          Sanitising it would strip the framing rule B is
+//                          designed to delete on the way OUT. Text in is not
+//                          text out.
+//   ack / backchannel      the ONLY text-to-speech path on this lane. It POSTs
+//                          to /api/speech (liveCall.ts `prewarmAckClips`), so
+//                          it is sanitised at the server seam, by the same code
+//                          the cascade uses, without an import.
+//
+// So the live lane needs no client-side sanitiser, and MUST NOT import one:
+// liveCall.ts's header records that it deliberately has no imports beyond
+// ./level and ../engine/diag because scratchpad/echosim builds it standalone
+// on that basis. The two assertions below hold that shape.
+
+console.log("\n── 4. the live lane's text→audio paths ──");
+const live = read("src/voice/liveCall.ts");
+
+const imports = [...live.matchAll(/^import .*? from "([^"]+)";/gm)].map((m) => m[1]);
+const ALLOWED_IMPORTS = ["./level", "../engine/diag"];
+const strayImport = imports.filter((i) => !ALLOWED_IMPORTS.includes(i));
+if (strayImport.length)
+  FAIL(
+    `src/voice/liveCall.ts imports ${strayImport.join(", ")}`,
+    "It is allowed ./level and ../engine/diag and nothing else: scratchpad/echosim",
+    "transpiles this file standalone to drive the audio floor against a simulated",
+    "room, and a new import breaks the one harness that can prove the floor did",
+    "not move. If the new import is spokenText, read section 4's comment first —",
+    "the live lane generates AUDIO, there is no text to sanitise.",
+  );
+else console.log(`  ok    imports only ${ALLOWED_IMPORTS.join(" + ")} — the echosim can still build it standalone`);
+
+// The one synthesis endpoint this file may reach. A second one would be a new
+// text-to-speech path on the live lane, and it would bypass the server seam
+// unless it also went to /api/speech.
+const speechCalls = (live.match(/fetch\(`\$\{base\}\/api\/speech`/g) ?? []).length;
+if (speechCalls !== 1)
+  FAIL(
+    `src/voice/liveCall.ts makes ${speechCalls} /api/speech calls, expected exactly 1 (the ack clips)`,
+    "Every text-to-speech path on this lane must go through /api/speech, which is",
+    "where the spoken-text sanitiser runs. A path that does not is a path that",
+    "reads her punctuation out loud.",
+  );
+else console.log("  ok    exactly one text→audio path (the ack clips), and it goes through /api/speech");
+
+const directTts = /elevenlabs|api\.sarvam|speechSynthesis|TextToSpeech\.speak/i.exec(live);
+if (directTts)
+  FAIL(
+    `src/voice/liveCall.ts calls a TTS provider directly (${directTts[0]})`,
+    "That bypasses the /api/speech seam and therefore the sanitiser.",
+  );
+else console.log("  ok    no TTS provider is called directly from the live lane");
+
+// NOT AN ASSERTION, AND SAYING SO IS THE POINT. src/voice/speech.ts owns three
+// engines that never touch /api/speech — ElevenLabs and Sarvam (user keys) and
+// the device fallback (Capacitor TextToSpeech / speechSynthesis). Their text is
+// prepared by stripForCloud/stripForDevice, which remove tags and emoji and do
+// NOT touch dashes, markdown, bullets or arrows. They are the remaining
+// unsanitised text→audio paths in the product, and the device tier is the one a
+// call lands on when BOTH the paid and free pools are spent. Fixing it is a
+// one-line import in a file this checker does not own; recorded here so the
+// gap has a name. See docs/VOICE-LANE.md §"What is still unsanitised".
+const cascade = read("src/voice/speech.ts");
+const unsanitised = [
+  ["elevenFetch", /async function elevenFetch/.test(cascade)],
+  ["sarvamFetch", /async function sarvamFetch/.test(cascade)],
+  ["device TTS", /TextToSpeech\.speak|SpeechSynthesisUtterance/.test(cascade)],
+].filter(([, present]) => present).map(([n]) => n);
+if (unsanitised.length)
+  console.log(
+    `  note  ${unsanitised.length} text→audio paths in src/voice/speech.ts still bypass the seam: ${unsanitised.join(", ")}`,
+  );
+console.log(
+  `  note  ${/spokenText/.test(cascade) ? "speech.ts imports spokenText" : "speech.ts does NOT import spokenText yet"} — see docs/VOICE-LANE.md`,
+);
+
 console.log(
   fail
     ? `\nvoice lane NOT shippable (${fail} problem${fail > 1 ? "s" : ""})`
-    : `\n  ok  one name (${voices[0]}), ${distinct.length} declared models, one spoken-text core`,
+    : `\n  ok  one name (${voices[0]}), ${distinct.length} declared models, one spoken-text core, ${speechCalls} live text→audio path`,
 );
 process.exit(fail ? 1 : 0);
