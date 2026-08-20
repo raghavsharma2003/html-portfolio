@@ -828,3 +828,129 @@ time of writing.
 code rather than an observation of it. The test is simple and worth applying to
 the next one: *could this field be wrong while every gate stays green?* If yes,
 it is documentation, and it must not be shaped like a check.
+
+---
+
+## `device-says-arrow-not-dash` — I ranked the hypothesis by symbol salience, not by engine behaviour (2026-08-20)
+
+The brief I wrote put device TTS second on the list of suspects for the owner's
+*"saying Dash dash in voice call"*, on the reasoning that **"platform engines are
+the family most likely to read a symbol from a dictionary rather than pause."**
+That reasoning is plausible, it is why the path got fixed, and **for the
+em-dash it is false.**
+
+Measured on espeak-ng 1.51 (`-q -x`, phonemisations supplied by espeak itself,
+nothing hand-transcribed), reproduced independently by the coordinator:
+
+| input | phonemes | reads as |
+|---|---|---|
+| `arre — sun na` | `'A@ s'Vn n'A` | **nothing — the em-dash is a pause** |
+| `dekh -- wahan` | `d'Ek_:_: w'ahan` | **nothing — `_:` is a pause** |
+| `dekh → wahan` | `d'Ek r'aIt 'aroU w'ahan` | **"right arrow"** |
+| `yeh **sach** hai` | `'ast3r,Isk a#st3r,Isk s'atS` | **"asterisk asterisk"** |
+| `call 1800-599-0019` | `… d'aS … d'aS …` | **"dash" twice** |
+
+Same in en-gb, en-in and hi. So the symbol that prompted the whole workstream is
+the one this engine does NOT speak, and the symbols it does speak — arrows,
+double asterisks — nobody had listed.
+
+**And the one place it literally says "dash dash" is the crisis helpline.**
+`1800-599-0019` is a deliberately preserved negative control in this repo, and a
+hyphenated number is read digit-group-dash-digit-group by design. A person
+reading it aloud would say it too. Changing that is an ear decision about the
+helpline block, not a sanitiser bug.
+
+**What breaks generally:** ranking suspects by how *conspicuous* a symbol looks
+in the source instead of by what the engine does with it. The em-dash is
+salient to a reader of the prompt corpus (307 of them in `persona.ts`) and
+inaudible to the synthesiser; the arrow is rare in the corpus and loud in the
+output. Salience in the input is not evidence about the output.
+
+**Scope, kept because it is load-bearing:** espeak-ng is **not** Android's Google
+TTS and **not** Chrome's `speechSynthesis`. This disproves *"every platform
+engine says dash"*; it does not measure the shipped engines. Gemini TTS and
+Gemini Live are LLM-based and may verbalise symbols for reasons no phoneme table
+predicts.
+
+**Where the reported bug most likely actually is**, now that this one is
+excluded: the live speech-to-speech lane, where the model emits the characters
+it speaks, `persona.ts` carries 307 em-dashes, three rules (`:135`, `:346`,
+`:376`) *require* dashing, and the ban at `:148` is scoped to texting and
+explicitly lifted for calls. **No sanitiser can stand in that lane.** Ticketed.
+
+---
+
+## `bold-eats-words` — a sanitiser that deleted the word she was emphasising (2026-08-20)
+
+Found by running the speech path, not by reading it. `stripProtocol`'s
+roleplay-action rule was `\*[^*\n]{1,80}\*`, meant to strip `*grins*`. Against
+`**bold**` it matched the **second** star of one span and the **first** of the
+next, deleting everything in between. Coordinator-reproduced against the shipped
+regex:
+
+```
+"yeh **sach** mein hua"  →  "yeh * * mein hua"
+"**a** aur **b** dono"   →  "*   * dono"        (4 of 5 words gone)
+```
+
+So she lost precisely the word she had chosen to stress, and kept the asterisks
+— which espeak then reads aloud as "asterisk asterisk" (`device-says-arrow-not-dash`).
+This reached **every** lane, the sanitised proxy included, because
+`stripForCloud` runs before the POST.
+
+**Why no gate saw it.** Every existing check asked *"does the code do the right
+thing when invoked"*, and the speech gates asked *"is the markup gone"*. Deleted
+content passes a markup-absence assertion perfectly — a sanitiser that returned
+`""` would have scored full marks on every such test ever written here.
+
+**The rule:** a text transform on the speech path needs a **content-preservation
+control**, not only a markup-absence control. The new harness carries `mustSay`
+— her own words must arrive at the engine — and that is the assertion that
+catches this class. Over-stripping is silent in exactly the way under-stripping
+is loud.
+
+A second defect of the same shape was found the same way: `phrase()` cut at
+every full stop, so the device voice said *"dekh meera-silk."* … *"vercel."* …
+*"app/chat pe hai"*, and `"3.30 baje"` became *"three." "thirty baje"*. A stop
+now ends a phrase only when whitespace or EOF follows.
+
+---
+
+## `goaway-immediate-rotate` — rotating the moment the notice arrives (2026-08-20)
+
+This was the Java twin's shipped behaviour: `goAway` arrives, rotate now. It is
+wrong, and the reason is local to the mechanism — **`rotate()` flushes
+playback**, so rotating on arrival trades a lane change for a guillotine
+mid-word. It swaps a problem the owner reported ("her voice changes") for one he
+would report next ("she cuts herself off").
+
+`goAway.timeLeft` is the server explicitly saying there is time *not* to. The
+rotation now waits for `speakingUntil` to pass, capped at
+`ROTATE_WAIT_MAX_MS = 4000` and never past `timeLeft − ROTATE_GRACE_MS`.
+
+**Reverses if:** production shows `live_rotate.waitedMs ≈ 4000` routinely — i.e.
+the wait rarely finds a quiet moment, so the cap is doing the deciding and the
+politeness is costing a rotation budget for nothing.
+
+---
+
+## `duration-is-seconds` — a unit stripped, and a 1000× error that waited for a consumer (2026-08-20)
+
+The shipped code parsed `goAway.timeLeft` by stripping the unit off the string
+and using the number. It is a protobuf `Duration`, which is in **seconds**, so a
+real 10-second notice was read as `leftMs: 10`.
+
+It was harmless for as long as the field was diagnostics-only — a wrong number
+in a log line nobody had wired to a decision. It stopped being harmless the
+moment something read it to choose *when to rotate*: at `leftMs: 10` the
+rotation never waits and always fires inside her sentence, which is
+`goaway-immediate-rotate` reintroduced by arithmetic instead of by design. Fixed
+in both twins and negative-tested — reverting it makes `rotatesim` report
+`no rotation while she is mid-utterance … sockets=2`.
+
+**What breaks generally, and it is the `dead-writers` family again:** a value
+nothing consumes is a value nothing checks. Diagnostics get read by humans who
+are looking for something else, so a wrong unit survives indefinitely there and
+detonates on the day the field graduates into control flow. The rule: **parse
+units at the boundary, once, and give the parsed value a name that carries the
+unit** (`leftMs`), so the next reader cannot re-derive it wrongly.

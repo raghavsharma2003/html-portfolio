@@ -801,6 +801,48 @@
       "kind": "measurement",
       "title": "Free stages run: 1,853 unclaimed log rows to 0, 131 episodes, 26 texture rows, 2 clearing the floor; arc still refuses",
       "at": "2026-08-20"
+    },
+    {
+      "id": "device-says-arrow-not-dash",
+      "kind": "rejection",
+      "title": "espeak reads the em-dash as a pause and the arrow as \"right arrow\"; the only \"dash dash\" is the crisis helpline number",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "bold-eats-words",
+      "kind": "rejection",
+      "title": "stripProtocol matched across two **bold** spans and deleted her emphasised words on every lane",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "one-sanitiser-two-doors",
+      "kind": "decision",
+      "title": "The tag-keeping variant wraps spokenTextCore instead of forking it; the seam sits at the prep fns AND the doors",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "device-seam-closed",
+      "kind": "measurement",
+      "title": "11 text-audio paths not 3; 4 were raw; 42 behavioural assertions, 8 negative controls, floor unmoved",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "goaway-rotation-parity",
+      "kind": "measurement",
+      "title": "goAway answered by rotating in both twins, model pinned, moment chosen; 26/26 rotation sim, 80-call floor byte-identical",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "goaway-immediate-rotate",
+      "kind": "rejection",
+      "title": "Rotating on goAway arrival trades a lane change for a mid-word cut, because rotate() flushes playback",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "duration-is-seconds",
+      "kind": "rejection",
+      "title": "goAway.timeLeft parsed by stripping its unit: a protobuf Duration in seconds read as ms, a 1000x error",
+      "at": "2026-08-20"
     }
   ],
   "edges": [
@@ -1523,6 +1565,36 @@
       "src": "backfill-stage1-run",
       "rel": "measured_by",
       "dst": "selflayer-delivery-gate"
+    },
+    {
+      "src": "one-sanitiser-two-doors",
+      "rel": "measured_by",
+      "dst": "device-seam-closed"
+    },
+    {
+      "src": "bold-eats-words",
+      "rel": "measured_by",
+      "dst": "device-seam-closed"
+    },
+    {
+      "src": "device-says-arrow-not-dash",
+      "rel": "measured_by",
+      "dst": "device-seam-closed"
+    },
+    {
+      "src": "goaway-rotation-parity",
+      "rel": "supersedes",
+      "dst": "screen-share-triple-swap"
+    },
+    {
+      "src": "goaway-immediate-rotate",
+      "rel": "part_of",
+      "dst": "goaway-rotation-parity"
+    },
+    {
+      "src": "duration-is-seconds",
+      "rel": "caused_by",
+      "dst": "dead-writers"
     }
   ]
 }

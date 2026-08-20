@@ -1680,3 +1680,126 @@ stage 3 produces, and `T12`'s coupling to `relBundle`.
 n = 39 devices / 1,853 log rows / 25 persons, full population. Method:
 `backfill-episodes.mjs --all --k 0` then `consolidate.js --derive-self`, with
 direct row counts against production Neon before and after each. Date 2026-08-20.
+
+---
+
+## `device-seam-closed` — eleven paths, not three, and four of them were raw (2026-08-20)
+
+The brief named three text→audio paths. Enumeration found **eleven**. Four were
+handing engines unsanitised text: ElevenLabs `elevenFetch`, Sarvam
+`sarvamFetch`, device `speak()` — **live in production today**, since it is
+where the chain lands when every clip fetch fails — and, as the "assume there is
+one more" case, Android's **cascade** `WatchEngine.java`, a separate
+snapshot→think→speak brain from `LiveWatchEngine.java`. `docs/VOICE-LANE.md` §5
+had said *"there is no fourth path"*. The cascade watch engine happens to be
+safe (it POSTs to `/api/speech` and has no local engine to fall back to), but
+nothing asserted that, so it is asserted now.
+
+**The gate is behavioural.** `evals/voice/device.mjs` bundles the **real**
+`speech.ts` with recorders for the platform engines and `fetch`, drives the real
+entry points under the real production failure (every clip fetch refusing), and
+asserts on **the strings the engines were handed** — `selfbundle-never-set`'s
+rule applied to speech. **42 assertions across 5 doors.** Plus a door census:
+every text→audio door enumerated from source against a declared list, so a new
+engine fails the run until it is declared.
+
+**Symbol words actually spoken, n=12 utterances through the real device tier,
+before vs after: 5 across 4/12 → 2 across 2/12.** The two survivors are a
+"slash" inside a real URL path and the crisis helpline's two "dash"es — both
+things a person reading that line aloud would also say.
+
+**Negative controls, each verified to fail**, with failure text observed:
+device seam removed → `carries an em/en dash`; cloud seam removed → `carries an
+arrow … a pipe`; an undeclared door added → `UNDECLARED text→audio door(s) …
+api.play.ht`; a declared door's pattern moved → `declared door(s) no longer
+found`; the `**bold**` bug reintroduced → `her own words "sach" were DELETED`;
+`phrase()` reverted → `her own words "meera-silk.vercel.app/chat" were DELETED`;
+a greedy `/-+/` dash rule → `her own words "1800-599-0019" were DELETED`;
+tag-keeping disabled → `two tags survive`. With the prep functions bypassed
+entirely, device fails and ElevenLabs/Sarvam **still pass** — the door-level
+seam holding by construction.
+
+**Audio floor unmoved:** 5 couplings × 8 seeds × 2 arms = 80 simulated calls,
+before and after byte-identical. Expected — echosim builds only
+`liveCall.ts`/`level.ts`/`diag.ts` and no import was added to any of them — but
+measured rather than assumed.
+
+**A false red worth recording:** both eval bundles wrote to a fixed temp
+filename, so a concurrent `verify-release` deleted one run's bundle mid-import
+and the gate reported *"a path is unsanitised"*. A shared temp path turns a
+green suite red at random under parallel agents. Both are pid-scoped now.
+
+**Corpus, measured today:** `persona.ts` is 91,808 chars with **307 em-dashes**
+— my brief said 208, and the brief was wrong. 5 en-dashes, 14 arrows.
+
+Gates: `tsc -b` clean · `verify-voice.mjs` 135 ok · `verify-release.mjs` 8/8 ·
+`spoken.mjs` 37 positive + 17 negative + 9 tag-keeping, 63/63 idempotent ·
+`device.mjs` 42/42 · `verify-v3.mjs` all pass · `parsetest.bundle.mjs` 14/14.
+
+n as stated per claim. Method: source enumeration, a behavioural harness over
+the real module, and espeak-ng 1.51 phonemisation. Date 2026-08-20.
+
+---
+
+## `goaway-rotation-parity` — `goAway` is answered by rotating, in both twins (2026-08-20)
+
+`goAway` is the live server saying a session is about to end. Both twins let
+that close become `teardown("closed")` → `claimVoice("cascade", …)`, i.e. a
+model-family change — which by the `azure-tts` law is the property that decides
+whether she is still her. Both now **rotate**: fresh socket, same model, same
+`Aoede`, at a chosen moment. The swap is **eliminated**, not reduced.
+
+Both twins were changed together and are pinned to each other by a source
+parity test, per `blank-guard-parity`. Three further changes fell out of it:
+the model is now **pinned for the life of the call** (the Java twin adopted
+whatever model the new token named on every reconnect); the rotation **waits for
+`speakingUntil`** rather than firing on arrival; and the TS twin gained the
+mic-tick arbitration reset (`sockSeen !== wsGen`) the Java twin already had.
+
+**No import was added to `liveCall.ts`** — the allowed-import list is what lets
+`scratchpad/echosim` transpile it standalone, and that harness is the only thing
+that can prove the audio floor.
+
+**Audio floor: 5 couplings × 8 seeds × 2 arms = 80 simulated calls, before and
+after byte-identical**, and a coordinator re-run matching cell for cell. This is
+a stronger claim than the earlier diagnostics-only pass, because this change
+*does* touch the mic tick: the reset is a no-op until a rotation happens,
+`exp1.mjs` never rotates, and the identical cells prove the no-op rather than
+assuming it.
+
+**Rotation behaviour: 26 assertions, 5 scenarios, 26/26**
+(`scratchpad/echosim/rotatesim.mjs`, the real `liveCall.ts` transpiled against a
+simulated server that sends `goAway`). Every assertion is observed from outside
+the module. Two negative controls: `goAway` left unhandled → **14 of 26 red**,
+reproducing the shipped symptom verbatim (`a stale close did not end the call …
+onEnded=["closed"]`); `timeLeft` read as ms → the rotation stops waiting and
+fires inside her sentence.
+
+**Source parity: 11 assertions + 2 notes**, `verify-voice.mjs` §6, every one of
+the form *"the TS and the Java agree"*, never *"the TS says 6"*. Four negative
+controls, each verified; the coordinator independently reproduced
+`FAIL goAway is not answered with a rotation in src/voice/liveCall.ts`. Gradle
+`:app:compileDebugJavaWithJavac` exits 0.
+
+**A correction to `screen-share-triple-swap`, measured from source:** share
+**start** (live → native) does **not** change who she is — the native engine
+takes `gemini-3.1-flash-live-preview` from the same token, names `Aoede`, pins
+`hi-IN` + `thinkingBudget: 0`, and takes `buildSpeechStyle("live")`. The triple
+swap is one identity-preserving session change plus one that is not. **The one
+that is not is share STOP**: `claimVoice("cascade", "watch_stopped")` in
+`useCallEngine.ts`, a model-family change nothing forced, and now the largest
+remaining swap in the product apart from the cascade → device-TTS fall.
+`verify-voice.mjs` §6g prints the live `claimVoice` call-site list on every run
+(currently 8) so the table cannot silently fall behind the code.
+
+**Nothing here ran on a device or a live session** — there is neither in this
+environment; `LiveWatchEngine.java` compiles and was read, not run. The open
+questions ship as named `diag` records instead: `live_rotated{n,gapMs,setupMs,
+framesSent,sharing}`, `live_goaway{leftMs,upMs,framesSent,sharing,rotates,
+budget,speaking}`, `live_rotate{n,waitedMs,…}`, `live_rotate_failed{n,why}`,
+`live_rotate_spent{n,…}`. A `live_rotate` with no matching `live_rotated` inside
+~3 s is a rotation that failed; a non-zero `live_rotate_spent` rate means
+`MAX_ROTATES` is too low.
+
+n as stated per claim. Method: source parity assertions, a rotation simulator
+over the real module, and the echosim floor before/after. Date 2026-08-20.

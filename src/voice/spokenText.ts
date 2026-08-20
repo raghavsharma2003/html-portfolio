@@ -216,6 +216,69 @@ function spokenTextCore(input = "") {
  */
 export const spokenText: (text: string) => string = spokenTextCore;
 
+/* ─── THE ONE ENGINE THAT PERFORMS BRACKETS ──────────────────────────────
+   Rule B drops `[...]` whole, and that is right for every synthesiser in this
+   product EXCEPT ElevenLabs v3, which actually performs `[laughs]`, `[sighs]`,
+   `[whispers]` as sound. speech.ts routes a tagged reply TO that engine on
+   purpose (`preferEleven = hasAudioTags(text) …`), so handing it the plain
+   sanitiser would delete the exact thing it was chosen for — the routing would
+   still steer, and there would be nothing left to perform.
+
+   This is NOT a second rule set, and that distinction is the whole reason it
+   is written this way: the tags are cut OUT of the string, every remaining
+   segment goes through `spokenTextCore` — the same function, the same rules —
+   and the tags are put back untouched. A second implementation of the rules is
+   a second persona by another name (`context/rejected.md#age-tier-never-realtime`),
+   so there is exactly one, and this only decides what it is pointed at.
+
+   `ack-bracket-direction` is why the tag pattern is narrow. `[laughs softly]`
+   came back as laughter PLUS the spoken word "Softly", so what survives here
+   is only the SHORT, single-word-ish audio tag shape that `speech.ts`'s own
+   `hasAudioTags`/`stripTagsForPlainVoice` already treat as performable —
+   letters and spaces, 2–16 chars. Anything longer is a stage direction and
+   rule B still eats it.
+
+   KNOWN AND ACCEPTED: punctuation immediately after a tag is absorbed
+   ("arre [laughs], sach" → "arre [laughs] sach"), because each segment is
+   tidied at its own edges. A lost comma next to a performed laugh is a smaller
+   loss than a spoken "laughs", and the alternative — masking tags behind a
+   sentinel token — risks the sentinel itself being SAID if a rule ever touches
+   it, which is the failure this module exists to prevent. */
+const AUDIO_TAG_SPLIT = /(\[[a-z][a-z ]{0,14}[a-z]\])/gi;
+const AUDIO_TAG_ONLY = /^\[[a-z][a-z ]{0,14}[a-z]\]$/i;
+
+/**
+ * The sanitiser for a synthesiser that PERFORMS audio tags. Identical to
+ * `spokenText` except that short `[audio tags]` are preserved verbatim.
+ *
+ * Returns "" when nothing survives — not even a tag — so the caller refuses,
+ * exactly as with `spokenText`.
+ */
+export function spokenTextKeepingAudioTags(text: string): string {
+  if (typeof text !== "string" || !text) return "";
+  const parts = text.split(AUDIO_TAG_SPLIT);
+  let kept = 0;
+  const out: string[] = [];
+  for (const part of parts) {
+    if (!part) continue;
+    if (AUDIO_TAG_ONLY.test(part)) {
+      kept++;
+      out.push(part);
+      continue;
+    }
+    const said = spokenTextCore(part);
+    if (said) out.push(said);
+  }
+  const joined = out
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:!?…])/g, "$1")
+    .trim();
+  // Nothing speakable AND nothing performable — the caller must say nothing.
+  if (!kept && !/[\p{L}\p{N}]/u.test(joined)) return "";
+  return joined;
+}
+
 /** Bumped whenever the rules above change, so a production sample can say
  *  which version of them it was spoken under (api/speech.js returns it as
  *  `X-Meera-Rules`). */

@@ -932,3 +932,27 @@ ships**: `opRecall` hardcodes `MEERA_AGENT_ID`, and the day that becomes routed,
 the call-lane holder needs an agent key too or it will hand one agent's texture
 to another. That is `agent isolation` reaching a cache, and it is written here
 because a holder keyed on device alone looks correct until there are two agents.
+
+---
+
+## `one-sanitiser-two-doors` — a tag-keeping variant that wraps the core rather than forking it (2026-08-20)
+
+`spokenTextKeepingAudioTags` exists because ElevenLabs v3 is the only engine
+that *performs* `[laughs]`, and `speech.ts` routes tagged replies to it for
+exactly that reason. The plain sanitiser would delete the thing the routing
+chose that engine for.
+
+It is **not a second rule set**: it cuts the short `[audio tags]` out, runs every
+remaining segment through the same `spokenTextCore`, and puts them back. That
+shape is deliberate and it is `age-tier-never-realtime`'s lesson applied one
+level down — a second implementation is a second behaviour, and it drifts the
+moment a rule is added to only one of them.
+
+The seam is applied at **both** the prep functions and the `elevenFetch` /
+`sarvamFetch` doors, so a future caller that skips the prep function still
+cannot hand an engine raw text. `api/speech.js` is untouched: the mirrored core
+stays byte-identical.
+
+**Reverses if:** ElevenLabs stops performing tags (then there is one sanitiser
+again), or a measurement shows the punctuation absorbed next to a tag is
+audible.

@@ -16,18 +16,24 @@ Enforced by `node scripts/verify-voice.mjs` (a gate inside
 
 ---
 
-## 1. Three things have to be true, and only one of them was checked
+## 1. Four things have to be true, and only one of them was checked
 
 | | property | guarded by | was it true? |
 |---|---|---|---|
 | **name** | every lane names the same voice | `verify-voice.mjs` §1 (pre-existing) | yes — Aoede on all four |
-| **model** | which model actually produces it | `verify-voice.mjs` §2 (new) | **no — three, undeclared** |
-| **text** | what the synthesiser is handed | `verify-voice.mjs` §3 (new) | **no — nothing existed** |
+| **model** | which model actually produces it | `verify-voice.mjs` §2 | **no — three, undeclared** |
+| **text** | what the synthesiser is handed | `verify-voice.mjs` §3 | **no — nothing existed** |
+| **swap** | how often, and on whose decision, she moves between lanes that sound different | `verify-voice.mjs` §6 | **no — one lane change needed no failure at all** |
 
 The name check passed and the owner still heard her change. That is not the
 check failing; it is the check answering a different question. **The same voice
 name on a different model is a different voice**, and nothing recorded that
 three models were in play.
+
+The fourth row is the one the owner's screen-share report actually turns on, and
+it is a different question again: not "is any lane wrong" but "how many times per
+call does the product move her, and did anything force it". §6.4 enumerates every
+such point; §6.5 removes the one that needed nothing to go wrong.
 
 ---
 
@@ -174,9 +180,10 @@ Every text→audio path in the product, and its state after this change:
 | 4 | cascade call, proxy streaming | → `/api/speech` | **yes** |
 | 5 | cascade call, proxy complete-file | → `/api/speech` | **yes** |
 | 6 | voice notes | → `/api/speech` | **yes** |
-| 7 | ElevenLabs (user key) | `speech.ts elevenFetch` | **no** |
-| 8 | Sarvam (user key) | `speech.ts sarvamFetch` | **no** |
-| 9 | **device TTS** — Capacitor `TextToSpeech.speak` / `speechSynthesis` | `speech.ts speak()` tier 2 | **no** |
+| 7 | ElevenLabs (user key) | `speech.ts elevenFetch` | **yes** — `spokenTextKeepingAudioTags`, the one door that keeps `[laughs]` |
+| 8 | Sarvam (user key) | `speech.ts sarvamFetch` | **yes** — via `stripForDevice` |
+| 9 | **device TTS** — Capacitor `TextToSpeech.speak` / `speechSynthesis` | `speech.ts speak()` tier 2 | **yes** — via `stripForDevice` |
+| 10 | **Android CASCADE watch engine** — `WatchEngine.java`, the lane `WatchCaptureService.startCascade()` falls back to when the live engine is unsupported or gives up | → `/api/speech` | **yes**, at the server seam — and it has no local engine to fall back to |
 
 Ranked hypotheses for the actual report, with what each rests on:
 
@@ -189,15 +196,21 @@ Ranked hypotheses for the actual report, with what each rests on:
    dashes**. Platform engines are also the family most likely to read a symbol
    from a dictionary rather than treat it as a pause. Given §6 this path is
    currently *reachable in production*, and "everything changing the whole
-   voice" is exactly what a platform voice sounds like. **Not fixed — see §7.**
-   *This is a hypothesis: I have not heard a device engine speak an em-dash and
-   cannot without a phone.*
+   voice" is exactly what a platform voice sounds like. **Fixed — see §10**,
+   and the hypothesis in the sentence that used to sit here has now been
+   MEASURED against a real platform engine, with a result that does not say
+   what this section assumed.
 3. **The live lane (path 1/2).** persona.ts's own comment says the native-audio
    model "speaks the characters she emits", so a dash can surface. Only
    persona.ts can fix it. **Not fixed — not my file.**
 
-There is no fourth path. The table above is exhaustive as of this change and
-`verify-voice.mjs` §4 will notice a new one on the live lane.
+There was a fourth path, and it is row 10: the Android **cascade** watch engine
+(`WatchEngine.java`) is a separate snapshot→think→speak brain from
+`LiveWatchEngine.java`, reached by `WatchCaptureService.startCascade()` whenever
+the live lane is unsupported or gives up. It happens to be safe — it speaks only
+by POSTing to `/api/speech` — but nothing was asserting that, so `verify-voice.mjs`
+§5 now does, including that it never gains a local engine. Rows 7–10 are
+asserted by running the real code, not by reading it (§10).
 
 ---
 
@@ -242,18 +255,18 @@ screen-share episode therefore produces **live → native → cascade: two engin
 changes, one of which crosses model families, with no failure required.** This
 alone accounts for "in the screen sharing everything changing the whole voice".
 
-**(b) Web: `goAway` is unhandled, so a routine rotation becomes permanent.**
-The Gemini Live server announces an impending hang-up with a `goAway` message.
-`LiveWatchEngine.java:1162` handles it — `rotate()`, up to `MAX_ROTATES = 6`,
-opening a fresh session and **staying on the live model**. `src/voice/liveCall.ts`
-does not handle it at all (`grep goAway` → zero hits before this change). The
-close that follows lands in `onclose` → `teardown("closed")` → useCallEngine
-answers with `claimVoice("cascade", …)` — a **permanent** lane change for the
-rest of the call, out of an expected and recoverable server event. Continuous
-video is exactly what shortens the time to that rotation, which is why it
-surfaces during screen share. Both files set
-`contextWindowCompression: { slidingWindow: {} }`, which lifts the *context*
-limit; it does not stop the server rotating a session.
+**(b) Web: `goAway` was unhandled, so a routine rotation became permanent.
+FIXED — see §6.5.** The Gemini Live server announces an impending hang-up with a
+`goAway` message. `LiveWatchEngine.java` has always handled it — `rotate()`, up
+to `MAX_ROTATES = 6`, opening a fresh session and **staying on the live model**.
+`src/voice/liveCall.ts` did not handle it at all (`grep goAway` → zero hits
+before the observability pass, and observability only after it). The close that
+followed landed in `onclose` → `teardown("closed")` → useCallEngine answered with
+`claimVoice("cascade", …)` — a **permanent** lane change for the rest of the
+call, out of an expected and recoverable server event. Continuous video is
+exactly what shortens the time to that rotation, which is why it surfaces during
+screen share. Both files set `contextWindowCompression: { slidingWindow: {} }`,
+which lifts the *context* limit; it does not stop the server rotating a session.
 
 **(c) The paid lane is currently exhausted, so the fallback chain is deeper
 than usual.** `one-key-two-jobs` (context/measurements.md, 2026-08-19): the
@@ -273,16 +286,110 @@ session.
 
 ### 6.3 What this explains, honestly
 
-| report | explained by | confidence |
-|---|---|---|
-| voice changing in screen share, **Android** | (a) the designed triple-swap | **high** — provable from source, no failure needed |
-| voice changing in screen share, **web** | (b) unhandled `goAway` | **medium-high** — the asymmetry with the Java engine is proven; that video shortens time-to-`goAway` is inference |
-| voice changing **anywhere, right now** | (c) key exhaustion deepening the chain | **medium-high** — the exhaustion is measured, the reachability is proven from source, the audible result is inferred |
-| "dash dash" | the cascade proxy (fixed) or device TTS (not fixed) or persona.ts (not fixed) | **medium** — see §5 |
+| report | explained by | confidence | state |
+|---|---|---|---|
+| voice changing in screen share, **Android** | (a) the designed triple-swap | **high** — provable from source, no failure needed | **partly fixed.** §6.4 refines it: live → native preserves model, voice and register; **native → cascade at share-stop is the identity change**, and it lives in `useCallEngine.ts` |
+| voice changing in screen share, **web** | (b) unhandled `goAway` | **medium-high** — the asymmetry with the Java engine is proven; that video shortens time-to-`goAway` is inference | **fixed** (§6.5). The lane change is gone; the *rate* claim is still inference and §9.1 names the probe |
+| voice changing **anywhere, right now** | (c) key exhaustion deepening the chain | **medium-high** — the exhaustion is measured, the reachability is proven from source, the audible result is inferred | not fixed — row 10 of §6.4 |
+| "dash dash" | the cascade proxy or device TTS or persona.ts | **medium** — see §5 | see §5 |
 
 Key exhaustion explains **the voice change strongly and the dash partially**: it
 makes the unsanitised device tier reachable, but the dash was already emitted on
 lanes that were reachable before it.
+
+### 6.4 Every swap point in the product, and which of them changes who she is
+
+Enumerated from source, not from memory. `voiceOwner` in `useCallEngine.ts` is
+the slot; `claimVoice` is the only thing that moves it, and
+`scripts/verify-voice.mjs` §6g prints the live list of its call sites on every
+run so this table cannot silently fall behind the code.
+
+**"Identity changes" means a different MODEL produces her voice.** That is the
+property `azure-tts` established as the one that decides whether she is her, and
+it is exactly the property the voice-NAME check cannot see. **"Audible
+mid-utterance" means the swap can land inside one of her sentences** — every
+`claimVoice` to a non-cascade owner calls `stopSpeaking()`, which kills queued
+and in-flight audio rather than waiting for a boundary.
+
+| # | trigger | from → to | identity changes? | audible mid-utterance? |
+|---|---|---|---|---|
+| 1 | live connects at pickup (`live_connected`) | none → live | n/a, first voice | no |
+| 2 | live missed the ring window (`live_missed_pickup`) | none → cascade | n/a, first voice | no |
+| 3 | live arrives after the cascade adopted the call (`late_upgrade`) | cascade → live | **yes** — TTS → speech-to-speech | **no** — `adoptLiveLate` defers to a turn boundary (not speaking, not thinking, user not mid-utterance) and gives up after ~60s rather than cutting in |
+| 4 | live session drops (`live_dropped:closed` / `:failed`) | live → cascade | **yes** — crosses model families | **yes** — `teardown` closes both audio contexts at once |
+| 4a | …because the server sent `goAway` | live → cascade | **yes** | **yes** — **FIXED, §6.5: this is now live → live** |
+| 5 | screen share STARTS on Android (`watch_started`) | live → native | **no** — see below | **yes** — claimed *before* the consent dialog, killing whatever she was saying |
+| 6 | screen share STOPS (`watch_stopped`) | native → cascade | **yes** — crosses model families | at a UI moment, but her in-flight native audio is killed |
+| 7 | the OS revokes capture (`watch_stopped_externally`) | native → cascade | **yes** | **yes** — arrives whenever the system decides |
+| 8 | capture consent denied (`watch_consent_denied`) | native → cascade | **yes** | no — she has not spoken on native yet |
+| 9 | cascade free arm ⇄ paid arm (`PAID_ARM_MS`, per phrase) | cascade → cascade | **no** — §2 asserts both arms name one model | per phrase, but same model and voice; the *delivery direction text* still differs between the arms (§7 "deliberately not done") |
+| 10 | `/api/speech` 502s and the chain falls through | cascade → **device TTS** | **yes, the largest** — a platform engine, not her voice at all | **yes** — per phrase |
+
+**Row 5 is the correction this table makes to §6.2(a).** The native watch engine
+takes its model from `/api/live-token` — the same `gemini-3.1-flash-live-preview`
+the JS live lane uses — names the same voice (`voiceName: "Aoede"`, asserted by
+§1), pins the same `languageCode: "hi-IN"` and `thinkingBudget: 0`, and takes
+`systemLive`, which is `buildSpeechStyle("live")`: the *same spoken register* as
+the JS live lane. So **live → native does not change who she is.** The Android
+triple swap is therefore one session change that preserves her identity followed
+by one that does not, rather than two of equal weight — and the one that does is
+**row 6, stopping the share**, which is the one nothing forced.
+
+Two caveats on row 5, neither of them measured here. `LiveWatchEngine`'s
+`DEFAULT_MODEL` is `gemini-2.5-flash-native-audio-latest` — a model this repo
+measured and rejected (`live-model-bake`, 0/24 barge-in) — and it is reached if
+`/api/live-token` ever answers without a model field. And the two engines tune
+their server VAD differently (the JS lane sets nothing for start sensitivity by
+measurement; the Java lane keeps the platform default and a 450 ms tail). Both
+are behaviour, not timbre.
+
+### 6.5 `goAway` is now a rotation, in both twins
+
+The web lane rotates the socket instead of losing the call: **a fresh session,
+the same model, the same voice.** `LiveWatchEngine.java` already did this; the
+two are now pinned to each other by `scripts/verify-voice.mjs` §6, which asserts
+the constants **and the policy** agree across the TS and the Java. That is
+`blank-guard-parity`'s shape — a test that pins two implementations AGREEING
+never needs editing and catches the only failure that matters, which is
+divergence. Both twins were changed together; neither was "fixed independently".
+
+| property | value | why it is what it is |
+|---|---|---|
+| `MAX_ROTATES` | 6 | a `goAway` storm must not spin the token endpoint. Spent → the next close falls back to the cascade exactly as it did before, and `live_rotate_spent` records that it was a budget and not a bug |
+| `ROTATE_DELAY_MS` | 500 | old socket closed → new one opened |
+| `ROTATE_GRACE_MS` | 1200 | a rotation that arrives after the server has already hung up gives back everything the wait bought |
+| `ROTATE_WAIT_MAX_MS` | 4000 | the longest the rotation waits for her to finish a sentence |
+| `ROTATE_POLL_MS` | 120 | how often "is she still speaking" is re-asked |
+
+**The moment is chosen, not taken.** `rotate()` flushes playback, so firing it
+the instant `goAway` lands trades a lane change for a guillotine. `goAway`
+carries the server's own notice period, so there is a budget to spend waiting:
+the rotation is held until `speakingUntil` has passed, capped at
+`ROTATE_WAIT_MAX_MS` and never allowed past `timeLeft − ROTATE_GRACE_MS`. The
+Java twin now waits on the same rule; it used to rotate immediately.
+
+**The model is pinned for the life of the call.** A rotation mints a fresh
+single-use token and `/api/live-token` returns a model with it — and both twins
+now **discard** that model and keep the one the call started on. Taking it would
+let a token-endpoint change swap model families mid-call, which is the exact bug
+this mechanism exists to prevent, arriving through a door §1 and §2 cannot see.
+The Java twin previously adopted the new model on every reconnect.
+
+**A bug found while wiring it.** The observability-only version parsed
+`goAway.timeLeft` by stripping the unit suffix and using the number as
+milliseconds. It is a protobuf `Duration` — a string of **seconds** — so a real
+10-second notice period was being recorded as `leftMs: 10`. Harmless while
+nothing read it; not harmless once it decides how long a rotation may wait. Both
+twins now convert seconds → ms, and the rotation simulator's first case fails if
+that conversion is removed.
+
+**What a rotation still costs, and it is not fixed.** The new session is a *new
+session* and contains none of the conversation. Nothing is injected to recap it:
+an unprompted turn arriving out of a socket swap is a worse failure than a lost
+context window, and the recap would have to come from `useCallEngine.ts`, which
+owns the transcript and is not this workstream's file. `contextWindowCompression:
+{ slidingWindow: {} }` means the server was already dropping the oldest context
+on its own. Proposed as a follow-up, not claimed as done.
 
 ---
 
@@ -306,29 +413,41 @@ lanes that were reachable before it.
    `goAwayMs`, uptime and `framesSent` (the only client-side evidence that a
    screen share was up when a session ended), and one `framesSent++` in
    `sendFrame`. **Nothing reads these in the audio path.** Proof in §8.
+   *(Superseded by 6 below: the branch now rotates rather than only recording.)*
+6. **`goAway` is answered with a rotation, in both twins** — §6.5.
+   `src/voice/liveCall.ts` gains `wsGen`/`sockReady` generation guards, a
+   `flushPlayback()`, a budgeted `rotate()`/`reconnect()`, a `scheduleRotate()`
+   that waits for a non-speaking moment inside the server's own notice period,
+   and the mic tick's `sockSeen !== wsGen` arbitration reset that
+   `LiveWatchEngine.java` already had and this twin did not.
+   `LiveWatchEngine.java` gains the same wait, the same constants, and the model
+   pin. New diag records: `live_goaway` (now with `sharing`, `rotates`,
+   `budget`, `speaking`), `live_rotate`, `live_rotated`, `live_rotate_failed`,
+   `live_rotate_spent`.
+7. **`scripts/verify-voice.mjs` §6** — the TS ⇄ Java parity assertion for all of
+   the above, negative-tested by reproducing the swap it prevents.
 
 ### Recommended, not implemented — with the reason for each
 
-- **Handle `goAway` in `liveCall.ts` by rotating the socket**, as the Java
-  engine does. This is the real fix for 6.2(b) and it would keep a screen-shared
-  web call on the live model. **Not done deliberately:** rotating means tearing
-  down and rebuilding the WebSocket mid-call, and the arbiter, the hold ring, the
-  echo κ estimate and the barge-in watchdog all hang off that lifecycle. The Java
-  version needed `wsGen` generation counters, `flushPlayback()` and a ring reset
-  to do it safely. *A call that drops or a barge-in that misses is a much worse
-  bug than a voice that shifts* — so this is measured first (the new `live_goaway`
-  / `live_close` records are what makes it measurable) and changed second.
+- **Recap the conversation after a rotation.** The new live session starts
+  empty. `adoptLiveLate` already has the shape (a `<context: …>` turn listing the
+  last six lines), but the transcript lives in `useCallEngine.ts`, not in the
+  live lane, and injecting an unprompted turn out of a socket swap is a worse
+  artefact than the missing context. **Needs its owner.**
+- **`claimVoice("cascade", "watch_stopped")` should try to return to LIVE.**
+  Row 6 of the §6.4 table: stopping a screen share is a guaranteed cross-family
+  voice change that nothing forced, and it is now the **largest remaining swap in
+  the product**. `useCallEngine.ts`, not this workstream's file.
 - **`sessionResumption: {}` in the setup block.** The protocol-level answer to
   `goAway`. Not added: this setup block is where `enableAffectiveDialog` closed
   the socket with 1007 "Unknown name", and an untested field here costs the call.
   Verify against a live endpoint before adding.
-- **Android: `claimVoice("cascade", "watch_stopped")` should try to return to
-  live.** Dropping to the cascade after every screen share is a guaranteed voice
-  change that nothing forced. `useCallEngine.ts`, not my file.
-- **`src/voice/speech.ts` should import `spokenText`** and apply it inside
-  `stripForCloud` and `stripForDevice`, which closes paths 7–9. One import and
-  two call sites. Not my file — and it is the *device* path that matters, because
-  §6.2(c) makes it live today.
+- ~~**`src/voice/speech.ts` should import `spokenText`**~~ — **done, §10.** It
+  was one import and two call sites, and it was also two other things nobody
+  predicted: `stripProtocol` was deleting her words between two `**bold**` spans,
+  and `phrase()` was cutting an utterance at every full stop including the ones
+  inside `meera-silk.vercel.app`. Both found by running the code rather than
+  reading it.
 - **Pin the lane for a whole reply.** `api/speech.js` already returns
   `X-Meera-Lane`; `speech.ts` could read it and keep subsequent phrases on the
   same arm, so one reply is never split across two renderings. Requires a client
@@ -351,6 +470,13 @@ lanes that were reachable before it.
 - No edits to `persona.ts`, `brain.ts`, `speech.ts`, `useCallEngine.ts`,
   `components/**` or `android/**`.
 
+> **Amended by the goAway pass (§6.5).** The last two bullets still hold for
+> `persona.ts`, `brain.ts`, `speech.ts`, `useCallEngine.ts` and `components/**`,
+> and no floor constant, threshold, ring size, watchdog or timing moved — proven
+> rather than asserted, in §8.2. **`android/**` IS now edited**, because the
+> `goAway` fix is a parity fix and fixing one twin of a mirrored pair is the
+> failure `blank-guard-parity` exists to prevent.
+
 ---
 
 ## 8. Gates
@@ -358,9 +484,11 @@ lanes that were reachable before it.
 | gate | result |
 |---|---|
 | `node evals/voice/spoken.mjs` | **37 positive + 17 negative, 54/54 idempotent, 0 failures** |
-| `node scripts/verify-voice.mjs` | **pass** — one name (Aoede), 3 declared models, one spoken-text core, 1 live text→audio path |
+| `node scripts/verify-voice.mjs` | **pass** — one name (Aoede), 3 declared models, one spoken-text core, 1 live text→audio path, goAway rotation at parity (§6, 11 assertions) |
+| `node scripts/verify-release.mjs` | **8/8** — typecheck, prompt budget, workflow lint, one voice, web build, eval suite, zero-orphan sweep, citation discipline |
+| `./gradlew --offline :app:compileDebugJavaWithJavac` | **clean** — the Java twin compiles; it was NOT run |
+| `node scratchpad/echosim/rotatesim.mjs` | **26/26** — rotation keeps the model, the voice and the call |
 | `npx tsc --noEmit` / `tsc -b` | **clean** |
-| `node scripts/verify-release.mjs` | see §8.2 |
 
 ### 8.1 The guards were tested by breaking them
 
@@ -372,6 +500,40 @@ lanes that were reachable before it.
   versions of the line printed.
 - Adding `import { spokenText } from "./spokenText"` to `liveCall.ts` produced
   the §4 failure with the explanation of why the live lane needs nothing.
+
+**The §6 parity assertions, broken one at a time** — four separate runs, each
+reverting exactly one half of the fix and each restored afterwards:
+
+| what was broken | what §6 said |
+|---|---|
+| `scheduleRotate(leftMs)` removed from `liveCall.ts` (i.e. the shipped bug, restored) | `goAway is not answered with a rotation in src/voice/liveCall.ts` |
+| `scheduleRotate(leftMs)` removed from `LiveWatchEngine.java` | the same failure, naming the **Java** file — so the test cannot be satisfied by fixing one twin |
+| `MAX_ROTATES` set to 4 in the Java only | `MAX_ROTATES disagrees: 6 in src/voice/liveCall.ts, 4 in …LiveWatchEngine.java` |
+| the Java `firstConnect` model pin removed | `the live model is not pinned across a rotation in …LiveWatchEngine.java` |
+| the `if (stale()) return;` removed from the TS `onclose` | `a replaced socket's close is not guarded in src/voice/liveCall.ts` |
+
+### 8.1a The rotation itself was tested by reproducing the swap
+
+`scratchpad/echosim/rotatesim.mjs` drives the **real** `liveCall.ts` — the same
+transpile `exp1.mjs` uses — against a simulated Live server that sends `goAway`.
+26 assertions across 5 scenarios, all observed from OUTSIDE the module (sockets
+constructed, setup frames sent, `onEnded` calls), so none of it is the module
+agreeing with itself: a rotation waits while she is mid-sentence and then takes
+it; the wait is capped when she never stops; a short `timeLeft` rotates at once;
+a replaced socket's close does **not** end the call while a live one still does;
+and the budget stops at exactly 6.
+
+Negative-controlled twice, by patching the transpiled build rather than the
+source:
+
+- **`goAway` left unhandled** (the state that shipped): **14 of 26 red**,
+  including the two that name the bug directly — `a replacement socket was
+  opened … sockets=1` and `a stale close did not end the call …
+  onEnded=["closed"]`. That second line is the owner's report, reproduced: a
+  routine server rotation handing the call to the cascade.
+- **`timeLeft` read as milliseconds instead of seconds** (the parse bug §6.5
+  describes): `no rotation while she is mid-utterance … sockets=2` — the
+  rotation stops waiting and fires inside her sentence.
 
 ### 8.2 The audio floor did not move — measured, not asserted
 
@@ -395,6 +557,16 @@ couplingDb  selfRelease  selfDuckPct  leakMsMed  leakMsMax  hardMax  softMax  ba
 `diff` before/after: no differences. Which is what a diagnostics-only change
 should produce, and is now on the record rather than claimed.
 
+**Re-run for the goAway rotation, which is NOT a diagnostics-only change.** Same
+harness, same 5 couplings × 8 seeds × 2 arms = **80 simulated calls**, run
+against the tree before the rotation work and the tree after it. The two result
+sets are again **byte-identical** — the table above, unchanged in every cell.
+
+That is a stronger claim than it looks, because this change does touch the mic
+tick: it adds the `sockSeen !== wsGen` arbitration reset the Java twin already
+had. The reset is a no-op until a rotation happens, `exp1.mjs` never rotates, and
+the identical numbers are what proves the no-op rather than assuming it.
+
 ---
 
 ## 9. What could not be verified here
@@ -416,4 +588,156 @@ Named so nobody reads coverage into this document that it does not have.
   OpenRouter key is exhausted (§6.2c) and the free pool is what production is
   currently leaning on. `verify-release.mjs --live` was not run and would cost
   money that is not there.
-- **The Android lane end to end.** `LiveWatchEngine.java` was read, not run.
+- **The Android lane end to end.** `LiveWatchEngine.java` compiles
+  (`./gradlew --offline :app:compileDebugJavaWithJavac`, clean) and was read. It
+  was **not run**: there is no device and no emulator in this environment, and
+  simulating one would not be evidence.
+
+### 9.1 What the `goAway` rotation still needs a real device or a live session for
+
+Nothing below was simulated and called verified. Each is named with the exact
+production record that settles it.
+
+| open question | why it cannot be answered here | the probe that settles it |
+|---|---|---|
+| Does a rotation actually keep the call alive against the real server? | needs a live Gemini Live session and a real `goAway` | `live_rotated` — count it against `live_rotate`. Every `live_rotate` with no matching `live_rotated` inside ~3 s is a rotation that failed to come back up |
+| Does a rotation cost an audible gap, and how long? | the same | `live_rotated.gapMs` — `goAway` → new `setupComplete`, wall clock. Read its p50/p90 against `ROTATE_WAIT_MAX_MS` |
+| Does screen share raise the `goAway` rate, as §6.2(b) infers? | needs a device sharing a screen on a real session | `live_goaway.sharing` (true when any frame entered the socket) split against `live_goaway.upMs` — the rate per minute of uptime, shared vs not |
+| Does the server give usable notice, or is `timeLeft` usually absent? | the same | `live_goaway.leftMs` — now in **milliseconds** and correct (§6.5). `leftMs: 0` means no notice was given; the distribution decides whether `ROTATE_GRACE_MS` is the right number |
+| Does the wait for a quiet moment ever run out? | the same | `live_goaway.speaking` (was she talking when it arrived) against `live_rotate.waitedMs`. `waitedMs ≈ ROTATE_WAIT_MAX_MS` means the cap bound, i.e. the rotation still landed inside a sentence |
+| Is `MAX_ROTATES = 6` enough for a long shared call? | the same | `live_rotate_spent` — every occurrence is a call that then fell to the cascade because a budget ran out. Non-zero at any real rate means raise it |
+| Does the rotated session's loss of conversation show? | needs an ear on a real call | not a telemetry question. It is the ear test §6.5's last paragraph asks for |
+| Does the Android triple swap sound like one voice on rows 1→5 (§6.4)? | needs a device and an ear | `azure-tts`'s rule: accent identity is not pronunciation, and it is decided by listening. Record both sides of a `watch_started` and compare |
+
+---
+
+## 10. The paths that never reach `/api/speech` — closed, and measured
+
+§5 rows 7–10, added by WS-DEVICE-TTS. §3.2 put the seam in `api/speech.js`
+because a server seam "covers every future caller by construction". That is true
+of every caller that **is** a caller of it, and three engines in
+`src/voice/speech.ts` are not: `elevenFetch` and `sarvamFetch` POST to a vendor
+with the user's own key, and the device tier speaks locally. No server can stand
+in front of those.
+
+### 10.1 What changed
+
+One import, and the same rules everywhere:
+
+| door | sanitiser | why that one |
+|---|---|---|
+| device TTS (Capacitor / `speechSynthesis`) | `spokenText`, inside `stripForDevice` | the deepest fallback; `stripForDevice` already ran here, and the sanitiser is now its LAST step so a `[tag]` still becomes the "…" pause before rule B could drop it |
+| Sarvam | `spokenText`, same call site | `sarvamFetch` is handed `stripForDevice(text)` already |
+| ElevenLabs v3 | `spokenTextKeepingAudioTags`, inside `stripForCloud` | **the one engine that PERFORMS `[laughs]`**, and `speech.ts` routes tagged replies to it deliberately. The plain sanitiser would have deleted the exact thing the routing chose it for |
+| hosted proxy | `spokenText` server-side, unchanged, plus the above | belt and braces; the core is idempotent (63/63) so passing it twice is free |
+
+`spokenTextKeepingAudioTags` is **not a second rule set**. It cuts the tags out,
+runs every remaining segment through the same `spokenTextCore`, and puts the
+tags back. `age-tier-never-realtime` is the entry that makes that distinction
+non-negotiable: a second copy of a rule set diverges by not being updated, and
+nobody notices because nobody calls the copy a copy.
+
+Two defects fell out of running the code rather than reading it, and both were
+older than this workstream:
+
+- **`stripProtocol` deleted her words between two `**bold**` spans.** The
+  roleplay-action rule `\*[^*\n]{1,80}\*` matched the SECOND star of one bold
+  span and the FIRST of the next. Measured: `"yeh **sach** mein hua"` came out
+  as `"yeh * * mein hua"` — it deleted the word she was *emphasising*, and left
+  two asterisks that espeak-ng reads aloud. `"**a** aur **b** dono"` lost 4 of
+  its 5 words. It reached **every** lane, the proxy included, because
+  `stripForCloud` runs before the POST. Fixed with lookarounds that tell a
+  single-star action from a double-star emphasis.
+- **`phrase()` cut an utterance at every full stop**, including the ones inside
+  an address: a device voice said "dekh meera-silk." *(pause 280–520 ms)*
+  "vercel." *(pause)* "app/chat pe hai", and "3.30 baje" became "three."
+  "thirty baje". That is not only untidy — rule C keeps URLs *because the
+  crisis-helpline block can carry one and on a call the spoken copy is the only
+  copy*, and an address shattered across three utterances is most of the way to
+  losing it. A full stop now ends a phrase only when whitespace or the end of
+  the text follows it.
+
+### 10.2 The gate is behavioural, not a grep
+
+`evals/voice/device.mjs` bundles the **real** `src/voice/speech.ts` with
+recorders in place of the platform engines and `fetch`, drives the **real**
+entry points (`speakCall`, `speak`, `createStreamSpeaker`) under the exact
+production failure of §6.2(c) — every clip fetch refusing — and asserts on the
+strings the engines were handed. 42 assertions across 5 doors.
+
+That shape is `selfbundle-never-set`'s rule applied to speech: *a slot is wired
+when a real prompt contains its bytes*, so a door is sanitised when the engine
+was handed clean text, never when a manifest says so.
+
+It carries the two controls that decide whether a sanitiser is safe:
+
+- **`mustSay`** — her own words must arrive. A sanitiser that returned `""` for
+  everything would pass every markup assertion in the file. This is the control
+  that caught the `**bold**` deletion.
+- **the crisis helpline** — `1800-599-0019` must reach the device engine with
+  its hyphens intact. Reintroducing a greedy dash rule turns it into
+  "Kiran, 1800, 599, 0019" and the harness says so.
+
+`verify-voice.mjs` §5 also runs a **door census**: every text→audio door in
+`speech.ts` is enumerated from source and compared against a declared list, so a
+new engine fails the run until somebody declares it and gives it a case here.
+`screen-share-triple-swap` found a third path family nobody had counted and the
+continuity workstream found a third prompt assembler after the spec said two —
+this is the assumption "there is one more" turned into a check.
+
+### 10.3 Whether an engine SAYS the markup — measured, n=12
+
+The claim this workstream was handed is that a platform engine "reads a symbol
+out of a dictionary rather than pausing". §9 listed it as unverified. It is now
+measured for **one** engine: **espeak-ng 1.51**, extracted into the session
+scratchpad, driven with the strings the real device tier produced before and
+after the change, phonemised with `-q -x`, and searched for the phonemisations
+of eighteen symbol words — which espeak itself supplied, so nothing is
+hand-transcribed.
+
+| symbol | what espeak-ng 1.51 does with it, en-us default |
+|---|---|
+| em-dash `—`, en-dash `–`, `--` | **a pause. It does NOT say "dash".** Same in en-gb, en-in and hi |
+| `→` | **says "right arrow"** |
+| `**` | **says "asterisk asterisk"** (a lone `*` is silent) |
+| `&amp;` | **says "amp"** |
+| `https://` | says "colon", and "slash" per slash |
+| **a hyphen inside a number** — `1800-599-0019` | **says "dash" TWICE** |
+| `•`, `\|`, `(`, `)` | pauses |
+
+Totals across the 12 utterances: symbol words spoken **before 5, across 4 of 12
+utterances; after 2, across 2 of 12**. The two that remain are a spoken "slash"
+inside a real URL path and the helpline's two "dash"es — both things a person
+saying that address or that number out loud would also say.
+
+**This does not confirm the assumption; it partly contradicts it, and the
+contradiction is the useful part.** On the engine actually measured, the
+em-dash — the character three of persona.ts's rules ask her for — is a pause,
+not a word. The one place it says **"dash dash"**, literally and in its default
+configuration, is a **hyphenated phone number**, and the number in question is
+the crisis helpline this repo deliberately preserves (`spoken.mjs` has it as a
+negative control). Whether that should change is an ear decision with a cost on
+both sides, and it belongs to whoever owns the helpline block — not to a
+sanitiser ticket.
+
+There is a second configuration that does say it: with `--punct`, the
+punctuation-announcing accessibility mode, espeak renders `—` as "EMDASH". In
+that mode it renders a comma as "comma" too, so the sanitiser cannot help — the
+only cure would be removing punctuation, which would remove her prosody with it.
+
+**Scope, stated so nobody reads coverage into this:** espeak-ng is not Android's
+Google TTS and not Chrome's `speechSynthesis`, which are the two engines the app
+actually reaches. This is evidence about the family and a disproof of "every
+platform engine says dash", not a measurement of the shipped path. The Gemini
+TTS and Gemini Live lanes are LLM-based and could verbalise a symbol for reasons
+no phoneme table predicts; measuring them costs keys that are currently spent.
+
+### 10.4 The dash's real home is still `persona.ts`
+
+Unchanged by any of this, and worth repeating because §10.3 narrows it:
+`persona.ts` is **91,766 chars with 307 em-dashes**, three of its rules *require*
+the dash, and the ban at line 148 is scoped to texting and **explicitly lifted
+for calls** — the one surface where the character becomes sound. The live lane
+is speech-to-speech, so no sanitiser can stand between her tokens and the audio.
+If the owner still hears "dash dash" after this ships, the live lane is where it
+is coming from and `persona.ts` §7 is the only lever. Not this workstream's file.

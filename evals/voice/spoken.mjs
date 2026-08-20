@@ -27,7 +27,7 @@ import { rmSync } from "node:fs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "../..");
-const BUNDLE = join(HERE, ".spoken.bundle.mjs");
+const BUNDLE = join(HERE, `.spoken.${process.pid}.bundle.mjs`); // pid-scoped: concurrent runs must not delete each other's bundle
 
 execFileSync(
   "npx",
@@ -43,7 +43,9 @@ execFileSync(
   { stdio: "inherit", cwd: ROOT },
 );
 
-const { spokenText, SPOKEN_RULES_VERSION } = await import(`file://${BUNDLE}`);
+const { spokenText, spokenTextKeepingAudioTags, SPOKEN_RULES_VERSION } = await import(
+  `file://${BUNDLE}`
+);
 
 /** [what it proves, input, expected output] */
 const POSITIVE = [
@@ -173,6 +175,47 @@ for (const [why, input] of NEGATIVE) {
   }
 }
 
+/* ── THE ONE ENGINE THAT PERFORMS BRACKETS ───────────────────────────────
+   ElevenLabs v3 actually performs `[laughs]`, and src/voice/speech.ts routes a
+   TAGGED reply to it on purpose. Handing that door the plain sanitiser would
+   delete the one thing the routing chose it for. So the tag-keeping variant
+   has to prove two opposite things at once: the tags survive, and every OTHER
+   writing convention is stripped by the same rules as everywhere else. It is
+   the same `spokenTextCore` either way — the tags are cut out, the segments go
+   through it, the tags go back. */
+const TAGGED = [
+  ["a dash AWAY from a tag still becomes a pause",
+    "[laughs] arre — sach mein", "[laughs] arre, sach mein"],
+  // The documented tradeoff, pinned so it is a known behaviour and not a
+  // surprise: each segment is tidied at its own edges, so punctuation directly
+  // against a tag is absorbed. Harmless here — the tag IS a pause — and much
+  // safer than masking tags behind a sentinel token that could itself be SAID.
+  ["punctuation hard against a tag is absorbed by it",
+    "arre [laughs] — sach mein", "arre [laughs] sach mein"],
+  ["two tags survive", "[sighs] pata nahi [laughs]", "[sighs] pata nahi [laughs]"],
+  ["markdown around a tag is still stripped",
+    "yeh **sach** [laughs] mein", "yeh sach [laughs] mein"],
+  ["a tag-only reply is still performable, so it is NOT silence", "[laughs]", "[laughs]"],
+  ["a LONG bracket is a stage direction, not an audio tag, and is dropped",
+    "[she pauses for a long moment] acha", "acha"],
+  ["a protocol marker with a colon is dropped even here",
+    "[tone: low, gentle] kya hua", "kya hua"],
+  ["an emoji-only reply is silence on this door too", "😂😂", ""],
+  ["a helpline still survives untouched beside a tag",
+    "[softly] Kiran: 1800-599-0019", "[softly] Kiran: 1800-599-0019"],
+];
+
+console.log(`\n  ── tag-keeping door (ElevenLabs v3 only) (${TAGGED.length}) ──`);
+for (const [why, input, want] of TAGGED) {
+  const got = spokenTextKeepingAudioTags(input);
+  if (got === want) {
+    console.log(`  ok    ${why}`);
+  } else {
+    fail++;
+    console.log(`  FAIL  ${why}\n          in   ${show(input)}\n          want ${show(want)}\n          got  ${show(got)}`);
+  }
+}
+
 // IDEMPOTENCE. The same string can pass this seam twice (a phrase is
 // synthesised, then re-synthesised by the hedge or the complete-file fallback),
 // and a rule that keeps eating on each pass would quietly shorten her.
@@ -185,15 +228,31 @@ for (const [, input] of [...POSITIVE, ...NEGATIVE]) {
     console.log(`  FAIL  not idempotent: ${show(input)} -> ${show(once)} -> ${show(spokenText(once))}`);
   }
 }
-if (!notIdem) console.log(`  ok    all ${POSITIVE.length + NEGATIVE.length} cases are fixed points after one pass`);
+// The tag-keeping door has the same obligation, and a stronger reason for it:
+// it JOINS segments back together, so a rule that shifted a space or ate a
+// comma on each pass would shorten her a little more every time a phrase was
+// re-synthesised.
+for (const [, input] of TAGGED) {
+  const once = spokenTextKeepingAudioTags(input);
+  if (spokenTextKeepingAudioTags(once) !== once) {
+    notIdem++;
+    console.log(
+      `  FAIL  tag-keeping not idempotent: ${show(input)} -> ${show(once)} -> ${show(spokenTextKeepingAudioTags(once))}`,
+    );
+  }
+}
+if (!notIdem)
+  console.log(
+    `  ok    all ${POSITIVE.length + NEGATIVE.length + TAGGED.length} cases are fixed points after one pass`,
+  );
 fail += notIdem;
 
 rmSync(BUNDLE, { force: true });
 
-const total = POSITIVE.length + NEGATIVE.length;
+const total = POSITIVE.length + NEGATIVE.length + TAGGED.length;
 console.log(
   fail
     ? `\nspoken-text: ${fail} FAILED of ${total} cases (+ idempotence)`
-    : `\n  ok  spoken-text: ${POSITIVE.length} positive + ${NEGATIVE.length} negative cases, all idempotent`,
+    : `\n  ok  spoken-text: ${POSITIVE.length} positive + ${NEGATIVE.length} negative + ${TAGGED.length} tag-keeping cases, all idempotent`,
 );
 process.exit(fail ? 1 : 0);

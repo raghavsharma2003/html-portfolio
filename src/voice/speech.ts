@@ -17,6 +17,16 @@ import { attachAnalyser } from "./level";
 // The listening-sound shaper. Imported rather than copied — the two lanes make
 // the same sound and a second implementation is how they stop agreeing.
 import { shapeAck } from "./liveCall";
+// WHERE TEXT STOPS BEING TEXT — for the engines this file talks to DIRECTLY.
+//
+// /api/speech applies this same module server-side, which covers the hosted
+// voice, the voice notes and the live lane's ack clips. Three engines in THIS
+// file never reach that endpoint — ElevenLabs and Sarvam (user keys) and the
+// device fallback — so for them the seam has to be here. It is the same
+// implementation, imported, for the reason `age-tier-never-realtime` gives: a
+// second copy of a rule set is a second rule set, and it diverges by not being
+// updated rather than by anyone deciding.
+import { spokenText, spokenTextKeepingAudioTags } from "./spokenText";
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -126,17 +136,37 @@ function stripProtocol(text: string): string {
   return text
     .replace(/\[[a-z]+\s*:[^\]]*\]?/gi, " ")
     .replace(/\[(?![a-z ]{2,16}\])[^\]]*\]?/gi, " ")
-    .replace(/\*[^*\n]{1,80}\*/g, " ")
+    // A SINGLE-STAR pair is a roleplay action and is dropped whole. A DOUBLE
+    // star is markdown emphasis on a word she actually said, and the lookarounds
+    // exist to tell them apart — without them this rule matched the SECOND star
+    // of one `**bold**` and the FIRST of the next, and deleted everything in
+    // between. Measured on "yeh **sach** mein hua": the old rule returned
+    // "yeh * * mein hua" — it deleted the word she was EMPHASISING and left two
+    // asterisks, which espeak-ng 1.51 reads aloud as "asterisk". On
+    // "**a** aur **b** dono" it deleted 4 of 5 words. The bold markers that
+    // survive here are removed (and the word kept) by spokenText's rule E,
+    // which is the module that knows the difference.
+    .replace(/(?<!\*)\*(?!\*)[^*\n]{1,80}\*(?!\*)/g, " ")
     .replace(/(^|\s)-{2,}(\s|$)/g, " ");
 }
 
+// The door for every engine that CANNOT perform an audio tag: the device TTS
+// fallback and Sarvam. `spokenText` runs LAST and the order is load-bearing —
+// the tag becomes "…" (a pause she keeps) BEFORE the sanitiser could drop it,
+// so the beat the tag stood for survives instead of being deleted.
+//
+// Everything after that is the writing-conventions class: dashes, markdown,
+// bullets, arrows, pipes, brackets, URLs. This function used to touch none of
+// them, which is the whole of `screen-share-triple-swap`'s finding — the
+// deepest fallback in the product was the least sanitised text in it.
 function stripForDevice(text: string): string {
-  // device TTS can't laugh — turn audio tags into pauses, drop emojis
-  return stripProtocol(text)
-    .replace(/\[[a-z ]+\]/gi, "…")
-    .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{2764}]/gu, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  return spokenText(
+    stripProtocol(text)
+      .replace(/\[[a-z ]+\]/gi, "…")
+      .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{2764}]/gu, "")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
 }
 
 // Keeps short audio tags ([laughs], [sighs]) — ElevenLabs v3 actually performs
@@ -144,11 +174,20 @@ function stripForDevice(text: string): string {
 // engines that CANNOT perform them strip them at their own door instead
 // (stripForDevice for Sarvam/device, stripTagsForPlainVoice for our proxy), so
 // no engine is ever handed a tag it will read out loud as a word.
+//
+// The sanitiser used here is the TAG-KEEPING one for exactly that reason: the
+// plain one would delete the tags rule B is right to delete everywhere else,
+// and this is the one door where they are performed rather than read. The rest
+// of the class — dashes, markdown, arrows, bullets, URL schemes — is stripped
+// by the same rules as everywhere else, because ElevenLabs performs `[laughs]`
+// and no engine anywhere performs an em-dash.
 function stripForCloud(text: string): string {
-  return stripProtocol(text)
-    .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{2764}]/gu, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  return spokenTextKeepingAudioTags(
+    stripProtocol(text)
+      .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{2764}]/gu, "")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
 }
 
 // The hosted Meera voice (Gemini TTS through our proxy) is the default for a
@@ -191,7 +230,15 @@ function phrase(text: string): Array<{ t: string; pause: number }> {
   const parts = text.split(/(\.\.\.|…)/);
   let buf = "";
   const flushSentences = (s: string, endPause: number) => {
-    const sentences = s.match(/[^.!?,]+[.!?,]*/g) ?? (s.trim() ? [s] : []);
+    // A full stop only ENDS something when a space or the end of the text
+    // follows it. Without that lookahead this split every dot, so a device
+    // voice said "dekh meera-silk." <280-520ms pause> "vercel." <pause>
+    // "app/chat pe hai" — and "3.30 baje" came out as "three." "thirty baje".
+    // That matters beyond tidiness: spokenText keeps a URL deliberately,
+    // because the crisis-helpline block can carry one and on a call the spoken
+    // copy is the ONLY copy, and an address shattered across three utterances
+    // is most of the way to losing it. Found by evals/voice/device.mjs.
+    const sentences = s.match(/[\s\S]+?(?:[.!?,]+(?=\s|$)|$)/g) ?? (s.trim() ? [s] : []);
     let cur = "";
     for (const sen of sentences) {
       cur += sen;
@@ -391,6 +438,17 @@ async function playBlob(
 }
 
 async function elevenFetch(text: string, opts: VoiceOpts): Promise<Blob | null> {
+  // AT THE DOOR, not only at the prep function. Every caller today already
+  // hands this sanitised text, and this line is what makes that true of every
+  // caller TOMORROW — the same argument §3.2 of docs/VOICE-LANE.md makes for
+  // putting the seam in api/speech.js rather than in each client. The core is
+  // idempotent, so a second pass costs nothing and changes nothing.
+  const spoken = spokenTextKeepingAudioTags(text);
+  // The sanitiser answers "" for a reply that was only markup, only emoji or
+  // only a separator, and "say nothing" is the correct rendering of that. Every
+  // door has to refuse it rather than bill a generation for punctuation — the
+  // same contract /api/speech states as its 422.
+  if (!spoken) return null;
   try {
     const voiceId = opts.elevenVoiceId?.trim() || ELEVEN_DEFAULT_VOICE;
     const res = await fetch(
@@ -399,7 +457,7 @@ async function elevenFetch(text: string, opts: VoiceOpts): Promise<Blob | null> 
         method: "POST",
         headers: { "xi-api-key": opts.elevenKey!, "Content-Type": "application/json" },
         body: JSON.stringify({
-          text,
+          text: spoken,
           model_id: "eleven_v3",
           // v3 accepts only 0 / 0.5 / 1 for stability; expressiveness comes
           // from audio tags, so style stays 0 (nonzero adds instability).
@@ -422,6 +480,11 @@ async function elevenFetch(text: string, opts: VoiceOpts): Promise<Blob | null> 
 }
 
 async function sarvamFetch(text: string, opts: VoiceOpts): Promise<Blob | null> {
+  // At the door, for the reason elevenFetch states. Sarvam cannot perform an
+  // audio tag, so it gets the plain sanitiser — its callers hand it
+  // `stripForDevice(...)` output, which has already turned tags into pauses.
+  const spoken = spokenText(text);
+  if (!spoken) return null; // nothing speakable means silence, never an empty POST
   try {
     const res = await fetch("https://api.sarvam.ai/text-to-speech", {
       method: "POST",
@@ -430,7 +493,7 @@ async function sarvamFetch(text: string, opts: VoiceOpts): Promise<Blob | null> 
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        text,
+        text: spoken,
         language_code: "hi-IN",
         speaker: SARVAM_SPEAKER,
         model: "bulbul:v3",

@@ -364,32 +364,292 @@ if (directTts)
   );
 else console.log("  ok    no TTS provider is called directly from the live lane");
 
-// NOT AN ASSERTION, AND SAYING SO IS THE POINT. src/voice/speech.ts owns three
-// engines that never touch /api/speech — ElevenLabs and Sarvam (user keys) and
-// the device fallback (Capacitor TextToSpeech / speechSynthesis). Their text is
-// prepared by stripForCloud/stripForDevice, which remove tags and emoji and do
-// NOT touch dashes, markdown, bullets or arrows. They are the remaining
-// unsanitised text→audio paths in the product, and the device tier is the one a
-// call lands on when BOTH the paid and free pools are spent. Fixing it is a
-// one-line import in a file this checker does not own; recorded here so the
-// gap has a name. See docs/VOICE-LANE.md §"What is still unsanitised".
+/* ══ 5. THE PATHS THAT NEVER REACH /api/speech ═══════════════════════════ */
+//
+// This section used to be a `note`, and the note was right: three engines in
+// src/voice/speech.ts never touch the server seam — ElevenLabs and Sarvam (user
+// keys) and the device fallback (Capacitor TextToSpeech / speechSynthesis) — so
+// nothing sanitised their text. The device tier is the DEEPEST rung in the
+// product and it is reachable in production right now: `one-key-two-jobs`
+// measured OPENROUTER_KEY exhausted, `free-tts-daily` measured the free Google
+// pool dying inside one session, and at that point /api/speech answers 502 and
+// `speakCall` / `createStreamSpeaker` fall through to `speak(allText, …)`.
+//
+// A note is not a mechanism. `selfbundle-never-set` is this repo's own entry
+// about exactly that: a "wired" string I wrote myself, checked by nothing, over
+// three slots that rendered zero bytes on every lane. Its rule — a slot is
+// wired when a REAL PROMPT CONTAINS ITS BYTES — is what the two assertions
+// below implement for speech: the harness bundles the REAL module, drives the
+// REAL entry points, and asserts on the strings the platform engines and the
+// two direct POSTs were actually handed.
+
+console.log("\n── 5. the paths that never reach /api/speech ──");
 const cascade = read("src/voice/speech.ts");
-const unsanitised = [
-  ["elevenFetch", /async function elevenFetch/.test(cascade)],
-  ["sarvamFetch", /async function sarvamFetch/.test(cascade)],
-  ["device TTS", /TextToSpeech\.speak|SpeechSynthesisUtterance/.test(cascade)],
-].filter(([, present]) => present).map(([n]) => n);
-if (unsanitised.length)
-  console.log(
-    `  note  ${unsanitised.length} text→audio paths in src/voice/speech.ts still bypass the seam: ${unsanitised.join(", ")}`,
+
+// (a) THE DOOR CENSUS. `screen-share-triple-swap` found a third path family
+// nobody had counted, and the continuity workstream found a third prompt
+// assembler after the spec said two. So the list of engines is not trusted to a
+// comment: every text→audio door in this file is enumerated from the source and
+// compared against what is DECLARED here. A new engine — or an old one moved to
+// a new host — fails this run until somebody declares it and the harness in
+// evals/voice/device.mjs proves its text is sanitised.
+const DECLARED_DOORS = {
+  "api.elevenlabs.io": "ElevenLabs v3, user key — the one door that KEEPS audio tags (it performs them)",
+  "api.sarvam.ai": "Sarvam bulbul, user key",
+  "PROXY_SPEECH_URL": "the hosted voice — /api/speech, sanitised server-side as well",
+  "TextToSpeech.speak": "Capacitor device TTS (Android) — the deepest fallback",
+  "SpeechSynthesisUtterance": "the browser device voice — the deepest fallback on web",
+};
+const doors = new Set();
+for (const m of cascade.matchAll(/fetch\(\s*(?:`|")(https?:\/\/([a-z0-9.-]+))/gi)) doors.add(m[2]);
+for (const m of cascade.matchAll(/fetch\(\s*(PROXY_SPEECH_URL)/g)) doors.add(m[1]);
+if (/TextToSpeech\.speak\(/.test(cascade)) doors.add("TextToSpeech.speak");
+if (/new SpeechSynthesisUtterance\(/.test(cascade)) doors.add("SpeechSynthesisUtterance");
+
+const undeclared = [...doors].filter((d) => !DECLARED_DOORS[d]);
+if (undeclared.length)
+  FAIL(
+    `UNDECLARED text→audio door(s) in src/voice/speech.ts: ${undeclared.join(", ")}`,
+    "Something in this file can make her speak and nothing here says what it is,",
+    "which means nothing proves its text was sanitised either. Declare it in",
+    "DECLARED_DOORS, give it a case in evals/voice/device.mjs, and say in",
+    "docs/VOICE-LANE.md when it is reachable.",
   );
-console.log(
-  `  note  ${/spokenText/.test(cascade) ? "speech.ts imports spokenText" : "speech.ts does NOT import spokenText yet"} — see docs/VOICE-LANE.md`,
-);
+const missing = Object.keys(DECLARED_DOORS).filter((d) => !doors.has(d));
+if (missing.length)
+  FAIL(
+    `declared door(s) no longer found in src/voice/speech.ts: ${missing.join(", ")}`,
+    "Either the door was removed — delete it from DECLARED_DOORS — or the pattern",
+    "moved and this census is no longer censusing anything.",
+  );
+if (!undeclared.length && !missing.length)
+  console.log(`  ok    ${doors.size} text→audio doors, all declared: ${[...doors].join(", ")}`);
+
+// (b) THE SEAM ITSELF, asserted by what comes OUT of it rather than by a grep.
+// evals/voice/device.mjs bundles src/voice/speech.ts with recorders in place of
+// the platform engines, drives speakCall / speak / createStreamSpeaker with
+// every failure the production cascade can hit, and checks the exact strings.
+// It also carries the negative controls that matter: a crisis helpline's
+// hyphens must SURVIVE, and her own words must not be deleted — over-stripping
+// is the silent failure of any sanitiser.
+try {
+  execFileSync("node", [ROOT + "evals/voice/device.mjs"], { cwd: ROOT, stdio: "inherit" });
+} catch {
+  FAIL(
+    "evals/voice/device.mjs failed — a path from her text to audio is unsanitised (see above)",
+    "The engines in src/voice/speech.ts that never reach /api/speech have no",
+    "server seam behind them: whatever this harness captured is what a user hears.",
+  );
+}
+
+// (c) The Android CASCADE watch engine — the path VOICE-LANE.md's table missed.
+// LiveWatchEngine.java is the realtime lane; WatchEngine.java is the older
+// snapshot→think→speak brain WatchCaptureService falls back to when the live
+// lane is unsupported or gives up (`startCascade()`). It speaks by POSTing to
+// /api/speech, so it is sanitised at the server seam — but only for as long as
+// nobody gives it a device-TTS fallback, which is precisely what the JS side
+// has and what made the JS side the bug.
+if (nativePresent) {
+  const watch = read("android/app/src/main/java/app/meera/companion/WatchEngine.java");
+  if (!/postBytes\(base \+ "\/api\/speech"/.test(watch))
+    FAIL(
+      "android WatchEngine.java no longer speaks through /api/speech",
+      "That is the cascade watch lane's only text→audio path and the server seam is",
+      "the only sanitiser it has. A local engine here would be unsanitised speech.",
+    );
+  else if (/TextToSpeech|SpeechSynthesis/.test(watch))
+    FAIL(
+      "android WatchEngine.java has gained a device-TTS path",
+      "It would bypass /api/speech and therefore the sanitiser — the same shape of",
+      "bug the JS device tier just was.",
+    );
+  else console.log("  ok    android WatchEngine.java (the cascade watch lane) speaks only through /api/speech");
+} else {
+  console.log("  note  android/ not in this checkout — the cascade watch lane was not checked");
+}
+
+/* ══ 6. THE SWAP — WHEN SHE IS ALLOWED TO CHANGE LANE ════════════════════ */
+/* ── WS-ANDROID-SWAP: added section ───────────────────────────────────────── */
+//
+// Sections 1-3 answer "is it the same voice". This one answers a question they
+// cannot: HOW OFTEN, AND ON WHOSE DECISION, does the product move her between
+// the lanes that sound different. The owner's report — "in the screen sharing
+// everything changing the whole voice" — is not a lane sounding wrong. It is
+// too many lane changes, and the largest of them needed no failure at all.
+//
+// THE ONE THAT DID NOT NEED A FAILURE, AND IS NOW FIXED. Gemini Live announces
+// a session rotation with `goAway`. `LiveWatchEngine.java` has always rotated
+// on it and stayed on the live model; `src/voice/liveCall.ts` did not handle it
+// at all, so the close that followed became `teardown("closed")` and
+// useCallEngine answered with `claimVoice("cascade", …)` — a PERMANENT move
+// from a speech-to-speech model to a TTS model, out of a routine server event.
+// Continuous video shortens the time to that rotation, which is why screen
+// share is where it was heard.
+//
+// WHY THIS IS A PARITY TEST AND NOT TWO TESTS. `blank-guard-parity`
+// (context/measurements.md, 2026-08-18) settled the shape for this repo: a test
+// that pins ONE twin's current behaviour has to be edited every time that
+// behaviour legitimately changes, and drifts. A test that pins the two twins
+// AGREEING never needs editing and catches the only failure that matters. So
+// every assertion below is of the form "the TS and the Java say the same
+// thing", never "the TS says 6".
+
+console.log("\n── 6. the swap: goAway rotation, TS ⇄ Java ──");
+
+const liveTs = live; // already read in section 4
+const java = nativePresent ? read(NATIVE.file) : null;
+
+if (!java) {
+  FAIL(
+    `${NATIVE.file} is not in this checkout, so the goAway parity cannot be checked`,
+    "This section exists BECAUSE the two twins disagreed once and nothing noticed.",
+    "A skip here is the state that let that happen; it is a failure, not a note.",
+  );
+} else {
+  // ── 6a. both twins ROTATE on goAway; neither merely logs it ──
+  const tsRotates = /if \(msg\.goAway\)[\s\S]{0,1400}?scheduleRotate\(leftMs\);/.test(liveTs);
+  const javaRotates = /msg\.has\("goAway"\)[\s\S]{0,1200}?scheduleRotate\(leftMs\);/.test(java);
+  if (!tsRotates || !javaRotates)
+    FAIL(
+      `goAway is not answered with a rotation in ${!tsRotates ? "src/voice/liveCall.ts" : ""}${!tsRotates && !javaRotates ? " and " : ""}${!javaRotates ? NATIVE.file : ""}`,
+      "A goAway that is only logged becomes a close, a teardown, and a permanent",
+      "handoff to the cascade — a DIFFERENT MODEL speaking her voice for the rest",
+      "of the call, out of an event the server considers routine. That asymmetry",
+      "between these two files is exactly what shipped. See docs/VOICE-LANE.md §6.",
+    );
+  else console.log("  ok    both twins rotate on goAway — the live model keeps the call");
+
+  // ── 6b. the rotation constants agree, numerically ──
+  // Same mechanism as the voice NAME above: the value cannot be imported across
+  // a TS/Java boundary, so it is mirrored and the mirrors are asserted. A
+  // rotation that fires at a different moment in the APK than on the web is a
+  // voice that behaves differently on the two surfaces.
+  const num = (src, name, re) => {
+    const m = src.match(re);
+    return m ? Number(m[1]) : null;
+  };
+  const ROTATION_CONSTANTS = [
+    ["MAX_ROTATES", "how many rotations one call may take before it gives up"],
+    ["ROTATE_DELAY_MS", "the gap between closing the old socket and opening the new one"],
+    ["ROTATE_GRACE_MS", "how far clear of the server's own deadline the rotation stays"],
+    ["ROTATE_WAIT_MAX_MS", "the longest a rotation waits for her to stop speaking"],
+    ["ROTATE_POLL_MS", "how often 'is she still speaking' is re-asked"],
+  ];
+  for (const [name, governs] of ROTATION_CONSTANTS) {
+    const a = num(liveTs, name, new RegExp(`const ${name} = (\\d+)`));
+    const b = num(java, name, new RegExp(`static final (?:int|long) ${name} = ([0-9_]+)`));
+    if (a === null || b === null)
+      FAIL(
+        `${name} is missing from ${a === null ? "src/voice/liveCall.ts" : NATIVE.file}`,
+        `governs: ${governs}`,
+        "Both twins must declare it, or there is nothing to compare and the two",
+        "implementations are free to drift apart silently.",
+      );
+    else if (a !== b)
+      FAIL(
+        `${name} disagrees: ${a} in src/voice/liveCall.ts, ${b} in ${NATIVE.file}`,
+        `governs: ${governs}`,
+        "One surface would rotate at a moment the other would not. Change both.",
+      );
+    else console.log(`  ok    ${name.padEnd(20)} ${String(a).padEnd(5)} — ${governs}`);
+  }
+
+  // ── 6c. the rotation waits for a moment SOMEBODY CHOSE ──
+  // A rotation flushes playback. Taking it the instant goAway lands cuts her
+  // off mid-word, which is a worse artefact than the lane change it prevents —
+  // and the server's own `timeLeft` exists precisely so a client need not.
+  const tsWaits = /speakingUntil > Date\.now\(\) && Date\.now\(\) < rotateBy/.test(liveTs);
+  const javaWaits = /speaking && System\.currentTimeMillis\(\) < rotateBy/.test(java);
+  if (!tsWaits || !javaWaits)
+    FAIL(
+      `the rotation does not wait for her to stop speaking in ${!tsWaits ? "src/voice/liveCall.ts" : NATIVE.file}`,
+      "rotate() flushes playback. Firing it inside one of her sentences trades a",
+      "lane change for a guillotine, and `goAway.timeLeft` is the server telling",
+      "you there is time not to.",
+    );
+  else console.log("  ok    both twins hold the rotation until she is not mid-utterance");
+
+  // ── 6d. THE MODEL IS PINNED FOR THE LIFE OF THE CALL ──
+  // A rotation mints a fresh token and /api/live-token returns a model with it.
+  // Taking that model would let the token endpoint change model families
+  // mid-call — the same voice NAME on a different model, which is the exact bug
+  // sections 1 and 2 exist for, arriving through a door neither can see.
+  const tsPins = /`\$\{WS_BASE\}\?access_token=\$\{fresh\.token\}`/.test(liveTs) &&
+    !/model:\s*fresh\.model/.test(liveTs);
+  const javaPins = /if \(firstConnect\)\s*\{\s*model = offered;/.test(java);
+  if (!tsPins || !javaPins)
+    FAIL(
+      `the live model is not pinned across a rotation in ${!tsPins ? "src/voice/liveCall.ts" : NATIVE.file}`,
+      "A call that starts on one model must finish on it. A rotation that adopts",
+      "whatever model the token endpoint currently offers is a voice change with",
+      "no lane change to explain it, and nothing else in this file would see it.",
+    );
+  else console.log("  ok    both twins keep the model the call started on across a rotation");
+
+  // ── 6e. a replaced socket cannot end the call ──
+  // The stale-callback guard is the whole safety story: rotate() deliberately
+  // closes the old socket, and if that close reached the live handler it would
+  // tear the call down and hand it to the cascade at the precise moment the
+  // rotation was preventing exactly that.
+  const tsGuard = /sock\.onclose = \(ev\) => \{[\s\S]{0,600}?if \(stale\(\)\) return;/.test(liveTs);
+  const javaGuard = /public void onClosed\(WebSocket s, int code, String reason\) \{\s*if \(stale\(\)\) return;/.test(java);
+  if (!tsGuard || !javaGuard)
+    FAIL(
+      `a replaced socket's close is not guarded in ${!tsGuard ? "src/voice/liveCall.ts" : NATIVE.file}`,
+      "rotate() closes the old socket on purpose. Without a generation check that",
+      "close runs the mid-call drop path and the call lands on the cascade anyway,",
+      "which is the bug with an extra step.",
+    );
+  else console.log("  ok    both twins ignore a replaced socket's close");
+
+  // ── 6f. ONE speechConfig per twin ──
+  // The rotated session must be built by the same code that built the first
+  // one. Two speechConfig literals in a file is how a rotation quietly acquires
+  // a second voice while section 1 keeps passing, because section 1 matches the
+  // FIRST literal it finds.
+  const tsVoiceLiterals = (liveTs.match(/prebuiltVoiceConfig/g) ?? []).length;
+  const javaVoiceLiterals = (java.match(/voiceName/g) ?? []).length;
+  if (tsVoiceLiterals !== 1)
+    FAIL(
+      `src/voice/liveCall.ts has ${tsVoiceLiterals} prebuiltVoiceConfig literals, expected exactly 1`,
+      "Section 1 matches the first one it finds. A second literal is a second",
+      "voice that this file would keep reporting as agreeing with itself.",
+    );
+  else console.log("  ok    one speechConfig in the live lane — a rotation cannot pick a different voice");
+  if (javaVoiceLiterals !== 1)
+    FAIL(
+      `${NATIVE.file} names voiceName ${javaVoiceLiterals} times, expected exactly 1`,
+      "Same reason as above, on the surface where the triple-swap actually happens.",
+    );
+  else console.log("  ok    one speechConfig in the native watch engine");
+}
+
+// ── 6g. THE SWAP POINTS THIS FILE CANNOT FIX, NAMED SO THEY ARE NOT LOST ──
+// NOT AN ASSERTION, and saying so is the point. `src/components/useCallEngine.ts`
+// owns the other lane changes, and two of them are a guaranteed voice change on
+// Android that nothing forced: starting a screen share hands the audio path to
+// the native engine, and STOPPING it drops to the CASCADE rather than back to
+// live. One screen-share episode is therefore live → native → cascade, and the
+// second of those two crosses model families. That file is outside this
+// workstream's ownership; the table is in docs/VOICE-LANE.md §6.4.
+{
+  const uce = read("src/components/useCallEngine.ts");
+  const claims = [...uce.matchAll(/claimVoice\("(\w+)",\s*[`"]([^`"]*)/g)].map(
+    (m) => `${m[2] || "?"}→${m[1]}`,
+  );
+  console.log(`  note  ${claims.length} lane changes are decided in useCallEngine.ts: ${claims.join(", ")}`);
+  const backToLive = /claimVoice\("live",\s*[`"]watch_stopped/.test(uce);
+  console.log(
+    `  note  screen-share stop goes to ${backToLive ? "LIVE" : "CASCADE"} — ${
+      backToLive ? "no model-family change" : "a model-family change nothing forced (docs/VOICE-LANE.md §6.4)"
+    }`,
+  );
+}
+/* ── end WS-ANDROID-SWAP added section ───────────────────────────────────── */
 
 console.log(
   fail
     ? `\nvoice lane NOT shippable (${fail} problem${fail > 1 ? "s" : ""})`
-    : `\n  ok  one name (${voices[0]}), ${distinct.length} declared models, one spoken-text core, ${speechCalls} live text→audio path`,
+    : `\n  ok  one name (${voices[0]}), ${distinct.length} declared models, one spoken-text core, ${speechCalls} live text→audio path, goAway rotation at parity`,
 );
 process.exit(fail ? 1 : 0);
