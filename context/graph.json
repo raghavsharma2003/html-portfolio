@@ -759,6 +759,12 @@
       "kind": "rejection",
       "title": "16 entries written up with no graph row — --check validated one direction only",
       "at": "2026-08-20"
+    },
+    {
+      "id": "voice-v0-was-never-written",
+      "kind": "measurement",
+      "title": "migration 002 declared source voice_v0 and no writer ever produced it; 1 of 6 affect rows was mislabelled",
+      "at": "2026-08-20"
     }
   ],
   "edges": [
@@ -1434,6 +1440,11 @@
     },
     {
       "src": "selfbundle-never-set",
+      "rel": "caused_by",
+      "dst": "dead-writers"
+    },
+    {
+      "src": "voice-v0-was-never-written",
       "rel": "caused_by",
       "dst": "dead-writers"
     }

@@ -339,7 +339,25 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
       ? e.affect
           .filter((a) => a && typeof a.tag === "string")
           .slice(0, 4)
-          .map((a) => ({ tag: a.tag.slice(0, 24), intensity: Math.max(0, Math.min(1, Number(a.intensity) || 0.3)), source: "text", extractor: EXTRACT_MODEL_AZURE, confidence: 0.7 }))
+          // `source` distinguishes WHERE the feeling was read from, and until now
+          // every row said "text" — including rows derived entirely from calls.
+          // migration 002 declared `source:'text'|'voice_v0'` and no writer ever
+          // produced the second value, so the column recorded a distinction the
+          // data could not express. (`dead-writers`, in its schema form: a
+          // declared enum value with no producer is an absent one.)
+          //
+          // voice_v0 means: this came from a CALL, and it was read from the
+          // call's WORDS, not its sound. It is deliberately not "voice" — real
+          // prosody has not shipped, and when it does, the rows that predate it
+          // must be separable from the rows that have acoustics behind them.
+          // Naming the generation now is what makes that possible later; a row
+          // labelled "voice" today would be a claim about audio nobody analysed.
+          //
+          // `channel` above is "call" only when EVERY turn in the span is a call.
+          // A mixed text-and-call span stays "text", which understates rather
+          // than overstates the provenance — the safe direction for a label
+          // whose whole purpose is to say what evidence exists.
+          .map((a) => ({ tag: a.tag.slice(0, 24), intensity: Math.max(0, Math.min(1, Number(a.intensity) || 0.3)), source: channel === "call" ? "voice_v0" : "text", extractor: EXTRACT_MODEL_AZURE, confidence: 0.7 }))
       : [];
     const band = ["low", "medium", "high"].includes(e.importance) ? e.importance : "medium";
     acceptedEpIdx.set(idx, {

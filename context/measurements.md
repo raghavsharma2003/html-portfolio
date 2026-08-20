@@ -1493,3 +1493,41 @@ record so the real distribution is measurable in production.
 
 n as stated per claim. Method: `evals/continuity/{assembly,pickup,seam3,parity}.mjs`
 offline; `register.mjs` generative against the free pool. Date 2026-08-20.
+
+---
+
+## `voice-v0-was-never-written` — a declared enum value with no producer (2026-08-20)
+
+`db/migrations/002_episodes_facts.sql:25` documents the affect shape as
+`[{tag,intensity,source:'text'|'voice_v0',extractor,confidence}]`. The second
+value had **no writer**. `api/consolidate.js` hardcoded `source: "text"` on
+every row it produced, including rows derived entirely from calls — even though
+`channel` is computed three lines above and already knew.
+
+So the column recorded a distinction the data could not express. This is
+`dead-writers` in its schema form: **a declared enum value with no producer is
+an absent one**, and it is harder to spot than dead code because the schema
+comment reads as documentation of behaviour rather than of intent.
+
+**What `voice_v0` now means, stated precisely because the name invites
+over-reading:** the affect came from a CALL, and it was read from the call's
+WORDS, not its sound. It is deliberately not `voice`. Real prosody has not
+shipped. When it does, the rows that predate it must be separable from rows with
+acoustics behind them, and naming the generation now is the only thing that
+makes that possible later. A row labelled `voice` today would be a claim about
+audio nobody analysed.
+
+Mixed spans stay `text`: `channel` is `"call"` only when EVERY turn in the span
+is a call, so the label understates rather than overstates provenance — the
+correct direction for a field whose purpose is to say what evidence exists.
+
+**Existing data, measured before and after.** The whole table holds **6 affect
+rows** across 5 episodes (which is itself `never-scheduled` showing through —
+consolidation has essentially never run). Before: `text` 6. Exactly **one** was
+mislabelled — a `teasing` tag at intensity 0.8 on the single call episode.
+Relabelled in one statement, derivable purely from the stored `channel`, so it
+is a correction and not a new claim. After: `text`/chat 5, `voice_v0`/call 1.
+
+n=6 rows, full population not a sample. Method: `select ... jsonb_array_elements(affect_tags)`
+grouped by source and channel, before and after a single `update ... returning`.
+Date 2026-08-20.
