@@ -519,6 +519,18 @@ export function useCallEngine(
     // is exactly today's behaviour, so the slow path degrades to the status
     // quo instead of to a broken prompt or a delayed pickup.
     await awaitRingFetch();
+    // This is a NEW await before the connect, so it is a new window in which
+    // the call can end (back gesture, navigation, a native watch claiming the
+    // audio path). Bail here rather than minting a token and opening a socket
+    // for a call that is already gone — the post-connect teardown below still
+    // covers the case where it dies later.
+    // Read into a local: comparing `voiceOwner.current` directly here would
+    // let TS narrow the REF's type for the rest of the function and then flag
+    // the identical (and still necessary) post-connect check below as dead.
+    // The value can change across every await in between; the ref is not a
+    // constant and must not be treated as one.
+    const ownerBeforeConnect: VoiceOwner = voiceOwner.current;
+    if (!alive.current || ownerBeforeConnect === "native") return null;
     const nowAt = Date.now();
     const lastMsg = stateRef.current.messages[stateRef.current.messages.length - 1];
     // WS-CONTINUITY seam 2. The gap test is NOT open-coded here — it lives

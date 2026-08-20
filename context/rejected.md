@@ -589,3 +589,64 @@ says `"wired"`. Ticketed as T-H1 with exactly that gate.
 **What breaks generally:** any design where absence is the safe default. That
 property is what makes the seam safe to land incrementally, and it is the same
 property that makes a missing producer silent forever.
+
+---
+
+## `realtime-recall-never` — the lane that takes most calls has never had graph recall (2026-08-20)
+
+The owner's report, point 6: *"she forgot about what i said in the previous
+call and when i kept asking her she lied."* The cause is not a memory bug. She
+was never handed the memory.
+
+`useCallEngine.ts:tryStartLive` hand-assembled its own system prompt, and the
+string it interpolated was `recallRef.current`. That ref is filled by a
+`.then()` on `recallMemories(...)`, started in the ring beat. `tryStartLive()`
+is called from the same function, later in the SAME synchronous tick, and its
+assembly sat above every `await` in its own body. So the read happened before
+the network round trip could possibly have resolved — not usually, not under
+load: **provably always `""`**.
+
+Verified against the pre-fix tree rather than reasoned: `recallMemories(...)`
+starts at line 653, `tryStartLive()` is invoked at 712, and the assembly is at
+460–484 with no `await` between the function entry at 458 and the read.
+
+**The realtime lane is the lane that takes most calls.** `rememberFrom` at
+hangup does write call turns into the graph, so the memory of the previous call
+existed the whole time. The lane that needed it read an empty string and she
+improvised over the hole — which is exactly what the owner then experienced as
+lying.
+
+**What breaks generally:** a ref is a promise's *result*, and reading one in the
+tick the promise was created in is not a race, it is a guaranteed miss. The
+shape is invisible in review because the two lines are 200 apart and each is
+individually correct. The fix is not "await it" — that would cost the connect —
+but to make the fetch a value the assembler receives, so there is no ref to
+read too early.
+
+---
+
+## `age-tier-never-realtime` — a second assembler dropped a safety rule, not a style rule (2026-08-20)
+
+The same hand-assembled live prompt is why `SPEC-CONTINUITY §0` undercounts the
+damage. The seven missing relational slots were the visible loss. Measured
+against the pre-fix tree, the live prompt also contained **zero occurrences of
+`FORGET_DECISION` and `AGE_TIER_SAFETY_OVERRIDE`** — `compile()`'s own comment
+says both reach "both lanes".
+
+So **a minor's romance-register refusal has never reached the realtime lane.**
+That is a safety property, and it was lost the ordinary way a second
+implementation loses things: not by decision, but by not being updated when the
+first one was.
+
+This is the failure `serverEntry.ts` exists to prevent one level up — *"a
+mirrored persona is a SECOND persona, and it would drift within a week"* — and
+it recurred one level down, where nobody was calling it a mirror because it was
+only "a few lines of string concatenation."
+
+**What breaks generally:** the cost of a duplicated assembler is not measured in
+the slots you notice missing. It is measured in the rules added AFTER the fork,
+which land in one copy silently and are discoverable only by diffing two things
+nobody thinks of as the same thing. The gate that replaces vigilance here is
+mechanical: `useCallEngine.ts` no longer imports `buildSystemPromptParts` or
+`buildSpeechStyle`, so a second assembler cannot return without a visible
+import diff.

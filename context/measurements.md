@@ -1429,3 +1429,67 @@ negative-tested by adding the import.
 n/a for n — a source audit plus one deterministic simulator run. Method:
 path enumeration over `liveCall.ts`/`speech.ts`/`api/speech.js`; `grep` for the
 claim sites; `node scratchpad/echosim/exp1.mjs`. Date 2026-08-19.
+
+---
+
+## `call-parity-landed` — the call lane compiles, and the added context did not lengthen her (2026-08-20)
+
+Seam 1 of `SPEC-CONTINUITY` is closed. Both call assemblers — `tryStartLive`
+and the native watch config, which was a THIRD hand-assembler nobody had
+counted — now go through `compile({ medium: "voice", … })`. `brain.ts`'s
+`mode === "call" ? null` is gone; the bundle rides `BrainKeys.relBundle` and
+the cascade lane compiles it per spoken turn.
+
+**Parity, measured per slot** (`evals/continuity/parity.mjs`, same person, same
+turn, chat versus call): T2 211 b, T3 307 b, T4 147 b, T6 330 b — identical
+bytes on both lanes. `FORGET_DECISION` now reaches the call lane;
+`SEARCH_DECISION` correctly still does not. Negative control verified to fail:
+a call compiled with no bundle is caught on all four slots, and an emptied
+bundle (rows, not just the object) is caught too.
+
+**T11/T12/T13 are dark on BOTH lanes**, asserted rather than hoped — the
+`selfbundle-never-set` producer is still missing, and the suite now pins that
+as a known state so it cannot be quietly rediscovered. `SPEC-CONTINUITY §0`'s
+table claiming chat ✅ for those three was wrong when written.
+
+**G-C7 register**, 3 reps × 12 spoken turns × 2 arms, **n=36 per arm**, same
+person, only `relBundle` differs; `gemini-3.6-flash` through the same Google
+endpoint the free lane uses, `reasoning_effort: "minimal"`, `max_tokens: 400`:
+
+| arm | words/turn mean | median | p90 | max | questions |
+|---|---|---|---|---|---|
+| BEFORE (`relBundle: null` — production today) | 16.1 | 14 | 27 | 35 | 34/36 |
+| AFTER | 12.9 | 13 | 17 | 32 | 34/36 |
+
+Both arms sit under the 36.1 that declined a model (`brain-model`) and under
+the 20.5 incumbent. **The honest read is "no lengthening detected", not "she
+got shorter":** an earlier n=12/arm run gave 12.7 → 14.2, so the direction
+flipped between runs and the between-arm effect is inside this harness's noise
+floor. What the run establishes is the absence of a regression, which is what
+G-C7 asks for.
+
+**This is a proxy and is labelled one.** It measures the prompt's contribution
+through a text model. The Gemini Live lane speaks and cannot be driven from
+here, so no number in this table is a realtime-lane measurement. The 94%
+question rate is NOT comparable to `realtime-azure`'s 13/24 — different lane,
+different method — and the BEFORE arm already sits at 94%, which is a
+text-lane finding needing its own ticket rather than a consequence of this
+change.
+
+**Prompt size:** worst-case live tail 13,478 b → 14,326 b (+848 b, 59.7% of the
+24,000 cap); manifest-bounded worst case 19,278 b (80.3%). Against a ~48.8 kB
+core that is +1.3% prefill.
+
+**Ring-fetch cost:** `recallForCall()` does the one round trip this lane
+already made and pulls `takeRelBundle` in the same continuation, so the
+consume-once ordering is written once instead of trusted to a second call site.
+It is raced against `RING_FETCH_DEADLINE_MS = 900`, never straight-awaited, and
+a rejected fetch cannot reject the connect. Typical ~165 ms against a
+1.1–2.4 s ring plus 3.5 s connect grace — connect headroom, never the
+1.4–1.5 s reply floor (`live-floor`: that floor is the model, not the
+assembly). **Not verified on a live call** — no device and no live session from
+this environment; both halves now ship in one `diag("call","live_prompt")`
+record so the real distribution is measurable in production.
+
+n as stated per claim. Method: `evals/continuity/{assembly,pickup,seam3,parity}.mjs`
+offline; `register.mjs` generative against the free pool. Date 2026-08-20.

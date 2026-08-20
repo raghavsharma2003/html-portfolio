@@ -131,7 +131,34 @@ ok(
   (emptyish.sections.T4 ?? 0) === 0 && (emptyish.sections.T6 ?? 0) === 0,
 );
 
-console.log("\n§5 — G-C5 chat byte-identity (the chat lane must not move)");
+console.log("\n§5 — the REALTIME lane's structural limit, measured rather than glossed");
+// The two call lanes are not equally reachable by a turn-gated slot, and the
+// difference is a property of the transport, not a bug to fix here:
+//
+//   cascade — compiles per spoken turn, so it sees the real turn and T4's
+//             moment gate and T6's pull label are both accurate. §1-§3 above
+//             are that lane.
+//   live    — compiles ONCE at connect, which is correct and load-bearing (a
+//             mid-call prompt change is a different person mid-sentence). At
+//             connect there is no user turn, so a slot gated ON the turn
+//             cannot be turn-accurate. T6 handles this correctly: it renders
+//             under its STANDING BACKGROUND heading, which is exactly the
+//             0-unprompted-raises behaviour. T4 renders NOTHING, because
+//             renderDyadicActive selects by moment shape and there is no
+//             moment.
+//
+// T4 going dark on the realtime lane is the honest outcome — the alternative
+// is guessing a moment from the last thing they typed before dialling, which
+// is the pull-only law inverted — but it is a real remaining gap and it is
+// recorded here so nobody rediscovers it as a surprise.
+const pickup = compile(baseInput({ ...turn, medium: "voice", mode: "call", voiceEngine: "live", latestUserText: "", innerThread: "", innerWants: "" }));
+ok("live pickup renders T2 (state, not turn-gated)", (pickup.sections.T2 ?? 0) > 0, `${pickup.sections.T2 ?? 0}b`);
+ok("live pickup renders T3 (rituals/currency, not turn-gated)", (pickup.sections.T3 ?? 0) > 0, `${pickup.sections.T3 ?? 0}b`);
+ok("live pickup renders T6 as STANDING BACKGROUND", (pickup.sections.T6 ?? 0) > 0 && pickup.tail.includes("STANDING BACKGROUND"));
+ok("live pickup never renders T6 as ACTIVE (no turn to have referenced it)", !pickup.tail.includes("SHARED HISTORY — ACTIVE"));
+ok("T4 is dark at a live pickup — KNOWN, by construction, not a regression", (pickup.sections.T4 ?? 0) === 0);
+
+console.log("\n§6 — G-C5 chat byte-identity (the chat lane must not move)");
 // Delegated to the frozen-oracle harness rather than re-implemented: that is
 // the 83-fixture proof, run against this tree.
 try {
