@@ -511,3 +511,117 @@ export const TEX_ROWS = [
       avoid: ["his brother", "the flat deposit", "her old job", "the goa trip"],
       avoid_cites: [1, 2, 3, 4] }), renders: true },
 ];
+
+// ══════════════════════════════════════════════════════════════════════════
+// WS-SELFBUNDLE — T-H1, the DELIVERY path (`selfbundle-never-set`).
+// Namespace "5e1f". Text prefix "wsself-test-".
+//
+// Every other section in this file exists to test whether a module does the
+// right thing when invoked. This one exists because that question was green
+// for T11/T12/T13 the whole time nothing invoked them. So the fixtures below
+// are not shaped around a render function — they are shaped around ONE claim:
+// a person with REAL ROWS gets those rows into a REAL PROMPT, on both lanes.
+//
+// Two persons, one agent, on purpose. `structural-disclosure` is the property
+// that cannot be checked with one: an untold beat told to P1 must be
+// unreachable for P2, and the only honest way to assert "unreachable" is to
+// ask for P2's bundle through the real retrieval and find it absent.
+//
+// THE AGENT ID IS THE REAL ONE. api/memory.js's opRecall hardcodes
+// MEERA_AGENT_ID (correctly — a runtime agent override would be the tenancy
+// hole api/_agentscope.js opens by refusing), so a suite that drives the real
+// op must seed under it. vy_rel_texture is (agent, person)-keyed and so is
+// invisible to anyone else; vy_self_arc and vy_agent_life are AGENT-scoped,
+// which means the seeded rows below ARE briefly visible to every person for
+// as long as the suite runs. That is a real cost, it is stated here rather
+// than discovered, and it is why teardown is in a `finally` and why the suite
+// asserts zero residue by agent AND by text prefix.
+// ══════════════════════════════════════════════════════════════════════════
+
+export const SELF_TAG = "wsself-test-";
+export const SELF_NS = "5e1f";
+
+/** The production agent. Mirrored from api/_agentscope.js's MEERA_AGENT_ID
+ *  (which src/engine/relstate.ts mirrors too, under a CI assertion) rather
+ *  than a third literal that could drift silently. */
+export const SELF_AGENT = "a0000000-0000-4000-8000-000000000001";
+
+export const SELF_P1 = nsUuid(SELF_NS, 1);
+export const SELF_P2 = nsUuid(SELF_NS, 2);
+export const SELF_D1 = nsUuid(SELF_NS, 11);
+export const SELF_D2 = nsUuid(SELF_NS, 12);
+
+/** Every seeded beat carries this arc_key prefix. vy_agent_life is
+ *  agent-scoped, so no person teardown can reach it — the suite MUST clean up
+ *  by this prefix or it leaves residue in a table nobody thinks to check.
+ *  (WS-LIFE's own warning, and it applies identically here.) */
+export const SELF_ARC_KEY = `${SELF_TAG}arc`;
+
+/**
+ * HER chat turns, seeded into meera_log so the texture row is produced by the
+ * REAL deriver over REAL rows rather than inserted as a convenient literal.
+ * That matters for this suite specifically: an inserted row would prove the
+ * reader works and prove nothing about whether anything upstream can produce
+ * one, which is the exact half `selfbundle-never-set` got wrong.
+ *
+ * 45 turns, comfortably over TEXTURE_N_TURNS_FLOOR (40) so the floor is
+ * cleared but not by so much that a small change to the scan window hides a
+ * regression. Markers are drawn from texture.ts's own sets so the derived
+ * bands are non-default: without them every band renders at its quietest and
+ * "the block rendered" would be indistinguishable from "the block rendered
+ * the default row".
+ */
+export const SELF_HER_TURNS = [
+  ...Array.from({ length: 12 }, (_, i) => `${SELF_TAG} arre chill kar yaar ${i}`),
+  ...Array.from({ length: 10 }, (_, i) => `${SELF_TAG} hahaha stop ${i}`),
+  ...Array.from({ length: 3 }, (_, i) => `${SELF_TAG} bakchodi band kar ${i}`),
+  ...Array.from({ length: 20 }, (_, i) => `${SELF_TAG} kal batati hu ruk ${i}`),
+];
+
+/**
+ * The arc row. Seeded directly: deriving one needs vy_fact kind='meera'
+ * evidence spanning six weeks, which is evals/self/arc.mjs's subject, not
+ * this suite's. Every value here nonetheless satisfies the table's own CHECK
+ * constraints (>=3 citations, >=42 span days) and `checkArcNote`, so the row
+ * is one the real deriver could have written.
+ *
+ * `dim: "patience"` is not arbitrary. SELF_ARC_MOMENTS maps patience to
+ * moments "conflict" and "stress", and SELF_TURN below is a stress-shaped
+ * turn — so T12 is reachable. An arc on a dim the turn cannot evoke would go
+ * dark for a correct reason and the suite would be measuring nothing.
+ */
+export const SELF_ARC_ROW = {
+  dim: "patience",
+  note: "waits out a long pause",
+  from_note: "rushes the ending",
+  citations: [90001, 90002, 90003],
+  span_days: 190,
+};
+
+/** Approved beats, newest first. Three, so the MAX_UNTOLD_BEATS=2 slice is
+ *  exercised, and so telling P1 about one still leaves both persons with
+ *  something untold — otherwise the disclosure assertion could pass because
+ *  the block went empty rather than because the beat was excluded. */
+export const SELF_BEATS = [
+  { key: "B1", day: 2, kind: "small", beat: `${SELF_TAG} tulsi pot cracked, repotted on the sill` },
+  { key: "B2", day: 5, kind: "work", beat: `${SELF_TAG} client moved the launch to next friday` },
+  { key: "B3", day: 9, kind: "family", beat: `${SELF_TAG} sneha's viva result came through` },
+];
+
+/** THE `structural-disclosure` ASSERTION, declared up front. B1 is told to P1
+ *  and to nobody else; P1 must never see it again and P2 must be unaffected. */
+export const SELF_TOLD_TO_P1 = "B1";
+
+/** The live user turn both lanes are measured on. Stress-shaped (so T12's
+ *  moment gate opens) and in her register. */
+export const SELF_TURN = "yaar aaj bahut thak gayi thi office me";
+
+/** The three block headers, as literals. Asserting on the HEADER rather than
+ *  on a section byte count is the whole point of T-H1: a non-zero delta says
+ *  something was appended, and the claim under test is that these exact bytes
+ *  were. Kept here so both the offline and the live gate quote one source. */
+export const SELF_HEADERS = [
+  ["T11", "HOW YOU TWO TALK"],
+  ["T12", "SELF, OVER TIME"],
+  ["T13", "YOUR LIFE — WHAT THEY HAVE NOT HEARD"],
+];

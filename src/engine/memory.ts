@@ -252,9 +252,21 @@ export function messagesAfterForget(messages: Message[], target: ForgetTarget): 
 // right after `recallMemories`/`prefetchRecall`'s promise resolves — see
 // `takeRelBundle` below. A caller that never calls it simply never reads the
 // field; nothing about `recallMemories`'s own behavior changes.
-import type { RelBundleInput } from "./compiler";
+//
+// T-H1 (`selfbundle-never-set`): the SELF bundle rides the identical seam.
+// op:"recall" now also carries `self` (api/memory.js's fetchSelfBundle —
+// field names mirror compiler.ts's SelfBundleInput exactly), for the reason
+// stated at that function: the self-layer tables are read server-side through
+// an injected QueryFn the browser does not have, and the alternative to
+// reusing this response is a second round trip in front of a reply, which the
+// standing "speed and quality are never traded away" instruction forbids.
+// Everything below is additive: `recallMemories`'s signature and return value
+// are untouched, and a caller that never pulls the self bundle simply never
+// reads the field.
+import type { RelBundleInput, SelfBundleInput } from "./compiler";
 
 let lastBundle: { device: string; query: string; bundle: RelBundleInput | null } | null = null;
+let lastSelf: { device: string; query: string; bundle: SelfBundleInput | null } | null = null;
 
 function runRecall(device: string, query: string): Promise<string> {
   try {
@@ -265,6 +277,7 @@ function runRecall(device: string, query: string): Promise<string> {
       .then((r) => (r.ok ? r.json() : { memories: "" }))
       .then((d) => {
         lastBundle = { device, query, bundle: (d?.relstate as RelBundleInput | null | undefined) ?? null };
+        lastSelf = { device, query, bundle: (d?.self as SelfBundleInput | null | undefined) ?? null };
         return typeof d?.memories === "string" ? d.memories : "";
       })
       .catch(() => "");
@@ -310,6 +323,62 @@ export function takeRelBundle(device: string): RelBundleInput | null {
 }
 
 /**
+ * T-H1 — `takeRelBundle`'s twin for the self layer (T11 rel.texture, T12
+ * self.arc, T13 life.untold). Same consume-once contract and the same three
+ * collapsed-to-null cases: no bundle has landed, the server found no self rows
+ * for this person, or the request timed out. Every one of them means "render
+ * nothing", which is the T11/T12/T13 byte-identity default.
+ *
+ * Separate from `takeRelBundle` rather than folded into it, deliberately: the
+ * two are gated independently inside compile() ("Gated on selfBundle ALONE,
+ * deliberately OUTSIDE the relBundle branch"), and one cache consumed by two
+ * callers would hand the second one null.
+ *
+ * `sheInitiated` is NOT set here. It is a property of the turn, not of the
+ * database, and the caller that knows whether SHE started this turn sets it —
+ * brain.ts threads inner.ts's own flag through rather than deriving a second
+ * notion of it.
+ */
+export function takeSelfBundle(device: string): SelfBundleInput | null {
+  if (!lastSelf || lastSelf.device !== device) return null;
+  const b = lastSelf.bundle;
+  lastSelf = null;
+  return b;
+}
+
+// ── the call lane's self bundle ────────────────────────────────────────────
+// The call lane cannot use the consume-once cache the way chat does. It
+// fetches ONCE during the ring and then compiles from that same bundle for
+// every turn of the call — the realtime lane compiles at connect, the cascade
+// lane compiles per spoken turn, and the native watch lane compiles when a
+// share starts. Three readers, one fetch, and a consume-once cache would give
+// the first reader the bundle and the other two null.
+//
+// So `recallForCall` moves it out of the consume-once cache into this holder,
+// in the SAME continuation the fetch resolves in — which is the ordering
+// `takeRelBundle`'s doc says is easy to lose and the reason `recallForCall`
+// exists at all. Device-keyed, and written UNCONDITIONALLY on every ring
+// fetch (including a failed one, which writes null) so a bundle from an
+// earlier call can never outlive the fetch that replaced it. That is strictly
+// tighter than the ref it sits alongside.
+let callSelf: { device: string; bundle: SelfBundleInput | null } | null = null;
+
+/**
+ * What the ring fetch found, for this device. Null when no ring fetch has
+ * landed for this device, or when it landed and found nothing — both mean
+ * "render nothing", which is compile()'s default for an absent bundle.
+ *
+ * Read at compile time rather than captured at call start, for the reason
+ * every ref in useCallEngine.ts is: a value captured at call start freezes
+ * her. It is NOT a ref read in the tick its promise was created in —
+ * `rejected.md#realtime-recall-never` — because tryStartLive() awaits the ring
+ * fetch (awaitRingFetch) before it compiles.
+ */
+export function callSelfBundle(device: string): SelfBundleInput | null {
+  return callSelf && callSelf.device === device ? callSelf.bundle : null;
+}
+
+/**
  * WS-CONTINUITY seam 1 (docs/SPEC-CONTINUITY.md §1). The call lane's ONE
  * memory lookup, fetched during the ring.
  *
@@ -330,9 +399,18 @@ export async function recallForCall(
   device: string,
   query: string,
 ): Promise<{ memories: string; relBundle: RelBundleInput | null }> {
-  if (!device) return { memories: "", relBundle: null };
+  if (!device) {
+    callSelf = null;
+    return { memories: "", relBundle: null };
+  }
   const memories = await recallMemories(device, query);
-  return { memories, relBundle: takeRelBundle(device) };
+  // T-H1: both bundles are pulled here, in the one continuation that is
+  // guaranteed to be the right one. The self half moves into the call-lane
+  // holder rather than out through the return value because the three call-
+  // lane compile sites do not share one call frame — see `callSelfBundle`.
+  const relBundle = takeRelBundle(device);
+  callSelf = { device, bundle: takeSelfBundle(device) };
+  return { memories, relBundle };
 }
 
 // GAP 2 (WS-FELT) — day-1 seed. Telemetry-style, fire-and-forget ONLY,

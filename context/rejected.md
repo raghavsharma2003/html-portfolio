@@ -780,3 +780,51 @@ Negative-tested by appending a heading with no node and confirming exit 1.
 enforces half of it, and the unenforced half is invisible precisely because the
 validator is green. When adding a consistency check, write both directions or
 say in the comment which direction you are not checking and why.
+
+---
+
+## `selfbundle-return-value` — three compile sites, one consume-once cache (2026-08-20)
+
+Carrying the self bundle to the call lane through `recallForCall`'s **return
+value** was the obvious design and was abandoned before it shipped. It is the
+reading the spec implied, and it is wrong for a structural reason: the three
+call-lane compile sites — realtime pickup, cascade per-turn via `think()`, and
+the native watch config — **do not share a call frame**. A consume-once pull in
+whichever runs first starves the other two, silently, and the symptom would be
+"she has her texture on some calls."
+
+What shipped instead is a device-keyed holder in `memory.ts`, written
+unconditionally on every ring fetch. No second round trip, same continuation,
+and the unconditional write is strictly tighter than the `relBundleRef` beside
+it, because a bundle from an earlier call cannot outlive the fetch that replaced
+it.
+
+Nothing broke at runtime — this is a design refusal recorded so it is not
+re-attempted. **What breaks generally:** a consume-once cache is safe only when
+there is exactly one consumer, and "one consumer" is a property of the CALL
+GRAPH, not of the module. Three entry points into the same lane is three
+consumers even though it reads as one feature.
+
+---
+
+## `manifest-sourcestatus` — the field that says a slot is wired is checked by nothing (2026-08-20)
+
+Promoted out of `selfbundle-never-set` because it is now mechanically
+demonstrated rather than argued. `compiler.ts`'s `TAIL_MANIFEST` carries a
+`sourceStatus` string per row, hand-set by whoever added the row.
+`evals/self/wiring.mjs` NC4 runs the manifest's own check against a compile that
+rendered **0 of 3** of the blocks it describes, and the check **passes**.
+
+A field that reports "wired" for a slot rendering zero bytes is not a weak
+signal, it is an anti-signal: it reads as verification and is an assertion by
+the author about their own intent, frozen at the moment they were most confident
+and least informed.
+
+**It should be deleted or derived from a run — never hand-set.** Kept in the
+repo for now only because `compiler.ts` was another workstream's file at the
+time of writing.
+
+**What breaks generally:** any metadata field whose value is a claim about the
+code rather than an observation of it. The test is simple and worth applying to
+the next one: *could this field be wrong while every gate stays green?* If yes,
+it is documentation, and it must not be shaped like a check.

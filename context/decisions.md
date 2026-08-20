@@ -896,3 +896,39 @@ listen shows the incumbent voice is not defensible, which reopens the whole
 comparison on axes other than Hz.
 
 ---
+
+---
+
+## `selflayer-delivery` — the self bundle ships on `op:"recall"`, beside `relstate` (2026-08-20)
+
+T11 `rel.texture`, T12 `self.arc` and T13 `life.untold` had readers in
+`compiler.ts` and no producer anywhere (`selfbundle-never-set`). The producer now
+exists and it deliberately copies the shape of the one next to it rather than
+inventing a transport: `api/memory.js` gains `fetchSelfBundle(person, agentId)`
+beside `fetchRelBundle`, calling the engine bundle's `readTexture` /
+`loadCurrentArcs` / `untoldFor` with the injected `q` — the same dependency
+injection the observation matcher already uses, and required, because those
+modules are client-bundled and cannot import `api/_db.js`. It runs concurrently
+on the shared `personPromise` and `opRecall` returns `self` on **both** return
+paths. It returns `null` when all three are empty, which is what preserves
+byte-identity for everyone with no rows.
+
+**The one place the obvious design does not work, and why.** Carrying the bundle
+out through `recallForCall`'s return value was the natural reading — that
+function already pulls `takeRelBundle` in the same continuation. It fails
+because the three call-lane compile sites (realtime pickup, cascade per-turn via
+`think()`, native watch) **do not share a call frame**, so a consume-once pull in
+the first starves the other two. The self half therefore lands in a device-keyed
+holder in `memory.ts`, written unconditionally on every ring fetch. Same fetch,
+same continuation, no second round trip, and strictly tighter than the
+`relBundleRef` beside it: an unconditional write means a bundle from an earlier
+call cannot outlive the fetch that replaced it.
+
+**Reverses if:** a measured recall-latency regression appears on the chat lane —
+the three reads are concurrent and share `personIdFor`, so the prediction is
+~0 ms against the ~165 ms warm baseline, and a real regression falsifies the
+design rather than the tuning. Also reverses, partially, when a **second agent
+ships**: `opRecall` hardcodes `MEERA_AGENT_ID`, and the day that becomes routed,
+the call-lane holder needs an agent key too or it will hand one agent's texture
+to another. That is `agent isolation` reaching a cache, and it is written here
+because a holder keyed on device alone looks correct until there are two agents.

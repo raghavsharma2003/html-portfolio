@@ -12,10 +12,23 @@ import { type UserProfile, type VoiceEngine } from "./persona";
 import { tagFromSeed } from "./photoCatalog";
 import { heartReply, type HeartReply } from "./localHeart";
 import { cultureNote } from "./culture";
-import { recallMemories, forgetMemories, resolveForget, takeRelBundle } from "./memory";
+import {
+  recallMemories,
+  forgetMemories,
+  resolveForget,
+  takeRelBundle,
+  takeSelfBundle,
+  callSelfBundle,
+} from "./memory";
 import { innerContext, overlaps, type Inner } from "./inner";
 import { diag } from "./diag";
-import { compile, hashCore, hashManifest, type RelBundleInput } from "./compiler";
+import {
+  compile,
+  hashCore,
+  hashManifest,
+  type RelBundleInput,
+  type SelfBundleInput,
+} from "./compiler";
 // WS-MANIFEST Phase D prep (docs/SPEC.md §7.3 "chat lane call-site
 // adoption"): router.ts stays WS-ROUTER's exclusively (§13) — this is a
 // read of its exported pure functions, not an edit, same discipline as the
@@ -128,6 +141,19 @@ export interface BrainKeys {
   // (useCallEngine.ts's brainKeys()), so a lane that has a bundle ships it
   // with everything else it knows, and think()'s signature stays readable.
   relBundle?: RelBundleInput | null;
+  // ── T-H1 (`selfbundle-never-set`) ──────────────────────────────────────
+  // The self layer's three tail slots (T11 rel.texture, T12 self.arc, T13
+  // life.untold). Optional on BOTH lanes and for the same reason relBundle is:
+  // absent means compile() renders nothing, which is the state every one of
+  // the 83 byte-identity fixtures is in.
+  //
+  // Unset by every caller today, and that is deliberate rather than an
+  // oversight to fix: the call lane's bundle comes from memory.ts's
+  // `callSelfBundle(device)` holder, filled by the ring fetch, because the
+  // three call-lane compile sites do not share one call frame (see that
+  // function). This field is the override — a caller that already holds a
+  // bundle hands it in and the holder is not consulted.
+  selfBundle?: SelfBundleInput | null;
 }
 
 // how long ago she said it, in the shape a person would think it
@@ -721,13 +747,21 @@ export async function think(
   // A carried feeling reaches her only on the first turn back after a real
   // gap, and never on a message SHE initiated — see the charter in inner.ts.
   const lastMsgAt = history.length ? history[history.length - 1].at || 0 : 0;
+  // only CHAT directives are her opening the conversation. A call pickup is
+  // THEM calling HER, and it is the single moment this feature pays for.
+  //
+  // Hoisted out of the innerContext call below because T13 `life.untold` is
+  // gated on the SAME fact (G2: a list of things she has not told them,
+  // present on a message she chose to send, is a reason to send it) and
+  // compiler.ts's SelfBundleInput doc is explicit that it must be threaded
+  // rather than recomputed — "two independent notions of 'she started this
+  // turn' is exactly how one of them drifts".
+  const sheInitiated = isDirective && mode === "chat";
   const inner = innerContext(keys.inner, {
     now: Date.now(),
     lastMsgAt,
     surface: watchFrame ? "watch" : mode === "call" ? "pickup" : "chat",
-    // only CHAT directives are her opening the conversation. A call pickup is
-    // THEM calling HER, and it is the single moment this feature pays for.
-    sheInitiated: isDirective && mode === "chat",
+    sheInitiated,
     // Her taste is PULLED from what they just said, exactly like cultureNote:
     // no match, nothing enters the prompt. Never on a directive — a message
     // she is opening is the one place an opinion would be volunteered, and a
@@ -784,6 +818,42 @@ export async function think(
         ? keys.relBundle ?? null
         : takeRelBundle(keys.deviceId);
 
+  // ── T-H1 (`selfbundle-never-set`): the self layer's three tail slots ────
+  // Same two sources as relBundle, for the same reason — chat pulls the
+  // consume-once cache the awaited recall two lines up just refreshed; the
+  // call lane reads what the RING fetch put in memory.ts's call-lane holder,
+  // since a spoken turn may not sit behind a network lookup (`live-floor`).
+  //
+  // ONE DIFFERENCE FROM relBundle, and it is deliberate: a directive turn does
+  // NOT null this. relBundle is nulled on a directive because its slots are
+  // moment-gated and a directive has no user turn to gate on; the self layer
+  // handles the same fact differently and more precisely —
+  //   T13 is suppressed by `sheInitiated` INSIDE renderUntold, which is G2's
+  //       stated mechanism and the only thing that flag exists for. Nulling
+  //       the bundle here would make it a field that can never be true, i.e.
+  //       `dead-writers` in the very ticket that exists to close a
+  //       `dead-writers` instance.
+  //   T12 is already dark on a directive without any help: compile() computes
+  //       its moment gate only when relBundle is present, so an absent
+  //       relBundle gives renderSelfArc an empty moment and it renders "".
+  //   T11 is not turn-shaped at all. It is how the two of them talk, and a
+  //       message she opens is still a message in that rapport.
+  //
+  // An explicitly-passed `keys.selfBundle` wins on BOTH lanes, and the test is
+  // `!== undefined` rather than `??`: a caller that passes `null` means "no
+  // self layer on this turn", and `??` would silently overrule it with the
+  // holder's contents. Absent (undefined) is the only state that falls
+  // through to a lookup.
+  const selfSource =
+    keys.selfBundle !== undefined
+      ? keys.selfBundle
+      : !keys.deviceId
+        ? null
+        : mode === "call"
+          ? callSelfBundle(keys.deviceId)
+          : takeSelfBundle(keys.deviceId);
+  const selfBundle: SelfBundleInput | null = selfSource ? { ...selfSource, sheInitiated } : null;
+
   const compiled = compile({
     user,
     messageCount: history.length,
@@ -798,6 +868,7 @@ export async function think(
     herLife: keys.herLife || "",
     cultureNoteText: mode === "chat" && !isDirective ? cultureNote(latest) : "",
     relBundle,
+    selfBundle,
     latestUserText: isDirective ? "" : latest,
     gapSinceLastMs: lastMsgAt ? Math.max(0, Date.now() - lastMsgAt) : 0,
     // fresh every call — see the import comment above; getAgeTier() reads

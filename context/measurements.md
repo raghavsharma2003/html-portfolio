@@ -1531,3 +1531,90 @@ is a correction and not a new claim. After: `text`/chat 5, `voice_v0`/call 1.
 n=6 rows, full population not a sample. Method: `select ... jsonb_array_elements(affect_tags)`
 grouped by source and channel, before and after a single `update ... returning`.
 Date 2026-08-20.
+
+---
+
+## `selflayer-delivery-gate` — a slot is wired when a real prompt contains its bytes (2026-08-20)
+
+`selfbundle-never-set`'s lesson was that `compiler.ts`'s manifest carried
+`sourceStatus: "wired"` as a hand-set string checked by nothing. So the gate for
+T-H1 was specified as: **not** that a render function returns non-empty for a
+fixture, but that each block's header appears in a prompt compiled from REAL
+ROWS, on BOTH lanes.
+
+`evals/self/wiring.mjs --live` seeds two `wsself-test-` persons, derives the
+texture row through the **real deriver over 45 real `meera_log` turns** rather
+than inserting one, then drives `think()` with the model call intercepted — so
+what is asserted is the exact `system` string handed to the model, not a
+`compile()` the suite arranged for itself.
+
+**n = 37 assertions, all pass**, coordinator-verified by re-running it. Chat
+prompt 47,569 b / tail 3,722 b; cascade-call prompt 50,010 b / tail 3,034 b.
+Both carry all three headers **and the beat text and arc note underneath** — a
+header with nothing under it is exactly what a half-wired slot looks like.
+
+**Negative controls: 6/6 caught**, each verified to actually fail. NC1 replays
+the pre-fix production server (omits `self`) and §3 reports all three dark. NC4
+is the one worth keeping: it runs the manifest's own `sourceStatus` check
+against a compile that rendered 0 of 3 blocks and the check comes back **clean**
+— the field mechanically demonstrated to be a comment with better syntax.
+
+**Budget, measured rather than declared:**
+
+| | bytes | % of 24,000 tail cap |
+|---|---|---|
+| all declared tail budgets | 21,200 | 88.3% (2,800 headroom) |
+| the three self slots' declared allowance | 1,800 | 7.5% |
+| adversarial max render, measured (T11 314 / T12 216 / T13 596) | 1,126 | 4.7% |
+| observed tail delta, parity fixture, both lanes | +812 | +3.4% |
+| observed real tails: chat / cascade / realtime | 3,722 / 3,034 / 2,844 | 15.5 / 12.6 / 11.8% |
+
+Each block's adversarial maximum sits inside its own declared budget (T13's
+596 b against 598 b). **Byte-identity 83/83** holds — absence still renders
+nothing. Zero residue after teardown, verified by a printed query returning 0.
+
+**What is NOT measured, stated because the suite says so in its own header:**
+`tryStartLive` is inside a React hook and cannot run headless, so the realtime
+lane is covered by compiling the identical input object plus a source assertion
+that both call sites read the holder and no `selfBundle: null` remains. **No
+realtime prompt was observed on a device.** Separately, **T11 on an opener is
+unmeasured** — the self bundle is not nulled on a chat directive the way
+`relBundle` is (nulling it would make `sheInitiated` a field that can never be
+true, i.e. a `dead-writers` instance inside the ticket closing one). If T11 moves
+her register on an opener, that is the first thing to revert.
+
+n=37 assertions / n=6 negative controls, method: live Neon, real deriver,
+intercepted model call, both lanes. $0. Date 2026-08-20.
+
+---
+
+## `selflayer-rows-zero` — the layer is delivered and still empty (2026-08-20)
+
+Measured against production Neon the same day T-H1 landed: `vy_self_arc` **0**,
+`vy_agent_life` **0**, `vy_agent_life_told` **0**, `vy_observation` **0**,
+`vy_rel_texture` **1** (a stale `aaaaaaaa-…` fixture row at `n_turns` 7, below
+the 40 floor). The relational layer is at zero too: `vy_rel_state`,
+`vy_rel_event`, `vy_pattern`, `vy_ritual`, `vy_currency` all **0**;
+`vy_episode` **5**.
+
+So both of `selfbundle-never-set`'s two independent causes were real and only
+one is now closed. **T-H1 delivers nothing to the owner on its own, and neither
+does `call-parity-landed`** — the call lane can now read T2/T3/T4/T6/T11/T13 and
+there is nothing to read. This is `never-scheduled` still biting, and it is the
+single highest-leverage pending item in the repo.
+
+**A third structural gap found while measuring:** T12 is unreachable without a
+rel-state row. `compiler.ts` computes its moment gate only inside
+`if (input.relBundle)` (`const gate = input.relBundle ? … : null`) and
+`renderSelfArc` receives `gate?.moment || ""`. Coordinator-verified at
+`compiler.ts:377` and `:492`. Given zero rel-state rows, **T12 is dark for all
+39 persons regardless of how many arcs exist.** Filed, not fixed.
+
+**What one consolidation pass would actually light**, measured read-only with
+`deriveTexture` and no upsert, over the top 6 persons by her-chat turns: 257
+turns → renders, 72 → renders, then 39 / 37 / 32 / 30 all under the 40 floor.
+**2 of 34** persons with any her-chat turns clear it. So the honest expectation
+from the first pass is T11 for two real people, not a lit-up layer.
+
+n=39 persons (full population), method: direct row counts and a read-only
+deriver run against production Neon. Date 2026-08-20.

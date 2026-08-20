@@ -315,9 +315,10 @@ async function fetchRelBundle(person, agentId = MEERA_AGENT_ID) {
   };
 }
 
-/** The engine bundle, for the observation matcher only. Same shape and same
- *  failure posture as api/_surface.js's loadEngine: tried once, cached, and a
- *  missing bundle disables the feature loudly rather than degrading recall. */
+/** The engine bundle, for the self layer's READ path — the observation
+ *  matcher and `fetchSelfBundle` below. Same shape and same failure posture as
+ *  api/_surface.js's loadEngine: tried once, cached, and a missing bundle
+ *  disables the feature loudly rather than degrading recall. */
 let _obsEngine;
 let _obsEngineTried = false;
 async function loadSelfEngineForRecall() {
@@ -330,6 +331,60 @@ async function loadSelfEngineForRecall() {
     _obsEngine = null;
   }
   return _obsEngine;
+}
+
+// ── T-H1 (`selfbundle-never-set`) — the self layer's DELIVERY path ─────────
+//
+// Phase E2 landed T11 `rel.texture`, T12 `self.arc` and T13 `life.untold` into
+// compiler.ts, each correctly gated behind `input.selfBundle`. Nothing ever
+// set `selfBundle`, so all three rendered zero bytes on every lane, always.
+// This function is the missing producer, and it is deliberately the SAME
+// mechanism `fetchRelBundle` above already is rather than a second transport:
+// op:"recall" is the one round trip both lanes already make (chat awaits it in
+// brain.ts, the call lane fires it during the ring), so shipping the self rows
+// on that response lights both lanes at once and neither lane is the one that
+// has to be remembered.
+//
+// WHY THE READS LIVE HERE AND NOT IN THE CLIENT. texture.ts / selfarc.ts /
+// life.ts are CLIENT-BUNDLED (their headers say so: "nothing here imports
+// api/_db.js"), so every DB-facing export takes an injected `QueryFn`. The
+// browser has no `q`. The server does. So the server calls the engine bundle's
+// readers with `q` — the same dependency-injection the observation matcher
+// below already uses — and the client receives ROWS, never a query.
+//
+// Scoping, and it is not incidental:
+//   texture  (agent, person)  — how she talks to THIS person
+//   arc      (agent)          — she is ONE person across every relationship
+//   untold   (agent) ANTI-JOINED against (agent, person) told-rows
+//
+// `structural-disclosure` for the untold half: a beat told to person A must be
+// unreachable for person B, and that is `life.ts`'s UNTOLD_SQL left join with
+// `t.person_id` inside the ON clause — a WHERE clause, never a prompt rule.
+// This function passes the person through and adds no filtering of its own,
+// because a filter here would be a post-hoc filter over rows that were already
+// retrieved, which is the failure class §2.3 opens by refusing.
+//
+// Returns null when the person has NOTHING in any of the three — the same
+// byte-identity safety frame `fetchRelBundle` returns null for: compile()
+// never calls a render function without a bundle, so a person with no self
+// rows produces the exact prompt they produce today. Every leg fails soft
+// independently; a dead texture read must not cost the untold ledger.
+async function fetchSelfBundle(person, agentId = MEERA_AGENT_ID) {
+  const engine = await loadSelfEngineForRecall();
+  if (!engine || !person) return null;
+  const [texture, arc, untold] = await Promise.all([
+    engine.readTexture(q, person, agentId).catch(() => null),
+    engine.loadCurrentArcs(q, agentId).catch(() => []),
+    engine.untoldFor(q, person, agentId).catch(() => []),
+  ]);
+  const arcRows = Array.isArray(arc) ? arc : [];
+  const untoldRows = Array.isArray(untold) ? untold : [];
+  if (!texture && !arcRows.length && !untoldRows.length) return null;
+  // Field names mirror compiler.ts's SelfBundleInput exactly, same discipline
+  // as fetchRelBundle. `sheInitiated` is NOT set here and must not be: it is a
+  // property of the TURN, not of the database, and the client owns it (see
+  // brain.ts, which threads inner.ts's own flag rather than recomputing one).
+  return { texture: texture ?? null, arc: arcRows, untold: untoldRows };
 }
 
 async function opRecall(device, body) {
@@ -427,11 +482,17 @@ async function opRecall(device, body) {
   // retrieval-budget discipline). Any failure degrades to `relstate: null`,
   // same as the "no consolidation yet" case — never blocks recall.
   const relBundleFetch = personPromise.then((person) => fetchRelBundle(person, agentId)).catch(() => null);
+  // T-H1: the self bundle rides the same concurrency, for the same reason —
+  // one extra batched round trip, never a serial one. It shares
+  // `personPromise` with the two fetches above rather than resolving the
+  // person a third time, and it degrades to `self: null` on any failure.
+  const selfBundleFetch = personPromise.then((person) => fetchSelfBundle(person, agentId)).catch(() => null);
 
-  const [[bgRaw, matchedRaw = []], semanticRaw, relBundle] = await Promise.all([
+  const [[bgRaw, matchedRaw = []], semanticRaw, relBundle, selfBundle] = await Promise.all([
     Promise.all(fetches),
     semanticFetch,
     relBundleFetch,
+    selfBundleFetch,
   ]);
   const background = Array.isArray(bgRaw) ? bgRaw : [];
   const matched = Array.isArray(matchedRaw) ? matchedRaw : [];
@@ -441,8 +502,11 @@ async function opRecall(device, body) {
   // relstate is independent of graph recall — a person with no matched/
   // background/semantic memories yet may still have a real relstate bundle
   // (or vice versa), so it rides both return paths, never conditioned on
-  // `seen.size`.
-  if (!seen.size && !semantic.length) return { memories: "", relstate: relBundle };
+  // `seen.size`. The self bundle is independent of BOTH for the same reason
+  // and rides both paths too: her arc and her untold life exist whether or not
+  // this particular query matched a node, and the empty-memories path is
+  // exactly the early-relationship case where texture is most of what she has.
+  if (!seen.size && !semantic.length) return { memories: "", relstate: relBundle, self: selfBundle };
 
   const idArr = [...seen.keys()];
   const edges = await q(
@@ -571,7 +635,7 @@ async function opRecall(device, body) {
     idArr,
   ]).catch(() => {});
 
-  return { memories: blocks.join("\n"), relstate: relBundle };
+  return { memories: blocks.join("\n"), relstate: relBundle, self: selfBundle };
 }
 
 // GAP 3 (WS-FELT) — vibe chips → vy_currency. src/engine/india.ts's own

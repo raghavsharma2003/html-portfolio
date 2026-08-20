@@ -765,6 +765,36 @@
       "kind": "measurement",
       "title": "migration 002 declared source voice_v0 and no writer ever produced it; 1 of 6 affect rows was mislabelled",
       "at": "2026-08-20"
+    },
+    {
+      "id": "selflayer-delivery",
+      "kind": "decision",
+      "title": "The self bundle ships on op:recall beside relstate; the call lane reads a device-keyed holder, not a return value",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "selflayer-delivery-gate",
+      "kind": "measurement",
+      "title": "T11/T12/T13 proven in REAL prompts on both lanes: 37/37, 6/6 negative controls, adversarial max 1,126b = 4.7% of cap",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "selflayer-rows-zero",
+      "kind": "measurement",
+      "title": "Layer delivered and still empty: every self and rel table at 0 rows; 2 of 34 persons clear the texture floor",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "selfbundle-return-value",
+      "kind": "rejection",
+      "title": "Three call-lane compile sites do not share a frame, so a consume-once return value starves two of them",
+      "at": "2026-08-20"
+    },
+    {
+      "id": "manifest-sourcestatus",
+      "kind": "rejection",
+      "title": "sourceStatus reports wired against a compile that rendered 0 of 3 blocks — an anti-signal, not a weak one",
+      "at": "2026-08-20"
     }
   ],
   "edges": [
@@ -1447,6 +1477,36 @@
       "src": "voice-v0-was-never-written",
       "rel": "caused_by",
       "dst": "dead-writers"
+    },
+    {
+      "src": "selflayer-delivery",
+      "rel": "measured_by",
+      "dst": "selflayer-delivery-gate"
+    },
+    {
+      "src": "selflayer-delivery",
+      "rel": "supersedes",
+      "dst": "selfbundle-never-set"
+    },
+    {
+      "src": "selfbundle-return-value",
+      "rel": "part_of",
+      "dst": "selflayer-delivery"
+    },
+    {
+      "src": "manifest-sourcestatus",
+      "rel": "caused_by",
+      "dst": "dead-writers"
+    },
+    {
+      "src": "selflayer-rows-zero",
+      "rel": "blocks",
+      "dst": "selflayer-delivery"
+    },
+    {
+      "src": "selflayer-rows-zero",
+      "rel": "blocks",
+      "dst": "call-parity-landed"
     }
   ]
 }

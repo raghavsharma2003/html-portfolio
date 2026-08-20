@@ -54,6 +54,17 @@ const suites = {
   // network, $0, ~0.2s — so a pipeline regression is caught in CI while the
   // by-construction exclusion of real judged runs above stays intact.
   judgedryrun: "dbattery/dryrun-check.mjs",
+  // WS-SELFBUNDLE (T-H1). Its OFFLINE half only: manifest declaration, drop
+  // priorities and the tail-budget arithmetic for T11/T12/T13. Wired here
+  // under the same `dead-writers` test as the two suites above.
+  //
+  // The suite's ACTUAL gate is `--live`, and it is deliberately NOT reachable
+  // from this map: it seeds and tears down rows in the real database under the
+  // real agent id, which is not a thing CI may do on every build (and the APK
+  // workflow has no NEON_URL at all). Same by-construction exclusion the D2
+  // note above describes — run it by hand:
+  //     node evals/self/wiring.mjs --live
+  selfwiring: "self/wiring.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

@@ -55,7 +55,7 @@ import type { RelBundleInput } from "../engine/compiler";
 // mid-session lands on the next compile. On this lane the "next compile" is
 // the next call — the live prompt is frozen at connect on purpose.
 import { gatesFor, getAgeTier } from "../engine/clock";
-import { logTurns, rememberFrom, recallForCall } from "../engine/memory";
+import { logTurns, rememberFrom, recallForCall, callSelfBundle } from "../engine/memory";
 import { innerContext, applyInner, wantsForAppraisal } from "../engine/inner";
 import {
   ensureOverlay,
@@ -581,15 +581,15 @@ export function useCallEngine(
       // chat-only by construction inside compile(); passed empty for clarity
       cultureNoteText: "",
       relBundle: relBundleRef.current,
-      // T11/T12/T13 render nothing on EITHER lane in this app today: nothing
-      // client-side has a self bundle to give, because api/memory.js's
-      // op:"recall" carries `relstate` and no self rows (texture/arc/untold
-      // are read server-side through a QueryFn this process does not have).
-      // Stated as an explicit null rather than omitted so the gap is visible
-      // at the call site: the day opRecall ships those three the way it ships
-      // relstate, both lanes light up together, and neither lane is the one
-      // that has to be remembered.
-      selfBundle: null,
+      // T-H1: that day is today. api/memory.js's op:"recall" now ships the
+      // self rows the way it ships `relstate`, so T11/T12/T13 light on both
+      // lanes at once. This reads what the RING fetch put in memory.ts's
+      // call-lane holder — the same fetch and the same continuation
+      // `relBundleRef` above rides, and `awaitRingFetch()` at the top of this
+      // function is what makes the read a value rather than a guaranteed miss
+      // (`rejected.md#realtime-recall-never`). `sheInitiated` is left unset,
+      // which is correct and not an omission: a pickup is THEM calling HER.
+      selfBundle: callSelfBundle(stateRef.current.deviceId),
       // moment.ts's pull-only law reads ONLY the live turn, and a pickup has
       // no turn yet — so "" here, never the last thing they typed. That keeps
       // T6 on its STANDING BACKGROUND heading ("do not raise any of this
@@ -1811,7 +1811,10 @@ export function useCallEngine(
         herLife: formatHerLife(stateRef.current.herLife),
         cultureNoteText: "",
         relBundle: relBundleRef.current,
-        selfBundle: null,
+        // T-H1: same ring-fetched self bundle the live lane compiles from, so
+        // the native watch engine is not the one lane that forgot. Unset
+        // `sheInitiated` is correct here too — a share is THEM starting it.
+        selfBundle: callSelfBundle(stateRef.current.deviceId),
         // same pull-only reasoning as the live lane's compile: no live turn
         // exists at the moment a share starts
         latestUserText: "",
