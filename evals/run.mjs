@@ -33,6 +33,12 @@ const suites = {
   // this repo's law and it does not stop being true for evals: a suite
   // nothing invokes is indistinguishable from a suite that does not exist.
   honesty: "honesty/run.mjs",
+  // WS-TIME. The two clocks (src/engine/timeline.ts) — her day as a pure
+  // function of the hour, and what has moved in HIS world since they last
+  // spoke. DB-free, network-free, model-free and ~11s, including its own
+  // negative control (7 injected defects, 7 caught), so it belongs here by
+  // the same `dead-writers` test the honesty suite is wired in under.
+  time: "time/run.mjs",
   // WS-BATTERY (SPEC §13/§14): D0/D1 are offline and deterministic — no
   // judge, no model call, no cost — so they run here, in CI, on every build,
   // same as the suites above. D2 and up are judged/generative (real money)

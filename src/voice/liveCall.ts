@@ -49,6 +49,7 @@
 
 import { attachAnalyser, detachAnalyser } from "./level";
 import { diag } from "../engine/diag";
+import { spokenText } from "./spokenText";
 
 const WS_BASE =
   "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";
@@ -1173,6 +1174,12 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let tSetupSent = 0;
   let uplinkMs = 0;
   let setupBytes = 0;
+  // Diagnostics for the mid-call voice change only — read by `live_goaway` and
+  // `live_close`, written nowhere in the audio path. `framesSent` doubles as
+  // the only evidence available to the client that a screen share was up when
+  // a session ended, which is the thing the owner's report turns on.
+  let goAwayAt = 0;
+  let framesSent = 0;
   const micP = navigator.mediaDevices
     .getUserMedia({
       // echo cancellation on: she plays through the same phone's speaker
@@ -2539,6 +2546,41 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
         opts.onState("listening");
         return;
       }
+      // ── goAway: the server is about to hang up ────────────────────────
+      // OBSERVABILITY ONLY. Nothing here changes what this file does; it
+      // records WHY the socket is about to die, which is currently
+      // unknowable from outside and is the missing half of a real complaint.
+      //
+      // The owner reports her voice changing during screen share. Every lane
+      // agrees on her voice NAME (scripts/verify-voice.mjs proves it), so the
+      // change is a lane change: live (`gemini-3.1-flash-live-preview`,
+      // speech-to-speech) handing over to the cascade
+      // (`gemini-3.1-flash-tts-preview`, text-to-speech). The same name on a
+      // different model is a different voice.
+      //
+      // WHAT MAKES SCREEN SHARE THE PLACE IT HAPPENS. The native watch engine
+      // handles this message — `LiveWatchEngine.rotate()`, up to MAX_ROTATES
+      // = 6, opening a fresh session and STAYING on the live model. This file
+      // does not handle it at all: the close that follows lands in `onclose`,
+      // becomes `teardown("closed")`, and useCallEngine answers it with
+      // `claimVoice("cascade", …)` — a PERMANENT lane change for the rest of
+      // the call, from a routine, expected, recoverable server rotation.
+      // Continuous video is exactly what shortens the time to that rotation.
+      //
+      // Handling it properly means rotating the socket mid-call, which is a
+      // change to the session lifecycle the arbiter, the hold ring and the
+      // barge-in watchdog all hang off — not something to land next to a
+      // timbre fix. So this measures it first. See docs/VOICE-LANE.md.
+      if (msg.goAway) {
+        goAwayAt = Date.now();
+        diag("call", "live_goaway", {
+          // the server's own notice period, when it gives one
+          leftMs: Number(String(msg.goAway.timeLeft ?? "").replace(/[^0-9.]/g, "")) || 0,
+          upMs: Date.now() - tSetupSent,
+          framesSent,
+        });
+        return;
+      }
       const sc = msg.serverContent;
       if (!sc) return;
       if (sc.interrupted) {
@@ -2591,8 +2633,22 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       clearTimeout(failTimer);
       reject(new Error("live ws error"));
     };
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
       clearTimeout(failTimer);
+      // The one record that says whether a mid-call voice change was a broken
+      // link or a scheduled server rotation, and whether a screen share was up
+      // when it happened. Without `goAway` and `framesSent` here, every drop
+      // looks like "network blip" and the two causes are indistinguishable
+      // from telemetry — which is why this has stayed a hypothesis.
+      if (ready)
+        diag("call", "live_close", {
+          code: ev?.code ?? 0,
+          reason: String(ev?.reason ?? "").slice(0, 80),
+          goAwayMs: goAwayAt ? Date.now() - goAwayAt : -1,
+          upMs: Date.now() - tSetupSent,
+          framesSent,
+          sharing: framesSent > 0,
+        });
       if (!ready) reject(new Error("live ws closed early"));
       else teardown("closed");
     };
@@ -2694,6 +2750,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
           realtimeInput: { video: { data: b64Jpeg, mimeType: "image/jpeg" } },
         }),
       );
+      framesSent++; // diagnostics only — see `live_close`
       return true;
     },
     congestion: () => congestionLevel,
