@@ -954,3 +954,56 @@ are looking for something else, so a wrong unit survives indefinitely there and
 detonates on the day the field graduates into control flow. The rule: **parse
 units at the boundary, once, and give the parsed value a name that carries the
 unit** (`leftMs`), so the next reader cannot re-derive it wrongly.
+
+---
+
+## `gates-that-live-nowhere` — two named gates lived in an ephemeral directory and verified a frozen copy (2026-08-20)
+
+Found while auditing what a repository move would lose. `CLAUDE.md` instructed
+the next session, in the gates section, to run *"from the session scratchpad
+when persona or parsing changed: `parsetest.bundle.mjs` (14 cases) and
+`verify-v3.mjs` (138 persona invariants)"*.
+
+Two independent problems, and the second is the bad one.
+
+**1. They were not in the repository.** The scratchpad is a container directory
+that is reclaimed on inactivity. Both files would have ceased to exist without
+anyone doing anything wrong, and `CLAUDE.md` would still have been telling
+people to run them.
+
+**2. They verify a FROZEN SNAPSHOT.** `verify-v3.mjs`'s first import is
+`./peout/final3.mjs` — a bundled persona from an earlier session, not
+`src/engine/persona.ts`. `parsetest.bundle.mjs` is likewise a generated bundle.
+So running them as instructed would have **passed, and told you nothing about
+the tree you were shipping.** A green result from a gate reading months-old
+bytes is worse than no gate: it is a gate that lies in the safe direction.
+
+The live equivalents were in the repo the whole time — `evals/parse.mjs` and
+`evals/persona-invariants.mjs`, run by `evals/run.mjs` inside `verify-release`,
+which re-bundles **from the real source on every run**. That re-bundling is
+precisely the property the archived pair lacks, and its comment already said so.
+
+**What breaks generally, and this is the third member of a family now:** the
+system's own instructions are not under test. `startup-failure-is-invisible` was
+a workflow that could not start; `logged-but-unindexed` was prose with no index
+row; this is a documented gate that no longer gates. In each case the artefact
+exists, reads as correct, and is not connected to anything — and in each case
+the thing that should have reported the disconnection was inside the disconnected
+part.
+
+**Fixed** by vendoring both into `evals/archive/` with a README stating plainly
+that they are provenance and not gates, and rewriting the `CLAUDE.md` paragraph
+to name the real gates. They are kept rather than deleted because several
+`context/` measurements rest on runs of them, and deleting the harness makes
+those numbers unfalsifiable.
+
+**Also fixed in the same pass:** `evals/echosim/` — the audio-floor simulator
+that `azure-tts`, `goaway-rotation-parity`, `device-seam-closed` and the
+`liveCall.ts` no-imports law all depend on — existed **only** in the scratchpad
+too, and its `build.mjs` hardcoded `/home/user/html-portfolio` as the repository
+root. It is now in the repository and derives the root from its own location.
+Verified after the move by reproducing the known floor table cell for cell.
+
+**The rule:** if a document tells someone to run something, that something lives
+in the repository. If it cannot, the document says why and says it is not a
+gate.

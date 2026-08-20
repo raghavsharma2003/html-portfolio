@@ -57,11 +57,27 @@ node scripts/verify-release.mjs                    # tsc + prompt budget + build
 node scripts/verify-release.mjs --live <base-url>   # + production probes (costs money)
 ```
 
-Plus, from the session scratchpad when persona or parsing changed:
-`parsetest.bundle.mjs` (14 cases) and `verify-v3.mjs` (138 persona invariants).
-The invariant suite protects the crisis helplines, the never-deny-being-an-AI
-rule, NEVER MANIPULATE, and the spoken-register bullets. **If your change trips
-it, your change is wrong, not the test.**
+The persona invariants and the parser cases run INSIDE `verify-release`'s eval
+suite — they are `evals/persona-invariants.mjs` and `evals/parse.mjs`, and
+`evals/run.mjs` re-bundles from the real source on every run, so they gate the
+tree being shipped rather than a frozen copy. They protect the crisis helplines,
+the never-deny-being-an-AI rule, NEVER MANIPULATE, and the spoken-register
+bullets. **If your change trips them, your change is wrong, not the test.**
+
+> This paragraph used to say to run `parsetest.bundle.mjs` and `verify-v3.mjs`
+> "from the session scratchpad". That was stale and quietly dangerous: the
+> scratchpad is an ephemeral container directory, and both of those files import
+> a FROZEN persona snapshot (`./peout/final3.mjs`), so following the instruction
+> would have verified a months-old bundle while reporting a pass on today's
+> tree. Both are kept in `evals/archive/` for provenance and are NOT gates. See
+> `context/rejected.md#gates-that-live-nowhere`.
+
+**The audio floor** lives at `evals/echosim/` — `node evals/echosim/build.mjs`
+transpiles the REAL `liveCall.ts` standalone, then `node evals/echosim/exp1.mjs`
+runs 5 couplings x 8 seeds x 2 arms = 80 simulated calls. Run it before and
+after any change that touches `liveCall.ts`, and diff the tables. This is the
+only thing that can prove the floor did not move, and it is why `liveCall.ts`
+may import nothing beyond `./level` and `../engine/diag`.
 
 `npx vite build` alone is NOT a gate — it exits 0 with type errors. That is why
 `tsc` is separate and why CI runs both.

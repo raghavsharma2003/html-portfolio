@@ -843,6 +843,12 @@
       "kind": "rejection",
       "title": "goAway.timeLeft parsed by stripping its unit: a protobuf Duration in seconds read as ms, a 1000x error",
       "at": "2026-08-20"
+    },
+    {
+      "id": "gates-that-live-nowhere",
+      "kind": "rejection",
+      "title": "Two CLAUDE.md-named gates lived in the ephemeral scratchpad and verified a frozen persona snapshot",
+      "at": "2026-08-20"
     }
   ],
   "edges": [
@@ -1595,6 +1601,11 @@
       "src": "duration-is-seconds",
       "rel": "caused_by",
       "dst": "dead-writers"
+    },
+    {
+      "src": "gates-that-live-nowhere",
+      "rel": "caused_by",
+      "dst": "logged-but-unindexed"
     }
   ]
 }
