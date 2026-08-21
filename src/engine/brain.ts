@@ -29,6 +29,7 @@ import {
   type RelBundleInput,
   type SelfBundleInput,
 } from "./compiler";
+import type { ActivityState } from "./activity";
 // WS-MANIFEST Phase D prep (docs/SPEC.md §7.3 "chat lane call-site
 // adoption"): router.ts stays WS-ROUTER's exclusively (§13) — this is a
 // read of its exported pure functions, not an edit, same discipline as the
@@ -184,6 +185,10 @@ export interface BrainKeys {
   // (useCallEngine.ts's brainKeys()), so a lane that has a bundle ships it
   // with everything else it knows, and think()'s signature stays readable.
   relBundle?: RelBundleInput | null;
+  // What they are doing together right now (a game, a share). Rides BrainKeys
+  // for the same reason relBundle does: the lane that HAS one ships it with
+  // everything else it knows, and think()'s signature stays readable.
+  activity?: ActivityState | null;
   // ── T-H1 (`selfbundle-never-set`) ──────────────────────────────────────
   // The self layer's three tail slots (T11 rel.texture, T12 self.arc, T13
   // life.untold). Optional on BOTH lanes and for the same reason relBundle is:
@@ -979,6 +984,9 @@ export async function think(
     // T14 rel.raised — the repetition signal is derived from the transcript
     // itself, so the transcript is the only input it needs.
     recentTurns: history,
+    // T15 — the same activity object the allowlist above was built from, so
+    // what she is told and what she is permitted to name cannot drift apart.
+    activity: keys.activity ?? null,
     // fresh every call — see the import comment above; getAgeTier() reads
     // clock.ts's live module state, never a value carried across turns here
     ageGates: gatesFor(getAgeTier()),
@@ -1084,7 +1092,18 @@ export async function think(
   // past output — see allowedFrom's note on why the chain must terminate at
   // something that is not her.
   const honestyCtx = {
-    trustedText: [fullSystem, latest, ...history.filter((m) => m.from === "me").map((m) => m.text || "")],
+    // `keys.activity?.nameable` is here for a reason the seam review caught
+    // before production did: `honesty-provenance-allowlist` treats an
+    // identifier she emits that was not in her input as INVENTED, and a chess
+    // move like "Nf3" is identifier-shaped. Without the nameable set the gate
+    // would correctly flag moves that really WERE played. She may name what she
+    // was given — the moves in the record — and nothing else.
+    trustedText: [
+      fullSystem,
+      latest,
+      ...(keys.activity?.nameable ?? []),
+      ...history.filter((m) => m.from === "me").map((m) => m.text || ""),
+    ],
     openItems: openCommitments(history),
     // Family 3 (false attribution). HIS words only — not `fullSystem`, which
     // mentions half the world and would make the check vacuous, and never her

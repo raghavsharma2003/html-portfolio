@@ -46,6 +46,10 @@ const suites = {
   // that `dead-writers` applied to it until someone did — a suite nothing
   // invokes is indistinguishable from a suite that does not exist.
   chess: "chess.mjs",
+  // WS-ACTIVITY. The generic "what we are doing together" seam and its chess
+  // adapter — plus the control that keeps dialogue out of it, since a line she
+  // could say in this block is a line she would say every single game.
+  activity: "activity.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),

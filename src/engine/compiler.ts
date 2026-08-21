@@ -83,6 +83,7 @@ import {
 import type { TierGates } from "./clock";
 import { renderAway } from "./away";
 import { renderRaised, raisedRecently, type RepeatTurn } from "./repeat";
+import { renderActivity, type ActivityState } from "./activity";
 
 export type Medium = "text" | "voice";
 export type Mode = "chat" | "call";
@@ -224,6 +225,15 @@ export interface CompileInput {
   // Recent turns, for T14's transcript-derived repetition signal. A pure
   // function of these — no table, no writer, per `receipt-ledger-from-transcript`.
   recentTurns?: readonly RepeatTurn[];
+  // What the two of them are DOING together right now — a game, a screen
+  // share. Optional and absent by default, so every existing caller and all 83
+  // byte-identity fixtures render exactly zero bytes for it.
+  //
+  // It is ONE field for every activity rather than one per activity, because
+  // `age-tier-never-realtime` is what a second implementation costs: the rules
+  // added after a fork land in one copy and are discoverable only by diffing
+  // two things nobody thinks of as the same thing.
+  activity?: ActivityState | null;
   // ── WS-INTEGRATE seam 2 (age-tier hard-refusal) — absent/undefined means
   // "unrestricted" (today's behavior, byte-identical); the caller (brain.ts)
   // is REQUIRED to compute this fresh via clock.ts's gatesFor(getAgeTier())
@@ -539,6 +549,14 @@ ${input.memories}`;
   }
   _track("T9");
 
+  // T15 session.activity — what they are doing together. Sits with T9 because
+  // both are facts about the PRESENT MOMENT rather than about him or her.
+  {
+    const t15 = renderActivity(input.activity, input.nowMs);
+    if (t15) tail += `\n\n${t15}`;
+  }
+  _track("T15");
+
   // T14 rel.raised — what she has already brought up and how he answered.
   // The owner's points 2 and 9. Deliberately both numbers, never a threshold:
   // he asked for the behaviour to be TONED DOWN and modulated on how he reacts,
@@ -802,6 +820,19 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     sourceStatus: "wired", // renderUntold, G2 turn-gated, on input.selfBundle.untold
   },
   {
+    id: "T15",
+    label: "session.activity",
+    budget: 420,
+    // "never", like T9 beside it, and for the same reason rather than by
+    // analogy: if she is mid-game and the tail overflows, dropping the fact
+    // that a game is happening does not thin her out — it makes her talk as
+    // though nothing is going on, which is worse than any block this could
+    // have been shed in favour of. It is also small enough that the
+    // undroppable arithmetic barely moves.
+    dropPriority: "never",
+    sourceStatus: "wired", // renderActivity(activity.ts) — gate: node evals/run.mjs activity
+  },
+  {
     id: "T14",
     label: "rel.raised",
     budget: 400,
@@ -901,6 +932,7 @@ export const TAIL_ORDER: readonly string[] = [
   "T13",
   "T8",
   "T9",
+  "T15",
   // T14 sits with T9 because both are SESSION facts — where this turn sits in
   // time, and what has already been said in it — not facts about him or her.
   "T14",
