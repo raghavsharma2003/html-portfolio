@@ -963,6 +963,12 @@
       "kind": "decision",
       "title": "she may text first because something HAPPENED, never because he went quiet \u2014 the test is on the trigger, not the frequency",
       "at": "2026-08-21"
+    },
+    {
+      "id": "search-on-curiosity",
+      "kind": "decision",
+      "title": "the search trigger moves from doubt to curiosity, with the frequency capped in code rather than asked for in the brief",
+      "at": "2026-08-21"
     }
   ],
   "edges": [
@@ -1860,6 +1866,16 @@
       "src": "proactive-reason-contingent",
       "rel": "constrains",
       "dst": "recited-prompt"
+    },
+    {
+      "src": "search-on-curiosity",
+      "rel": "caused_by",
+      "dst": "gate0-structural"
+    },
+    {
+      "src": "search-on-curiosity",
+      "rel": "constrains",
+      "dst": "proactive-reason-contingent"
     }
   ]
 }

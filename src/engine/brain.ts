@@ -126,6 +126,39 @@ const PROXY_URL = Capacitor.isNativePlatform()
 // the honest behavior, not a bug to work around.
 let lastCoreHash: string | null = null;
 
+// ── how often she may actually look something up ────────────────────────
+// The owner widened the search trigger deliberately: "if the idea or Convo is
+// unique and out of scope then AI think it should be worth searching ...
+// searching could eventually give insight which can make the whole Convo more
+// engaging". That is the right instinct and it moves the trigger from DOUBT to
+// CURIOSITY — which also means it can fire on turns the old rule never touched.
+//
+// So the frequency is capped HERE rather than in the brief. `gate0-structural`
+// is the reason: a sentence asking her to be sparing is a preference, and this
+// one has teeth — every search costs a holding bubble, ~3-4s of the turn, and
+// real money on a lane that has already run dry twice this week.
+//
+// A bucket rather than a fixed gap, so two genuinely factual questions in a row
+// still both get answered — that is the case the old fact-check trigger served
+// and it must not regress — while a run of curious turns settles down.
+export const SEARCH_BUCKET = 3;
+export const SEARCH_WINDOW_MS = 5 * 60_000;
+const searchFires: number[] = [];
+
+/** Test seam: drains the bucket so a suite starts from a known state. */
+export function _resetSearchBucket(): void {
+  searchFires.length = 0;
+}
+
+/** True when a lookup is within budget; records the fire when it is. */
+export function takeSearchSlot(): boolean {
+  const now = Date.now();
+  while (searchFires.length && now - searchFires[0] > SEARCH_WINDOW_MS) searchFires.shift();
+  if (searchFires.length >= SEARCH_BUCKET) return false;
+  searchFires.push(now);
+  return true;
+}
+
 export type ThinkMode = "chat" | "call";
 
 export interface BrainKeys {
@@ -1171,7 +1204,16 @@ export async function think(
     let soft = false;
     let ok = false;
     const tSearch = Date.now();
-    if (parsed.search && left > 1_500) {
+    // Over budget behaves EXACTLY like a lookup that failed: `ok` stays false,
+    // `facts` stays empty, and the second pass already has an honest line for
+    // that — "say you couldn't check right now, casually, and don't fill the
+    // gap yourself". So a rate limit degrades into her not knowing, which is
+    // true, rather than into a promise she quietly drops.
+    const slot = parsed.search ? takeSearchSlot() : false;
+    if (!slot && parsed.search) {
+      diag("chat", "search_capped", { window_ms: SEARCH_WINDOW_MS, cap: SEARCH_BUCKET });
+    }
+    if (parsed.search && slot && left > 1_500) {
       try {
         const res = await fetch(PROXY_URL.replace("/api/chat", "/api/search"), {
           method: "POST",

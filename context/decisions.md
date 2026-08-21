@@ -1155,3 +1155,46 @@ one re-opens with something to say, the other re-opens to be noticed.
 but the reversal has to be recorded here as a deliberate trade, because the
 thing being traded is the property the product's trust rests on, not a
 preference about frequency.
+
+---
+
+## `search-on-curiosity` — she may look something up because it is INTERESTING, not only because she doubts it (2026-08-21)
+
+The owner, closing the background-search question with a better design than the
+one asked about: *"if the idea or Convo is unique and out of scope then AI think
+it should be worth searching then do search. because searching could eventually
+give insight which can make the whole Convo more engaging and intresting."*
+
+**This dissolves the objection that blocked the original ask.** "Always
+searching in the background" would have reversed the pull-only property
+(`prodgap-audit`: every tail block ships never-raise-unprompted) AND burned
+quota continuously. Searching because the CURRENT conversation went somewhere
+she does not know does neither: it is reactive, it is per-turn, and it deepens
+the conversation already happening rather than opening a new one.
+
+`SEARCH_DECISION` was a **fact-check** trigger — "a fact you cannot be sure of
+RIGHT NOW" — and explicitly excluded opinions, taste and stable knowledge. It
+now also fires on a specific subject she does not really know where looking
+would let her have an actual opinion instead of a polite one. The test written
+into the rule is *"would the next thing you say be better for having looked?"*,
+and it says outright that curiosity is a good enough reason.
+
+**The frequency is capped in CODE, not in the brief, and that is the load-
+bearing half.** `gate0-structural`: a sentence asking her to be sparing is a
+preference; a predicate is a guarantee. Three lookups per five minutes, as a
+BUCKET rather than a fixed gap — two genuinely factual questions in a row must
+both still be answered, which is the case the old trigger served and must not
+regress, while a run of curious turns settles down.
+
+**Over budget degrades into honesty, not into a dropped promise.** A capped
+search leaves `ok=false` and `facts=""`, which is the exact state a failed
+lookup produces, and the second pass already has a line for it: *"say you
+couldn't check right now, casually, and don't fill the gap yourself."* She has
+already sent a holding bubble at that point, so anything other than an honest
+"couldn't check" would be a promise quietly abandoned.
+
+**Reverses if:** measured search rate at the new trigger exceeds roughly one
+turn in five in real traffic (the trace's `search_fire` / `search_capped` events
+are the instrument, and both now exist), or if judged replies with facts score
+no better than without — in which case the cost buys nothing and the trigger
+goes back to doubt-only.

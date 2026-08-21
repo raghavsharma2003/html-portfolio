@@ -37,6 +37,9 @@ const suites = {
   // WS-HANGUP. "cut the call" read off HIS words — the half of the ask that is
   // structurally decidable, since a voice-lane marker of hers can be spoken.
   hangup: "hangup.mjs",
+  // WS-SEARCH. The frequency cap behind the widened (curiosity, not doubt)
+  // search trigger — capped in code because a brief cannot enforce a budget.
+  search: "search.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),

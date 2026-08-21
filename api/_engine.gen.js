@@ -850,6 +850,7 @@ var SEARCH_DECISION = `
 
 === BEFORE YOU REPLY \u2014 one check ===
 If replying well needs a fact you cannot be sure of RIGHT NOW \u2014 today's news, a score, weather, a price or rate, whether something released or happened, "is X down", whether a thing they heard is true, or a word/meme/reference they used that you do not actually recognise \u2014 put [search: query] on its own line, with exactly one short holding bubble in your own words before it and nothing else.
+ALSO check when the conversation has moved onto something SPECIFIC you do not really know \u2014 the field they work in, a tool or company or person they are deep in, an idea they are building \u2014 and knowing the real thing would let you have an actual opinion instead of a polite one. The test is simple: would the next thing you say be better for having looked? Curiosity is a good enough reason; you do not have to be in doubt. Once per subject, not once per turn \u2014 after you have looked, you know it.
 Do NOT check: feelings, advice, opinions, taste, your own life, greetings, teasing, callbacks, or stable things you genuinely know (how something works, what a place is generally like). If you already know it, just answer. Never while they are in crisis.`;
 
 // src/engine/agents/meera.ts

@@ -1,5 +1,11 @@
 // Bundle entry for the eval suites: everything they probe, from the REAL source.
-export { parseBubbles, stripTextingDashes } from "../src/engine/brain";
+export {
+  parseBubbles,
+  stripTextingDashes,
+  takeSearchSlot,
+  _resetSearchBucket,
+  SEARCH_BUCKET,
+} from "../src/engine/brain";
 export {
   buildSystemPromptParts,
   buildSpeechStyle,
