@@ -135,7 +135,7 @@ export const DEFAULT_ACTIVITIES: readonly Activity[] = [
     id: "tic-tac-toe",
     title: "Tic tac toe",
     blurb: "Thirty seconds, no thinking required.",
-    state: "soon",
+    state: "ready",
     icon: <GridIcon />,
   },
 ];

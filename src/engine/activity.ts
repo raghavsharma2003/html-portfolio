@@ -50,7 +50,7 @@
 // number that makes her sound like a computer.
 
 /** Activities that exist today. A new game adds a member and an adapter. */
-export type ActivityKind = "chess" | "watch" | "wyr";
+export type ActivityKind = "chess" | "watch" | "wyr" | "ttt";
 
 export interface ActivityState {
   kind: ActivityKind;
@@ -88,6 +88,7 @@ export const LABEL: Record<ActivityKind, string> = {
   chess: "a game of chess",
   watch: "watching their screen",
   wyr: "a round of would-you-rather",
+  ttt: "a game of tic tac toe",
 };
 
 /**

@@ -56,6 +56,8 @@ const suites = {
   theme: "theme.mjs",
   // WS-GAMES: would-you-rather — deck lint, her-pick determinism, shapelint.
   wyr: "wyr.mjs",
+  // WS-GAMES: tic-tac-toe — exhaustive legality + bounded imperfection.
+  ttt: "ttt.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),

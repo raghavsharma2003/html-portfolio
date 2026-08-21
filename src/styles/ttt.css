@@ -1,0 +1,220 @@
+/* ─── Tic tac toe board ────────────────────────────────────────────────────
+   Same discipline as chess.css, on a much smaller board: every colour in this
+   file lives in the token block below and nowhere else. The paper set is
+   mixed out of the app's own tokens so the board belongs to the room it is
+   in; the dark set is stated outright, matched to the call's
+   `#241619 -> #100b0c` ground, for the same reason chess.css gives — there is
+   nothing in the light palette to derive a warm dark from, and two dark
+   sources (a live call, the app's own night theme) must land on the SAME
+   values or they visibly disagree the day both are true at once.
+
+   Durations and curves come off the shared scale. Nothing here invents one:
+   the mark and the winning line both draw in --d-tap-scale territory
+   (~200ms), the same band a capture animation on the chess board uses for a
+   deliberate, felt act (docs/DESIGN-STANDARDS.md §3). */
+
+.tt {
+  /* the grid */
+  --tt-cell: var(--surface);
+  --tt-cell-press: var(--surface-3);
+  --tt-line: var(--hairline);
+  --tt-line-strong: var(--hairline-strong);
+  --tt-frame-bg: var(--surface-2);
+  --tt-frame-shadow: var(--shadow-card);
+
+  /* the marks — two colours, not two shapes' worth of borrowed accent */
+  --tt-x: var(--accent);
+  --tt-o: var(--ink);
+  --tt-win: var(--accent);
+  --tt-win-glow: color-mix(in srgb, var(--accent) 55%, transparent);
+
+  /* a legal cell says so quietly, on press only — see `.tt-cell:active` */
+  --tt-avail-press: color-mix(in srgb, var(--accent) 10%, transparent);
+
+  width: 100%;
+  max-width: 340px;
+  margin-inline: auto;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* ── the night inking ──────────────────────────────────────────────────────
+   TWO WAYS IN, ONE INKING, same as chess.css: `data-tone="dark"` is set by
+   the component when a call is live behind the board; the app's own dark
+   theme arrives independently. Both mean "the room is dark" to this board,
+   so both take the same values — that is what stops a dark board inside a
+   dark theme from double-darkening into mud.
+
+   The two blocks are byte-identical apart from their selectors, and the
+   second is left unindented so a plain diff can prove it. */
+.tt[data-tone="dark"],
+:root[data-theme="dark"] .tt {
+  --tt-cell: #241619;
+  --tt-cell-press: #2f1c20;
+  --tt-line: rgba(255, 240, 235, 0.1);
+  --tt-line-strong: rgba(255, 240, 235, 0.2);
+  --tt-frame-bg: rgba(0, 0, 0, 0.42);
+  --tt-frame-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.8);
+
+  --tt-x: #e4657a;
+  --tt-o: #f6f1ee;
+  --tt-win: #e4657a;
+  --tt-win-glow: rgba(228, 101, 122, 0.55);
+  --tt-avail-press: rgba(228, 101, 122, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+:root:not([data-theme="light"]) .tt {
+  --tt-cell: #241619;
+  --tt-cell-press: #2f1c20;
+  --tt-line: rgba(255, 240, 235, 0.1);
+  --tt-line-strong: rgba(255, 240, 235, 0.2);
+  --tt-frame-bg: rgba(0, 0, 0, 0.42);
+  --tt-frame-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.8);
+
+  --tt-x: #e4657a;
+  --tt-o: #f6f1ee;
+  --tt-win: #e4657a;
+  --tt-win-glow: rgba(228, 101, 122, 0.55);
+  --tt-avail-press: rgba(228, 101, 122, 0.16);
+}
+}
+
+/* ── the frame ─────────────────────────────────────────────────────────── */
+
+/* Padding, not a border — the gap around the cells reads as the edge of a
+   real board, same reasoning chess.css gives for `.cb-frame`. */
+.tt-frame {
+  padding: 7px;
+  border-radius: var(--r-md);
+  background: var(--tt-frame-bg);
+  box-shadow: var(--tt-frame-shadow);
+}
+
+.tt-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 6px;
+  aspect-ratio: 1;
+  border-radius: calc(var(--r-md) - 4px);
+  overflow: hidden;
+  /* the grid owns the gesture: without this a tap-drag on a phone scrolls
+     the conversation behind the board on the first frame */
+  touch-action: none;
+}
+
+.tt-row {
+  display: contents;
+}
+
+/* Realistically ~110px on the 340px max-width board (340 - frame - gaps)/3,
+   comfortably past the 44px hit-target floor even on a narrow phone, where
+   the board still runs close to full width. */
+.tt-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 44px;
+  background: var(--tt-cell);
+  border-radius: var(--r-sm);
+  color: inherit;
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.tt-cell:active {
+  transform: scale(0.97);
+}
+/* An empty, playable cell tints faintly on press, so a tap that lands
+   confirms itself before the mark has even drawn in. A cell that already
+   holds a mark, or is not her — his — turn to fill, does not react at all:
+   feedback belongs only to an act that is actually about to happen. */
+.tt-cell:not([aria-disabled]):active {
+  background: var(--tt-avail-press);
+}
+.tt-cell[data-win] {
+  background: color-mix(in srgb, var(--tt-win) 14%, var(--tt-cell));
+}
+
+/* ── the marks ─────────────────────────────────────────────────────────── */
+
+.tt-mark {
+  width: 58%;
+  height: 58%;
+  overflow: visible;
+}
+.tt-stroke {
+  fill: none;
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke: var(--tt-x);
+}
+/* O reuses `.tt-stroke` for its single circle; X's second diagonal is the
+   only shape that needs its own colour reference, and it is the same one. */
+circle.tt-stroke {
+  stroke: var(--tt-o);
+}
+
+/* `pathLength="1"` on every shape (set in the component) means the dash
+   maths never has to know the real length of a line vs. a circle — dasharray
+   of exactly one unit, dashoffset animates 1 -> 0, done. This is an ARRIVAL
+   (a mark that was not there a moment ago), so `--ease-out`, and it runs at
+   the same ~200ms band the design standards give feedback-for-a-deliberate-
+   act — placing a mark is exactly that. */
+.tt-mark[data-fresh] .tt-stroke {
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  animation: tt-draw 220ms var(--ease-out) forwards;
+}
+/* A mark restored from state on mount (a resumed game, not a fresh play)
+   never had the `data-fresh` flag set by the component, so it renders
+   already-drawn — see TicTacToeBoard's `fresh` prop. */
+.tt-mark:not([data-fresh]) .tt-stroke {
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 0;
+}
+@keyframes tt-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* ── the winning line ─────────────────────────────────────────────────────
+   Drawn the same way, over the whole grid, and delayed a beat behind the
+   mark that completed it — the eye should read the mark landing FIRST and
+   the line as her noticing it a moment later, not as one simultaneous
+   event. */
+.tt-win {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.tt-win-stroke {
+  fill: none;
+  stroke: var(--tt-win);
+  stroke-width: 7;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px var(--tt-win-glow));
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  animation: tt-draw 220ms var(--ease-out) 180ms forwards;
+}
+
+/* ── reduced motion: fewer and gentler, never absent ──────────────────────
+   The mark and the line still ARRIVE — dashoffset still ends at 0 — they
+   simply stop animating the journey there. Same contract games.css states
+   for the activity shell. */
+@media (prefers-reduced-motion: reduce) {
+  .tt-mark[data-fresh] .tt-stroke,
+  .tt-win-stroke {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+  .tt-cell {
+    transition: background var(--d-tap) ease !important;
+  }
+}

@@ -65,6 +65,7 @@ import { activityNote } from "../engine/activity";
 import { exchangeFact, moveFact } from "../engine/chessTalk";
 import { wyrPickFact } from "../engine/wyrTalk";
 import { cardById } from "../engine/wyr/deck";
+import { tttMoveFact } from "../engine/tttTalk";
 import { assessMove } from "../engine/chess";
 import { innerContext, applyInner, wantsForAppraisal } from "../engine/inner";
 import {
@@ -2429,7 +2430,13 @@ export function useCallEngine(
     // debounce, quiet floor) is kind-blind on purpose — a third game should
     // add a branch HERE and in the fact builder, nothing else.
     const ply =
-      g && !g.closedAt ? (g.kind === "chess" ? g.game.played.length : g.rounds.length) : null;
+      g && !g.closedAt
+        ? g.kind === "chess"
+          ? g.game.played.length
+          : g.kind === "ttt"
+            ? g.game.played.length
+            : g.rounds.length
+        : null;
     // No game, or it is over: forget where we were, so a NEW game starts clean
     // rather than inheriting the last game's ply count and staying silent
     // through its opening.
@@ -2473,6 +2480,20 @@ export function useCallEngine(
         if (Date.now() - lastHeardAt.current < 2500) {
           if (attempt < 3) armPoke(MOVE_POKE_MS * 2, attempt + 1);
           else diag("call", "activity_poke", { kind: cur.kind, dropped: "conversation_held_floor" });
+          return;
+        }
+        if (cur.kind === "ttt") {
+          pokedPly.current = cur.game.played.length;
+          const whoLast = cur.game.played.length
+            ? cur.game.played[cur.game.played.length - 1].by === cur.herSide
+              ? "her"
+              : "him"
+            : null;
+          if (!whoLast) return;
+          const note = activityNote(tttMoveFact(cur.game, whoLast));
+          if (!note) return;
+          diag("call", "activity_poke", { kind: cur.kind, ply: cur.game.played.length });
+          liveSession.current.direct(note);
           return;
         }
         if (cur.kind === "wyr") {

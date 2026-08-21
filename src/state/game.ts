@@ -27,6 +27,8 @@
 
 import type { Game, MoveAssessment, Side } from "../engine/chess";
 import type { WyrSession } from "../engine/wyr/session";
+import type { Game as TttGame, Mark } from "../engine/ttt";
+import { tttActivity } from "../engine/tttTalk";
 import { wyrActivity } from "../engine/wyrTalk";
 import { assessLast } from "../engine/chess";
 import { chessActivity } from "../engine/chessTalk";
@@ -39,7 +41,15 @@ import { LABEL, type ActivityState } from "../engine/activity";
  * stops being generic. Adding backgammon adds a member here and an adapter in
  * `engine/`, and touches nothing else.
  */
-export type GameSession = ChessSession | WyrSession;
+export type GameSession = ChessSession | WyrSession | TttSession;
+
+export interface TttSession {
+  kind: "ttt";
+  game: TttGame;
+  herSide: Mark;
+  startedAt: number;
+  closedAt?: number;
+}
 
 export interface ChessSession {
   kind: "chess";
@@ -105,11 +115,14 @@ export function activityOf(s: GameSession | null | undefined, nowMs?: number): A
     const a =
       s.kind === "wyr"
         ? wyrActivity(s)
-        : chessActivity(s.game, s.herSide, s.closedAt, lastAssessment(s));
+        : s.kind === "ttt"
+          ? tttActivity(s.game, s.herSide, s.closedAt)
+          : chessActivity(s.game, s.herSide, s.closedAt, lastAssessment(s));
     // For a finished thing, "N min ago" means since it ENDED.
     return { ...a, over: true, startedAt: s.closedAt };
   }
   if (s.kind === "wyr") return wyrActivity(s);
+  if (s.kind === "ttt") return tttActivity(s.game, s.herSide, s.startedAt);
   return chessActivity(s.game, s.herSide, s.startedAt, lastAssessment(s));
 }
 

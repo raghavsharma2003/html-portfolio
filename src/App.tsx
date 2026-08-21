@@ -10,6 +10,7 @@ import ClockCard from "./components/ClockCard";
 import GamesHub, { DEFAULT_ACTIVITIES, type Activity } from "./components/GamesHub";
 import ChessActivity from "./components/ChessActivity";
 import WouldYouRatherActivity from "./components/WouldYouRatherActivity";
+import TicTacToeActivity from "./components/TicTacToeActivity";
 import { CloseIcon } from "./components/icons";
 import { applyTheme, watchSystemTheme } from "./engine/theme";
 import { unlockAudio } from "./voice/speech";
@@ -377,6 +378,17 @@ export default function App() {
                                 ? "her move"
                                 : "your move",
                           }
+                        : a.id === "tic-tac-toe" &&
+                            state.game?.kind === "ttt" &&
+                            !state.game.closedAt
+                          ? {
+                              ...a,
+                              state: "resume",
+                              detail:
+                                state.game.game.status.turn === state.game.herSide
+                                  ? "her move"
+                                  : "your move",
+                            }
                         : a.id === "would-you-rather" &&
                             state.game?.kind === "wyr" &&
                             !state.game.closedAt
@@ -406,6 +418,19 @@ export default function App() {
               // her picks are seeded per RELATIONSHIP: same person, same
               // answers, forever — an account keeps them across devices
               salt={state.auth?.userId ?? state.deviceId}
+            />
+          )}
+          {activity === "tic-tac-toe" && (
+            <TicTacToeActivity
+              state={state}
+              setState={setState}
+              onExit={() => setActivity(null)}
+              onOpenCall={() => setActivity(null)}
+              onStartCall={() => {
+                unlockAudio(); // inside the tap gesture, or mobile mutes her
+                track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
+                setInCall(true);
+              }}
             />
           )}
           {activity === "chess" && (
