@@ -6,7 +6,12 @@ import { animate } from "framer-motion";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think, formatHerLife } from "../engine/brain";
-import { HER_NAME, OPEN_DIRECTIVE, FOLLOWUP_DIRECTIVE } from "../engine/persona";
+import {
+  HER_NAME,
+  OPEN_DIRECTIVE,
+  FOLLOWUP_DIRECTIVE,
+  AFTERCALL_DIRECTIVE,
+} from "../engine/persona";
 import type { Story } from "../engine/storyCatalog";
 import {
   logTurns,
@@ -97,6 +102,17 @@ const readDelay = (incoming: string) => {
 };
 /** WhatsApp's six, in WhatsApp's order — muscle memory is the whole point. */
 const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "🙏", "👍"] as const;
+
+/**
+ * How long after a call she may text about it.
+ *
+ * The floor is not politeness, it is meaning: a message 30 seconds after
+ * hanging up is the call continuing by other means, not a second thought. The
+ * ceiling exists so a call from this morning cannot produce an "about earlier"
+ * text tonight, which would read as brooding rather than as human.
+ */
+const AFTERCALL_MIN_MS = 4 * 60_000;
+const AFTERCALL_MAX_MS = 40 * 60_000;
 
 const typeDelay = (bubble: string) => {
   const jitter = 0.8 + Math.random() * 0.5;
@@ -450,6 +466,66 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       });
     }
     // re-runs after a chat clear too — she says hi fresh, in her own words
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length]);
+
+  // ── after a call, she texts ────────────────────────────────────────────
+  // The owner: "random text from her side could come like a human and
+  // specially after call."
+  //
+  // REASON-CONTINGENT, which is what makes it shippable at all. The idle nudge
+  // that used to live in this file was deleted because it fired on SILENCE —
+  // making her message an unpredictable reward on the cue of not-replying,
+  // which is the one shape of proactivity that cannot be made honest. This
+  // fires on a CALL HAVING HAPPENED: an event in the world, not a fact about
+  // his attention. See the note where NUDGE_DIRECTIVE was in persona.ts.
+  //
+  // Once per call, and only if he has not already texted since it ended —
+  // if he spoke first there is nothing to re-open.
+  const afterCallDone = useRef<string>("");
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (busy.current || inCallRef.current) return;
+      const hist = messagesRef.current;
+      // the most recent call mark, and whether anything has been said since
+      let markIdx = -1;
+      for (let i = hist.length - 1; i >= 0; i--) {
+        if (hist[i].kind === "callmark") { markIdx = i; break; }
+      }
+      if (markIdx < 0) return;
+      const mark = hist[markIdx];
+      if (afterCallDone.current === mark.id) return;
+      // anything at all after the call means the thread is already alive
+      if (hist.slice(markIdx + 1).some((m) => m.channel !== "call")) {
+        afterCallDone.current = mark.id;
+        return;
+      }
+      const agoMs = Date.now() - mark.at;
+      // Long enough that it reads as a second thought rather than the call
+      // continuing by other means; short enough to still be about the call.
+      if (agoMs < AFTERCALL_MIN_MS || agoMs > AFTERCALL_MAX_MS) return;
+      afterCallDone.current = mark.id;
+      busy.current = true;
+      think(
+        user,
+        brainKeys(),
+        hist,
+        AFTERCALL_DIRECTIVE(mark.text || "0:00", Math.round(agoMs / 60_000)),
+        "chat",
+        "device",
+        true,
+      ).then(async (reply) => {
+        if (reply.bubbles.length || reply.photo) {
+          delivering.current = true;
+          await deliver(reply);
+          delivering.current = false;
+        } else {
+          busy.current = false;
+        }
+        if (dirty.current) void replyCycle(chatSeq.current);
+      });
+    }, 20_000);
+    return () => clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
 

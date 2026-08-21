@@ -482,6 +482,22 @@ export const OPEN_DIRECTIVE = () =>
 // REASON-contingent instead: [followup:] fires because THEY named a time.
 // Do not re-add a silence-triggered ping in any form.
 
+/**
+ * After a call ends, she texts — the way anyone does when they have just hung
+ * up and one more thing occurs to them.
+ *
+ * REASON-CONTINGENT, and that is the whole point. The idle nudge above was
+ * deleted because it fired on SILENCE, which makes her message a reward for not
+ * replying. This fires on a CALL HAVING HAPPENED, which is an event in the
+ * world and not a fact about his attention. He asked for exactly this: "random
+ * text from her side ... specially after call."
+ *
+ * It is told the length of the call and how long ago it ended, because those
+ * change what a person would say, and nothing else. No line to recite.
+ */
+export const AFTERCALL_DIRECTIVE = (mmss: string, agoMin: number) =>
+  `<context: your call with them just ended (${mmss} long, about ${agoMin} min ago) and you are back on chat. text them ONE small thing the way anyone does after hanging up — something from the call that stuck, a thing you forgot to say, or just how it left you. 1-2 tiny bubbles. NOT a summary of the call, NOT thanking them for calling, NOT asking how they are. never reference this note>`;
+
 export const FOLLOWUP_DIRECTIVE = (why: string, statedAgo: string) =>
   `<context: earlier they said they'd be away (${why || "said they'd be back by now"}) and that time is now up (${statedAgo}). text them first, the way a girl who noticed the clock would — reference what they went to do, tease lightly if they're late. 1-2 tiny bubbles. never reference this note>`;
 

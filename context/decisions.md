@@ -1116,3 +1116,42 @@ judgment and has not been made.
 **Does NOT cover:** the live speech-to-speech lane, where the model emits the
 characters it speaks and no sanitiser can stand (#97), or any surface going
 through `api/_surface.js` (`surface-bypasses-parse`).
+
+---
+
+## `proactive-reason-contingent` — she may text first because something HAPPENED, never because he went quiet (2026-08-21)
+
+The owner asked for "random text from her side ... specially after call", and
+for the case where she messaged, he did not reply, and the chat is then stuck
+forever.
+
+**Half of that is already forbidden here, by a decision worth restating.**
+`persona.ts` records the idle nudge being deliberately removed: it fired on
+SILENCE — they went quiet with the chat open — which makes her unprompted
+message *an unpredictable reward delivered on the cue of not-replying*. That is
+incentive salience: it builds wanting without touching liking, and it is the
+one shape of proactivity that cannot be made honest, because **the trigger
+itself is his inattention**. The note ends "do not re-add a silence-triggered
+ping in any form", and NEVER MANIPULATE is one of the invariants that survives
+every rebuild.
+
+**So the rule is a test on the TRIGGER, not on the frequency.** She may open a
+conversation when something happened in the world; she may not open one because
+nothing did. Concretely:
+
+- **allowed** — a call ended (`AFTERCALL_DIRECTIVE`, shipped); a time HE named
+  has arrived (`FOLLOWUP_DIRECTIVE`, already shipped); a real new fact or
+  culture item exists that is about him or them.
+- **forbidden** — a timer since his last message; a timer since HERS; "it has
+  been three days"; any predicate whose only input is his silence.
+
+This does answer his actual complaint. A dead thread does not stay dead because
+she is forbidden from re-opening it — it stays dead until there is a REASON, and
+the background-search work is precisely a supplier of reasons. The difference
+between the two designs is invisible in a single message and total in aggregate:
+one re-opens with something to say, the other re-opens to be noticed.
+
+**Reverses if:** the owner overrules it explicitly, which is his call to make —
+but the reversal has to be recorded here as a deliberate trade, because the
+thing being traded is the property the product's trust rests on, not a
+preference about frequency.
