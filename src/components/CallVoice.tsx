@@ -67,9 +67,14 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
   // What the line is doing, in one line. `connecting` gets a breathing dot
   // because it is the only state you might sit in wondering whether anything
   // is happening; the rest are self-evidently alive.
+  // "ringing…" rather than "connecting…": the beat it names IS a ring — the
+  // engine gives it 1.1-2.4s and lengthens it when she would plausibly be
+  // asleep — and calling it "connecting" described our socket instead of her
+  // phone. The timer rides every other state, WhatsApp-style, because the one
+  // thing you always want on a call is how long you have been on it.
   const stateLabel =
     eng.phase === "connecting"
-      ? "connecting…"
+      ? "ringing…"
       : eng.muted
         ? "mic off · " + eng.mmss
         : eng.speaking
@@ -105,6 +110,18 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
           {eng.phase === "connecting" && <span className="cdot" />}
           {stateLabel}
         </div>
+        {/* The duration, always, once she has picked up — WhatsApp puts it
+            under the name and never takes it away, and the one thing you
+            reliably want on a call is how long you have been on it. It is a
+            separate line rather than appended to `stateLabel` because that
+            label changes six times a minute and the clock must not flicker
+            with it. aria-hidden: it ticks every second, and a live region
+            announcing the time each tick would talk over her. */}
+        {connected && (
+          <div className="cclock" aria-hidden="true">
+            {eng.mmss}
+          </div>
+        )}
       </div>
 
       <div className="call-stage">

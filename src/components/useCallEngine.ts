@@ -26,6 +26,8 @@ import {
   getSttMode,
   playThinkingFiller,
   startRoomTone,
+  startRingback,
+  stopRingback,
   stopRoomTone,
   duckSpeech,
   webviewMicTrace,
@@ -910,8 +912,13 @@ export function useCallEngine(
       else if (since > 20 * 3_600_000) ms += 400 + Math.random() * 300;
       return Math.min(2400, ms);
     })();
+    // The ring is audible now. It starts here rather than at dial time because
+    // this is the same block that DECIDES the ring length, so the sound and the
+    // beat cannot drift apart.
+    startRingback();
     const t = setTimeout(async () => {
       if (!alive.current) return;
+      stopRingback(); // she picked up; the tone ramps out under her first word
       setPhase("live");
       startRoomTone(); // real lines are never digitally silent
       // if the live session isn't up within ~3.5s of pickup, the cascade
@@ -985,6 +992,7 @@ export function useCallEngine(
       // screen share must NEVER outlive the call
       stopWatchMode();
       stopSpeaking();
+      stopRingback(); // a call abandoned DURING the ring must not keep ringing
       stopRoomTone();
       stopListen.current?.();
     };
@@ -2225,6 +2233,7 @@ export function useCallEngine(
     stopWatchMode(); // screen sharing dies with the call, always
     if (reengageTimer.current) clearTimeout(reengageTimer.current);
     stopSpeaking();
+    stopRingback();
     stopRoomTone();
     stopListen.current?.();
     setPhase("ended");

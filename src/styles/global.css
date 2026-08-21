@@ -2959,3 +2959,27 @@ input {
 @media (prefers-reduced-motion: reduce) {
   .react-bar, .react-pill { animation: none; }
 }
+
+/* the call duration, under the name — steady, quiet, always there once she
+   has answered. Tabular numerals so the line does not jitter as digits
+   change width every second. */
+.cclock {
+  margin-top: 2px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--ink-faint);
+}
+/* the ring is now audible AND visible: the dot breathes at the same 2s cadence
+   as the ringback burst pair, so the screen and the sound agree */
+.cstate[data-tone="connecting"] .cdot {
+  animation: ring-pulse 2s ease-in-out infinite;
+}
+@keyframes ring-pulse {
+  0%, 100% { opacity: 0.25; transform: scale(0.85); }
+  10%, 40% { opacity: 1; transform: scale(1); }
+  55% { opacity: 0.3; transform: scale(0.9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cstate[data-tone="connecting"] .cdot { animation: none; opacity: 0.8; }
+}

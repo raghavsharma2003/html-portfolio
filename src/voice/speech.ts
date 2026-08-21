@@ -555,6 +555,70 @@ export function startRoomTone() {
   }
 }
 
+/* ── ringback ────────────────────────────────────────────────────────────
+   The owner: "when calling there should be ringing sound and showing that is
+   ringing like a real call."
+
+   The ring BEAT already existed — 1.1-2.4s, lengthened when she would
+   plausibly be asleep or out of the conversation — and it was silent, so the
+   most human thing in the call lane was invisible. This gives it a sound.
+
+   Synthesised rather than shipped as an asset, for the same reason the room
+   tone is: it is a few lines of oscillator against a file that has to be
+   fetched, decoded and cached on a path where a stall would delay the pickup
+   itself. It also lets the cadence be India's rather than America's — the
+   Indian ringback is a ~400Hz tone, 0.4s on / 0.2s off, twice, then a long
+   gap, and getting that wrong is the kind of detail that reads as foreign
+   without anyone being able to say why. */
+let ringback: { osc: OscillatorNode; gain: GainNode; stop: () => void } | null = null;
+
+export function startRingback() {
+  if (!audioCtx || audioCtx.state !== "running" || ringback) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = 400;
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0;
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start();
+    // Quiet on purpose: it sits UNDER her first word rather than in front of
+    // it, and a ringback that has to be turned down is worse than none.
+    const LEVEL = 0.035;
+    const burst = (at: number) => {
+      gain.gain.setValueAtTime(0, at);
+      gain.gain.linearRampToValueAtTime(LEVEL, at + 0.02);
+      gain.gain.setValueAtTime(LEVEL, at + 0.38);
+      gain.gain.linearRampToValueAtTime(0, at + 0.4);
+    };
+    const cycle = () => {
+      if (!ringback || !audioCtx) return;
+      const t = audioCtx.currentTime;
+      burst(t);
+      burst(t + 0.6);
+    };
+    cycle();
+    const iv = window.setInterval(cycle, 2000);
+    ringback = { osc, gain, stop: () => clearInterval(iv) };
+  } catch {
+    /* a silent ring is the old behaviour, not a failure */
+  }
+}
+
+export function stopRingback() {
+  if (!ringback) return;
+  try {
+    // ramp rather than cut: a tone that stops instantly clicks, and the click
+    // lands exactly where her first word begins
+    if (audioCtx) ringback.gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.06);
+    ringback.osc.stop((audioCtx?.currentTime ?? 0) + 0.1);
+  } catch {
+    /* already stopped */
+  }
+  ringback.stop();
+  ringback = null;
+}
+
 export function stopRoomTone() {
   if (!roomTone) return;
   try {
