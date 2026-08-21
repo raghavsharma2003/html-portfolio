@@ -29,3 +29,4 @@ export {
   RAISED_BUDGET,
   SHORT_REPLY_WORDS,
 } from "../src/engine/repeat";
+export { asksToHangUp } from "../src/engine/hangup";

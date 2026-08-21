@@ -46,6 +46,12 @@ export default function CallVoice({ state, setState, onEnd }: Props) {
     return () => clearTimeout(idle.current);
   }, [wake]);
 
+  // The armed hangup (he said "rakh de") needs somewhere to land. Re-bound on
+  // every render so it can never hold a stale closure over an old onEnd.
+  useEffect(() => {
+    eng.bindEnd(onEnd);
+  }, [eng, onEnd]);
+
   // the moment she is actually there
   const connected = eng.phase === "live";
   useEffect(() => {

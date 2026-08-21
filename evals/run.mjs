@@ -34,6 +34,9 @@ const suites = {
   // WS-REPEAT. T14 rel.raised — repetition seen, his reception carried
   // alongside it, and the control that keeps her own sentences out of it.
   repeat: "repeat.mjs",
+  // WS-HANGUP. "cut the call" read off HIS words — the half of the ask that is
+  // structurally decidable, since a voice-lane marker of hers can be spoken.
+  hangup: "hangup.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),

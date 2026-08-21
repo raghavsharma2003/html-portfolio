@@ -58,6 +58,7 @@ import type { RelBundleInput } from "../engine/compiler";
 // the next call — the live prompt is frozen at connect on purpose.
 import { gatesFor, getAgeTier } from "../engine/clock";
 import { logTurns, rememberFrom, recallForCall, callSelfBundle } from "../engine/memory";
+import { asksToHangUp } from "../engine/hangup";
 import { innerContext, applyInner, wantsForAppraisal } from "../engine/inner";
 import {
   ensureOverlay,
@@ -632,6 +633,10 @@ export function useCallEngine(
       onMyText: (t) => {
         lastHeardAt.current = Date.now();
         tel("call.turn", { who: "them", words: wordsIn(t), lane: "live", call_id: callId.current });
+        // He asked to end the call. Armed rather than acted on: she says her
+        // goodbye first and the line drops after it, which is what a person
+        // does. See engine/hangup.ts on why this reads HIS words, not hers.
+        if (asksToHangUp(t)) armHangup("live");
         log({ id: uid(), from: "me", kind: "text", channel: "call", text: t, at: Date.now() });
         // A factual question on a call: fire the lookup NOW, in parallel with
         // her own answer, and inject the facts a beat after she has started
@@ -2015,6 +2020,7 @@ export function useCallEngine(
 
   async function handleUser(text: string, prestart?: SpecTurn) {
     if (!alive.current || !text.trim()) return;
+    if (asksToHangUp(text)) armHangup("cascade");
     // native watch owns the conversation — she hears them through the
     // service's own mic; a reply from here would be a second voice
     if (voiceOwner.current === "native") return;
@@ -2222,7 +2228,48 @@ export function useCallEngine(
     }
   }
 
+  // ── he asked to hang up ─────────────────────────────────────────────────
+  // Armed, not immediate. Cutting the line the instant he says "rakh de" means
+  // she never gets to say goodbye, which is the one thing that makes a call
+  // feel ended rather than dropped. The window is generous because her reply
+  // has to be generated AND spoken, and it self-cancels: any further speech
+  // from either side disarms it, so a phrase said mid-conversation cannot end
+  // a call three sentences later.
+  const HANGUP_GRACE_MS = 9_000;
+  const hangupArmed = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onEndRef = useRef<(() => void) | null>(null);
+
+  /**
+   * The screen hands over its own end-of-call callback, so the armed hangup has
+   * something to call. Without this the ref is a `dead-writers` instance — a
+   * timer that fires into null and silently does nothing, which would look
+   * exactly like the feature not working.
+   */
+  function bindEnd(fn: () => void) {
+    onEndRef.current = fn;
+  }
+
+  function disarmHangup() {
+    if (hangupArmed.current) {
+      clearTimeout(hangupArmed.current);
+      hangupArmed.current = null;
+    }
+  }
+
+  function armHangup(lane: string) {
+    if (hangupArmed.current) return; // already counting down
+    diag("call", "hangup_requested", { lane, graceMs: HANGUP_GRACE_MS });
+    tel("call.hangup_asked", { call_id: callId.current, lane });
+    hangupArmed.current = setTimeout(() => {
+      hangupArmed.current = null;
+      if (!alive.current) return;
+      const done = onEndRef.current;
+      if (done) endCall(done);
+    }, HANGUP_GRACE_MS);
+  }
+
   function endCall(onEnd: () => void) {
+    disarmHangup();
     alive.current = false;
     if (liveSession.current) {
       liveStopping.current = true;
@@ -2301,6 +2348,8 @@ export function useCallEngine(
     handleUser,
     startListening,
     endCall,
+    bindEnd,
+    disarmHangup,
     watching,
     frameAt,
     watchAvailable: watchAvailable() || webWatchAvailable(),
