@@ -17,6 +17,7 @@ import {
   messagesAfterForget,
 } from "../engine/memory";
 import { applyInner, wantsForAppraisal } from "../engine/inner";
+import { burstWaitMs, recentUserGaps } from "../engine/burst";
 import { track } from "../engine/account";
 import { tel, telFlush, createComposeTracker } from "../engine/telemetry";
 import type { HeartReply } from "../engine/localHeart";
@@ -725,7 +726,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     prefetchRecall(state.deviceId, hint || lastUserText());
     const seq = ++chatSeq.current;
     if (burstTimer.current) clearTimeout(burstTimer.current);
-    burstTimer.current = setTimeout(() => void replyCycle(seq), 1300);
+    // Derived from HIS OWN recent gaps, not a constant — see engine/burst.ts.
+    // A fixed wait makes a deliberate typist wait longest, which is backwards,
+    // and `scene-hold-800` already measured that on the watch lane. Only the
+    // timer lives here; the policy is the engine's so every surface gets it.
+    const wait = burstWaitMs(recentUserGaps(messagesRef.current));
+    burstTimer.current = setTimeout(() => void replyCycle(seq), wait);
   }
 
   function lastUserText(): string {

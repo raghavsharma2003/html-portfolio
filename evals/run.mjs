@@ -25,6 +25,9 @@ execSync(
 
 const suites = {
   parse: "parse.mjs",
+  // WS-BURST. The multi-message wait policy — pure, offline, no model call,
+  // wired here under the same `dead-writers` test as the suites below.
+  burst: "burst.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),
