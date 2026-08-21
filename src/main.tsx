@@ -2,6 +2,24 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "./styles/global.css";
 import App from "./App";
+import { applyTheme, isThemeChoice } from "./engine/theme";
+import { loadState } from "./state/store";
+
+// BEFORE React renders anything.
+//
+// App also applies the theme in an effect, and that effect is what keeps it
+// correct as the setting changes — but an effect runs after the first paint,
+// so a dark-mode user would watch the app flash paper-white on every single
+// launch. This is the same call, one frame earlier, reading the persisted
+// choice straight off disk. Cheap, and it makes the flash structurally
+// impossible rather than usually-absent.
+try {
+  const t = loadState().theme;
+  applyTheme(isThemeChoice(t) ? t : "system");
+} catch {
+  // storage unavailable (private mode, wiped profile) — the media query still
+  // decides, which is exactly the "system" default
+}
 import { installTelemetry, tel, telFlush } from "./engine/telemetry";
 import { installTrace } from "./engine/trace";
 

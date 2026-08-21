@@ -13,6 +13,7 @@ import ActivityShell, { type ActivityCall } from "./ActivityShell";
 import ChessBoard, { type LegalMove as BoardMove, type PromotionRole, type Role } from "./ChessBoard";
 import { chooseMoveAsync, legalMoves, newGame, play } from "../engine/chess";
 import { useCallStatus } from "../state/callStatus";
+import { resolveTheme } from "../engine/theme";
 
 interface Props {
   state: AppState;
@@ -146,7 +147,15 @@ export default function ChessActivity({
   }, [onExit, setState]);
 
   const last = g?.played.length ? g.played[g.played.length - 1] : null;
-  const tone = status.live ? "dark" : "paper";
+  // The board follows the APP THEME, not the call.
+  //
+  // It used to force itself dark whenever a call was live, so the board read as
+  // the same room continuing. That was a nice touch and it is now wrong: once
+  // someone has explicitly chosen Light, a surface that overrides them because
+  // a call happens to be up is the app arguing with a setting. The live call
+  // chip in the header carries the continuity instead, and it does it without
+  // repainting the room.
+  const tone = resolveTheme(state.theme) === "dark" ? "dark" : "paper";
   const call: ActivityCall | null =
     status.live || status.connecting
       ? {

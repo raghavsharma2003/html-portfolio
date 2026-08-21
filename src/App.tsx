@@ -10,6 +10,7 @@ import ClockCard from "./components/ClockCard";
 import GamesHub, { DEFAULT_ACTIVITIES, type Activity } from "./components/GamesHub";
 import ChessActivity from "./components/ChessActivity";
 import { CloseIcon } from "./components/icons";
+import { applyTheme, watchSystemTheme } from "./engine/theme";
 import { unlockAudio } from "./voice/speech";
 import { diagStart } from "./engine/diag";
 import { startSessionClock } from "./engine/clock";
@@ -62,6 +63,18 @@ export default function App() {
   // CallVoice, never replacements: opening a board must not unmount the chat or
   // drop a live call, because the whole point of the activity layer is that
   // this is one continuous session rather than a set of modes.
+  // THEME. Applied in an effect rather than during render because it mutates
+  // the document, and applied BEFORE anything else paints for the obvious
+  // reason: a dark-mode user watching the app flash white on every launch is a
+  // worse experience than no dark mode at all.
+  useEffect(() => {
+    applyTheme(state.theme);
+    // and keep following the OS while the choice is "system" — the phone
+    // switching to dark at sunset with the app open is the exact case this is
+    // for, and a value read once at startup would miss it
+    return watchSystemTheme(state.theme, () => applyTheme(state.theme));
+  }, [state.theme]);
+
   const [gamesOpen, setGamesOpen] = useState(false);
   const [activity, setActivity] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);

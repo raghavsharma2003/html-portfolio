@@ -51,6 +51,7 @@ export interface SelfFact {
 }
 
 import type { GameSession } from "./game";
+import type { ThemeChoice } from "../engine/theme";
 
 export interface AppState {
   onboarded: boolean;
@@ -93,6 +94,10 @@ export interface AppState {
   // state/game.ts for the reasoning and for `activityOf`, the single derivation
   // both lanes read. Undefined is the normal case and renders nothing.
   game?: GameSession | null;
+  // Light, dark, or follow the phone. Undefined means "system", which is both
+  // the default and the state every existing install is already in — so this
+  // field arriving changes nothing for anyone until they touch the setting.
+  theme?: ThemeChoice;
 }
 
 const KEY = "meera.state.v1";

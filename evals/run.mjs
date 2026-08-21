@@ -50,6 +50,10 @@ const suites = {
   // adapter — plus the control that keeps dialogue out of it, since a line she
   // could say in this block is a line she would say every single game.
   activity: "activity.mjs",
+  // Light/dark. Structural, because every way a theme breaks is silent — a
+  // dark block reachable one way and not the other looks perfect to whoever
+  // happened to have the matching OS setting.
+  theme: "theme.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),

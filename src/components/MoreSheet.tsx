@@ -27,6 +27,7 @@ import {
   PersonIcon,
   TrashIcon,
 } from "./icons";
+import { THEMES, THEME_LABEL } from "../engine/theme";
 
 // GAP 4 (WS-FELT) — closeness card copy. App chrome, never a line she says
 // (same discipline ClockCard.tsx's own header states for its strings), and
@@ -188,6 +189,35 @@ export default function MoreSheet({
                 })()}
               </div>
             )}
+            {/* APPEARANCE.
+                Sits at the top of Settings, not buried in a submenu, because
+                it is the one setting here that someone changes for a physical
+                reason — the screen is too bright right now — and a setting you
+                reach for in that state should be one tap away, not three.
+                Reuses the existing chip row rather than inventing a control. */}
+            <label>Appearance</label>
+            <div className="chip-row" role="radiogroup" aria-label="Appearance">
+              {THEMES.map((t) => {
+                const on = (state.theme ?? "system") === t;
+                return (
+                  <button
+                    key={t}
+                    className={`chip ${on ? "on" : ""}`}
+                    role="radio"
+                    aria-checked={on}
+                    data-tel={`more.theme.${t}`}
+                    onClick={() => setState((cur) => ({ ...cur, theme: t }))}
+                  >
+                    {THEME_LABEL[t]}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="hint">
+              Auto follows your phone, and keeps following it — including when it
+              turns dark at night on its own.
+            </p>
+
             <div className="sheet-rows">
               <button className="srow" data-tel="more.profile" onClick={() => setView("profile")}>
                 <span className="sicon">

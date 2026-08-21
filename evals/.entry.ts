@@ -39,3 +39,4 @@ export { asksToHangUp } from "../src/engine/hangup";
 export { renderActivity, activityNote, ACTIVITY_BUDGET } from "../src/engine/activity";
 export { chessActivity, moveFact } from "../src/engine/chessTalk";
 export { newGame, play, assessLast } from "../src/engine/chess";
+export { resolveTheme, isThemeChoice, THEMES, THEME_LABEL } from "../src/engine/theme";
