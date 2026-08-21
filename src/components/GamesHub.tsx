@@ -128,7 +128,7 @@ export const DEFAULT_ACTIVITIES: readonly Activity[] = [
     id: "would-you-rather",
     title: "Would you rather",
     blurb: "Two bad options and an argument about them.",
-    state: "soon",
+    state: "ready",
     icon: <ForkIcon />,
   },
   {

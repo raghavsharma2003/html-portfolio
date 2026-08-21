@@ -9,6 +9,7 @@ import AuthSheet from "./components/AuthSheet";
 import ClockCard from "./components/ClockCard";
 import GamesHub, { DEFAULT_ACTIVITIES, type Activity } from "./components/GamesHub";
 import ChessActivity from "./components/ChessActivity";
+import WouldYouRatherActivity from "./components/WouldYouRatherActivity";
 import { CloseIcon } from "./components/icons";
 import { applyTheme, watchSystemTheme } from "./engine/theme";
 import { unlockAudio } from "./voice/speech";
@@ -367,7 +368,7 @@ export default function App() {
                   heading=""
                   activities={DEFAULT_ACTIVITIES.map(
                     (a): Activity =>
-                      a.id === "chess" && state.game && !state.game.closedAt
+                      a.id === "chess" && state.game?.kind === "chess" && !state.game.closedAt
                         ? {
                             ...a,
                             state: "resume",
@@ -376,7 +377,11 @@ export default function App() {
                                 ? "her move"
                                 : "your move",
                           }
-                        : a,
+                        : a.id === "would-you-rather" &&
+                            state.game?.kind === "wyr" &&
+                            !state.game.closedAt
+                          ? { ...a, state: "resume", detail: "mid-round" }
+                          : a,
                   )}
                   onOpen={(id) => {
                     setGamesOpen(false);
@@ -386,6 +391,22 @@ export default function App() {
                 />
               </div>
             </>
+          )}
+          {activity === "would-you-rather" && (
+            <WouldYouRatherActivity
+              state={state}
+              setState={setState}
+              onExit={() => setActivity(null)}
+              onOpenCall={() => setActivity(null)}
+              onStartCall={() => {
+                unlockAudio(); // inside the tap gesture, or mobile mutes her
+                track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
+                setInCall(true);
+              }}
+              // her picks are seeded per RELATIONSHIP: same person, same
+              // answers, forever — an account keeps them across devices
+              salt={state.auth?.userId ?? state.deviceId}
+            />
           )}
           {activity === "chess" && (
             <ChessActivity

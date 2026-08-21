@@ -53,7 +53,9 @@ export default function ChessActivity({
   onOpenCall,
   onStartCall,
 }: Props) {
-  const session = state.game ?? null;
+  // Narrow the shared slot to THIS activity's kind — the union gained a
+  // second member (wyr) and each activity component reads only its own.
+  const session = state.game?.kind === "chess" ? state.game : null;
   // Subscribed, not passed down: the timer ticks once a second and this is the
   // only component that should re-render for it (state/callStatus.ts).
   const status = useCallStatus();
@@ -65,7 +67,7 @@ export default function ChessActivity({
     setState((s) =>
       s.game
         ? s
-        : { ...s, game: { kind: "chess", game: newGame(), herSide: "b", startedAt: Date.now() } },
+        : { ...s, game: { kind: "chess" as const, game: newGame(), herSide: "b", startedAt: Date.now() } },
     );
   }, [session, setState]);
 
@@ -84,7 +86,7 @@ export default function ChessActivity({
     (from: string, to: string, promotion?: PromotionRole) => {
       setState((s) => {
         const cur = s.game;
-        if (!cur) return s;
+        if (cur?.kind !== "chess") return s;
         const next = play(cur.game, { from, to, promotion });
         return next ? { ...s, game: { ...cur, game: next } } : s;
       });
@@ -129,7 +131,7 @@ export default function ChessActivity({
         setState((s) => {
           const cur = s.game;
           // the position moved under us (a reload, a takeback) — drop the reply
-          if (!cur || cur.game.fen !== g.fen) return s;
+          if (cur?.kind !== "chess" || cur.game.fen !== g.fen) return s;
           const next = play(cur.game, hm.move.uci);
           return next ? { ...s, game: { ...cur, game: next } } : s;
         });
@@ -159,7 +161,7 @@ export default function ChessActivity({
     if (!over || !session || session.closedAt) return;
     const t = setTimeout(() => {
       setState((s) =>
-        s.game && !s.game.closedAt && s.game.game.status.over
+        s.game?.kind === "chess" && !s.game.closedAt && s.game.game.status.over
           ? { ...s, game: { ...s.game, closedAt: Date.now() } }
           : s,
       );
@@ -171,7 +173,7 @@ export default function ChessActivity({
   // backing out of a mis-tap leaves her convinced they are mid-match — she
   // would be carrying a fact about the present moment that is not true.
   const exit = useCallback(() => {
-    setState((s) => (s.game && !s.game.game.played.length ? { ...s, game: null } : s));
+    setState((s) => (s.game?.kind === "chess" && !s.game.game.played.length ? { ...s, game: null } : s));
     onExit();
   }, [onExit, setState]);
 

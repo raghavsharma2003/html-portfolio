@@ -1,0 +1,241 @@
+/* ─── Would you rather ────────────────────────────────────────────────────
+   Two big panels and an argument about them. This file draws only what is
+   INSIDE `.as-stage` (see ActivityShell/games.css) — it owns no chrome, no
+   header, no way out, all of which the shell already draws identically for
+   every activity.
+
+   NO TOKEN BLOCK HERE, and that is deliberate rather than an omission: this
+   markup is always a descendant of `.as` (ActivityShell's root), and
+   `games.css` already scopes a full `--ga-*` palette on `.as`, re-inked by
+   `data-tone` for the paper/call-dark split and by the app's own theme
+   underneath that. Custom properties inherit down the DOM by default, so
+   `.wyr` sees the same `--ga-*` values `.as-head` and `.gh` do, in both
+   themes, for free. Declaring a second copy here would be exactly the
+   drifting-palette failure games.css's own header warns about.
+
+   Durations come off the shared scale, same as chess.css and games.css:
+   `--d-state` (220ms) for the reveal, nothing invented. */
+
+.wyr {
+  width: 100%;
+  max-width: 480px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+/* ── the two panels ───────────────────────────────────────────────────────
+   Stacked, not side by side: a phone is taller than it is wide, and a real
+   sentence-length option needs the width. Each panel gets roughly half the
+   stage, per the spec — `flex: 1` on both, split by the shared gap and the
+   "or" divider between them. */
+.wyr-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.wyr-or {
+  align-self: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--t-meta);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ga-faint);
+  background: var(--ga-ground);
+  border: 0.5px solid var(--ga-line);
+  /* pulls the two panels visually together without eating layout space */
+  margin-block: calc(-1 * var(--s3));
+  z-index: 1;
+}
+
+.wyr-opt {
+  position: relative;
+  flex: 1;
+  min-height: var(--hit);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s4) var(--s4);
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--ga-line);
+  background: var(--ga-well);
+  color: var(--ga-ink);
+  font-family: var(--font-display);
+  font-size: var(--t-ui);
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  letter-spacing: -0.01em;
+  transition: background var(--d-state) ease, border-color var(--d-state) ease,
+    transform var(--d-press) var(--ease-out);
+}
+/* pointerdown feedback, felt before the finger lifts */
+.wyr-opt:not(:disabled):active {
+  transform: scale(0.98);
+  background: var(--ga-press);
+}
+
+/* his pick — the accent, since it is the one thing HE just did */
+.wyr-opt[data-mine="yes"] {
+  border-color: var(--ga-accent);
+  background: var(--ga-accent-soft);
+  color: var(--ga-accent-ink);
+}
+.wyr-opt[data-mine="yes"]::after {
+  content: "you";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: var(--ga-accent);
+  color: var(--ga-ground);
+}
+
+/* her pick — a distinct corner so agreement (same panel, both badges) reads
+   differently from a clash (two panels, one badge each) at a glance, with no
+   need to read the words underneath. */
+.wyr-opt[data-hers="yes"] {
+  border-color: var(--ga-line-strong);
+  box-shadow: inset 0 0 0 1.5px var(--ga-line-strong);
+}
+.wyr-opt[data-hers="yes"]::before {
+  content: "her";
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--t-meta);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: var(--ga-well);
+  color: var(--ga-dim);
+  border: 0.5px solid var(--ga-line-strong);
+}
+/* the badge is new information the moment it lands — a quiet pop, not a
+   flip. `prefers-reduced-motion` below turns this into a plain appearance. */
+.wyr-opt[data-hers="yes"]::before {
+  animation: wyr-badge-in var(--d-state) var(--ease-out) both;
+}
+@keyframes wyr-badge-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.9);
+  }
+}
+
+.wyr-opt:disabled {
+  /* answered but not yet advanced: no longer touchable, but full ink — a
+     resolved question, not a broken control (`.gh-card[data-state="soon"]`
+     sets the same precedent). */
+  cursor: default;
+}
+
+/* ── status row: what just happened, and the tally ────────────────────── */
+.wyr-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  min-height: 22px;
+  padding-inline: var(--s1);
+  font-size: var(--t-sub);
+  color: var(--ga-dim);
+}
+
+.wyr-hint {
+  color: var(--ga-faint);
+}
+
+.wyr-waiting {
+  color: var(--ga-accent-ink);
+}
+
+.wyr-verdict {
+  font-weight: 650;
+  animation: wyr-verdict-in var(--d-state) var(--ease-out) both;
+}
+.wyr-verdict[data-clash="yes"] {
+  color: var(--ga-accent-ink);
+}
+.wyr-verdict[data-clash="no"] {
+  color: var(--ga-live);
+}
+@keyframes wyr-verdict-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+.wyr-tally {
+  flex-shrink: 0;
+  color: var(--ga-faint);
+  font-variant-numeric: tabular-nums;
+}
+.wyr-tally b {
+  color: var(--ga-ink);
+  font-weight: 650;
+}
+
+/* ── blocked: a foreign activity already holds the slot ─────────────────── */
+.wyr-blocked {
+  max-width: 320px;
+  margin: auto;
+  padding: var(--s4);
+  text-align: center;
+  font-size: var(--t-ui);
+  line-height: 1.5;
+  color: var(--ga-dim);
+}
+
+/* ── the footer control ──────────────────────────────────────────────────
+   `.as-foot` (games.css) already draws the bar this sits in. */
+.wyr-next {
+  min-height: var(--hit);
+  padding: 0 var(--s5);
+  border-radius: 999px;
+  background: var(--ga-accent);
+  color: var(--ga-ground);
+  font-size: var(--t-ui);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out),
+    opacity var(--d-tap) ease;
+}
+.wyr-next:not(:disabled):active {
+  transform: scale(0.96);
+}
+.wyr-next:disabled {
+  opacity: 0.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wyr-opt[data-hers="yes"]::before,
+  .wyr-verdict {
+    animation: none !important;
+  }
+  .wyr-opt,
+  .wyr-next {
+    transition: background var(--d-tap) ease, color var(--d-tap) ease !important;
+  }
+}

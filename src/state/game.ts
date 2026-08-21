@@ -26,6 +26,8 @@
 // would become one only if an activity wanted to persist media.
 
 import type { Game, MoveAssessment, Side } from "../engine/chess";
+import type { WyrSession } from "../engine/wyr/session";
+import { wyrActivity } from "../engine/wyrTalk";
 import { assessLast } from "../engine/chess";
 import { chessActivity } from "../engine/chessTalk";
 import { LABEL, type ActivityState } from "../engine/activity";
@@ -37,7 +39,9 @@ import { LABEL, type ActivityState } from "../engine/activity";
  * stops being generic. Adding backgammon adds a member here and an adapter in
  * `engine/`, and touches nothing else.
  */
-export interface GameSession {
+export type GameSession = ChessSession | WyrSession;
+
+export interface ChessSession {
   kind: "chess";
   game: Game;
   /** Which colour SHE has. Not derivable from the board; a real choice. */
@@ -62,7 +66,7 @@ export interface GameSession {
  * gate fed by `nameable` is not a cosmetic disagreement.
  */
 export function lastAssessment(s: GameSession | null | undefined): MoveAssessment | null {
-  if (!s || !s.game.played.length) return null;
+  if (!s || s.kind !== "chess" || !s.game.played.length) return null;
   try {
     return assessLast(s.game);
   } catch {
@@ -98,9 +102,14 @@ export function activityOf(s: GameSession | null | undefined, nowMs?: number): A
     // number a person carries is how long since it ENDED.
     const now = nowMs ?? Date.now();
     if (now - s.closedAt > RECENT_END_MS) return null;
-    const a = chessActivity(s.game, s.herSide, s.closedAt, lastAssessment(s));
-    return a.over ? a : { ...a, over: true };
+    const a =
+      s.kind === "wyr"
+        ? wyrActivity(s)
+        : chessActivity(s.game, s.herSide, s.closedAt, lastAssessment(s));
+    // For a finished thing, "N min ago" means since it ENDED.
+    return { ...a, over: true, startedAt: s.closedAt };
   }
+  if (s.kind === "wyr") return wyrActivity(s);
   return chessActivity(s.game, s.herSide, s.startedAt, lastAssessment(s));
 }
 

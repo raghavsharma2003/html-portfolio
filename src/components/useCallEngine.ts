@@ -63,6 +63,8 @@ import { activityOf, activityPickupLine, lastAssessment } from "../state/game";
 import { clearCallStatus, publishCallStatus } from "../state/callStatus";
 import { activityNote } from "../engine/activity";
 import { exchangeFact, moveFact } from "../engine/chessTalk";
+import { wyrPickFact } from "../engine/wyrTalk";
+import { cardById } from "../engine/wyr/deck";
 import { assessMove } from "../engine/chess";
 import { innerContext, applyInner, wantsForAppraisal } from "../engine/inner";
 import {
@@ -2422,7 +2424,12 @@ export function useCallEngine(
   const pokeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     const g = state.game;
-    const ply = g && !g.closedAt ? g.game.played.length : null;
+    // ONE progress counter for every activity kind: chess counts plies, wyr
+    // counts answered rounds. The poke machinery below (adopt-don't-replay,
+    // debounce, quiet floor) is kind-blind on purpose — a third game should
+    // add a branch HERE and in the fact builder, nothing else.
+    const ply =
+      g && !g.closedAt ? (g.kind === "chess" ? g.game.played.length : g.rounds.length) : null;
     // No game, or it is over: forget where we were, so a NEW game starts clean
     // rather than inheriting the last game's ply count and staying silent
     // through its opening.
@@ -2466,6 +2473,17 @@ export function useCallEngine(
         if (Date.now() - lastHeardAt.current < 2500) {
           if (attempt < 3) armPoke(MOVE_POKE_MS * 2, attempt + 1);
           else diag("call", "activity_poke", { kind: cur.kind, dropped: "conversation_held_floor" });
+          return;
+        }
+        if (cur.kind === "wyr") {
+          const round = cur.rounds[cur.rounds.length - 1];
+          pokedPly.current = cur.rounds.length;
+          const card = round ? cardById(round.cardId) : undefined;
+          if (!round || !card) return;
+          const note = activityNote(wyrPickFact(card, round.his, round.her));
+          if (!note) return;
+          diag("call", "activity_poke", { kind: cur.kind, round: cur.rounds.length });
+          liveSession.current.direct(note);
           return;
         }
         const plies = cur.game.played.length;

@@ -54,6 +54,8 @@ const suites = {
   // dark block reachable one way and not the other looks perfect to whoever
   // happened to have the matching OS setting.
   theme: "theme.mjs",
+  // WS-GAMES: would-you-rather — deck lint, her-pick determinism, shapelint.
+  wyr: "wyr.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),
