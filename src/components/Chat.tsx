@@ -6,6 +6,7 @@ import { animate } from "framer-motion";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think, formatHerLife } from "../engine/brain";
+import { activityOf } from "../state/game";
 import {
   HER_NAME,
   OPEN_DIRECTIVE,
@@ -227,6 +228,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     // where she actually is: one carried feeling and what she wants. Read
     // only — brain.ts decides whether it reaches the prompt at all.
     inner: state.inner,
+    // WHAT THEY ARE DOING. Same derivation the call lane reads, from the same
+    // field — that is the point of `activityOf` living in state/game.ts rather
+    // than in either lane. A game paused to type a message is still a game, so
+    // she can be mid-board in chat and pick the call up already knowing where
+    // it stands. Null when nothing is going on, which renders zero bytes and
+    // leaves every byte-identity fixture untouched.
+    activity: activityOf(state.game),
   });
   const sendCount = useRef(0);
   // ── reply pacing ──

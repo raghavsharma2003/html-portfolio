@@ -93,5 +93,45 @@ ok("whitespace fact yields no note", activityNote("   ") === "");
 // ── determinism — compile() must stay a pure function of its input ────────
 ok("same input twice is byte-identical", renderActivity(act, NOW) === renderActivity(act, NOW));
 
+// ── WIRING — both lanes must actually ASK for it ──────────────────────────
+// `dead-writers` is a law here because this repo has shipped, more than once, a
+// writer that nothing invoked: T11/T12/T13 rendered zero bytes everywhere for
+// weeks because nothing ever set `selfBundle`, and the module looked complete
+// the whole time. An activity layer that no lane passes is exactly that shape,
+// and it would fail as silence — she would simply never mention the game.
+//
+// Structural, on the real source, for the reason `gate0-structural` records:
+// an instruction not to forget leaked 57–98% of the time, a SQL predicate
+// leaked 0 times in 31,122. This is the predicate version.
+import { readFileSync } from "node:fs";
+const src = (f) => readFileSync(new URL(`../src/${f}`, import.meta.url), "utf8");
+
+const chat = src("components/Chat.tsx");
+ok("chat lane passes activity", /activity:\s*activityOf\(/.test(chat));
+ok("chat lane imports the single derivation", /from "\.\.\/state\/game"/.test(chat));
+
+const call = src("components/useCallEngine.ts");
+ok("call lane passes activity at connect", /activity:\s*activityOf\(/.test(call));
+ok("call lane pokes per move", /activityNote\(moveFact\(/.test(call));
+// The live prompt is frozen at connect, so a mid-call move CANNOT ride a
+// recompile. If this ever becomes a second compile() the `liveAssemblies === 1`
+// invariant breaks and the call gets a fresh prompt mid-sentence.
+ok("the poke goes through direct(), not a recompile",
+  /liveSession\.current\.direct\(note\)/.test(call));
+
+// Both lanes must read the SAME derivation. Two lanes computing this
+// separately is the `age-tier-never-realtime` fork, where the copy nobody
+// updated silently lost a rule — here it would be `nameable`, and losing it
+// makes the honesty gate flag moves that really were played.
+const game = src("state/game.ts");
+ok("there is exactly one derivation", /export function activityOf/.test(game));
+for (const f of ["components/Chat.tsx", "components/useCallEngine.ts"]) {
+  ok(`${f} does not build an ActivityState itself`, !/chessActivity\(/.test(src(f)));
+}
+
+// The game must be SESSION state, not component state — a board the call lane
+// cannot see is the discreteness the whole layer exists to remove.
+ok("the game is persisted on AppState", /game\?:\s*GameSession/.test(src("state/store.ts")));
+
 console.log(fail ? `${fail} FAILURES` : "ALL PASS");
 process.exit(fail ? 1 : 0);

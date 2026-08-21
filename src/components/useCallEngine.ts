@@ -59,6 +59,9 @@ import type { RelBundleInput } from "../engine/compiler";
 import { gatesFor, getAgeTier } from "../engine/clock";
 import { logTurns, rememberFrom, recallForCall, callSelfBundle } from "../engine/memory";
 import { asksToHangUp } from "../engine/hangup";
+import { activityOf, lastAssessment } from "../state/game";
+import { activityNote } from "../engine/activity";
+import { moveFact } from "../engine/chessTalk";
 import { innerContext, applyInner, wantsForAppraisal } from "../engine/inner";
 import {
   ensureOverlay,
@@ -200,6 +203,16 @@ function postWatchMoment(device: string, reaction: string) {
     /* never let telemetry throw into the call path */
   }
 }
+
+// How long to wait after a move before telling her about it.
+//
+// Long enough that his move and her reply are ONE event rather than two — the
+// engine answers in a few hundred ms, and a person watching a board comments on
+// the exchange, not on each hand separately. Short enough that the note is
+// still about what just happened: past roughly a second she is reacting to
+// history, which is the failure the screen-share lane's stale-frame suppressor
+// exists to prevent.
+const MOVE_POKE_MS = 700;
 
 export function useCallEngine(
   state: AppState,
@@ -604,6 +617,15 @@ export function useCallEngine(
       // brain.ts is under. This is also the first time an age-tier refusal
       // has ever reached the realtime lane.
       ageGates: gatesFor(getAgeTier()),
+      // WHAT THEY ARE DOING. If a game is already on when the call connects,
+      // she knows it the moment she picks up — she does not have to be told by
+      // him that they are mid-game, which is what a person would never need.
+      //
+      // A game STARTED during the call cannot ride this compile: the live
+      // prompt is frozen at connect (`liveAssemblies` is asserted to read 1 for
+      // the whole call), so mid-call state travels by direct() instead. Same
+      // split the watch lane is under, and for the same reason.
+      activity: activityOf(stateRef.current.game),
     });
     const system = compiled.system;
     liveAssemblies.current += 1;
@@ -2358,6 +2380,87 @@ export function useCallEngine(
     });
     setTimeout(onEnd, 400);
   }
+
+  // ── THE MOVE POKE ─────────────────────────────────────────────────────
+  //
+  // A move played while the call is up has to reach her, and it cannot ride the
+  // prompt: the live prompt is FROZEN AT CONNECT and `liveAssemblies` is
+  // asserted to read 1 for the whole call. So mid-call state travels the way
+  // the watch lane's state travels — one `<context: …>` note through direct(),
+  // angle brackets never square, because bracket text on this lane gets SPOKEN
+  // (`ack-bracket-direction`: "[laughs softly]" came back as laughter plus the
+  // spoken word "Softly").
+  //
+  // Three decisions worth writing down, because each has an obvious wrong
+  // version:
+  //
+  // 1. DEBOUNCED, and the note describes only the LATEST move. He moves, she
+  //    answers 300ms later — poking per move would queue two notes, and
+  //    direct() waits for her to finish speaking before committing, so the
+  //    second lands right behind the first and she says two things back to
+  //    back about one exchange. A person comments on the exchange, once.
+  //
+  // 2. NEVER REPLAYS. `pokedPly` starts at the ply count observed on the first
+  //    pass, not at zero — otherwise connecting mid-game, or any unrelated
+  //    state write, walks her through a game she was already in.
+  //
+  // 3. NO POKE WHEN SHE IS NOT ON A CALL. There is no chat-lane equivalent
+  //    here and there should not be: in chat she answers when he texts, and
+  //    the tail already carries the board. An unprompted "nice move" message
+  //    because he touched a piece is exactly the `never-scheduled` failure —
+  //    her unprompted moves are reason-contingent, and a move he made while
+  //    she is not looking is not a reason.
+  const pokedPly = useRef<number | null>(null);
+  const pokeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const g = state.game;
+    const ply = g && !g.closedAt ? g.game.played.length : null;
+    // No game, or it is over: forget where we were, so a NEW game starts clean
+    // rather than inheriting the last game's ply count and staying silent
+    // through its opening.
+    if (ply === null) {
+      pokedPly.current = null;
+      return;
+    }
+    // First sighting of this game — adopt its position without narrating it.
+    if (pokedPly.current === null) {
+      pokedPly.current = ply;
+      return;
+    }
+    if (ply <= pokedPly.current) {
+      // A takeback or a reset moves the count backwards. Re-anchor, say
+      // nothing: "he took a move back" is a UI event, not something she
+      // watched happen.
+      pokedPly.current = ply;
+      return;
+    }
+    if (!liveSession.current) {
+      // Not on the live lane. Stay silent AND stay caught up, so reconnecting
+      // does not trigger a note about a move from ten minutes ago.
+      pokedPly.current = ply;
+      return;
+    }
+    if (pokeTimer.current) clearTimeout(pokeTimer.current);
+    pokeTimer.current = setTimeout(() => {
+      pokeTimer.current = null;
+      const cur = stateRef.current.game;
+      if (!cur || cur.closedAt || !liveSession.current) return;
+      const last = lastAssessment(cur);
+      if (!last) return;
+      pokedPly.current = cur.game.played.length;
+      const whoMoved = last.fenBefore.split(" ")[1] === cur.herSide ? "her" : "him";
+      const note = activityNote(moveFact(last, cur.herSide, whoMoved));
+      if (!note) return;
+      diag("call", "activity_poke", { kind: cur.kind, ply: cur.game.played.length, who: whoMoved });
+      liveSession.current.direct(note);
+    }, MOVE_POKE_MS);
+    return () => {
+      if (pokeTimer.current) {
+        clearTimeout(pokeTimer.current);
+        pokeTimer.current = null;
+      }
+    };
+  }, [state.game]);
 
   const mmss = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`;
 

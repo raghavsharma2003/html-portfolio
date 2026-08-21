@@ -50,6 +50,8 @@ export interface SelfFact {
   at: number;
 }
 
+import type { GameSession } from "./game";
+
 export interface AppState {
   onboarded: boolean;
   auth?: AuthInfo | null; // signed-in account (null/undefined = anonymous)
@@ -84,6 +86,13 @@ export interface AppState {
   // the account this local state last belonged to — guards against a second
   // account on the same browser inheriting the first account's conversation
   lastAccountId?: string;
+  // WHAT THEY ARE DOING TOGETHER. A game in progress lives here rather than in
+  // the component that draws the board, and that placement is the whole point:
+  // a board held in component state is a board the CALL lane cannot see, so she
+  // would be unable to talk about a game she is visibly playing. See
+  // state/game.ts for the reasoning and for `activityOf`, the single derivation
+  // both lanes read. Undefined is the normal case and renders nothing.
+  game?: GameSession | null;
 }
 
 const KEY = "meera.state.v1";
