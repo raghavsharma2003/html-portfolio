@@ -40,6 +40,12 @@ const suites = {
   // WS-SEARCH. The frequency cap behind the widened (curiosity, not doubt)
   // search trigger — capped in code because a brief cannot enforce a budget.
   search: "search.mjs",
+  // WS-CHESS. Rules, her move selection, and the structured move assessment.
+  // Standalone, offline, $0, ~17s. Wired the moment it landed, because the
+  // workstream that wrote it could not wire it (file ownership) and flagged
+  // that `dead-writers` applied to it until someone did — a suite nothing
+  // invokes is indistinguishable from a suite that does not exist.
+  chess: "chess.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),
