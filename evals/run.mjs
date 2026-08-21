@@ -28,6 +28,9 @@ const suites = {
   // WS-BURST. The multi-message wait policy — pure, offline, no model call,
   // wired here under the same `dead-writers` test as the suites below.
   burst: "burst.mjs",
+  // WS-AWAY. T9 session.clock — the overnight-gap facts, and the negative
+  // control that keeps them from becoming a greeting she recites.
+  away: "away.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),

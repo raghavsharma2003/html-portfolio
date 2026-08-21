@@ -907,6 +907,10 @@ export async function think(
     selfBundle,
     latestUserText: isDirective ? "" : latest,
     gapSinceLastMs: lastMsgAt ? Math.max(0, Date.now() - lastMsgAt) : 0,
+    // T9 reads the clock from here rather than calling Date.now() itself, so
+    // compile() stays a pure function of its input and the double-compile
+    // byte-identity gate cannot flap on a minute rollover.
+    nowMs: Date.now(),
     // fresh every call — see the import comment above; getAgeTier() reads
     // clock.ts's live module state, never a value carried across turns here
     ageGates: gatesFor(getAgeTier()),

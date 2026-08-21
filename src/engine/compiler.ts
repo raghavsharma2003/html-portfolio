@@ -81,6 +81,7 @@ import {
 // Type-only read of clock.ts's TierGates shape — no edit to clock.ts, which
 // stays WS-SAFETY's exclusively (§13).
 import type { TierGates } from "./clock";
+import { renderAway } from "./away";
 
 export type Medium = "text" | "voice";
 export type Mode = "chat" | "call";
@@ -211,6 +212,14 @@ export interface CompileInput {
   latestUserText?: string;
   // gap since their last message, ms — moment.ts's "silence" shape feature
   gapSinceLastMs?: number;
+  // Wall clock for THIS turn, passed in rather than read inside compile().
+  // compile() must stay a pure function of its input: `replay-verified` proves
+  // identity by compiling the same CompileInput twice and comparing bytes, and
+  // a Date.now() in here would make that gate flap whenever the minute ticked
+  // between the two calls. Absent means T9 renders nothing, which is the
+  // fail-closed direction — a caller that forgets it loses a nicety, never
+  // byte-identity.
+  nowMs?: number;
   // ── WS-INTEGRATE seam 2 (age-tier hard-refusal) — absent/undefined means
   // "unrestricted" (today's behavior, byte-identical); the caller (brain.ts)
   // is REQUIRED to compute this fresh via clock.ts's gatesFor(getAgeTier())
@@ -514,6 +523,18 @@ ${input.memories}`;
   // precision this function doesn't have without an inner.ts interface split.
   _track("T8");
 
+  // T9 session.clock — where this turn sits in time relative to the last one.
+  // Declared in the manifest since it was written and never built, which is why
+  // she never noticed he had been gone overnight: `gapSinceLastMs` reached only
+  // momentGate's "silence" shape, and that branch requires a near-EMPTY message,
+  // so a long gap followed by a real message was invisible by construction.
+  // Structured facts only, never a script — see away.ts on `recited-prompt`.
+  {
+    const t9 = renderAway(input.nowMs, input.gapSinceLastMs || 0);
+    if (t9) tail += `\n\n${t9}`;
+  }
+  _track("T9");
+
   if (input.mode === "chat" && !input.isDirective) tail += input.cultureNoteText;
   _track("culture"); // no manifest row yet — see CompiledPrompt.sections doc
   // dead last, chat only — see SEARCH_DECISION in persona.ts for why
@@ -727,7 +748,13 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     label: "session.clock",
     budget: 300,
     dropPriority: "never",
-    sourceStatus: "not-yet-modeled", // WS-SAFETY owns clock.ts/ClockCard.tsx concurrently — interface ticket filed
+    // `manifest-sourcestatus` records that this field is checked by nothing and
+    // reports "wired" for slots rendering zero bytes — an anti-signal. The type
+    // is a closed union, and widening it would change the input to the NC4
+    // control that DEMONSTRATES the field is worthless, so the value stays
+    // legal and the falsifier goes here where a reader will actually meet it:
+    //   node evals/run.mjs away   (incl. the no-script negative control)
+    sourceStatus: "wired",
   },
   // ── self layer (Phase E2, docs/SPEC-SELF-LAYER.md §8) ──────────────────
   // These three take drop priorities 1-3: they are the FIRST things shed

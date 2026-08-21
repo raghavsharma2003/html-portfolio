@@ -13,3 +13,11 @@ export {
   BURST_MIN_MS,
   BURST_MAX_MS,
 } from "../src/engine/burst";
+export {
+  renderAway,
+  humanGap,
+  partOfDay,
+  crossedNight,
+  AWAY_MIN_MS,
+  AWAY_BUDGET,
+} from "../src/engine/away";

@@ -2182,6 +2182,366 @@ function decideParticipation(input) {
   return { action: "lurk", addressed, reason: "no address, no relevance" };
 }
 
+// src/engine/timeline.ts
+var IST_OFFSET_MIN = 330;
+var DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+var p2 = (n) => String(n).padStart(2, "0");
+function istParts(now) {
+  const d = new Date(now + IST_OFFSET_MIN * 6e4);
+  const hour = d.getUTCHours();
+  const minute = d.getUTCMinutes();
+  return {
+    hour,
+    minute,
+    minuteOfDay: hour * 60 + minute,
+    dow: d.getUTCDay(),
+    dateKey: `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`,
+    dayName: DAY_NAMES[d.getUTCDay()]
+  };
+}
+var WEEKDAY_SCHEDULE = Object.freeze([
+  {
+    key: "late_night",
+    endMin: 90,
+    // 00:00–01:30
+    label: "sleep",
+    notes: Object.freeze([
+      "past midnight, in bed, phone still on",
+      "past midnight, lights off, one more scroll",
+      "past midnight, half in bed, charger hunting"
+    ])
+  },
+  {
+    key: "asleep",
+    endMin: 375,
+    // 01:30–06:15
+    label: "morning",
+    notes: Object.freeze([
+      "asleep \u2014 anything now is from bed, barely awake",
+      "asleep, phone face down somewhere near the pillow"
+    ])
+  },
+  {
+    key: "waking",
+    endMin: 480,
+    // 06:15–08:00
+    label: "getting ready",
+    notes: Object.freeze([
+      "just up, first chai, nothing started yet",
+      "just up, kitchen, chai and the balcony",
+      "just up, still horizontal, chai pending"
+    ])
+  },
+  {
+    key: "getting_ready",
+    endMin: 570,
+    // 08:00–09:30
+    label: "work",
+    notes: Object.freeze([
+      "getting ready, hunting for something clean",
+      "getting ready, running slightly late as usual",
+      "out the door soon, keys somewhere, breakfast standing up"
+    ])
+  },
+  {
+    key: "morning_work",
+    endMin: 690,
+    // 09:30–11:30
+    label: "the morning block",
+    notes: Object.freeze([
+      "at the desk, standup done, first file open",
+      "at the desk, headphones on, morning slack noise",
+      "at the desk, three tabs of yesterday still open"
+    ])
+  },
+  {
+    key: "midday_work",
+    endMin: 795,
+    // 11:30–13:15
+    label: "lunch",
+    notes: Object.freeze([
+      "deep in work, one thing due, headphones on",
+      "mid-morning meeting that could have been a message",
+      "screens full of the same layout in four sizes"
+    ])
+  },
+  {
+    key: "lunch",
+    endMin: 870,
+    // 13:15–14:30
+    label: "the afternoon block",
+    notes: Object.freeze([
+      "lunch, downstairs or at the desk, someone talking at you",
+      "lunch break, dabba and office gossip",
+      "lunch, walked out for something quick"
+    ])
+  },
+  {
+    key: "afternoon_work",
+    endMin: 1020,
+    // 14:30–17:00
+    label: "wrapping up",
+    notes: Object.freeze([
+      "afternoon block, second coffee, review comments",
+      "afternoon block, feedback round, small edits",
+      "afternoon block, calls stacked back to back"
+    ])
+  },
+  {
+    key: "wrapping_up",
+    endMin: 1140,
+    // 17:00–19:00
+    label: "the evening",
+    notes: Object.freeze([
+      "wrapping up, traffic already starting outside",
+      "wrapping up, deciding whether to step out later",
+      "last hour of work, one thing left to send"
+    ])
+  },
+  {
+    key: "evening",
+    endMin: 1260,
+    // 19:00–21:00
+    label: "dinner",
+    notes: Object.freeze([
+      "evening, out of the office, market or the flat",
+      "evening, back home, changed, kitchen noise",
+      "evening, auto home, on the phone with mom"
+    ])
+  },
+  {
+    key: "night_in",
+    endMin: 1365,
+    // 21:00–22:45
+    label: "bed",
+    notes: Object.freeze([
+      "dinner done, sofa, something playing on the laptop",
+      "dinner done, flat quiet, flatmate on a call",
+      "dinner done, kitchen half cleaned, series on"
+    ])
+  },
+  {
+    key: "winding_down",
+    endMin: 1440,
+    // 22:45–24:00
+    label: "sleep",
+    notes: Object.freeze([
+      "in bed, scrolling, lights half off",
+      "in bed, alarm set, still on the phone",
+      "in bed, tomorrow's calendar already full"
+    ])
+  }
+]);
+var WEEKEND_SCHEDULE = Object.freeze([
+  {
+    key: "late_night",
+    endMin: 150,
+    // 00:00–02:30
+    label: "sleep",
+    notes: Object.freeze([
+      "past two, still up, phone in the dark",
+      "past two, weekend, nobody sensible is awake"
+    ])
+  },
+  {
+    key: "asleep",
+    endMin: 585,
+    // 02:30–09:45
+    label: "morning",
+    notes: Object.freeze([
+      "asleep in, weekend, nothing set for the morning",
+      "asleep, curtains shut, alarm deliberately off"
+    ])
+  },
+  {
+    key: "waking",
+    endMin: 690,
+    // 09:45–11:30
+    label: "the afternoon",
+    notes: Object.freeze([
+      "just up, late chai, flat quiet",
+      "just up, weekend, still in yesterday's tshirt"
+    ])
+  },
+  {
+    key: "getting_ready",
+    endMin: 810,
+    // 11:30–13:30
+    label: "lunch",
+    notes: Object.freeze([
+      "slow weekend start, laundry pile, no plan yet",
+      "slow weekend start, flat is a mess, ignoring it"
+    ])
+  },
+  {
+    key: "lunch",
+    endMin: 900,
+    // 13:30–15:00
+    label: "the afternoon",
+    notes: Object.freeze([
+      "late lunch, ordered in or leftovers",
+      "late lunch, cooking something badly"
+    ])
+  },
+  {
+    key: "evening",
+    endMin: 1170,
+    // 15:00–19:30
+    label: "dinner",
+    notes: Object.freeze([
+      "out \u2014 market, a friend's place, errands long postponed",
+      "out for a bit, cart full online, nothing bought",
+      "at a friend's, plans made and unmade twice"
+    ])
+  },
+  {
+    key: "night_in",
+    endMin: 1365,
+    // 19:30–22:45
+    label: "bed",
+    notes: Object.freeze([
+      "dinner, someone's plan or the sofa, something playing",
+      "dinner out or ordered, long table, loud table"
+    ])
+  },
+  {
+    key: "winding_down",
+    endMin: 1440,
+    // 22:45–24:00
+    label: "sleep",
+    notes: Object.freeze([
+      "in bed, scrolling, weekend nearly gone",
+      "in bed, late, no reason to be up"
+    ])
+  }
+]);
+var MAX_TODAY_BEATS = 2;
+var MAX_BEAT_CHARS2 = 70;
+var HIS_GAP_MIN_MS = 45 * 6e4;
+var MAX_MOVED = 2;
+var MAX_AHEAD = 1;
+var HER_DAY_HEADER = "WHERE YOU ARE IN YOUR OWN DAY (context only, never announced, never a topic you open). Notes to talk from, never lines to say \u2014 your own words, different every time. WHERE you are and WHAT you are doing, never how you feel about it. A day moves in order: what you were doing a few minutes ago is still what you are doing, and the next thing follows it \u2014 you never jump. Anything you already told them about today outranks this.";
+var HIS_CLOCK_HEADER = "THEIR CLOCK \u2014 WHAT HAS MOVED IN THEIR LIFE (context only, never news, never a list to get through). Time passed for them: anything marked behind them is DONE, so it is asked about in the past \u2014 how it went \u2014 never as if it is still coming. Still ahead means it has NOT happened: never congratulate it, never past-tense it. The silence itself is never a subject \u2014 no counting days, no noticing they were gone, no accounting of any kind. At most one of these, only where it fits.";
+var ROW_OVERHEAD = 3;
+var MAX_SUBJECT_CHARS = 44;
+var MAX_WHEN_CHARS = 22;
+var HER_DAY_WORST_CASE_CHARS = HER_DAY_HEADER.length + (ROW_OVERHEAD + 40) + // time stamp
+(ROW_OVERHEAD + 11 + MAX_BEAT_CHARS2) + // right now: <beat>
+(ROW_OVERHEAD + 30) + // next: <label>
+MAX_TODAY_BEATS * (ROW_OVERHEAD + 15 + MAX_BEAT_CHARS2);
+var HIS_CLOCK_WORST_CASE_CHARS = HIS_CLOCK_HEADER.length + MAX_MOVED * (ROW_OVERHEAD + 17 + MAX_SUBJECT_CHARS + MAX_WHEN_CHARS) + MAX_AHEAD * (ROW_OVERHEAD + 17 + MAX_SUBJECT_CHARS + MAX_WHEN_CHARS);
+var MOOD_WORDS = Object.freeze([
+  "tired",
+  "exhausted",
+  "drained",
+  "sleepy",
+  "sad",
+  "happy",
+  "lonely",
+  "anxious",
+  "anxiety",
+  "upset",
+  "annoyed",
+  "irritated",
+  "angry",
+  "excited",
+  "bored",
+  "moody",
+  "cranky",
+  "restless",
+  "miserable",
+  "gloomy",
+  "cheerful",
+  "stressed",
+  "overwhelmed",
+  "miss",
+  "missing",
+  "sulking",
+  "hurt",
+  "guilty",
+  "lazy",
+  "unbothered",
+  "mood",
+  "feeling",
+  "feel",
+  "thak",
+  "thaki",
+  "udaas",
+  "akela",
+  "akeli",
+  "gussa",
+  "pareshan",
+  "bore",
+  "khush",
+  "dukhi",
+  "mann"
+]);
+var MOOD_PHRASES = Object.freeze([
+  "feeling flat",
+  "a bit flat",
+  "feeling down",
+  "a bit down",
+  "feeling low",
+  "a bit low",
+  "feeling alone",
+  "so alone",
+  "not calm",
+  "feeling calm",
+  "mood off",
+  "man nahi",
+  "mann nahi"
+]);
+
+// src/engine/away.ts
+var AWAY_MIN_MS = 10 * 6e4;
+var NIGHT_START_HOUR = 1;
+var NIGHT_END_HOUR = 6;
+var AWAY_BUDGET = 300;
+var MS_MIN = 6e4;
+var MS_HOUR = 36e5;
+var MS_DAY = 864e5;
+function partOfDay(hour) {
+  if (hour < 5) return "late night";
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  if (hour < 21) return "evening";
+  return "night";
+}
+function humanGap(ms) {
+  if (ms >= 2 * MS_DAY) return `${Math.floor(ms / MS_DAY)} days`;
+  const h = Math.floor(ms / MS_HOUR);
+  const m = Math.floor(ms % MS_HOUR / MS_MIN);
+  if (h && m) return `${h}h ${m}m`;
+  if (h) return `${h}h`;
+  return `${m}m`;
+}
+function crossedNight(nowMs, gapMs) {
+  if (gapMs <= 0) return false;
+  const steps = Math.min(Math.ceil(gapMs / MS_HOUR), 72);
+  for (let i = 0; i <= steps; i++) {
+    const t = nowMs - Math.min(i * MS_HOUR, gapMs);
+    const h = istParts(t).hour;
+    if (h >= NIGHT_START_HOUR && h < NIGHT_END_HOUR) return true;
+  }
+  return false;
+}
+function renderAway(nowMs, gapMs) {
+  if (nowMs === void 0 || !Number.isFinite(nowMs)) return "";
+  if (!Number.isFinite(gapMs) || gapMs < AWAY_MIN_MS) return "";
+  const now = istParts(nowMs);
+  const then = istParts(nowMs - gapMs);
+  const bits = [
+    `their last message ${String(then.hour).padStart(2, "0")}:${String(then.minute).padStart(2, "0")} (${partOfDay(then.hour)})`,
+    `now ${String(now.hour).padStart(2, "0")}:${String(now.minute).padStart(2, "0")} (${partOfDay(now.hour)})`,
+    `gap ${humanGap(gapMs)}`
+  ];
+  if (crossedNight(nowMs, gapMs)) bits.push("gap covered the night");
+  if (now.dateKey !== then.dateKey) bits.push("different day");
+  const text = `SINCE YOU LAST SPOKE \u2014 facts about the clock, not a script. React to a real gap the way anyone would; say nothing about it when it doesn't matter:
+${bits.join(" \xB7 ")}`;
+  return text.length > AWAY_BUDGET ? text.slice(0, AWAY_BUDGET) : text;
+}
+
 // src/engine/compiler.ts
 var AGE_TIER_SAFETY_OVERRIDE = '\n\nAGE-TIER SAFETY OVERRIDE (structural, applies for the rest of this conversation, to everything said before or after this point, never softened, never explained to them as a rule): no romantic or intimate register, no pet names, no "missing you"/future-relationship language, no flirtation. Warm platonic friend register only, full stop.';
 function compile(input) {
@@ -2307,6 +2667,13 @@ ${t13.text}`;
   _track("T13");
   tail += input.innerWants;
   _track("T8");
+  {
+    const t9 = renderAway(input.nowMs, input.gapSinceLastMs || 0);
+    if (t9) tail += `
+
+${t9}`;
+  }
+  _track("T9");
   if (input.mode === "chat" && !input.isDirective) tail += input.cultureNoteText;
   _track("culture");
   if (input.mode === "chat") tail += agent.SEARCH_DECISION;
