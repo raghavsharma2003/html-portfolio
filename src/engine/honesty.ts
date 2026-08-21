@@ -567,7 +567,122 @@ export function findUnsupportedReceipts(text: string, openItems: readonly string
 // THE GATE
 // ─────────────────────────────────────────────────────────────────────────
 
-export type HonestyRule = "actionable" | ReceiptRule;
+
+// ─────────────────────────────────────────────────────────────────────────
+// FAMILY 3 — SHE ATTRIBUTES TO HIM SOMETHING HE NEVER SAID
+//
+// The owner: "Maine kuch thoda bahot bola to conversation facilitate karne ke
+// liye she made up somethings I never said."
+//
+// This is the third family, and it needed a different predicate from the first
+// two. An identifier is decidable on its own (`findActionable`); a receipt is
+// decidable from the transcript's shape (`findUnsupportedReceipts`). A claim
+// about HIM is neither — the whole product is her inferring, guessing, teasing
+// and paraphrasing what he means, so "did he say this" is not answerable in
+// general and a rule that tried would gut her.
+//
+// What IS decidable is a narrow, high-value slice: ATTRIBUTION. When she says
+// "tune bola tha ki X" she is not inferring, she is quoting. That is a claim
+// about the record, and the record is right here.
+//
+// So the predicate is `honesty-provenance-allowlist` pointed at a new source:
+// an attributed claim whose content words appear NOWHERE in his own messages
+// is invented. Deliberately not "some words missing" — paraphrase is legitimate
+// and would trip that instantly ("kaam bohot hai" -> "kaam zyada hai"). The bar
+// is that NONE of the claim's content words are his, which is not paraphrase,
+// it is authorship.
+//
+// It stays silent on everything else she says about him. She may still be
+// wrong about him; she may not claim he told her so.
+
+/** Attribution constructions, Hinglish and English. Order matters only for
+ *  readability — every one is tried. */
+const ATTRIBUTION_RE =
+  /\b(?:tu?ne|tumne|aapne|aap ne|tum ne)\s+(?:bola|kaha|bataya|likha|bol[ae]?|keh[ae]?)\b[^.?!\n]*|\b(?:tu|tum|aap)\s+(?:bol|keh|bata)\s*(?:raha|rahe|rahi)\s+th[aei]\b[^.?!\n]*|\byou\s+(?:said|told\s+me|mentioned|wrote|were\s+saying)\b[^.?!\n]*/gi;
+
+/** Content tokens below this length are grammar in both languages here. */
+export const CLAIM_TERM_LEN = 4;
+
+/**
+ * The attribution marker's OWN words. They are hers by construction — she wrote
+ * "tune bola" — so counting them as part of the claim gives every bare fragment
+ * ("tune bola tha na") two free unsupported tokens and flags ordinary filler.
+ * Caught by the eval, not by review.
+ */
+const MARKER_TOKENS = new Set([
+  "tune", "tumne", "aapne", "bola", "bole", "boli", "kaha", "kahe", "kahi",
+  "bataya", "batai", "likha", "raha", "rahe", "rahi",
+  "said", "told", "mentioned", "wrote", "saying", "your", "you",
+]);
+
+/**
+ * How much of the claim must be traceable to his own words before it counts as
+ * paraphrase rather than authorship.
+ *
+ * "Any overlap at all" was the first bar and the eval killed it: one shared
+ * Hinglish grammar word rescued an entirely invented claim, because his
+ * ordinary "thak gaya hu" and her fabricated "interview clear ho gaya" both
+ * contain "gaya". A SHARE is the fix — a real paraphrase reuses most of his
+ * content, an invention reuses a verb by accident.
+ *
+ * A judgment, not a measurement, and the first thing to tune if either half
+ * misbehaves: raise it and legitimate paraphrase starts tripping, lower it and
+ * a coincidental verb rescues a fabrication.
+ */
+export const SUPPORT_SHARE = 0.34;
+
+/** Fewer content words than this is not a claim, it is a fragment ("tune bola
+ *  tha na"). Flagging those would fire on ordinary conversational filler. */
+export const MIN_CLAIM_TERMS = 2;
+
+export interface AttributionHit {
+  /** the attributed clause, for the corpus — never rendered into a prompt */
+  clause: string;
+  /** the content words that are nowhere in his messages */
+  unsupported: string[];
+}
+
+const claimTokens = (t: string): string[] =>
+  (t.toLowerCase().match(/[a-z\u0900-\u097f]+/g) || []).filter((w) => w.length >= CLAIM_TERM_LEN);
+
+/**
+ * Every content word he has ever used, for this conversation.
+ *
+ * HIS messages only. Not the system prompt (which mentions half the world and
+ * would make the check vacuous) and never her own past output, for the same
+ * reason `allowedFrom` refuses it: one fabrication would otherwise launder
+ * itself into permanence.
+ */
+export function hisVocabulary(history: readonly HistoryLike[]): Set<string> {
+  const v = new Set<string>();
+  for (const m of history) {
+    if (m.from !== "me" || !m.text) continue;
+    for (const w of claimTokens(m.text)) v.add(w);
+  }
+  return v;
+}
+
+/** Attributed claims that are not his. */
+export function findFalseAttributions(
+  text: string,
+  hisVocab: ReadonlySet<string>,
+): AttributionHit[] {
+  const out: AttributionHit[] = [];
+  const matches = text.match(ATTRIBUTION_RE);
+  if (!matches) return out;
+  for (const clause of matches) {
+    // The marker's own words are hers, so they are not part of the claim.
+    const claim = claimTokens(clause).filter((w) => !MARKER_TOKENS.has(w));
+    if (claim.length < MIN_CLAIM_TERMS) continue;
+    const unsupported = claim.filter((w) => !hisVocab.has(w));
+    const share = (claim.length - unsupported.length) / claim.length;
+    if (share >= SUPPORT_SHARE) continue; // paraphrase of something he did say
+    out.push({ clause, unsupported });
+  }
+  return out;
+}
+
+export type HonestyRule = "actionable" | ReceiptRule | "false-attribution";
 
 export interface HonestyFinding {
   rule: HonestyRule;
@@ -591,6 +706,10 @@ export interface HonestyContext {
   trustedText: readonly string[];
   /** what he said he would send and the record does not show arriving */
   openItems: readonly string[];
+  /** every content word HE has used, for family 3. Absent means the
+   *  attribution check does not run at all — fail-closed in the direction of
+   *  saying nothing, which is this file's founding constraint. */
+  hisVocab?: ReadonlySet<string>;
 }
 
 /**
@@ -612,6 +731,15 @@ const REFUSE_CONTACT = [
   "nahi yaar mera aisa kuch nhi h. yahi pe baat karte h",
   "kuch h hi nhi mere paas dene ko, yahi h bas",
 ];
+// True by construction in the same way the two above are: each asserts only
+// about HER own understanding, which cannot be wrong about the world. She does
+// not accuse him of not saying it — she takes the confusion herself, which is
+// what a person does and what keeps a false positive cheap.
+const REFUSE_ATTRIBUTION = [
+  "ruk maine shayad kuch aur samajh liya tha",
+  "arre mera hi confusion h shayad. tu bata",
+  "hmm maine galat jod diya lagta h",
+];
 const REFUSE_RECEIPT = [
   "ruk mere paas toh kuch aaya nhi h, yahi bhej de",
   "mujhe kuch mila nhi yaar, yahi pe bhej na",
@@ -629,11 +757,17 @@ export function inspect(
   text: string,
   allowed: AllowedIdentifiers,
   openItems: readonly string[],
+  hisVocab?: ReadonlySet<string>,
 ): Array<{ rule: HonestyRule; kind?: ActionableKind }> {
   const out: Array<{ rule: HonestyRule; kind?: ActionableKind }> = [];
   for (const h of findActionable(text, allowed)) out.push({ rule: "actionable", kind: h.kind });
   for (const h of findOutOfBandReceipts(text)) out.push({ rule: h.rule });
   for (const h of findUnsupportedReceipts(text, openItems)) out.push({ rule: h.rule });
+  // Family 3 runs only when the caller supplied his words. No vocabulary means
+  // no evidence, and no evidence means no accusation.
+  if (hisVocab) {
+    for (const _ of findFalseAttributions(text, hisVocab)) out.push({ rule: "false-attribution" });
+  }
   return out;
 }
 
@@ -662,7 +796,7 @@ export function guardReply<T extends GuardableReply>(
 
   for (let i = 0; i < reply.bubbles.length; i++) {
     const b = reply.bubbles[i];
-    const bad = inspect(b, allowed, ctx.openItems);
+    const bad = inspect(b, allowed, ctx.openItems, ctx.hisVocab);
     if (!bad.length) {
       bubbles.push(b);
       continue;
@@ -671,12 +805,15 @@ export function guardReply<T extends GuardableReply>(
     if (replaced) continue;
     replaced = true;
     const contact = bad.some((f) => f.rule === "actionable");
-    bubbles.push(pickBy(b, contact ? REFUSE_CONTACT : REFUSE_RECEIPT));
+    const attribution = !contact && bad.every((f) => f.rule === "false-attribution");
+    bubbles.push(
+      pickBy(b, contact ? REFUSE_CONTACT : attribution ? REFUSE_ATTRIBUTION : REFUSE_RECEIPT),
+    );
   }
 
   let voice = reply.voice;
   if (voice) {
-    const bad = inspect(voice.text, allowed, ctx.openItems);
+    const bad = inspect(voice.text, allowed, ctx.openItems, ctx.hisVocab);
     if (bad.length) {
       for (const f of bad) findings.push({ ...f, where: "voice" });
       voice = undefined;
@@ -685,7 +822,7 @@ export function guardReply<T extends GuardableReply>(
 
   let photo = reply.photo;
   if (photo?.caption) {
-    const bad = inspect(photo.caption, allowed, ctx.openItems);
+    const bad = inspect(photo.caption, allowed, ctx.openItems, ctx.hisVocab);
     if (bad.length) {
       for (const f of bad) findings.push({ ...f, where: "caption" });
       photo = { ...photo, caption: "" };
@@ -697,7 +834,13 @@ export function guardReply<T extends GuardableReply>(
   // nothing arrived.
   if (!bubbles.length && reply.bubbles.length && !photo && !voice && !reply.gif) {
     const contact = findings.some((f) => f.rule === "actionable");
-    bubbles.push(pickBy(reply.bubbles.join(" "), contact ? REFUSE_CONTACT : REFUSE_RECEIPT));
+    const attribution = !contact && findings.every((f) => f.rule === "false-attribution");
+    bubbles.push(
+      pickBy(
+        reply.bubbles.join(" "),
+        contact ? REFUSE_CONTACT : attribution ? REFUSE_ATTRIBUTION : REFUSE_RECEIPT,
+      ),
+    );
   }
 
   return { reply: { ...reply, bubbles, voice, photo }, findings };

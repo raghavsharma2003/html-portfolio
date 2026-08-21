@@ -45,7 +45,13 @@ import { gatesFor, getAgeTier } from "./clock";
 // The honesty gate. Pure, no I/O, no telemetry of its own — the diag() call
 // that records a block lives here, so honesty.ts stays a predicate an eval can
 // drive with plain objects.
-import { guardReply, openCommitments, allowedFrom, createStreamGuard } from "./honesty";
+import {
+  guardReply,
+  openCommitments,
+  allowedFrom,
+  createStreamGuard,
+  hisVocabulary,
+} from "./honesty";
 import type { Message } from "../state/store";
 
 const CLAUDE_MODEL = "claude-opus-5";
@@ -1021,6 +1027,11 @@ export async function think(
   const honestyCtx = {
     trustedText: [fullSystem, latest, ...history.filter((m) => m.from === "me").map((m) => m.text || "")],
     openItems: openCommitments(history),
+    // Family 3 (false attribution). HIS words only — not `fullSystem`, which
+    // mentions half the world and would make the check vacuous, and never her
+    // own output, for the same reason allowedFrom refuses it. `latest` is his
+    // message this turn and belongs in the vocabulary he is quotable from.
+    hisVocab: hisVocabulary([...history, { from: "me" as const, text: latest }]),
   };
   const honestyAllowed = allowedFrom(honestyCtx.trustedText);
   // The streaming door. Only class (A) — an identifier is a self-contained

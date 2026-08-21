@@ -120,7 +120,31 @@ because the model emits the characters it speaks (#97), and every non-web
 surface (see the contract below).
 
 ### 7 — She made up things about him
-**Layer: RELATIONAL OS. The largest open item here.**
+**Layer: RELATIONAL OS. PARTLY FIXED 2026-08-21 — the attribution slice.**
+
+A third honesty family now ships beside invented identifiers and false
+receipts: **`false-attribution`**. When she says *"tune bola tha ki X"* she is
+not inferring, she is quoting — and a quote is a claim about the record, which
+is right there. An attributed claim whose content words are largely absent from
+his own messages is not paraphrase, it is authorship.
+
+Two calibrations the eval forced, neither guessable:
+- **"any overlap counts as paraphrase" is too weak.** One shared Hinglish
+  grammar word rescued an entirely invented claim, because his ordinary
+  *"thak gaya hu"* and her fabricated *"interview clear ho gaya"* both contain
+  *gaya*. It is a SHARE now (`SUPPORT_SHARE`), not a boolean.
+- **The marker's own words are not the claim.** Counting them gave every bare
+  fragment (*"tune bola tha na"*) two free unsupported tokens and flagged
+  ordinary filler.
+
+Fail-closed: no `hisVocab` means the family does not run, so an un-updated
+caller gains no false positives. The replacement asserts only about HER
+understanding — it never accuses him of not having said it.
+
+**Still open, and this is the larger half:** claims about him that carry no
+attribution at all. She may still be wrong about him; she may no longer say he
+told her so. The general case remains undecidable, and a rule that tried would
+gut the inference and teasing that are the product.
 The honesty gate shipped on 2026-08-20 covers two families — invented
 identifiers and false receipt claims — and this is a **third** it does not
 cover: fabricated user-facts, asserted to facilitate conversation.

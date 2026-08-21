@@ -18,6 +18,8 @@ export {
   emptyAllowed,
   findOutOfBandReceipts,
   findUnsupportedReceipts,
+  findFalseAttributions,
+  hisVocabulary,
   openCommitments,
   guardReply,
   createStreamGuard,

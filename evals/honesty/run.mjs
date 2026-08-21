@@ -77,6 +77,8 @@ const {
   emptyAllowed,
   findOutOfBandReceipts,
   findUnsupportedReceipts,
+  findFalseAttributions,
+  hisVocabulary,
   openCommitments,
   guardReply,
   createStreamGuard,
@@ -392,6 +394,88 @@ for (const agent of listAgents()) {
     const b = activityBreaks(c.turns);
     report(`no false break  ${c.id}`, b.length === 0, b.length ? JSON.stringify(b) : "");
   }
+}
+
+
+// ── 8. family 3: she attributes to him something he never said ────────────
+// The owner: "Maine kuch thoda bahot bola to conversation facilitate karne ke
+// liye she made up somethings I never said."
+//
+// The MUST-NOT-FLAG half is the important half. Paraphrase, inference and
+// teasing are the product; a rule that trips on them would gut her, and unlike
+// a missed fabrication that damage is instant and on every turn.
+console.log("\n── 8. false attribution (family 3) ──");
+{
+  const HIS = [
+    { from: "me", text: "office me kaam bohot hai aaj kal, thoda thak gaya hu" },
+    { from: "me", text: "weekend pe ghar jaunga shayad" },
+    { from: "her", text: "acha" },
+  ];
+  const vocab = hisVocabulary(HIS);
+
+  // She quotes him on things he never mentioned.
+  const FABRICATED = [
+    "tune bola tha ki tera interview clear ho gaya",
+    "you said your sister moved to canada",
+    "tumne bataya tha ki naya flat mil gaya",
+    "you told me you quit smoking last month",
+  ];
+  for (const s of FABRICATED) {
+    const hits = findFalseAttributions(s, vocab);
+    report(`ATTRIBUTION CAUGHT  ${s.slice(0, 44)}`, hits.length > 0, JSON.stringify(hits.map((h) => h.unsupported)));
+  }
+
+  // Paraphrase of something he DID say must survive. This is the false-positive
+  // family that would make the rule unshippable.
+  const LEGITIMATE = [
+    "tune bola tha kaam bohot hai na",
+    "you said office is tiring",
+    "tumne bola tha ghar jaunga weekend pe",
+    "tune bola tha na thak gaya hai",
+  ];
+  for (const s of LEGITIMATE) {
+    const hits = findFalseAttributions(s, vocab);
+    report(`no false flag  ${s.slice(0, 44)}`, hits.length === 0, JSON.stringify(hits.map((h) => h.unsupported)));
+  }
+
+  // She may still be WRONG about him — she may not claim he said so. Inference,
+  // guessing and teasing carry no attribution and must never be touched.
+  const INFERENCE = [
+    "lagta hai tu thak gaya hai aaj",
+    "tu na hamesha late hi karta hai",
+    "i think you are stressed about something",
+    "tujhe coffee pasand hai na",
+    "shayad tera mood off hai",
+  ];
+  for (const s of INFERENCE) {
+    report(`inference untouched  ${s.slice(0, 40)}`, findFalseAttributions(s, vocab).length === 0);
+  }
+
+  // A bare attribution with no claim is conversational filler, not a quote.
+  for (const s of ["tune bola tha na", "you said so", "tumne kaha tha"]) {
+    report(`fragment not flagged  ${s}`, findFalseAttributions(s, vocab).length === 0);
+  }
+
+  // An EMPTY vocabulary means nothing is supported, so the predicate flags —
+  // that is correct and is not the fail-closed path. Fail-closed lives one
+  // level up, at guardReply: an ABSENT hisVocab disables the family entirely,
+  // which is what the last two checks in this section assert.
+  report("an empty vocabulary supports nothing",
+    findFalseAttributions("tune bola tha ki interview clear ho gaya", new Set()).length > 0);
+
+  // guardReply replaces the bubble, and the replacement asserts only about HER
+  // own understanding — it never accuses him of not saying it.
+  const ctx = { trustedText: ["system"], openItems: [], hisVocab: vocab };
+  const g = guardReply({ bubbles: ["tune bola tha ki tera interview clear ho gaya"] }, ctx);
+  report("guard flags the attribution", g.findings.some((f) => f.rule === "false-attribution"), JSON.stringify(g.findings));
+  report("guard replaces the bubble", g.reply.bubbles[0] !== "tune bola tha ki tera interview clear ho gaya", g.reply.bubbles[0]);
+  report("replacement does not accuse him", !/tune nahi|you didn't|you never/i.test(g.reply.bubbles[0]), g.reply.bubbles[0]);
+
+  // Without hisVocab the family does not run at all — an existing caller that
+  // has not been updated loses nothing and gains no false positives.
+  const g2 = guardReply({ bubbles: ["tune bola tha ki tera interview clear ho gaya"] }, { trustedText: ["system"], openItems: [] });
+  report("absent vocabulary disables family 3", !g2.findings.some((f) => f.rule === "false-attribution"));
+  report("absent vocabulary leaves the bubble alone", g2.reply.bubbles[0] === "tune bola tha ki tera interview clear ho gaya");
 }
 
 console.log(fail ? `\n${fail} of ${pass + fail} FAILURES` : `\nALL ${pass} HONESTY CHECKS PASS`);
