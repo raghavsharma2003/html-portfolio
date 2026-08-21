@@ -1320,3 +1320,68 @@ empty `NEON_URL` fails loudly instead of quietly reaching production.
 **Reverses if:** the suite's runtime makes pushes painful. It is ~40s today
 against a ~2min APK build, so it is free; if it grows past the build itself,
 split the safety floor from the slow batteries rather than dropping the gate.
+
+---
+
+## pickup-carries-the-scene — the call directive states the present moment
+
+**Decided 2026-08-21**, from live testing. Three felt lies had one mechanism:
+`CALL_OPEN_DIRECTIVE` said *"(you were doing something)"* with no knowledge of
+what was going on — an instruction to invent. Mid-chess she picked up with a
+blank "what's up" (the T15 block was in the frozen prompt, but a rule mid-brief
+loses to the directive appended last — `prompt-position`); minutes after
+checkmating him she claimed to be "reading a book"; and the fence-free
+improvisation is the template that produced "our beach photos".
+
+Now `activityPickupLine(activityOf(game))` rides all three directive sites
+(live winner, race-loser, cascade greet). With a scene: "that IS your present
+moment — come to the phone from inside it." Without one: her OWN small solo
+day, and an explicit fence — never anything involving THEM; a moment with them
+that you made up is a lie about them.
+
+**Reverses if:** pickups start sounding scripted — the scene clause is factual
+input, not lines, but if judged pickup naturalness drops against the old arm,
+the fence stays and the scene wording gets rewritten as shapes.
+
+## finished-games-stay-present — RECENT_END_MS and the `over` state
+
+**Decided 2026-08-21.** `activityOf` returned null the moment a game closed,
+so she checkmated him, he called two minutes later, and she asked him what
+move she should play. Closed sessions now render for 2 hours, marked `over`,
+with the winner named in the facts; the tail head flips to "YOU TWO JUST
+FINISHED … never a replay". After the window it is the memory layer's job.
+2h is a judgment: a call twenty minutes after the ending lands mid-afterglow;
+tomorrow it is a memory, not an open topic.
+
+**Reverses if:** she keeps raising finished games unprompted inside the
+window — then the window is not the problem, the head wording is, and the fix
+is the "afterglow or a grudge IF IT FITS" clause, not the duration.
+
+## exchange-not-move — the poke describes what they did, not what she did
+
+**Decided 2026-08-21.** Her engine answers ~300ms behind his move, so the
+debounced "latest move" note always described HERS — she narrated her own play
+("she played Nf6, a good one") every exchange on calls. The poke now leads
+with HIS move (the one she is responding to, where the salience lives) and
+carries hers as the answer. Plus a quiet floor: if he spoke in the last 2.5s
+the note re-arms twice then drops — she was abruptly abandoning live
+conversation threads to recite move comments. The note wording stopped being
+a reaction request: "fold it into whatever you two were talking about, finish
+your thought first, or let it pass."
+
+**Reverses if:** she goes silent through whole games — then the drop-after-two
+is too aggressive and the cap should rise before the floor shortens.
+
+## her-chess-pace — a held move and a beatable level
+
+**Decided 2026-08-21.** Owner: "her move was extremely fast… don't move like
+that" and "she was too strong". The search takes ~45ms; a 45ms reply is the
+loudest tell that nobody is across the board. Moves are held for a
+position-seeded think-time (0.8–2.2s opening, 1.8–6s middlegame — pacing as a
+property of the moment, not randomness). She plays strength 2 as a surface
+choice; the engine default stays 3. Level 3's own comment concedes it beats
+most casual players.
+
+**Reverses if:** he starts winning every game and says so — then per-person
+adaptive strength (the surface already owns the choice point) replaces the
+constant.

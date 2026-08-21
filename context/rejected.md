@@ -1288,3 +1288,38 @@ travel.
 the whole property with it. Any calc() producing a unitless quantity from a
 length input should be checked with `CSS.supports`, because nothing else will
 tell you.
+
+---
+
+## activity-forgot-the-teardown
+
+**Tried:** adding `AppState.game` (2026-08-21, the activity layer) without
+touching `tearDownLocally`, which was written before the field existed.
+
+**What broke:** the owner pressed "make her forget you" — the strongest promise
+in the product — and the fresh conversation opened with her offering to resume
+their chess game, with the hub showing "resume". A person who claims to have
+forgotten you while remembering your unfinished match is not forgetting, she is
+lying about forgetting.
+
+**Now:** `game` and `callback` die in the teardown and ride the undo snapshot,
+and `evals/activity.mjs` asserts both structurally.
+
+**The generalisable rule:** every new field on `AppState` must answer "what do
+clear-chat and forget-me do to this?" at the moment it is added. The teardown
+is a second writer that nobody thinks about, and it fails as a broken promise
+rather than a bug report.
+
+## the-directive-that-said-improvise
+
+**Tried:** "(you were doing something)" in the call-open directive — three
+words meant to make pickups feel mid-life.
+
+**What broke:** with no scene and no fence, those three words were an
+instruction to fabricate, and the fabrications landed on HIM: a book instead
+of their just-finished game, "our photos from the beach", a meeting he never
+had. Each read not as color but as lying, because he could check.
+
+**Now:** the directive takes the actual scene when the app knows it, and the
+improvisation is fenced to her solo day when it does not. The prompt asked her
+to be alive; it must never ask her to be alive AT the cost of the record.
