@@ -939,6 +939,12 @@
       "kind": "decision",
       "title": "the em-dash ban became a predicate at the gate() choke point, text lane only, with the ASCII hyphen untouched so the crisis helpline survives",
       "at": "2026-08-21"
+    },
+    {
+      "id": "relstate-first-rows",
+      "kind": "measurement",
+      "title": "vy_rel_state went 0 -> 25 and production serves a live relational bundle for the first time; $0 cash",
+      "at": "2026-08-21"
     }
   ],
   "edges": [
@@ -1791,6 +1797,21 @@
       "src": "surface-bypasses-parse",
       "rel": "blocks",
       "dst": "dash-predicate-text-only"
+    },
+    {
+      "src": "relstate-first-rows",
+      "rel": "supersedes",
+      "dst": "selflayer-rows-zero"
+    },
+    {
+      "src": "relstate-first-rows",
+      "rel": "caused_by",
+      "dst": "never-scheduled"
+    },
+    {
+      "src": "relstate-first-rows",
+      "rel": "measured_by",
+      "dst": "selflayer-delivery-gate"
     }
   ]
 }

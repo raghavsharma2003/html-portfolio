@@ -1931,3 +1931,69 @@ and being able to use it.
 
 n = 9 keys probed + 1 OpenRouter auth call. Method: direct provider calls with
 the production model/endpoint; status codes only, no keys printed. 2026-08-20.
+
+---
+
+## `relstate-first-rows` — the derived layer has rows for every active person, and production serves them (2026-08-21)
+
+`never-scheduled` and `selflayer-rows-zero` were the binding constraint on
+everything: the call and chat lanes could read T2/T3/T4/T6/T11 and there was
+nothing to read. `vy_rel_state` had held **zero rows for every real user,
+ever**. It does not any more.
+
+**What unblocked it, and it was not code.** `main` was fast-forwarded to the
+branch tip, which registered `consolidate.yml` with GitHub for the first time
+(`never-scheduled`: schedules fire only from the default branch). The nightly
+chain was then run by hand rather than waiting for 03:30 IST, using exactly the
+flags the committed workflow declares.
+
+**Measured, full population, before → after:**
+
+| table | before | after |
+|---|---|---|
+| `vy_rel_state` | **0** | **25** |
+| `vy_rel_event` | 0 | 1 |
+| `vy_rel_texture` | 26 | 26 (all 25 rewritten by the real deriver) |
+| `vy_phrase` | 0 | 1 |
+| `vy_pattern` | 0 | 0 |
+| `vy_self_arc` | 0 | 0 |
+
+**Cost: $0 cash.** OpenRouter usage measured at `0` of `6` before and after the
+whole chain — the derivations ran on Azure credits and deterministic paths.
+`--derive-self` processed 25 persons and wrote 25 texture rows; `--extract-
+patterns` 22.8 s for 0 written; `--capture-phrases` 1 written.
+
+**Two refusals that are correct and should not be "fixed".** The arc refused
+all 10 evidence facts — *"no single dim decided (unclassified or tied)"* —
+against a CHECK requiring ≥3 citations spanning ≥42 days, which is `self-layer`
+behaving as specified: a growth claim it cannot support is not made. Patterns
+wrote 0 because the ≥2-citation bar is not met yet; `depth-writers-landed`
+already measured that the pattern path needs three calendar days and three
+nightly passes before anything is usable.
+
+**Verified against PRODUCTION, not a fixture.** `POST /api/memory op:"recall"`
+for a real device now returns a `relstate` bundle — `relState` (11 keys), a
+populated `lastHonorificMoveAt`, 1 phrase, 1 phrase-ledger row — plus a `self`
+bundle whose `texture` carries real derived bands (`emoji_rate`, `humour`,
+`teasing`, `words_median`, `n_turns`). Before today that response carried
+nothing to render.
+
+**The render half is proven separately rather than assumed**, because
+`selflayer-delivery-gate`'s law is that a slot is wired only when a real prompt
+contains its bytes: `evals/self/wiring.mjs --live` passes **37/37 with 6/6
+negative controls caught** and zero residue after teardown. Delivery (measured
+against production, real user) plus render (measured by the gate) is the whole
+chain.
+
+**What this does NOT yet deliver, stated because the zero is easy to overclaim.**
+`patterns`, `rituals`, `currency` and `weEpisodes` all return **0 items** in
+that same production bundle, so T4 and much of T6 are still dark. Stage 3 LLM
+enrichment (#75) remains un-run and is the owner's priority call. The honest
+claim is that the relational snapshot has moved from *nothing at all* to
+*stance, texture and phrases*, for 25 of 39 persons — not that the layer is
+full.
+
+n = 39 persons / 25 processed, full population not a sample. Method: the
+committed cron's own flags against production Neon, with direct row counts
+before and after each stage, an OpenRouter balance check either side, one live
+production `op:"recall"`, and `evals/self/wiring.mjs --live`. Date 2026-08-21.
