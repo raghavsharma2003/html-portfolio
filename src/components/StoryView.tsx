@@ -37,10 +37,13 @@ interface Props {
   // "continue watching" always works). No-op while ≤2 stories exist.
   signedIn?: boolean;
   onSignIn?: () => void;
+  /** Instagram's story reply: the text goes to the chat, quoting the story. */
+  onReply?: (text: string, story: Story) => void;
 }
 
-export default function StoryView({ stories, onClose, onProfile, signedIn, onSignIn }: Props) {
+export default function StoryView({ stories, onClose, onProfile, signedIn, onSignIn, onReply }: Props) {
   const [idx, setIdx] = useState(0);
+  const [reply, setReply] = useState("");
   const [ready, setReady] = useState(false); // current image loaded
   const [gate, setGate] = useState(false); // sign-in offer before story #3
   const gateDismissed = useRef(false);
@@ -269,6 +272,49 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
       {/* the one thing a first-time viewer cannot guess — shown once */}
       {idx === 0 && stories.length > 1 && (
         <div className="story-hint">tap the sides to move · hold to pause</div>
+      )}
+
+      {/* ── reply, Instagram-style ─────────────────────────────────────────
+          Sits at the foot of the story, sends into the chat, and closes the
+          viewer — which is what Instagram does and what makes it feel like a
+          reply rather than a comment. Every pointer event here is stopped:
+          the story advances on taps to the sides and pauses on hold, so a
+          composer that let those through would skip the story he is replying
+          to while he types. */}
+      {onReply && !gate && (
+        <form
+          className="story-reply"
+          onClick={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseUp={(e) => e.stopPropagation()}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const t = reply.trim();
+            if (!t) return;
+            onReply(t, stories[idx]);
+            setReply("");
+            onClose();
+          }}
+        >
+          <input
+            className="story-reply-in"
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            placeholder={`reply to ${HER_NAME}…`}
+            aria-label={`Reply to this story`}
+            maxLength={500}
+          />
+          <button
+            type="submit"
+            className="story-reply-send"
+            aria-label="Send reply"
+            disabled={!reply.trim()}
+          >
+            ↑
+          </button>
+        </form>
       )}
 
       {gate && (

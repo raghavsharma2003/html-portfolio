@@ -1286,6 +1286,7 @@ button {
 /* she was typing, now the words are there: the indicator leaves as the
    bubble enters underneath it, instead of teleporting on the same frame */
 .typing-bubble {
+  position: relative;
   align-self: flex-start;
   display: flex;
   gap: 5px;
@@ -1320,9 +1321,54 @@ button {
 .typing-bubble i:nth-child(1) { animation-duration: 1.15s; animation-delay: 0s; }
 .typing-bubble i:nth-child(2) { animation-duration: 1.28s; animation-delay: 0.13s; }
 .typing-bubble i:nth-child(3) { animation-duration: 1.21s; animation-delay: 0.27s; }
+/* The dot itself: a lift that also SWELLS and brightens, on an asymmetric
+   curve — up fast, down slow, the way something with weight moves. A pure
+   translate is the giveaway that this is a loop rather than a hand. */
 @keyframes bounce {
-  0%, 60%, 100% { transform: none; opacity: 0.5; }
-  30% { transform: translateY(-5px); opacity: 1; }
+  0%, 62%, 100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.42;
+  }
+  22% {
+    transform: translateY(-6px) scale(1.16);
+    opacity: 1;
+  }
+  44% {
+    transform: translateY(-1px) scale(1.02);
+    opacity: 0.72;
+  }
+}
+/* The bubble breathes under them, very slightly and much slower than the
+   dots, so the two rhythms never lock. Nothing here is fast enough to notice
+   directly — it is only felt as the thing being alive rather than parked. */
+.typing-bubble {
+  animation: typing-breathe 3.4s var(--ease-out) infinite;
+}
+@keyframes typing-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.018); }
+}
+/* and a soft halo that swells on the same slow period — barely visible on
+   light, which is the point: it reads as warmth, not as a glow effect */
+.typing-bubble::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  background: var(--accent-soft);
+  opacity: 0;
+  z-index: -1;
+  animation: typing-halo 3.4s var(--ease-out) infinite;
+  pointer-events: none;
+}
+@keyframes typing-halo {
+  0%, 100% { opacity: 0; transform: scale(0.96); }
+  50% { opacity: 0.55; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .typing-bubble { animation: none; }
+  .typing-bubble::after { animation: none; opacity: 0; }
+  .typing-bubble i { animation-duration: 1.6s; }
 }
 
 .chat-input-row {
@@ -2983,3 +3029,49 @@ input {
 @media (prefers-reduced-motion: reduce) {
   .cstate[data-tone="connecting"] .cdot { animation: none; opacity: 0.8; }
 }
+
+/* ── story reply (Instagram) ─────────────────────────────────────────────
+   Sits at the foot of the story. Deliberately a pill on glass rather than a
+   solid bar: a story is a picture and a bar across the bottom of it reads as
+   chrome bolted on, while a pill reads as something floating over it. */
+.story-reply {
+  position: absolute;
+  left: calc(var(--safe-left) + 14px);
+  right: calc(var(--safe-right) + 14px);
+  bottom: calc(var(--safe-bottom) + 16px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px) saturate(1.4);
+  z-index: 4;
+}
+.story-reply-in {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 15px;
+  padding: 8px 0;
+  min-width: 0;
+}
+.story-reply-in::placeholder { color: rgba(255, 255, 255, 0.66); }
+.story-reply-send {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  color: #111;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out);
+}
+.story-reply-send:disabled { opacity: 0.32; cursor: default; }
+.story-reply-send:not(:disabled):active { transform: scale(0.9); }

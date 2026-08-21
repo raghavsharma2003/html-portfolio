@@ -7,6 +7,7 @@ import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think, formatHerLife } from "../engine/brain";
 import { HER_NAME, OPEN_DIRECTIVE, FOLLOWUP_DIRECTIVE } from "../engine/persona";
+import type { Story } from "../engine/storyCatalog";
 import {
   logTurns,
   rememberFrom,
@@ -1012,6 +1013,37 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     scheduleReply(text);
   }
 
+  /**
+   * A reply sent from inside the story viewer.
+   *
+   * It goes through the SAME path as any other message — the quote-reply that
+   * already exists carries which story it was, so she sees what he is
+   * answering without a second mechanism. Instagram works this way too: a
+   * story reply is a DM that quotes the story, not a separate object, and
+   * building it as a separate object is how you end up with a thread that
+   * cannot be replied to.
+   */
+  function sendStoryReply(text: string, story: Story) {
+    // `desc` is what is IN the story, in her own words — the right thing to
+    // quote, because it is what he is actually replying to.
+    const quoted = (story.desc || "story").slice(0, 120);
+    const mine: Message = {
+      id: uid(),
+      from: "me",
+      kind: "text",
+      text,
+      at: Date.now(),
+      status: "sent",
+      replyTo: { from: "her", text: quoted },
+    };
+    pushMsg(mine);
+    logTurns(state.deviceId, [mine]);
+    tel("chat.send", { msg_id: mine.id, kind: "text", chars: text.length, quoted: true });
+    track(state.deviceId, "story_reply", { len: text.length }, state.auth?.userId);
+    setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
+    scheduleReply(text);
+  }
+
   // ── sending HER a photo (camera or gallery): compress client-side, show
   // instantly, upload to storage, then she looks at the actual image with
   // the whole conversation as context ──
@@ -1740,6 +1772,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
             onProfile();
           }}
           onClose={() => setStoryOpen(false)}
+          onReply={sendStoryReply}
           onProfile={() => {
             setStoryOpen(false);
             onProfile();
