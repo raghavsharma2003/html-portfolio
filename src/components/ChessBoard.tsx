@@ -33,11 +33,26 @@ export type { Color, PromotionRole, Role };
 /** Algebraic square name, e.g. `"e4"`. */
 export type Square = string;
 
+/** How `src/engine/chess` spells a colour. Accepted anywhere `Color` is. */
+export type Side = "w" | "b";
+
+/** Both spellings in, one spelling out. Keeps the mapping in ONE place
+ *  instead of at every call site, which is where it would get inverted. */
+type ColorInput = Color | Side;
+const toColor = (c: ColorInput): Color => (c === "w" ? "white" : c === "b" ? "black" : c);
+
+const PROMOTABLE: readonly string[] = ["q", "r", "b", "n"];
+
 export interface LegalMove {
   from: Square;
   to: Square;
-  /** Present only on promoting moves. One entry per promotable role. */
-  promotion?: PromotionRole;
+  /**
+   * Only `"q" | "r" | "b" | "n"` mean anything; `null`, `undefined` and
+   * anything else are read as "not a promotion". Typed loosely on purpose so
+   * `src/engine/chess`'s `promotion: PieceType | null` drops in unmapped —
+   * an adapter in the middle is one more place for a queen to become a king.
+   */
+  promotion?: PromotionRole | string | null;
 }
 
 export interface CapturedPieces {
@@ -59,14 +74,14 @@ export interface ChessBoardProps {
   legalMoves?: readonly LegalMove[];
   /** Fired once per committed move. Never called when `interactive` is false. */
   onMove?: (from: Square, to: Square, promotion?: PromotionRole) => void;
-  /** Which colour sits at the bottom. */
-  orientation?: Color;
+  /** Which colour sits at the bottom. `"w"`/`"b"` accepted. */
+  orientation?: ColorInput;
   /** False on her turn and when the game is over: the board takes no input. */
   interactive?: boolean;
   /** Tints both squares, and drives the slide animation. */
   lastMove?: { from: Square; to: Square } | null;
-  /** The side in check; its king's square is flashed. */
-  inCheck?: Color | null;
+  /** The side in check; its king's square is flashed. `"w"`/`"b"` accepted. */
+  inCheck?: ColorInput | null;
   captured?: CapturedPieces;
   /** `"dark"` when mounted over the call ground. Re-inks the set and squares. */
   tone?: "paper" | "dark";
@@ -136,10 +151,10 @@ export default function ChessBoard({
   fen,
   legalMoves = [],
   onMove,
-  orientation = "white",
+  orientation: orientationIn = "white",
   interactive = true,
   lastMove = null,
-  inCheck = null,
+  inCheck: inCheckIn = null,
   captured = {},
   tone = "paper",
   coordinates = true,
@@ -147,6 +162,8 @@ export default function ChessBoard({
   className = "",
 }: ChessBoardProps) {
   const { board } = useMemo(() => parseFen(fen), [fen]);
+  const orientation = toColor(orientationIn);
+  const inCheck = inCheckIn ? toColor(inCheckIn) : null;
 
   const boardRef = useRef<HTMLDivElement | null>(null);
 
@@ -154,6 +171,13 @@ export default function ChessBoard({
   const [ghosts, setGhosts] = useState<Placed[]>([]);
   const prevRef = useRef<{ board: (Piece | null)[]; pieces: Placed[] } | null>(null);
   const ghostTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Depended on as two strings, never as the object. A parent that rebuilds
+  // `{from,to}` inline on every render — which is the normal way to write a
+  // parent — would otherwise rerun the diff below on every render and refire
+  // the capture animation each time.
+  const lmFrom = lastMove ? lastMove.from : "";
+  const lmTo = lastMove ? lastMove.to : "";
 
   /* Rebuild the piece layer whenever the position changes, carrying ids
      across the one move we were told about. Runs in an effect on purpose:
@@ -169,9 +193,9 @@ export default function ChessBoard({
     // `lastMove` — nothing here works out what moved on its own.
     const carry = new Map<number, number>();
     let epVictim = -1;
-    if (prev && lastMove) {
-      const from = squareIndex(lastMove.from);
-      const to = squareIndex(lastMove.to);
+    if (prev && lmFrom && lmTo) {
+      const from = squareIndex(lmFrom);
+      const to = squareIndex(lmTo);
       const mover = from >= 0 ? prev.board[from] : null;
       if (mover && to >= 0) {
         carry.set(to, from);
@@ -221,9 +245,8 @@ export default function ChessBoard({
     // that vanish for any other reason (new game, takeback, a fresh FEN)
     // are simply gone, which is the honest rendering of those events.
     const dead: Placed[] = [];
-    if (prev && lastMove) {
-      const to = squareIndex(lastMove.to);
-      const victim = prevBySq.get(to);
+    if (prev && lmTo) {
+      const victim = prevBySq.get(squareIndex(lmTo));
       if (victim && !used.has(victim.id)) dead.push(victim);
       if (epVictim >= 0) {
         const ep = prevBySq.get(epVictim);
@@ -238,7 +261,7 @@ export default function ChessBoard({
       clearTimeout(ghostTimer.current);
       ghostTimer.current = setTimeout(() => setGhosts([]), 300);
     }
-  }, [board, lastMove]);
+  }, [board, lmFrom, lmTo]);
 
   useEffect(() => () => clearTimeout(ghostTimer.current), []);
 
@@ -255,7 +278,12 @@ export default function ChessBoard({
       if (!dests) m.set(from, (dests = new Map()));
       let promos = dests.get(to);
       if (!promos) dests.set(to, (promos = []));
-      if (mv.promotion && !promos.includes(mv.promotion)) promos.push(mv.promotion);
+      const p = mv.promotion;
+      // A `promotion` that is not one of the four promotable roles is not a
+      // promotion — including the rules module's `null` and a stray "k".
+      if (p && PROMOTABLE.includes(p) && !promos.includes(p as PromotionRole)) {
+        promos.push(p as PromotionRole);
+      }
     }
     return m;
   }, [legalMoves]);
@@ -507,10 +535,11 @@ export default function ChessBoard({
 
   const trayTop = (orientation === "white" ? captured.white : captured.black) ?? [];
   const trayBottom = (orientation === "white" ? captured.black : captured.white) ?? [];
-  const material = useMemo(() => {
-    const sum = (xs: readonly Role[]) => xs.reduce((a, r) => a + ROLE_VALUE[r], 0);
-    return sum(trayTop) - sum(trayBottom);
-  }, [trayTop, trayBottom]);
+  // Not memoised: `captured` is a prop object the parent is free to rebuild
+  // every render, so a useMemo over it would recompute anyway and only cost a
+  // dependency check. Summing at most fifteen small integers twice is cheaper.
+  const sumValue = (xs: readonly Role[]) => xs.reduce((a, r) => a + ROLE_VALUE[r], 0);
+  const material = sumValue(trayTop) - sumValue(trayBottom);
 
   const status =
     sel !== null && dests

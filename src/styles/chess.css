@@ -1,0 +1,426 @@
+/* ─── Chess board ─────────────────────────────────────────────────────────
+   A board she plays you on, usually with the call live behind it. So it has
+   to read on BOTH grounds — the warm paper of the chat and the warm dark of
+   a call — and it does that the same way the clock card does: one component,
+   one set of tokens, re-inked by `data-tone` rather than a second stylesheet.
+
+   Every colour in this file lives in the token block below and nowhere else.
+   The paper set is mixed out of the app's own tokens so the board belongs to
+   the room it is in; the dark set is stated outright, because it is matched
+   to the call's `#241619 → #100b0c` ground and there is nothing in the light
+   palette to derive it from.
+
+   Timings come off the shared scale (--d-press / --d-tap / --d-state) and the
+   shared curves. Nothing here invents a duration. --ease-in-out is the
+   on-screen-movement curve and is what a piece travels on; --ease-out is for
+   things arriving and leaving.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.cb {
+  /* squares */
+  --cb-light: #f0e2d2;
+  --cb-dark: #b98a63;
+  --cb-frame-bg: color-mix(in srgb, var(--cb-dark) 62%, var(--ink));
+  --cb-frame-shadow: var(--shadow-card);
+
+  /* the set. Fill and rim are separate so a white piece keeps an edge on a
+     light square and a black piece keeps one on a dark square. */
+  --cb-white: #fbf7f3;
+  --cb-white-edge: #5c463a;
+  --cb-black: #2a211d;
+  --cb-black-edge: #0d0908;
+
+  /* marks on the board */
+  --cb-sel: color-mix(in srgb, var(--accent) 34%, transparent);
+  --cb-hint: rgba(38, 26, 18, 0.28);
+  --cb-last: color-mix(in srgb, var(--accent-warm) 32%, transparent);
+  --cb-over: color-mix(in srgb, var(--accent) 78%, transparent);
+  --cb-check: var(--danger);
+  --cb-coord-on-light: color-mix(in srgb, var(--cb-dark) 88%, #000);
+  --cb-coord-on-dark: var(--cb-light);
+
+  /* chrome */
+  --cb-tray-ink: var(--ink-dim);
+  --cb-scrim: rgba(32, 22, 20, 0.5);
+  --cb-promo-bg: var(--surface);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  width: 100%;
+  max-width: 560px;
+  margin-inline: auto;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* The call ground. Squares drop most of the way to black, and — the part
+   that matters — the BLACK pieces swap to a light rim: an unlit black piece
+   on a dark square is a hole in the board. */
+.cb[data-tone="dark"] {
+  --cb-light: #55433f;
+  --cb-dark: #2e2326;
+  --cb-frame-bg: rgba(0, 0, 0, 0.42);
+  --cb-frame-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.8);
+
+  --cb-white: #efe6e2;
+  --cb-white-edge: #2a1c1f;
+  --cb-black: #191113;
+  --cb-black-edge: #8d7873;
+
+  --cb-hint: rgba(255, 242, 238, 0.32);
+  --cb-last: color-mix(in srgb, var(--accent-warm) 44%, transparent);
+  --cb-coord-on-light: #241619;
+  --cb-coord-on-dark: rgba(245, 240, 238, 0.86);
+
+  --cb-tray-ink: rgba(245, 240, 238, 0.74);
+  --cb-scrim: rgba(10, 6, 7, 0.62);
+  --cb-promo-bg: #2b1e20;
+}
+
+/* ── the board ──────────────────────────────────────────────────────────── */
+
+/* The frame is padding, not a border: the gap around the squares reads as
+   the edge of a real board, and it gives the corner squares somewhere to
+   stop without rounding them (boards have square corners). */
+.cb-frame {
+  padding: 6px;
+  border-radius: var(--r-sm);
+  background: var(--cb-frame-bg);
+  box-shadow: var(--cb-frame-shadow);
+}
+
+.cb-board {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  aspect-ratio: 1;
+  /* the board owns the gesture: without this, dragging a piece scrolls the
+     conversation behind it on the first frame */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.cb-row {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.cb-sq {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background-color: var(--cb-dark);
+  cursor: pointer;
+}
+.cb-sq[data-light] {
+  background-color: var(--cb-light);
+}
+.cb[data-idle] .cb-sq {
+  /* her turn, or the game is over. The squares stop listening; they do not
+     grey out — half of every game is her turn and a board that dims for it
+     would spend half its life looking broken. */
+  pointer-events: none;
+  cursor: default;
+}
+
+/* tint layer: last move, then check on top of it */
+.cb-sq::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.cb-sq[data-last]::before {
+  background: var(--cb-last);
+}
+.cb-sq[data-check]::before {
+  background: radial-gradient(
+    circle closest-side,
+    var(--cb-check) 0%,
+    color-mix(in srgb, var(--cb-check) 42%, transparent) 56%,
+    transparent 84%
+  );
+  /* three beats, then it stays at the last keyframe. A check that flashes
+     and then leaves no trace is a check you can miss by blinking. */
+  animation: cb-check 1.3s var(--ease-out) 3 both;
+}
+@keyframes cb-check {
+  0% { opacity: 0.4; }
+  45% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+/* the lit piece */
+.cb-sq[data-sel] {
+  background-image: linear-gradient(var(--cb-sel), var(--cb-sel));
+}
+/* the square a dragged piece is currently over */
+.cb-sq[data-over] {
+  box-shadow: inset 0 0 0 3px var(--cb-over);
+}
+
+/* hint layer: a dot where the square is empty, a ring where something is
+   standing on it. Two shapes rather than two colours, because the whole
+   point is to be readable in peripheral vision while looking at a piece. */
+.cb-sq::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: opacity var(--d-tap) var(--ease-out);
+}
+.cb-sq[data-dest]::after {
+  background: radial-gradient(circle closest-side, var(--cb-hint) 0 29%, transparent 30%);
+}
+.cb-sq[data-cap]::after {
+  background: radial-gradient(
+    circle closest-side,
+    transparent 0 78%,
+    var(--cb-hint) 79% 92%,
+    transparent 93%
+  );
+}
+.cb-sq[data-dest]:active::after,
+.cb-sq[data-cap]:active::after {
+  opacity: 0.55;
+}
+
+/* ── coordinates ────────────────────────────────────────────────────────
+   Ranks up the left file, files along the bottom rank, each drawn in the
+   OTHER square colour so it never needs a shadow to stay legible. Fifteen
+   small marks in the corners of the border squares — present when looked
+   for, invisible when not. */
+.cb-coord {
+  position: absolute;
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.68;
+  pointer-events: none;
+  color: var(--cb-coord-on-dark);
+}
+.cb-sq[data-light] .cb-coord {
+  color: var(--cb-coord-on-light);
+}
+.cb-rank {
+  top: 3px;
+  left: 4px;
+}
+.cb-file {
+  bottom: 3px;
+  right: 4px;
+}
+
+/* ── pieces ─────────────────────────────────────────────────────────────
+   One absolutely-positioned layer over the squares, deaf to the pointer so
+   every touch lands on the square beneath. A piece is placed by transform
+   alone, so changing its square is a transition and nothing else. */
+.cb-pieces {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.cb-piece {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12.5%;
+  height: 12.5%;
+  display: grid;
+  place-items: center;
+  z-index: 2;
+  transition: transform var(--d-state) var(--ease-in-out);
+}
+
+/* Lifted: the transition is suspended so it tracks the finger exactly, it
+   swells slightly, and it gains the shadow a piece held above a board has.
+   Resting pieces get no filter — 32 drop-shadows is a paint cost we are not
+   paying to say something the board already says. */
+.cb-piece[data-dragging] {
+  transition: none;
+  z-index: 5;
+}
+.cb-piece[data-dragging] .cb-glyph {
+  transform: scale(1.22);
+  filter: drop-shadow(0 6px 8px rgba(20, 12, 10, 0.42));
+}
+
+/* Taken: held one beat under the piece that took it, swelling once as it is
+   knocked and then collapsing. Removing it on the same frame makes a capture
+   feel like a bookkeeping update rather than a thing that happened. */
+.cb-piece[data-ghost] {
+  z-index: 1;
+}
+.cb-piece[data-ghost] .cb-glyph {
+  animation: cb-take 280ms var(--ease-out) both;
+}
+@keyframes cb-take {
+  0% { transform: scale(1) rotate(0); opacity: 1; }
+  32% { transform: scale(1.07) rotate(-4deg); opacity: 0.94; }
+  100% { transform: scale(0.4) rotate(8deg); opacity: 0; }
+}
+
+.cb-glyph {
+  display: block;
+  width: 84%;
+  height: 84%;
+  overflow: visible;
+  stroke-width: 1.15;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  transition: transform var(--d-press) var(--ease-out), filter var(--d-press) var(--ease-out);
+}
+.cb-glyph path,
+.cb-glyph circle {
+  fill: var(--gf);
+  stroke: var(--gs);
+}
+.cb-glyph[data-color="white"] {
+  --gf: var(--cb-white);
+  --gs: var(--cb-white-edge);
+}
+.cb-glyph[data-color="black"] {
+  --gf: var(--cb-black);
+  --gs: var(--cb-black-edge);
+}
+/* the knight's eye and the bishop's cut, drawn in the rim colour so they
+   survive both inkings */
+.cb-glyph .cb-mark {
+  fill: var(--gs);
+  stroke: none;
+}
+.cb-glyph .cb-slit {
+  fill: none;
+  stroke: var(--gs);
+  stroke-width: 2;
+}
+
+/* ── promotion ──────────────────────────────────────────────────────────
+   Comes out of the promotion square along its own file, so the choice
+   appears exactly where the eye already is rather than in the middle of the
+   screen. Queen nearest the square: it is the answer almost every time. */
+.cb-promo {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+}
+.cb-promo-scrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--cb-scrim);
+  border: 0;
+  animation: cb-fade var(--d-tap) var(--ease-out);
+}
+@keyframes cb-fade {
+  from { opacity: 0; }
+}
+.cb-promo-strip {
+  position: absolute;
+  width: 12.5%;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-sm);
+  background: var(--cb-promo-bg);
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+  animation: cb-promo-in var(--d-state) var(--ease-out) both;
+}
+.cb-promo-strip[data-dir="down"] {
+  transform-origin: top center;
+}
+.cb-promo-strip[data-dir="up"] {
+  transform-origin: bottom center;
+  flex-direction: column-reverse;
+}
+@keyframes cb-promo-in {
+  from { opacity: 0; transform: scaleY(0.6); }
+}
+.cb-promo-opt {
+  position: relative;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  transition: background var(--d-press) var(--ease-out);
+}
+.cb-promo-opt:active {
+  background: var(--cb-sel);
+}
+.cb-promo-opt .cb-glyph {
+  width: 78%;
+  height: 78%;
+}
+
+/* ── captured trays ─────────────────────────────────────────────────────
+   Overlapped, the way taken pieces actually end up beside a board, with the
+   material count only on the side that is ahead. Fixed height so the board
+   does not jump down the screen on the first capture. */
+.cb-tray {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 var(--s1);
+}
+.cb-tray-pieces {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.cb-tray-piece {
+  display: block;
+  width: 21px;
+  height: 21px;
+  margin-right: -7px;
+}
+.cb-tray-piece:last-child {
+  margin-right: 0;
+}
+.cb-tray-piece .cb-glyph {
+  width: 100%;
+  height: 100%;
+}
+.cb-material {
+  margin-left: 12px;
+  font-size: var(--t-meta);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--cb-tray-ink);
+}
+
+/* ── reduced motion ─────────────────────────────────────────────────────
+   Everything still HAPPENS — the piece is on the new square, the taken
+   piece is gone, the king's square is still red. It just stops travelling. */
+@media (prefers-reduced-motion: reduce) {
+  .cb-piece,
+  .cb-glyph,
+  .cb-sq::after,
+  .cb-promo-opt {
+    transition: none;
+  }
+  .cb-piece[data-dragging] .cb-glyph {
+    transform: none;
+  }
+  .cb-piece[data-ghost] .cb-glyph {
+    animation: none;
+    opacity: 0;
+  }
+  .cb-sq[data-check]::before {
+    animation: none;
+    opacity: 0.75;
+  }
+  .cb-promo-strip,
+  .cb-promo-scrim {
+    animation: none;
+  }
+}

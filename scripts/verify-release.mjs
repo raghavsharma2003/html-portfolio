@@ -51,6 +51,17 @@ await gate("prompt budget", "node", ["scripts/check-prompt-budget.mjs"]);
 // runs, no auto-deploy, and the job whose purpose was to announce that the
 // deploy was unconfigured never ran either.
 await gate("workflow lint", "node", ["scripts/check-workflows.mjs"]);
+// The animation rejection checklist, mechanised. Same reasoning as the workflow
+// lint above: it checks a property of files the code never reads, so no test
+// that RUNS the code can see it. A design standard nobody enforces is a
+// standard the next feature quietly breaks — and this repo already has a name
+// for a guard that exists and is invoked by nothing.
+//
+// It has no taste and does not claim any: it catches the auto-blocks (animating
+// layout, `transition: all`, scale(0), ease-in on UI, over-budget UI
+// transitions, keyframes with no reduced-motion answer) and leaves judgment to
+// eyes. Exceptions are written next to the code with a reason.
+await gate("motion lint", "node", ["scripts/check-motion.mjs"]);
 // The room path (api/tg.js and every future surface) does not import src/ — it
 // reads the committed bundle api/_engine.gen.js. So a change to the engine that
 // is not regenerated ships a DIFFERENT Meera to Telegram than the one every

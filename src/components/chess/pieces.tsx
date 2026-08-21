@@ -88,6 +88,25 @@ const BODY: Record<Role, string[]> = {
   ],
 };
 
+// Round parts, as [cx, cy, r]. Kept as circles rather than folded into the
+// path data because an arc written by hand is where a piece silently loses
+// its head. Drawn AFTER the body so each keeps its own rim: on the queen that
+// reads as five jewels, and on the pawn as a head sitting on a collar.
+//
+// The queen's centre jewel tops out at 5.5 and the king's cross at 4.6, so the
+// king stays the tallest piece on the board — which is how you tell them apart
+// at a glance on a phone.
+const KNOBS: Partial<Record<Role, [number, number, number][]>> = {
+  p: [[22.5, 13.0, 5.0]],
+  q: [
+    [9.0, 12.8, 2.3],
+    [16.1, 9.4, 2.3],
+    [22.5, 8.0, 2.5],
+    [28.9, 9.4, 2.3],
+    [36.0, 12.8, 2.3],
+  ],
+};
+
 // The two marks that are drawn in the RIM colour rather than the fill, so
 // they stay legible whichever way round the piece is inked.
 function detail(role: Role) {
@@ -108,6 +127,9 @@ export function PieceGlyph({ role, color }: { role: Role; color: Color }) {
     >
       {BODY[role].map((d, i) => (
         <path key={i} d={d} />
+      ))}
+      {KNOBS[role]?.map(([cx, cy, r], i) => (
+        <circle key={i} cx={cx} cy={cy} r={r} />
       ))}
       {detail(role)}
     </svg>

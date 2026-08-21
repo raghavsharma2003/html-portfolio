@@ -440,7 +440,9 @@ button {
   height: 7px;
   border-radius: 50%;
   background: var(--hairline-strong);
-  /* width costs layout — tolerated on a 7px first-run dot, never repeated */
+  /* width costs layout — tolerated on a 7px first-run dot, never repeated.
+     motion-lint: allow a 7px dot seen once at first run; transform cannot
+     widen a pill from a circle without distorting the ends */
   transition: width var(--d-state) var(--ease-out), background var(--d-state) ease;
 }
 .onb-dots i.on {
@@ -1576,6 +1578,10 @@ button {
   position: relative;
   display: grid;
   place-items: center;
+  /* motion-lint: allow ambient, not feedback — her glow crossfades between
+     call states, and the 300ms UI budget governs a response to a tap. A hue
+     that snapped would strobe every time she starts and stops speaking, which
+     on a call is constantly */
   transition: --pr-hue 400ms var(--ease-out);
 }
 /* THE RINGS WERE INVISIBLE. inset:0 put their bright band at 57–85% of the
@@ -1611,6 +1617,10 @@ button {
   background: radial-gradient(circle, var(--pr-hue) 0%, transparent 58%);
   opacity: 0.22;
   pointer-events: none;
+  /* motion-lint: allow the bloom is breathing, not reacting — 600ms is what
+     makes it read as presence rather than a blink. Same reasoning as --pr-hue
+     above, and the two are deliberately different lengths so the glow and its
+     colour never move as one flat block */
   transition: opacity 600ms var(--ease-out);
 }
 .presence[data-phase="speaking"] .pr-bloom,
