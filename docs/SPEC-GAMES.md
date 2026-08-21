@@ -59,6 +59,54 @@ No FEN in the prompt. No coordinate soup. No engine evaluation in centipawns —
 a number she could read out is a number that makes her sound like a computer,
 which is the one thing this product cannot afford.
 
+### 0.3 The live prompt is FROZEN AT CONNECT — so moves are not prompt at all
+
+The first draft of this spec had the board riding a tail slot. **That is
+impossible on the lane this feature lives on**, and the correction is worth
+stating loudly because it inverts the obvious design.
+
+`useCallEngine.ts:575` says it plainly: *"the live prompt is frozen at connect,
+so the watch note cannot ride this compile."* The realtime session is set up
+once, and `liveAssemblies` (`:267`, asserted at `:609-620`) exists to enforce
+that — a mid-call reassembly is *"a different person mid-sentence, and the
+failure is inaudible until she contradicts herself."* Recompiling per move
+would also destroy the prefix cache, which `cache-9x` measured at ~9× the
+sticker price on this workload.
+
+So there are **two channels, and they carry different things**:
+
+| when | channel | carries |
+|---|---|---|
+| at connect | a tail slot | that a game is on, whose turn, the position so far |
+| per move | `liveSession.direct("<context: …>")` | what just happened, once |
+
+The per-move channel is exactly what screen-share already uses to poke her
+(`useCallEngine.ts:1593`). It is a `role:"user"` turn, never her output space,
+and it already solves the mid-word problem — `direct()` waits up to
+`min(1200, speakingUntil − now)` ms so a move landing mid-sentence does not
+guillotine her (`liveCall.ts:3098-3100`).
+
+**Angle brackets, never square ones.** `<context: …>` is the established
+out-of-band shape on this lane; a `[move: e4]` protocol would fail the live
+persona invariant that permits exactly three bracket lemmas (`softly`, `tone`,
+`forget`) — and would fail audibly, since bracket text on this lane gets spoken.
+
+### 0.4 The honesty gate can flag her own chess talk
+
+A subtle one, caught in the seam review rather than in production, which is the
+cheap place to catch it.
+
+`honesty-provenance-allowlist` says: *an identifier she emits that is not
+present in her input is invented.* A move like `Nf3` is identifier-shaped. So if
+she says a move that was never in the injected note or in his speech, the
+predicate is right to call it a fabrication — and if the note is too thin, it
+will flag moves that really were played.
+
+The rule that follows: **the move note must name every move she is allowed to
+say.** The move just played, and — when it is her turn and she is thinking out
+loud about options — the candidate moves the engine actually considered. She may
+name what she was given. She may not name a square nobody sent her.
+
 ---
 
 ## 1. What she must NOT become
