@@ -141,9 +141,22 @@ implementation detail below is defending against:
 
 | layer | owns | why |
 |---|---|---|
-| **RELATIONAL OS** | `src/engine/chess/*` (rules, her move, assessment), the game tail block, the register for playing | a second personality on a second surface would need all of this unchanged |
-| **SURFACE** | the board component, the games section, the route | how it is drawn and touched |
-| **CALL LANE** | unchanged | see §4 |
+| **RELATIONAL OS** | `src/engine/activity.ts` (the kind-agnostic seam), `src/engine/chessTalk.ts` (the only place chess becomes words), `src/engine/chess/*` (rules, her move, assessment), T15 `session.activity` | a second personality on a second surface would need all of this unchanged |
+| **SESSION STATE** | `AppState.game`, `src/state/game.ts`'s `activityOf` | the one derivation both lanes read; see §5 |
+| **SURFACE** | `GamesHub`, `ActivityShell`, `ChessBoard`, `ChessActivity`, the route | how it is drawn and touched |
+| **CALL LANE** | unchanged except one debounced `direct()` poke | see §4 |
+
+**As built, this went one level more generic than this spec originally
+described.** The tail block is not "the game tail block" — it is
+`ActivityState`, which answers three questions (what are we doing and since
+when, where does it stand, what may she name out loud) and knows nothing about
+chess. Chess reaches it through an adapter. That was not gold-plating: it is
+the shape `age-tier-never-realtime` argues for, where a second implementation
+silently lost a rule added after the fork. Screen-share was already a one-off;
+chess would have been the second.
+
+The surface contract for other platforms is written up in
+`docs/SURFACES.md` §2b.
 
 Per `docs/CONVERSATION-DEFECTS.md`'s test: would a *different personality* on a
 *different surface* need this? For the rules and the assessment, yes. For the
@@ -164,9 +177,33 @@ is in the wrong file.
 
 ## 5. Persistence
 
-An in-progress game survives a reload. It lives in `AppState` beside the rest,
-as a compact record — move list plus a little metadata, not a position history:
-a move list IS the history and re-deriving the position from it is free.
+An in-progress game survives a reload, a navigation, a call starting, and the
+tab closing. It lives in `AppState` beside `messages` and `inner`, persisted and
+synced by the writers that already exist.
+
+**Correction to this section as originally written.** It said the record is a
+move list "not a position history", on the reasoning that a move list IS the
+history and re-deriving positions from it is free. The first half is right and
+the conclusion was wrong: `Game` carries `positions` as well, and it has to.
+Threefold repetition is counted from it, and it is held in the VALUE rather
+than in a module-level Map precisely so that two games in two tabs cannot share
+a repetition counter. Re-deriving it per check would be free-ish; sharing it
+across games would be a correctness bug.
+
+Two other pieces of state that were not in the original spec and turned out to
+be necessary:
+
+- `herSide` — which colour she has is a real choice, not derivable from the
+  board.
+- `closedAt` — set once she has reacted to the ending. Without it `activityOf`
+  keeps returning a live activity and the tail announces "the game has
+  finished" on every turn for the rest of the relationship, which is a fact
+  that was true once being re-asserted as news. The move list is NOT deleted:
+  "you beat me yesterday" is memory.
+
+A board opened and left without a move is discarded on exit. It is not a game,
+and leaving it would have her carrying a fact about the present moment that is
+not true.
 
 ## 6. What is deliberately NOT in v1
 
