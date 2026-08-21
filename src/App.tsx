@@ -7,6 +7,9 @@ import CallVoice from "./components/CallVoice";
 import IncomingCall from "./components/IncomingCall";
 import AuthSheet from "./components/AuthSheet";
 import ClockCard from "./components/ClockCard";
+import GamesHub, { DEFAULT_ACTIVITIES, type Activity } from "./components/GamesHub";
+import ChessActivity from "./components/ChessActivity";
+import { CloseIcon } from "./components/icons";
 import { unlockAudio } from "./voice/speech";
 import { diagStart } from "./engine/diag";
 import { startSessionClock } from "./engine/clock";
@@ -55,6 +58,12 @@ function mergeStates(local: AppState, remote: any): Partial<AppState> {
 export default function App() {
   const [state, setState] = useAppState();
   const [inCall, setInCall] = useState(false);
+  // THINGS THEY DO TOGETHER. Both are overlays rendered as SIBLINGS of Chat and
+  // CallVoice, never replacements: opening a board must not unmount the chat or
+  // drop a live call, because the whole point of the activity layer is that
+  // this is one continuous session rather than a set of modes.
+  const [gamesOpen, setGamesOpen] = useState(false);
+  const [activity, setActivity] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // last server revision we saw — sent with saves so the server can reject
@@ -93,10 +102,19 @@ export default function App() {
   // something happened is a timeline that cannot answer "what happened".
   useEffect(() => {
     telRoute(
-      !state.onboarded ? "/onboarding" : authOpen ? "/account" : inCall ? "/call" : "/chat",
+      !state.onboarded
+        ? "/onboarding"
+        : authOpen
+          ? "/account"
+          : // a board is where they were, even with a call underneath it
+            activity
+            ? `/play/${activity}`
+            : inCall
+              ? "/call"
+              : "/chat",
       "tap",
     );
-  }, [state.onboarded, inCall, authOpen]);
+  }, [state.onboarded, inCall, authOpen, activity]);
 
   // user_id is not the delete key, but a session that spans a sign-in should
   // say so rather than silently changing owner halfway through
@@ -303,9 +321,68 @@ export default function App() {
               setInCall(true);
             }}
             onProfile={() => setAuthOpen(true)}
+            onGames={() => setGamesOpen(true)}
           />
           {inCall && (
             <CallVoice state={state} setState={setState} onEnd={() => setInCall(false)} />
+          )}
+          {/* ── things to do together ───────────────────────────────────────
+              Rendered AFTER CallVoice and as its sibling. That ordering is the
+              continuity requirement in one line: Chat stays mounted with its
+              history and its reply cycle, CallVoice stays mounted with the live
+              socket and the move poke, and the board sits above both. Leaving
+              the board unmounts one overlay and nothing else. */}
+          {gamesOpen && (
+            <>
+              <div className="sheet-veil" onClick={() => setGamesOpen(false)} />
+              <div
+                className="sheet"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Things to do together"
+              >
+                <div className="grab" />
+                <button
+                  className="sheet-x"
+                  onClick={() => setGamesOpen(false)}
+                  aria-label="Close"
+                >
+                  <CloseIcon />
+                </button>
+                <GamesHub
+                  her={{ onCall: inCall }}
+                  heading=""
+                  activities={DEFAULT_ACTIVITIES.map(
+                    (a): Activity =>
+                      a.id === "chess" && state.game && !state.game.closedAt
+                        ? {
+                            ...a,
+                            state: "resume",
+                            detail:
+                              state.game.game.status.turn === state.game.herSide
+                                ? "her move"
+                                : "your move",
+                          }
+                        : a,
+                  )}
+                  onOpen={(id) => {
+                    setGamesOpen(false);
+                    setActivity(id);
+                    track(state.deviceId, "activity_opened", { kind: id, on_call: inCall });
+                  }}
+                />
+              </div>
+            </>
+          )}
+          {activity === "chess" && (
+            <ChessActivity
+              state={state}
+              setState={setState}
+              onExit={() => setActivity(null)}
+              // Back to the call SCREEN. It never ends the call — the call is
+              // running underneath this whole time.
+              onOpenCall={() => setActivity(null)}
+            />
           )}
           {/* She is calling back after a call that dropped mid-sentence. Never
               while a call is already up, and never before its own due time —

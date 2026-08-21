@@ -1,0 +1,574 @@
+/* ─── Games hub + activity shell ──────────────────────────────────────────
+   Two surfaces that exist to make one point: entering a game is not entering
+   an app. It is the two of them doing something together while the same
+   conversation keeps running. So neither of these screens is allowed to look
+   like a context switch — no full-bleed loading state, no new brand, no
+   second navigation model. The hub is a list in the house's own row idiom,
+   and the shell is the chat header with a board where the thread was.
+
+   Like chess.css, every colour lives in the token block below and nowhere
+   else. The paper set is mixed out of the app's own tokens so an activity
+   belongs to the room it opened in. The dark set is stated outright and is
+   matched to the call's `#241619 → #100b0c` ground — the shell repaints that
+   exact gradient when a call is live, because the board appearing over the
+   call has to read as the same room continuing, not as a second screen that
+   has covered the first.
+
+   Durations and curves come off the shared scale. Nothing here invents one.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.gh,
+.as {
+  /* ── the paper set: derived, so it moves with the app ── */
+  --ga-ground: var(--bg);
+  --ga-chrome: var(--chrome);
+  --ga-well: var(--surface-2);
+  --ga-press: var(--surface-3);
+  --ga-ink: var(--ink);
+  --ga-dim: var(--ink-dim);
+  --ga-faint: var(--ink-faint);
+  --ga-line: var(--hairline);
+  --ga-line-strong: var(--hairline-strong);
+  --ga-accent: var(--accent);
+  --ga-accent-ink: var(--accent-deep);
+  --ga-accent-soft: var(--accent-soft);
+  --ga-live: var(--ok);
+  --ga-danger: var(--danger);
+  --ga-glass: blur(28px) saturate(1.9);
+}
+
+/* ── the call ground ──────────────────────────────────────────────────────
+   Stated rather than derived: there is nothing in a warm-paper palette to
+   mix a warm dark out of, and the target is a specific gradient that is
+   already on screen behind this surface. `--ga-accent` is lightened here on
+   purpose — the rose that reads at 5:1 on paper is 3.6:1 on this ground, and
+   the exit label is the one word on the screen nobody may have to hunt for. */
+.as[data-tone="dark"] {
+  --ga-ground: radial-gradient(120% 90% at 50% 30%, #241619 0%, #150e10 58%, #100b0c 100%);
+  --ga-chrome: rgba(26, 16, 18, 0.74);
+  --ga-well: rgba(255, 255, 255, 0.1);
+  --ga-press: rgba(255, 255, 255, 0.17);
+  --ga-ink: #f6f1ee;
+  --ga-dim: rgba(246, 241, 238, 0.74);
+  --ga-faint: rgba(246, 241, 238, 0.5);
+  --ga-line: rgba(255, 255, 255, 0.1);
+  --ga-line-strong: rgba(255, 255, 255, 0.22);
+  --ga-accent: #ff9fae;
+  --ga-accent-ink: #ffd9de;
+  --ga-accent-soft: rgba(226, 88, 110, 0.24);
+  --ga-live: #5fd08a;
+  --ga-danger: #ff9d90;
+  --ga-glass: blur(22px) saturate(1.4);
+}
+
+/* ═══ the hub ═════════════════════════════════════════════════════════════
+   Deliberately NOT a grid of tiles. A tile grid is a shape that has to be
+   redesigned the moment there are four of something, and the owner has said
+   more activities are coming. A list of rows takes the second and the tenth
+   without a decision, reads at a glance while walking, and is the idiom the
+   settings sheet already uses — so a games section does not arrive looking
+   like it came from a different product.
+
+   No card backgrounds and no shadows on the rows: the hub is presented on a
+   sheet, and a raised card sitting on a raised sheet is a card inside a
+   card. The icon tile carries the colour instead. */
+
+.gh {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  color: var(--ga-ink);
+}
+
+.gh-title {
+  font-family: var(--font-display);
+  font-size: var(--t-title);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ga-ink);
+}
+
+/* ── her availability, once, at the top ───────────────────────────────────
+   Not a badge on every row. Whether she is up for a game is a fact about
+   HER, so it is said next to her face, in words, exactly once. */
+.gh-her {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 10px var(--s3);
+  border-radius: var(--r-md);
+  background: var(--ga-well);
+  border: 0.5px solid var(--ga-line);
+}
+
+.gh-face {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.gh-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.gh-who b {
+  font-size: var(--t-ui);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+.gh-who em {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-style: normal;
+  font-size: var(--t-sub);
+  line-height: 1.35;
+  color: var(--ga-dim);
+}
+
+/* she is present, not notified at you — the same breath the chat header
+   uses, at the same period, so one person is being described in both */
+.gh-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ga-live);
+  animation: presence-breathe 3.8s ease-in-out infinite;
+}
+.gh-dot[data-state="call"] {
+  background: var(--ga-accent);
+}
+.gh-dot[data-state="away"] {
+  background: var(--ga-faint);
+  animation: none;
+}
+
+.gh-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 calc(-1 * var(--s2));
+  list-style: none;
+}
+
+/* grouped entrance, staggered rather than fired as one block */
+.gh-item {
+  animation: gh-in var(--d-state) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+@keyframes gh-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+.gh-card {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-height: 68px;
+  padding: 10px var(--s2);
+  border-radius: 15px;
+  text-align: left;
+  color: var(--ga-ink);
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+/* :active fires on pointerdown, which is where feedback belongs — the press
+   is felt before the finger leaves, not after */
+.gh-card:active {
+  background: var(--ga-well);
+  transform: scale(0.985);
+}
+
+.gh-ic {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--ga-accent-soft);
+  color: var(--ga-accent);
+}
+
+.gh-tx {
+  flex: 1;
+  min-width: 0;
+}
+.gh-tx b {
+  display: block;
+  font-size: var(--t-ui);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+.gh-tx em {
+  display: block;
+  font-style: normal;
+  font-size: var(--t-sub);
+  line-height: 1.35;
+  color: var(--ga-dim);
+  margin-top: 2px;
+  /* a blurb plus a game state is longer than a phone is wide, and it must
+     never push the tag off the row */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.gh-end {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.gh-tag {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--t-meta);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  background: var(--ga-well);
+  color: var(--ga-dim);
+}
+/* a game already going is the only thing here that gets the accent: it is
+   the one row where something is waiting for him */
+.gh-tag[data-kind="resume"] {
+  background: var(--ga-accent-soft);
+  color: var(--ga-accent-ink);
+}
+
+.gh-chev {
+  display: flex;
+  color: var(--ga-faint);
+}
+
+/* ── not built yet ────────────────────────────────────────────────────────
+   It has to read as COMING, never as broken. So: the title keeps full ink
+   (a row whose text has been ghosted looks like a failure, which is the
+   lesson `.btn-primary:disabled` already paid for), the icon tile goes
+   quiet rather than grey-on-grey, and one word says why nothing happens. */
+.gh-card[data-state="soon"] {
+  cursor: default;
+}
+.gh-card[data-state="soon"] .gh-ic {
+  background: var(--ga-well);
+  color: var(--ga-faint);
+}
+
+/* ═══ the activity shell ══════════════════════════════════════════════════
+   A compact header that keeps HER on screen, the activity as the hero, and
+   one way out that is a way BACK — never a close box. Closing suggests
+   ending something; this ends nothing, least of all a live call. */
+
+.as {
+  position: absolute;
+  inset: 0;
+  z-index: 22; /* over the call (20), under the sheets (31) and clock (32) */
+  display: flex;
+  flex-direction: column;
+  background: var(--ga-ground);
+  color: var(--ga-ink);
+  animation: as-in var(--d-state) var(--ease-out) both;
+}
+/* It arrives from just below, at 0.99 — the activity was already part of
+   this conversation, so it rises into place rather than flying in from
+   somewhere else. */
+@keyframes as-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+}
+/* the root is focused on mount so Escape has somewhere to land; it is a
+   container, not a control, and must not draw a focus ring for that */
+.as:focus,
+.as:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.as-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: calc(var(--safe-top) + var(--s2)) calc(var(--safe-right) + var(--s3)) var(--s2)
+    calc(var(--safe-left) + var(--s2));
+  background: var(--ga-chrome);
+  backdrop-filter: var(--ga-glass);
+  border-bottom: 0.5px solid var(--ga-line);
+  z-index: 2;
+}
+
+/* ── the way out ──────────────────────────────────────────────────────────
+   A labelled back control, not an ✕. It is first in the DOM so a keyboard
+   reaches it before the board, it wears its destination in words, and when
+   a call is live its accessible name says outright that the call keeps
+   going — the fear this control has to answer is "will this hang up on
+   her", and an icon cannot answer it. */
+.as-back {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: var(--hit);
+  padding: 0 var(--s3) 0 var(--s1);
+  border-radius: 999px;
+  flex-shrink: 0;
+  color: var(--ga-accent);
+  font-size: var(--t-ui);
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.as-back svg {
+  transform: rotate(180deg);
+}
+.as-back:active {
+  transform: scale(0.96);
+  background: var(--ga-accent-soft);
+}
+
+.as-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Her face is in the header of every surface in this product, at the same
+   size, in the same place. That repetition is the continuity: the person
+   you were texting is the person you are now playing. */
+.as-face {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1.5px var(--ga-line-strong);
+  transition: box-shadow var(--d-state) var(--ease-out);
+}
+/* her state, drawn on her rather than beside her. A ring, not a loop: this
+   changes many times a minute on a call and anything that animated on each
+   change would flicker for the whole game. */
+.as[data-phase="thinking"] .as-face {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.as[data-phase="speaking"] .as-face {
+  box-shadow: 0 0 0 2px var(--ga-accent),
+    0 0 18px -2px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.as-tx {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.as-title {
+  font-family: var(--font-display);
+  font-size: var(--t-head);
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* one node whose contents change, never three siblings — a remounted node
+   cannot dissolve, and this line changes constantly while they play */
+.as-state {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 18px;
+  font-size: var(--t-sub);
+  line-height: 1.3;
+  color: var(--ga-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--d-state) ease, opacity var(--d-state) var(--ease-out);
+}
+.as[data-phase="thinking"] .as-state {
+  color: var(--ga-accent-ink);
+}
+.as-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ga-live);
+  animation: presence-breathe 3.8s ease-in-out infinite;
+}
+
+.as-end {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-shrink: 0;
+}
+
+/* ── the call, still running ──────────────────────────────────────────────
+   The proof the relationship did not pause. It reports the call AND returns
+   to it, so the board is never a place the call got lost in. */
+.as-call {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 0.5px solid var(--ga-line-strong);
+  background: var(--ga-well);
+  color: var(--ga-ink);
+  font-size: var(--t-sub);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+/* drawn at 34px, aimed at 44 */
+.as-call::after,
+.as-mic::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--hit));
+  height: var(--hit);
+  transform: translate(-50%, -50%);
+}
+button.as-call:active {
+  transform: scale(0.95);
+  background: var(--ga-press);
+}
+.as-cdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ga-live);
+}
+/* the same 2s cadence as the ringback burst pair, so screen and sound agree */
+.as-call[data-state="connecting"] .as-cdot {
+  background: var(--ga-accent);
+  animation: ring-pulse 2s ease-in-out infinite;
+}
+
+.as-mic {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--ga-well);
+  color: var(--ga-ink);
+  transition: background var(--d-tap) ease, color var(--d-tap) ease,
+    transform var(--d-press) var(--ease-out);
+}
+.as-mic:active {
+  transform: scale(0.95);
+}
+.as-mic[data-on="muted"] {
+  background: color-mix(in srgb, var(--ga-danger) 24%, transparent);
+  color: var(--ga-danger);
+}
+
+/* ── what just happened ───────────────────────────────────────────────────
+   One quiet line under the header for the event the activity wants to
+   report. It is the only live region on this surface: her phase line above
+   changes six times a minute and announcing each change would talk over
+   her. */
+.as-note {
+  padding: var(--s2) calc(var(--safe-right) + var(--s4)) var(--s2)
+    calc(var(--safe-left) + var(--s4));
+  font-size: var(--t-sub);
+  line-height: 1.4;
+  text-align: center;
+  color: var(--ga-dim);
+  animation: as-note-in var(--d-tap) var(--ease-out) both;
+}
+@keyframes as-note-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* ── the hero ─────────────────────────────────────────────────────────────
+   The activity gets everything left. The shell sizes nothing inside it:
+   the board is `width:100%; aspect-ratio:1` and owns its own geometry, and
+   a parent that measured it would be a second opinion about the same
+   number. */
+.as-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s4) calc(var(--safe-right) + var(--s3)) var(--s3)
+    calc(var(--safe-left) + var(--s3));
+}
+/* with no footer the stage owns the bottom safe area itself */
+.as[data-foot="off"] .as-stage {
+  padding-bottom: calc(var(--safe-bottom) + var(--s3));
+}
+
+.as-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  padding: var(--s3) calc(var(--safe-right) + var(--s4)) calc(var(--safe-bottom) + var(--s3))
+    calc(var(--safe-left) + var(--s4));
+  border-top: 0.5px solid var(--ga-line);
+  background: var(--ga-chrome);
+  backdrop-filter: var(--ga-glass);
+}
+
+/* ── reduced motion: fewer and gentler, never absent ──────────────────────
+   Everything still HAPPENS — the shell is there, the rows are there, the
+   call is still reported. Travel and the ambient loops go; opacity and
+   colour carry meaning and stay. */
+@media (prefers-reduced-motion: reduce) {
+  .as,
+  .as-note,
+  .gh-item {
+    animation: none !important;
+  }
+  .gh-dot,
+  .as-dot,
+  .as-call[data-state="connecting"] .as-cdot {
+    animation: none !important;
+    opacity: 0.85;
+  }
+  .gh-card,
+  .as-back,
+  .as-call,
+  .as-mic,
+  .as-face,
+  .as-state {
+    transition: background var(--d-tap) ease, color var(--d-tap) ease !important;
+  }
+}

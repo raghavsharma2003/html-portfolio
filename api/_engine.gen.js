@@ -2600,6 +2600,27 @@ function renderRaised(rows) {
   return text.length > RAISED_BUDGET ? text.slice(0, RAISED_BUDGET) : text;
 }
 
+// src/engine/activity.ts
+var ACTIVITY_BUDGET = 420;
+var LABEL = {
+  chess: "a game of chess",
+  watch: "watching their screen"
+};
+function renderActivity(a, nowMs) {
+  if (!a || !a.facts.length) return "";
+  const mins = nowMs && a.startedAt && nowMs > a.startedAt ? Math.floor((nowMs - a.startedAt) / 6e4) : null;
+  const head = `RIGHT NOW YOU TWO ARE IN THE MIDDLE OF ${LABEL[a.kind].toUpperCase()}` + (mins !== null && mins >= 1 ? ` \u2014 ${mins} min in` : "") + `. This is something you are doing WHILE you talk, not the only thing to talk about; the conversation can wander off it and come back the way it does with anyone. React when something actually strikes you, and be quiet when nothing does:`;
+  const rows = a.facts.map((f) => `- ${f}`);
+  let text = `${head}
+${rows.join("\n")}`;
+  while (text.length > ACTIVITY_BUDGET && rows.length > 1) {
+    rows.pop();
+    text = `${head}
+${rows.join("\n")}`;
+  }
+  return text;
+}
+
 // src/engine/compiler.ts
 var AGE_TIER_SAFETY_OVERRIDE = '\n\nAGE-TIER SAFETY OVERRIDE (structural, applies for the rest of this conversation, to everything said before or after this point, never softened, never explained to them as a rule): no romantic or intimate register, no pet names, no "missing you"/future-relationship language, no flirtation. Warm platonic friend register only, full stop.';
 function compile(input) {
@@ -2732,6 +2753,13 @@ ${t13.text}`;
 ${t9}`;
   }
   _track("T9");
+  {
+    const t15 = renderActivity(input.activity, input.nowMs);
+    if (t15) tail += `
+
+${t15}`;
+  }
+  _track("T15");
   {
     const t14 = renderRaised(raisedRecently(input.recentTurns || []));
     if (t14) tail += `

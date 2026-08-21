@@ -35,6 +35,7 @@ import { activeStories, hasUnseenStory } from "../engine/storyCatalog";
 import BigEmoji, { isSingleEmoji } from "./BigEmoji";
 import VoiceNote, { registerLocalClip } from "./VoiceNote";
 import GifBubble from "./GifBubble";
+import { ChessIcon } from "./GamesHub";
 import { listen, sttSupported } from "../voice/speech";
 import { tap } from "../native/haptics";
 import MoreSheet from "./MoreSheet";
@@ -54,6 +55,8 @@ interface Props {
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   onVoiceCall: () => void;
   onProfile: () => void;
+  /** open the "things to do together" sheet — one tap from the chat header */
+  onGames: () => void;
   // she must never send chat bubbles while actively ON a call with them
   inCall?: boolean;
 }
@@ -120,7 +123,7 @@ const typeDelay = (bubble: string) => {
   return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
 };
 
-export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }: Props) {
+export default function Chat({ state, setState, onVoiceCall, onProfile, onGames, inCall }: Props) {
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   // the indicator holds for one exit beat while the bubble enters underneath
@@ -1772,6 +1775,15 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         </button>
         <button className="icon-btn" data-tel="chat.call" onClick={onVoiceCall} aria-label="Voice call">
           <PhoneIcon />
+        </button>
+        <button
+          className="icon-btn"
+          data-tel="chat.games"
+          onClick={onGames}
+          aria-label="Play something together"
+          aria-haspopup="dialog"
+        >
+          <ChessIcon size={20} />
         </button>
         <button
           className="icon-btn"

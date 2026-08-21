@@ -60,6 +60,7 @@ import { gatesFor, getAgeTier } from "../engine/clock";
 import { logTurns, rememberFrom, recallForCall, callSelfBundle } from "../engine/memory";
 import { asksToHangUp } from "../engine/hangup";
 import { activityOf, lastAssessment } from "../state/game";
+import { clearCallStatus, publishCallStatus } from "../state/callStatus";
 import { activityNote } from "../engine/activity";
 import { moveFact } from "../engine/chessTalk";
 import { innerContext, applyInner, wantsForAppraisal } from "../engine/inner";
@@ -2463,6 +2464,20 @@ export function useCallEngine(
   }, [state.game]);
 
   const mmss = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`;
+
+  // Publish the call so a board, or any future activity, can show it without
+  // the call being lifted into App — see state/callStatus.ts on why an
+  // `onStatus` prop would re-render the whole chat once a second.
+  useEffect(() => {
+    publishCallStatus({
+      live: phase === "live",
+      connecting: phase === "connecting",
+      muted,
+      mmss,
+      toggleMute,
+    });
+  });
+  useEffect(() => clearCallStatus, []);
 
   return {
     phase,
