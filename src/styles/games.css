@@ -15,6 +15,25 @@
    has covered the first.
 
    Durations and curves come off the shared scale. Nothing here invents one.
+
+   ── why there is no `data-theme` block in this file ──────────────────────
+   The app grew a real dark theme, and this file needed nothing for it. That
+   is the payoff of the paper set being DERIVED: every one of those tokens is
+   an app token, so when `:root` re-inks at night the hub and the shell
+   re-ink with it, in one place, with the contrast already measured there.
+   Adding a night set here would have been a second, unmeasured copy of the
+   palette that drifts the first time either one is touched.
+
+   The dark set below stays scoped to `data-tone="dark"`, which means THE
+   ROOM IS DARK — a live call behind the shell, or the app itself set to
+   night; the caller decides and passes the same value to the board. Either
+   way it repaints the call's own gradient, which is the house dark and the
+   only dark this product owns.
+
+   It is stated in ABSOLUTE values, and that is what stops it compounding: a
+   dark tone inside a dark theme lands exactly where a dark tone inside a
+   light theme lands. Nothing here is mixed against `--bg` or `--ink`, so
+   there is no second darkening for the theme to apply.
    ───────────────────────────────────────────────────────────────────────── */
 
 .gh,
@@ -40,9 +59,8 @@
 /* ── the call ground ──────────────────────────────────────────────────────
    Stated rather than derived: there is nothing in a warm-paper palette to
    mix a warm dark out of, and the target is a specific gradient that is
-   already on screen behind this surface. `--ga-accent` is lightened here on
-   purpose — the rose that reads at 5:1 on paper is 3.6:1 on this ground, and
-   the exit label is the one word on the screen nobody may have to hunt for. */
+   already on screen behind this surface. Absolute values are also what keeps
+   this from compounding with the app's dark theme — see the header. */
 .as[data-tone="dark"] {
   --ga-ground: radial-gradient(120% 90% at 50% 30%, #241619 0%, #150e10 58%, #100b0c 100%);
   --ga-chrome: rgba(26, 16, 18, 0.74);
@@ -53,9 +71,21 @@
   --ga-faint: rgba(246, 241, 238, 0.5);
   --ga-line: rgba(255, 255, 255, 0.1);
   --ga-line-strong: rgba(255, 255, 255, 0.22);
-  --ga-accent: #ff9fae;
-  --ga-accent-ink: #ffd9de;
-  --ga-accent-soft: rgba(226, 88, 110, 0.24);
+  /* THIS IS THE APP'S NIGHT ROSE, written out. It used to be a lighter one
+     (#ff9fae) chosen when the app had no dark theme and the only reference
+     was the paper rose, which is 3.6:1 on this ground — too low for the exit
+     label, which is the one word on this screen nobody may have to hunt for.
+     The app now has a rose designed for exactly this job, and shipping a
+     second one meant the exit read in one pink while her name two taps away
+     read in another. These are `--accent` / `--accent-deep` at night:
+     5.4–6.0:1 for the label and 5.1:1 for the tag ink, comfortably past what
+     the lighter value was reaching for.
+     Written out rather than `var(--accent)` because this block is the CALL
+     ground, which does not move with the theme — referencing a token that
+     does would put a paper rose on a dark gradient in the light theme. */
+  --ga-accent: #e4657a;
+  --ga-accent-ink: #f2798c;
+  --ga-accent-soft: rgba(228, 101, 122, 0.24);
   --ga-live: #5fd08a;
   --ga-danger: #ff9d90;
   --ga-glass: blur(22px) saturate(1.4);

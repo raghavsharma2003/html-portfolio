@@ -28,16 +28,58 @@
   --accent-deep: #a53347;
   --accent-soft: #fbecee;
   --accent-warm: #e2724f;   /* the ember end of the accent — story ring, watch */
-  --bubble-me: var(--accent);
-  --bubble-me-ink: #ffffff;
+
+  /* ── a MARK is not a FILL ─────────────────────────────────────────────
+     On paper these are one colour, which is why they were one token until
+     the dark ground arrived. They are two jobs: --accent is a mark READ
+     AGAINST the ground (icons, links, her name in a quote), --accent-solid
+     is a fill that has to CARRY --on-solid on top of it. Lifting the rose
+     far enough to read on a dark ground drops white on it to 3.3:1, which
+     is a primary button you cannot read; so dark splits the two and light
+     resolves both to the same value it always had. --*-press is the
+     :active fill — it darkens on paper and lightens on the dark ground,
+     because a press moves TOWARD the light in the room. */
+  --accent-solid: var(--accent);
+  --accent-solid-press: var(--accent-deep);
+  --danger-solid: var(--danger);
+  --on-solid: #ffffff;
+
+  --bubble-me: var(--accent-solid);
+  --bubble-me-ink: var(--on-solid);
   --bubble-me-dim: rgba(255, 255, 255, 0.92); /* 4.54:1 on the bubble */
   --tick-read: #b9f0ff;
+  /* the read tick on a photo CARD rather than in the rose bubble: on paper
+     the cyan has to be dragged down to hold against white, on the dark
+     ground it does not */
+  --tick-read-quiet: color-mix(in srgb, var(--tick-read) 70%, #0a6c8a);
   --ok: #2fa855;
   --danger: #d8402f;
   --hairline: rgba(32, 27, 25, 0.08);
   --hairline-strong: rgba(32, 27, 25, 0.15);
   --scrim: rgba(32, 22, 20, 0.38);
   --chrome: rgba(252, 250, 248, 0.82); /* header/composer glass */
+  /* a control that must sit ABOVE a --surface-2 well (the auth segment's
+     selected pill). On paper it rises by getting whiter; on the dark ground
+     --surface is BELOW --surface-2, so the same pill has to rise to
+     --surface-3 instead or it sinks into its own track. */
+  --raised: var(--surface);
+  /* the inverted surfaces — a transient notice and the undo toast. On paper
+     "inverted" means near-black. In the dark theme it must NOT mean
+     near-white: a white card at 2am is the thing this ground exists to
+     avoid, so it becomes a raised warm surface and its ink flips with it.
+     Both call sites keep their own alpha (88% / 92%) over this tint. */
+  --notice-tint: var(--ink);
+  --notice-ink: var(--bg);
+  /* the desktop backdrop the phone frame sits on, and the gloss on its top
+     edge. Both are mixed against --bg, so both need the other direction on
+     a dark ground or the "surface behind the frame" ends up in front. */
+  --desk-tint: #8d7a72;
+  --frame-gloss: rgba(255, 255, 255, 0.55);
+  /* the call screen is dark in BOTH themes, so its quiet ink is stated once
+     and never overridden. --ink-faint used to do this job and drifts with
+     the theme, which put a 13px call clock at 4.0:1 on a ground that had
+     not moved. */
+  --call-ink-faint: rgba(245, 240, 238, 0.62); /* 6.8:1 on the call ground */
   --shadow-card: 0 1px 2px rgba(60, 40, 34, 0.05), 0 8px 24px -12px rgba(60, 40, 34, 0.16);
   --shadow-float: 0 12px 40px -12px rgba(60, 40, 34, 0.28);
   --r-lg: 24px;
@@ -100,18 +142,207 @@
   --d-sheet: 380ms; /* sheets, call enter */
 }
 
-/* ── light only ──────────────────────────────────────────────────────────
-   An OS-following dark theme lived here and has been removed at the owner's
-   request: the light theme is the product's look and he was happy with it.
-   The palette is not lost — it is recorded in context/decisions.md under
-   `light-only`, along with what it would take to bring it back, because
-   choosing those colours was the expensive part and re-deriving them from
-   scratch would be waste.
+/* ═══ NIGHT ═══════════════════════════════════════════════════════════════
+   The dark theme, reinstated (`light-only` in context/decisions.md said it
+   reverses when the owner asks for night reading; he has). It is a setting
+   with three values, and the settings map onto the DOM like this:
 
-   Removed rather than commented out: the palette carried its own inline
-   comments, and a nested `*​/` silently ends the wrapper early, which leaves
-   half a dark theme live in the stylesheet. Commenting out CSS that contains
-   comments is a trap. */
+     theme "light"   → <html data-theme="light">   explicit, beats the OS
+     theme "dark"    → <html data-theme="dark">    explicit, beats the OS
+     theme "system"  → no attribute at all         the media query decides
+
+   which is why the same override list appears TWICE below: once inside
+   `prefers-color-scheme: dark` guarded by `:not([data-theme="light"])` so an
+   explicit light choice can win against a dark OS, and once unguarded under
+   `[data-theme="dark"]` so an explicit dark choice can win against a light
+   OS. THE TWO BLOCKS MUST STAY IDENTICAL APART FROM THE SELECTOR. If they
+   drift, one of the two ways in silently wins and only one kind of user
+   ever sees the bug.
+
+   ── what the palette is, and what it is not ──────────────────────────────
+   NOT an inversion. `--bg` and `--ink` are not swapped: a swapped palette
+   puts pure paper-white ink on pure black and reads like a terminal.
+
+   It is the same room with the lights off. The ground stays in the warm
+   family the light theme is built on, and specifically in the family the
+   CALL screen has always used (`#241619 → #100b0c`) — that gradient is the
+   house dark and there is no reason for the app to own a second one. The
+   greens/blues sit a hair below red in every neutral here, which is what
+   the call ground does too; a neutral grey or a blue-black would be a
+   different product wearing the same layout.
+
+   ELEVATION INVERTS. On paper a surface rises by getting whiter than the
+   ground and casting a shadow. On a dark ground a shadow lands on something
+   already darker than the shadow, so it says nothing: `--surface`,
+   `--surface-2` and `--surface-3` step UP in lightness instead, and the
+   hairlines — light-on-dark here, dark-on-light in the day — draw the edges
+   the shadows can no longer draw. The shadow tokens are kept and deepened,
+   but they are doing perhaps a tenth of the work they do on paper.
+
+   ── the numbers ──────────────────────────────────────────────────────────
+   Every ratio in the comments below is computed from the WCAG 2.1 relative
+   luminance of the two composited colours (alpha resolved against whatever
+   the token actually sits on), not estimated. Body text clears 4.5:1, large
+   text and meaningful non-text clear 3:1.
+   ════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-color-scheme: dark) {
+/* Deliberately NOT indented: the body below is byte-identical to the body
+   of `:root[data-theme="dark"]`, and keeping it flush is what lets anyone
+   prove that with a plain diff instead of by eye. Re-indenting it is how
+   the two copies start to drift. */
+:root:not([data-theme="light"]) {
+  color-scheme: dark;
+
+  /* the ground and the things that rise off it. Deltas are small on
+     purpose — 1.08:1 from ground to card — because on a dark ground a
+     large lightness step reads as a light-mode card someone forgot to
+     re-ink. The card is found by its edge, not by its brightness. */
+  --bg: #150f10;
+  --surface: #1e1719;
+  --surface-2: #2a2225;
+  --surface-3: #362d30;
+  --raised: var(--surface-3);
+
+  /* contrast roles: ink 16.5:1, ink-dim 6.0:1 (5.0:1 on her bubble),
+     ink-faint 4.5:1 (3.6:1 on her bubble, 3.1:1 on a disabled fill).
+     The roles hold their light-theme RANK but every one of them sits
+     higher than its paper twin, ink-faint most of all (2.9:1 → 4.5:1):
+     light text on a dark ground is thinned by the ground bleeding into
+     it, so matching the paper ratio would not match the paper quiet. */
+  --ink: #f4eeec;
+  --ink-dim: #9b8f8b;
+  --ink-faint: #847876;
+
+  /* the rose, lifted. #c23f56 is 1.9:1 on this ground — a mark nobody can
+     find. #e4657a is the same hue (≈350°) carried up in lightness rather
+     than a new colour: 5.8:1 on the ground, 5.4:1 on a card, 4.8:1 inside
+     her bubble, which is the one that decides it (the quote header lives
+     there). White on it is only 3.3:1, which is why fills are separate. */
+  --accent: #e4657a;
+  --accent-deep: #f2798c; /* 5.4:1 on --accent-soft over a card */
+  --accent-soft: rgba(228, 101, 122, 0.16);
+  /* the fill, DEEPENED instead — it carries white, so it moves the other
+     way. White on it is 5.09:1 against the light theme's own 5.07:1, and
+     her bubble's timestamp and read tick land on 4.6:1 and 4.1:1 against
+     4.5:1 and 4.1:1 in the day. Her bubble reads at night exactly as well
+     as it reads at noon, which is the whole point of splitting these. */
+  --accent-solid: #bc4557;
+  --accent-solid-press: #c94a60; /* white 4.5:1 — press LIGHTENS here */
+
+  /* --accent-warm (#e2724f, 6.1:1 here) and --ok (#2fa855, 6.2:1) are
+     deliberately NOT redefined: both already clear the ground, both are
+     used on the call screen, and the call screen must not change colour
+     because of a setting that belongs to the chat. */
+
+  /* danger splits for the same reason the accent does: the lifted red is
+     for TEXT (6.8:1 here, against 4.2:1 for the paper red), and the fill
+     stays exactly the paper red so the end-call button and the destroy
+     button keep the white they carry today. */
+  --danger: #ff6b5a;
+  --danger-solid: #d8402f;
+
+  /* light-on-dark now, and doing more work than they do in the day: with
+     shadows gone these ARE the elevation. Warm-white rather than white so
+     an edge never reads cooler than the surface it is drawn on. */
+  --hairline: rgba(255, 240, 235, 0.09);
+  --hairline-strong: rgba(255, 240, 235, 0.17);
+  --scrim: rgba(6, 3, 4, 0.62); /* deeper: a 0.38 scrim over a dark app is not a scrim */
+  --chrome: rgba(28, 21, 23, 0.82);
+
+  /* inverted surfaces stop inverting — see --notice-tint above */
+  --notice-tint: #4a3c40; /* ink on the composited result: 9.9:1 */
+  --notice-ink: var(--ink);
+  --tick-read-quiet: var(--tick-read); /* the card under it is dark now */
+
+  --desk-tint: #060404;
+  --frame-gloss: rgba(255, 236, 230, 0.08);
+
+  /* kept, deepened, and no longer load-bearing */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.34), 0 8px 24px -12px rgba(0, 0, 0, 0.62);
+  --shadow-float: 0 12px 40px -12px rgba(0, 0, 0, 0.78);
+}
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* the ground and the things that rise off it. Deltas are small on
+     purpose — 1.08:1 from ground to card — because on a dark ground a
+     large lightness step reads as a light-mode card someone forgot to
+     re-ink. The card is found by its edge, not by its brightness. */
+  --bg: #150f10;
+  --surface: #1e1719;
+  --surface-2: #2a2225;
+  --surface-3: #362d30;
+  --raised: var(--surface-3);
+
+  /* contrast roles: ink 16.5:1, ink-dim 6.0:1 (5.0:1 on her bubble),
+     ink-faint 4.5:1 (3.6:1 on her bubble, 3.1:1 on a disabled fill).
+     The roles hold their light-theme RANK but every one of them sits
+     higher than its paper twin, ink-faint most of all (2.9:1 → 4.5:1):
+     light text on a dark ground is thinned by the ground bleeding into
+     it, so matching the paper ratio would not match the paper quiet. */
+  --ink: #f4eeec;
+  --ink-dim: #9b8f8b;
+  --ink-faint: #847876;
+
+  /* the rose, lifted. #c23f56 is 1.9:1 on this ground — a mark nobody can
+     find. #e4657a is the same hue (≈350°) carried up in lightness rather
+     than a new colour: 5.8:1 on the ground, 5.4:1 on a card, 4.8:1 inside
+     her bubble, which is the one that decides it (the quote header lives
+     there). White on it is only 3.3:1, which is why fills are separate. */
+  --accent: #e4657a;
+  --accent-deep: #f2798c; /* 5.4:1 on --accent-soft over a card */
+  --accent-soft: rgba(228, 101, 122, 0.16);
+  /* the fill, DEEPENED instead — it carries white, so it moves the other
+     way. White on it is 5.09:1 against the light theme's own 5.07:1, and
+     her bubble's timestamp and read tick land on 4.6:1 and 4.1:1 against
+     4.5:1 and 4.1:1 in the day. Her bubble reads at night exactly as well
+     as it reads at noon, which is the whole point of splitting these. */
+  --accent-solid: #bc4557;
+  --accent-solid-press: #c94a60; /* white 4.5:1 — press LIGHTENS here */
+
+  /* --accent-warm (#e2724f, 6.1:1 here) and --ok (#2fa855, 6.2:1) are
+     deliberately NOT redefined: both already clear the ground, both are
+     used on the call screen, and the call screen must not change colour
+     because of a setting that belongs to the chat. */
+
+  /* danger splits for the same reason the accent does: the lifted red is
+     for TEXT (6.8:1 here, against 4.2:1 for the paper red), and the fill
+     stays exactly the paper red so the end-call button and the destroy
+     button keep the white they carry today. */
+  --danger: #ff6b5a;
+  --danger-solid: #d8402f;
+
+  /* light-on-dark now, and doing more work than they do in the day: with
+     shadows gone these ARE the elevation. Warm-white rather than white so
+     an edge never reads cooler than the surface it is drawn on. */
+  --hairline: rgba(255, 240, 235, 0.09);
+  --hairline-strong: rgba(255, 240, 235, 0.17);
+  --scrim: rgba(6, 3, 4, 0.62); /* deeper: a 0.38 scrim over a dark app is not a scrim */
+  --chrome: rgba(28, 21, 23, 0.82);
+
+  /* inverted surfaces stop inverting — see --notice-tint above */
+  --notice-tint: #4a3c40; /* ink on the composited result: 9.9:1 */
+  --notice-ink: var(--ink);
+  --tick-read-quiet: var(--tick-read); /* the card under it is dark now */
+
+  --desk-tint: #060404;
+  --frame-gloss: rgba(255, 236, 230, 0.08);
+
+  /* kept, deepened, and no longer load-bearing */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.34), 0 8px 24px -12px rgba(0, 0, 0, 0.62);
+  --shadow-float: 0 12px 40px -12px rgba(0, 0, 0, 0.78);
+}
+
+/* An explicit light choice also has to tell the BROWSER, or a phone in dark
+   mode still draws dark form controls, dark scrollbars and a dark autofill
+   inside a light app. `color-scheme: light dark` on :root above is the
+   right answer only for "system". */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
 
 
 * {
@@ -170,7 +401,7 @@ select {
   body {
     background:
       radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%),
-      color-mix(in srgb, var(--bg) 78%, #8d7a72);
+      color-mix(in srgb, var(--bg) 78%, var(--desk-tint));
   }
   #root {
     max-width: 430px;
@@ -181,7 +412,12 @@ select {
     transform: translateY(-50%);
     overflow: hidden;
     border-radius: 30px;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.55) inset, 0 0 0 1px var(--hairline),
+    /* three edges, and only two of them survive the night: the gloss and
+       the hairline ring are tokens and flip, the warm drop shadow below is
+       a paper effect that goes quietly inert against a near-black desk.
+       Left as-is rather than tokenised — the frame is already found by its
+       ring, and a shadow nobody can see is not a bug, it is just unused. */
+    box-shadow: 0 1px 0 var(--frame-gloss) inset, 0 0 0 1px var(--hairline),
       0 30px 80px -28px rgba(60, 40, 34, 0.45);
     background: var(--bg);
   }
@@ -247,18 +483,18 @@ button {
   min-height: 52px;
   padding: var(--s4) var(--s5);
   border-radius: 999px;
-  background: var(--accent);
-  color: #ffffff;
+  background: var(--accent-solid);
+  color: var(--on-solid);
   font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  box-shadow: 0 8px 24px -10px color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 8px 24px -10px color-mix(in srgb, var(--accent-solid) 55%, transparent);
   transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease,
     opacity var(--d-tap) ease, box-shadow var(--d-tap) ease;
 }
 .btn-primary:active {
   transform: scale(0.97);
-  background: var(--accent-deep);
+  background: var(--accent-solid-press);
 }
 .btn-primary:disabled {
   /* a disabled primary must still read as text, not as a ghost: 0.35 opacity
@@ -811,8 +1047,8 @@ button {
   transform: scale(0.92);
 }
 .msg.me .vplay {
-  background: rgba(255, 255, 255, 0.25);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.25); /* on the rose fill in both themes */
+  color: var(--bubble-me-ink);
 }
 .vplay:disabled {
   opacity: 0.45;
@@ -821,9 +1057,13 @@ button {
    with. Unplayed, its play button carries her accent and one slow halo —
    three cycles, then it stops asking. Nothing here touches the waveform
    bars: those carry playback progress and are owned by the component. */
+/* --accent, not --accent-solid: this button's job is to be FOUND, and it
+   sits on her bubble rather than on the ground. The lifted rose is 4.8:1
+   against her bubble at night where the fill rose would be 2.9:1, and the
+   glyph on it still clears the 3:1 a non-text mark needs. */
 .msg.her.voice.unheard .vplay {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-solid);
 }
 .msg.her.voice.unheard .vplay::before {
   content: "";
@@ -914,8 +1154,8 @@ button {
   margin: 0 var(--s4) 6px;
   padding: 9px var(--s4);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--ink) 88%, transparent);
-  color: var(--bg);
+  background: color-mix(in srgb, var(--notice-tint) 88%, transparent);
+  color: var(--notice-ink);
   font-size: var(--t-sub);
   line-height: 1.35;
   text-align: left;
@@ -924,7 +1164,7 @@ button {
 }
 .chat-notice button {
   flex-shrink: 0;
-  color: var(--bg);
+  color: var(--notice-ink);
   font-size: var(--t-sub);
   font-weight: 650;
   text-decoration: underline;
@@ -1090,13 +1330,15 @@ button {
   font-weight: 650;
   margin-bottom: 1px;
 }
+/* all three are washes on the rose FILL, which is a dark saturated surface
+   in both themes — they need no night value */
 .msg.me .quote {
   border-left-color: rgba(255, 255, 255, 0.85);
   background: rgba(255, 255, 255, 0.16);
   color: rgba(255, 255, 255, 0.88);
 }
 .msg.me .quote b {
-  color: #ffffff;
+  color: var(--bubble-me-ink);
 }
 .reply-chip {
   position: absolute;
@@ -1216,7 +1458,7 @@ button {
 }
 .msg.emoji-big .t .tickicon.read,
 .msg.me.photo .t .tickicon.read {
-  color: color-mix(in srgb, var(--tick-read) 70%, #0a6c8a);
+  color: var(--tick-read-quiet);
 }
 
 /* single-emoji messages render as big animated reactions — no bubble */
@@ -1455,11 +1697,11 @@ button {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--accent-solid);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--on-solid);
   flex-shrink: 0;
   transition: transform var(--d-press) var(--ease-out), opacity var(--d-tap) ease,
     background var(--d-tap) ease;
@@ -1741,7 +1983,7 @@ button {
   transform: scale(0.95);
 }
 .cbtn.danger {
-  background: var(--danger);
+  background: var(--danger-solid);
   box-shadow: 0 10px 30px -10px rgba(216, 64, 47, 0.75);
 }
 .cbtn.active-mic {
@@ -2071,8 +2313,8 @@ button {
   min-height: 52px;
   padding: var(--s4) var(--s5);
   border-radius: 999px;
-  background: var(--danger);
-  color: #fff;
+  background: var(--danger-solid);
+  color: var(--on-solid);
   font-size: 17px;
   font-weight: 600;
   transition: transform var(--d-press) var(--ease-out), filter var(--d-tap) ease;
@@ -2096,8 +2338,8 @@ button {
   max-width: calc(100% - 32px);
   padding: 11px 12px 11px 18px;
   border-radius: 16px;
-  background: color-mix(in srgb, var(--ink) 92%, transparent);
-  color: var(--bg);
+  background: color-mix(in srgb, var(--notice-tint) 92%, transparent);
+  color: var(--notice-ink);
   font-size: var(--t-sub);
   box-shadow: var(--shadow-float);
   transform: translateX(-50%);
@@ -2114,8 +2356,10 @@ button {
   min-height: 36px;
   padding: 0 14px;
   border-radius: 999px;
+  /* the toast is a dark surface in BOTH themes (see --notice-tint), so a
+     white wash is the right chip fill on either ground */
   background: rgba(255, 255, 255, 0.16);
-  color: var(--bg);
+  color: var(--notice-ink);
   font-size: var(--t-sub);
   font-weight: 650;
   transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease;
@@ -2197,7 +2441,7 @@ button {
     box-shadow var(--d-tap) ease, transform var(--d-press) var(--ease-out);
 }
 .auth-seg button.on {
-  background: var(--surface);
+  background: var(--raised);
   color: var(--ink);
   box-shadow: 0 1px 4px rgba(32, 27, 25, 0.12);
 }
@@ -2555,9 +2799,12 @@ button.avatar-ring {
 
 /* the gradient fill already says "active" — an infinite box-shadow ring
    paints every frame and composites never */
+/* --accent-solid rather than --accent: this lives on the call screen, which
+   is dark in both themes and must not restyle itself because of a setting
+   that belongs to the chat. The two solids are within 0.1 of each other. */
 .cbtn.watch-on {
-  background: linear-gradient(135deg, var(--accent), var(--accent-warm));
-  color: #fff;
+  background: linear-gradient(135deg, var(--accent-solid), var(--accent-warm));
+  color: var(--on-solid);
 }
 
 /* ─── the look-away ───────────────────────────────────────────────────────
@@ -2706,7 +2953,7 @@ button.avatar-ring {
 }
 .msg.me ::selection {
   background: rgba(255, 255, 255, 0.3);
-  color: #fff;
+  color: var(--bubble-me-ink);
 }
 textarea,
 input {
@@ -3008,9 +3255,17 @@ input {
   color: var(--ink-faint);
   pointer-events: none;
   white-space: nowrap;
-  /* fades in over the first third of the travel, so a stray 6px drag does not
-     flash the clock across the whole screen */
-  opacity: calc((var(--peek) / 62) * 1.6);
+  /* Fades in over the first third of the travel, so a stray 6px drag does not
+     flash the clock across the whole screen.
+     `/ 62px`, NOT `/ 62`. `--peek` is set in px by Chat.tsx, and a length
+     divided by a NUMBER is still a length — so this read `opacity: 1.6px`,
+     which is invalid, so the whole declaration was dropped and every peek
+     timestamp rendered at full opacity underneath the bubble text. It had
+     never worked. Dividing by a LENGTH cancels the unit and yields the
+     unitless ratio opacity actually wants.
+     Confirmed in-browser: CSS.supports('opacity','calc((0px / 62) * 1.6)')
+     is false; with `62px` it is true. */
+  opacity: calc((var(--peek) / 62px) * 1.6);
 }
 @media (prefers-reduced-motion: reduce) {
   .react-bar, .react-pill { animation: none; }
@@ -3024,7 +3279,9 @@ input {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
-  color: var(--ink-faint);
+  /* NOT --ink-faint: this is 13px of text on the call's own ground, which
+     does not move with the theme, and --ink-faint does */
+  color: var(--call-ink-faint);
 }
 /* the ring is now audible AND visible: the dot breathes at the same 2s cadence
    as the ringback burst pair, so the screen and the sound agree */
@@ -3144,17 +3401,17 @@ input {
   border: 0;
   border-radius: 50%;
   font-size: 27px;
-  color: #fff;
+  color: var(--on-solid);
   cursor: pointer;
   box-shadow: var(--shadow-float);
   transition: transform 140ms var(--ease-out);
 }
 .inc-btn:active { transform: scale(0.92); }
-.inc-btn.decline { background: var(--danger, #e5484d); }
+.inc-btn.decline { background: var(--danger-solid); }
 /* accept nudges, decline does not — the affordance leans the way a person
    already wants to go, without hiding the other one */
 .inc-btn.accept {
-  background: var(--ok, #30a46c);
+  background: var(--ok);
   animation: inc-accept 2s ease-in-out infinite;
 }
 @keyframes inc-accept {

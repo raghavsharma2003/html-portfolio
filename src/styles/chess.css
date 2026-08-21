@@ -10,6 +10,10 @@
    to the call's `#241619 → #100b0c` ground and there is nothing in the light
    palette to derive it from.
 
+   There are now two things that can darken the room — a live call behind the
+   board, and the app's own dark theme — and they take the SAME night inking
+   rather than stacking. See the block below.
+
    Timings come off the shared scale (--d-press / --d-tap / --d-state) and the
    shared curves. Nothing here invents a duration. --ease-in-out is the
    on-screen-movement curve and is what a piece travels on; --ease-out is for
@@ -54,10 +58,28 @@
   padding-right: var(--safe-right);
 }
 
-/* The call ground. Squares drop most of the way to black, and — the part
-   that matters — the BLACK pieces swap to a light rim: an unlit black piece
-   on a dark square is a hole in the board. */
-.cb[data-tone="dark"] {
+/* ── the night inking ─────────────────────────────────────────────────────
+   Squares drop most of the way to black, and — the part that matters — the
+   BLACK pieces swap to a light rim: an unlit black piece on a dark square is
+   a hole in the board.
+
+   TWO WAYS IN, ONE INKING. `data-tone="dark"` is set by the component when a
+   call is live behind the board; the app's dark theme arrives independently
+   through `<html data-theme>` / `prefers-color-scheme`. Both mean the same
+   thing to a board — the room is dark — so both take the SAME values, and
+   that is what stops them compounding: a dark board inside a dark theme
+   cannot double-darken into mud, because applying this set twice is applying
+   it once. (The paper set above would have compounded: it is mixed out of
+   `--ink` and `--shadow-card`, which the theme moves underneath it.)
+
+   The `:not([data-theme="light"])` guard is the same one global.css uses —
+   an explicit light choice has to beat a dark OS here too, or someone who
+   picked light gets a night board in a paper app.
+
+   The two blocks are byte-identical apart from their selectors, and the
+   second is left unindented so a plain diff can prove it. */
+.cb[data-tone="dark"],
+:root[data-theme="dark"] .cb {
   --cb-light: #55433f;
   --cb-dark: #2e2326;
   --cb-frame-bg: rgba(0, 0, 0, 0.42);
@@ -76,6 +98,29 @@
   --cb-tray-ink: rgba(245, 240, 238, 0.74);
   --cb-scrim: rgba(10, 6, 7, 0.62);
   --cb-promo-bg: #2b1e20;
+}
+
+@media (prefers-color-scheme: dark) {
+:root:not([data-theme="light"]) .cb {
+  --cb-light: #55433f;
+  --cb-dark: #2e2326;
+  --cb-frame-bg: rgba(0, 0, 0, 0.42);
+  --cb-frame-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.8);
+
+  --cb-white: #efe6e2;
+  --cb-white-edge: #2a1c1f;
+  --cb-black: #191113;
+  --cb-black-edge: #8d7873;
+
+  --cb-hint: rgba(255, 242, 238, 0.32);
+  --cb-last: color-mix(in srgb, var(--accent-warm) 44%, transparent);
+  --cb-coord-on-light: #241619;
+  --cb-coord-on-dark: rgba(245, 240, 238, 0.86);
+
+  --cb-tray-ink: rgba(245, 240, 238, 0.74);
+  --cb-scrim: rgba(10, 6, 7, 0.62);
+  --cb-promo-bg: #2b1e20;
+}
 }
 
 /* ── the board ──────────────────────────────────────────────────────────── */
