@@ -2170,3 +2170,27 @@ Not measured: any real device, any real APK, contrast on the dark tone (computed
 not instrumented), and safe-area behaviour. Board overflow at very short
 viewports is unobserved — the stage scrolls rather than clips, by construction,
 but nobody has seen it do so.
+
+---
+
+## her tic-tac-toe imperfection, enumerated (2026-08-21)
+
+Method: exhaustive game-tree enumeration in `evals/ttt.mjs` against an
+INDEPENDENT second minimax (not the engine's own), she plays O, the opponent
+branches over every truly-optimal reply. Deterministic; runs in the suite on
+every push.
+
+| arm | loss rate vs perfect play | n (leaves) |
+|---|---|---|
+| level 1 (easiest) | 57.8% | 83 |
+| level 2 (default) | 9.9% | 202 |
+| level 3 (hardest) | 1.9% | 214 |
+| uniform-random baseline | 88.5% | 31,040 |
+| perfect-play control | 0 losses either mark | all |
+
+The control is the ground truth on the minimax itself (tic-tac-toe is a solved
+draw). The baseline is what "she is beatable" must stay well below to not be
+"she plays randomly". The chess STRENGTHS table still carries its own
+"numbers are guesses" caveat — this table is what replacing that caveat with
+a measurement looks like, and chess deserves the same treatment (n≥100 games
+per level, scripted).
