@@ -21,3 +21,11 @@ export {
   AWAY_MIN_MS,
   AWAY_BUDGET,
 } from "../src/engine/away";
+export {
+  raisedRecently,
+  renderRaised,
+  MIN_TIMES,
+  MAX_TERMS,
+  RAISED_BUDGET,
+  SHORT_REPLY_WORDS,
+} from "../src/engine/repeat";

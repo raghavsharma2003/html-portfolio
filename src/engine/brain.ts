@@ -911,6 +911,9 @@ export async function think(
     // compile() stays a pure function of its input and the double-compile
     // byte-identity gate cannot flap on a minute rollover.
     nowMs: Date.now(),
+    // T14 rel.raised — the repetition signal is derived from the transcript
+    // itself, so the transcript is the only input it needs.
+    recentTurns: history,
     // fresh every call — see the import comment above; getAgeTier() reads
     // clock.ts's live module state, never a value carried across turns here
     ageGates: gatesFor(getAgeTier()),

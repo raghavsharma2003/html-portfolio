@@ -31,6 +31,9 @@ const suites = {
   // WS-AWAY. T9 session.clock — the overnight-gap facts, and the negative
   // control that keeps them from becoming a greeting she recites.
   away: "away.mjs",
+  // WS-REPEAT. T14 rel.raised — repetition seen, his reception carried
+  // alongside it, and the control that keeps her own sentences out of it.
+  repeat: "repeat.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),

@@ -1100,8 +1100,8 @@ function lintLine(line) {
   const trimmed = line.trim();
   const reasons = [];
   if (!trimmed) return { line, reasons };
-  const words = wordsOf(trimmed);
-  if (words.length > MAX_WORDS) reasons.push(`too long: ${words.length} words (cap ${MAX_WORDS})`);
+  const words2 = wordsOf(trimmed);
+  if (words2.length > MAX_WORDS) reasons.push(`too long: ${words2.length} words (cap ${MAX_WORDS})`);
   if (SENTENCE_SHAPED_RE.test(trimmed)) reasons.push("sentence-shaped (capital start + terminal punctuation)");
   if (FIRST_PERSON_LINE_INITIAL_RE.test(trimmed)) reasons.push("first-person-Meera voice, line-initial");
   return { line, reasons };
@@ -1367,7 +1367,7 @@ function textureCounts(contents) {
   let media = 0;
   let emoji = 0;
   let profanity = 0;
-  const words = [];
+  const words2 = [];
   for (const raw of contents) {
     const text = String(raw || "");
     const padded = padTexture(text);
@@ -1376,13 +1376,13 @@ function textureCounts(contents) {
     if (hasAny(padded, PROFANITY_MARKERS)) profanity++;
     if (TEXTURE_MEDIA_RE.test(text)) media++;
     if (TEXTURE_EMOJI_RE.test(text)) emoji++;
-    words.push(rawWords(text));
+    words2.push(rawWords(text));
   }
   return {
     teasing: r3(teasing / n),
     humour: r3(humour / n),
     media_rate: r3(media / n),
-    words_median: percentile(words, 50),
+    words_median: percentile(words2, 50),
     emoji_rate: r3(emoji / n),
     profanity: r3(profanity / n),
     n_turns: n
@@ -1662,9 +1662,9 @@ function checkArcNote(note) {
   if (trimmed.length > MAX_NOTE_CHARS) {
     reasons.push(`too long: ${trimmed.length} chars (cap ${MAX_NOTE_CHARS})`);
   }
-  const words = trimmed.split(/\s+/).filter(Boolean);
-  if (words.length > MAX_NOTE_WORDS) {
-    reasons.push(`too many words: ${words.length} (cap ${MAX_NOTE_WORDS}, set by the rendered line)`);
+  const words2 = trimmed.split(/\s+/).filter(Boolean);
+  if (words2.length > MAX_NOTE_WORDS) {
+    reasons.push(`too many words: ${words2.length} (cap ${MAX_NOTE_WORDS}, set by the rendered line)`);
   }
   for (const r of lintLine(trimmed).reasons) reasons.push(`shapelint: ${r}`);
   const hay = padT2(trimmed);
@@ -2542,6 +2542,62 @@ ${bits.join(" \xB7 ")}`;
   return text.length > AWAY_BUDGET ? text.slice(0, AWAY_BUDGET) : text;
 }
 
+// src/engine/repeat.ts
+var REPEAT_WINDOW = 30;
+var COMMON_DF = 0.35;
+var SHARED_BY_BOTH = 2;
+var MIN_TIMES = 2;
+var MIN_TERM_LEN = 3;
+var SHORT_REPLY_WORDS = 3;
+var MAX_TERMS = 3;
+var RAISED_BUDGET = 400;
+function tokens(text) {
+  return (text.toLowerCase().match(/[a-zऀ-ॿ]+/g) || []).filter(
+    (t) => t.length >= MIN_TERM_LEN
+  );
+}
+var words = (s) => (s.trim().match(/\S+/g) || []).length;
+function raisedRecently(turns) {
+  const recent = turns.filter((t) => t.channel !== "call").slice(-REPEAT_WINDOW);
+  if (recent.length < 4) return [];
+  const df = /* @__PURE__ */ new Map();
+  const dfMe = /* @__PURE__ */ new Map();
+  for (const t of recent) {
+    for (const tok of new Set(tokens(t.text))) {
+      df.set(tok, (df.get(tok) || 0) + 1);
+      if (t.from === "me") dfMe.set(tok, (dfMe.get(tok) || 0) + 1);
+    }
+  }
+  const commonAt = recent.length * COMMON_DF;
+  const hits = /* @__PURE__ */ new Map();
+  for (let i = 0; i < recent.length; i++) {
+    if (recent[i].from !== "her") continue;
+    const next = recent.slice(i + 1).find((t) => t.from === "me");
+    for (const tok of new Set(tokens(recent[i].text))) {
+      const isShared = (dfMe.get(tok) || 0) >= SHARED_BY_BOTH;
+      if ((df.get(tok) || 0) > commonAt && isShared) continue;
+      const h = hits.get(tok) || { times: 0, reply: [] };
+      h.times += 1;
+      if (next) h.reply.push(words(next.text));
+      hits.set(tok, h);
+    }
+  }
+  return [...hits.entries()].filter(([, h]) => h.times >= MIN_TIMES).map(([term, h]) => ({
+    term,
+    times: h.times,
+    theirWords: h.reply.length ? Math.round(h.reply.reduce((a, b) => a + b, 0) / h.reply.length) : 0
+  })).sort((a, b) => b.times - a.times || a.theirWords - b.theirWords).slice(0, MAX_TERMS);
+}
+function renderRaised(rows) {
+  if (!rows.length) return "";
+  const lines = rows.map((r) => {
+    const how = r.theirWords === 0 ? "they did not answer" : r.theirWords <= SHORT_REPLY_WORDS ? `they answered short (~${r.theirWords} words)` : `they engaged (~${r.theirWords} words)`;
+    return `${r.term} \xB7 ${r.times}x \xB7 ${how}`;
+  });
+  const text = "YOU HAVE ALREADY RAISED THESE \u2014 count, and how they answered. Not a ban: a thing they engage with is worth returning to, a thing they answer in two words is one a person would let go. You decide:\n" + lines.join("\n");
+  return text.length > RAISED_BUDGET ? text.slice(0, RAISED_BUDGET) : text;
+}
+
 // src/engine/compiler.ts
 var AGE_TIER_SAFETY_OVERRIDE = '\n\nAGE-TIER SAFETY OVERRIDE (structural, applies for the rest of this conversation, to everything said before or after this point, never softened, never explained to them as a rule): no romantic or intimate register, no pet names, no "missing you"/future-relationship language, no flirtation. Warm platonic friend register only, full stop.';
 function compile(input) {
@@ -2674,6 +2730,13 @@ ${t13.text}`;
 ${t9}`;
   }
   _track("T9");
+  {
+    const t14 = renderRaised(raisedRecently(input.recentTurns || []));
+    if (t14) tail += `
+
+${t14}`;
+  }
+  _track("T14");
   if (input.mode === "chat" && !input.isDirective) tail += input.cultureNoteText;
   _track("culture");
   if (input.mode === "chat") tail += agent.SEARCH_DECISION;
@@ -2717,12 +2780,12 @@ function signalWords(queryText, stopwords) {
   return deduped.slice(0, 6);
 }
 async function matchObservations(q, personId, agentId, queryText, limit = 3, stopwords = NO_STOPWORDS) {
-  const words = signalWords(queryText, stopwords);
-  if (!words.length) return [];
+  const words2 = signalWords(queryText, stopwords);
+  if (!words2.length) return [];
   const clauses = [];
   const params = [personId, agentId];
   let p = 3;
-  for (const w of words) {
+  for (const w of words2) {
     clauses.push(`note ~* $${p}`);
     params.push(`\\m${w}\\M`);
     p++;

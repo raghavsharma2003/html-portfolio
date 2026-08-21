@@ -82,6 +82,7 @@ import {
 // stays WS-SAFETY's exclusively (§13).
 import type { TierGates } from "./clock";
 import { renderAway } from "./away";
+import { renderRaised, raisedRecently, type RepeatTurn } from "./repeat";
 
 export type Medium = "text" | "voice";
 export type Mode = "chat" | "call";
@@ -220,6 +221,9 @@ export interface CompileInput {
   // fail-closed direction — a caller that forgets it loses a nicety, never
   // byte-identity.
   nowMs?: number;
+  // Recent turns, for T14's transcript-derived repetition signal. A pure
+  // function of these — no table, no writer, per `receipt-ledger-from-transcript`.
+  recentTurns?: readonly RepeatTurn[];
   // ── WS-INTEGRATE seam 2 (age-tier hard-refusal) — absent/undefined means
   // "unrestricted" (today's behavior, byte-identical); the caller (brain.ts)
   // is REQUIRED to compute this fresh via clock.ts's gatesFor(getAgeTier())
@@ -535,6 +539,16 @@ ${input.memories}`;
   }
   _track("T9");
 
+  // T14 rel.raised — what she has already brought up and how he answered.
+  // The owner's points 2 and 9. Deliberately both numbers, never a threshold:
+  // he asked for the behaviour to be TONED DOWN and modulated on how he reacts,
+  // not for a topic ban.
+  {
+    const t14 = renderRaised(raisedRecently(input.recentTurns || []));
+    if (t14) tail += `\n\n${t14}`;
+  }
+  _track("T14");
+
   if (input.mode === "chat" && !input.isDirective) tail += input.cultureNoteText;
   _track("culture"); // no manifest row yet — see CompiledPrompt.sections doc
   // dead last, chat only — see SEARCH_DECISION in persona.ts for why
@@ -556,7 +570,11 @@ ${input.memories}`;
 
 // 7 exists because mp.bridge takes priority 1 and everything below it
 // renumbers by one (PROPOSAL-MULTIPARTY-V1 §5.2).
-export type DropPriority = "never" | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+// 11 exists for T14 rel.raised. The set only has to be a PERMUTATION with no
+// duplicates (validated below) — never contiguous — so a new block takes a
+// fresh number rather than renumbering nine rows and desynchronising
+// check-prompt-budget's drop-order fixture for the second time.
+export type DropPriority = "never" | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
 
 export type SourceStatus =
   // this file computes it directly from a real, already-wired input
@@ -783,6 +801,22 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     dropPriority: 3,
     sourceStatus: "wired", // renderUntold, G2 turn-gated, on input.selfBundle.untold
   },
+  {
+    id: "T14",
+    label: "rel.raised",
+    budget: 400,
+    // 11 = LAST of the droppables, i.e. more protected than everything except
+    // the "never" set. That looks aggressive for a nicety and is deliberate:
+    // it is 400 bytes, and it is the correction for the defect the owner has
+    // now reported twice (points 2 and 9). Dropping it under pressure
+    // reintroduces the single most-reported behaviour, for a saving smaller
+    // than one recall fact. The number only has to be UNIQUE (the validator
+    // checks the set is a permutation, not that it is contiguous), so this
+    // takes a fresh one rather than renumbering nine rows and desynchronising
+    // check-prompt-budget's drop-order fixture again.
+    dropPriority: 11,
+    sourceStatus: "wired", // renderRaised(raisedRecently(input.recentTurns)) — gate: node evals/run.mjs repeat
+  },
   // ── multiparty v1 (PROPOSAL-MULTIPARTY-V1 §5.2) ────────────────────────
   // Declared at their real budgets and real drop priorities, rendering ZERO
   // bytes: no live writer exists yet (WS-MP owns src/engine/room.ts). Same
@@ -867,6 +901,9 @@ export const TAIL_ORDER: readonly string[] = [
   "T13",
   "T8",
   "T9",
+  // T14 sits with T9 because both are SESSION facts — where this turn sits in
+  // time, and what has already been said in it — not facts about him or her.
+  "T14",
   "T10",
 ] as const;
 
