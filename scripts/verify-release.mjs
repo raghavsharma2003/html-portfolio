@@ -51,6 +51,18 @@ await gate("prompt budget", "node", ["scripts/check-prompt-budget.mjs"]);
 // runs, no auto-deploy, and the job whose purpose was to announce that the
 // deploy was unconfigured never ran either.
 await gate("workflow lint", "node", ["scripts/check-workflows.mjs"]);
+// The room path (api/tg.js and every future surface) does not import src/ — it
+// reads the committed bundle api/_engine.gen.js. So a change to the engine that
+// is not regenerated ships a DIFFERENT Meera to Telegram than the one every
+// gate above just tested, and nothing says so.
+//
+// This guard already existed, already worked, and had caught real drift — and
+// was invoked by nothing: no workflow, no npm script, not this file
+// (`engine-bundle-check-uncalled`). That is `dead-writers` in a GUARD, which is
+// the more dangerous half, because a dead writer produces no data and a dead
+// guard produces false confidence. Wired here so the family of "exists and is
+// connected to nothing" loses another member.
+await gate("engine bundle fresh", "node", ["scripts/build-engine-bundle.mjs", "--check"]);
 // Her voice must be the same voice on every lane that names it. The live lanes
 // cannot be configured, so every lane that CAN choose has to match them — and
 // when they disagreed once, a call that fell back mid-sentence swapped her for

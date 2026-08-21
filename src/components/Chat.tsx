@@ -779,7 +779,18 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
       return; // chat was cleared mid-think
     }
     if (seq !== chatSeq.current) {
-      // they kept texting while she read — re-read EVERYTHING, reply once
+      // they kept texting while she read — re-read EVERYTHING, reply once.
+      //
+      // `busy` MUST be released before recursing. It was taken at the top of
+      // this cycle and is normally released by deliver(), which this branch
+      // never reaches — so without the reset the recursive call returns at its
+      // own `if (busy.current)` guard and she goes silent. Permanently: the
+      // flag is never lowered again, so every later scheduleReply() dies at
+      // the same guard and the chat is dead until reload. Reported as "when
+      // sending multiple messages it's just stopping and then no message from
+      // her end", and it made the burst path — the one this branch exists to
+      // serve — the one path that could not work.
+      busy.current = false;
       return replyCycle(chatSeq.current);
     }
     mergeLearned(reply.learned);

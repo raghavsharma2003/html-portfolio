@@ -246,6 +246,38 @@ export type ParsedReply = HeartReply & {
   photoAt?: number;
 };
 
+/**
+ * The em-dash is the single clearest "this was written by an AI" tell in a
+ * chat bubble, and the owner reported it directly. `persona.ts:148` already
+ * bans it when texting — well written, and broken anyway, which is the exact
+ * shape `honesty-by-instruction` records: a mid-brief sentence is a
+ * preference, and `gate0-structural` measured prompt instructions leaking
+ * 57–98% where a predicate on the bytes leaked 0 of 31,122. So this is a
+ * predicate, and `persona.ts` stays byte-unchanged.
+ *
+ * TEXT LANE ONLY. Three reasons the spoken lanes must not be touched:
+ * `persona.ts:148` itself says spoken style overrides this; three persona
+ * rules REQUIRE dashing on a call; and `device-says-arrow-not-dash` measured
+ * espeak reading `—` as a PAUSE rather than a word, so it is prosody there,
+ * not a tell. The speech path has its own sanitiser already.
+ *
+ * The ASCII hyphen is deliberately untouched. `device-seam-closed` negative-
+ * tested exactly this: a greedy `/-+/` rule DELETED her own
+ * "1800-599-0019" — the crisis helpline. Only the em-dash, the en-dash and a
+ * doubled ASCII hyphen are register tells; a single hyphen is inside words
+ * and numbers she must be able to say.
+ *
+ * It replaces rather than splits: a bubble split would change bubble counts
+ * the parser cap and the delivery path both reason about, to fix a problem
+ * that is only about the character.
+ */
+export function stripTextingDashes(text: string): string {
+  return text
+    .replace(/\s*(?:[—–]|--)\s*/g, " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 export function parseBubbles(raw: string): ParsedReply {
   const out: ParsedReply = { bubbles: [] };
   // ── protocol extraction, GLOBAL and lenient: markers are honored wherever
@@ -1045,6 +1077,13 @@ export async function think(
   // inside that branch and would otherwise leave ungated. `dead-writers`
   // sharpened: a gate the bytes can walk around is an absent gate.
   const gate = (r: ParsedReply): ParsedReply => {
+    // Register first, then provenance. The dash strip is text-lane only and
+    // rides this same choke point for the reason the comment above gives:
+    // both parseBubbles sites pass through here, so a bubble cannot reach the
+    // UI around it. See `stripTextingDashes`.
+    if (mode !== "call" && r.bubbles?.length) {
+      r.bubbles = r.bubbles.map(stripTextingDashes).filter(Boolean);
+    }
     const { reply, findings } = guardReply(r, honestyCtx);
     // Counts and rule names only — diag.ts never logs what she said, and the
     // whole point of this event is that the string it caught must not travel.

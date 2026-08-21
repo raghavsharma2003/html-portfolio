@@ -1,7 +1,8 @@
 // Parse suite against the CURRENT source (bundled by evals/run.mjs — run that,
 // not this file directly). 24 cases: the original 14 plus the voice-note
-// truncation family from the "[giggles" incident (edbadbf).
-import { parseBubbles } from "./.bundle.mjs";
+// truncation family from the "[giggles" incident (edbadbf), plus the texting
+// dash family from the owner's "sending '— ' should never happen" report.
+import { parseBubbles, stripTextingDashes } from "./.bundle.mjs";
 
 const cases = [
   // ── the original 14 ──
@@ -44,11 +45,45 @@ const cases = [
   ["[voicenote: [giggles] chal theek hai]", (r) => !/\[[^\]]*$/.test(r.voice?.text || "")],
 ];
 
+// ── the texting dash family ────────────────────────────────────────────────
+// The em-dash is the clearest AI tell in a chat bubble and persona.ts:148
+// already bans it in prose, so this is the predicate that makes the ban true
+// (`honesty-by-instruction`, `gate0-structural`).
+//
+// The last three are the ones that matter and they are NEGATIVE controls, in
+// the shape `device-seam-closed` established: over-stripping is silent in
+// exactly the way under-stripping is loud, so a rule that deletes her words
+// scores full marks on any "is the dash gone" assertion. The helpline case is
+// the same string a greedy /-+/ rule already destroyed once.
+const dashCases = [
+  ["yeh — sach mein hua", "yeh sach mein hua"],
+  ["acha--toh kya scene h", "acha toh kya scene h"],
+  ["arre – ruk ek sec", "arre ruk ek sec"],
+  ["— haan", "haan"],
+  ["kal milte h —", "kal milte h"],
+  // no dash: byte-identical, because a transform that touches clean text is a
+  // transform nobody can reason about
+  ["kya kar rha", "kya kar rha"],
+  // NEGATIVE CONTROLS — her own words must survive
+  ["call 1800-599-0019 pe", "call 1800-599-0019 pe"],
+  ["meera-silk.vercel.app/chat pe hai", "meera-silk.vercel.app/chat pe hai"],
+  ["e-mail kar dena", "e-mail kar dena"],
+];
+
 let fail = 0;
 cases.forEach(([input, check], i) => {
   let r;
   try { r = parseBubbles(input); } catch (e) { r = { threw: String(e) }; }
   if (!check(r)) { fail++; console.log(`FAIL case ${i}:`, JSON.stringify(input.slice(0, 60)), "->", JSON.stringify(r)); }
 });
-console.log(fail ? `${fail} FAILURES of ${cases.length}` : `ALL ${cases.length} PASS`);
+dashCases.forEach(([input, want], i) => {
+  let got;
+  try { got = stripTextingDashes(input); } catch (e) { got = String(e); }
+  if (got !== want) {
+    fail++;
+    console.log(`FAIL dash case ${i}:`, JSON.stringify(input), "->", JSON.stringify(got), "want", JSON.stringify(want));
+  }
+});
+const total = cases.length + dashCases.length;
+console.log(fail ? `${fail} FAILURES of ${total}` : `ALL ${total} PASS`);
 process.exit(fail ? 1 : 0);
