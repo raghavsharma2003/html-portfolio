@@ -1997,3 +1997,81 @@ n = 39 persons / 25 processed, full population not a sample. Method: the
 committed cron's own flags against production Neon, with direct row counts
 before and after each stage, an OpenRouter balance check either side, one live
 production `op:"recall"`, and `evals/self/wiring.mjs --live`. Date 2026-08-21.
+
+---
+
+## `stage3-enrichment-run` — 133 episodes enriched for $0.00092, and the layer's remaining gate is now calendar time (2026-08-21)
+
+Stage 3 of `scripts/migrate/backfill-episodes.mjs` — the owner-approved LLM
+enrichment (#75) — run over the full population. Stages 1 and 2 had already run
+today; this is the pass that gives each episode a summary, affect tags, an
+anchored importance and up to 4 cited facts.
+
+**Projection versus actual, because the projection was made before the run and
+is therefore falsifiable.** Predicted ~78,000 input tokens from measured prompt
+volume (126 episodes × ~620 avg). Actual **75,819** (73,915 Azure + 1,904
+OpenRouter) — within 3%. The method (sum the real transcript characters behind
+each candidate episode, ÷3.6 chars/token) is worth reusing.
+
+| | |
+|---|---|
+| episodes enriched | **133** (the count rose past 126 mid-run: stage 1 opened new boundaries for 2 devices) |
+| facts written | **295** |
+| Azure calls | 131 · 73,915 in / 13,184 out — **grant credits** |
+| OpenRouter calls | **3** · 1,904 in / 296 out |
+| embeddings | 119 Azure, 0 OpenRouter, **0 failures** |
+| **cash cost** | **$0.00092** |
+| wall time | 21.7 min, 33.4 s/device |
+
+The Azure fallback rate was **2.2% (3 of 134)**, against the 7.5%
+`DeploymentNotFound` rate `extract-model` measured in a separate battery — so
+the fallback is a real need and it cost under a tenth of a cent.
+
+**Whole-population effect, before → after the day's work:**
+
+| table | start of day | now |
+|---|---|---|
+| `vy_fact` | 129 | **446** |
+| `vy_embedding` | — | **446** (every fact embedded) |
+| `vy_episode` | 135 | 143 |
+| `vy_rel_state` | **0** | 25 |
+| `vy_rel_event` | 0 | **5** (3 trust, 1 rupture/repair) |
+| `vy_pattern` | 0 | **4** |
+| `vy_phrase` | 0 | 1 |
+| `vy_self_arc` | 0 | **0** |
+
+**The finding that matters more than the counts: T4 is now REACHABLE and still
+DARK, for a reason that is correct and cannot be hurried.**
+`fetchRelBundle` selects patterns `where prompt_eligible = true`, and
+`prompt_eligible` is a **stored generated column**, read live from the schema:
+
+```
+((support_count >= 3) AND (distinct_days >= 2))
+```
+
+All four new patterns sit at `support_count 0, distinct_days 0`. Support accrues
+when a LATER episode re-confirms the pattern, so T4 needs three re-confirmations
+across at least two distinct days. Verified end to end rather than inferred: a
+production `op:"recall"` for a device whose person owns patterns still returns
+`patterns -> 0 items`.
+
+**Two refusals in the same run are the same discipline and must not be
+"fixed".** `deriveSelfArc` now sees **142 evidence facts** (was 10) and still
+reports `attemptedInsert: false`, against a CHECK requiring ≥3 citations
+spanning ≥42 days. Enrichment gave it evidence; it did not give it *time*.
+
+So the layer's binding constraint has changed category. It was **"nothing ever
+ran"** (`never-scheduled`, an unregistered cron). It is now **elapsed days under
+a registered cron** — which is the constraint the design always intended, and
+the first time it has been the real one.
+
+**What a real user gets today**, stated so the row counts are not over-read: a
+live `relState` (11 keys), texture bands, phrases and the phrase ledger. Not
+patterns, not rituals, not currency, not weEpisodes, not an arc.
+
+n = 39 devices / 143 episodes / 446 facts, full population not a sample. Method:
+`backfill-episodes.mjs --all --k 999` (dry-run first, confirmed all cost
+counters zero), then the committed cron's own five derive flags, with direct row
+counts and an OpenRouter balance check either side, plus one live production
+`op:"recall"` and a read of the live `information_schema` generation
+expression. Date 2026-08-21.

@@ -945,6 +945,12 @@
       "kind": "measurement",
       "title": "vy_rel_state went 0 -> 25 and production serves a live relational bundle for the first time; $0 cash",
       "at": "2026-08-21"
+    },
+    {
+      "id": "stage3-enrichment-run",
+      "kind": "measurement",
+      "title": "133 episodes enriched for $0.00092; the layer's remaining gate changed from 'nothing ran' to elapsed calendar days",
+      "at": "2026-08-21"
     }
   ],
   "edges": [
@@ -1812,6 +1818,21 @@
       "src": "relstate-first-rows",
       "rel": "measured_by",
       "dst": "selflayer-delivery-gate"
+    },
+    {
+      "src": "stage3-enrichment-run",
+      "rel": "part_of",
+      "dst": "relstate-first-rows"
+    },
+    {
+      "src": "stage3-enrichment-run",
+      "rel": "caused_by",
+      "dst": "never-scheduled"
+    },
+    {
+      "src": "stage3-enrichment-run",
+      "rel": "constrains",
+      "dst": "depth-writers-landed"
     }
   ]
 }
