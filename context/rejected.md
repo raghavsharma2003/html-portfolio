@@ -1238,3 +1238,53 @@ level mutable state is otherwise avoided here (the time module has an eval
 asserting it has none); it is correct in this one place because there is exactly
 one call by construction and this is a projection of that single mount, cleared
 on the engine's unmount.
+
+---
+
+## gates-that-live-nowhere-2 — the eval suite had never run in CI
+
+**Tried:** believing CLAUDE.md, which says the persona invariants and parser
+cases "gate the tree being shipped".
+
+**What broke:** they gated nothing. `grep -rn "evals/run.mjs" .github/workflows`
+returned NOTHING on 2026-08-21. Every push — every APK, every deploy — went
+around the crisis-helpline check, the never-deny-being-an-AI check, NEVER
+MANIPULATE and the spoken-register bullets. This is the second instance of the
+same pattern already recorded as `gates-that-live-nowhere`, and it was found the
+same way: by noticing a green run that had no right to be green.
+
+**Why nobody hit it:** the suite could not run in CI even if invoked.
+`evals/trace/run.mjs` reaches `api/_config.js` through two hops of imports, that
+file is gitignored, and the run died with ERR_MODULE_NOT_FOUND before any
+persona check executed. So the gate was not merely unwired — wiring it would
+have failed, which is presumably why it was never wired.
+
+**Now:** `write-config.mjs --stub` writes a keyless config, and both workflows
+run the suite. Confirmed on the first CI run: the trace suite executed and
+passed in Actions for the first time, and the run failed only on the eval that
+was failing by design.
+
+**The generalisable rule:** a green run is evidence about the JOBS THAT RAN, not
+about the checks you believe exist. Verify a gate by making it fail on purpose
+and watching CI go red.
+
+## peek-fade-divided-by-a-number
+
+**Tried:** `opacity: calc((var(--peek) / 62) * 1.6)` to fade the sliding
+timestamps in over the first third of the drag.
+
+**What broke:** `--peek` is set in px by Chat.tsx, and a length divided by a
+NUMBER is still a length. The declaration computed to `opacity: 1.6px`, which is
+invalid, so it was dropped entirely — every peek timestamp had been rendering at
+FULL opacity underneath the bubble text since the feature shipped. The fade
+never ran once, and the code read as though it did.
+
+**Now:** `/ 62px`. Dividing by a LENGTH cancels the unit. Verified in Chromium:
+`CSS.supports('opacity','calc((0px / 62) * 1.6)')` is `false` and the `62px`
+form is `true`; computed values run 0 → 0.155 at a 6px drag → 1.0 at full
+travel.
+
+**The generalisable rule:** an invalid CSS declaration fails SILENTLY and takes
+the whole property with it. Any calc() producing a unitless quantity from a
+length input should be checked with `CSS.supports`, because nothing else will
+tell you.

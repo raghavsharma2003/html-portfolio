@@ -1005,6 +1005,30 @@
       "kind": "measurement",
       "title": "the games centre driven end to end in Chromium: 2 taps in, chat stays mounted, she answered Nf6",
       "at": "2026-08-21"
+    },
+    {
+      "id": "theme-choosable",
+      "kind": "decision",
+      "title": "light, dark or follow the phone — and 'system' stamps no attribute so the media query keeps deciding",
+      "at": "2026-08-21"
+    },
+    {
+      "id": "evals-in-ci",
+      "kind": "decision",
+      "title": "the eval suite gates every push, via a keyless config stub",
+      "at": "2026-08-21"
+    },
+    {
+      "id": "gates-that-live-nowhere-2",
+      "kind": "rejection",
+      "title": "the eval suite had never run in CI, and could not have — a gitignored import killed it first",
+      "at": "2026-08-21"
+    },
+    {
+      "id": "peek-fade-divided-by-a-number",
+      "kind": "rejection",
+      "title": "a length over a number is a length, so opacity was invalid and the fade never ran",
+      "at": "2026-08-21"
     }
   ],
   "edges": [
@@ -1952,6 +1976,21 @@
       "src": "activity-generic-seam",
       "rel": "measured_by",
       "dst": "activity-browser-observed"
+    },
+    {
+      "src": "gates-that-live-nowhere-2",
+      "rel": "caused_by",
+      "dst": "gates-that-live-nowhere"
+    },
+    {
+      "src": "evals-in-ci",
+      "rel": "caused_by",
+      "dst": "gates-that-live-nowhere-2"
+    },
+    {
+      "src": "gate0-structural",
+      "rel": "constrains",
+      "dst": "evals-in-ci"
     }
   ]
 }

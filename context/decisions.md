@@ -1257,3 +1257,66 @@ Angle brackets, never square: bracket text on the voice lane is SPOKEN
 activity — a call needing detail chat does not. At that point the single
 derivation becomes a lie of convenience and should be split deliberately, with
 the shared part named, rather than by one lane quietly growing its own copy.
+
+---
+
+## theme-choosable — light, dark, or follow the phone
+
+**Decided 2026-08-21**, on the owner's question: *"light theme only or you
+should be able to choose the theme"*.
+
+Choosable. The argument is specific to this product rather than a general
+preference for options: the hours people actually talk to a companion are late
+ones, and a paper-white screen at 1am is a physical annoyance. The app was
+light-only — `global.css` had zero `prefers-color-scheme` rules.
+
+**Three states, and the third is the mechanism.** `light` and `dark` stamp
+`data-theme` on `<html>`; **`system` stamps nothing at all**. The absent
+attribute means `system` is not a third palette that must be kept in sync — it
+is the media query left alone to decide, which is the only version of "follow
+the system" that keeps following it when the phone goes dark at sunset with the
+app already open. Paired with `:root:not([data-theme="light"])` inside the dark
+media query so an explicit Light still beats a dark OS.
+
+**A mark is not a fill.** `--accent` is read against the ground and must go UP
+in dark (5.82:1); a fill carries white on top and must go DOWN. Splitting them
+(`--accent-solid`, `--danger-solid`) is what lets the rose lift without turning
+the primary button into 3.3:1. In light both halves resolve to the values they
+always had, so nothing moved.
+
+**The chrome colour is read back out of the stylesheet**, never duplicated in
+TS. A colour written twice disagrees with itself the first time one copy is
+tuned, and it surfaces as a status bar that is subtly the wrong shade — visible,
+irritating, and very hard to attribute.
+
+**The board follows the theme, not the call.** It used to force itself dark
+whenever a call was live. Once someone has explicitly chosen Light, a surface
+that repaints because a call happens to be up is the app arguing with a setting
+they just chose; the live call chip carries the continuity instead.
+
+**Reverses if:** a measured majority of sessions sit on an explicit choice
+rather than Auto — that would mean the OS setting is not actually what people
+want here, and the default is wrong.
+
+---
+
+## evals-in-ci — the safety floor gates pushes, not just local runs
+
+**Decided 2026-08-21.** No workflow ran `evals/run.mjs`. The persona invariants
+— crisis helplines, never-deny-being-an-AI, NEVER MANIPULATE, spoken register —
+plus the honesty gate and the parser cases gated NOTHING on any push. They ran
+only when somebody remembered `verify-release` locally.
+
+Found by accident: CI reported green on a branch whose theme suite was failing
+by design. Run-level green was the tell.
+
+It could not have run. `evals/trace/run.mjs` imports `api/_trace.js` →
+`api/_db.js` → `api/_config.js`, which is gitignored, so a CI checkout died on
+an unresolved import before reaching any persona check. `write-config.mjs
+--stub` now writes that file with every value empty — a stub rather than a
+mocked module, because nothing is granted and an accidental query against an
+empty `NEON_URL` fails loudly instead of quietly reaching production.
+
+**Reverses if:** the suite's runtime makes pushes painful. It is ~40s today
+against a ~2min APK build, so it is free; if it grows past the build itself,
+split the safety floor from the slow batteries rather than dropping the gate.
