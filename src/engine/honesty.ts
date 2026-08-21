@@ -785,6 +785,29 @@ function isSupported(w: string, support: ReadonlySet<string>): boolean {
   return false;
 }
 
+/**
+ * The presupposition variant of the same lie, worn as a question. The owner:
+ * she asked whether his MEETING had gone well — he had never mentioned a
+ * meeting, and when he called it out she said she "may have confused him
+ * with somebody else", which is the single worst sentence this product can
+ * emit. "How was your X" asserts that X happened and that he told her so;
+ * if X is in neither his words nor the graph, the event is invented.
+ *
+ * The whitelist is what keeps her a companion: asking about his day, food,
+ * sleep, work-in-general is warmth, not memory, and needs no provenance.
+ */
+const GENERIC_SMALLTALK = new Set([
+  "day", "din", "morning", "subah", "night", "raat", "evening", "shaam",
+  "khana", "lunch", "dinner", "breakfast", "nashta", "kaam", "work",
+  "office", "sleep", "neend", "mood", "health", "tabiyat", "sehat",
+  "weekend", "week", "life", "sab", "everything", "baki", "chai", "coffee",
+  "gym", "workout", "class", "college", "padhai", "study", "studies",
+]);
+
+/** "<topic> kaisa raha / how was your <topic>" — both word orders. */
+const PRESUPPOSED_RE =
+  /\b([a-zऀ-ॿ]{3,})\s+(?:kaisa|kaisi|kaise)\s+(?:raha|rahi|gaya|gayi|tha|thi|hui|hua|chala|chali)\b|\bhow\s+(?:was|did|went)\s+(?:the\s+|your\s+)?([a-zऀ-ॿ]{3,})\b/gi;
+
 export interface SharedPastHit {
   /** the cited clause, for the corpus — never rendered into a prompt */
   clause: string;
@@ -805,6 +828,14 @@ export function findSharedPastFabrications(
   support: ReadonlySet<string>,
 ): SharedPastHit[] {
   const out: SharedPastHit[] = [];
+  // The question form first: a presupposed event of HIS that nothing supports.
+  for (const m of text.matchAll(PRESUPPOSED_RE)) {
+    const topic = (m[1] || m[2] || "").toLowerCase();
+    if (!topic || GENERIC_SMALLTALK.has(topic) || SHARED_STOP.has(topic)) continue;
+    if (SHARED_MARKER_TOKENS.has(topic)) continue;
+    if (!isSupported(topic, support)) out.push({ clause: m[0], unsupported: [topic] });
+  }
+
   const matches = text.match(WE_PAST_RE);
   if (!matches) return out;
   for (const clause of matches) {

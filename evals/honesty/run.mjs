@@ -553,6 +553,32 @@ console.log("\n── 9. shared-past fabrication (family 4) ──");
   report("replacement takes the confusion herself", !/tune|you (never|didn't)/i.test(g.reply.bubbles[0]), g.reply.bubbles[0]);
   report("replacement does not restate the memory", !/beach|photo/i.test(g.reply.bubbles[0]), g.reply.bubbles[0]);
 
+  // The presupposition variant — the owner's fabricated "meeting".
+  // She asked how his meeting went; he had never mentioned one; challenged,
+  // she claimed she might be "confusing him with somebody else".
+  const PRESUPPOSED = [
+    "meeting kaisi rahi phir?",
+    "how was your presentation today",
+    "interview kaisa gaya btw",
+  ];
+  for (const s2 of PRESUPPOSED) {
+    report(`PRESUPPOSED EVENT CAUGHT  ${s2.slice(0, 40)}`,
+      findSharedPastFabrications(s2, support).length > 0);
+  }
+  // Warmth needs no provenance: the generic-smalltalk whitelist.
+  const WARMTH = [
+    "din kaisa raha?",
+    "how was your day",
+    "khana kaisa tha aaj",
+    "kaam kaisa chal raha hai",
+    "how was the movie",
+  ];
+  for (const s2 of WARMTH) {
+    report(`warmth untouched  ${s2.slice(0, 40)}`,
+      findSharedPastFabrications(s2, support).length === 0,
+      JSON.stringify(findSharedPastFabrications(s2, support)));
+  }
+
   // Fail-closed at the caller: absent vocabularies, family silent.
   const g2 = guardReply({ bubbles: [BEACH] }, { trustedText: ["system"], openItems: [] });
   report("absent vocabulary disables family 4", !g2.findings.some((f) => f.rule === "shared-past"));
