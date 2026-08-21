@@ -382,6 +382,13 @@ export default function App() {
               // Back to the call SCREEN. It never ends the call — the call is
               // running underneath this whole time.
               onOpenCall={() => setActivity(null)}
+              // Calling from the board keeps the board. She starts talking and
+              // the game does not move — which is the entire feature.
+              onStartCall={() => {
+                unlockAudio(); // inside the tap gesture, or mobile mutes her
+                track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
+                setInCall(true);
+              }}
             />
           )}
           {/* She is calling back after a call that dropped mid-sentence. Never

@@ -20,7 +20,18 @@ interface Props {
   onExit: () => void;
   /** Tapping the call chip should return to the call screen, not end anything. */
   onOpenCall?: () => void;
+  /** Start a call FROM the board. Without this the only route to the thing
+   *  this feature exists for — playing while she talks — is exit, call,
+   *  re-enter, which is three taps and a torn session. */
+  onStartCall?: () => void;
 }
+
+// How recent one of her lines has to be to sit above the board.
+//
+// This is a glance at what she just said, not a second chat log: past a couple
+// of minutes it stops being "she just said this" and becomes a stale banner
+// hanging over the game.
+const HER_LINE_FRESH_MS = 120_000;
 
 // How long a finished game keeps saying so.
 //
@@ -34,7 +45,13 @@ interface Props {
 // yesterday" stays available to the memory layer.
 const CLOSE_AFTER_END_MS = 25_000;
 
-export default function ChessActivity({ state, setState, onExit, onOpenCall }: Props) {
+export default function ChessActivity({
+  state,
+  setState,
+  onExit,
+  onOpenCall,
+  onStartCall,
+}: Props) {
   const session = state.game ?? null;
   // Subscribed, not passed down: the timer ticks once a second and this is the
   // only component that should re-render for it (state/callStatus.ts).
@@ -140,13 +157,35 @@ export default function ChessActivity({ state, setState, onExit, onOpenCall }: P
           onToggleMute: status.toggleMute,
           onOpen: onOpenCall,
         }
-      : null;
+      : // not on a call: the header offers to start one, because the whole
+        // point of this is playing while she talks
+        { onStart: onStartCall };
+
+  // Her last line, above the board — but ONLY off-call.
+  //
+  // On a call she is audible, and putting her words on screen while she speaks
+  // them is captions, which this product removed on purpose in v1.8: reading
+  // her while hearing her is what makes a voice feel like a transcript with a
+  // voice attached. Off-call it is the opposite — without it the board is a
+  // room she is not in.
+  const herLine = useMemo(() => {
+    if (status.live || status.connecting) return null;
+    const msgs = state.messages;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i];
+      if (m.from !== "her") continue;
+      if (m.kind !== "text" || !m.text) return null;
+      return Date.now() - m.at < HER_LINE_FRESH_MS ? m.text : null;
+    }
+    return null;
+  }, [state.messages, status.live, status.connecting]);
 
   return (
     <ActivityShell
       title="Chess"
       onExit={exit}
       call={call}
+      note={herLine}
       her={{
         phase: hers ? "thinking" : "idle",
         line: over ? "good game" : hers ? "her move" : "your move",
