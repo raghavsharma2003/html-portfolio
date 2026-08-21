@@ -1070,3 +1070,49 @@ viewer must be a diff that *creates* one.
 
 **Reverses if:** a question provably cannot be answered from a reference plus
 the row it points at.
+
+---
+
+## `dash-predicate-text-only` — the em-dash ban became a predicate, and stops at the text lane (2026-08-21)
+
+The owner: *"sending '— ' this should never happen this is just very clear to
+every user that ai do this."* He is right, and `persona.ts:148` had already
+banned it when texting. She sent it anyway.
+
+That is `honesty-by-instruction` on a second axis, and the numbers that settle
+it are already in this repo: `gate0-structural` measured prompt instructions
+leaking 57–98% where a structural predicate leaked 0 of 31,122. So
+`persona.ts` is **byte-unchanged** and the ban is now `stripTextingDashes`,
+applied at the `gate()` choke point that both `parseBubbles` call sites already
+pass through.
+
+**Text lane only, and the three reasons are independent** — any one of them
+alone would justify the scoping:
+1. `persona.ts:148` itself ends *"(Spoken calls have their own style rules that
+   override these.)"*
+2. Three persona rules REQUIRE dashing on the spoken lane.
+3. `device-says-arrow-not-dash` measured espeak reading `—` as a **pause**, not
+   a word. On a call it is prosody. Stripping it would flatten her delivery to
+   fix a problem that does not exist there.
+
+**The ASCII hyphen is untouched, and that is the whole difficulty of the rule.**
+`device-seam-closed` negative-tested the greedy version and it DELETED
+`1800-599-0019` — the crisis helpline. Only `—`, `–` and a doubled ASCII hyphen
+are register tells. Three of the nine new eval cases are that control (the
+helpline, her own URL, "e-mail"), each verified to fail under a greedy rule and
+pass under the shipped one, because `bold-eats-words` established that
+over-stripping is silent in exactly the way under-stripping is loud.
+
+It replaces with a space rather than splitting the bubble: a split would change
+bubble counts that the parser cap and the delivery path both reason about, to
+fix something that is only about a character.
+
+**Reverses if:** a measured build shows the instruction alone holds at ≤1% on
+an adversarial arm at n≥300 with the predicate off — the same reversal
+`honesty-by-instruction` carries, for the same reason. Also narrows if bubble
+splitting is ever measured to read better than substitution, which is an ear
+judgment and has not been made.
+
+**Does NOT cover:** the live speech-to-speech lane, where the model emits the
+characters it speaks and no sanitiser can stand (#97), or any surface going
+through `api/_surface.js` (`surface-bypasses-parse`).

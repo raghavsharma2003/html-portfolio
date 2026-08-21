@@ -1103,3 +1103,88 @@ nothing.**
 The family is now large enough to state as a rule: *anything that checks the
 system must itself be checked by the system.* Every one of these was found by
 accident, and each was found only because something else went wrong nearby.
+
+---
+
+## `busy-held-across-recursion` — the branch written to serve the burst was the only one that could not (2026-08-21)
+
+The owner's report: *"when sending multiple messages it's just stopping and
+then no message from her end."*
+
+`Chat.tsx`'s `replyCycle` takes a `busy` flag at the top and releases it inside
+`deliver()`. Three paths recurse. Two of them — the epoch-cleared path and the
+"messages landed while she was typing" path — pass through `deliver()` first,
+so `busy` is already false when they re-enter. The third does not:
+
+```js
+if (seq !== chatSeq.current) {
+  // they kept texting while she read — re-read EVERYTHING, reply once
+  return replyCycle(chatSeq.current);      // busy is STILL HELD here
+}
+```
+
+That branch exists **for** bursts. It is reached exactly when the user sent a
+second message while she was thinking — which is the case it was written to
+handle — and it recursed while still holding the flag, so the recursive call
+returned immediately at its own `if (busy.current) return` guard.
+
+**The damage is not one lost reply, it is the chat.** Nothing lowers the flag
+afterwards, so every later `scheduleReply()` also dies at that guard. The
+conversation is dead until reload, from one burst.
+
+**Why review did not catch it.** Each of the four lines is individually
+correct, the guard is correct, the comment describes the right intent, and the
+intent *was* implemented — the re-read-everything-and-reply-once design is
+exactly what the owner asked for in the same report. Only the release was
+missing, and a missing release is invisible in a diff that contains no
+releases.
+
+**Why no gate caught it.** Every gate in this repo is offline and deterministic
+over the engine. This is a React hook coordinating three refs across an await,
+and the failure needs a *second user message inside a specific window* to
+reproduce. There is no fixture in the tree that sends two messages.
+
+**What breaks generally:** a flag acquired at the top of a function and
+released in a callee is safe only while every exit path reaches that callee.
+Recursion is an exit path. The shape to prefer is release-before-recurse, or a
+single `finally` that owns the flag for the whole frame — and the tell that a
+codebase has this bug is a guard whose comment explains what chains *after* it,
+because that sentence is a claim about a release nobody verified.
+
+---
+
+## `surface-bypasses-parse` — Telegram gets the model's raw string, so no engine guarantee reaches it (2026-08-21)
+
+Found while regenerating `api/_engine.gen.js` after adding the texting-dash
+predicate: the predicate did not appear in the bundle, and the reason turned
+out to be larger than the dash.
+
+`api/_surface.js:think()` posts to OpenRouter and returns
+`j.choices[0].message.content` — the model's **raw string** — straight into
+`deliver()` → `adapter.render()` → the wire. It never calls `parseBubbles`.
+
+So on Telegram today, and on Discord and WhatsApp if they are built the same
+way, none of the following apply: the honesty gate (invented identifiers, false
+receipt claims), the texting-dash predicate, protocol extraction, bubble
+splitting, or the 4-bubble cap. The protocol one is the sharpest: a `[gif: …]`
+marker she emits would be **sent to the room as literal text**, because the
+extraction that removes it lives in the function this path does not call.
+
+This was known in part — T-H5 recorded "ungated by honesty" — and the scope was
+understated. It is not one missing gate, it is every guarantee `parseBubbles`
+and `gate()` provide.
+
+**The fix that must NOT be taken:** copying the gates into each adapter. That
+is `age-tier-never-realtime` exactly — a second implementation that silently
+misses every rule added after the fork, discoverable only by diffing two things
+nobody thinks of as the same thing. `_surface.js` must return through the same
+parse-and-gate path, and a test must assert every surface's outbound text
+passed through it.
+
+**What breaks generally:** a surface may choose how bytes reach the wire; it
+may not choose whether the engine's guarantees apply. Any "adapter" that owns
+its own model call has silently become a second engine, and the giveaway is
+that it returns a string rather than a parsed reply.
+
+Registered with the full defect list and per-surface contract in
+`docs/CONVERSATION-DEFECTS.md`.
