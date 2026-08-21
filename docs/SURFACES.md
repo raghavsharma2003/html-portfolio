@@ -203,6 +203,90 @@ fragment, buttons ride the last — both decided once, in `deliver()`.
 
 ---
 
+## 2b. Activities — what to do when WhatsApp/Discord/Telegram gets a game
+
+Added 2026-08-21, when the web app got a games centre. Read this BEFORE
+building an activity into a surface, because the expensive mistake here is
+already made and documented elsewhere in this repo.
+
+**An activity is not a mode.** It is a fact about the present moment
+(`src/engine/activity.ts`), and it rides the SAME prompt, the same memory and
+the same relationship as an ordinary message. She does not "enter chess mode";
+she is a person who happens to be mid-game, and the conversation can wander off
+it and come back the way it does with anyone.
+
+The contract is four fields and nothing else:
+
+```ts
+interface ActivityState {
+  kind: "chess" | "watch";       // add a member for a new activity
+  startedAt: number;             // epoch ms
+  facts: readonly string[];      // telegraphic rows, <=14 words, third person
+  nameable: readonly string[];   // identifier-shaped tokens she may say
+  waitingOnHer?: boolean;
+}
+```
+
+### What a surface has to do
+
+1. **Hold the game where the SESSION can see it, not the message handler.** On
+   the web this is `AppState.game`; on a surface it is a row keyed the way
+   every other piece of per-conversation state is keyed — never a variable that
+   lives as long as one webhook invocation. A board the reply path cannot see
+   is a board she cannot talk about.
+2. **Derive the `ActivityState` in ONE place** and pass it as `activity` on the
+   keys object, exactly as the web lane does. Do not build the block in the
+   adapter. `src/state/game.ts`'s `activityOf` is the reference.
+3. **Populate `nameable` with every identifier she is allowed to say.** This is
+   not optional bookkeeping: `honesty-provenance-allowlist` treats an
+   identifier she emits that was not in her input as INVENTED, so a chess move
+   like `Nf3` — which is identifier-shaped — gets flagged as a fabrication
+   unless it was declared. Every activity with a move, a card, a word or a
+   score has the same obligation.
+4. **Never render dialogue into `facts`.** `recited-prompt` is the most
+   expensive law in this repo — her own example quotes were recited on 4 of 5
+   turns. A line she could say, written into this block, is a line she will say
+   every single game. Facts are third-person and telegraphic; what she does
+   with them is hers.
+5. **Never render a FEN, a board array, or a centipawn evaluation.** She emits
+   the characters she speaks. A number she can read aloud is a number that
+   makes her sound like a computer.
+
+### The two failures already paid for
+
+- **The block must DROP whole facts when over budget, never slice one.**
+  Slicing at the byte cap cut a fact mid-word and silently ate "it is his
+  move", the most useful row in the block. Same shape as `silent-truncation`,
+  which has already cost this project the crisis helplines once.
+- **A move fact is at most three clauses.** Six produced *"she played Qxf7+, a
+  bad one, it took a piece, it was a check, f7 is hanging, she is losing"* — a
+  scoresheet being read aloud, over the row limit, and long enough to push
+  whose-turn-it-is off the end.
+
+### Realtime surfaces only
+
+If your surface has a live voice lane, the prompt is frozen when the call
+connects. A move played mid-call travels as ONE out-of-band note —
+`activityNote(fact)` — and **angle brackets, never square**: bracket text on a
+voice lane gets SPOKEN (`ack-bracket-direction`: `[laughs softly]` came back as
+laughter plus the spoken word "Softly"). One event, one note; never a digest of
+the last five.
+
+### What a surface must NOT do
+
+- Do not add a per-activity branch to the engine. If `api/_surface.js` needs
+  `if (activity.kind === 'chess')`, the contract is wrong.
+- Do not send an unprompted message because the other player moved. Her
+  unprompted moves are reason-contingent (`never-scheduled`); a move made while
+  she is not in the conversation is not a reason.
+- Do not let a finished game keep announcing itself. Close it once she has
+  reacted, and keep the move list — "you beat me yesterday" is memory, not
+  news.
+
+Gate: `node evals/run.mjs activity`.
+
+---
+
 ## 3. The three that exist
 
 ### `api/tg.js` — Telegram (SHIPPING, production-probed)
