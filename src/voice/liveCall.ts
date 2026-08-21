@@ -159,6 +159,41 @@ const SILENCE_CAP = 8_000;
 // past that at least one chunk in SILENCE_KEEP always goes.
 const SILENCE_ENDPOINT_MS = 700; // protected pause after the gate closes
 const SILENCE_KEEP = 3; // heartbeat: ≥1 of every 3 gated chunks survives
+// ── the other end of the same failure ───────────────────────────────────
+// The heartbeat above protects the case where the link sheds silence to
+// nothing. This protects the case where THERE IS NO SILENCE TO SHED.
+//
+// The owner: "bahot der tak listening wala loop chalne laga aur woh ussi mai
+// phasi rhi ... this also happen when there is disturbance at my end."
+//
+// That correlation is the whole diagnosis. The server ends his turn by HEARING
+// a pause, and this client only uplinks a pause when the gate CLOSES — a
+// closed gate transmits a zeroed buffer, which is the silence the VAD is
+// waiting for. Sustained room noise above the listen bar holds the gate open
+// indefinitely, `gatedRun` resets to 0 on every open chunk, so no silence is
+// ever sent, the VAD clock never advances, and she listens forever. It is the
+// exact failure the heartbeat comment describes, arriving through the other
+// door: not "silence was suppressed" but "silence never happened".
+//
+// Nothing else in the file can rescue it. The floor estimator adapts, but
+// LISTEN_ABS_MAX caps the listen bar at -22.9 dBFS by design (raising it is
+// deafness, measured), so a room louder than that pins the gate open and no
+// amount of adaptation closes it.
+//
+// So: if the gate has been continuously open far longer than any real
+// utterance AND nothing is being generated, force real silence onto the uplink
+// until the server endpoints. Deliberately generous — 20s of UNBROKEN gate is
+// not speech, because ordinary speech has inter-phrase gaps that outlast the
+// 250ms hangover and close the gate many times inside one turn.
+//
+// The asymmetry decides the tuning, and it is `speaker-id`'s: firing early
+// commits his turn a little sooner and he simply keeps talking, which is a
+// mild annoyance. Not firing at all means she never answers again, which ends
+// the call. When in doubt, fire.
+const STUCK_OPEN_MS = 20_000;
+// Longer than the server's own 300ms endpoint window, and equal to the pause
+// the heartbeat already treats as turn-committing above.
+const FORCE_SILENCE_MS = SILENCE_ENDPOINT_MS;
 // A pathological encode (~90KB of JPEG) would be ~2.8s of uplink on its own.
 // This is the ONLY thing that can now refuse a frame: frames are no longer
 // gated on how drained the socket is. Refusing a frame because ~185ms of
@@ -1327,6 +1362,13 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   let prevPcm: Int16Array | null = null;
   let wasOpen = false;
   const endpointChunks = Math.ceil(SILENCE_ENDPOINT_MS / chunkMs);
+  const stuckOpenChunks = Math.ceil(STUCK_OPEN_MS / chunkMs);
+  const forceSilenceChunks = Math.ceil(FORCE_SILENCE_MS / chunkMs);
+  // How long the gate has been open with no break. Distinct from `gatedRun`,
+  // which counts the opposite and resets on every open chunk.
+  let openRun = 0;
+  // >0 while the uplink is being deliberately silenced to endpoint a stuck turn.
+  let forceSilenceLeft = 0;
   let gatedRun = 0; // consecutive gated (wordless) chunks
   // this stretch of them talking: when it began, when it last had words in it,
   // and how much of it was actually voice rather than their own pauses
@@ -1614,6 +1656,22 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     const wasGated = gatedRun;
     if (open) gatedRun = 0;
     else gatedRun++;
+    // ── stuck-turn endpoint (STUCK_OPEN_MS) ──────────────────────────────
+    // Counts the gate being HELD open, which `gatedRun` cannot see because it
+    // resets on every open chunk. When sustained noise pins the gate, this is
+    // the only counter that still advances.
+    if (open) openRun++;
+    else openRun = 0;
+    if (forceSilenceLeft === 0 && openRun >= stuckOpenChunks && !genInFlight) {
+      forceSilenceLeft = forceSilenceChunks;
+      openRun = 0;
+      diag("call", "stuck_endpoint", {
+        openMs: Math.round(stuckOpenChunks * chunkMs),
+        forceMs: Math.round(forceSilenceChunks * chunkMs),
+        floor: Math.round(noiseFloor * 10000) / 10000,
+        thrL: Math.round(thrL * 10000) / 10000,
+      });
+    }
     // ...and NONE of it is credited while she is audible. The listen gate
     // carries no echo term, so on a leaky device her own voice holds it open
     // for her whole turn; counting that as "them talking" made her hum at her
@@ -1958,8 +2016,15 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       return;
     }
     // ── normal streaming: she is silent, or the floor is genuinely theirs ──
+    // `openEff` differs from `open` ONLY while a stuck turn is being
+    // endpointed, and it is used ONLY here. The floor model, the arbiter, the
+    // hold ring and every counter above keep reading `open`, so forcing an
+    // endpoint changes the BYTES ON THE UPLINK and nothing else — which is
+    // what keeps this out of the audio floor.
+    const openEff = open && forceSilenceLeft === 0;
+    if (forceSilenceLeft > 0) forceSilenceLeft--;
     const pcm = new Int16Array(outLen); // stays zeroed (silence) when gated
-    if (open) {
+    if (openEff) {
       for (let i = 0; i < outLen; i++) {
         const s = input[Math.floor(i * ratio)];
         pcm[i] = Math.max(-32768, Math.min(32767, Math.round(s * 32767)));
@@ -1974,8 +2039,8 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       // keep a real-audio pre-roll ready even while closed
       prevPcm = toPcm(input, ratio, outLen);
     }
-    wasOpen = open;
-    if (open) prevPcm = null;
+    wasOpen = openEff;
+    if (openEff) prevPcm = null;
     if (!drop) sendPcm(pcm);
     // The server owes us an `interrupted` after a release. On this model
     // there is an acknowledged case where it never sends one (the user is

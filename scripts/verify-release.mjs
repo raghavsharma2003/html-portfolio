@@ -63,6 +63,17 @@ await gate("workflow lint", "node", ["scripts/check-workflows.mjs"]);
 // guard produces false confidence. Wired here so the family of "exists and is
 // connected to nothing" loses another member.
 await gate("engine bundle fresh", "node", ["scripts/build-engine-bundle.mjs", "--check"]);
+// The stuck-turn watchdog (liveCall.ts STUCK_OPEN_MS). It is wired HERE rather
+// than left beside the other echosim experiments because those are a manual
+// before/after diff of an acoustic table, while this is a pass/fail behavioural
+// assertion with its own negative control — the same test `dead-writers` says a
+// suite must have to exist at all.
+//
+// It builds the real liveCall.ts standalone and drives it for 32 simulated
+// seconds, so it costs ~20s. That is the price of the one defect that ends a
+// call outright: with the watchdog disabled the uplink carries ZERO ms of
+// silence across the whole call and she never answers again.
+await gate("stuck-turn endpoint", "node", ["evals/echosim/stucksim.mjs"]);
 // Her voice must be the same voice on every lane that names it. The live lanes
 // cannot be configured, so every lane that CAN choose has to match them — and
 // when they disagreed once, a call that fell back mid-sentence swapped her for

@@ -951,6 +951,12 @@
       "kind": "measurement",
       "title": "133 episodes enriched for $0.00092; the layer's remaining gate changed from 'nothing ran' to elapsed calendar days",
       "at": "2026-08-21"
+    },
+    {
+      "id": "stuck-endpoint-noise",
+      "kind": "measurement",
+      "title": "sustained room noise pinned the gate open so the uplink carried 0ms of silence in 32s and she never answered; forced endpoint fixes it with the floor byte-identical",
+      "at": "2026-08-21"
     }
   ],
   "edges": [
@@ -1833,6 +1839,16 @@
       "src": "stage3-enrichment-run",
       "rel": "constrains",
       "dst": "depth-writers-landed"
+    },
+    {
+      "src": "stuck-endpoint-noise",
+      "rel": "constrains",
+      "dst": "speaker-id"
+    },
+    {
+      "src": "stuck-endpoint-noise",
+      "rel": "measured_by",
+      "dst": "live-floor"
     }
   ]
 }

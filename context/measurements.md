@@ -2075,3 +2075,71 @@ counters zero), then the committed cron's own five derive flags, with direct row
 counts and an OpenRouter balance check either side, plus one live production
 `op:"recall"` and a read of the live `information_schema` generation
 expression. Date 2026-08-21.
+
+---
+
+## `stuck-endpoint-noise` — in a room that never goes quiet, the uplink carried zero silence and she never answered again (2026-08-21)
+
+The owner's tenth report: *"bahot der tak listening wala loop chalne laga aur
+woh ussi mai phasi rhi ... this also happen when there is disturbance at my
+end."*
+
+**The correlation with disturbance IS the diagnosis.** The server ends his turn
+by hearing a pause; this client only uplinks a pause when the gate CLOSES, since
+a closed gate transmits a zeroed buffer. Sustained room noise above the listen
+bar pins the gate open, `gatedRun` resets to 0 on every open chunk, so no
+silence is ever sent, the VAD clock never advances, and she listens forever.
+
+It is the failure the `SILENCE_KEEP` heartbeat comment already describes,
+arriving through the opposite door: not *"silence was suppressed"* but
+*"silence never happened"*. Nothing else in the file can rescue it —
+`LISTEN_ABS_MAX` caps the listen bar at −22.9 dBFS **by design**, because raising
+it further was measured to be deafness, so a louder room pins the gate and no
+amount of adaptation closes it.
+
+**Measured on the real `liveCall.ts`** (`evals/echosim/stucksim.mjs`, driven
+through `run.mjs`, every assertion read off the bytes that reached the socket):
+
+| arm | longest silent uplink run, after her turn |
+|---|---|
+| loud room (`roomRms` 0.15), watchdog DISABLED | **0 ms** across a 32 s call |
+| loud room, watchdog enabled | **~700 ms**, at the threshold |
+| ordinary room (`roomRms` 0.0025) | reaches silence on its own; watchdog never fires |
+
+The disabled arm is the bug reproduced exactly: **zero milliseconds of silence
+in half a minute.** She could not have answered.
+
+**The audio floor did not move.** `exp1.mjs`, 5 couplings × 8 seeds × 2 arms =
+80 simulated calls, **byte-identical to the pre-change baseline** — because
+`openEff` differs from `open` only while an endpoint is being forced and is read
+at exactly one site, so the floor model, the arbiter, the hold ring and every
+counter still read `open`. No import was added, so the standalone transpile that
+makes this measurable at all still works.
+
+**Two calibration notes, both from the harness catching itself.** The first
+version of the reproduction assertion measured from t=0 and reported a 1,962 ms
+"natural pause" that was her own turn's mic hold; the window now starts after
+she stops. And the "real silence reached the socket" check originally measured
+the whole call, so it passed even with the watchdog disabled — a control that
+cannot fail is not a control.
+
+**Threshold rationale, stated because it is a judgment and not a measurement:**
+20 s of UNBROKEN gate is not speech — ordinary speech has inter-phrase gaps that
+outlast the 250 ms hangover and close the gate many times inside one turn. The
+asymmetry is `speaker-id`'s: firing early commits his turn sooner and he keeps
+talking, a mild annoyance; not firing means she never answers again, which ends
+the call.
+
+**NOT fixed by this, and stated so the report is not read as closed:** the
+first-turn latency half of report 10 (`live-floor`: 720 ms of the ~1,370 ms
+floor is untouchable prefill; the available win is variance, not median), and
+the mid-sentence aborts under noise (the barge-in arbiter is level-based **by
+design** — `speaker-id` records why the obvious fix is refused and what it would
+cost). The floor being byte-identical means those were not made worse; it does
+not mean they were addressed.
+
+n = 2 scenarios × 32 simulated seconds, plus the 80-call floor table. Method:
+`node evals/echosim/stucksim.mjs` (wired into `verify-release`, now 10 checks)
+with a disable-the-watchdog negative control run and observed to fail, and
+`node evals/echosim/exp1.mjs` diffed against the pre-change baseline.
+Date 2026-08-21.
