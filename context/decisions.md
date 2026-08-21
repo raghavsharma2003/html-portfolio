@@ -1198,3 +1198,62 @@ turn in five in real traffic (the trace's `search_fire` / `search_capped` events
 are the instrument, and both now exist), or if judged replies with facts score
 no better than without — in which case the cost buys nothing and the trigger
 goes back to doubt-only.
+
+---
+
+## activity-generic-seam — an activity is a fact about the moment, not a mode
+
+**Decided 2026-08-21.** The owner's instruction was architectural: *"There
+should be continuity and proper flow between chat, call, screen sharing and
+chess... It should be a whole continuous thing only. Nothing should be broken in
+between... we will integrate more and more games and more and more activities so
+all this should be handled and it should be continuous personality like a real
+human."*
+
+So chess did **not** get its own lane. `ActivityState`
+(`{kind, startedAt, facts, nameable, waitingOnHer}`) is a fact about the present
+moment that rides the SAME prompt, memory and relationship as everything else,
+in tail slot T15 at `dropPriority: "never"` and 420 bytes. Adding the next
+activity means writing an adapter that produces an `ActivityState` — it does not
+touch the call lane, the compiler or the persona.
+
+The shape was chosen against `age-tier-never-realtime`, where a second
+implementation silently lost a rule added after the fork and the lost rule was a
+minor's romance-register refusal. Screen-share was already a one-off; chess would
+have been the second, and the third would have been a third.
+
+**`nameable` is not bureaucracy.** `honesty-provenance-allowlist` treats an
+identifier she emits that was not in her input as invented, and a chess move like
+`Nf3` is identifier-shaped. Without an explicit nameable set the gate correctly
+flags moves that really were played. Every activity with identifier-shaped
+content — a move, a card, a word, a score — needs the same.
+
+**Reverses if:** a second activity cannot be expressed as `facts` + `nameable`
+without the block growing past its budget or needing rules text she would recite
+— at which point the contract is too thin and wants a per-kind renderer rather
+than one shared one.
+
+---
+
+## activity-one-derivation — the game is session state, read by one function
+
+**Decided 2026-08-21.** The game is SESSION state (`AppState.game`), beside `messages` and `inner`,
+persisted and synced by the writers that already exist. A board held in the
+component that draws it is a board the call lane cannot see, and she would be
+unable to talk about a game she is visibly playing. That does not read as a
+missing feature; it reads as her forgetting something mid-sentence.
+
+**One derivation, two lanes.** `activityOf(state.game)` in `src/state/game.ts`;
+chat reads it through `BrainKeys`, the call lane through `compile()`. Two lanes
+deriving it separately is the same fork as above, and what would go missing is
+`nameable`.
+
+**Mid-call moves travel by `direct()`, never a recompile** — the live prompt is
+frozen at connect and `liveAssemblies` is asserted to read 1 for the whole call.
+Angle brackets, never square: bracket text on the voice lane is SPOKEN
+(`ack-bracket-direction`).
+
+**Reverses if:** the two lanes ever need genuinely different views of the same
+activity — a call needing detail chat does not. At that point the single
+derivation becomes a lie of convenience and should be split deliberately, with
+the shared part named, rather than by one lane quietly growing its own copy.

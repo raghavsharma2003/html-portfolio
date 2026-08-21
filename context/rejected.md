@@ -1188,3 +1188,53 @@ that it returns a string rather than a parsed reply.
 
 Registered with the full defect list and per-surface contract in
 `docs/CONVERSATION-DEFECTS.md`.
+
+---
+
+## activity-block-sliced-mid-word
+
+**Tried:** rendering the T15 activity block by slicing at the 420-byte budget,
+the obvious way (`text.slice(0, ACTIVITY_BUDGET)`).
+
+**What broke:** the eval caught the block ending `"...f7 is hanging, she"` — a
+fact cut mid-word — and, worse, the row that fell off the end was **"it is his
+move"**, the single most useful thing in the block. Exactly `silent-truncation`,
+which has already cost this project the crisis helplines once: truncation eats
+the END, where the newest and most important text sits.
+
+**Now:** whole facts are DROPPED from the end, never sliced, and facts are
+emitted least-important-last. The compiler's own rule, for the reason it already
+gives: *a sliced block is a lie.*
+
+## chess-facts-as-a-scoresheet
+
+**Tried:** letting `moveFact` carry up to six clauses — the move, the verdict,
+and every tag that applied.
+
+**What broke:** it produced *"she played Qxf7+, a bad one, it took a piece, it
+was a check, f7 is hanging, she is losing"*. Three separate failures at once: it
+reads as a commentator reading a scoresheet rather than a person noticing
+something; it blew the 14-word shapelint row limit; and it was long enough to
+push whose-turn-it-is out of the block entirely (see above).
+
+**Now:** three clauses, hard — the move, the single most salient thing about it,
+and where that leaves them, with tag order set to the order a person notices in.
+A person across a board notices ONE thing about a move and says it.
+
+## activity-status-lifted-into-app
+
+**Tried:** making the live call visible from the board the obvious way — lifting
+`useCallEngine` into `App`, or publishing its status upward through an
+`onStatus` prop.
+
+**What broke:** the call timer ticks once a second, and `App` renders `Chat`,
+which owns the message list, the reply cycle and every animation in the product.
+A call would have re-rendered the entire chat sixty times a minute to keep a
+clock in a header nobody may be looking at.
+
+**Now:** `src/state/callStatus.ts` publishes to a module-level store read by
+subscription, so the tick re-renders only the header that asked for it. Module
+level mutable state is otherwise avoided here (the time module has an eval
+asserting it has none); it is correct in this one place because there is exactly
+one call by construction and this is a projection of that single mount, cleared
+on the engine's unmount.

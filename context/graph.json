@@ -153,12 +153,12 @@
     {
       "id": "persona",
       "kind": "component",
-      "title": "persona.ts \u2014 where her personality lives"
+      "title": "persona.ts — where her personality lives"
     },
     {
       "id": "inner",
       "kind": "component",
-      "title": "inner.ts \u2014 carried feeling, wants, taste, mood arc"
+      "title": "inner.ts — carried feeling, wants, taste, mood arc"
     },
     {
       "id": "memory-graph",
@@ -511,19 +511,19 @@
     {
       "id": "free-pool-capacity",
       "kind": "measurement",
-      "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) \u2014 axis recalibration flagged",
+      "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) — axis recalibration flagged",
       "at": "2026-08-15"
     },
     {
       "id": "deepseek-pro-judge",
       "kind": "measurement",
-      "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash \u2014 family out at any size",
+      "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash — family out at any size",
       "at": "2026-08-15"
     },
     {
       "id": "mistral-judge",
       "kind": "measurement",
-      "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A \u2014 most extreme position bias measured",
+      "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A — most extreme position bias measured",
       "at": "2026-08-15"
     },
     {
@@ -559,13 +559,13 @@
     {
       "id": "relstate-zero-rows",
       "kind": "measurement",
-      "title": "vy_rel_state: 0 rows for 40 persons \u2014 UPDATE-writers with no INSERT owner; whole relational surface silently invisible",
+      "title": "vy_rel_state: 0 rows for 40 persons — UPDATE-writers with no INSERT owner; whole relational surface silently invisible",
       "at": "2026-08-15"
     },
     {
       "id": "felt-wiring-landed",
       "kind": "measurement",
-      "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card \u2014 deployed 4/4",
+      "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card — deployed 4/4",
       "at": "2026-08-15"
     },
     {
@@ -577,7 +577,7 @@
     {
       "id": "r4-english-control",
       "kind": "measurement",
-      "title": "English translation does not rescue judges (recovery within noise floor) \u2014 failure is deeper than code-switching",
+      "title": "English translation does not rescue judges (recovery within noise floor) — failure is deeper than code-switching",
       "at": "2026-08-18"
     },
     {
@@ -595,7 +595,7 @@
     {
       "id": "ground-truth-ceiling",
       "kind": "measurement",
-      "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] \u2014 the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
+      "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] — the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
       "at": "2026-08-18"
     },
     {
@@ -613,7 +613,7 @@
     {
       "id": "r2-axis-decomposition",
       "kind": "measurement",
-      "title": "Per-axis judge failure partially concentrates: brevity a clustered-CI outlier (55.2%), humour indistinguishable from specificity/personhood \u2014 three tiers, not the predicted binary; every axis still fails 80% bar",
+      "title": "Per-axis judge failure partially concentrates: brevity a clustered-CI outlier (55.2%), humour indistinguishable from specificity/personhood — three tiers, not the predicted binary; every axis still fails 80% bar",
       "at": "2026-08-18"
     },
     {
@@ -643,7 +643,7 @@
     {
       "id": "age-tier-never-realtime",
       "kind": "rejection",
-      "title": "The second assembler dropped FORGET_DECISION and AGE_TIER_SAFETY_OVERRIDE \u2014 a safety rule never reached the realtime lane",
+      "title": "The second assembler dropped FORGET_DECISION and AGE_TIER_SAFETY_OVERRIDE — a safety rule never reached the realtime lane",
       "at": "2026-08-20"
     },
     {
@@ -655,7 +655,7 @@
     {
       "id": "startup-failure-is-invisible",
       "kind": "rejection",
-      "title": "secrets in a job-level if: makes the whole workflow invalid \u2014 15 red runs, 0 jobs, 9 days with no auto-deploy",
+      "title": "secrets in a job-level if: makes the whole workflow invalid — 15 red runs, 0 jobs, 9 days with no auto-deploy",
       "at": "2026-08-20"
     },
     {
@@ -757,7 +757,7 @@
     {
       "id": "logged-but-unindexed",
       "kind": "rejection",
-      "title": "16 entries written up with no graph row \u2014 --check validated one direction only",
+      "title": "16 entries written up with no graph row — --check validated one direction only",
       "at": "2026-08-20"
     },
     {
@@ -793,7 +793,7 @@
     {
       "id": "manifest-sourcestatus",
       "kind": "rejection",
-      "title": "sourceStatus reports wired against a compile that rendered 0 of 3 blocks \u2014 an anti-signal, not a weak one",
+      "title": "sourceStatus reports wired against a compile that rendered 0 of 3 blocks — an anti-signal, not a weak one",
       "at": "2026-08-20"
     },
     {
@@ -907,7 +907,7 @@
     {
       "id": "nine-dark-tail-slots",
       "kind": "measurement",
-      "title": "Production: 9 declared tail slots render 0 bytes; only T5/T7/T10/T11 render \u2014 three investigations in one queryable row",
+      "title": "Production: 9 declared tail slots render 0 bytes; only T5/T7/T10/T11 render — three investigations in one queryable row",
       "at": "2026-08-20"
     },
     {
@@ -919,19 +919,19 @@
     {
       "id": "engine-bundle-check-uncalled",
       "kind": "rejection",
-      "title": "build-engine-bundle --check works, caught real drift, and is invoked by nothing \u2014 dead-writers in the guard",
+      "title": "build-engine-bundle --check works, caught real drift, and is invoked by nothing — dead-writers in the guard",
       "at": "2026-08-20"
     },
     {
       "id": "busy-held-across-recursion",
       "kind": "rejection",
-      "title": "the burst branch recursed while still holding `busy`, so the one path written for bursts was the only one that could not reply \u2014 and the chat stayed dead",
+      "title": "the burst branch recursed while still holding `busy`, so the one path written for bursts was the only one that could not reply — and the chat stayed dead",
       "at": "2026-08-21"
     },
     {
       "id": "surface-bypasses-parse",
       "kind": "rejection",
-      "title": "api/_surface.js returns the model's raw string and never calls parseBubbles, so no engine guarantee \u2014 honesty, dash, protocol extraction \u2014 reaches Telegram",
+      "title": "api/_surface.js returns the model's raw string and never calls parseBubbles, so no engine guarantee — honesty, dash, protocol extraction — reaches Telegram",
       "at": "2026-08-21"
     },
     {
@@ -961,13 +961,49 @@
     {
       "id": "proactive-reason-contingent",
       "kind": "decision",
-      "title": "she may text first because something HAPPENED, never because he went quiet \u2014 the test is on the trigger, not the frequency",
+      "title": "she may text first because something HAPPENED, never because he went quiet — the test is on the trigger, not the frequency",
       "at": "2026-08-21"
     },
     {
       "id": "search-on-curiosity",
       "kind": "decision",
       "title": "the search trigger moves from doubt to curiosity, with the frequency capped in code rather than asked for in the brief",
+      "at": "2026-08-21"
+    },
+    {
+      "id": "activity-generic-seam",
+      "kind": "decision",
+      "title": "an activity is a fact about the present moment riding the shared prompt, not a mode she enters",
+      "at": "2026-08-21"
+    },
+    {
+      "id": "activity-one-derivation",
+      "kind": "decision",
+      "title": "both lanes read activityOf(state.game); the game is session state, not component state",
+      "at": "2026-08-21"
+    },
+    {
+      "id": "activity-block-sliced-mid-word",
+      "kind": "rejection",
+      "title": "slicing the activity block at its byte cap cut a fact mid-word and ate whose-turn-it-is",
+      "at": "2026-08-21"
+    },
+    {
+      "id": "chess-facts-as-a-scoresheet",
+      "kind": "rejection",
+      "title": "six clauses per move read as a commentator, blew the row limit, and overflowed the block",
+      "at": "2026-08-21"
+    },
+    {
+      "id": "activity-status-lifted-into-app",
+      "kind": "rejection",
+      "title": "lifting the call into App to show its timer would re-render the whole chat once a second",
+      "at": "2026-08-21"
+    },
+    {
+      "id": "activity-browser-observed",
+      "kind": "measurement",
+      "title": "the games centre driven end to end in Chromium: 2 taps in, chat stays mounted, she answered Nf6",
       "at": "2026-08-21"
     }
   ],
@@ -1876,6 +1912,46 @@
       "src": "search-on-curiosity",
       "rel": "constrains",
       "dst": "proactive-reason-contingent"
+    },
+    {
+      "src": "activity-generic-seam",
+      "rel": "caused_by",
+      "dst": "age-tier-never-realtime"
+    },
+    {
+      "src": "recited-prompt",
+      "rel": "constrains",
+      "dst": "activity-generic-seam"
+    },
+    {
+      "src": "activity-one-derivation",
+      "rel": "part_of",
+      "dst": "activity-generic-seam"
+    },
+    {
+      "src": "honesty-provenance-allowlist",
+      "rel": "constrains",
+      "dst": "activity-one-derivation"
+    },
+    {
+      "src": "activity-block-sliced-mid-word",
+      "rel": "part_of",
+      "dst": "activity-generic-seam"
+    },
+    {
+      "src": "chess-facts-as-a-scoresheet",
+      "rel": "part_of",
+      "dst": "activity-generic-seam"
+    },
+    {
+      "src": "activity-status-lifted-into-app",
+      "rel": "part_of",
+      "dst": "activity-one-derivation"
+    },
+    {
+      "src": "activity-generic-seam",
+      "rel": "measured_by",
+      "dst": "activity-browser-observed"
     }
   ]
 }

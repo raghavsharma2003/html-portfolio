@@ -2143,3 +2143,30 @@ n = 2 scenarios × 32 simulated seconds, plus the 80-call floor table. Method:
 with a disable-the-watchdog negative control run and observed to fail, and
 `node evals/echosim/exp1.mjs` diffed against the pre-change baseline.
 Date 2026-08-21.
+
+---
+
+## activity-browser-observed — the games centre driven end to end (2026-08-21)
+
+Chromium 390x844 against the real production build served by `vite preview`,
+driven by Playwright. n = 2 scripted sessions, both scripts in the session
+scratchpad (`uicheck.mjs`, `uicheck2.mjs`). Method: seed `meera.state.v1`,
+reload, drive the real UI, read `localStorage` back for state assertions.
+
+| observation | result |
+|---|---|
+| chat → hub → board | 2 taps |
+| chat still mounted while the board is up | yes (`.chat-scroll` count 1) |
+| e2e4 through the board's own tap path | played |
+| her reply | `Nf6`, ~2s, local search, no model call |
+| game persists to storage and survives leaving the board | yes (played=2) |
+| hub then offers to resume, with whose move | yes |
+| starting a call FROM the board | board stays up, call mounts under it |
+| game disturbed by the call starting | no |
+| 4xx responses | only `/api/*`, which `vite preview` does not serve |
+| JS errors | none |
+
+Not measured: any real device, any real APK, contrast on the dark tone (computed,
+not instrumented), and safe-area behaviour. Board overflow at very short
+viewports is unobserved — the stage scrolls rather than clips, by construction,
+but nobody has seen it do so.
