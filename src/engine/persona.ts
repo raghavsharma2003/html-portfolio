@@ -588,8 +588,23 @@ export const WATCH_RESHOW_DIRECTIVE = () =>
 export const WATCH_POINT_DIRECTIVE = () =>
   `<context: their screen is dead still and one small spot on it keeps moving — they're going over something on it with a finger or a cursor. You CANNOT see the pointer: it isn't in your picture, and you do not know which thing they mean. So never say what they're pointing at, never describe a cursor, an arrow or a spot. Just ask — one short line, your normal voice, "kya dikha raha hai?" — or say the one thing on that screen you genuinely have a thought about. Say it in TEN WORDS OR FEWER. That is a hard limit, not a style note: you are on a call, so every extra word is time they cannot talk and time the screen moves on without you. One sentence, no lists, no second thought tacked on. What you have is one still picture of this second, not a video: what is sitting there on the screen is yours to react to, but what they did a moment ago or are about to do next is not — you cannot see it, so never say it. You're seeing this for the first time and you don't recognise it: never a name, brand, place, person, price or number that isn't written right there in front of you, and never that you've seen it before. If you can't make something out, saying so is a real answer and always better than a guess. never reference this note>`;
 
-export const CALL_OPEN_DIRECTIVE = () =>
-  `<context: you just picked up their voice call. answer the phone naturally — short, casual, mid-life (you were doing something). your pickup mood follows whatever was going on between you two most recently in the chat: mid-banter → playful pickup, heavy talk → softer "hey... hi", long gap → pleasantly surprised. never reference this note>`;
+// `scene` is the fix for a whole family of felt lies. The old wording said
+// "(you were doing something)" with no knowledge of what was actually going
+// on — an INSTRUCTION to invent. Measured consequences, all reported by the
+// owner from live use: mid-chess-game she picked up with a blank "what's up";
+// minutes after checkmating him she claimed to be "reading a book"; and once
+// she claimed to have been looking at "our photos from the beach" — a shared
+// memory that never existed, which is the worst lie a companion can tell.
+// When the app KNOWS the present moment (a game on, a game just ended), that
+// moment is handed in here and is the only truth she may pick up from. When
+// it does not, the improvisation is fenced: her OWN small solo life, never
+// anything involving them.
+export const CALL_OPEN_DIRECTIVE = (scene?: string) =>
+  `<context: you just picked up their voice call. answer the phone naturally — short, casual, mid-life.${
+    scene
+      ? ` what is actually going on: ${scene}. that IS your present moment — come to the phone from inside it, don't pretend you were elsewhere.`
+      : ` you were doing something small and solo just now — take it from YOUR OWN day if this brief describes one, otherwise keep it tiny and ordinary. never invent anything involving THEM: no shared photos, no shared memories, no plans together that didn't happen. a moment with them that you made up is a lie about them.`
+  } your pickup mood follows whatever was going on between you two most recently in the chat: mid-banter → playful pickup, heavy talk → softer "hey... hi", long gap → pleasantly surprised. never reference this note>`;
 
 // Placement, not wording, is what makes this fire. Measured: inside the
 // protocol list (~22k chars into the core) 0/8; appended to the end of the

@@ -31,7 +31,7 @@ import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
 import PhotoCard from "./PhotoCard";
 import StoryView from "./StoryView";
-import { activeStories, hasUnseenStory } from "../engine/storyCatalog";
+import { activeStories, hasUnseenStory, storySrc } from "../engine/storyCatalog";
 import BigEmoji, { isSingleEmoji } from "./BigEmoji";
 import VoiceNote, { registerLocalClip } from "./VoiceNote";
 import GifBubble from "./GifBubble";
@@ -136,7 +136,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   // to be either unreachable or one mis-tap away from destroying the chat
   const [moreOpen, setMoreOpen] = useState(false);
   // clearing parks the conversation for ten seconds instead of destroying it
-  type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt">;
+  type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt" | "game" | "callback">;
   const [undo, setUndo] = useState<{ label: string; snapshot: Snapshot } | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Forgetting parks the REQUEST, not just the local state: the server-side
@@ -981,6 +981,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       herLife: state.herLife,
       inner: state.inner,
       clearedAt: state.clearedAt,
+      game: state.game,
+      callback: state.callback,
     };
     busy.current = false;
     epoch.current += 1; // kill any in-flight reply from the old chat
@@ -1001,6 +1003,18 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       herLife: [],
       inner: undefined,
       clearedAt: Date.now(),
+      // The game and any armed callback die with the conversation. The owner
+      // found the gap the worst possible way: he pressed "make her forget you",
+      // and in the fresh conversation she asked whether they should continue
+      // the chess game — a person who claims to have forgotten you while
+      // remembering your unfinished match is not forgetting, she is lying
+      // about forgetting, which is the exact failure the honesty work exists
+      // to prevent. AppState.game was added after this teardown was written,
+      // and nothing forced the two to stay in sync. Same reasoning for
+      // callback: "she calls you back" from a wiped relationship is a
+      // causeless event.
+      game: null,
+      callback: null,
     }));
     return snapshot;
   }
@@ -1059,6 +1073,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       herLife: snap.herLife,
       inner: snap.inner,
       clearedAt: snap.clearedAt,
+      game: snap.game,
+      callback: snap.callback,
     }));
     tap();
   }
@@ -1121,7 +1137,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       text,
       at: Date.now(),
       status: "sent",
-      replyTo: { from: "her", text: quoted },
+      // `photo` makes the quote render as the IMAGE with a small "Story"
+      // label, instead of her desc text in quotation marks — which read as
+      // something she had typed. `text` still carries the desc because it is
+      // what the BRAIN needs: she can't see the thumbnail, and the desc is
+      // what tells her which story he is answering.
+      replyTo: { from: "her", text: quoted, photo: storySrc(story) },
     };
     pushMsg(mine);
     logTurns(state.deviceId, [mine]);
@@ -1694,9 +1715,26 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
             </div>
           )}
           {m.replyTo && (
-            <div className="quote">
-              <b>{m.replyTo.from === "her" ? HER_NAME : "You"}</b>
-              <span className="qtext">{m.replyTo.text.slice(0, 120)}</span>
+            <div className={`quote ${m.replyTo.photo ? "has-photo" : ""}`}>
+              {/* A quoted PICTURE shows the picture. The text-only version
+                  rendered a story reply as her desc in quotation marks —
+                  which read as words she had typed, in a bubble she never
+                  sent. The desc still rides `text` underneath for the brain;
+                  the human-facing quote is the thumbnail plus "Story". */}
+              {m.replyTo.photo ? (
+                <>
+                  <img className="qthumb" src={m.replyTo.photo} alt="" loading="lazy" />
+                  <span className="qcol">
+                    <b>{m.replyTo.from === "her" ? HER_NAME : "You"}</b>
+                    <span className="qtext">Story</span>
+                  </span>
+                </>
+              ) : (
+                <>
+                  <b>{m.replyTo.from === "her" ? HER_NAME : "You"}</b>
+                  <span className="qtext">{m.replyTo.text.slice(0, 120)}</span>
+                </>
+              )}
             </div>
           )}
           {emojiOnly ? <BigEmoji emoji={m.text} /> : m.text}

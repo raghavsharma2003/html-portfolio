@@ -37,6 +37,7 @@ export {
 } from "../src/engine/repeat";
 export { asksToHangUp } from "../src/engine/hangup";
 export { renderActivity, activityNote, ACTIVITY_BUDGET } from "../src/engine/activity";
-export { chessActivity, moveFact } from "../src/engine/chessTalk";
-export { newGame, play, assessLast } from "../src/engine/chess";
+export { chessActivity, moveFact, exchangeFact } from "../src/engine/chessTalk";
+export { newGame, play, assessLast, assessMove } from "../src/engine/chess";
+export { activityOf, activityPickupLine, RECENT_END_MS, lastAssessment } from "../src/state/game";
 export { resolveTheme, isThemeChoice, THEMES, THEME_LABEL } from "../src/engine/theme";

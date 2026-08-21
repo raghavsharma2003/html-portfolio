@@ -90,6 +90,28 @@ export function moveFact(a: MoveAssessment, herSide: Side, whoMoved: "her" | "hi
 }
 
 /**
+ * One line for a COMPLETED exchange: his move and her answer together.
+ *
+ * The per-move poke used to describe only the latest move — which, after her
+ * engine answers ~300ms behind his, was always HER move. The debounce meant
+ * the one note that survived described her own play, so on calls she narrated
+ * herself ("she played Nf6, a good one") every single exchange, which reads
+ * exactly as robotic as it sounds. A person talks about the exchange: what he
+ * did, and what she did about it — with HIS move carrying the salience,
+ * because his move is the one she is actually responding to.
+ */
+export function exchangeFact(
+  his: MoveAssessment,
+  hers: MoveAssessment | null,
+  herSide: Side,
+): string {
+  const base = moveFact(his, herSide, "him");
+  if (!hers?.move?.san) return base;
+  if (hers.statusAfter?.over) return `${base}; she answered ${hers.move.san} and that ends it`;
+  return `${base}; she answered ${hers.move.san}`;
+}
+
+/**
  * The whole activity, for the tail block at connect.
  *
  * Short by construction. A person sitting down mid-game knows roughly where it
@@ -116,9 +138,20 @@ export function chessActivity(
   }
 
   const turn = game.status?.turn;
-  if (game.status?.over) facts.push("the game has finished");
-  else if (turn) facts.push(turn === herSide ? "it is her move" : "it is his move");
-  if (game.status?.inCheck) facts.push("someone is in check");
+  if (game.status?.over) {
+    // The ending, concretely — who won and how. "the game has finished" alone
+    // left her congratulating nobody: she had checkmated him minutes earlier
+    // and picked up the phone not knowing there was anything to gloat about.
+    const r = game.status.result;
+    if (r === "checkmate") {
+      facts.push(game.status.winner === herSide ? "she won, by checkmate" : "he won, by checkmate");
+    } else {
+      facts.push("it ended in a draw");
+    }
+  } else if (turn) {
+    facts.push(turn === herSide ? "it is her move" : "it is his move");
+  }
+  if (!game.status?.over && game.status?.inCheck) facts.push("someone is in check");
 
   // Every move ever played is nameable — she may refer back to the game, and
   // the record is the ground truth she is allowed to cite.
@@ -130,5 +163,6 @@ export function chessActivity(
     facts,
     nameable,
     waitingOnHer: !game.status?.over && turn === herSide,
+    over: Boolean(game.status?.over),
   };
 }

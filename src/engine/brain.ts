@@ -52,6 +52,7 @@ import {
   allowedFrom,
   createStreamGuard,
   hisVocabulary,
+  sharedVocabulary,
 } from "./honesty";
 import type { Message } from "../state/store";
 
@@ -1110,6 +1111,20 @@ export async function think(
     // own output, for the same reason allowedFrom refuses it. `latest` is his
     // message this turn and belongs in the vocabulary he is quotable from.
     hisVocab: hisVocabulary([...history, { from: "me" as const, text: latest }]),
+    // Family 4 (shared past). The graph's memory text and the live activity
+    // are the parts of the shared record this conversation hasn't said out
+    // loud: an episode in `memories` or a we-episode in the rel bundle really
+    // happened (provenance-clean by construction), so a moment she was HANDED
+    // is a moment she may retell. NOT fullSystem — the brief mentions beaches
+    // and photos in its own instructions, which would make "our beach photos"
+    // vacuously supported. The union with his words happens inside inspect().
+    sharedVocab: sharedVocabulary([
+      memories,
+      ...(relBundle?.weEpisodes ?? []).map((e) => JSON.stringify(e)),
+      ...(relBundle?.rituals ?? []).map((r) => JSON.stringify(r)),
+      ...(keys.activity?.facts ?? []),
+      ...(keys.activity?.nameable ?? []),
+    ]),
   };
   const honestyAllowed = allowedFrom(honestyCtx.trustedText);
   // The streaming door. Only class (A) — an identifier is a self-contained

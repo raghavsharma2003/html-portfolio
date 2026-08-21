@@ -59,10 +59,11 @@ import type { RelBundleInput } from "../engine/compiler";
 import { gatesFor, getAgeTier } from "../engine/clock";
 import { logTurns, rememberFrom, recallForCall, callSelfBundle } from "../engine/memory";
 import { asksToHangUp } from "../engine/hangup";
-import { activityOf, lastAssessment } from "../state/game";
+import { activityOf, activityPickupLine, lastAssessment } from "../state/game";
 import { clearCallStatus, publishCallStatus } from "../state/callStatus";
 import { activityNote } from "../engine/activity";
-import { moveFact } from "../engine/chessTalk";
+import { exchangeFact, moveFact } from "../engine/chessTalk";
+import { assessMove } from "../engine/chess";
 import { innerContext, applyInner, wantsForAppraisal } from "../engine/inner";
 import {
   ensureOverlay,
@@ -825,7 +826,8 @@ export function useCallEngine(
       state.user,
       brainKeys(),
       state.messages,
-      CALL_OPEN_DIRECTIVE(),
+      // same scene the live lane's pickup carries — one truth, both engines
+      CALL_OPEN_DIRECTIVE(activityPickupLine(activityOf(state.game))),
       "call",
       engine,
       true,
@@ -960,7 +962,12 @@ export function useCallEngine(
       // that dropped during the ring already handed the slot to the cascade
       if (winner && winner !== "slow" && winner.active() && voiceOwner.current === "live") {
         if (!mutedRef.current) winner.setMuted(false); // line is open now
-        winner.direct(CALL_OPEN_DIRECTIVE()); // she picks up, spoken live
+        // The pickup carries the present moment: mid-game, just-finished, or
+        // nothing. Without it she answered a mid-chess call with a blank
+        // "what's up" — the activity block was in the frozen prompt, but a
+        // rule mid-brief loses to the directive appended last
+        // (`prompt-position`), so the directive itself must carry the scene.
+        winner.direct(CALL_OPEN_DIRECTIVE(activityPickupLine(activityOf(stateRef.current.game)))); // she picks up, spoken live
         track(stateRef.current.deviceId, "live_call_started", { ...liveTiming.current });
         return; // realtime session owns the call from here
       }
@@ -969,7 +976,7 @@ export function useCallEngine(
       if (voiceOwner.current === "live" && liveSession.current?.active()) {
         const s2 = liveSession.current;
         if (!mutedRef.current) s2.setMuted(false);
-        s2.direct(CALL_OPEN_DIRECTIVE());
+        s2.direct(CALL_OPEN_DIRECTIVE(activityPickupLine(activityOf(stateRef.current.game))));
         track(stateRef.current.deviceId, "live_call_started", { ...liveTiming.current });
         return;
       }
@@ -2442,19 +2449,53 @@ export function useCallEngine(
       return;
     }
     if (pokeTimer.current) clearTimeout(pokeTimer.current);
-    pokeTimer.current = setTimeout(() => {
-      pokeTimer.current = null;
-      const cur = stateRef.current.game;
-      if (!cur || cur.closedAt || !liveSession.current) return;
-      const last = lastAssessment(cur);
-      if (!last) return;
-      pokedPly.current = cur.game.played.length;
-      const whoMoved = last.fenBefore.split(" ")[1] === cur.herSide ? "her" : "him";
-      const note = activityNote(moveFact(last, cur.herSide, whoMoved));
-      if (!note) return;
-      diag("call", "activity_poke", { kind: cur.kind, ply: cur.game.played.length, who: whoMoved });
-      liveSession.current.direct(note);
-    }, MOVE_POKE_MS);
+    const armPoke = (delayMs: number, attempt: number) => {
+      pokeTimer.current = setTimeout(() => {
+        pokeTimer.current = null;
+        const cur = stateRef.current.game;
+        if (!cur || cur.closedAt || !liveSession.current) return;
+        // ── the quiet floor ────────────────────────────────────────────
+        // Never cut across an exchange that is actually alive. The owner
+        // felt exactly this: mid-conversation she "abruptly stopped and
+        // started speaking about the move" with no interest in it. direct()
+        // waits for HER voice; nothing waited for HIS. If he spoke in the
+        // last beat, the conversation has the floor — re-arm and try again,
+        // twice, then let the moment go: a reaction delivered late is worse
+        // than none (the same judgment as the watch lane's stale-frame
+        // suppressor — she must react to what is happening, not to history).
+        if (Date.now() - lastHeardAt.current < 2500) {
+          if (attempt < 3) armPoke(MOVE_POKE_MS * 2, attempt + 1);
+          else diag("call", "activity_poke", { kind: cur.kind, dropped: "conversation_held_floor" });
+          return;
+        }
+        const plies = cur.game.played.length;
+        const hers = lastAssessment(cur);
+        if (!hers) return;
+        pokedPly.current = plies;
+        // ── the exchange, not the last move ────────────────────────────
+        // Her engine answers ~300ms behind his move, so by the time the
+        // debounce fires the "latest move" is almost always HERS — and the
+        // first version therefore had her narrating her own play every
+        // single exchange ("she played Nf6, a good one"), which reads as
+        // exactly the robot it is. A person talks about the exchange: what
+        // HE did — that is the move she is responding to and where the
+        // salience lives — and what she did about it.
+        const lastMover = hers.fenBefore.split(" ")[1] === cur.herSide ? "her" : "him";
+        let fact: string;
+        if (lastMover === "her" && cur.game.played.length >= 2) {
+          const hisPly = cur.game.played[cur.game.played.length - 2];
+          const his = assessMove(hisPly.fenBefore, hisPly, hisPly.fenAfter);
+          fact = exchangeFact(his, hers, cur.herSide);
+        } else {
+          fact = moveFact(hers, cur.herSide, lastMover);
+        }
+        const note = activityNote(fact);
+        if (!note) return;
+        diag("call", "activity_poke", { kind: cur.kind, ply: plies, exchange: lastMover === "her" });
+        liveSession.current.direct(note);
+      }, delayMs);
+    };
+    armPoke(MOVE_POKE_MS, 0);
     return () => {
       if (pokeTimer.current) {
         clearTimeout(pokeTimer.current);

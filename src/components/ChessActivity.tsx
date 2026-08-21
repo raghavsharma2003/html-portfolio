@@ -94,21 +94,50 @@ export default function ChessActivity({
 
   // Her move is code, never a model call (SPEC-GAMES §0.1). The async search
   // yields to the compositor, so the board stays touchable while she thinks.
+  //
+  // Two changes from live testing, both the owner's words:
+  //
+  // "Her move was also extremely fast, like point second gap... don't move
+  // like that." The search takes ~45ms, and a move that lands 45ms after
+  // yours is the single loudest tell that there is no one across the board.
+  // So the move is HELD for a human think-time before it lands: quick in the
+  // opening (people know their openings), longer in the middlegame, seeded
+  // from the position so the same spot always takes her the same moment —
+  // pacing, not randomness (`Math.random` in her behaviour is exactly the
+  // causeless variation the engine is built to avoid).
+  //
+  // "She was too strong I think." Level 3's own comment says it already
+  // beats most casual players. She plays level 2: misses two-move tactics
+  // sometimes, takes a worse line for flavour more often — beatable, which
+  // for a companion is the point. The engine default stays 3; this is the
+  // surface choosing, which is where a per-person difficulty would live.
   useEffect(() => {
     if (!hers || !g) return;
     let liveEffect = true;
-    void chooseMoveAsync(g).then((hm) => {
+    let hold: ReturnType<typeof setTimeout> | null = null;
+    void chooseMoveAsync(g, { strength: 2 }).then((hm) => {
       if (!liveEffect || !hm) return;
-      setState((s) => {
-        const cur = s.game;
-        // the position moved under us (a reload, a takeback) — drop the reply
-        if (!cur || cur.game.fen !== g.fen) return s;
-        const next = play(cur.game, hm.move.uci);
-        return next ? { ...s, game: { ...cur, game: next } } : s;
-      });
+      // seed from the fen so the pace is a property of the moment, replayable
+      let h = 0;
+      for (let i = 0; i < g.fen.length; i++) h = (h * 31 + g.fen.charCodeAt(i)) | 0;
+      const u = (Math.abs(h) % 1000) / 1000;
+      const ply = g.played.length;
+      const [lo, hi] = ply < 8 ? [800, 2200] : ply < 30 ? [1800, 6000] : [1200, 4000];
+      const thinkMs = Math.round(lo + u * (hi - lo));
+      hold = setTimeout(() => {
+        if (!liveEffect) return;
+        setState((s) => {
+          const cur = s.game;
+          // the position moved under us (a reload, a takeback) — drop the reply
+          if (!cur || cur.game.fen !== g.fen) return s;
+          const next = play(cur.game, hm.move.uci);
+          return next ? { ...s, game: { ...cur, game: next } } : s;
+        });
+      }, thinkMs);
     });
     return () => {
       liveEffect = false;
+      if (hold) clearTimeout(hold);
     };
   }, [hers, g, setState]);
 

@@ -662,6 +662,16 @@ export function hisVocabulary(history: readonly HistoryLike[]): Set<string> {
   return v;
 }
 
+/**
+ * Content words of the compiler's memory text, for family 4's shared record.
+ * Same tokenizer as the claims use, so support comparison is apples-to-apples.
+ */
+export function sharedVocabulary(texts: readonly string[]): Set<string> {
+  const v = new Set<string>();
+  for (const t of texts) if (t) for (const w of claimTokens(t)) v.add(w);
+  return v;
+}
+
 /** Attributed claims that are not his. */
 export function findFalseAttributions(
   text: string,
@@ -682,7 +692,133 @@ export function findFalseAttributions(
   return out;
 }
 
-export type HonestyRule = "actionable" | ReceiptRule | "false-attribution";
+// ─────────────────────────────────────────────────────────────────────────
+// FAMILY 4 — SHE CLAIMS A SHARED PAST THAT NEVER HAPPENED
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The owner, from live use: on a call she said she had been looking at "our
+// photos, which we took on the beach when I was with her". No beach, no
+// photos, no trip — a fabricated SHARED memory, which he called "the worst
+// lie": her solo life is hers to improvise (the persona explicitly grants
+// it), but a moment with HIM that never happened is a lie about him, and it
+// is the one kind he can always catch.
+//
+// The persona core has carried "never invent a shared memory you don't have"
+// since v9 — and she said the beach line anyway. That is `prompt-position`
+// and `gate0-structural` in one sentence: an instruction mid-brief fired 0/8
+// in measurement, and instructions leak 57–98% where predicates leak 0. So,
+// like families 1–3, the rule becomes a predicate.
+//
+// The decidable slice, same shape as family 3: not everything about "us" —
+// planning, teasing, hypotheticals and the present are her whole job — but a
+// FIRST-PERSON-PLURAL PAST EVENT CLAIM. "Humne beach pe photos khinchi thi"
+// is not an inference; it is a citation of the shared record, and the shared
+// record is right here: his own words, plus the memory graph the compiler
+// handed her (which is provenance-clean by construction — every episode in
+// it really happened). A cited event whose content words appear in NEITHER
+// is not memory, it is authorship.
+//
+// Named seams, accepted the same way family 3 accepted them:
+// - Cross-language paraphrase (he said it in Hinglish, she cites it in
+//   English) can false-positive; SUPPORT_SHARE is the dial, and the
+//   replacement line is written to make a false positive cost one soft
+//   sentence, not the moment.
+// - The LIVE speech-to-speech lane has no post-generation gate to run this
+//   in; there the fence is CALL_OPEN_DIRECTIVE's scene clause. Two
+//   mechanisms, one rule.
+
+/** First-person-plural PAST event constructions, Hinglish and English.
+ *  Deliberately past-shaped: "we should go" and "our plan for tonight" are
+ *  the future, and the future is hers to propose. */
+const WE_PAST_RE =
+  /\b(?:remember when we|that time we|when we (?:were|went)|we (?:took|went|watched|made|clicked|did that)|our (?:photos?|pics?|selfies?|trip|beach day|first date|song|old chats?))\b[^.?!\n]*|\b(?:humne|hum ne|hum dono ne|apan ne)\s[^.?!\n]*?\b(?:tha|the|thi|kiya|kiye|gaye|gayi|liya|li|dekha|dekhi|banaya|banayi|khinchi|khichi)\b[^.?!\n]*|\byaad hai(?: na)?\b[^.?!\n]*?\b(?:hum|apan|humari|hamari|apni)\b[^.?!\n]*|\b(?:humari|hamari)\s+(?:photos?|pics?|selfies?|trip|jagah|purani baatein)\b[^.?!\n]*/gi;
+
+/** The construction's own scaffolding — hers by the act of writing the
+ *  sentence, so never part of the cited event (family 3's MARKER_TOKENS
+ *  reasoning, applied to "we"-grammar and its light verbs). */
+const SHARED_MARKER_TOKENS = new Set([
+  "humne", "apan", "dono", "hamari", "humari", "apni", "yaad", "remember",
+  "when", "that", "time", "took", "went", "watched", "made", "clicked",
+  "kiya", "kiye", "gaye", "gayi", "liya", "dekha", "dekhi", "banaya",
+  "banayi", "khinchi", "khichi", "were", "this", "with",
+]);
+
+/**
+ * Family 4 tokenizes at length ≥3 where family 3 uses ≥4, because shared
+ * moments hang on short words — "goa", "gym", "gol gappe" — and the eval
+ * caught "yaad hai jab hum goa gaye the" sailing through with its one real
+ * content word filtered out. The cost of 3 is grammar noise, so the grammar
+ * is named instead of length-filtered.
+ */
+const SHARED_STOP = new Set([
+  // Hinglish grammar and pronouns
+  "aur", "jab", "tab", "tha", "the", "thi", "hai", "hain", "kar", "kiya",
+  "par", "per", "phir", "fir", "wala", "wali", "wale", "koi", "kya", "kab",
+  "toh", "abhi", "bhi", "woh", "yeh", "maine", "mujhe", "mera", "mere",
+  "meri", "tune", "tujhe", "tumhe", "tera", "tere", "teri", "aap", "aapko",
+  "kal", "raha", "rahe", "rahi", "gaya", "gayi", "hua", "hui", "diya", "nahi",
+  "nhi", "haan", "acha", "accha", "yaar", "wahi", "usse", "isse", "jaise",
+  // English grammar
+  "and", "the", "was", "were", "had", "has", "have", "just", "then", "from",
+  "with", "that", "this", "there", "here", "about", "really", "together",
+  "some", "very", "one", "day", "night",
+]);
+
+const sharedClaimTokens = (t: string): string[] =>
+  (t.toLowerCase().match(/[a-zऀ-ॿ]+/g) || []).filter(
+    (w) => w.length >= 3 && !SHARED_STOP.has(w) && !SHARED_MARKER_TOKENS.has(w),
+  );
+
+/**
+ * Hinglish inflects by suffix — his "hara" (diya) is her "haraya", his
+ * "khel" her "kheli" — and an exact-set lookup calls every inflection
+ * invented. A prefix match of ≥4 shared characters is the cheapest stem that
+ * works for both languages; the eval's legitimate-retelling cases are the
+ * regression net if this ever loosens too far.
+ */
+function isSupported(w: string, support: ReadonlySet<string>): boolean {
+  if (support.has(w)) return true;
+  for (const sWord of support) {
+    if (sWord.length >= 4 && w.startsWith(sWord)) return true;
+    if (w.length >= 4 && sWord.startsWith(w)) return true;
+  }
+  return false;
+}
+
+export interface SharedPastHit {
+  /** the cited clause, for the corpus — never rendered into a prompt */
+  clause: string;
+  /** the event words that appear in neither his words nor the memory graph */
+  unsupported: string[];
+}
+
+/**
+ * Shared-past citations that the shared record does not contain.
+ *
+ * `support` is his vocabulary UNIONED with the compiler's memory text — the
+ * graph's episodes are real by construction, so a memory she was HANDED is
+ * one she may cite. Her own past output is still excluded, for allowedFrom's
+ * reason: one fabrication would launder itself into permanence.
+ */
+export function findSharedPastFabrications(
+  text: string,
+  support: ReadonlySet<string>,
+): SharedPastHit[] {
+  const out: SharedPastHit[] = [];
+  const matches = text.match(WE_PAST_RE);
+  if (!matches) return out;
+  for (const clause of matches) {
+    const claim = sharedClaimTokens(clause);
+    if (claim.length < MIN_CLAIM_TERMS) continue;
+    const unsupported = claim.filter((w) => !isSupported(w, support));
+    const share = (claim.length - unsupported.length) / claim.length;
+    if (share >= SUPPORT_SHARE) continue; // a real shared moment, retold
+    out.push({ clause, unsupported });
+  }
+  return out;
+}
+
+export type HonestyRule = "actionable" | ReceiptRule | "false-attribution" | "shared-past";
 
 export interface HonestyFinding {
   rule: HonestyRule;
@@ -710,6 +846,11 @@ export interface HonestyContext {
    *  attribution check does not run at all — fail-closed in the direction of
    *  saying nothing, which is this file's founding constraint. */
   hisVocab?: ReadonlySet<string>;
+  /** content words from the compiler's MEMORY text (episodes, rel bundle,
+   *  the live activity) — the shared record for family 4. His vocabulary is
+   *  unioned in automatically; this carries what the graph knows that this
+   *  conversation hasn't said out loud. */
+  sharedVocab?: ReadonlySet<string>;
 }
 
 /**
@@ -740,6 +881,17 @@ const REFUSE_ATTRIBUTION = [
   "arre mera hi confusion h shayad. tu bata",
   "hmm maine galat jod diya lagta h",
 ];
+// Family 4's line takes the confusion HERSELF, like REFUSE_ATTRIBUTION, and
+// asserts only about her own head — a canned sentence that cannot be wrong.
+// It must never double down on the memory or grieve it: on a false positive
+// (a real moment retold in different words), "maybe I'm mixing it up" costs
+// one soft beat and he corrects her, which is a HUMAN exchange; a canned
+// apology for lying would be bizarre when she hadn't.
+const REFUSE_SHARED = [
+  "ruk, lagta h main kuch mila rahi hu apne dimaag me. chhod",
+  "hmm nahi shayad wo maine sapne me banaya h 😅 rehne de",
+  "arre main bhi na, pata nhi kya yaad kar rahi thi. tu bol",
+];
 const REFUSE_RECEIPT = [
   "ruk mere paas toh kuch aaya nhi h, yahi bhej de",
   "mujhe kuch mila nhi yaar, yahi pe bhej na",
@@ -758,15 +910,21 @@ export function inspect(
   allowed: AllowedIdentifiers,
   openItems: readonly string[],
   hisVocab?: ReadonlySet<string>,
+  sharedVocab?: ReadonlySet<string>,
 ): Array<{ rule: HonestyRule; kind?: ActionableKind }> {
   const out: Array<{ rule: HonestyRule; kind?: ActionableKind }> = [];
   for (const h of findActionable(text, allowed)) out.push({ rule: "actionable", kind: h.kind });
   for (const h of findOutOfBandReceipts(text)) out.push({ rule: h.rule });
   for (const h of findUnsupportedReceipts(text, openItems)) out.push({ rule: h.rule });
-  // Family 3 runs only when the caller supplied his words. No vocabulary means
-  // no evidence, and no evidence means no accusation.
+  // Families 3 and 4 run only when the caller supplied his words. No
+  // vocabulary means no evidence, and no evidence means no accusation.
   if (hisVocab) {
     for (const _ of findFalseAttributions(text, hisVocab)) out.push({ rule: "false-attribution" });
+    // The shared record: his words plus whatever the memory graph handed her.
+    const support = sharedVocab
+      ? new Set<string>([...hisVocab, ...sharedVocab])
+      : hisVocab;
+    for (const _ of findSharedPastFabrications(text, support)) out.push({ rule: "shared-past" });
   }
   return out;
 }
@@ -796,7 +954,7 @@ export function guardReply<T extends GuardableReply>(
 
   for (let i = 0; i < reply.bubbles.length; i++) {
     const b = reply.bubbles[i];
-    const bad = inspect(b, allowed, ctx.openItems, ctx.hisVocab);
+    const bad = inspect(b, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab);
     if (!bad.length) {
       bubbles.push(b);
       continue;
@@ -806,14 +964,18 @@ export function guardReply<T extends GuardableReply>(
     replaced = true;
     const contact = bad.some((f) => f.rule === "actionable");
     const attribution = !contact && bad.every((f) => f.rule === "false-attribution");
+    const shared = !contact && !attribution && bad.every((f) => f.rule === "shared-past");
     bubbles.push(
-      pickBy(b, contact ? REFUSE_CONTACT : attribution ? REFUSE_ATTRIBUTION : REFUSE_RECEIPT),
+      pickBy(
+        b,
+        contact ? REFUSE_CONTACT : attribution ? REFUSE_ATTRIBUTION : shared ? REFUSE_SHARED : REFUSE_RECEIPT,
+      ),
     );
   }
 
   let voice = reply.voice;
   if (voice) {
-    const bad = inspect(voice.text, allowed, ctx.openItems, ctx.hisVocab);
+    const bad = inspect(voice.text, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab);
     if (bad.length) {
       for (const f of bad) findings.push({ ...f, where: "voice" });
       voice = undefined;
@@ -822,7 +984,7 @@ export function guardReply<T extends GuardableReply>(
 
   let photo = reply.photo;
   if (photo?.caption) {
-    const bad = inspect(photo.caption, allowed, ctx.openItems, ctx.hisVocab);
+    const bad = inspect(photo.caption, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab);
     if (bad.length) {
       for (const f of bad) findings.push({ ...f, where: "caption" });
       photo = { ...photo, caption: "" };
@@ -835,10 +997,11 @@ export function guardReply<T extends GuardableReply>(
   if (!bubbles.length && reply.bubbles.length && !photo && !voice && !reply.gif) {
     const contact = findings.some((f) => f.rule === "actionable");
     const attribution = !contact && findings.every((f) => f.rule === "false-attribution");
+    const shared = !contact && !attribution && findings.every((f) => f.rule === "shared-past");
     bubbles.push(
       pickBy(
         reply.bubbles.join(" "),
-        contact ? REFUSE_CONTACT : attribution ? REFUSE_ATTRIBUTION : REFUSE_RECEIPT,
+        contact ? REFUSE_CONTACT : attribution ? REFUSE_ATTRIBUTION : shared ? REFUSE_SHARED : REFUSE_RECEIPT,
       ),
     );
   }

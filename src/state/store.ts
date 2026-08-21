@@ -17,7 +17,11 @@ export interface Message {
   // absent on old messages = read.
   status?: "sent" | "delivered" | "read";
   // WhatsApp-style quote: set when this message replies to a specific one
-  replyTo?: { from: "her" | "me"; text: string };
+  // `photo` is set when the quoted thing IS a picture (a story reply). The
+  // owner's screenshot showed why text alone is wrong: replying to a mirror
+  // selfie rendered as the words "mirror selfie…", which reads as her having
+  // SAID that. Instagram quotes the image. So do we.
+  replyTo?: { from: "her" | "me"; text: string; photo?: string };
   // "call" turns are spoken words: hidden from the chat UI, but fed to the
   // brain so she remembers call conversations perfectly
   channel?: "chat" | "call";

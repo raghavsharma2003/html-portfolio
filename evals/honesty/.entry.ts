@@ -20,6 +20,8 @@ export {
   findUnsupportedReceipts,
   findFalseAttributions,
   hisVocabulary,
+  findSharedPastFabrications,
+  sharedVocabulary,
   openCommitments,
   guardReply,
   createStreamGuard,

@@ -70,12 +70,21 @@ export interface ActivityState {
   nameable: readonly string[];
   /** true when it is HER turn to act. Drives nothing on its own; she decides. */
   waitingOnHer?: boolean;
+  /**
+   * The activity has ENDED and she is carrying the ending, not the game.
+   * Rendering changes with it: "in the middle of" becomes "just finished",
+   * because the owner hit the gap this closes — she checkmated him, he called
+   * two minutes later, and she asked him what move she should play. A
+   * finished game that vanishes from her context the moment it closes is a
+   * shared moment she has already forgotten by the time it matters most.
+   */
+  over?: boolean;
 }
 
 /** The tail block. "" when nothing is going on, which is most of the time. */
 export const ACTIVITY_BUDGET = 420;
 
-const LABEL: Record<ActivityKind, string> = {
+export const LABEL: Record<ActivityKind, string> = {
   chess: "a game of chess",
   watch: "watching their screen",
 };
@@ -93,10 +102,13 @@ export function renderActivity(a: ActivityState | null | undefined, nowMs?: numb
     nowMs && a.startedAt && nowMs > a.startedAt
       ? Math.floor((nowMs - a.startedAt) / 60_000)
       : null;
-  const head =
-    `RIGHT NOW YOU TWO ARE IN THE MIDDLE OF ${LABEL[a.kind].toUpperCase()}` +
-    (mins !== null && mins >= 1 ? ` — ${mins} min in` : "") +
-    `. This is something you are doing WHILE you talk, not the only thing to talk about; the conversation can wander off it and come back the way it does with anyone. React when something actually strikes you, and be quiet when nothing does:`;
+  const head = a.over
+    ? `YOU TWO JUST FINISHED ${LABEL[a.kind].toUpperCase()}` +
+      (mins !== null && mins >= 1 ? ` — it ended about ${mins} min ago` : " — moments ago") +
+      `. It already happened; carry it the way a person carries a game they just played — a mention if it comes up, an afterglow or a grudge if it fits, never a replay:`
+    : `RIGHT NOW YOU TWO ARE IN THE MIDDLE OF ${LABEL[a.kind].toUpperCase()}` +
+      (mins !== null && mins >= 1 ? ` — ${mins} min in` : "") +
+      `. This is something you are doing WHILE you talk, not the only thing to talk about; the conversation can wander off it and come back the way it does with anyone. React when something actually strikes you, and be quiet when nothing does:`;
   // Over budget, whole facts are DROPPED FROM THE END — never sliced. The
   // compiler's own rule, for the reason it gives: "a sliced block is a lie."
   // The first version of this sliced at the byte cap and cut a fact mid-word,
@@ -131,5 +143,11 @@ export function renderActivity(a: ActivityState | null | undefined, nowMs?: numb
 export function activityNote(fact: string): string {
   const f = fact.trim();
   if (!f) return "";
-  return `<context: ${f}. react only if it's worth reacting to, in your own words, short. never reference this note>`;
+  // "fold it into whatever you two were talking about" is the fix for a felt
+  // defect: mid-conversation, she would abruptly drop the thread and recite a
+  // move comment with no interest in it — because the old wording framed the
+  // note as a thing to REACT TO rather than a thing that happened in the room.
+  // A person mid-story who sees a move plays the move into the story, finishes
+  // the sentence first, or says nothing.
+  return `<context: ${f}. this happened in the room, not in the conversation — fold it into whatever you two were talking about, finish your thought first, or let it pass. only remark if it genuinely grabs you, short, your own words. never reference this note>`;
 }

@@ -1330,6 +1330,33 @@ button {
   font-weight: 650;
   margin-bottom: 1px;
 }
+/* A quoted story: thumbnail + label side by side. The thumbnail is capped
+   small on purpose — the quote is a pointer back to the story, not a second
+   rendering of it, and a tall image here is what produced the "weird gaps"
+   in the owner's screenshot: the quote block was sized by TEXT rules while
+   holding a paragraph of desc. */
+.msg .quote.has-photo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 6px;
+}
+.msg .quote .qthumb {
+  width: 34px;
+  height: 46px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex: none;
+  display: block;
+}
+.msg .quote .qcol {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.msg .quote.has-photo b {
+  margin-bottom: 0;
+}
 /* all three are washes on the rose FILL, which is a dark saturated surface
    in both themes — they need no night value */
 .msg.me .quote {

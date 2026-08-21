@@ -79,6 +79,8 @@ const {
   findUnsupportedReceipts,
   findFalseAttributions,
   hisVocabulary,
+  findSharedPastFabrications,
+  sharedVocabulary,
   openCommitments,
   guardReply,
   createStreamGuard,
@@ -476,6 +478,89 @@ console.log("\n── 8. false attribution (family 3) ──");
   const g2 = guardReply({ bubbles: ["tune bola tha ki tera interview clear ho gaya"] }, { trustedText: ["system"], openItems: [] });
   report("absent vocabulary disables family 3", !g2.findings.some((f) => f.rule === "false-attribution"));
   report("absent vocabulary leaves the bubble alone", g2.reply.bubbles[0] === "tune bola tha ki tera interview clear ho gaya");
+}
+
+// ── 9. family 4: she claims a shared past that never happened ─────────────
+// The owner, from a live call: she said she had been looking at "our photos,
+// which we took on the beach when I was with her". No beach, no photos, no
+// trip. His verdict: her own stories are hers to make up; a made-up moment
+// WITH HIM is the one lie he can always catch, and the one that ends trust.
+//
+// As with family 3, the must-not-flag half is the product: retelling a real
+// shared moment, planning a future one, and teasing are all first-person
+// plural and all sacred.
+console.log("\n── 9. shared-past fabrication (family 4) ──");
+{
+  const HIS = [
+    { from: "me", text: "kal wali movie achhi thi yaar, ending was crazy" },
+    { from: "me", text: "chess me tune mujhe hara diya fir se" },
+    { from: "her", text: "hehe" },
+  ];
+  const his = hisVocabulary(HIS);
+  // the graph's memory text — a real remembered episode, provenance-clean
+  const shared = sharedVocabulary([
+    "episode: they watched a horror movie together on a call last week",
+    "ritual: chess game most evenings, she usually wins",
+  ]);
+  const support = new Set([...his, ...shared]);
+
+  // Fabricated shared history — the beach line itself, and its cousins.
+  const FABRICATED = [
+    "i was looking at our photos from that beach trip we took",
+    "yaad hai jab hum goa gaye the aur baarish ho gayi thi",
+    "humne saath me wo sunset dekha tha na",
+    "remember when we cooked pasta together and burned it",
+  ];
+  for (const s2 of FABRICATED) {
+    const hits = findSharedPastFabrications(s2, support);
+    report(`SHARED-PAST CAUGHT  ${s2.slice(0, 46)}`, hits.length > 0, JSON.stringify(hits.map((h) => h.unsupported)));
+  }
+
+  // Real shared moments, retold — from his words or from the graph.
+  const LEGITIMATE = [
+    "yaad hai humne wo movie dekhi thi, ending crazy thi",
+    "we watched that horror movie together na",
+    "humne kal chess kheli thi aur maine tujhe nahi haraya 😭",
+  ];
+  for (const s2 of LEGITIMATE) {
+    const hits = findSharedPastFabrications(s2, support);
+    report(`real moment survives  ${s2.slice(0, 44)}`, hits.length === 0, JSON.stringify(hits.map((h) => h.unsupported)));
+  }
+
+  // The FUTURE is hers to propose, and the present is hers to narrate —
+  // first-person plural without a past claim must never be touched.
+  const FUTURE_OR_PRESENT = [
+    "we should go to the beach someday",
+    "chal kabhi saath me pasta banayenge",
+    "our next game i am definitely winning",
+    "hum abhi baat kar rahe hai na, that counts",
+  ];
+  for (const s2 of FUTURE_OR_PRESENT) {
+    report(`future/present untouched  ${s2.slice(0, 40)}`, findSharedPastFabrications(s2, support).length === 0);
+  }
+
+  // HER OWN solo past stays hers to improvise — no "we", no flag.
+  for (const s2 of ["maine aaj pasta banaya tha", "i was reading my book just now"]) {
+    report(`her solo life untouched  ${s2.slice(0, 40)}`, findSharedPastFabrications(s2, support).length === 0);
+  }
+
+  // End to end through the gate, with the replacement's required properties.
+  const ctx = { trustedText: ["system"], openItems: [], hisVocab: his, sharedVocab: shared };
+  const BEACH = "i was just looking at our photos from that beach trip we took";
+  const g = guardReply({ bubbles: [BEACH] }, ctx);
+  report("guard flags the beach line", g.findings.some((f) => f.rule === "shared-past"), JSON.stringify(g.findings));
+  report("guard replaces the bubble", g.reply.bubbles[0] !== BEACH, g.reply.bubbles[0]);
+  report("replacement takes the confusion herself", !/tune|you (never|didn't)/i.test(g.reply.bubbles[0]), g.reply.bubbles[0]);
+  report("replacement does not restate the memory", !/beach|photo/i.test(g.reply.bubbles[0]), g.reply.bubbles[0]);
+
+  // Fail-closed at the caller: absent vocabularies, family silent.
+  const g2 = guardReply({ bubbles: [BEACH] }, { trustedText: ["system"], openItems: [] });
+  report("absent vocabulary disables family 4", !g2.findings.some((f) => f.rule === "shared-past"));
+
+  // And the wiring is real: brain.ts builds sharedVocab from the memory text.
+  const brainSrc = readFileSync(join(HERE, "../../src/engine/brain.ts"), "utf8");
+  report("brain.ts feeds the shared record", /sharedVocab:\s*sharedVocabulary\(/.test(brainSrc));
+  report("brain.ts does NOT use fullSystem for it", !/sharedVocabulary\(\[\s*fullSystem/.test(brainSrc));
 }
 
 console.log(fail ? `\n${fail} of ${pass + fail} FAILURES` : `\nALL ${pass} HONESTY CHECKS PASS`);

@@ -28,7 +28,7 @@
 import type { Game, MoveAssessment, Side } from "../engine/chess";
 import { assessLast } from "../engine/chess";
 import { chessActivity } from "../engine/chessTalk";
-import type { ActivityState } from "../engine/activity";
+import { LABEL, type ActivityState } from "../engine/activity";
 
 /**
  * A game in progress. `kind` is present from the first version even though
@@ -82,7 +82,49 @@ export function lastAssessment(s: GameSession | null | undefined): MoveAssessmen
  * silently lost a rule. Here the thing that would be lost is `nameable`, and
  * losing it makes the honesty gate flag real moves as invented.
  */
-export function activityOf(s: GameSession | null | undefined): ActivityState | null {
-  if (!s || s.closedAt) return null;
+export function activityOf(s: GameSession | null | undefined, nowMs?: number): ActivityState | null {
+  if (!s) return null;
+  if (s.closedAt) {
+    // A game that JUST ended is still part of the present moment. The owner
+    // hit the gap this window closes: she checkmated him, he called two
+    // minutes later, and — with the closed game rendering nothing — she had
+    // no idea a game had happened, invented what she "was doing" instead, and
+    // then asked him what move she should play. So for a while after the
+    // close, the activity stays, marked `over`, carrying who won. After the
+    // window it is the memory layer's job, not the present moment's.
+    //
+    // `startedAt` is deliberately the CLOSE time here, not the start: the
+    // renderer derives "N min ago" from it, and for a finished game the
+    // number a person carries is how long since it ENDED.
+    const now = nowMs ?? Date.now();
+    if (now - s.closedAt > RECENT_END_MS) return null;
+    const a = chessActivity(s.game, s.herSide, s.closedAt, lastAssessment(s));
+    return a.over ? a : { ...a, over: true };
+  }
   return chessActivity(s.game, s.herSide, s.startedAt, lastAssessment(s));
+}
+
+/**
+ * How long a finished game remains part of "right now". Two hours: long
+ * enough that a call twenty minutes after the ending still lands mid-afterglow,
+ * short enough that tomorrow it is a memory rather than a topic she is
+ * inexplicably still holding open.
+ */
+export const RECENT_END_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * One clause for the moment she picks up a call: what is going on, or just
+ * went on, between them. Kind-agnostic — it reads only the ActivityState —
+ * because the pickup line must keep working unchanged when the next game
+ * lands. Empty string when nothing is going on, which is most of the time.
+ */
+export function activityPickupLine(a: ActivityState | null | undefined): string {
+  if (!a || !a.facts.length) return "";
+  // LABEL is the same table the tail block renders from — one vocabulary for
+  // what an activity is called, or the pickup and the brief drift apart.
+  const what = LABEL[a.kind];
+  const detail = a.facts.join("; ");
+  return a.over
+    ? `you two JUST finished ${what} (${detail})`
+    : `you two are in the middle of ${what} right now (${detail})`;
 }
