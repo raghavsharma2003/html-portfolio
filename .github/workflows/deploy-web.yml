@@ -76,11 +76,36 @@ jobs:
           HAS_TOKEN: ${{ (secrets.VERCEL_TOKEN || secrets.VERCEL) != '' }}
           HAS_BRAIN: ${{ secrets.OPENROUTER_KEY != '' }}
           HAS_DB: ${{ secrets.NEON_URL != '' }}
+          # These three are NOT "nice to have". write-config.mjs turns a missing
+          # secret into "" (and GOOGLE_KEYS into []), which does not fail the
+          # build — it ships a site whose features are silently gone:
+          #   GOOGLE_KEYS ""  -> the free pool is empty, so chat and the TTS
+          #                      cascade have no primary lane and fall entirely
+          #                      onto the metered OpenRouter key
+          #   GOOGLE_KEY  ""  -> api/live-token.js cannot mint a session, so the
+          #                      realtime voice call — the lane that takes most
+          #                      calls — does not connect at all
+          #   SUPABASE_*  ""  -> api/memory.js returns 500 "no backend
+          #                      configured" on EVERY op, so memory, recall and
+          #                      photos are dead
+          #
+          # Gating on them exists because of the specific way this can go wrong:
+          # a partial secret set deploys GREEN over a working production and
+          # takes features away. That is worse than not deploying, and it is
+          # invisible — the same `startup-failure-is-invisible` shape, one layer
+          # up. AZURE_* is deliberately NOT gated: without it extraction falls
+          # back to OpenRouter, which costs money but breaks nothing.
+          HAS_POOL: ${{ secrets.GOOGLE_KEYS != '' }}
+          HAS_LIVE: ${{ secrets.GOOGLE_KEY != '' }}
+          HAS_STORE: ${{ secrets.SUPABASE_URL != '' && secrets.SUPABASE_KEY != '' }}
         run: |
           MISSING=""
           [ "$HAS_TOKEN" = "true" ] || MISSING="$MISSING VERCEL_TOKEN(or VERCEL)"
           [ "$HAS_BRAIN" = "true" ] || MISSING="$MISSING OPENROUTER_KEY"
           [ "$HAS_DB"    = "true" ] || MISSING="$MISSING NEON_URL"
+          [ "$HAS_POOL"  = "true" ] || MISSING="$MISSING GOOGLE_KEYS(free-pool:chat+tts)"
+          [ "$HAS_LIVE"  = "true" ] || MISSING="$MISSING GOOGLE_KEY(realtime-call)"
+          [ "$HAS_STORE" = "true" ] || MISSING="$MISSING SUPABASE_URL+SUPABASE_KEY(memory+photos)"
           if [ -n "$MISSING" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "::warning title=Deploys are not configured::Missing:$MISSING. The site is NOT being deployed automatically and will lag the branch. Add them in Settings → Secrets and variables → Actions → Repository secrets (NOT the Variables tab, NOT Environment secrets)."
