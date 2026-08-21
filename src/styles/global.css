@@ -3075,3 +3075,82 @@ input {
 }
 .story-reply-send:disabled { opacity: 0.32; cursor: default; }
 .story-reply-send:not(:disabled):active { transform: scale(0.9); }
+
+/* ── she is calling ──────────────────────────────────────────────────────
+   Full-screen on purpose. A call that can be scrolled past is not a call,
+   and asking for the room is the whole reason this is a call and not a text. */
+.incoming {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(var(--safe-top) + 56px) var(--s3) calc(var(--safe-bottom) + 44px);
+  background: var(--bg);
+  animation: inc-in 260ms var(--ease-out) both;
+}
+@keyframes inc-in {
+  from { opacity: 0; transform: scale(1.03); }
+}
+.inc-top { text-align: center; }
+.inc-name {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.inc-sub {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--ink-dim);
+}
+.inc-why { color: var(--ink-faint); }
+
+.inc-stage { position: relative; display: grid; place-items: center; }
+/* the ring made visible, on the same 2s period as the ringback burst pair */
+.inc-pulse {
+  position: absolute;
+  width: 196px;
+  height: 196px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  animation: inc-pulse 2s ease-out infinite;
+}
+@keyframes inc-pulse {
+  0% { transform: scale(1); opacity: 0.7; }
+  55% { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.inc-actions {
+  display: flex;
+  gap: 72px;
+  align-items: center;
+}
+.inc-btn {
+  width: 70px;
+  height: 70px;
+  border: 0;
+  border-radius: 50%;
+  font-size: 27px;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: var(--shadow-float);
+  transition: transform 140ms var(--ease-out);
+}
+.inc-btn:active { transform: scale(0.92); }
+.inc-btn.decline { background: var(--danger, #e5484d); }
+/* accept nudges, decline does not — the affordance leans the way a person
+   already wants to go, without hiding the other one */
+.inc-btn.accept {
+  background: var(--ok, #30a46c);
+  animation: inc-accept 2s ease-in-out infinite;
+}
+@keyframes inc-accept {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .incoming, .inc-pulse, .inc-btn.accept { animation: none; }
+}

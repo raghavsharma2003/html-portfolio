@@ -1188,7 +1188,7 @@ class LiveWatchEngine {
     JSONObject speech = new JSONObject();
     speech.put(
         "voiceConfig",
-        new JSONObject().put("prebuiltVoiceConfig", new JSONObject().put("voiceName", "Aoede")));
+        new JSONObject().put("prebuiltVoiceConfig", new JSONObject().put("voiceName", "Autonoe")));
     speech.put("languageCode", "hi-IN");
     gen.put("speechConfig", speech);
 

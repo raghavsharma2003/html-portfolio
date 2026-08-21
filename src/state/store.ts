@@ -66,6 +66,12 @@ export interface AppState {
   lastSeen: number;
   // her self-scheduled follow-up ("back in 20 min" → she texts first)
   followup?: { at: number; why: string } | null;
+  // She is calling BACK. Set only when a call ended while she was mid-sentence,
+  // which is a drop rather than a goodbye — and calling back after one is what
+  // a person does. REASON-CONTINGENT like every other unprompted move she
+  // makes (decisions.md#proactive-reason-contingent): the trigger is the drop,
+  // never a timer and never his silence.
+  callback?: { at: number; secs: number } | null;
   // what she has told them about her own life, newest first (bounded)
   herLife?: SelfFact[];
   // her carried interior: ONE feeling in her own words, and what she wants.

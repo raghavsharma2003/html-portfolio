@@ -2236,6 +2236,10 @@ export function useCallEngine(
   // from either side disarms it, so a phrase said mid-conversation cannot end
   // a call three sentences later.
   const HANGUP_GRACE_MS = 9_000;
+  /** Under this a call is a misdial, and calling back reads as pestering. */
+  const CALLBACK_MIN_SECS = 8;
+  /** Long enough to be a call BACK rather than the same call continuing. */
+  const CALLBACK_DELAY_MS = 25_000;
   const hangupArmed = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onEndRef = useRef<(() => void) | null>(null);
 
@@ -2269,6 +2273,28 @@ export function useCallEngine(
   }
 
   function endCall(onEnd: () => void) {
+    // ── did this call DROP, or did it end? ───────────────────────────────
+    // She was mid-sentence when the line went. A person calls back after that,
+    // and only after that — so the callback is armed here, on the one signal
+    // that distinguishes a drop from a goodbye, and never on a timer.
+    //
+    // Two suppressors, both necessary. A hangup he ASKED for is not a drop even
+    // if it lands mid-word (the grace window is generous, not exact). And a
+    // call under a few seconds is a misdial, where calling back reads as
+    // pestering rather than as the line failing.
+    // `speakingRef` is the live "she has audio playing right now" flag, set by
+    // the speaker start/stop callbacks on both lanes. `herSpokeUntil` is NOT
+    // this — it records when she LAST stopped, so comparing it to now can
+    // never be true, and the first version of this line was exactly that bug.
+    const midSentence = speakingRef.current;
+    const asked = hangupArmed.current !== null;
+    if (midSentence && !asked && elapsedRef.current >= CALLBACK_MIN_SECS) {
+      setState((st) => ({
+        ...st,
+        callback: { at: Date.now() + CALLBACK_DELAY_MS, secs: elapsedRef.current },
+      }));
+      diag("call", "callback_armed", { secs: elapsedRef.current });
+    }
     disarmHangup();
     alive.current = false;
     if (liveSession.current) {

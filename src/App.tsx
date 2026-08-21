@@ -4,6 +4,7 @@ import type { AuthInfo, AppState } from "./state/store";
 import Onboarding from "./components/Onboarding";
 import Chat from "./components/Chat";
 import CallVoice from "./components/CallVoice";
+import IncomingCall from "./components/IncomingCall";
 import AuthSheet from "./components/AuthSheet";
 import ClockCard from "./components/ClockCard";
 import { unlockAudio } from "./voice/speech";
@@ -305,6 +306,27 @@ export default function App() {
           />
           {inCall && (
             <CallVoice state={state} setState={setState} onEnd={() => setInCall(false)} />
+          )}
+          {/* She is calling back after a call that dropped mid-sentence. Never
+              while a call is already up, and never before its own due time —
+              the arming happens in useCallEngine, on the drop itself. */}
+          {!inCall && state.callback && Date.now() >= state.callback.at && (
+            <IncomingCall
+              secs={state.callback.secs}
+              onAccept={() => {
+                unlockAudio(); // inside the gesture, or mobile mutes her
+                setState((s) => ({ ...s, callback: null }));
+                track(state.deviceId, "call_started", { incoming: true }, state.auth?.userId);
+                setInCall(true);
+              }}
+              onDecline={() => {
+                // Cleared, not rescheduled. A declined call that comes back is
+                // a product nobody wants, and "she called, he said no" is a
+                // complete answer.
+                setState((s) => ({ ...s, callback: null }));
+                track(state.deviceId, "call_declined", { incoming: true }, state.auth?.userId);
+              }}
+            />
           )}
           {authOpen && (
             <AuthSheet
