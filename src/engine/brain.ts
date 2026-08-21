@@ -245,6 +245,10 @@ const META_LEAK =
 // "couldn't check" pass. It rides a widened type instead of HeartReply itself
 // because it is brain-internal — nothing downstream of think() reads it.
 export type ParsedReply = HeartReply & {
+  /** a single emoji she is putting ON his last message, WhatsApp-style —
+   *  `[react: X]`. Not a bubble: a reaction is a glance, and rendering it as
+   *  text would make her "say" an emoji she meant to stick on something. */
+  react?: string;
   searchBroken?: boolean;
   searchSalvaged?: boolean;
   // index in `bubbles` where she actually wrote the photo, so delivery can put
@@ -291,6 +295,28 @@ export function parseBubbles(raw: string): ParsedReply {
   // anything that looks like protocol must never reach the user as text ──
   raw = raw.replace(/\[\s*tone\s*:\s*([^\]\n]*)\]?/gi, (_m, mood) => {
     if (!out.tone && mood.trim()) out.tone = mood.trim().slice(0, 120);
+    return "";
+  });
+  // [react: X] — she puts ONE emoji on his last message. Extracted before the
+  // photo marker for no reason other than reading order; all of these are
+  // order-independent. Only the first is honoured and only if it is actually
+  // an emoji: a model that writes "[react: laughing]" must not stick the word
+  // "laughing" on his message, and the catch-all stripper below removes the
+  // marker either way so nothing leaks as text.
+  // GREEDY capture, and that is the whole bug this line already had once.
+  // Non-greedy (`{1,16}?`) against an OPTIONAL closing bracket lets the match
+  // stop after ONE code unit, which for an emoji is half a surrogate pair — so
+  // `[react: X]` stored a lone `\ud83d` and the closing bracket leaked into the
+  // bubbles. That is the `[giggles` incident this same function is already
+  // commented about, in a second place: a lazy quantifier plus an optional
+  // terminator truncates, every time. Caught by the eval, not by review.
+  raw = raw.replace(/\[\s*react\s*:\s*([^\]\n]{1,16})\]?/gi, (_m, e: string) => {
+    const t = e.trim();
+    // One emoji, never a word: a model writing "[react: laughing]" must stick
+    // nothing rather than the string "laughing". `[...t][0]` takes the first
+    // CODE POINT, so a multi-emoji payload keeps only the first and never
+    // splits one in half.
+    if (!out.react && t && !/[a-z0-9]/i.test(t)) out.react = [...t][0];
     return "";
   });
   raw = raw.replace(/\[\s*photo\s*:\s*([^\]\n]+?)\s*\]/gi, (_m, body: string) => {

@@ -94,6 +94,9 @@ const readDelay = (incoming: string) => {
   const words = incoming.split(/\s+/).filter(Boolean).length;
   return Math.min(3000, Math.max(600, (words / 4) * 1000));
 };
+/** WhatsApp's six, in WhatsApp's order — muscle memory is the whole point. */
+const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "🙏", "👍"] as const;
+
 const typeDelay = (bubble: string) => {
   const jitter = 0.8 + Math.random() * 0.5;
   return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
@@ -233,6 +236,26 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
           : m,
       ),
     }));
+
+  /**
+   * Put (or clear) one emoji on one message. Both directions land here: his tap
+   * on her bubble, and her `[react: X]` marker on his. One shared writer, so a
+   * reaction cannot mean two different things depending on who sent it.
+   */
+  const setReaction = (id: string, emoji: string | undefined) =>
+    setState((s) => ({
+      ...s,
+      messages: s.messages.map((m) => (m.id === id ? { ...m, reaction: emoji } : m)),
+    }));
+
+  /** The last thing HE said — what her `[react:]` lands on. */
+  const lastMineId = (): string | null => {
+    const hist = messagesRef.current;
+    for (let i = hist.length - 1; i >= 0; i--) {
+      if (hist[i].from === "me" && hist[i].channel !== "call") return hist[i].id;
+    }
+    return null;
+  };
 
   const cameOnline = () => {
     setHerOnline(true);
@@ -496,6 +519,18 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
     // into a latency number would make her look slow in exactly the data
     // used to decide whether she is slow.
     const replyIds = reply.bubbles.map(() => uid());
+    // Her reaction lands BEFORE the typing rhythm below, because that is what a
+    // reaction is: a person taps the emoji the moment they read it, then starts
+    // typing. Delivering it with the bubbles would make it arrive seconds late,
+    // which reads as a second thought rather than a first one.
+    const react = (reply as { react?: string }).react;
+    if (react) {
+      const target = lastMineId();
+      if (target) {
+        setReaction(target, react);
+        tel("chat.her_react", { msg_id: target });
+      }
+    }
     const replyKind = reply.photo ? "photo" : reply.voice ? "voice" : reply.gif ? "gif" : "text";
     tel("chat.reply", {
       msg_id: replyIds[0] ?? "",
@@ -1060,6 +1095,20 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
   // damped tracking past the trigger capped at 80px, 180ms decelerate
   // spring-back. touch-action: pan-y on the list keeps scrolling native.
   const swipe = useRef({ x: 0, y: 0, dx: 0, active: false, dead: false, fired: false, startedAt: 0 });
+  // ── WhatsApp's OTHER horizontal gesture: drag the thread LEFT and every row
+  // slides over to uncover its timestamp.
+  //
+  // Splitting the two directions is what makes both feel right, and it is also
+  // a fix. Reply used to fire on `Math.sign(dx)` — EITHER direction — so a left
+  // drag opened a reply chip, which is not what that gesture means in any app
+  // he uses. Right drags reply; left drags peek. Neither can be mistaken for
+  // the other, and vertical still wins for scrolling.
+  const PEEK_MAX = 62;
+  const peek = useRef(0);
+  const setPeek = (px: number) => {
+    peek.current = px;
+    scrollRef.current?.style.setProperty("--peek", `${px}px`);
+  };
   const release = useRef<{ stop: () => void } | null>(null);
   function swipeHandlers(m: Message) {
     return {
@@ -1089,10 +1138,17 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
           else if (Math.abs(dy) > 10) s.dead = true; // vertical won: it's a scroll
           return;
         }
-        // 1:1 to the trigger, then damped, hard cap 80px
+        // LEFT: the whole thread slides to uncover timestamps. Damped the same
+        // way the reply drag is, so the two gestures share one feel.
+        if (dx < 0) {
+          const m2 = -dx;
+          setPeek(Math.min(PEEK_MAX, Math.min(48, m2) + Math.max(0, m2 - 48) * 0.3));
+          return;
+        }
+        // RIGHT: 1:1 to the trigger, then damped, hard cap 80px
         const mag = Math.abs(dx);
         const damped = Math.min(48, mag) + Math.max(0, mag - 48) * 0.25;
-        s.dx = Math.sign(dx) * Math.min(80, damped);
+        s.dx = Math.min(80, damped);
         const el = e.currentTarget as HTMLElement;
         el.style.transition = "none";
         el.style.transform = `translateX(${s.dx}px)`;
@@ -1123,10 +1179,27 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
         } else {
           el.style.transform = "";
         }
-        if (s.active && Math.abs(s.dx) >= 48) {
+        if (s.active && s.dx >= 48) {
           setReplyTo(m);
           setReplySel(null);
           tel("chat.swipe_reply", { msg_id: m.id, from: m.from, via: "swipe" });
+        }
+        // The peek always springs back. It is a LOOK, not a mode — leaving the
+        // thread parked open would be a state he has to undo, and WhatsApp's
+        // does not do that either.
+        if (peek.current) {
+          const from = peek.current;
+          const t0 = performance.now();
+          const back = (now: number) => {
+            const k = Math.min(1, (now - t0) / 220);
+            // same ease-out the bubbles use, so the whole surface decelerates
+            // together instead of two things stopping at different times
+            setPeek(from * (1 - (1 - Math.pow(1 - k, 3))));
+            if (k < 1) requestAnimationFrame(back);
+            else setPeek(0);
+          };
+          requestAnimationFrame(back);
+          tel("chat.peek_time", { px: Math.round(from) });
         }
         swipe.current = { x: 0, y: 0, dx: 0, active: false, dead: false, fired: false, startedAt: 0 };
       },
@@ -1465,19 +1538,41 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
           {...swipeHandlers(m)}
         >
           {replySel === m.id && (
-            <button
-              className="reply-chip"
-              data-tel="chat.reply_chip"
-              onClick={(e) => {
-                e.stopPropagation();
-                setReplyTo(m);
-                setReplySel(null);
-                tel("chat.swipe_reply", { msg_id: m.id, from: m.from, via: "chip" });
-                inputRef.current?.focus();
-              }}
-            >
-              ↩ reply
-            </button>
+            // One bar, two affordances, because that is the same gesture he
+            // already uses everywhere else: tap a bubble, get the emoji row and
+            // the reply arrow. Tapping the emoji already ON the bubble clears
+            // it — WhatsApp's own toggle, and the only undo that needs no
+            // second menu.
+            <div className="react-bar" onClick={(e) => e.stopPropagation()}>
+              {QUICK_REACTIONS.map((emo) => (
+                <button
+                  key={emo}
+                  className={`react-pick ${m.reaction === emo ? "on" : ""}`}
+                  aria-label={m.reaction === emo ? `Remove ${emo} reaction` : `React ${emo}`}
+                  onClick={() => {
+                    const next = m.reaction === emo ? undefined : emo;
+                    setReaction(m.id, next);
+                    setReplySel(null);
+                    tel("chat.react", { msg_id: m.id, from: m.from, on: next ?? "" });
+                  }}
+                >
+                  {emo}
+                </button>
+              ))}
+              <button
+                className="reply-chip"
+                data-tel="chat.reply_chip"
+                onClick={() => {
+                  setReplyTo(m);
+                  setReplySel(null);
+                  tel("chat.swipe_reply", { msg_id: m.id, from: m.from, via: "chip" });
+                  inputRef.current?.focus();
+                }}
+                aria-label="Reply to this message"
+              >
+                ↩
+              </button>
+            </div>
           )}
           {m.replyTo && (
             <div className="quote">
@@ -1492,6 +1587,19 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, inCall }
               {m.from === "me" && <TickIcon status={m.status ?? "read"} />}
             </span>
           )}
+          {m.reaction && (
+            // Hangs off the bubble's bottom edge, so it reads as stuck ONTO the
+            // message rather than sent after it.
+            <span className="react-pill" aria-label={`Reacted ${m.reaction}`}>
+              {m.reaction}
+            </span>
+          )}
+          {/* Uncovered by dragging the thread left. aria-hidden because the
+              bubble's own accessible name already carries this time — a screen
+              reader should not hear the clock twice per message. */}
+          <span className="peek-t" aria-hidden="true">
+            {fmtTime(m.at)}
+          </span>
         </div>,
       );
     }

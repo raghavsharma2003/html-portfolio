@@ -43,6 +43,19 @@ const cases = [
     (r) => (r.voice?.text || "").includes("pagal hai")],
   // no voice-note text may ever leak a raw unclosed bracket to the bubble UI
   ["[voicenote: [giggles] chal theek hai]", (r) => !/\[[^\]]*$/.test(r.voice?.text || "")],
+
+  // ── [react: X] — she taps ONE emoji onto his last message ────────────────
+  // A reaction is a glance, not a bubble. The marker must never survive as
+  // text (that would read as her SAYING "[react: heart]"), and a word must
+  // never be accepted as an emoji: a model writing [react: laughing] has to
+  // stick nothing rather than the string "laughing".
+  ["[react: \u{1F602}]\nhaha kya scene tha",
+    (r) => r.react === "\u{1F602}" && r.bubbles.join(" ").includes("kya scene") && !r.bubbles.join(" ").includes("react")],
+  ["[react: \u2764\uFE0F]", (r) => r.react === "\u2764" && r.bubbles.length === 1 && r.bubbles[0] === "hmm?"],
+  ["[react: laughing] arre wah", (r) => !r.react && !r.bubbles.join(" ").toLowerCase().includes("react")],
+  // only the FIRST is honoured — one reply is one glance, never a stack
+  ["[react: \u{1F602}][react: \u2764\uFE0F] acha", (r) => r.react === "\u{1F602}"],
+  ["kya kar rha hai", (r) => !r.react],
 ];
 
 // ── the texting dash family ────────────────────────────────────────────────

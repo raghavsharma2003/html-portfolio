@@ -24,6 +24,11 @@ export interface Message {
   dur?: number; // voice notes: length in seconds
   spoken?: string; // her voice notes: raw expressive text (with audio tags)
   gifUrl?: string; // gif bubbles: resolved CDN url (cached after first fetch)
+  // A single emoji sitting on this bubble, WhatsApp-style. On HER messages it
+  // is his; on HIS it is hers, arriving as a [react: X] marker she emits. One
+  // per message on purpose — a reaction is a glance, and a stack of them is a
+  // thread, which is what the quote-reply already is.
+  reaction?: string;
   photoUrl?: string; // photos the USER sent (public storage url)
   desc?: string; // user photos: one-line vision description (context + memory)
 }

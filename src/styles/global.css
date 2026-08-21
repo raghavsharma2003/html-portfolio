@@ -2858,3 +2858,104 @@ input {
   100% { opacity: 0.35; }
   50% { opacity: 1; }
 }
+
+/* ── reactions, and the left-drag timestamp peek ─────────────────────────
+   Two gestures that both live on the thread and must never be mistaken for
+   each other: drag a bubble RIGHT to reply, drag the thread LEFT to see when
+   everything was sent. Reply used to fire on either direction, which is why a
+   left drag felt broken. */
+
+/* the emoji row that replaces the old single reply chip */
+.react-bar {
+  position: absolute;
+  top: -46px;
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  border: 1px solid var(--hairline);
+  z-index: 3;
+  animation: react-in 160ms var(--ease-out) both;
+}
+.msg.me .react-bar { right: 0; }
+.msg.her .react-bar { left: 0; }
+@keyframes react-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.94); }
+}
+.react-pick {
+  border: 0;
+  background: transparent;
+  font-size: 21px;
+  line-height: 1;
+  padding: 5px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 140ms var(--ease-out), background 140ms var(--ease-out);
+}
+.react-pick:hover { transform: scale(1.22); }
+.react-pick:active { transform: scale(0.9); }
+.react-pick.on { background: var(--accent-soft); transform: scale(1.12); }
+.react-bar .reply-chip {
+  font-size: 15px;
+  padding: 5px 9px;
+  margin-left: 2px;
+  border-left: 1px solid var(--hairline);
+  border-radius: 0 999px 999px 0;
+}
+
+/* the emoji stuck onto a bubble */
+.react-pill {
+  position: absolute;
+  bottom: -11px;
+  font-size: 14px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-card);
+  /* a reaction ARRIVING should be felt — it is the one thing in the thread
+     that appears without a new bubble */
+  animation: react-pop 260ms var(--ease-out) both;
+}
+.msg.me .react-pill { left: 8px; }
+.msg.her .react-pill { right: 8px; }
+@keyframes react-pop {
+  0% { opacity: 0; transform: scale(0.2); }
+  62% { transform: scale(1.18); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* ── the peek ──────────────────────────────────────────────────────────── */
+.chat-scroll { --peek: 0px; }
+/* Every row shifts by the same amount, so the thread moves as one sheet
+   rather than as forty independent bubbles. No transition: the transform is
+   driven by the finger on the way out and by rAF on the way back, and a CSS
+   transition on top of either one fights it. */
+.chat-scroll .msg,
+.chat-scroll .call-chip {
+  transform: translateX(calc(-1 * var(--peek)));
+}
+.peek-t {
+  position: absolute;
+  right: calc(-1 * var(--peek));
+  top: 50%;
+  width: 54px;
+  margin-top: -7px;
+  text-align: right;
+  padding-right: 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+  pointer-events: none;
+  white-space: nowrap;
+  /* fades in over the first third of the travel, so a stray 6px drag does not
+     flash the clock across the whole screen */
+  opacity: calc((var(--peek) / 62) * 1.6);
+}
+@media (prefers-reduced-motion: reduce) {
+  .react-bar, .react-pill { animation: none; }
+}
