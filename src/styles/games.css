@@ -556,8 +556,13 @@ button.as-call:active {
   gap: var(--s3);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--s4) calc(var(--safe-right) + var(--s3)) var(--s3)
-    calc(var(--safe-left) + var(--s3));
+  /* Biased ABOVE geometric centre. A board centred in the stage reads as
+     having slipped down the screen — the eye expects content at the optical
+     centre, which sits higher, and the board-UI review called the resulting
+     gap out ("~400px of empty ground above it"). The clamp keeps short
+     viewports from squeezing: the stage scrolls rather than clips. */
+  padding: var(--s4) calc(var(--safe-right) + var(--s3))
+    clamp(var(--s3), 9vh, 76px) calc(var(--safe-left) + var(--s3));
 }
 /* with no footer the stage owns the bottom safe area itself */
 .as[data-foot="off"] .as-stage {

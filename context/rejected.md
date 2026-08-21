@@ -1323,3 +1323,31 @@ had. Each read not as color but as lying, because he could check.
 **Now:** the directive takes the actual scene when the app knows it, and the
 improvisation is fenced to her solo day when it does not. The prompt asked her
 to be alive; it must never ask her to be alive AT the cost of the record.
+
+---
+
+## the-slide-that-never-ran
+
+**Tried:** animating chess moves by changing `transform` on a keyed list of
+piece nodes and letting a CSS transition slide them ("CSS slides it. No FLIP,
+no measuring, no rAF" — the comment was confident and the code did what it
+said).
+
+**What broke:** pieces teleported, always — and intermittently LOOKED right,
+which is why it survived. The piece list was built by walking squares 0…63, so
+a moved piece changed its position in the list; React honours order by
+removing and re-inserting the DOM node, and a node re-inserted in the same
+task has its before-change style reset. Chrome fired NO `transitionrun` at all
+(probed, not inferred). Short moves seemed to glide only when their list
+position happened not to change; knights never glided once.
+
+**Now:** `out.sort((a, b) => a.id - b.id)` — stable list order, so React only
+writes `style.transform` and the transition genuinely runs. Verified with
+`transitionrun`/`transitionend` listeners before and after, and the capture
+beat photographed at 8x slow-motion.
+
+**The generalisable rule:** a documented behaviour can be true of the CODE and
+false of the BROWSER for months when it fails intermittently. An animation
+claim is only real once an animation EVENT has been observed firing — "it
+looks like it moves" is not evidence, because the eye forgives a teleport at
+180ms.
