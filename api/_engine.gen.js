@@ -2604,12 +2604,14 @@ function renderRaised(rows) {
 var ACTIVITY_BUDGET = 420;
 var LABEL = {
   chess: "a game of chess",
-  watch: "watching their screen"
+  watch: "watching their screen",
+  wyr: "a round of would-you-rather",
+  ttt: "a game of tic tac toe"
 };
 function renderActivity(a, nowMs) {
   if (!a || !a.facts.length) return "";
   const mins = nowMs && a.startedAt && nowMs > a.startedAt ? Math.floor((nowMs - a.startedAt) / 6e4) : null;
-  const head = `RIGHT NOW YOU TWO ARE IN THE MIDDLE OF ${LABEL[a.kind].toUpperCase()}` + (mins !== null && mins >= 1 ? ` \u2014 ${mins} min in` : "") + `. This is something you are doing WHILE you talk, not the only thing to talk about; the conversation can wander off it and come back the way it does with anyone. React when something actually strikes you, and be quiet when nothing does:`;
+  const head = a.over ? `YOU TWO JUST FINISHED ${LABEL[a.kind].toUpperCase()}` + (mins !== null && mins >= 1 ? ` \u2014 it ended about ${mins} min ago` : " \u2014 moments ago") + `. It already happened; carry it the way a person carries a game they just played \u2014 a mention if it comes up, an afterglow or a grudge if it fits, never a replay:` : `RIGHT NOW YOU TWO ARE IN THE MIDDLE OF ${LABEL[a.kind].toUpperCase()}` + (mins !== null && mins >= 1 ? ` \u2014 ${mins} min in` : "") + `. This is something you are doing WHILE you talk, not the only thing to talk about; the conversation can wander off it and come back the way it does with anyone. React when something actually strikes you, and be quiet when nothing does:`;
   const rows = a.facts.map((f) => `- ${f}`);
   let text = `${head}
 ${rows.join("\n")}`;
