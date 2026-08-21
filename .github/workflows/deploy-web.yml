@@ -145,6 +145,20 @@ jobs:
       - run: npx tsc -b
       - run: node scripts/check-prompt-budget.mjs
       - run: node scripts/context.mjs --check
+      # THE SAFETY FLOOR. Until 2026-08-21 no workflow ran this, so the persona
+      # invariants — the crisis helplines, never-deny-being-an-AI, NEVER
+      # MANIPULATE, the spoken-register bullets — gated NOTHING in CI. They ran
+      # only when somebody remembered to run verify-release by hand. That is
+      # `gates-that-live-nowhere` in its purest form: a suite everyone believed
+      # was protecting the product while every push went around it.
+      #
+      # It could not have run before this: evals/trace/run.mjs reaches
+      # api/_trace.js -> api/_db.js -> api/_config.js, which is gitignored, so
+      # the import died before the suite got anywhere near the persona checks.
+      # --stub writes that file with every value empty — nothing granted, and
+      # an accidental query fails loudly rather than quietly reaching prod.
+      - run: node scripts/write-config.mjs --stub
+      - run: node evals/run.mjs
 
       # api/_config.js holds every key and is gitignored, so CI does not have
       # it. It is reconstructed here from secrets and never written to a log.

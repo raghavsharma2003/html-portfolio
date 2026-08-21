@@ -84,6 +84,24 @@ console.log(`wrote api/_config.js`);
 console.log(`  present: ${present.join(", ") || "(none)"}`);
 if (missing.length) console.log(`  MISSING: ${missing.join(", ")}`);
 
+// ── --stub ────────────────────────────────────────────────────────────────
+// A gate job needs this file to EXIST and needs no key in it.
+//
+// `api/_db.js` imports NEON_URL at module scope, so `api/_trace.js` does too,
+// so `evals/trace/run.mjs` does — and that suite is deliberately structural
+// with no database in it. Without this file the import fails to resolve and
+// the WHOLE eval suite dies before it reaches the persona invariants. That is
+// exactly why the suite has never run in CI: it could not.
+//
+// A stub is the honest fix rather than a mocked module. Every value is the
+// empty string, so nothing is granted, and an accidental query against an
+// empty NEON_URL fails loudly instead of quietly reaching production. The
+// deploy guard below is skipped because there is nothing to deploy.
+if (process.argv.includes("--stub")) {
+  console.log("  (--stub: no keys, gate use only — this build cannot deploy or reach the DB)");
+  process.exit(0);
+}
+
 // The site cannot function without these two: no OpenRouter key means she has
 // no brain and no voice fallback, no Neon URL means no memory at all. Failing
 // here is much cheaper than deploying a site that looks fine and answers 500.
