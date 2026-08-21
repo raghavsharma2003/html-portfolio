@@ -18,35 +18,78 @@
    shared curves. Nothing here invents a duration. --ease-in-out is the
    on-screen-movement curve and is what a piece travels on; --ease-out is for
    things arriving and leaving.
+
+   ── WHAT CHANGED, AND WHY ───────────────────────────────────────────────
+   The browns were lichess-brown, which is a beautiful board next to green
+   and blue chrome and slightly sour next to a warm-rose accent — the exact
+   failure DESIGN-STANDARDS names as the thing a lint cannot catch. They are
+   now a walnut with the red left in, mixed toward the app's own warmth.
+
+   The set is painted rather than filled: one shared vertical gradient per
+   colour (light at the shoulder, dark at the foot) plus a soft contact
+   shadow, which is what makes a piece read as turned wood instead of a
+   sticker. Both are <defs> declared ONCE for the board, so the cost is one
+   gradient rather than 32.
+
+   The board carries a finish — a whisper of weave and a vignette pulled in
+   from the frame. It is one overlay element at z-index 1, above the squares
+   and below the pieces, so it warms the board without dulling the set.
    ───────────────────────────────────────────────────────────────────────── */
 
 .cb {
-  /* squares */
-  --cb-light: #f0e2d2;
-  --cb-dark: #b98a63;
-  --cb-frame-bg: color-mix(in srgb, var(--cb-dark) 62%, var(--ink));
+  /* ── squares ── */
+  --cb-light: #f0e3d1;
+  --cb-dark: #a9816a;
+  /* the finish: a woven grain and a vignette, both barely there. If you can
+     see either of them as a THING, they are too strong. */
+  --cb-grain: rgba(58, 34, 22, 0.013);
+  --cb-vignette: rgba(46, 27, 19, 0.15);
+  --cb-inner-edge: rgba(38, 22, 15, 0.16);
+
+  /* ── the frame ── */
+  --cb-frame-hi: color-mix(in srgb, var(--cb-dark) 66%, var(--ink));
+  --cb-frame-lo: color-mix(in srgb, var(--cb-dark) 44%, var(--ink));
+  --cb-frame-edge: rgba(255, 244, 232, 0.16);
   --cb-frame-shadow: var(--shadow-card);
 
-  /* the set. Fill and rim are separate so a white piece keeps an edge on a
-     light square and a black piece keeps one on a dark square. */
-  --cb-white: #fbf7f3;
-  --cb-white-edge: #5c463a;
-  --cb-black: #2a211d;
-  --cb-black-edge: #0d0908;
+  /* ── the set ──
+     Five values per colour, not two. `hi`/`base`/`lo` are the gradient down
+     the piece; `edge` is the rim that keeps it off the square it stands on;
+     `line` is the interior detail, and it contrasts with the FILL rather
+     than with the board — dark lines on a white piece, light lines on a
+     black one. That last token is what stops a black knight at 44px being
+     the same blob as a black bishop. */
+  --cb-white-hi: #fffdfa;
+  --cb-white: #f8f1e9;
+  --cb-white-lo: #e4d6c7;
+  --cb-white-edge: #4e392e;
+  --cb-white-line: #7a6151;
 
-  /* marks on the board */
-  --cb-sel: color-mix(in srgb, var(--accent) 34%, transparent);
-  --cb-hint: rgba(38, 26, 18, 0.28);
-  --cb-last: color-mix(in srgb, var(--accent-warm) 32%, transparent);
+  --cb-black-hi: #4a3b36;
+  --cb-black: #2e2325;
+  --cb-black-lo: #1b1416;
+  --cb-black-edge: #110b0c;
+  --cb-black-line: rgba(240, 228, 221, 0.5);
+
+  --cb-cast: rgba(56, 32, 20, 0.32);
+
+  /* ── marks on the board ── */
+  --cb-sel: color-mix(in srgb, var(--accent) 30%, transparent);
+  --cb-sel-ring: color-mix(in srgb, var(--accent) 46%, transparent);
+  --cb-hint: rgba(40, 25, 16, 0.26);
+  --cb-last: color-mix(in srgb, var(--accent-warm) 27%, transparent);
+  --cb-last-to: color-mix(in srgb, var(--accent-warm) 42%, transparent);
   --cb-over: color-mix(in srgb, var(--accent) 78%, transparent);
-  --cb-check: var(--danger);
-  --cb-coord-on-light: color-mix(in srgb, var(--cb-dark) 88%, #000);
+  --cb-check: #d8402f;
+  --cb-coord-on-light: color-mix(in srgb, var(--cb-dark) 92%, #000);
   --cb-coord-on-dark: var(--cb-light);
 
-  /* chrome */
+  /* ── chrome ── */
   --cb-tray-ink: var(--ink-dim);
-  --cb-scrim: rgba(32, 22, 20, 0.5);
+  --cb-tray-pill: rgba(40, 25, 16, 0.07);
+  --cb-scrim: rgba(32, 22, 20, 0.46);
   --cb-promo-bg: var(--surface);
+  --cb-promo-edge: rgba(40, 25, 16, 0.1);
 
   display: flex;
   flex-direction: column;
@@ -69,8 +112,9 @@
    thing to a board — the room is dark — so both take the SAME values, and
    that is what stops them compounding: a dark board inside a dark theme
    cannot double-darken into mud, because applying this set twice is applying
-   it once. (The paper set above would have compounded: it is mixed out of
-   `--ink` and `--shadow-card`, which the theme moves underneath it.)
+   it once. (The paper set above would have compounded: several of its
+   tokens are mixed out of `--ink`, `--accent` and `--shadow-card`, which the
+   theme moves underneath them. Every one of those is restated here.)
 
    The `:not([data-theme="light"])` guard is the same one global.css uses —
    an explicit light choice has to beat a dark OS here too, or someone who
@@ -80,46 +124,90 @@
    second is left unindented so a plain diff can prove it. */
 .cb[data-tone="dark"],
 :root[data-theme="dark"] .cb {
-  --cb-light: #55433f;
-  --cb-dark: #2e2326;
-  --cb-frame-bg: rgba(0, 0, 0, 0.42);
+  --cb-light: #5d4a45;
+  --cb-dark: #33272a;
+  --cb-grain: rgba(255, 240, 232, 0.011);
+  --cb-vignette: rgba(0, 0, 0, 0.34);
+  --cb-inner-edge: rgba(0, 0, 0, 0.45);
+
+  --cb-frame-hi: #2a1e20;
+  --cb-frame-lo: #181012;
+  --cb-frame-edge: rgba(255, 240, 232, 0.09);
   --cb-frame-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.8);
 
-  --cb-white: #efe6e2;
+  --cb-white-hi: #fdf9f6;
+  --cb-white: #eee3dd;
+  --cb-white-lo: #cbbbb3;
   --cb-white-edge: #2a1c1f;
-  --cb-black: #191113;
-  --cb-black-edge: #8d7873;
+  --cb-white-line: #5f4b48;
 
-  --cb-hint: rgba(255, 242, 238, 0.32);
-  --cb-last: color-mix(in srgb, var(--accent-warm) 44%, transparent);
-  --cb-coord-on-light: #241619;
-  --cb-coord-on-dark: rgba(245, 240, 238, 0.86);
+  --cb-black-hi: #2e2326;
+  --cb-black: #1b1315;
+  --cb-black-lo: #0e090a;
+  --cb-black-edge: #9c8681;
+  --cb-black-line: rgba(240, 228, 224, 0.44);
+
+  --cb-cast: rgba(0, 0, 0, 0.5);
+
+  --cb-sel: color-mix(in srgb, var(--accent) 36%, transparent);
+  --cb-sel-ring: color-mix(in srgb, var(--accent) 54%, transparent);
+  --cb-hint: rgba(255, 242, 238, 0.26);
+  --cb-last: color-mix(in srgb, var(--accent-warm) 24%, transparent);
+  --cb-last-to: color-mix(in srgb, var(--accent-warm) 36%, transparent);
+  --cb-over: color-mix(in srgb, var(--accent) 88%, transparent);
+  --cb-check: #ef5340;
+  --cb-coord-on-light: #251719;
+  --cb-coord-on-dark: rgba(245, 240, 238, 0.8);
 
   --cb-tray-ink: rgba(245, 240, 238, 0.74);
+  --cb-tray-pill: rgba(255, 240, 232, 0.08);
   --cb-scrim: rgba(10, 6, 7, 0.62);
   --cb-promo-bg: #2b1e20;
+  --cb-promo-edge: rgba(255, 240, 232, 0.12);
 }
 
 @media (prefers-color-scheme: dark) {
 :root:not([data-theme="light"]) .cb {
-  --cb-light: #55433f;
-  --cb-dark: #2e2326;
-  --cb-frame-bg: rgba(0, 0, 0, 0.42);
+  --cb-light: #5d4a45;
+  --cb-dark: #33272a;
+  --cb-grain: rgba(255, 240, 232, 0.011);
+  --cb-vignette: rgba(0, 0, 0, 0.34);
+  --cb-inner-edge: rgba(0, 0, 0, 0.45);
+
+  --cb-frame-hi: #2a1e20;
+  --cb-frame-lo: #181012;
+  --cb-frame-edge: rgba(255, 240, 232, 0.09);
   --cb-frame-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.8);
 
-  --cb-white: #efe6e2;
+  --cb-white-hi: #fdf9f6;
+  --cb-white: #eee3dd;
+  --cb-white-lo: #cbbbb3;
   --cb-white-edge: #2a1c1f;
-  --cb-black: #191113;
-  --cb-black-edge: #8d7873;
+  --cb-white-line: #5f4b48;
 
-  --cb-hint: rgba(255, 242, 238, 0.32);
-  --cb-last: color-mix(in srgb, var(--accent-warm) 44%, transparent);
-  --cb-coord-on-light: #241619;
-  --cb-coord-on-dark: rgba(245, 240, 238, 0.86);
+  --cb-black-hi: #2e2326;
+  --cb-black: #1b1315;
+  --cb-black-lo: #0e090a;
+  --cb-black-edge: #9c8681;
+  --cb-black-line: rgba(240, 228, 224, 0.44);
+
+  --cb-cast: rgba(0, 0, 0, 0.5);
+
+  --cb-sel: color-mix(in srgb, var(--accent) 36%, transparent);
+  --cb-sel-ring: color-mix(in srgb, var(--accent) 54%, transparent);
+  --cb-hint: rgba(255, 242, 238, 0.26);
+  --cb-last: color-mix(in srgb, var(--accent-warm) 24%, transparent);
+  --cb-last-to: color-mix(in srgb, var(--accent-warm) 36%, transparent);
+  --cb-over: color-mix(in srgb, var(--accent) 88%, transparent);
+  --cb-check: #ef5340;
+  --cb-coord-on-light: #251719;
+  --cb-coord-on-dark: rgba(245, 240, 238, 0.8);
 
   --cb-tray-ink: rgba(245, 240, 238, 0.74);
+  --cb-tray-pill: rgba(255, 240, 232, 0.08);
   --cb-scrim: rgba(10, 6, 7, 0.62);
   --cb-promo-bg: #2b1e20;
+  --cb-promo-edge: rgba(255, 240, 232, 0.12);
 }
 }
 
@@ -127,12 +215,19 @@
 
 /* The frame is padding, not a border: the gap around the squares reads as
    the edge of a real board, and it gives the corner squares somewhere to
-   stop without rounding them (boards have square corners). */
+   stop without rounding them (boards have square corners).
+
+   It is a gradient rather than a flat fill, lit from the top, plus a single
+   hairline on its own top edge. That hairline is doing most of the work —
+   it is the difference between a board sitting ON the page and a brown
+   rectangle printed on it. */
 .cb-frame {
-  padding: 6px;
+  padding: 7px;
   border-radius: var(--r-sm);
-  background: var(--cb-frame-bg);
-  box-shadow: var(--cb-frame-shadow);
+  background: linear-gradient(180deg, var(--cb-frame-hi), var(--cb-frame-lo));
+  box-shadow:
+    inset 0 1px 0 var(--cb-frame-edge),
+    var(--cb-frame-shadow);
 }
 
 .cb-board {
@@ -145,6 +240,28 @@
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* The finish. One element's worth of paint over sixty-four squares:
+   a woven grain, a vignette pulled in from the frame, and the inner shadow
+   the frame casts onto the squares. Sits ABOVE the squares (so it warms the
+   highlights too) and BELOW the pieces (so it never dulls the set). */
+.cb-board::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      115deg,
+      var(--cb-grain) 0 1px,
+      transparent 1px 4px
+    ),
+    radial-gradient(130% 120% at 50% 28%, transparent 44%, var(--cb-vignette) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--cb-inner-edge),
+    inset 0 5px 12px -8px var(--cb-vignette);
 }
 
 .cb-row {
@@ -180,29 +297,52 @@
   inset: 0;
   pointer-events: none;
 }
+/* The move that was just played. Both ends are tinted — you need to see
+   where it came FROM — but the destination is tinted harder, because that
+   asymmetry is the only thing on a still board that says which way the move
+   ran. It fades in rather than appearing, so a move she plays while you are
+   looking elsewhere still registers in peripheral vision. */
 .cb-sq[data-last]::before {
   background: var(--cb-last);
+  animation: cb-land var(--d-tap) var(--ease-out) both;
 }
+.cb-sq[data-last-to]::before {
+  background: var(--cb-last-to);
+}
+@keyframes cb-land {
+  from { opacity: 0; }
+}
+/* The check glow. It GLOWS rather than shouts: a soft radial bloom centred
+   on the king that beats three times and then stays down at a level you can
+   still see but no longer notice. A check that flashes and leaves no trace
+   is a check you can miss by blinking; one that keeps flashing is a fire
+   alarm in a board game. */
 .cb-sq[data-check]::before {
+  /* The bloom is WIDE on purpose. This layer sits under the piece layer, so
+     a glow concentrated at the centre of the square is a glow drawn entirely
+     behind the king — the first version of this was invisible in the paper
+     tone for exactly that reason. What you actually see is the annulus
+     outside the silhouette, so that is where the light has to be. */
   background: radial-gradient(
     circle closest-side,
-    var(--cb-check) 0%,
-    color-mix(in srgb, var(--cb-check) 42%, transparent) 56%,
-    transparent 84%
+    color-mix(in srgb, var(--cb-check) 74%, transparent) 0%,
+    color-mix(in srgb, var(--cb-check) 82%, transparent) 58%,
+    color-mix(in srgb, var(--cb-check) 46%, transparent) 92%,
+    transparent 100%
   );
-  /* three beats, then it stays at the last keyframe. A check that flashes
-     and then leaves no trace is a check you can miss by blinking. */
   animation: cb-check 1.3s var(--ease-out) 3 both;
 }
 @keyframes cb-check {
-  0% { opacity: 0.4; }
-  45% { opacity: 1; }
-  100% { opacity: 0.6; }
+  0% { opacity: 0.3; }
+  40% { opacity: 1; }
+  100% { opacity: 0.62; }
 }
 
-/* the lit piece */
+/* the lit piece: a wash plus a rim, so the selection reads at the edge of
+   vision even where a piece covers most of the wash */
 .cb-sq[data-sel] {
   background-image: linear-gradient(var(--cb-sel), var(--cb-sel));
+  box-shadow: inset 0 0 0 2px var(--cb-sel-ring);
 }
 /* the square a dragged piece is currently over */
 .cb-sq[data-over] {
@@ -220,14 +360,14 @@
   transition: opacity var(--d-tap) var(--ease-out);
 }
 .cb-sq[data-dest]::after {
-  background: radial-gradient(circle closest-side, var(--cb-hint) 0 29%, transparent 30%);
+  background: radial-gradient(circle closest-side, var(--cb-hint) 0 22%, transparent 23%);
 }
 .cb-sq[data-cap]::after {
   background: radial-gradient(
     circle closest-side,
-    transparent 0 78%,
-    var(--cb-hint) 79% 92%,
-    transparent 93%
+    transparent 0 80%,
+    var(--cb-hint) 81% 96%,
+    transparent 97%
   );
 }
 .cb-sq[data-dest]:active::after,
@@ -237,16 +377,21 @@
 
 /* ── coordinates ────────────────────────────────────────────────────────
    Ranks up the left file, files along the bottom rank, each drawn in the
-   OTHER square colour so it never needs a shadow to stay legible. Fifteen
-   small marks in the corners of the border squares — present when looked
-   for, invisible when not. */
+   OTHER square colour so it never needs a shadow to stay legible.
+
+   Deliberately BELOW the type scale. A board coordinate is a mark in the
+   corner of a square, sized to the square, not text sized to the reader —
+   at --t-meta it is a label competing with the pieces, and at 44px squares
+   that competition is visible. Two steps down and half-faded, it is
+   present when looked for and gone when not. */
 .cb-coord {
   position: absolute;
   font-family: var(--font-ui);
-  font-size: var(--t-meta);
-  font-weight: 600;
+  font-size: calc(var(--t-meta) - 2px);
+  font-weight: 650;
+  letter-spacing: 0.01em;
   line-height: 1;
-  opacity: 0.68;
+  opacity: 0.5;
   pointer-events: none;
   color: var(--cb-coord-on-dark);
 }
@@ -273,6 +418,11 @@
   z-index: 2;
 }
 
+/* 180ms on --ease-in-out: the on-screen-movement curve, at the tap step of
+   the duration scale. It was 220ms and read as gliding; a played move should
+   be PLACED. `will-change` is 32 small compositor layers (~270KB at phone
+   size) bought to keep the travel off the main thread on a mid-range
+   Android, which is where this app actually runs. */
 .cb-piece {
   position: absolute;
   top: 0;
@@ -282,7 +432,15 @@
   display: grid;
   place-items: center;
   z-index: 2;
-  transition: transform var(--d-state) var(--ease-in-out);
+  will-change: transform;
+  transition: transform var(--d-tap) var(--ease-in-out);
+}
+
+/* A travelling piece passes OVER the board, not through it — otherwise a
+   knight crossing a friendly pawn slides underneath it and the move reads
+   as two pieces glitching rather than one piece moving. */
+.cb-piece[data-moving] {
+  z-index: 4;
 }
 
 /* Lifted: the transition is suspended so it tracks the finger exactly, it
@@ -291,61 +449,106 @@
    paying to say something the board already says. */
 .cb-piece[data-dragging] {
   transition: none;
-  z-index: 5;
+  z-index: 6;
 }
 .cb-piece[data-dragging] .cb-glyph {
-  transform: scale(1.22);
-  filter: drop-shadow(0 6px 8px rgba(20, 12, 10, 0.42));
+  transform: scale(1.18);
+  filter: drop-shadow(0 7px 9px var(--cb-cast));
 }
 
-/* Taken: held one beat under the piece that took it, swelling once as it is
-   knocked and then collapsing. Removing it on the same frame makes a capture
-   feel like a bookkeeping update rather than a thing that happened. */
+/* The square you lifted FROM keeps a faint copy of the piece while the real
+   one is under your finger. Stolen from chessground, and it earns its place
+   on a phone: a thumb covers the origin square completely, so without it
+   there is no way to see what you picked up or put it back deliberately. */
+.cb-piece[data-source] {
+  z-index: 1;
+  opacity: 0.26;
+}
+
+/* Taken: held one beat under the piece that took it, then sinking away
+   rather than blinking out. It used to spin and shrink to a fifth of its
+   size, which read as cartoon rather than chess — a taken piece is lifted
+   off the board, so it fades and settles. */
 .cb-piece[data-ghost] {
   z-index: 1;
 }
+/* THE DELAY IS THE POINT, and it is exactly the travel time. Without it the
+   victim fades while the piece taking it is still crossing the board, so the
+   square is empty before anything reaches it and the capture reads as two
+   unrelated events. Held at full strength for --d-tap, then knocked and
+   sunk: the taker lands ON it, and it goes. */
 .cb-piece[data-ghost] .cb-glyph {
-  animation: cb-take 280ms var(--ease-out) both;
+  animation: cb-take 220ms var(--ease-out) var(--d-tap) both;
 }
 @keyframes cb-take {
-  0% { transform: scale(1) rotate(0); opacity: 1; }
-  32% { transform: scale(1.07) rotate(-4deg); opacity: 0.94; }
-  100% { transform: scale(0.4) rotate(8deg); opacity: 0; }
+  0% { transform: scale(1); opacity: 1; }
+  25% { transform: scale(1.04); opacity: 0.92; }
+  100% { transform: scale(0.84); opacity: 0; }
 }
+
+/* ── the set's paint ────────────────────────────────────────────────────
+   `--cb-paint-*` are `url(#…)` references to the gradients in <PieceDefs>,
+   handed in by the component as inline custom properties. An id is not a
+   colour: every colour they resolve to is a stop below, off the tokens. */
+.cb-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.cb-grad-w .cb-s0 { stop-color: var(--cb-white-hi); }
+.cb-grad-w .cb-s1 { stop-color: var(--cb-white); }
+.cb-grad-w .cb-s2 { stop-color: var(--cb-white-lo); }
+.cb-grad-b .cb-s0 { stop-color: var(--cb-black-hi); }
+.cb-grad-b .cb-s1 { stop-color: var(--cb-black); }
+.cb-grad-b .cb-s2 { stop-color: var(--cb-black-lo); }
+.cb-grad-c .cb-c0 { stop-color: var(--cb-cast); }
+.cb-grad-c .cb-c1 { stop-color: color-mix(in srgb, var(--cb-cast) 55%, transparent); }
+.cb-grad-c .cb-c2 { stop-color: transparent; }
 
 .cb-glyph {
   display: block;
-  width: 84%;
-  height: 84%;
+  width: 88%;
+  height: 88%;
   overflow: visible;
-  stroke-width: 1.15;
+  stroke-width: 1.4;
   stroke-linejoin: round;
   stroke-linecap: round;
   transition: transform var(--d-press) var(--ease-out), filter var(--d-press) var(--ease-out);
 }
-.cb-glyph path,
-.cb-glyph circle {
-  fill: var(--gf);
+.cb-glyph .cb-part {
+  fill: var(--gp);
   stroke: var(--gs);
 }
-.cb-glyph[data-color="white"] {
-  --gf: var(--cb-white);
-  --gs: var(--cb-white-edge);
+/* interior detail — contrasts with the FILL, not the board */
+.cb-glyph .cb-line {
+  fill: none;
+  stroke: var(--gd);
+  stroke-width: 1.5;
 }
-.cb-glyph[data-color="black"] {
-  --gf: var(--cb-black);
-  --gs: var(--cb-black-edge);
-}
-/* the knight's eye and the bishop's cut, drawn in the rim colour so they
-   survive both inkings */
-.cb-glyph .cb-mark {
-  fill: var(--gs);
+.cb-glyph .cb-dot {
+  fill: var(--gd);
   stroke: none;
 }
-.cb-glyph .cb-slit {
-  fill: none;
-  stroke: var(--gs);
-  stroke-width: 2;
+/* the contact shadow, under everything and outside the rim */
+.cb-glyph .cb-cast {
+  fill: var(--cb-paint-cast, transparent);
+  stroke: none;
+}
+/* The fallbacks are the flat token, for a glyph rendered outside a board
+   that carries <PieceDefs> — a `var()` that resolves to nothing makes the
+   whole declaration invalid at computed-value time, and an invalid `fill`
+   is BLACK. A white king silently inking itself black is not a failure
+   mode worth saving four characters over. */
+.cb-glyph[data-color="white"] {
+  --gp: var(--cb-paint-white, var(--cb-white));
+  --gs: var(--cb-white-edge);
+  --gd: var(--cb-white-line);
+}
+.cb-glyph[data-color="black"] {
+  --gp: var(--cb-paint-black, var(--cb-black));
+  --gs: var(--cb-black-edge);
+  --gd: var(--cb-black-line);
 }
 
 /* ── promotion ──────────────────────────────────────────────────────────
@@ -363,6 +566,8 @@
   width: 100%;
   height: 100%;
   background: var(--cb-scrim);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   border: 0;
   animation: cb-fade var(--d-tap) var(--ease-out);
 }
@@ -376,7 +581,9 @@
   flex-direction: column;
   border-radius: var(--r-sm);
   background: var(--cb-promo-bg);
-  box-shadow: var(--shadow-float);
+  box-shadow:
+    inset 0 0 0 1px var(--cb-promo-edge),
+    var(--shadow-float);
   overflow: hidden;
   animation: cb-promo-in var(--d-state) var(--ease-out) both;
 }
@@ -388,7 +595,7 @@
   flex-direction: column-reverse;
 }
 @keyframes cb-promo-in {
-  from { opacity: 0; transform: scaleY(0.6); }
+  from { opacity: 0; transform: scaleY(0.72); }
 }
 .cb-promo-opt {
   position: relative;
@@ -399,34 +606,51 @@
   background: none;
   transition: background var(--d-press) var(--ease-out);
 }
+/* hairline between the four choices, drawn by the tile below so the strip's
+   own rounded corners stay clean */
+.cb-promo-opt + .cb-promo-opt::before {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 0;
+  border-top: 1px solid var(--cb-promo-edge);
+}
 .cb-promo-opt:active {
   background: var(--cb-sel);
 }
 .cb-promo-opt .cb-glyph {
-  width: 78%;
-  height: 78%;
+  width: 82%;
+  height: 82%;
 }
 
 /* ── captured trays ─────────────────────────────────────────────────────
-   Overlapped, the way taken pieces actually end up beside a board, with the
-   material count only on the side that is ahead. Fixed height so the board
-   does not jump down the screen on the first capture. */
+   Overlapped, the way taken pieces actually end up beside a board, but
+   grouped by role with a breath between groups — five overlapped pawns and
+   a rook read as "five and one" rather than as a smear. The material count
+   sits in a quiet pill on the side that is ahead, and only on that side.
+   Fixed height so the board does not jump down the screen on the first
+   capture. */
 .cb-tray {
   display: flex;
   align-items: center;
-  min-height: 24px;
+  min-height: 26px;
   padding: 0 var(--s1);
 }
 .cb-tray-pieces {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  opacity: 0.92;
 }
 .cb-tray-piece {
   display: block;
-  width: 21px;
-  height: 21px;
-  margin-right: -7px;
+  width: 22px;
+  height: 22px;
+  margin-right: -8px;
+}
+.cb-tray-piece[data-group] {
+  margin-left: 12px;
 }
 .cb-tray-piece:last-child {
   margin-right: 0;
@@ -436,7 +660,10 @@
   height: 100%;
 }
 .cb-material {
-  margin-left: 12px;
+  margin-left: 14px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--cb-tray-pill);
   font-size: var(--t-meta);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
@@ -445,7 +672,7 @@
 
 /* ── reduced motion ─────────────────────────────────────────────────────
    Everything still HAPPENS — the piece is on the new square, the taken
-   piece is gone, the king's square is still red. It just stops travelling. */
+   piece is gone, the king's square is still lit. It just stops travelling. */
 @media (prefers-reduced-motion: reduce) {
   .cb-piece,
   .cb-glyph,
@@ -460,9 +687,12 @@
     animation: none;
     opacity: 0;
   }
+  .cb-sq[data-last]::before {
+    animation: none;
+  }
   .cb-sq[data-check]::before {
     animation: none;
-    opacity: 0.75;
+    opacity: 0.7;
   }
   .cb-promo-strip,
   .cb-promo-scrim {

@@ -7,24 +7,29 @@
 // it never decides what is allowed. If it is not in `legalMoves`, it cannot
 // be played here, full stop.
 //
-// The three things that make it feel physical:
+// The four things that make it feel physical:
 //   1. Pieces are one absolutely-positioned layer keyed by a STABLE id, not
 //      by square. When the FEN changes, the id that was on `lastMove.from`
 //      is carried to `lastMove.to`, so the same DOM node changes transform
 //      and CSS slides it. No FLIP, no measuring, no rAF.
-//   2. A captured piece is held on screen for one beat as a ghost and
-//      collapses under the piece that took it, instead of blinking out.
-//   3. A drag is the same element, transition suspended, following the
-//      finger; letting go of an illegal square just restores the transform
-//      and the piece walks itself home.
+//   2. A piece in flight is lifted above the rest of the set for exactly as
+//      long as it travels (`flying` → `data-moving`). Without that, a knight
+//      slides UNDERNEATH the pawn it is jumping and the move reads as two
+//      pieces glitching rather than one piece moving.
+//   3. A captured piece is held on screen for one beat as a ghost and sinks
+//      away under the piece that took it, instead of blinking out.
+//   4. A drag is the same element, transition suspended, following the
+//      finger, with a faint copy left on the square it came from (a thumb
+//      covers that square completely); letting go of an illegal square just
+//      restores the transform and the piece walks itself home.
 //
 // Tap-to-move and drag-to-move are the same state machine, not two — see
 // `onDown`/`onUp`. Phone users split roughly evenly between the two and the
 // ones who drag will occasionally tap, mid-game, without noticing.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import "../styles/chess.css";
-import { PieceGlyph, ROLE_NAME, ROLE_VALUE } from "./chess/pieces";
+import { PieceDefs, PieceGlyph, ROLE_NAME, ROLE_VALUE, piecePaintVars } from "./chess/pieces";
 import type { Color, PromotionRole, Role } from "./chess/pieces";
 import { tap, ImpactStyle } from "../native/haptics";
 
@@ -166,11 +171,19 @@ export default function ChessBoard({
   const inCheck = inCheckIn ? toColor(inCheckIn) : null;
 
   const boardRef = useRef<HTMLDivElement | null>(null);
+  // Per-mount, so two boards on one page cannot steal each other's paint.
+  // `:` is legal in an id but not in a `url(#…)` fragment without escaping.
+  const paintId = useId().replace(/:/g, "");
 
   const [pieces, setPieces] = useState<Placed[]>([]);
   const [ghosts, setGhosts] = useState<Placed[]>([]);
+  // The ids currently in flight. Only used to lift them above the rest of the
+  // set for the length of the travel: a knight that slides UNDER the pawn it
+  // is jumping reads as two pieces glitching, not as one piece moving.
+  const [flying, setFlying] = useState<readonly number[]>([]);
   const prevRef = useRef<{ board: (Piece | null)[]; pieces: Placed[] } | null>(null);
   const ghostTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const flyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Depended on as two strings, never as the object. A parent that rebuilds
   // `{from,to}` inline on every render — which is the normal way to write a
@@ -222,6 +235,7 @@ export default function ChessBoard({
 
     const used = new Set<number>();
     const out: Placed[] = [];
+    const inFlight: number[] = [];
     for (let sq = 0; sq < 64; sq++) {
       const piece = board[sq];
       if (!piece) continue;
@@ -236,6 +250,7 @@ export default function ChessBoard({
         (src !== undefined || cand.role === piece.role);
       const id = reusable ? cand.id : nextId++;
       if (reusable) used.add(cand.id);
+      if (reusable && src !== undefined) inFlight.push(id);
       const placed: Placed = { id, sq, role: piece.role, color: piece.color };
       out.push(placed);
       byId.set(id, placed);
@@ -254,16 +269,46 @@ export default function ChessBoard({
       }
     }
 
+    // DOM ORDER MUST BE STABLE, and this line is the whole slide.
+    //
+    // `out` is built by walking squares 0…63, so a piece that moves changes
+    // its POSITION in the list as well as its transform — e5→d4 moves it
+    // seven places later. React honours that by re-inserting the node, and a
+    // node removed and re-inserted in the same task has its before-change
+    // style reset: Chrome fires no `transitionrun` at all and the piece
+    // teleports. It was doing exactly that, silently, for every move long
+    // enough to overtake another piece in square order — which is why short
+    // moves appeared to glide and knights never did.
+    //
+    // Sorting by the stable id means the list order never changes for a
+    // move, React only writes `style.transform`, and the transition runs.
+    // Ids are assigned in creation order, so a promoted piece simply appends.
+    out.sort((a, b) => a.id - b.id);
     prevRef.current = { board, pieces: out };
     setPieces(out);
+    if (inFlight.length) {
+      setFlying(inFlight);
+      clearTimeout(flyTimer.current);
+      // One tick past --d-tap (180ms). Held a beat longer than the travel so
+      // the piece is fully down before it rejoins the rest of the set.
+      flyTimer.current = setTimeout(() => setFlying([]), 240);
+    }
     if (dead.length) {
       setGhosts(dead);
       clearTimeout(ghostTimer.current);
-      ghostTimer.current = setTimeout(() => setGhosts([]), 300);
+      // The death animation waits out the travel (--d-tap, 180ms) before it
+      // runs its 220ms, so the ghost has to outlive both.
+      ghostTimer.current = setTimeout(() => setGhosts([]), 440);
     }
   }, [board, lmFrom, lmTo]);
 
-  useEffect(() => () => clearTimeout(ghostTimer.current), []);
+  useEffect(
+    () => () => {
+      clearTimeout(ghostTimer.current);
+      clearTimeout(flyTimer.current);
+    },
+    [],
+  );
 
   /* ── the legal-move index ───────────────────────────────────────────── */
 
@@ -556,8 +601,14 @@ export default function ChessBoard({
     return (
       <div className="cb-tray" data-side={side}>
         <div className="cb-tray-pieces" aria-hidden="true">
+          {/* Overlapped within a role, spaced between roles. Five pawns and a
+              rook then read as "five and one" instead of as one smear. */}
           {sorted.map((r, i) => (
-            <span className="cb-tray-piece" key={i}>
+            <span
+              className="cb-tray-piece"
+              data-group={i > 0 && sorted[i - 1] !== r ? "" : undefined}
+              key={i}
+            >
               <PieceGlyph role={r} color={color} />
             </span>
           ))}
@@ -573,7 +624,16 @@ export default function ChessBoard({
   };
 
   return (
-    <div className={`cb ${className}`} data-tone={tone} data-idle={interactive ? undefined : ""}>
+    <div
+      className={`cb ${className}`}
+      data-tone={tone}
+      data-idle={interactive ? undefined : ""}
+      /* `url(#…)` handles for the shared gradients below. An id is not a
+         colour — every colour they resolve to is a stop in chess.css, off
+         the same tokens as the rest of the board. */
+      style={piecePaintVars(paintId)}
+    >
+      <PieceDefs id={paintId} />
       {tray(trayTop, orientation === "white" ? "white" : "black", "top")}
 
       <div className="cb-frame">
@@ -614,6 +674,7 @@ export default function ChessBoard({
                     data-dest={isDest && !cap ? "" : undefined}
                     data-cap={cap ? "" : undefined}
                     data-last={sq === lastFrom || sq === lastTo ? "" : undefined}
+                    data-last-to={sq === lastTo ? "" : undefined}
                     data-check={sq === checkSquare ? "" : undefined}
                     data-over={drag?.over === sq ? "" : undefined}
                     tabIndex={v === cursor ? 0 : -1}
@@ -657,19 +718,29 @@ export default function ChessBoard({
             {pieces.map((p) => {
               const dragging = drag?.id === p.id;
               const v = toVisual(p.sq);
+              const home = `translate(${(v % 8) * 100}%, ${Math.floor(v / 8) * 100}%)`;
               return (
-                <div
-                  className="cb-piece"
-                  key={p.id}
-                  data-dragging={dragging ? "" : undefined}
-                  style={{
-                    transform: dragging
-                      ? `translate(${drag!.x}px, ${drag!.y}px)`
-                      : `translate(${(v % 8) * 100}%, ${Math.floor(v / 8) * 100}%)`,
-                  }}
-                >
-                  <PieceGlyph role={p.role} color={p.color} />
-                </div>
+                <Fragment key={p.id}>
+                  {/* The square you lifted FROM keeps a faint copy while the
+                      real piece is under your finger. A thumb covers the
+                      origin square completely; without this there is no way
+                      to see what you picked up. */}
+                  {dragging && (
+                    <div className="cb-piece" data-source="" style={{ transform: home }}>
+                      <PieceGlyph role={p.role} color={p.color} />
+                    </div>
+                  )}
+                  <div
+                    className="cb-piece"
+                    data-dragging={dragging ? "" : undefined}
+                    data-moving={!dragging && flying.includes(p.id) ? "" : undefined}
+                    style={{
+                      transform: dragging ? `translate(${drag!.x}px, ${drag!.y}px)` : home,
+                    }}
+                  >
+                    <PieceGlyph role={p.role} color={p.color} />
+                  </div>
+                </Fragment>
               );
             })}
           </div>
