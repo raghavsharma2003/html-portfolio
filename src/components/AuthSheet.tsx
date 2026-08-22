@@ -13,7 +13,7 @@ import {
   track,
   type AuthSession,
 } from "../engine/account";
-import { CloseIcon } from "./icons";
+import { ChevronIcon, CloseIcon } from "./icons";
 
 interface Props {
   state: AppState;
@@ -262,7 +262,8 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
                 setError("");
               }}
             >
-              ← different {mode === "email" ? "email" : "number"}
+              <ChevronIcon size={16} />
+              different {mode === "email" ? "email" : "number"}
             </button>
           </>
         )}

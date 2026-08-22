@@ -35,9 +35,19 @@
 
 .us {
   /* ── the derived set ── */
-  --u-ground: var(--bg);
-  --u-card: var(--surface);
-  --u-well: var(--surface-2);
+  /* WS-SWEEP: THE GROUND IS THE WORLD'S. It was `var(--bg)` — flat paper by
+     day, near-black at night — which made this the last full-screen surface in
+     the app standing outside the place the app is. `transparent` rather than a
+     new colour for the reason games.css states at length: the world is a real
+     element behind this one, so a ground painted here would sit ON TOP of it
+     and hide the layer while every ratio went on passing.
+     The veil, and therefore every floor for `--ink` / `--ink-dim` / the glass
+     family over it, is the thread's — measured in five skies and two themes by
+     `scripts/check-contrast.mjs`. This surface is a call site, not a new set
+     of numbers. */
+  --u-ground: transparent;
+  --u-card: var(--glass-chip);
+  --u-well: var(--glass-chip);
   /* the day grid's unfilled cell. NOT --u-well: the audit measured that at
      1.11:1 against the page — the hero graphic rendered as blank texture
      with a few pink specks. An --ink mix survives both themes (~2:1). */
@@ -45,8 +55,19 @@
   --u-ink: var(--ink);
   --u-dim: var(--ink-dim);
   --u-faint: var(--ink-faint);
-  --u-line: var(--hairline);
-  --u-line-strong: var(--hairline-strong);
+  /* The dividers and card edges join the glass family with the ground. A
+     `--hairline` is 8% ink, designed to be a whisper on a FLAT surface; laid
+     over a painting it is not a whisper, it is nothing — every section rule on
+     this page vanished into the city behind it. `--glass-edge` is the boundary
+     the thread's own labels wear on this exact ground.
+     `--u-line-strong` also draws the TIMELINE THREAD, which is the one line on
+     this page that carries meaning rather than separating things, so it takes
+     the gated CONTROL edge (>= 3:1) rather than the label one. */
+  --u-line: var(--glass-edge);
+  --u-line-strong: var(--glass-edge-strong);
+  /* the material that makes `--glass-chip` glass rather than a translucent
+     rectangle, matched to the boards' — see games.css `--ga-blur`. */
+  --u-blur: blur(14px) saturate(1.5);
   --u-accent: var(--accent);
   --u-accent-ink: var(--accent-deep);
   --u-accent-soft: var(--accent-soft);
@@ -60,9 +81,21 @@
   z-index: 26; /* over chat and the activity shell (22), under sheets (31) */
   display: flex;
   flex-direction: column;
-  background: var(--u-ground);
+  /* transparent over the world; `--sky-1` is what shows for the one frame
+     before the layer composites, and if a painting ever 404s */
+  background: var(--u-ground, var(--sky-1, var(--bg)));
   color: var(--u-ink);
+  /* the world is the first child at `position: absolute; inset: 0` — this is
+     what it is absolute inside of, and what stops it escaping */
+  isolation: isolate;
   animation: us-in var(--d-state) var(--ease-out) both;
+}
+/* Stated to the engine exactly as `.chat > .world` is: a SIBLING of the
+   scroller rather than a descendant, so this long page can be flicked without
+   ever invalidating the picture behind it. */
+.us > .world {
+  z-index: -1;
+  contain: strict;
 }
 
 /* It rises into place. Same gesture as the activity shell's own entrance —
@@ -87,8 +120,12 @@
    activity shell's does, and a title small enough that the page's real
    headline is the hero underneath it. */
 
+/* The same pane of glass over the same band of the same painting the thread's
+   header and the activity rooms wear. `isolation: isolate` so the band cannot
+   paint over the row's controls. */
 .us-head {
   position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: var(--s2);
@@ -99,6 +136,24 @@
   backdrop-filter: blur(28px) saturate(1.9);
   border-bottom: 0.5px solid var(--u-line);
   z-index: 2;
+}
+.us-head > .world {
+  z-index: -1;
+}
+/* `.us-headline` IS EXCLUDED, and the exclusion is a bug this battery caught
+   rather than a nicety. The headline is `position: absolute` on purpose — it
+   centres on the HEADER rather than on the space left over beside the back
+   button, which the rule below it explains at length — and the blanket
+   `position: relative` this pattern carries on `.chat-head` dropped it
+   straight back into flow, so the page title rendered hard against "‹ Chat"
+   at the left edge. It needs no `position` of its own to sit above the band
+   in any case: it already has one. */
+.us-head > :not(.world):not(.us-headline) {
+  position: relative;
+  z-index: 1;
+}
+.us-headline {
+  z-index: 1;
 }
 
 .us-back {
@@ -139,11 +194,13 @@
   right: 0;
   pointer-events: none;
   text-align: center;
-  font-family: var(--font-display);
-  font-size: var(--t-ui);
-  font-weight: 650;
-  letter-spacing: 0.01em;
-  color: var(--u-dim);
+  /* the room's own name, in the room-name type the activity shell uses */
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 400;
+  text-transform: lowercase;
+  letter-spacing: -0.022em;
+  color: var(--u-ink);
 }
 
 /* ═══ the page ═══════════════════════════════════════════════════════════ */
@@ -183,26 +240,34 @@
   pointer-events: none;
 }
 
+/* WS-SWEEP: THE SAME RING, not a third implementation of one. This screen had
+   a bespoke double halo in `--u-accent-soft` over a 34% accent — an identity
+   treatment that existed here and nowhere else, on the one page in the app
+   that is entirely ABOUT the identity. `.ring-gold` (world.css) is shared with
+   home's presence portrait, the thread header and the activity rooms; only the
+   size lives here. */
 .us-face {
   position: relative;
   width: 88px;
   height: 88px;
-  border-radius: 50%;
-  overflow: hidden;
-  box-shadow:
-    0 0 0 2px var(--u-accent-soft),
-    0 0 0 3.5px color-mix(in srgb, var(--u-accent) 34%, transparent),
-    var(--shadow-card);
+  padding: 4px;
 }
 
+/* WS-SWEEP: "you and meera" IS this page's name, so it is set the way every
+   name in this product is set — a lowercase book serif. It was 11.5px
+   accent-coloured uppercase at 0.09em, which is the vocabulary of a SECTION
+   LABEL (`.us-h` below is exactly that, correctly), so the hero introduced the
+   relationship in the type reserved for "WHAT YOU'VE DONE TOGETHER".
+   `text-transform` rather than a string edit: this text is read aloud. */
 .us-eyebrow {
   position: relative;
   margin-top: var(--s4);
-  font-size: var(--t-meta);
-  font-weight: 620;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--u-accent-ink);
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 400;
+  text-transform: lowercase;
+  letter-spacing: -0.022em;
+  color: var(--u-ink);
 }
 
 /* "Day 47". The word and the numeral are one line and two weights: the word
@@ -432,6 +497,7 @@
   margin-bottom: var(--s2);
   border-radius: var(--r-md);
   background: var(--u-card);
+  backdrop-filter: var(--u-blur);
   border: 0.5px solid var(--u-line);
   box-shadow: var(--shadow-card);
   animation: us-rise 260ms var(--ease-out) both;
@@ -449,7 +515,14 @@
   height: 9px;
   border-radius: 50%;
   background: var(--u-accent);
-  box-shadow: 0 0 0 3px var(--u-ground);
+  /* The gap that lifts the dot off the thread running behind it. It was
+     `--u-ground`, which is `transparent` now — so a ring in the ground colour
+     became no ring at all and the timeline drew straight through every dot.
+     `--world-scrim` at 0.55 is the world's own answer to exactly this problem
+     (`.ring-gold > .ring-inner` cuts its gap the same way) and it follows the
+     sky, so the gap is pale at noon and deep at midnight rather than being one
+     colour that is wrong for three states out of five. */
+  box-shadow: 0 0 0 3px rgba(var(--world-scrim-rgb), 0.55);
 }
 /* the anchor at the bottom of the thread is the one moment nobody fired —
    it is simply true, from the first message onward, so it is inked as a

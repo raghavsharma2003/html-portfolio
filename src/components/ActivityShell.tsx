@@ -23,10 +23,35 @@
 //      is never somewhere the call got lost in. Mute is offered in place, so
 //      the commonest reason to leave the activity stops being a reason.
 //   4. IT REPAINTS THE ROOM IT IS IN. With a call live the shell takes the
-//      call's own warm-dark ground, so the board arriving reads as the same
-//      room continuing rather than as a second screen covering the first.
+//      call's own ground, so the board arriving reads as the same room
+//      continuing rather than as a second screen covering the first.
 //      `activityTone()` is exported so the caller inks the activity itself
 //      (the board takes `tone` too) off the same expression.
+//
+// ── WS-SWEEP: THE ROOM IS IN THE WORLD NOW, AND RULE 4 IS WHY ─────────────
+//
+// Rule 4 is the reason this file grew a `WorldLayer`, and it is a correctness
+// fix rather than a reskin. The rule says the shell repaints the CALL's own
+// ground so a board opened on a call reads as the same room continuing. The
+// call's ground used to be `#241619 → #100b0c`, and games.css copied that
+// gradient out by hand and named it in a comment. Then DESIGN-WORLD shipped:
+// `.call` and `.incoming` are painted skies now. So the hand-copied gradient
+// stopped being "the call's ground" and became a warm-dark rectangle that
+// matches nothing — rule 4 was still written down, still commented, and no
+// longer true, which is the exact failure `logged-but-unindexed` names.
+//
+// The wallpaper variant is what makes it true again, and it is the SAME
+// variant and the SAME veil the thread uses (DESIGN-WORLD §Phase 3.1). That
+// choice is load-bearing three ways:
+//   * every contrast floor for `--ink` / `--ink-dim` / the glass family over
+//     this ground is already measured by `scripts/check-contrast.mjs`'s
+//     wallpaper rows, across five skies x two themes — this surface adds a
+//     call site, not a new set of numbers;
+//   * A WALLPAPER IS STILL. A board is a place you concentrate in, so the
+//     variant that renders no celestials, no plates, no city and no drift is
+//     the right one on its own terms and not merely the cheap one;
+//   * chat → board → call is now one continuous place rather than three
+//     grounds that each looked fine alone.
 //
 // It knows nothing about chess, or about any game: it renders `children` and
 // hands back an exit. SURFACE layer only (docs/SPEC-GAMES.md §3).
@@ -36,6 +61,7 @@ import { HER_NAME } from "../engine/persona";
 import PhotoAvatar from "./PhotoAvatar";
 import { ChevronIcon, MicIcon, PhoneIcon } from "./icons";
 import { tap, ImpactStyle } from "../native/haptics";
+import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import "../styles/games.css";
 
 /** Matches `ChessBoard`'s `tone`, and is meant to be passed to both. */
@@ -140,6 +166,7 @@ export default function ActivityShell({
   className = "",
 }: ActivityShellProps) {
   const root = useRef<HTMLDivElement>(null);
+  const sky = useSky();
 
   const live = Boolean(call?.live);
   const connecting = Boolean(call?.connecting);
@@ -171,6 +198,8 @@ export default function ActivityShell({
     <div
       className={`as ${className}`.trim()}
       ref={root}
+      style={skyVars(sky)}
+      data-sky={sky.state}
       tabIndex={-1}
       role="region"
       aria-label={title}
@@ -180,7 +209,14 @@ export default function ActivityShell({
       data-foot={footer ? "on" : "off"}
       onKeyDown={onKeyDown}
     >
+      {/* THE ROOM'S GROUND — a sibling of the stage, never a child of it, for
+          the reason `.chat > .world` states at length: the stage scrolls and
+          this does not, so a board moving under a finger can never dirty it. */}
+      <WorldLayer frame={sky} variant="wallpaper" />
       <div className="as-head">
+        {/* the band: the top of the same painting, through the same glass the
+            thread's header wears. One surface, two slices. */}
+        <WorldLayer frame={sky} variant="band" />
         {/* first in the DOM on purpose: the way out is the first thing a
             keyboard reaches, before eight rows of squares */}
         <button
@@ -200,8 +236,14 @@ export default function ActivityShell({
         </button>
 
         <div className="as-who">
-          <span className="as-face" aria-hidden="true">
-            <PhotoAvatar size={36} />
+          {/* Her face is ringed here exactly as it is in the thread's header
+              and on home: `.ring-gold` (world.css) carries the treatment, the
+              SIZE stays local. It was a `box-shadow` hoop that happened to
+              agree with nothing. */}
+          <span className="as-face ring-gold" aria-hidden="true">
+            <span className="ring-inner">
+              <PhotoAvatar size={31} />
+            </span>
           </span>
           <span className="as-tx">
             <b className="as-title">{title}</b>

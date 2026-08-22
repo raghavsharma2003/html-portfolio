@@ -56,6 +56,7 @@ import PhotoAvatar from "./PhotoAvatar";
 import { ChevronIcon } from "./icons";
 import { tap, ImpactStyle } from "../native/haptics";
 import { useCallStatus } from "../state/callStatus";
+import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import "../styles/us.css";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -203,6 +204,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
   // running underneath (audit: `us-screen-call-invisible`). This is a status
   // read, nothing more — the shell owns starting, ending and muting it.
   const call = useCallStatus();
+  const sky = useSky();
 
   // Same dedicated read as MoreSheet's closeness card, for the same reason,
   // and never `takeRelBundle` — see the prop's doc. `undefined` means "go
@@ -342,12 +344,23 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
     <div
       className="us"
       ref={root}
+      style={skyVars(sky)}
+      data-sky={sky.state}
       tabIndex={-1}
       role="region"
       aria-label={`You and ${HER_NAME}`}
       onKeyDown={onKeyDown}
     >
+      {/* THE RECORD IS KEPT SOMEWHERE, and this is where. Us was the last
+          full-screen surface in the app standing on flat `--bg` — a page about
+          the relationship, rendered in a room the relationship does not live
+          in. Same wallpaper variant, same veil and therefore the same measured
+          floors as the thread and the activity rooms; a SIBLING of the
+          scroller, so a page this long never repaints it. */}
+      <WorldLayer frame={sky} variant="wallpaper" />
       <div className="us-head">
+        {/* the band: the top of the same painting, through the same glass */}
+        <WorldLayer frame={sky} variant="band" />
         {/* the way out is a way BACK, and it is first in the DOM — the same
             contract ActivityShell states for its own exit */}
         <button
@@ -392,8 +405,13 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
             face above it is what keeps this a person rather than a
             profile page. */}
         <header className="us-hero">
-          <span className="us-face" aria-hidden="true">
-            <PhotoAvatar size={88} />
+          {/* the same ring home and the thread header wear — `.ring-gold`
+              carries it, the size stays here. It was a bespoke three-layer
+              accent halo that existed only on this screen. */}
+          <span className="us-face ring-gold" aria-hidden="true">
+            <span className="ring-inner">
+              <PhotoAvatar size={80} />
+            </span>
           </span>
           <p className="us-eyebrow">You and {HER_NAME}</p>
           <h1 className="us-day">

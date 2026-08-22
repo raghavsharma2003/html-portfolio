@@ -61,8 +61,15 @@
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--ga-faint);
-  background: var(--ga-ground);
+  color: var(--ga-dim);
+  /* WS-SWEEP: it was `--ga-ground`, which is how a divider gets to be an
+     opaque disc that punches the two panels apart. The room is the world now
+     and `--ga-ground` is TRANSPARENT, so the disc became an empty outline with
+     the city visible through the middle of the word. It is a quiet glass chip
+     — the same object the thread's day separator is, which is the same job:
+     one small word carried over a picture. */
+  background: var(--ga-well);
+  backdrop-filter: var(--ga-blur);
   border: 0.5px solid var(--ga-line);
   /* pulls the two panels visually together without eating layout space */
   margin-block: calc(-1 * var(--s3));
@@ -78,8 +85,15 @@
   justify-content: center;
   padding: var(--s4) var(--s4);
   border-radius: var(--r-md);
-  border: 1.5px solid var(--ga-line);
+  /* WS-SWEEP: `--ga-line-strong` and a real blur. These two panels are the
+     only controls on the screen and they sit directly on the painting, which
+     is the case the glass family splits precisely for — the FILL carries the
+     text (gated at 4.5:1) and the EDGE carries the panel's discernibility
+     (gated at 3:1). At `--ga-line` a tappable panel wore a LABEL's hairline
+     and, on the morning sky, dissolved into its own ground. */
+  border: 1.5px solid var(--ga-line-strong);
   background: var(--ga-well);
+  backdrop-filter: var(--ga-blur);
   color: var(--ga-ink);
   font-family: var(--font-display);
   font-size: var(--t-ui);
@@ -137,7 +151,7 @@
   letter-spacing: 0.02em;
   text-transform: uppercase;
   background: var(--ga-accent);
-  color: var(--ga-ground);
+  color: var(--ga-on-accent);
 }
 
 /* her pick — a distinct corner so agreement (same panel, both badges) reads
@@ -279,7 +293,7 @@
   padding: 0 var(--s5);
   border-radius: 999px;
   background: var(--ga-accent);
-  color: var(--ga-ground);
+  color: var(--ga-on-accent);
   font-size: var(--t-ui);
   font-weight: 650;
   letter-spacing: -0.01em;

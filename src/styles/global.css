@@ -975,8 +975,19 @@ button {
   min-height: 38px;
   padding: 0 var(--s4);
   border-radius: 999px;
-  border: 0.5px solid var(--hairline);
-  background: var(--surface);
+  /* WS-SWEEP: the glass family, like its sibling. This pill floats directly on
+     the WALLPAPER — it is `position: absolute` inside `.chat`, above the
+     scroller — and it was the one control there still wearing `--surface`
+     (`#ffffff`) behind a `--hairline`. `.load-earlier` in thread.css is the
+     same object at the other end of the thread and was converted when the
+     wallpaper shipped; this one was missed, so the two ends of the same
+     conversation floated on two different materials.
+     `--glass-edge-strong` rather than `--glass-edge` for the reason that file
+     states: this is a CONTROL, and the gate holds a control's boundary at 3:1
+     against this ground in five skies and both themes. */
+  border: 1px solid var(--glass-edge-strong);
+  background: var(--glass-chip);
+  backdrop-filter: blur(12px) saturate(1.4);
   color: var(--ink);
   font-size: var(--t-sub);
   font-weight: 550;
@@ -2858,14 +2869,25 @@ button {
   line-height: 1.5;
   margin-top: 12px;
 }
+/* WS-SWEEP: the same shape every other way BACK in the app has — a chevron
+   turned left, then the destination in words. It was a `←` text character,
+   which is drawn from the platform's UI font and sat at a different weight,
+   height and optical size from the stroked chevron `.as-back`, `.us-back`,
+   `.home-back` and the thread header all use. One gesture, one glyph. */
 .auth-back {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   min-height: var(--hit);
   margin: 6px auto 0;
   color: var(--accent);
   font-size: var(--t-ui);
   font-weight: 500;
   transition: transform var(--d-press) var(--ease-out);
+}
+.auth-back svg {
+  transform: rotate(180deg);
 }
 .auth-id {
   display: flex;
@@ -2999,11 +3021,21 @@ button.avatar-ring {
   animation: none;
 }
 
+/* WS-SWEEP: NOT `#000`. The image is `object-fit: contain`, so on a portrait
+   photo in a taller viewport this ground is a real, visible band above and
+   below her picture — it was the only pure black in the product, on the one
+   surface that is nothing but her. DESIGN-STANDARDS' anti-pattern list rules
+   it out outright ("no pure black or gray — always tinted"), and the palette
+   already contains the answer: `#150f10` is the dark theme's own `--bg`, the
+   warm near-black every other dark surface here is built on. Written out
+   rather than `var(--bg)` because this viewer is the SAME viewer in both
+   themes — a story is a dark room whatever the app is set to — so a token
+   that flips would put a photograph on warm paper. */
 .story-view {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: #000;
+  background: #150f10;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3087,15 +3119,25 @@ button.avatar-ring {
   z-index: 2;
   color: #fff;
 }
+/* Her name, in the identity home, the thread header and the call screen all
+   established: a lowercase book serif. `.name-serif` (world.css) carries the
+   face, the lowercase and the tracking; the size is this row's own. It was
+   semibold sans Title Case — a screen title where every other surface in the
+   product says a person's name. 19px rather than --t-ui's 15px for the reason
+   the thread header states at its own scale: a serif reads smaller than the
+   sans it replaces, so the optical match needs the step. */
 .story-name {
-  font-weight: 600;
-  font-size: var(--t-ui);
+  font-size: 19px;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
 }
 .story-age {
   font-size: var(--t-sub);
   color: rgba(255, 255, 255, 0.82);
 }
+/* `filter: drop-shadow`, not `text-shadow`: these carry SVG paths now rather
+   than text characters, and a text-shadow on an element whose visible content
+   is a stroked path shadows nothing at all. Same offset, same blur, same
+   alpha — the glyphs still lift off a bright photograph exactly as far. */
 .story-btn {
   position: relative;
   width: var(--hit);
@@ -3104,8 +3146,7 @@ button.avatar-ring {
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 19px;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  filter: drop-shadow(0 1px 8px rgba(0, 0, 0, 0.5));
   transition: transform var(--d-press) var(--ease-out);
 }
 /* the one thing a first-time viewer cannot guess: that the sides advance
@@ -3561,9 +3602,18 @@ input {
   align-items: center;
   padding: 4px 6px;
   border-radius: 999px;
-  background: var(--surface);
+  /* WS-SWEEP: A MENU FLOATING ON THE WALLPAPER. It is `position: absolute` at
+     `top: -46px`, so unlike the bubble it belongs to it sits entirely on the
+     picture — and it was `--surface` (`#ffffff`) behind a `--hairline`, which
+     over a painted city is a white slab with no visible boundary at all.
+     `--sheet-glass` is the material the app already gives a popover over the
+     world, and its ratios are bounded over ANY ground by the sheet rows in
+     `scripts/check-contrast.mjs`. The edge steps up to the gated CONTROL
+     boundary: this is a row of buttons, not a label. */
+  background: var(--sheet-glass);
+  backdrop-filter: blur(16px) saturate(1.5);
   box-shadow: var(--shadow-float);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-edge-strong);
   z-index: 3;
   animation: react-in 160ms var(--ease-out) both;
 }
@@ -3601,8 +3651,14 @@ input {
   line-height: 1;
   padding: 3px 5px;
   border-radius: 999px;
+  /* Stays OPAQUE — it is welded to a bubble's edge and half of it overhangs
+     onto the wallpaper, so it is a bubble-shaped object and takes the bubbles'
+     own rule. What it did not have is an EDGE that survives a picture: a
+     `--hairline` is 8% ink, and the overhanging half of this pill disappeared
+     into the city behind it. The gated control boundary is the same fix the
+     thread's own audit reached for her bubble, at badge scale. */
   background: var(--surface);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-edge-strong);
   box-shadow: var(--shadow-card);
   /* a reaction ARRIVING should be felt — it is the one thing in the thread
      that appears without a new bubble */
@@ -3717,10 +3773,15 @@ input {
   height: 34px;
   border: 0;
   border-radius: 50%;
+  /* `#111` was a neutral near-black, which the standards forbid and which this
+     file has a warm answer for in every other dark ink it uses. The disc stays
+     white — it is the one solid control on a photograph and it has to read at
+     a glance. */
   background: #fff;
-  color: #111;
-  font-size: 17px;
-  line-height: 1;
+  color: #150f10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out);
 }
@@ -3784,11 +3845,22 @@ input {
   height: 70px;
   border: 0;
   border-radius: 50%;
-  font-size: 27px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--on-solid);
   cursor: pointer;
   box-shadow: var(--shadow-float);
   transition: transform 140ms var(--ease-out);
+}
+/* The hang-up handset, turned back up: one glyph says both halves of a call,
+   which is the convention a phone has used since it had a cradle. 135° rather
+   than 180° so it reads as a handset LIFTED off the rest rather than as the
+   same shape flipped — the tilt is the difference between "answer" and
+   "upside-down end call". */
+.inc-pick {
+  display: flex;
+  transform: rotate(135deg);
 }
 .inc-btn:active { transform: scale(0.92); }
 .inc-btn.decline { background: var(--danger-solid); }

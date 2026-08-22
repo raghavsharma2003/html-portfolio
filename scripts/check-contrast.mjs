@@ -97,7 +97,33 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
   const root = g.slice(g.indexOf(":root"), g.indexOf(":root") + 4000);
   const ink = hex(token(root, "--ink"));
   const surface2 = hex(token(root, "--surface-2"));
-  const cellLight = hex(token(root, "--surface"));
+  // ── WS-SWEEP: THE CELL IS READ FROM THE BOARD, NOT FROM THE PALETTE ──────
+  // This was `token(root, "--surface")`, and it was a floor measured over a
+  // colour the board no longer used the moment `--tt-cell` stopped being
+  // `var(--surface)` — the check would have gone on printing 2.5:1 forever
+  // while the real cell drifted anywhere at all. It is the same species of
+  // hole as the frozen-copy gates in `evals/archive/`: a model of the thing
+  // instead of the thing. `.tt`'s own light block is the source now, and the
+  // resolution follows one `var()` hop so writing `var(--surface)` back in
+  // still measures correctly rather than throwing.
+  const ttLight = ttt.slice(ttt.indexOf("\n.tt {"), ttt.indexOf('.tt[data-tone="dark"]'));
+  const cellDecl = token(ttLight, "--tt-cell");
+  const cellLight = hex(
+    /^var\(--[\w-]+\)$/.test(cellDecl) ? token(root, /^var\((--[\w-]+)\)$/.exec(cellDecl)[1]) : cellDecl,
+  );
+  // …and it is TINTED. A neutral cell is the pure-white slab the board was,
+  // and on a painted ground that is a hole rather than a surface — the one
+  // anti-pattern (`impeccable`: no pure black or gray, always tinted) that a
+  // ratio can never catch, because #ffffff passes every contrast floor it is
+  // ever put in front of.
+  {
+    const spread = Math.max(...cellLight) - Math.min(...cellLight);
+    check(
+      "ttt light: the cell is tinted, not neutral",
+      spread >= 0.015,
+      `${cellDecl} (channel spread ${(spread * 255).toFixed(1)}/255)`,
+    );
+  }
   const mixM = /--tt-grid-line:\s*color-mix\(in srgb, var\(--ink\)\s*([\d.]+)%/.exec(ttt);
   check("ttt light: grid-line is a --ink mix", Boolean(mixM));
   if (mixM) {
@@ -859,6 +885,74 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
               : `no lift and only ${minShape.toFixed(2)}:1`,
           );
         }
+
+      // ── WS-SWEEP: THE OTHER FOUR SURFACES ON THIS GROUND ─────────────────
+      //
+      // The wallpaper is no longer the thread's alone. The activity rooms
+      // (`.as` — chess, tic-tac-toe, would-you-rather) and Us (`.us`) stand on
+      // the same veiled painting now, and they do NOT paint their text in
+      // `--ink` directly: each carries a derived palette (`--ga-*`, `--u-*`)
+      // that the app's own tokens feed. So the rows above prove a floor for
+      // two tokens those surfaces may or may not be using.
+      //
+      // This closes that. Every TEXT token in both derived sets is resolved
+      // through the same cascade and composited over the same regions of the
+      // same painting, and the same 4.5:1 has to hold. It is a measurement of
+      // the tokens the surfaces actually declare rather than of the ones they
+      // were assumed to inherit — the same correction the ttt cell needed.
+      //
+      // The specific thing it stops coming back: both sets shipped with a
+      // THIRD, fainter text step (`--ga-faint`, `--u-faint` -> `--ink-faint`)
+      // carried over from when these were flat-paper surfaces. `--ink-faint`
+      // is 2.9:1 on its own ground before a city is put behind it, and
+      // global.css's own token block declares it a NON-TEXT role for exactly
+      // that reason. On a painting there is no third step, and the two sets
+      // collapse it into the dim one. `--u-faint` survives here because Us
+      // spends it on one 9px DOT and no text at all, which is the role the
+      // token is for — so this reads the stylesheet to find out which tokens
+      // carry text rather than assuming, and only those are held.
+      {
+        const roomText = [
+          ["as", "src/styles/games.css", ".as", '\n.as[data-tone="dark"] {', ["--ga-ink", "--ga-dim", "--ga-faint"]],
+          ["us", "src/styles/us.css", ".us", null, ["--u-ink", "--u-dim"]],
+        ];
+        for (const [room, file, baseSel, darkSel, tokens] of roomText) {
+          const src = read(file);
+          // EVERY BLOCK WITH THIS SELECTOR, REVERSED, and the first version of
+          // this check got it wrong in the way that matters. `.as` is declared
+          // twice in games.css — once in the shared `.gh, .as` set and once on
+          // its own — and reading only the first found `--ga-faint ->
+          // --ink-faint`, a value the second block overrides and the browser
+          // never renders. Reversed document order is what the cascade does at
+          // equal specificity: later wins. Same hole, same shape, as the
+          // `.msg.her`-declared-twice one this file already records.
+          const roomBlocks = allBlocks(src, baseSel).reverse();
+          if (themeName === "dark" && darkSel) roomBlocks.unshift(cssBlock(src, darkSel));
+          for (const tok of tokens) {
+            const declared = resolveIn([...roomBlocks, ...chain], tok);
+            // a room token is either a literal or a var() into the palette;
+            // `resolveIn` has already followed the hops, so what is left is a
+            // colour — hex, or an rgba that has to be composited on the ground
+            const isRgba = /^rgba?\(/.test(declared);
+            let minR = Infinity;
+            let whereR = "";
+            for (const [name, colour] of regions) {
+              const ground = over(scrim, colour, alpha);
+              const c = isRgba ? over(rgba(declared).c, ground, rgba(declared).a) : hex(declared);
+              const r = ratio(c, ground);
+              if (r < minR) {
+                minR = r;
+                whereR = name;
+              }
+            }
+            check(
+              `${room}/${state}/${themeName}: ${tok} on the wallpaper >= ${TEXT_FLOOR}`,
+              minR >= TEXT_FLOOR,
+              `${minR.toFixed(2)} worst at ${whereR} (${tok} -> ${declared})`,
+            );
+          }
+        }
+      }
       }
 
       // The two families must not converge. If a "simplification" ever gives
@@ -899,6 +993,47 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
       `  ..  wallpaper worst case: ground text ${wWorstText.toFixed(2)}:1, ` +
         `chip text ${wWorstChip.toFixed(2)}:1, control edge ${wWorstEdge.toFixed(2)}:1`,
     );
+
+    // ── WS-SWEEP: THE ROOMS DO NOT PAINT OVER THEIR OWN WORLD ──────────────
+    //
+    // Every ratio above is a claim about text sitting on a PAINTING, and each
+    // one is worth nothing if the painting is not on screen. On the thread that
+    // cannot happen by accident — the wallpaper was the whole point of the
+    // change. On the four surfaces that joined it, it can: `.as` and `.us` both
+    // carry a full derived palette including a GROUND, and a ground colour on
+    // the root paints ON TOP of a `z-index: -1` child. Set one and the world
+    // vanishes while every number in this file goes on passing, because the
+    // numbers model a composite the browser has stopped performing.
+    //
+    // That is the same species of hole `evals/world-thread-browser.mjs` was
+    // written for and states in its own header: "a model of a composite cannot
+    // notice the composite is not happening." The browser battery is still the
+    // real proof; this is the cheap one that runs on every build, and it is a
+    // STRUCTURAL check because there is no ratio that can express it.
+    for (const [room, file, sel, tok] of [
+      ["as", "src/styles/games.css", ".as", "--ga-ground"],
+      ["us", "src/styles/us.css", ".us", "--u-ground"],
+    ]) {
+      const src = read(file);
+      // Reversed, for the cascade reason the room-text block states, and with
+      // the app palette behind it — a room that re-points its ground at
+      // `var(--bg)` has to RESOLVE to `#faf7f4` and be reported as that, not
+      // throw a stack trace at whoever did it.
+      const v = resolveIn([...allBlocks(src, sel).reverse(), ...CASCADE.light], tok);
+      check(
+        `${room}: the room's ground is transparent, so the world is visible`,
+        v.trim() === "transparent",
+        `${tok} -> ${v}`,
+      );
+      // …and the layer is actually mounted behind it. A transparent ground over
+      // nothing is a transparent ground: the `> .world` rule is what puts the
+      // picture there and holds it out of the scroller.
+      check(
+        `${room}: the world layer is a sibling at a negative z-index`,
+        /\n\.(as|us) > \.world \{[^}]*z-index:\s*-1/.test(src),
+        "",
+      );
+    }
 
     // ══ A SHEET IS GLASS TOO ═══════════════════════════════════════════════
     //

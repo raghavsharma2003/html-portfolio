@@ -382,7 +382,8 @@ export default function MoreSheet({
               Save
             </button>
             <button className="auth-back" data-tel="more.back" onClick={() => setView("menu")}>
-              ← back
+              <ChevronIcon size={16} />
+              back
             </button>
           </>
         )}

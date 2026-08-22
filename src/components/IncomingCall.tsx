@@ -18,6 +18,7 @@ import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import { HER_NAME } from "../engine/persona";
 import { startRingback, stopRingback, unlockAudio } from "../voice/speech";
 import { tap } from "../native/haptics";
+import { CloseIcon, EndCallIcon } from "./icons";
 
 interface Props {
   /** how long the call that dropped had lasted, for the subtitle */
@@ -90,6 +91,14 @@ export default function IncomingCall({ secs, onAccept, onDecline }: Props) {
       </div>
 
 
+      {/* THE APP'S OWN ICONS, not two text dingbats. `✕` and `✆` are
+          characters, drawn from whatever the platform's UI font happens to
+          carry: `✆` (U+2706 TELEPHONE LOCATION SIGN) has no consistent form at
+          all and rendered as an outlined blob inside the accept disc, which is
+          the largest, most consequential control in the product. `EndCallIcon`
+          is what the live call already hangs up with, rotated so the same
+          handset means "pick up" rather than "put down" — one glyph, two
+          states, which is how a phone has always drawn it. */}
       <div className="inc-actions">
         <button
           className="inc-btn decline"
@@ -97,7 +106,7 @@ export default function IncomingCall({ secs, onAccept, onDecline }: Props) {
           aria-label="Decline call"
           data-tel="call.decline"
         >
-          <span aria-hidden="true">✕</span>
+          <CloseIcon size={26} />
         </button>
         <button
           className="inc-btn accept"
@@ -105,7 +114,9 @@ export default function IncomingCall({ secs, onAccept, onDecline }: Props) {
           aria-label="Accept call"
           data-tel="call.accept"
         >
-          <span aria-hidden="true">✆</span>
+          <span className="inc-pick" aria-hidden="true">
+            <EndCallIcon size={28} />
+          </span>
         </button>
       </div>
 

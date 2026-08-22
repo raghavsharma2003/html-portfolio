@@ -114,6 +114,16 @@ export const ArrowDownIcon = ({ size = 16 }: { size?: number }) => (
   </svg>
 );
 
+/* The mirror of ArrowDownIcon, at the same weight, for the one control that
+   sends UPWARD: the story reply. That send used a `↑` text character, which is
+   drawn in whatever the platform's UI font happens to have and sat visibly
+   heavier and shorter than every stroked glyph beside it. */
+export const ArrowUpIcon = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...S} strokeWidth={2.1} aria-hidden="true">
+    <path d="M12 19.5v-15M5.5 11 12 4.5 18.5 11" />
+  </svg>
+);
+
 export const CloseIcon = ({ size = 16 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" {...S} strokeWidth={2.1} aria-hidden="true">
     <path d="M6 6l12 12M18 6 6 18" />

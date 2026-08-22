@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { type Story, storySrc, storyAge, markStorySeen } from "../engine/storyCatalog";
 import { HER_NAME } from "../engine/persona";
 import PhotoAvatar from "./PhotoAvatar";
+import { CloseIcon, MoreIcon, ArrowUpIcon } from "./icons";
 
 const SEGMENT_MS = 5200;
 
@@ -233,10 +234,23 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
       </div>
 
       <div className="story-head" onTouchEnd={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
-        <PhotoAvatar size={34} />
-        <span className="story-name">{HER_NAME}</span>
+        {/* the ring she wears everywhere else. `.ring-gold` is `live` here by
+            definition: you are inside her story, so the ring is the one thing
+            on this screen that cannot be in any other state. */}
+        <span className="ring-gold live" style={{ width: 36, height: 36, padding: 2 }} aria-hidden="true">
+          <span className="ring-inner">
+            <PhotoAvatar size={32} />
+          </span>
+        </span>
+        <span className="story-name name-serif">{HER_NAME}</span>
         <span className="story-age">{ageLabel(cur)}</span>
         <span style={{ flex: 1 }} />
+        {/* THE APP'S OWN ICONS, not two text dingbats. `⋯` and `✕` are
+            characters: they render in whatever the platform's UI font has,
+            which put a spread-out `· · ·` and a heavy serif cross next to a
+            screen full of hairline-stroked SVGs — and on the Android WebView
+            the ✕ box-drew. Both glyphs already exist in `icons.tsx` and are
+            what every other overlay in the app closes with. */}
         <button
           className="story-btn"
           aria-label="Account"
@@ -245,7 +259,7 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
             onProfile();
           }}
         >
-          ⋯
+          <MoreIcon size={20} />
         </button>
         <button
           className="story-btn"
@@ -255,7 +269,7 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
             onClose();
           }}
         >
-          ✕
+          <CloseIcon size={17} />
         </button>
       </div>
 
@@ -311,7 +325,7 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
             aria-label="Send reply"
             disabled={!reply.trim()}
           >
-            ↑
+            <ArrowUpIcon size={17} />
           </button>
         </form>
       )}
