@@ -184,6 +184,29 @@ export function detectMoments(inp: MilestoneInputs): Moment[] {
 }
 
 /**
+ * UI title for a FIRED id, for surfaces that render the ledger (the Us
+ * screen's timeline). One vocabulary with detectMoments — the tier tables
+ * above are the source, so a new tier is automatically titled.
+ */
+export function titleFor(id: string): string | null {
+  const m = /^([a-z-]+?)-(\d+)$/.exec(id);
+  if (id === "first-game") return "Your first game together";
+  if (id === "chess-first-win-him") return "You beat her at chess";
+  if (id === "chess-first-win-her") return "She beat you at chess";
+  if (!m) return null;
+  const [, fam, nRaw] = m;
+  const n = Number(nRaw);
+  switch (fam) {
+    case "days": return n === 365 ? "One year of you two" : `${n} days of you two`;
+    case "msgs": return `${n.toLocaleString("en-IN")} messages`;
+    case "calls": return n === 1 ? "Your first call" : `${n} calls together`;
+    case "chess": return `${n} chess games together`;
+    case "wyr": return `${n} would-you-rathers answered`;
+  }
+  return null;
+}
+
+/**
  * The one prompt-facing string: a telegraphic fact, same shapelint contract
  * as activity facts (≤14 words, third person, not sentence-shaped). A lane
  * that wants her to KNOW the moment passes this; she says whatever she says.
