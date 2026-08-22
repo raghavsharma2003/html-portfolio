@@ -1215,6 +1215,12 @@
       "kind": "decision",
       "title": "Five sky states from the one clock; fill carries text, edge carries component; sky stamped at onboarding only",
       "at": "2026-08-22"
+    },
+    {
+      "id": "minifier-eats-runtime-tokens",
+      "kind": "rejection",
+      "title": "Runtime token reads get the minifier value; entrance never ran; settle truncated \u2014 frame-sampling found all three",
+      "at": "2026-08-22"
     }
   ],
   "edges": [

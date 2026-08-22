@@ -37,7 +37,7 @@ import { fmtTime } from "./fmtTime";
 import { registerLocalClip } from "./VoiceNote";
 import { ChessIcon } from "./GamesHub";
 import { listen, sttSupported } from "../voice/speech";
-import { tap } from "../native/haptics";
+import { tap, land } from "../native/haptics";
 import MoreSheet from "./MoreSheet";
 import {
   PhoneIcon,
@@ -61,6 +61,9 @@ interface Props {
   onUs: () => void;
   // she must never send chat bubbles while actively ON a call with them
   inCall?: boolean;
+  /** a game/activity overlay is up — the thread settles on its falling edge,
+   *  same 180ms it already runs when a call or sheet closes */
+  activityOpen?: boolean;
 }
 
 function lastSeenLabel(t: number): string {
@@ -104,13 +107,22 @@ const typeDelay = (bubble: string) => {
   return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
 };
 
-export default function Chat({ state, setState, onVoiceCall, onProfile, onGames, onUs, inCall }: Props) {
+export default function Chat({ state, setState, onVoiceCall, onProfile, onGames, onUs, inCall, activityOpen }: Props) {
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   // the indicator holds for one exit beat while the bubble enters underneath
   // it — she was typing, now the words are there. Unmounting it on the same
   // frame the message lands is a teleport, and it happens on every reply.
   const [typingOut, setTypingOut] = useState(false);
+  // ── the second beat ─────────────────────────────────────────────────────
+  // How long she will type is UNKNOWABLE when the indicator goes up: the
+  // reply does not exist yet, so there is nothing honest to pace against and
+  // a progress-shaped rhythm would be a lie told in motion. What IS knowable
+  // is that THIS one is taking a while. Past four seconds the indicator gains
+  // a second, slower visual beat (thread.css) so a long think reads as
+  // attended rather than as frozen. Reset on every `typing` edge, so each
+  // bubble of a burst starts the clock again.
+  const [longThink, setLongThink] = useState(false);
   const followsTyping = useRef<string[]>([]);
   const TYPING_EXIT_MS = 140;
   // the settings sheet (profile, account, clear chat) — everything that used
@@ -175,6 +187,16 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   const offlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // ── WS-FEEL: the three nodes the motion below needs to touch directly ──
+  // The send button is the ORIGIN of his bubble's flight (spatial consistency:
+  // a thing comes from its trigger), the field recoils as the message leaves
+  // it, and the jump pill pulses when the count behind it changes. All three
+  // are one-shot animations on a node React is not re-rendering, so they are
+  // driven by attribute rather than by state — a state change here would
+  // re-render the whole thread to move one pill.
+  const sendBtnRef = useRef<HTMLButtonElement>(null);
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const jumpRef = useRef<HTMLButtonElement>(null);
   // keystroke dynamics for the composer. One tracker for the life of the
   // screen; it rolls itself up every 2s and on send, and NEVER emits per
   // keystroke — see the note on the hot path in telemetry.ts.
@@ -500,6 +522,242 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     }
   }, [messages.length]);
 
+  // ══ WS-FEEL: the thread's motion ════════════════════════════════════════
+  //
+  // Everything in this block is transform/opacity only and runs on the tokens
+  // in global.css. It is DOM-driven rather than state-driven on purpose: these
+  // are one-shot animations on nodes React is otherwise leaving alone, and
+  // routing them through state would re-render up to eighty memoised rows to
+  // move one pill. The rules themselves live in styles/thread.css; this is
+  // only the part that has to know WHEN.
+
+  /**
+   * A CSS duration token, in milliseconds, WHATEVER UNIT IT SURVIVED THE
+   * BUILD IN.
+   *
+   * This is not defensive programming, it is a bug that shipped in the first
+   * cut of this file and only in production. The stylesheet authors
+   * `--d-state: 220ms`; the minifier rewrites it to `.22s` because that is
+   * three bytes shorter; and `parseFloat(".22s")` is 0.22. So the send flight
+   * ran for 0.22 MILLISECONDS — one frame, indistinguishable from the
+   * teleport it was written to replace, and invisible in dev where nothing is
+   * minified. Measured, caught by evals/feel-browser.mjs against the BUILT
+   * app, which is the only reason it is not still there.
+   *
+   * The lesson generalises past this file: any code that reads a design token
+   * at runtime is reading the MINIFIER'S opinion of that token, not the
+   * author's, and must parse the unit rather than the number.
+   */
+  const cssMs = (value: string, fallback: number): number => {
+    const t = value.trim();
+    const n = parseFloat(t);
+    if (!isFinite(n)) return fallback;
+    return /ms$/.test(t) ? n : n * 1000;
+  };
+
+  /** The OS setting, read live — it can change while the app is open. */
+  const reducedMotion = () =>
+    typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /**
+   * Restart a one-shot CSS animation driven by an attribute.
+   *
+   * Re-setting an attribute that is already there does not restart anything —
+   * the animation is bound to the element's style, not to the assignment. The
+   * remove / read-offsetWidth / re-add sequence is the standard idiom: the
+   * layout read is what forces the style to be recomputed in between. One
+   * forced layout per send is a price worth paying; a per-frame one would not
+   * be, which is why nothing here is called from a scroll or a keystroke.
+   */
+  const restart = (el: HTMLElement | null, attr: string) => {
+    if (!el) return;
+    el.removeAttribute(attr);
+    void el.offsetWidth;
+    el.setAttribute(attr, "");
+  };
+
+  /**
+   * HIS BUBBLE LEAVES THE COMPOSER.
+   *
+   * Measured, not authored: the flight starts at the send button's centre and
+   * ends at the bubble's resting slot, so it is correct for a one-word message
+   * and for a six-line one without either being a special case. That is also
+   * why it is WAAPI rather than CSS — DESIGN-STANDARDS' cheapest-tool-first
+   * ladder ends here exactly when the start value cannot be written down.
+   *
+   * The duration and the curve are READ OFF :root rather than typed in, so
+   * this is on the shared scale literally rather than by resemblance: change
+   * --d-state and this changes with it.
+   *
+   * `composite: "add"` is load-bearing. The bubble's base transform is the
+   * timestamp-peek offset, and a replacing animation would drop it — which is
+   * the same collision that had silently disabled the bubble entrance in the
+   * shipped app (see the note at the top of thread.css).
+   *
+   * Clamped because the geometry is real: a bubble committed while the thread
+   * is still smooth-scrolling can measure hundreds of pixels away, and a
+   * message that swoops in from off screen is a different, worse animation.
+   */
+  const launchFromComposer = (el: HTMLElement): boolean => {
+    const btn = sendBtnRef.current;
+    if (!btn || reducedMotion() || typeof el.animate !== "function") return false;
+    const from = btn.getBoundingClientRect();
+    const to = el.getBoundingClientRect();
+    if (!from.width || !to.width) return false;
+    const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+    // Measured to the bubble's TAIL, not its centre. Centre-to-centre was the
+    // first version and it is wrong in a way you only see on a long message:
+    // a six-line bubble's centre sits level with the composer, so the flight
+    // collapsed to a sideways slide (measured: dy 10px, dx pinned at the 56px
+    // clamp) while a one-word bubble came up 64px. Same gesture, two different
+    // animations, decided by how much he happened to type.
+    //
+    // The bottom-right corner is the bubble's tail, it is what `.msg.me`
+    // already uses as its transform-origin, and it is in the same place
+    // whatever the bubble's height — so every message leaves the composer the
+    // same way, which is what spatial consistency actually asks for.
+    // ...and against where the tail is ABOUT TO BE. This runs in a layout
+    // effect, one frame before the thread scrolls itself down to the new
+    // message, so a bubble taller than the slack still measures off the bottom
+    // of the viewport — which is how the tall case ended up pinned at the
+    // clamp floor even after the tail fix (measured: dy 10px against 48px for
+    // a one-liner). A message that has just been sent always ends up at the
+    // foot of the thread, so that is where the tail is projected to.
+    const view = scrollRef.current?.getBoundingClientRect();
+    const tailY = view ? Math.min(to.bottom, view.bottom - 16) : to.bottom;
+    const dx = clamp(from.left + from.width / 2 - to.right, -56, 56);
+    const dy = clamp(from.top + from.height / 2 - tailY, 10, 64);
+    const css = getComputedStyle(document.documentElement);
+    const dur = cssMs(css.getPropertyValue("--d-state"), 220);
+    const easing = css.getPropertyValue("--ease-squash").trim() || "ease-out";
+    el.animate(
+      [
+        { transform: `translate(${dx}px, ${dy}px) scale(0.86)`, composite: "add" },
+        { transform: "translate(0px, 0px) scale(1)", composite: "add" },
+      ],
+      { duration: dur, easing, fill: "none" },
+    );
+    return true;
+  };
+
+  // Which rows have already been on screen. Seeded with the WHOLE history on
+  // mount, so opening the chat does not set four hundred saved messages
+  // animating, and pulling older ones into the window does not either — only
+  // things that ARRIVE arrive.
+  const seenRows = useRef<Set<string> | null>(null);
+  /** the id of the message he just sent, waiting for its element to exist */
+  const launchId = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const rows = root.querySelectorAll<HTMLElement>("[data-row]");
+    if (!seenRows.current) {
+      seenRows.current = new Set();
+      for (const el of rows) seenRows.current.add(el.dataset.row || "");
+      // and every message the window has not rendered yet, so scrolling back
+      // to them later is history rather than an arrival
+      for (const m of messagesRef.current) seenRows.current.add(m.id);
+      return;
+    }
+    const seen = seenRows.current;
+    let i = 0;
+    for (const el of rows) {
+      const id = el.dataset.row || "";
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      if (id === launchId.current) {
+        launchId.current = null;
+        // his bubble flies; the CSS entrance is told to fade only, or the two
+        // transforms would both apply and it would arrive from twice as far
+        el.setAttribute("data-enter", launchFromComposer(el) ? "launch" : "");
+      } else {
+        // Bubbles that land in the SAME commit stagger 80ms apart. In
+        // conversation this never fires: her delivery loop already spaces
+        // bubbles 280–1700ms apart, which is her real rhythm and is not
+        // something a stylesheet should be second-guessing. It fires where
+        // the app genuinely paints several at once — a cross-tab merge, and
+        // undoing a clear — which are exactly the moments that otherwise read
+        // as a page render rather than as someone speaking.
+        if (i) el.style.setProperty("--enter-i", String(i));
+        el.setAttribute("data-enter", "");
+        i++;
+      }
+      // The attribute is the trigger, so it comes off once every animation it
+      // started has finished — and "every" is the whole point. The first cut
+      // was a single `{ once: true }` animationend listener, which fires on
+      // whichever animation ends FIRST: the 180ms fade. Removing the attribute
+      // there cancelled the 220ms rise at 82% of its length, which is exactly
+      // the stretch where its overshoot settles back. The effect was a 0.3px
+      // snap — invisible, and wrong, and the kind of wrong that stays wrong
+      // because nobody can see it to report it.
+      //
+      // Waiting on the animations themselves needs no knowledge of their
+      // names or their count, so it also survives the reduced-motion branch
+      // (where the rise does not exist at all) with no second code path.
+      requestAnimationFrame(() => {
+        const running = el.getAnimations();
+        const done = () => {
+          el.removeAttribute("data-enter");
+          el.style.removeProperty("--enter-i");
+        };
+        if (!running.length) return done();
+        // allSettled, not all: an animation cancelled by a re-render rejects,
+        // and a rejected cleanup is a `data-enter` that never comes off
+        Promise.allSettled(running.map((a) => a.finished)).then(done);
+      });
+    }
+  }, [messages]);
+
+  // A long think gains a second beat. Deliberately keyed on `typing` itself,
+  // so the clock restarts for every bubble of a burst: four seconds into THIS
+  // one is the fact, not four seconds into the reply.
+  useEffect(() => {
+    if (!typing) {
+      setLongThink(false);
+      return;
+    }
+    const t = setTimeout(() => setLongThink(true), 4000);
+    return () => clearTimeout(t);
+  }, [typing]);
+
+  // A message arriving while he is reading scrollback must never move the
+  // thread — `atBottom` owns that and nothing here touches it. What it does
+  // is nudge the pill that is already on screen, so a count changing behind
+  // his back is something he sees change.
+  const lastMissed = useRef(0);
+  useEffect(() => {
+    if (missed > lastMissed.current && showJump) restart(jumpRef.current, "data-pulse");
+    lastMissed.current = missed;
+  }, [missed, showJump]);
+
+  // ── coming back to the thread ──────────────────────────────────────────
+  // The shell animates on the way out and on the way back; the thread did
+  // not, so returning from a call or a sheet was a cut. One 180ms settle,
+  // on the scroller rather than on forty rows.
+  const settle = () => restart(scrollRef.current, "data-settle");
+  const wasInCall = useRef(Boolean(inCall));
+  useEffect(() => {
+    if (wasInCall.current && !inCall) settle();
+    wasInCall.current = Boolean(inCall);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inCall]);
+  const wasOverlaid = useRef(false);
+  useEffect(() => {
+    const over = storyOpen || moreOpen;
+    if (wasOverlaid.current && !over) settle();
+    wasOverlaid.current = over;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storyOpen, moreOpen]);
+  // the game-return seam: activities are App-level siblings, so their edge
+  // arrives as a prop — the one line WS-FEEL could not add in-bounds
+  const wasActivity = useRef(false);
+  useEffect(() => {
+    if (wasActivity.current && !activityOpen) settle();
+    wasActivity.current = Boolean(activityOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activityOpen]);
+
   // ── an image that finishes loading is a height change ──────────────────
   //
   // A photo bubble has an aspect-ratio box now, so the reserved height is
@@ -703,6 +961,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       const target = lastMineId();
       if (target) {
         setReaction(target, react);
+        // HER reaction landing on HIS message is the one thing in the thread
+        // that arrives without a bubble to explain it, and it is about him
+        // specifically. Level 2, the same weight as putting one on himself —
+        // her side of the same act should not feel like a different act.
+        // (Her MESSAGES stay silent, deliberately: three bubbles in four
+        // seconds is a phone buzzing continuously. The note in haptics.ts.)
+        land();
         tel("chat.her_react", { msg_id: target });
       }
     }
@@ -1401,6 +1666,16 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     };
     setReplyTo(null);
     if (state.followup) setState((s) => ({ ...s, followup: null }));
+    // ── the send, felt ──────────────────────────────────────────────────
+    // Level 1 of the haptic vocabulary (native/haptics.ts): he did something
+    // and the app felt it. Fired HERE, in the same handler that commits the
+    // message, because a haptic that arrives after a timeout has already
+    // drifted away from the picture it belongs to.
+    tap();
+    // the composer recoils as the message leaves it, and the bubble it left
+    // is picked up by the layout effect that owns arrivals
+    launchId.current = mine.id;
+    restart(fieldRef.current, "data-sent");
     pushMsg(mine);
     logTurns(state.deviceId, [mine]);
     // compose.send + compose.draft (the one place draft text is captured)
@@ -1949,6 +2224,11 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       const next = m.reaction === emoji ? undefined : emoji;
       setReaction(m.id, next);
       setReplySel(null);
+      // Level 2: something landed on a message. One step above `tap()`
+      // because putting a reaction on is not the same act as sending, and
+      // only when one goes ON — taking it off is an undo, and an undo that
+      // announces itself as loudly as the thing it undoes reads as an error.
+      if (next) land();
       tel("chat.react", { msg_id: m.id, from: m.from, on: next ?? "" });
     },
     replyTo: (m) => {
@@ -2002,6 +2282,15 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       />,
     );
   }
+
+  // The composer's right-hand control has three modes and ONE button (the
+  // morph lives in thread.css). "off" is not disabled — it still focuses the
+  // field, which is the useful answer to an empty send.
+  const sendMode: "send" | "mic" | "off" = draft.trim()
+    ? "send"
+    : sttSupported()
+      ? "mic"
+      : "off";
 
   const stories = activeStories();
   const storyLive = stories.length > 0;
@@ -2133,7 +2422,11 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
         )}
         {rows}
         {typing && (
-          <div className="typing-bubble" {...(typingOut ? { "data-leaving": "" } : {})}>
+          <div
+            className="typing-bubble"
+            {...(typingOut ? { "data-leaving": "" } : {})}
+            {...(longThink ? { "data-long": "" } : {})}
+          >
             <span className="sr-only">{HER_NAME} is typing</span>
             <i />
             <i />
@@ -2144,7 +2437,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       </div>
 
       {showJump && (
-        <button className="jump-latest" data-tel="chat.jump_latest" onClick={() => toBottom()}>
+        <button ref={jumpRef} className="jump-latest" data-tel="chat.jump_latest" onClick={() => toBottom()}>
           {missed > 0 && <span className="jl-new" />}
           {missed > 0
             ? `${missed} new message${missed === 1 ? "" : "s"}`
@@ -2242,7 +2535,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
             </button>
           </div>
         ) : (
-          <div className="chat-input">
+          <div className="chat-input" ref={fieldRef}>
             <button
               className="attach-btn"
               data-tel="chat.attach"
@@ -2305,22 +2598,39 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
                 }
               }}
             />
-            {draft.trim() || !sttSupported() ? (
-              <button
-                className={`send-btn ${draft.trim() ? "" : "off"}`}
-                data-tel="chat.send"
-                // an empty send is not an error — it puts the caret where
-                // the words go, instead of doing nothing at all
-                onClick={() => (draft.trim() ? send() : inputRef.current?.focus())}
-                aria-label="Send"
-              >
+            {/* ONE button, three modes, and it never unmounts.
+                This was two buttons behind a ternary: React destroyed the mic
+                and created the send arrow between two keystrokes, so the
+                control under the thumb ceased to exist and no transition was
+                possible across the gap — it read as a flicker at the exact
+                moment he commits to a message. Both glyphs are stacked in the
+                same grid cell now and `data-mode` crossfades them; the button
+                element, its focus and its hit target are continuous.
+                `data-tel` and the accessible name follow the mode, so the
+                telemetry row still says which control was actually used. */}
+            <button
+              ref={sendBtnRef}
+              className={`send-btn morph ${sendMode === "mic" ? "mic" : sendMode === "off" ? "off" : ""}`}
+              data-mode={sendMode}
+              data-tel={sendMode === "mic" ? "chat.record" : "chat.send"}
+              // an empty send is not an error — it puts the caret where
+              // the words go, instead of doing nothing at all
+              onClick={() =>
+                sendMode === "send"
+                  ? send()
+                  : sendMode === "mic"
+                    ? startRecording()
+                    : inputRef.current?.focus()
+              }
+              aria-label={sendMode === "mic" ? "Record voice note" : "Send"}
+            >
+              <span className="sb-ic sb-send" aria-hidden="true">
                 <SendIcon />
-              </button>
-            ) : (
-              <button className="send-btn mic" data-tel="chat.record" onClick={startRecording} aria-label="Record voice note">
+              </span>
+              <span className="sb-ic sb-mic" aria-hidden="true">
                 <MicIcon size={19} />
-              </button>
-            )}
+              </span>
+            </button>
           </div>
         )}
       </div>

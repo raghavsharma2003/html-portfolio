@@ -32,7 +32,7 @@
 
 import { useEffect, useState } from "react";
 import type { Moment } from "../engine/milestones";
-import { tap, ImpactStyle } from "../native/haptics";
+import { moment as momentHaptic } from "../native/haptics";
 import "../styles/celebrate.css";
 
 /** How long it stands before settling on its own. */
@@ -113,7 +113,9 @@ export default function Celebration({ moment, onDone, holdMs = HOLD_MS }: Celebr
   useEffect(() => {
     if (!id) return;
     setOut(false);
-    tap(ImpactStyle.Light);
+    // the rarest event in the product gets the vocabulary's rarest pattern —
+    // it was tap(Light), the QUIETEST response on the biggest occasion
+    momentHaptic();
     const t = setTimeout(() => setOut(true), holdMs);
     return () => clearTimeout(t);
   }, [id, holdMs]);

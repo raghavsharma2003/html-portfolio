@@ -100,3 +100,395 @@
 .msg .quote {
   cursor: pointer;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WS-FEEL — the thread's micro-interactions.
+   ══════════════════════════════════════════════════════════════════════════
+
+   Everything below is transform/opacity only, every duration is one of the
+   five steps in global.css's token block, and every curve is one of the five
+   named there. Nothing here invents a value: the token block's own law is
+   "if a value doesn't fit a step, the value is wrong, not the scale", and the
+   one place that bit (the send flight wants ~280ms by feel) it took --d-state
+   rather than minting a sixth step.
+
+   ── THE BUG THIS SECTION OPENED ON ──────────────────────────────────────
+   Measured before anything was changed (evals/feel-browser.mjs --observe):
+   her bubble arrived with 0 moving frames and ONE running animation, an
+   opacity transition. The rise in global.css's `@starting-style .msg`
+   (translateY(6px) scale(.985)) had never once run in the shipped app.
+
+   Why: the timestamp-peek rule `.chat-scroll .msg { transform: translateX(…) }`
+   is specificity (0,2,0) and `@starting-style .msg` is (0,1,0), so the peek's
+   transform won every frame and the entrance had nothing left to animate. A
+   feature landed on top of another feature and silently ate it, and it looked
+   correct in every screenshot because a bubble that only fades still appears.
+
+   The fix is not a specificity war — it is composition. Entrances are CSS
+   animations with `animation-composition: add`, so the entrance transform is
+   ADDED to whatever the peek is doing rather than replacing it. Where the
+   property is unsupported the animation simply replaces, which is no worse
+   than the state it replaced. */
+
+/* ── 1. HIS BUBBLE LEAVES THE COMPOSER ────────────────────────────────────
+ *
+ * The flight itself is built in Chat.tsx with WAAPI, because its start value
+ * is MEASURED at send time (send button centre → the bubble's resting slot)
+ * and a measured offset cannot be written in CSS. That is the one case
+ * DESIGN-STANDARDS' cheapest-tool-first ladder ends at WAAPI, and it reads
+ * --d-state and --ease-squash off :root so it stays on the shared scale
+ * literally rather than by resemblance.
+ *
+ * This is the other half: the composer recoils as the message leaves it, the
+ * way a hand does when it lets go of something. 140ms, --d-press, the same
+ * step every other :active in the app answers on. */
+.chat-input[data-sent] {
+  animation: composer-recoil var(--d-press) var(--ease-squash) both;
+}
+@keyframes composer-recoil {
+  0% { transform: none; }
+  45% { transform: translateY(1.5px) scaleY(0.985); }
+  100% { transform: none; }
+}
+
+/* ── 2. HER BUBBLE LANDS ──────────────────────────────────────────────────
+ *
+ * A 3px rise, a fade, and a settle that overshoots by a whisker.
+ *
+ * The overshoot needs a word, because --ease-spring's own comment says "never
+ * for text — a settling headline is a headline you can't read", and this IS
+ * text. It is not --ease-spring: it is --ease-squash, whose overshoot is ~10%
+ * of the travel. Over 3px that is 0.3px, which is below the threshold the
+ * no-overshoot-on-text rule exists to protect and is felt as weight rather
+ * than seen as movement. The scale component overshoots to 1.0015 by the same
+ * arithmetic. If a future change lengthens the travel, this stops being true
+ * and the curve should go back to --ease-out.
+ *
+ * `data-enter` is put on by Chat.tsx and taken off when the animation ends —
+ * only genuinely NEW arrivals carry it, so pulling forty messages of history
+ * into the window does not set the whole thread rippling. */
+@keyframes her-land {
+  from { transform: translateY(3px) scale(0.985); }
+  to { transform: translateY(0) scale(1); }
+}
+@keyframes enter-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* TWO animations, not one keyframe set, and the pairing matters twice over.
+ *
+ * The curves differ: an opacity curve that overshoots clamps at 1 and holds
+ * there, which turns the last third of the fade into a flat step, so the fade
+ * runs on --ease-out while the travel runs on --ease-squash.
+ *
+ * The COMPOSITION differs too, and getting this wrong is silent. `add` is
+ * what lets the rise compose with the peek's translateX instead of replacing
+ * it (see the bug note at the top of this section) — but an additive OPACITY
+ * animation adds its 0→1 to the underlying 1 and the element simply never
+ * fades. So the list is explicit: add the transform, replace the opacity. */
+.chat-scroll .msg.her[data-enter],
+.chat-scroll .msg.me[data-enter] {
+  animation-name: her-land, enter-fade;
+  animation-duration: var(--d-state), var(--d-tap);
+  animation-timing-function: var(--ease-squash), var(--ease-out);
+  animation-fill-mode: both, both;
+  animation-composition: add, replace;
+}
+/* HIS bubble, when the measured flight actually ran: the fade only. The
+ * travel is the WAAPI animation, and letting the CSS rise run underneath it
+ * would add two transforms together and launch the bubble from twice as far
+ * away as the composer actually is. Where the flight could not run (reduced
+ * motion, no send button on screen) the attribute is empty and the ordinary
+ * rise above applies, so there is no state with no entrance at all. */
+.chat-scroll .msg.me[data-enter="launch"] {
+  animation-name: enter-fade;
+  animation-duration: var(--d-tap);
+  animation-timing-function: var(--ease-out);
+  animation-composition: replace;
+}
+
+/* Bubbles that arrive in ONE commit stagger. In normal conversation this
+ * never fires — her delivery loop spaces bubbles 280–1700ms apart (measured:
+ * 1744ms and 1040ms between the three bubbles of a three-bubble reply), which
+ * is the real rhythm and is already right. It fires where the app genuinely
+ * paints several messages at once: a cross-tab merge, and undoing a clear.
+ * `--enter-i` is the arrival's index within its commit, set by Chat.tsx. */
+.chat-scroll .msg[data-enter] {
+  animation-delay: calc(var(--enter-i, 0) * 80ms);
+}
+
+/* ── 3. THE TYPING INDICATOR, AND THE 4s SECOND BEAT ──────────────────────
+ *
+ * The unique bit. How long she will type is UNKNOWABLE at the moment the
+ * indicator goes up — the reply does not exist yet, so there is nothing
+ * honest to pace against, and a fake progress rhythm is a lie told in motion.
+ *
+ * What IS knowable is that this one is taking a while. At 4s the indicator
+ * gains a SECOND, slower beat: a wide soft ring on ::before breathing at
+ * 2.6s against the existing 3.4s halo, and the dots lengthening their period.
+ * Two periods that do not divide never realign, so the pair keeps drifting —
+ * which is what "still there, still thinking" feels like, as opposed to the
+ * frozen loop it was.
+ *
+ * motion-lint: allow ambient breath, deliberately slower than the 300ms UI
+ * cap for the same reason her presence glow is — this is a LOOP that reads as
+ * being alive, not a transition answering a touch, and a 300ms version of it
+ * would strobe under the reader's eye. The reduced-motion answer is below. */
+.typing-bubble[data-long]::before {
+  content: "";
+  position: absolute;
+  inset: -16px;
+  /* A RADIAL BLOOM, not a filled lozenge. The first version was
+   * `background: var(--accent-soft)` on a rounded box, and in the screenshot
+   * it read as a second slab parked behind the bubble — a hard edge is a hard
+   * edge whatever its radius, and a hard edge is a SHAPE, which is one more
+   * object in the thread rather than the bubble being warmer. A gradient that
+   * reaches transparent well inside its own box has no edge to read. */
+  background: radial-gradient(58% 58% at 50% 50%, var(--accent-soft) 0%, transparent 72%);
+  opacity: 0;
+  z-index: -1;
+  pointer-events: none;
+  animation: typing-second 2.6s var(--ease-in-out) infinite;
+}
+@keyframes typing-second {
+  0%, 100% { opacity: 0; transform: scale(0.9); }
+  50% { opacity: 0.85; transform: scale(1); }
+}
+/* the dots take a longer, heavier breath — she is thinking about it now */
+.typing-bubble[data-long] i:nth-child(1) { animation-duration: 1.55s; }
+.typing-bubble[data-long] i:nth-child(2) { animation-duration: 1.72s; }
+.typing-bubble[data-long] i:nth-child(3) { animation-duration: 1.63s; }
+
+/* ── 4. A REACTION ARRIVES ────────────────────────────────────────────────
+ *
+ * It used to grow from scale(0.2), which is the scale-zero anti-pattern by
+ * two decimal places: a thing that grows from nothing has no size to grow
+ * FROM, so it pops instead of arriving.
+ *
+ * Now it FLIES the short distance from inside the bubble to its perch on the
+ * edge, and overshoots on the way in. The overshoot is earned here in the
+ * strict sense DESIGN-STANDARDS requires: the pill is arriving under its own
+ * power, it is not text, and it is the one thing in the thread that appears
+ * without a bubble to explain it.
+ *
+ * The burst is the ::after ring — one expanding circle, opacity to zero. Not
+ * particles: a reaction is a small warm event and confetti would make every
+ * ❤️ into a celebration, which is how a delight budget gets spent by 9am. */
+.msg .react-pill {
+  animation: react-land var(--d-veil) var(--ease-squash) both;
+}
+@keyframes react-land {
+  0% { opacity: 0; transform: translateY(-7px) scale(0.72); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.msg .react-pill::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  border: 1.5px solid var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  animation: react-burst var(--d-veil) var(--ease-out) both;
+}
+@keyframes react-burst {
+  0% { opacity: 0.7; transform: scale(0.7); }
+  /* the ring holds its brightness through the first half and gives it all up
+   * in the second. A linear fade over a 240ms ring is gone before the eye has
+   * found it, which is how a burst ends up being work nobody sees. */
+  50% { opacity: 0.4; transform: scale(1.35); }
+  100% { opacity: 0; transform: scale(1.9); }
+}
+
+/* ── 5. RETURNING TO THE THREAD ───────────────────────────────────────────
+ *
+ * Coming back from a call (or a sheet Chat itself opened) the shell animates
+ * and the thread did not — it was simply already there, which reads as the
+ * app cutting rather than moving. 180ms, --d-tap, a 4px rise and a short
+ * fade: enough to say "this came back", not enough to make you wait for it.
+ * Deliberately on the scroller rather than the rows, so it is ONE compositor
+ * layer moving instead of forty. */
+.chat-scroll[data-settle] {
+  animation: thread-settle var(--d-tap) var(--ease-out) both;
+}
+@keyframes thread-settle {
+  from { opacity: 0.55; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 6. SCROLL: ONE VOCABULARY FOR BOTH EDGES ─────────────────────────────
+ *
+ * The jump-latest pill already arrives on --ease-spring (global.css). The
+ * window's other edge, `load-earlier`, arrived on nothing at all — it just
+ * existed. Same spring, same press, so the two ends of the thread answer the
+ * same way.
+ *
+ * --sq-x is dialled down from the inherited 1.08 because this is a wide pill
+ * and 1.08 overhangs it, which the token block calls out by name. */
+.load-earlier {
+  --sq-x: 1.035;
+  opacity: 1;
+  transform: none;
+  /* The transform leg is --ease-spring, the same curve the jump pill arrives
+   * on, because this pill also arrives under its own power. The opacity leg is
+   * listed EXPLICITLY: the first version transitioned background and transform
+   * only, so the @starting-style fade below had no transition to run on and
+   * the pill blinked in at full opacity while sliding. A property missing from
+   * this list is a property that hard-cuts, and it is silent. */
+  transition: background var(--d-state) var(--ease-out),
+    opacity var(--d-state) var(--ease-out),
+    transform var(--d-state) var(--ease-spring);
+}
+@starting-style {
+  .load-earlier {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.94);
+  }
+}
+/* The press is NOT the spring. DESIGN-STANDARDS' resolution of the
+ * impeccable/apple conflict is that bounce is earned by momentum, and a
+ * press-DOWN carries none — the overshoot belongs on the release, which is
+ * what --d-press and --ease-out give it when :active drops away. Same shape
+ * as .send-btn:active, which is the control this one should feel related to. */
+.load-earlier:active {
+  transform: scale(var(--sq-x), var(--sq-y));
+  transition-duration: var(--d-squash);
+  transition-timing-function: var(--ease-out);
+}
+
+/* A message landing while he is reading forty messages up must never yank the
+ * thread. It does not: `atBottom` owns that. What it does now is nudge the
+ * pill that is already on screen, so the count changing is a thing he SEES
+ * change rather than a number that was silently different. One beat, 220ms,
+ * and the translateX(-50%) is carried through every keyframe because transform
+ * is one property and dropping it would fling the pill half a width left. */
+.jump-latest[data-pulse] {
+  animation: pill-pulse var(--d-state) var(--ease-spring) both;
+}
+@keyframes pill-pulse {
+  0% { transform: translateX(-50%) scale(1); }
+  40% { transform: translateX(-50%) scale(1.055); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+/* ── 7. THE COMPOSER ──────────────────────────────────────────────────────
+ *
+ * The mic and the send arrow used to be two different buttons, swapped by a
+ * ternary. React unmounted one and mounted the other, so the control the
+ * thumb is resting on ceased to exist between two keystrokes — no transition
+ * is possible across a remount, and it read as a flicker.
+ *
+ * It is ONE button now, holding both icons stacked, crossfading. The button
+ * element persists; only `data-mode` changes. The icon leaving turns and
+ * shrinks a little as it goes so the two are distinguishable mid-swap rather
+ * than being a dissolve between two grey shapes. */
+.send-btn.morph {
+  display: grid;
+  place-items: center;
+}
+.send-btn .sb-ic {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity var(--d-tap) var(--ease-out),
+    transform var(--d-tap) var(--ease-squash);
+}
+.send-btn[data-mode="mic"] .sb-send,
+.send-btn[data-mode="off"] .sb-mic,
+.send-btn[data-mode="send"] .sb-mic {
+  opacity: 0;
+  transform: scale(0.62) rotate(-24deg);
+}
+.send-btn[data-mode="send"] .sb-send,
+.send-btn[data-mode="off"] .sb-send,
+.send-btn[data-mode="mic"] .sb-mic {
+  opacity: 1;
+  transform: none;
+}
+
+/* The attach button was on a plain scale(0.95). Every other finger-sized
+ * control in the app squashes; this one is the same size as the send button
+ * sitting 300px away from it and answered differently. */
+.attach-btn:active {
+  transform: scale(var(--sq-x), var(--sq-y));
+  transition-duration: var(--d-squash);
+  transition-timing-function: var(--ease-out);
+}
+/* The field's focus ring already exists. This is the other half of focus:
+ * the placeholder steps back when the caret arrives, so the box reads as
+ * ready for words rather than as still holding its own. */
+.chat-input textarea::placeholder {
+  transition: opacity var(--d-tap) var(--ease-out);
+}
+.chat-input:focus-within textarea::placeholder {
+  opacity: 0.55;
+}
+
+/* ── 8. THE HARD CUTS THAT WERE LEFT ──────────────────────────────────────
+ *
+ * A gif resolving and a lazy photo decoding both replaced a placeholder on a
+ * single frame. The bubble is already on screen and already the right size,
+ * so nothing moves — but the picture appearing instantaneously inside a
+ * surface that arrived with weight is the seam you feel without being able to
+ * name it. One --d-state fade, the same one BigEmoji's animated glyph already
+ * uses for exactly this. */
+.msg.gifmsg img,
+.msg.her.photo img {
+  animation: enter-fade var(--d-state) var(--ease-out) both;
+}
+
+/* ── reduced motion ───────────────────────────────────────────────────────
+ *
+ * Gentler and fewer, never absent — the whole file's contract in one block.
+ * Every END STATE above still renders; what goes is spatial travel and the
+ * ambient loops. The send flight is skipped in Chat.tsx at the same query, so
+ * there is no CSS here that could contradict it.
+ *
+ * The reaction keeps a fade, because a reaction that simply materialises with
+ * no change at all is indistinguishable from one that was always there — and
+ * "it appeared" is the entire message. */
+@media (prefers-reduced-motion: reduce) {
+  .chat-input[data-sent],
+  .chat-scroll[data-settle],
+  .chat-scroll .msg[data-enter],
+  .jump-latest[data-pulse] {
+    animation: none !important;
+  }
+  .chat-scroll .msg.her[data-enter],
+  .chat-scroll .msg.me[data-enter] {
+    animation: enter-fade var(--d-state) var(--ease-out) both !important;
+  }
+  .msg .react-pill {
+    animation: enter-fade var(--d-state) var(--ease-out) both;
+  }
+  .msg .react-pill::after {
+    animation: none;
+    opacity: 0;
+  }
+  .typing-bubble[data-long]::before {
+    animation: none;
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  .load-earlier {
+    transition: background var(--d-state) ease;
+    transform: none;
+  }
+  .load-earlier:active {
+    transform: none;
+    opacity: 0.7;
+  }
+  .send-btn .sb-ic {
+    transition: opacity var(--d-tap) ease;
+  }
+  .send-btn[data-mode="mic"] .sb-send,
+  .send-btn[data-mode="off"] .sb-mic,
+  .send-btn[data-mode="send"] .sb-mic {
+    transform: none;
+  }
+  .msg.gifmsg img,
+  .msg.her.photo img {
+    animation: enter-fade var(--d-state) ease both;
+  }
+}

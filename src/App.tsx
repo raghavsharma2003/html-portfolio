@@ -660,6 +660,7 @@ export default function App() {
               state={state}
               setState={setState}
               inCall={inCall}
+            activityOpen={activity !== null}
               onVoiceCall={() => startCall("")}
               onProfile={() => setAuthOpen(true)}
               onGames={() => setGamesOpen(true)}

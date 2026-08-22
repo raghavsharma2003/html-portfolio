@@ -1609,3 +1609,23 @@ lapsed. Both fixed, one arithmetic, eval-pinned.
 **The generalisable rule:** when every sibling query carries a predicate
 set, a query missing it is not a variation, it is a bug — and counts that
 gate STATE need the strictest read in the file, not the loosest.
+
+---
+
+## `minifier-eats-runtime-tokens` — the animation that ran for 0.22 milliseconds
+
+**Found (WS-FEEL):** code reading a design token at runtime reads the
+MINIFIER'S opinion of it: `--d-state: 220ms` ships as `.22s`, and a bare
+parseFloat turned the send-flight duration into 0.22ms — one frame,
+indistinguishable from the teleport it replaced, and invisible in dev
+where the stylesheet is unminified. Sibling find: her bubble entrance
+had NEVER run in production (a (0,2,0) peek transform beat the (0,1,0)
+@starting-style every frame — fixed by animation-composition, not a
+specificity war), and {once:true} on animationend truncated every
+multi-animation settle at the shortest member.
+
+**The generalisable rules:** parse units when reading tokens at runtime;
+compose transforms instead of out-specifying them; await
+Promise.allSettled(el.getAnimations()) instead of counting names. And
+the meta-rule: animation bugs are invisible without a frame-sampling
+harness — "it animates" is not observable from code review.
