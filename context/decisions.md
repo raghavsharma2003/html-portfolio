@@ -1643,3 +1643,22 @@ AT the check and the margin kept tight so the next unplanned growth trips
 it again. **Reverses if:** core growth starts arriving without a written
 rationale at the check — then the ceiling freezes and content fights for
 space instead.
+
+---
+
+## `native-watch-already-wired` — task #76 was stale paperwork, not a gap
+
+The native Android watch lane HAS fed watch_moment since WS-ANDROID-WATCH
+(2026-08-18): SceneReader -> WatchCaptureService.dispatch -> emitShowWake
+(blank/private/look-away gated, class name only crosses the bridge) ->
+watch.ts -> armMomentWindow/consumeMomentWindow -> POST op:"watch_moment"
+-> vy_shared_moment. Proven end-to-end this session: 26/26 through the
+REAL bridge listener, real handler, real Postgres, zero residue
+(evals/multimodal/native-e2e.mjs, now the only check that the
+startWatch onWake argument exists at all). The ticket got re-issued as
+"unclaimed" because the lane was never logged to THIS graph — the
+"if it isn't logged, it didn't happen" law biting its own tail. The two
+stale comments claiming no client call site were fixed. watch_visual
+stays unwired BY DECISION (needs a scored claim no lane produces).
+**Reverses if:** nothing — this records existence; the supersedes edge
+below is the point.

@@ -136,13 +136,26 @@ export async function writeSharedMoment(person, episodeId, { assertionId, reacti
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // HTTP surface for the live-lane writers. Small on purpose (SPEC: "NEW,
-// small, v0 deterministic"). INTERFACE TICKET (open, logged in the M3
-// report): no client call site posts here yet — src/voice/useCallEngine.ts
-// (hangup) and src/watch/scene.ts (scene wake) are outside every §13
-// workstream's file list, so wiring them is unclaimed. Until that lands, the
-// 45-minute gap rule in openOrExtendEpisode still closes every call episode
-// eventually; only the hangup-precision and the watch lane's writes are
-// blocked on it.
+// small, v0 deterministic"). INTERFACE TICKET — CLOSED. This comment used to
+// read "no client call site posts here yet"; that was stale in BOTH halves,
+// and the staleness is what made the wiring look unclaimed and got it
+// re-ticketed long after it shipped. The call sites today, all in
+// src/components/useCallEngine.ts (NOT src/voice/, which does not exist):
+//   call_end     — postEpisodeCallEnd(), on hangup.
+//   watch_moment — postWatchMoment(), from noteHerLine(), on BOTH watch
+//                  lanes: the web share's own wake(), and the NATIVE Android
+//                  lane via the "watchwake" bridge event
+//                  (WatchCaptureService.emitShowWake → src/native/watch.ts →
+//                  armMomentWindow/consumeMomentWindow). See
+//                  docs/WATCH-NATIVE.md.
+//   watch_visual — deliberately UNWIRED, and that is a decision, not a gap:
+//                  it requires claim + extractor_model + confidence, and
+//                  neither watch lane produces a scored claim. Inventing a
+//                  confidence would be fabricating metadata about
+//                  fabrication risk (vision-fab).
+// Covered end to end by evals/multimodal/ (scene-gate, native-gate,
+// db-writer). The 45-minute gap rule in openOrExtendEpisode remains the
+// backstop that closes every call episode regardless.
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");

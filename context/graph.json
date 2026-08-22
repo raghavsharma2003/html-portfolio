@@ -1155,6 +1155,12 @@
       "kind": "measurement",
       "title": "24/24 owner-generated photos delivered, face-lock eye-verified, library 89->109",
       "at": "2026-08-22"
+    },
+    {
+      "id": "native-watch-already-wired",
+      "kind": "decision",
+      "title": "Native watch lane feeds watch_moment since WS-ANDROID-WATCH; e2e-proven 26/26; ticket was unlogged, not unbuilt",
+      "at": "2026-08-22"
     }
   ],
   "edges": [
@@ -2172,6 +2178,11 @@
       "src": "ci-deploy-unpinned-project",
       "rel": "caused_by",
       "dst": "ci-secrets-live"
+    },
+    {
+      "src": "native-watch-already-wired",
+      "rel": "supersedes",
+      "dst": "dead-writers"
     }
   ]
 }

@@ -254,13 +254,16 @@ three paths:
   aspirational; `voice_v0` is dead.
 - `vy_visual_assertion` and `vy_shared_moment` have **correct, complete writers
   already** (`api/episodes.js:111-132`, exposed as the `watch_visual` /
-  `watch_moment` ops at `:164-178`). **No client calls them.** A repo-wide grep
-  for those op names outside `api/episodes.js` returns nothing, and
-  `src/watch/scene.ts` never references `/api/episodes`. The file says so
-  itself in an open interface ticket at `api/episodes.js:136-143`: the call
-  sites *"are outside every §13 workstream's file list, so wiring them is
-  unclaimed"*. The call-hangup half of that ticket is now stale — it IS wired,
-  via `useCallEngine.ts:79-82`'s `op:"call_end"`. The watch half is not.
+  `watch_moment` ops). **CLOSED by WS-MULTIMODAL + WS-ANDROID-WATCH — the
+  original text here ("No client calls them", "the watch half is not [wired]")
+  is kept only as history, and its staleness is what got the work re-ticketed
+  after it had already shipped.** `call_end` and `watch_moment` are both
+  called from `src/components/useCallEngine.ts`, and `watch_moment` fires on
+  BOTH watch lanes: the web share's own `wake()`, and the native Android
+  capture through the `watchwake` bridge event (`docs/WATCH-NATIVE.md`).
+  `watch_visual` stays unwired **by decision** — no lane produces claim +
+  extractor_model + confidence, and inventing one would fabricate metadata
+  about fabrication risk.
 - Call **transcripts** do reach `meera_log` with `channel:'call'`, and
   `finalizePerson` does not filter by channel, so spoken words become episodes
   and facts like any other text. What is missing is not the words — it is
