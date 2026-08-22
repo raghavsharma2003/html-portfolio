@@ -1101,6 +1101,12 @@
       "kind": "measurement",
       "title": "Onset-confirm + backchannel-ignore: floor improved, false cuts down, cost +85-171ms bounded",
       "at": "2026-08-22"
+    },
+    {
+      "id": "ci-secrets-live",
+      "kind": "decision",
+      "title": "Actions secrets complete; HAS_* run summary is the verification, never the badge",
+      "at": "2026-08-22"
     }
   ],
   "edges": [
