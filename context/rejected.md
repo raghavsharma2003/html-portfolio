@@ -1351,3 +1351,32 @@ false of the BROWSER for months when it fails intermittently. An animation
 claim is only real once an animation EVENT has been observed firing — "it
 looks like it moves" is not evidence, because the eye forgives a teleport at
 180ms.
+
+---
+
+## the-poke-that-waited-for-her-breath
+
+**Tried:** poking her on every completed exchange, with delivery politely
+waiting for her voice to stop (direct()'s wait-for-silence) plus a quiet floor
+on HIS voice.
+
+**What broke:** story fragmentation, guaranteed by construction. She starts a
+story → pauses for breath → the queued chess note lands IN the pause (the
+wait-for-silence made sure of it) → she pivots to the board → tries the story
+again → the next exchange queues the next note. The owner: "she couldn't even
+continue the story properly." The politeness mechanism was the attack vector:
+waiting for her voice to stop means always firing at the exact moment her
+thought is most interruptible.
+
+**Now:** three rules — salience (quiet moves get no note at all; the tail
+still carries the position), rate (one note per 25s, endings/checks exempt),
+and breath (a pause under 3s after her voice ends is the inside of a story,
+not the end of a turn). Plus: his move alone never fires while her reply is
+pending, and the completed exchange fires at 150ms so her voice knows the
+move as the piece lands.
+
+**The generalisable rule:** for any out-of-band nudge into a live
+conversation, "wait until she is quiet" is not politeness — it is a mechanism
+for interrupting at peak vulnerability. The right gates are on the EVENT
+(does it earn a word?) and the RHYTHM (how often may the outside world speak?),
+and only then on the silence.

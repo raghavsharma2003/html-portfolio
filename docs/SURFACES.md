@@ -263,6 +263,24 @@ interface ActivityState {
   scoresheet being read aloud, over the row limit, and long enough to push
   whose-turn-it-is off the end.
 
+### The poke's cadence (any surface with out-of-band events)
+
+Measured on the web lane, 2026-08-21, after the owner watched the naive
+version destroy her own stories. If your surface pushes activity events into a
+live conversation, copy these gates or re-earn them:
+
+1. **Salience** — the event must EARN a word (chess: blunder/capture/check/
+   hang/sacrifice/material/ending). Quiet events go unnarrated; the activity
+   block still carries full state, so she is never ignorant, only unprompted.
+2. **Rate** — one note per ~25s. Endings and checks are exempt: they are the
+   "something crazy happened" a person interrupts their own story for.
+3. **Breath** — her voice having ended <3s ago is the pause INSIDE a story.
+   "Wait until she is quiet" is not politeness, it is a mechanism for
+   interrupting at peak vulnerability. Wait out the pause; drop after ~4 tries.
+4. **One exchange, one note** — never narrate a half-exchange while her reply
+   is pending, and fire near-instantly (~150ms) once it completes, or the lag
+   compounds and she narrates history.
+
 ### Realtime surfaces only
 
 If your surface has a live voice lane, the prompt is frozen when the call
