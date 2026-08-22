@@ -17,6 +17,45 @@
 // fallback (§4: identity resolution is agent-independent, and it is also
 // surface-independent for the same human).
 //
+// ── the room binding, since migration 013 (task #78) ──────────────────────
+//
+// A room used to be addressed by `vy_group.tg_chat_id`, a bigint on a column
+// named for this wire. It is now `(surface, surface_chat_id)` — text, because
+// `chatKey` is an OPAQUE ADDRESS and this file already treats it as one.
+//
+// NOTHING IN THIS FILE CHANGED FOR THAT, and that is the contract working
+// rather than an omission. `parse()` has always emitted `String(chat.id)` and
+// handed it back untouched; the address book is api/_surface.js's
+// (`roomForChat` / `ensureRoomForSurfaceChat` / `upsertRoomMember`), which
+// dual-reads the old Telegram-shaped key and adopts any room created before
+// 013. An adapter that had needed editing here would have been an adapter
+// holding a query, which §"What you must NOT do" forbids for exactly this
+// reason: the schema moved under four surfaces and none of them noticed.
+//
+// The one Telegram-specific consequence, stated so it is not rediscovered: a
+// Telegram room is still MIRRORED into `tg_chat_id` by the engine half, and
+// only while `vy_group_tg_chat_ix` exists. Both retire together — the
+// condition is written down in docs/SURFACES.md §4.
+//
+// ── what is code-complete here, and what is not testable without a token ──
+//
+// Code-complete and exercised offline: the four functions, the constant-time
+// secret compare and its fail-closed path, the update triage, the deep-link
+// payload validator, the 4,096-char render, the whole engine half (identity,
+// rooms, roster, disclosure-gated recall, the compiler, the honesty gate)
+// driven end to end by evals/mp/tgbot.mjs against real Postgres with mock
+// updates, and the room binding by evals/mp/binding.mjs.
+//
+// NOT exercised, and it cannot be from here: every `send()` path. No outbound
+// Bot API call has ever been made. `tgCall()` refuses fail-closed without
+// TELEGRAM_BOT_TOKEN, which is the only thing that has been proven about it.
+// The webhook has never been registered, so nothing has verified that
+// promotion-after-addition clears privacy mode for a chat (both outcomes are
+// handled without a code change — see api/_surface.js's onBotMembership), nor
+// that `chat_member` is delivered at the rate the roster path assumes. All of
+// that needs TELEGRAM_BOT_TOKEN / TELEGRAM_WEBHOOK_SECRET /
+// TELEGRAM_BOT_USERNAME, which are deliberately empty in api/_config.js.
+//
 // ── the security boundary at the edge ─────────────────────────────────────
 //
 // Telegram's webhook secret_token is delivered as the

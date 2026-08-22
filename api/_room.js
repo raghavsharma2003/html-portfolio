@@ -35,6 +35,7 @@
 // tested through a copy is a copy that was tested.
 import { createHash, randomUUID } from "node:crypto";
 import { q } from "./_db.js";
+import { MEERA_AGENT_ID } from "./_agentscope.js";
 import {
   disclosurePredicate,
   bridgeEligibilityClause,
@@ -599,16 +600,21 @@ export async function openOrExtendGroupEpisode(
   }
   const ins = await q(
     `insert into ${t("vy_episode")}
-       (person_id, group_id, device_id, channel, participation, disclosure_scope,
+       (agent_id, person_id, group_id, device_id, channel, participation, disclosure_scope,
         started_at, ended_at, boundary_reason, summary, provisional)
-     values (null, $1, $2, 'chat', 'group', 'participants', now(), now(), $3, '', true)
+     values ($4, null, $1, $2, 'chat', 'group', 'participants', now(), now(), $3, '', true)
      returning id`,
     // device_id on a room episode is PROVENANCE only (the legacy forget
     // scopes read it) and it is the room's synthetic device, which is in
     // nobody's vy_person_device mapping — so it can never make a room episode
     // fall into a person's device-keyed wipe. Attribution runs through
     // vy_episode_participant and meera_log.speaker_person_id, never here.
-    [groupId, roomDevice, open[0] ? "channel" : "gap"],
+    // agent_id named explicitly: migration 010 dropped the column default on
+    // every agent-scoped table, and an unnamed insert here is a NOT NULL
+    // violation on the first real room turn — invisible until a token exists,
+    // which is exactly when it would have fired. Found by the WS-BINDING
+    // fixture (its check 0 mirrors production's catalog, defaults included).
+    [groupId, roomDevice, open[0] ? "channel" : "gap", MEERA_AGENT_ID],
   ).catch(() => []);
   return ins[0] ? { id: ins[0].id, extended: false } : null;
 }
@@ -660,9 +666,9 @@ export async function recordTurnAction(
   t = ident,
 ) {
   const r = await q(
-    `insert into ${t("vy_group")}_turn (group_id, episode_id, log_id, action, addressed, reason)
-     values ($1,$2,$3,$4,$5,$6) returning id`,
-    [groupId, episodeId, logId, action, addressed === true, String(reason).slice(0, 160)],
+    `insert into ${t("vy_group")}_turn (agent_id, group_id, episode_id, log_id, action, addressed, reason)
+     values ($7,$1,$2,$3,$4,$5,$6) returning id`,
+    [groupId, episodeId, logId, action, addressed === true, String(reason).slice(0, 160), MEERA_AGENT_ID],
   ).catch(() => []);
   return r[0]?.id ?? null;
 }

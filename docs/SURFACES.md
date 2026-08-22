@@ -178,10 +178,11 @@ fragment, buttons ride the last — both decided once, in `deliver()`.
 8. **Run the gates:**
 
    ```
-   node evals/surface.mjs          # the honesty gate on the surface path
+   node evals/surface.mjs          # the honesty gate + the binding, statically
    node evals/surface/run.mjs      # contract + identity + pipeline
    node evals/mp/gate0.mjs         # the disclosure predicate, unchanged
    node evals/mp/withdraw.mjs      # the multi-owner forget cascade
+   node evals/mp/binding.mjs       # the room binding round trip, 57 checks
    node evals/mp/tgbot.mjs         # the Telegram surface, 101 checks
    node scripts/verify-release.mjs # tsc + prompt budget + build + evals
    ```
@@ -360,14 +361,45 @@ Gate: `node evals/run.mjs activity`.
 
 ## 3. The three that exist
 
-### `api/tg.js` — Telegram (SHIPPING, production-probed)
+### Status, stated so a green run is not read as more than it is
+
+Updated 2026-08-22 (tasks #78, #66). Three columns, because "done" has three
+different meanings here and conflating them is how an untested adapter gets
+reported as working.
+
+| | `api/tg.js` | `api/discord.js` | `api/whatsapp.js` |
+|---|---|---|---|
+| **the four functions** | code-complete | code-complete | code-complete |
+| **the honesty gate** (`gatedReply`) | LIVE — inherited, not copied | inherited | inherited |
+| **room binding** `(surface, surface_chat_id)` | LIVE in the schema (mig 013, applied 2026-08-22), dual-read for pre-013 rooms | usable — a snowflake no longer collides with a Telegram chat id | usable — a `…@g.us` key is storable at all for the first time |
+| **identity** `vy_surface_identity` | LIVE, `vy_tg_person` draining behind it | resolves or refuses | resolves or refuses |
+| **offline proof** | 101 checks (`evals/mp/tgbot.mjs`) + 57 (`evals/mp/binding.mjs`) | 113 contract + 30 pipeline | 113 contract |
+| **`verify()` fail-closed** | proven offline | proven offline | proven offline |
+| **`send()` ever called** | NO | NO | NO |
+| **live-wire proof** | NONE — needs `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_USERNAME` | NONE — needs the Discord app | NONE — needs a Meta business account |
+
+Read the middle rows as *the schema and the engine half are live*; read the
+last two as *no byte has ever left this process on any of the three wires*.
+The three `TELEGRAM_*` values are deliberately empty in `api/_config.js`, so
+Telegram is **code-complete and untested on the wire**, not shipping traffic.
+
+### `api/tg.js` — Telegram (code-complete; blocked on credentials)
 
 Webhook with `X-Telegram-Bot-Api-Secret-Token`, constant-time. Private chats
 are the 1:1 lane, groups/supergroups are rooms. Admin promotion is the room's
 read consent. `/start r<id>` deep link links identity, joins the room and
 triggers the one-time intro. Commands `/chup /bolo /bhool /kya`. 4,096-char
-limit. Blocked on the owner for `TELEGRAM_BOT_TOKEN` /
-`TELEGRAM_WEBHOOK_SECRET` / `TELEGRAM_BOT_USERNAME`.
+limit. The room binding is `(surface='telegram', surface_chat_id=chat.id as
+text)` since migration 013; this file needed no change for that, because
+`parse()` has always emitted an opaque `String(chat.id)` and the address book
+is the engine half's.
+
+Blocked on the owner for `TELEGRAM_BOT_TOKEN` / `TELEGRAM_WEBHOOK_SECRET` /
+`TELEGRAM_BOT_USERNAME` — all three are empty in `api/_config.js` today. Until
+they exist: no webhook is registered, no update has ever arrived, no `send()`
+has ever been called, and `vy_group` holds zero rows. Everything else about
+this surface is proven offline (101 + 57 checks); the header of `api/tg.js`
+enumerates exactly which claims the three secrets are the only way to settle.
 
 ### `api/discord.js` — Discord (NOT WIRED, code + tests only)
 
@@ -431,33 +463,80 @@ full Discord payload driving the entire shared pipeline end to end (30 checks).
 
 **Owed, and named:**
 
-- `vy_group.tg_chat_id` is a `bigint` and `vy_group_member.tg_user_id` is a
-  `bigint`. The room binding is therefore still Telegram-shaped: a non-numeric
-  chat key cannot be stored, and `roomByChatKey()` returns null for one so the
-  room lane refuses fail-closed rather than writing a row that means something
-  else. Non-Telegram members are written with a NULL `tg_user_id` and
-  identified through `vy_surface_identity`. **The migration should replace both
-  with `(surface, surface_chat_id)` / `(surface, surface_user_id)`** — the same
-  move `vy_surface_identity` already made for `vy_tg_person`. That is
-  WS-AGENT-SCHEMA's file, not this one's.
+- ~~`vy_group.tg_chat_id` is a `bigint`, so the room binding is Telegram-shaped~~
+  — **CLOSED 2026-08-22 (task #78).** `db/migrations/013_surface_room_binding.sql`
+  was promoted out of `drafts/` and **applied to production**: `vy_group` and
+  `vy_group_member` gained `(surface, surface_chat_id)` / `(surface,
+  surface_user_id)`, both `text`, plus a partial unique index on the room pair
+  and a lookup index on the member pair. Additive and idempotent throughout —
+  nothing was dropped, and re-applying the file is a no-op (verified by running
+  it twice against production).
 
-  **Drafted, not applied (task #78, 2026-08-22):**
-  `db/migrations/drafts/DRAFT-013-surface-room-binding.sql`. Three things in it
-  are worth knowing before anyone picks it up. First, **the ticket's "migration
-  010" is a stale number** — 010, 011 and 012 have all shipped, so the draft is
-  numbered 013 and must be renumbered again to whatever is free on the day it
-  lands. Second, it lives in `drafts/` because `db/migrations/apply.mjs` applies
-  every `*.sql` in its own directory with no allowlist; a draft beside its
-  siblings is a draft that gets applied. Third, the DDL is only a third of the
-  job — it is additive and idempotent and drops nothing, and the backfill (held
-  back deliberately: it asserts a fact about existing rows that whoever applies
-  it should check, not assume) plus the `api/_room.js` read-path change are the
-  other two thirds. `surface_chat_id` is **text**, because a chat key is an
-  opaque address the contract already forbids parsing; the moment it is numeric
-  someone drops a leading zero. And there is deliberately **no
-  `check (surface in (…))`** — a CHECK there would mean adding a fifth surface
-  requires a migration, which is "do not teach the engine your surface" one
-  layer down.
+  The backfill was **held back in the draft on purpose** — it asserts a fact
+  about existing rows — and the fact was checked before applying: `vy_group`
+  and `vy_group_member` both held **zero rows** (the bot has never run against
+  production), so the assumption holds vacuously and both statements matched
+  0 rows. They are in the shipped file anyway, guarded by `surface is null`,
+  so a replay or an older writer's row is repaired rather than becoming a
+  second migration. `evals/mp/binding.mjs` exercises them on the shape they
+  were written for, since zero rows proves nothing about what they do to a row.
+
+  The read and write paths moved with it, in `api/_surface.js`
+  (`roomForChat` / `ensureRoomForSurfaceChat` / `upsertRoomMember`):
+  **dual-read, new-write.** The new key is read first; on a miss the legacy
+  Telegram-shaped key is tried, and a row found that way is ADOPTED on the way
+  past, so the compatibility read drains itself under ordinary traffic — the
+  same shape `personForSurfaceUser()` uses for `vy_tg_person`. Writes always
+  set the new columns, on every surface; `tg_chat_id` / `tg_user_id` are
+  mirrored for Telegram only. The legacy lookup is now gated on the surface as
+  well as the shape, which is what closes the collision the old
+  `chatKeyToChatId()` allowed: Discord channel 9001 and Telegram chat 9001 were
+  one room, and are now two.
+
+  **THE RETIREMENT CONDITION**, written down so the transition ends rather than
+  becomes the architecture. Three things go together, in one follow-up, and
+  removing any one of them alone turns every existing room into "unknown room":
+  the compatibility read in `roomForChat()`, the mirror write in
+  `ensureRoomForSurfaceChat()` / `upsertRoomMember()`, and the index
+  `vy_group_tg_chat_ix`. The condition to fire it: `select count(*) from
+  vy_group where surface is null` has been 0 for long enough to be believed,
+  `surface` / `surface_chat_id` have been made `NOT NULL` (its own statement,
+  its own migration — a `NOT NULL` added before the writer deployed would turn
+  the next room creation into an error), and only then do `tg_chat_id` /
+  `tg_user_id` get dropped. `evals/surface.mjs` §8 asserts statically that the
+  legacy column appears in exactly three places in `api/_surface.js`, so a
+  fourth — the compat path spreading instead of draining — fails a gate.
+
+  Still deliberately **not** in 013: `NOT NULL`, `DROP COLUMN`, and a
+  `check (surface in (…))`. The last is refused permanently, not deferred: the
+  surface list is `api/*.js` adapters, and a CHECK there would mean adding a
+  fifth surface requires a migration — "do not teach the engine your surface",
+  one layer down. The set of surfaces is not a database fact.
+
+  `api/_room.js`'s `chatKeyToChatId` / `roomByChat` / `ensureRoom` /
+  `upsertMember` still exist and are still Telegram-shaped. Nothing in the
+  surface layer calls them any more; deleting them is that file's owner's
+  change, not this one's.
+
+- **`api/_room.js`'s agent-scoped writers do not name `agent_id`, and
+  production has had the default dropped since migration 010.** Found while
+  applying 013 (2026-08-22), from the live catalog: `vy_group.agent_id` and
+  `vy_group_member.agent_id` are `NOT NULL` with **no default** — 010 dropped
+  it on all twenty agent-scoped tables precisely so a writer that never heard
+  of agents fails loudly instead of filing another agent's memory under Meera.
+  `api/_surface.js`'s two room writers name it and are correct. The remaining
+  inserts in `api/_room.js` — `openOrExtendGroupEpisode` (`vy_episode`),
+  `recordTurnAction` (`vy_group_turn`) — do not, and will raise a NOT NULL
+  violation the first time a real room turn is stored. It is invisible today
+  because both tables hold zero rows and the bot has no token.
+
+  It is invisible to the suites too, and that is named rather than papered
+  over: `evals/mp/tgbot.mjs`'s fixture stops at 009, where `agent_id` still has
+  a default, so the room lane passes there. `evals/mp/binding.mjs`'s fixture
+  applies 010 and is therefore production's shape column for column (it asserts
+  that against the live catalog), which is why the two room writers under test
+  are proven and the others are only named. Fixing them is `api/_room.js`'s
+  owner's change.
 - WhatsApp's window ledger is a warm-lambda `Map`, so a cold start forgets it
   and `send()` then fails closed (no record = outside the window). The durable
   version reads the last inbound turn from `meera_log`, which is

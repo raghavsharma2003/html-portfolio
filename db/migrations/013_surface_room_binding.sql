@@ -1,46 +1,22 @@
--- DRAFT — NOT APPLIED, NOT WIRED. Task #78: replace the Telegram-shaped room
--- binding with (surface, surface_chat_id) / (surface, surface_user_id).
+-- Migration 013 — the room binding stops being Telegram-shaped.
+-- Task #78. Contract: docs/SURFACES.md §0 and §4, SPEC-AGENT-LAYER §4 (Law E3).
 --
--- ── read this before renumbering or applying ──────────────────────────────
+-- APPLIED to production 2026-08-22 (see "the live verification" below).
+-- Promoted from db/migrations/drafts/DRAFT-013-surface-room-binding.sql, which
+-- is where it was parked precisely because `db/migrations/apply.mjs` applies
+-- EVERY `*.sql` in its own directory (`readdirSync(DIR)`, non-recursive, no
+-- allowlist) — a draft beside its siblings is a draft that gets applied.
 --
--- WHY IT IS IN drafts/ RATHER THAN BESIDE ITS SIBLINGS. `db/migrations/
--- apply.mjs` applies EVERY `*.sql` in its own directory — `readdirSync(DIR)`,
--- non-recursive, no allowlist. A draft sitting next to 012 would therefore be
--- applied by the next plain `node db/migrations/apply.mjs`, which is the
--- opposite of "draft". `drafts/` is invisible to that readdir. Promoting this
--- file is a one-line `git mv` up one level, at which point it becomes real and
--- must be numbered for whatever slot is free THEN.
---
--- The ticket calls this "migration 010". **010 is taken** — `010_agent_strict.
--- sql` shipped, and 011/012 after it. The next free number is 013, which is
--- what this file is named. Renumbering a migration that has already run is the
--- one thing this directory cannot survive, so the ticket's number is stale
--- rather than this file being wrong.
---
--- It is a DRAFT because applying it is only a third of the job. The other two
--- thirds are a backfill and a code change, and doing the DDL without them
--- leaves the room lane reading a column nothing writes:
---
---   1. this file (DDL, idempotent, additive — safe to apply alone)
---   2. a backfill: every existing row gets surface='telegram' and
---      surface_chat_id = tg_chat_id::text (see the note at the bottom; it is
---      NOT in this file because a backfill over live rows is a decision, not
---      a schema statement)
---   3. api/_room.js: `chatKeyToChatId` deleted, `roomByChat`/`roomByChatKey`/
---      `ensureRoomForChat`/`upsertMember` keyed on the new pair, and
---      `memberKeys()` in api/_surface.js stops writing NULL for non-Telegram
---      members. That file is WS-SURFACE's; this one is WS-AGENT-SCHEMA's.
---
--- Nothing here drops a column. `tg_chat_id` and `tg_user_id` stay, unused,
--- until the read path has been on the new columns long enough to be believed —
--- the same drain-then-delete shape `vy_tg_person` is already in, where the day
--- it goes is a delete rather than a migration.
+-- The number was checked rather than trusted: the ticket says "migration 010",
+-- and 010/011/012 have all shipped, so 013 was the free slot on the day this
+-- landed. Renumbering a migration that has already run is the one thing this
+-- directory cannot survive.
 --
 -- ── the debt this pays ────────────────────────────────────────────────────
 --
 -- `vy_group.tg_chat_id` is a bigint with a unique index, so:
---   - a non-numeric chat key CANNOT be stored. `roomByChatKey()` returns null
---     for one and the room lane refuses fail-closed with a named reason. That
+--   - a non-numeric chat key CANNOT be stored. `roomByChatKey()` returned null
+--     for one and the room lane refused fail-closed with a named reason. That
 --     is correct behaviour for a wrong schema, not a working feature.
 --   - two surfaces whose numeric id ranges overlap would COLLIDE on a column
 --     whose name says Telegram: Discord channel 9001 and Telegram chat 9001
@@ -56,7 +32,47 @@
 -- db/migrations/apply.mjs runs them individually with no transaction. So every
 -- statement is independently re-runnable, an interrupted apply is recovered by
 -- re-running this file, and there are no DO blocks or functions (apply.mjs's
--- splitter is deliberately small).
+-- splitter is deliberately small). Nothing here drops a column and nothing
+-- here is destructive.
+--
+-- ── the live verification, recorded because a backfill is a decision ──────
+--
+-- The draft held the backfill back on purpose: it asserts a FACT about
+-- existing rows — that every room carrying a tg_chat_id really is a Telegram
+-- room — and that assertion belongs to whoever applies the file, not to
+-- whoever drafted it. Checked against production immediately before applying,
+-- 2026-08-22:
+--
+--   select (select count(*)::int from vy_group)        as groups,          -- 0
+--          (select count(*)::int from vy_group_member) as members,         -- 0
+--          (select count(*)::int from vy_group
+--             where tg_chat_id is null)                as groups_null_tg,  -- 0
+--          (select count(*)::int from vy_group_member
+--             where tg_user_id is null)                as members_null_tg; -- 0
+--
+-- Both tables hold ZERO rows (the Telegram bot has never run against
+-- production — TELEGRAM_BOT_TOKEN is deliberately empty). So the assumption
+-- holds vacuously, and the backfill below is a verified no-op TODAY: it
+-- matched 0 rows on the apply. It is included rather than left as a follow-up
+-- because it is the statement that makes this file complete for a replay — a
+-- namespace built from these migrations, or a row written by an older code
+-- path before the new one deploys, is repaired by re-running this file. It
+-- cannot ever misfire on a row the new code wrote: the new writer always sets
+-- `surface`, and every backfill statement is guarded by `surface is null`.
+--
+-- What is still NOT here, and why each is deliberate:
+--   NOT NULL on the new columns — belongs to the follow-up, after the read
+--     path has been on the new columns long enough to be believed. A NOT NULL
+--     added before the writer is deployed turns the next room creation into an
+--     error.
+--   DROP COLUMN tg_chat_id / tg_user_id — same follow-up, later. A drop before
+--     the read path moves turns every existing room into "unknown room" and
+--     she goes silent in all of them. The retirement condition is written down
+--     in docs/SURFACES.md §4 rather than left to be re-derived.
+--   A `check (surface in (...))` — refused on purpose: the surface list is
+--     `api/*.js` adapters, and a CHECK here would mean adding a fifth surface
+--     requires a migration, which is precisely "do not teach the engine your
+--     surface" one layer down. The set of surfaces is not a database fact.
 
 -- ── vy_group: the room's address becomes (surface, surface_chat_id) ────────
 
@@ -70,10 +86,10 @@ alter table vy_group add column if not exists surface_chat_id text;
 -- No default and no NOT NULL in this file. A default of 'telegram' would make
 -- every future row silently Telegram if the writer forgets to pass a surface,
 -- which is the failure this column exists to prevent; NOT NULL comes AFTER the
--- backfill, as its own statement, in the follow-up.
+-- read path has moved, as its own statement, in the follow-up.
 
 -- The uniqueness that replaces vy_group_tg_chat_ix. Partial, so rows that have
--- not been backfilled yet do not collide on (null, null).
+-- not been adopted yet do not collide on (null, null).
 create unique index if not exists vy_group_surface_chat_ix
   on vy_group (surface, surface_chat_id)
   where surface is not null and surface_chat_id is not null;
@@ -84,11 +100,12 @@ create unique index if not exists vy_group_surface_chat_ix
 
 -- ── vy_group_member: the member's address becomes (surface, user id) ───────
 --
--- Today a non-Telegram member is written with a NULL tg_user_id and identified
--- through vy_surface_identity — which is where identity belongs, so this pair
--- is NOT an identity key. It is the surface-local address of a member, used
--- for roster display and for the one thing identity cannot answer: "which
--- account in THIS room is this person". person_id stays the primary key half.
+-- Today a non-Telegram member was written with a NULL tg_user_id and
+-- identified through vy_surface_identity — which is where identity belongs, so
+-- this pair is NOT an identity key. It is the surface-local address of a
+-- member, used for roster display and for the one thing identity cannot
+-- answer: "which account in THIS room is this person". person_id stays the
+-- primary key half.
 alter table vy_group_member add column if not exists surface text;
 alter table vy_group_member add column if not exists surface_user_id text;
 
@@ -100,31 +117,18 @@ create index if not exists vy_group_member_surface_ix
   on vy_group_member (surface, surface_user_id)
   where surface is not null and surface_user_id is not null;
 
--- ── what is NOT in this file, and why each is deliberate ──────────────────
+-- ── the backfill, verified above and idempotent by construction ────────────
 --
--- BACKFILL. It is one statement per table and it is trivial to write:
---
---   update vy_group set surface = 'telegram',
---          surface_chat_id = tg_chat_id::text
---    where tg_chat_id is not null and surface is null;
---
---   update vy_group_member set surface = 'telegram',
---          surface_user_id = tg_user_id::text
---    where tg_user_id is not null and surface is null;
---
--- Both are idempotent (`and surface is null`) and both are safe. They are held
--- back because a backfill asserts a FACT about existing rows — that every
--- room with a tg_chat_id really is a Telegram room — and that assertion should
--- be checked against the live table by whoever applies this, not assumed by
--- whoever drafted it. Migration 009's own header makes the same distinction.
---
--- NOT NULL / DROP COLUMN. Both belong to the follow-up, after the read path
--- has moved. A NOT NULL added before the code writes the column turns the next
--- room creation into an error; a DROP before the read path moves turns every
--- existing room into "unknown room" and she goes silent in all of them.
---
--- A `check (surface in (...))`. Refused on purpose: the surface list is
--- `api/*.js` adapters, and a CHECK constraint here would mean adding a fifth
--- surface requires a migration — which is precisely the "do not teach the
--- engine your surface" rule in docs/SURFACES.md, one layer down. The set of
--- surfaces is not a database fact.
+-- `and surface is null` is what makes each of these safe to re-run and
+-- impossible to misfire on a row the new writer created. On the production
+-- apply both matched 0 rows.
+
+update vy_group
+   set surface = 'telegram',
+       surface_chat_id = tg_chat_id::text
+ where tg_chat_id is not null and surface is null;
+
+update vy_group_member
+   set surface = 'telegram',
+       surface_user_id = tg_user_id::text
+ where tg_user_id is not null and surface is null;

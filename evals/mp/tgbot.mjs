@@ -105,6 +105,42 @@ async function proveNoResidue() {
   return { relations: rels.map((r) => r.tablename), productionRows: hits };
 }
 
+/**
+ * The four room tables have moved on since 008: 009 gave them `agent_id`, and
+ * 013 gave `vy_group`/`vy_group_member` the `(surface, surface_chat_id)` /
+ * `(surface, surface_user_id)` binding the room lane now writes. A fixture
+ * built from 008 alone is a fixture the shipping writer cannot insert into,
+ * and the failure it produces ("column agent_id does not exist") is a fixture
+ * bug wearing a code bug's clothes.
+ *
+ * Taken from the REAL migration files and filtered by target table rather than
+ * restated here — a restated copy drifts, which is the whole reason this
+ * harness reads db/migrations/ at all.
+ */
+const POST008_TABLES = new Set([
+  "vy_group",
+  "vy_group_member",
+  "vy_group_turn",
+  "vy_disclosure_grant",
+  // vy_episode joined this set when the room episode writer started NAMING
+  // agent_id (the 010 no-default fix): a fixture without the column is a
+  // fixture the shipping writer cannot insert into — the exact drift this
+  // block's own comment warns about.
+  "vy_episode",
+]);
+const POST008_FILES = ["009_agents.sql", "013_surface_room_binding.sql"];
+
+// KNOWN DIVERGENCE FROM PRODUCTION, named rather than implied: this fixture
+// stops at 009, so `agent_id` keeps the DEFAULT 009 gave it. Migration 010 —
+// which HAS been applied to production — drops that default on all twenty
+// agent-scoped tables so that a writer which never names agent_id fails
+// loudly. api/_surface.js's room/member writers name it and are therefore
+// correct either way; api/_room.js's episode, turn and grant writers do NOT,
+// and against production they raise a NOT NULL violation. That is a real,
+// live defect in a file this workstream does not own (see docs/SURFACES.md §4,
+// "owed"), and dropping the default here would turn this suite red for
+// somebody else's bug rather than surfacing it where it can be fixed.
+
 async function buildSchema() {
   const full = readFileSync(join(ROOT, "db/schema.sql"), "utf8");
   const cut = full.indexOf("-- 008a/008b/008c: multiparty v1");
@@ -113,8 +149,11 @@ async function buildSchema() {
   const migStmts = MIG_FILES.flatMap((f) =>
     splitSql(readFileSync(join(ROOT, "db/migrations", f), "utf8")),
   );
-  for (const s of [...baseStmts, ...migStmts]) await q(ns(s), [], 60_000);
-  return { base: baseStmts.length, migration: migStmts.length };
+  const postStmts = POST008_FILES.flatMap((f) =>
+    splitSql(readFileSync(join(ROOT, "db/migrations", f), "utf8")),
+  ).filter((s) => POST008_TABLES.has(targetOf(s)));
+  for (const s of [...baseStmts, ...migStmts, ...postStmts]) await q(ns(s), [], 60_000);
+  return { base: baseStmts.length, migration: migStmts.length + postStmts.length };
 }
 
 // ── assertions ────────────────────────────────────────────────────────────

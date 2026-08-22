@@ -43,12 +43,10 @@
 // A degraded persona that still replies is the `silent-truncation` shape — it
 // works, everything returns 200, and she is quietly someone else.
 import { q } from "./_db.js";
+import { MEERA_AGENT_ID } from "./_agentscope.js";
 import {
-  ensureRoomForChat,
-  roomByChatKey,
   setReadConsent,
   setQuiet,
-  upsertMember,
   markMemberLeft,
   linkMember,
   roomHasSpaceFor,
@@ -529,6 +527,182 @@ export async function linkIdentity(ctx, ev, { personId = null } = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// THE ROOM BINDING — (surface, surface_chat_id), migration 013
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Until migration 013 a room's address was `vy_group.tg_chat_id`, a bigint
+// with a unique index, and that shape carried two defects the contract had
+// already refused everywhere else:
+//
+//   1. A NON-NUMERIC chat key could not be stored at all. `roomByChatKey()`
+//      returned null for one and the room lane refused fail-closed with a
+//      named reason — correct behaviour for a wrong schema, not a feature.
+//      WhatsApp's `120363…@g.us` is the ordinary case, not the exotic one.
+//   2. Two surfaces whose numeric ranges overlap COLLIDED on a column whose
+//      name says Telegram: Discord channel 9001 and Telegram chat 9001 were
+//      one room. That is exactly the collision `surfaceDeviceId(surface, key)`
+//      already refuses to make for devices, re-introduced one table over.
+//
+// 013 adds `(surface, surface_chat_id)` / `(surface, surface_user_id)` — text,
+// because a chat key is an OPAQUE ADDRESS this contract forbids parsing — and
+// drops NOTHING. The transition is therefore DUAL-READ, NEW-WRITE:
+//
+//   READ   the new key first; on a miss, the legacy Telegram-shaped key; and
+//          a row found the legacy way is ADOPTED on the way past (its new
+//          columns are filled in) so the legacy read drains itself under
+//          ordinary traffic. Same shape `personForSurfaceUser()` already uses
+//          to drain `vy_tg_person`, for the same reason: the day the old
+//          column goes is then a delete rather than a migration.
+//   WRITE  the new columns, always, on every surface. `tg_chat_id` /
+//          `tg_user_id` are MIRRORED for Telegram only, and only while the old
+//          unique index still exists — two unique indexes that disagree about
+//          which row is the room would be worse than either alone.
+//
+// THE RETIREMENT CONDITION, so the transition ends rather than becomes the
+// architecture (docs/SURFACES.md §4 carries the same words): the legacy read,
+// the mirror write and `vy_group_tg_chat_ix` go together, in one follow-up,
+// once `select count(*) from vy_group where surface is null` has been 0 for
+// long enough to be believed and `surface`/`surface_chat_id` have been made
+// NOT NULL. Until then, removing any one of the three alone is what turns
+// every existing room into "unknown room" and makes her go silent in all of
+// them.
+//
+// WHY THESE LIVE HERE AND NOT IN api/_room.js. They are the surface layer's
+// own address book: they take a `surface` and an opaque `chatKey` — two things
+// api/_room.js has no opinion about — and they hold NO disclosure logic, which
+// is the one thing that file exists to own. Every retrieval below this section
+// still goes through api/_room.js and therefore through api/_disclosure.js;
+// nothing here reads a row a person could hear.
+
+/** The columns every lane below reads off a room. Named once so the two reads
+ *  cannot drift into disagreeing about what a room is. */
+const ROOM_COLS =
+  "id, name, kind, surface, surface_chat_id, tg_chat_id, room_device_id, " +
+  "read_consent_at, quiet_level, member_cap, created_at";
+
+/**
+ * The legacy Telegram-shaped key for a chat key, or null when there is none.
+ *
+ * Two conditions, and the FIRST is the one migration 013 exists for: only
+ * Telegram ever had a legacy binding, so a Discord snowflake that happens to
+ * fit in a bigint must NOT be looked up in a column named for Telegram. The
+ * old `chatKeyToChatId()` tested only the second condition, which is precisely
+ * how channel 9001 and chat 9001 became one room.
+ */
+export function legacyChatId(surface, chatKey) {
+  if (surface !== "telegram") return null;
+  const s = String(chatKey ?? "");
+  return /^-?\d{1,19}$/.test(s) ? s : null;
+}
+
+/** The same rule for a member's surface-local id. */
+export const legacyUserId = (surface, surfaceUserId) =>
+  surfaceUserId == null ? null : legacyChatId(surface, surfaceUserId);
+
+/**
+ * A room by its surface address. Dual-read; returns the row or null, and never
+ * creates anything.
+ *
+ * The adoption UPDATE is `.catch()`-swallowed on purpose: it is a repair, not
+ * the read. A database that refuses it must still answer "which room is this",
+ * because the alternative is she goes silent in a room she can plainly see.
+ */
+export async function roomForChat(surface, chatKey, t = ident) {
+  const key = String(chatKey ?? "");
+  if (!surface || !key) return null;
+  const [row] = await q(
+    `select ${ROOM_COLS} from ${t("vy_group")} where surface = $1 and surface_chat_id = $2`,
+    [surface, key],
+  ).catch(() => []);
+  if (row) return row;
+
+  // ── the compatibility read. Every room created before 013 is here.
+  const legacy = legacyChatId(surface, key);
+  if (legacy === null) return null;
+  const [old] = await q(
+    `select ${ROOM_COLS} from ${t("vy_group")} where tg_chat_id = $1`,
+    [legacy],
+  ).catch(() => []);
+  if (!old) return null;
+  // Adopt it. `and surface is null` makes this idempotent and makes it
+  // impossible to re-address a room the new writer already owns.
+  await q(
+    `update ${t("vy_group")} set surface = $2, surface_chat_id = $3
+      where id = $1 and surface is null`,
+    [old.id, surface, key],
+  ).catch(() => {});
+  return { ...old, surface, surface_chat_id: key };
+}
+
+/**
+ * The room for this chat, created if it does not exist. New-write: the new
+ * columns are authoritative and are set on every surface.
+ *
+ * `agent_id` is named explicitly rather than left to a column default, because
+ * there is no longer a default to leave it to — migration 010 dropped it on
+ * all twenty agent-scoped tables so that a writer which never heard of agents
+ * fails LOUDLY instead of filing another agent's memory under Meera.
+ */
+export async function ensureRoomForSurfaceChat(
+  surface,
+  chatKey,
+  { name = "", kind = "friend_group" } = {},
+  t = ident,
+) {
+  const have = await roomForChat(surface, chatKey, t);
+  if (have) return have;
+  const key = String(chatKey ?? "");
+  if (!surface || !key) return null;
+  await q(
+    `insert into ${t("vy_group")}
+       (agent_id, name, kind, room_device_id, surface, surface_chat_id, tg_chat_id)
+     values ($1,$2,$3,$4,$5,$6,$7) on conflict do nothing`,
+    [
+      MEERA_AGENT_ID,
+      String(name || "").slice(0, 120),
+      kind,
+      surfaceRoomDeviceId(surface, key),
+      surface,
+      key,
+      // the mirror, Telegram only, and only while vy_group_tg_chat_ix exists
+      legacyChatId(surface, key),
+    ],
+  );
+  return await roomForChat(surface, chatKey, t);
+}
+
+/**
+ * A member's row in a room, keyed (group_id, person_id) as it always was — the
+ * new pair is the member's surface-local ADDRESS, not an identity key, and
+ * identity stays `vy_surface_identity`'s (§4: agent- and surface-independent).
+ *
+ * `coalesce(excluded.…, existing)` on every updatable column: the same human
+ * may reach one room from two surfaces, and the second arrival must not blank
+ * the address the first one recorded. Before 013 a non-Telegram member was
+ * written with a NULL `tg_user_id` and had no surface address anywhere; now
+ * every member has one, on every surface.
+ */
+export async function upsertRoomMember(
+  groupId,
+  { personId, surface = null, surfaceUserId = null },
+  t = ident,
+) {
+  const key = surfaceUserId == null ? null : String(surfaceUserId);
+  const m = `${t("vy_group")}_member`;
+  await q(
+    `insert into ${m}
+       (agent_id, group_id, person_id, surface, surface_user_id, tg_user_id, joined_at)
+     values ($1,$2,$3,$4,$5,$6, now())
+     on conflict (group_id, person_id) do update set
+       left_at = null,
+       surface = coalesce(excluded.surface, ${m}.surface),
+       surface_user_id = coalesce(excluded.surface_user_id, ${m}.surface_user_id),
+       tg_user_id = coalesce(excluded.tg_user_id, ${m}.tg_user_id)`,
+    [MEERA_AGENT_ID, groupId, personId, surface || null, key, legacyUserId(surface, key)],
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // DISPATCH
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -574,7 +748,7 @@ export async function dispatch(ev, ctx) {
 export async function onBotMembership(ev, ctx) {
   if (!ev.isGroup) return { ok: true, skipped: "not a room" };
   const status = ev.adminBits?.selfStatus ?? null;
-  const room = await ensureRoomForChat(ev.surface, ev.chatKey, { name: ev.chatName || "" }, ctx.t);
+  const room = await ensureRoomForSurfaceChat(ev.surface, ev.chatKey, { name: ev.chatName || "" }, ctx.t);
   if (!room) return { ok: false, error: "room not created" };
 
   if (status === "left" || status === "kicked") {
@@ -607,7 +781,7 @@ export async function onBotMembership(ev, ctx) {
  *  stale row, never a disclosure. */
 export async function onMemberChange(ev, ctx) {
   if (!ev.isGroup) return { ok: true, skipped: "not a room" };
-  const room = await roomByChatKey(ev.surface, ev.chatKey, ctx.t);
+  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t);
   if (!room) return { ok: true, skipped: "unknown room" };
   const bits = ev.adminBits || {};
   if (!bits.subjectUserId || bits.subjectIsBot) return { ok: true, skipped: "bot or no user" };
@@ -619,12 +793,16 @@ export async function onMemberChange(ev, ctx) {
   }
   if (!(await roomHasSpaceFor(room.id, bound.person_id, ctx.t)))
     return { ok: true, room: room.id, joined: false, full: true };
-  await upsertMember(room.id, memberKeys(ev.surface, bound.person_id, bits.subjectUserId), ctx.t);
+  await upsertRoomMember(
+    room.id,
+    { personId: bound.person_id, surface: ev.surface, surfaceUserId: bits.subjectUserId },
+    ctx.t,
+  );
   return { ok: true, room: room.id, joined: true };
 }
 
 export async function onJoin(ev, ctx) {
-  const room = await roomByChatKey(ev.surface, ev.chatKey, ctx.t);
+  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t);
   if (!room) return { ok: true, skipped: "unknown room" };
   let added = 0;
   for (const u of ev.adminBits?.joined || []) {
@@ -637,14 +815,18 @@ export async function onJoin(ev, ctx) {
     // the §7 cap applies on every path a member can arrive by, not just the
     // deep link — see roomHasSpaceFor
     if (!(await roomHasSpaceFor(room.id, bound.person_id, ctx.t))) continue;
-    await upsertMember(room.id, memberKeys(ev.surface, bound.person_id, u.surfaceUserId), ctx.t);
+    await upsertRoomMember(
+      room.id,
+      { personId: bound.person_id, surface: ev.surface, surfaceUserId: u.surfaceUserId },
+      ctx.t,
+    );
     added++;
   }
   return { ok: true, room: room.id, added };
 }
 
 export async function onLeave(ev, ctx) {
-  const room = await roomByChatKey(ev.surface, ev.chatKey, ctx.t);
+  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t);
   if (!room) return { ok: true, skipped: "unknown room" };
   const u = ev.adminBits?.left || null;
   if (!u || u.isBot) return { ok: true, skipped: "bot or no user" };
@@ -743,7 +925,11 @@ async function onLinkTap(ev, intent, ctx) {
     // address strip is rendered — see roomHasSpaceFor. A refused member still
     // gets their own 1:1 channel; only the room membership is denied.
     if (await roomHasSpaceFor(roomRef, linked.personId, ctx.t)) {
-      await upsertMember(roomRef, memberKeys(ev.surface, linked.personId, ev.surfaceUserId), ctx.t);
+      await upsertRoomMember(
+        roomRef,
+        { personId: linked.personId, surface: ev.surface, surfaceUserId: ev.surfaceUserId },
+        ctx.t,
+      );
       await linkMember(roomRef, linked.personId, ctx.t);
       room = roomRef;
     } else {
@@ -840,7 +1026,7 @@ export async function dmHistory(device, t = ident, limit = 30) {
  */
 export async function onGroupMessage(ev, ctx) {
   if (ev.fromBot) return { ok: true, skipped: "bot message" };
-  const room = await roomByChatKey(ev.surface, ev.chatKey, ctx.t);
+  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t);
   if (!room) return { ok: true, skipped: "unknown room" };
   // No engine, no room behaviour AT ALL — not even the participation decision,
   // which lives in the same bundle. She stays silent and the failure is loud.
@@ -856,7 +1042,11 @@ export async function onGroupMessage(ev, ctx) {
   const bound = await resolveIdentity(ctx, ev);
   const speaker = bound?.person_id || null;
   if (speaker)
-    await upsertMember(room.id, memberKeys(ev.surface, speaker, ev.surfaceUserId), ctx.t);
+    await upsertRoomMember(
+      room.id,
+      { personId: speaker, surface: ev.surface, surfaceUserId: ev.surfaceUserId },
+      ctx.t,
+    );
   const memberRow = speaker
     ? (
         await q(
@@ -1118,20 +1308,14 @@ export async function onCommand(cmd, { ev, room, speaker, ctx }) {
 // helpers
 // ─────────────────────────────────────────────────────────────────────────
 
-/**
- * vy_group_member.tg_user_id is a bigint and a Telegram artifact. Until a
- * migration replaces it with a (surface, surface_user_id) pair — WS-AGENT-
- * SCHEMA's ticket, not this workstream's file — a non-Telegram member is
- * written with a NULL there and identified through vy_surface_identity, which
- * is where it belongs anyway. Writing a Discord snowflake into a column named
- * for Telegram would be the kind of silent lie this repo has paid for before.
- */
-function memberKeys(surface, personId, surfaceUserId) {
-  return {
-    personId,
-    tgUserId: surface === "telegram" && surfaceUserId != null ? surfaceUserId : null,
-  };
-}
+// `memberKeys()` lived here: it existed only to decide whether a member's
+// surface id could be written into `vy_group_member.tg_user_id` without
+// lying, and it answered "no" for every surface but Telegram — which left
+// Discord and WhatsApp members with no surface address anywhere. Migration
+// 013 gave every member `(surface, surface_user_id)`, so the question is
+// gone and `upsertRoomMember()` above writes the honest pair on every
+// surface. The Telegram mirror it used to compute is now `legacyUserId()`,
+// and it retires with the column.
 
 /** Build the ctx an adapter's handler hands to dispatch(). The `send` seam is
  *  what lets an offline suite drive the REAL pipeline with no network.

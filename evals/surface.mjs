@@ -495,6 +495,108 @@ console.log("\n── 7. STATIC — no path emits model text around the gate ─
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── 8. STATIC — the room binding is (surface, surface_chat_id) ──");
+//
+// Migration 013 moved the room's address off `vy_group.tg_chat_id`. The
+// BEHAVIOUR of that move is proven against real Postgres by
+// `evals/mp/binding.mjs` (57 checks, fixture namespace, no live rows). What
+// belongs HERE is the half that suite cannot see: the shape of the source, so
+// that a future edit cannot quietly turn the transition into the architecture.
+//
+// Offline and free, which is why it is in the gate that runs on every build
+// rather than in the one that needs a database.
+{
+  // The legacy column is allowed to appear in exactly three places, and each
+  // one is named: the row's column list (so a lane can still see the mirror),
+  // the compatibility SELECT, and the mirror write. A FOURTH is the transition
+  // spreading instead of draining — which is how a compat path becomes the
+  // architecture and the retirement condition below quietly stops being
+  // reachable.
+  const legacySites = (src) =>
+    [...src.matchAll(/\btg_chat_id\b/g)].filter((m) => {
+      const line = src.slice(src.lastIndexOf("\n", m.index) + 1, m.index + 40);
+      return !line.trimStart().startsWith("//") && !line.trimStart().startsWith("*");
+    });
+  const sites = legacySites(SURFACE_SRC);
+  ok(
+    "api/_surface.js touches tg_chat_id in exactly THREE places (column list, compat read, mirror write)",
+    sites.length === 3,
+    `${sites.length} at line(s) ${sites.map((m) => SURFACE_SRC.slice(0, m.index).split("\n").length).join(",")}`,
+  );
+
+  // The 9001 collision, asserted about the source rather than only about rows:
+  // the legacy lookup MUST be gated on the surface, because the old
+  // `chatKeyToChatId()` tested only "does this look like a bigint" and that is
+  // exactly how Discord channel 9001 and Telegram chat 9001 became one room.
+  const legacyFn = SURFACE_SRC.slice(
+    SURFACE_SRC.indexOf("export function legacyChatId("),
+    SURFACE_SRC.indexOf("}", SURFACE_SRC.indexOf("export function legacyChatId(")) + 1,
+  );
+  ok('legacyChatId() refuses every surface but Telegram', /surface\s*!==\s*"telegram"/.test(legacyFn), legacyFn);
+
+  // Both room writes name agent_id. Migration 010 dropped the column default on
+  // all twenty agent-scoped tables so a writer that never heard of agents fails
+  // LOUDLY rather than filing another agent's memory under Meera — an INSERT
+  // here that omits it is a NOT NULL violation the moment it reaches production.
+  const bodyOf = (src, name) => {
+    const from = src.indexOf(`export async function ${name}(`);
+    if (from < 0) return "";
+    const next = src.indexOf("\nexport ", from + 10);
+    return src.slice(from, next < 0 ? src.length : next);
+  };
+  const writers = ["ensureRoomForSurfaceChat", "upsertRoomMember"];
+  for (const w of writers) {
+    const body = bodyOf(SURFACE_SRC, w);
+    ok(`${w}() is the room write path and it inserts`, /insert into /.test(body));
+    ok(`…and it names agent_id (migration 010 removed the default)`, /\bagent_id\b/.test(body));
+  }
+
+  // The transition has to have an END, written down somewhere a person will
+  // find it. A dual-read with no retirement condition is not a transition.
+  const SURFACES_DOC = readFileSync(join(ROOT, "docs/SURFACES.md"), "utf8");
+  ok(
+    "docs/SURFACES.md states the retirement condition for the legacy binding",
+    /retirement condition/i.test(SURFACES_DOC) && /vy_group_tg_chat_ix/.test(SURFACES_DOC),
+  );
+  ok(
+    "…and api/_surface.js carries the same words next to the code",
+    /THE RETIREMENT CONDITION/.test(SURFACE_SRC) && /vy_group_tg_chat_ix/.test(SURFACE_SRC),
+  );
+
+  // NEGATIVE CONTROL, per the same rule section 7 obeys: a static check that
+  // cannot fail proves nothing. Each defect is the shape a real edit takes.
+  const BIND_DEFECTS = [
+    [
+      "a legacy lookup that forgot which surface it is on",
+      SURFACE_SRC.replace('  if (surface !== "telegram") return null;\n', ""),
+      (src) => {
+        const f = src.slice(src.indexOf("export function legacyChatId("), src.indexOf("export const legacyUserId"));
+        return !/surface\s*!==\s*"telegram"/.test(f);
+      },
+    ],
+    [
+      "a room INSERT that stopped naming agent_id",
+      SURFACE_SRC.replace(
+        "       (agent_id, name, kind, room_device_id, surface, surface_chat_id, tg_chat_id)",
+        "       (name, kind, room_device_id, surface, surface_chat_id, tg_chat_id)",
+      ),
+      (src) => writers.some((w) => !/\bagent_id\b/.test(bodyOf(src, w))),
+    ],
+    [
+      "a fourth tg_chat_id site — the compat read spreading rather than draining",
+      SURFACE_SRC.replace(
+        "  const legacy = legacyChatId(surface, key);",
+        "  const stray = await q(`select id from vy_group where tg_chat_id = $1`, [key]);\n  const legacy = legacyChatId(surface, key);",
+      ),
+      (src) => legacySites(src).length !== 3,
+    ],
+  ];
+  for (const [name, mutated, caught] of BIND_DEFECTS) {
+    ok(`INJECTED DEFECT CAUGHT — ${name}`, mutated !== SURFACE_SRC && caught(mutated));
+  }
+}
+
 console.log(
   failures.length
     ? `\n${failures.length} of ${pass + failures.length} SURFACE-GATE CHECKS FAILED:\n` +
@@ -507,6 +609,8 @@ console.log(
     "    Nothing in this file touches it and nothing here should be read as covering it.\n" +
     "  - how often she TRIES to fabricate on a surface. That is a model measurement:\n" +
     "    WSHON_RUN_LLM=1 node evals/honesty/pressure.mjs, and it costs money.\n" +
-    "  - the surrounding I/O (identity, rooms, recall). evals/surface/pipeline.mjs owns that.",
+    "  - the surrounding I/O (identity, rooms, recall). evals/surface/pipeline.mjs owns that.\n" +
+    "  - that the room binding WORKS against Postgres. §8 above is a property of the\n" +
+    "    source; the round trip needs a database and lives in evals/mp/binding.mjs.",
 );
 process.exitCode = failures.length ? 1 : 0;
