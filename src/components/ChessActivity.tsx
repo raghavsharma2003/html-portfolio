@@ -161,11 +161,24 @@ export default function ChessActivity({
   useEffect(() => {
     if (!over || !session || session.closedAt) return;
     const t = setTimeout(() => {
-      setState((s) =>
-        s.game?.kind === "chess" && !s.game.closedAt && s.game.game.status.over
-          ? { ...s, game: { ...s.game, closedAt: Date.now() } }
-          : s,
-      );
+      setState((s) => {
+        if (!(s.game?.kind === "chess" && !s.game.closedAt && s.game.game.status.over)) return s;
+        // The close is the ONE moment this game becomes history, so the
+        // lifetime tally is written here and nowhere else — a second writer
+        // would double-count, and the milestone detector trusts these totals.
+        const w = s.game.game.status.winner;
+        const t = s.tally ?? {};
+        return {
+          ...s,
+          game: { ...s.game, closedAt: Date.now() },
+          tally: {
+            ...t,
+            chessGames: (t.chessGames ?? 0) + 1,
+            chessWinsHim: (t.chessWinsHim ?? 0) + (w && w !== s.game.herSide ? 1 : 0),
+            chessWinsHer: (t.chessWinsHer ?? 0) + (w && w === s.game.herSide ? 1 : 0),
+          },
+        };
+      });
     }, CLOSE_AFTER_END_MS);
     return () => clearTimeout(t);
   }, [over, session, setState]);

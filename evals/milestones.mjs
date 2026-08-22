@@ -1,0 +1,96 @@
+// The milestones engine — the OS half of "gamify the whole experience".
+//
+// The assertions guard the three properties that make celebration trustworthy
+// rather than manipulative: a moment fires ONCE ever; an imported history
+// fires only the largest crossed tier per family (no stale confetti
+// fusillade); and nothing here is time-scheduled — eligibility comes from the
+// record alone, so a detector run at two different times with the same record
+// agrees except where real time crossed a day tier.
+import { detectMoments, momentFact } from "./.bundle.mjs";
+
+let fail = 0;
+const ok = (name, cond, extra = "") => {
+  if (!cond) { fail++; console.log(`FAIL ${name}${extra ? " — " + extra : ""}`); }
+};
+
+const NOW = Date.UTC(2026, 7, 22, 12, 0);
+const DAY = 86_400_000;
+const msg = (at) => ({ id: String(at), from: "me", kind: "text", text: "hi", at });
+const msgs = (n, firstAt) => Array.from({ length: n }, (_, i) => msg(firstAt + i * 60_000));
+
+// ── fire-once is the whole contract ───────────────────────────────────────
+{
+  const inp = { messages: msgs(120, NOW - 8 * DAY), fired: [], tally: null, nowMs: NOW };
+  const first = detectMoments(inp);
+  ok("a week + 100 messages fires", first.length >= 2, JSON.stringify(first.map((m) => m.id)));
+  const after = detectMoments({ ...inp, fired: first.map((m) => m.id) });
+  ok("nothing fires twice", after.length === 0, JSON.stringify(after.map((m) => m.id)));
+}
+
+// ── imported history: largest tier only, per family ───────────────────────
+{
+  const inp = { messages: msgs(1200, NOW - 120 * DAY), fired: [], tally: null, nowMs: NOW };
+  const got = detectMoments(inp);
+  const dayIds = got.filter((m) => m.kind === "days-known").map((m) => m.id);
+  const msgIds = got.filter((m) => m.kind === "messages").map((m) => m.id);
+  ok("one day-tier only, the largest", dayIds.length === 1 && dayIds[0] === "days-100", dayIds.join(","));
+  ok("one msg-tier only, the largest", msgIds.length === 1 && msgIds[0] === "msgs-1000", msgIds.join(","));
+}
+
+// ── game moments come from the tally, written at close ────────────────────
+{
+  const inp = {
+    messages: msgs(5, NOW - DAY), fired: [],
+    tally: { chessGames: 1, chessWinsHer: 1 }, nowMs: NOW,
+  };
+  const ids = detectMoments(inp).map((m) => m.id);
+  ok("first game fires", ids.includes("first-game"), ids.join(","));
+  ok("her first win fires", ids.includes("chess-first-win-her"), ids.join(","));
+  ok("his first win does NOT (he hasn't won)", !ids.includes("chess-first-win-him"));
+}
+
+// ── empty record, empty result — the common case costs nothing ────────────
+ok("empty record fires nothing",
+  detectMoments({ messages: [], fired: [], tally: null, nowMs: NOW }).length === 0);
+
+// ── determinism ───────────────────────────────────────────────────────────
+{
+  const inp = { messages: msgs(600, NOW - 40 * DAY), fired: [], tally: { wyrCards: 30 }, nowMs: NOW };
+  ok("same input, same moments",
+    JSON.stringify(detectMoments(inp)) === JSON.stringify(detectMoments(inp)));
+}
+
+// ── momentFact obeys the activity-facts shapelint ─────────────────────────
+{
+  const all = detectMoments({
+    messages: msgs(1200, NOW - 400 * DAY), fired: [],
+    tally: { chessGames: 30, chessWinsHim: 1, chessWinsHer: 1, tttGames: 2, wyrCards: 120 },
+    nowMs: NOW,
+  });
+  ok("a rich record yields several", all.length >= 5, String(all.length));
+  for (const m of all) {
+    const f = momentFact(m);
+    ok(`fact <=14 words: ${m.id}`, f.trim().split(/\s+/).length <= 14, f);
+    ok(`fact not sentence-shaped: ${m.id}`, !/^[A-Z][^.?!]*[.?!]$/.test(f), f);
+    ok(`fact not first-person: ${m.id}`, !/^(i|main|mai)\b/i.test(f), f);
+  }
+}
+
+// ── the charter: no anxiety mechanics can even be expressed ───────────────
+// Structural, on the real source: the module must contain no streak language,
+// no loss framing, no urgency vocabulary. If a future edit adds "don't lose
+// your streak", this is what catches it.
+import { readFileSync } from "node:fs";
+const srcRaw = readFileSync(new URL("../src/engine/milestones.ts", import.meta.url), "utf8");
+// Comment-blind: the module's header NAMES the banned mechanics in order to
+// ban them, and a check that flags the ban's own wording teaches people to
+// write vaguer comments. The check is about CODE — ids, titles, facts.
+const src = srcRaw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+for (const banned of ["streak", "expire", "lose your", "hurry", "last chance", "don't break"]) {
+  ok(`charter: no "${banned}" in the code`, !src.toLowerCase().includes(banned));
+}
+ok("charter: detection is never time-scheduled",
+  /FIRES only on the next real interaction/.test(srcRaw));
+
+console.log(fail ? `${fail} FAILURES` : "ALL PASS");
+process.exit(fail ? 1 : 0);

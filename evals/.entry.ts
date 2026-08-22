@@ -41,3 +41,4 @@ export { chessActivity, moveFact, exchangeFact } from "../src/engine/chessTalk";
 export { newGame, play, assessLast, assessMove } from "../src/engine/chess";
 export { activityOf, activityPickupLine, RECENT_END_MS, lastAssessment } from "../src/state/game";
 export { resolveTheme, isThemeChoice, THEMES, THEME_LABEL } from "../src/engine/theme";
+export { detectMoments, momentFact } from "../src/engine/milestones";

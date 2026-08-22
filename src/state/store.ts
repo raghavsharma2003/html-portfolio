@@ -102,6 +102,19 @@ export interface AppState {
   // the default and the state every existing install is already in — so this
   // field arriving changes nothing for anyone until they touch the setting.
   theme?: ThemeChoice;
+  // ── the milestones seam (engine/milestones.ts) ─────────────────────────
+  // Fired-ledger: milestone ids that already celebrated, so a moment can
+  // never fire twice — across devices too, since this syncs with the rest.
+  momentsFired?: string[];
+  // Lifetime activity tallies, written at game close. The RECORD is the
+  // progression system; these are the running totals the detector reads.
+  tally?: {
+    chessGames?: number;
+    chessWinsHim?: number;
+    chessWinsHer?: number;
+    tttGames?: number;
+    wyrCards?: number;
+  } | null;
 }
 
 const KEY = "meera.state.v1";

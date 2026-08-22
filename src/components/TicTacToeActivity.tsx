@@ -186,11 +186,15 @@ export default function TicTacToeActivity({
   useEffect(() => {
     if (!over || !session || session.closedAt) return;
     const t = setTimeout(() => {
-      setState((s) =>
-        s.game?.kind === "ttt" && !s.game.closedAt && s.game.game.status.over
-          ? { ...s, game: { ...s.game, closedAt: Date.now() } }
-          : s,
-      );
+      setState((s) => {
+        if (!(s.game?.kind === "ttt" && !s.game.closedAt && s.game.game.status.over)) return s;
+        const t = s.tally ?? {};
+        return {
+          ...s,
+          game: { ...s.game, closedAt: Date.now() },
+          tally: { ...t, tttGames: (t.tttGames ?? 0) + 1 },
+        };
+      });
     }, CLOSE_AFTER_END_MS);
     return () => clearTimeout(t);
   }, [over, session, setState]);

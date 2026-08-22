@@ -60,6 +60,8 @@ const suites = {
   wyr: "wyr.mjs",
   // WS-GAMES: tic-tac-toe — exhaustive legality + bounded imperfection.
   ttt: "ttt.mjs",
+  // WS-GAMIFY: moments fire once, largest-tier-only, charter-clean.
+  milestones: "milestones.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),

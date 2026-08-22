@@ -140,7 +140,16 @@ export default function WouldYouRatherActivity({
         setState((s) => {
           const cur = readWyr(s.game);
           if (!cur || currentCardId(cur) !== cardId) return s; // moved on already
-          return { ...s, game: asGameSession(answerCurrent(cur, pick)) };
+          const next = answerCurrent(cur, pick);
+          // one card answered = one tick of the lifetime tally (the round
+          // count moving is the proof the answer committed, not the tap)
+          const bumped = next.rounds.length > cur.rounds.length;
+          const t = s.tally ?? {};
+          return {
+            ...s,
+            game: asGameSession(next),
+            tally: bumped ? { ...t, wyrCards: (t.wyrCards ?? 0) + 1 } : s.tally,
+          };
         });
       }, delay);
     },
