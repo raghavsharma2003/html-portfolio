@@ -2373,3 +2373,33 @@ identity verified INSIDE the artifact before delivery. Session totals:
 ~27 shipped slices, eval counts at close: honesty 351, sky 167,
 teardown 187, burst 119, greeting 75, feel/world/back browser
 batteries all green, verify-release 13/13 throughout.
+
+---
+
+## `phase3-thread-onboarding-settings` — 2026-08-22, WS-PHASE3 + WS-LANDING
+
+Method: real-pixel sampling of decoded shipped JPGs composited under the
+authored veils (check-contrast, prefix-walk over 20 bands for the landing,
+full-frame x {avg,darkest,brightest} for the thread); Playwright frame
+sampling for perf; n as stated.
+
+- Thread ground text worst case (all 5 states x 2 themes x 3 bands x 3
+  stats): 4.70:1 (floor 4.5). Chips 5.48:1. Control edges 3.49:1 (floor 3).
+- Wallpaper presence A/B: ground luminance sd 0.00 -> 4.47 (dark night),
+  0.00 -> 1.22 (light morning). The 0.00 IS the owner's two screenshots.
+- Thread scroll perf, 300 messages, 90 sampled frames: p95 17.30ms ->
+  17.20ms (0.994x), median 16.60 -> 16.70. Wallpaper box static across
+  all sampled frames.
+- Typing indicator vs last bubble: -0.7px overlap -> +13.3px gap;
+  asserted at n=4 and n=300 threads and 40 samples across a burst.
+- AI-disclosure footer on sheet glass: 2.69:1 on `--ink-faint` ->
+  passes on `--ink-dim` (token choice now pinned).
+- Injected-violation battery: 8/8 caught (translucent bubble, void veil,
+  thinned light veil, drifted dark blocks, shadow-only lift, faint
+  footer, thinned sheet glass, restored typing bug).
+- Landing first view (phone 390): 830KB -> 392KB night / 445KB golden
+  worst; above-the-fold 241-294KB; privacy 221-226KB. Hero text worst
+  4.83:1 under the prefix-walk (content only moves UP the fixed painting).
+- Eval counts at close: sky 180, persona 206, browser battery 115 checks
+  / 43 shots (thread+onboarding+settings), landing negative-tests 8/8,
+  verify-release 13/13 twice.

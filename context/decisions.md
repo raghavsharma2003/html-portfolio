@@ -1755,3 +1755,38 @@ screens' reassurance line states only what is TRUE and names memory ON
 PURPOSE — the honest counterweight to the competitor's false privacy
 claim. **Reverses if:** the paintings arrive and the procedural layer
 fights them — then procedural becomes the fallback, never both at once.
+
+---
+
+## `wallpaper-scrims-per-state-and-theme` (2026-08-22, WS-PHASE3)
+
+The thread wallpaper's veil is a token per sky state per THEME, not per
+state alone, because the thread's ground text (timestamps, separators,
+read-more) is inked in the THEME'S `--ink-dim` while the painting is the
+SKY'S — `data-theme` beats the sky, so "light theme at midnight" is a
+real rendered combination the world's own tokens cannot express. Every
+alpha was solved against the shipped JPGs' decoded pixels with the
+constraint set at the brightest decile under light ink (hence dark-night
+0.60 but dark-morning 0.91). Bubbles stay fully opaque by construction,
+which is why the wallpaper costs zero bubble-legibility budget and zero
+per-row paint (one fixed sibling layer outside the scroller; scroll p95
+0.994x baseline).
+
+**Reversed if:** the theme model changes so the sky always outranks
+`data-theme` (then the per-theme half collapses), or a repaint of the
+world paintings shifts the sampled deciles (then the alphas re-solve —
+the gate's real-pixel floors will say so, loudly).
+
+## `typing-row-lives-in-the-bubble-rhythm` (2026-08-22, WS-PHASE3)
+
+The typing indicator was overlapping the last message because no
+`.msg + .msg` rhythm rule ever matched it — it sat marginless with a
+-6px halo bleeding upward (measured -0.7px overlap). The fix is
+structural membership, not a patch margin: the typing row participates
+in the same adjacency rhythm as any bubble (+13.3px gap), and the
+browser battery asserts by bounding box that it can never intersect the
+last bubble, at 4 messages, at 300, and sampled 40x across a live burst.
+
+**Reversed if:** the thread's row model changes so typing is no longer a
+sibling of messages — the bounding-box assertion travels with whatever
+replaces it.

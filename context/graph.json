@@ -1227,6 +1227,42 @@
       "kind": "measurement",
       "title": "Painted-world release: zero-gap audit passed, all findings fixed, APK verified and delivered",
       "at": "2026-08-22"
+    },
+    {
+      "id": "shadow-only-bubble-lift",
+      "kind": "rejection",
+      "title": "A drop shadow cannot bound a surface that matches its ground; bubble silhouette gated separately from text",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "chrome-behind-negative-z-does-nothing",
+      "kind": "rejection",
+      "title": "Negative-z child paints above parent background; claimed contrast contribution measured at exactly zero",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "too-dark-passes-every-floor",
+      "kind": "rejection",
+      "title": "The void passes every contrast floor; a show-through veil needs a gated ceiling as well",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "wallpaper-scrims-per-state-and-theme",
+      "kind": "decision",
+      "title": "Thread wallpaper veil is a token per sky state per THEME, solved against decoded pixels; bubbles opaque by construction",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "typing-row-lives-in-the-bubble-rhythm",
+      "kind": "decision",
+      "title": "Typing indicator is a structural member of the bubble adjacency rhythm, bounding-box asserted",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "phase3-thread-onboarding-settings",
+      "kind": "measurement",
+      "title": "Phase 3: floors 4.70/5.48/3.49, ground sd 0 to 4.47, scroll p95 0.994x, typing -0.7 to +13.3px, landing 830 to 392KB",
+      "at": "2026-08-22"
     }
   ],
   "edges": [
@@ -2259,6 +2295,31 @@
       "src": "warm-count-unscoped",
       "rel": "caused_by",
       "dst": "stance-lapses-record-stays"
+    },
+    {
+      "src": "wallpaper-scrims-per-state-and-theme",
+      "rel": "constrains",
+      "dst": "sky-is-the-clock"
+    },
+    {
+      "src": "too-dark-passes-every-floor",
+      "rel": "constrains",
+      "dst": "wallpaper-scrims-per-state-and-theme"
+    },
+    {
+      "src": "shadow-only-bubble-lift",
+      "rel": "constrains",
+      "dst": "wallpaper-scrims-per-state-and-theme"
+    },
+    {
+      "src": "phase3-thread-onboarding-settings",
+      "rel": "measured_by",
+      "dst": "wallpaper-scrims-per-state-and-theme"
+    },
+    {
+      "src": "phase3-thread-onboarding-settings",
+      "rel": "measured_by",
+      "dst": "typing-row-lives-in-the-bubble-rhythm"
     }
   ]
 }

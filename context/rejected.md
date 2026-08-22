@@ -1629,3 +1629,58 @@ compose transforms instead of out-specifying them; await
 Promise.allSettled(el.getAnimations()) instead of counting names. And
 the meta-rule: animation bugs are invisible without a frame-sampling
 harness — "it animates" is not observable from code review.
+
+---
+
+## `shadow-only-bubble-lift` — the boundary that vanished on matching ground
+
+**Tried (WS-PHASE3):** when the thread gained its wallpaper, her bubble's
+`--surface-2` landed at 1.00-1.02:1 against the light scrims — a browser
+frame showed the third bubble with no boundary at all while the two above
+it, floating over open sky, looked perfect. First fix attempted: a drop
+shadow. It measurably failed: a 7-13% shadow is invisible when the ground
+matches the caster, because a shadow is a darkening of what is behind the
+shape, and when shape and ground are the same color there is nothing to
+darken against. Only an inset edge (`--bubble-her-lift`) restored the
+silhouette, and the contrast gate now requires the edge, not just "some
+treatment".
+
+**The generalisable rules:** text contrast passing says nothing about a
+SHAPE existing — a bubble can hold perfectly readable text while having no
+outline whatsoever; and a drop shadow is a claim about the background, so
+it cannot bound a surface that matches its ground. Gate the silhouette
+separately from the text.
+
+---
+
+## `chrome-behind-negative-z-does-nothing` — a comment's claim, measured at zero
+
+**Tried (WS-PHASE3):** the glass header band claimed `--chrome` on the
+header improved contrast under the sky "for free". Probed with real
+pixels: 232.6 with the chrome background, 232.6 without — a negative
+z-index child paints ABOVE its parent's background, so the parent's paint
+never reaches the sampled frame at all (246.6 with the band removed
+entirely, which is the only comparison that moves). The comment was
+corrected rather than the code defended.
+
+**The generalisable rule:** any claim of the form "layer X contributes to
+what the user sees" is one screenshot-diff away from being a fact or a
+fiction; the stacking context decides, not the source order. The contrast
+gate models the real composite now, not the conservative story.
+
+---
+
+## `too-dark-passes-every-floor` — the void is not a contrast failure
+
+**Found (WS-PHASE3):** the owner's dark-chat screenshot — the grim empty
+void — PASSES every contrast floor, because near-white ink on near-black
+ground is superb contrast. "Too dark to read" and "too dark to be
+anything" are different failures and only the first has a ratio. The gate
+now pins a CEILING on the night veil's alpha alongside the floors: the
+painting must remain visible through it (dark night lets ~40% of the sky
+through), or the wallpaper silently regresses to the void that prompted
+the whole phase.
+
+**The generalisable rule:** floors alone ratchet toward black. Any veil
+whose purpose is "the painting shows through" needs the property gated in
+both directions.
