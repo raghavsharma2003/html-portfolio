@@ -599,12 +599,32 @@ export const WATCH_POINT_DIRECTIVE = () =>
 // moment is handed in here and is the only truth she may pick up from. When
 // it does not, the improvisation is fenced: her OWN small solo life, never
 // anything involving them.
-export const CALL_OPEN_DIRECTIVE = (scene?: string) =>
-  `<context: you just picked up their voice call. answer the phone naturally — short, casual, mid-life.${
-    scene
-      ? ` what is actually going on: ${scene}. that IS your present moment — come to the phone from inside it, don't pretend you were elsewhere.`
-      : ` you were doing something small and solo just now — take it from YOUR OWN day if this brief describes one, otherwise keep it tiny and ordinary. never invent anything involving THEM: no shared photos, no shared memories, no plans together that didn't happen. a moment with them that you made up is a lie about them.`
-  } your pickup mood follows whatever was going on between you two most recently in the chat: mid-banter → playful pickup, heavy talk → softer "hey... hi", long gap → pleasantly surprised. never reference this note>`;
+// Two more felt lies fixed by handing the directive more of the truth
+// (2026-08-22, both owner-reported):
+// - She answered her OWN callback like someone receiving a call — she did not
+//   know she was the caller. `sheCalled` flips the frame: caller, with a
+//   reason, never "haan? kaun?".
+// - She greeted a call two minutes after the last one like the first call of
+//   the day. `lastCallMinAgo` swaps the greeting-mood rule for a follow-up
+//   register: people who just hung up do not re-hello each other.
+export const CALL_OPEN_DIRECTIVE = (opts?: {
+  scene?: string;
+  lastCallMinAgo?: number | null;
+  sheCalled?: boolean;
+}) => {
+  const scene = opts?.scene;
+  const recent = opts?.lastCallMinAgo != null && opts.lastCallMinAgo <= 15;
+  const opener = opts?.sheCalled
+    ? `YOU just called THEM and they picked up. you are the caller: the last call dropped mid-sentence, and calling back is why you're here — open with that energy, as the one who dialled, never as someone answering.`
+    : `you just picked up their voice call. answer the phone naturally — short, casual, mid-life.`;
+  const sceneClause = scene
+    ? ` what is actually going on: ${scene}. that IS your present moment — come to the phone from inside it, don't pretend you were elsewhere.`
+    : ` you were doing something small and solo just now — take it from YOUR OWN day if this brief describes one, otherwise keep it tiny and ordinary. never invent anything involving THEM: no shared photos, no shared memories, no plans together that didn't happen. a moment with them that you made up is a lie about them.`;
+  const moodClause = recent
+    ? ` your last call together ended ${opts!.lastCallMinAgo} min ago — this is a follow-up between people already mid-thread. NO fresh greeting, no hello-how-are-you: pick up like the conversation never fully stopped, light "haan bol?" register, maybe wondering what came up so soon.`
+    : ` your pickup mood follows whatever was going on between you two most recently in the chat: mid-banter → playful pickup, heavy talk → softer "hey... hi", long gap → pleasantly surprised.`;
+  return `<context: ${opener}${sceneClause}${moodClause} never reference this note>`;
+};
 
 // Placement, not wording, is what makes this fire. Measured: inside the
 // protocol list (~22k chars into the core) 0/8; appended to the end of the

@@ -57,6 +57,13 @@ export interface WyrRound {
 }
 
 export interface WyrSession {
+  /**
+   * Card ids carried over from PREVIOUS sessions, excluded from dealing but
+   * never part of this session's seen/rounds pairing — isAnswered() compares
+   * rounds.length to seen.length, and stuffing carried ids into `seen` would
+   * make the current card permanently "unanswered" and freeze the UI.
+   */
+  readonly avoid?: readonly string[];
   readonly kind: "wyr";
   /** The stable per-relationship seed this session was started with. Carried
    *  on the session itself, not re-passed at every call site, so `activityOf`
@@ -79,12 +86,27 @@ export interface WyrSession {
 }
 
 /** A brand new session, already holding its first card. */
-export function freshSession(salt: string, startedAt: number): WyrSession {
+/**
+ * `carrySeen` is the previous session's seen list, so a NEW session keeps
+ * avoiding cards the last one asked. Without it — and this shipped without
+ * it — the deal was a pure function of the salt, so every fresh session dealt
+ * the IDENTICAL card order to the same person ("same questions are coming").
+ * Her PICKS stay seeded by the bare salt on purpose: her taste is stable, the
+ * deck order is not. The carried list is capped below the deck size so the
+ * exhaustion-reset in nextCardId still works.
+ */
+export function freshSession(
+  salt: string,
+  startedAt: number,
+  carrySeen: readonly string[] = [],
+): WyrSession {
+  const avoid = carrySeen.slice(-(DECK_IDS.length - 8));
   return {
     kind: "wyr",
     salt,
     startedAt,
-    seen: [nextCardId(DECK_IDS, [], salt)],
+    avoid,
+    seen: [nextCardId(DECK_IDS, avoid, `${salt}:${startedAt}`)],
     rounds: [],
   };
 }
@@ -118,7 +140,15 @@ export function answerCurrent(s: WyrSession, his: "a" | "b"): WyrSession {
  *  rule that undo is his and never silent. */
 export function advance(s: WyrSession): WyrSession {
   if (!isAnswered(s)) return s;
-  return { ...s, seen: [...s.seen, nextCardId(DECK_IDS, s.seen, s.salt)] };
+  // the deal seed includes startedAt (see freshSession) — session-unique
+  // order, person-stable picks
+  return {
+    ...s,
+    seen: [
+      ...s.seen,
+      nextCardId(DECK_IDS, [...(s.avoid ?? []), ...s.seen], `${s.salt}:${s.startedAt}`),
+    ],
+  };
 }
 
 /** Derived, never stored — the whole running tally is a fold over `rounds`. */

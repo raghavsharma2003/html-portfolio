@@ -247,6 +247,11 @@ const HER_BREATH_MS = 3_000;
 export function useCallEngine(
   state: AppState,
   setState: React.Dispatch<React.SetStateAction<AppState>>,
+  // true when SHE placed this call (the callback after a drop). She has to
+  // know she is the caller — the owner heard her answer her own callback
+  // like someone receiving a call, which reads as her not knowing what she
+  // herself just did.
+  sheCalled = false,
 ) {
   const [phase, setPhase] = useState<CallPhase>("connecting");
   const [speaking, setSpeaking] = useState(false);
@@ -637,7 +642,12 @@ export function useCallEngine(
       // function is what makes the read a value rather than a guaranteed miss
       // (`rejected.md#realtime-recall-never`). `sheInitiated` is left unset,
       // which is correct and not an omission: a pickup is THEM calling HER.
-      selfBundle: callSelfBundle(stateRef.current.deviceId),
+      selfBundle: (() => {
+        const b = callSelfBundle(stateRef.current.deviceId);
+        // a callback is the one pickup SHE initiated — the self layer's
+        // `sheInitiated` field exists for exactly this and was never fed
+        return sheCalled && b ? { ...b, sheInitiated: true } : b;
+      })(),
       // moment.ts's pull-only law reads ONLY the live turn, and a pickup has
       // no turn yet — so "" here, never the last thing they typed. That keeps
       // T6 on its STANDING BACKGROUND heading ("do not raise any of this
@@ -862,7 +872,7 @@ export function useCallEngine(
       brainKeys(),
       state.messages,
       // same scene the live lane's pickup carries — one truth, both engines
-      CALL_OPEN_DIRECTIVE(activityPickupLine(activityOf(state.game))),
+      CALL_OPEN_DIRECTIVE(pickupOpts()),
       "call",
       engine,
       true,
@@ -1002,7 +1012,7 @@ export function useCallEngine(
         // "what's up" — the activity block was in the frozen prompt, but a
         // rule mid-brief loses to the directive appended last
         // (`prompt-position`), so the directive itself must carry the scene.
-        winner.direct(CALL_OPEN_DIRECTIVE(activityPickupLine(activityOf(stateRef.current.game)))); // she picks up, spoken live
+        winner.direct(CALL_OPEN_DIRECTIVE(pickupOpts())); // she picks up, spoken live
         track(stateRef.current.deviceId, "live_call_started", { ...liveTiming.current });
         return; // realtime session owns the call from here
       }
@@ -1011,7 +1021,7 @@ export function useCallEngine(
       if (voiceOwner.current === "live" && liveSession.current?.active()) {
         const s2 = liveSession.current;
         if (!mutedRef.current) s2.setMuted(false);
-        s2.direct(CALL_OPEN_DIRECTIVE(activityPickupLine(activityOf(stateRef.current.game))));
+        s2.direct(CALL_OPEN_DIRECTIVE(pickupOpts()));
         track(stateRef.current.deviceId, "live_call_started", { ...liveTiming.current });
         return;
       }
@@ -2453,6 +2463,26 @@ export function useCallEngine(
   //    because he touched a piece is exactly the `never-scheduled` failure —
   //    her unprompted moves are reason-contingent, and a move he made while
   //    she is not looking is not a reason.
+  // Everything the pickup directive needs to be TRUE, computed at use time:
+  // the live activity, how long since the last call ended (people who hung
+  // up two minutes ago do not re-greet each other), and who dialled.
+  const pickupOpts = () => {
+    let lastCallMinAgo: number | null = null;
+    const ms = stateRef.current.messages;
+    for (let i = ms.length - 1; i >= 0; i--) {
+      const m = ms[i];
+      if (m.kind === "callmark" && m.at) {
+        lastCallMinAgo = Math.max(0, Math.round((Date.now() - m.at) / 60_000));
+        break;
+      }
+    }
+    return {
+      scene: activityPickupLine(activityOf(stateRef.current.game)) || undefined,
+      lastCallMinAgo,
+      sheCalled,
+    };
+  };
+
   const pokedPly = useRef<number | null>(null);
   const pokeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {

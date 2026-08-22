@@ -172,8 +172,23 @@ ok("whitespace fact yields no note", activityNote("   ") === "");
   // and the note goes out AS her piece lands, not a debounce later — the
   // compounding-lag defect ("she is calling the previous move only")
   ok("completed exchange fires fast", /exchangeComplete \? 150 : MOVE_POKE_MS/.test(call));
-  ok("pickup carries the scene on every lane",
-    (call.match(/CALL_OPEN_DIRECTIVE\(activityPickupLine\(activityOf\(/g) || []).length >= 3, "want 3 sites");
+  // The directive now takes ONE options bag built by pickupOpts(), which is
+  // the single place the scene, the last-call recency, and who-dialled are
+  // computed — three directive sites, one truth.
+  ok("pickup carries the context on every lane",
+    (call.match(/CALL_OPEN_DIRECTIVE\(pickupOpts\(\)\)/g) || []).length >= 3, "want 3 sites");
+  ok("pickupOpts derives the scene from the single derivation",
+    /scene: activityPickupLine\(activityOf\(/.test(call));
+  ok("pickupOpts derives last-call recency from callmarks",
+    /kind === "callmark"/.test(call) && /lastCallMinAgo/.test(call));
+  ok("the caller direction reaches the engine", /sheCalled = false/.test(call));
+  // and the directive itself has all three modes
+  {
+    const persona = readFileSync(new URL("../src/engine/persona.ts", import.meta.url), "utf8");
+    ok("directive has a she-called opener", /YOU just called THEM/.test(persona));
+    ok("directive has a follow-up register", /NO fresh greeting/.test(persona));
+    ok("recent threshold is minutes, not hours", /lastCallMinAgo <= 15/.test(persona));
+  }
 }
 
 // ── ending a game by hand is a fact, not a fabricated result ─────────────

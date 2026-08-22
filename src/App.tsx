@@ -77,6 +77,9 @@ export default function App() {
     return watchSystemTheme(state.theme, () => applyTheme(state.theme));
   }, [state.theme]);
 
+  // Who dialled the call that is up. "her" only on the callback accept path —
+  // she has to KNOW she called, or she answers her own call like a stranger.
+  const [callFrom, setCallFrom] = useState<"him" | "her">("him");
   const [gamesOpen, setGamesOpen] = useState(false);
   const [activity, setActivity] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
@@ -333,13 +336,19 @@ export default function App() {
               // unlock inside the tap gesture, or mobile browsers mute her
               unlockAudio();
               track(state.deviceId, "call_started", {}, state.auth?.userId);
+              setCallFrom("him");
               setInCall(true);
             }}
             onProfile={() => setAuthOpen(true)}
             onGames={() => setGamesOpen(true)}
           />
           {inCall && (
-            <CallVoice state={state} setState={setState} onEnd={() => setInCall(false)} />
+            <CallVoice
+              state={state}
+              setState={setState}
+              onEnd={() => setInCall(false)}
+              sheCalled={callFrom === "her"}
+            />
           )}
           {/* ── things to do together ───────────────────────────────────────
               Rendered AFTER CallVoice and as its sibling. That ordering is the
@@ -413,6 +422,7 @@ export default function App() {
               onStartCall={() => {
                 unlockAudio(); // inside the tap gesture, or mobile mutes her
                 track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
+                setCallFrom("him");
                 setInCall(true);
               }}
               // her picks are seeded per RELATIONSHIP: same person, same
@@ -429,6 +439,7 @@ export default function App() {
               onStartCall={() => {
                 unlockAudio(); // inside the tap gesture, or mobile mutes her
                 track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
+                setCallFrom("him");
                 setInCall(true);
               }}
             />
@@ -446,6 +457,7 @@ export default function App() {
               onStartCall={() => {
                 unlockAudio(); // inside the tap gesture, or mobile mutes her
                 track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
+                setCallFrom("him");
                 setInCall(true);
               }}
             />
@@ -460,6 +472,7 @@ export default function App() {
                 unlockAudio(); // inside the gesture, or mobile mutes her
                 setState((s) => ({ ...s, callback: null }));
                 track(state.deviceId, "call_started", { incoming: true }, state.auth?.userId);
+                setCallFrom("her"); // SHE is the caller here, and she knows it
                 setInCall(true);
               }}
               onDecline={() => {

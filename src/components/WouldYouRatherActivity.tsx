@@ -95,7 +95,13 @@ export default function WouldYouRatherActivity({
       const cur = readWyr(s.game);
       if (s.game && !cur) return s; // re-check inside the updater: still blocked
       if (cur && !cur.closedAt) return s;
-      return { ...s, game: asGameSession(freshSession(salt, Date.now())) };
+      // Carry the previous wyr session's questions forward, so "new session"
+      // never means "the same questions again" — the deal also seeds from
+      // startedAt now, so even the order differs. Both halves matter: the
+      // owner hit the version with neither.
+      const prev = s.game?.kind === "wyr" ? s.game : null;
+      const asked = prev ? [...(prev.avoid ?? []), ...prev.seen] : [];
+      return { ...s, game: asGameSession(freshSession(salt, Date.now(), asked)) };
     });
   }, [blocked, session, salt, setState]);
 

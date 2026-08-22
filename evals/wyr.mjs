@@ -330,6 +330,26 @@ for (const c of DECK.slice(0, 12)) {
   }
 }
 
+// ── sessions must not repeat themselves (owner: "same questions are coming") ──
+{
+  const s1 = freshSession("salty", 1_000_000);
+  const s2 = freshSession("salty", 2_000_000);
+  ok("two sessions deal different first cards (same salt, different start)",
+    s1.seen[0] !== s2.seen[0], `${s1.seen[0]} vs ${s2.seen[0]}`);
+  // carry-forward: a new session avoids everything the last one asked
+  let a = freshSession("salty", 1_000_000);
+  for (let i = 0; i < 10; i++) a = advance({ ...a, rounds: [...a.rounds, { cardId: a.seen[a.seen.length - 1], his: "a", her: "a" }] });
+  const asked = [...(a.avoid ?? []), ...a.seen];
+  const b = freshSession("salty", 3_000_000, asked);
+  ok("fresh session avoids every asked card", !asked.includes(b.seen[0]), b.seen[0]);
+  // and the pairing invariant survives the carry — the current card is answerable
+  const answered = answerCurrent(b, "a");
+  ok("carried avoid-list does not freeze answering", answered.rounds.length === 1);
+  // her PICKS stay salt-stable across sessions — taste is a property of her
+  ok("her pick for a card is session-independent",
+    herPick("ev-chai-coffee", "salty") === herPick("ev-chai-coffee", "salty"));
+}
+
 console.log(`\n${count} checks, ${fail} failure(s)`);
 console.log(fail ? "FAIL" : "ALL PASS");
 process.exit(fail ? 1 : 0);

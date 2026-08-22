@@ -16,10 +16,13 @@ interface Props {
   state: AppState;
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   onEnd: () => void;
+  /** true when SHE placed this call — the callback flow. The engine needs it
+   *  so her opening line is a caller's, not an answerer's. */
+  sheCalled?: boolean;
 }
 
-export default function CallVoice({ state, setState, onEnd }: Props) {
-  const eng = useCallEngine(state, setState);
+export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) {
+  const eng = useCallEngine(state, setState, sheCalled);
   const [typed, setTyped] = useState("");
   const [showKb, setShowKb] = useState(false);
 
