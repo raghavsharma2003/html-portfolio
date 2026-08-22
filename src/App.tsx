@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useAppState, rotateDeviceId, type Message } from "./state/store";
+import { useAppState, rotateDeviceId } from "./state/store";
 import type { AuthInfo, AppState } from "./state/store";
 import Onboarding from "./components/Onboarding";
 import Chat from "./components/Chat";
@@ -13,6 +13,7 @@ import WouldYouRatherActivity from "./components/WouldYouRatherActivity";
 import TicTacToeActivity from "./components/TicTacToeActivity";
 import { CloseIcon } from "./components/icons";
 import { applyTheme, watchSystemTheme } from "./engine/theme";
+import { mergeStates } from "./state/merge";
 import { useMoments } from "./components/useMoments";
 import Celebration from "./components/Celebration";
 import UsScreen from "./components/UsScreen";
@@ -37,29 +38,6 @@ import {
 // union-merge two message histories by id (never wholesale replacement —
 // a message typed during sign-in must survive), honoring the clear-chat
 // tombstone so a wiped chat can't be resurrected by a stale copy
-function mergeStates(local: AppState, remote: any): Partial<AppState> {
-  const clearedAt = Math.max(local.clearedAt ?? 0, Number(remote?.clearedAt) || 0);
-  const byId = new Map<string, Message>();
-  for (const m of Array.isArray(remote?.messages) ? remote.messages : [])
-    if (m && m.id && (m.at ?? 0) >= clearedAt) byId.set(m.id, m);
-  for (const m of local.messages) if ((m.at ?? 0) >= clearedAt) byId.set(m.id, m);
-  const messages = [...byId.values()].sort((a, b) => (a.at ?? 0) - (b.at ?? 0)).slice(-500);
-  return {
-    onboarded: remote?.onboarded || local.onboarded,
-    deviceId: remote?.deviceId || local.deviceId, // keep her memory graph
-    user: local.messages.length >= (remote?.messages?.length ?? 0) ? local.user : remote?.user ?? local.user,
-    messages,
-    lastSeen: Math.max(local.lastSeen ?? 0, Number(remote?.lastSeen) || 0),
-    clearedAt: clearedAt || undefined,
-    // her side of the relationship syncs too. Without these two lines a 409
-    // silently discarded whatever the other device learned about her own life
-    // — she'd have one flatmate on the phone and another on the laptop.
-    // The interior merges WHOLESALE by revision, never field-by-field: a
-    // feeling and its watermark must never come from different revisions.
-    herLife: remote?.herLife?.length && !local.herLife?.length ? remote.herLife : local.herLife,
-    inner: (Number(remote?.inner?.at) || 0) > (local.inner?.at ?? 0) ? remote.inner : local.inner,
-  };
-}
 
 export default function App() {
   const [state, setState] = useAppState();
@@ -265,6 +243,17 @@ export default function App() {
             lastSeen: r?.lastSeen ?? Date.now(),
             clearedAt: r?.clearedAt,
             followup: null,
+            // EVERYTHING relational resets on an account switch. The first
+            // version reset only the conversation — the new account inherited
+            // the previous one's chess game, milestone ledger, tallies and
+            // her carried inner life, which is cross-account state bleed of
+            // exactly the kind the lastAccountId guard exists to prevent.
+            herLife: (r?.herLife as AppState["herLife"]) ?? [],
+            inner: r?.inner,
+            game: (r?.game as AppState["game"]) ?? null,
+            tally: (r?.tally as AppState["tally"]) ?? null,
+            momentsFired: (r?.momentsFired as string[]) ?? [],
+            callback: null,
           };
         }
         return {

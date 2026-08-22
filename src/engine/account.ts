@@ -111,6 +111,18 @@ export function syncableState(s: AppState) {
     ),
     lastSeen: s.lastSeen,
     clearedAt: s.clearedAt,
+    // The relationship's own state. This list lagging behind AppState is how
+    // half of mergeStates was dead for a release — herLife/inner were merged
+    // on receive but never sent. The rule now: a new AppState field decides
+    // sync-or-not HERE, on the day it is added (same discipline as the
+    // teardown rule in Chat.tsx). `theme` is deliberately absent: a phone on
+    // dark and a laptop on light is a feature, not a conflict. Keys never sync.
+    herLife: s.herLife,
+    inner: s.inner,
+    game: s.game,
+    tally: s.tally,
+    momentsFired: s.momentsFired,
+    followup: s.followup,
   };
 }
 

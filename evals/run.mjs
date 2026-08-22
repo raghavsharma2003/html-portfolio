@@ -62,6 +62,8 @@ const suites = {
   ttt: "ttt.mjs",
   // WS-GAMIFY: moments fire once, largest-tier-only, charter-clean.
   milestones: "milestones.mjs",
+  // WS-SYNC: the push list, merge semantics and account-switch reset agree.
+  sync: "sync.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),
