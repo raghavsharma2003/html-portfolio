@@ -1080,8 +1080,30 @@ export function findPastSendClaims(text: string): ReceiptHit[] {
 // marker and verb (hi to / jo / abhi / khud), English contractions and
 // periphrastic attribution (tere hisaab se / as per you). Verified 13/13
 // previously-slipping flag, 15/15 must-not-flag stay clean.
-const ATTRIBUTION_RE =
-  /\b(?:tu?ne|tumne|aapne|aap ne|tum ne)\s+(?:(?:hi\s+)?(?:to|toh|jo|abhi|khud)\s+)?(?:bola|kaha|bataya|batayi|batai|batya|likha|mention|promise|complain|bol[ae]?|keh[ae]?)\b[^.?!\n]*|\b(?:tu|tum|aap)\s+(?:bol|keh|bata)\s*(?:raha|rahe|rahi)\s+th[aei]\b[^.?!\n]*|\byou(?:'?(?:d|ve))?\s+(?:had\s+)?(?:said|told\s+me|mentioned|wrote|were\s+(?:saying|telling\s+me))\b[^.?!\n]*|\b(?:tere?\s+(?:hisaab\s+se|according|mutabik)|as\s+per\s+(?:you|u))\b[^.?!\n]*/gi;
+//
+// ── ONE SOURCE FOR THE MARKER, TWO USES ──────────────────────────────────
+//
+// The heads are written once and compiled twice: into the SCANNER (head plus
+// the rest of the clause) and into the STRIPPER (head only, anchored at the
+// start of a matched clause). Two copies of this alternation is how the
+// stripper ends up trimming a construction the scanner no longer produces —
+// and the stripper is what decides which words belong to her and which belong
+// to the claim she is attributing.
+const MARKER_HEADS = [
+  // "tune (hi to / jo / abhi / khud) bola/kaha/bataya…"
+  String.raw`(?:tu?ne|tumne|aapne|aap ne|tum ne)\s+(?:(?:hi\s+)?(?:to|toh|jo|abhi|khud)\s+)?(?:bola|kaha|bataya|batayi|batai|batya|likha|mention|promise|complain|bol[ae]?|keh[ae]?)\b`,
+  // THE CONTINUOUS ATTRIBUTION, and the one place `raha/rahe/rahi` is HERS:
+  // "tu bol raha tha ki X". The auxiliary belongs to *her* verb `bol`, not to
+  // anything inside X. See MARKER_TOKENS for what that distinction cost.
+  String.raw`(?:tu|tum|aap)\s+(?:bol|keh|bata)\s*(?:raha|rahe|rahi)\s+th[aei]\b`,
+  String.raw`you(?:'?(?:d|ve))?\s+(?:had\s+)?(?:said|told\s+me|mentioned|wrote|were\s+(?:saying|telling\s+me))\b`,
+  String.raw`(?:tere?\s+(?:hisaab\s+se|according|mutabik)|as\s+per\s+(?:you|u))\b`,
+];
+const MARKER_HEAD_SRC = MARKER_HEADS.map((h) => `\\b${h}`).join("|");
+const ATTRIBUTION_RE = new RegExp(`(?:${MARKER_HEAD_SRC})[^.?!\\n]*`, "gi");
+/** The same heads, anchored — what gets cut off the front of a matched clause
+ *  before the claim is read out of what remains. */
+const MARKER_HEAD_RE = new RegExp(`^(?:${MARKER_HEAD_SRC})`, "i");
 
 /** Content tokens below this length are grammar in both languages here. */
 export const CLAIM_TERM_LEN = 4;
@@ -1091,10 +1113,34 @@ export const CLAIM_TERM_LEN = 4;
  * "tune bola" — so counting them as part of the claim gives every bare fragment
  * ("tune bola tha na") two free unsupported tokens and flags ordinary filler.
  * Caught by the eval, not by review.
+ *
+ * ── `raha` / `rahe` / `rahi` ARE NOT IN THIS SET, AND THAT IS THE POINT ───
+ *
+ * They were, and it was an amplifier rather than a small over-reach. They are
+ * here for exactly ONE construction — "tu bol RAHA tha ki X", where the
+ * auxiliary belongs to her verb `bol` — but a Set is position-blind, so they
+ * were stripped from EVERY attributed clause, including the ones where the
+ * same three words are the claim's own auxiliary:
+ *
+ *   "tune bola tha ki tu banaras ja raha h"
+ *      claim was  [banaras]        → 1 term, below MIN_CLAIM_TERMS, SKIPPED
+ *      claim is   [banaras, raha]  → 2 terms, checked
+ *
+ * Hindi's continuous is how most one-noun statements about a person's plans
+ * are said, so the loss was concentrated exactly where the family is meant to
+ * bite: the audit drove eight one-noun continuous attributions through the
+ * shipping parser and **five of them walked**.
+ *
+ * The auxiliary is stripped POSITIONALLY now, by `MARKER_HEAD_RE` cutting the
+ * marker off the front of the clause — so "tu bol raha tha" still loses its
+ * own auxiliary and a quoted claim keeps its verb. The general lesson is the
+ * one this file keeps re-learning: a token set cannot express "this word is
+ * scaffolding HERE", and a rule that ignores position is a rule applied
+ * everywhere.
  */
 const MARKER_TOKENS = new Set([
   "tune", "tumne", "aapne", "bola", "bole", "boli", "kaha", "kahe", "kahi",
-  "bataya", "batai", "batayi", "batya", "likha", "raha", "rahe", "rahi",
+  "bataya", "batai", "batayi", "batya", "likha",
   "mention", "promise", "complain", "telling", "hisaab", "according", "mutabik",
   "said", "told", "mentioned", "wrote", "saying", "your", "you",
 ]);
@@ -1173,8 +1219,14 @@ export function findFalseAttributions(
   const matches = text.match(ATTRIBUTION_RE);
   if (!matches) return out;
   for (const clause of matches) {
-    // The marker's own words are hers, so they are not part of the claim.
-    const claim = claimTokens(clause).filter((w) => !MARKER_TOKENS.has(w));
+    // The marker's own words are hers, so they are not part of the claim —
+    // and WHICH words those are is decided by POSITION first and by the token
+    // set second. The head is cut off the front (that is where `raha/rahe/
+    // rahi` legitimately belong, and only there); the set catches a marker
+    // word repeated later in the clause.
+    const claim = claimTokens(clause.replace(MARKER_HEAD_RE, " ")).filter(
+      (w) => !MARKER_TOKENS.has(w),
+    );
     if (claim.length < MIN_CLAIM_TERMS) continue;
     const unsupported = claim.filter((w) => !hisVocab.has(w));
     const share = (claim.length - unsupported.length) / claim.length;

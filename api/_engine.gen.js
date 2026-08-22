@@ -484,14 +484,20 @@ function slotForStory(now) {
   }
   return cur;
 }
-function slotStartMinute(now) {
-  const m = istMinuteOfDay(now);
-  let start = 0;
-  for (const b of SLOT_BOUNDARIES) {
-    if (m >= b.at) start = b.at;
-    else break;
+function slotStartedAt(now) {
+  const slot = slotForStory(now);
+  const today = istMidnight(now);
+  const marks = [];
+  for (const dayBack of [2, 1, 0]) {
+    const midnight = today - dayBack * MS_DAY;
+    for (const b of SLOT_BOUNDARIES) marks.push({ at: midnight + b.at * 6e4, slot: b.slot });
   }
-  return start;
+  let last = -1;
+  for (let i2 = 0; i2 < marks.length; i2++) if (marks[i2].at <= now) last = i2;
+  if (last < 0) return marks[0].at;
+  let i = last;
+  while (i > 0 && marks[i - 1].slot === slot) i--;
+  return marks[i].at;
 }
 function istDayIndex(now) {
   return Math.floor((now + IST_OFFSET_MIN * 6e4) / MS_DAY);
@@ -504,10 +510,10 @@ function hash32(s) {
   }
   return h >>> 0;
 }
-function permutation(n, seed) {
-  const out = Array.from({ length: n }, (_, i) => i);
+function shuffled(items, seed) {
+  const out = items.slice();
   let s = seed >>> 0 || 1;
-  for (let i = n - 1; i > 0; i--) {
+  for (let i = out.length - 1; i > 0; i--) {
     s = Math.imul(s, 1664525) + 1013904223 >>> 0;
     const j = s % (i + 1);
     const tmp = out[i];
@@ -516,6 +522,22 @@ function permutation(n, seed) {
   }
   return out;
 }
+function cycleOrder(slot, cycle, n) {
+  if (n <= 1) return n === 1 ? [0] : [];
+  const headAt = (c) => n === 2 ? hash32(`${slot}:head`) % 2 : hash32(`${slot}:head:${c}`) % n;
+  const head = headAt(cycle);
+  const rest = shuffled(
+    Array.from({ length: n }, (_, i) => i).filter((i) => i !== head),
+    hash32(`${slot}:${cycle}`)
+  );
+  const nextHead = headAt(cycle + 1);
+  if (rest.length >= 2 && rest[rest.length - 1] === nextHead) {
+    const tmp = rest[rest.length - 1];
+    rest[rest.length - 1] = rest[rest.length - 2];
+    rest[rest.length - 2] = tmp;
+  }
+  return [head, ...rest];
+}
 function pickFor(slot, now) {
   const pool = STORY_POOL.filter((p) => p.slot === slot);
   if (!pool.length) return null;
@@ -523,19 +545,20 @@ function pickFor(slot, now) {
   const n = pool.length;
   const cycle = Math.floor(day / n);
   const position = (day % n + n) % n;
-  return pool[permutation(n, hash32(`${slot}:${cycle}`))[position]];
+  return pool[cycleOrder(slot, cycle, n)[position]];
 }
 function istMidnight(at) {
   return Math.floor((at + IST_OFFSET_MIN * 6e4) / MS_DAY) * MS_DAY - IST_OFFSET_MIN * 6e4;
 }
 function poolStoryAt(now) {
   const slot = slotForStory(now);
-  const pick = pickFor(slot, now);
+  const startedAt = slotStartedAt(now);
+  const pick = pickFor(slot, startedAt);
   if (!pick) return null;
   return {
-    id: `pool-${istDateKey(now)}-${pick.slug}`,
+    id: `pool-${istDateKey(startedAt)}-${slot}-${pick.slug}`,
     src: `/stories/${pick.slug}.jpg`,
-    at: istMidnight(now) + slotStartMinute(now) * 6e4,
+    at: startedAt,
     desc: pick.desc
   };
 }
@@ -3344,7 +3367,19 @@ function findPastSendClaims(text) {
   }
   return out;
 }
-var ATTRIBUTION_RE = /\b(?:tu?ne|tumne|aapne|aap ne|tum ne)\s+(?:(?:hi\s+)?(?:to|toh|jo|abhi|khud)\s+)?(?:bola|kaha|bataya|batayi|batai|batya|likha|mention|promise|complain|bol[ae]?|keh[ae]?)\b[^.?!\n]*|\b(?:tu|tum|aap)\s+(?:bol|keh|bata)\s*(?:raha|rahe|rahi)\s+th[aei]\b[^.?!\n]*|\byou(?:'?(?:d|ve))?\s+(?:had\s+)?(?:said|told\s+me|mentioned|wrote|were\s+(?:saying|telling\s+me))\b[^.?!\n]*|\b(?:tere?\s+(?:hisaab\s+se|according|mutabik)|as\s+per\s+(?:you|u))\b[^.?!\n]*/gi;
+var MARKER_HEADS = [
+  // "tune (hi to / jo / abhi / khud) bola/kaha/bataya…"
+  String.raw`(?:tu?ne|tumne|aapne|aap ne|tum ne)\s+(?:(?:hi\s+)?(?:to|toh|jo|abhi|khud)\s+)?(?:bola|kaha|bataya|batayi|batai|batya|likha|mention|promise|complain|bol[ae]?|keh[ae]?)\b`,
+  // THE CONTINUOUS ATTRIBUTION, and the one place `raha/rahe/rahi` is HERS:
+  // "tu bol raha tha ki X". The auxiliary belongs to *her* verb `bol`, not to
+  // anything inside X. See MARKER_TOKENS for what that distinction cost.
+  String.raw`(?:tu|tum|aap)\s+(?:bol|keh|bata)\s*(?:raha|rahe|rahi)\s+th[aei]\b`,
+  String.raw`you(?:'?(?:d|ve))?\s+(?:had\s+)?(?:said|told\s+me|mentioned|wrote|were\s+(?:saying|telling\s+me))\b`,
+  String.raw`(?:tere?\s+(?:hisaab\s+se|according|mutabik)|as\s+per\s+(?:you|u))\b`
+];
+var MARKER_HEAD_SRC = MARKER_HEADS.map((h) => `\\b${h}`).join("|");
+var ATTRIBUTION_RE = new RegExp(`(?:${MARKER_HEAD_SRC})[^.?!\\n]*`, "gi");
+var MARKER_HEAD_RE = new RegExp(`^(?:${MARKER_HEAD_SRC})`, "i");
 var CLAIM_TERM_LEN = 4;
 var MARKER_TOKENS = /* @__PURE__ */ new Set([
   "tune",
@@ -3361,9 +3396,6 @@ var MARKER_TOKENS = /* @__PURE__ */ new Set([
   "batayi",
   "batya",
   "likha",
-  "raha",
-  "rahe",
-  "rahi",
   "mention",
   "promise",
   "complain",
@@ -3404,7 +3436,9 @@ function findFalseAttributions(text, hisVocab) {
   const matches = text.match(ATTRIBUTION_RE);
   if (!matches) return out;
   for (const clause of matches) {
-    const claim = claimTokens(clause).filter((w) => !MARKER_TOKENS.has(w));
+    const claim = claimTokens(clause.replace(MARKER_HEAD_RE, " ")).filter(
+      (w) => !MARKER_TOKENS.has(w)
+    );
     if (claim.length < MIN_CLAIM_TERMS) continue;
     const unsupported = claim.filter((w) => !hisVocab.has(w));
     const share = (claim.length - unsupported.length) / claim.length;

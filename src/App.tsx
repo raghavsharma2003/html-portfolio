@@ -31,7 +31,14 @@ import { startSessionClock } from "./engine/clock";
 import { tel, telIdentify, telRoute } from "./engine/telemetry";
 import { prewarmLiveToken } from "./voice/liveCall";
 import { primeCulture } from "./engine/culture";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
+// The hardware back button, and the ONLY thing this plugin is here for. It is
+// imported unconditionally (the web bundle carries a few hundred bytes of
+// no-op bridge) and USED only behind `Capacitor.isNativePlatform()`, because a
+// dynamic import inside the effect would make the listener's registration
+// depend on a network-free chunk load — and the window before it resolves is
+// the window in which back closes the app.
+import { App as CapApp } from "@capacitor/app";
 import {
   consumeOAuthCallback,
   ensureFresh,
@@ -111,46 +118,70 @@ export default function App() {
   //
   // NOTHING TRAPS, and that is enforced two ways rather than one:
   //  * opening the thread pushes a history entry, so the browser's back and
-  //    Android's hardware back (which Capacitor maps to history) land home;
+  //    Android's hardware back land home;
   //  * App paints its own back control over the thread's header, because
   //    Chat.tsx belongs to another workstream and a route that only works
   //    through a gesture is a route half the users never find.
+  //
+  // "Android's hardware back, WHICH CAPACITOR MAPS TO HISTORY" was the line
+  // here, and it was the assumption that made the native back a defect rather
+  // than a feature — see ONE BACK, TWO BUTTONS below. Capacitor maps it to
+  // history only until something registers a `backButton` listener, and what
+  // it maps it to is `history.back()` OR `exitApp()`, which over an overlay
+  // is the wrong one of the two.
   const [surface, setSurface] = useState<"home" | "chat">(() =>
     typeof location !== "undefined" && /(^|[#?&])chat\b/.test(location.hash + location.search)
       ? "chat"
       : "home",
   );
+  // THE HISTORY WORK LEFT THE UPDATER, and that is a correctness fix rather
+  // than a tidy-up. Both of these used to push/pop from INSIDE a `setSurface`
+  // updater, and an updater must stay pure because React may call one twice
+  // (StrictMode does, on every render). One double-invoke pushed two entries
+  // for one thread, which was invisible while the pop handler was idempotent
+  // and is not invisible now that `unwind` keeps a count.
+  const pushEntry = useCallback((kind: string) => {
+    try {
+      history.pushState({ meera: kind }, "");
+    } catch {
+      /* history unavailable (some embedded WebViews) — every close control in
+         the app still works; only the two BACK gestures lose their meaning */
+    }
+  }, []);
   const openChat = useCallback(() => {
     setSurface((cur) => {
-      if (cur === "chat") return cur;
-      try {
-        history.pushState({ meera: "chat" }, "");
-      } catch {
-        /* history unavailable (some embedded WebViews) — the back control
-           below still works; only the hardware back loses its meaning */
-      }
+      if (cur !== "chat") pushEntry("chat");
       return "chat";
     });
+  }, [pushEntry]);
+  // A `history.back()` THIS APP performs is indistinguishable from a back
+  // PRESS at the `popstate` handler, and that used to be harmless because the
+  // handler was idempotent (it only ever set the surface home). It closes
+  // things now, so a self-inflicted pop would close a second layer nobody
+  // asked it to. Every programmatic unwind goes through `unwind()` and is
+  // counted off here.
+  const selfPop = useRef(0);
+  const unwind = useCallback(() => {
+    try {
+      selfPop.current += 1;
+      history.back();
+    } catch {
+      selfPop.current = Math.max(0, selfPop.current - 1);
+      /* see pushEntry */
+    }
   }, []);
-  const goHome = useCallback(() => {
-    setSurface((cur) => {
-      if (cur === "home") return cur;
-      // Unwind the entry openChat pushed rather than pushing another one, so
-      // a session of home→chat→home→chat does not build a stack a user has
-      // to press back through five times to leave the app.
-      try {
-        if (history.state?.meera === "chat") history.back();
-      } catch {
-        /* see above */
-      }
-      return "home";
-    });
-  }, []);
+  const surfaceRef = useRef(surface);
   useEffect(() => {
-    const onPop = () => setSurface("home");
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
+    surfaceRef.current = surface;
+  }, [surface]);
+  const goHome = useCallback(() => {
+    if (surfaceRef.current === "home") return;
+    setSurface("home");
+    // Unwind the entry openChat pushed rather than pushing another one, so
+    // a session of home→chat→home→chat does not build a stack a user has
+    // to press back through five times to leave the app.
+    if (history.state?.meera === "chat") unwind();
+  }, [unwind]);
 
 
   // Escape closes, and focus starts inside the sheet rather than wherever the
@@ -306,6 +337,164 @@ export default function App() {
   // is her; the game is a game.
   const moments = useMoments(state, setState, inCall, activity !== null);
   const [authOpen, setAuthOpen] = useState(false);
+
+  // ── ONE BACK, TWO BUTTONS ──────────────────────────────────────────────
+  //
+  // Android's hardware back and the browser's back are the same gesture to
+  // the person pressing them, and until now they were two different features
+  // — one of them broken and one of them absent.
+  //
+  // NATIVE, before this: nothing registered a `backButton` listener, so
+  // Capacitor ran its own default, which is `window.history.back()` and then
+  // `App.exitApp()` when there is nothing left to go back to. Over Us, over
+  // her story, over the account sheet and over a board opened from home there
+  // was nothing on the stack, so back CLOSED THE APP mid-conversation. Over
+  // the games sheet there WAS an entry (the chat's), so back navigated the
+  // surface out from under a sheet that stayed open — stranded, floating
+  // above home, closable only by its own X.
+  //
+  // WEB, before this: `popstate` set the surface home and nothing else, so
+  // back over any overlay looked like it did nothing at all.
+  //
+  // `closeTop()` is the single answer to "what does back mean right now", and
+  // both backs call it, so the two can no longer disagree. Topmost first,
+  // which is z-order and is also the order they were opened in:
+  //
+  //   a board → the games sheet → her story → Us → the account sheet
+  //   → the thread → home → the platform's own back (exit, or leave the page)
+  //
+  // The settings sheet is deliberately NOT a layer here. It lives inside
+  // Chat.tsx, closes on Escape and on its own control, and the thread behind
+  // it already owns a history entry — so back over settings lands on the
+  // thread, which is where it should land. Reaching across into another
+  // workstream's overlay to close it would make this file a second writer for
+  // state it does not own, which is the shape `activity-forgot-the-teardown`
+  // is filed under.
+  //
+  // `closeTop` touches NO history. It cannot: the two callers arrive with the
+  // stack in opposite conditions — `popstate` has already consumed an entry,
+  // the native listener has consumed nothing — so each does its own unwinding
+  // afterwards. A shared helper that "handled history" would be right for
+  // exactly one of them.
+  const closeTop = useCallback((): "overlay" | "chat" | "none" => {
+    if (activity !== null) {
+      // matches the boards' own `onExit` exactly, `state.game` included: a
+      // board that is put away is not a game that was abandoned
+      setActivity(null);
+      return "overlay";
+    }
+    if (gamesOpen) {
+      setGamesOpen(false);
+      return "overlay";
+    }
+    if (storyOpen) {
+      setStoryOpen(false);
+      return "overlay";
+    }
+    if (usOpen) {
+      setUsOpen(false);
+      return "overlay";
+    }
+    if (authOpen) {
+      setAuthOpen(false);
+      return "overlay";
+    }
+    if (surface === "chat") {
+      setSurface("home");
+      return "chat";
+    }
+    return "none";
+  }, [activity, gamesOpen, storyOpen, usOpen, authOpen, surface]);
+
+  // THE OVERLAY SENTINELS. One history entry per open overlay, so the WEB
+  // back has something to consume and the two backs stay symmetric — pressing
+  // back on a phone browser closes her story rather than leaving the app,
+  // exactly as the hardware button now does.
+  //
+  // The count is synced to the DEPTH rather than pushed by each opener, which
+  // is what keeps this to one place instead of six call sites in the JSX
+  // (`onStory`, `onUs`, `onProfile`, `onGames`, the sheet, the story's own
+  // "sign in" hand-off). Depth up: push the difference. Depth down: unwind it,
+  // unless `popstate` already consumed the entry and said so by decrementing
+  // `held` itself.
+  const overlayDepth =
+    (activity !== null ? 1 : 0) +
+    (gamesOpen ? 1 : 0) +
+    (storyOpen ? 1 : 0) +
+    (usOpen ? 1 : 0) +
+    (authOpen ? 1 : 0);
+  const held = useRef(0);
+  useEffect(() => {
+    while (held.current < overlayDepth) {
+      pushEntry("overlay");
+      held.current += 1;
+    }
+    while (held.current > overlayDepth) {
+      held.current -= 1;
+      unwind();
+    }
+  }, [overlayDepth, pushEntry, unwind]);
+
+  // The web back. It closes the topmost layer instead of jumping straight
+  // home, which is the half of this that used to be missing.
+  useEffect(() => {
+    const onPop = () => {
+      if (selfPop.current > 0) {
+        selfPop.current -= 1;
+        return;
+      }
+      const what = closeTop();
+      // The press consumed one entry. Which one it was decides the
+      // bookkeeping: an overlay sentinel comes off `held` (or the effect above
+      // would push a replacement for an overlay that is already closing), and
+      // the thread's own entry belongs to openChat/goHome, which need nothing.
+      if (what === "overlay") held.current = Math.max(0, held.current - 1);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // `closeTop` changes with every layer, so this re-registers — cheap and
+    // honest for a plain DOM listener, where add and remove are synchronous
+    // and there is no window in between. The NATIVE listener below cannot do
+    // the same thing, and says why.
+  }, [closeTop]);
+
+  // The hardware back. ONE listener, registered ONCE, reading `closeTop`
+  // through a ref — and the "once" is a correctness requirement rather than a
+  // tidiness one. `App.addListener` resolves its handle asynchronously, so
+  // re-registering on every layer change opens a real window between
+  // `remove()` and the next listener actually being installed. A back press
+  // inside that window finds NO listener and gets Capacitor's default, which
+  // is the exact bug this block exists to fix — reachable by pressing back at
+  // the wrong moment, which is to say reachable.
+  const closeTopRef = useRef(closeTop);
+  useEffect(() => {
+    closeTopRef.current = closeTop;
+  }, [closeTop]);
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let handle: PluginListenerHandle | null = null;
+    let dropped = false;
+    void CapApp.addListener("backButton", () => {
+      const what = closeTopRef.current();
+      // An overlay's sentinel is unwound by the depth effect above — the flag
+      // it watches has just changed. The thread's entry has no such watcher,
+      // so it is consumed here, the same way goHome consumes it.
+      if (what === "chat" && history.state?.meera === "chat") unwind();
+      // Nothing open, home on screen: back means leave, and on Android that
+      // is `exitApp` rather than `history.back()` — a WebView with one entry
+      // in it has nothing to go back TO, which is why the default landed on
+      // exit over every overlay in the app.
+      if (what === "none") void CapApp.exitApp();
+    }).then((h) => {
+      if (dropped) void h.remove();
+      else handle = h;
+    });
+    return () => {
+      dropped = true;
+      void handle?.remove();
+    };
+  }, [unwind]);
+
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // last server revision we saw — sent with saves so the server can reject
   // a stale write instead of letting this tab clobber another device

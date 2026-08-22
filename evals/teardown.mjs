@@ -260,70 +260,269 @@ const { isGameSession, safeUser, mergeStates, newGame, play } = await import(BUN
   ok("walk5 §C: and tab2's message still arrives", merged.messages.length === 2);
 }
 
-// ══ #5 — THE CLASS: every optional AppState field decides its teardown fate ═
+// ══ #5 — THE CLASS: EVERY AppState field decides its teardown fate ════════
 //
 // Not "is recentMoment wiped". A field added to AppState next month fails this
 // until someone writes down what happens to it when the relationship is
 // deleted. Exemptions are allowed and are the point — each one is a decision
 // on the record, not an omission nobody noticed.
-const TEARDOWN_EXEMPT = {
+//
+// ── WHY THIS WALKER WAS REWRITTEN (the final audit's C1) ─────────────────
+//
+// The first version enumerated `^ {2}(\w+)\?:` — AppState's OPTIONAL keys. It
+// caught the four fields that had slipped, and then it structurally could not
+// see the fifth, because the fifth was not optional:
+//
+//   user: UserProfile;
+//
+// `user` is the fact table — name, city, job, what she has worked out about
+// him — and "make her forget you" left it standing. She started over "not
+// knowing you" with `lives in: pune` still in her prompt. The check that
+// existed to end this class had a hole shaped exactly like the worst instance
+// of it, and the hole was one character wide: the `?`.
+//
+// So the walker enumerates EVERY key of AppState now, required and optional
+// together, and every one of them must appear in FATE below with a verdict.
+// The generalisable rule, and it is the same one `dead-writers` states from
+// the other side: a coverage check is only as wide as the thing it ENUMERATES,
+// and enumerating a subset is how a gate reports full coverage of a part.
+//
+// ── the three verdicts ───────────────────────────────────────────────────
+//
+//   "clear+forget"  the conversation's own state. Both doors wipe it.
+//   "forget-only"   relational memory that clear-chat's own dialog PROMISES
+//                   not to touch ("her memory of you is not touched"), so
+//                   only the stronger door may take it.
+//   "exempt: …"     a device or account fact that is not the relationship.
+//                   The reason is the check.
+const FATE = {
+  // ── the conversation. Both doors. ──
+  messages: "clear+forget",
+  followup: "clear+forget", // an armed "back in 20 min" belongs to a chat that no longer exists
+  herLife: "clear+forget", // her improvised life was improvised AT him
+  inner: "clear+forget", // a feeling whose cause was deleted is a causeless mood
+  clearedAt: "clear+forget", // written, not cleared: the synced tombstone IS the teardown
+  game: "clear+forget", // `activity-forgot-the-teardown`: resuming a match you were forgotten over
+  callback: "clear+forget", // "she calls you back" out of a wiped relationship is causeless
+  tally: "clear+forget", // "12 games, she's ahead 7-5" over a record that starts today
+  momentsFired: "clear+forget", // a dead ledger means a new relationship can never fire its first game
+  recentMoment: "clear+forget", // her first sentences to a stranger, about their hundred days
+
+  // ── relational memory, forget only ──
+  // C1, the final audit's one ship-blocker. Clear-chat leaves the profile
+  // standing BY PROMISE; forget-everything cannot, because everything she has
+  // worked out about your life includes who you are.
+  user: "forget-only",
+
+  // ── not the relationship ──
+  onboarded:
+    "exempt: whether this device has ever been set up. Forgetting is not " +
+    "uninstalling, and re-running onboarding would ask his name back in the " +
+    "same second she was told to lose it.",
+  deviceId:
+    "exempt: the anonymous identity the forget REQUEST is addressed to. " +
+    "Rotating it here would orphan the very server rows the parked commit is " +
+    "about to delete. Sign-out is the door that rotates it, and does.",
   auth:
-    "the account, not the relationship. A forget that signed you out would " +
-    "also cut the only route back to the server copy — and signing out is " +
-    "already its own button, with its own wipe.",
-  theme:
-    "a device preference and nothing else (decisions: theme does not even " +
-    "sync between a person's own devices). Wiping it would flash a " +
-    "dark-mode user white as a side effect of forgetting.",
+    "exempt: the account, not the relationship. A forget that signed you out " +
+    "would also cut the only route back to the server copy — and signing out " +
+    "is already its own button, with its own wipe.",
   lastAccountId:
-    "the ownership guard itself. Clearing it is how the NEXT account on this " +
-    "browser inherits this one's state — the exact bleed the field exists " +
-    "to prevent.",
+    "exempt: the ownership guard itself. Clearing it is how the NEXT account " +
+    "on this browser inherits this one's state — the exact bleed the field " +
+    "exists to prevent.",
+  theme:
+    "exempt: a device preference and nothing else (decisions: theme does not " +
+    "even sync between a person's own devices). Wiping it would flash a " +
+    "dark-mode user white as a side effect of forgetting.",
+  lastSeen:
+    "exempt: HER presence clock, restamped on every mount and rendered as " +
+    "'last seen 2m ago'. A fact about this app session, not a memory of him.",
+  openrouterKey: "exempt: his own API credential — configuration, not memory.",
+  openrouterModel: "exempt: which brain he pays for. Wiping it silences her.",
+  apiKey: "exempt: his own API credential — configuration, not memory.",
+  elevenKey: "exempt: his own API credential — configuration, not memory.",
+  elevenVoiceId: "exempt: which voice is hers. Forgetting him is not becoming someone else.",
+  sarvamKey: "exempt: his own API credential — configuration, not memory.",
+  deviceVoice: "exempt: the on-device TTS fallback this phone offers. A device capability.",
 };
 {
+  // ── every key of AppState, required and optional ────────────────────────
   const store = src("src/state/store.ts");
   const body = store.slice(store.indexOf("export interface AppState {"));
   const iface = body.slice(0, body.indexOf("\n}"));
-  const optional = [...iface.matchAll(/^ {2}([A-Za-z0-9_]+)\?:/gm)].map((m) => m[1]);
-  ok("AppState's optional keys were parsed", optional.length >= 10, optional.join(", "));
+  // `\??:` is the whole point — the old walker's `\?:` is what made `user`
+  // invisible. Two-space indent keeps it to the interface's own members and
+  // out of the inline object types nested inside them (tally's counters).
+  const fields = [...iface.matchAll(/^ {2}([A-Za-z0-9_]+)\??:/gm)].map((m) => m[1]);
+  const optional = new Set([...iface.matchAll(/^ {2}([A-Za-z0-9_]+)\?:/gm)].map((m) => m[1]));
+  ok("AppState's keys were parsed", fields.length >= 20, `${fields.length}: ${fields.join(", ")}`);
+  ok(
+    "and BOTH required and optional keys came back",
+    fields.some((f) => !optional.has(f)) && optional.size > 0,
+    `${fields.length - optional.size} required, ${optional.size} optional`,
+  );
+  ok(
+    "the required half includes `user` — the key the old walker could not see",
+    fields.includes("user") && !optional.has("user"),
+  );
 
+  // ── the teardown, parsed as two branches rather than one blob ───────────
+  //
+  // A line-anchored `^\s+key:` cannot tell an always-applied assignment from
+  // one inside `...(mode === "forget" ? { … } : {})`, and the difference is
+  // the entire clear-vs-forget contract. This walks braces instead.
   const chat = src("src/components/Chat.tsx");
-  const fn = chat.slice(chat.indexOf("function tearDownLocally"));
-  const updater = fn.slice(fn.indexOf("setState((s) => ({"), fn.indexOf("}));"));
-  const wiped = new Set([...updater.matchAll(/^\s+([A-Za-z0-9_]+):/gm)].map((m) => m[1]));
-  ok("the teardown updater was parsed", wiped.size >= 8, [...wiped].join(", "));
+  /** the body between the first `{` at/after `from` and its matching `}` */
+  const objectAfter = (text, from) => {
+    const open = text.indexOf("{", from);
+    if (open < 0) return "";
+    let depth = 0;
+    let str = null;
+    for (let i = open; i < text.length; i++) {
+      const c = text[i];
+      if (str) {
+        if (c === "\\") i++;
+        else if (c === str) str = null;
+        continue;
+      }
+      if (c === '"' || c === "'" || c === "`") { str = c; continue; }
+      if (c === "/" && text[i + 1] === "/") { i = text.indexOf("\n", i); continue; }
+      if (c === "/" && text[i + 1] === "*") { i = text.indexOf("*/", i) + 1; continue; }
+      if (c === "{") depth++;
+      else if (c === "}") { depth--; if (depth === 0) return text.slice(open + 1, i); }
+    }
+    return "";
+  };
+  /** the keys assigned at the TOP level of an object body — nested objects,
+   *  ternaries inside parens and string contents are all invisible to it */
+  const topLevelKeys = (obj) => {
+    const keys = new Set();
+    let depth = 0;
+    let str = null;
+    for (let i = 0; i < obj.length; i++) {
+      const c = obj[i];
+      if (str) {
+        if (c === "\\") i++;
+        else if (c === str) str = null;
+        continue;
+      }
+      if (c === '"' || c === "'" || c === "`") { str = c; continue; }
+      if (c === "/" && obj[i + 1] === "/") { i = obj.indexOf("\n", i); continue; }
+      if (c === "/" && obj[i + 1] === "*") { i = obj.indexOf("*/", i) + 1; continue; }
+      if (c === "{" || c === "[" || c === "(") { depth++; continue; }
+      if (c === "}" || c === "]" || c === ")") { depth--; continue; }
+      if (depth === 0 && c === ":") {
+        let j = i - 1;
+        while (j >= 0 && /\s/.test(obj[j])) j--;
+        const end = j;
+        while (j >= 0 && /[A-Za-z0-9_$]/.test(obj[j])) j--;
+        const id = obj.slice(j + 1, end + 1);
+        if (id) keys.add(id);
+      }
+    }
+    return keys;
+  };
 
-  for (const key of optional) {
+  const fnAt = chat.indexOf("function tearDownLocally");
+  ok("tearDownLocally was found", fnAt > 0);
+  const fn = chat.slice(fnAt);
+  const updater = objectAfter(fn, fn.indexOf("setState((s) => ({"));
+  const always = topLevelKeys(updater);
+  // the forget-only object: `...(mode === "forget" ? { … } : {})`
+  const modeAt = updater.indexOf('mode === "forget"');
+  ok(
+    "the teardown branches on the forget mode at all",
+    modeAt > 0,
+    "tearDownLocally applies one identical wipe to both doors — then either " +
+      "clear-chat is breaking its own promise, or forget-me is not a superset " +
+      "of it. C1 was the second of those.",
+  );
+  const forgetOnly = modeAt > 0 ? topLevelKeys(objectAfter(updater, updater.indexOf("?", modeAt))) : new Set();
+  const wiped = new Set([...always, ...forgetOnly]);
+  ok("the teardown updater was parsed", always.size >= 8, [...always].join(", "));
+  ok("the forget-only branch was parsed", forgetOnly.size >= 1, [...forgetOnly].join(", "));
+
+  // ── C1, asserted by name and not only by table ──────────────────────────
+  // This one line is what fails on the pre-fix tree: `user` was absent from
+  // the forget branch (there was no forget branch), so she "forgot" him with
+  // his name, his city and his job still in her prompt.
+  ok(
+    "FORGET wipes `user` — the profile goes with the memory (C1)",
+    forgetOnly.has("user"),
+    "tearDownLocally's forget branch does not assign `user`. 'Make her forget " +
+      "you' leaves AppState.user standing, so the fresh conversation opens " +
+      "with her knowing his name, his city and every fact she extracted.",
+  );
+  ok(
+    "…and CLEAR does not, because its own dialog promises it will not",
+    !always.has("user"),
+    "clear-chat is wiping the profile too. Its dialog says 'her memory of you " +
+      "is not touched'; either the copy or the code is lying.",
+  );
+  ok("the snapshot carries the profile on the forget path", /mode === "forget" \? \{ user: state\.user \}/.test(fn.slice(0, fn.indexOf("setState"))));
+
+  // ── every key, against the table ────────────────────────────────────────
+  for (const key of fields) {
+    const verdict = FATE[key];
     ok(
-      `optional field '${key}' has a teardown fate`,
-      wiped.has(key) || key in TEARDOWN_EXEMPT,
-      `AppState.${key} is neither wiped by tearDownLocally nor exempted in ` +
-        `evals/teardown.mjs. Decide: does it belong to the relationship that ` +
-        `is being deleted? If yes, wipe it (and restore it in undoClear and ` +
-        `carry it in Snapshot). If no, add it to TEARDOWN_EXEMPT with the reason.`,
+      `AppState.${key} has a written teardown fate`,
+      typeof verdict === "string",
+      `AppState.${key} is not in evals/teardown.mjs's FATE table. Decide, in ` +
+        `writing: does it belong to the relationship being deleted? ` +
+        `"clear+forget" if both doors take it, "forget-only" if clear-chat's ` +
+        `dialog promises to keep it, or "exempt: <reason>" if it is a device ` +
+        `or account fact. A field with no verdict is a field nobody decided.`,
     );
+    if (typeof verdict !== "string") continue;
+    if (verdict === "clear+forget") {
+      ok(`AppState.${key} is wiped by BOTH doors, as declared`, always.has(key));
+    } else if (verdict === "forget-only") {
+      ok(`AppState.${key} is wiped by forget only, as declared`, forgetOnly.has(key) && !always.has(key),
+        `always=${always.has(key)} forget=${forgetOnly.has(key)}`);
+    } else {
+      ok(
+        `AppState.${key} is exempt and the teardown leaves it alone`,
+        !wiped.has(key),
+        `${key} is exempted in writing ("${verdict.slice(0, 60)}…") and wiped anyway — ` +
+          `one of the two is wrong.`,
+      );
+    }
   }
-  // an exemption for a field that no longer exists is a stale decision
-  for (const key of Object.keys(TEARDOWN_EXEMPT)) {
-    ok(`exemption '${key}' still names a real field`, optional.includes(key));
+  // a verdict for a field that no longer exists is a stale decision
+  for (const key of Object.keys(FATE)) {
+    ok(`the verdict for '${key}' still names a real AppState field`, fields.includes(key));
   }
-  // the field that started this
-  ok("recentMoment is wiped by the teardown", wiped.has("recentMoment"));
+  // and nothing the teardown wipes may be absent from the table entirely
+  for (const key of wiped) {
+    ok(`the teardown wipes nothing undeclared ('${key}')`, key in FATE);
+  }
+  // the fields that each started a round of this
+  ok("recentMoment is wiped by the teardown", always.has("recentMoment"));
+  ok("game is wiped by the teardown", always.has("game"));
 
   // ── the round trip: whatever the teardown wipes, undo must put back ──────
-  const snapType = chat.slice(chat.indexOf("type Snapshot ="), chat.indexOf("type Snapshot =") + 400);
+  const snapType = chat.slice(chat.indexOf("type Snapshot ="), chat.indexOf("type Snapshot =") + 700);
   const undo = chat.slice(chat.indexOf("function undoClear"));
-  const restored = undo.slice(undo.indexOf("setState((s) => ({"), undo.indexOf("}));"));
-  for (const key of wiped) {
+  const restored = objectAfter(undo, undo.indexOf("setState((s) => ({"));
+  for (const key of always) {
     if (key === "clearedAt" || key === "messages") continue; // tombstone + list: same names, checked below
     ok(`undo restores '${key}'`, restored.includes(`${key}: snap.${key}`));
     ok(`Snapshot carries '${key}'`, snapType.includes(`"${key}"`));
   }
   ok("undo restores the transcript", restored.includes("messages: snap.messages"));
   ok("undo restores the tombstone", restored.includes("clearedAt: snap.clearedAt"));
+  // the forget-only fields come back CONDITIONALLY, or undoing a clear-chat
+  // would hand back a profile that clear-chat never took
+  for (const key of forgetOnly) {
+    ok(`undo restores '${key}' only when the snapshot holds it`,
+      new RegExp(`snap\\.${key} \\? \\{ ${key}: snap\\.${key} \\}`).test(restored), restored.slice(-200));
+    ok(`Snapshot carries '${key}' as optional`,
+      new RegExp(`Partial<Pick<AppState, ("|')${key}\\1>>`).test(snapType), snapType);
+  }
 
   // ── the sibling boundary: an account switch is a teardown too ────────────
-  // Same class, different door. Everything the teardown treats as relational
+  // Same class, different door. Everything either door treats as relational
   // must be reset when the browser changes hands, or it bleeds across accounts.
   const app = src("src/App.tsx");
   const branch = app.slice(app.indexOf("lastAccountId && s.lastAccountId !== fresh.userId"));

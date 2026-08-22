@@ -341,8 +341,23 @@
 
    Transform only, `will-change: transform`, no filter, no layout, no colour.
    The plates are painted in the skies' own palette, so they need no tinting
-   and get none — a `filter: hue-rotate` here would re-rasterise a
-   1400px-wide image on every frame of a three-and-a-half-minute animation.
+   and get none — a `filter: hue-rotate` here would re-rasterise the whole
+   plate on every frame of a three-and-a-half-minute animation.
+
+   ── WHY THESE ARE WEBP AT 820 AND 562 WIDE ────────────────────────────────
+   They were 1400x788 PNGs, 237 KB the pair, fetched on every cold home load —
+   for boxes that are 410x143 and 281x101 CSS px on a 390pt phone. 3.4x and 5x
+   oversampled, on the one screen the app opens to. Re-emitted as WebP at 2x
+   the drawn WIDTH (the axis the plates move along and the only one carrying
+   any structure), keeping the source ratio so each file is a plain downscale
+   of the original rather than a pre-distorted one: 58 KB the pair, a 76% cut.
+
+   `background-size: 100% 100%` maps each file onto its box whatever its own
+   ratio is, so the geometry on screen is unchanged by construction and only
+   the sampling changed. Measured on the composited plate at its own opacity,
+   in the drawn box at DPR 2: mean absolute difference 0.62/255 (near) and
+   0.19/255 (far). The residual is the RESAMPLE, not the codec — sweeping WebP
+   quality 82 -> 95 moved it by 0.000.
 
    Resting state is the VISIBLE one, like everything else in this file: the
    keyframes translate from a position that is already on screen, so the
@@ -366,7 +381,7 @@
   width: 105%;
   height: 17%;
   opacity: 0.66;
-  background-image: url("/world/cloud_a.png");
+  background-image: url("/world/cloud_a.webp");
   animation: world-plate-a 210s linear infinite;
 }
 /* the far plate: smaller, higher, quicker across, fainter — the parallax */
@@ -376,7 +391,7 @@
   width: 72%;
   height: 12%;
   opacity: 0.44;
-  background-image: url("/world/cloud_b.png");
+  background-image: url("/world/cloud_b.webp");
   animation: world-plate-b 150s linear infinite;
   animation-delay: -64s;
 }
@@ -409,9 +424,12 @@
    edge 1.80:1 against 3.0. `scripts/check-contrast.mjs` now reads the shipped
    jpg's pixels, so 0.34 -> 0.54 (morning) and 0.34 -> 0.53 (golden) are the
    minimum that passes plus a margin, not a taste call. The three dark states
-   pass unchanged and are unchanged. */
+   pass unchanged and are unchanged.
+
+   This swaps the veil's ALPHA, one number, and nothing else — see §8 for why
+   that alpha travels in the colour rather than in `opacity`. */
 .world[data-painted="true"] .world-scrim {
-  opacity: var(--world-scrim-a-painted, var(--world-scrim-a, 0.42));
+  --world-scrim-a-eff: var(--world-scrim-a-painted, var(--world-scrim-a, 0.42));
 }
 
 /* ── 7. the city ────────────────────────────────────────────────────────────
@@ -509,13 +527,42 @@
    mean something: the gate computes the uniform case only, so every real
    pixel on the screen is at least as dark as the number it proves. A scrim
    that was only a top-to-bottom gradient would leave the middle of the screen
-   uncovered while the gate happily measured the bottom. */
+   uncovered while the gate happily measured the bottom.
+
+   ── THE ALPHA LIVES IN THE COLOUR, AND FOR ONE MONTHS-LONG REASON ─────────
+   This rule used to paint an OPAQUE `background: var(--world-scrim)` and thin
+   it with element `opacity: var(--world-scrim-a)`. That made the emphasis
+   below A NO-OP, and it shipped: CSS `opacity` below 1 renders the element AND
+   ITS PSEUDO-ELEMENTS into one buffer and composites the buffer, so `::after`
+   painting the SAME colour onto an already-opaque parent background changed
+   not one pixel — deleting it entirely measured a zero delta. The gate,
+   meanwhile, composited `scrimEmphasisAt` into its ground, so it printed
+   4.68:1 for a morning truth line that actually rendered at ~3.1:1.
+
+   Putting the alpha IN the colour and leaving `opacity: 1` gives the pseudo a
+   real parent to composite over, which is the arrangement the gate has always
+   described. The two are pinned together now: `scripts/check-contrast.mjs`
+   asserts this rule declares no fractional `opacity`, because the broken
+   version and the working one are byte-similar and pixel-identical everywhere
+   except the two bands where all the text is.
+
+   `--world-scrim-a-eff` is the indirection §6c swaps for the painted veil —
+   one alpha, one place, so the two grounds cannot drift apart. */
 .world-scrim {
   position: absolute;
   inset: 0;
-  background: var(--world-scrim);
-  opacity: var(--world-scrim-a, 0.42);
+  --world-scrim-a-eff: var(--world-scrim-a, 0.42);
+  background: color-mix(
+    in srgb,
+    var(--world-scrim) calc(var(--world-scrim-a-eff) * 100%),
+    transparent
+  );
+  opacity: 1;
 }
+/* Strictly ADDITIVE, and now genuinely so: its own compositing pass over the
+   translucent veil above, which is exactly `1 - (1 - a) * (1 - emphasis)` —
+   the composite `check-contrast.mjs` computes. `sky.ts`'s `scrimEmphasisAt`
+   is these stops and this opacity in numbers; change one and change both. */
 .world-scrim::after {
   content: "";
   position: absolute;

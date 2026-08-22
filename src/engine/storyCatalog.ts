@@ -181,8 +181,12 @@ const IST_OFFSET_MIN = 330;
 const MS_DAY = 86_400_000;
 const p2 = (n: number) => String(n).padStart(2, "0");
 
-/** Minutes since Bangalore midnight. Mirrors `istParts().minuteOfDay`. */
-function istMinuteOfDay(now: number): number {
+/** Minutes since Bangalore midnight. Mirrors `istParts().minuteOfDay`.
+ *  Exported so `evals/sky.mjs` can sweep the MIRROR against timeline.ts's
+ *  original directly. It used to read the date out of a story id instead —
+ *  a proxy that broke the moment the id stopped keying on the calendar day
+ *  (see `poolStoryAt`), which is a test measuring the wrong object. */
+export function istMinuteOfDay(now: number): number {
   const d = new Date(now + IST_OFFSET_MIN * 60_000);
   return d.getUTCHours() * 60 + d.getUTCMinutes();
 }
@@ -190,7 +194,7 @@ function istMinuteOfDay(now: number): number {
 /** YYYY-MM-DD in Bangalore. Mirrors `istParts().dateKey` — including its use
  *  of getUTC* on a shifted instant rather than Intl, which timeline.ts chose
  *  for determinism across hosts and which this therefore also has to choose. */
-function istDateKey(now: number): string {
+export function istDateKey(now: number): string {
   const d = new Date(now + IST_OFFSET_MIN * 60_000);
   return `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`;
 }
@@ -237,15 +241,51 @@ export function slotForStory(now: number): StorySlot {
   return cur;
 }
 
-/** The minute this slot began — what makes "2h" mean something. */
-function slotStartMinute(now: number): number {
-  const m = istMinuteOfDay(now);
-  let start = 0;
-  for (const b of SLOT_BOUNDARIES) {
-    if (m >= b.at) start = b.at;
-    else break;
+/**
+ * The INSTANT this slot occurrence began — what makes "2h" mean something,
+ * and what stops midnight from rewriting her evening.
+ *
+ * ── why this is an instant and not a minute-of-day ────────────────────────
+ *
+ * It used to be `slotStartMinute(now)`, a minute inside TODAY, and the night
+ * slot is the one that spans a midnight: 19:40 through 06:10 the next
+ * morning, deliberately, because `predawn` folds into night (she was asleep,
+ * she did not post at five). Reading its start as a minute of the CURRENT day
+ * meant the night story's clock reset twice on the way through:
+ *
+ *   23:58  slot night, start 19:40 today          → "4h"
+ *   00:01  slot night, start 00:00 (no boundary
+ *          matched yet, so the loop's initial 0)  → "just now"
+ *   04:31  slot night, start 04:30 today          → "1m"
+ *
+ * A story that says "1m" at half four in the morning is a story she posted in
+ * her sleep. Worse than the label: the id keyed on the same day, so at 00:00
+ * THE SAME PICTURE came back as a fresh unseen gold ring, and it did it again
+ * at 04:30 — the ring lying about a story you already watched.
+ *
+ * Walking BOUNDARIES BACKWARDS through the previous day is the whole fix. The
+ * run of same-slot boundaries ending at `now` is the occurrence, and its first
+ * boundary is when she posted. Two days of boundaries is provably enough:
+ * night is the only slot that crosses a midnight and it crosses exactly one
+ * (10h30m long, shorter than a day) — asserted in `evals/sky.mjs` rather than
+ * assumed here.
+ */
+export function slotStartedAt(now: number): number {
+  const slot = slotForStory(now);
+  const today = istMidnight(now);
+  const marks: { at: number; slot: StorySlot }[] = [];
+  for (const dayBack of [2, 1, 0]) {
+    const midnight = today - dayBack * MS_DAY;
+    for (const b of SLOT_BOUNDARIES) marks.push({ at: midnight + b.at * 60_000, slot: b.slot });
   }
-  return start;
+  let last = -1;
+  for (let i = 0; i < marks.length; i++) if (marks[i].at <= now) last = i;
+  // Before every mark we hold (only reachable for an instant more than two
+  // days before `today`, which no caller produces): fall back to the oldest.
+  if (last < 0) return marks[0].at;
+  let i = last;
+  while (i > 0 && marks[i - 1].slot === slot) i--;
+  return marks[i].at;
 }
 
 // ── the deterministic, non-repeating pick ─────────────────────────────────
@@ -269,14 +309,14 @@ function hash32(s: string): number {
 }
 
 /**
- * A seeded shuffle of `[0..n)`. Fisher-Yates driven by an LCG, so it is a
- * PERMUTATION rather than a sample: every index appears exactly once, which is
+ * A seeded shuffle of `items`. Fisher-Yates driven by an LCG, so it is a
+ * PERMUTATION rather than a sample: every entry appears exactly once, which is
  * the whole no-repeat guarantee. Same seed, same order, every device, forever.
  */
-function permutation(n: number, seed: number): number[] {
-  const out = Array.from({ length: n }, (_, i) => i);
+function shuffled(items: readonly number[], seed: number): number[] {
+  const out = items.slice();
   let s = seed >>> 0 || 1;
-  for (let i = n - 1; i > 0; i--) {
+  for (let i = out.length - 1; i > 0; i--) {
     s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
     const j = s % (i + 1);
     const tmp = out[i];
@@ -287,18 +327,71 @@ function permutation(n: number, seed: number): number[] {
 }
 
 /**
+ * THE CYCLE BOUNDARY WAS UNGUARDED, and it was the whole no-repeat promise.
+ *
+ * Each cycle shuffled the slot's pool independently, so nothing stopped one
+ * cycle's LAST image from being the next cycle's FIRST — and on a two-image
+ * slot that is a coin flip every second day. Measured on the shipped
+ * implementation: **45.5% of consecutive day pairs showed the same image**,
+ * arriving as AABB runs. The eval could not see it because it only ever
+ * checked ALIGNED windows — it asserted "each cycle deals every image once",
+ * which was true, while the thing a person actually sees is the SEAM between
+ * two deals, which nothing looked at.
+ *
+ * The fix is a head that is known one cycle ahead, so the tail can dodge it:
+ *
+ *   head(c)  is a closed-form function of (slot, cycle) — no recursion, which
+ *            matters because `cycle` can be any integer and a chain walked
+ *            backwards from an anchor has no anchor to walk from.
+ *   the rest is shuffled per cycle, then, if its last entry would collide with
+ *            `head(c+1)`, the last two are swapped. Only one entry can equal
+ *            `head(c+1)`, so one swap always settles it.
+ *
+ * n = 2 IS FORCED AND SAYS SO. With two images, "each appears once per two
+ * days" plus "never two days running" has exactly one solution: A-B-A-B. So
+ * `head` is deliberately CONSTANT there. The old comment worried about a
+ * visible metronome; a metronome is what a two-image slot with no repeats IS,
+ * and 45.5% repeats is the worse of the two by a long way. Give the slot a
+ * third image and the freedom comes back on its own.
+ *
+ * n = 1 is exempt: one image cannot avoid following itself.
+ *
+ * Exported so `evals/sky.mjs` can sweep it at n = 2..8 rather than only at the
+ * one size the shipped pool happens to have — the n >= 3 branch is otherwise
+ * code no test ever reaches.
+ */
+export function cycleOrder(slot: string, cycle: number, n: number): number[] {
+  if (n <= 1) return n === 1 ? [0] : [];
+  const headAt = (c: number) =>
+    n === 2 ? hash32(`${slot}:head`) % 2 : hash32(`${slot}:head:${c}`) % n;
+  const head = headAt(cycle);
+  const rest = shuffled(
+    Array.from({ length: n }, (_, i) => i).filter((i) => i !== head),
+    hash32(`${slot}:${cycle}`),
+  );
+  const nextHead = headAt(cycle + 1);
+  if (rest.length >= 2 && rest[rest.length - 1] === nextHead) {
+    const tmp = rest[rest.length - 1];
+    rest[rest.length - 1] = rest[rest.length - 2];
+    rest[rest.length - 2] = tmp;
+  }
+  return [head, ...rest];
+}
+
+/**
  * The image this slot shows on this day.
  *
  * The day number is split into a cycle and a position within it. Each cycle
- * shuffles the slot's pool afresh and then walks it one image per day, so:
+ * deals the slot's pool afresh and then walks it one image per day, so:
  *
  *   - every image in the slot appears exactly ONCE per n days — no repeat
  *     until the pool has cycled, which a `hash % n` cannot promise and does
  *     not deliver;
- *   - the order is different next time round, so a two-image slot does not
- *     become a visible A-B-A-B metronome;
+ *   - no image ever follows ITSELF, across a cycle boundary included, which
+ *     the first version of this got wrong 45.5% of the time (`cycleOrder`);
  *   - it is a pure function of (slot, day), so both devices agree with no
- *     state, no storage and no server.
+ *     state, no storage and no server. That purity is why `poolStoryAt` hands
+ *     it the instant the SLOT began rather than "now" — see there.
  */
 export function pickFor(slot: StorySlot, now: number): PoolStory | null {
   const pool = STORY_POOL.filter((p) => p.slot === slot);
@@ -309,7 +402,7 @@ export function pickFor(slot: StorySlot, now: number): PoolStory | null {
   // before the epoch (the eval sweeps them; a negative % in JS is not one)
   const cycle = Math.floor(day / n);
   const position = ((day % n) + n) % n;
-  return pool[permutation(n, hash32(`${slot}:${cycle}`))[position]];
+  return pool[cycleOrder(slot, cycle, n)[position]];
 }
 
 /** Bangalore-midnight of the day `at` falls in, as epoch ms. Mirrors
@@ -321,23 +414,36 @@ function istMidnight(at: number): number {
 /**
  * The pool entry for an instant, as a real `Story`.
  *
- * `at` is the start of the slot she is currently in, which makes "2h" mean
- * something: a story that always claimed to be posted "just now" would be a
- * clock that resets every time you look at it. It is always in the past and
- * always within today, so `storyAge` and `ageLabel` never reach their
- * over-a-day branches for a pool story.
+ * ── EVERYTHING HERE KEYS ON THE SLOT OCCURRENCE, NOT ON `now` ─────────────
  *
- * The id carries the date, so seen-state (which is per-id) clears itself at
- * midnight and the gold ring comes back for a new day's story on its own.
+ * `startedAt` is the instant this slot began — for the night slot that can be
+ * YESTERDAY 19:40, because night runs to 06:10 (see `slotStartedAt`). Three
+ * things are derived from it rather than from the calendar day, and each one
+ * was a separate way the same night became a different night at midnight:
+ *
+ *   the PICK — `pickFor` is a function of its argument's Bangalore DAY, so
+ *     handing it `now` swapped the picture under someone at 00:00, mid-story.
+ *     Handing it `startedAt` freezes the pick for the occurrence.
+ *   the ID  — seen-state is per-id, so a date-keyed id meant the picture you
+ *     had already watched came back as an unseen gold ring at 00:00 and again
+ *     at 04:30. Keyed on (occurrence date, slot, slug) it survives the wrap
+ *     and still turns over when the slot or the picture does.
+ *   `at`    — "posted 1m ago" at 04:31 was the label the old minute-of-today
+ *     start produced. It is her real post time now.
+ *
+ * `at` is always in the past, and the longest slot (night) is 10h30m, so a
+ * pool story is still always under a day old — `storyAge` and `ageLabel`
+ * never reach their over-a-day branches for one.
  */
 export function poolStoryAt(now: number): Story | null {
   const slot = slotForStory(now);
-  const pick = pickFor(slot, now);
+  const startedAt = slotStartedAt(now);
+  const pick = pickFor(slot, startedAt);
   if (!pick) return null;
   return {
-    id: `pool-${istDateKey(now)}-${pick.slug}`,
+    id: `pool-${istDateKey(startedAt)}-${slot}-${pick.slug}`,
     src: `/stories/${pick.slug}.jpg`,
-    at: istMidnight(now) + slotStartMinute(now) * 60_000,
+    at: startedAt,
     desc: pick.desc,
   };
 }

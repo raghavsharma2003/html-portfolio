@@ -200,6 +200,73 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
 
   check("world: the sky table bundles and exports five states", SKY_STATES?.length === 5);
 
+  // ── THE ONE ASSUMPTION THE NUMBERS BELOW REST ON ─────────────────────────
+  //
+  // Every painted ratio in the second half composites `scrimEmphasisAt` on top
+  // of the uniform veil. That is only true if the emphasis RENDERS, and for
+  // months it did not: `.world-scrim` painted an OPAQUE background and thinned
+  // it with element `opacity`, which groups the element WITH its own
+  // `::after` — so a pseudo painting the same colour over an already-opaque
+  // parent added exactly zero coverage. Deleting it measured a zero pixel
+  // delta. The gate went on printing 4.68:1 for a morning truth line that
+  // rendered at ~3.5:1, and nothing could see the gap, because a gate that
+  // models a composite cannot notice the composite is not happening.
+  //
+  // So the model is pinned to the stylesheet here. Two properties, both cheap,
+  // both of which the broken version fails:
+  //
+  //   1. `.world-scrim` carries NO fractional `opacity` — its alpha is in the
+  //      colour, so the pseudo has a real parent to composite over.
+  //   2. `.world-scrim::after` still has an emphasis pass of its own, at the
+  //      opacity `scrimEmphasisAt` multiplies by.
+  //
+  // A text lint, same species as the ttt keyframe check above and for the same
+  // reason: this is a property of a file the code never reads.
+  {
+    const worldCss = read("src/styles/world.css");
+    const blockOf = (sel) => {
+      const i = worldCss.indexOf(`\n${sel} {`);
+      if (i === -1) return null;
+      const open = worldCss.indexOf("{", i);
+      const close = worldCss.indexOf("\n}", open);
+      return close === -1 ? null : worldCss.slice(open + 1, close);
+    };
+
+    const scrimBlock = blockOf(".world-scrim");
+    check("world/scrim: the .world-scrim rule is still findable", Boolean(scrimBlock));
+    if (scrimBlock) {
+      // `opacity: 1` is fine and is the point. Anything else — a number below
+      // one, or a var() that resolves to the alpha — re-groups the pseudo.
+      const op = /(?:^|[\s;])opacity:\s*([^;]+);/.exec(scrimBlock);
+      const opValue = op ? op[1].trim() : "(absent)";
+      check(
+        "world/scrim: the veil's alpha is in the COLOUR, not in element opacity",
+        !op || opValue === "1",
+        `opacity: ${opValue}`,
+      );
+      check(
+        "world/scrim: the veil's alpha reads --world-scrim-a",
+        /--world-scrim-a-eff|--world-scrim-a\b/.test(scrimBlock) &&
+          /color-mix\(|rgba?\(/.test(scrimBlock),
+      );
+    }
+
+    const afterBlock = blockOf(".world-scrim::after");
+    check("world/scrim: the ::after emphasis pass is still there", Boolean(afterBlock));
+    if (afterBlock) {
+      const op = /(?:^|[\s;])opacity:\s*([\d.]+);/.exec(afterBlock);
+      const declared = op ? Number(op[1]) : NaN;
+      // sky.ts's SCRIM_EMPHASIS_OPACITY is the SAME number, and the gate
+      // multiplies the gradient ramp by it. Two copies of one fact is how the
+      // gate ends up measuring a screen nobody ships.
+      check(
+        "world/scrim: ::after opacity == sky.ts SCRIM_EMPHASIS_OPACITY",
+        declared === SKY_MOD.SCRIM_EMPHASIS_OPACITY,
+        `css ${op ? op[1] : "(absent)"} vs sky.ts ${SKY_MOD.SCRIM_EMPHASIS_OPACITY}`,
+      );
+    }
+  }
+
   // alpha-composite `over` onto `base`, both hex, alpha 0..1 — the same maths
   // the browser does, done here so the number is not a guess
   const over = (fg, bg, a) => fg.map((c, i) => c * a + bg[i] * (1 - a));
@@ -474,8 +541,12 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
     }
 
     // The plates are the only thing that still draws itself over a painting,
-    // so they are the only thing that can still put ink on top of ink.
-    for (const c of ["cloud_a.png", "cloud_b.png"]) {
+    // so they are the only thing that can still put ink on top of ink. WebP
+    // now, at 2x their drawn width — 237 KB of oversampled PNG on every cold
+    // home load became 58 KB. `evals/sky.mjs` holds the byte ceiling and the
+    // no-stale-url check; this one keeps its own eye on them existing at all,
+    // because a missing plate here means a painting nothing moves over.
+    for (const c of ["cloud_a.webp", "cloud_b.webp"]) {
       check(`world/plates: ${c} ships`, existsSync(`${ROOT}public/world/${c}`));
     }
 

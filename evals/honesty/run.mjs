@@ -496,6 +496,64 @@ console.log("\n── 8. false attribution (family 3) ──");
     report(`fragment not flagged  ${s}`, findFalseAttributions(s, vocab).length === 0);
   }
 
+  // ── 2026-08-22 audit: THE `raha/rahe/rahi` AMPLIFIER ────────────────────
+  //
+  // Those three words sat in `MARKER_TOKENS` for one construction — "tu bol
+  // RAHA tha ki X", where the auxiliary is HERS — and a token set has no
+  // position, so they were stripped from every attributed clause including
+  // the ones where the same words are the CLAIM's own auxiliary. Hindi's
+  // continuous is how a one-noun statement about someone's plans is normally
+  // said, so a whole shape of fabrication fell under `MIN_CLAIM_TERMS`:
+  //
+  //   "tune bola tha ki tu banaras ja raha h"
+  //      claim was [banaras] → 1 term → skipped, never checked
+  //
+  // The audit drove eight one-noun continuous attributions through the
+  // shipping parser. FIVE walked — the five below with `walked: true`. The
+  // other three carried a second content word ("tera", "bike") and were
+  // caught already; they are here as the control that says the fix did not
+  // simply lower the bar for everything.
+  const CONTINUOUS = [
+    { s: "tune bola tha ki tu banaras ja raha h", walked: true },
+    { s: "tu bol raha tha ki tu resign kar raha hai", walked: true },
+    { s: "tumne bataya tha ki tu hostel ja rahi hai", walked: true },
+    { s: "aapne kaha tha ki aap trek pe ja rahe ho", walked: true },
+    { s: "tune bola tha ki tu shaadi kar raha hai", walked: true },
+    { s: "tune kaha tha ki tera transfer ho raha hai", walked: false },
+    { s: "tune bola tha ki tu bike bech raha hai", walked: false },
+    { s: "tu keh raha tha ki tera appraisal ho raha hai", walked: false },
+  ];
+  report(
+    "the audit's sample is the one it measured (8 cases, 5 of them misses)",
+    CONTINUOUS.length === 8 && CONTINUOUS.filter((c) => c.walked).length === 5,
+  );
+  for (const { s, walked } of CONTINUOUS) {
+    const hits = findFalseAttributions(s, vocab);
+    report(
+      `CONTINUOUS CAUGHT${walked ? " (was a miss)" : ""}  ${s.slice(0, 44)}`,
+      hits.length > 0,
+      JSON.stringify(hits.map((h) => h.unsupported)),
+    );
+  }
+
+  // The other direction, and the half that says the fix is ANCHORED rather
+  // than just loosened. Deleting `raha/rahe/rahi` from the token set outright
+  // would flag both of these: the first is her own marker's auxiliary plus one
+  // filler word, and the second is not an attribution at all. Stripping the
+  // marker HEAD positionally keeps her own auxiliary out of the claim while
+  // leaving a quoted claim's verb in it.
+  const CONTINUOUS_CLEAN = [
+    ["hum abhi baat kar rahe hai na", "no attribution marker anywhere — she is not quoting him"],
+    ["tune mujhe chess me hara diya tha", "a shared memory, not a quote: `tune` + no saying-verb"],
+    ["tu keh raha tha na yaar", "her own marker plus filler — a fragment, not a claim"],
+    ["tu bol raha tha ki haan", "same, with the quoted content one word long"],
+    ["tu bol raha tha kaam bohot hai na", "a real paraphrase of his own words, on the continuous marker"],
+  ];
+  for (const [s, why] of CONTINUOUS_CLEAN) {
+    const hits = findFalseAttributions(s, vocab);
+    report(`continuous must not flag  ${s.slice(0, 40)}`, hits.length === 0, why);
+  }
+
   // An EMPTY vocabulary means nothing is supported, so the predicate flags —
   // that is correct and is not the fail-closed path. Fail-closed lives one
   // level up, at guardReply: an ABSENT hisVocab disables the family entirely,

@@ -15,7 +15,7 @@
 // Offline, deterministic, no database, no network, no model call, ~1s.
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -168,8 +168,37 @@ ok(
   // The plates are the one procedural element that survives a painting, so
   // they are the one pair of assets whose absence would show as a sky that
   // never moves — a still that looks exactly like a working still.
-  for (const c of ["cloud_a.png", "cloud_b.png"]) {
-    ok(`the drifting plate ${c} ships`, existsSync(pub(`/world/${c}`)));
+  //
+  // AND THEIR BYTES ARE PART OF THE CONTRACT. They shipped as 1400x788 PNGs,
+  // 237 KB together, for boxes drawn at 410x143 and 281x101 CSS px — fetched
+  // on every cold open of the landing surface. The re-emitted WebPs are 58 KB.
+  // A ceiling here is what stops the next re-export quietly putting the
+  // quarter-megabyte back: a bigger file has no symptom, it just costs
+  // everyone a second of their first impression.
+  const PLATE_BUDGET = 72 * 1024;
+  let plateBytes = 0;
+  for (const c of ["cloud_a.webp", "cloud_b.webp"]) {
+    const at = pub(`/world/${c}`);
+    const there = existsSync(at);
+    ok(`the drifting plate ${c} ships`, there);
+    if (there) plateBytes += statSync(at).size;
+  }
+  ok(
+    `the two plates together stay under ${(PLATE_BUDGET / 1024) | 0} KB`,
+    plateBytes > 0 && plateBytes <= PLATE_BUDGET,
+    `${(plateBytes / 1024).toFixed(1)} KB (was 237 KB as PNG)`,
+  );
+  // …and nothing still points at the PNGs, which are deleted. A stale url()
+  // is a 404 that renders as a sky with no clouds in it — the exact "blank,
+  // not still" failure world.css's reduced-motion block exists to prevent,
+  // and it would look like a design choice.
+  {
+    const css = readFileSync(join(ROOT, "src/styles/world.css"), "utf8");
+    ok("world.css references no cloud PNG", !/cloud_[ab]\.png/.test(css));
+    ok(
+      "world.css points at both plates",
+      /cloud_a\.webp/.test(css) && /cloud_b\.webp/.test(css),
+    );
   }
 }
 
@@ -525,7 +554,12 @@ ok("night's midpoint is in the small hours", midpointOf("night") < 270, String(m
     for (let d = 0; d < 9; d++) {
       for (let m = 0; m < 1440; m += 3) {
         const at = BASE_MIDNIGHT + d * DAY + m * 60_000;
-        const mine = story.poolStoryAt(at).id.slice(5, 15); // "pool-YYYY-MM-DD-…"
+        // THE MIRROR ITSELF, not a story id. This used to slice the date out
+        // of `poolStoryAt(at).id`, which was a proxy that happened to hold
+        // while the id keyed on the calendar day. It no longer does (a night
+        // story keeps ONE id across midnight — storyCatalog's `poolStoryAt`),
+        // so the proxy would now fail for a property it was never testing.
+        const mine = story.istDateKey(at);
         const theirs = timeline.istParts(at).dateKey;
         if (mine !== theirs) {
           dateDrift++;
@@ -693,24 +727,168 @@ ok("night's midpoint is in the small hours", midpointOf("night") < 270, String(m
     }
     ok("each cycle deals every image in the slot exactly once", broken.length === 0, broken.slice(0, 3).join(" | "));
   }
-  // …and the order is not the same every cycle, or a two-image slot is an
-  // A-B-A-B metronome with extra steps.
+  // ── M1: NO IMAGE EVER FOLLOWS ITSELF ────────────────────────────────────
+  //
+  // The property the aligned-window check above CANNOT see, and the one a
+  // person actually experiences. Each cycle dealt every image exactly once
+  // and that was true, while nothing looked at the SEAM between two deals —
+  // where one cycle's last pick and the next cycle's first pick were drawn
+  // independently. On the two-image midday slot that is a coin flip every
+  // second day: measured 45.5% of consecutive day pairs showing the same
+  // image, arriving as AABB runs.
+  //
+  // 4000 days, every slot with two or more images. A one-image slot is
+  // exempt, and exempt IN WRITING: one picture cannot avoid following itself,
+  // and pretending otherwise would make this unpassable by construction
+  // rather than by defect.
   {
-    const n = story.STORY_POOL.filter((p) => p.slot === "midday").length;
-    // Start on a cycle boundary, or the "order" being read is half of one
-    // deal and half of the next — which is not an order and would fail for
-    // the wrong reason.
-    let off = 0;
-    while (story.istDayIndex(BASE_MIDNIGHT + off * DAY) % n !== 0) off++;
-    const orders = new Set();
-    for (let c = 0; c < 40; c++) {
-      orders.add(
-        Array.from({ length: n }, (_, k) =>
-          story.pickFor("midday", BASE_MIDNIGHT + (off + c * n + k) * DAY)?.slug,
-        ).join(">"),
-      );
+    const DAYS = 4000;
+    const swept = [];
+    for (const slot of story.STORY_SLOTS) {
+      const n = story.STORY_POOL.filter((p) => p.slot === slot).length;
+      if (n < 2) continue;
+      let repeats = 0;
+      let first = "";
+      let prev = story.pickFor(slot, BASE_MIDNIGHT)?.slug;
+      for (let d = 1; d < DAYS; d++) {
+        const cur = story.pickFor(slot, BASE_MIDNIGHT + d * DAY)?.slug;
+        if (cur === prev) {
+          repeats++;
+          if (!first) first = `day ${d}: ${prev} twice`;
+        }
+        prev = cur;
+      }
+      swept.push({ slot, n, repeats, first });
     }
-    ok("the deal order changes between cycles", orders.size === n, [...orders].join(" "));
+    ok(
+      "there is at least one slot with n>=2 for the sweep to mean anything",
+      swept.length > 0,
+      `${swept.length} slots`,
+    );
+    ok(
+      `no image follows itself, ${DAYS} days, every slot with n>=2`,
+      swept.length > 0 && swept.every((w) => w.repeats === 0),
+      swept
+        .map((w) => `${w.slot}(n=${w.n}) ${w.repeats}${w.first ? ` — ${w.first}` : ""}`)
+        .join(" | "),
+    );
+  }
+  // …and the same, at pool sizes this repo does not currently have. `pickFor`
+  // can only ever exercise the sizes the shipped pool happens to hold (one
+  // slot at n=2, four at n=1), so the n>=3 branch of `cycleOrder` — the
+  // shuffle-and-swap — is code no test would otherwise reach. `dead-writers`
+  // applies to branches as much as it does to writers.
+  {
+    const bad = [];
+    for (let n = 2; n <= 8; n++) {
+      const seq = [];
+      // negative cycles included: `pickFor` floor-divides, so instants before
+      // the epoch produce them and the eval elsewhere sweeps those
+      for (let c = -20; c < 400; c++) seq.push(...story.cycleOrder(`probe-${n}`, c, n));
+      for (let c = 0; (c + 1) * n <= seq.length; c++) {
+        const block = seq.slice(c * n, c * n + n);
+        if (new Set(block).size !== n) bad.push(`n=${n} cycle ${c} is not a full deal`);
+      }
+      for (let i = 1; i < seq.length; i++) {
+        if (seq[i] === seq[i - 1]) bad.push(`n=${n} repeat at index ${i}`);
+      }
+    }
+    ok("cycleOrder deals cleanly and never repeats, n=2..8", bad.length === 0, bad.slice(0, 3).join(" | "));
+  }
+  // n=2 is FORCED to alternate, and this asks for that rather than for a
+  // variety it cannot have: with two images, "each appears once per two days"
+  // plus "never twice running" has exactly one solution. Above n=2 the order
+  // must still vary between cycles, or the pool is a fixed playlist.
+  {
+    const twos = new Set();
+    for (let c = 0; c < 40; c++) twos.add(story.cycleOrder("probe-2", c, 2).join(">"));
+    ok("n=2 alternates — the only repeat-free deal that exists there", twos.size === 1, [...twos].join(" "));
+    const fours = new Set();
+    for (let c = 0; c < 40; c++) fours.add(story.cycleOrder("probe-4", c, 4).join(">"));
+    ok("n=4 deals more than one order across cycles", fours.size > 1, `${fours.size} orders`);
+  }
+
+  // ── M2: MIDNIGHT DOES NOT REWRITE HER EVENING ───────────────────────────
+  //
+  // The night slot runs 19:40 -> 06:10 on purpose (predawn folds into night:
+  // she was asleep, she did not post at five). Keying the story on the
+  // CALENDAR day broke that one run into three, and each break was its own
+  // visible lie: the picture you had already watched came back as an unseen
+  // gold ring at 00:00, its age reset to "just now", and at 04:30 it started
+  // again and claimed "1m".
+  {
+    const at = (d, h, m) => BASE_MIDNIGHT + d * DAY + (h * 60 + m) * 60_000;
+    const s = (t) => story.poolStoryAt(t);
+    ok(
+      "the night slot has a picture to test with",
+      story.STORY_POOL.some((p) => p.slot === "night"),
+    );
+
+    const before = s(at(3, 23, 58));
+    const after = s(at(4, 0, 1));
+    ok(
+      "23:58 -> 00:01 keeps the id, so seen-state survives the wrap",
+      before.id === after.id,
+      `${before.id} / ${after.id}`,
+    );
+    ok("23:58 -> 00:01 keeps the picture", before.src === after.src, `${before.src} / ${after.src}`);
+    ok(
+      "23:58 -> 00:01 keeps the post time",
+      before.at === after.at,
+      `${new Date(before.at).toISOString()} / ${new Date(after.at).toISOString()}`,
+    );
+
+    // 04:31 — the case that read "posted 1m ago". Her night story began at
+    // 19:40 the previous evening, so it is nearly nine hours old.
+    const late = s(at(4, 4, 31));
+    const ageMin = Math.round((at(4, 4, 31) - late.at) / 60_000);
+    ok(
+      "04:31 is still the same night story, not a new one",
+      late.id === before.id,
+      `${late.id} / ${before.id}`,
+    );
+    ok("04:31 never claims a fresh post time", ageMin >= 8 * 60, `${ageMin} min old (was 1)`);
+
+    // The whole run, minute by minute: ONE id and ONE post time from 19:40
+    // through 06:09 the next morning.
+    const ids = new Set();
+    const ats = new Set();
+    for (let t = at(3, 19, 40); t < at(4, 6, 10); t += 60_000) {
+      ids.add(s(t).id);
+      ats.add(s(t).at);
+    }
+    ok(
+      "one night is one story, all 630 minutes of it",
+      ids.size === 1 && ats.size === 1,
+      `${ids.size} ids, ${ats.size} post times`,
+    );
+    // …and it DOES turn over at 06:10, or the ring is simply stuck.
+    ok("06:10 is a new story", s(at(4, 6, 10)).id !== [...ids][0], s(at(4, 6, 10)).id);
+  }
+  // `slotStartedAt` walks two days of boundaries back, which is only enough
+  // because night is the one slot that crosses a midnight and crosses exactly
+  // one. Asserted rather than assumed.
+  {
+    let longest = -1;
+    let where = "";
+    let negatives = 0;
+    for (let d = 0; d < 14; d++) {
+      for (let m = 0; m < 1440; m += 7) {
+        const t = BASE_MIDNIGHT + d * DAY + m * 60_000;
+        const age = t - story.slotStartedAt(t);
+        if (age < 0) negatives++;
+        if (age > longest) {
+          longest = age;
+          where = `${story.slotForStory(t)} at day ${d} ${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+        }
+      }
+    }
+    ok("a slot never began in the future", negatives === 0, `${negatives}`);
+    ok(
+      "no slot occurrence is longer than a day, so the two-day walk is enough",
+      longest < DAY,
+      `${(longest / 3_600_000).toFixed(2)}h, longest is ${where}`,
+    );
   }
 
   // ── the authored days still win ─────────────────────────────────────────
