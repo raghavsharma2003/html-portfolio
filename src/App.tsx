@@ -13,8 +13,9 @@ import WouldYouRatherActivity from "./components/WouldYouRatherActivity";
 import TicTacToeActivity from "./components/TicTacToeActivity";
 import { CloseIcon } from "./components/icons";
 import { applyTheme, watchSystemTheme } from "./engine/theme";
-import { mergeStates } from "./state/merge";
-import { OPEN_STALE_MS, activityOf } from "./state/game";
+import { mergeStates, safeUser } from "./state/merge";
+import { OPEN_STALE_MS, activityOf, isGameSession } from "./state/game";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { LABEL } from "./engine/activity";
 import { logFinishedActivity } from "./engine/memory";
 import { useMoments } from "./components/useMoments";
@@ -66,6 +67,30 @@ export default function App() {
   const [callFrom, setCallFrom] = useState<"him" | "her">("him");
   const [gamesOpen, setGamesOpen] = useState(false);
   const [usOpen, setUsOpen] = useState(false);
+
+  // Escape closes, and focus starts inside the sheet rather than wherever the
+  // page happened to leave it. Lifted verbatim from MoreSheet, because the
+  // games hub was the ONE `aria-modal` overlay in the app without it — a sheet
+  // that announces itself as modal and then ignores the key every modal
+  // answers to is not a small gap: a keyboard user has no way out of it, and
+  // on a tall phone neither does anyone else once the 8px of scrim above it
+  // scrolls away.
+  const gamesSheet = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!gamesOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setGamesOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [gamesOpen]);
+  useEffect(() => {
+    if (!gamesOpen) return;
+    gamesSheet.current?.querySelector<HTMLElement>("button, input")?.focus({ preventScroll: true });
+  }, [gamesOpen]);
 
   // ── THE GAME RECONCILER ────────────────────────────────────────────────
   // Close and tally are properties of the STATE TRANSITION, written here in
@@ -359,7 +384,11 @@ export default function App() {
             lastAccountId: fresh.userId,
             onboarded: r?.onboarded ?? false,
             deviceId: r?.deviceId || rotateDeviceId(),
-            user: r?.user ?? { name: "", vibe: [], facts: {} },
+            // the server row crossed the same trust boundary merge.ts guards
+            // its own half of: a `user` without `facts` reaches
+            // `Object.entries(user.facts)` on the reply path and she never
+            // answers again on this device
+            user: safeUser(r?.user),
             messages: Array.isArray(r?.messages) ? r.messages : [],
             lastSeen: r?.lastSeen ?? Date.now(),
             clearedAt: r?.clearedAt,
@@ -371,9 +400,21 @@ export default function App() {
             // exactly the kind the lastAccountId guard exists to prevent.
             herLife: (r?.herLife as AppState["herLife"]) ?? [],
             inner: r?.inner,
-            game: (r?.game as AppState["game"]) ?? null,
+            // SAME GUARD AS merge.ts, and it has to be spelled out here
+            // rather than assumed: this branch is the sibling of the sync
+            // path, it adopts `r.game` from the same server row, and it was
+            // the one that cast it straight in. A malformed session adopted
+            // here is a white screen that then SYNCS and survives reload —
+            // the game is what may be lost at a boundary, never the app.
+            game: isGameSession(r?.game) ? (r.game as AppState["game"]) : null,
             tally: (r?.tally as AppState["tally"]) ?? null,
             momentsFired: (r?.momentsFired as string[]) ?? [],
+            // Device-local present-moment state, and it belongs to the
+            // relationship that just ended. The audit caught it bringing a
+            // 100-day milestone into the first conversation with an account
+            // that has no days — and `momentLine` feeds `sharedVocab`, so the
+            // honesty layer scored her invented shared history as SUPPORTED.
+            recentMoment: null,
             callback: null,
           };
         }
@@ -518,6 +559,7 @@ export default function App() {
                 role="dialog"
                 aria-modal="true"
                 aria-label="Things to do together"
+                ref={gamesSheet}
               >
                 <div className="grab" />
                 <button
@@ -571,58 +613,77 @@ export default function App() {
               </div>
             </>
           )}
-          {activity === "would-you-rather" && (
-            <WouldYouRatherActivity
-              state={state}
-              setState={setState}
-              onExit={() => setActivity(null)}
-              onOpenCall={() => setActivity(null)}
-              onStartCall={() => {
-                unlockAudio(); // inside the tap gesture, or mobile mutes her
-                track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
-                setCallFrom("him");
-                setState((s) => (s.callback ? { ...s, callback: null } : s));
-                setInCall(true);
-              }}
-              // her picks are seeded per RELATIONSHIP: same person, same
-              // answers, forever — an account keeps them across devices
-              salt={state.auth?.userId ?? state.deviceId}
-            />
-          )}
-          {activity === "tic-tac-toe" && (
-            <TicTacToeActivity
-              state={state}
-              setState={setState}
-              onExit={() => setActivity(null)}
-              onOpenCall={() => setActivity(null)}
-              onStartCall={() => {
-                unlockAudio(); // inside the tap gesture, or mobile mutes her
-                track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
-                setCallFrom("him");
-                setState((s) => (s.callback ? { ...s, callback: null } : s));
-                setInCall(true);
-              }}
-            />
-          )}
-          {activity === "chess" && (
-            <ChessActivity
-              state={state}
-              setState={setState}
-              onExit={() => setActivity(null)}
-              // Back to the call SCREEN. It never ends the call — the call is
-              // running underneath this whole time.
-              onOpenCall={() => setActivity(null)}
-              // Calling from the board keeps the board. She starts talking and
-              // the game does not move — which is the entire feature.
-              onStartCall={() => {
-                unlockAudio(); // inside the tap gesture, or mobile mutes her
-                track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
-                setCallFrom("him");
-                setState((s) => (s.callback ? { ...s, callback: null } : s));
-                setInCall(true);
-              }}
-            />
-          )}
+          {/* ── the net under the boards, and only under the boards ──────────
+              A malformed session used to throw during the board's RENDER,
+              which unmounts the whole React tree — chat, call and all — and,
+              since the session is persisted, does it again on every reload.
+              `isGameSession` is the fix; this is what catches the shape nobody
+              predicted. Scoped to the overlay on purpose: a boundary at the
+              root would replace HER with an apology, and the one action it
+              offers changes the state (the game is nulled) so the retry cannot
+              land on the same crash. `key` per activity so a caught failure
+              can never outlive the board it belonged to. */}
+          <ErrorBoundary
+            key={activity ?? "none"}
+            where="activity"
+            onPutAway={() => {
+              setState((s) => (s.game ? { ...s, game: null } : s));
+              setActivity(null);
+            }}
+          >
+            {activity === "would-you-rather" && (
+              <WouldYouRatherActivity
+                state={state}
+                setState={setState}
+                onExit={() => setActivity(null)}
+                onOpenCall={() => setActivity(null)}
+                onStartCall={() => {
+                  unlockAudio(); // inside the tap gesture, or mobile mutes her
+                  track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
+                  setCallFrom("him");
+                  setState((s) => (s.callback ? { ...s, callback: null } : s));
+                  setInCall(true);
+                }}
+                // her picks are seeded per RELATIONSHIP: same person, same
+                // answers, forever — an account keeps them across devices
+                salt={state.auth?.userId ?? state.deviceId}
+              />
+            )}
+            {activity === "tic-tac-toe" && (
+              <TicTacToeActivity
+                state={state}
+                setState={setState}
+                onExit={() => setActivity(null)}
+                onOpenCall={() => setActivity(null)}
+                onStartCall={() => {
+                  unlockAudio(); // inside the tap gesture, or mobile mutes her
+                  track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
+                  setCallFrom("him");
+                  setState((s) => (s.callback ? { ...s, callback: null } : s));
+                  setInCall(true);
+                }}
+              />
+            )}
+            {activity === "chess" && (
+              <ChessActivity
+                state={state}
+                setState={setState}
+                onExit={() => setActivity(null)}
+                // Back to the call SCREEN. It never ends the call — the call is
+                // running underneath this whole time.
+                onOpenCall={() => setActivity(null)}
+                // Calling from the board keeps the board. She starts talking and
+                // the game does not move — which is the entire feature.
+                onStartCall={() => {
+                  unlockAudio(); // inside the tap gesture, or mobile mutes her
+                  track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
+                  setCallFrom("him");
+                  setState((s) => (s.callback ? { ...s, callback: null } : s));
+                  setInCall(true);
+                }}
+              />
+            )}
+          </ErrorBoundary>
           {usOpen && <UsScreen state={state} onExit={() => setUsOpen(false)} />}
           {/* She is calling back after a call that dropped mid-sentence. Never
               while a call is already up, and never before its own due time —

@@ -1533,3 +1533,27 @@ project".
 never inferred from the environment's incidental shape (a directory name);
 and a post-deploy probe must assert a property that the FAILURE MODE
 cannot also satisfy.
+
+---
+
+## `last-message-wins-cross-tab` — one field's recency deciding all fields
+
+**Tried:** the original two-tab storage listener adopted the other tab's
+blob WHOLESALE iff its last message was newer, else ignored it entirely.
+
+**What broke:** game, tally and momentsFired advance without any message
+being sent, so whichever direction the message-recency comparison went,
+the non-message fields on the losing side were discarded — a fresh chess
+session erased by the other tab's lone text (measured, walk5 §C), theme
+and ledger reverted the same way. "Adopt wholesale by one field's clock"
+is a merge that cannot represent two tabs both being right about
+different fields.
+
+**Now:** identity changes adopt wholesale (sign-in/out IS wholesale);
+otherwise mergeStates does a field-aware merge with a write-back when our
+merge is richer than disk — without the write-back the rescued game died
+on the next reload. A stable signature suppresses convergence re-renders.
+
+**The generalisable rule:** never resolve a multi-field conflict with a
+single-field clock; merge field-wise or the fields that tick on different
+clocks silently lose.

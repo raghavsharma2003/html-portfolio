@@ -73,9 +73,20 @@ const base = {
   const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
   const branch = app.slice(app.indexOf("lastAccountId && s.lastAccountId !== fresh.userId"));
   const upto = branch.slice(0, branch.indexOf("};"));
-  for (const f of ["herLife", "inner", "game", "tally", "momentsFired", "callback"]) {
+  // recentMoment joined this list the second time the same hole was found:
+  // it survived BOTH the account switch and "make her forget you", so she
+  // brought up a hundred-day milestone in the conversation that starts by not
+  // knowing you — and momentLine feeds sharedVocab, so the honesty layer
+  // scored that invented history as supported. evals/teardown.mjs now checks
+  // this class mechanically; this line is the specific field.
+  for (const f of ["herLife", "inner", "game", "tally", "momentsFired", "callback", "recentMoment"]) {
     ok(`account switch resets ${f}`, upto.includes(`${f}:`), f);
   }
+  // the game arrives from the same server row merge.ts shape-guards, and this
+  // branch is the sibling that used to cast it straight in — a malformed
+  // session adopted here is a white screen that then SYNCS
+  ok("account switch shape-guards the game", /game:\s*isGameSession\(/.test(upto));
+  ok("account switch coerces the user", /user:\s*safeUser\(/.test(upto));
 }
 
 console.log(fail ? `${fail} FAILURES` : "ALL PASS");

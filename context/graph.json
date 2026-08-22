@@ -1131,6 +1131,18 @@
       "kind": "rejection",
       "title": "Unpinned Vercel project: green CI deployed to the wrong site; probe was vacuous",
       "at": "2026-08-22"
+    },
+    {
+      "id": "teardown-coverage-check",
+      "kind": "decision",
+      "title": "Every optional AppState field must be wiped by teardown or exempted in writing (4th instance ended the class)",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "last-message-wins-cross-tab",
+      "kind": "rejection",
+      "title": "Cross-tab wholesale adoption by message recency lost game/tally/ledger; merge field-wise",
+      "at": "2026-08-22"
     }
   ],
   "edges": [

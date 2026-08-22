@@ -172,9 +172,14 @@ export function activityOf(s: GameSession | null | undefined, nowMs?: number): A
 /**
  * Shape guard for a session arriving from OUTSIDE — a sync payload or a
  * parsed localStorage blob. `game` is the one AppState field dereferenced
- * deeply (progressOf, chessActivity) inside setState updaters with no error
- * boundary in the tree, so a malformed one is a blank screen that survives
- * reloads. Anything failing this becomes null at the boundary.
+ * deeply (progressOf, chessActivity) inside setState updaters, so a malformed
+ * one is a blank screen that survives reloads. Anything failing this becomes
+ * null at the boundary.
+ *
+ * This is the FIRST of two defences and the only one that keeps the game:
+ * `components/ErrorBoundary.tsx` wraps the activity overlay so a session that
+ * slips past this guard costs the board rather than the app. The boundary is
+ * the net; this function is the reason the net should stay empty.
  */
 export function isGameSession(g: unknown): g is GameSession {
   if (!g || typeof g !== "object") return false;
@@ -183,7 +188,32 @@ export function isGameSession(g: unknown): g is GameSession {
   if (s.kind === "wyr") return Array.isArray(s.seen) && Array.isArray(s.rounds) && typeof s.salt === "string";
   if (s.kind === "chess" || s.kind === "ttt") {
     const game = s.game as Record<string, unknown> | undefined;
-    return Boolean(game && Array.isArray(game.played) && game.status && typeof game.status === "object");
+    if (!game || !Array.isArray(game.played)) return false;
+    if (!game.status || typeof game.status !== "object") return false;
+    // THE MOVE RECORDS THEMSELVES. A `played` array whose ROWS are malformed
+    // passed the check above and then took the whole app down: the board
+    // renders `lastMove={{ from: last.from, to: last.to }}` and ChessBoard's
+    // `squareIndex` does `sq[0]` on it, so a row without `from` throws during
+    // RENDER, above every setState — rootKids=0, and because the blob is
+    // persisted, the white screen survives every reload.
+    //
+    // Validate EXACTLY what is dereferenced outside a try/catch, and nothing
+    // more. Over-validating is not free: every extra required field is a real
+    // session (an older build's, a partially-synced one) silently dropped, and
+    // a dropped game is a game she then denies having played. `assessLast`'s
+    // deeper reads (fenBefore/fenAfter/moveNumber) are NOT checked here
+    // because `lastAssessment` already catches around them — she simply has no
+    // opinion about the last move, which is survivable.
+    //   chess: `san` (movelist, opening book, the nameable allowlist),
+    //          `from`/`to` (the board's last-move highlight — the crash).
+    //   ttt:   `cell` (last-cell highlight, CELL_NAME lookup).
+    return game.played.every((m) => {
+      if (!m || typeof m !== "object") return false;
+      const r = m as Record<string, unknown>;
+      return s.kind === "chess"
+        ? typeof r.san === "string" && typeof r.from === "string" && typeof r.to === "string"
+        : typeof r.cell === "number";
+    });
   }
   return false;
 }

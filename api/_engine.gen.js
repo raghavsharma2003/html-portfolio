@@ -455,7 +455,7 @@ function stageParagraphFor(messageCount, dimsStage) {
   return STAGE_ESTABLISHED;
 }
 function buildSystemPromptParts(user, messageCount = 999, medium = "text", dimsStage) {
-  const facts = Object.entries(user.facts).map(([k, v]) => `- ${k}: ${v}`).join("\n");
+  const facts = Object.entries(user.facts ?? {}).map(([k, v]) => `- ${k}: ${v}`).join("\n");
   const isVoice = medium === "voice";
   const core = `You are ${HER_NAME} \u2014 a modern, urban 24-year-old Indian girl ${isVoice ? "on a live voice call with" : "texting with"} ${user.name || "someone new"}. Design job at a startup, Bandra/HSR-type social life, Instagram brain, chronically online humor. You genuinely like this person as a FRIEND \u2014 but you are a whole person, not an orbit around them. You are SECURE: warm, unhurried, never needy.
 
@@ -3141,12 +3141,25 @@ function findUnsupportedReceipts(text, openItems) {
   }
   return out;
 }
-var RE_SEND_FUTURE = /\b(?:bhej(?:\s*d)?(?:o?ungi|o?unga|enge)|bhej(?:ti|ta)\s*hu|bhej\s*(?:rahi|rhi|raha|rha)\s*hu|bhej\s*det[ia]\s*hu|(?:send|mail|share|forward|whats\s?app|whatsapp|dm|post|drop|upload)\s*kar\s*(?:d(?:o?ungi|o?unga)|o?ungi|o?unga)|daal\s*d(?:o?ungi|o?unga)|i'?ll\s+(?:send|mail|dm|email|share|forward|post|drop)|i'?m\s+sending|i\s+will\s+(?:send|mail|dm|email|share|forward)|will\s+(?:send|mail|dm|email)\s+(?:you|u|it))\b/i;
+var RE_SEND_FUTURE = /\b(?:bhej(?:\s*d)?(?:o?ungi|o?unga|enge)|bhej(?:ti|ta)\s*hu|bhej\s*(?:rahi|rhi|raha|rha)\s*hu|bhej\s*det[ia]\s*hu|(?:send|mail|e-?mail|share|forward|whats\s?app|whatsapp|dm|post|drop|upload)\s*kar\s*(?:d(?:o?ungi|o?unga)|o?ungi|o?unga)|daal\s*d(?:o?ungi|o?unga)|i'?ll\s+(?:send|mail|dm|email|share|forward|post|drop)|i'?m\s+sending|i\s+will\s+(?:send|mail|dm|email|share|forward)|will\s+(?:send|mail|dm|email)\s+(?:you|u|it))\b/i;
 var RE_DELIVERABLE = /\b(?:resume|cv|biodata|portfolio|photo|photos|photu|pic|pics|picture|pictures|selfie|selfies|tasveer|screenshot|screen\s?shot|file|files|doc|docs|document|pdf|ppt|deck|attachment|notes|assignment|report|sheet|excel|invite|form|draft|paper|video|vid|reel|clip|voice\s?note|voicenote|recording|song|gaana|gana|playlist|link|mail|email|msg|message|sticker|gif|meme|number|address|details)\b/i;
 var RE_RECIPIENT = /\b(?:tujhe|tumhe|tumhein|tereko|tere\s*ko|aapko|you|u)\b/i;
 var RE_DEICTIC_OBJECT = /\b(?:ye|yeh|wo|woh|isko|usko|ise|use|it|this|that|these|those)\b/i;
 var RE_LATER = /\b(?:baad\s*me|later|tonight|kal|parso|abhi|thodi\s*der\s*me|raat\s*ko|subah|shaam\s*ko|ghar\s*aa?ke|tomorrow|tomo|soon|in\s+a\s+bit)\b/i;
 var promiseHasObject = (clause) => RE_DELIVERABLE.test(clause) || RE_RECIPIENT.test(clause) || RE_DEICTIC_OBJECT.test(clause) || RE_LATER.test(clause);
+var isObjectPhraseWord = (w) => RE_RECIPIENT.test(w) || RE_DEICTIC_OBJECT.test(w) || RE_DELIVERABLE.test(w) || /^(?:the|a|an)$/i.test(w);
+function objectPhraseGap(s, a, b) {
+  const [first, second] = a[0] < b[0] ? [a, b] : [b, a];
+  const [i, j] = [first[1], second[0]];
+  if (j <= i) return 0;
+  const words2 = s.slice(i, j).trim().split(/\s+/).filter(Boolean);
+  let k = 0;
+  while (k < words2.length && isObjectPhraseWord(words2[k])) k++;
+  return words2.length - k;
+}
+function verbChannelNear(clause, verb, channel) {
+  return wordGap(clause, verb, channel) <= NEAR_WORDS || objectPhraseGap(clause, verb, channel) <= NEAR_WORDS;
+}
 function findChannelPromises(text, channel = "chat") {
   const out = [];
   for (const c of clausesOf(text)) {
@@ -3155,12 +3168,35 @@ function findChannelPromises(text, channel = "chat") {
     const verbs = spansOf(RE_SEND_FUTURE, c.text);
     if (!verbs.length) continue;
     const channels = spansOf(RE_OOB_CHANNEL, c.text);
-    if (channels.some((sp) => verbs.some((v) => wordGap(c.text, sp, v) <= NEAR_WORDS))) {
+    if (channels.some((sp) => verbs.some((v) => verbChannelNear(c.text, v, sp)))) {
       out.push({ rule: "channel-promise", clause: c.text, why: "out-of-band" });
       continue;
     }
     if (channel === "call" && promiseHasObject(c.text)) {
       out.push({ rule: "channel-promise", clause: c.text, why: "call-lane" });
+    }
+  }
+  return out;
+}
+var RE_FIRST_PERSON_SENDER = /\b(?:maine|main\s*ne|i)\b/i;
+var RE_SEND_PAST_SELF = /\b(?:e-?mail(?:ed)|mail(?:ed)|dm'?d|whats\s?app(?:ed)|whatsapp(?:ed)|insta(?:grammed)|forward(?:ed))\b/i;
+var RE_SEND_PAST_GENERIC = /\b(?:kar\s*d(?:iya|i)|bhej\s*d(?:iya|i)|bhej(?:a|i)\b|sent)\b/i;
+var RE_OOB_CHANNEL_OR_FORWARD = new RegExp(`${RE_OOB_CHANNEL.source}|forward`, RE_OOB_CHANNEL.flags);
+function findPastSendClaims(text) {
+  const out = [];
+  for (const c of clausesOf(text)) {
+    if (RE_NEGATED.test(c.text)) continue;
+    if (isInterrogative(c.text, c.terminator)) continue;
+    if (!RE_FIRST_PERSON_SENDER.test(c.text)) continue;
+    if (RE_SEND_PAST_SELF.test(c.text)) {
+      out.push({ rule: "oob-receipt", clause: c.text });
+      continue;
+    }
+    const verbs = spansOf(RE_SEND_PAST_GENERIC, c.text);
+    if (!verbs.length) continue;
+    const channels = spansOf(RE_OOB_CHANNEL_OR_FORWARD, c.text);
+    if (channels.some((sp) => verbs.some((v) => verbChannelNear(c.text, v, sp)))) {
+      out.push({ rule: "oob-receipt", clause: c.text });
     }
   }
   return out;
@@ -3463,6 +3499,7 @@ function inspect(text, allowed, openItems, hisVocab, sharedVocab, channel = "cha
   const out = [];
   for (const h of findActionable(text, allowed)) out.push({ rule: "actionable", kind: h.kind });
   for (const h of findOutOfBandReceipts(text)) out.push({ rule: h.rule });
+  for (const h of findPastSendClaims(text)) out.push({ rule: h.rule });
   for (const h of findUnsupportedReceipts(text, openItems)) out.push({ rule: h.rule });
   for (const h of findChannelPromises(text, channel)) out.push({ rule: h.rule });
   if (hisVocab) {

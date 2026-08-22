@@ -22,8 +22,42 @@
 //   laptop on light is a feature, not a conflict
 
 import type { AppState, Message } from "./store";
+import type { UserProfile } from "../engine/persona";
 import type { GameSession } from "./game";
 import { isGameSession } from "./game";
+
+/**
+ * `user`, coerced to a shape the prompt builder can survive.
+ *
+ * It lives here, next to `isGameSession`'s use, because this file is where
+ * state crosses a TRUST BOUNDARY — another device's parse of its own
+ * localStorage, a server row written by an older build, a hand-edited blob.
+ * `game` has been guarded at that boundary since the last audit; `user` was
+ * not, and it is dereferenced harder: `buildSystemPromptParts` opens with
+ * `Object.entries(user.facts)`, which THROWS on a user without `facts`. That
+ * throw is not a blank screen — it is worse. It happens on the reply path, on
+ * every send, on that device, forever: she types and never answers. A person
+ * who has stopped replying is indistinguishable from a person who has left.
+ *
+ * Kept total on purpose (never throws, never returns undefined) so it can be
+ * applied at every boundary without the caller reasoning about it. `String()`
+ * rather than a type test on `name` because a name that arrived as a number is
+ * still a name; a `facts` that arrived as an array is not a fact table.
+ *
+ * NOTE this is the SHAPE floor, not a validator: bad values pass, and that is
+ * correct. The failure being prevented is a throw, not a lie.
+ */
+export function safeUser(u: unknown): UserProfile {
+  const o = (u && typeof u === "object" ? u : {}) as Record<string, unknown>;
+  return {
+    name: typeof o.name === "string" ? o.name : o.name == null ? "" : String(o.name),
+    vibe: Array.isArray(o.vibe) ? (o.vibe as string[]) : [],
+    facts:
+      o.facts && typeof o.facts === "object" && !Array.isArray(o.facts)
+        ? (o.facts as Record<string, string>)
+        : {},
+  };
+}
 
 /** progress = how far a session has advanced, for same-session comparison */
 function progressOf(g: GameSession): number {
@@ -77,10 +111,15 @@ export function mergeStates(local: AppState, remote: any): Partial<AppState> {
   return {
     onboarded: remote?.onboarded || local.onboarded,
     deviceId: remote?.deviceId || local.deviceId, // keep her memory graph
-    user:
+    // whichever copy wins, it is SHAPED before it is adopted — the remote half
+    // crossed a trust boundary and the local half may itself be an older
+    // build's adoption of one. `safeUser` is total, so this cannot be the
+    // thing that fails.
+    user: safeUser(
       local.messages.length >= (remote?.messages?.length ?? 0)
         ? local.user
         : remote?.user ?? local.user,
+    ),
     messages,
     lastSeen: Math.max(local.lastSeen ?? 0, Number(remote?.lastSeen) || 0),
     clearedAt: clearedAt || undefined,

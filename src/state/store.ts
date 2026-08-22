@@ -1,6 +1,6 @@
 // Lightweight app state persisted to localStorage — no external state library needed.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { UserProfile } from "../engine/persona";
 import type { Inner } from "../engine/inner";
 import { tel } from "../engine/telemetry";
@@ -57,6 +57,11 @@ export interface SelfFact {
 
 import type { GameSession } from "./game";
 import { isGameSession } from "./game";
+// merge.ts imports only TYPES from this file, so this is a one-way runtime
+// edge (store → merge), not a cycle. The cross-tab adopt below is the same
+// problem the account sync solves — two copies of one relationship — and
+// solving it twice is how the two answers drift apart.
+import { mergeStates, safeUser } from "./merge";
 import type { ThemeChoice } from "../engine/theme";
 
 export interface AppState {
@@ -215,6 +220,13 @@ export function loadState(): AppState {
     // blank screen that SURVIVES reload, because the crash happens after
     // every successful load. Guard the boundary; drop only the game.
     if (parsed.game != null && !isGameSession(parsed.game)) parsed.game = null;
+    // `{ ...defaultState, ...JSON.parse(raw) }` is a SHALLOW spread: a stored
+    // `user` of `{ name: "Rohan" }` (an older build's write, a half-finished
+    // onboarding, a restored backup) replaces the default wholesale and
+    // arrives at `Object.entries(user.facts)` with no `facts` — after which
+    // she never replies again on this device, on every send, forever, because
+    // the throw is on the reply path and the blob is persisted.
+    parsed.user = safeUser(parsed.user);
     return parsed;
   } catch {
     return { ...defaultState };
@@ -277,30 +289,123 @@ export function saveState(s: AppState) {
   rung("gave_up");
 }
 
+/**
+ * What a cross-tab compare can actually change, in a STABLE order.
+ *
+ * Used for two decisions below, and the array form matters: `JSON.stringify`
+ * of an object follows insertion order, so two states holding identical values
+ * built by different spreads would compare unequal and the two tabs would
+ * write at each other forever.
+ *
+ * Messages are summarised by count + last id rather than compared in full, and
+ * that is faithful rather than lazy: `mergeStates` unions by id with the LOCAL
+ * copy winning, so an edit to a message this tab already holds is not
+ * something the merge can adopt anyway.
+ */
+function crossTabSig(s: AppState): string {
+  return JSON.stringify([
+    s.onboarded,
+    s.deviceId,
+    s.lastAccountId ?? "",
+    s.auth?.userId ?? "",
+    s.user,
+    s.messages.length,
+    s.messages[s.messages.length - 1]?.id ?? "",
+    s.clearedAt ?? 0,
+    s.herLife ?? null,
+    s.inner ?? null,
+    s.game ?? null,
+    s.tally ?? null,
+    [...(s.momentsFired ?? [])].sort(),
+    s.followup ?? null,
+    s.callback ?? null,
+    s.recentMoment ?? null,
+  ]);
+}
+
 export function useAppState() {
   const [state, setState] = useState<AppState>(loadState);
   useEffect(() => saveState(state), [state]);
-  // multi-tab: when another tab writes state, adopt whichever copy has more
-  // recent life in it — otherwise two open tabs ping-pong stale writes (and
-  // both fire her follow-up timer)
+  // the listener below is registered once and must read the CURRENT state
+  // without re-registering (a listener torn down and rebuilt on every
+  // keystroke drops events written mid-render)
+  const latest = useRef(state);
+  latest.current = state;
+  // ── MULTI-TAB ───────────────────────────────────────────────────────────
+  // Two tabs are two devices that happen to share a disk, and the old answer
+  // here treated them as neither. It adopted the other tab's blob WHOLESALE
+  // when that blob's last message was newer, and otherwise ignored it — so a
+  // chess game played in tab 1 was erased by tab 2's next write (tab 2 never
+  // adopted the game, tab 2's blob had no game, and tab 2's blob won on
+  // message recency), and the fired-ledger and tallies went with it. The audit
+  // reproduced exactly that.
+  //
+  // Both halves of the old rule were wrong:
+  //   - RECENCY OF ONE FIELD cannot decide the fate of all the others. A game,
+  //     a tally and a ledger advance without a single message being sent.
+  //   - WHOLESALE ADOPTION of the winner discards the loser's half. Two
+  //     devices already have an answer for this and it is `mergeStates`:
+  //     messages union, ledgers union, tallies take the max, the game merges
+  //     wholesale by progress. One merge, one set of semantics, one eval.
+  //
+  // What is left over is the WRITE-BACK: localStorage now holds the other
+  // tab's blob, so if our merge is richer than what is on disk, the disk is
+  // missing something and a reload of either tab would lose it. Persisting the
+  // merged copy is what actually repairs it — the `setState` alone would not,
+  // since a merge that changes nothing HERE must not re-render (that is the
+  // ping-pong the old code's `return cur` was guarding against, and it is
+  // still a real hazard: every write wakes the other tab).
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key !== KEY || !e.newValue) return;
+      let incoming: AppState;
       try {
-        const incoming = JSON.parse(e.newValue) as AppState;
-        setState((cur) => {
-          const inLast = incoming.messages?.[incoming.messages.length - 1]?.at ?? 0;
-          const curLast = cur.messages[cur.messages.length - 1]?.at ?? 0;
-          const inCleared = incoming.clearedAt ?? 0;
-          const curCleared = cur.clearedAt ?? 0;
-          if (inLast > curLast || inCleared > curCleared) {
-            return { ...defaultState, ...incoming };
-          }
-          return cur;
-        });
+        incoming = { ...defaultState, ...(JSON.parse(e.newValue) as AppState) };
       } catch {
-        /* corrupt cross-tab write — ignore */
+        return; /* corrupt cross-tab write — ignore */
       }
+      // the spread above is shallow, so a blob whose `messages` is null still
+      // arrives null — and every line below assumes an array
+      if (!Array.isArray(incoming.messages)) incoming.messages = [];
+      // same boundary, same coercion loadState applies to its own parse: this
+      // blob was written by another tab, which may be running older code
+      incoming.user = safeUser(incoming.user);
+      const cur = latest.current;
+      // IDENTITY CHANGE in the other tab — a sign-out (which rotates the
+      // device id and clears lastAccountId), a sign-in, an account switch.
+      // Adopt wholesale and merge nothing: merging across two identities is
+      // the cross-account bleed `lastAccountId` exists to prevent, and a
+      // sign-out on a shared browser that leaves the conversation alive in a
+      // second tab is that same promise broken in the same room.
+      if (
+        (incoming.deviceId ?? "") !== cur.deviceId ||
+        (incoming.lastAccountId ?? "") !== (cur.lastAccountId ?? "")
+      ) {
+        setState(incoming);
+        return;
+      }
+      const merged: AppState = {
+        // device-scope settings and keys first: the other tab's copies are as
+        // good as ours, and last-write-wins is the right rule for a setting a
+        // person just changed by hand in that tab.
+        ...incoming,
+        // then the relational fields, merged rather than taken.
+        ...mergeStates(cur, incoming),
+        // ...except the two present-moment fields `mergeStates` does not own.
+        // Both are armed by something that JUST happened in ONE tab (a call
+        // that dropped, a milestone that crossed) and neither is relational
+        // history, so the tab holding one keeps it rather than having it
+        // cleared by a tab that never saw the event.
+        callback: cur.callback ?? incoming.callback ?? null,
+        recentMoment: cur.recentMoment ?? incoming.recentMoment ?? null,
+      };
+      if (merged.game != null && !isGameSession(merged.game)) merged.game = null;
+      const inSig = crossTabSig(incoming);
+      const mSig = crossTabSig(merged);
+      // the disk is behind our merge — put the union back, or the game/ledger
+      // we just rescued dies on the next reload
+      if (mSig !== inSig) saveState(merged);
+      if (mSig !== crossTabSig(cur)) setState(merged);
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);

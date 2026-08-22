@@ -117,7 +117,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   // to be either unreachable or one mis-tap away from destroying the chat
   const [moreOpen, setMoreOpen] = useState(false);
   // clearing parks the conversation for ten seconds instead of destroying it
-  type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt" | "game" | "callback" | "tally" | "momentsFired">;
+  type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt" | "game" | "callback" | "tally" | "momentsFired" | "recentMoment" | "followup">;
   const [undo, setUndo] = useState<{ label: string; snapshot: Snapshot } | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Forgetting parks the REQUEST, not just the local state: the server-side
@@ -1053,6 +1053,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       callback: state.callback,
       tally: state.tally,
       momentsFired: state.momentsFired,
+      recentMoment: state.recentMoment,
+      // wiped below like the rest, and so it has to come back like the rest:
+      // an undone clear that silently drops her armed "back in 20 min" is a
+      // promise she made and then didn't keep, which is the one kind of
+      // forgetting this product cannot afford
+      followup: state.followup,
     };
     busy.current = false;
     epoch.current += 1; // kill any in-flight reply from the old chat
@@ -1092,6 +1098,16 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       // AppState field decides its teardown fate the day it is added.
       tally: null,
       momentsFired: [],
+      // The THIRD field to slip through this same hole, and the loudest: the
+      // ledger above is what stops a moment firing twice, but `recentMoment`
+      // is the moment itself, held for a few hours so she can bring it up.
+      // Surviving a forget means her first sentences to someone she has never
+      // met are about their hundred days together — and `momentLine` feeds
+      // `sharedVocab`, so the honesty layer marks that invented history
+      // SUPPORTED and never flags it. `evals/teardown.mjs` now checks this
+      // class mechanically: every optional AppState field is either wiped here
+      // or exempted in writing, so the fourth field cannot slip quietly.
+      recentMoment: null,
     }));
     return snapshot;
   }
@@ -1154,6 +1170,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       callback: snap.callback,
       tally: snap.tally,
       momentsFired: snap.momentsFired,
+      recentMoment: snap.recentMoment,
+      followup: snap.followup,
     }));
     tap();
   }

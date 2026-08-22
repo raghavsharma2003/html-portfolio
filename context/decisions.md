@@ -1614,3 +1614,18 @@ zero awaits, liveAssemblies still 1. Cascade is deliberately excluded —
 toTurns already carries the last 90 messages there. **Reverses if:** a
 sub-100ms local extraction ever exists — then (a) becomes free and
 carries structure the verbatim tail cannot.
+
+---
+
+## `teardown-coverage-check` — a new AppState field must face the teardown
+
+Four fields in a row were added to AppState and forgotten by "make her
+forget you" (game, callback, tally/momentsFired, recentMoment) — each one
+a person who claims to have forgotten you while remembering something.
+evals/teardown.mjs ends the class mechanically: it parses the optional
+keys out of store.ts and the wipe list out of Chat.tsx's teardown, and
+fails unless every key is wiped or exempted IN WRITING with a reason
+(auth, theme, lastAccountId). A new field fails CI until someone decides.
+**Reverses if:** teardown moves out of Chat.tsx — then the parser follows
+it or the check converts to a runtime round-trip test, but the invariant
+(no undecided fields) survives the mechanism.

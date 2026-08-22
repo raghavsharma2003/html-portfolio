@@ -109,7 +109,7 @@ export function buildSystemPromptParts(
   // existing call site (oldOracle.ts included) is byte-identical unchanged.
   dimsStage?: "new" | "warming" | "settled" | "close" | "deep" | null,
 ): { core: string; tail: string } {
-  const facts = Object.entries(user.facts)
+  const facts = Object.entries(user.facts ?? {})
     .map(([k, v]) => `- ${k}: ${v}`)
     .join("\n");
   const isVoice = medium === "voice";

@@ -64,6 +64,11 @@ const suites = {
   milestones: "milestones.mjs",
   // WS-SYNC: the push list, merge semantics and account-switch reset agree.
   sync: "sync.mjs",
+  // WS-STATE: the boundary cluster. Move-record validation at the game
+  // boundary, user coercion at every adopt, the cross-tab merge, and THE
+  // CLASS CHECK: every optional AppState field is either wiped by the
+  // teardown or exempted in writing. Offline, $0, ~2s.
+  teardown: "teardown.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),
