@@ -28,6 +28,7 @@ import { tap } from "../native/haptics";
 import type { Cell, Game as TttGame, Mark } from "../engine/ttt";
 import { useCallStatus } from "../state/callStatus";
 import { resolveTheme } from "../engine/theme";
+import { replaceOccupant } from "./activityClose";
 
 // COORDINATOR: state/game.ts's `GameSession` needs a second member:
 //
@@ -115,15 +116,55 @@ export default function TicTacToeActivity({
 
   // One tap in means the hub does not ask which mark — she takes O, he opens
   // as X — and re-entering a game in progress resumes it rather than
-  // offering to throw it away. Matches ChessActivity's entry effect exactly.
+  // offering to throw it away.
+  //
+  // A foreign-kind session in the slot: replace it when it is CLOSED or has
+  // no progress; otherwise this board is blocked and says so with a way out.
+  // This is ChessActivity's shipped pattern, ported whole. The guard it
+  // replaces (`s.game ? s`) refused to create the board after ANY other game
+  // had ever been played — one finished chess game and tic tac toe opened an
+  // empty stage under a header confidently saying "your move", forever, and
+  // it survived a reload because the closed session survived one too
+  // (audit #1).
+  //
+  // BOTH halves are load-bearing, and the wyr fix needed both too: the
+  // derivation below decides what this render draws, and the re-check inside
+  // the updater decides what the write does. Either one alone leaves half the
+  // bug alive.
+  const foreign = state.game && state.game.kind !== "ttt" ? state.game : null;
+  const foreignLive = Boolean(
+    foreign &&
+      !foreign.closedAt &&
+      (foreign.kind === "wyr" ? foreign.rounds.length > 0 : foreign.game.played.length > 0),
+  );
   useEffect(() => {
-    if (session) return;
-    setState((s) =>
-      s.game
-        ? s
-        : { ...s, game: { kind: "ttt", game: newTttGame(), herSide: "o", startedAt: Date.now() } },
+    if (session || foreignLive) return;
+    setState((s) => {
+      const cur = s.game;
+      const curLive =
+        cur &&
+        cur.kind !== "ttt" &&
+        !cur.closedAt &&
+        (cur.kind === "wyr" ? cur.rounds.length > 0 : cur.game.played.length > 0);
+      if (cur?.kind === "ttt" || curLive) return s;
+      return { ...s, game: { kind: "ttt" as const, game: newTttGame(), herSide: "o" as const, startedAt: Date.now() } };
+    });
+  }, [session, foreignLive, setState]);
+
+  // The way out of the blocked panel. Same contract as chess's takeover: the
+  // outgoing game is CLOSED and TALLIED in the same updater that hands the
+  // slot over, and its episode is emitted by hand, because App's effect
+  // cannot observe a session that is replaced in the tick it was closed
+  // (audit #3). See `activityClose.ts`.
+  const setAsideAndStart = useCallback(() => {
+    tap();
+    replaceOccupant(
+      state,
+      setState,
+      { kind: "ttt" as const, game: newTttGame(), herSide: "o" as const, startedAt: Date.now() },
+      (s) => Boolean(s.game) && s.game?.kind !== "ttt",
     );
-  }, [session, setState]);
+  }, [state, setState]);
 
   const g = session?.game ?? null;
   const herSide = session?.herSide ?? "o";
@@ -227,13 +268,20 @@ export default function TicTacToeActivity({
     return null;
   }, [state.messages, status.live, status.connecting]);
 
+  // The rematch, with chess's audit-#4 fix: a tap inside the reconciler's 3s
+  // close delay used to delete the game it was a rematch for, so the finished
+  // session is settled synchronously here before the fresh board takes the
+  // slot. The reconciler's `tallied`/`closedAt` guards make its later run a
+  // no-op rather than a second count.
   const newGame_ = useCallback(() => {
     tap();
-    setState((s) => ({
-      ...s,
-      game: { kind: "ttt" as const, game: newTttGame(), herSide: "o" as const, startedAt: Date.now() },
-    }));
-  }, [setState]);
+    replaceOccupant(state, setState, {
+      kind: "ttt" as const,
+      game: newTttGame(),
+      herSide: "o" as const,
+      startedAt: Date.now(),
+    });
+  }, [state, setState]);
   const showNew = Boolean(over || session?.closedAt);
 
   // Whose mark is whose, and the room's fill for the rest of the dead space
@@ -251,6 +299,7 @@ export default function TicTacToeActivity({
       onExit={exit}
       call={call}
       note={herLine}
+      presence={!foreignLive}
       footer={
         showNew ? (
           <button type="button" className="as-gbtn as-gbtn-primary" data-tel="ttt.new" onClick={newGame_}>
@@ -260,11 +309,29 @@ export default function TicTacToeActivity({
       }
       her={{
         phase: hers ? "thinking" : "idle",
-        line: over ? "good game" : hers ? "her move" : "your move",
+        // The `!g` branch is not cosmetic: with no board on the stage the
+        // header used to say "your move" over nothing at all, which is the
+        // most confident possible way to describe a room that is empty.
+        line: foreignLive
+          ? "another game is on"
+          : !g
+            ? ""
+            : over
+              ? "good game"
+              : hers
+                ? "her move"
+                : "your move",
       }}
       tone={tone}
     >
-      {g ? (
+      {foreignLive ? (
+        <div className="as-blocked">
+          <p>You two are mid-way through another game.</p>
+          <button type="button" className="as-gbtn as-gbtn-primary" data-tel="ttt.takeover" onClick={setAsideAndStart}>
+            Put it away and play this
+          </button>
+        </div>
+      ) : g ? (
         <>
           <TicTacToeBoard
             board={g.board}

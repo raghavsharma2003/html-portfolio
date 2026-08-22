@@ -92,6 +92,20 @@ export interface ActivityShellProps {
   tone?: ActivityTone;
   /** One quiet line under the header. The only live region on this surface. */
   note?: React.ReactNode;
+  /**
+   * THE PRESENCE FALLBACK. With no `note` and no call, this row used to render
+   * nothing at all: an empty strip under the header, on the very surfaces the
+   * audit flagged as reading unoccupied. So when there is nothing fresher to
+   * say, the row carries her face and the phase this shell already computes
+   * instead of carrying nothing. It shipped inside ChessActivity and reached
+   * only chess (audit #12); it lives here so every activity inherits it from
+   * the one place that already knows the phase.
+   *
+   * Pass `false` where the stage is already explaining itself - a blocked
+   * panel saying another game holds the slot - which is the single case the
+   * chess-local version excluded.
+   */
+  presence?: boolean;
   /** Controls belonging to the activity, not to the shell. */
   footer?: React.ReactNode;
   children: React.ReactNode;
@@ -120,6 +134,7 @@ export default function ActivityShell({
   exitLabel = "Chat",
   tone,
   note,
+  presence = true,
   footer,
   children,
   className = "",
@@ -131,6 +146,7 @@ export default function ActivityShell({
   const phase: HerPhase = her?.phase ?? "idle";
   const skin: ActivityTone = tone ?? activityTone(live);
   const line = her?.line ?? (live && phase === "idle" ? "on the call with you" : HER_LINE[phase]);
+  const showPresence = presence && !note && !live && !connecting;
 
   // Focus lands inside the shell so a keyboard is not left wherever the page
   // happened to leave it, and so Escape has a target. `preventScroll` because
@@ -302,9 +318,19 @@ export default function ActivityShell({
         </div>
       </div>
 
-      {note ? (
+      {/* Same row, same live region, same animation whichever it carries: her
+          last line when there is one, and otherwise the presence fallback
+          rather than an empty strip. Off-call only, because on a call she is
+          audible and a row reporting she is here would be reporting the
+          obvious over the top of her own voice. */}
+      {note || showPresence ? (
         <div className="as-note" role="status" aria-live="polite">
-          {note}
+          {note || (
+            <span className="as-presence">
+              <PhotoAvatar size={20} />
+              <em>{phase === "thinking" ? "she's thinking" : "she's here"}</em>
+            </span>
+          )}
         </div>
       ) : null}
 

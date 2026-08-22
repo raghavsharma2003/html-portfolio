@@ -15,7 +15,7 @@ import { chooseMoveAsync, legalMoves, newGame, openingName, play } from "../engi
 import { useCallStatus } from "../state/callStatus";
 import { tap } from "../native/haptics";
 import { resolveTheme } from "../engine/theme";
-import PhotoAvatar from "./PhotoAvatar";
+import { replaceOccupant } from "./activityClose";
 
 interface Props {
   state: AppState;
@@ -79,14 +79,20 @@ export default function ChessActivity({
   }, [session, foreignLive, setState]);
   const setAsideAndStart = useCallback(() => {
     tap();
-    setState((s) => {
-      const cur = s.game;
-      if (!cur || cur.kind === "chess") return s;
-      // closing (not deleting) the other game keeps its record for the
-      // reconciler; the fresh board then takes the slot
-      return { ...s, game: { kind: "chess" as const, game: newGame(), herSide: "b", startedAt: Date.now() } };
-    });
-  }, [setState]);
+    // This used to say it closed the other game and did not: it replaced the
+    // slot in one updater, so the reconciler - which observes `state.game` -
+    // never saw the outgoing session at all and it was simply deleted, with
+    // no closedAt, no tally and no episode (audit #3). The close, the tally
+    // and the swap now happen in the SAME updater, and the episode is emitted
+    // by hand because App's effect cannot watch a session that lives for less
+    // than a tick. See `activityClose.ts`.
+    replaceOccupant(
+      state,
+      setState,
+      { kind: "chess" as const, game: newGame(), herSide: "b", startedAt: Date.now() },
+      (s) => Boolean(s.game) && s.game?.kind !== "chess",
+    );
+  }, [state, setState]);
 
   const g = session?.game ?? null;
   const herSide = session?.herSide ?? "b";
@@ -271,13 +277,12 @@ export default function ChessActivity({
     return null;
   }, [state.messages, status.live, status.connecting]);
 
-  // When there is no fresh line AND no call, the note row used to render
-  // nothing — an empty strip under the header, on the one surface where the
-  // room already reads unoccupied (audit #11). Off-call and with nothing new
-  // to report, she is still IN the room: same avatar the header already
-  // draws, and the same thinking/idle split `her.phase` below already
-  // computes — no state invented for this, just no blank line either.
-  const showPresence = !herLine && !status.live && !status.connecting && !foreignLive;
+  // The presence row this file used to draw itself now belongs to
+  // ActivityShell, which renders it for every activity off the `her.phase`
+  // this component already passes (audit #12: ttt and wyr inherited nothing
+  // and their rooms still read unoccupied off-call). The one thing left here
+  // is the opt-out: with a foreign game holding the slot the stage is already
+  // explaining itself, which is exactly what the local version excluded.
 
   // ── the two controls a real table has ─────────────────────────────────
   // "End game" mid-game: he stands up. closedAt lands NOW with endedEarly, so
@@ -295,11 +300,20 @@ export default function ChessActivity({
   }, [setState]);
   const newGame_ = useCallback(() => {
     tap();
-    setState((s) => ({
-      ...s,
-      game: { kind: "chess" as const, game: newGame(), herSide: "b", startedAt: Date.now() },
-    }));
-  }, [setState]);
+    // A rematch tapped inside the reconciler's 3s close delay used to lose the
+    // game it was a rematch FOR: replacing the slot re-ran the reconciler's
+    // effect, cleanup cleared the pending timer, and a checkmate 200ms old
+    // left no closedAt, no tally and no episode (audit #4). The finished
+    // session is therefore settled synchronously here, before the fresh board
+    // takes the slot; the reconciler's own `tallied`/`closedAt` guards make
+    // its later run a no-op rather than a second count.
+    replaceOccupant(state, setState, {
+      kind: "chess" as const,
+      game: newGame(),
+      herSide: "b",
+      startedAt: Date.now(),
+    });
+  }, [state, setState]);
   const showEnd = Boolean(g && !over && !session?.closedAt && g.played.length > 0);
   const showNew = Boolean(over || session?.closedAt);
 
@@ -333,15 +347,8 @@ export default function ChessActivity({
       title="Chess"
       onExit={exit}
       call={call}
-      note={
-        herLine ??
-        (showPresence ? (
-          <span className="as-presence">
-            <PhotoAvatar size={20} />
-            <em>{hers ? "she's thinking" : "she's here"}</em>
-          </span>
-        ) : null)
-      }
+      note={herLine}
+      presence={!foreignLive}
       footer={
         showEnd || showNew ? (
           <>

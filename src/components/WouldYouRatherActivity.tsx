@@ -38,6 +38,7 @@ import { useCallStatus } from "../state/callStatus";
 import { resolveTheme } from "../engine/theme";
 import { tap, ImpactStyle } from "../native/haptics";
 import PhotoAvatar from "./PhotoAvatar";
+import { replaceOccupant } from "./activityClose";
 import "../styles/wyr.css";
 
 interface Props {
@@ -175,6 +176,22 @@ export default function WouldYouRatherActivity({
     [session, card, answered, pending, setState],
   );
 
+  // The way out of the blocked panel. It used to swap the slot in one
+  // updater, which meant the occupying game was DELETED rather than put away:
+  // App's reconciler and its episode effect both watch `state.game`, and a
+  // session replaced in the tick it would have been closed is a session
+  // neither of them ever sees (audit #3). Close, tally and swap now happen in
+  // the same updater, and the episode is emitted by hand.
+  const onTakeover = useCallback(() => {
+    tap(ImpactStyle.Light);
+    replaceOccupant(
+      state,
+      setState,
+      asGameSession(freshSession(salt, Date.now())),
+      (s) => Boolean(s.game) && s.game?.kind !== "wyr",
+    );
+  }, [state, setState, salt]);
+
   const onNext = useCallback(() => {
     tap(ImpactStyle.Light);
     setState((s) => {
@@ -238,6 +255,7 @@ export default function WouldYouRatherActivity({
       onExit={exit}
       call={call}
       note={herLine}
+      presence={!blocked}
       her={{
         phase: pending ? "thinking" : "idle",
         line: pending ? "deciding…" : showingHerPick ? "picked" : "up for it",
@@ -264,13 +282,7 @@ export default function WouldYouRatherActivity({
             type="button"
             className="as-gbtn as-gbtn-primary"
             data-tel="wyr.takeover"
-            onClick={() => {
-              setState((s) =>
-                s.game && s.game.kind !== "wyr"
-                  ? { ...s, game: asGameSession(freshSession(salt, Date.now())) }
-                  : s,
-              );
-            }}
+            onClick={onTakeover}
           >
             Put it away and play this
           </button>
