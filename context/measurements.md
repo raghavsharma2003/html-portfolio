@@ -2320,3 +2320,25 @@ SPEECH_RUN=1. Full table: docs/audit/2026-08-22-hinglish-tts.md.
   normalisation, NOT proven TTS mispronunciation; the live
   speech-to-speech lane is unprobeable headlessly (browser-only bidi
   WS, conversational), so this covers the cascade lane only.
+
+---
+
+## `photo-drop-2026-08-22` — the owner's generated library expansion
+
+Delivery: 24/24 briefed files present in raghavsharma2003/Meera @
+codex/meera-photos with exact filenames. Face-lock verified BY EYE against
+the live reference on a 5-image sample (avatar portrait, diwali selfie,
+holi, landing dusk, saree) — same face, same curls/bindi/jhumka, same
+chikankari kurta; POV shots correctly faceless (streetdog: hand +
+chappals only). Source generations 1086x1448 (portrait) / 1254x1254
+(avatar) / 1672x941 (landing), 200-550 KB.
+
+Processing: 20 moments -> 680px long edge, mozjpeg q78, ~45-50 KB each
+(vs the legacy library's 272-405px / 13-33 KB — the new set is the first
+retina-sharp tier). Identity assets center-cropped 900x900 q85; landing
+dusk 1200w. Library now 109 tags; persona core grew +~640 chars after
+telegraphic trimming, tripping the 44k tripwire as designed (raised to
+45,500 with rationale at the check; check-prompt-budget unaffected).
+
+Live: served from meera-silk.vercel.app (probe 200 on the new tags) and
+in the APK from the same sha.
