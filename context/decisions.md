@@ -1385,3 +1385,37 @@ most casual players.
 **Reverses if:** he starts winning every game and says so — then per-person
 adaptive strength (the surface already owns the choice point) replaces the
 constant.
+
+---
+
+## pickup-context-is-one-helper — direction, recency, scene: one truth for the directive
+
+**Decided 2026-08-22.** Two more pickup lies had the same shape as the earlier
+ones: she answered her OWN callback like someone receiving a call (the
+directive said "you just picked up THEIR call" on every path), and she greeted
+a call two minutes after the last one like the first of the day (nothing told
+her the last call had just ended). `pickupOpts()` in useCallEngine now computes
+the three facts the directive needs — the live activity scene, minutes since
+the last callmark, who dialled — and all three directive sites take that one
+bag. Within 15 minutes of the last call the greeting-mood rule is REPLACED by
+a follow-up register; on her own callback the opener is a caller's. The
+surface's only job is reporting who dialled (App's accept path).
+
+**Reverses if:** follow-up pickups start skipping warmth people actually
+wanted (a heavy call deserves a soft re-open even 5 minutes later) — then the
+recency clause needs the last call's TONE, which the inner/affect layer holds,
+not a shorter threshold.
+
+## wyr-deal-vs-taste — the deck order is session-unique, her picks are not
+
+**Decided 2026-08-22.** "Same questions are coming": the deal was a pure
+function of the salt, so every fresh session dealt the identical order to the
+same person forever. Split the two randomnesses by what they MEAN: the deal
+seeds from salt+startedAt (a session is a sitting; sittings differ) plus an
+`avoid` carry-forward of previously asked cards; her PICKS keep the bare salt
+(taste is a property of her, stable across sessions and devices). `avoid` is a
+dedicated field because stuffing carried ids into `seen` breaks the
+seen/rounds pairing and freezes answering — the eval proves it.
+
+**Reverses if:** the deck grows big enough that repeats stop being felt —
+then carry-forward is bookkeeping with no product effect and can go.

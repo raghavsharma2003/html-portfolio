@@ -235,3 +235,37 @@ assigns it. A defect with no layer is a complaint; a layer with no evidence is
 a guess. If the diagnosis is a hypothesis, say so in the entry — defect 8 is
 written that way on purpose, because this session got two diagnoses wrong by
 reasoning where it should have probed.
+
+---
+
+## The live-testing defect ledger, batches 1–3 (2026-08-21/22) — layer vs surface
+
+The owner's standing rule: fix at the OS layer wherever the failure is the
+layer's, so no future personality re-suffers it; when a fix is genuinely
+surface-only, record it so WhatsApp/Discord/Telegram builds know. This table
+is that record. "OS" = every personality on every surface inherits it free.
+
+| defect (owner's words) | layer | fix (where) |
+|---|---|---|
+| "our beach photos" / fabricated meeting / shared-past lies | **OS** | honesty family 4 + presupposed-question detector, output path (`honesty.ts`) |
+| blank "what's up" mid-game; "reading a book" after mate | **OS** | pickup directive carries the real scene; invent-fence otherwise (`persona.ts` + `pickupOpts`) |
+| didn't know the game had ended | **OS** | RECENT_END_MS window, `over` state, winner named (`state/game.ts`, `chessTalk.ts`) |
+| narrated her own moves; robotic per-move commentary | **OS** | exchange-not-move fact (`chessTalk.ts`) |
+| story fragmentation — notes landed in her breath pauses | **OS** | poke cadence: salience/rate/breath + one-exchange-one-note (`useCallEngine`, contract in SURFACES.md §2b) |
+| move-lag compounding ("calls the previous move") | **OS** | exchange fires at 150ms; his-move-alone waits for her reply |
+| instant, too-strong chess moves | **surface** (a per-surface choice point the OS exposes) | think-time hold + strength 2 in `ChessActivity` — each surface picks its own pace/strength |
+| forget-me kept the chess game | **OS** | teardown clears `game`+`callback`; rule logged: every new AppState field must answer "what do clear/forget do to this?" |
+| story reply rendered as fake text | **surface** | quote thumbnail + "Story" (`Chat.tsx`); the RECORD (desc under `replyTo.text`) is OS |
+| unclear pieces | **surface** | cburnett vendored (`pieces.tsx`, CC BY-SA attribution) |
+| wanted opening names + threat talk | **OS** | `chess/openings.ts` book + threat facts in `chessTalk.ts` — any surface's chess gets it |
+| "said in text" when it was said on call | **OS** | channel boundary markers carry the attribution rule (`brain.ts` toTurns) |
+| she didn't know SHE was calling | **OS** | caller direction in the directive + `sheInitiated` finally fed; the surface only reports who dialled |
+| every call greeted like the first | **OS** | last-call recency in `pickupOpts` swaps greeting for follow-up register |
+| would-you-rather repeats questions | **OS** | deal seeded per-session + `avoid` carry-forward (`wyr/session.ts`); her picks stay salt-stable (taste is a property of her) |
+| end-game / new-game buttons | **surface** | `ChessActivity` footer; the honest `endedEarly` fact is OS |
+| call glitching/hallucinating (no captured instance) | open | task #115: trace-pull on next occurrence; suspects = audio path (task #112) |
+
+The pattern worth keeping: of seventeen felt defects, thirteen were the OS's.
+A defect that FEELS like an app bug (a chess note interrupting a story) is
+usually the layer's conversational judgment failing, and fixing it in the app
+would have re-broken on the next surface.

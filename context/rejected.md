@@ -1403,3 +1403,22 @@ invisible — fixed with an under-stroke in the piece's own fill (11.3:1).
 
 **Reverses if:** CC BY-SA ever becomes a genuine distribution problem for the
 APK (it covers the artwork, not the app's code, so it currently is not).
+
+---
+
+## the-deal-that-was-a-pure-function-of-the-person
+
+**Tried:** seeding would-you-rather's card deal with `hash(salt, seen.length)`
+— deterministic, replayable, and stable per relationship, which sounded like a
+feature.
+
+**What broke:** determinism landed on the wrong axis. Same person → same salt
+→ same first card, same second card, forever; every "new game" replayed the
+old one. The owner caught it on the second session. Determinism per
+RELATIONSHIP is right for her taste (her picks) and wrong for the deal (a
+sitting should feel fresh).
+
+**The generalisable rule:** when seeding anything user-facing, ask what the
+seed MEANS. "Deterministic" is not one property — per-person, per-session and
+per-moment determinism are different products, and the seed's inputs are the
+choice.
