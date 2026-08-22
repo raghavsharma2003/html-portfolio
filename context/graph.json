@@ -1143,6 +1143,12 @@
       "kind": "rejection",
       "title": "Cross-tab wholesale adoption by message recency lost game/tally/ledger; merge field-wise",
       "at": "2026-08-22"
+    },
+    {
+      "id": "core-ceiling-tripwire",
+      "kind": "decision",
+      "title": "Core ceiling raised 44k->45.5k deliberately for the 20-photo expansion; tripwire semantics kept",
+      "at": "2026-08-22"
     }
   ],
   "edges": [

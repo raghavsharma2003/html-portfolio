@@ -242,7 +242,13 @@ export function meeraFullChecks(agent, lanes) {
   const checks = [];
   const add = (name, cond, extra) => checks.push({ name, cond, extra });
 
-  add("text core under ceiling (44000)", lanes.t.core.length < 44000, `=${lanes.t.core.length}`);
+  // The ceiling is a TRIPWIRE, not a truncation bound (scripts/
+  // check-prompt-budget.mjs gates the real cap): it exists so core growth is
+  // DELIBERATE. Raised 44000 -> 45500 on 2026-08-22 for the 20-photo library
+  // expansion (owner-generated festival/monsoon/street set — ~750 chars of
+  // tag names that must reach the model to be pickable). Margin kept tight
+  // on purpose: the next unplanned growth should trip this again.
+  add("text core under ceiling (45500)", lanes.t.core.length < 45500, `=${lanes.t.core.length}`);
 
   add("[live] [tone: appears exactly once", (lanes.live.match(/\[tone:/g) || []).length === 1);
   add(

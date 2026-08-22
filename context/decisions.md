@@ -1629,3 +1629,17 @@ fails unless every key is wiped or exempted IN WRITING with a reason
 **Reverses if:** teardown moves out of Chat.tsx — then the parser follows
 it or the check converts to a runtime round-trip test, but the invariant
 (no undecided fields) survives the mechanism.
+
+---
+
+## `core-ceiling-tripwire` — the 44k core ceiling was a tripwire, and it tripped correctly
+
+The persona-invariants core ceiling has no truncation role
+(check-prompt-budget gates the real cap); it exists so core growth is
+DELIBERATE. The 20-photo library expansion tripped it (+~750 chars of tag
+names that must reach the model to be pickable), the growth was judged
+worth it, and the ceiling moved 44000 -> 45500 with the rationale written
+AT the check and the margin kept tight so the next unplanned growth trips
+it again. **Reverses if:** core growth starts arriving without a written
+rationale at the check — then the ceiling freezes and content fights for
+space instead.
