@@ -1041,9 +1041,28 @@ async function ruptureStanceLapsedFor(person, agentId, ruptureOpen, repairState,
   ).catch(() => []);
   const lastMoveAt = moveRows[0]?.at ?? null;
   if (!lastMoveAt) return false;
+  // WHAT COUNTS AS A WARM EPISODE — the same episode population every other
+  // query in this file derives from (`findPersonsWithFreshEpisodes`,
+  // `deriveRelEventsForPerson`, the self-layer passes): FINALIZED
+  // (`provisional = false`), DYADIC (`group_id is null`) and CURRENT
+  // (`superseded_by is null`). This query alone had none of the three, and
+  // each omission pushed the count the SAME direction — up — so the stance
+  // lapsed EARLY: a provisional episode is written eagerly and may never be
+  // finalized, a group episode is not this dyad showing up warm at all, and a
+  // superseded episode is one whose successor is also being counted, i.e. one
+  // evening of contact counted twice. `RUPTURE_STANCE_LAPSE_WARM_EPISODES` is
+  // 8 and a provisional row exists for essentially every episode before it
+  // finalizes, so the practical error was close to a factor of two on the one
+  // condition that decides she has stopped holding a fight open.
+  //
+  // Direction matters more than size here: a stance that lapses too early is
+  // a person who stops being hurt because time passed in the DATABASE, which
+  // is the failure `rejected.md#rupture-never-closes`'s reversal condition
+  // ("a lapsing stance makes ruptures feel unreal") names.
   const warmRows = await q(
     `select count(*)::int as c from vy_episode e
       where e.person_id = $1 and e.started_at > $2::timestamptz and e.started_at < $3::timestamptz
+        and e.provisional = false and e.group_id is null and e.superseded_by is null
       ${agentScopePredicate("e", { agentId: "$4" })}`,
     [person, lastMoveAt, beforeTs, agentId],
   ).catch(() => []);

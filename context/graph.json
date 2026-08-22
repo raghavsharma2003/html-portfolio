@@ -1173,6 +1173,30 @@
       "kind": "rejection",
       "title": "activityBreaks() refused as classifier per its own header; its MIN_MINUTES table reused as the window anchor",
       "at": "2026-08-22"
+    },
+    {
+      "id": "g2-stated-in-one-channels-vocabulary",
+      "kind": "rejection",
+      "title": "G2 worded for pickups/sends left the callback lane open; state rules over conditions, not surface events",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "warm-count-unscoped",
+      "kind": "rejection",
+      "title": "Warm-episode lapse count missing finalized/dyadic/current predicates; stance lapsed ~2x early; reader+writer now one arithmetic",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "prosody-reads-hearing-not-feeling",
+      "kind": "decision",
+      "title": "Usage signals may inform hearing, never feeling; content-vs-usage test in the charter with the \u00a7H reversal",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "rupture-channel-identity",
+      "kind": "measurement",
+      "title": "T2 stance block byte-identical across all four assemblies; 37 checks; fails on pre-fix tree",
+      "at": "2026-08-22"
     }
   ],
   "edges": [
@@ -2195,6 +2219,16 @@
       "src": "native-watch-already-wired",
       "rel": "supersedes",
       "dst": "dead-writers"
+    },
+    {
+      "src": "g2-stated-in-one-channels-vocabulary",
+      "rel": "caused_by",
+      "dst": "rupture-never-closes"
+    },
+    {
+      "src": "warm-count-unscoped",
+      "rel": "caused_by",
+      "dst": "stance-lapses-record-stays"
     }
   ]
 }

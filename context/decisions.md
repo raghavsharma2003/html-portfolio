@@ -1680,3 +1680,18 @@ cooking (yesterday)" is still a claim she is cooking. **Reverses if:** a
 lane stops routing writes through the dispatcher (the stamp goes silent —
 stated in HONESTY.md as the known blind spot), or live testing shows real
 activities she should still be on dying at 3h.
+
+---
+
+## `prosody-reads-hearing-not-feeling` — G1's boundary, promoted to charter
+
+Usage signals (barge-in frequency, turn gaps, hangup latency) may inform
+how she HEARS him; they may never write what she FEELS. The mechanical
+test (AFFECT-CONTINUITY §3.1, now in inner.ts's charter): a feature is
+CONTENT iff computable from one utterance's own waveform/transcript with
+no timestamp outside its boundaries; everything else is USAGE, and
+inner.thread reads neither. There is deliberately NO InnerOpts field for
+any usage signal — a field would be the first half of the forbidden path.
+**Reverses if:** a prosody classifier clears >=0.6 macro-F1 on
+naturalistic Hinglish AND the audio-floor battery (the design note's own
+§H condition) — then content-band prosody, and only that, may enter.

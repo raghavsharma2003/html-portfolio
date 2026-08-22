@@ -239,6 +239,10 @@ export interface BrainKeys {
   // fact, rendered while fresh so she can bring it up herself. Optional on
   // both lanes like everything above; absent renders zero bytes.
   moment?: { id: string; fact: string; at: number } | null;
+  // Cascade callback signal: SHE placed this call (after a drop). Mirrors
+  // the live lane's sheCalled so G2 holds on both lanes — a line she opened
+  // must not carry the thread that implies she suffered without them.
+  sheCalled?: boolean;
   // ── T-H1 (`selfbundle-never-set`) ──────────────────────────────────────
   // The self layer's three tail slots (T11 rel.texture, T12 self.arc, T13
   // life.untold). Optional on BOTH lanes and for the same reason relBundle is:
@@ -981,7 +985,12 @@ export async function think(
   // compiler.ts's SelfBundleInput doc is explicit that it must be threaded
   // rather than recomputed — "two independent notions of 'she started this
   // turn' is exactly how one of them drifts".
-  const sheInitiated = isDirective && mode === "chat";
+  // `keys.sheCalled` is the cascade lane's callback signal — the same
+  // sheCalled the live lane threads into its self bundle. Without it, a
+  // callback SHE placed after a drop rode out with her carried thread on
+  // the cascade lane: G2's own sentence, delivered by phone (the live-lane
+  // half of this defect was fixed in useCallEngine; this is its twin).
+  const sheInitiated = (isDirective && mode === "chat") || keys.sheCalled === true;
   const inner = innerContext(keys.inner, {
     now: Date.now(),
     lastMsgAt,
@@ -1036,8 +1045,14 @@ export async function think(
   // Everything downstream — the moment gate, the render calls, the drop
   // order, the age-tier drop — is the same code on both lanes, because there
   // is now only one assembler.
+  // A call PICKUP is a directive, and it was the one compile in the repo
+  // where the rupture stance went dark: if the live lane won the connect
+  // race she knew about the fight, if cascade won she didn't. selfBundle
+  // two lines down already makes exactly this distinction ("a directive
+  // turn does NOT null this"); relBundle now makes the same one — only a
+  // CHAT directive (openers, follow-ups) skips the bundle.
   const relBundle =
-    isDirective || !keys.deviceId
+    (isDirective && mode === "chat") || !keys.deviceId
       ? null
       : mode === "call"
         ? keys.relBundle ?? null

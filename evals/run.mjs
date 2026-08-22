@@ -92,6 +92,11 @@ const suites = {
   // and the legacy byte-identity fixture proving a kind-less ledger still
   // renders exactly as it did. Offline, $0, ~2s.
   herlife: "herlife.mjs",
+  // WS-AFFECT: one rupture, every channel — the T2 stance block compiles
+  // byte-identical across chat/cascade/live/watch, lapses cross all four
+  // together, the record never moves, and G2 holds in both directions on
+  // both lanes. Offline, $0.
+  rupturechannel: "rupture-channel/run.mjs",
   // WS-TIME. The two clocks (src/engine/timeline.ts) — her day as a pure
   // function of the hour, and what has moved in HIS world since they last
   // spoke. DB-free, network-free, model-free and ~11s, including its own

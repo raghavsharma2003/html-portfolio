@@ -690,9 +690,25 @@ export function useCallEngine(
       now: nowAt,
       lastMsgAt,
       surface: "pickup",
+      // ── G2 ON THE CALL LANE (`inner.ts`'s charter, "she never initiates
+      // carrying a feeling") ────────────────────────────────────────────────
+      // A pickup is USUALLY them calling her, and that is the one moment this
+      // feature pays for. A CALLBACK is not: `sheCalled` is true exactly when
+      // SHE placed the call after a drop, and a call she placed is a message
+      // she sent first. Without this the carried thread — and her taste with
+      // it — rode out on a line she opened, which is G2's own sentence
+      // ("implying you suffer without them") delivered by phone.
+      //
+      // This is threaded from the SAME `sheCalled` the self bundle reads a few
+      // lines below, never recomputed here, for the reason compiler.ts's
+      // SelfBundleInput doc states outright: two independent notions of "she
+      // started this turn" is exactly how one of them drifts. Before this they
+      // HAD drifted — the self layer was told and inner was not, in the same
+      // compile() call.
+      sheInitiated: sheCalled,
       // what they said last before calling — her taste is pulled from it, the
-      // same way the chat lane does. A pickup is THEM calling HER, so this is
-      // never her volunteering an opinion.
+      // same way the chat lane does. Suppressed with the thread on a callback
+      // by innerContext itself (structurally, not by this call site).
       userText: lastMsg?.text || "",
     });
     // T-H3: rendered ONCE, here, and both read from it — the compile below and
@@ -740,8 +756,8 @@ export function useCallEngine(
       // call-lane holder — the same fetch and the same continuation
       // `relBundleRef` above rides, and `awaitRingFetch()` at the top of this
       // function is what makes the read a value rather than a guaranteed miss
-      // (`rejected.md#realtime-recall-never`). `sheInitiated` is left unset,
-      // which is correct and not an omission: a pickup is THEM calling HER.
+      // (`rejected.md#realtime-recall-never`). `sheInitiated` rides `sheCalled`
+      // here and in the innerContext call above — one fact, both readers.
       selfBundle: (() => {
         const b = callSelfBundle(stateRef.current.deviceId);
         // a callback is the one pickup SHE initiated — the self layer's

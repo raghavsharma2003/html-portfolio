@@ -290,8 +290,15 @@ async function fetchRelBundle(person, agentId = MEERA_AGENT_ID) {
   let warmEpisodesSinceRupture = 0;
   if (s.rupture_open && lastRuptureMoveAt) {
     const warmRows = await q(
+      // Same three predicates as consolidate.js's writer-side count —
+      // FINALIZED, DYADIC, CURRENT — or the reader and the writer disagree
+      // about whether the same rupture has lapsed (the reader was counting
+      // provisional + group + superseded rows, all pushing the count UP, so
+      // the prompt could say "settled" while the stance writer still said
+      // "open"). One rupture, one arithmetic.
       `select count(*)::int as c from vy_episode e
         where e.person_id = $1 and e.started_at > $2::timestamptz
+          and e.provisional = false and e.group_id is null and e.superseded_by is null
         ${agentScopePredicate("e", { agentId: "$3" })}`,
       [person, lastRuptureMoveAt, agentId],
     ).catch(() => []);

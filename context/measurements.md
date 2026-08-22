@@ -2342,3 +2342,18 @@ telegraphic trimming, tripping the 44k tripwire as designed (raised to
 
 Live: served from meera-silk.vercel.app (probe 200 on the new tags) and
 in the APK from the same sha.
+
+---
+
+## `rupture-channel-identity` — one rupture, every channel, byte-identical
+
+evals/rupture-channel: 37 assertions, offline, $0. One ruptured relBundle
+compiled through all four real assemblies (chat, cascade call, live call,
+native watch): the T2 stance block and sections.T2 byte-identical across
+lanes; a lapse (by time AND by warm episodes) crosses all four together
+with no lane left saying "(open)"; four compiles leave rupture_open true
+and the record unmoved; G2 asserted in both directions on both lanes;
+byte-identity held for bundles predating the stance split. Verified to
+FAIL on the pre-fix tree (the callback-G2 and warm-count sections both
+red against HEAD at build time). Caveat stated, not hidden: vy_rel_state
+has 0 production rows, so this is a claim about code, not yet behaviour.

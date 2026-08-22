@@ -26,10 +26,35 @@
 //      is structurally incapable of turning his availability into her mood
 //      (see the invariant comment in api/memory.js). Input starvation is the
 //      guarantee; a keyword filter over generated Hinglish never was one.
+//      SCOPE NOTE — PROSODY (2026-08-22, WS-EMOTION, from
+//      docs/research/AFFECT-CONTINUITY.md §3.1, which states the boundary as a
+//      mechanical test rather than a list): a feature is conversation CONTENT
+//      iff it is computable from a single utterance's own waveform and
+//      transcript, referencing no timestamp outside that utterance's own
+//      boundaries — everything else is USAGE. So barge-in frequency, turn
+//      gaps, reply latency and turn duration are USAGE and are banned here by
+//      G1 as written, however acoustic they look. Intra-utterance features
+//      (loudness against their own rolling floor, rate, pitch movement) are
+//      content and MAY inform how she HEARS them, per turn, in context only.
+//      They may never reach `thread`: prosody may shape how she hears him, it
+//      may never write what she feels. The appraiser stays input-starved, and
+//      there is deliberately no `InnerOpts` field for any of it — a field
+//      would be the first half of the path G1 forbids.
 //  G2  SHE NEVER INITIATES CARRYING A FEELING. The thread is suppressed on
 //      every message she sends first (open / followup / any push). A low mood
 //      arriving unprompted is "implying you suffer without them" with none of
 //      the banned words typed.
+//      SCOPE NOTE (2026-08-22, WS-EMOTION): "a message she sends first"
+//      INCLUDES A CALL SHE PLACED. The callback after a drop is her opening
+//      the conversation on a different channel, and it shipped for months
+//      without `sheInitiated` because the call lane's own comment reasoned
+//      "a pickup is THEM calling HER" — true of a pickup, false of a callback.
+//      A rule stated in the vocabulary of one channel is a rule with a hole in
+//      it on every other channel; see `rejected.md#rupture-never-closes` for
+//      the same lesson about a charter stated in the vocabulary of one MODULE.
+//      The suppression itself is structural here (`allowThread` below), so a
+//      lane only has to tell the truth about who started; `useCallEngine.ts`
+//      threads the SAME `sheCalled` into inner and into the self bundle.
 //  G3  NOTHING INTERIOR TOUCHES A GOODBYE. Structural, not detected: the
 //      thread enters only on the first turn back after a real gap, and at
 //      call pickup. Never mid-session, never at a farewell, never at hangup.
@@ -459,6 +484,24 @@ export function innerContext(inner: Inner | undefined, o: InnerOpts): { thread: 
   const gapEntry = o.now - (o.lastMsgAt || 0) > GAP_ENTRY_MS;
   const allowThread = gapEntry && !o.sheInitiated && o.surface !== "watch";
   const c = allowThread ? carry(inner?.thread, o.now, o.lastMsgAt) : 0;
+  // A SUPPRESSION IS A DECISION, AND UNTIL NOW IT LEFT NO RECORD. The
+  // continuity defect this whole arc exists for ("hurt in chat, sunny on the
+  // phone", and its G2 inverse) is a call site failing to hand something in;
+  // absence looks identical in every log we have, so a lane could drop the
+  // carried thread for a year and the only symptom would be a person saying
+  // she felt shallower on the phone. Structural only — a reason and a surface,
+  // never a character of `thread.text` (diag.ts's own content rule).
+  //
+  // `mid_session` is deliberately NOT recorded: it is the by-design, constant
+  // case (every turn seconds after the last one) and logging it would bury the
+  // two rare reasons under it. Never a timer, never a write.
+  if (!allowThread && gapEntry && inner?.thread && !inner.thread.told) {
+    if (carry(inner.thread, o.now, o.lastMsgAt) > 0)
+      diag(o.surface === "pickup" ? "call" : "chat", "inner_thread_suppressed", {
+        reason: o.sheInitiated ? "she_initiated" : "watch",
+        surface: o.surface,
+      });
+  }
   if (c > 0 && inner?.thread) {
     const t = inner.thread;
     const ago = agoLabel(t.at, o.now);

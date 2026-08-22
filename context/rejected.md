@@ -1572,3 +1572,40 @@ MIN_MINUTES plausibility table, as the justification anchor for the 3h
 window. **The generalisable rule:** a module that documents what it will
 not do is protecting you from a misuse someone will eventually attempt;
 reuse its data, respect its boundary.
+
+---
+
+## `g2-stated-in-one-channels-vocabulary` — a charter rule worded for one channel
+
+**Found:** G2 ("never imply you suffer without them") was enforced on chat
+sends and on PICKUPS — but a callback SHE places after a drop is neither,
+and her carried thread rode out on a line she opened. Worse, the fix
+already existed sixty lines away in the same function: the self bundle
+threaded sheCalled while inner's context did not — two notions of "she
+started this turn" drifting apart inside ONE function. The cascade twin
+(sheInitiated computed as chat-directive-only) had the identical hole.
+
+**Now:** sheCalled threads into both lanes' inner context; the cross-lane
+suite pins G2 in both directions on both lanes.
+
+**The generalisable rule:** a charter rule written in the words of one
+channel has a hole in every other channel; state the rule over the
+CONDITION (she initiated) never the surface event (a pickup, a send). Sibling
+of rupture-never-closes (a charter stated in one MODULE's vocabulary).
+
+---
+
+## `warm-count-unscoped` — the one episode count with none of the three predicates
+
+**Found:** the warm-episode count deciding rupture lapse omitted FINALIZED
+(provisional=false), DYADIC (group_id is null) and CURRENT (superseded_by
+is null) — every other episode-deriving query in consolidate.js has all
+three. All three omissions push the count UP, so the stance lapsed EARLY,
+by ~2x in practice: a person who stops being hurt because time passed in
+the DATABASE. The reader-side twin in api/memory.js had the same hole, so
+the reader and writer could disagree about whether the same rupture had
+lapsed. Both fixed, one arithmetic, eval-pinned.
+
+**The generalisable rule:** when every sibling query carries a predicate
+set, a query missing it is not a variation, it is a bug — and counts that
+gate STATE need the strictest read in the file, not the loosest.
