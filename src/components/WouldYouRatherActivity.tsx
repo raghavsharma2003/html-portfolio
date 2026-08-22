@@ -37,6 +37,7 @@ import { herPickDelayMs, type WyrPick } from "../engine/wyr/pick";
 import { useCallStatus } from "../state/callStatus";
 import { resolveTheme } from "../engine/theme";
 import { tap, ImpactStyle } from "../native/haptics";
+import PhotoAvatar from "./PhotoAvatar";
 import "../styles/wyr.css";
 
 interface Props {
@@ -323,6 +324,25 @@ export default function WouldYouRatherActivity({
               </span>
             ) : null}
           </div>
+
+          {/* THE ARGUMENT — the room stating what just happened, not her
+              saying it. Distinct card, distinct chip, so it never reads as a
+              quoted message: her real lines come only from real chat/call
+              turns, and this is chrome describing a fact about the round. */}
+          {showingHerPick && lastRound ? (
+            <div
+              className="wyr-stance"
+              data-clash={lastRound.his === lastRound.her ? "no" : "yes"}
+              role="status"
+            >
+              <span className="wyr-stance-face" aria-hidden="true">
+                <PhotoAvatar size={22} />
+              </span>
+              <span className="wyr-stance-tx">
+                {lastRound.his === lastRound.her ? "she picked the same one" : "she picked the other one"}
+              </span>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </ActivityShell>

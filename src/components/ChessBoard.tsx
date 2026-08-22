@@ -600,6 +600,9 @@ export default function ChessBoard({
     const adv = side === "top" ? material : -material;
     return (
       <div className="cb-tray" data-side={side}>
+        <span className="cb-tray-label" aria-hidden="true">
+          taken
+        </span>
         <div className="cb-tray-pieces" aria-hidden="true">
           {/* Overlapped within a role, spaced between roles. Five pawns and a
               rook then read as "five and one" instead of as one smear. */}

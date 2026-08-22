@@ -230,6 +230,37 @@
   font-weight: 650;
 }
 
+/* ── the argument: what she actually did, stated as a fact ────────────────
+   `.wyr-verdict` above says the SHAPE of the round (agree/clash) in the
+   status row it already owns; this is a second, plainly-a-card element with
+   her face on it, so a glance tells "this is the room describing the round"
+   from "this is her talking" without reading a word — the owner's line that
+   the chat stays human and the game gets the juice, drawn as one rule. */
+.wyr-stance {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px var(--s3);
+  border-radius: var(--r-md);
+  background: var(--ga-well);
+  border: 0.5px solid var(--ga-line);
+  font-size: var(--t-sub);
+  color: var(--ga-dim);
+  animation: wyr-verdict-in var(--d-state) var(--ease-out) both;
+}
+.wyr-stance-face {
+  display: flex;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.wyr-stance[data-clash="yes"] .wyr-stance-tx {
+  color: var(--ga-accent-ink);
+}
+.wyr-stance[data-clash="no"] .wyr-stance-tx {
+  color: var(--ga-live);
+}
+
 /* ── blocked: a foreign activity already holds the slot ─────────────────── */
 .wyr-blocked {
   max-width: 320px;
@@ -269,7 +300,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .wyr-opt[data-hers="yes"]::before,
-  .wyr-verdict {
+  .wyr-verdict,
+  .wyr-stance {
     animation: none !important;
   }
   /* the press still answers; it stops distorting and stops tilting. These

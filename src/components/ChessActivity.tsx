@@ -7,14 +7,15 @@
 // state/game.ts): a board held here would be a board the call lane cannot see,
 // and she would be unable to talk about a game she is visibly playing.
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { AppState } from "../state/store";
 import ActivityShell, { type ActivityCall } from "./ActivityShell";
 import ChessBoard, { type LegalMove as BoardMove, type PromotionRole, type Role } from "./ChessBoard";
-import { chooseMoveAsync, legalMoves, newGame, play } from "../engine/chess";
+import { chooseMoveAsync, legalMoves, newGame, openingName, play } from "../engine/chess";
 import { useCallStatus } from "../state/callStatus";
 import { tap } from "../native/haptics";
 import { resolveTheme } from "../engine/theme";
+import PhotoAvatar from "./PhotoAvatar";
 
 interface Props {
   state: AppState;
@@ -173,6 +174,37 @@ export default function ChessActivity({
     return { white, black };
   }, [g]);
 
+  // The move list — the dead space below the board (audit #11). SAN only,
+  // paired by move number, off `g.played` directly: no new state, no second
+  // opinion about a position that already lives in AppState.
+  const moveRows = useMemo(() => {
+    const played = g?.played ?? [];
+    const rows: { n: number; w?: string; b?: string }[] = [];
+    for (let i = 0; i < played.length; i += 2) {
+      rows.push({ n: Math.floor(i / 2) + 1, w: played[i]?.san, b: played[i + 1]?.san });
+    }
+    return rows;
+  }, [g]);
+
+  // Scrolled to the newest row on every move — "latest visible" per the
+  // brief, without a second scroll control fighting the one the stage owns.
+  const movesRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = movesRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [moveRows.length]);
+
+  // The opening's name, while it still is one. Same window chessTalk.ts's
+  // tail-block fact uses (OPENING_FACT_PLY there) — past move 16 the name is
+  // no longer news, and a game that never matched the book stays silent
+  // rather than guessing.
+  const OPENING_UI_PLY = 16;
+  const opening = useMemo(() => {
+    const ply = g?.played.length ?? 0;
+    if (!g || ply === 0 || ply > OPENING_UI_PLY || g.status.over) return null;
+    return openingName(g.played.map((m) => m.san));
+  }, [g]);
+
   // Close + tally live in App's always-mounted reconciler now — a component
   // effect with a 25s timer lost the close (and the whole tally) whenever
   // the board unmounted inside the window, which is the natural reaction to
@@ -239,6 +271,14 @@ export default function ChessActivity({
     return null;
   }, [state.messages, status.live, status.connecting]);
 
+  // When there is no fresh line AND no call, the note row used to render
+  // nothing — an empty strip under the header, on the one surface where the
+  // room already reads unoccupied (audit #11). Off-call and with nothing new
+  // to report, she is still IN the room: same avatar the header already
+  // draws, and the same thinking/idle split `her.phase` below already
+  // computes — no state invented for this, just no blank line either.
+  const showPresence = !herLine && !status.live && !status.connecting && !foreignLive;
+
   // ── the two controls a real table has ─────────────────────────────────
   // "End game" mid-game: he stands up. closedAt lands NOW with endedEarly, so
   // the tail says "he ended the game early, no result" — never a fabricated
@@ -293,7 +333,15 @@ export default function ChessActivity({
       title="Chess"
       onExit={exit}
       call={call}
-      note={herLine}
+      note={
+        herLine ??
+        (showPresence ? (
+          <span className="as-presence">
+            <PhotoAvatar size={20} />
+            <em>{hers ? "she's thinking" : "she's here"}</em>
+          </span>
+        ) : null)
+      }
       footer={
         showEnd || showNew ? (
           <>
@@ -345,6 +393,31 @@ export default function ChessActivity({
             tone={tone}
             label="Chess board"
           />
+          <div className="cx-moves">
+            {opening ? (
+              <p className="cx-opening">
+                opening: <b>{opening}</b>
+              </p>
+            ) : null}
+            <div className="cx-movelist" ref={movesRef} role="list" aria-label="Moves played">
+              {moveRows.length ? (
+                moveRows.map((r) => (
+                  <div
+                    className="cx-move"
+                    role="listitem"
+                    key={r.n}
+                    data-latest={r.n === moveRows.length ? "" : undefined}
+                  >
+                    <span className="cx-mv-n">{r.n}.</span>
+                    <span className="cx-mv-w">{r.w ?? ""}</span>
+                    <span className="cx-mv-b">{r.b ?? ""}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="cx-mv-empty">no moves yet</p>
+              )}
+            </div>
+          </div>
           {verdict ? (
             <div className="as-result" role="status">
               {verdict}

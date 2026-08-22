@@ -236,6 +236,15 @@ export default function TicTacToeActivity({
   }, [setState]);
   const showNew = Boolean(over || session?.closedAt);
 
+  // Whose mark is whose, and the room's fill for the rest of the dead space
+  // (audit #11) — a legend plus a score. `state.game.ttt` carries no
+  // per-sitting series (one session is one game, replaced on "New game"), so
+  // per the brief this falls back to the lifetime tally already written at
+  // close (App.tsx's reconciler) rather than inventing a counter nothing
+  // else reads.
+  const hisSide: Mark = herSide === "x" ? "o" : "x";
+  const lifetimeRounds = state.tally?.tttGames ?? 0;
+
   return (
     <ActivityShell
       title="Tic tac toe"
@@ -256,15 +265,36 @@ export default function TicTacToeActivity({
       tone={tone}
     >
       {g ? (
-        <TicTacToeBoard
-          board={g.board}
-          legalCells={cells}
-          onPlay={onPlay}
-          lastCell={lastCell}
-          winningLine={winningLine}
-          tone={tone}
-          label="Tic tac toe board"
-        />
+        <>
+          <TicTacToeBoard
+            board={g.board}
+            legalCells={cells}
+            onPlay={onPlay}
+            lastCell={lastCell}
+            winningLine={winningLine}
+            tone={tone}
+            label="Tic tac toe board"
+          />
+          <div className="tt-info">
+            <span className="tt-legend">
+              <b className="tt-legend-mark" data-mark={hisSide}>
+                {hisSide.toUpperCase()}
+              </b>
+              you
+            </span>
+            <span className="tt-legend">
+              <b className="tt-legend-mark" data-mark={herSide}>
+                {herSide.toUpperCase()}
+              </b>
+              her
+            </span>
+            {lifetimeRounds > 0 ? (
+              <span className="tt-score">
+                {lifetimeRounds} {lifetimeRounds === 1 ? "round" : "rounds"} played
+              </span>
+            ) : null}
+          </div>
+        </>
       ) : null}
     </ActivityShell>
   );

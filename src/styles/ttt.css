@@ -206,6 +206,45 @@ circle.tt-stroke {
   }
 }
 
+/* ── legend + score: the dead space under the board ────────────────────────
+   A 340px-max board on a stage sized for chess left roughly a third of the
+   screen unoccupied (audit #11). This is a sibling of `.tt`, not a part of
+   it — TicTacToeActivity renders it next to the board — so like chess.css's
+   `.cx-moves` it reads off the inherited `--ga-*` set rather than a second
+   `--tt-*` block for two lines of text. The mark colours below are chosen to
+   land on the SAME two hues `--tt-x`/`--tt-o` resolve to in both themes
+   (`--accent`/`--ink` under the paper set, the identical pair under the
+   call-dark and app-dark inkings) without depending on `.tt`'s own scope,
+   which this element sits outside of. */
+.tt-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--s4);
+  padding-inline: var(--s2);
+  font-size: var(--t-sub);
+  color: var(--ga-dim);
+}
+.tt-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tt-legend-mark {
+  font-weight: 800;
+}
+.tt-legend-mark[data-mark="x"] {
+  color: var(--ga-accent);
+}
+.tt-legend-mark[data-mark="o"] {
+  color: var(--ga-ink);
+}
+.tt-score {
+  color: var(--ga-faint);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── the winning line ─────────────────────────────────────────────────────
    Drawn the same way, over the whole grid, and delayed a beat behind the
    mark that completed it — the eye should read the mark landing FIRST and

@@ -687,6 +687,17 @@
   min-height: 26px;
   padding: 0 var(--s1);
 }
+.cb-tray-label {
+  flex-shrink: 0;
+  margin-right: 8px;
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  opacity: 0.62;
+  color: var(--cb-tray-ink);
+}
 .cb-tray-pieces {
   display: flex;
   align-items: center;
@@ -718,6 +729,69 @@
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   color: var(--cb-tray-ink);
+}
+
+/* ── the move list ─────────────────────────────────────────────────────────
+   The dead space below the board (docs/audit/2026-08-22-ui-perf.md #11): a
+   fresh chess room had a board and nothing else, so it floated with no
+   footer and no anchor below it. This is a SIBLING of `.cb`, not a part of
+   it — ChessActivity renders it next to the board, not inside ChessBoard —
+   so it reads off `--ga-*`, the same inherited palette `wyr.css` and
+   `games.css` use for everything outside the board itself, rather than a
+   second `--cb-*` token block for one text list.
+
+   SAN only, paired by move number, tabular so a five-character queening
+   move and a two-character pawn push line up the same way a real
+   scoresheet does. */
+.cx-moves {
+  width: 100%;
+  max-width: 560px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cx-opening {
+  padding-inline: var(--s2);
+  font-size: var(--t-sub);
+  color: var(--ga-dim);
+}
+.cx-opening b {
+  color: var(--ga-ink);
+  font-weight: 650;
+}
+.cx-movelist {
+  min-height: 96px;
+  max-height: 132px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--r-md);
+  border: 0.5px solid var(--ga-line);
+  background: var(--ga-well);
+  padding: 6px 0;
+}
+.cx-move {
+  display: grid;
+  grid-template-columns: 2.4em 1fr 1fr;
+  gap: var(--s2);
+  padding: 3px var(--s3);
+  font-size: var(--t-sub);
+  font-variant-numeric: tabular-nums;
+  color: var(--ga-dim);
+}
+/* the newest row, kept in view by the ref-driven scroll in ChessActivity */
+.cx-move[data-latest] {
+  color: var(--ga-ink);
+  font-weight: 650;
+  background: var(--ga-press);
+}
+.cx-mv-n {
+  color: var(--ga-faint);
+}
+.cx-mv-empty {
+  padding: 10px var(--s3);
+  font-size: var(--t-sub);
+  color: var(--ga-faint);
 }
 
 /* ── reduced motion ─────────────────────────────────────────────────────

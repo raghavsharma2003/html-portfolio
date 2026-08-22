@@ -558,6 +558,21 @@ button.as-call:active {
   }
 }
 
+/* ── quiet presence, when there is nothing fresh to report ────────────────
+   `note` is her last line, off-call only, and it used to render nothing at
+   all the rest of the time — an empty strip under a header that already
+   says "here with you", on the one surface the audit flagged as reading
+   unoccupied. This is the same row, same animation, carrying her face and
+   the phase the header already computes instead of carrying nothing. */
+.as-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.as-presence em {
+  font-style: normal;
+}
+
 /* ── the hero ─────────────────────────────────────────────────────────────
    The activity gets everything left. The shell sizes nothing inside it:
    the board is `width:100%; aspect-ratio:1` and owns its own geometry, and
