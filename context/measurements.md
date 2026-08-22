@@ -2302,3 +2302,21 @@ talker at -12dB from 7/8 to 1/8 — built first, thrown away.
 
 Integration: verify-release 13/13 on the assembled seven-workstream
 tree (honesty 289, surface 73, gamemem 56 all inside the eval gate).
+
+---
+
+## `hinglish-tts-l1` — the romanised-Hinglish pronunciation run (2026-08-22)
+
+n=20 register lines (18 cited from persona.ts), production cascade TTS
+(model/voice/prompt/key-pool identical to prod), STT round-trip, one
+real paid run (cents), harness evals/speech/l1-hinglish.mjs gated on
+SPEECH_RUN=1. Full table: docs/audit/2026-08-22-hinglish-tts.md.
+
+- GENUINE FLAG: bare "hai" round-trips as English "hi".
+- HUMAN-EAR QUEUE: "arreee"->"hare" (substitution), "chhod"->"chod"
+  (aspiration loss — phonemic; the highest-stakes candidate).
+- CLEAN: bahut, padh, and the stretch-vowel family.
+- Method limit stated: 0%-match rows are mostly STT orthographic
+  normalisation, NOT proven TTS mispronunciation; the live
+  speech-to-speech lane is unprobeable headlessly (browser-only bidi
+  WS, conversational), so this covers the cascade lane only.

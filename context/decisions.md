@@ -1584,3 +1584,33 @@ verification, not the green badge (the skipped-job trap is exactly why
 that badge lied for nine days once). GOOGLE_PAID_KEY and TELEGRAM_* are
 deliberately absent (unused paths). **Reverses if:** a secret is rotated
 without updating here — the HAS_* summary in any run is the live truth.
+
+---
+
+## `stance-lapses-record-stays` — rupture is two truths, not one flag
+
+THAT a rupture happened is permanent history (vy_rel_event, cited,
+never deleted). That she is STILL HOLDING IT OPEN is a stance, computed
+at derive time: open until 21 days or 8 warm episodes pass since the
+record last moved, then settled — "that fight last month", not "we are
+mid-fight". No schema change; the projection reads existing timestamps.
+Same split inner.ts already used for Thread.text/carry(), applied where
+rejected.md#rupture-never-closes said to apply it. **Reverses if:** live
+testing shows 21d/8-warm lapses too fast or too slow — the constants
+are named and the eval pins the boundary, so retuning is one edit.
+
+---
+
+## `chat-tail-over-flush` — T-H3 chose carrying words over racing a model
+
+The pre-call flush option (await extraction at connect, time-boxed) was
+rejected on MEASURED grounds: rememberFrom is an LLM appraisal pass an
+order of magnitude slower than any acceptable pickup box, so a ~400ms
+race expires on nearly every call — cost with no effect — and a stretch
+with no extractable fact (most stretches) would still be lost. Instead
+the last <=6 typed turns (30-min window, 900 chars, whole-row drops)
+ride the memories block into the ONE frozen assembly: 16.6us per call,
+zero awaits, liveAssemblies still 1. Cascade is deliberately excluded —
+toTurns already carries the last 90 messages there. **Reverses if:** a
+sub-100ms local extraction ever exists — then (a) becomes free and
+carries structure the verbatim tail cannot.

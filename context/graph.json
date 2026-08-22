@@ -1107,6 +1107,24 @@
       "kind": "decision",
       "title": "Actions secrets complete; HAS_* run summary is the verification, never the badge",
       "at": "2026-08-22"
+    },
+    {
+      "id": "stance-lapses-record-stays",
+      "kind": "decision",
+      "title": "Rupture record permanent; stance lapses at 21d/8 warm episodes, derive-time",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "chat-tail-over-flush",
+      "kind": "decision",
+      "title": "T-H3: carry the typed tail into the frozen call assembly; extraction race rejected as measured no-op",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "hinglish-tts-l1",
+      "kind": "measurement",
+      "title": "n=20 TTS round-trip: 'hai'->'hi' genuine; chhod aspiration loss to human ear",
+      "at": "2026-08-22"
     }
   ],
   "edges": [
@@ -2114,6 +2132,11 @@
       "src": "moment-available-not-fired",
       "rel": "caused_by",
       "dst": "prompt-position"
+    },
+    {
+      "src": "stance-lapses-record-stays",
+      "rel": "caused_by",
+      "dst": "rupture-never-closes"
     }
   ]
 }
