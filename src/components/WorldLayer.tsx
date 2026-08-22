@@ -1,16 +1,42 @@
 // THE WORLD — the atmospheric ground under home, both call screens, and (next)
 // onboarding and the story surface.
 //
-// docs/DESIGN-WORLD.md §1-2. Everything here is PROCEDURAL: a layered CSS sky,
-// a CSS starfield, a CSS crescent whose phase is the real one, three blurred
-// cloud blobs, and a city silhouette drawn as inline SVG. No image asset
-// exists yet and none is required — stage 1 has to stand on its own, and the
-// bar it has to clear is a competitor whose whole shell is one painted PNG.
+// docs/DESIGN-WORLD.md §1-2. STAGE 2: the owner's five painted skies are the
+// ground now, swapped in through the one variable stage 1 reserved for them
+// (`--world-img`, from `sky.ts`'s `img` field). The layered CSS sky, the CSS
+// starfield, the real-phase crescent and the drawn Indian skyline are all
+// still here and all still correct — they are the FALLBACK.
 //
-// The paintings arrive later and swap in through ONE variable per state
-// (`--world-img`, from `sky.ts`'s `img` field, empty today). `.world-paint`
-// below already paints that layer over the gradient at full bleed, so stage 2
-// is a data change in the token table and nothing else.
+// ── THE ANTI-FIGHT RULE, which is this file's law ────────────────────────
+//
+// `context/decisions.md#sky-is-the-clock` wrote its own reversal condition:
+// "the paintings arrive and the procedural layer fights them — then procedural
+// becomes the fallback, never both at once."
+//
+// They fight. Every painting has a moon in it, stars in it, clouds in it and a
+// city along its bottom edge; the procedural set drawn on top of that is a
+// second moon in the same sky and a flat black skyline standing in front of a
+// painted one. So:
+//
+//   painted   → the painting, the scrim, and the new drifting cloud plates.
+//               NO procedural stars, NO procedural moon, NO procedural cloud
+//               blobs, NO city silhouette — not hidden with CSS, NOT RENDERED.
+//               "Exactly zero procedural moon nodes" is a thing the browser
+//               battery can count, and `display: none` is not countable.
+//   unpainted → the complete stage-1 sky, unchanged, exactly as gated.
+//
+// Never both, and never neither: `.world-sky`'s four-stop gradient is under
+// everything in every case, so the failure mode of a 404 is a plainer sky
+// rather than a black rectangle. The check is a real load of the real file
+// (see `usePainting`) rather than a build-time assumption, because the one
+// thing that must not happen is the celestials being withheld from a sky that
+// then never arrives.
+//
+// The cloud PLATES are the deliberate exception and the reason is the opposite
+// of the rule: they duplicate nothing in the stills (they are the owner's own
+// loose cloud PNGs, painted in the same palette) and they add the one thing a
+// still cannot have. They are the only procedural element that survives a
+// painting.
 //
 // ── the rules this file is built against ─────────────────────────────────
 //
@@ -29,7 +55,7 @@
 //    day the world is showing — rides on the surfaces themselves.
 
 import { useEffect, useState } from "react";
-import { skyNow, type SkyFrame } from "../engine/sky";
+import { skyNow, imgPath, type SkyFrame } from "../engine/sky";
 import "../styles/world.css";
 
 /**
@@ -68,6 +94,79 @@ export function useSky(): SkyFrame {
     };
   }, []);
   return frame;
+}
+
+// ── does this state's painting actually exist? ────────────────────────────
+//
+// The whole anti-fight rule hangs off this one boolean, so it is answered by
+// LOADING THE FILE, never by assuming the token table is honest about the
+// filesystem. A wrong `true` is a sky with no moon, no stars and no city — the
+// blank the direction doc forbids by name.
+//
+// Optimistic, and deliberately: it starts `true`, so the first paint shows the
+// gradient with the painting arriving over it and no celestial ever flashes in
+// and vanishes. A failure demotes to `false` and the full procedural sky
+// appears. The reverse default (start procedural, promote on load) shows every
+// user a moon that disappears a beat later, on every cold start, forever.
+//
+// Answers are cached per URL at module scope so crossing a boundary five times
+// a day, or remounting between home and a call, re-decides nothing.
+const paintCache = new Map<string, boolean>();
+
+function useOrientationWide(): boolean {
+  const [wide, setWide] = useState(() =>
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(orientation: landscape)").matches
+      : false,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(orientation: landscape)");
+    const on = () => setWide(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return wide;
+}
+
+/**
+ * True while the painting at `src` is believed loadable. The crop matters:
+ * `world.css` picks the wide file in landscape, so probing the portrait one
+ * there would answer a question nobody asked.
+ */
+export function usePainting(src: string): boolean {
+  const [ok, setOk] = useState<boolean>(() => (src ? (paintCache.get(src) ?? true) : false));
+  useEffect(() => {
+    if (!src) {
+      setOk(false);
+      return;
+    }
+    const cached = paintCache.get(src);
+    if (cached !== undefined) {
+      setOk(cached);
+      return;
+    }
+    let live = true;
+    const im = new Image();
+    const settle = (v: boolean) => {
+      paintCache.set(src, v);
+      if (live) setOk(v);
+    };
+    im.onload = () => settle(im.naturalWidth > 0);
+    im.onerror = () => settle(false);
+    im.src = src;
+    // A cached image can be complete before the handlers are attached, in
+    // which case neither ever fires and the flag would sit on its optimistic
+    // default forever — right by luck rather than by measurement.
+    if (im.complete) settle(im.naturalWidth > 0);
+    return () => {
+      live = false;
+      im.onload = null;
+      im.onerror = null;
+    };
+  }, [src]);
+  return ok;
 }
 
 /**
@@ -128,6 +227,13 @@ export function skyVars(frame: SkyFrame): React.CSSProperties {
     "--world-scrim": t.scrim,
     "--world-scrim-rgb": rgbOf(t.scrim),
     "--world-scrim-a": String(t.scrimAlpha),
+    // The SAME veil over a painting instead of a gradient, and on the two
+    // light states it is a much heavier number — solved for, not chosen, from
+    // the shipped jpg's own pixels (see sky.ts and check-contrast.mjs). It is
+    // a separate variable rather than a replacement so a 404 does not also
+    // cost the fallback its tuning: the gradient never needed this much veil
+    // and putting it there would fog stage 1 to pay for stage 2's problem.
+    "--world-scrim-a-painted": String(t.scrimAlphaPainted),
     "--world-ink": t.ink,
     "--world-ink-rgb": rgbOf(t.ink),
     "--world-ink-dim": t.inkDim,
@@ -154,9 +260,11 @@ export function skyVars(frame: SkyFrame): React.CSSProperties {
       1,
       t.controlAlpha + 0.07,
     ).toFixed(3)}), rgba(${rgbOf(t.control)}, ${t.controlAlpha}))`,
-    // STAGE 2 SWAP POINT. `none` today; a `url(...)` when the paintings land,
-    // and nothing else in the app changes.
+    // STAGE 2 SWAP POINT — live. Both crops are published and `world.css`
+    // chooses between them with an orientation media query, so rotating a
+    // tablet swaps the painting without a React render.
     "--world-img": t.img || "none",
+    "--world-img-wide": t.imgWide || t.img || "none",
   } as React.CSSProperties;
 }
 
@@ -209,25 +317,47 @@ interface Props {
 
 export default function WorldLayer({ frame, variant = "full" }: Props) {
   const t = frame.tokens;
+  const wide = useOrientationWide();
+  // The crop the stylesheet is actually going to ask for, so the probe and the
+  // paint agree by construction rather than by both happening to be right.
+  const src = imgPath(wide ? t.imgWide || t.img : t.img);
+  const painted = usePainting(src);
   return (
-    <div className="world" data-sky={frame.state} data-variant={variant} aria-hidden="true">
+    <div
+      className="world"
+      data-sky={frame.state}
+      data-variant={variant}
+      // THE ANTI-FIGHT FLAG. Read by world.css (which veil alpha, whether the
+      // plates drift) and asserted by the browser battery, which counts
+      // procedural moon nodes and expects exactly zero beside it.
+      data-painted={painted ? "true" : "false"}
+      aria-hidden="true"
+    >
       {/* 1. the sky itself, plus the NEXT sky cross-fading in over it during
              a transition window. Two stacked gradients rather than
              interpolated stops, because a browser cannot interpolate a
              four-stop gradient and faking it in JS would put a colour
-             calculation on a paint path. */}
+             calculation on a paint path.
+
+             It stays under the painting in BOTH cases. That is what makes a
+             404 a plainer sky instead of a black rectangle, and it is why the
+             fallback needs no "blank sky" special case anywhere. */}
       <div className="world-sky" />
       <div className="world-sky world-sky-next" />
-      {/* 2. STAGE 2. Empty today (`--world-img: none`), full-bleed when the
-             paintings land. It sits above the gradient and below every
-             celestial, so the procedural stars and moon keep floating OVER
-             the painting exactly as the direction describes. */}
+      {/* 2. STAGE 2, live: the owner's painting, full bleed, portrait or wide
+             by orientation. */}
       <div className="world-paint" />
       {/* 3. the horizon glow. The half of a sky a vertical gradient cannot
-             say: light does not arrive from directly above. */}
-      <div className="world-glow" />
+             say: light does not arrive from directly above. Procedural-only —
+             a painted sky already has its own light source and a second one
+             laid over it is the same fight as a second moon. */}
+      {!painted && <div className="world-glow" />}
 
-      {t.stars.count > 0 && (
+      {/* ── the procedural celestials: FALLBACK ONLY ───────────────────────
+          Not `display: none` when painted — not rendered. The rule the
+          battery checks is "exactly zero procedural moon nodes over a
+          painting", and a hidden node is still a node. */}
+      {!painted && t.stars.count > 0 && (
         <div className="world-stars">
           <i className="ws-a" style={{ boxShadow: STARS_A }} />
           <i className="ws-b" style={{ boxShadow: STARS_B }} />
@@ -235,19 +365,40 @@ export default function WorldLayer({ frame, variant = "full" }: Props) {
         </div>
       )}
 
-      {t.moon.visible && (
+      {!painted && t.moon.visible && (
         <div className="world-moon">
           <i />
         </div>
       )}
 
-      <div className="world-clouds">
-        <i className="wc-1" />
-        <i className="wc-2" />
-        <i className="wc-3" />
-      </div>
+      {!painted && (
+        <div className="world-clouds">
+          <i className="wc-1" />
+          <i className="wc-2" />
+          <i className="wc-3" />
+        </div>
+      )}
 
-      {variant === "full" && <CitySkyline />}
+      {/* ── the plates: the one thing that survives a painting ─────────────
+          The owner's two loose cloud PNGs, painted in the same palette as the
+          skies, drifting on long unequal periods at two different rates so
+          the pair reads as depth rather than as a texture sliding past. They
+          duplicate nothing in the stills — the stills' own clouds are fixed
+          in the paint — and they are the only reason a still sky is not a
+          wallpaper. Transform only, 150s and 210s, hidden under reduced
+          motion (a slow parallax is exactly the thing that setting is for).
+
+          `band` never gets them: a cloud crossing a 38px header strip is an
+          artefact, which is the same reason the procedural blobs were already
+          excluded from that variant. */}
+      {painted && variant === "full" && (
+        <div className="world-plates">
+          <i className="wp-a" />
+          <i className="wp-b" />
+        </div>
+      )}
+
+      {!painted && variant === "full" && <CitySkyline />}
 
       {/* the text carrier. Bottom-weighted, because that is where the
           floating content sits, and every ratio in

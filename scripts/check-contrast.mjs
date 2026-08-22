@@ -180,7 +180,7 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
 
   const dir = mkdtempSync(join(tmpdir(), "skygate-"));
   const out = join(dir, "sky.mjs");
-  let SKY_TOKENS, SKY_STATES;
+  let SKY_TOKENS, SKY_STATES, SKY_MOD;
   try {
     execFileSync(
       "npx",
@@ -188,7 +188,12 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
         `--outfile=${out}`, "--log-level=error"],
       { cwd: ROOT, stdio: "pipe" },
     );
-    ({ SKY_TOKENS, SKY_STATES } = await import(out));
+    // the whole module, not two names: the painted half below needs
+    // `imgPath`, `scrimEmphasisAt` and the band fractions, and every one of
+    // them is a fact about the shipped stylesheet or the shipped table that
+    // this file must not keep its own copy of
+    SKY_MOD = await import(out);
+    ({ SKY_TOKENS, SKY_STATES } = SKY_MOD);
   } finally {
     try { rmSync(dir, { recursive: true, force: true }); } catch { /* temp dir */ }
   }
@@ -296,6 +301,189 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
     `  ..  world worst case: text-on-sky ${worstText.toFixed(2)}:1, ` +
       `text-in-panel ${worstPanel.toFixed(2)}:1, panel edge ${worstEdge.toFixed(2)}:1`,
   );
+
+  // ══ THE SAME FLOORS, AGAINST THE REAL PIXELS ═════════════════════════════
+  //
+  // Everything above composites the scrim over a GRADIENT STOP — a flat colour
+  // this app chose. The ground is a photograph of a painting now, and a
+  // painting has things in it the token table has never heard of. The morning
+  // sky's fourth stop is #f3e6d8, a warm haze; the morning PAINTING's bottom
+  // fifth is an Indian city at 10am whose darkest tenth sits at #2a302e. Those
+  // are not the same ground and a gate that measured only the first would go
+  // on printing 5.82:1 while the truth line was unreadable at 2.06:1.
+  //
+  // So this half decodes the shipped jpg — the actual bytes in public/world,
+  // not the staged source, not a re-encode — and measures the two bands where
+  // text actually lives:
+  //
+  //   TOP    the first TEXT_BAND_TOP of the frame: her name, the header, the
+  //          call's state line.
+  //   BOTTOM the last TEXT_BAND_BOTTOM: the controls and the truth line.
+  //
+  // Three samples per band, because an average is a colour that exists nowhere
+  // on screen and the failures are always at the ends:
+  //
+  //   avg        the band's mean — what it mostly looks like.
+  //   brightest  the mean of the brightest tenth — the sample that hurts LIGHT
+  //              ink (a sodium-lit window under white text).
+  //   darkest    the mean of the darkest tenth — the sample that hurts DARK
+  //              ink (a roof slab under the day palette's near-black).
+  //
+  // The brief asked for average + brightest-decile. Darkest is here as well
+  // because on the two LIGHT states brightest is the easy direction, and a
+  // gate that only measures the direction that passes is decoration. Both
+  // deciles, every state, both bands.
+  //
+  // ── WHAT THE GROUND IS, exactly ──────────────────────────────────────────
+  //
+  // uniform veil at `scrimAlphaPainted`, THEN world.css's `.world-scrim::after`
+  // top/bottom emphasis, evaluated at the INNER edge of each band — the
+  // weakest point the band has, so every pixel of it is at least this dark.
+  // The emphasis curve is `scrimEmphasisAt` in sky.ts rather than a number
+  // copied here: it is a fact about the stylesheet, and a gate holding its own
+  // copy of a stylesheet fact is a gate that passes after the stylesheet
+  // changes.
+  //
+  // Modelling the emphasis is what keeps this honest in the other direction
+  // too. Without it the light states need a UNIFORM veil near 0.62 to hold the
+  // bottom band, which would fog the middle of a painting where no text has
+  // ever been in order to pay for text at its edges.
+  //
+  // `sharp` arrives with `@capacitor/assets` (a direct devDependency, pinned
+  // to 0.32.6 in the lockfile) rather than being declared here. Its absence
+  // FAILS rather than skipping: a gate that quietly stops measuring when its
+  // decoder goes missing is the shape of guard this repo has already been
+  // burned by, and the failure it would hide is the one the whole second half
+  // exists for.
+  console.log("");
+  const sharp = await import("sharp").then((m) => m.default, () => null);
+  if (!sharp) {
+    check("world/paintings: sharp is available to decode them", false, "sharp not installed");
+  } else {
+    const { existsSync } = await import("fs");
+
+    const bandSamples = async (file, which) => {
+      const meta = await sharp(file).metadata();
+      const frac = which === "top" ? SKY_MOD.TEXT_BAND_TOP : SKY_MOD.TEXT_BAND_BOTTOM;
+      const h = Math.max(1, Math.round(meta.height * frac));
+      const top = which === "top" ? 0 : meta.height - h;
+      // Downsampled to 240 wide first: the samples are decile MEANS, which a
+      // box filter preserves and which reading 1.5M raw pixels five times over
+      // would only make slower.
+      const { data, info } = await sharp(file)
+        .extract({ left: 0, top, width: meta.width, height: h })
+        .resize({ width: 240 })
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const px = [];
+      for (let i = 0; i < data.length; i += info.channels) {
+        px.push([data[i] / 255, data[i + 1] / 255, data[i + 2] / 255]);
+      }
+      px.sort((a, b) => lum(a) - lum(b));
+      const mean = (arr) => [0, 1, 2].map((k) => arr.reduce((s, p) => s + p[k], 0) / arr.length);
+      const d = Math.max(1, Math.round(px.length * 0.1));
+      return {
+        avg: mean(px),
+        darkest: mean(px.slice(0, d)),
+        brightest: mean(px.slice(px.length - d)),
+      };
+    };
+
+    let pWorstText = Infinity;
+    let pWorstPanel = Infinity;
+    let pWorstEdge = Infinity;
+
+    for (const state of SKY_STATES ?? []) {
+      const t = SKY_TOKENS[state];
+      const scrim = hex(t.scrim);
+      const ink = hex(t.ink);
+      const inkDim = hex(t.inkDim);
+      const control = hex(t.control);
+      const edge = hex(t.edge);
+
+      // A missing file is the worst failure this gate has, because the app
+      // FALLS BACK on it silently and beautifully: the procedural sky returns,
+      // every ratio above still passes, and nobody finds out the painting
+      // stopped shipping until a screenshot.
+      const paths = [
+        ["portrait", SKY_MOD.imgPath(t.img)],
+        ["wide", SKY_MOD.imgPath(t.imgWide)],
+      ];
+      let ok = true;
+      for (const [crop, rel] of paths) {
+        const abs = ROOT + "public" + rel;
+        if (!rel || !existsSync(abs)) {
+          check(`world/${state}: the ${crop} painting ships`, false, rel || "(no url in the table)");
+          ok = false;
+        }
+      }
+      if (!ok) continue;
+      check(`world/${state}: both crops ship`, true, SKY_MOD.imgPath(t.img));
+
+      check(
+        `world/${state}: the painted veil is never thinner than the gradient's`,
+        t.scrimAlphaPainted >= t.scrimAlpha,
+        `${t.scrimAlpha} -> ${t.scrimAlphaPainted}`,
+      );
+
+      let minText = Infinity;
+      let minPanel = Infinity;
+      let minEdge = Infinity;
+      let where = "";
+      for (const which of ["top", "bottom"]) {
+        // the inner edge of the band: 0.18 down for the top band, 0.78 down
+        // for the bottom one — the point inside it with the least emphasis
+        const inner = which === "top" ? SKY_MOD.TEXT_BAND_TOP : 1 - SKY_MOD.TEXT_BAND_BOTTOM;
+        const emphasis = SKY_MOD.scrimEmphasisAt(inner);
+        // two veils, one after the other, is one veil at this alpha
+        const eff = 1 - (1 - t.scrimAlphaPainted) * (1 - emphasis);
+        const samples = await bandSamples(ROOT + "public" + SKY_MOD.imgPath(t.img), which);
+        for (const [name, colour] of Object.entries(samples)) {
+          const ground = over(scrim, colour, eff);
+          const panel = over(control, ground, t.controlAlpha);
+          const rText = Math.min(ratio(ink, ground), ratio(inkDim, ground));
+          const rPanel = Math.min(ratio(ink, panel), ratio(inkDim, panel));
+          const rEdge = ratio(over(edge, panel, t.edgeAlpha), ground);
+          if (rText < minText) {
+            minText = rText;
+            where = `${which}/${name}`;
+          }
+          minPanel = Math.min(minPanel, rPanel);
+          minEdge = Math.min(minEdge, rEdge);
+        }
+      }
+      pWorstText = Math.min(pWorstText, minText);
+      pWorstPanel = Math.min(pWorstPanel, minPanel);
+      pWorstEdge = Math.min(pWorstEdge, minEdge);
+
+      check(
+        `world/${state}: text over the PAINTING >= ${TEXT_FLOOR}`,
+        minText >= TEXT_FLOOR,
+        `${minText.toFixed(2)} worst at ${where} (veil ${t.scrimAlphaPainted})`,
+      );
+      check(
+        `world/${state}: text in a panel over the PAINTING >= ${TEXT_FLOOR}`,
+        minPanel >= TEXT_FLOOR,
+        minPanel.toFixed(2),
+      );
+      check(
+        `world/${state}: panel edge over the PAINTING >= ${EDGE_FLOOR}`,
+        minEdge >= EDGE_FLOOR,
+        minEdge.toFixed(2),
+      );
+    }
+
+    // The plates are the only thing that still draws itself over a painting,
+    // so they are the only thing that can still put ink on top of ink.
+    for (const c of ["cloud_a.png", "cloud_b.png"]) {
+      check(`world/plates: ${c} ships`, existsSync(`${ROOT}public/world/${c}`));
+    }
+
+    console.log(
+      `  ..  world worst case OVER THE PAINTINGS: text ${pWorstText.toFixed(2)}:1, ` +
+        `text-in-panel ${pWorstPanel.toFixed(2)}:1, panel edge ${pWorstEdge.toFixed(2)}:1`,
+    );
+  }
 }
 
 console.log(failed ? `\n${failed} contrast/legibility checks FAILED` : "\nboard legibility ok");

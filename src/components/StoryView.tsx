@@ -14,17 +14,16 @@ import PhotoAvatar from "./PhotoAvatar";
 
 const SEGMENT_MS = 5200;
 
-// storyAge() reports "2d" past a day, which is engine-correct but reads as a
-// stale story sitting behind a live ring — her latest batch deliberately
-// never expires (see storyCatalog). Past a day the label becomes the day it
-// was posted, which reads as a highlight instead of something rotting.
-function ageLabel(s: Story): string {
-  const hours = (Date.now() - s.at) / 3_600_000;
-  if (hours < 24) return storyAge(s);
-  if (hours < 48) return "yesterday";
-  if (hours < 24 * 7) return new Date(s.at).toLocaleDateString([], { weekday: "long" }).toLowerCase();
-  return new Date(s.at).toLocaleDateString([], { day: "numeric", month: "short" });
-}
+// THE HIGHLIGHT LABEL IS GONE, and its absence is the point.
+//
+// This used to translate storyAge()'s "2d"/"13d" into "yesterday" / "tuesday"
+// / "9 Aug", because her newest authored batch never expired and a live ring
+// over a fortnight-old picture reads as something rotting. That workaround is
+// gone from storyCatalog: she has a story POOL now, matched to her clock, and
+// the one on the ring was posted earlier TODAY — always. So every label this
+// screen can produce is minutes or hours, and the branches that dressed up an
+// old one were about to become a lie about a fresh one.
+const ageLabel = (s: Story) => storyAge(s);
 
 // rubber-band: the further past the edge, the less it follows
 const band = (d: number, dim: number, c = 0.55) => (d * dim * c) / (dim + c * Math.abs(d));

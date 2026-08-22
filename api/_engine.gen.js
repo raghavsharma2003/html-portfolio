@@ -422,12 +422,129 @@ var STORIES = [
     desc: "mirror selfie sitting cross-legged on the bed in the same golden light, oversized black tee, hair in a messy bun, notebook and book open in front of you"
   }
 ];
-var activeStories = () => {
-  const posted = STORIES.filter((s) => s.at <= Date.now());
-  if (!posted.length) return [];
-  const newest = Math.max(...posted.map((s) => s.at));
-  const day = new Date(newest).toDateString();
-  return posted.filter((s) => new Date(s.at).toDateString() === day);
+var STORY_POOL = Object.freeze([
+  {
+    slug: "morning-chai",
+    slot: "morning",
+    desc: "steel tumbler of chai on the balcony rail, hazy rooftops below"
+  },
+  {
+    slug: "metro",
+    slot: "midday",
+    desc: "metro window seat, earbuds case in hand, city blurring past"
+  },
+  {
+    slug: "desk",
+    slot: "midday",
+    desc: "laptop, open notebook and coffee at the wooden desk, pothos at the window"
+  },
+  {
+    slug: "evening-walk",
+    slot: "golden",
+    desc: "your long shadow down a tree-lined lane, low gold light on the gravel"
+  },
+  {
+    slug: "dinner",
+    slot: "dusk",
+    desc: "steel thali on your lap \u2014 dal, sabzi, rice, roti, cucumber salad, achaar"
+  },
+  {
+    slug: "night-read",
+    slot: "night",
+    desc: "open book on the razai, lamp on, fairy lights up the wall"
+  }
+]);
+var IST_OFFSET_MIN = 330;
+var MS_DAY = 864e5;
+var p2 = (n) => String(n).padStart(2, "0");
+function istMinuteOfDay(now) {
+  const d = new Date(now + IST_OFFSET_MIN * 6e4);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
+function istDateKey(now) {
+  const d = new Date(now + IST_OFFSET_MIN * 6e4);
+  return `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`;
+}
+var MIDDAY_FROM = 11 * 60 + 30;
+var SLOT_BOUNDARIES = Object.freeze([
+  { at: 4 * 60 + 30, slot: "night" },
+  // predawn, which shows the night story
+  { at: 6 * 60 + 10, slot: "morning" },
+  { at: MIDDAY_FROM, slot: "midday" },
+  { at: 16 * 60 + 20, slot: "golden" },
+  { at: 18 * 60 + 10, slot: "dusk" },
+  { at: 19 * 60 + 40, slot: "night" }
+]);
+function slotForStory(now) {
+  const m = istMinuteOfDay(now);
+  let cur = "night";
+  for (const b of SLOT_BOUNDARIES) {
+    if (m >= b.at) cur = b.slot;
+    else break;
+  }
+  return cur;
+}
+function slotStartMinute(now) {
+  const m = istMinuteOfDay(now);
+  let start = 0;
+  for (const b of SLOT_BOUNDARIES) {
+    if (m >= b.at) start = b.at;
+    else break;
+  }
+  return start;
+}
+function istDayIndex(now) {
+  return Math.floor((now + IST_OFFSET_MIN * 6e4) / MS_DAY);
+}
+function hash32(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+function permutation(n, seed) {
+  const out = Array.from({ length: n }, (_, i) => i);
+  let s = seed >>> 0 || 1;
+  for (let i = n - 1; i > 0; i--) {
+    s = Math.imul(s, 1664525) + 1013904223 >>> 0;
+    const j = s % (i + 1);
+    const tmp = out[i];
+    out[i] = out[j];
+    out[j] = tmp;
+  }
+  return out;
+}
+function pickFor(slot, now) {
+  const pool = STORY_POOL.filter((p) => p.slot === slot);
+  if (!pool.length) return null;
+  const day = istDayIndex(now);
+  const n = pool.length;
+  const cycle = Math.floor(day / n);
+  const position = (day % n + n) % n;
+  return pool[permutation(n, hash32(`${slot}:${cycle}`))[position]];
+}
+function istMidnight(at) {
+  return Math.floor((at + IST_OFFSET_MIN * 6e4) / MS_DAY) * MS_DAY - IST_OFFSET_MIN * 6e4;
+}
+function poolStoryAt(now) {
+  const slot = slotForStory(now);
+  const pick = pickFor(slot, now);
+  if (!pick) return null;
+  return {
+    id: `pool-${istDateKey(now)}-${pick.slug}`,
+    src: `/stories/${pick.slug}.jpg`,
+    at: istMidnight(now) + slotStartMinute(now) * 6e4,
+    desc: pick.desc
+  };
+}
+var activeStories = (now = Date.now()) => {
+  const today = istDateKey(now);
+  const authored = STORIES.filter((s) => s.at <= now && istDateKey(s.at) === today);
+  if (authored.length) return authored;
+  const pooled = poolStoryAt(now);
+  return pooled ? [pooled] : [];
 };
 function storyContext() {
   const live = activeStories();
@@ -2170,11 +2287,11 @@ function decideParticipation(input) {
 }
 
 // src/engine/timeline.ts
-var IST_OFFSET_MIN = 330;
+var IST_OFFSET_MIN2 = 330;
 var DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-var p2 = (n) => String(n).padStart(2, "0");
+var p22 = (n) => String(n).padStart(2, "0");
 function istParts(now) {
-  const d = new Date(now + IST_OFFSET_MIN * 6e4);
+  const d = new Date(now + IST_OFFSET_MIN2 * 6e4);
   const hour = d.getUTCHours();
   const minute = d.getUTCMinutes();
   return {
@@ -2182,7 +2299,7 @@ function istParts(now) {
     minute,
     minuteOfDay: hour * 60 + minute,
     dow: d.getUTCDay(),
-    dateKey: `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`,
+    dateKey: `${d.getUTCFullYear()}-${p22(d.getUTCMonth() + 1)}-${p22(d.getUTCDate())}`,
     dayName: DAY_NAMES[d.getUTCDay()]
   };
 }
@@ -2486,7 +2603,7 @@ var NIGHT_END_HOUR = 6;
 var AWAY_BUDGET = 300;
 var MS_MIN = 6e4;
 var MS_HOUR = 36e5;
-var MS_DAY = 864e5;
+var MS_DAY2 = 864e5;
 function partOfDay(hour) {
   if (hour < 5) return "late night";
   if (hour < 12) return "morning";
@@ -2495,7 +2612,7 @@ function partOfDay(hour) {
   return "night";
 }
 function humanGap(ms) {
-  if (ms >= 2 * MS_DAY) return `${Math.floor(ms / MS_DAY)} days`;
+  if (ms >= 2 * MS_DAY2) return `${Math.floor(ms / MS_DAY2)} days`;
   const h = Math.floor(ms / MS_HOUR);
   const m = Math.floor(ms % MS_HOUR / MS_MIN);
   if (h && m) return `${h}h ${m}m`;

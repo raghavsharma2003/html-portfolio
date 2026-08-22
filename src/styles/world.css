@@ -90,12 +90,20 @@
 }
 
 /* ── 2. STAGE 2: the painting ───────────────────────────────────────────────
-   `--world-img` is `none` in every state today, so this layer renders
-   nothing and costs nothing. When the owner's five painted skies land it
-   becomes a `url(...)` per state in `sky.ts` and this rule is already here to
-   paint it. Bottom-anchored `cover`, because the composition that matters in
-   a 1080x1920 painted sky is the horizon, and the horizon has to stay put
-   when the viewport is short. */
+   Live. `--world-img` is a real `url(...)` per state from `sky.ts`, and this
+   layer is the ground now. Bottom-anchored `cover`, because the composition
+   that matters in these paintings is the horizon — the water tower, the
+   bridge, the line of hills — and the horizon has to stay put when the
+   viewport is short.
+
+   ORIENTATION PICKS THE CROP, IN CSS, not in JS. A 941x1672 portrait sky
+   `cover`-ed across a landscape tablet crops away everything below the
+   zenith, which on these five paintings is the entire difference between one
+   time of day and another. The wide file is the same painting recomposed, so
+   the swap is a media query and rotating the device needs no React render.
+   `WorldLayer` probes whichever of the two this query will resolve to, so the
+   `data-painted` flag is never a claim about a file the screen is not asking
+   for. */
 .world-paint {
   position: absolute;
   inset: 0;
@@ -103,6 +111,11 @@
   background-size: cover;
   background-position: 50% 100%;
   background-repeat: no-repeat;
+}
+@media (orientation: landscape) {
+  .world-paint {
+    background-image: var(--world-img-wide, var(--world-img, none));
+  }
 }
 
 /* ── 3. the horizon glow ────────────────────────────────────────────────────
@@ -312,6 +325,95 @@
   }
 }
 
+/* ── 6b. the plates ─────────────────────────────────────────────────────────
+   The owner's two loose cloud PNGs, drifting OVER a painting. The one
+   procedural element the anti-fight rule keeps (see WorldLayer.tsx's header),
+   and the reason is the inverse of the rule: they duplicate nothing in the
+   stills, because the stills' own clouds are fixed in the paint, and a sky
+   whose clouds never move is a wallpaper.
+
+   Two plates, two rates, two heights: 210s across for the low near one and
+   150s for the small high one. Unequal periods and unequal speeds are the
+   whole trick — a pair moving together is one texture sliding past, and a
+   pair moving at different rates is depth. Both run far longer than the
+   120s floor the brief sets, because at these widths anything shorter is
+   catchable by eye.
+
+   Transform only, `will-change: transform`, no filter, no layout, no colour.
+   The plates are painted in the skies' own palette, so they need no tinting
+   and get none — a `filter: hue-rotate` here would re-rasterise a
+   1400px-wide image on every frame of a three-and-a-half-minute animation.
+
+   Resting state is the VISIBLE one, like everything else in this file: the
+   keyframes translate from a position that is already on screen, so the
+   reduced-motion block below leaves two clouds sitting in the sky rather
+   than two clouds parked off the left edge. */
+.world-plates {
+  position: absolute;
+  inset: 0;
+}
+.world-plates i {
+  position: absolute;
+  display: block;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  will-change: transform;
+}
+/* the near plate: wide, low, slow, and the more opaque of the two */
+.world-plates .wp-a {
+  top: 26%;
+  left: -55%;
+  width: 105%;
+  height: 17%;
+  opacity: 0.66;
+  background-image: url("/world/cloud_a.png");
+  animation: world-plate-a 210s linear infinite;
+}
+/* the far plate: smaller, higher, quicker across, fainter — the parallax */
+.world-plates .wp-b {
+  top: 9%;
+  left: -42%;
+  width: 72%;
+  height: 12%;
+  opacity: 0.44;
+  background-image: url("/world/cloud_b.png");
+  animation: world-plate-b 150s linear infinite;
+  animation-delay: -64s;
+}
+@keyframes world-plate-a {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(205%, -1.5%, 0);
+  }
+}
+@keyframes world-plate-b {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(230%, 2%, 0);
+  }
+}
+
+/* ── 6c. what a painting turns off ──────────────────────────────────────────
+   The procedural celestials are NOT RENDERED over a painting (WorldLayer.tsx
+   decides that, not this file, so the battery can count nodes). What is left
+   here is the one thing CSS owns: the veil.
+
+   THE SAME SCRIM, A HEAVIER ALPHA, AND THE NUMBER WAS SOLVED FOR. A gradient
+   has no dark rooftops in it. The morning painting's bottom fifth is a city at
+   10am and its darkest tenth sits at #2a302e — the truth line's own ground.
+   Measured there, the dim ink held 2.06:1 against a 4.5 floor and the panel
+   edge 1.80:1 against 3.0. `scripts/check-contrast.mjs` now reads the shipped
+   jpg's pixels, so 0.34 -> 0.54 (morning) and 0.34 -> 0.53 (golden) are the
+   minimum that passes plus a margin, not a taste call. The three dark states
+   pass unchanged and are unchanged. */
+.world[data-painted="true"] .world-scrim {
+  opacity: var(--world-scrim-a-painted, var(--world-scrim-a, 0.42));
+}
+
 /* ── 7. the city ────────────────────────────────────────────────────────────
    Drawn, not photographed (see WorldLayer.tsx for what makes it Indian rather
    than generic). Pinned to the bottom; `slice` so the baseline never lifts
@@ -433,6 +535,7 @@
    sky visible through a translucent header. No city, no clouds crossing a
    38px strip (they would read as artefacts), just the top of the sky. */
 .world[data-variant="band"] .world-city,
+.world[data-variant="band"] .world-plates,
 .world[data-variant="band"] .world-clouds {
   display: none;
 }
@@ -462,6 +565,7 @@
   .world .world-stars i,
   .world .world-moon,
   .world .wr-lit rect,
+  .world .world-plates i,
   .world .world-clouds i {
     animation: none;
   }
@@ -476,6 +580,17 @@
   }
   .world .world-clouds .wc-3 {
     transform: translate3d(112%, 0, 0);
+  }
+  /* Same failure, same fix, for the plates: authored at -55% and -42% so the
+     drift starts off-frame, which parked would be a painted sky with two
+     clouds missing from it. Pushed to where a mid-cycle frame has them —
+     spread apart rather than stacked, because the pair is meant to read as
+     two depths and two clouds on top of each other reads as one. */
+  .world .world-plates .wp-a {
+    transform: translate3d(78%, 0, 0);
+  }
+  .world .world-plates .wp-b {
+    transform: translate3d(126%, 0, 0);
   }
   .world .world-sky-next {
     transition: none;

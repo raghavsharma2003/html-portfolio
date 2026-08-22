@@ -60,12 +60,38 @@
 //
 // ── the painting swap point (docs/DESIGN-WORLD.md, asset contract) ───────
 //
-// Stage 1 (today) is fully procedural. Stage 2 swaps in the owner's painted
-// skies through ONE variable per state — `img` here becomes `--world-img` on
-// the world root, and `world.css` already paints that layer over the
-// gradient. Every `img` is "" today and the layer renders nothing; filling
-// them in is a data change with no code change, which is the entire point of
-// putting them in this table rather than in the stylesheet.
+// STAGE 2 IS LIVE. The owner's five painted skies are wired below through the
+// variable stage 1 reserved for them: `img` becomes `--world-img` on the world
+// root and `world.css` paints it over the gradient. `imgWide` is the same
+// painting's landscape crop, selected by an orientation media query rather
+// than by JS, because an orientation change must not need a React render to
+// stop showing a portrait sky letterboxed across a tablet.
+//
+// ── THE ANTI-FIGHT RULE (decisions.md#sky-is-the-clock, reversal condition) ─
+//
+// That node's reversal condition is a law, not a caveat: "the paintings arrive
+// and the procedural layer fights them — then procedural becomes the fallback,
+// never both at once." They arrived and they fight. Every painting carries its
+// OWN moon, its own stars, its own clouds and its own skyline, so the
+// procedural moon is a SECOND moon in the same sky and the procedural skyline
+// is a black cutout standing in front of a painted city.
+//
+// So the procedural celestial set is now the FALLBACK: it renders if and only
+// if the painting for the current state failed to load (WorldLayer preloads
+// and flags `data-painted`). The gradient underneath never goes away, which is
+// why a 404 is a slightly plainer sky rather than a blank one. The one
+// procedural element that stays over a painting is the new parallax cloud
+// drift, because it duplicates nothing in the stills and adds the only thing a
+// still cannot have.
+//
+// ── two scrim alphas, and why ────────────────────────────────────────────
+//
+// `scrimAlpha` is the gradient's veil. `scrimAlphaPainted` is the painting's,
+// and the two are different numbers because the grounds are different objects:
+// a four-stop gradient has no dark rooftops in it and the morning painting has
+// a whole city of them exactly where the truth line sits. Both are gated —
+// `scripts/check-contrast.mjs` composites the first over the stops and the
+// second over the REAL decoded pixels of the shipped jpg.
 
 import { istParts } from "./timeline";
 
@@ -126,6 +152,19 @@ export interface SkyTokens {
    *  what the gate measures. */
   scrim: string;
   scrimAlpha: number;
+  /**
+   * The same veil's alpha when a PAINTING is behind it rather than the
+   * gradient. Never lower than `scrimAlpha`, and on the two light states it is
+   * a lot higher, because the number was not chosen — it was solved for.
+   *
+   * The gradient's fourth stop is a flat warm haze; the painting's bottom
+   * fifth is an Indian city at that hour, and its darkest tenth is roof slabs
+   * and trees at #2a302e. A dark ink on a light veil over THAT is dark on
+   * dark: morning's dim ink measured 2.06:1 against a 4.5 floor and its panel
+   * edge 1.80:1 against 3.0. The gate now reads the shipped jpg, so those are
+   * measurements rather than worries.
+   */
+  scrimAlphaPainted: number;
   ink: string;
   inkDim: string;
   /**
@@ -152,9 +191,17 @@ export interface SkyTokens {
    *  scrimmed sky in every state. */
   edge: string;
   edgeAlpha: number;
-  /** STAGE 2. The painted sky for this state, as a CSS `url(...)`, or "" for
-   *  the procedural-only build that ships today. See the header. */
+  /** STAGE 2. The painted sky for this state, as a CSS `url(...)` — the exact
+   *  shape `--world-img` takes, unchanged from the swap contract stage 1
+   *  shipped with. "" would mean this state alone stayed procedural forever;
+   *  `evals/sky.mjs` asserts all five are wired AND that each names a file
+   *  that exists in `public/world/`. */
   img: string;
+  /** The landscape crop of the same painting, chosen by an orientation media
+   *  query in `world.css`. A portrait sky `cover`-ed across a tablet crops away
+   *  the horizon, which is the only part of these paintings that carries the
+   *  time of day. */
+  imgWide: string;
 }
 
 /**
@@ -183,13 +230,15 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     city: { ink: "#05070f", lit: "#ffca7a", litAlpha: 0.85 },
     scrim: "#05070f",
     scrimAlpha: 0.34,
+    scrimAlphaPainted: 0.34,
     ink: "#f6f2ee",
     inkDim: "#c8c2d4",
     control: "#070a1a",
     controlAlpha: 0.55,
     edge: "#ffffff",
     edgeAlpha: 0.5,
-    img: "",
+    img: 'url("/world/world_night.jpg")',
+    imgWide: 'url("/world/world_night_wide.jpg")',
   }),
 
   // The blue hour before sunrise: cold at the top, a thin cyan band, and the
@@ -206,13 +255,15 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     city: { ink: "#0c0f1c", lit: "#ffd79a", litAlpha: 0.6 },
     scrim: "#0b0e1e",
     scrimAlpha: 0.36,
+    scrimAlphaPainted: 0.36,
     ink: "#f7f3ef",
     inkDim: "#ded9e4",
     control: "#0b0e1e",
     controlAlpha: 0.55,
     edge: "#ffffff",
     edgeAlpha: 0.62,
-    img: "",
+    img: 'url("/world/world_predawn.jpg")',
+    imgWide: 'url("/world/world_predawn_wide.jpg")',
   }),
 
   // Full daylight. Warm rather than the default sky-blue — the app's ground
@@ -233,13 +284,15 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     // noon instead of like a photo with a gradient on it.
     scrim: "#fbf7f2",
     scrimAlpha: 0.34,
+    scrimAlphaPainted: 0.54,
     ink: "#1c1714",
     inkDim: "#4b423d",
     control: "#fffaf4",
     controlAlpha: 0.62,
     edge: "#1c1714",
     edgeAlpha: 0.7,
-    img: "",
+    img: 'url("/world/world_morning.jpg")',
+    imgWide: 'url("/world/world_morning_wide.jpg")',
   }),
 
   // Golden hour. The one state where the horizon is BRIGHTER than the zenith
@@ -256,13 +309,15 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     city: { ink: "#6f5a58", lit: "#fff1cf", litAlpha: 0.28 },
     scrim: "#fdf6ec",
     scrimAlpha: 0.34,
+    scrimAlphaPainted: 0.53,
     ink: "#20160f",
     inkDim: "#4c3b2d",
     control: "#fffaf4",
     controlAlpha: 0.62,
     edge: "#20160f",
     edgeAlpha: 0.7,
-    img: "",
+    img: 'url("/world/world_golden.jpg")',
+    imgWide: 'url("/world/world_golden_wide.jpg")',
   }),
 
   // Dusk. The competitor's best frame is its rose dusk, so this is the one
@@ -280,13 +335,15 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     city: { ink: "#181322", lit: "#ffc178", litAlpha: 0.66 },
     scrim: "#150f22",
     scrimAlpha: 0.44,
+    scrimAlphaPainted: 0.44,
     ink: "#f8f1ee",
     inkDim: "#e0d5db",
     control: "#150f22",
     controlAlpha: 0.55,
     edge: "#ffffff",
     edgeAlpha: 0.62,
-    img: "",
+    img: 'url("/world/world_dusk.jpg")',
+    imgWide: 'url("/world/world_dusk_wide.jpg")',
   }),
 });
 
@@ -296,6 +353,60 @@ export const SKY_TOKENS = TOKENS;
 export function tokensFor(state: SkyState): SkyTokens {
   return TOKENS[state];
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// The painting manifest
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * `url("/world/world_dusk.jpg")` → `/world/world_dusk.jpg`, or "" if the
+ * field is empty or malformed.
+ *
+ * The table stores the CSS form because that is the swap contract stage 1
+ * shipped with and `--world-img` takes it verbatim. But a preloader needs an
+ * `src` and a gate needs a path on disk, and BOTH of them getting there by
+ * their own regex is how two places end up disagreeing about which file a
+ * state points at. One unwrapper, exported, used by all three.
+ */
+export function imgPath(cssUrl: string): string {
+  const m = /^url\((['"]?)([^'")]+)\1\)$/.exec(String(cssUrl ?? "").trim());
+  return m ? m[2] : "";
+}
+
+/** Both crops of one state's painting, as plain paths. */
+export function paintingsFor(state: SkyState): { portrait: string; wide: string } {
+  return { portrait: imgPath(TOKENS[state].img), wide: imgPath(TOKENS[state].imgWide) };
+}
+
+/**
+ * The scrim's top/bottom emphasis, as a function of vertical position — the
+ * `.world-scrim::after` gradient in world.css, in numbers.
+ *
+ * It lives here rather than only in the stylesheet because the contrast gate
+ * has to composite it: text in the top band and text in the bottom band do NOT
+ * sit on the uniform veil alone, and a gate that pretended they did would
+ * demand a uniform alpha heavy enough to fog the middle of a painting where no
+ * text has ever been. Kept conservative at the call site — the gate evaluates
+ * it at the INNER edge of each band, which is the weakest point the band has.
+ *
+ * If world.css's gradient stops change, this changes with them or the gate is
+ * measuring a screen nobody ships.
+ */
+export const SCRIM_EMPHASIS_OPACITY = 0.55;
+export function scrimEmphasisAt(fractionDown: number): number {
+  const p = fractionDown < 0 ? 0 : fractionDown > 1 ? 1 : fractionDown;
+  let f: number;
+  if (p <= 0.24) f = 1 - p / 0.24;
+  else if (p < 0.58) f = 0;
+  else f = (p - 0.58) / 0.42;
+  return f * SCRIM_EMPHASIS_OPACITY;
+}
+
+/** Where the header/name sits, and where the controls and truth line sit, as
+ *  fractions of the surface height. The gate reads the painting's pixels in
+ *  exactly these bands. */
+export const TEXT_BAND_TOP = 0.18;
+export const TEXT_BAND_BOTTOM = 0.22;
 
 // ─────────────────────────────────────────────────────────────────────────
 // The resolution
