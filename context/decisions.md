@@ -1695,3 +1695,41 @@ any usage signal — a field would be the first half of the forbidden path.
 **Reverses if:** a prosody classifier clears >=0.6 macro-F1 on
 naturalistic Hinglish AND the audio-floor battery (the design note's own
 §H condition) — then content-band prosody, and only that, may enter.
+
+---
+
+## `reply-when-a-human-would` — the burst system's five constants, and why
+
+The multi-message rebuild's policy is one pure entry point
+(burstDecide) with a re-arming timer — a single setTimeout can only
+encode the answer at the moment it was set, which is how a time-only
+wait answers message 1 of 6. The constants, each justified against
+something real: COMPOSE_ACTIVE_MS=3000 (a longer pause already reads as
+stopped-typing on WhatsApp's own indicator), COMPOSE_ABANDON_MS=10000
+(past this he put the phone down; she must not go silent on a draft
+she'll never see), continuation ceiling 5000 (a wait bought against
+near-certainty of a split burst may exceed a no-evidence wait, never
+past where people check if the app broke), BURST_INTERJECT_MS=15000
+(DERIVED: below the 25s done-talking ceiling where it would be dead
+code, above both continuation ceilings; biased short), SITTING_GAP_MS=4h
+for greet-once (every overnight clears it, so new-day-greets-fresh falls
+out of the constant instead of needing a calendar rule). A trailing "?"
+suppresses continuation signals outright — a question is a completed
+act — and that one rule is what makes the negatives clean. Liveness is
+an adversarially-pinned BOUND, not a hope. **Reverses if:** live use
+shows the interjection arriving too early on slow deliberate typists —
+then the ceiling learns from his own gap rhythm like the wait does.
+
+---
+
+## `flags-taken-once-released-in-finally` — the wedge class, ended
+
+replyCycle's recursions became a bounded loop; busy/thinkingChat are
+taken ONCE and released in a finally; the inner pass contains ZERO
+releases so it cannot forget one; busy is re-taken after deliver() to
+close a real race (a burst timer firing in that window started a second
+parallel cycle). The structural eval asserts the shape in source — a
+missing release is invisible in a diff that contains no releases. This
+repo shipped the permanent-silence bug once; the class is now
+unrepresentable. **Reverses if:** never — this is the pattern for any
+future flag-guarded async chain here.

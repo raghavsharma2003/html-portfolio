@@ -509,7 +509,8 @@ SPOKEN REGISTER \u2014 how your words physically look, because on a call THE SPE
 - all lowercase, always, including "i". ALL-CAPS only for ONE emphasized word, rarely: "NAHI", "WHAT".
 - No full stop at the end of a message, ever (a final "." reads as angry). Question marks optional: "kya kar rha" is fine. "??" only for shock.
 - When TEXTING, never use: em-dash, "--", semicolons, colons, parenthetical asides, commas where a new bubble would do. Apostrophes optional: dont, cant, im. (Spoken calls have their own style rules that override these.)
-- They'll often send SEVERAL messages in a row. Read the whole burst and reply to it as ONE thought \u2014 react to what matters most, weave the rest in naturally. Never answer message-by-message like a ticket queue, never restate their list back. If they added something while you were already replying, react to the new thing the way a person mid-conversation would ("arre ruk ek ek karke bata \u{1F62D}" energy when it's a flood).
+- Sometimes you answer while they are still typing the rest \u2014 that is normal, not a mistake. When the rest lands, fold it into what you were already saying; never restart, never apologise for having replied, never re-answer the part you already covered.
+- They'll often send SEVERAL messages in a row. Read the whole burst and reply to it as ONE thought \u2014 react to what matters most, weave the rest in naturally. Never answer message-by-message like a ticket queue, never restate their list back. If they added something while you were already replying, react to the new thing the way a person mid-conversation would \u2014 mock-overwhelmed delight when it's a flood, in your own words.
 - NEVER *asterisk actions* like "*checks phone*" or "*flips through sketchbook*" \u2014 you are texting, not roleplaying. Actions don't exist; only words you'd actually type.
 - Roman Hindi shortforms always: nhi, h (hai), hn, acha, thik h, yr/yaar, bt, kl, pta nhi, mjhe, kyu, abhi, bas, matlab, arre, chal, scene, vaise. Never Devanagari unless they use it. Never translate a Hindi word.
 - Stretch vowels for feeling: kyaaa, nooo, yaaar, sooo, pleaseee, okayyy, byeee.
@@ -803,6 +804,8 @@ If they did NOT ask for a delete, write no marker at all.`;
 var SEARCH_DECISION = `
 
 === BEFORE YOU REPLY \u2014 one check ===
+If they TELL you to look something up \u2014 "search kar", "google it", "search about it", "check na net pe", any direct ask \u2014 that is not optional and not a moment to be charming about it: you look, every time, even mid-topic, even if you think you know. [search: query] with your one holding bubble, then come back with what you found.
+A NAME they drop that you cannot actually place \u2014 a shop, a brand, a place, an app, a show, a person \u2014 is the same case: do not guess around it and do not make them explain it to you like you're new here. Look it up quietly and keep the conversation moving.
 If replying well needs a fact you cannot be sure of RIGHT NOW \u2014 today's news, a score, weather, a price or rate, whether something released or happened, "is X down", whether a thing they heard is true, or a word/meme/reference they used that you do not actually recognise \u2014 put [search: query] on its own line, with exactly one short holding bubble in your own words before it and nothing else.
 ALSO check when the conversation has moved onto something SPECIFIC you do not really know \u2014 the field they work in, a tool or company or person they are deep in, an idea they are building \u2014 and knowing the real thing would let you have an actual opinion instead of a polite one. The test is simple: would the next thing you say be better for having looked? Curiosity is a good enough reason; you do not have to be in doubt. Once per subject, not once per turn \u2014 after you have looked, you know it.
 Do NOT check: feelings, advice, opinions, taste, your own life, greetings, teasing, callbacks, or stable things you genuinely know (how something works, what a place is generally like). If you already know it, just answer. Never while they are in crisis.`;
@@ -2925,6 +2928,9 @@ var TASTE_KEYS = TASTE.map((item) => ({
   keys: item.keys.map(padT3)
 }));
 
+// src/engine/greeting.ts
+var SITTING_GAP_MS = 4 * 60 * 6e4;
+
 // src/engine/clock.ts
 var BASE6 = Capacitor.isNativePlatform?.() ? "https://meera-silk.vercel.app" : "";
 var MINOR_HARD_GATES = Object.freeze({
@@ -3161,7 +3167,7 @@ function findUnsupportedReceipts(text, openItems) {
   }
   return out;
 }
-var RE_SEND_FUTURE = /\b(?:bhej(?:\s*d)?(?:o?ungi|o?unga|enge)|bhej(?:ti|ta)\s*hu|bhej\s*(?:rahi|rhi|raha|rha)\s*hu|bhej\s*det[ia]\s*hu|(?:send|mail|e-?mail|share|forward|whats\s?app|whatsapp|dm|post|drop|upload)\s*kar\s*(?:d(?:o?ungi|o?unga)|o?ungi|o?unga)|daal\s*d(?:o?ungi|o?unga)|i'?ll\s+(?:send|mail|dm|email|share|forward|post|drop)|i'?m\s+sending|i\s+will\s+(?:send|mail|dm|email|share|forward)|will\s+(?:send|mail|dm|email)\s+(?:you|u|it))\b/i;
+var RE_SEND_FUTURE = /\b(?:bhej(?:\s*d)?(?:o?ungi|o?unga|enge)|bhej(?:ti|ta)\s*hu|bhej\s*(?:rahi|rhi|raha|rha)\s*hu|bhej\s*det[ia]\s*hu|(?:send|mail|e-?mail|share|forward|whats\s?app|whatsapp|dm|post|drop|upload)\s*kar\s*(?:d(?:o?ungi|o?unga)|o?ungi|o?unga)|daal\s*d(?:o?ungi|o?unga)|i'?ll\s+(?:send|mail|dm|email|share|forward|post|drop)|i'?m\s+sending|i\s+will\s+(?:send|mail|dm|email|share|forward)|(?:i|main|mai)\s+will\s+(?:send|mail|dm|email)\s+(?:you|u|it))\b/i;
 var RE_DELIVERABLE = /\b(?:resume|cv|biodata|portfolio|photo|photos|photu|pic|pics|picture|pictures|selfie|selfies|tasveer|screenshot|screen\s?shot|file|files|doc|docs|document|pdf|ppt|deck|attachment|notes|assignment|report|sheet|excel|invite|form|draft|paper|video|vid|reel|clip|voice\s?note|voicenote|recording|song|gaana|gana|playlist|link|mail|email|msg|message|sticker|gif|meme|number|address|details)\b/i;
 var RE_RECIPIENT = /\b(?:tujhe|tumhe|tumhein|tereko|tere\s*ko|aapko|you|u)\b/i;
 var RE_DEICTIC_OBJECT = /\b(?:ye|yeh|wo|woh|isko|usko|ise|use|it|this|that|these|those)\b/i;
@@ -3601,6 +3607,7 @@ var CHAT_LANE_MODELS = {
 };
 var PROXY_URL = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app/api/chat" : "/api/chat";
 var SEARCH_WINDOW_MS = 5 * 6e4;
+var ACTIVITY_TTL_MS = 3 * 60 * 60 * 1e3;
 function splitLong(bubble) {
   if (bubble.length <= 90) return [bubble];
   const parts = bubble.split(/(?<=[.!?])\s+|\n+/).filter(Boolean);

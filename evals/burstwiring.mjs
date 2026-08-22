@@ -1,0 +1,142 @@
+// The burst wiring, checked STRUCTURALLY against the real source files.
+//
+// Everything in evals/burst.mjs is about the policy, which is pure and easy to
+// test. This file is about the two things that cannot be tested that way and
+// have each already cost this product a conversation:
+//
+//   1. A POLICY THE SURFACE REIMPLEMENTS. `surface-bypasses-parse` is what
+//      happens when a surface owns a decision the engine should have made: it
+//      drifts, and it drifts silently. burst.ts says in its own header that
+//      only the TIMER belongs to the surface. So the surface is checked for
+//      having a timer and nothing else.
+//
+//   2. A FLAG NOBODY LOWERS. `busy-held-across-recursion` (rejected.md) was
+//      one missing release on one of three recursive paths, and it did not
+//      cost one reply — it killed the conversation until reload, from a burst,
+//      on the path written to serve bursts. Review missed it because "a
+//      missing release is invisible in a diff that contains no releases".
+//      A diff cannot show an absence; a rule can. So the rule is: `replyPass`
+//      never releases anything, and `replyCycle` releases in a `finally`.
+//      A fourth branch added to the pass tomorrow cannot reintroduce the bug,
+//      and if someone moves a release back into the pass, this goes red.
+//
+// Source text, deliberately: these are claims about the shape of the code, and
+// bundling it would erase exactly the shape being claimed.
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const chat = readFileSync(join(ROOT, "src/components/Chat.tsx"), "utf8");
+const brain = readFileSync(join(ROOT, "src/engine/brain.ts"), "utf8");
+const burst = readFileSync(join(ROOT, "src/engine/burst.ts"), "utf8");
+const greeting = readFileSync(join(ROOT, "src/engine/greeting.ts"), "utf8");
+
+let fail = 0;
+let n = 0;
+const ok = (name, cond, extra = "") => {
+  n++;
+  if (!cond) { fail++; console.log(`FAIL ${name}${extra ? " — " + extra : ""}`); }
+};
+
+/**
+ * The body of a `function name(` declared at component scope.
+ *
+ * Ends at the first closing brace in column 2, which is what a component-scope
+ * function's closer is in this file. Brace matching from the first `{` is what
+ * a reader would reach for and it is wrong here: TypeScript return-type
+ * annotations are brace-shaped (`): { fire: boolean } | null {`), so it walks
+ * the type literal and reports an empty body.
+ */
+function bodyOf(src, name) {
+  const i = src.indexOf(`function ${name}(`);
+  if (i < 0) return "";
+  const end = src.indexOf("\n  }\n", i);
+  return end < 0 ? "" : src.slice(i, end + 4);
+}
+
+// ── 1. the policy lives in the engine ──────────────────────────────────────
+ok("the surface asks burst.ts for the decision", chat.includes("burstDecide("));
+ok(
+  "the surface does not reimplement the wait",
+  !chat.includes("burstWaitMs("),
+  "burstWaitMs belongs to burst.ts; the surface calls burstDecide",
+);
+for (const k of ["COMPOSE_ACTIVE_MS", "COMPOSE_ABANDON_MS", "BURST_INTERJECT_MS", "CONTINUATION_WEAK_MS"]) {
+  ok(`no ${k} constant leaked into the surface`, !chat.includes(k));
+}
+ok("burst.ts imports only ./greeting", (burst.match(/^import .*$/gm) || []).every((l) => l.includes('"./greeting"')));
+ok("greeting.ts imports nothing at all", !/^import /m.test(greeting));
+
+// ── 2. the composer's typing signal is actually wired ──────────────────────
+ok("the draft is reported to the policy", chat.includes("draftRef.current = e.target.value"));
+ok("keystrokes are timestamped on change", /composer\.change\([^)]*\);[\s\S]{0,400}lastKeyAt\.current = Date\.now\(\)/.test(chat));
+ok("and on keydown, so a held key counts", /composer\.key\([\s\S]{0,600}lastKeyAt\.current = Date\.now\(\)/.test(chat));
+ok("sending empties the tracked draft", (chat.match(/draftRef\.current = ""/g) || []).length >= 2);
+ok(
+  "the draft signal costs no render",
+  !chat.includes("useState(\"\");\n  const draftRef"),
+  "draftRef must be a ref",
+);
+
+// ── 3. the flags: taken once, released once, never in the pass ─────────────
+const cycle = bodyOf(chat, "replyCycle");
+const pass = bodyOf(chat, "replyPass");
+ok("replyCycle exists", cycle.length > 0);
+ok("replyPass exists", pass.length > 0);
+ok("replyCycle releases in a finally", /finally\s*\{[\s\S]*?busy\.current = false/.test(cycle));
+ok("replyCycle releases thinkingChat in the same finally", /finally\s*\{[\s\S]*?thinkingChat\.current = false/.test(cycle));
+ok(
+  "replyPass NEVER releases busy — it cannot forget what it does not do",
+  !pass.includes("busy.current = false"),
+);
+ok(
+  "replyPass NEVER releases thinkingChat",
+  !pass.includes("thinkingChat.current = false"),
+);
+ok(
+  "replyPass does not recurse — that is what held the flag across the burst path",
+  !pass.includes("replyCycle("),
+);
+ok(
+  "the chain is a bounded loop, not a recursion",
+  /for \(let i = 0; i < REPLY_CHAIN_MAX/.test(cycle),
+);
+ok("delivering is released in a finally too", /finally\s*\{[\s\S]{0,200}delivering\.current = false/.test(pass));
+
+// ── 4. every waiter stops on "nothing of his is waiting" ───────────────────
+// never-scheduled: she does not speak on a bare timer, only because something
+// of his is unanswered. Both waiters share one gate that returns null for it.
+const now = bodyOf(chat, "burstNow");
+ok("burstNow refuses when nothing is waiting", /if \(!firstAt\) return null/.test(now));
+for (const w of ["armBurst", "awaitBurst"]) {
+  const b = bodyOf(chat, w);
+  ok(`${w} consults the shared gate`, b.includes("burstNow()"));
+  ok(`${w} stops dead when the gate refuses`, /if \(!d\) return/.test(b));
+}
+ok(
+  "a cleared chat cancels an armed burst",
+  /epoch\.current \+= 1;[\s\S]{0,600}clearTimeout\(burstTimer\.current\)/.test(chat),
+);
+ok("and drops dirty with it", /epoch\.current \+= 1;[\s\S]{0,700}dirty\.current = false/.test(chat));
+
+// ── 5. greet-once rides the shared output path ─────────────────────────────
+// `gate0-structural`: a gate the bytes can walk around is an absent gate, and
+// brain.ts's own comment says this is applied at EVERY parseBubbles site
+// rather than once before `return`, because the [search:] holding bubble is
+// handed to the UI from inside that branch.
+const gate = brain.slice(brain.indexOf("const gate = (r: ParsedReply)"), brain.indexOf("let parsed = gate("));
+ok("the greet-once predicate is inside gate()", gate.includes("greetOnce("));
+ok(
+  "it runs after the dash strip and before the honesty gate",
+  gate.indexOf("stripTextingDashes") < gate.indexOf("greetOnce(") &&
+    gate.indexOf("greetOnce(") < gate.indexOf("guardReply("),
+);
+ok("text lane only — a spoken hello is a different act", /mode !== "call"[\s\S]{0,1600}greetOnce\(/.test(gate));
+ok("every parseBubbles result goes through gate()", (brain.match(/gate\(parseBubbles\(/g) || []).length === 2);
+// one declaration plus exactly the two gated call sites: a third would be a
+// bubble reaching the UI around the gate, which is an absent gate.
+ok("no parseBubbles call sites outside gate()", (brain.match(/parseBubbles\(/g) || []).length === 3);
+
+console.log(fail ? `${fail} FAILURES of ${n}` : `ALL ${n} PASS`);
+process.exit(fail ? 1 : 0);

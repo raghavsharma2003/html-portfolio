@@ -1197,6 +1197,18 @@
       "kind": "measurement",
       "title": "T2 stance block byte-identical across all four assemblies; 37 checks; fails on pre-fix tree",
       "at": "2026-08-22"
+    },
+    {
+      "id": "reply-when-a-human-would",
+      "kind": "decision",
+      "title": "Burst policy: re-arming timer, typing hold, continuation signals, 15s interjection, greet-once at 4h; liveness adversarially bounded",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "flags-taken-once-released-in-finally",
+      "kind": "decision",
+      "title": "Reply-chain flags taken once, released in finally, zero releases in the inner pass; wedge class unrepresentable",
+      "at": "2026-08-22"
     }
   ],
   "edges": [

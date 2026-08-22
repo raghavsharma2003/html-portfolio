@@ -25,7 +25,7 @@ import {
   messagesAfterForget,
 } from "../engine/memory";
 import { applyInner, wantsForAppraisal } from "../engine/inner";
-import { burstWaitMs, recentUserGaps } from "../engine/burst";
+import { burstDecide, recentUserGaps, unansweredTail, type BurstTurn } from "../engine/burst";
 import { track } from "../engine/account";
 import { tel, telFlush, createComposeTracker } from "../engine/telemetry";
 import type { HeartReply } from "../engine/localHeart";
@@ -232,6 +232,21 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   const thinkingChat = useRef(false);
   const delivering = useRef(false);
   const dirty = useRef(false); // user messages not yet covered by a reply
+  // ── the "typing…" signal, which was already here and connected to nothing ──
+  //
+  // On every other messaging product the person on the other end can SEE you
+  // composing, and that is most of why they don't answer your first fragment.
+  // Her side of that is these two refs: what is in his box, and when he last
+  // touched it. `burstDecide` (engine/burst.ts) owns what to do with them —
+  // the surface only reports the signal and runs the clock.
+  //
+  // Refs, not state, on purpose: a keystroke must never cost a render. The
+  // composer already refuses to emit per keystroke for the same reason (see
+  // the tracker note above), and this rides the handlers that exist.
+  const draftRef = useRef("");
+  const lastKeyAt = useRef(0);
+  // the same clock as burstTimer, but owned by a chain that is already mid-turn
+  const chainTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { messages, user, apiKey, openrouterKey } = state;
 
@@ -396,6 +411,10 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     return () => {
       window.removeEventListener("pagehide", leave);
       composer.leave();
+      // the burst clock re-arms itself, so it has to be stopped explicitly —
+      // a timer that outlives the screen would call into a dead component
+      if (burstTimer.current) clearTimeout(burstTimer.current);
+      if (chainTimer.current) clearTimeout(chainTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -541,7 +560,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
         delivering.current = true;
         await deliver(reply);
         delivering.current = false;
-        if (dirty.current) void replyCycle(chatSeq.current);
+        if (dirty.current) armBurst(chatSeq.current);
       });
     }
     // re-runs after a chat clear too — she says hi fresh, in her own words
@@ -601,7 +620,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
         } else {
           busy.current = false;
         }
-        if (dirty.current) void replyCycle(chatSeq.current);
+        if (dirty.current) armBurst(chatSeq.current);
       });
     }, 20_000);
     return () => clearInterval(iv);
@@ -627,7 +646,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
           } else {
             busy.current = false;
           }
-          if (dirty.current) void replyCycle(chatSeq.current);
+          if (dirty.current) armBurst(chatSeq.current);
         },
       );
     }, 15_000);
@@ -906,6 +925,111 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     busy.current = false;
   }
 
+  // ── the burst clock ────────────────────────────────────────────────────
+  //
+  // ALL of the judgment here belongs to engine/burst.ts — how long, whether
+  // his words say more is coming, whether he is mid-word, and when to stop
+  // waiting and answer what exists. This function is only the clock: it asks,
+  // sleeps for exactly as long as it is told to, and asks again.
+  //
+  // It re-arms rather than sleeping once because the answer CHANGES while it
+  // waits — he starts typing, he stops typing, the ceiling arrives. A single
+  // setTimeout can only encode the answer at the moment it was set, which is
+  // how a time-only burst wait ends up answering the first of six messages.
+  //
+  // `burstDecide` guarantees `recheckMs` never sleeps past his oldest
+  // unanswered message's deadline, so this loop cannot spin forever and cannot
+  // stall forever. Both directions are pinned in evals/burst.mjs.
+  //
+  // NEVER-SCHEDULED, still true. `firstUnansweredAt` is 0 when nothing of his
+  // is waiting, and both waiters stop dead on that. She is never on a bare
+  // timer; the trigger is always a message of his that has not been answered.
+  function burstNow(): { fire: boolean; recheckMs: number; log: () => void } | null {
+    const turns = messagesRef.current as unknown as BurstTurn[];
+    const tail = unansweredTail(turns);
+    // messagesRef can be one render behind the push that armed this, so
+    // `dirty` — which means exactly "his messages not yet covered by a reply" —
+    // is the fallback fact, not a guess.
+    const firstAt = tail.firstAt || (dirty.current ? lastUserAt.current : 0);
+    if (!firstAt) return null;
+    const d = burstDecide({
+      now: Date.now(),
+      firstUnansweredAt: firstAt,
+      // the NEWEST of the two, never `tail.lastAt` alone: `messagesRef` can be
+      // one render behind the push that armed this, and taking the older of a
+      // stale list and a fresh send time would compute a due date that has
+      // already passed — which answers his first message the instant his
+      // second one arrives, i.e. the exact bug this file is fixing.
+      lastUserAt: Math.max(tail.lastAt, dirty.current ? lastUserAt.current : 0),
+      gaps: recentUserGaps(turns),
+      his: tail.texts,
+      herLast: tail.herLast,
+      draftLength: draftRef.current.trim().length,
+      lastKeyAt: lastKeyAt.current,
+    });
+    return {
+      fire: d.fire,
+      recheckMs: d.recheckMs,
+      // Counts and rule names only, never his text — the rule diag.ts holds.
+      // This is the only way to find out afterwards whether the hold is tuned,
+      // which is what this repo asks for before it asks for prose.
+      log: () =>
+        tel("chat.burst", {
+          reason: d.reason,
+          held_ms: d.heldMs,
+          wait_ms: d.waitMs,
+          msgs: tail.count,
+          cont: d.continuation.reason,
+        }),
+    };
+  }
+
+  function armBurst(seq: number) {
+    if (burstTimer.current) clearTimeout(burstTimer.current);
+    const tick = () => {
+      burstTimer.current = null;
+      if (seq !== chatSeq.current || inCallRef.current) return;
+      const d = burstNow();
+      if (!d) return;
+      if (!d.fire) {
+        burstTimer.current = setTimeout(tick, d.recheckMs);
+        return;
+      }
+      d.log();
+      void replyCycle(seq);
+    };
+    // deferred, never synchronous: this is called from inside `send()`, before
+    // React has flushed the push, so a synchronous read of `messagesRef` would
+    // be looking at the thread WITHOUT the message it was armed for.
+    burstTimer.current = setTimeout(tick, 0);
+  }
+
+  /**
+   * The same clock, awaited from INSIDE a reply chain.
+   *
+   * Between passes she is still mid-turn — she has just delivered, and more of
+   * his has landed — so the flags stay held and only the waiting is shared
+   * with `armBurst`. Resolves false when there is nothing of his left to
+   * answer, or the chat was cleared, or a call started: the chain ends there.
+   */
+  function awaitBurst(seq: number, ep: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const tick = () => {
+        chainTimer.current = null;
+        if (ep !== epoch.current || inCallRef.current) return resolve(false);
+        const d = burstNow();
+        if (!d) return resolve(false);
+        if (d.fire) {
+          d.log();
+          return resolve(true);
+        }
+        chainTimer.current = setTimeout(tick, d.recheckMs);
+      };
+      void seq;
+      tick();
+    });
+  }
+
   // schedule a reply cycle after a short burst-wait; every newer message
   // resets the wait and supersedes any in-flight thinking
   function scheduleReply(hint = "") {
@@ -915,14 +1039,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     // burst-wait instead of in front of the model call. `hint` is the message
     // just pushed — state hasn't re-rendered yet, so messagesRef is one behind.
     prefetchRecall(state.deviceId, hint || lastUserText());
-    const seq = ++chatSeq.current;
-    if (burstTimer.current) clearTimeout(burstTimer.current);
-    // Derived from HIS OWN recent gaps, not a constant — see engine/burst.ts.
-    // A fixed wait makes a deliberate typist wait longest, which is backwards,
-    // and `scene-hold-800` already measured that on the watch lane. Only the
-    // timer lives here; the policy is the engine's so every surface gets it.
-    const wait = burstWaitMs(recentUserGaps(messagesRef.current));
-    burstTimer.current = setTimeout(() => void replyCycle(seq), wait);
+    armBurst(++chatSeq.current);
   }
 
   function lastUserText(): string {
@@ -934,16 +1051,92 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     return "";
   }
 
+  /**
+   * EVERYTHING he said that she has not answered yet, as one string.
+   *
+   * `toTurns` already merges his consecutive messages into a single user turn,
+   * so the MODEL always saw the whole burst. This is the other half: `latest`
+   * is what the non-turn readers get — the recall query, her taste pull, the
+   * culture note, and the read beat that decides how long she spends looking
+   * at the screen before "typing…" appears. All four were seeing only the last
+   * fragment, so a burst of "kal ka plan cancel ho gaya" / "ab kya karein"
+   * looked up memories for "ab kya karein" and read three messages in the time
+   * it takes to read one.
+   *
+   * Newline-joined, oldest first, so it reads the way the thread reads.
+   */
+  function lastUserBurstText(): string {
+    const tail = unansweredTail(messagesRef.current as unknown as BurstTurn[]);
+    const joined = tail.texts.filter(Boolean).join("\n").trim();
+    return joined || lastUserText();
+  }
+
+  /**
+   * THE REPLY CHAIN — one owner of the flags, one release, and no recursion.
+   *
+   * `busy-held-across-recursion` (context/rejected.md) is the reason this is
+   * shaped the way it is. That bug was one missing `busy.current = false` on
+   * one of three recursive paths, and its cost was not a lost reply: the flag
+   * was never lowered again, so every later `scheduleReply()` died at the same
+   * guard and the conversation was dead until reload — from one burst, on the
+   * exact path written to serve bursts. Review did not catch it because each
+   * line was individually correct and a missing release is invisible in a diff
+   * that contains no releases.
+   *
+   * So the class is removed rather than the instance. The flags are taken HERE,
+   * exactly once, and released in a `finally` that no early return, thrown
+   * error or awaited branch can skip. The chain that used to recurse is now a
+   * loop, so a continuation can never re-enter through the guard that the
+   * outer call is still holding. Adding a fourth branch to `replyPass` cannot
+   * reintroduce the bug: there is nothing for it to forget to release.
+   *
+   * The bound on the loop is not defensive dressing. Each pass either delivers
+   * or is superseded, and both consume real time; the cap only stops a
+   * pathological supersede storm from holding the flags across an unbounded
+   * number of model calls.
+   */
+  const REPLY_CHAIN_MAX = 6;
+
   async function replyCycle(seq: number): Promise<void> {
     if (seq !== chatSeq.current || inCallRef.current) return; // superseded
     if (thinkingChat.current) return; // running cycle chains the newest seq
     if (delivering.current) return; // deliver-end chains a follow-up
     if (busy.current) return; // directive cycle in flight — dirty chains after
     const ep = epoch.current;
-    thinkingChat.current = true;
-    busy.current = true;
+    try {
+      let s = seq;
+      for (let i = 0; i < REPLY_CHAIN_MAX; i++) {
+        // Re-taken every pass because deliver() lowers `busy` at the end of the
+        // one it just finished, and the chain is still mid-turn.
+        busy.current = true;
+        thinkingChat.current = true;
+        if (!(await replyPass(s, ep))) return;
+        // more of his landed. Wait out the burst policy again — he may still
+        // be typing — then re-read EVERYTHING and answer it as one thing.
+        if (!(await awaitBurst(chatSeq.current, ep))) return;
+        s = chatSeq.current;
+      }
+    } finally {
+      thinkingChat.current = false;
+      busy.current = false;
+      if (chainTimer.current) {
+        clearTimeout(chainTimer.current);
+        chainTimer.current = null;
+      }
+    }
+  }
+
+  /**
+   * One pass of the chain. Returns true when more of his has arrived and the
+   * chain should go round again; false when this turn is finished.
+   *
+   * It takes no flag and releases no flag — that is `replyCycle`'s job and its
+   * alone. Every `return false` here is a normal end of turn, and the release
+   * happens above it in the `finally`.
+   */
+  async function replyPass(seq: number, ep: number): Promise<boolean> {
     dirty.current = false;
-    const latest = lastUserText();
+    const latest = lastUserBurstText();
     const readFrom = lastUserAt.current || Date.now();
     beginReading(latest, readFrom);
     // [search:] turns: her holding bubble is delivered while the lookup runs
@@ -970,35 +1163,30 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       undefined,
       holdingDeliver,
     );
-    thinkingChat.current = false;
-    if (ep !== epoch.current) {
-      busy.current = false;
-      return; // chat was cleared mid-think
-    }
+    if (ep !== epoch.current) return false; // chat was cleared mid-think
     if (seq !== chatSeq.current) {
-      // they kept texting while she read — re-read EVERYTHING, reply once.
-      //
-      // `busy` MUST be released before recursing. It was taken at the top of
-      // this cycle and is normally released by deliver(), which this branch
-      // never reaches — so without the reset the recursive call returns at its
-      // own `if (busy.current)` guard and she goes silent. Permanently: the
-      // flag is never lowered again, so every later scheduleReply() dies at
-      // the same guard and the chat is dead until reload. Reported as "when
-      // sending multiple messages it's just stopping and then no message from
-      // her end", and it made the burst path — the one this branch exists to
-      // serve — the one path that could not work.
-      busy.current = false;
-      return replyCycle(chatSeq.current);
+      // MESSAGES LANDED MID-GENERATION. What came back answers a question he
+      // has already moved past, so it is thrown away unread and the chain goes
+      // round — through the burst clock, because he may well still be typing.
+      // Nothing is released here and nothing needs to be: the flags belong to
+      // replyCycle's `finally`.
+      return true;
     }
     mergeLearned(reply.learned);
     delivering.current = true;
-    await deliver(reply, latest, readFrom);
-    delivering.current = false;
-    if (dirty.current && ep === epoch.current) {
-      // messages landed while she was typing — she notices and follows up
-      return replyCycle(chatSeq.current);
+    try {
+      await deliver(reply, latest, readFrom);
+    } finally {
+      delivering.current = false;
+      // deliver() lowers `busy` when it finishes. The chain is still mid-turn,
+      // so take it straight back — otherwise a burst timer that fires in this
+      // window starts a SECOND cycle alongside this one.
+      busy.current = true;
     }
-    busy.current = false;
+    // MESSAGES LANDED MID-DELIVERY, between her bubbles. She notices and
+    // follows up, exactly as a person does when a message arrives while they
+    // are still typing the last one.
+    if (dirty.current && ep === epoch.current) return true;
     // periodically distill the conversation into her graph memory, and keep
     // what she claimed about HER own life — off the hot path, one extraction
     // call that was already happening, no extra round trip per turn
@@ -1033,6 +1221,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
         },
       );
     }
+    return false;
   }
 
   // ── clearing and forgetting, both with a way back ─────────────────────
@@ -1062,6 +1251,14 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     };
     busy.current = false;
     epoch.current += 1; // kill any in-flight reply from the old chat
+    // and any reply that has not started yet: an armed burst timer belongs to
+    // the conversation that armed it. `dirty` goes with it — it means "his
+    // messages not yet answered", and there are no longer any messages.
+    if (burstTimer.current) clearTimeout(burstTimer.current);
+    burstTimer.current = null;
+    if (chainTimer.current) clearTimeout(chainTimer.current);
+    chainTimer.current = null;
+    dirty.current = false;
     if (readTimer.current) clearTimeout(readTimer.current);
     typingSince.current = 0;
     setTyping(false);
@@ -1191,6 +1388,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     const text = draft.trim();
     if (!text) return; // sending is NEVER blocked — she adapts, like a person
     setDraft("");
+    // the box is empty again: the composing hold has nothing left to hold on
+    draftRef.current = "";
     const mine: Message = {
       id: uid(),
       from: "me",
@@ -1284,6 +1483,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     }
     const caption = draft.trim();
     setDraft("");
+    // the box is empty again: the composing hold has nothing left to hold on
+    draftRef.current = "";
     const mine: Message = {
       id: uid(),
       from: "me",
@@ -2073,6 +2274,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
                 // below, and it measured +0.6ms per keystroke. The caret it
                 // needed is already read at keydown, before layout is dirty.
                 composer.change(e.target.value);
+                // the "typing…" signal she is entitled to. Refs, so this costs
+                // nothing on the keystroke path; `onChange` rather than only
+                // `onKeyDown` so a paste, a dictation commit and an IME
+                // composition all count as him still working on the message.
+                draftRef.current = e.target.value;
+                lastKeyAt.current = Date.now();
                 setDraft(e.target.value);
                 e.target.style.height = "auto";
                 e.target.style.height = Math.min(110, e.target.scrollHeight) + "px";
@@ -2089,6 +2296,9 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
                   e.currentTarget.selectionStart ?? 0,
                   e.currentTarget.selectionEnd ?? 0,
                 );
+                // a held backspace emits keydown without changing the value,
+                // and it is still him working on the message
+                lastKeyAt.current = Date.now();
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   send();

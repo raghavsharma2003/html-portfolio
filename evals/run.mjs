@@ -97,6 +97,13 @@ const suites = {
   // together, the record never moves, and G2 holds in both directions on
   // both lanes. Offline, $0.
   rupturechannel: "rupture-channel/run.mjs",
+  // WS-BURST. The greet-once predicate (src/engine/greeting.ts) and the
+  // structural proof that a burst reaches the model as ONE user turn.
+  greeting: "greeting.mjs",
+  // WS-BURST. The wiring itself: the policy stays in the engine, and the
+  // reply chain's flags are taken once and released in a finally — the
+  // busy-held-across-recursion class made impossible rather than avoided.
+  burstwiring: "burstwiring.mjs",
   // WS-TIME. The two clocks (src/engine/timeline.ts) — her day as a pure
   // function of the hour, and what has moved in HIS world since they last
   // spoke. DB-free, network-free, model-free and ~11s, including its own
