@@ -135,6 +135,20 @@ ok("charter: detection is never time-scheduled",
   ok("the moment joins trustedText", /trustedText: \[[\s\S]*?momentLine[\s\S]*?\]/.test(brain));
   const chat = readFileSync(new URL("../src/components/Chat.tsx", import.meta.url), "utf8");
   ok("chat lane hands it over", /moment: state\.recentMoment \?\? null/.test(chat));
+  // 2026-08-22 audit, finding #9: the CASCADE call lane's brainKeys() carried
+  // neither field, so a milestone that had just crossed never reached a
+  // mid-call fallback turn — #117 landed in chat and never in a call. Same
+  // pin, same shape, the other lane's source — scoped to the `brainKeys`
+  // function body specifically, because `activityOf(stateRef.current.game)`
+  // already appears elsewhere in this file (the frozen-at-connect LIVE
+  // prompt's own compile() call) and a bare file-wide regex would have
+  // passed before the fix as easily as after it.
+  const callEngine = readFileSync(new URL("../src/components/useCallEngine.ts", import.meta.url), "utf8");
+  const brainKeysMatch = callEngine.match(/const brainKeys = \(\) => \(\{[\s\S]*?\n  \}\);/);
+  ok("useCallEngine's brainKeys function is found (source shape changed?)", Boolean(brainKeysMatch));
+  const brainKeysSrc = brainKeysMatch ? brainKeysMatch[0] : "";
+  ok("call lane hands the moment over too", /moment: stateRef\.current\.recentMoment \?\? null/.test(brainKeysSrc));
+  ok("call lane's brainKeys also carries the live board (T15)", /activity: activityOf\(stateRef\.current\.game\)/.test(brainKeysSrc));
 
   // every kind's fact is telegraphic: <=14 words, no first person, no "I"
   const inpAll = {

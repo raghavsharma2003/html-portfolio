@@ -803,8 +803,13 @@ export function findUnsupportedReceipts(text: string, openItems: readonly string
  * request, "bheja tha" is a report and "bhej rahi hai" is about someone else.
  * Only the first is gateable.
  */
+// 2026-08-22 audit (finding #10): the kar-verb alternation had `mail` but not
+// `e-?mail`, and \b refuses to match "mail" as a substring of "email" — there
+// is no boundary between the "e" and the "m". "mail kar dungi" matched,
+// "email kar dungi" silently did not. One alternation, same fix RE_OOB_CHANNEL
+// already carries for the identical reason.
 const RE_SEND_FUTURE =
-  /\b(?:bhej(?:\s*d)?(?:o?ungi|o?unga|enge)|bhej(?:ti|ta)\s*hu|bhej\s*(?:rahi|rhi|raha|rha)\s*hu|bhej\s*det[ia]\s*hu|(?:send|mail|share|forward|whats\s?app|whatsapp|dm|post|drop|upload)\s*kar\s*(?:d(?:o?ungi|o?unga)|o?ungi|o?unga)|daal\s*d(?:o?ungi|o?unga)|i'?ll\s+(?:send|mail|dm|email|share|forward|post|drop)|i'?m\s+sending|i\s+will\s+(?:send|mail|dm|email|share|forward)|will\s+(?:send|mail|dm|email)\s+(?:you|u|it))\b/i;
+  /\b(?:bhej(?:\s*d)?(?:o?ungi|o?unga|enge)|bhej(?:ti|ta)\s*hu|bhej\s*(?:rahi|rhi|raha|rha)\s*hu|bhej\s*det[ia]\s*hu|(?:send|mail|e-?mail|share|forward|whats\s?app|whatsapp|dm|post|drop|upload)\s*kar\s*(?:d(?:o?ungi|o?unga)|o?ungi|o?unga)|daal\s*d(?:o?ungi|o?unga)|i'?ll\s+(?:send|mail|dm|email|share|forward|post|drop)|i'?m\s+sending|i\s+will\s+(?:send|mail|dm|email|share|forward)|will\s+(?:send|mail|dm|email)\s+(?:you|u|it))\b/i;
 
 /**
  * Things that get DELIVERED. `RE_DELIVERY_NOUN`'s list plus the media she
@@ -829,6 +834,43 @@ const promiseHasObject = (clause: string): boolean =>
   RE_RECIPIENT.test(clause) ||
   RE_DEICTIC_OBJECT.test(clause) ||
   RE_LATER.test(clause);
+
+// ── finding #11: English word order pushes the channel past NEAR_WORDS ──
+//
+// Hindi is SOV — "whatsapp pe bhej dungi" sits the channel right against the
+// verb, so the raw gap already handles it. English is SVO with the object
+// in between — "send YOU THE FILE on whatsapp" — and the object phrase alone
+// can be four words wide before the channel even starts, pushing the true
+// send↔whatsapp relationship past a gap the Hinglish twin never crosses.
+// Raising NEAR_WORDS is the wrong fix — it was bought with a real generation
+// (see the note above, :353-371) and loosening it globally reopens
+// "resume wali baat chhod, main abhi ghar aayi hu" as a false positive. The
+// right fix is to not COUNT the object phrase as distance: a recipient
+// pronoun, an article, and the thing being sent are not evidence the channel
+// is unrelated, they are the sentence doing its normal job. This only eats a
+// run sitting directly against the nearer span — it cannot reach across an
+// unrelated clause, so a channel mentioned four real words later, about
+// something else, still measures four real words later.
+const isObjectPhraseWord = (w: string): boolean =>
+  RE_RECIPIENT.test(w) || RE_DEICTIC_OBJECT.test(w) || RE_DELIVERABLE.test(w) || /^(?:the|a|an)$/i.test(w);
+
+/** `wordGap`, but a contiguous object-phrase run against the nearer span is
+ *  not counted. */
+function objectPhraseGap(s: string, a: [number, number], b: [number, number]): number {
+  const [first, second] = a[0] < b[0] ? [a, b] : [b, a];
+  const [i, j] = [first[1], second[0]];
+  if (j <= i) return 0;
+  const words = s.slice(i, j).trim().split(/\s+/).filter(Boolean);
+  let k = 0;
+  while (k < words.length && isObjectPhraseWord(words[k])) k++;
+  return words.length - k;
+}
+
+/** True when a verb and a channel are close enough to be about each other —
+ *  the raw gap, or the gap once the object phrase between them is skipped. */
+function verbChannelNear(clause: string, verb: [number, number], channel: [number, number]): boolean {
+  return wordGap(clause, verb, channel) <= NEAR_WORDS || objectPhraseGap(clause, verb, channel) <= NEAR_WORDS;
+}
 
 /** Which lane the bytes are leaving through. Chat can carry a photo; a call
  *  can carry nothing but sound. */
@@ -863,7 +905,7 @@ export function findChannelPromises(text: string, channel: Channel = "chat"): Pr
     // (a) A NAMED out-of-band channel, on either lane. False by construction
     //     wherever it is said: she has no mail, inbox, WhatsApp or DM.
     const channels = spansOf(RE_OOB_CHANNEL, c.text);
-    if (channels.some((sp) => verbs.some((v) => wordGap(c.text, sp, v) <= NEAR_WORDS))) {
+    if (channels.some((sp) => verbs.some((v) => verbChannelNear(c.text, v, sp)))) {
       out.push({ rule: "channel-promise", clause: c.text, why: "out-of-band" });
       continue;
     }
@@ -872,6 +914,106 @@ export function findChannelPromises(text: string, channel: Channel = "chat"): Pr
     //     be the gate eating the product.
     if (channel === "call" && promiseHasObject(c.text)) {
       out.push({ rule: "channel-promise", clause: c.text, why: "call-lane" });
+    }
+  }
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// (B4) — 2026-08-22 audit, finding #6: THE PAST-TENSE SEND CLAIM
+// ─────────────────────────────────────────────────────────────────────────
+//
+// (B1) gates "your resume arrived in my inbox" — a claim that HIS material
+// reached her through a channel she does not have. (B3) gates "I'll mail it
+// to you" — a promise that HERS will leave through one. Both were built and
+// both shipped, and the audit found the third tense sitting in the gap
+// between them, ungated: "maine tujhe abhi email kar diya hai", "i sent you
+// the file on whatsapp", "insta pe dm kar diya tha maine". She claims, in the
+// PAST, to have ALREADY SENT something through a channel that does not
+// exist. It is false for the identical structural reason (B1)'s header
+// states: this app is the only place she exists, so nothing of hers can have
+// left through a mailbox or a DM either, any more than his could have
+// arrived through one.
+//
+// This is (B1)'s mirror rather than (B3)'s: (B3) reads a FUTURE-tense verb —
+// nothing has happened yet, so there is nothing to check against a record,
+// only against the channel. This one reads a PAST-tense verb asserting a
+// completed act, which is exactly what makes it "the same lie in opposite
+// directions" as `findOutOfBandReceipts` — one says material arrived through
+// a channel that isn't there, the other says material left through one. Same
+// tense, same falsity, same proximity calibration; only the direction of
+// travel differs. So its hits carry `findOutOfBandReceipts`'s OWN rule,
+// `"oob-receipt"`, rather than `channel-promise`'s — which is what routes it
+// through `guardReply` into the RECEIPT pool ("ruk mere paas toh kuch aaya
+// nhi h") instead of the CONTACT pool ("mere paas dene ko kuch h hi nhi"):
+// the honest reply to "I already sent it" is that nothing arrived, not that
+// she has nothing to give.
+//
+// THE FIRST-PERSON SUBJECT IS LOAD-BEARING, not a nicety. Two cases in this
+// file's own corpus depend on it staying that way:
+//   - "bhej diya resume ya bas helo bolne aaya h" (cases.mjs, the calibration
+//     sentence `NEAR_WORDS` and the infinitive rule were bought with) has no
+//     subject at all — she is ASKING whether HE sent it. Requiring an
+//     explicit `maine`/`main ne`/`i` keeps this clause out.
+//   - "whatsapp pe log kitna forward karte h na" (cases.mjs) is generic third
+//     person ("log", people) in the present habitual, not a first-person
+//     perfective. No subject match, no verb-tense match — two independent
+//     reasons it stays clean, so a future edit to either guard alone cannot
+//     reopen it.
+//
+// TWO VERB SHAPES, because they carry different evidence:
+//   - SELF-NAMING verbs — "emailed", "dm'd", "forwarded", "whatsapped" — carry
+//     their own channel; the verb IS the lie and needs nothing beside it.
+//     Deliberately past-tense-marked ONLY (`emailed`, not bare `email`):
+//     an unmarked `email` is a noun she is allowed to say ("mera email dekh
+//     liya" is a receipt claim, (B1)'s job, not this one's).
+//   - CHANNEL-AGNOSTIC verbs — Hinglish `kar diya/di`, `bheja/bheji`, English
+//     `sent` — are also what a REAL in-app send looks like ("photo bhej diya
+//     maine abhi" is true), so they are only false when a NAMED channel sits
+//     within `verbChannelNear` of them, the identical calibration (B1) and
+//     (B3) already spent a real generation buying. `forward` bare (no `-ed`)
+//     joins the channel set for this proximity check only: forwarding
+//     something onward has no in-app feature to be true about, so the bare
+//     verb is itself channel-equivalent — "tera resume maine forward kar
+//     diya hr ko" has no other named channel in it at all.
+const RE_FIRST_PERSON_SENDER = /\b(?:maine|main\s*ne|i)\b/i;
+
+/** Past-tense verbs that name their own channel. The `-ed`/`'d` marker is
+ *  mandatory — a bare `email`/`mail`/`whatsapp` is a noun, not a claim. */
+const RE_SEND_PAST_SELF =
+  /\b(?:e-?mail(?:ed)|mail(?:ed)|dm'?d|whats\s?app(?:ed)|whatsapp(?:ed)|insta(?:grammed)|forward(?:ed))\b/i;
+
+/** Past-tense verbs that say nothing about a channel on their own — real
+ *  in-app capabilities, gated only by proximity to a named OOB channel.
+ *  `bhej\s*d(?:iya|i)` (bhej diya/di, no `kar`) and `bhej(?:a|i)` (bheja/bheji)
+ *  are two different perfective shapes of the same verb — both are common. */
+const RE_SEND_PAST_GENERIC = /\b(?:kar\s*d(?:iya|i)|bhej\s*d(?:iya|i)|bhej(?:a|i)\b|sent)\b/i;
+
+/** The channel set for THIS detector: `RE_OOB_CHANNEL` plus the bare verb
+ *  `forward`, which is channel-equivalent here for the reason above. */
+const RE_OOB_CHANNEL_OR_FORWARD = new RegExp(`${RE_OOB_CHANNEL.source}|forward`, RE_OOB_CHANNEL.flags);
+
+/**
+ * (B4) A claim that SHE already sent something through a channel she does
+ * not have. `findOutOfBandReceipts`'s mirror, and its rule is reused
+ * verbatim — see the header above for why that is the routing, not a
+ * shortcut.
+ */
+export function findPastSendClaims(text: string): ReceiptHit[] {
+  const out: ReceiptHit[] = [];
+  for (const c of clausesOf(text)) {
+    if (RE_NEGATED.test(c.text)) continue;
+    if (isInterrogative(c.text, c.terminator)) continue;
+    if (!RE_FIRST_PERSON_SENDER.test(c.text)) continue;
+    if (RE_SEND_PAST_SELF.test(c.text)) {
+      out.push({ rule: "oob-receipt", clause: c.text });
+      continue;
+    }
+    const verbs = spansOf(RE_SEND_PAST_GENERIC, c.text);
+    if (!verbs.length) continue;
+    const channels = spansOf(RE_OOB_CHANNEL_OR_FORWARD, c.text);
+    if (channels.some((sp) => verbs.some((v) => verbChannelNear(c.text, v, sp)))) {
+      out.push({ rule: "oob-receipt", clause: c.text });
     }
   }
   return out;
@@ -1351,6 +1493,7 @@ export function inspect(
   const out: Array<{ rule: HonestyRule; kind?: ActionableKind }> = [];
   for (const h of findActionable(text, allowed)) out.push({ rule: "actionable", kind: h.kind });
   for (const h of findOutOfBandReceipts(text)) out.push({ rule: h.rule });
+  for (const h of findPastSendClaims(text)) out.push({ rule: h.rule });
   for (const h of findUnsupportedReceipts(text, openItems)) out.push({ rule: h.rule });
   for (const h of findChannelPromises(text, channel)) out.push({ rule: h.rule });
   // Families 3 and 4 run only when the caller supplied his words. No

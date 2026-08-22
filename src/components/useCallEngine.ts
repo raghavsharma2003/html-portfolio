@@ -520,6 +520,17 @@ export function useCallEngine(
     // `null` until the ring fetch lands, which is compile()'s render-nothing
     // default — the same state as today, never a broken one.
     relBundle: relBundleRef.current,
+    // 2026-08-22 audit, finding #9: this lane fed neither field, so a mid-call
+    // fallback turn (the cascade `think()` calls below, not the frozen-at-
+    // connect LIVE prompt above) was blind to the board — 371 bytes/turn of
+    // T15 missing — and a milestone that had just crossed (#117) never once
+    // reached a call. Same derivation, same field, as Chat.tsx's `brainKeys`
+    // (`activityOf` lives in state/game.ts for exactly this — one function,
+    // both lanes) — read through the ref for the reason every field above is.
+    activity: activityOf(stateRef.current.game),
+    // brain.ts owns freshness (MOMENT_FRESH_MS); this only has to hand over
+    // what is there, `null` when nothing just crossed.
+    moment: stateRef.current.recentMoment ?? null,
   });
 
   // ── T-H3, and why THIS lane does not get the chat tail ────────────────────

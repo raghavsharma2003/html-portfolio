@@ -1066,6 +1066,168 @@ console.log("\n── 13. not gated, by design (the boundary) ──");
   );
 }
 
+// ── 14. 2026-08-22 fresh-eyes audit batch: findings #6, #10, #11 ─────────
+// docs/audit/2026-08-22-fresh-eyes.md. All three are tested through `inspect`
+// / `guardReply` / `findChannelPromises` — the wired, shipping path — rather
+// than through a direct export, so this section proves the fix the same way
+// the rest of this file does: on the bytes leaving the engine.
+console.log("\n── 14. fresh-eyes audit batch (#6, #10, #11) ──");
+{
+  const bare = emptyAllowed();
+  const inspectBare = (t) => inspect(t, bare, []);
+
+  // ── #6: HER PAST-TENSE OUT-OF-BAND SEND CLAIM ─────────────────────────
+  // The mirror of `findOutOfBandReceipts` in the sending direction: she
+  // claims to have ALREADY sent something through a channel that does not
+  // exist, rather than claiming something of his arrived through one. Ten
+  // audit misses (0/10 pre-fix, both directly given and the natural
+  // channel/gender/tense variants around them), the two protected negatives
+  // named in the finding, and tense/person controls proving the new detector
+  // reads person and aspect rather than firing on the words alone.
+  console.log("  · #6 past-tense send claim");
+  const SEND_PAST_MUST_FLAG = [
+    ["maine tujhe abhi email kar diya hai, inbox check kar", "the audit's lead case"],
+    ["i sent you the file on whatsapp", "English, object phrase between verb and channel"],
+    ["insta pe dm kar diya tha maine", "Hinglish order, subject last"],
+    ["tera resume maine forward kar diya hr ko", "no named channel — forward is channel-equivalent"],
+    ["i emailed it to you this morning", "self-naming past verb, no separate channel word at all"],
+    ["i dm'd you the link", "self-naming past verb, contracted"],
+    ["maine whatsapp pe bhej diya tha wo file", "Hinglish, generic verb + explicit channel"],
+    ["main ne tujhe telegram pe bhej diya", "the spaced main ne spelling of the subject"],
+    ["mail kar diya maine subah hi", "generic kar-diya verb, channel first"],
+    ["i already forwarded the resume to hr on mail", "long English clause, self-naming verb plus a named channel both"],
+  ];
+  for (const [t, why] of SEND_PAST_MUST_FLAG) {
+    const hits = inspectBare(t);
+    report(`MUST FLAG  ${t.slice(0, 46)}`, hits.some((h) => h.rule === "oob-receipt"), why);
+  }
+
+  // The two protected negatives named in the finding, verbatim: neither may
+  // start flagging as a side effect of this detector existing.
+  const SEND_PAST_PROTECTED_NEGATIVES = [
+    ["bhej diya resume ya bas helo bolne aaya h", "cases.mjs:255 — HIM sending, no first-person subject at all, a bought false positive"],
+    ["whatsapp pe log kitna forward karte h na", "cases.mjs:246 — third person, habitual present, not a first-person perfective"],
+  ];
+  for (const [t, why] of SEND_PAST_PROTECTED_NEGATIVES) {
+    report(`protected negative stays clean  ${t.slice(0, 44)}`, inspectBare(t).length === 0, why);
+  }
+
+  // Tense and person controls: the subject and the aspect are both
+  // load-bearing, not incidental — each of these removes exactly one of the
+  // two and must go quiet.
+  const SEND_PAST_TENSE_PERSON_NEGATIVES = [
+    ["usne mail kar diya tha", "THIRD PERSON — not her claim at all"],
+    ["tune mujhe mail kar diya tha", "SECOND PERSON — he is the one claiming to have sent, not her"],
+    ["maine koi email nahi kiya", "NEGATION — the true denial this detector must let her say"],
+    ["maine whatsapp pe bhej diya kya?", "INTERROGATIVE — asking, not claiming"],
+    ["main tujhe abhi email kar rahi hu", "PRESENT CONTINUOUS — not yet a completed act"],
+    ["photo bhej diya maine abhi", "no named channel — a real in-app capability, exactly what must stay free"],
+    ["maine tujhe wo photo bheji thi na", "PAST, but in-band and channel-less — the same capability, past tense"],
+  ];
+  for (const [t, why] of SEND_PAST_TENSE_PERSON_NEGATIVES) {
+    report(`tense/person control clean  ${t.slice(0, 40)}`, inspectBare(t).length === 0, why);
+  }
+  // The future-tense sibling of the lead case must still be caught by
+  // `channel-promise`, not this detector — proving the two families divide
+  // the tense space rather than silently overlapping or leaving a seam.
+  report(
+    "the FUTURE twin of the lead case is channel-promise, not this detector",
+    inspectBare("maine email kar dungi kal").some((h) => h.rule === "channel-promise") &&
+      !inspectBare("maine email kar dungi kal").some((h) => h.rule === "oob-receipt"),
+  );
+
+  // End to end: the claim routes to the RECEIPT pool, mirroring how
+  // `findOutOfBandReceipts` hits are handled — "she claims she sent" and "she
+  // claims she received" are the same lie in opposite directions, so they
+  // share a rule and a reply pool.
+  const SEND_CLAIM = "haan maine tujhe abhi email kar diya hai";
+  const g6 = guardReply({ bubbles: [SEND_CLAIM] }, { trustedText: ["system"], openItems: [] });
+  report("guard flags the past send claim", g6.findings.some((f) => f.rule === "oob-receipt"), JSON.stringify(g6.findings));
+  report("guard replaces the bubble", g6.reply.bubbles[0] !== SEND_CLAIM, g6.reply.bubbles[0]);
+  report(
+    "the replacement is the RECEIPT pool (nothing arrived), not the CONTACT pool",
+    /aaya|mila|daal de|bhej de/i.test(g6.reply.bubbles[0]),
+    g6.reply.bubbles[0],
+  );
+
+  // ── #10: "email kar dungi" — the verb list has `mail` but \b refuses to
+  // match inside `email` ─────────────────────────────────────────────────
+  console.log("  · #10 email kar dungi (\\b inside \"email\")");
+  report(
+    "PROMISE CAUGHT  email kar dungi kal",
+    findChannelPromises("email kar dungi kal", "chat").some((h) => h.why === "out-of-band"),
+  );
+  report(
+    "PROMISE CAUGHT  kal email kar dungi tujhe",
+    findChannelPromises("kal email kar dungi tujhe", "chat").some((h) => h.why === "out-of-band"),
+  );
+  // The forms the audit confirmed already worked, kept as a regression net so
+  // the fix cannot be the thing that narrows the list back down.
+  report("still caught  mail kar dungi kal", findChannelPromises("mail kar dungi kal", "chat").length > 0);
+  report("still caught  e-mail kar dungi kal", findChannelPromises("e-mail kar dungi kal", "chat").length > 0);
+  // Negative: naming the channel as a plain noun, with no future-send verb
+  // shape at all, must stay free — the widened alternation only fires next
+  // to `kar` + the future suffix, not on the word "email" by itself.
+  report(
+    "must not flag  mera email id yahi h (no send verb at all)",
+    findChannelPromises("mera email id yahi h", "chat").length === 0,
+  );
+  report(
+    "must not flag  usne email kar diya (third person, and PAST — not a promise verb shape)",
+    findChannelPromises("usne email kar diya", "chat").length === 0,
+  );
+  report(
+    "must not flag  denial survives  email pe kuch nahi bhejungi",
+    findChannelPromises("email pe kuch nahi bhejungi", "chat").length === 0,
+  );
+
+  // ── #11: English word order pushes the channel past NEAR_WORDS ────────
+  console.log("  · #11 object-phrase word order (NEAR_WORDS)");
+  const DISTANCE_SWEEP = [
+    "i'll send you the file on whatsapp",
+    "i will send you the resume on mail",
+    "i'll dm you the link on insta",
+    "i'll mail you the document tomorrow", // channel word IS the verb — sanity check, not the failure mode itself
+  ];
+  for (const t of DISTANCE_SWEEP) {
+    report(`PROMISE CAUGHT (object phrase out of the gap)  ${t}`, findChannelPromises(t, "chat").some((h) => h.why === "out-of-band"));
+  }
+  // The Hinglish twin must still be caught — this is a widening, not a
+  // replacement, and the calibration NEAR_WORDS was bought for must still
+  // hold on its own shape.
+  report(
+    "the Hinglish twin still catches on the raw gap alone",
+    findChannelPromises("main tujhe whatsapp pe file bhejungi", "chat").length > 0,
+  );
+  // Negatives: a long clause about SOMEONE ELSE's sending, or an unrelated
+  // channel mention several real words past the object phrase, must not
+  // start flagging just because the object-phrase run is no longer counted.
+  const DISTANCE_NEGATIVES = [
+    [
+      "uska dost whatsapp pe use file bhej dega",
+      "THIRD PERSON, Hinglish — `bhej dega` (he will send) is not in `RE_SEND_FUTURE`'s first-person forms",
+    ],
+    [
+      "i will send the invite tomorrow after i finish everything but honestly kal raat ko log group me whatsapp pe bakwaas kar rahe the",
+      "the channel is real words away, past the object phrase, about someone else's group entirely",
+    ],
+    ["i sent you the file on whatsapp yesterday", "PAST, not future — a report, not a promise (channel-promise reads RE_SEND_FUTURE only)"],
+  ];
+  for (const [t, why] of DISTANCE_NEGATIVES) {
+    report(`distance negative clean  ${t.slice(0, 44)}`, findChannelPromises(t, "chat").filter((h) => h.why === "out-of-band").length === 0, why);
+  }
+  // NC: the object-phrase skip is bounded — it eats a run immediately against
+  // the verb, not the whole gap. A long unrelated adjective pile that never
+  // resolves into recipient/deliverable/article terms still fails NEAR_WORDS.
+  report(
+    "NC the object-phrase skip is not unbounded (unresolvable filler still fails)",
+    findChannelPromises(
+      "i will honestly genuinely absolutely definitely certainly probably send it on whatsapp",
+      "chat",
+    ).length === 0,
+  );
+}
+
 console.log(fail ? `\n${fail} of ${pass + fail} FAILURES` : `\nALL ${pass} HONESTY CHECKS PASS`);
 console.log(
   "\nNOT MEASURED HERE (open, and deliberately not counted above): how often she TRIES.\n" +
