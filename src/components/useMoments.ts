@@ -32,7 +32,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { detectMoments, type Moment } from "../engine/milestones";
+import { detectMoments, momentFact, type Moment } from "../engine/milestones";
 import type { AppState } from "../state/store";
 
 /** Long enough for a burst of writes (a reply landing, its status ticking)
@@ -151,11 +151,21 @@ export function useMoments(
       const celebratable = gameOpen ? all.find((m) => GAME_KINDS.has(m.kind)) : undefined;
       const silentIds = silent.map((m) => m.id);
 
+      // #117 — the most significant moment that fired this tick becomes ONE
+      // fresh fact the lanes hand her, so she can mention it herself in her
+      // own words. detectMoments returns most-significant first.
+      const noteworthy = celebratable ?? all[0];
       if (silentIds.length) {
         setState((s) => {
           const have = new Set(s.momentsFired ?? []);
           const add = silentIds.filter((id) => !have.has(id));
-          return add.length ? { ...s, momentsFired: [...(s.momentsFired ?? []), ...add] } : s;
+          if (!add.length) return s;
+          const noted = add.includes(noteworthy.id) ? noteworthy : all.find((m) => add.includes(m.id));
+          return {
+            ...s,
+            momentsFired: [...(s.momentsFired ?? []), ...add],
+            ...(noted ? { recentMoment: { id: noted.id, fact: momentFact(noted), at: Date.now() } } : {}),
+          };
         });
       }
       if (!celebratable) return;
@@ -168,7 +178,11 @@ export function useMoments(
       setState((s) =>
         s.momentsFired?.includes(celebratable.id)
           ? s
-          : { ...s, momentsFired: [...(s.momentsFired ?? []), celebratable.id] },
+          : {
+              ...s,
+              momentsFired: [...(s.momentsFired ?? []), celebratable.id],
+              recentMoment: { id: celebratable.id, fact: momentFact(celebratable), at: Date.now() },
+            },
       );
     }, DEBOUNCE_MS);
     return () => clearTimeout(t);

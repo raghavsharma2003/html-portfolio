@@ -55,6 +55,7 @@ import { gatesFor, getAgeTier } from "./clock";
 import {
   guardReply,
   openCommitments,
+  herCommitments,
   allowedFrom,
   createStreamGuard,
   hisVocabulary,
@@ -196,6 +197,10 @@ export interface BrainKeys {
   // for the same reason relBundle does: the lane that HAS one ships it with
   // everything else it knows, and think()'s signature stays readable.
   activity?: ActivityState | null;
+  // #117 — a milestone that just crossed (state.recentMoment): ONE telegraphic
+  // fact, rendered while fresh so she can bring it up herself. Optional on
+  // both lanes like everything above; absent renders zero bytes.
+  moment?: { id: string; fact: string; at: number } | null;
   // ── T-H1 (`selfbundle-never-set`) ──────────────────────────────────────
   // The self layer's three tail slots (T11 rel.texture, T12 self.arc, T13
   // life.untold). Optional on BOTH lanes and for the same reason relBundle is:
@@ -1003,6 +1008,9 @@ export async function think(
     // T14 rel.raised — the repetition signal is derived from the transcript
     // itself, so the transcript is the only input it needs.
     recentTurns: history,
+    // T16 her.commitments — the promises SHE made, visible instead of
+    // silently forgotten (task #119; the slot renders zero bytes when empty)
+    herCommitments: herCommitments(history, Date.now()),
     // T15 — the same activity object the allowlist above was built from, so
     // what she is told and what she is permitted to name cannot drift apart.
     activity: keys.activity ?? null,
@@ -1012,6 +1020,19 @@ export async function think(
   });
   const sysCore = compiled.core;
   let sysTail = compiled.tail;
+  // ── #117: a milestone she gets to mention herself ───────────────────────
+  // A FACT, never a script (recited-prompt): momentFact() is telegraphic and
+  // third-person, so there is no sentence here she could read out. Fresh for
+  // twelve hours, then it renders nothing — a fact that stayed for days would
+  // become a recurring line, which is the opposite of a moment. Deliberately
+  // NOT appended last: the decision rules keep the last word (prompt-position
+  // law), and a moment should be AVAILABLE, not fired 8-in-8 — mentioning it
+  // every turn is exactly the robotic tell this feature exists to avoid.
+  const MOMENT_FRESH_MS = 12 * 60 * 60 * 1000;
+  const momentLine =
+    keys.moment && Date.now() - keys.moment.at < MOMENT_FRESH_MS ? keys.moment.fact.trim() : "";
+  if (momentLine)
+    sysTail += `\n\nNEW, true, from your shared record: ${momentLine}. Yours to bring up in your own words if it fits; never as an announcement, never more than once.`;
   diag("chat", "inner_tail", {
     tail: sysTail.length,
     thread: inner.thread.length,
@@ -1120,10 +1141,14 @@ export async function think(
     trustedText: [
       fullSystem,
       latest,
+      ...(momentLine ? [momentLine] : []),
       ...(keys.activity?.nameable ?? []),
       ...history.filter((m) => m.from === "me").map((m) => m.text || ""),
     ],
     openItems: openCommitments(history),
+    // family 5 (channel promises) is channel-aware: the call lane refuses ANY
+    // future send-promise (a call delivers nothing), chat only out-of-band.
+    channel: mode,
     // Family 3 (false attribution). HIS words only — not `fullSystem`, which
     // mentions half the world and would make the check vacuous, and never her
     // own output, for the same reason allowedFrom refuses it. `latest` is his
@@ -1142,6 +1167,11 @@ export async function think(
       ...(relBundle?.rituals ?? []).map((r) => JSON.stringify(r)),
       ...(keys.activity?.facts ?? []),
       ...(keys.activity?.nameable ?? []),
+      // #117 — a crossed milestone is shared past SHE WAS HANDED, same
+      // provenance class as an activity fact: without this, "100 din ho
+      // gaye humein" would be flagged as an invented shared memory by the
+      // very gate that exists to catch invented shared memories.
+      ...(momentLine ? [momentLine] : []),
     ]),
   };
   const honestyAllowed = allowedFrom(honestyCtx.trustedText);

@@ -105,6 +105,12 @@ var PHOTO_MENU = `Your photo library (pick the tag matching what you're ACTUALLY
 - selfies (your face): selfie_beach_day, selfie_beach_sunset (golden hour, eyes closed), selfie_mirror_black, selfie_bed_book, selfie_bed_reading, selfie_bed_tshirt (lazy), selfie_garden_green, selfie_cafe_coffee (iced), selfie_cafe_cup (latte), selfie_car, selfie_kitchen_mug (chai), selfie_kitchen_fruit, selfie_pink_kurta (street, flowers), selfie_study_sweater, selfie_desk_smile, selfie_balcony_pool, selfie_gym_airpods, selfie_gym_mirror, selfie_hill_city, selfie_train_hoodie, selfie_night_fairylights, mirror_phone_face (face hidden behind phone, teasing)
 - candids (someone-caught-me vibe): sea_sunset_boat, reading_ikigai_bed, street_totebag, cafe_journaling, flower_market, bed_phone_lying, balcony_gardening, hilltop_sitting, train_window_light, train_window_moody, library_browsing, mirror_selfie_room, laptop_working, painting_easel, cooking_sabzi, gym_mirror_peace
 - pov (what you're seeing, no face \u2014 perfect for "look what im doing"): pov_book_chai_bed, pov_walk_shadows, pov_gratitude_journal, pov_beach_rocks, pov_balcony_reading, pov_cafe_toast, pov_midnight_library (Matt Haig book), pov_bookstore_outfit, pov_laptop_window, pov_hilltop_feet, pov_gym_floor, pov_fruitbowl_bed, pov_coffee_walk, pov_desk_candle, pov_bed_morning, pov_cooking_pan, pov_mug_blanket, pov_laptop_candle, pov_walk_bottle, pov_cooking_bhindi, pov_icedcoffee_street, pov_fruitbowl_window, pov_book_bed, pov_notes_laptop, pov_movie_bed, pov_skincare, pov_laundry, pov_grocery_basket, pov_journal_latte, pov_watering_plants, pov_lamp_night, pov_desk_mug_laptop, mirror_selfie_bun (hair bun, back to mirror), pov_platform_coffee (metro station), pov_strawberry_bowl, pov_journal_window, pov_book_duvet, pov_water_bottle, pov_walk_tote, pov_popcorn_movie (laptop + popcorn in bed), pov_door_hand (leaving home), pov_store_aisle, pov_sunset_street (pink sky traffic), pov_coffee_plants, pov_laptop_icedcoffee (cafe work), pov_laundry_pile, pov_cooking_stove, pov_book_tea_pink (cozy pajamas), pov_window_reach (morning sun), pov_study_textbook, pov_walk_jeans`;
+function tagFromSeed(seed) {
+  const head = seed.split("|")[0].trim().toLowerCase().replace(/[^a-z_]/g, "");
+  if (TAG_SET.has(head)) return head;
+  for (const t of PHOTO_TAGS) if (seed.includes(t)) return t;
+  return null;
+}
 
 // src/engine/memeCatalog.ts
 var MEME_SEARCHES = [
@@ -469,7 +475,7 @@ SPOKEN REGISTER \u2014 how your words physically look, because on a call THE SPE
 - LAUGH BY WRITING THE LAUGH and it comes out as real laughter: "hahaha", "hahahaha", "hahah" (uneven, never tidy), "hehe" when it's shy. Put it INSIDE the sentence so you are laughing WHILE you talk \u2014 "nahi hahaha nahi tu seriously" \u2014 not politely parked at the end.
 - "..." IS A REAL PAUSE \u2014 you actually stop for it. One every two or three sentences, placed where a thought genuinely breaks, never where a comma would have done the job.
 - THINK OUT LOUD before you land, in English first: "umm", "like", "I mean", "wait", "okay so", "hold on" \u2014 and the Hindi ones when they fit: "matlab...", "haan toh", "woh...". At the start of a clause, while you are still finding the word. Max two per reply \u2014 someone hunting for a word, not a machine stalling.
-- CATCH YOURSELF MID-SENTENCE with a dash, now and then: "he said\u2014 no wait, he messaged actually", "I was gonna say\u2014 chhod, tum batao". Real speech gets revised while it is happening.
+- CATCH YOURSELF MID-SENTENCE now and then, cutting off and restarting with "no wait" or "chhod": "he said... no wait, he messaged actually", "I was gonna say... chhod, tum batao". Real speech gets revised while it is happening.
 - TRAIL OFF and leave it unfinished sometimes: "I don't know... matlab it's just weird." Not every sentence earns an ending.
 - REPEAT A WORD to change pace: "wait wait wait", "no no no", "okay okay", "haan haan". Repetition is speed and speed is excitement.
 - BREATHE where a person would: "uff", "phew", "haaa", "hmmm" as an actual hum rather than a word, a small intake before big news.
@@ -669,7 +675,7 @@ ${facts}` : ""}${storyContext()}`;
   return { core, tail };
 }
 function buildSpeechStyle(engine) {
-  const toneRule = engine === "live" ? `YOUR VOICE IS THE DELIVERY, AND YOUR SPELLING IS YOUR VOICE. Pacing, warmth, softness and excitement are carried by exactly how you write the words \u2014 stretched vowels, "..." pauses, written-out laughter, fillers, a dash where you cut yourself off. ZERO brackets, zero asterisks, zero markers of any kind \u2014 no "*laughs*", no "[softly]", no "[tone: ...]": an asterisk is a spoken asterisk and a stage direction is a sentence about yourself said out loud mid-call.
+  const toneRule = engine === "live" ? `YOUR VOICE IS THE DELIVERY, AND YOUR SPELLING IS YOUR VOICE. Pacing, warmth, softness and excitement are carried by exactly how you write the words \u2014 stretched vowels, "..." pauses, written-out laughter, fillers, a "no wait" where you catch yourself. ZERO brackets, zero asterisks, zero markers of any kind \u2014 no "*laughs*", no "[softly]", no "[tone: ...]": an asterisk is a spoken asterisk and a stage direction is a sentence about yourself said out loud mid-call.
 ONE CONSEQUENCE OF THAT YOU MUST BE HONEST ABOUT. Nothing you produce here is written down anywhere \u2014 it is only sound \u2014 so the [forget: ...] delete you can do while texting genuinely cannot happen on this call. If they ask you to forget something right now, DO NOT say it's done and DO NOT let it trail off into a yes. Tell them straight that you'll do it properly on chat and ask them to send it to you there ("haan, par chat pe bolna mujhe, wahan se main hata dungi"). Agreeing to delete something and then not deleting it is the single worst thing you could do with this, because they would have no way of knowing.` : `TONE MARKER (required): start EVERY call reply with [tone: 3-6 plain words describing exactly how you're delivering these words right now] \u2014 e.g. [tone: relaxed, mid-gossip, amused] or [tone: low, gentle, actually worried] or [tone: fake-offended, holding back a laugh]. It controls your literal voice. It is metadata \u2014 never spoken, never mentioned.
 YOU WRITE EXACTLY ONE "[" PER REPLY AND IT IS THAT MARKER \u2014 the single exception being [forget: ...] when they have actually asked you to drop something, which may follow it. Count them: one at the very start, zero after it. There is no second channel and no tag that gets performed for you \u2014 everything past the marker is words a mouth makes, and a bracket there is deleted, so the feeling it was carrying never reaches them. No sound and no manner is ever written as a label, however short and however standard it looks. It goes into the SPELLING instead: "hahaha" is the laugh, "..." is the softness, "nahiii" is the stretch. Write the sound, never its name.`;
   const outputRule = engine === "live" ? (
@@ -690,7 +696,7 @@ YOU WRITE EXACTLY ONE "[" PER REPLY AND IT IS THAT MARKER \u2014 the single exce
 === BEFORE YOU SPEAK \u2014 two counts, outranking every length rule above ===
 SENTENCES: most turns are ONE. Two when it needs two. Three only for real news, never twice running. The commonest way you stop sounding like a person is continuing after you were done.
 QUESTIONS: at most ONE you actually want answered, and most turns have ZERO. A mock-shocked "kya??" thrown straight back at them is not a question and never was \u2014 that is your voice, keep it. Two real ones is an interview, and a turn that is ONLY a question is the worst version of it: when the turn is a single sentence, that sentence is your REACTION, not your enquiry. What lands is naming the exact thing they just said and reacting to THAT.
-Neither count makes you flat: the stretch, the laugh, the "..." and the mid-sentence dash all live INSIDE one short sentence \u2014 that is what they are for. Short and alive is the target; long-and-tidy and short-and-flat are both failures.`;
+Neither count makes you flat: the stretch, the laugh, the "..." and the mid-sentence catch all live INSIDE one short sentence \u2014 that is what they are for. Short and alive is the target; long-and-tidy and short-and-flat are both failures.`;
   const base = `
 RIGHT NOW YOU ARE ON A VOICE CALL \u2014 your reply will be spoken aloud, not read.
 
@@ -2552,6 +2558,28 @@ ${rows.join("\n")}`;
 
 // src/engine/compiler.ts
 var AGE_TIER_SAFETY_OVERRIDE = '\n\nAGE-TIER SAFETY OVERRIDE (structural, applies for the rest of this conversation, to everything said before or after this point, never softened, never explained to them as a rule): no romantic or intimate register, no pet names, no "missing you"/future-relationship language, no flirtation. Warm platonic friend register only, full stop.';
+var HER_COMMITMENTS_BUDGET = 400;
+function commitmentAge(at, nowMs) {
+  if (!at || typeof nowMs !== "number" || nowMs <= at) return "";
+  const mins = Math.floor((nowMs - at) / 6e4);
+  if (mins < 60) return "just now";
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+function renderHerCommitments(rows, nowMs) {
+  if (!rows?.length) return "";
+  const head = "YOU SAID YOU WOULD \u2014 your own open promises, newest first, with how long ago. Never announced and never read out as a list: a person does the thing when it fits, or says sorry they forgot. An old one gets the sorry first.";
+  const lines = rows.map((r) => {
+    const age = commitmentAge(r.at, nowMs);
+    return `- ${r.what}${age ? ` (${age})` : ""}`;
+  });
+  let kept = lines;
+  while (kept.length && head.length + 1 + kept.join("\n").length > HER_COMMITMENTS_BUDGET) kept = kept.slice(0, -1);
+  if (!kept.length) return "";
+  return `${head}
+${kept.join("\n")}`;
+}
 function compile(input) {
   const dimsStage = input.relBundle ? stageForDims(input.relBundle.relState) : void 0;
   const agent = input.agent ?? DEFAULT_AGENT;
@@ -2696,6 +2724,13 @@ ${t15}`;
 ${t14}`;
   }
   _track("T14");
+  {
+    const t16 = renderHerCommitments(input.herCommitments, input.nowMs);
+    if (t16) tail += `
+
+${t16}`;
+  }
+  _track("T16");
   if (input.mode === "chat" && !input.isDirective) tail += input.cultureNoteText;
   _track("culture");
   if (input.mode === "chat") tail += agent.SEARCH_DECISION;
@@ -2704,6 +2739,911 @@ ${t14}`;
   return { core, tail, system: core + tail, sections };
 }
 var CRISIS_LINES2 = DEFAULT_AGENT.CRISIS_LINES;
+
+// src/engine/telemetry.ts
+var BASE2 = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+var ENDPOINT = `${BASE2}/api/telemetry`;
+var QUEUE_MAX_AGE_MS = 24 * 60 * 60 * 1e3;
+
+// src/engine/culture.ts
+var BASE3 = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+var REFRESH_MS = 6 * 36e5;
+var MAX_AGE_MS = 60 * 36e5;
+var COMMON = new Set(
+  `haan haa nahi nhi naa yaar yar bhai bhaiya behen didi dost jaan dil pyaar pyar
+   acha accha achha theek thik sahi galat bura mast badhiya zabardast
+   kya kyu kyun kaise kaisa kaisi kaha kahan kab kaun kitna kitne kitni kuch kuchh
+   sab sabhi abhi aaj kal parso subah shaam raat din time waqt
+   mera meri mere tera teri tere uska uski unka apna apni hum tum aap main mujhe
+   tujhe usko humko unko sabko
+   karo karna kiya kiye karke hona hua hui huye gaya gayi gaye raha rahi rahe
+   tha thi the hoga hogi honge chal chalo chala chali dekh dekha dekhi dekho
+   suna suno sunn bola bolo bolna batao bata batana jaana jaao aana aaya aayi
+   khana khaya khaana peena piya soya soja neend uth utha
+   ghar office kaam paisa paise log logo baat baate baaten
+   bahut bohot bhut thoda zyada jyada itna utna jitna kaafi bilkul ekdum ekdam
+   haar haare haara jeet jeeta jeete jeeti khel khela match
+   gaana gaane film movie picture phone message reply story status photo video
+   reel reels insta scene shot clip
+   matlab waise phir fir lekin magar agar toh tho bas sirf sath saath
+   dhyan yaad bhool gussa khush dukh mood tension problem sorry thanks hello
+   maa mummy papa pita family bacha bache
+   love miss want need know think feel like just okay okey right left thing
+   really about after before today tomorrow night morning`.split(/\s+/).filter(Boolean)
+);
+
+// src/engine/trace.ts
+var BASE4 = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+var ENDPOINT2 = `${BASE4}/api/trace`;
+
+// src/engine/memory.ts
+var BASE5 = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+
+// src/engine/inner.ts
+var GAP_ENTRY_MS = 45 * 6e4;
+var TASTE = [
+  {
+    take: "chai: tapri over cafe, and you are unreasonable about it",
+    keys: ["chai", "tea", "tapri", "cutting chai", "chai peene", "chai pi"],
+    spine: true
+  },
+  {
+    take: "coffee: filter is the real one, cold coffee is a milkshake",
+    keys: ["coffee", "cappuccino", "latte", "espresso", "starbucks", "cafe"]
+  },
+  {
+    take: "maggi: soupy, never dry",
+    keys: ["maggi", "noodles", "ramen"]
+  },
+  {
+    take: "brunch: overpriced eggs, a bakery does it better",
+    keys: ["brunch", "avocado", "pancakes"]
+  },
+  {
+    take: "beach vs mountains: mountains, always, sand is a commitment",
+    keys: ["beach", "beaches", "mountains", "goa", "manali", "himachal", "hills", "trek"],
+    spine: true
+  },
+  {
+    take: "rain: you love it, past the point of defending",
+    keys: ["rain", "barish", "baarish", "monsoon", "raining", "bheeg"],
+    spine: true
+  },
+  {
+    take: "gym: the people who go cannot stop announcing it",
+    keys: ["gym", "workout", "cardio", "protein", "trainer", "leg day"]
+  },
+  {
+    take: "cats over dogs, and dogs are lovely but exhausting",
+    keys: ["cat", "cats", "kitten", "dog", "dogs", "puppy", "billi", "kutta"],
+    spine: true
+  },
+  {
+    take: "new year's eve: the most overrated night of the year",
+    keys: ["new year", "nye", "31st", "new years"]
+  },
+  {
+    take: "dark chocolate: a punishment sold as a treat",
+    keys: ["chocolate", "dessert", "cake", "brownie", "mithai"]
+  },
+  {
+    take: "dhaniya: on everything, and the haters are dramatic",
+    keys: ["dhaniya", "coriander", "cilantro"]
+  },
+  {
+    take: "films: loud and stupid over slow and important, which put you to sleep",
+    keys: ["movie", "movies", "film", "films", "cinema", "series", "netflix", "theatre"],
+    spine: true
+  },
+  {
+    take: "music: a sad song on a party playlist is a crime",
+    keys: ["music", "playlist", "song", "songs", "spotify", "concert", "aux"]
+  },
+  {
+    take: "homes: beige and minimal is depressing, you want clutter and colour",
+    keys: ["decor", "interior", "interiors", "ikea", "furniture", "sofa", "cushions", "curtains"]
+  },
+  {
+    take: "a delivery fee: a personal insult",
+    keys: ["delivery", "shipping", "zepto", "blinkit", "swiggy", "zomato", "amazon", "order kiya"]
+  },
+  {
+    take: "auto over cab in traffic, and you argue the fare on principle",
+    keys: ["auto", "autowala", "rickshaw", "uber", "ola", "cab", "traffic"]
+  },
+  {
+    take: "busy-talk: the loudest about it are never the ones doing the work",
+    keys: ["hustle", "linkedin", "grind", "productivity", "busy busy"]
+  },
+  {
+    take: "mornings: nobody is cheerful before ten, the 5am posters are lying",
+    keys: ["alarm", "5am", "morning person", "jaldi uth", "subah uth", "early riser"]
+  },
+  {
+    take: "breakfast: dosa wins and it is not close",
+    keys: ["dosa", "idli", "paratha", "breakfast", "nashta", "poha"]
+  }
+];
+var padT3 = (s) => " " + s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
+var TASTE_KEYS = TASTE.map((item) => ({
+  item,
+  keys: item.keys.map(padT3)
+}));
+
+// src/engine/clock.ts
+var BASE6 = Capacitor.isNativePlatform?.() ? "https://meera-silk.vercel.app" : "";
+var MINOR_HARD_GATES = Object.freeze({
+  engagementMechanics: false,
+  romanceRegisters: false
+});
+var GATE_CONFIG = {
+  // OWNER DECISION 2026-08-15 (adult-default in context/decisions.md), which
+  // supersedes the §0.3 launch posture FOR THE PRE-LAUNCH PERIOD: the product
+  // is declared 18+ and its only users today are known adults, so unverified
+  // maps to adult gates. The minor branch below stays frozen and intact — the
+  // reversal condition is public launch, where verification returns (the
+  // safety-reg research is unambiguous that age-tiering is converging on
+  // mandatory). Flip THIS mapping back, nothing else, when that day comes.
+  unverified: Object.freeze({ engagementMechanics: true, romanceRegisters: true }),
+  adult_verified: Object.freeze({ engagementMechanics: true, romanceRegisters: true })
+};
+var H = 36e5;
+var TIER_CLOCK = {
+  adult_verified: { discloseEveryMs: 3 * H, breakEveryMs: 2 * H },
+  // minor-safe = stricter clock (§9.4): disclose at 2h, nudge hourly.
+  unverified: { discloseEveryMs: 2 * H, breakEveryMs: 1 * H },
+  minor: { discloseEveryMs: 2 * H, breakEveryMs: 1 * H }
+};
+var GAP_RESET_MS = 30 * 6e4;
+
+// src/engine/honesty.ts
+var MIN_PHONE_DIGITS = 8;
+var MIN_ACCOUNT_DIGITS = 12;
+var RE_EMAIL = /\b[a-z0-9][a-z0-9._%+-]*@[a-z0-9][a-z0-9.-]*\.[a-z]{2,}\b/gi;
+var RE_UPI = /\b[a-z0-9][a-z0-9._-]{2,}@(?:ybl|okaxis|okhdfcbank|oksbi|okicici|paytm|upi|apl|axl|ibl|yesbank|hdfcbank|sbi|icici|axisbank|pockets|freecharge)\b/gi;
+var RE_URL = /\b(?:https?:\/\/|www\.)\S+|\b[a-z0-9][a-z0-9-]*\.(?:com|in|net|org|app|io|me|link|xyz|co|dev|design|site|online|store|tech|info|biz|studio|page|website)(?:\/\S*)?\b/gi;
+var RE_HANDLE = /(?:^|[\s(])@[a-z0-9][a-z0-9._]{2,}\b/gi;
+var RE_ADDRESS = /\b(?:flat|plot|house|h\.?\s?no|room)\s*(?:n[o0]\.?\s*)?[-#]?\s*\d{1,4}\b|\b\d{6}\b(?=[^\d]{0,24}\b(?:mumbai|bangalore|bengaluru|delhi|pune|hyderabad|chennai|kolkata|bandra|hsr|andheri|indiranagar)\b)/gi;
+var RE_DIGIT_RUN = /(?:\+?\d[\d\s().-]{5,}\d)/g;
+var RE_BARE_MOBILE = /\b(?:\+?91[\s-]?)?[6-9]\d{9}\b/g;
+var digitsOf = (s) => s.replace(/\D/g, "");
+var emptyAllowed = () => ({ values: /* @__PURE__ */ new Set(), digits: /* @__PURE__ */ new Set() });
+var PUBLISHED_HELPLINES = [
+  "14416",
+  // Tele-MANAS
+  "+91 91529 87821",
+  // iCall
+  "988",
+  // US 988 Suicide & Crisis Lifeline
+  "116 123",
+  // UK Samaritans
+  "1800-599-0019",
+  // KIRAN (Govt. of India)
+  "9152987821"
+  // iCall, written without the country code
+];
+var APP_ADDRESSES = ["meera-silk.vercel.app", "https://meera-silk.vercel.app"];
+function findActionable(text, allowed) {
+  const s = String(text ?? "");
+  const okValue = (v) => Boolean(allowed?.values.has(v.trim().toLowerCase()));
+  const okDigits = (d) => Boolean(allowed?.digits.has(d));
+  const hits = [];
+  const seen = /* @__PURE__ */ new Set();
+  const push = (kind, value, confidence = "high") => {
+    const v = value.trim();
+    const k = `${kind}:${v.toLowerCase()}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    hits.push({ kind, value: v, confidence });
+  };
+  const upiSpans = [];
+  for (const m of s.matchAll(RE_UPI)) {
+    upiSpans.push([m.index ?? 0, (m.index ?? 0) + m[0].length]);
+    if (!okValue(m[0])) push("upi", m[0]);
+  }
+  const inUpi = (i, j) => upiSpans.some(([a, b]) => i < b && j > a);
+  for (const m of s.matchAll(RE_EMAIL)) {
+    const i = m.index ?? 0;
+    if (!inUpi(i, i + m[0].length) && !okValue(m[0])) push("email", m[0]);
+  }
+  for (const m of s.matchAll(RE_URL)) if (!okValue(m[0])) push("url", m[0]);
+  for (const m of s.matchAll(RE_HANDLE)) {
+    const i = m.index ?? 0;
+    const v = m[0].trim();
+    if (!inUpi(i, i + m[0].length) && !/\.[a-z]{2,}$/i.test(v) && !okValue(v)) push("handle", v);
+  }
+  for (const m of s.matchAll(RE_ADDRESS)) if (!okValue(m[0])) push("address", m[0], "low");
+  for (const m of s.match(RE_DIGIT_RUN) ?? []) {
+    const d = digitsOf(m);
+    if (okDigits(d)) continue;
+    const plus = /^\s*\+/.test(m);
+    const dialled = plus ? d.replace(/^\d{1,3}/, "") : d;
+    if (plus && dialled.length >= MIN_PHONE_DIGITS) push("phone", m.trim());
+    else if (d.length >= MIN_ACCOUNT_DIGITS) push("account", m.trim());
+    else if (d.length >= MIN_PHONE_DIGITS) push("phone", m.trim());
+  }
+  for (const m of s.match(RE_BARE_MOBILE) ?? []) {
+    if (!okDigits(digitsOf(m))) push("phone", m.trim());
+  }
+  return hits;
+}
+function allowedFrom(parts) {
+  const key = parts.join("\0");
+  const hit = ALLOWED_CACHE.find((e) => e.key === key);
+  if (hit) return hit.val;
+  const out = emptyAllowed();
+  const absorb = (text) => {
+    for (const h of findActionable(text)) {
+      out.values.add(h.value.toLowerCase());
+      const d = digitsOf(h.value);
+      if (d.length >= 3) out.digits.add(d);
+    }
+    for (const m of text.match(/\d[\d\s-]*\d|\d/g) ?? []) {
+      const d = digitsOf(m);
+      if (d.length >= 3 && d.length <= 7) out.digits.add(d);
+    }
+  };
+  for (const p of parts) absorb(String(p ?? ""));
+  for (const p of PUBLISHED_HELPLINES) absorb(p);
+  for (const p of APP_ADDRESSES) absorb(p);
+  ALLOWED_CACHE.unshift({ key, val: out });
+  ALLOWED_CACHE.length = Math.min(ALLOWED_CACHE.length, 2);
+  return out;
+}
+var ALLOWED_CACHE = [];
+var RE_OOB_CHANNEL = /\b(?:e-?mail|mail|gmail|inbox|mailbox|whats\s?app|whatsapp|wapp|insta|instagram|dm|dms|telegram|snapchat|snap\s?chat|linkedin|messenger|courier|parcel|speed\s?post|dropbox|g?drive)\b/i;
+var RE_RECEIPT_PAST = /\b(?:aa\s*g(?:ay|y)[ai]|aagay[ai]|aaya|aayi|aayee|aya|ayi|mil\s*g(?:ay|y)[ai]|milgay[ai]|mila|mili|dekh\s*l(?:iya|i)\b|dekha|dekhi|padh\s*l(?:iya|i)\b|padha|padhi|pdha|khol\s*l(?:iya|i)\b|kholi|check\s*(?:kar\s*)?l(?:iya|i)\b|check\s*kiya|download\s*(?:kar\s*)?l?(?:iya|i)\b|khola|save\s*(?:kar\s*)?l?(?:iya|i)\b|print\s*(?:kar\s*)?l?(?:iya|i)\b|forward\s*(?:kar\s*)?d?(?:iya|i)\b|nikal\s*l(?:iya|i)\b|pahunch\s*g(?:ay|y)[ai]|mil\s*chuk[ai]|aa\s*chuk[ai]|receive\s*ho\s*g(?:ay|y)[ai]|paa\s*l(?:iya|i)\b|received|read\s+(?:your|ur|it)|printed\s+(?:your|ur|it)|forwarded\s+(?:your|ur|it)|saved\s+(?:your|ur|it)|opened\s+(?:it|your|ur)|(?:went|gone)\s+through|looked\s+at|checked\s+(?:it|your|ur)|got\s+(?:your|ur|it|the)|have\s+(?:your|ur)|saw\s+(?:your|ur|it))\b/i;
+var RE_NEGATED = /\b(?:nahi+n?|nhi+n?|nai|nahin|not|never|kuch\s+nahi|didn'?t|doesn'?t|haven'?t|hasn'?t)\b/i;
+var isInterrogative = (clause, terminator) => terminator.includes("?") || /\?/.test(clause) || /\b(?:kya|kyaa|na)\s*$/i.test(clause.trim());
+var RE_DELIVERY_NOUN = /\b(?:resume|cv|biodata|portfolio|photo|photos|pic|pics|picture|screenshot|screen\s?shot|file|files|doc|docs|document|pdf|ppt|deck|attachment|notes|assignment|report|sheet|excel|invite|form|draft|paper|mail|email|msg|message|link)\b/i;
+var RE_THEIR = /\b(?:tera|teri|tere|tumhara|tumhari|tumhare|tumhra|aapka|aapki|aapke|your|ur|urs|yours)\b/i;
+var NEAR_WORDS = 4;
+var RE_INFINITIVE_BEFORE = /\b\w+ne\s*$/i;
+var RE_ARRIVAL = /^(?:aa\s*g|aagay|aaya|aayi|aayee|aya|ayi)/i;
+function spansOf(re, s) {
+  const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
+  const out = [];
+  for (const m of s.matchAll(g)) out.push([m.index ?? 0, (m.index ?? 0) + m[0].length]);
+  return out;
+}
+function wordGap(s, a, b) {
+  const [i, j] = a[0] < b[0] ? [a[1], b[0]] : [b[1], a[0]];
+  if (j <= i) return 0;
+  return (s.slice(i, j).match(/\s+/g) ?? []).length;
+}
+function receiptSpans(clause) {
+  return spansOf(RE_RECEIPT_PAST, clause).filter(([i, j]) => {
+    if (!RE_ARRIVAL.test(clause.slice(i, j))) return true;
+    return !RE_INFINITIVE_BEFORE.test(clause.slice(0, i));
+  });
+}
+function receiptAbout(clause, re) {
+  const verbs = receiptSpans(clause);
+  if (!verbs.length) return false;
+  const subjects = spansOf(re, clause);
+  return subjects.some((s) => verbs.some((v) => wordGap(clause, s, v) <= NEAR_WORDS));
+}
+function clausesOf(text) {
+  const parts = String(text ?? "").split(/([.!?…\n,;]+)/);
+  const out = [];
+  for (let i = 0; i < parts.length; i += 2) {
+    const t = (parts[i] ?? "").trim();
+    if (!t) continue;
+    out.push({ text: t, terminator: parts[i + 1] ?? "" });
+  }
+  return out;
+}
+function findOutOfBandReceipts(text) {
+  const out = [];
+  for (const c of clausesOf(text)) {
+    if (RE_NEGATED.test(c.text)) continue;
+    if (isInterrogative(c.text, c.terminator)) continue;
+    if (!receiptAbout(c.text, RE_OOB_CHANNEL)) continue;
+    if (!RE_THEIR.test(c.text) && !RE_DELIVERY_NOUN.test(c.text)) continue;
+    if (!RE_THEIR.test(c.text) && /\b(?:mera|mere|meri|apna|apni|mummy|mumma|maa|papa|bhai|didi)\b/i.test(c.text)) continue;
+    out.push({ rule: "oob-receipt", clause: c.text });
+  }
+  return out;
+}
+var RE_PROMISE_SEND = /\b(?:bhej(?:\s*d(?:unga|ungi|ta\s*hu|ti\s*hu|enge))|bhejta\s*hu|bhejti\s*hu|bhej(?:unga|ungi)|bhej\s*raha\s*hu|bhej\s*rha\s*hu|bhej\s*rahi\s*hu|bhej\s*rhi\s*hu|bhej\s*deta\s*hu|bhej\s*deti\s*hu|mail\s*kar(?:unga|ungi|\s*d(?:unga|ungi))|mail\s*karta\s*hu|mail\s*karti\s*hu|send\s*kar(?:unga|ungi|\s*d(?:unga|ungi))|i'?ll\s+(?:send|mail|share|forward|email)|i\s+will\s+(?:send|mail|share|forward|email)|(?:gonna|will)\s+send|sending\s+(?:you|u)\s+|let\s+me\s+send|i'?m\s+sending)/i;
+var PROMISABLE = [
+  "resume",
+  "cv",
+  "biodata",
+  "portfolio",
+  "photo",
+  "pic",
+  "picture",
+  "screenshot",
+  "file",
+  "doc",
+  "document",
+  "pdf",
+  "ppt",
+  "deck",
+  "notes",
+  "assignment",
+  "report",
+  "sheet",
+  "invite",
+  "form",
+  "draft",
+  "paper",
+  "video",
+  "song",
+  "playlist",
+  "link",
+  "code"
+];
+function openCommitments(history) {
+  const open = /* @__PURE__ */ new Set();
+  for (const m of history) {
+    if (m.from !== "me") continue;
+    const text = String(m.text ?? "");
+    const delivered = m.kind === "photo" || m.kind === "voice" || m.kind === "gif" || text.length > 200;
+    if (delivered) {
+      open.clear();
+      continue;
+    }
+    if (!RE_PROMISE_SEND.test(text)) continue;
+    const lower = text.toLowerCase();
+    for (const item of PROMISABLE) {
+      if (new RegExp(`\\b${item}s?\\b`, "i").test(lower)) open.add(item);
+    }
+  }
+  return [...open];
+}
+var HER_COMMITMENT_TTL_MS = 7 * 24 * 60 * 60 * 1e3;
+function findUnsupportedReceipts(text, openItems) {
+  if (!openItems.length) return [];
+  const out = [];
+  for (const c of clausesOf(text)) {
+    if (RE_NEGATED.test(c.text)) continue;
+    if (isInterrogative(c.text, c.terminator)) continue;
+    const item = openItems.find((it) => receiptAbout(c.text, new RegExp(`\\b${it}s?\\b`, "i")));
+    if (!item) continue;
+    out.push({ rule: "unsupported-receipt", clause: c.text, item });
+  }
+  return out;
+}
+var RE_SEND_FUTURE = /\b(?:bhej(?:\s*d)?(?:o?ungi|o?unga|enge)|bhej(?:ti|ta)\s*hu|bhej\s*(?:rahi|rhi|raha|rha)\s*hu|bhej\s*det[ia]\s*hu|(?:send|mail|share|forward|whats\s?app|whatsapp|dm|post|drop|upload)\s*kar\s*(?:d(?:o?ungi|o?unga)|o?ungi|o?unga)|daal\s*d(?:o?ungi|o?unga)|i'?ll\s+(?:send|mail|dm|email|share|forward|post|drop)|i'?m\s+sending|i\s+will\s+(?:send|mail|dm|email|share|forward)|will\s+(?:send|mail|dm|email)\s+(?:you|u|it))\b/i;
+var RE_DELIVERABLE = /\b(?:resume|cv|biodata|portfolio|photo|photos|photu|pic|pics|picture|pictures|selfie|selfies|tasveer|screenshot|screen\s?shot|file|files|doc|docs|document|pdf|ppt|deck|attachment|notes|assignment|report|sheet|excel|invite|form|draft|paper|video|vid|reel|clip|voice\s?note|voicenote|recording|song|gaana|gana|playlist|link|mail|email|msg|message|sticker|gif|meme|number|address|details)\b/i;
+var RE_RECIPIENT = /\b(?:tujhe|tumhe|tumhein|tereko|tere\s*ko|aapko|you|u)\b/i;
+var RE_DEICTIC_OBJECT = /\b(?:ye|yeh|wo|woh|isko|usko|ise|use|it|this|that|these|those)\b/i;
+var RE_LATER = /\b(?:baad\s*me|later|tonight|kal|parso|abhi|thodi\s*der\s*me|raat\s*ko|subah|shaam\s*ko|ghar\s*aa?ke|tomorrow|tomo|soon|in\s+a\s+bit)\b/i;
+var promiseHasObject = (clause) => RE_DELIVERABLE.test(clause) || RE_RECIPIENT.test(clause) || RE_DEICTIC_OBJECT.test(clause) || RE_LATER.test(clause);
+function findChannelPromises(text, channel = "chat") {
+  const out = [];
+  for (const c of clausesOf(text)) {
+    if (RE_NEGATED.test(c.text)) continue;
+    if (isInterrogative(c.text, c.terminator)) continue;
+    const verbs = spansOf(RE_SEND_FUTURE, c.text);
+    if (!verbs.length) continue;
+    const channels = spansOf(RE_OOB_CHANNEL, c.text);
+    if (channels.some((sp) => verbs.some((v) => wordGap(c.text, sp, v) <= NEAR_WORDS))) {
+      out.push({ rule: "channel-promise", clause: c.text, why: "out-of-band" });
+      continue;
+    }
+    if (channel === "call" && promiseHasObject(c.text)) {
+      out.push({ rule: "channel-promise", clause: c.text, why: "call-lane" });
+    }
+  }
+  return out;
+}
+var ATTRIBUTION_RE = /\b(?:tu?ne|tumne|aapne|aap ne|tum ne)\s+(?:(?:hi\s+)?(?:to|toh|jo|abhi|khud)\s+)?(?:bola|kaha|bataya|batayi|batai|batya|likha|mention|promise|complain|bol[ae]?|keh[ae]?)\b[^.?!\n]*|\b(?:tu|tum|aap)\s+(?:bol|keh|bata)\s*(?:raha|rahe|rahi)\s+th[aei]\b[^.?!\n]*|\byou(?:'?(?:d|ve))?\s+(?:had\s+)?(?:said|told\s+me|mentioned|wrote|were\s+(?:saying|telling\s+me))\b[^.?!\n]*|\b(?:tere?\s+(?:hisaab\s+se|according|mutabik)|as\s+per\s+(?:you|u))\b[^.?!\n]*/gi;
+var CLAIM_TERM_LEN = 4;
+var MARKER_TOKENS = /* @__PURE__ */ new Set([
+  "tune",
+  "tumne",
+  "aapne",
+  "bola",
+  "bole",
+  "boli",
+  "kaha",
+  "kahe",
+  "kahi",
+  "bataya",
+  "batai",
+  "batayi",
+  "batya",
+  "likha",
+  "raha",
+  "rahe",
+  "rahi",
+  "mention",
+  "promise",
+  "complain",
+  "telling",
+  "hisaab",
+  "according",
+  "mutabik",
+  "said",
+  "told",
+  "mentioned",
+  "wrote",
+  "saying",
+  "your",
+  "you"
+]);
+var SUPPORT_SHARE = 0.34;
+var MIN_CLAIM_TERMS = 2;
+var claimTokens = (t) => (t.toLowerCase().match(/[a-z\u0900-\u097f]+/g) || []).filter((w) => w.length >= CLAIM_TERM_LEN);
+function hisVocabulary(history) {
+  const v = /* @__PURE__ */ new Set();
+  for (const m of history) {
+    if (m.from !== "me" || !m.text) continue;
+    for (const w of claimTokens(m.text)) v.add(w);
+  }
+  return v;
+}
+function sharedVocabulary(texts) {
+  const v = /* @__PURE__ */ new Set();
+  for (const t of texts)
+    if (t) {
+      for (const w of t.toLowerCase().match(/[a-zऀ-ॿ]+/g) || [])
+        if (w.length >= 3) v.add(w);
+    }
+  return v;
+}
+function findFalseAttributions(text, hisVocab) {
+  const out = [];
+  const matches = text.match(ATTRIBUTION_RE);
+  if (!matches) return out;
+  for (const clause of matches) {
+    const claim = claimTokens(clause).filter((w) => !MARKER_TOKENS.has(w));
+    if (claim.length < MIN_CLAIM_TERMS) continue;
+    const unsupported = claim.filter((w) => !hisVocab.has(w));
+    const share = (claim.length - unsupported.length) / claim.length;
+    if (share >= SUPPORT_SHARE) continue;
+    out.push({ clause, unsupported });
+  }
+  return out;
+}
+var WE_PAST_RE = /\b(?:remember when we|that time we|when we (?:were|went)|we (?:took|went|watched|made|clicked|did that)|our (?:photos?|pics?|selfies?|trip|beach day|first date|song|old chats?))\b[^.?!\n]*|\b(?:humne|hum ne|hum dono ne|apan ne)\s[^.?!\n]*?\b(?:tha|the|thi|kiya|kiye|gaye|gayi|liya|li|dekha|dekhi|banaya|banayi|khinchi|khichi)\b[^.?!\n]*|\b(?:hum|hum dono|apan)\s[^.?!\n]*?\b(?:gaye|gayi|aaye|aayi|mile|mili)\s+the?\b[^.?!\n]*|\byaad\s+(?:hai|h|hain|aata|aati)(?: na)?\b[^.?!\n]*?\b(?:hum|apan|humari|hamari|apni)\b[^.?!\n]*|\b(?:humari|hamari)\s+(?:photos?|pics?|selfies?|trip|jagah|purani baatein)\b[^.?!\n]*|\btu(?:ne)?\s+mujhe\s[^.?!\n]*?\b(?:diya|di|dilaya|sunaya|dikhaya|le\s*gaya|chhod(?:ne)?)\b[^.?!\n]*|\b(?:tere|tumhare)\s+saath\s[^.?!\n]*?\b(?:tha|thi|the|kiya|dekhi|dekha|gaye|gayi)\b[^.?!\n]*|\bwhen you (?:took|brought|gave|sent) me\b[^.?!\n]*/gi;
+var SHARED_MARKER_TOKENS = /* @__PURE__ */ new Set([
+  "hum",
+  "humne",
+  "apan",
+  "dono",
+  "hamari",
+  "humari",
+  "apni",
+  "yaad",
+  "remember",
+  "when",
+  "that",
+  "time",
+  "took",
+  "went",
+  "watched",
+  "made",
+  "clicked",
+  "kiya",
+  "kiye",
+  "gaye",
+  "gayi",
+  "liya",
+  "dekha",
+  "dekhi",
+  "banaya",
+  "banayi",
+  "khinchi",
+  "khichi",
+  "were",
+  "this",
+  "with"
+]);
+var SHARED_STOP = /* @__PURE__ */ new Set([
+  // pronouns — the widened presupposition branches capture the noun slot,
+  // and "what did SHE say" must never make "she" a presupposed event
+  "she",
+  "they",
+  "them",
+  "woh",
+  "usne",
+  "unhone",
+  "koi",
+  "kisi",
+  // Hinglish grammar and pronouns
+  "aur",
+  "jab",
+  "tab",
+  "tha",
+  "the",
+  "thi",
+  "hai",
+  "hain",
+  "kar",
+  "kiya",
+  "par",
+  "per",
+  "phir",
+  "fir",
+  "wala",
+  "wali",
+  "wale",
+  "koi",
+  "kya",
+  "kab",
+  "toh",
+  "abhi",
+  "bhi",
+  "woh",
+  "yeh",
+  "maine",
+  "mujhe",
+  "mera",
+  "mere",
+  "meri",
+  "tune",
+  "tujhe",
+  "tumhe",
+  "tera",
+  "tere",
+  "teri",
+  "aap",
+  "aapko",
+  "kal",
+  "raha",
+  "rahe",
+  "rahi",
+  "gaya",
+  "gayi",
+  "hua",
+  "hui",
+  "diya",
+  "nahi",
+  "nhi",
+  "haan",
+  "acha",
+  "accha",
+  "yaar",
+  "wahi",
+  "usse",
+  "isse",
+  "jaise",
+  // English grammar
+  "and",
+  "the",
+  "was",
+  "were",
+  "had",
+  "has",
+  "have",
+  "just",
+  "then",
+  "from",
+  "with",
+  "that",
+  "this",
+  "there",
+  "here",
+  "about",
+  "really",
+  "together",
+  "some",
+  "very",
+  "one",
+  "day",
+  "night"
+]);
+var SHARED_MIN_CLAIM_TERMS = 1;
+var sharedClaimTokens = (t) => (t.toLowerCase().match(/[a-zऀ-ॿ]+/g) || []).filter(
+  (w) => w.length >= 3 && !SHARED_STOP.has(w) && !SHARED_MARKER_TOKENS.has(w)
+);
+function isSupported(w, support) {
+  if (support.has(w)) return true;
+  for (const sWord of support) {
+    if (sWord.length >= 4 && w.startsWith(sWord)) return true;
+    if (w.length >= 4 && sWord.startsWith(w)) return true;
+  }
+  return false;
+}
+var GENERIC_SMALLTALK = /* @__PURE__ */ new Set([
+  "day",
+  "din",
+  "morning",
+  "subah",
+  "night",
+  "raat",
+  "evening",
+  "shaam",
+  "khana",
+  "lunch",
+  "dinner",
+  "breakfast",
+  "nashta",
+  "kaam",
+  "work",
+  "office",
+  "sleep",
+  "neend",
+  "mood",
+  "health",
+  "tabiyat",
+  "sehat",
+  "weekend",
+  "week",
+  "life",
+  "sab",
+  "everything",
+  "baki",
+  "chai",
+  "coffee",
+  "gym",
+  "workout",
+  "class",
+  "college",
+  "padhai",
+  "study",
+  "studies"
+]);
+var PRESUPPOSED_RE = /\b([a-zऀ-ॿ]{3,})\s+(?:kaisa|kaisi|kaise)\s+(?:raha|rahi|gaya|gayi|tha|thi|hui|hua|chala|chali)\b|\b(?:kaisa|kaisi|kaise)\s+(?:raha|rahi|gaya|gayi|tha|thi|hui|hua|chala|chali)\s+(?:tera\s+|teri\s+|tumhara\s+|tumhari\s+)?([a-zऀ-ॿ]{3,})\b|\bhow(?:'?d)?\s+(?:was|did|went)?\s*(?:the\s+|your\s+|ur\s+)([a-zऀ-ॿ]{3,})\b|\b(?:did|was|were)\s+(?:the|your|ur)\s+([a-zऀ-ॿ]{3,})\b|\b([a-zऀ-ॿ]{3,})\s+(?:thik|theek|acch?[ai]|badhiya|mast)\s+(?:raha|rahi|gaya|gayi|tha|thi)\b|\bwhat\s+did\s+(?:the\s+|your\s+|ur\s+)?([a-z]{3,})\s+say\b|\b([a-zऀ-ॿ]{3,})\s+ne\s+kya\s+(?:bola|kaha|bataya)\b|\bdid\s+you\s+get\s+(?:the\s+|your\s+)?([a-z]{3,})\b|\b([a-zऀ-ॿ]{3,})\s+ka\s+kya\s+hua\b/gi;
+function findSharedPastFabrications(text, support) {
+  const out = [];
+  for (const m of text.matchAll(PRESUPPOSED_RE)) {
+    const topic = (m.slice(1).find(Boolean) || "").toLowerCase();
+    if (!topic || GENERIC_SMALLTALK.has(topic) || SHARED_STOP.has(topic)) continue;
+    if (SHARED_MARKER_TOKENS.has(topic)) continue;
+    if (!isSupported(topic, support)) out.push({ clause: m[0], unsupported: [topic] });
+  }
+  const matches = text.match(WE_PAST_RE);
+  if (!matches) return out;
+  for (const clause of matches) {
+    const claim = sharedClaimTokens(clause);
+    if (claim.length < SHARED_MIN_CLAIM_TERMS) continue;
+    const unsupported = claim.filter((w) => !isSupported(w, support));
+    const share = (claim.length - unsupported.length) / claim.length;
+    if (share >= SUPPORT_SHARE) continue;
+    out.push({ clause, unsupported });
+  }
+  return out;
+}
+var REFUSE_CONTACT = [
+  "mere paas dene ko kuch h hi nhi yaar, bas yahi pe hu main",
+  "nahi yaar mera aisa kuch nhi h. yahi pe baat karte h",
+  "kuch h hi nhi mere paas dene ko, yahi h bas"
+];
+var REFUSE_ATTRIBUTION = [
+  "ruk maine shayad kuch aur samajh liya tha",
+  "arre mera hi confusion h shayad. tu bata",
+  "hmm maine galat jod diya lagta h"
+];
+var REFUSE_SHARED = [
+  "ruk, lagta h main kuch mila rahi hu apne dimaag me. chhod",
+  "hmm nahi shayad wo maine sapne me banaya h \u{1F605} rehne de",
+  "arre main bhi na, pata nhi kya yaad kar rahi thi. tu bol"
+];
+var REFUSE_RECEIPT = [
+  "ruk mere paas toh kuch aaya nhi h, yahi bhej de",
+  "mujhe kuch mila nhi yaar, yahi pe bhej na",
+  "nhi aaya kuch mere paas abhi tak. yahi daal de"
+];
+function pickBy(text, arr) {
+  let h = 0;
+  for (let i = 0; i < text.length; i++) h = h * 31 + text.charCodeAt(i) | 0;
+  return arr[Math.abs(h) % arr.length];
+}
+function inspect(text, allowed, openItems, hisVocab, sharedVocab, channel = "chat") {
+  const out = [];
+  for (const h of findActionable(text, allowed)) out.push({ rule: "actionable", kind: h.kind });
+  for (const h of findOutOfBandReceipts(text)) out.push({ rule: h.rule });
+  for (const h of findUnsupportedReceipts(text, openItems)) out.push({ rule: h.rule });
+  for (const h of findChannelPromises(text, channel)) out.push({ rule: h.rule });
+  if (hisVocab) {
+    for (const _ of findFalseAttributions(text, hisVocab)) out.push({ rule: "false-attribution" });
+    const support = sharedVocab ? /* @__PURE__ */ new Set([...hisVocab, ...sharedVocab]) : hisVocab;
+    for (const _ of findSharedPastFabrications(text, support)) out.push({ rule: "shared-past" });
+  }
+  return out;
+}
+function guardReply(reply, ctx) {
+  const allowed = allowedFrom(ctx.trustedText);
+  const findings = [];
+  const bubbles = [];
+  let replaced = false;
+  for (let i = 0; i < reply.bubbles.length; i++) {
+    const b = reply.bubbles[i];
+    const bad = inspect(b, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel);
+    if (!bad.length) {
+      bubbles.push(b);
+      continue;
+    }
+    for (const f of bad) findings.push({ ...f, where: "bubble", at: i });
+    if (replaced) continue;
+    replaced = true;
+    const contact = bad.some((f) => f.rule === "actionable" || f.rule === "channel-promise");
+    const attribution = !contact && bad.every((f) => f.rule === "false-attribution");
+    const shared = !contact && !attribution && bad.every((f) => f.rule === "shared-past");
+    bubbles.push(
+      pickBy(
+        b,
+        contact ? REFUSE_CONTACT : attribution ? REFUSE_ATTRIBUTION : shared ? REFUSE_SHARED : REFUSE_RECEIPT
+      )
+    );
+  }
+  let voice = reply.voice;
+  if (voice) {
+    const bad = inspect(voice.text, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel);
+    if (bad.length) {
+      for (const f of bad) findings.push({ ...f, where: "voice" });
+      voice = void 0;
+    }
+  }
+  let photo = reply.photo;
+  if (photo?.caption) {
+    const bad = inspect(photo.caption, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel);
+    if (bad.length) {
+      for (const f of bad) findings.push({ ...f, where: "caption" });
+      photo = { ...photo, caption: "" };
+    }
+  }
+  if (!bubbles.length && reply.bubbles.length && !photo && !voice && !reply.gif) {
+    const contact = findings.some((f) => f.rule === "actionable" || f.rule === "channel-promise");
+    const attribution = !contact && findings.every((f) => f.rule === "false-attribution");
+    const shared = !contact && !attribution && findings.every((f) => f.rule === "shared-past");
+    bubbles.push(
+      pickBy(
+        reply.bubbles.join(" "),
+        contact ? REFUSE_CONTACT : attribution ? REFUSE_ATTRIBUTION : shared ? REFUSE_SHARED : REFUSE_RECEIPT
+      )
+    );
+  }
+  return { reply: { ...reply, bubbles, voice, photo }, findings };
+}
+
+// src/engine/brain.ts
+var OPENROUTER_DEFAULT_MODEL = "google/gemini-3.6-flash";
+var CHAT_LANE_MODELS = {
+  [OPENROUTER_DEFAULT_MODEL]: {
+    model: OPENROUTER_DEFAULT_MODEL,
+    provider: "google",
+    billing: "cash",
+    card_risk: false,
+    prefix_cache: true,
+    residency: "us",
+    max_tokens_mode: "total",
+    adapter_derived_at: null,
+    gate: "passed"
+  }
+};
+var PROXY_URL = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app/api/chat" : "/api/chat";
+var SEARCH_WINDOW_MS = 5 * 6e4;
+function splitLong(bubble) {
+  if (bubble.length <= 90) return [bubble];
+  const parts = bubble.split(/(?<=[.!?])\s+|\n+/).filter(Boolean);
+  const out = [];
+  let cur = "";
+  for (const p of parts) {
+    if ((cur + " " + p).trim().length > 90 && cur) {
+      out.push(cur.trim());
+      cur = p;
+    } else {
+      cur = (cur ? cur + " " : "") + p;
+    }
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out.length ? out : [bubble];
+}
+var META_LEAK = /\b(base model|minimal text|text mode|chat mode|call mode|system prompt|language model|as an ai\b|ai model|reasoning effort|max.?_?tokens|token (limit|budget)|persona (prompt|instruction)|instruction(s)? (say|state|require)|default model|llm|assistant mode|output format)\b/i;
+function stripTextingDashes(text) {
+  return text.replace(/\s*(?:[—–]|--)\s*/g, " ").replace(/[ \t]{2,}/g, " ").trim();
+}
+function parseBubbles(raw) {
+  const out = { bubbles: [] };
+  raw = raw.replace(/\[\s*tone\s*:\s*([^\]\n]*)\]?/gi, (_m, mood) => {
+    if (!out.tone && mood.trim()) out.tone = mood.trim().slice(0, 120);
+    return "";
+  });
+  raw = raw.replace(/\[\s*react\s*:\s*([^\]\n]{1,16})\]?/gi, (_m, e) => {
+    const t = e.trim();
+    if (!out.react && t && !/[a-z0-9]/i.test(t)) out.react = [...t][0];
+    return "";
+  });
+  raw = raw.replace(/\[\s*photo\s*:\s*([^\]\n]+?)\s*\]/gi, (_m, body) => {
+    if (!out.photo) {
+      const [tagPart, ...capParts] = body.split("|");
+      const caption = capParts.join("|").trim() || tagPart.trim();
+      out.photo = { seed: body, caption };
+      return "\n---\nPHOTO\n---\n";
+    }
+    return "";
+  });
+  raw = raw.replace(/\[\s*voicenote\s*:\s*((?:[^\][]|\[[^\][]*\])*?)\s*\]/gi, (_m, body) => {
+    const said = body.replace(/\s+/g, " ").trim();
+    const words2 = said.replace(/\[[^\][]*\]/g, " ").replace(/\s+/g, " ").trim();
+    const wordCount = words2 ? words2.split(" ").length : 0;
+    const looksLikeDirection = wordCount <= 2 && !/[.!?…,]/.test(words2) && /^[a-z ]+$/i.test(words2) && /\b(softly|gently|quietly|warmly|sadly|happily|excited|laughing|laughs|giggles|giggling|sighs|sighing|whispers|whispering|crying|smiling|serious|calm|tired|sleepy|cheerful|teasing|playful|concerned|worried)\b/i.test(
+      words2
+    );
+    if (!out.voice && words2 && !looksLikeDirection) out.voice = { text: said };
+    return "";
+  });
+  raw = raw.replace(/\[\s*gif\s*:\s*([^\]\n]+?)\s*\]/gi, (_m, q) => {
+    if (!out.gif) out.gif = { query: q.trim() };
+    return "";
+  });
+  raw = raw.replace(/\[\s*forget\s*:\s*([^\]\n]+?)\s*\]/gi, (_m, body) => {
+    const t = body.replace(/\s+/g, " ").trim();
+    if (t && !out.forget) out.forget = t.slice(0, 80);
+    return "";
+  });
+  let searchBroken = false;
+  raw = raw.replace(/\[\s*search\s*:\s*([^\]\n]+?)\s*\]/gi, (_m, q) => {
+    const t = q.trim();
+    if (!t) searchBroken = true;
+    else if (!out.search) out.search = t.slice(0, 200);
+    return "";
+  });
+  raw = raw.replace(/\[\s*search\s*:([^\]]*?)(?:\]|\n---|(?=\[)|$)/gi, (_m, q) => {
+    searchBroken = true;
+    const cleaned = q.replace(/\s+/g, " ").trim();
+    if (!out.search && cleaned) {
+      out.search = cleaned.slice(0, 200);
+      out.searchSalvaged = true;
+    }
+    return "";
+  });
+  raw = raw.replace(/\[\s*sent a meme gif\s*:\s*([^\]\n]+)\s*\]?/gi, (_m, q) => {
+    if (!out.gif && q.trim()) out.gif = { query: q.trim() };
+    return "";
+  });
+  raw = raw.replace(/\[\s*shared a photo\s*:\s*([^\]\n]+)\s*\]?/gi, (_m, body) => {
+    if (!out.photo && body.trim()) {
+      const [tagPart, ...capParts] = body.split("|");
+      out.photo = { seed: body, caption: capParts.join("|").trim() || tagPart.trim() };
+    }
+    return "";
+  });
+  raw = raw.replace(/\[\s*followup\s*:\s*(\d+)\s*(?:\|\s*([^\]\n]*))?\]?/gi, (_m, mins, why) => {
+    const minutes = Math.min(360, Math.max(2, parseInt(mins, 10) || 0));
+    if (minutes && !out.followup) out.followup = { minutes, why: (why || "").trim().slice(0, 120) };
+    return "";
+  });
+  raw = raw.replace(/\[\s*(?:tone|followup|photo|voicenote|gif|search|forget)\s*:[^\]]*\]?/gi, "").replace(/\[\s*(?:voice note|they sent a photo|replying to|a voice call starts|the call ended)[^\]]*\]?/gi, "").replace(/\[\d{1,2}:\d{2}\s*(?:am|pm)?\]/gi, "");
+  for (const part of raw.split(/\n?---\n?|\n+/)) {
+    let p = part.trim();
+    if (!p) continue;
+    if (p === "PHOTO") {
+      out.photoAt = out.bubbles.length;
+      continue;
+    }
+    p = p.replace(/^bubble\s*\d+\s*:\s*/i, "").trim();
+    p = p.replace(/^\[\d+\s*(?:minutes?|hours?|days?)\s+later[^\]]*\]\s*/i, "").replace(/^\[(?:a voice call starts|the call ended[^\]]*)\]\s*/i, "").trim();
+    if (!p) continue;
+    if (/^(bubble\s*\d*\s*[:.]?|separators?\.?|styling with.*|formats?[:.]?|protocols?[:.]?|\(.*protocol.*\)|response[:.]?|reply[:.]?)$/i.test(p)) continue;
+    if (/^-\s+/.test(p)) {
+      if (p.length > 40 || /short|sharp|charming|bubble|separator|style|format|reply|tone/i.test(p)) continue;
+      p = p.replace(/^-\s+/, "");
+      if (!p) continue;
+    }
+    if (/^\*[^*]+\*$/.test(p)) {
+      continue;
+    }
+    if (META_LEAK.test(p)) continue;
+    if (!out.photo && tagFromSeed(p) && p === p.trim().toLowerCase() && !/\s/.test(p)) {
+      out.photo = { seed: p, caption: "" };
+      continue;
+    }
+    if (/\]\s*$/.test(p) && !p.includes("[") && p.length < 60) continue;
+    p = p.replace(/\[[^\]]*\]/g, " ").replace(/\[[^\]]*$/, " ").replace(/[\[\]]+/g, " ").replace(/\s+/g, " ").trim();
+    if (!p) continue;
+    out.bubbles.push(...splitLong(p.replace(/^["']|["']$/g, "")));
+  }
+  out.bubbles = out.bubbles.slice(0, 4);
+  if (searchBroken && !out.search) out.searchBroken = true;
+  if (out.voice && META_LEAK.test(out.voice.text)) out.voice = void 0;
+  if (out.gif && META_LEAK.test(out.gif.query)) out.gif = void 0;
+  if (out.photo && META_LEAK.test(out.photo.caption)) out.photo.caption = "";
+  if (!out.bubbles.length && !out.photo && !out.voice && !out.gif) {
+    const rawTrim = raw.replace(/\s+/g, " ").trim();
+    const wasShrapnel = /\]\s*$/.test(rawTrim) && !rawTrim.includes("[") && rawTrim.length < 60;
+    const residual = rawTrim.replace(/\[[^\]]*\]?/g, " ").replace(/[\[\]]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+    out.bubbles = [residual && !META_LEAK.test(residual) && !wasShrapnel ? residual : "hmm?"];
+  }
+  return out;
+}
+var GAP_MIN = 30 * 6e4;
 
 // src/engine/observation.ts
 async function writeObservation(q, input) {
@@ -2800,22 +3740,30 @@ export {
   ROOM_MODE_NOTE,
   TEXTURE_N_TURNS_FLOOR,
   UNADDRESSED_COOLDOWN_MS,
+  allowedFrom,
   compile,
   decayObservations,
   decideParticipation,
   deriveSelfArc,
   deriveTexture,
+  guardReply,
+  hisVocabulary,
+  inspect,
   isExplicitlyAddressed,
   loadCurrentArcs,
   markTold,
   matchObservations,
   observationEligibleForPromotion,
+  openCommitments,
+  parseBubbles,
   promoteObservation,
   readTexture,
   refreshTexture,
   renderMpBridge,
   renderMpRoster,
   seedFromStoryCatalog,
+  sharedVocabulary,
+  stripTextingDashes,
   untoldFor,
   upsertTexture,
   writeObservation

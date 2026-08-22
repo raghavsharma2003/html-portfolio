@@ -84,6 +84,12 @@ import type { TierGates } from "./clock";
 import { renderAway } from "./away";
 import { renderRaised, raisedRecently, type RepeatTurn } from "./repeat";
 import { renderActivity, type ActivityState } from "./activity";
+// WS-HONESTY seam: the HER-side commitment ledger. TYPE ONLY — `herCommitments()`
+// is a pure transcript walk in honesty.ts and the CALLER runs it, so this
+// compiler stays db-free, I/O-free and (the property the byte-identity gate
+// rests on) a pure function of its input. honesty.ts imports nothing at all,
+// so this cannot become a cycle.
+import type { HerCommitment } from "./honesty";
 
 export type Medium = "text" | "voice";
 export type Mode = "chat" | "call";
@@ -225,6 +231,15 @@ export interface CompileInput {
   // Recent turns, for T14's transcript-derived repetition signal. A pure
   // function of these — no table, no writer, per `receipt-ledger-from-transcript`.
   recentTurns?: readonly RepeatTurn[];
+  // ── T16 her.commitments — what SHE said she would do, from the transcript.
+  //
+  // The CALLER computes it (`herCommitments(history, Date.now())` in
+  // honesty.ts) and hands the rows over, exactly as `recentTurns` hands over
+  // the transcript rather than the derived signal: compile() stays pure, and
+  // the aging clock stays out of a function the byte-identity gate compiles
+  // twice and compares. Absent/empty is the default, so every existing caller
+  // and all 83 byte-identity fixtures render exactly zero bytes for it.
+  herCommitments?: readonly HerCommitment[] | null;
   // What the two of them are DOING together right now — a game, a screen
   // share. Optional and absent by default, so every existing caller and all 83
   // byte-identity fixtures render exactly zero bytes for it.
@@ -284,6 +299,82 @@ export interface CompiledPrompt {
   // (typed against this same interface, by design never touched again per
   // its own header) keeps type-checking without ever having to compute it.
   sections?: Record<string, number>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// T16 her.commitments — "you said you would X"
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The defect this closes: HIS promises are held by a predicate
+// (`openCommitments` → families 2/2b), HERS by `inner.ts`'s LLM-extracted
+// `Owed`, capped at two and expiring in 2.5 days. A promise the system
+// deliberately forgets is a promise she breaks on schedule, and he is the one
+// who notices. This block makes her open promises VISIBLE instead — the same
+// move `renderRaised` (T14) makes for what she has already brought up.
+//
+// TWO LAWS BIND THE CONTENT, and both are about shape, not length.
+//
+// `recited-prompt`: authored taste written as polished English sentences was
+// read out verbatim twice, eight turns apart. So the rows here are
+// TELEGRAPHIC — content words and an age, `photo · 2d`, never "I said I would
+// send you a photo." `herCommitments()` does the reduction (it strips the
+// promise's own scaffolding for `MARKER_TOKENS`' reason) and this function
+// never re-inflates it. The eval lints every rendered row with
+// `shapelint.lintLine`, which is the mechanical form of this paragraph.
+//
+// `prompt-position`: an identical rule fired 0/8 mid-brief and 8/8 appended
+// last, and the appended-last set is capped at exactly two rules
+// (SEARCH_DECISION, FORGET_DECISION — `shapelint.checkAppendedLastExactlyTwo`
+// hard-enforces it and a SAFETY override already lost that fight). So this
+// takes the strongest position still available: LAST OF THE TAIL BEFORE T10,
+// beside T14 and T9, where the session facts live. Stated rather than
+// resolved — the position is chosen from what is left, not from what is best.
+//
+// It is a note, never a to-do list read aloud: the header says so, because
+// the failure mode of a visible ledger is her announcing it.
+// Header (~215) + three telegraphic rows. Sized so the CAP is what limits the
+// block, never the budget: a silently dropped third row would make the ledger
+// lie about how many promises are open, which is the failure this slot exists
+// to fix, arriving from the other direction.
+export const HER_COMMITMENTS_BUDGET = 400;
+
+/** "2d" / "5h" / "just now" — coarse on purpose. A promise's age is the whole
+ *  signal (a thing said an hour ago is still live; a thing said five days ago
+ *  needs an apology), and a precise timestamp would invite her to quote it. */
+function commitmentAge(at: number, nowMs?: number): string {
+  if (!at || typeof nowMs !== "number" || nowMs <= at) return "";
+  const mins = Math.floor((nowMs - at) / 60_000);
+  if (mins < 60) return "just now";
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+/**
+ * Renders at most `HER_COMMITMENT_CAP` rows, newest first (the caller's
+ * order — `herCommitments()` already sorts, ages out and de-duplicates).
+ *
+ * Over budget it DROPS WHOLE ROWS from the oldest, never slices: "a sliced
+ * block is a lie" is this file's own rule for the drop order, and it does not
+ * stop applying inside a block.
+ */
+export function renderHerCommitments(
+  rows: readonly HerCommitment[] | null | undefined,
+  nowMs?: number,
+): string {
+  if (!rows?.length) return "";
+  const head =
+    "YOU SAID YOU WOULD — your own open promises, newest first, with how long ago. " +
+    "Never announced and never read out as a list: a person does the thing when it fits, " +
+    "or says sorry they forgot. An old one gets the sorry first.";
+  const lines = rows.map((r) => {
+    const age = commitmentAge(r.at, nowMs);
+    return `- ${r.what}${age ? ` (${age})` : ""}`;
+  });
+  let kept = lines;
+  while (kept.length && head.length + 1 + kept.join("\n").length > HER_COMMITMENTS_BUDGET) kept = kept.slice(0, -1);
+  if (!kept.length) return "";
+  return `${head}\n${kept.join("\n")}`;
 }
 
 /**
@@ -567,6 +658,18 @@ ${input.memories}`;
   }
   _track("T14");
 
+  // T16 her.commitments — what SHE said she would do and has not yet done.
+  // Sits last of the tail before T10 for `prompt-position`'s reason (the
+  // appended-last set is closed at two), and beside T14 because both are
+  // facts about what has already been SAID rather than about him or her.
+  // Absent input renders zero bytes — the 83 byte-identity fixtures set no
+  // `herCommitments`, so this seam is provably free until a caller wires it.
+  {
+    const t16 = renderHerCommitments(input.herCommitments, input.nowMs);
+    if (t16) tail += `\n\n${t16}`;
+  }
+  _track("T16");
+
   if (input.mode === "chat" && !input.isDirective) tail += input.cultureNoteText;
   _track("culture"); // no manifest row yet — see CompiledPrompt.sections doc
   // dead last, chat only — see SEARCH_DECISION in persona.ts for why
@@ -592,7 +695,7 @@ ${input.memories}`;
 // duplicates (validated below) — never contiguous — so a new block takes a
 // fresh number rather than renumbering nine rows and desynchronising
 // check-prompt-budget's drop-order fixture for the second time.
-export type DropPriority = "never" | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
+export type DropPriority = "never" | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
 
 export type SourceStatus =
   // this file computes it directly from a real, already-wired input
@@ -836,8 +939,10 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     id: "T14",
     label: "rel.raised",
     budget: 400,
-    // 11 = LAST of the droppables, i.e. more protected than everything except
-    // the "never" set. That looks aggressive for a nicety and is deliberate:
+    // 11 = SECOND-LAST of the droppables (T16 `her.commitments` took 12 when
+    // the commitment ledger landed; before that this row was the last), i.e.
+    // more protected than everything except that row and the "never" set.
+    // That looks aggressive for a nicety and is deliberate:
     // it is 400 bytes, and it is the correction for the defect the owner has
     // now reported twice (points 2 and 9). Dropping it under pressure
     // reintroduces the single most-reported behaviour, for a saving smaller
@@ -847,6 +952,24 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     // check-prompt-budget's drop-order fixture again.
     dropPriority: 11,
     sourceStatus: "wired", // renderRaised(raisedRecently(input.recentTurns)) — gate: node evals/run.mjs repeat
+  },
+  {
+    id: "T16",
+    label: "her.commitments",
+    // three telegraphic rows plus a header. The cap in honesty.ts
+    // (HER_COMMITMENT_CAP = 3, HER_COMMITMENT_TERMS = 3) is what keeps this
+    // number honest: the block cannot grow with the transcript.
+    budget: 400,
+    // 12 = last of the droppables, taking the position T14's note describes.
+    // Same reasoning as T14's and for a defect of the same species: T14 stops
+    // her re-raising what he already answered, T16 stops her forgetting what
+    // she said she would do. Both are cheap, both fix something the owner can
+    // see, and shedding either under pressure reintroduces it — for a saving
+    // smaller than one recall fact. The number only has to be UNIQUE (the
+    // validator checks the set is a permutation, never that it is
+    // contiguous), so this takes a fresh one rather than renumbering.
+    dropPriority: 12,
+    sourceStatus: "wired", // renderHerCommitments(input.herCommitments) — gate: node evals/honesty/run.mjs §10
   },
   // ── multiparty v1 (PROPOSAL-MULTIPARTY-V1 §5.2) ────────────────────────
   // Declared at their real budgets and real drop priorities, rendering ZERO
@@ -936,6 +1059,9 @@ export const TAIL_ORDER: readonly string[] = [
   // T14 sits with T9 because both are SESSION facts — where this turn sits in
   // time, and what has already been said in it — not facts about him or her.
   "T14",
+  // T16 last before T10: the appended-last set is closed at two, so this is
+  // the strongest position `prompt-position` leaves available.
+  "T16",
   "T10",
 ] as const;
 

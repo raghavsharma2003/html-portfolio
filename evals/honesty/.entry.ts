@@ -27,5 +27,22 @@ export {
   createStreamGuard,
   inspect,
   PUBLISHED_HELPLINES,
+  // 2026-08-22 audit batch: family 5 (the channel-promise gate), the HER-side
+  // commitment ledger, family 4's own claim floor, and the written-down
+  // boundary. Exported HERE for the same reason the rest of this file exists:
+  // the suite drives the SHIPPING bytes, never a second copy beside them.
+  findChannelPromises,
+  herCommitments,
+  HER_COMMITMENT_CAP,
+  HER_COMMITMENT_TTL_MS,
+  SHARED_MIN_CLAIM_TERMS,
+  NOT_GATED_BY_DESIGN,
 } from "../../src/engine/honesty";
+// T16's renderer, so §10 can assert the compiler slot it feeds — a ledger
+// nothing renders is `dead-writers` with extra steps.
+export { renderHerCommitments, HER_COMMITMENTS_BUDGET, TAIL_ORDER, TAIL_MANIFEST } from "../../src/engine/compiler";
+// the `recited-prompt` law, mechanised — every rendered commitment row goes
+// through it, so "telegraphic, never sentence-shaped" is a check and not a
+// promise in a comment.
+export { lintLine } from "../../src/engine/shapelint";
 export { parseBubbles } from "../../src/engine/brain";

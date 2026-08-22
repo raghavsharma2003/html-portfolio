@@ -36,6 +36,22 @@
 //                      matters most — what must come out byte-identical.
 //   6. WIRING          proof the gate is reachable from the real reply path
 //                      rather than sitting beside it (`dead-writers`).
+//   8/9. FAMILIES 3/4  attribution and shared-past, both directions.
+//   10. FAMILY 5       the CHANNEL-PROMISE gate — the mirror of §4's receipt
+//                      rule in the other tense, and the one predicate here
+//                      that is channel-aware, because chat really can send a
+//                      photo and a call really cannot send anything.
+//   11. HER LEDGER     herCommitments() + the T16 compiler slot it feeds.
+//                      Not a gate: a promise she made is outstanding, not
+//                      false, and its failure mode is being forgotten.
+//   12. THE PAIR       `hum` demoted to a marker AND family 4's own claim
+//                      floor. The audit measured that fixing either half
+//                      alone FLIPS THE SIGN, so both halves are asserted in
+//                      one block — a false positive and a true positive that
+//                      move in opposite directions under the same dial.
+//   13. THE BOUNDARY   NOT_GATED_BY_DESIGN. A deliberate non-coverage that
+//                      nothing tests is indistinguishable from one somebody
+//                      quietly closed by accident.
 //
 // WHAT THIS SUITE STILL DOES NOT MEASURE, stated plainly because implying
 // coverage we do not have is the one thing CLAUDE.md names outright: nothing
@@ -84,6 +100,18 @@ const {
   openCommitments,
   guardReply,
   createStreamGuard,
+  findChannelPromises,
+  herCommitments,
+  HER_COMMITMENT_CAP,
+  HER_COMMITMENT_TTL_MS,
+  SHARED_MIN_CLAIM_TERMS,
+  NOT_GATED_BY_DESIGN,
+  renderHerCommitments,
+  HER_COMMITMENTS_BUDGET,
+  TAIL_ORDER,
+  TAIL_MANIFEST,
+  lintLine,
+  inspect,
 } = await import(BUNDLE);
 
 let pass = 0;
@@ -644,6 +672,398 @@ console.log("\n── 9. shared-past fabrication (family 4) ──");
   const brainSrc = readFileSync(join(HERE, "../../src/engine/brain.ts"), "utf8");
   report("brain.ts feeds the shared record", /sharedVocab:\s*sharedVocabulary\(/.test(brainSrc));
   report("brain.ts does NOT use fullSystem for it", !/sharedVocabulary\(\[\s*fullSystem/.test(brainSrc));
+}
+
+// ── 10. family 5: she promises a delivery she cannot make ────────────────
+// The mirror of §4 in the other tense. §4 gates "your resume arrived in my
+// inbox"; this gates "I'll mail it to you" — false at the moment of utterance
+// for exactly the same structural reason, because the inbox does not exist in
+// either direction.
+//
+// THE MUST-NOT-FLAG HALF IS AGAIN THE IMPORTANT HALF, and here it carries an
+// extra load the other families do not: in CHAT, sending a photo is a real
+// capability with a real tag and a real handler. A rule that ate "photo bhej
+// dungi kal" would not be over-strict, it would be deleting a feature. That is
+// why this predicate — alone in this file — reads the channel.
+console.log("\n── 10. channel promise (family 5) ──");
+{
+  // (a) A NAMED out-of-band channel is false on BOTH lanes. She has no mail,
+  //     no inbox, no WhatsApp, no DM — that is honesty.ts's founding fact and
+  //     it does not acquire a tense.
+  const OOB_MUST_FLAG = [
+    "tujhe mail kar dungi apna number",
+    "insta pe dm karungi tujhe",
+    "i'll email it to you tonight",
+    "tere inbox me daal dungi",
+    "whatsapp pe bhejti hu abhi",
+    "kal mail pe bhej dungi",
+    "i'll dm you",
+    "I'll mail it",
+    "insta pe bhejungi",
+  ];
+  for (const t of OOB_MUST_FLAG) {
+    const chat = findChannelPromises(t, "chat");
+    const call = findChannelPromises(t, "call");
+    report(
+      `PROMISE CAUGHT on both lanes  ${t.slice(0, 40)}`,
+      chat.length > 0 && call.length > 0 && chat[0].why === "out-of-band",
+      JSON.stringify([chat.map((h) => h.why), call.map((h) => h.why)]),
+    );
+  }
+
+  // (b) THE CHANNEL SPLIT, one sentence at a time. This is the assertion that
+  //     decides whether the rule ships: the SAME bytes must be free in chat
+  //     and refused on a call, because in chat she can actually do it.
+  const IN_BAND = [
+    "photo bhej dungi kal",
+    "I'll send you the pics later",
+    "yahi pe bhej dungi tujhe",
+    "abhi bhejti hu wo photo",
+    "voice note bhej dungi tujhe",
+    "send kar dungi baad me",
+  ];
+  for (const t of IN_BAND) {
+    report(
+      `chat KEEPS the in-band promise  ${t.slice(0, 36)}`,
+      findChannelPromises(t, "chat").length === 0,
+      JSON.stringify(findChannelPromises(t, "chat")),
+    );
+    report(
+      `  ↳ and a CALL refuses the same bytes  ${t.slice(0, 30)}`,
+      findChannelPromises(t, "call").some((h) => h.why === "call-lane"),
+      JSON.stringify(findChannelPromises(t, "call").map((h) => h.why)),
+    );
+  }
+
+  // (c) MUST NOT FLAG ON EITHER LANE. The four survivors §4's own note
+  //     enumerates, carried over verbatim because they are the same four
+  //     shapes on the other side of the tense — plus the two the audit named
+  //     for this rule specifically (her own absent channel; the metaphor).
+  const MUST_NOT_FLAG = [
+    ["mera koi mail id nhi h", "her own life: she does not HAVE one"],
+    ["insta nhi chalati main", "denial of the channel itself"],
+    ["mail pe kuch nahi bhejungi", "NEGATION — the true sentence this gate exists to protect"],
+    ["tu mujhe mail pe bhej de", "IMPERATIVE — she is asking HIM to send"],
+    ["mujhe mail pe bhej dena", "imperative, the other word order"],
+    ["tune mujhe kal photo bheja tha", "PAST — a report, not a promise"],
+    ["maine tujhe wo photo bheji thi na", "past, her side"],
+    ["insta pe kya dekh raha tha?", "INTERROGATIVE"],
+    ["mail pe bhejun kya?", "interrogative, and about the channel"],
+    ["battery bhej rahi hai signals", "THIRD PERSON — a metaphor, not her promising"],
+    ["mummy insta pe photo bhej rahi hai", "third person again, someone else's channel"],
+    ["main tujhe khana bana kar dungi", "`kar dungi` is a light verb — this is cooking, not delivery"],
+  ];
+  for (const [t, why] of MUST_NOT_FLAG) {
+    const hits = [...findChannelPromises(t, "chat"), ...findChannelPromises(t, "call")];
+    report(`must not flag (either lane)  ${t.slice(0, 34)}`, hits.length === 0, hits.length ? JSON.stringify(hits) : why);
+  }
+
+  // (d) NEGATIVE CONTROLS. A predicate that never fired would pass every
+  //     must-not-flag above, and one that fired on everything would pass every
+  //     must-flag. Both directions, and the CHANNEL itself as a third dial.
+  report(
+    "NC the channel word is load-bearing (drop it and the same promise is free in chat)",
+    findChannelPromises("kal mail pe bhej dungi", "chat").length === 1 &&
+      findChannelPromises("kal bhej dungi", "chat").length === 0,
+  );
+  report(
+    "NC the negation is load-bearing (strip it and the promise appears)",
+    findChannelPromises("mail pe kuch nahi bhejungi", "chat").length === 0 &&
+      findChannelPromises("mail pe bhejungi", "chat").length === 1,
+  );
+  report(
+    "NC the FUTURE tense is load-bearing (past is a report, not a promise)",
+    findChannelPromises("mail pe bhej dungi", "chat").length === 1 &&
+      findChannelPromises("mail pe bheja tha", "chat").length === 0,
+  );
+  report(
+    "NC an unknown channel defaults to chat (fail-open on the capability, closed on the lie)",
+    findChannelPromises("mail pe bhej dungi").length === 1 && findChannelPromises("photo bhej dungi kal").length === 0,
+  );
+
+  // (e) END TO END. The gate must replace the bubble and route to the CONTACT
+  //     pool — the one whose lines are true by construction for this case:
+  //     she has nothing to give and this is the only place she is.
+  const ctx = (channel) => ({ trustedText: ["system"], openItems: [], channel });
+  const PROMISE = "ruk main tujhe kal mail pe bhej dungi";
+  const g = guardReply({ bubbles: [PROMISE] }, ctx("chat"));
+  report("guard flags the channel promise", g.findings.some((f) => f.rule === "channel-promise"), JSON.stringify(g.findings));
+  report("guard replaces the bubble", g.reply.bubbles[0] !== PROMISE, g.reply.bubbles[0]);
+  report("she still says something", g.reply.bubbles.length === 1 && g.reply.bubbles[0].length > 0);
+  report(
+    "the replacement is the CONTACT pool (nothing to give, only here)",
+    /kuch (h hi )?nh?i|yahi/i.test(g.reply.bubbles[0]),
+    g.reply.bubbles[0],
+  );
+  report(
+    "the replacement does not itself promise anything (idempotence)",
+    findChannelPromises(g.reply.bubbles[0], "call").length === 0 &&
+      guardReply(g.reply, ctx("chat")).findings.length === 0,
+    g.reply.bubbles[0],
+  );
+  // and the same sentence, in-band, on the two lanes through the whole gate
+  const CALLABLE = "haan yaar ghar jaake photo bhej dungi";
+  report(
+    "end to end: chat keeps the in-band promise byte-identical",
+    same(guardReply({ bubbles: [CALLABLE] }, ctx("chat")).reply.bubbles, [CALLABLE]),
+  );
+  report(
+    "end to end: the call lane refuses it",
+    guardReply({ bubbles: [CALLABLE] }, ctx("call")).findings.some((f) => f.rule === "channel-promise"),
+  );
+  // A caller that never sets `channel` loses the in-band half and keeps the
+  // out-of-band half — the documented default, asserted rather than assumed.
+  report(
+    "an absent channel behaves as chat",
+    same(guardReply({ bubbles: [CALLABLE] }, { trustedText: ["system"], openItems: [] }).reply.bubbles, [CALLABLE]),
+  );
+  // and the voice/caption doors carry the channel too, not just bubbles
+  const vr = guardReply({ bubbles: ["ok"], voice: { text: CALLABLE } }, ctx("call"));
+  report("the voice door carries the channel", vr.findings.some((f) => f.where === "voice"), JSON.stringify(vr.findings));
+}
+
+// ── 11. the HER-side commitment ledger, and the slot it feeds ────────────
+// NOT A GATE, and the suite should say so out loud: a promise she made is not
+// false, it is outstanding. `openCommitments` has held HIS side with a
+// predicate since this file was written; hers was held by an LLM extraction
+// capped at two and expiring in 2.5 days, which is a promise the system
+// forgets on a schedule. This is the symmetric half.
+console.log("\n── 11. her commitments (the ledger's other half) ──");
+{
+  const DAY = 86_400_000;
+  const NOW = 1_700_000_000_000;
+  const H = [
+    { from: "her", kind: "text", text: "kal main tujhe apni photo bhejungi pakka", at: NOW - 2 * DAY },
+    { from: "me", kind: "text", text: "acha thik h", at: NOW - 2 * DAY },
+    { from: "her", kind: "text", text: "i'll tell you tomorrow about the interview", at: NOW - 5 * 3_600_000 },
+    { from: "her", kind: "text", text: "main so jaungi ab, good night", at: NOW - 3_600_000 },
+  ];
+  const rows = herCommitments(H, NOW);
+  report("both real promises are extracted", rows.length === 2, JSON.stringify(rows));
+  report("newest first", rows[0]?.what === "interview" && rows[1]?.what === "photo", JSON.stringify(rows.map((r) => r.what)));
+  // The floor. A first-person future is not automatically a promise TO HIM —
+  // without this the ledger fills with her going to sleep.
+  report(
+    "her own future is not a commitment to him",
+    !rows.some((r) => /jaungi|sleep|so\b/.test(r.what)),
+    JSON.stringify(rows.map((r) => r.what)),
+  );
+  // TELEGRAPHIC. `recited-prompt` measured authored sentences read out verbatim
+  // twice, eight turns apart — so what reaches the prompt must be terms, never
+  // the clause she said them in.
+  report(
+    "rows are telegraphic terms, not her sentence",
+    rows.every((r) => r.what.split(" ").length <= 3 && !/bhejungi|i'?ll|tujhe|tomorrow/i.test(r.what)),
+    JSON.stringify(rows.map((r) => r.what)),
+  );
+
+  // THE CAP. Newest three, and the fourth is dropped rather than the block
+  // growing with the transcript.
+  const SIX = ["resume", "portfolio", "playlist", "recipe", "assignment", "draft"];
+  const many = SIX.map((what, i) => ({
+    from: "her",
+    kind: "text",
+    text: `main tujhe wo ${what} bhejungi`,
+    at: NOW - (SIX.length - i) * 3_600_000,
+  }));
+  const capped = herCommitments(many, NOW);
+  report(`the cap holds at ${HER_COMMITMENT_CAP}`, capped.length === HER_COMMITMENT_CAP, JSON.stringify(capped.map((r) => r.what)));
+  report(
+    "and it keeps the NEWEST three, in order",
+    same(capped.map((r) => r.what), ["draft", "assignment", "recipe"]),
+    JSON.stringify(capped.map((r) => r.what)),
+  );
+  // the same promise made twice is ONE promise, dated by the last time
+  const twice = [
+    { from: "her", kind: "text", text: "main tujhe wo resume bhejungi", at: NOW - 3 * DAY },
+    { from: "her", kind: "text", text: "haan wo resume bhejungi tujhe pakka", at: NOW - 60_000 },
+  ];
+  report(
+    "a promise repeated is one row, dated by the last time she made it",
+    herCommitments(twice, NOW).length === 1 && herCommitments(twice, NOW)[0].at === NOW - 60_000,
+    JSON.stringify(herCommitments(twice, NOW)),
+  );
+
+  // AGING. Older than the TTL and it stops being a live promise.
+  const stale = [{ from: "her", kind: "text", text: "main tujhe wo book ka naam bataungi", at: NOW - 20 * DAY }];
+  report("a 20-day-old promise ages out", herCommitments(stale, NOW).length === 0);
+  report(
+    `a promise inside the ${HER_COMMITMENT_TTL_MS / DAY}-day window survives`,
+    herCommitments([{ ...stale[0], at: NOW - 6 * DAY }], NOW).length === 1,
+  );
+  report("with no clock, nothing ages out (fail-open for a nicety)", herCommitments(stale).length === 1);
+
+  // FULFILLED-LOOKING. Two closers, and both must work: a real in-band
+  // delivery, and her saying she did it.
+  const delivered = [...H, { from: "her", kind: "photo", text: "", at: NOW - DAY }];
+  report(
+    "a real photo closes the photo promise",
+    !herCommitments(delivered, NOW).some((r) => r.what === "photo"),
+    JSON.stringify(herCommitments(delivered, NOW).map((r) => r.what)),
+  );
+  report(
+    "  ↳ and does NOT close the unrelated one",
+    herCommitments(delivered, NOW).some((r) => r.what === "interview"),
+    JSON.stringify(herCommitments(delivered, NOW).map((r) => r.what)),
+  );
+  const told = [...H, { from: "her", kind: "text", text: "interview ka bata diya na tujhe", at: NOW - 60_000 }];
+  report(
+    "her own 'i already did it' closes it too",
+    !herCommitments(told, NOW).some((r) => r.what === "interview"),
+    JSON.stringify(herCommitments(told, NOW).map((r) => r.what)),
+  );
+  // HIS side is untouched: the two ledgers must not contaminate each other.
+  report(
+    "his promises never enter her ledger",
+    herCommitments([{ from: "me", kind: "text", text: "kal main tujhe resume bhej dunga", at: NOW }], NOW).length === 0,
+  );
+  report(
+    "her promises never enter his ledger",
+    openCommitments([{ from: "her", kind: "text", text: "kal main tujhe apni photo bhejungi", at: NOW }]).length === 0,
+  );
+  // A denial and a question are not promises, same three guards as everywhere.
+  for (const t of ["main tujhe kuch nahi bhejungi", "tujhe photo bhejun kya?"]) {
+    report(`not a promise  ${t.slice(0, 34)}`, herCommitments([{ from: "her", kind: "text", text: t, at: NOW }], NOW).length === 0);
+  }
+
+  // ── the compiler slot (T16). A ledger nothing renders is `dead-writers`. ──
+  const rendered = renderHerCommitments(rows, NOW);
+  report("T16 renders the ledger", rendered.length > 0 && rendered.includes("interview"), `${rendered.length}b`);
+  report("T16 fits its declared budget", rendered.length <= HER_COMMITMENTS_BUDGET, `${rendered.length}b of ${HER_COMMITMENTS_BUDGET}b`);
+  report(
+    "T16 renders every capped row rather than silently dropping one",
+    renderHerCommitments(capped, NOW).split("\n").length === HER_COMMITMENT_CAP + 1,
+    JSON.stringify(renderHerCommitments(capped, NOW).split("\n").slice(1)),
+  );
+  report("T16 renders nothing for an empty ledger", renderHerCommitments([], NOW) === "" && renderHerCommitments(null, NOW) === "");
+  // `recited-prompt`, mechanised: every ROW through the real shapelint.
+  for (const line of rendered.split("\n").slice(1)) {
+    const v = lintLine(line);
+    report(`  ↳ row is shapelint-clean  ${line.slice(0, 28)}`, v.reasons.length === 0, v.reasons.join("; "));
+  }
+  report(
+    "T16 carries an age, which is the whole signal",
+    /\(\d+[hd] ago\)|just now/.test(rendered),
+    rendered.split("\n")[1],
+  );
+  // Declared in the manifest and ordered where compile() actually puts it —
+  // `manifest-sourcestatus`'s own warning is that a manifest describing intent
+  // is a comment with better syntax, so both halves are asserted.
+  const t16 = TAIL_MANIFEST.find((b) => b.id === "T16");
+  report("T16 is declared in the tail manifest", Boolean(t16), t16 ? `budget ${t16.budget}, dropPriority ${t16.dropPriority}` : "MISSING");
+  report("T16 is ordered last before T10 (the strongest position left)", TAIL_ORDER[TAIL_ORDER.length - 2] === "T16" && TAIL_ORDER[TAIL_ORDER.length - 1] === "T10", TAIL_ORDER.slice(-3).join(" → "));
+  report("T16's declared budget covers what it renders", (t16?.budget ?? 0) >= HER_COMMITMENTS_BUDGET, `${t16?.budget} vs ${HER_COMMITMENTS_BUDGET}`);
+}
+
+// ── 12. the pair: `hum` as a marker AND family 4's own claim floor ────────
+// The audit is explicit that these two are ONE problem and that fixing either
+// alone flips the sign, so the assertions live in one block: the false
+// positive `hum` was causing, and the four true positives the floor of 2 was
+// swallowing once `hum` stopped padding the count. If a future edit reverts
+// one half, half of this block goes red immediately.
+console.log("\n── 12. the hum-marker / claim-floor pair ──");
+{
+  const HIS = [
+    { from: "me", text: "kal wali movie achhi thi yaar, ending was crazy" },
+    { from: "me", text: "chess me tune mujhe hara diya fir se" },
+  ];
+  const his = hisVocabulary(HIS);
+  const shared = sharedVocabulary([
+    "episode: they watched a horror movie together on a call last week",
+    "ritual: chess game most evenings, she usually wins",
+  ]);
+  const support = new Set([...his, ...shared]);
+
+  report(`family 4 has its own claim floor (${SHARED_MIN_CLAIM_TERMS}), not family 3's`, SHARED_MIN_CLAIM_TERMS === 1);
+
+  // HALF ONE — the false positives `hum` was buying. Every one of these is a
+  // REAL, graph-recorded ritual being called a fabrication, which is
+  // detect.mjs's founding scenario for someone switching the gate off.
+  const REAL_RITUAL = [
+    "yaad hai na hum chess khel rahe the",
+    "yaad hai hum chess khelte the",
+    "hum dono ne wo movie dekhi thi na",
+  ];
+  for (const t of REAL_RITUAL) {
+    const hits = findSharedPastFabrications(t, support);
+    report(`real ritual survives (hum is scaffolding)  ${t.slice(0, 38)}`, hits.length === 0, JSON.stringify(hits.map((h) => h.unsupported)));
+  }
+
+  // HALF TWO — the true positives the floor of 2 was swallowing. These are
+  // the four the audit named, and they only survive `hum`'s demotion because
+  // the floor moved with it.
+  const FABRICATED = [
+    "hum goa gaye the na",
+    "hum dono beach pe gaye the",
+    "yaad h jab hum goa gaye the",
+    "us din jab hum lake pe gaye the",
+    // the audit's measured RESIDUAL, now closed by the same floor: one
+    // content word ("bracelet") was below MIN_CLAIM_TERMS = 2
+    "tune mujhe jo bracelet diya tha",
+  ];
+  for (const t of FABRICATED) {
+    const hits = findSharedPastFabrications(t, support);
+    report(`one-word fabrication still caught  ${t.slice(0, 38)}`, hits.length > 0, JSON.stringify(hits.map((h) => h.unsupported)));
+  }
+
+  // THE TENSION, stated as an assertion rather than a comment: the SAME
+  // one-token claim flips on the support set, not on the words. That is what
+  // makes the floor of 1 safe — it is not "flag anything short", it is "a
+  // cited event with nothing behind it".
+  const goaSupport = new Set([...his, ...sharedVocabulary(["episode: they went to goa beach together last month"])]);
+  report(
+    "a one-token claim flips on the record, not on the sentence",
+    findSharedPastFabrications("hum goa gaye the na", goaSupport).length === 0 &&
+      findSharedPastFabrications("hum goa gaye the na", his).length === 1,
+  );
+  // and the floor did not open the fragment door WE_PAST_RE is supposed to
+  // keep shut: no past-tense verb, no match, however short the sentence.
+  for (const t of ["hum", "hum na", "hum dono", "hum baat kar rahe the abhi tak", "hum abhi baat kar rahe hai na"]) {
+    report(`fragment/present not flagged  ${t}`, findSharedPastFabrications(t, support).length === 0, JSON.stringify(findSharedPastFabrications(t, support)));
+  }
+  // A real retelling that HAPPENS to be short must still survive.
+  report(
+    "a real short retelling survives",
+    findSharedPastFabrications("hum dono ne wo horror movie dekhi thi", support).length === 0,
+    JSON.stringify(findSharedPastFabrications("hum dono ne wo horror movie dekhi thi", support)),
+  );
+}
+
+// ── 13. NOT GATED, BY DESIGN — the boundary as a check ────────────────────
+// `evals/honesty/cases.mjs`'s own convention: write down what is deliberately
+// out of scope rather than implying coverage. The five duration/past-state
+// sentences below slip every family and MUST keep slipping — the fence for
+// them is INPUT-side (T9 session.clock hands her the gap before she speaks),
+// and a predicate here would be inventing a fact about her interior in order
+// to catch her inventing one.
+console.log("\n── 13. not gated, by design (the boundary) ──");
+{
+  const HIS = [{ from: "me", text: "so busy today yaar, kaam khatam hi nahi hota" }];
+  const his = hisVocabulary(HIS);
+  const shared = sharedVocabulary(["episode: they talked about his workload"]);
+  report("the boundary is declared in the shipping source", Array.isArray(NOT_GATED_BY_DESIGN) && NOT_GATED_BY_DESIGN.length === 5, `${NOT_GATED_BY_DESIGN.length} shapes`);
+  report("each shape carries its reason", NOT_GATED_BY_DESIGN.every((c) => typeof c.why === "string" && c.why.length > 12));
+  for (const c of NOT_GATED_BY_DESIGN) {
+    const hits = [
+      ...inspect(c.text, { values: new Set(), digits: new Set() }, [], his, shared, "chat"),
+      ...inspect(c.text, { values: new Set(), digits: new Set() }, [], his, shared, "call"),
+    ];
+    report(`ungated on both lanes  ${c.text.slice(0, 40)}`, hits.length === 0, hits.length ? JSON.stringify(hits) : c.why);
+  }
+  // THE CONTROL ON THE BOUNDARY. "ungated" must mean the detectors declined
+  // it, not that the detectors are asleep — the same context that stays
+  // silent above has to fire on a real fabrication.
+  report(
+    "NC the same context IS capable of firing",
+    inspect("yaad hai hum goa gaye the", { values: new Set(), digits: new Set() }, [], his, shared, "chat").length > 0,
+  );
+  // And the one duration slice that WOULD be decidable is recorded as not
+  // built, with its precondition — so the next reader does not re-derive it.
+  report(
+    "the decidable slice and its blocker are written down, not implied",
+    /firstMessageAt/.test(readFileSync(join(ROOT, "src/engine/honesty.ts"), "utf8")) &&
+      /T-H2/.test(readFileSync(join(ROOT, "src/engine/honesty.ts"), "utf8")),
+  );
 }
 
 console.log(fail ? `\n${fail} of ${pass + fail} FAILURES` : `\nALL ${pass} HONESTY CHECKS PASS`);

@@ -108,6 +108,12 @@ export interface AppState {
   // Fired-ledger: milestone ids that already celebrated, so a moment can
   // never fire twice — across devices too, since this syncs with the rest.
   momentsFired?: string[];
+  // A milestone that JUST crossed, as one telegraphic fact — written by the
+  // detector at fire time, read by the lanes' key builders, rendered for a
+  // few hours so she can bring it up herself (#117), then ignored. Device-
+  // local on purpose: this is present-moment flavour; the fired-LEDGER
+  // above is what carries the permanent truth and it does sync.
+  recentMoment?: { id: string; fact: string; at: number } | null;
   // Lifetime activity tallies, written at game close. The RECORD is the
   // progression system; these are the running totals the detector reads.
   tally?: {

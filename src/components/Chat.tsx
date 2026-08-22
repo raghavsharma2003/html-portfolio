@@ -251,6 +251,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     // it stands. Null when nothing is going on, which renders zero bytes and
     // leaves every byte-identity fixture untouched.
     activity: activityOf(state.game),
+    // #117 — the milestone that just crossed, if any; brain.ts owns freshness
+    moment: state.recentMoment ?? null,
   });
   const sendCount = useRef(0);
   // ── reply pacing ──

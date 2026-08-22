@@ -116,5 +116,38 @@ ok("charter: detection is never time-scheduled",
   ok("App passes gameOpen", /useMoments\(state, setState, inCall, activity !== null\)/.test(app));
 }
 
+// ── #117: she gets to mention a crossed milestone herself ─────────────────
+// The seam is three writes and one render, all structural, all pinnable:
+// the detector stamps state.recentMoment with momentFact() at fire time,
+// the chat lane hands it to the brain, and the brain renders it ONLY while
+// fresh AND joins it to the honesty gate's support set — without that last
+// part, "100 din ho gaye humein" would be flagged as an invented shared
+// past by the very gate built to catch invented shared pasts.
+{
+  const { readFileSync } = await import("node:fs");
+  const store = readFileSync(new URL("../src/state/store.ts", import.meta.url), "utf8");
+  ok("state carries recentMoment", /recentMoment\?: \{ id: string; fact: string; at: number \} \| null;/.test(store));
+  const hook = readFileSync(new URL("../src/components/useMoments.ts", import.meta.url), "utf8");
+  ok("detector stamps recentMoment with momentFact", (hook.match(/recentMoment: \{ id: [^}]*fact: momentFact\(/g) || []).length >= 2);
+  const brain = readFileSync(new URL("../src/engine/brain.ts", import.meta.url), "utf8");
+  ok("brain renders the moment only while fresh", /MOMENT_FRESH_MS/.test(brain) && /keys\.moment && Date\.now\(\) - keys\.moment\.at < MOMENT_FRESH_MS/.test(brain));
+  ok("the moment joins the family-4 support set", /sharedVocab: sharedVocabulary\(\[[\s\S]*?momentLine[\s\S]*?\]\)/.test(brain));
+  ok("the moment joins trustedText", /trustedText: \[[\s\S]*?momentLine[\s\S]*?\]/.test(brain));
+  const chat = readFileSync(new URL("../src/components/Chat.tsx", import.meta.url), "utf8");
+  ok("chat lane hands it over", /moment: state\.recentMoment \?\? null/.test(chat));
+
+  // every kind's fact is telegraphic: <=14 words, no first person, no "I"
+  const inpAll = {
+    messages: msgs(1200, NOW - 400 * DAY),
+    fired: [],
+    tally: { chessGames: 5, chessWinsHim: 1, chessWinsHer: 1, tttGames: 1, wyrCards: 25 },
+    nowMs: NOW,
+  };
+  for (const m of detectMoments(inpAll)) {
+    const f = momentFact(m);
+    ok(`fact for ${m.id} is telegraphic`, f.split(/\s+/).length <= 14 && !/\bI\b/.test(f), f);
+  }
+}
+
 console.log(fail ? `${fail} FAILURES` : "ALL PASS");
 process.exit(fail ? 1 : 0);
