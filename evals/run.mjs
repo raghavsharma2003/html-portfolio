@@ -72,6 +72,12 @@ const suites = {
   // this repo's law and it does not stop being true for evals: a suite
   // nothing invokes is indistinguishable from a suite that does not exist.
   honesty: "honesty/run.mjs",
+  // T-H3 (docs/HONESTY.md). The chat tail that rides the call's ONE assembly,
+  // its shape-lint, its budget arithmetic, and the source assertion that every
+  // frozen-at-connect compile site carries it. Offline, deterministic, $0,
+  // ~2s — wired here rather than left standalone for the reason T-H4 gives:
+  // `dead-writers` does not stop applying to evals.
+  chattail: "chattail/run.mjs",
   surface: "surface.mjs",
   // WS-MEMORY: finished games become graph episodes; the laundering predicate;
   // photo-forget path round-trips. Offline, db-free (config stub), ~2s.
@@ -120,6 +126,20 @@ const suites = {
   // needs NEON_URL and it WRITES. Run it by hand:
   //     node evals/trace/roundtrip.mjs
   trace: "trace/run.mjs",
+  // WS-DEPTH's own drift check — api/consolidate.js's plain-JS mirrors of
+  // relstate.ts's clampTrustDelta/moveTrust/ruptureRepairShift/ruptureStance
+  // (+ mapEpisodeCitations/tokenizePhrase, WS-DEPTH-only) against the REAL
+  // relstate.ts, bundled fresh via esbuild. Existed already, wired nowhere
+  // (`dead-writers`) — no workflow, no npm script, not this file — until
+  // now. Offline, $0, no network, no DB.
+  wsdepthpure: "wsdepth-test-pure.mjs",
+  // #86 rupture_open record-vs-stance split (context/rejected.md
+  // `rupture-never-closes`): proves the record survives a lapse untouched,
+  // the stance actually lapses on the chosen time/warm-interaction
+  // condition, and an explicit new rupture re-opens — including the exact
+  // stuck-open-forever gap the ticket was filed for. Offline, fixture-based,
+  // $0, bundled fresh from relstate.ts on every run.
+  rupturelapse: "rupture-lapse.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

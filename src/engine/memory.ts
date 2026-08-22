@@ -124,6 +124,168 @@ export async function rememberFrom(
   }
 }
 
+// ── T-H3: the chat tail that rides the call's ONE assembly ─────────────────
+//
+// docs/HONESTY.md §T-H3, the owner's two-minute scenario stated as a defect:
+// chat, then call ninety seconds later, and she picks up not knowing what the
+// two of you just typed. The cause is a race between two clocks. `herLife` is
+// written by `rememberFrom` above, which Chat.tsx runs on every THIRD send and
+// which is a model round trip; the live call's system prompt is compiled ONCE,
+// at connect, from whatever `herLife` happens to hold. So at pickup the ledger
+// is behind by up to two sends plus one appraisal, every time.
+//
+// WHY THE TAIL AND NOT A FLUSH (§T-H3 option (a) vs (b), and the reason (b)
+// wins on this codebase rather than merely being "cheaper"):
+//
+//   (a) awaiting an extraction pass at pickup puts a MODEL CALL in front of
+//       the ring — the single most latency-sensitive moment the product has,
+//       and the one place the standing "speed and quality are never traded
+//       away" instruction bites hardest. Time-boxing it (Promise.race, ~400ms)
+//       does not rescue it: `rememberFrom` is an appraisal round trip, an
+//       order of magnitude slower than the ~165ms-warm/~900ms-cold recall this
+//       lane already races, so the box would expire on nearly every call and
+//       degrade to exactly today's behaviour. Cost with no effect.
+//   (b) the tail costs ZERO added latency — it is a pure function of state the
+//       component already holds — it enriches the ONE assembly rather than
+//       adding a second (liveAssemblies stays 1), and it also covers the case
+//       (a) cannot: a chat stretch with no extractable fact in it at all still
+//       reaches her, because a person remembers the last five minutes without
+//       needing them written down first.
+//
+// WHY IT RIDES `memories` (T5) rather than a new compiler slot. compile()'s
+// standing contract is that the CALLER resolves strings and the compiler stays
+// pure and db-free; brain.ts already hands it a resolved recall string the same
+// way. T5's heading is also already the right frame — "what you remember about
+// them, from your earlier conversations, each tagged with when it last came
+// up" — and it carries the two guardrails this block needs and would otherwise
+// have to restate: "something being listed here is not a reason to say it" and
+// "never with any mention of remembering". A second heading with its own copy
+// of the recall law is a second place for that law to drift.
+//
+// SHAPES, NEVER LINES — and the ONE place this repo already says otherwise.
+// `recited-prompt` is the expensive law here, and this is the block most
+// exposed to it, because it is the only tail content made of things a person
+// actually said. Three defences, all structural rather than hopeful:
+//
+//   1. Every row opens with a speaker token, so shapelint's
+//      FIRST_PERSON_LINE_INITIAL_RE can never match and SENTENCE_SHAPED_RE
+//      (capital start + terminal punctuation) can never match either. No row
+//      here can read as a line lifted straight from her own mouth.
+//   2. HER rows are capped at shapelint's own MAX_WORDS (14, prefix included).
+//      A line she said IS a line she could say again, which is the literal
+//      definition of a phrase bank, so her half gets the strict cap.
+//   3. HIS rows are capped looser. This is not an oversight: `lintBlock` takes
+//      an explicit allowlist and its doc names exactly this class — "THEIR
+//      line, not a line written for her ... verbatim storage is the point" (the
+//      vy_phrase ledger). What he just told her is the informative half of a
+//      pickup, and clipping it at twelve words turns "cousin ke ghar ja raha hu
+//      dinner ke liye" into a sentence that has lost where he is going. His
+//      words are also the one thing in this prompt whose provenance chain
+//      terminates at something that is not her, which is the same property
+//      `hisVocabulary`/`allowedFrom` in honesty.ts are built on.
+//
+// `evals/chattail/run.mjs` runs the REAL `lintBlock` over the REAL output —
+// her rows under the full rule set, his under the allowlist the doc sanctions.
+
+/** Most rows the tail ever carries. Six is a minute or two of real Hinglish
+ *  back-and-forth; more than that is a transcript, and a transcript in a
+ *  system prompt is a script. */
+export const CHAT_TAIL_ROWS = 6;
+
+/** Older than this and it is not "what you two just typed" any more. T9
+ *  session.clock already tells her about a gap, and a stale stretch presented
+ *  as the present moment is the same species of lie §T-H2 is about. */
+export const CHAT_TAIL_WINDOW_MS = 30 * 60 * 1000;
+
+/** Hard ceiling on the rendered block, heading included. Sized against the
+ *  measured worst case in `scripts/check-prompt-budget.mjs`: the live+watch
+ *  lane's bounded tail is 22,243 of an operational 24,000, so 900 fits inside
+ *  the remaining 1,757 with room left over. `evals/chattail/run.mjs` asserts
+ *  that arithmetic against the real bound rather than leaving it as a claim. */
+export const CHAT_TAIL_BUDGET = 900;
+
+/** HER rows: shapelint.ts's MAX_WORDS, per row, INCLUDING the two tokens of
+ *  the speaker prefix. Restated rather than imported because shapelint.ts
+ *  imports persona.ts and memory.ts is on the call path — it must not drag
+ *  ~45k of persona into a bundle to read one integer. The eval pins the two
+ *  together so the restatement cannot drift. */
+export const CHAT_TAIL_MAX_WORDS = 14;
+
+/** HIS rows: looser, per defence 3 above. 24 words is a long text message and
+ *  a short paragraph — enough that an ordinary Hinglish line arrives whole,
+ *  short enough that a wall of text still cannot become a script. */
+export const CHAT_TAIL_MAX_WORDS_THEM = 24;
+
+const CHAT_TAIL_HEAD =
+  "JUST BEFORE THIS CALL — the last of what you two typed to each other, oldest first. You were both there for it, so it is not news, it never gets read back to them, and being listed here is not a reason to raise it. A plan or a mood in it may already have moved on.";
+
+/** One row: `- them: …` / `- you: …`, capped so the WHOLE row (prefix
+ *  included) stays under shapelint's word cap. Clipping is at a word boundary
+ *  with a visible ellipsis — a clipped row says so, rather than presenting a
+ *  half-sentence as the whole thing they said. */
+function chatTailRow(who: "them" | "you", text: string): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const cap = who === "them" ? CHAT_TAIL_MAX_WORDS_THEM : CHAT_TAIL_MAX_WORDS;
+  const body = cap - 2; // the two tokens of "- who:"
+  const words = flat.split(" ");
+  if (words.length <= body) return `- ${who}: ${flat}`;
+  return `- ${who}: ${words.slice(0, body - 1).join(" ")} …`;
+}
+
+/**
+ * The last stretch of TYPED conversation, as tail-ready rows. Pure — the clock
+ * is passed in, for the same reason compile() takes `nowMs`: a `Date.now()` in
+ * here would make a byte-identity comparison flap on a minute rollover.
+ *
+ * Call turns are excluded. What was said on the last CALL is not "what you two
+ * typed", it reaches her through the callmark and CALL_OPEN_DIRECTIVE's
+ * follow-up register, and folding it in would double-count one exchange across
+ * two media — the same call filter `repeat.ts` applies for the same reason.
+ *
+ * Returns "" when there is nothing recent, which is compile()'s render-nothing
+ * default for `memories` and therefore byte-identical to today.
+ */
+export function formatChatTail(msgs: readonly Message[], nowMs: number): string {
+  const rows: string[] = [];
+  for (let i = msgs.length - 1; i >= 0 && rows.length < CHAT_TAIL_ROWS; i--) {
+    const m = msgs[i];
+    if (!m || m.kind !== "text" || m.channel === "call") continue;
+    if (!m.text || !m.text.trim()) continue;
+    // walking backwards, the first message outside the window ends the stretch
+    // — everything before it is older still
+    if (!m.at || nowMs - m.at > CHAT_TAIL_WINDOW_MS) break;
+    rows.unshift(chatTailRow(m.from === "me" ? "them" : "you", m.text));
+  }
+  if (!rows.length) return "";
+  // over budget, drop WHOLE rows from the oldest. Never a slice: "a sliced
+  // block is a lie" is this repo's drop rule and it does not stop applying
+  // inside a block (`activity-block-sliced-mid-word`).
+  let kept = rows;
+  while (kept.length && CHAT_TAIL_HEAD.length + 1 + kept.join("\n").length > CHAT_TAIL_BUDGET)
+    kept = kept.slice(1);
+  if (!kept.length) return "";
+  return `${CHAT_TAIL_HEAD}\n${kept.join("\n")}`;
+}
+
+/**
+ * What every call-lane compile site passes as `memories`. The freshest thing
+ * first: `api/chat.js` keeps the FIRST n chars of the tail and cuts the end,
+ * so of the two the graph rows are the ones that may be dropped, never the
+ * stretch that happened ninety seconds ago.
+ *
+ * One function rather than each lane composing two strings itself, because
+ * lanes each doing their own concatenation is exactly the shape
+ * `age-tier-never-realtime` records: the rule added later lands in one copy.
+ *
+ * Takes the ALREADY-RENDERED tail rather than the message store, so the caller
+ * can hand the same bytes to its telemetry — a diag field that re-derives what
+ * it reports on is a field that can start lying the moment either side moves.
+ */
+export function callMemories(memories: string, chatTail: string): string {
+  if (!chatTail) return memories;
+  return memories ? `${chatTail}\n\n${memories}` : chatTail;
+}
+
 export async function uploadPhoto(device: string, dataB64: string, mime: string): Promise<string | null> {
   try {
     const r = await post({ op: "upload_photo", device, data: dataB64, mime });

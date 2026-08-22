@@ -57,7 +57,16 @@ import type { RelBundleInput } from "../engine/compiler";
 // mid-session lands on the next compile. On this lane the "next compile" is
 // the next call — the live prompt is frozen at connect on purpose.
 import { gatesFor, getAgeTier } from "../engine/clock";
-import { logTurns, rememberFrom, recallForCall, callSelfBundle } from "../engine/memory";
+import {
+  logTurns,
+  rememberFrom,
+  recallForCall,
+  callSelfBundle,
+  callMemories,
+  formatChatTail,
+  CHAT_TAIL_WINDOW_MS,
+  type RememberResult,
+} from "../engine/memory";
 import { asksToHangUp } from "../engine/hangup";
 import { activityOf, activityPickupLine, lastAssessment } from "../state/game";
 import { clearCallStatus, publishCallStatus } from "../state/callStatus";
@@ -513,6 +522,22 @@ export function useCallEngine(
     relBundle: relBundleRef.current,
   });
 
+  // ── T-H3, and why THIS lane does not get the chat tail ────────────────────
+  // Every `think()` on the cascade lane is handed `stateRef.current.messages`
+  // as history, and brain.ts's `toTurns` sends the last 90 of them — chat
+  // turns, call turns and callmarks alike, since `messages` is the
+  // channel-blind store — to the model as REAL TURNS. So the last stretch of
+  // typing is already in front of the cascade model, verbatim, in the one
+  // place a transcript belongs. `callMemories()` below is what gives the
+  // frozen-at-connect lanes the same property; adding it here as well would
+  // put the same sentences in the prompt twice, on the one lane that never
+  // lost them, and spend tail budget to do it.
+  //
+  // Uniform in the PROPERTY, not in the bytes: every lane knows what was just
+  // typed. `evals/chattail/run.mjs` asserts both halves — that the live and
+  // native-watch compiles route `memories` through `callMemories`, and that
+  // the cascade lane's history reaches the model unfiltered.
+
   // ── realtime engine (Gemini Live, speech-to-speech): near-zero latency,
   // server-side barge-in. The cascade below stays as the seamless fallback —
   // at call start when live can't connect, and mid-call if the session drops.
@@ -659,6 +684,13 @@ export function useCallEngine(
       // never her volunteering an opinion.
       userText: lastMsg?.text || "",
     });
+    // T-H3: rendered ONCE, here, and both read from it — the compile below and
+    // the diag record beneath it. Two calls could not actually disagree (same
+    // tick, same `nowAt`), but a telemetry field that re-derives the thing it
+    // is reporting on is a field that can start lying the moment either side
+    // moves. Measured at ~17µs over a 2,000-message store, so this is not a
+    // performance concern in either direction — it is a truthfulness one.
+    const chatTail = formatChatTail(stateRef.current.messages, nowAt);
     // ── ONE ASSEMBLER (G-C6) ──────────────────────────────────────────────
     // Everything below used to be a hand-rolled concatenation that shadowed
     // compile() and drifted from it: its own shorter T5 and T7 headings, no
@@ -682,7 +714,11 @@ export function useCallEngine(
       innerThread: inner.thread,
       innerWants: inner.wants,
       // Fetched during the ring — before this it was provably always "".
-      memories: recallRef.current,
+      // T-H3: plus the last stretch of typing, which the ring fetch cannot
+      // know about and `herLife` has not absorbed yet. This prompt is frozen
+      // at connect, so it is the only chance this call gets. See
+      // `callMemories` in memory.ts for why the tail beats a flush here.
+      memories: callMemories(recallRef.current, chatTail),
       herLife: formatHerLife(stateRef.current.herLife),
       // chat-only by construction inside compile(); passed empty for clarity
       cultureNoteText: "",
@@ -734,6 +770,14 @@ export function useCallEngine(
       ring_fetch_ms: ringFetchMs.current,
       rel_bundle: Boolean(relBundleRef.current),
       recall: recallRef.current.length,
+      // T-H3's production seam. BYTES AND AGE, never a character of content —
+      // same firewall every other field here is under. `chat_tail` > 0 is what
+      // says the frozen prompt actually carried the stretch that was typed
+      // before the call, and `chat_tail_age_ms` is how stale the newest typed
+      // message was at connect, which is the number that says whether the
+      // 30-minute window is cut in the right place.
+      chat_tail: chatTail.length,
+      chat_tail_age_ms: lastMsgAt ? Math.max(0, nowAt - lastMsgAt) : -1,
       sections: compiled.sections ?? {},
     });
     let self: LiveSession | null = null;
@@ -976,6 +1020,38 @@ export function useCallEngine(
     adoptLiveLate(s);
   }
 
+  // ── absorbing one extraction pass ─────────────────────────────────────────
+  // The writer half of `rememberFrom`: newest-first, deduped on exact text,
+  // bounded at the 12 `formatHerLife` actually renders. It exists as ONE
+  // function because there are now two callers in this file (the ring, below,
+  // and hangup) and a third in Chat.tsx, and three copies of a merge rule is
+  // how the fourth one ends up subtly different — `age-tier-never-realtime`,
+  // in miniature. Fire-and-forget everywhere: never awaited, promise always
+  // caught, never on a path a call or a reply waits behind.
+  function absorbRemembered(p: Promise<RememberResult>) {
+    p.then(({ self, inner }) => {
+      if (!self.length && !inner) return;
+      setState((s) => {
+        const at = Date.now();
+        const seen = new Set<string>();
+        return {
+          ...s,
+          herLife: self.length
+            ? [...self.map((text) => ({ text, at })), ...(s.herLife || [])]
+                .filter((f) => {
+                  const k = f.text.toLowerCase();
+                  if (seen.has(k)) return false;
+                  seen.add(k);
+                  return true;
+                })
+                .slice(0, 12)
+            : s.herLife,
+          inner: inner ? applyInner(s.inner, inner, at) : s.inner,
+        };
+      });
+    }).catch(() => {});
+  }
+
   // connect + greet
   useEffect(() => {
     alive.current = true;
@@ -1025,6 +1101,29 @@ export function useCallEngine(
       .catch(() => {
         ringFetchMs.current = -1;
       });
+    // ── T-H3, the other half: make the NEXT call fresh ────────────────────
+    // The chat tail makes THIS call whole. It does not move `herLife`, which
+    // is the durable ledger and stays behind by up to two sends plus one
+    // appraisal for as long as nobody runs the pass. So run it here, on the
+    // ring's idle beat: the same extraction Chat.tsx runs on every third send,
+    // fire-and-forget, never awaited, so nothing about the connect path can
+    // wait behind it — the strict opposite of §T-H3 option (a), which would
+    // have put this very round trip in front of the pickup.
+    //
+    // Gated, because it is a model call and the ring is not free: only when
+    // there is a stretch worth absorbing (`rememberFrom` needs two turns of
+    // its own) and only when that stretch is recent enough to be the one the
+    // tail is also carrying. A cold call after a day of silence starts no
+    // pass, and the cost is bounded at one per call either way.
+    {
+      const typed = state.messages.filter((m) => m.kind === "text" && m.channel !== "call");
+      const newest = typed[typed.length - 1];
+      if (typed.length >= 2 && newest?.at && Date.now() - newest.at <= CHAT_TAIL_WINDOW_MS) {
+        absorbRemembered(
+          rememberFrom(state.deviceId, state.messages, wantsForAppraisal(state.inner)),
+        );
+      }
+    }
     // she improvises her own phone pickup — nothing scripted. The brain call
     // starts NOW, in parallel with the "ringing" beat, so pickup is instant.
     const greetPromise = think(
@@ -2061,7 +2160,14 @@ export function useCallEngine(
           lastMsgAt: watchLastAt,
           surface: "watch" as const,
         }).wants,
-        memories: recallRef.current,
+        // T-H3: same tail the live lane carries. The native watch config is
+        // compiled once when the share starts and handed to a service process
+        // that never recompiles, so it is frozen exactly as the live prompt is
+        // and needs the stretch for exactly the same reason.
+        memories: callMemories(
+          recallRef.current,
+          formatChatTail(stateRef.current.messages, watchNow),
+        ),
         herLife: formatHerLife(stateRef.current.herLife),
         cultureNoteText: "",
         relBundle: relBundleRef.current,
@@ -2644,33 +2750,15 @@ export function useCallEngine(
     // distill what was said on the call into her graph memory — and keep what
     // she claimed about herself and where the call left her. The result used to
     // be discarded, so nothing said on a call ever reached her self-ledger.
-    rememberFrom(
-      stateRef.current.deviceId,
-      // see watchTurnIds: anything said over a shared screen is conversation,
-      // never durable memory about their life
-      stateRef.current.messages.filter((m) => !watchTurnIds.current.has(m.id)).slice(-60),
-      wantsForAppraisal(stateRef.current.inner),
-    ).then(({ self, inner }) => {
-      if (!self.length && !inner) return;
-      setState((s) => {
-        const at = Date.now();
-        const seen = new Set<string>();
-        return {
-          ...s,
-          herLife: self.length
-            ? [...self.map((text) => ({ text, at })), ...(s.herLife || [])]
-                .filter((f) => {
-                  const k = f.text.toLowerCase();
-                  if (seen.has(k)) return false;
-                  seen.add(k);
-                  return true;
-                })
-                .slice(0, 12)
-            : s.herLife,
-          inner: inner ? applyInner(s.inner, inner, at) : s.inner,
-        };
-      });
-    });
+    absorbRemembered(
+      rememberFrom(
+        stateRef.current.deviceId,
+        // see watchTurnIds: anything said over a shared screen is conversation,
+        // never durable memory about their life
+        stateRef.current.messages.filter((m) => !watchTurnIds.current.has(m.id)).slice(-60),
+        wantsForAppraisal(stateRef.current.inner),
+      ),
+    );
     setTimeout(onEnd, 400);
   }
 

@@ -306,10 +306,24 @@ WS-CONTINUITY is routing it through `compile()` — the call lane.
 live database, and assert that a rendered prompt for a real person contains
 T13's header.
 
-### T-H2 — an activity is a fact with an expiry
+### T-H2 — an activity is a fact with an expiry — **STILL OPEN** (verified 2026-08-22)
 
 **Owner:** `api/memory.js` extraction + `AppState.herLife` in
 `src/components/`.
+
+> **Checked before rebuilding it, and it has NOT landed.** The `OPEN_STALE_MS`
+> expiry that arrived recently is in `src/state/game.ts` and it ages out an
+> open GAME session (a board left mid-match on Tuesday must not have her
+> convinced on Friday that they are mid-match). That is `AppState.game` and
+> T15 `session.activity` — a different "activity" from this ticket's, which is
+> a line in her SELF-ledger. On the `herLife` side nothing has moved:
+> `SelfFact` in `src/state/store.ts` is still `{ text, at }` with no `kind` and
+> no `startedAt`; `formatHerLife` in `src/engine/brain.ts` still renders the
+> newest twelve unconditionally, ageing them only in the LABEL (`agoLabel`)
+> and never dropping one; and `activityBreaks()` has no caller outside
+> `evals/honesty/`, so the gate this ticket names is still measuring authored
+> transcripts rather than the shipped renderer. T-H2 is untouched, and the
+> interface below is still the right one.
 
 The `self` extraction returns durable facts and momentary activities in one
 undifferentiated list, and `herLife` stores both for twelve slots. "reading a
@@ -328,7 +342,7 @@ is what her having finished it looks like.
 labelled transcript of successive "what are you doing" answers, must return
 empty.
 
-### T-H3 — flush the ledger before the call connects
+### T-H3 — flush the ledger before the call connects — **CLOSED** (2026-08-22, task #91)
 
 **Owner:** `src/components/useCallEngine.ts` (WS-CONTINUITY is in this file
 right now).
@@ -347,6 +361,89 @@ stretch had no facts in it.
 
 **Gate:** a fixture where a stated activity in the last chat turn is present in
 the assembled live system prompt.
+
+#### The mechanism, as shipped
+
+**(b), and not merely because it is cheaper.** (a) puts a MODEL round trip in
+front of the ring — the most latency-sensitive moment the product has, and the
+one place the standing "speed and quality are never traded away" instruction
+bites hardest. Time-boxing it does not rescue it: `rememberFrom` is an
+appraisal pass, an order of magnitude slower than the ~165ms-warm / ~900ms-cold
+recall this lane already races, so a ~400ms `Promise.race` would expire on
+nearly every call and degrade to exactly today's behaviour — cost with no
+effect. (b) adds **zero** connect-path latency (measured below), enriches the
+ONE assembly rather than adding a second, and covers the case (a) structurally
+cannot: a stretch with no extractable fact in it still reaches her.
+
+- **`formatChatTail` / `callMemories`** (`src/engine/memory.ts`) — pure, clock
+  passed in. Last ≤ 6 TYPED turns inside a 30-minute window, oldest first,
+  rendered as `- them: …` / `- you: …` rows under a 900-char ceiling, whole
+  rows dropped from the oldest when over (never sliced). Call turns, callmarks
+  and photos are excluded; empty in, empty out, so every existing caller is
+  byte-identical.
+- **It rides `memories` (T5)**, not a new compiler slot. `compile()`'s contract
+  is that the caller resolves strings and the compiler stays pure, and T5's
+  heading already carries the two guardrails this block needs and would
+  otherwise restate ("not a reason to say it", "never with any mention of
+  remembering"). The stretch goes FIRST, ahead of the graph rows, because
+  `api/chat.js` keeps the head of the tail and cuts the end.
+- **Both frozen-at-connect lanes, uniformly**: `tryStartLive`'s compile and the
+  native-watch config's two compiles. `liveAssemblies` still reads 1 — the ONE
+  assembly is enriched, never duplicated. The **cascade** lane deliberately
+  does NOT get the block: `brain.ts`'s `toTurns` already sends the last 90
+  messages to the model as real turns, so the stretch is in front of it
+  verbatim, in the place a transcript belongs. Uniform in the property, not in
+  the bytes.
+- **`recited-prompt`, the law this block is most exposed to.** Every row opens
+  with a speaker token, which makes shapelint's first-person-line-initial and
+  sentence-shaped rules unmatchable by construction. HER rows are capped at
+  shapelint's own `MAX_WORDS` (14) — a line she said is a line she could say
+  again, which is the definition of a phrase bank. HIS are capped at 24 under
+  the allowlist `lintBlock` already documents for exactly this class ("THEIR
+  line, not a line written for her … verbatim storage is the point"), because
+  clipping "cousin ke ghar ja raha hu dinner ke liye" at twelve words loses
+  where he is going.
+- **The other half — the NEXT call.** The tail does not move `herLife`, so the
+  ring now also fires the same extraction `Chat.tsx` runs, fire-and-forget,
+  gated on there actually being a recent typed stretch. Never awaited: the
+  strict opposite of option (a), which would have put this very round trip in
+  front of the pickup. Its writer is `absorbRemembered`, one function now
+  shared with the hangup path.
+- **Production seam**: `diag("call","live_prompt")` gained `chat_tail` (bytes)
+  and `chat_tail_age_ms`. Bytes and age only — never a character of content,
+  the same firewall every other field there is under.
+
+**Latency:** zero added on the connect path, and not as an assertion. Nothing
+was made `await`-able — `formatChatTail` is a synchronous backwards scan that
+stops at the first message outside the window, running in the same tick that
+was already building `CompileInput`, and it is rendered exactly once per
+assembly. **Measured 16.6 µs per call** (n = 20,000 iterations after a
+2,000-iteration warm-up, node 22, `callMemories`+`formatChatTail` over a
+2,000-message store, 2026-08-22) against a connect path whose own budget is
+the 3,500 ms the live session gets to come up: five orders of magnitude below
+the noise floor of the thing it sits inside. The one new network call — the
+extraction — is started on the ring's idle beat and is never awaited by
+anything; `evals/chattail/run.mjs` asserts the absence of `await rememberFrom(`
+on this lane, so option (a) cannot creep back in unnoticed.
+
+**Budget:** the tightest lane in the repo is live+watch, measured at 22,243 of
+an operational 24,000 before this change. `CHAT_TAIL_BUDGET` is 900, so the
+bound becomes 23,143 — and `evals/chattail/run.mjs` asserts that arithmetic
+against `OPERATIONAL_TAIL_CAP` rather than leaving it as a claim in a comment.
+
+**Gate, as named above, plus its negative control:** `evals/chattail/run.mjs`
+(wired into `evals/run.mjs`, so it runs in CI under `verify-release`). His
+stated activity in the last typed turn, 60 seconds before connect, is present
+in the assembled live system prompt; the same compile without the tail does
+not contain it, which is what makes the positive assertion mean anything.
+
+**What would reverse this.** If `chat_tail_age_ms` shows the 30-minute window
+routinely cutting a stretch people consider current, widen the window before
+widening the row count — rows are the recitation risk, minutes are not. If she
+starts reading the block back ("tumne abhi bola tha ki…") more than rarely,
+the phrase-bank law has won and the fix is to render his half as a telegraphic
+gist rather than to delete the block, since the alternative is a companion who
+picks up the phone with no idea what you just typed.
 
 ### T-H4 — one line outside this workstream's file list, flagged
 
