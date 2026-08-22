@@ -213,9 +213,14 @@ export default function MoreSheet({
                 );
               })}
             </div>
+            {/* One line per mode, and only the two that need explaining get
+                one. "Light" and "Dark" explain themselves; Sky and Auto are
+                both "it changes on its own", and a person choosing between
+                them needs to know WHAT decides. */}
             <p className="hint">
-              Auto follows your phone, and keeps following it when it turns
-              dark at night on its own.
+              Sky follows the real sky where {HER_NAME} is: warm through the
+              day, deep after dusk. Auto follows your phone, and keeps
+              following it when it turns dark at night on its own.
             </p>
 
             <div className="sheet-rows">

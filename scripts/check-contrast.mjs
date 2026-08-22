@@ -121,5 +121,182 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
   check("ttt: tt-draw keyframe ends at dashoffset 0 explicitly", ok);
 }
 
+// ══ THE WORLD LAYER'S FLOORS ═══════════════════════════════════════════════
+//
+// docs/DESIGN-WORLD.md, "laws that do not bend for beauty": contrast gates
+// extend to the world layer, text over sky = scrim tokens, MEASURED.
+//
+// The same species of check as everything above and for the same reason: a
+// sky is a picture, so every failure here is invisible to anything that runs
+// the code and visible to exactly one person — the one who happened to open
+// the app at 5pm on the day the golden-hour stops were tuned. There are FIVE
+// skies and each has FOUR stops, so there are twenty grounds that text has to
+// hold against, and nineteen of them are not on screen while you are looking
+// at the twentieth.
+//
+// WHAT IS COMPUTED, precisely, because the honesty of the floor depends on it:
+//
+//   ground = the sky stop, with the state's scrim composited over it at the
+//            state's own alpha — the UNIFORM veil, which is the weakest the
+//            scrim ever is anywhere on screen (world.css adds a strictly
+//            additive top/bottom emphasis on top of it). So every real pixel
+//            is at least as legible as the number proved here.
+//   text   = --world-ink and --world-ink-dim, straight onto that ground.
+//   panel  = the state's glass fill composited over that same ground. Text
+//            also has to be read ON it, so ink is measured against the PANEL
+//            as well as against the sky.
+//   edge   = the panel's hairline, composited over the panel, measured
+//            against the sky — what makes a floating control a findable
+//            object rather than a suggestion.
+//
+// Floors: text 4.5:1 (WCAG AA body), the control's boundary 3:1 (AA non-text
+// / UI component). `--world-ink-dim` is held to the BODY floor rather than
+// the large-text one on purpose: it carries her presence line and the call
+// state line, both of which are 13.5px and both of which are read constantly.
+//
+// ── THE HOLE THIS FILE SHIPPED WITH FOR ONE AFTERNOON ─────────────────────
+//
+// The first version measured only ink-over-SKY and fill-over-SKY, and passed
+// a design in which the home screen's cards were unreadable at noon. The
+// reason is worth keeping: a light-glass panel over a light sky composites to
+// a mid-grey slab, the state's own dark ink sits on THAT at 4.2:1, and
+// nothing in the gate was looking at that pair — the fill had been chosen to
+// contrast with the sky, which is the one surface it does not sit on.
+//
+// The browser battery's screenshots caught it; this gate did not. So the
+// panel-and-edge split above is not a refinement, it is the missing half:
+// THE FILL CARRIES THE TEXT, THE EDGE CARRIES THE COMPONENT. Either half
+// silently taking on the other's job is exactly what shipped.
+//
+// The table is read from the REAL `src/engine/sky.ts`, bundled fresh with
+// esbuild on every run. Same discipline as `evals/run.mjs`: a frozen copy
+// passes forever while the source rots.
+{
+  console.log("");
+  const { execFileSync } = await import("child_process");
+  const { mkdtempSync, rmSync } = await import("fs");
+  const { tmpdir } = await import("os");
+  const { join } = await import("path");
+
+  const dir = mkdtempSync(join(tmpdir(), "skygate-"));
+  const out = join(dir, "sky.mjs");
+  let SKY_TOKENS, SKY_STATES;
+  try {
+    execFileSync(
+      "npx",
+      ["esbuild", "src/engine/sky.ts", "--bundle", "--format=esm", "--platform=node",
+        `--outfile=${out}`, "--log-level=error"],
+      { cwd: ROOT, stdio: "pipe" },
+    );
+    ({ SKY_TOKENS, SKY_STATES } = await import(out));
+  } finally {
+    try { rmSync(dir, { recursive: true, force: true }); } catch { /* temp dir */ }
+  }
+
+  check("world: the sky table bundles and exports five states", SKY_STATES?.length === 5);
+
+  // alpha-composite `over` onto `base`, both hex, alpha 0..1 — the same maths
+  // the browser does, done here so the number is not a guess
+  const over = (fg, bg, a) => fg.map((c, i) => c * a + bg[i] * (1 - a));
+
+  const TEXT_FLOOR = 4.5;
+  const EDGE_FLOOR = 3.0;
+  let worstText = Infinity;
+  let worstPanel = Infinity;
+  let worstEdge = Infinity;
+
+  for (const state of SKY_STATES ?? []) {
+    const t = SKY_TOKENS[state];
+    const scrim = hex(t.scrim);
+    const ink = hex(t.ink);
+    const inkDim = hex(t.inkDim);
+    const control = hex(t.control);
+    const edge = hex(t.edge);
+
+    let minText = Infinity;
+    let minPanel = Infinity;
+    let minEdge = Infinity;
+    let whereText = "";
+    let wherePanel = "";
+    for (let i = 0; i < t.stops.length; i++) {
+      const ground = over(scrim, hex(t.stops[i]), t.scrimAlpha);
+      const panel = over(control, ground, t.controlAlpha);
+
+      // 1. text floating directly on the world: her name, her presence line,
+      //    the call's state line, the reassurance line
+      const onSky = Math.min(ratio(ink, ground), ratio(inkDim, ground));
+      if (onSky < minText) {
+        minText = onSky;
+        whereText = `stop ${i + 1} (${t.stops[i]})`;
+      }
+      // 2. text inside a floating panel: every card, every pill, every label
+      const onPanel = Math.min(ratio(ink, panel), ratio(inkDim, panel));
+      if (onPanel < minPanel) {
+        minPanel = onPanel;
+        wherePanel = `stop ${i + 1} (${t.stops[i]})`;
+      }
+      // 3. the panel's boundary against the world it floats in
+      minEdge = Math.min(minEdge, ratio(over(edge, panel, t.edgeAlpha), ground));
+    }
+    worstText = Math.min(worstText, minText);
+    worstPanel = Math.min(worstPanel, minPanel);
+    worstEdge = Math.min(worstEdge, minEdge);
+
+    check(
+      `world/${state}: text over scrimmed sky >= ${TEXT_FLOOR}`,
+      minText >= TEXT_FLOOR,
+      `${minText.toFixed(2)} worst at ${whereText}`,
+    );
+    check(
+      `world/${state}: text INSIDE a glass panel >= ${TEXT_FLOOR}`,
+      minPanel >= TEXT_FLOOR,
+      `${minPanel.toFixed(2)} worst at ${wherePanel}`,
+    );
+    check(
+      `world/${state}: panel edge vs its sky >= ${EDGE_FLOOR}`,
+      minEdge >= EDGE_FLOOR,
+      minEdge.toFixed(2),
+    );
+    // The panel must go the SAME WAY the sky does — dark glass on a dark sky,
+    // light glass on a light one. Stated as a check rather than as a comment
+    // because the inverse is exactly what shipped once, and it reads as a
+    // reasonable idea right up until it is rendered.
+    const skyDark = t.mode === "dark";
+    const panelDark = lum(hex(t.control)) < 0.2;
+    check(
+      `world/${state}: the glass follows the sky (${t.mode})`,
+      skyDark === panelDark,
+      `control ${t.control}`,
+    );
+  }
+
+  // The scrim is the ONLY thing standing between text and a picture, so a
+  // state that forgot to declare one would sail through every ratio above
+  // by accident on a dark sky and fail invisibly on a light one.
+  for (const state of SKY_STATES ?? []) {
+    const t = SKY_TOKENS[state];
+    check(
+      `world/${state}: declares a real scrim`,
+      t.scrimAlpha >= 0.3 && t.scrimAlpha <= 0.8,
+      String(t.scrimAlpha),
+    );
+  }
+
+  // The painting swap point. `--world-img` is the ONE variable stage 2
+  // changes; if a state ever loses the field the swap silently skips it and
+  // that sky alone stays procedural forever.
+  for (const state of SKY_STATES ?? []) {
+    check(
+      `world/${state}: carries the --world-img swap point`,
+      typeof SKY_TOKENS[state].img === "string",
+    );
+  }
+
+  console.log(
+    `  ..  world worst case: text-on-sky ${worstText.toFixed(2)}:1, ` +
+      `text-in-panel ${worstPanel.toFixed(2)}:1, panel edge ${worstEdge.toFixed(2)}:1`,
+  );
+}
+
 console.log(failed ? `\n${failed} contrast/legibility checks FAILED` : "\nboard legibility ok");
 process.exit(failed ? 1 : 0);

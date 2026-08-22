@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppState, rotateDeviceId } from "./state/store";
 import type { AuthInfo, AppState } from "./state/store";
 import Onboarding from "./components/Onboarding";
@@ -8,11 +8,15 @@ import IncomingCall from "./components/IncomingCall";
 import AuthSheet from "./components/AuthSheet";
 import ClockCard from "./components/ClockCard";
 import GamesHub, { DEFAULT_ACTIVITIES, type Activity } from "./components/GamesHub";
+import HomeScreen from "./components/HomeScreen";
+import StoryView from "./components/StoryView";
+import { activeStories } from "./engine/storyCatalog";
 import ChessActivity from "./components/ChessActivity";
 import WouldYouRatherActivity from "./components/WouldYouRatherActivity";
 import TicTacToeActivity from "./components/TicTacToeActivity";
-import { CloseIcon } from "./components/icons";
-import { applyTheme, watchSystemTheme } from "./engine/theme";
+import { CloseIcon, ChevronIcon } from "./components/icons";
+import { applyTheme, watchSystemTheme, watchSky } from "./engine/theme";
+import { configureSky, parseSkySeed } from "./engine/sky";
 import { mergeStates, safeUser } from "./state/merge";
 import { OPEN_STALE_MS, activityOf, isGameSession } from "./state/game";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -39,6 +43,25 @@ import {
   type AuthSession,
 } from "./engine/account";
 
+// ── the sky test seam ────────────────────────────────────────────────────
+//
+// Exactly the shape `configureClock()` in clock.ts uses, and for exactly the
+// same reason: the five sky states are verified by SIMULATING time, never by
+// waiting for it, and a screenshot battery that waited until 04:30 IST is a
+// battery nobody runs.
+//
+// It runs at MODULE level rather than in an effect, and that is load-bearing
+// rather than stylistic: `useSky()` seeds its state on the first render, so a
+// seam installed in an effect would arrive one render too late and every
+// screenshot would be of the real sky wearing a query parameter. Only ever
+// active when an explicit `?sky=` is present, which no shipped link contains.
+try {
+  const at = parseSkySeed(new URLSearchParams(location.search).get("sky"));
+  if (at !== null) configureSky({ now: () => at });
+} catch {
+  /* no location (SSR, a test harness) — the real clock stands */
+}
+
 // union-merge two message histories by id (never wholesale replacement —
 // a message typed during sign-in must survive), honoring the clear-chat
 // tombstone so a wiped chat can't be resurrected by a stale copy
@@ -59,7 +82,16 @@ export default function App() {
     // and keep following the OS while the choice is "system" — the phone
     // switching to dark at sunset with the app open is the exact case this is
     // for, and a value read once at startup would miss it
-    return watchSystemTheme(state.theme, () => applyTheme(state.theme));
+    const offOs = watchSystemTheme(state.theme, () => applyTheme(state.theme));
+    // …and keep following the CLOCK while the choice is "sky". Same shape,
+    // different signal: scheduled to the next sky boundary rather than
+    // subscribed to a media query, because the sky changes five times a day
+    // at times this app already knows.
+    const offSky = watchSky(state.theme, () => applyTheme(state.theme));
+    return () => {
+      offOs();
+      offSky();
+    };
   }, [state.theme]);
 
   // Who dialled the call that is up. "her" only on the callback accept path —
@@ -67,6 +99,58 @@ export default function App() {
   const [callFrom, setCallFrom] = useState<"him" | "her">("him");
   const [gamesOpen, setGamesOpen] = useState(false);
   const [usOpen, setUsOpen] = useState(false);
+  const [storyOpen, setStoryOpen] = useState(false);
+
+  // ── THE SURFACE ────────────────────────────────────────────────────────
+  //
+  // Home is the landing (DESIGN-WORLD §2: "a new landing surface inside the
+  // app"). The thread opens from it, and it also opens straight from a deep
+  // link — `#chat`, which is what a "message Meera" shortcut or a
+  // notification points at.
+  //
+  // NOTHING TRAPS, and that is enforced two ways rather than one:
+  //  * opening the thread pushes a history entry, so the browser's back and
+  //    Android's hardware back (which Capacitor maps to history) land home;
+  //  * App paints its own back control over the thread's header, because
+  //    Chat.tsx belongs to another workstream and a route that only works
+  //    through a gesture is a route half the users never find.
+  const [surface, setSurface] = useState<"home" | "chat">(() =>
+    typeof location !== "undefined" && /(^|[#?&])chat\b/.test(location.hash + location.search)
+      ? "chat"
+      : "home",
+  );
+  const openChat = useCallback(() => {
+    setSurface((cur) => {
+      if (cur === "chat") return cur;
+      try {
+        history.pushState({ meera: "chat" }, "");
+      } catch {
+        /* history unavailable (some embedded WebViews) — the back control
+           below still works; only the hardware back loses its meaning */
+      }
+      return "chat";
+    });
+  }, []);
+  const goHome = useCallback(() => {
+    setSurface((cur) => {
+      if (cur === "home") return cur;
+      // Unwind the entry openChat pushed rather than pushing another one, so
+      // a session of home→chat→home→chat does not build a stack a user has
+      // to press back through five times to leave the app.
+      try {
+        if (history.state?.meera === "chat") history.back();
+      } catch {
+        /* see above */
+      }
+      return "home";
+    });
+  }, []);
+  useEffect(() => {
+    const onPop = () => setSurface("home");
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
 
   // Escape closes, and focus starts inside the sheet rather than wherever the
   // page happened to leave it. Lifted verbatim from MoreSheet, because the
@@ -267,10 +351,12 @@ export default function App() {
             ? `/play/${activity}`
             : inCall
               ? "/call"
-              : "/chat",
+              : surface === "home"
+                ? "/home"
+                : "/chat",
       "tap",
     );
-  }, [state.onboarded, inCall, authOpen, activity]);
+  }, [state.onboarded, inCall, authOpen, activity, surface]);
 
   // user_id is not the delete key, but a session that spans a sign-in should
   // say so rather than silently changing owner halfway through
@@ -348,6 +434,33 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── THE TWO SHARED HANDLERS ────────────────────────────────────────────
+  //
+  // Home, the chat header, the games sheet and the boards all reach the same
+  // two acts, and they reach them THROUGH THESE rather than each writing
+  // their own version. A second path that starts a call slightly differently
+  // (forgetting `unlockAudio` inside the tap gesture, say, which is the one
+  // that mutes her on mobile) is the exact shape this repo keeps having to
+  // un-write; the fix is that there is only one path.
+  const startCall = useCallback(
+    (from: string) => {
+      unlockAudio(); // inside the tap gesture, or mobile browsers mute her
+      track(state.deviceId, "call_started", from ? { from } : {}, state.auth?.userId);
+      setCallFrom("him");
+      setState((s) => (s.callback ? { ...s, callback: null } : s));
+      setInCall(true);
+    },
+    [state.deviceId, state.auth?.userId, setState],
+  );
+  const openActivity = useCallback(
+    (id: string) => {
+      setGamesOpen(false);
+      setActivity(id);
+      track(state.deviceId, "activity_opened", { kind: id, on_call: inCallRef.current });
+    },
+    [state.deviceId],
+  );
 
   const authFailed = (e: unknown) => {
     if (!isAuthDead(e)) return false;
@@ -515,28 +628,73 @@ export default function App() {
           deviceId={state.deviceId}
           onDone={(user) => {
             track(state.deviceId, "onboarded", { vibe: user.vibe });
-            setState((s) => ({ ...s, onboarded: true, user }));
+            // "SKY" IS THE DEFAULT FOR NEW INSTALLS, and it is stamped HERE
+            // rather than by changing what `undefined` means. See the long
+            // note in engine/theme.ts: `undefined` is what every existing
+            // install carries, so redefining it would move people who never
+            // chose anything off the OS setting they had implicitly accepted,
+            // at a time of day, on a build where they changed nothing. That
+            // is indistinguishable from a bug. `?? "sky"` also means a person
+            // who somehow already has a choice keeps it.
+            setState((s) => ({ ...s, onboarded: true, user, theme: s.theme ?? "sky" }));
           }}
         />
       ) : (
         <>
           <ClockCard />
-          <Chat
-            state={state}
-            setState={setState}
-            inCall={inCall}
-            onVoiceCall={() => {
-              // unlock inside the tap gesture, or mobile browsers mute her
-              unlockAudio();
-              track(state.deviceId, "call_started", {}, state.auth?.userId);
-              setCallFrom("him");
-              setState((s) => (s.callback ? { ...s, callback: null } : s));
-              setInCall(true);
-            }}
-            onProfile={() => setAuthOpen(true)}
-            onGames={() => setGamesOpen(true)}
-            onUs={() => setUsOpen(true)}
-          />
+          {/* ── THE THREAD ────────────────────────────────────────────────
+              ALWAYS MOUNTED, exactly like it is under a board or a call, and
+              for the same reason: it holds an in-flight reply cycle, a burst
+              timer, a scroll position and a typing indicator. Going home is a
+              surface change, never an unmount — unmounting it would silently
+              cancel a reply that was already on its way back from her.
+
+              `inert` while home is up, so the thread is neither tabbable nor
+              readable by a screen reader while it is behind the world. */}
+          <div
+            className="chat-wrap"
+            data-surface={surface}
+            inert={surface !== "chat" ? true : undefined}
+          >
+            <Chat
+              state={state}
+              setState={setState}
+              inCall={inCall}
+              onVoiceCall={() => startCall("")}
+              onProfile={() => setAuthOpen(true)}
+              onGames={() => setGamesOpen(true)}
+              onUs={() => setUsOpen(true)}
+            />
+            {/* the way out of the thread. App paints it because Chat.tsx is
+                another workstream's file; the CSS in home.css opens the
+                header's left gutter for it so nothing in the thread moves. */}
+            <button
+              className="home-back"
+              data-tel="chat.home"
+              onClick={goHome}
+              aria-label="Back to home"
+            >
+              <span className="hb-chev" aria-hidden="true">
+                <ChevronIcon size={19} />
+              </span>
+            </button>
+          </div>
+
+          {/* ── HOME ─────────────────────────────────────────────────────
+              The landing surface, over the thread. Hidden rather than
+              unmounted so its scroll position, its sky timers and its card
+              entrance survive a trip into the chat and back. */}
+          <div className="home-host" data-on={surface === "home" ? "" : undefined}>
+            <HomeScreen
+              state={state}
+              onOpenChat={openChat}
+              onCall={() => startCall("home")}
+              onGames={openActivity}
+              onStory={() => setStoryOpen(true)}
+              onUs={() => setUsOpen(true)}
+              onProfile={() => setAuthOpen(true)}
+            />
+          </div>
           {inCall && (
             <CallVoice
               state={state}
@@ -604,11 +762,7 @@ export default function App() {
                           ? { ...a, state: "resume", detail: "mid-round" }
                           : a,
                   )}
-                  onOpen={(id) => {
-                    setGamesOpen(false);
-                    setActivity(id);
-                    track(state.deviceId, "activity_opened", { kind: id, on_call: inCall });
-                  }}
+                  onOpen={openActivity}
                 />
               </div>
             </>
@@ -637,13 +791,7 @@ export default function App() {
                 setState={setState}
                 onExit={() => setActivity(null)}
                 onOpenCall={() => setActivity(null)}
-                onStartCall={() => {
-                  unlockAudio(); // inside the tap gesture, or mobile mutes her
-                  track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
-                  setCallFrom("him");
-                  setState((s) => (s.callback ? { ...s, callback: null } : s));
-                  setInCall(true);
-                }}
+                onStartCall={() => startCall("activity")}
                 // her picks are seeded per RELATIONSHIP: same person, same
                 // answers, forever — an account keeps them across devices
                 salt={state.auth?.userId ?? state.deviceId}
@@ -655,13 +803,7 @@ export default function App() {
                 setState={setState}
                 onExit={() => setActivity(null)}
                 onOpenCall={() => setActivity(null)}
-                onStartCall={() => {
-                  unlockAudio(); // inside the tap gesture, or mobile mutes her
-                  track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
-                  setCallFrom("him");
-                  setState((s) => (s.callback ? { ...s, callback: null } : s));
-                  setInCall(true);
-                }}
+                onStartCall={() => startCall("activity")}
               />
             )}
             {activity === "chess" && (
@@ -674,17 +816,40 @@ export default function App() {
                 onOpenCall={() => setActivity(null)}
                 // Calling from the board keeps the board. She starts talking and
                 // the game does not move — which is the entire feature.
-                onStartCall={() => {
-                  unlockAudio(); // inside the tap gesture, or mobile mutes her
-                  track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
-                  setCallFrom("him");
-                  setState((s) => (s.callback ? { ...s, callback: null } : s));
-                  setInCall(true);
-                }}
+                onStartCall={() => startCall("activity")}
               />
             )}
           </ErrorBoundary>
           {usOpen && <UsScreen state={state} onExit={() => setUsOpen(false)} />}
+          {/* ── HER STORY, from the world ─────────────────────────────────
+              The story card on home opens the SAME viewer the chat header's
+              ring opens, mounted here as an overlay sibling like every other
+              full-screen surface in this file.
+
+              It is deliberately mounted WITHOUT `onReply`: replying to a
+              story schedules a reply cycle, and that cycle lives inside
+              Chat.tsx (`sendStoryReply` → `scheduleReply`), which this
+              workstream does not own. StoryView already treats `onReply` as
+              optional and simply omits the reply box, so the honest result is
+              a viewer that watches — and the reply box is still there on the
+              route that can actually deliver it, from the chat's own ring.
+              A second, forked reply path that appended a message nothing
+              would ever answer would be worse than not offering one. */}
+          {storyOpen && (
+            <StoryView
+              stories={activeStories()}
+              signedIn={Boolean(state.auth)}
+              onSignIn={() => {
+                setStoryOpen(false);
+                setAuthOpen(true);
+              }}
+              onClose={() => setStoryOpen(false)}
+              onProfile={() => {
+                setStoryOpen(false);
+                setAuthOpen(true);
+              }}
+            />
+          )}
           {/* She is calling back after a call that dropped mid-sentence. Never
               while a call is already up, and never before its own due time —
               the arming happens in useCallEngine, on the drop itself. */}

@@ -3672,3 +3672,246 @@ input {
 @media (prefers-reduced-motion: reduce) {
   .us-callchip[data-state="connecting"] .us-callchip-dot { animation: none; }
 }
+
+/* ═══ WORLD-GROUNDED CALL SURFACES ════════════════════════════════════════
+   docs/DESIGN-WORLD.md §1: the world layer grounds BOTH call screens. This
+   block is the seam — everything above it that painted the call on its own
+   private gradient now paints it on the sky instead.
+
+   ── the decision this reverses, and why ───────────────────────────────────
+   The header of this stylesheet says "Calls are dark in BOTH (FaceTime
+   convention: a face is looked at on dark ground)". That was right when the
+   call had no world behind it, and the owner's direction supersedes it: a
+   call placed from a home screen standing in a morning sky, that then cuts to
+   a private near-black gradient, is two products. The reversal condition is
+   real and worth writing down: if her face is measurably harder to read on
+   the two LIGHT skies than on the three dark ones, the light states get a
+   deepened scrim for the call surface specifically — not a second ground.
+
+   Everything below reads `--world-*`, which `skyVars()` writes from
+   `src/engine/sky.ts` onto `.call` / `.incoming` themselves. No hex is
+   introduced that is not a fixed material (the white photo border) or a
+   semantic already in the system (danger, ok, the accent).
+   ════════════════════════════════════════════════════════════════════════ */
+
+.call,
+.incoming {
+  /* the world paints the ground; this is only the colour behind it while the
+     first frame is composited, and the fallback if the layer ever fails */
+  background: var(--sky-1, var(--bg));
+  color: var(--world-ink, #f5f5f7);
+}
+/* the call's own children sit above the world, which is z-index 0 inside
+   `.call`'s stacking context */
+.call > *:not(.world),
+.incoming > *:not(.world) {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── her name, in a serif, lowercase ──────────────────────────────────────
+   The single strongest identity move in the frames this was measured
+   against, and the cheapest: a lowercase book serif reads as a person's name
+   where a semibold UI face reads as a screen title. */
+.call-top .cname,
+.inc-name {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 38px;
+  letter-spacing: -0.022em;
+  text-transform: lowercase;
+  color: var(--world-ink);
+  text-shadow: 0 1px 18px rgba(var(--world-scrim-rgb), 0.5);
+}
+.call-top .cstate,
+.inc-sub {
+  color: var(--world-ink-dim);
+}
+.inc-why {
+  color: var(--world-ink-dim);
+  opacity: 0.75;
+}
+.cclock {
+  color: var(--world-ink-dim);
+}
+/* the three states that carry meaning keep their own colour, because the
+   colour IS the meaning. They are checked against both a light and a dark
+   sky rather than only against the old near-black ground. */
+.call-top .cstate[data-tone="live"] {
+  color: var(--world-ink);
+}
+.call-top .cstate[data-tone="muted"] {
+  color: var(--danger-solid);
+}
+.call-top .cstate[data-tone="degraded"] {
+  color: var(--accent-warm);
+}
+
+/* ── her face as a card ───────────────────────────────────────────────────
+   A white border around a photograph is how a photograph is held, and it is
+   the one detail that makes a face read as a person rather than as an asset
+   dropped on a background. The presence field keeps its circular ripples
+   around it: a rectangle of her, in a round field of her voice.
+
+   SHADOW DISCIPLINE: one shadow, far and low-alpha, doing depth. The frames
+   this was measured against use a hard black drop that reads as a sticker. */
+.call .pr-face,
+.inc-card {
+  border-radius: 30px;
+  border: 4px solid rgba(255, 255, 255, 0.94);
+  box-shadow: 0 26px 58px -26px rgba(0, 0, 0, 0.62);
+  overflow: hidden;
+}
+.call .pr-face .pa-circle,
+.call .pr-face .pa-circle img,
+.inc-card .pa-circle,
+.inc-card .pa-circle img {
+  border-radius: 26px;
+}
+.inc-card {
+  display: block;
+  line-height: 0;
+}
+/* the blind veil follows the card's shape, or it paints a circle over a
+   rectangle and the curtain looks broken at the corners */
+.call[data-blind] .presence::after {
+  border-radius: 30px;
+}
+
+/* ── the floating controls ────────────────────────────────────────────────
+   Glass over the world, per-state, and every fill below is gated by
+   `scripts/check-contrast.mjs` at >= 3:1 against the scrimmed sky in all five
+   states — which is why `--world-control-a` is 0.38 on a night sky and 0.55
+   on a noon one rather than one number that looks fine in the state whoever
+   wrote it happened to be testing in. */
+.cbtn {
+  background: var(--world-glass);
+  border: 1px solid var(--world-edge);
+  color: var(--world-ink);
+}
+.cbtn-wrap .clabel {
+  color: var(--world-ink-dim);
+}
+/* the mic, live. It inverts against the sky rather than being white always:
+   a white pill is a control on a night sky and a hole in a noon one. */
+.cbtn.active-mic {
+  background: var(--world-ink);
+  color: var(--world-scrim);
+  border-color: transparent;
+}
+.cbtn.muted {
+  background: rgba(216, 64, 47, 0.52);
+  color: #fff;
+  border-color: transparent;
+}
+.cbtn.danger,
+.cbtn.watch-on {
+  border-color: transparent;
+  color: var(--on-solid);
+}
+.call-hint {
+  background: var(--world-glass);
+  border: 1px solid var(--world-edge);
+  color: var(--world-ink);
+}
+.call-hint.warn {
+  background: rgba(216, 64, 47, 0.34);
+  border-color: rgba(255, 138, 120, 0.4);
+  color: #fff;
+}
+
+/* the look-away chip, on the world. Everything that was a hardcoded white
+   alpha becomes a world token; the BLIND state keeps its red exactly as it
+   was, because that one is a warning and a warning does not get to change
+   colour with the time of day. */
+.watch-chip {
+  background: var(--world-glass);
+  border: 1px solid var(--world-edge);
+  color: var(--world-ink);
+}
+.watch-chip .wb-text em {
+  color: var(--world-ink-dim);
+}
+.watch-chip .wb-btn {
+  background: var(--world-ink);
+  color: var(--world-scrim);
+}
+
+/* ── THE REASSURANCE LINE ─────────────────────────────────────────────────
+   Deliberately quiet and deliberately present: it is a standing commitment,
+   not a notice, so it never animates, never dismisses, and never moves. It
+   is also the only text on this screen that survives the chrome receding —
+   a truthful claim that fades out when you stop touching the phone is a
+   truthful claim you can only read by touching the phone. */
+.call-truth,
+.inc-truth {
+  max-width: 330px;
+  margin: 0 auto;
+  padding: 0 var(--s4) calc(var(--safe-bottom) + 16px);
+  text-align: center;
+  font-size: var(--t-meta);
+  line-height: 1.45;
+  letter-spacing: 0.005em;
+  color: var(--world-ink-dim);
+  text-shadow: 0 1px 12px rgba(var(--world-scrim-rgb), 0.55);
+}
+/* NOT a negative margin. The first version pulled this up by 22px to close
+   the gap under the controls, and it landed on top of the controls' own
+   labels ("type", "end", "mic") on every one of the five skies. The gap
+   closes from the control row's padding instead, which moves the row rather
+   than overlapping it. */
+.call .call-truth {
+  padding-bottom: calc(var(--safe-bottom) + 16px);
+  margin-top: 10px;
+}
+.inc-truth {
+  margin-top: 18px;
+  padding-bottom: 0;
+}
+
+/* the controls sit closer to the bottom now that a line lives under them */
+.call .call-controls {
+  padding-bottom: var(--s3);
+}
+
+/* ── THE CALL'S FLOOR ─────────────────────────────────────────────────────
+   The city band and the control row occupy the same 140px, and on a LIGHT
+   sky the skyline is a dark silhouette while the reassurance line is dark
+   ink — so the one piece of text on this screen that must never be hard to
+   read was sitting on the one shape dark enough to hide it.
+
+   The fix works in both directions at once because `--world-scrim` is a
+   PER-STATE colour rather than "black": it is near-white on the two light
+   skies and near-black on the three dark ones. Deepening the world's bottom
+   wash therefore washes the skyline OUT at noon and DOWN at midnight, and
+   the text stays legible on both. It is also strictly additive over the
+   uniform veil the contrast gate measures, so every floor still holds. */
+.call .world-scrim::after,
+.incoming .world-scrim::after {
+  opacity: 0.92;
+  background: linear-gradient(
+    to bottom,
+    var(--world-scrim) 0%,
+    transparent 22%,
+    transparent 46%,
+    var(--world-scrim) 96%
+  );
+}
+
+/* ── the incoming ring, restacked ─────────────────────────────────────────
+   Four children now (top, stage, actions, the true line), so the stage takes
+   the slack with `margin: auto` instead of the three-child `space-between`.
+   The pulse becomes a world-token ring rather than the chat's accent-soft,
+   which is nearly invisible against a dusk sky. */
+.incoming {
+  justify-content: flex-start;
+}
+.inc-stage {
+  margin: auto 0;
+}
+.inc-pulse {
+  width: 210px;
+  height: 210px;
+  border-radius: 34px;
+  background: rgba(var(--world-ink-rgb), 0.22);
+}

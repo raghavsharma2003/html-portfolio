@@ -104,6 +104,10 @@ const suites = {
   // reply chain's flags are taken once and released in a finally — the
   // busy-held-across-recursion class made impossible rather than avoided.
   burstwiring: "burstwiring.mjs",
+  // WS-WORLD. The sky-is-the-clock table: five states, their boundaries to
+  // the minute, the away.ts dark-window invariant, the moon, and the ?sky=
+  // seam the screenshot battery drives. Offline, deterministic, $0, ~2s.
+  sky: "sky.mjs",
   // WS-TIME. The two clocks (src/engine/timeline.ts) — her day as a pure
   // function of the hour, and what has moved in HIS world since they last
   // spoke. DB-free, network-free, model-free and ~11s, including its own

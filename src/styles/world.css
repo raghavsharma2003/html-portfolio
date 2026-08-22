@@ -1,0 +1,483 @@
+/* ─── THE WORLD LAYER ──────────────────────────────────────────────────────
+   docs/DESIGN-WORLD.md §1-2. The atmospheric ground under the home screen and
+   both call screens: a layered sky, a starfield, a real-phase crescent,
+   drifting clouds, and a drawn Indian skyline.
+
+   ── the one rule that shapes every line below ──────────────────────────────
+   NOTHING HERE ANIMATES LAYOUT AND NOTHING HERE ANIMATES A COLOUR.
+   Every ambient motion is `transform` or `opacity` on an element that already
+   has its own compositing layer, which is what makes a sky that never stops
+   moving cost nothing on a mid-range Android. `scripts/check-motion.mjs`
+   enforces the first half; the browser battery measures element boxes before
+   and after a drift cycle and asserts they are identical, which enforces it
+   in the only way that survives a refactor.
+
+   ── colours ────────────────────────────────────────────────────────────────
+   NOT ONE HEX IN THIS FILE. Every colour is a `--sky-*` / `--world-*`
+   variable written by `WorldLayer.tsx`'s `skyVars()` from the table in
+   `src/engine/sky.ts`. That indirection is the whole architecture: the five
+   states live in one place a gate can read, and the paintings swap in through
+   `--world-img` with no rule here changing.
+
+   ── reduced motion ─────────────────────────────────────────────────────────
+   The block at the bottom stops the clock and NOTHING ELSE. Every keyframe
+   here is authored so the element's resting style is already the visible one
+   — nothing fades in from 0, nothing scales up from nothing — so removing the
+   animation leaves a still, complete sky rather than an empty box. That is
+   the direction's "a still sky, never a blank one", made structural instead
+   of remembered. */
+
+/* The one typeface the world layer adds, and the reason it is not
+   `--font-display`: her name on the home and call screens is set in a SERIF,
+   lowercase, and the app's display stack is the system UI face. A lowercase
+   serif is what makes a name read as a person's name rather than as a screen
+   title, and it is the single strongest identity move in the frames this was
+   measured against.
+
+   No webfont: this ships as an APK and a PWA, both of which have to work with
+   no network, and a display face that arrives on the third paint is worse
+   than one that was always there. The stack is real book serifs first
+   (Iowan, Palatino, Charter), with Georgia as the floor — chosen, not
+   defaulted, which is the distinction `impeccable`'s no-overused-fonts rule
+   actually draws. */
+:root {
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Charter",
+    "Georgia Pro", Georgia, "Times New Roman", serif;
+}
+
+.world {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+  /* its own stacking context, so nothing in the world can ever paint over a
+     control that floats above it */
+  isolation: isolate;
+  background: var(--sky-1);
+}
+
+/* ── 1. the sky ─────────────────────────────────────────────────────────────
+   Four stops, not two. A two-stop sky is a swatch; the third and fourth stops
+   are where the horizon haze and the band above it live, and they are the
+   difference between "a gradient" and "a sky". */
+.world-sky {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--sky-1) 0%,
+    var(--sky-2) 34%,
+    var(--sky-3) 68%,
+    var(--sky-4) 100%
+  );
+}
+
+/* The NEXT state, cross-fading in across the twenty minutes before a
+   boundary. Two stacked gradients rather than interpolated stops: a browser
+   cannot interpolate a four-stop gradient, and doing it in JS would put a
+   colour calculation on a paint path that runs every frame. */
+.world-sky-next {
+  opacity: var(--sky-blend, 0);
+  background: linear-gradient(
+    to bottom,
+    var(--sky-n1) 0%,
+    var(--sky-n2) 34%,
+    var(--sky-n3) 68%,
+    var(--sky-n4) 100%
+  );
+  transition: opacity 280ms linear;
+}
+
+/* ── 2. STAGE 2: the painting ───────────────────────────────────────────────
+   `--world-img` is `none` in every state today, so this layer renders
+   nothing and costs nothing. When the owner's five painted skies land it
+   becomes a `url(...)` per state in `sky.ts` and this rule is already here to
+   paint it. Bottom-anchored `cover`, because the composition that matters in
+   a 1080x1920 painted sky is the horizon, and the horizon has to stay put
+   when the viewport is short. */
+.world-paint {
+  position: absolute;
+  inset: 0;
+  background-image: var(--world-img, none);
+  background-size: cover;
+  background-position: 50% 100%;
+  background-repeat: no-repeat;
+}
+
+/* ── 3. the horizon glow ────────────────────────────────────────────────────
+   The half of a sky a vertical gradient cannot say: light does not arrive
+   from directly overhead. At night this is the city's own sodium haze; at
+   golden hour it is the sun itself, just under the roofline. */
+.world-glow {
+  position: absolute;
+  inset: 0;
+  opacity: var(--glow-a, 0.3);
+  background: radial-gradient(
+    var(--glow-size, 74%) 62% at var(--glow-x, 50%) var(--glow-y, 100%),
+    var(--glow-c) 0%,
+    transparent 72%
+  );
+}
+
+/* ── 4. stars ───────────────────────────────────────────────────────────────
+   One element per LAYER, not per star: the positions are 140 `box-shadow`
+   entries on three 1.6px dots, which is one paint and zero layout. Twinkle is
+   opacity on the layer, desynchronised by giving each layer its own period —
+   140 individually animated shadows would be 140 animations. */
+.world-stars {
+  position: absolute;
+  inset: 0;
+}
+.world-stars i {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1.6px;
+  height: 1.6px;
+  border-radius: 50%;
+  background: transparent;
+  opacity: var(--star-op, 0.9);
+  /* the field is authored 440x720 and scaled to the viewport, so it fills a
+     tall phone and a short one alike without regenerating anything */
+  transform-origin: 0 0;
+  will-change: opacity;
+}
+.world-stars .ws-a {
+  animation: world-twinkle-a 7.3s ease-in-out infinite;
+}
+.world-stars .ws-b {
+  animation: world-twinkle-b 11.1s ease-in-out infinite;
+}
+/* the third layer is the bright handful, and it barely moves — a sky where
+   every star pulses in the same way reads as a screensaver */
+.world-stars .ws-c {
+  animation: world-twinkle-c 19s ease-in-out infinite;
+}
+
+/* Resting state is the VISIBLE one (see the header): the keyframes dip DOWN
+   from the element's own opacity and come back, so `animation: none` under
+   reduced motion leaves a full, still starfield. */
+@keyframes world-twinkle-a {
+  0%,
+  100% {
+    opacity: calc(var(--star-op, 0.9) * 0.55);
+  }
+  50% {
+    opacity: var(--star-op, 0.9);
+  }
+}
+@keyframes world-twinkle-b {
+  0%,
+  100% {
+    opacity: var(--star-op, 0.9);
+  }
+  45% {
+    opacity: calc(var(--star-op, 0.9) * 0.4);
+  }
+}
+@keyframes world-twinkle-c {
+  0%,
+  100% {
+    opacity: var(--star-op, 0.9);
+  }
+  62% {
+    opacity: calc(var(--star-op, 0.9) * 0.7);
+  }
+}
+
+/* ── 5. the moon ────────────────────────────────────────────────────────────
+   A real crescent, at the real phase, in pure CSS: a disc with a disc-sized
+   circle MASKED out of it, offset sideways by `--moon-cut` (which `sky.ts`
+   computes from the synodic month). Masking rather than overlaying a second
+   disc is the load-bearing choice — an overlay would have to match the sky
+   behind it, and the sky behind it is a four-stop gradient, so it would be
+   visibly wrong at every phase except one.
+
+   The halo lives on the WRAPPER so the mask does not eat it. */
+/* Up and out toward the corner, deliberately: at `top: 12%; right: 17%` the
+   moon landed on the call screen's state line ("ringing…"), which is the one
+   piece of text on that screen that changes six times a minute. A celestial
+   body sitting on a live status line is a bug that only appears on one of the
+   three surfaces, which is exactly the kind the battery exists to catch. */
+.world-moon {
+  --moon-size: 52px;
+  position: absolute;
+  top: 8.5%;
+  right: 11%;
+  width: var(--moon-size);
+  height: var(--moon-size);
+  opacity: var(--moon-op, 0);
+  animation: world-moon-rise 240s linear infinite alternate;
+}
+.world-moon::before {
+  content: "";
+  position: absolute;
+  inset: -110%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side circle, var(--moon-c) 0%, transparent 68%);
+  opacity: 0.16;
+}
+.world-moon i {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--moon-c);
+  -webkit-mask-image: radial-gradient(
+    circle calc(var(--moon-size) / 2) at var(--moon-cut, 150%) 50%,
+    transparent 99%,
+    #000 100%
+  );
+  mask-image: radial-gradient(
+    circle calc(var(--moon-size) / 2) at var(--moon-cut, 150%) 50%,
+    transparent 99%,
+    #000 100%
+  );
+}
+/* Four minutes of arc over four minutes of wall clock, which is close enough
+   to nothing that you never catch it moving and far enough that the sky is
+   not the same picture it was ten minutes ago. Transform only. */
+@keyframes world-moon-rise {
+  from {
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    transform: translate3d(-10px, -6px, 0);
+  }
+}
+
+/* ── 6. clouds ──────────────────────────────────────────────────────────────
+   Built from stacked radial gradients rather than a blurred box, deliberately:
+   `filter: blur()` on a 300px element forces a re-rasterisation the moment
+   anything about it changes, and these things move for the entire life of the
+   screen. Three overlapping lobes per cloud is what makes a cumulus read as
+   a cumulus instead of as a smudge.
+
+   Drift is 90-160s, linear (constant motion takes `linear` — a cloud that
+   eases is a cloud on a string), transform only, and each one is offset in
+   phase by a negative delay so they never line up. */
+.world-clouds {
+  position: absolute;
+  inset: 0;
+}
+.world-clouds i {
+  position: absolute;
+  display: block;
+  opacity: var(--cloud-a, 0.5);
+  background:
+    radial-gradient(closest-side ellipse at 30% 62%, var(--cloud-c) 0%, transparent 70%),
+    radial-gradient(closest-side ellipse at 55% 40%, var(--cloud-c) 0%, transparent 68%),
+    radial-gradient(closest-side ellipse at 74% 66%, var(--cloud-c) 0%, transparent 72%);
+  will-change: transform;
+}
+.world-clouds .wc-1 {
+  top: 20%;
+  left: -30%;
+  width: 78%;
+  height: 15%;
+  animation: world-drift-a 132s linear infinite;
+}
+.world-clouds .wc-2 {
+  top: 40%;
+  left: -46%;
+  width: 96%;
+  height: 18%;
+  opacity: calc(var(--cloud-a, 0.5) * 0.72);
+  animation: world-drift-b 168s linear infinite;
+  animation-delay: -60s;
+}
+.world-clouds .wc-3 {
+  top: 8%;
+  left: -24%;
+  width: 62%;
+  height: 11%;
+  opacity: calc(var(--cloud-a, 0.5) * 0.55);
+  animation: world-drift-a 96s linear infinite;
+  animation-delay: -40s;
+}
+@keyframes world-drift-a {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(190%, -2%, 0);
+  }
+}
+@keyframes world-drift-b {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(175%, 3%, 0);
+  }
+}
+
+/* ── 7. the city ────────────────────────────────────────────────────────────
+   Drawn, not photographed (see WorldLayer.tsx for what makes it Indian rather
+   than generic). Pinned to the bottom; `slice` so the baseline never lifts
+   off the floor on a short viewport. */
+/* THE BAND SIZES ITSELF FROM THE DRAWING, and the first version did not:
+   it was `height: 34%; min-height: 150px` with `preserveAspectRatio="slice"`,
+   which on a 390x844 phone stretched a 390x140 viewBox into a 390x335 box and
+   then CROPPED it — so the skyline rendered at 2.4x, three enormous buildings
+   wide, and the water tanks that make it Indian were off-screen entirely.
+   `width: 100%; height: auto` lets the viewBox's own ratio decide, so the
+   whole skyline is always in frame at its drawn scale: a 140px band on a
+   390px phone, 115px on a 320px one. */
+.world-city {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+.world-city svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+/* Depth is a VALUE change, never a blur filter: a filter on a full-width
+   element is a paint cost the home screen would pay on every scroll. */
+.wr-far {
+  fill: var(--city-ink);
+  opacity: 0.5;
+}
+.wr-near,
+.wr-tank,
+.wr-bridge rect {
+  fill: var(--city-ink);
+}
+.wr-water {
+  fill: var(--city-ink);
+  opacity: 0.42;
+}
+/* the light lying on the water. Quiet: at 0.28 these read as pale BARS
+   rather than as reflections, which on a phone looks like a UI element
+   somebody forgot to remove. */
+.wr-shimmer rect {
+  fill: var(--city-lit);
+  opacity: calc(var(--city-lit-a, 0.7) * 0.13);
+}
+.wr-stay path {
+  fill: none;
+  stroke: var(--city-ink);
+  stroke-width: 0.8;
+}
+.wr-mast path {
+  fill: none;
+  stroke: var(--city-ink);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+.wr-lamp circle,
+.wr-lit rect {
+  fill: var(--city-lit);
+  opacity: var(--city-lit-a, 0.7);
+}
+/* Three windows out of twenty-seven breathe, on long uneven periods. Any
+   more and the skyline blinks; none at all and it is a sticker. */
+.wr-lit rect:nth-child(3) {
+  animation: world-window 23s ease-in-out infinite;
+}
+.wr-lit rect:nth-child(11) {
+  animation: world-window 31s ease-in-out infinite;
+  animation-delay: -9s;
+}
+.wr-lit rect:nth-child(22) {
+  animation: world-window 41s ease-in-out infinite;
+  animation-delay: -21s;
+}
+@keyframes world-window {
+  0%,
+  46%,
+  100% {
+    opacity: var(--city-lit-a, 0.7);
+  }
+  52%,
+  92% {
+    opacity: calc(var(--city-lit-a, 0.7) * 0.22);
+  }
+}
+
+/* ── 8. the scrim ───────────────────────────────────────────────────────────
+   The reason text on this surface is legible, and therefore the thing
+   `scripts/check-contrast.mjs` measures.
+
+   It is a UNIFORM veil at `--world-scrim-a`, plus a strictly ADDITIVE top and
+   bottom emphasis. That split is deliberate and it is what makes the gate
+   mean something: the gate computes the uniform case only, so every real
+   pixel on the screen is at least as dark as the number it proves. A scrim
+   that was only a top-to-bottom gradient would leave the middle of the screen
+   uncovered while the gate happily measured the bottom. */
+.world-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--world-scrim);
+  opacity: var(--world-scrim-a, 0.42);
+}
+.world-scrim::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--world-scrim) 0%,
+    transparent 24%,
+    transparent 58%,
+    var(--world-scrim) 100%
+  );
+  opacity: 0.55;
+}
+
+/* ── the band variant ───────────────────────────────────────────────────────
+   DESIGN-WORLD §3: the ONE way the world is allowed to reach the thread — the
+   sky visible through a translucent header. No city, no clouds crossing a
+   38px strip (they would read as artefacts), just the top of the sky. */
+.world[data-variant="band"] .world-city,
+.world[data-variant="band"] .world-clouds {
+  display: none;
+}
+.world[data-variant="band"] .world-scrim::after {
+  background: linear-gradient(to bottom, transparent 0%, var(--world-scrim) 100%);
+}
+
+/* ── REDUCED MOTION ─────────────────────────────────────────────────────────
+   Stops the clock, changes nothing else. Every element above rests in its
+   visible state, so this leaves the full scene: stars at full opacity, the
+   moon at its phase, clouds where they were authored, windows lit. The one
+   thing that goes is time passing.
+
+   The clouds get a static offset instead of sitting at their authored -30%
+   start, which would park all three off the left edge — a still sky with no
+   clouds in it is the "blank, not still" failure this block exists to
+   prevent. */
+@media (prefers-reduced-motion: reduce) {
+  /* SELECTOR SPECIFICITY IS THE WHOLE BUG HERE, and the browser battery
+     caught it: the animations above are declared on `.world-stars .ws-a`
+     (two classes) and `.world-clouds .wc-1`, so a reduced-motion block
+     written as `.world-stars i` (one class + one element) LOSES the cascade
+     and the sky keeps twinkling for someone who asked it not to. It matches
+     the same shapes, one class heavier, so it wins on specificity rather
+     than on `!important` — which would be a hammer that hides the next
+     version of this mistake instead of catching it. */
+  .world .world-stars i,
+  .world .world-moon,
+  .world .wr-lit rect,
+  .world .world-clouds i {
+    animation: none;
+  }
+  /* Parked where they were authored, all three of them off the left edge,
+     would be a still sky with no clouds in it — "blank, not still", which is
+     the failure this whole block exists to prevent. */
+  .world .world-clouds .wc-1 {
+    transform: translate3d(75%, 0, 0);
+  }
+  .world .world-clouds .wc-2 {
+    transform: translate3d(58%, 0, 0);
+  }
+  .world .world-clouds .wc-3 {
+    transform: translate3d(112%, 0, 0);
+  }
+  .world .world-sky-next {
+    transition: none;
+  }
+}

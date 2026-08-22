@@ -8,6 +8,7 @@ import type { AppState } from "../state/store";
 import { HER_NAME } from "../engine/persona";
 import PhotoAvatar from "./PhotoAvatar";
 import Presence, { type Phase } from "./Presence";
+import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import { useCallEngine } from "./useCallEngine";
 import { tap, ImpactStyle } from "../native/haptics";
 import { EndCallIcon, MicIcon, KeyboardIcon, SendIcon, OfflineIcon } from "./icons";
@@ -23,6 +24,11 @@ interface Props {
 
 export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) {
   const eng = useCallEngine(state, setState, sheCalled);
+  // The call now stands on the world rather than on a private gradient. Same
+  // ground as the home screen and the incoming ring, so a call placed from
+  // home is the SAME PLACE with her face in it — which is the whole reason
+  // the world layer exists rather than five decorated screens.
+  const sky = useSky();
   const [typed, setTyped] = useState("");
   const [showKb, setShowKb] = useState(false);
 
@@ -149,7 +155,9 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
       role="dialog"
       aria-modal="true"
       aria-label={`Call with ${HER_NAME}`}
+      style={skyVars(sky)}
     >
+      <WorldLayer frame={sky} />
       <div className="call-top">
         <div className="cname">{HER_NAME}</div>
         <div className="cstate" data-tone={stateTone} aria-live="polite">
@@ -171,6 +179,11 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
       </div>
 
       <div className="call-stage">
+        {/* Her face in a white-bordered card, the way you hold a photograph
+            of someone. The presence field keeps its circular ripples around
+            it: a rectangle of her, in a round field of her voice. The card
+            is deliberately NOT tilted — a tilt reads as a polaroid prop, and
+            this is the person you are talking to. */}
         <Presence phase={phase} size={244}>
           <PhotoAvatar size={244} />
         </Presence>
@@ -398,6 +411,30 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
           <span className="clabel">{eng.nativeVoice ? "can't mute" : eng.muted ? "muted" : "mic"}</span>
         </span>
       </div>
+
+      {/* ── THE REASSURANCE LINE (DESIGN-WORLD §5) ───────────────────────────
+          The competitor puts "call is end to end private" here. That claim is
+          almost certainly false on their architecture and it is CERTAINLY
+          false on ours, so we do not make it: what this call produces is a
+          transcript, and that transcript is what lets her remember the
+          conversation tomorrow. Memory is the product. Pretending it does not
+          exist would be the exact lie their app tells.
+
+          So the line states three things that are true, in the same voice as
+          the settings sheet's footer ("Meera is an AI. She'll tell you so if
+          you ask."), and nothing that is not:
+
+            no ads, ever              — a business-model commitment, ours to keep
+            conversations never sold  — a data commitment, ours to keep
+            she remembers this call   — the honest counterweight to both, and
+                                        the sentence a privacy claim would hide
+            she'll tell you what she is — never-deny-AI, the persona invariant
+
+          Nothing here would embarrass anyone in a deposition, which is the
+          bar the direction doc set. */}
+      <p className="call-truth">
+        No ads, ever. She remembers this call. And she'll always tell you what she is.
+      </p>
     </div>
   );
 }

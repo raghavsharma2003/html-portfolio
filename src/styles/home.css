@@ -1,0 +1,469 @@
+/* ─── HOME: the hangout ────────────────────────────────────────────────────
+   docs/DESIGN-WORLD.md §2. Her presence, the last exchange, and the things
+   you do together, floating in the sky the world layer paints underneath.
+
+   Every colour is a `--world-*` / `--sky-*` variable from `src/engine/sky.ts`
+   by way of `skyVars()`. There is no hex in this file and there must not be
+   one: the whole point of five time states is that this screen is a different
+   screen at 6am and at 11pm without a single rule here changing.
+
+   Glass is `rgba(var(--world-control-rgb), …)` rather than `color-mix()` with
+   a calc'd percentage, because the second silently fails on older Android
+   WebViews and a failed glass panel is an opaque rectangle over the world. */
+
+.home {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--sky-1);
+  z-index: 1;
+}
+
+/* PARALLAX. The world moves a fraction of what the content does — the whole
+   illusion of depth in one transform. `--par` is the scroll offset, written
+   by a rAF-throttled listener, and the sky is given 70px of vertical slack on
+   both sides so the translate can never expose an edge. Clamped at 320 so a
+   long page cannot walk the sky off the top.
+
+   `transform`, never `top`: this runs on every frame of every scroll, and a
+   layout property here would relayout the starfield, the skyline and the
+   clouds sixty times a second. */
+.home .world {
+  inset: -70px 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .home .world {
+    transform: translate3d(0, calc(-0.16px * min(var(--par, 0), 320)), 0);
+  }
+  .home .world-city {
+    /* the city is the FAR plane, so it lags the sky in the other direction —
+       two speeds is depth, one speed is a moving picture */
+    transform: translate3d(0, calc(0.05px * min(var(--par, 0), 320)), 0);
+  }
+}
+
+.home-scroll {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  /* the dock floats over this, so the scroll has to end ABOVE it — the first
+     version reserved 116px and the last row of cards sat underneath the chat
+     pill, which is the one row you scroll all the way down to reach */
+  padding: 0 0 calc(var(--safe-bottom) + 156px);
+  /* CONTENT DISSOLVES UNDER THE DOCK rather than colliding with it. The dock
+     floats, so at any scroll position that is not the very bottom there is a
+     card passing behind it — and a card whose title is half-covered by a
+     button reads as a layout bug rather than as depth. A static mask costs
+     one composite and is the difference.
+
+     The bottom padding above is what keeps the last real line (the honesty
+     footer) clear of this fade when the page is scrolled all the way down. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 112px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 112px), transparent 100%);
+}
+
+.home-top {
+  display: flex;
+  justify-content: flex-end;
+  padding: calc(var(--safe-top) + 10px) calc(var(--safe-right) + 14px) 0
+    calc(var(--safe-left) + 14px);
+}
+.home-gear {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--world-ink);
+  background: var(--world-glass);
+  border: 1px solid var(--world-edge);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: transform var(--d-press) var(--ease-squash);
+}
+.home-gear:active {
+  transform: scale(0.93);
+}
+
+/* ── her presence ─────────────────────────────────────────────────────────
+   The competitor's one real piece of craft is a warm metallic ring around
+   her photo, and it is worth taking. Ours is the app's own ember accent
+   rather than a generic gold, and it does double duty as the story ring:
+   live when there is something unseen, quiet when there is not. */
+.home-her {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 22px 0 0;
+}
+.hh-face {
+  width: 118px;
+  height: 118px;
+  padding: 3px;
+  border-radius: 50%;
+  /* the QUIET ring (no story, or one already seen). Deliberately not
+     `--world-edge`: that token is tuned to make a panel's boundary findable
+     at 3:1 and would put a heavy dark hoop around her face at noon. A ring
+     is a whisper; a panel edge is a statement. */
+  background: rgba(var(--world-ink-rgb), 0.22);
+  transition: transform var(--d-press) var(--ease-squash);
+}
+.hh-face.live {
+  background: conic-gradient(
+    from 210deg,
+    #f0c46a,
+    var(--accent-warm),
+    #f6d488,
+    var(--accent-warm),
+    #f0c46a
+  );
+}
+.hh-face.seen {
+  background: rgba(var(--world-ink-rgb), 0.26);
+}
+.hh-face:active {
+  transform: scale(0.965);
+}
+.hh-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  /* the gap that turns a filled circle into a RING — an inset ring reads as
+     a border, a gapped one reads as a story ring */
+  box-shadow: 0 0 0 3px rgba(var(--world-scrim-rgb), 0.55);
+  background: rgba(var(--world-scrim-rgb), 0.55);
+}
+
+.hh-name {
+  margin: 14px 0 0;
+  font-family: var(--font-serif);
+  font-size: 40px;
+  line-height: 1.05;
+  font-weight: 400;
+  /* tracking is size-specific (apple-design): this is the largest text in the
+     app and it takes the tightest track */
+  letter-spacing: -0.022em;
+  text-transform: lowercase;
+  color: var(--world-ink);
+  text-shadow: 0 1px 18px rgba(var(--world-scrim-rgb), 0.5);
+}
+.hh-line {
+  margin: 7px 22px 0;
+  max-width: 300px;
+  text-align: center;
+  font-size: var(--t-sub);
+  line-height: 1.45;
+  color: var(--world-ink-dim);
+}
+
+/* ── the last exchange ────────────────────────────────────────────────── */
+.home-pill {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: calc(100% - 32px);
+  margin: 20px auto 0;
+  padding: 9px 12px 9px 9px;
+  border-radius: 999px;
+  text-align: left;
+  background: var(--world-glass);
+  border: 1px solid var(--world-edge);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  color: var(--world-ink);
+  transition: transform var(--d-press) var(--ease-squash);
+}
+/* a wide surface takes the Y compression and almost none of the X: 1.08 on a
+   358px row overhangs its container and gets clipped (see --sq-x's note) */
+.home-pill:active {
+  transform: scale(1.012, 0.965);
+}
+.hp-face {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.hp-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.hp-text em {
+  font-style: normal;
+  font-size: var(--t-meta);
+  letter-spacing: 0.03em;
+  text-transform: lowercase;
+  color: var(--world-ink-dim);
+}
+.hp-text b {
+  font-weight: 450;
+  font-size: var(--t-sub);
+  color: var(--world-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hp-go {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--world-ink-dim);
+}
+
+/* ── the cards ────────────────────────────────────────────────────────────
+   Two columns, glass, floating. The drift is on the CARD and the press is on
+   the inner element, and that split is mechanical: a running `animation` on
+   `transform` beats a normal `transform` declaration, so a card that drifts
+   on its own transform could never also squash under a finger. */
+.home-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 20px 16px 0;
+}
+.hcard {
+  position: relative;
+  border-radius: 22px;
+  text-align: left;
+  background: var(--world-glass);
+  border: 1px solid var(--world-edge);
+  backdrop-filter: blur(20px) saturate(1.25);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
+  /* SHADOW DISCIPLINE (DESIGN-STANDARDS): one soft shadow, far, low alpha,
+     and it is doing depth rather than drama. The competitor's cards have a
+     hard black drop that reads as a sticker pasted on the sky. */
+  box-shadow: 0 18px 44px -22px rgba(var(--world-scrim-rgb), 0.9);
+  animation: hc-float 7.4s ease-in-out infinite alternate;
+  will-change: transform;
+}
+/* Each card gets its own period and its own phase, so the grid breathes
+   rather than pulsing as one block. Six cards, four periods, prime-ish
+   offsets: the pattern never visibly repeats. */
+.hcard:nth-child(2) {
+  animation-duration: 8.6s;
+  animation-delay: -2.9s;
+}
+.hcard:nth-child(3) {
+  animation-duration: 6.5s;
+  animation-delay: -4.1s;
+}
+.hcard:nth-child(4) {
+  animation-duration: 9s;
+  animation-delay: -1.3s;
+}
+.hcard:nth-child(5) {
+  animation-duration: 7s;
+  animation-delay: -5.2s;
+}
+.hcard:nth-child(6) {
+  animation-duration: 8.1s;
+  animation-delay: -3.4s;
+}
+@keyframes hc-float {
+  from {
+    transform: translate3d(0, 3.5px, 0) rotate(-0.35deg);
+  }
+  to {
+    transform: translate3d(0, -3.5px, 0) rotate(0.35deg);
+  }
+}
+
+.hc-in {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 15px 14px 16px;
+  /* the entrance: staggered 55ms, inside the 30-80ms band. `backwards` only
+     — once it has run, `transform` returns to this rule's own value so the
+     press below still works. */
+  animation: hc-in 300ms var(--ease-out) backwards;
+  animation-delay: calc(var(--i) * 55ms);
+  transition: transform var(--d-squash) var(--ease-squash);
+}
+.hcard:active .hc-in {
+  transform: scale(1.03, 0.94);
+}
+@keyframes hc-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hc-ic {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--world-ink);
+  background: rgba(var(--world-ink-rgb), 0.11);
+}
+.hc-tx {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.hc-tx b {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: -0.012em;
+  text-transform: lowercase;
+  color: var(--world-ink);
+}
+.hc-tx em {
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1.38;
+  color: var(--world-ink-dim);
+}
+
+.home-foot {
+  margin: 26px 24px 0;
+  text-align: center;
+  font-size: var(--t-meta);
+  letter-spacing: 0.01em;
+  color: var(--world-ink-dim);
+  opacity: 0.85;
+}
+
+/* ── the dock ─────────────────────────────────────────────────────────────
+   Two verbs, always one thumb-reach from the bottom, never scrolling away.
+   It floats over the world rather than sitting in a bar, because a bar would
+   put a hard edge across the horizon. */
+.home-dock {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 22px);
+  z-index: 3;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px;
+  border-radius: 999px;
+  background: var(--world-glass);
+  border: 1px solid var(--world-edge);
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  box-shadow: 0 20px 50px -24px rgba(var(--world-scrim-rgb), 0.95);
+}
+.hd-btn {
+  min-width: var(--hit);
+  height: var(--hit);
+  padding: 0 16px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--world-ink);
+  font-size: var(--t-ui);
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  transition: transform var(--d-squash) var(--ease-squash);
+}
+.hd-btn:active {
+  transform: scale(1.06, 0.93);
+}
+.hd-btn.primary {
+  background: var(--accent-solid);
+  color: var(--on-solid);
+  padding: 0 22px;
+}
+.hd-btn:not(.primary) {
+  width: var(--hit);
+  padding: 0;
+  background: rgba(var(--world-ink-rgb), 0.13);
+}
+
+/* ── THE HOME ↔ CHAT SEAM ─────────────────────────────────────────────────
+   The app never traps, so the thread has a way back to the world. Chat.tsx is
+   owned by another workstream and is not touched: App renders the control as
+   an overlay and this rule opens the room for it in the existing header, so
+   nothing in the thread moves except its left gutter.
+
+   It is deliberately the header's leading edge — the one place on a phone
+   where a back affordance is muscle memory rather than a discovery. */
+/* ITS OWN STACKING CONTEXT, and this is not a nicety: `.chat-head` carries
+   `z-index: 5` and `.home-host` carries 2, and without a context of its own
+   the wrapper is transparent to z-index, so the header competed with home in
+   the ROOT stacking context and won. The thread's header painted across the
+   top of the world on every single home screenshot. */
+.chat-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  isolation: isolate;
+}
+.chat-wrap .chat-head {
+  padding-left: calc(var(--safe-left) + 54px);
+}
+.home-back {
+  position: absolute;
+  z-index: 6;
+  top: calc(var(--safe-top) + var(--s3) + 5px);
+  left: calc(var(--safe-left) + 8px);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--ink-dim);
+  transition: transform var(--d-press) var(--ease-squash);
+}
+/* the chevron points back the way you came. Rotating the one chevron in the
+   system rather than drawing a second icon: two glyphs that mean "the other
+   direction" is how an icon set starts disagreeing with itself. */
+.hb-chev {
+  display: grid;
+  place-items: center;
+  transform: rotate(180deg);
+}
+.home-back:active {
+  transform: scale(0.9);
+}
+
+/* HOME OVER THE THREAD. Hidden, not unmounted (see App.tsx): the thread is
+   holding an in-flight reply cycle and a scroll position, and home is holding
+   a scroll position and five running sky timers. `display: none` also parks
+   every ambient animation in the world layer while nobody is looking at it,
+   which is the cheapest possible idle state. */
+.home-host {
+  display: none;
+}
+.home-host[data-on] {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+/* ── REDUCED MOTION ───────────────────────────────────────────────────────
+   The floats stop and the cards stay exactly where they were authored; the
+   entrance resolves instantly rather than being removed, because `backwards`
+   with no animation would leave the card at `opacity: 0`. Still, never
+   blank — the same rule the world layer holds. */
+@media (prefers-reduced-motion: reduce) {
+  .hcard {
+    animation: none;
+  }
+  .hc-in {
+    animation: none;
+    opacity: 1;
+  }
+}

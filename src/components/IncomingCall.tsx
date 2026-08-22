@@ -14,6 +14,7 @@
 // phone.
 import { useEffect, useRef } from "react";
 import PhotoAvatar from "./PhotoAvatar";
+import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import { HER_NAME } from "../engine/persona";
 import { startRingback, stopRingback, unlockAudio } from "../voice/speech";
 import { tap } from "../native/haptics";
@@ -27,6 +28,10 @@ interface Props {
 
 export default function IncomingCall({ secs, onAccept, onDecline }: Props) {
   const answered = useRef(false);
+  // Same ground as home and the live call. A ring that arrives on a flat
+  // theme background while the rest of the app is standing in a sky reads as
+  // a system dialog rather than as her.
+  const sky = useSky();
 
   useEffect(() => {
     // The ring can only sound if audio is unlocked. On a page the user has
@@ -57,9 +62,16 @@ export default function IncomingCall({ secs, onAccept, onDecline }: Props) {
   }, [onDecline]);
 
   return (
-    <div className="incoming" role="dialog" aria-modal="true" aria-label={`${HER_NAME} is calling`}>
+    <div
+      className="incoming"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${HER_NAME} is calling`}
+      style={skyVars(sky)}
+    >
+      <WorldLayer frame={sky} />
       <div className="inc-top">
-        <div className="inc-name">{HER_NAME}</div>
+        <div className="inc-name">{HER_NAME.toLowerCase()}</div>
         <div className="inc-sub">
           calling back
           {secs > 0 && <span className="inc-why"> · call cut at {mmss(secs)}</span>}
@@ -70,8 +82,13 @@ export default function IncomingCall({ secs, onAccept, onDecline }: Props) {
         {/* the pulse is the ring made visible, on the same 2s period as the
             ringback tone so the screen and the sound agree */}
         <span className="inc-pulse" aria-hidden="true" />
-        <PhotoAvatar size={196} />
+        {/* the same white-bordered card the live call uses, so accepting is
+            one screen becoming the next rather than two different screens */}
+        <span className="inc-card">
+          <PhotoAvatar size={196} />
+        </span>
       </div>
+
 
       <div className="inc-actions">
         <button
@@ -91,6 +108,13 @@ export default function IncomingCall({ secs, onAccept, onDecline }: Props) {
           <span aria-hidden="true">✆</span>
         </button>
       </div>
+
+      {/* The same true line the live call carries, said before you pick up
+          rather than only after. It is the one place a competitor puts a
+          privacy claim it cannot defend. */}
+      <p className="call-truth inc-truth">
+        No ads, ever. She remembers this call. And she'll always tell you what she is.
+      </p>
     </div>
   );
 }

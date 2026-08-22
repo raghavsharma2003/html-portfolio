@@ -1209,6 +1209,12 @@
       "kind": "decision",
       "title": "Reply-chain flags taken once, released in finally, zero releases in the inner pass; wedge class unrepresentable",
       "at": "2026-08-22"
+    },
+    {
+      "id": "sky-is-the-clock",
+      "kind": "decision",
+      "title": "Five sky states from the one clock; fill carries text, edge carries component; sky stamped at onboarding only",
+      "at": "2026-08-22"
     }
   ],
   "edges": [

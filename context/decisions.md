@@ -1733,3 +1733,25 @@ missing release is invisible in a diff that contains no releases. This
 repo shipped the permanent-silence bug once; the class is now
 unrepresentable. **Reverses if:** never — this is the pattern for any
 future flag-guarded async chain here.
+
+---
+
+## `sky-is-the-clock` — the world layer's five states and their laws
+
+The app is a PLACE now: five sky states (night/predawn/morning/golden/
+dusk) resolved from the same IST clock T9 trusts (one import, no second
+clock — structurally asserted), boundaries set from Bangalore's real
+solar range, a synodic moon floored at a sliver, procedural stars/
+clouds/skyline shipping BEFORE any painting exists (the owner's images
+swap in via one variable per state). The control model that survived
+the self-review: THE FILL CARRIES THE TEXT, THE EDGE CARRIES THE
+COMPONENT — glass follows the sky (dark on dark, light on light), and
+the contrast gate measures text-in-panel and edge-vs-sky per state, not
+just ink-over-sky (the hole the noon screenshot found). Default theme:
+undefined still means system — redefining it would flip a dark-phone
+user to paper at 10am on a build they didn't change; "sky" is stamped
+forward at onboarding, reversal condition written in theme.ts. The call
+screens' reassurance line states only what is TRUE and names memory ON
+PURPOSE — the honest counterweight to the competitor's false privacy
+claim. **Reverses if:** the paintings arrive and the procedural layer
+fights them — then procedural becomes the fallback, never both at once.
