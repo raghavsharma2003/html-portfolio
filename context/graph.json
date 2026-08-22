@@ -1125,6 +1125,12 @@
       "kind": "measurement",
       "title": "n=20 TTS round-trip: 'hai'->'hi' genuine; chhod aspiration loss to human ear",
       "at": "2026-08-22"
+    },
+    {
+      "id": "ci-deploy-unpinned-project",
+      "kind": "rejection",
+      "title": "Unpinned Vercel project: green CI deployed to the wrong site; probe was vacuous",
+      "at": "2026-08-22"
     }
   ],
   "edges": [
@@ -2137,6 +2143,11 @@
       "src": "stance-lapses-record-stays",
       "rel": "caused_by",
       "dst": "rupture-never-closes"
+    },
+    {
+      "src": "ci-deploy-unpinned-project",
+      "rel": "caused_by",
+      "dst": "ci-secrets-live"
     }
   ]
 }

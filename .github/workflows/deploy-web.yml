@@ -186,6 +186,15 @@ jobs:
           # Same fallback as the `configured` job above — these two MUST agree,
           # or the gate says "configured" and the deploy runs tokenless.
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN || secrets.VERCEL }}
+          # PIN THE PROJECT. The runner has no .vercel/project.json
+          # (gitignored), so without these the CLI auto-links by DIRECTORY
+          # NAME — and on 2026-08-22 the first fully-secreted run deployed
+          # Meera to a stale "html-portfolio" project and aliased a URL
+          # nobody uses, while the real site kept serving old code and the
+          # run stayed green. These IDs are not secrets (Vercel documents
+          # them as safe to commit); they are the identity of the deploy.
+          VERCEL_ORG_ID: team_hQIoipGIvf1GHVj3878tDOR3
+          VERCEL_PROJECT_ID: prj_NZ4BT0Vr2BbkVrvWPcJNF68XCObp
         # --archive=tgz: a plain upload of this tree (photos included) has
         # failed with "fetch failed" mid-transfer; the tarball path is what
         # actually completes.

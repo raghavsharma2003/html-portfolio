@@ -1505,3 +1505,31 @@ protect only the operations that respect partitions. Any agent holding a
 global-effect tool (git state, schema migrations, process kills) can undo
 everyone; either take the tool away or make the shared state append-only
 (commit early, commit per slice).
+
+---
+
+## `ci-deploy-unpinned-project` — the green deploy that shipped to the wrong site
+
+**Tried:** letting the Vercel CLI resolve the project on the CI runner with
+only a token. The runner has no .vercel/project.json (gitignored), so the
+CLI auto-linked by DIRECTORY NAME — and the repo is named html-portfolio,
+which matched a stale project of the same name.
+
+**What broke:** the first fully-secreted CI run built the correct new
+bundle, deployed it to html-portfolio-nine-psi.vercel.app (a URL nothing
+uses), reported success, and the real site kept serving code two commits
+stale. The verify step ALSO passed, because "app shell references a
+bundle" was satisfiable by any bundle including the stale one — a probe
+that cannot fail is a probe that lies (same family as the skipped-job
+trap this workflow already survived once).
+
+**Now:** VERCEL_ORG_ID + VERCEL_PROJECT_ID are pinned in the workflow env
+(Vercel documents them as safe to commit — they are the deploy's IDENTITY,
+not credentials), and verify-deploy.mjs asserts the live bundle name
+EQUALS the one this very build produced, failing loud on "stale or wrong
+project".
+
+**The generalisable rule:** a deploy's target must be an explicit input,
+never inferred from the environment's incidental shape (a directory name);
+and a post-deploy probe must assert a property that the FAILURE MODE
+cannot also satisfy.

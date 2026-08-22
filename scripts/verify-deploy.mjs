@@ -21,13 +21,30 @@ check("landing page responds", async () => {
   return `${r.status}`;
 });
 
-check("app shell responds and references a bundle", async () => {
+check("app shell serves THE BUNDLE JUST BUILT", async () => {
   const r = await get("/chat");
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const html = await r.text();
   const m = html.match(/assets\/index-[A-Za-z0-9_-]+\.js/);
   if (!m) throw new Error("no hashed bundle referenced — /chat did not build");
-  return m[0];
+  // "references a bundle" was vacuous: on 2026-08-22 a deploy landed on the
+  // WRONG Vercel project, the real site kept serving code two commits stale,
+  // and this check said ok because SOME bundle existed. When the freshly
+  // built dist/ is present (CI always, local when you just built), the live
+  // reference must match it byte-for-name; absent dist/, fall back to the
+  // old existence check rather than failing on a bare probe.
+  try {
+    const { readdirSync } = await import("node:fs");
+    const built = readdirSync(new URL("../dist/assets/", import.meta.url)).find(
+      (f) => /^index-[A-Za-z0-9_-]+\.js$/.test(f),
+    );
+    if (built && m[0] !== `assets/${built}`)
+      throw new Error(`live serves ${m[0]} but this build produced assets/${built} — stale or wrong project`);
+    return built ? `${m[0]} (matches build)` : m[0];
+  } catch (e) {
+    if (String(e).includes("stale or wrong project")) throw e;
+    return m[0];
+  }
 });
 
 // The API routes are the half that a stale deploy hides best: the static site
