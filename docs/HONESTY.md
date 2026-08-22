@@ -306,12 +306,12 @@ WS-CONTINUITY is routing it through `compile()` — the call lane.
 live database, and assert that a rendered prompt for a real person contains
 T13's header.
 
-### T-H2 — an activity is a fact with an expiry — **STILL OPEN** (verified 2026-08-22)
+### T-H2 — an activity is a fact with an expiry — **CLOSED** (2026-08-22, task #91)
 
 **Owner:** `api/memory.js` extraction + `AppState.herLife` in
 `src/components/`.
 
-> **Checked before rebuilding it, and it has NOT landed.** The `OPEN_STALE_MS`
+> **Was verified STILL OPEN earlier the same day, then closed.** The `OPEN_STALE_MS`
 > expiry that arrived recently is in `src/state/game.ts` and it ages out an
 > open GAME session (a board left mid-match on Tuesday must not have her
 > convinced on Friday that they are mid-match). That is `AppState.game` and
@@ -324,6 +324,13 @@ T13's header.
 > `evals/honesty/`, so the gate this ticket names is still measuring authored
 > transcripts rather than the shipped renderer. T-H2 is untouched, and the
 > interface below is still the right one.
+>
+> **The pre-check is kept rather than deleted**, because it is the thing that
+> stopped this being built twice: `OPEN_STALE_MS` looks exactly like this
+> ticket from the outside and is a different "activity" in a different field.
+> Everything the paragraph above asserts about the OLD state of `SelfFact`,
+> `formatHerLife` and `activityBreaks()` was true when it was written and is
+> what "shipped" below is measured against.
 
 The `self` extraction returns durable facts and momentary activities in one
 undifferentiated list, and `herLife` stores both for twelve slots. "reading a
@@ -338,9 +345,145 @@ long ordinary things take) and drops it silently afterwards. A `doing` line
 that has aged out is not a contradiction — it simply stops being present, which
 is what her having finished it looks like.
 
-**Gate:** `activityBreaks()` from `evals/honesty/detect.mjs`, run over a
-labelled transcript of successive "what are you doing" answers, must return
-empty.
+**Gate (as filed):** `activityBreaks()` from `evals/honesty/detect.mjs`, run
+over a labelled transcript of successive "what are you doing" answers, must
+return empty.
+
+#### The mechanism, as shipped
+
+**`kind` on the fact, classified at WRITE time; the expiry at RENDER time.**
+Three pieces, and the split between them is the whole design: what a line IS
+gets decided once, when it arrives; whether it is still TRUE gets decided every
+time it is rendered.
+
+- **`SelfFact.kind?: "activity" | "fact"`** (`src/state/store.ts`). Filed as
+  `"standing" | "doing"` with a `startedAt`; shipped without the extra stamp,
+  because `at` — when she said it — already IS the start of a thing she said
+  she was doing, and a second timestamp is a second thing that can disagree
+  with the first. **Optional, and the absence is load-bearing:** absent means
+  `"fact"`, so every ledger written before this field existed renders
+  byte-identically and nothing is migrated under a running install
+  (`age-tier-never-realtime`). Only facts entering the ledger from here on
+  carry a kind.
+- **`classifySelfFact(text)`** (same file, pure, dependency-free). A shape
+  predicate, **not** a prompt. The extraction pass is already a model call and
+  "and label each one" would have made the label re-negotiable per turn — the
+  `vision-fab` shape, read part / assert the rest. Two ordered lists: a DURABLE
+  veto first (`reh rahi hu`, `lives in`, `naam ... hai`, `is named`, `getting
+  married`, `works at`, `birthday`, `hate/love/pasand`), then NOWNESS markers
+  (`rah[ai] hu` / `rh[ai] hu`, `ja rahi`, `abhi`, `rn`, `right now`,
+  `currently`, `at the moment`, `about to`, `heading`, `on my way`, `brb`, `in
+  the middle of`, `just got/woke/reached/finished`, `going to sleep/bed`,
+  `<verb>ing now`). The veto runs first because Hindi's present progressive is
+  also how you state where you live: "bangalore me reh rahi hu" and "my cousin
+  is getting married" are both progressive-shaped and both durable, and a naive
+  `-ing`/`rahi hu` test expires her hometown by Friday afternoon.
+- **Why the classifier lives in `store.ts` and not the engine:** the state
+  layer must not import the engine. A predicate that decides a stored field's
+  value is part of that field's contract; putting it in `engine/memory.ts`
+  would drag Capacitor and the network into the store, and putting it nowhere
+  would leave the store writing a field whose meaning is defined where it
+  cannot see.
+- **The write seam is `useAppState`'s `setState`** (`store.ts`,
+  `stampSelfFacts`). Both lanes hold their OWN copy of the absorb rule
+  (`Chat.tsx` and `useCallEngine.ts`'s `absorbRemembered`), and a classifier
+  bolted onto one of them is a classifier that disagrees with the other inside
+  a month — `age-tier-never-realtime` in miniature. `App.tsx` owns the only
+  `useAppState()` and hands that one dispatcher to both lanes, so this is the
+  single point every `herLife` write already passes through. A fact already
+  present in `prev` (same text, same stamp) is returned **by reference**,
+  untouched, kind or no kind: that is what keeps the legacy default honest, and
+  what makes a setState that does not touch `herLife` cost one identity
+  compare. The updater stays pure and idempotent, as the multi-tab note beside
+  it requires.
+- **`formatHerLife` drops, never relabels** (`src/engine/brain.ts`). A stale
+  "cooking rn" with "(2 days ago)" appended is still the claim that she is
+  cooking, now with a timestamp arguing against it — and a brief that
+  contradicts itself is resolved by the model, not by us. Her having finished
+  something looks like the line not being there. The drop runs BEFORE the
+  newest-wins supersede check, so an activity that is over does not go on
+  shadowing an older durable fact it shares words with. `kind: "fact"` and
+  kind-less rows keep the 12-newest behaviour exactly.
+- **`agoLabel` now takes `nowMs`** (defaulted to the clock, so every existing
+  caller is byte-identical), threaded from `formatHerLife`. Same reason
+  `away.ts` states: a renderer that reads the clock inside itself cannot be
+  asserted against a literal.
+
+**The window: `min(3h, the next night)`.**
+
+- **3h.** The longest ordinary activity in `MIN_MINUTES`
+  (`evals/honesty/detect.mjs`, the coarse authored table this ticket named) is
+  60 minutes; cooking is 20, a film 20, the gym 30. Three hours is generous by
+  a factor of three against the longest of them, which is the right direction
+  to be wrong in: a dropped line costs her a small continuity, a stale one
+  costs her being a person. The eval asserts that 3x relationship against the
+  real table rather than restating the number, so shortening either one without
+  the other fails.
+- **The night.** An activity claimed at 23:40 must not survive to 02:40 merely
+  because three hours have not elapsed. The predicate is **T9's own**
+  `crossedNight` (`src/engine/away.ts`, IST 01:00–06:00), imported rather than
+  re-derived, so "what counts as overnight" has exactly one answer in this
+  codebase. Like T9 it is a claim about the clock, never about him.
+- **The 6h conversational gap needs no code:** a gap that long already puts the
+  fact past the 3h cap by construction. Said here so nobody adds a redundant
+  second test for it.
+- Conservative at both edges: a **future** stamp (another device's skewed
+  clock) and a non-finite stamp are not evidence that she has finished
+  anything, and neither is dropped.
+
+**`activityBreaks()` was NOT wired as the classifier, deliberately.** It was
+read first, as this ticket asked. Its shape does not fit and its own header
+says why: it takes turns *already labelled* with a `MIN_MINUTES` key and
+answers a different question — *is this switch physically plausible* — and it
+"does NOT classify free text into activities; the fixtures carry the label,
+because a lexical activity classifier would be `vision-fab` with a keyword
+list". Reusing it would have meant inventing the labels it refuses to invent.
+What it does share with this fix is the duration table, and that is exactly
+what is reused: the window is justified against `MIN_MINUTES`, and the eval
+imports the real table. `activityBreaks()` therefore remains eval-only, on
+purpose, and `evals/honesty/detect.mjs`'s header remains accurate.
+
+**Gate:** `evals/herlife.mjs` — offline, deterministic, db-free, model-free,
+$0, ~2s. It bundles the REAL `store.ts` and `brain.ts` fresh on every run
+(esbuild, `evals/_herlife-entry.ts`), so it gates the tree being shipped rather
+than a copy. **73 checks**: 26 classifier cases (14 activity-shaped, 10
+durable, 2 degenerate), the window and both its boundaries plus the
+crossed-night case *and its daylight control at the same age*, durable facts
+surviving 40 days, the LEGACY byte-identity fixture (a kind-less ledger whose
+text is activity-shaped still renders every row, unchanged, including the
+12-cap), the stamper's reference semantics, and the owner's Tuesday-to-Friday
+scenario end to end. Plus the `recited-prompt` negative control: every rendered
+row must be verbatim an input row, because this change may only ever REMOVE
+rows — it renders no new text at all, which is what keeps it off that law's
+surface entirely.
+
+**What would reverse this.** Three conditions, in the order they are likely:
+
+1. **The classifier misses in production.** If lines that are plainly momentary
+   keep rendering a day later, the miss is a missing NOWNESS marker, and the
+   answer is a new pattern plus its eval case — not a prompt. If the opposite
+   shows up (a durable fact vanishing after three hours), it is a missing
+   DURABLE veto, and that is the more expensive direction: she forgets
+   something she was told to keep. Either way the fix is a case in
+   `evals/herlife.mjs` first.
+2. **The window is wrong.** If ~3h turns out to strand things she is genuinely
+   still doing (a long cook, a double feature), raise `ACTIVITY_TTL_MS` — but
+   raise it against `MIN_MINUTES` and update the 3x assertion, or the number
+   stops being justified by anything.
+3. **The extraction learns to label.** If `api/memory.js` ever returns a
+   trustworthy per-line kind, `classifySelfFact` becomes the fallback for lines
+   it did not label rather than the only source. That is a strict improvement
+   and the `kind` field is already the interface for it — but it is not the
+   same thing as putting the labelling in the prompt, which is what was
+   rejected above.
+
+**Not shipped, and named so it is not mistaken for an oversight:** the two
+lanes' absorb writers (`Chat.tsx`, `useCallEngine.ts`) were **not** touched.
+They did not need to be — the stamp happens under them, at the dispatcher —
+and `useCallEngine.ts` is mid-flight for WS-CONTINUITY. If either lane ever
+stops routing its writes through `useAppState`'s dispatcher, the stamp stops
+happening silently; `evals/herlife.mjs` would not catch that, because it tests
+the seam and not who calls it.
 
 ### T-H3 — flush the ledger before the call connects — **CLOSED** (2026-08-22, task #91)
 

@@ -36,6 +36,9 @@ import {
   type SelfBundleInput,
 } from "./compiler";
 import type { ActivityState } from "./activity";
+// T-H2 (formatHerLife, below) reuses T9's overnight predicate rather than
+// re-deriving one. away.ts imports only ./timeline, so this adds no cycle.
+import { crossedNight } from "./away";
 // WS-MANIFEST Phase D prep (docs/SPEC.md §7.3 "chat lane call-site
 // adoption"): router.ts stays WS-ROUTER's exclusively (§13) — this is a
 // read of its exported pure functions, not an edit, same discipline as the
@@ -216,9 +219,12 @@ export interface BrainKeys {
   selfBundle?: SelfBundleInput | null;
 }
 
-// how long ago she said it, in the shape a person would think it
-function agoLabel(at: number): string {
-  const mins = Math.max(0, Math.round((Date.now() - at) / 60_000));
+// how long ago she said it, in the shape a person would think it.
+// `nowMs` is threaded from formatHerLife (defaulting to the clock, so every
+// existing caller is byte-identical) for the reason away.ts states: a renderer
+// that reads the clock inside itself cannot be asserted against a literal.
+function agoLabel(at: number, nowMs: number = Date.now()): string {
+  const mins = Math.max(0, Math.round((nowMs - at) / 60_000));
   if (mins < 90) return "earlier in this conversation";
   const hrs = Math.round(mins / 60);
   if (hrs < 20) return `${hrs}h ago`;
@@ -238,16 +244,70 @@ function agoLabel(at: number): string {
 // words in common is the same test `inner.ts` uses to decide a want is the
 // same want — "flatmate is named X" collides with "flatmate is named Y", while
 // "flatmate had a fight" shares one word and survives beside it.
-export function formatHerLife(facts?: Array<{ text: string; at: number }>): string {
+//
+// ── T-H2: an activity is a fact with an expiry (docs/HONESTY.md) ───────────
+//
+// The defect, in the owner's shape: she says "khana bana rahi hu" on Tuesday,
+// and on Friday the ledger still hands her that line under a heading reading
+// "you said these, so they are now fixed between you two". She is cooking. She
+// has been cooking for three days.
+//
+// An expired activity is DROPPED, never relabelled. "(2 days ago)" appended to
+// "cooking rn" is still the claim that she is cooking, now with a timestamp
+// arguing against it — and a brief that contradicts itself is resolved by the
+// model, not by us. Her having finished something looks like the line not
+// being there. Nothing new is rendered, so there is no new sentence-shaped
+// text for `recited-prompt` to bite on: this change can only remove rows.
+//
+// THE WINDOW is `min(3h, the next night)`:
+//
+//   3h  — the longest ordinary thing in `evals/honesty/detect.mjs`'s MIN_MINUTES
+//         table is 60 minutes (sleeping); cooking is 20, a film 20, the gym 30.
+//         Three hours is generous by a factor of three against the longest of
+//         them, which is the right direction to be wrong in: a dropped line
+//         costs her a small continuity, a stale one costs her being a person.
+//   night — an activity claimed at 23:40 must not survive to 02:40 just because
+//         three hours had not elapsed. `crossedNight` is T9's own predicate
+//         (src/engine/away.ts, IST 01:00–06:00) and is reused rather than
+//         re-derived, so "what counts as overnight" has exactly one answer in
+//         this codebase. It is a statement about the clock, not about either of
+//         them.
+//
+// The 6h conversational gap that also kills an activity needs no code: a gap
+// that long puts the fact past the 3h cap by construction. Stated here so the
+// next reader does not add a redundant second test for it.
+//
+// Only `kind: "activity"` expires. Absent kind is the legacy default ("fact")
+// and renders exactly as it did before this existed — see SelfFact in store.ts.
+
+/** How long a claimed activity can still plausibly be running. */
+export const ACTIVITY_TTL_MS = 3 * 60 * 60 * 1000;
+
+/** Could she still be doing it? Total, and conservative at both edges. */
+export function activityStillRunning(at: number, nowMs: number): boolean {
+  const age = nowMs - at;
+  if (!Number.isFinite(age)) return true; // an unreadable stamp is not evidence
+  if (age <= 0) return true; // a future stamp is another device's clock, not a lie
+  if (age >= ACTIVITY_TTL_MS) return false;
+  return !crossedNight(nowMs, age);
+}
+
+export function formatHerLife(
+  facts?: Array<{ text: string; at: number; kind?: "activity" | "fact" }>,
+  nowMs: number = Date.now(),
+): string {
   if (!facts?.length) return "";
   const kept: Array<{ text: string; at: number }> = [];
   for (const f of facts) {
     if (!f?.text) continue;
+    // Before the supersede check, not after: an activity that is over must not
+    // go on shadowing an older durable fact it happens to share words with.
+    if (f.kind === "activity" && !activityStillRunning(f.at, nowMs)) continue;
     if (kept.some((k) => overlaps(k.text, f.text))) continue; // superseded
     kept.push(f);
     if (kept.length >= 12) break;
   }
-  return kept.map((f) => `- ${f.text} (${agoLabel(f.at)})`).join("\n");
+  return kept.map((f) => `- ${f.text} (${agoLabel(f.at, nowMs)})`).join("\n");
 }
 
 // Make device-spoken text breathe: openers, thinking pauses. Used on the

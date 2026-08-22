@@ -1,6 +1,7 @@
 // Lightweight app state persisted to localStorage — no external state library needed.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import type { UserProfile } from "../engine/persona";
 import type { Inner } from "../engine/inner";
 import { tel } from "../engine/telemetry";
@@ -53,6 +54,120 @@ export interface AuthInfo {
 export interface SelfFact {
   text: string;
   at: number;
+  // docs/HONESTY.md T-H2. What KIND of claim this is, decided once when the
+  // fact enters the ledger and never revisited.
+  //
+  //   "fact"     durable. "my flatmate is named sneha", "i hate karela".
+  //              True tomorrow, true next month; renders until superseded.
+  //   "activity" momentary. "khana bana rahi hu", "just heading out".
+  //              It was true when she said it and it ENDS. `formatHerLife`
+  //              drops it once it can no longer plausibly be running.
+  //
+  // Optional, and the absence is load-bearing rather than lazy: every
+  // SelfFact already on a device was written before this field existed, and
+  // `age-tier-never-realtime` is this repo's standing rule that a stored
+  // shape is not rewritten under a running install. Absent therefore means
+  // "fact" — byte-identical rendering for every ledger that predates this —
+  // and only facts ENTERING the ledger from here on carry a kind.
+  kind?: SelfFactKind;
+}
+
+export type SelfFactKind = "activity" | "fact";
+
+// ── the write-time classifier (docs/HONESTY.md T-H2) ───────────────────────
+//
+// It lives HERE, beside the type it stamps, for one reason: the state layer
+// must not import the engine. A predicate that decides a stored field's value
+// is part of that field's contract, and putting it in `engine/` would either
+// drag `memory.ts` (and Capacitor, and the network) into `store.ts`, or leave
+// the store writing a field whose meaning is defined somewhere it cannot see.
+// It is pure, dependency-free and total, which is also what lets an eval drive
+// it with plain strings.
+//
+// WHY LEXICAL AND NOT A PROMPT: the extraction pass that produces these lines
+// is already a model call, and adding "and label each one" to it makes the
+// label a thing that can be re-negotiated per turn — the same failure mode
+// `vision-fab` names. A shape predicate is wrong in a fixed, enumerable way
+// that an eval pins; a prompt is wrong differently every time.
+//
+// The order below matters. DURABLE first: Hindi's present-progressive is also
+// how you state where you live ("bangalore me reh rahi hu"), so a bare
+// progressive marker cannot be trusted on its own. The veto list is
+// deliberately about the PREDICATE (living, being named, working somewhere,
+// getting married) and never about a noun, because "cooking for my flatmate
+// rn" must stay an activity.
+const DURABLE_SHAPE: RegExp[] = [
+  /\breh\s*rah[ai]\b/i, // reh rahi hu — living somewhere, not doing something
+  /\brehti\s*(hu|hun|hoon)\b/i,
+  /\blives?\s+in\b/i,
+  /\bgrew\s+up\b/i,
+  /\b(naam|name)\s+(hai|is)\b/i,
+  /\bis\s+named\b/i,
+  /\bgetting\s+married\b|\bshaadi\b/i,
+  /\bbirthday\b|\bjanamdin\b/i,
+  /\bworks?\s+(at|in|for)\b/i,
+  /\bjob\s+(is|at|in)\b/i,
+  /\b(hate|hates|love|loves|likes?|pasand)\b/i,
+];
+
+// NOWNESS: present-progressive and imminence. Every one of these is a claim
+// about a clock, which is what makes it expire.
+const ACTIVITY_SHAPE: RegExp[] = [
+  /\b(rah[ai]|rh[ai])\s*(hu|hun|hoon|hoo)\b/i, // bana rahi hu, dekh rha hu
+  /\bja\s*rah[ai]\b/i, // ja rahi (hu) — on her way
+  /\babhi\b/i, // right now
+  /\brn\b/i,
+  /\bright\s+now\b/i,
+  /\bcurrently\b/i,
+  /\bat\s+the\s+moment\b/i,
+  /\b(just\s+)?about\s+to\b/i,
+  /\bheading\b/i,
+  /\bon\s+(my|her)\s+way\b/i,
+  /\bbrb\b/i,
+  /\bin\s+the\s+middle\s+of\b/i,
+  /\bjust\s+(got|woke|reached|finished|landed|came|stepped)\b/i,
+  /\bgoing\s+to\s+(sleep|bed|shower|nap)\b/i,
+  /\b\w+ing\s+(now|rn)\b/i,
+];
+
+/**
+ * Which kind a self-line is, from its shape alone. Total: anything that is not
+ * demonstrably about right-now is durable, because a durable fact rendered a
+ * day late is merely old, while an activity rendered a day late is a lie about
+ * what she is doing.
+ */
+export function classifySelfFact(text: string): SelfFactKind {
+  const t = (text || "").trim();
+  if (!t) return "fact";
+  if (DURABLE_SHAPE.some((re) => re.test(t))) return "fact";
+  return ACTIVITY_SHAPE.some((re) => re.test(t)) ? "activity" : "fact";
+}
+
+/**
+ * Stamp a kind on self-facts that are ENTERING the ledger, and only those.
+ *
+ * Both lanes write `herLife` from their own copy of the same absorb rule
+ * (Chat.tsx and useCallEngine.ts), and a classifier bolted onto one of them is
+ * a classifier that disagrees with the other within a month. This is the one
+ * seam both writes pass through — `useAppState`'s setState — so there is one
+ * classification, applied once, wherever a fact came from.
+ *
+ * A fact already present in `prev` (same text, same stamp) is returned
+ * untouched, kind or no kind. That is what keeps the legacy default honest: a
+ * ledger loaded from a device that predates this field is not silently
+ * rewritten by the next unrelated setState.
+ */
+export function stampSelfFacts(prev: AppState, next: AppState): AppState {
+  const facts = next.herLife;
+  if (!facts?.length || facts === prev.herLife) return next;
+  let changed = false;
+  const stamped = facts.map((f) => {
+    if (!f || typeof f.text !== "string" || f.kind) return f;
+    if (prev.herLife?.some((p) => p && p.text === f.text && p.at === f.at)) return f;
+    changed = true;
+    return { ...f, kind: classifySelfFact(f.text) };
+  });
+  return changed ? { ...next, herLife: stamped } : next;
 }
 
 import type { GameSession } from "./game";
@@ -324,7 +439,20 @@ function crossTabSig(s: AppState): string {
 }
 
 export function useAppState() {
-  const [state, setState] = useState<AppState>(loadState);
+  const [state, rawSetState] = useState<AppState>(loadState);
+  // Every herLife write in the app arrives here (App.tsx owns the only
+  // useAppState() and hands this dispatcher to both lanes), so this is where a
+  // self-fact is classified — see `stampSelfFacts`. The updater stays PURE, as
+  // the multi-tab note below requires: stamping is deterministic, idempotent,
+  // and returns `next` by reference when nothing entered the ledger, so a
+  // setState that does not touch herLife costs one identity compare.
+  const setState = useCallback<Dispatch<SetStateAction<AppState>>>(
+    (update) =>
+      rawSetState((prev) =>
+        stampSelfFacts(prev, typeof update === "function" ? (update as (p: AppState) => AppState)(prev) : update),
+      ),
+    [],
+  );
   useEffect(() => saveState(state), [state]);
   // the listener below is registered once and must read the CURRENT state
   // without re-registering (a listener torn down and rebuilt on every

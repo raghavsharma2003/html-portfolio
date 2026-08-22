@@ -1662,3 +1662,21 @@ stale comments claiming no client call site were fixed. watch_visual
 stays unwired BY DECISION (needs a scored claim no lane produces).
 **Reverses if:** nothing — this records existence; the supersedes edge
 below is the point.
+
+---
+
+## `activity-facts-expire` — a thing she said she was doing is a fact with an expiry
+
+T-H2 closed. Self-facts are classified at WRITE time by a pure shape
+predicate (durable VETO runs first — Hindi's present progressive is also
+how you state where you live, so "bangalore me reh rahi hu" survives while
+"khana bana rahi hu" expires), stamped through the ONE dispatcher every
+herLife write already passes, absent-kind = legacy behaviour byte-identical.
+Render window: min(3h, the next night) — 3x the longest ordinary activity
+in the plausibility table (eval-coupled so neither number moves alone),
+night via T9's own crossedNight import so "overnight" has one answer in
+the tree. Expired activities are DROPPED, never relabelled: "she is
+cooking (yesterday)" is still a claim she is cooking. **Reverses if:** a
+lane stops routing writes through the dispatcher (the stamp goes silent —
+stated in HONESTY.md as the known blind spot), or live testing shows real
+activities she should still be on dying at 3h.

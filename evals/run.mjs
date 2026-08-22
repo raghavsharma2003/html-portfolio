@@ -87,6 +87,11 @@ const suites = {
   // WS-MEMORY: finished games become graph episodes; the laundering predicate;
   // photo-forget path round-trips. Offline, db-free (config stub), ~2s.
   gamemem: "gamemem.mjs",
+  // T-H2 (docs/HONESTY.md). An activity is a fact with an expiry: the
+  // write-time classifier on SelfFact, the min(3h, next night) render window,
+  // and the legacy byte-identity fixture proving a kind-less ledger still
+  // renders exactly as it did. Offline, $0, ~2s.
+  herlife: "herlife.mjs",
   // WS-TIME. The two clocks (src/engine/timeline.ts) — her day as a pure
   // function of the hour, and what has moved in HIS world since they last
   // spoke. DB-free, network-free, model-free and ~11s, including its own

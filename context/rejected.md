@@ -1557,3 +1557,18 @@ on the next reload. A stable signature suppresses convergence re-renders.
 **The generalisable rule:** never resolve a multi-field conflict with a
 single-field clock; merge field-wise or the fields that tick on different
 clocks silently lose.
+
+---
+
+## `activitybreaks-as-classifier` — the guard that refused, correctly
+
+**Considered:** wiring the existing activityBreaks() as the production
+activity classifier for T-H2. **Why not:** its own header refuses to
+classify free text ("a lexical activity classifier would be vision-fab
+with a keyword list") — it answers a DIFFERENT question (is this switch
+physically plausible, given two already-labelled turns). Wiring it would
+mean inventing the labels it refuses to invent. What WAS reused: its
+MIN_MINUTES plausibility table, as the justification anchor for the 3h
+window. **The generalisable rule:** a module that documents what it will
+not do is protecting you from a misuse someone will eventually attempt;
+reuse its data, respect its boundary.

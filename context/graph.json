@@ -1161,6 +1161,18 @@
       "kind": "decision",
       "title": "Native watch lane feeds watch_moment since WS-ANDROID-WATCH; e2e-proven 26/26; ticket was unlogged, not unbuilt",
       "at": "2026-08-22"
+    },
+    {
+      "id": "activity-facts-expire",
+      "kind": "decision",
+      "title": "Self-facts classified at write; activities expire at min(3h, next night); dropped never relabelled",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "activitybreaks-as-classifier",
+      "kind": "rejection",
+      "title": "activityBreaks() refused as classifier per its own header; its MIN_MINUTES table reused as the window anchor",
+      "at": "2026-08-22"
     }
   ],
   "edges": [
