@@ -176,6 +176,13 @@ const MS_PER_DAY = 86_400_000;
  * regress requires only `ruptureOpen` becoming true, checked first and
  * short-circuiting everything else, so "offense is instant" cannot be
  * starved by a slow-accumulating advance in flight.
+ *
+ * `ruptureOpen` here is meant to be the caller's LAPSED stance (see
+ * `ruptureStance` below — pass `ruptureStance(...) === "open"`, not the
+ * raw `rupture_open` column), so a rupture nobody ever explicitly repaired
+ * does not hold this instant-regress trigger armed against a brand new,
+ * unrelated honorific move months later. A fresh, still-unlapsed rupture
+ * behaves exactly as documented above either way.
  */
 export function honorificShift(
   current: Honorific,
@@ -333,11 +340,24 @@ export interface RuptureRepairMove {
  *  file so relstate.ts never re-implements moment.ts's job). `theirRepairSignal`
  *  must be an explicit affirmative FROM THE USER's own turn (e.g. an
  *  extractor-tagged "sorry"/reconciliation moment) — passing anything her
- *  own output produced here would violate "never her assumption". */
+ *  own output produced here would violate "never her assumption".
+ *
+ *  `stanceLapsed` (default false, so every existing caller/fixture is
+ *  byte-identical) is the ONE hook this state machine has into the record-
+ *  vs-stance split below: true only when `ruptureStance` has already
+ *  decided the PREVIOUS rupture is no longer being actively held (time or
+ *  warm-interaction lapse), independent of whether an explicit repair
+ *  signal ever arrived. Its only effect is widening what counts as a fresh
+ *  rupture — see the second branch. Every other branch is untouched by it
+ *  on purpose: an explicit repair signal must always be able to complete
+ *  `open -> repairing -> repaired` on its own literal terms, lapsed or not
+ *  — "repair requires THEIR signal, never her assumption" does not get a
+ *  time-based exception. */
 export function ruptureRepairShift(
   state: RuptureRepairInput,
   conflictSignal: boolean,
   theirRepairSignal: boolean,
+  stanceLapsed: boolean = false,
 ): RuptureRepairMove | null {
   if (conflictSignal && !state.ruptureOpen) {
     return {
@@ -346,6 +366,24 @@ export function ruptureRepairShift(
       dim: "rupture",
       direction: "advance", // "advance" = the rupture state machine moved, not a value judgement
       note: "conflict-shaped episode: rupture opens",
+    };
+  }
+  // The gap `rupture-never-closes` found: repair_state can get stuck at
+  // "open" forever (no repair signal ever arrives, so branches 3/4 below
+  // never fire and the record never reaches "repaired"). Without this
+  // branch a fresh, unrelated conflict arriving after the STANCE has
+  // already lapsed to "settled" matches no other branch and is silently
+  // dropped — the record for the second rupture would never get written.
+  // This is what makes "an explicit new rupture re-opens" true even for a
+  // dyad whose first rupture was only ever closed by time, not by an
+  // apology.
+  if (conflictSignal && state.ruptureOpen && state.repairState === "open" && stanceLapsed) {
+    return {
+      ruptureOpen: true,
+      repairState: "open",
+      dim: "rupture",
+      direction: "advance",
+      note: "conflict-shaped episode after lapsed stance: rupture re-opens",
     };
   }
   if (conflictSignal && state.ruptureOpen && state.repairState !== "open") {
@@ -378,6 +416,83 @@ export function ruptureRepairShift(
     };
   }
   return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Rupture STANCE — the record/stance split `context/rejected.md`
+// (`rupture-never-closes`, 2026-08-18) prescribed. Read that entry before
+// touching this section.
+//
+// THE RECORD is `vy_rel_event` (dim='rupture'/'repair') and the event-
+// sourced `rupture_open`/`repair_state` folded from it above — permanent,
+// cited, and untouched by anything below: nothing in this section reads or
+// writes an event, and `ruptureStance` never mutates its input.
+//
+// THE STANCE is a third, render/behaviour-time-only projection, exactly
+// like `stageForDims` below and `honorificAgeLabel` above: a pure function
+// of the persisted dims plus `now`, never stored, so replaying the SAME
+// event log at a LATER `now` can (and by design should) return a different
+// stance for byte-identical persisted rows. "A person does not stay
+// actively hurt forever, but also never forgets it happened" — the record
+// is the never-forgets half; this is the not-forever half.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Days of elapsed time since the rupture/repair record last moved after
+ *  which the STANCE lapses even with no repair signal. `vy_rel_state` has
+ *  zero production rows today (`never-scheduled`), so there is no measured
+ *  cohort to fit this to — it is a principled default, not a fit. See
+ *  `rejected.md`'s own reversal condition: "a measured cohort shows a
+ *  lapsing stance makes ruptures feel unreal" would argue for raising it,
+ *  never for deleting the lapse outright. */
+export const RUPTURE_STANCE_LAPSE_DAYS = 21;
+
+/** OR enough good-faith contact happened with no further conflict — a
+ *  person who keeps showing up warm stops being held at arm's length even
+ *  if neither side ever said the actual word "sorry". Counted by the
+ *  caller as episodes since the last rupture/repair move; see
+ *  `RuptureStanceInput.warmEpisodesSince`'s own doc for why a fresh
+ *  re-rupture can never inflate this count instead of resetting it. */
+export const RUPTURE_STANCE_LAPSE_WARM_EPISODES = 8;
+
+export interface RuptureStanceInput {
+  /** raw event-sourced flag — the RECORD's current value, never mutated by
+   *  lapse */
+  ruptureOpen: boolean;
+  repairState: RepairState;
+  /** ISO timestamp of the most recent dim='rupture' OR dim='repair' event
+   *  for this dyad (whichever is later) — null if the record has never
+   *  moved. Required to compute a lapse: no timestamp means never guess
+   *  one, so this returns "open" rather than silently assuming "just
+   *  happened". */
+  lastMoveAt: string | null;
+  /** Episodes since `lastMoveAt`, caller-counted (mirrors `honorificShift`'s
+   *  `evidence` convention: this file does no querying). Any GENUINE new
+   *  conflict always writes a fresh rel-event that advances `lastMoveAt`
+   *  itself (either via the ordinary "rupture opens" branch, or via the
+   *  lapsed-reopen branch `ruptureRepairShift` gained above) — so in
+   *  practice every episode counted here already IS a warm one; nothing
+   *  needs to be excluded from the count on this function's side. */
+  warmEpisodesSince: number;
+}
+
+export type RuptureStance = "none" | "open" | "settled";
+
+/**
+ * The behaviour-gating STANCE, never the record. "settled" is the state
+ * `rejected.md` asked for: the record survives untouched (nothing here
+ * reads or writes `vy_rel_event`), but she is no longer acting like she is
+ * mid-fight. Both `stageForDims` and `renderRelSnapshot` below read this
+ * instead of the raw `rupture_open` column for exactly the two effects
+ * `rejected.md` named as "not inert while it sits open": the stage cap and
+ * the rendered repair line.
+ */
+export function ruptureStance(input: RuptureStanceInput, now: Date = new Date()): RuptureStance {
+  if (!input.ruptureOpen) return "none";
+  if (!input.lastMoveAt) return "open";
+  const days = (now.getTime() - new Date(input.lastMoveAt).getTime()) / MS_PER_DAY;
+  if (days >= RUPTURE_STANCE_LAPSE_DAYS) return "settled";
+  if (input.warmEpisodesSince >= RUPTURE_STANCE_LAPSE_WARM_EPISODES) return "settled";
+  return "open";
 }
 
 // ── code-switch direction: "direction set only after >=3 high-affect
@@ -831,12 +946,42 @@ function finish(lines: string[], header: string): RenderResult {
  */
 export function renderRelSnapshot(
   state: RelState,
-  meta: { lastHonorificMoveAt: string | null } = { lastHonorificMoveAt: null },
+  meta: {
+    lastHonorificMoveAt: string | null;
+    /** most recent dim='rupture'/'repair' event timestamp — absent/null
+     *  renders exactly as before (`ruptureStance` treats no timestamp as
+     *  "open", never a guessed lapse), so every caller that predates this
+     *  field is byte-identical. */
+    lastRuptureMoveAt?: string | null;
+    /** see `RuptureStanceInput.warmEpisodesSince` */
+    warmEpisodesSinceRupture?: number;
+  } = { lastHonorificMoveAt: null },
+  now: Date = new Date(),
 ): RenderResult {
   const lines: string[] = [];
   lines.push(`honorific: ${state.honorific} (${honorificAgeLabel(meta.lastHonorificMoveAt)})`);
   lines.push(`trust: ${bandTrust(state.trust)}`);
-  lines.push(`repair: ${state.repair_state}${state.rupture_open ? " (open)" : ""}`);
+  // record vs stance (rejected.md `rupture-never-closes`): the DB column
+  // (state.repair_state) never changes here — only the LABEL a lapsed
+  // rupture renders with, so a fight that settled by time reads as history
+  // ("that fight last month") rather than as still in progress ("we are
+  // mid-fight"), without erasing that it happened.
+  const stance = ruptureStance(
+    {
+      ruptureOpen: state.rupture_open,
+      repairState: state.repair_state,
+      lastMoveAt: meta.lastRuptureMoveAt ?? null,
+      warmEpisodesSince: meta.warmEpisodesSinceRupture ?? 0,
+    },
+    now,
+  );
+  const repairLabel =
+    stance === "open"
+      ? `${state.repair_state} (open)`
+      : stance === "settled"
+        ? `${state.repair_state} (settled ${honorificAgeLabel(meta.lastRuptureMoveAt ?? null)}, not currently held)`
+        : state.repair_state;
+  lines.push(`repair: ${repairLabel}`);
   const csLabel =
     state.cs_on_stress === "retreat_l2"
       ? "retreats toward english under stress"
@@ -964,8 +1109,27 @@ export type Stage = "new" | "warming" | "settled" | "close" | "deep";
  * "deviations" — persona.ts has no declared owner in §13's table at all,
  * so it is left untouched here rather than edited on an assumption).
  */
-export function stageForDims(state: RelState): Stage {
-  if (state.rupture_open) return state.trust < 0.45 ? "new" : "warming"; // an open rupture never reads as "close"
+export function stageForDims(
+  state: RelState,
+  meta: { lastRuptureMoveAt?: string | null; warmEpisodesSinceRupture?: number } = {},
+  now: Date = new Date(),
+): Stage {
+  // record vs stance: the RAW `rupture_open` column caps the stage
+  // unconditionally forever (`rejected.md` `rupture-never-closes`'s second
+  // named effect) — gate on the lapsing STANCE instead. `meta` absent
+  // means `lastMoveAt` is null, and `ruptureStance` returns "open" for any
+  // open rupture with no timestamp, so every caller that predates this
+  // param is byte-identical.
+  const stance = ruptureStance(
+    {
+      ruptureOpen: state.rupture_open,
+      repairState: state.repair_state,
+      lastMoveAt: meta.lastRuptureMoveAt ?? null,
+      warmEpisodesSince: meta.warmEpisodesSinceRupture ?? 0,
+    },
+    now,
+  );
+  if (stance === "open") return state.trust < 0.45 ? "new" : "warming"; // an OPEN rupture never reads as "close"
   if (state.trust < 0.2) return "new";
   if (state.trust < 0.45) return "warming";
   if (state.trust < 0.7) return "settled";

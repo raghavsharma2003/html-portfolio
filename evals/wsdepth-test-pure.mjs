@@ -72,6 +72,45 @@ for (const [state, conflict, repair] of rrCases) {
   );
 }
 
+// ── #86 record-vs-stance split: mirror parity for the new stanceLapsed
+//    branch (default false above is already covered — every case above
+//    ran with stanceLapsed omitted and stayed byte-identical) ──
+const rrLapsedCases = [
+  // stuck-open (never explicitly repaired) + fresh conflict + lapsed stance: re-opens
+  [{ ruptureOpen: true, repairState: "open" }, true, false, true],
+  // same state, stance NOT lapsed: falls through to the ordinary no-move case
+  [{ ruptureOpen: true, repairState: "open" }, true, false, false],
+  // repairing (mid-explicit-repair attempt) + lapsed: still the regress branch, unaffected by stanceLapsed
+  [{ ruptureOpen: true, repairState: "repairing" }, true, false, true],
+];
+for (const [state, conflict, repair, lapsed] of rrLapsedCases) {
+  eq(
+    `ruptureRepairShift mirror parity (lapsed) state=${JSON.stringify(state)} conflict=${conflict} repair=${repair} lapsed=${lapsed}`,
+    mine.ruptureRepairShift(state, conflict, repair, lapsed),
+    real.ruptureRepairShift(state, conflict, repair, lapsed),
+  );
+}
+
+// ── ruptureStance: mirror parity (mine has no relstate.ts equivalent
+//    import path of its own — this is api/consolidate.js's separately
+//    mirrored copy, same drift-check reasoning as everything above) ──
+const stanceNow = new Date("2026-08-22T12:00:00Z");
+const stanceCases = [
+  [{ ruptureOpen: false, repairState: "none", lastMoveAt: null, warmEpisodesSince: 0 }],
+  [{ ruptureOpen: true, repairState: "open", lastMoveAt: null, warmEpisodesSince: 0 }],
+  [{ ruptureOpen: true, repairState: "open", lastMoveAt: new Date("2026-08-20T12:00:00Z").toISOString(), warmEpisodesSince: 0 }], // 2 days: open
+  [{ ruptureOpen: true, repairState: "open", lastMoveAt: new Date("2026-07-01T12:00:00Z").toISOString(), warmEpisodesSince: 0 }], // 52 days: settled
+  [{ ruptureOpen: true, repairState: "repairing", lastMoveAt: new Date("2026-08-20T12:00:00Z").toISOString(), warmEpisodesSince: 8 }], // 2 days but 8 warm episodes: settled
+  [{ ruptureOpen: true, repairState: "repairing", lastMoveAt: new Date("2026-08-20T12:00:00Z").toISOString(), warmEpisodesSince: 7 }], // one short of the warm floor: still open
+];
+for (const [input] of stanceCases) {
+  eq(
+    `ruptureStance mirror parity input=${JSON.stringify(input)}`,
+    mine.ruptureStance(input, stanceNow),
+    real.ruptureStance(input, stanceNow),
+  );
+}
+
 // ── mapEpisodeCitations: writer-window validation (WS-DEPTH-only, no
 //    relstate.ts equivalent — tested against its own spec directly) ──
 const episodes = [{ id: 101 }, { id: 102 }, { id: 103 }];

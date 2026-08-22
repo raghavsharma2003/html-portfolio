@@ -146,6 +146,13 @@ export const AGE_TIER_SAFETY_OVERRIDE =
 export interface RelBundleInput {
   relState: RelState;
   lastHonorificMoveAt: string | null;
+  // record-vs-stance split (context/rejected.md `rupture-never-closes`):
+  // optional so a caller/fixture that predates this seam is unaffected —
+  // absent, `ruptureStance` treats an open rupture as un-lapsed, which is
+  // exactly today's unconditional behavior. See relstate.ts's own
+  // RuptureStanceInput doc for what each field means.
+  lastRuptureMoveAt?: string | null;
+  warmEpisodesSinceRupture?: number;
   patterns: readonly PatternRow[];
   rituals: readonly RitualRow[];
   homeRegion: string | null;
@@ -388,7 +395,12 @@ export function compile(input: CompileInput): CompiledPrompt {
   // paragraph selector when a real relstate snapshot exists; absent
   // relBundle passes `undefined` through unchanged (byte-identical for all
   // 83 original fixtures, none of which set relBundle).
-  const dimsStage = input.relBundle ? stageForDims(input.relBundle.relState) : undefined;
+  const dimsStage = input.relBundle
+    ? stageForDims(input.relBundle.relState, {
+        lastRuptureMoveAt: input.relBundle.lastRuptureMoveAt,
+        warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture,
+      })
+    : undefined;
   // SPEC-AGENT-LAYER.md §3: the injected agent, defaulting to Meera's
   // module. Every call below that used to reach persona.ts directly now
   // goes through `agent` instead — same functions, same references, when
@@ -511,6 +523,8 @@ export function compile(input: CompileInput): CompiledPrompt {
     if (romanceOk && !input.roomBundle) {
       const t2 = renderRelSnapshot(input.relBundle.relState, {
         lastHonorificMoveAt: input.relBundle.lastHonorificMoveAt,
+        lastRuptureMoveAt: input.relBundle.lastRuptureMoveAt,
+        warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture,
       });
       if (t2.text) tail += `\n\n${t2.text}`;
     }

@@ -1073,6 +1073,16 @@ function bandTrust(trust) {
   if (trust < 0.88) return "strong";
   return "deep";
 }
+var RUPTURE_STANCE_LAPSE_DAYS = 21;
+var RUPTURE_STANCE_LAPSE_WARM_EPISODES = 8;
+function ruptureStance(input, now = /* @__PURE__ */ new Date()) {
+  if (!input.ruptureOpen) return "none";
+  if (!input.lastMoveAt) return "open";
+  const days = (now.getTime() - new Date(input.lastMoveAt).getTime()) / MS_PER_DAY;
+  if (days >= RUPTURE_STANCE_LAPSE_DAYS) return "settled";
+  if (input.warmEpisodesSince >= RUPTURE_STANCE_LAPSE_WARM_EPISODES) return "settled";
+  return "open";
+}
 var TU_MARKERS = [" tu ", " tera ", " teri ", " tere ", " tujhe ", " tujhko "].map((s) => s);
 var AAP_MARKERS = [" aap ", " aapka ", " aapki ", " aapke ", " aapko ", " aapse "].map((s) => s);
 function finish(lines, header) {
@@ -1081,11 +1091,21 @@ ${lines.map((l) => `- ${l}`).join("\n")}` : "";
   const lint = lintBlock(lines.join("\n"));
   return { text, lint: { clean: lint.clean, violations: lint.violations.length } };
 }
-function renderRelSnapshot(state, meta = { lastHonorificMoveAt: null }) {
+function renderRelSnapshot(state, meta = { lastHonorificMoveAt: null }, now = /* @__PURE__ */ new Date()) {
   const lines = [];
   lines.push(`honorific: ${state.honorific} (${honorificAgeLabel(meta.lastHonorificMoveAt)})`);
   lines.push(`trust: ${bandTrust(state.trust)}`);
-  lines.push(`repair: ${state.repair_state}${state.rupture_open ? " (open)" : ""}`);
+  const stance = ruptureStance(
+    {
+      ruptureOpen: state.rupture_open,
+      repairState: state.repair_state,
+      lastMoveAt: meta.lastRuptureMoveAt ?? null,
+      warmEpisodesSince: meta.warmEpisodesSinceRupture ?? 0
+    },
+    now
+  );
+  const repairLabel = stance === "open" ? `${state.repair_state} (open)` : stance === "settled" ? `${state.repair_state} (settled ${honorificAgeLabel(meta.lastRuptureMoveAt ?? null)}, not currently held)` : state.repair_state;
+  lines.push(`repair: ${repairLabel}`);
   const csLabel = state.cs_on_stress === "retreat_l2" ? "retreats toward english under stress" : state.cs_on_stress === "intensify_l1" ? "leans more hindi under stress" : "direction unclear";
   const csBase = state.cs_ratio === null ? "baseline unknown" : `baseline ${bandCsRatio(state.cs_ratio)}`;
   lines.push(`code-switch: ${csBase}, ${csLabel}`);
@@ -1130,8 +1150,17 @@ function capToRenderResult(result, budget) {
   if (result.text.length <= budget) return result;
   return { ...result, lint: { ...result.lint, violations: result.lint.violations + 1 } };
 }
-function stageForDims(state) {
-  if (state.rupture_open) return state.trust < 0.45 ? "new" : "warming";
+function stageForDims(state, meta = {}, now = /* @__PURE__ */ new Date()) {
+  const stance = ruptureStance(
+    {
+      ruptureOpen: state.rupture_open,
+      repairState: state.repair_state,
+      lastMoveAt: meta.lastRuptureMoveAt ?? null,
+      warmEpisodesSince: meta.warmEpisodesSinceRupture ?? 0
+    },
+    now
+  );
+  if (stance === "open") return state.trust < 0.45 ? "new" : "warming";
   if (state.trust < 0.2) return "new";
   if (state.trust < 0.45) return "warming";
   if (state.trust < 0.7) return "settled";
@@ -2581,7 +2610,10 @@ function renderHerCommitments(rows, nowMs) {
 ${kept.join("\n")}`;
 }
 function compile(input) {
-  const dimsStage = input.relBundle ? stageForDims(input.relBundle.relState) : void 0;
+  const dimsStage = input.relBundle ? stageForDims(input.relBundle.relState, {
+    lastRuptureMoveAt: input.relBundle.lastRuptureMoveAt,
+    warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture
+  }) : void 0;
   const agent = input.agent ?? DEFAULT_AGENT;
   const parts = agent.buildSystemPromptParts(input.user, input.messageCount, input.medium, dimsStage);
   let core = parts.core + (input.mode === "call" ? agent.buildSpeechStyle(input.voiceEngine) : "");
@@ -2617,7 +2649,9 @@ function compile(input) {
   if (input.relBundle) {
     if (romanceOk && !input.roomBundle) {
       const t2 = renderRelSnapshot(input.relBundle.relState, {
-        lastHonorificMoveAt: input.relBundle.lastHonorificMoveAt
+        lastHonorificMoveAt: input.relBundle.lastHonorificMoveAt,
+        lastRuptureMoveAt: input.relBundle.lastRuptureMoveAt,
+        warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture
       });
       if (t2.text) tail += `
 
@@ -2778,6 +2812,7 @@ var ENDPOINT2 = `${BASE4}/api/trace`;
 
 // src/engine/memory.ts
 var BASE5 = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+var CHAT_TAIL_WINDOW_MS = 30 * 60 * 1e3;
 
 // src/engine/inner.ts
 var GAP_ENTRY_MS = 45 * 6e4;

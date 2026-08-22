@@ -220,9 +220,20 @@ async function fetchRelBundle(person, agentId = MEERA_AGENT_ID) {
   ).catch(() => []);
   if (!stateRows.length) return null;
   const s = stateRows[0];
-  const [honorificRow, patterns, rituals, currency, profile, weEpisodes, phrases] = await Promise.all([
+  const [honorificRow, ruptureMoveRow, patterns, rituals, currency, profile, weEpisodes, phrases] = await Promise.all([
     q(
       `select e.at from vy_rel_event e where e.person_id = $1 and e.dim = 'honorific'
+        ${agentScopePredicate("e", { agentId: "$2" })}
+        order by e.at desc limit 1`,
+      [person, agentId],
+    ).catch(() => []),
+    // WS-RELSTATE record-vs-stance split (context/rejected.md
+    // `rupture-never-closes`): the timestamp relstate.ts's `ruptureStance`
+    // lapses FROM — most recent dim in ('rupture','repair'), whichever
+    // moved last. Query only, never a write; the record itself is
+    // untouched.
+    q(
+      `select e.at from vy_rel_event e where e.person_id = $1 and e.dim in ('rupture', 'repair')
         ${agentScopePredicate("e", { agentId: "$2" })}
         order by e.at desc limit 1`,
       [person, agentId],
@@ -272,6 +283,21 @@ async function fetchRelBundle(person, agentId = MEERA_AGENT_ID) {
     ).catch(() => []),
   ]);
 
+  const lastRuptureMoveAt = ruptureMoveRow[0]?.at ?? null;
+  // warmEpisodesSince (relstate.ts's `RuptureStanceInput.warmEpisodesSince`)
+  // — episodes since the record last moved. Only worth a round trip when a
+  // rupture is actually open; nothing reads this value otherwise.
+  let warmEpisodesSinceRupture = 0;
+  if (s.rupture_open && lastRuptureMoveAt) {
+    const warmRows = await q(
+      `select count(*)::int as c from vy_episode e
+        where e.person_id = $1 and e.started_at > $2::timestamptz
+        ${agentScopePredicate("e", { agentId: "$3" })}`,
+      [person, lastRuptureMoveAt, agentId],
+    ).catch(() => []);
+    warmEpisodesSinceRupture = Number(warmRows[0]?.c ?? 0);
+  }
+
   return {
     relState: {
       person_id: s.person_id,
@@ -287,6 +313,8 @@ async function fetchRelBundle(person, agentId = MEERA_AGENT_ID) {
       updated_at: s.updated_at,
     },
     lastHonorificMoveAt: honorificRow[0]?.at ?? null,
+    lastRuptureMoveAt,
+    warmEpisodesSinceRupture,
     patterns: patterns.map((p) => ({
       id: Number(p.id),
       person_id: p.person_id,
@@ -740,6 +768,9 @@ function relBundleShape(b) {
     currency_n: n(b.currency),
     home_region: Boolean(b.homeRegion),
     honorific_move_at: b.lastHonorificMoveAt ? 1 : 0,
+    // WS-RELSTATE record-vs-stance split (rejected.md `rupture-never-closes`)
+    rupture_move_at: b.lastRuptureMoveAt ? 1 : 0,
+    warm_episodes_since_rupture: Number(b.warmEpisodesSinceRupture ?? 0),
   };
 }
 

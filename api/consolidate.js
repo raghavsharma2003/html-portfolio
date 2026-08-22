@@ -826,14 +826,27 @@ async function deriveRelEventsForPerson(person, { dryRun = false, agentId = MEER
   if (!episodes.length) return rep;
 
   const stateRows = await q(
-    `select r.honorific, r.rupture_open from vy_rel_state r where r.person_id = $1
+    `select r.honorific, r.rupture_open, r.repair_state from vy_rel_state r where r.person_id = $1
       ${agentScopePredicate("r", { agentId: "$2" })}`,
     [person, agentId],
   ).catch(() => []);
   // no vy_rel_state row yet: schema default (§2.4) — matches
   // relstate.ts's initialRelState() exactly
   const current = stateRows[0]?.honorific ?? "tum";
-  const ruptureOpen = Boolean(stateRows[0]?.rupture_open ?? false);
+  const ruptureOpenRaw = Boolean(stateRows[0]?.rupture_open ?? false);
+  const repairState = stateRows[0]?.repair_state ?? "none";
+  // record-vs-stance split (rejected.md `rupture-never-closes`): honorificShift's
+  // instant-regress/re-advance-hold is meant to react to whether the rupture
+  // is STILL being actively held, not to a flag that (before this fix) never
+  // cleared on its own — see relstate.ts's honorificShift doc comment.
+  const ruptureStanceLapsed = await ruptureStanceLapsedFor(
+    person,
+    agentId,
+    ruptureOpenRaw,
+    repairState,
+    episodes[0].started_at,
+  );
+  const ruptureOpen = ruptureOpenRaw && !ruptureStanceLapsed;
 
   const evidence = [];
   for (const ep of episodes) {
@@ -971,12 +984,19 @@ export function moveTrust(current, rawDelta, lastMoveAt, now = new Date()) {
 // explicit affirmative FROM THE USER's own turn" — here the conservative
 // extraction prompt below plays both roles, gated by the same "CLEAR
 // evidence only, else present:false" instruction every prompt in this
-// section carries. The state-machine math itself is untouched: same four
-// branches, same priority order (regress-on-re-rupture checked before any
-// repair advance, so a fresh rupture arriving mid-repair cannot be shadowed).
-export function ruptureRepairShift(state, conflictSignal, theirRepairSignal) {
+// section carries. The state-machine math itself is untouched: same five
+// branches (record-vs-stance split, context/rejected.md
+// `rupture-never-closes`, added a branch — see relstate.ts's own comment on
+// it), same priority order (regress-on-re-rupture checked before any repair
+// advance, so a fresh rupture arriving mid-repair cannot be shadowed).
+// `stanceLapsed` defaults to false, same as relstate.ts, so every existing
+// call is byte-identical unless a caller opts in.
+export function ruptureRepairShift(state, conflictSignal, theirRepairSignal, stanceLapsed = false) {
   if (conflictSignal && !state.ruptureOpen) {
     return { ruptureOpen: true, repairState: "open", dim: "rupture", direction: "advance", note: "conflict-shaped episode: rupture opens" };
+  }
+  if (conflictSignal && state.ruptureOpen && state.repairState === "open" && stanceLapsed) {
+    return { ruptureOpen: true, repairState: "open", dim: "rupture", direction: "advance", note: "conflict-shaped episode after lapsed stance: rupture re-opens" };
   }
   if (conflictSignal && state.ruptureOpen && state.repairState !== "open") {
     return { ruptureOpen: true, repairState: "open", dim: "repair", direction: "regress", note: "re-rupture during repair: repair regresses to open" };
@@ -988,6 +1008,47 @@ export function ruptureRepairShift(state, conflictSignal, theirRepairSignal) {
     return { ruptureOpen: false, repairState: "repaired", dim: "repair", direction: "advance", note: "their signal sustained: repaired, rupture closes" };
   }
   return null;
+}
+
+// mirrors relstate.ts's RUPTURE_STANCE_LAPSE_DAYS/RUPTURE_STANCE_LAPSE_WARM_EPISODES/
+// ruptureStance exactly — the record-vs-stance split itself (see that
+// file's section header comment for the full design). Never reads or
+// writes vy_rel_event; pure function of already-fetched inputs.
+const RUPTURE_STANCE_LAPSE_DAYS = 21;
+const RUPTURE_STANCE_LAPSE_WARM_EPISODES = 8;
+export function ruptureStance(input, now = new Date()) {
+  if (!input.ruptureOpen) return "none";
+  if (!input.lastMoveAt) return "open";
+  const days = (now.getTime() - new Date(input.lastMoveAt).getTime()) / MS_PER_DAY;
+  if (days >= RUPTURE_STANCE_LAPSE_DAYS) return "settled";
+  if (input.warmEpisodesSince >= RUPTURE_STANCE_LAPSE_WARM_EPISODES) return "settled";
+  return "open";
+}
+
+/** Shared by both derivation passes below: the timestamp the STANCE lapses
+ *  FROM (most recent dim in ('rupture','repair')) and the warm-episode
+ *  count since it, bounded to episodes strictly before `beforeTs` so a
+ *  batch's own fresh conflict episode never inflates the very count that
+ *  decides whether the PREVIOUS rupture had already lapsed. Only queries
+ *  when a rupture is actually open — nothing reads this otherwise. */
+async function ruptureStanceLapsedFor(person, agentId, ruptureOpen, repairState, beforeTs) {
+  if (!ruptureOpen) return false;
+  const moveRows = await q(
+    `select e.at from vy_rel_event e where e.person_id = $1 and e.dim in ('rupture', 'repair')
+      ${agentScopePredicate("e", { agentId: "$2" })}
+      order by e.at desc limit 1`,
+    [person, agentId],
+  ).catch(() => []);
+  const lastMoveAt = moveRows[0]?.at ?? null;
+  if (!lastMoveAt) return false;
+  const warmRows = await q(
+    `select count(*)::int as c from vy_episode e
+      where e.person_id = $1 and e.started_at > $2::timestamptz and e.started_at < $3::timestamptz
+      ${agentScopePredicate("e", { agentId: "$4" })}`,
+    [person, lastMoveAt, beforeTs, agentId],
+  ).catch(() => []);
+  const warmEpisodesSince = Number(warmRows[0]?.c ?? 0);
+  return ruptureStance({ ruptureOpen, repairState, lastMoveAt, warmEpisodesSince }) === "settled";
 }
 
 // Fixed, ANCHORED nightly trust step — never an LLM-self-rated magnitude
@@ -1106,7 +1167,15 @@ async function deriveTrustRepairForPerson(person, { dryRun = false, agentId = ME
   const conflictSignal = Boolean(parsed?.rupture?.present);
   const repairSignal = Boolean(parsed?.repair_signal?.present);
   if (conflictSignal || repairSignal) {
-    const move = ruptureRepairShift({ ruptureOpen, repairState }, conflictSignal, repairSignal);
+    // record-vs-stance split (rejected.md `rupture-never-closes`): lets a
+    // fresh conflict re-open a rupture whose repair_state got stuck at
+    // "open" forever (no repair signal ever arrived) once the STANCE has
+    // already lapsed by time/warm-interaction — see ruptureRepairShift's
+    // own comment on the branch this feeds.
+    const stanceLapsed = conflictSignal
+      ? await ruptureStanceLapsedFor(person, agentId, ruptureOpen, repairState, episodes[0].started_at)
+      : false;
+    const move = ruptureRepairShift({ ruptureOpen, repairState }, conflictSignal, repairSignal, stanceLapsed);
     if (move) {
       const citeSource = move.dim === "rupture" || move.direction === "regress" ? parsed?.rupture?.citations : parsed?.repair_signal?.citations;
       const citations = mapEpisodeCitations(citeSource, episodes);
