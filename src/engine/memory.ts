@@ -74,7 +74,29 @@ export async function rememberFrom(
   const recent = msgs
     .filter((m) => m.kind === "text")
     .slice(-16)
-    .map((m) => ({ role: m.from === "me" ? "me" : "her", content: m.text }));
+    // `channel` rides along for ONE reason and it is not telemetry: the live
+    // call lane logs her spoken turns with no post-generation gate
+    // (useCallEngine's onHerText → log(), no guardReply), so a shared memory
+    // she invents ALOUD used to be extracted as a graph node and thereafter
+    // supported the same claim on the chat lane, where honesty.ts's family 4
+    // would otherwise have caught it. `allowedFrom`/`hisVocabulary` both
+    // refuse her own past output for exactly this reason — "the provenance
+    // chain has to terminate at something that is not her" — and until now
+    // the extraction window did not. The server needs the channel to tell an
+    // ungated spoken turn from a gated typed one; it cannot be re-derived
+    // there (meera_log's last row is one turn, not sixteen). See
+    // docs/audit/2026-08-22-honesty.md, "her live-lane turns are logged
+    // ungated and feed sharedVocab", and api/memory.js's `nonLaunderedNodes`.
+    //
+    // NOT a filter on this side. Her call turns still go up: `self` and her
+    // carried interior are DERIVED from what she said about her own life, and
+    // dropping her spoken turns here would starve them on every call. The
+    // laundering predicate is on the server, over the node list only.
+    .map((m) => ({
+      role: m.from === "me" ? "me" : "her",
+      channel: m.channel === "call" ? "call" : "chat",
+      content: m.text,
+    }));
   if (recent.length < 2) return { self: [], inner: null };
   const done = diagTimer("chat", "remember_pass", { turns: recent.length, wants: wants.length });
   try {
@@ -473,6 +495,129 @@ export function seedDayOneConsolidation(device: string) {
 export function seedCurrencyChips(device: string, chips: string[]) {
   if (!device || !chips.length) return;
   post({ op: "seed_currency", device, chips }).catch(() => {});
+}
+
+// ── #113: a finished activity becomes a graph episode ──────────────────────
+//
+// THE GAP. `activityOf` keeps a closed session in the present moment for
+// RECENT_END_MS (two hours), and after that it returns null and the game is
+// gone — not demoted to a memory, gone. "we played chess yesterday and you
+// lost" is a thing a person remembers, and `state/game.ts` says so at the
+// `closedAt` field ("the played list is what the memory layer will read"),
+// but nothing ever read it. Meanwhile the ONLY route into the graph is
+// `rememberFrom`, whose window is `kind === "text"` chat turns — a game
+// generates no turns at all, so a session they spent forty minutes on left
+// literally no trace once the afterglow expired.
+//
+// RELATIONALOS BOUNDARY (docs/RELATIONALOS.md's test: would a different
+// personality on a different surface need this unchanged?). The EPISODE SHAPE
+// is OS and lives here: it is built from `ActivityState` + the session's own
+// timestamps and knows nothing about chess, cards or boards, so the next
+// activity is an adapter and zero lines in this file. The FIRING POINT is the
+// surface's — App.tsx's reconciler, the one component always mounted, which
+// is already where `closedAt` is written.
+//
+// The shape is deliberately a SUMMARY, not a replay: "a game of chess
+// together on 22 aug — she won, by checkmate" is what a person carries a week
+// later. A move list is not a memory, it is a scoresheet.
+
+/** What the surface hands over when a session closes. Kind-agnostic on
+ *  purpose — `kind`/`facts` come straight off `ActivityState`, the two
+ *  timestamps straight off the session row. */
+export interface FinishedActivity {
+  kind: string;
+  /** `ActivityState.facts` as they stood at the close. */
+  facts: readonly string[];
+  /** the session's OWN start — the idempotence key, never the close time */
+  startedAt: number;
+  closedAt: number;
+}
+
+/**
+ * Rows that are true about the MOMENT and false about the memory.
+ *
+ * Shape-matched, not kind-matched, which is what keeps this OS: any adapter
+ * that emits a whose-turn-is-it row, a live check warning, a card currently on
+ * screen or a not-started marker gets it dropped from its episode for free.
+ * The alternative — a per-kind list of which facts count as outcome facts — is
+ * the fork `activity.ts` exists to prevent, and it would leave "it is her
+ * move" in the permanent record of a game that ended three weeks ago.
+ */
+export const MOMENT_ROW_RE =
+  /^(it is (her|his) move|(she|he) is in check|the question: |just started|the game has just started)/i;
+
+/** Longest an episode summary may be. Whole facts are dropped from the END to
+ *  fit — never sliced. `silent-truncation` is a law in this repo for the
+ *  reason `renderActivity` states: truncation eats the end, and a sliced
+ *  block is a lie. */
+export const EPISODE_SUMMARY_MAX = 180;
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+/** Lowercase, local, no year: "22 aug". Telegraphic like every other row in
+ *  the record — a capital-start, terminal-punctuation sentence is a line she
+ *  recites (`recited-prompt`). Hand-rolled rather than toLocaleDateString so
+ *  the string is byte-identical in a browser, in Node and in an eval. */
+export function episodeDateLabel(atMs: number): string {
+  const d = new Date(atMs);
+  if (!Number.isFinite(d.getTime())) return "";
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+
+/**
+ * The episode line for a finished session. Pure — no clock, no network — so
+ * the shape is testable and identical on every surface.
+ *
+ * "together" is not decoration. `api/consolidate.js`'s WE_TOKEN_RE is what
+ * classifies an episode as `participation = 'we'`, which is what makes it
+ * reachable as a we-callback and what makes it legitimate support for a
+ * shared-past claim. An activity is shared BY CONSTRUCTION — that is the
+ * definition of the layer — so the summary says so in the vocabulary the
+ * classifier already reads, instead of asserting the classification
+ * separately and hoping the two never drift.
+ */
+export function activityEpisodeSummary(a: FinishedActivity, label: string): string {
+  const stem = `${label} together${a.closedAt ? ` on ${episodeDateLabel(a.closedAt)}` : ""}`;
+  const rows = a.facts
+    .map((f) => String(f || "").trim())
+    .filter((f) => f && !MOMENT_ROW_RE.test(f));
+  let out = stem;
+  for (const row of rows) {
+    const next = out === stem ? `${stem} — ${row}` : `${out}; ${row}`;
+    if (next.length > EPISODE_SUMMARY_MAX) break;
+    out = next;
+  }
+  return out;
+}
+
+/**
+ * Fire-and-forget. A failed POST must never touch game state, which is why
+ * nothing here returns anything, nothing here throws, and the caller does not
+ * await: the reconciler's job is to close the session correctly, and a memory
+ * write that could fail that would be a worse bug than the one it fixes.
+ *
+ * Idempotence is SERVER-SIDE, keyed on the session's `startedAt` — see
+ * api/memory.js's `opActivity`. It has to be: two synced devices both run the
+ * reconciler over the same synced session, and a client-side guard gives each
+ * of them a private opinion about whether the write already happened.
+ */
+export function logFinishedActivity(device: string, a: FinishedActivity, label: string) {
+  if (!device || !a || !a.kind || !label) return;
+  if (!Number.isFinite(a.startedAt) || !Number.isFinite(a.closedAt)) return;
+  const summary = activityEpisodeSummary(a, label);
+  if (!summary) return;
+  try {
+    post({
+      op: "activity",
+      device,
+      kind: a.kind,
+      startedAt: a.startedAt,
+      closedAt: a.closedAt,
+      summary,
+    }).catch(() => {});
+  } catch {
+    /* never let a memory write reach the reconciler */
+  }
 }
 
 // GAP 4 (WS-FELT) — closeness card. A dedicated read of the same relstate

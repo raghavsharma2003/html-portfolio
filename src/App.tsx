@@ -14,7 +14,9 @@ import TicTacToeActivity from "./components/TicTacToeActivity";
 import { CloseIcon } from "./components/icons";
 import { applyTheme, watchSystemTheme } from "./engine/theme";
 import { mergeStates } from "./state/merge";
-import { OPEN_STALE_MS } from "./state/game";
+import { OPEN_STALE_MS, activityOf } from "./state/game";
+import { LABEL } from "./engine/activity";
+import { logFinishedActivity } from "./engine/memory";
 import { useMoments } from "./components/useMoments";
 import Celebration from "./components/Celebration";
 import UsScreen from "./components/UsScreen";
@@ -140,6 +142,48 @@ export default function App() {
     );
     return () => clearTimeout(t);
   }, [state.game, setState]);
+
+  // ── #113: THE RECONCILER'S EMISSION — a closed session becomes a memory ──
+  // `activityOf` drops a finished game after RECENT_END_MS (two hours), and
+  // after that it is gone rather than remembered. This is the hand-off to the
+  // memory layer, and it is a SEPARATE effect from the close above for two
+  // reasons: a `setState` updater must stay pure (React may call one twice),
+  // and `closedAt` is not written only by the reconciler — ChessActivity's
+  // "End game" and the WYR sheet write it too, so watching the FIELD catches
+  // every close rather than only the ones this file performs.
+  //
+  // Fire-and-forget, hard: nothing is awaited, nothing is read back, and the
+  // POST cannot reach `state.game`. The ref is a local courtesy against
+  // re-fires within one mount (StrictMode, a re-render, the tally landing a
+  // tick later); real idempotence is server-side and keyed on the session's
+  // startedAt, because two synced devices each hold their own copy of this
+  // ref and only the server sees both.
+  const emittedActivity = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const g = state.game;
+    if (!g?.closedAt || !state.deviceId) return;
+    const key = `${g.kind}:${g.startedAt}`;
+    if (emittedActivity.current.has(key)) return;
+    // THE SINGLE DERIVATION, reused rather than re-derived (`activityOf`'s own
+    // note: two lanes deriving the same state separately is how a rule gets
+    // silently lost). `closedAt + 1` is a real argument rather than a trick:
+    // it asks what this activity looked like the instant it closed, which is
+    // exactly the state the memory should hold, and it makes the answer
+    // independent of how long ago that was — a session closed on another
+    // device and synced here three hours later emits the same episode it
+    // would have emitted at the table.
+    const a = activityOf(g, g.closedAt + 1);
+    if (!a || !a.facts.length) return;
+    emittedActivity.current.add(key);
+    logFinishedActivity(
+      state.deviceId,
+      { kind: a.kind, facts: a.facts, startedAt: g.startedAt, closedAt: g.closedAt },
+      // one vocabulary for what an activity is CALLED — the same table the
+      // tail block and the pickup line render from
+      LABEL[a.kind],
+    );
+  }, [state.game, state.deviceId]);
+
   // Moments detection runs here, at the one place that owns AppState. It is
   // suppressed while a call is coming up (she is mid-pickup) — the hook's
   // own grace handles the first seconds after connect.

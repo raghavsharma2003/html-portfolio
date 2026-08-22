@@ -2613,7 +2613,7 @@ function compile(input) {
   if (input.watching) tail += agent.WATCH_MODE_NOTE;
   _track("watch");
   const hasTurn = (input.latestUserText || "").trim().length > 0;
-  const gate = input.relBundle ? hasTurn ? momentGate(input.latestUserText || "", input.gapSinceLastMs || 0, input.relBundle.phraseLedger || []) : { moment: "none", pulled: false } : null;
+  const gate = hasTurn ? momentGate(input.latestUserText || "", input.gapSinceLastMs || 0, input.relBundle?.phraseLedger || []) : { moment: "none", pulled: false };
   if (input.relBundle) {
     if (romanceOk && !input.roomBundle) {
       const t2 = renderRelSnapshot(input.relBundle.relState, {

@@ -832,6 +832,92 @@ async function opSeedCurrency(device, body) {
   return { ok: true, written, skipped };
 }
 
+// ── THE LAUNDERING WINDOW ──────────────────────────────────────────────────
+//
+// docs/audit/2026-08-22-honesty.md, MEDIUM: "Her live-lane turns are logged
+// ungated and feed sharedVocab, so the memory graph is not the
+// 'provenance-clean by construction' source family 4 assumes."
+//
+// The chain the audit traced, hop by hop: `useCallEngine.ts:723` logs her
+// spoken turns with no `guardReply` (the live speech-to-speech lane emits
+// audio and has no string to inspect before it is heard) → those turns enter
+// this function's 16-turn window → the extractor below is instructed to
+// record "what the TWO of them share" → the node it writes comes back through
+// opRecall as `memories` → `brain.ts:1130` feeds `memories` to
+// `sharedVocabulary`, which licenses every token in it. So a shared memory she
+// INVENTED aloud on a call became permanent support for the same claim typed
+// on the chat lane, where the gate would otherwise have caught it.
+//
+// `honesty.ts` states the rule this restores, twice, at `allowedFrom` and at
+// `hisVocabulary`: "one fabrication would otherwise launder itself into
+// permanence — the provenance chain has to terminate at something that is not
+// her." Family 4's support set was the one place it did not.
+//
+// WHY A PREDICATE AND NOT A PROMPT. The extractor could be told to ignore her
+// turns; docs/RELATIONALOS.md measures what that is worth — "an instruction
+// leaked 57–98% of the time; a SQL predicate leaked 0 in 31,122." This is a
+// filter over the extractor's OUTPUT, so a compliant extractor and a
+// disobedient one produce the same rows.
+//
+// WHY NOT SIMPLY DROP HER CALL TURNS FROM THE WINDOW (the audit's option (a),
+// first half). Because the SAME window is the only source of `self` (what she
+// said about her OWN life) and of her carried interior, and both are legit
+// products of her own speech — `self` exists precisely so she does not
+// re-invent her flatmate two turns later. Starving them on every call to fix
+// the shared-record leak would trade one continuity defect for another. Her
+// life stays hers; what she may not do is hand herself a shared past.
+//
+// THE PREDICATE, stated exactly: a node is dropped iff it is lexically
+// anchored in her ungated spoken turns AND in nothing else in the window.
+// Both halves matter. A node that shares a word with HIS turns (any channel —
+// his words are ground truth, he said them) or with her TYPED turns (the chat
+// lane runs guardReply over her output before it is ever logged) is kept. A
+// node that matches neither side is also kept: an extractor abstraction with
+// no literal overlap anywhere ("career change" from "job chhod raha hu") is
+// not evidence of laundering, and dropping it would eat real memories to
+// chase a shape this predicate cannot see.
+
+const LAUNDER_TERM_LEN = 3; // matches honesty.ts's sharedClaimTokens, not claimTokens
+
+/** Content words, ≥3 chars, latin or devanagari. Deliberately the SAME floor
+ *  family 4's own claim tokenizer uses: this predicate exists to govern what
+ *  can support that family, and a support set tokenized differently from the
+ *  claims is the mismatch the audit's tokenizer finding is about. */
+export function contentTokens(t) {
+  return (String(t || "").toLowerCase().match(/[a-zऀ-ॿ]+/g) || []).filter(
+    (w) => w.length >= LAUNDER_TERM_LEN,
+  );
+}
+
+/** `{ kept, dropped }` — never mutates, never throws, and returns every node
+ *  unchanged when the window carries no ungated spoken turn of hers, which is
+ *  every chat-only stretch (i.e. almost all of them). */
+export function nonLaunderedNodes(nodes, recent) {
+  const list = Array.isArray(nodes) ? nodes : [];
+  const turns = Array.isArray(recent) ? recent : [];
+  // HER + spoken. `channel` arrives from src/engine/memory.ts's rememberFrom;
+  // a client that does not send it (an older build, another surface) yields no
+  // ungated turns and therefore today's exact behaviour — the fix is additive
+  // and can never make an existing caller lose a memory.
+  const ungated = new Set();
+  const gated = new Set();
+  for (const t of turns) {
+    const spokenByHer = t && t.role !== "me" && t.channel === "call";
+    const into = spokenByHer ? ungated : gated;
+    for (const w of contentTokens(t?.content)) into.add(w);
+  }
+  if (!ungated.size) return { kept: list, dropped: [] };
+  const kept = [];
+  const dropped = [];
+  for (const n of list) {
+    const toks = contentTokens(`${n?.name || ""} ${n?.summary || ""}`);
+    const hers = toks.some((w) => ungated.has(w));
+    const elsewhere = toks.some((w) => gated.has(w));
+    (hers && !elsewhere ? dropped : kept).push(n);
+  }
+  return { kept, dropped };
+}
+
 async function opRemember(device, body) {
   const recent = (Array.isArray(body.recent) ? body.recent : []).slice(-16);
   if (recent.length < 2) return { ok: true, extracted: 0 };
@@ -955,6 +1041,24 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
     }));
   if (!nodes.length) return { ok: true, extracted: 0, self, ...interior };
 
+  // THE LAUNDERING GUARD, before anything is written and before the
+  // re-derivation guard below — a node she alone spoke into existence on an
+  // ungated call must not reach the graph at all, not be written and cleaned
+  // up afterwards. See nonLaunderedNodes() for the predicate and the audit
+  // finding it closes. `laundered` is reported so the rate is observable in
+  // the response rather than being a silent subtraction.
+  const { kept: sourced, dropped: laundered } = nonLaunderedNodes(nodes, recent);
+  if (laundered.length) {
+    // names only, and only server-side logs — never a diag row, which would
+    // outlive the turn it describes
+    console.warn(
+      `[remember] dropped ${laundered.length} her-sourced live-turn node(s): ${laundered
+        .map((n) => n.name)
+        .join(", ")}`,
+    );
+  }
+  if (!sourced.length) return { ok: true, extracted: 0, laundered: laundered.length, self, ...interior };
+
   // THE RE-DERIVATION GUARD. This pass runs over the transcript still on
   // their screen, so a thing deleted last turn is sitting right there to be
   // extracted again. Filtering happens BEFORE the upsert — not by deleting
@@ -967,9 +1071,9 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
   ).catch(() => []);
   const suppressed = (Array.isArray(forgotten) ? forgotten : []).map((r) => termRe(String(r.term)));
   const kept = suppressed.length
-    ? nodes.filter((n) => !suppressed.some((rx) => rx.test(n.name) || rx.test(n.summary)))
-    : nodes;
-  if (!kept.length) return { ok: true, extracted: 0, self, ...interior };
+    ? sourced.filter((n) => !suppressed.some((rx) => rx.test(n.name) || rx.test(n.summary)))
+    : sourced;
+  if (!kept.length) return { ok: true, extracted: 0, laundered: laundered.length, self, ...interior };
 
   // split into existing (bump) vs new (insert)
   const existing = await q(
@@ -1128,7 +1232,161 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
     // state above, which is why this whole block is fenced off from it
   }
 
-  return { ok: true, extracted: kept.length, self, ...interior };
+  return { ok: true, extracted: kept.length, laundered: laundered.length, self, ...interior };
+}
+
+// ── #113: a finished activity becomes a graph episode ──────────────────────
+//
+// THE GAP. `src/state/game.ts`'s RECENT_END_MS keeps a closed game in the
+// present moment for two hours and then drops it, and its own comment says
+// what was supposed to happen next — "the played list is what the memory
+// layer will read". Nothing read it. A game generates no meera_log turns, so
+// opRemember's extraction window (chat text, 16 turns) never saw one either:
+// forty minutes of chess left no trace of any kind once the afterglow expired.
+//
+// LEAST NEW MACHINERY, deliberately. No new endpoint (an op on the endpoint
+// the client already talks to), no new table, no migration, no model call.
+// The write is the SAME two-row shape recordPhotoMemory() already uses for the
+// other structured, non-conversational thing that has to become a memory — an
+// episode plus one fact citing it, with an embedding so semantic recall can
+// find it — and for the same stated reason: the nightly consolidator derives
+// facts FROM meera_log, and there is nothing in meera_log for it to derive
+// this from. That is also why the rows are written FINAL rather than
+// provisional: `provisional` means "a better pass will supersede this", and
+// for an activity no such pass exists or can exist. A permanently-provisional
+// row would keep the person in findEligiblePersons' queue forever, promising
+// a finalize that can never come.
+//
+// WHAT IS TRUSTED FROM THE CLIENT, and what is not. The summary is composed
+// client-side by src/engine/memory.ts's `activityEpisodeSummary` because that
+// is where the OS's one activity vocabulary lives (LABEL, ActivityState); the
+// server has no adapters and must not grow a second copy of them. What the
+// server owns is everything that is a rule rather than a rendering: the
+// identity of the person, the idempotence key, the suppression check, the
+// bounds on every field, and the fact that this may only ever write about the
+// device that asked.
+
+/** Kinds are OS-side identifiers (chess, wyr, ttt, watch, whatever lands
+ *  next), so this validates the SHAPE and takes no opinion on the membership —
+ *  a server-side allowlist would have to be edited for every new activity,
+ *  which is exactly the per-kind seam activity.ts exists to remove. */
+const ACTIVITY_KIND_RE = /^[a-z][a-z0-9_]{1,15}$/;
+
+/**
+ * THE IDEMPOTENCE KEY. The session's own `startedAt`, never the close time:
+ * two synced devices agree on when a session began (it is a synced field),
+ * they do not agree on the millisecond either of them noticed it close, and
+ * the reconciler runs on both. A `vy_fact` name is unique per person by
+ * lookup here, the same mechanism recordPhotoMemory uses for a double-tapped
+ * describe call.
+ */
+export function activityFactName(kind, startedAt) {
+  return `activity:${kind}:${Math.floor(Number(startedAt))}`.slice(0, 60);
+}
+
+async function opActivity(device, body) {
+  const kind = String(body.kind || "");
+  const startedAt = Number(body.startedAt);
+  const closedAt = Number(body.closedAt);
+  const summary = String(body.summary || "").trim().replace(/\s+/g, " ").slice(0, 200);
+  if (!ACTIVITY_KIND_RE.test(kind)) return { ok: false, error: "bad kind" };
+  if (!Number.isFinite(startedAt) || startedAt <= 0) return { ok: false, error: "bad session" };
+  if (!Number.isFinite(closedAt) || closedAt < startedAt) return { ok: false, error: "bad session" };
+  if (summary.length < 8) return { ok: true, wrote: false };
+
+  try {
+    const agentId = MEERA_AGENT_ID;
+    const person = await personIdFor(device);
+    const name = activityFactName(kind, startedAt);
+
+    // THE IDEMPOTENCE CHECK. Two devices, a retry, a remount, a session that
+    // syncs back after the write — all land here and all return the same
+    // "already recorded".
+    const already = await q(
+      `select 1 from vy_fact f where f.person_id = $1 and f.name = $2
+        ${agentScopePredicate("f", { agentId: "$3" })} limit 1`,
+      [person, name, agentId],
+    ).catch(() => []);
+    if (already.length) return { ok: true, wrote: false, duplicate: true };
+
+    // THE RE-DERIVATION GUARD, the same one opRemember runs and for the same
+    // reason: a closed session sits in synced app state indefinitely, so
+    // "bhool ja wo chess wali baat" would be undone by the next reconciler
+    // pass on any device. A forget has to survive the thing that produced it.
+    const forgotten = await q(
+      `select term from meera_forget where device_id = $1 order by at desc limit ${FORGET_TERMS_CAP}`,
+      [device],
+    ).catch(() => []);
+    const suppressed = (Array.isArray(forgotten) ? forgotten : []).map((r) => termRe(String(r.term)));
+    if (suppressed.some((rx) => rx.test(summary) || rx.test(kind))) {
+      return { ok: true, wrote: false, suppressed: true };
+    }
+
+    // participation 'we' BY CONSTRUCTION. An activity is the one thing in this
+    // system that is definitionally shared — activity.ts's whole subject is
+    // "what the two of them are DOING together" — so this is not a guess about
+    // the summary's wording the way consolidate.js's WE_TOKEN_RE classifier
+    // has to be for prose. The summary satisfies that regex anyway (it carries
+    // "together"), so the nightly backfill agrees with this row rather than
+    // fighting it.
+    //
+    // log_from/log_to stay NULL: they are a meera_log citation span and an
+    // activity has no turns. That is also what keeps consolidate.js's
+    // supersede pass — which requires both to be non-null — from ever
+    // mistaking this for a provisional row it should replace.
+    const ep = await q(
+      `insert into vy_episode
+         (agent_id, person_id, device_id, channel, participation, started_at, ended_at,
+          boundary_reason, summary, provisional)
+       values (${agentValue("$8")},$1,$2,$3,'we',$4,$5,$6,$7,false)
+       returning id`,
+      [
+        person,
+        device,
+        "chat",
+        new Date(startedAt).toISOString(),
+        new Date(closedAt).toISOString(),
+        "activity",
+        summary,
+        agentId,
+      ],
+    ).catch(() => []);
+    if (!ep[0]) return { ok: false, wrote: false };
+    const episodeId = ep[0].id;
+
+    // The fact is what makes it RETRIEVABLE — episodes surface through the rel
+    // bundle, facts through keyword and semantic recall, and a memory only one
+    // of those two can reach is a memory she has on paper.
+    const ins = await q(
+      `insert into vy_fact
+         (agent_id, person_id, kind, name, body, provenance, confidence, citations, provisional)
+       values (${agentValue("$5")},$1,'user',$2,$3,'extracted',0.95,$4::bigint[],false)
+       returning id`,
+      [person, name, summary.slice(0, 160), [episodeId], agentId],
+    ).catch(() => []);
+
+    // Semantic recall, same as opRemember's provisional tier: embedding is an
+    // enhancement and degrades to nothing on failure — it may never cost the
+    // rows above.
+    const factId = ins[0]?.id;
+    if (factId) {
+      const vec = await embedOne(summary).catch(() => null);
+      if (vec) {
+        await q(
+          `insert into vy_embedding (agent_id, owner_kind, owner_id, person_id, v)
+           values (${agentValue("$4")}, 'fact', $1, $2, $3::halfvec)
+           on conflict (owner_kind, owner_id) do update set v = excluded.v, at = now()`,
+          [factId, person, toHalfvecLiteral(vec), agentId],
+        ).catch(() => {});
+      }
+    }
+    return { ok: true, wrote: true, episodeId };
+  } catch {
+    // Same posture as recordPhotoMemory: this is a memory write layered on a
+    // session that has already ended correctly. It may never throw into the
+    // caller, and the caller is not listening anyway.
+    return { ok: false, wrote: false };
+  }
 }
 
 // ── forgetting ─────────────────────────────────────────────────────────────
@@ -1736,6 +1994,12 @@ async function purgeRelational(device, scope, { logIds = [], rx = null, from = N
   );
   const factIds = factGone.map((r) => r.id);
   out.facts = factIds.length;
+  // #85: the deleted facts that NAME a storage object. Handed up rather than
+  // acted on here — this function's contract is rows, and a forget's receipt
+  // may only be sent once the rows are actually gone (see the header above:
+  // "nothing here is .catch()-swallowed"). The file delete is best-effort by
+  // nature, so it happens in opForget, after this cascade has succeeded.
+  out.photoNames = factGone.map((r) => r.name).filter((n) => /^photo:/i.test(String(n || "")));
 
   const relGone = await q(
     `delete from vy_rel_event where person_id = $1
@@ -2035,6 +2299,11 @@ async function opForget(device, body) {
       logIds: logRows.map((r) => r.id),
       rx,
     });
+    // #85: and the FILES those rows described. An item forget has no window,
+    // so deletePhotos() (which needs one) never ran for this scope and the
+    // JPEG outlived its own memory. Last, after every row delete has already
+    // committed, and unable to fail the forget either way.
+    photos = await deletePhotoObjects(device, relational?.photoNames);
   } else if (scope === "session" || scope === "day") {
     const [from, to] = scope === "day" ? dayWindow(body) : [Number(body.from), Number(body.to)];
     if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return { error: "bad window" };
@@ -2074,6 +2343,15 @@ async function opForget(device, body) {
       from,
       to,
     });
+    // #85, the same invariant from the other side: "the row is gone" must
+    // imply "the file is gone" for every scope, not only the ones whose shape
+    // happens to match the filename. A picture sent on Monday and TALKED ABOUT
+    // on Tuesday has its fact deleted by a Tuesday day-forget (it cites
+    // Tuesday's episode) while its object name carries Monday's stamp — so the
+    // window sweep above skips it and it would otherwise survive its own
+    // memory. Deduplicated by construction: a second delete of an object the
+    // sweep already took returns nothing and adds nothing.
+    photos += await deletePhotoObjects(device, relational?.photoNames);
   } else {
     logRows = await q(`delete from meera_log where ${logOwner} returning id`, logOwnerVals);
     nodeRows = await q(`delete from meera_nodes where device_id = $1 returning id, name`, [device]);
@@ -2102,6 +2380,9 @@ async function opForget(device, body) {
   }
 
   if (relational) delete relational.terms; // suppression list never leaves the server
+  // likewise the object names: they are storage paths, and the receipt says
+  // how many pictures went, never which ones
+  if (relational) delete relational.photoNames;
 
   return {
     ok: true,
@@ -2153,6 +2434,13 @@ async function deletePhotos(device, from, to) {
     }
     if (page.length < 100) break;
   }
+  return deleteStorageObjects(paths);
+}
+
+/** The DELETE half, shared by the window/whole-wipe sweep above and by the
+ *  by-name path below, so there is one place that knows how a photo object is
+ *  actually removed. */
+async function deleteStorageObjects(paths) {
   if (!paths.length) return 0;
   const del = await fetch(`${SB_URL}/storage/v1/object/meera-photos`, {
     method: "DELETE",
@@ -2166,6 +2454,63 @@ async function deletePhotos(device, from, to) {
   if (!del || !del.ok) return 0;
   const done = await del.json().catch(() => []);
   return Array.isArray(done) ? done.length : paths.length;
+}
+
+// ── #85: "forget THIS photo" has to take the JPEG too ──────────────────────
+//
+// deletePhotos() above covers the two scopes that can name a TIME — a window
+// forget and a whole wipe — because the upload path puts the timestamp in the
+// object name. The `item` scope has no window, so it never called it: asking
+// her to forget one picture deleted the row describing it and left the file
+// sitting in public storage under `${device}/`. Same class of gap as the one
+// deletePhotos() itself was written for, one scope over, and just as invisible
+// from inside the app because nothing in the UI ever lists the bucket.
+//
+// The handle that makes an item forget reach a FILE is recordPhotoMemory's
+// vy_fact name: `photo:${photoIdFromUrl(url)}`, where the id is the storage
+// object's own basename (opUploadPhoto: `${device}/${ts}-${rand}.jpg`). So the
+// cascade already deletes a row that names the file, and this turns that name
+// back into a path. No new table, no new column, no URL stored anywhere new.
+//
+// The residual, stated rather than implied: a photo whose describe call failed
+// or was refused (lintPhotoDesc → null) never got a fact row, so no scope but a
+// window or a whole wipe can find its file. That is a real gap and it is not
+// closable from here — there is nothing that names the object — which is
+// exactly why the whole-wipe path is allowed to be total.
+
+/** `photo:1730000000000-ab12cd` → `${device}/1730000000000-ab12cd.jpg`.
+ *  Pure, and STRICT about the id shape on purpose: photoIdFromUrl falls back
+ *  to a 40-char URL tail for anything not shaped like an upload of ours, and
+ *  a fallback tail must never be pasted into a delete path. Anything that does
+ *  not match is simply not a file this device uploaded. */
+export function photoPathsFromFactNames(device, names) {
+  const out = new Set();
+  for (const raw of Array.isArray(names) ? names : []) {
+    const m = /^photo:(\d{6,}-[a-z0-9]{2,12})$/i.exec(String(raw || "").trim());
+    if (m) out.add(`${device}/${m[1]}.jpg`);
+  }
+  return [...out];
+}
+
+/** Best-effort, logged, and structurally unable to fail a forget: it runs
+ *  AFTER every row delete has already succeeded, it swallows its own errors,
+ *  and its return value is a count for the receipt, never a condition. The
+ *  rows are the promise; the file is the promise kept. */
+async function deletePhotoObjects(device, factNames) {
+  const paths = photoPathsFromFactNames(device, factNames);
+  if (!paths.length) return 0;
+  try {
+    const n = await deleteStorageObjects(paths);
+    if (n < paths.length) {
+      // a file that outlived its row is the exact failure this exists to
+      // prevent, so it is said out loud rather than absorbed into a count
+      console.warn(`[forget] ${paths.length - n} photo object(s) survived their memory row`);
+    }
+    return n;
+  } catch (e) {
+    console.warn("[forget] photo object delete failed:", e?.message || "unknown");
+    return 0;
+  }
 }
 
 async function opUploadPhoto(device, body) {
@@ -2411,6 +2756,7 @@ export default async function handler(req, res) {
     if (op === "recall") return res.status(200).json(await opRecall(device, req.body));
     if (op === "seed_currency") return res.status(200).json(await opSeedCurrency(device, req.body));
     if (op === "remember") return res.status(200).json(await opRemember(device, req.body));
+    if (op === "activity") return res.status(200).json(await opActivity(device, req.body));
     if (op === "forget") return res.status(200).json(await opForget(device, req.body));
     return res.status(400).json({ error: "unknown op" });
   } catch (e) {

@@ -488,11 +488,14 @@ export function compile(input: CompileInput): CompiledPrompt {
   // from. Byte-identical for all 83 fixtures (none sets relBundle) and for
   // every existing call site (all pass a real turn when they pass a bundle).
   const hasTurn = (input.latestUserText || "").trim().length > 0;
-  const gate = input.relBundle
-    ? hasTurn
-      ? momentGate(input.latestUserText || "", input.gapSinceLastMs || 0, input.relBundle.phraseLedger || [])
-      : { moment: "none" as const, pulled: false }
-    : null;
+  // The gate exists whenever there is a TURN, not whenever there is a rel
+  // bundle: coupling it to the bundle silently blacked out T12 self.arc for
+  // every user with no vy_rel_state row yet (measured: 0 bytes without the
+  // row, 152 with, same arc, same turn — task #95). A missing bundle only
+  // means an empty phrase ledger, which momentGate handles natively.
+  const gate = hasTurn
+    ? momentGate(input.latestUserText || "", input.gapSinceLastMs || 0, input.relBundle?.phraseLedger || [])
+    : { moment: "none" as const, pulled: false };
   if (input.relBundle) {
     // T2/T4 are the only independently-droppable INTIMACY-REGISTER blocks
     // this compiler controls (honorific/trust/repair state, dyadic
