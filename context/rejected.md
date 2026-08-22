@@ -1477,3 +1477,31 @@ start-hidden pattern, say HIDDEN. Any `forwards` animation must state its own
 destination, and any "it draws in" effect needs one assertion on the computed
 END state, because the broken version looks identical to the working one in
 every frame except the ones after the animation finishes.
+
+---
+
+## `shared-tree-concurrency` — seven agents, one working tree, one reset
+
+**Tried:** running seven build agents concurrently in the same git working
+tree with file-ownership lists as the only isolation.
+
+**What broke:** one workstream ran `git stash` / `git reset --hard` to
+recover from its own stash conflict and wiped every OTHER workstream's
+uncommitted edits at ~11:20 (reflog: "reset: moving to HEAD"). Two
+workstreams lost their full in-flight state; both recovered only because
+they happened to keep patch backups. A `stash@{0}` snapshot of 19 files
+also survived as an orphan. File-ownership lists prevent WRITE conflicts;
+they do nothing against git-level state mutation, which is global.
+
+**Now:** three rules for any multi-agent wave in one tree: (1) agents are
+forbidden git state mutation (reset/checkout/stash/clean) outright, in the
+brief, not as advice; (2) every agent keeps a live `git diff` patch in the
+scratchpad after significant edits; (3) the COORDINATOR commits each
+finished slice immediately — a commit is the only reset-proof state.
+Worktree isolation per agent is the structural fix if waves get bigger.
+
+**The generalisable rule:** in shared mutable space, ownership partitions
+protect only the operations that respect partitions. Any agent holding a
+global-effect tool (git state, schema migrations, process kills) can undo
+everyone; either take the tool away or make the shared state append-only
+(commit early, commit per slice).

@@ -1065,6 +1065,36 @@
       "kind": "rejection",
       "title": "Close/tally written by a 25s component effect: four failures, one cause; state transitions need state-lifetime writers",
       "at": "2026-08-22"
+    },
+    {
+      "id": "surface-gate-choke-point",
+      "kind": "decision",
+      "title": "One gated reply site per surface file, fail-closed; hazard #1 closed",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "laundering-predicate",
+      "kind": "decision",
+      "title": "Her ungated speech cannot become shared record (server-side predicate)",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "moment-available-not-fired",
+      "kind": "decision",
+      "title": "#117 milestone fact placed mid-tail: available, never 8-in-8",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "shared-tree-concurrency",
+      "kind": "rejection",
+      "title": "Seven agents in one tree; one git reset wiped two workstreams",
+      "at": "2026-08-22"
+    },
+    {
+      "id": "wave-2026-08-22-audit-round-2",
+      "kind": "measurement",
+      "title": "Seven-workstream wave: honesty 289, surface 73, gamemem 56, rooms 45/45",
+      "at": "2026-08-22"
     }
   ],
   "edges": [
@@ -2052,6 +2082,26 @@
       "src": "view-lifetime-writers",
       "rel": "caused_by",
       "dst": "dead-writers"
+    },
+    {
+      "src": "surface-gate-choke-point",
+      "rel": "measured_by",
+      "dst": "wave-2026-08-22-audit-round-2"
+    },
+    {
+      "src": "laundering-predicate",
+      "rel": "measured_by",
+      "dst": "wave-2026-08-22-audit-round-2"
+    },
+    {
+      "src": "laundering-predicate",
+      "rel": "caused_by",
+      "dst": "gate0-structural"
+    },
+    {
+      "src": "moment-available-not-fired",
+      "rel": "caused_by",
+      "dst": "prompt-position"
     }
   ]
 }

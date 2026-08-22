@@ -2239,3 +2239,27 @@ After the fixes (same methods, A/B against the pre-fix tree):
   (single non-CSS spring + static reachability; activityOf sync contract).
 - Photo re-pin A/B: without the delegated load listener the thread landed
   420 px short of newest; with it, 0 px.
+
+---
+
+## `wave-2026-08-22-audit-round-2` — the seven-workstream wave, measured
+
+- Honesty suite: 191 → 289 checks (+98) with family 5 (channel promises),
+  T16 her.commitments, hum+floor pair. The pair closed the measured
+  bracelet residual ("tune mujhe jo bracelet diya tha" now flags; the real
+  chess defeat stays clean).
+- Surface gate: 73-check eval, offline ~1s, incl. byte-equality of the
+  Telegram lane's gate composition against the web lane and a 3-defect
+  negative control on its own static scanner.
+- Memory cluster: 56-check eval; T12 self.arc measured 0 bytes -> 152
+  bytes for users with no rel-state row (the moment-gate coupling defect);
+  laundering predicate verified on the audit's own Goa sentence + an
+  over-drop control.
+- Game rooms: dead-space fraction ~40% (audited) -> ~6-13% measured across
+  390/320 x light/dark; 45/45 browser assertions.
+- Call truth: 6 findings fixed, E2E-proofed against the real build
+  (offline pill, mute-during-watch honesty, cascade-share truth), 13/13
+  gates at that workstream's run.
+- Coordination overhead worth recording: 1 of 7 agents mutated git state
+  and cost two workstreams a full re-apply (see rejected.md
+  #shared-tree-concurrency).

@@ -1528,3 +1528,46 @@ truncation only if a clean copy still overflows, `tel("storage_degraded")`
 on every rung. **Reverses if:** telemetry shows clean-copy overflows actually
 happening (then the promise itself is the problem, and that is an owner
 conversation, not a ladder tweak).
+
+---
+
+## `surface-gate-choke-point` — one reply site, fail-closed, per surface file
+
+Every surface lane (Telegram DM, link-tap, group — and whatever comes next)
+takes its reply from a single `gatedReply()` and there is no other
+`ctx.reply` expression in the file; a bundle with no gate present FAILS
+CLOSED (empty text, loud log) instead of shipping ungated words. The eval
+asserts the invariant STRUCTURALLY (a scan proving the single reply site,
+with injected defects as its own negative control), not just behaviourally.
+This closed RelationalOS standing hazard #1. **Reverses if:** a surface
+genuinely needs an ungated emission class (e.g. a system notice) — then the
+class gets its own named, gate-exempt channel and the scan learns it,
+never an ad-hoc second reply site.
+
+---
+
+## `laundering-predicate` — her ungated speech cannot become shared record
+
+Extraction nodes lexically anchored ONLY in her ungated spoken turns are
+dropped server-side before any write; his words (any channel), her typed
+(gated) turns, and neutral abstractions flow. A predicate, not a prompt
+(gate0-structural: instructions leak 57-98%, predicates 0/31,122). Her call
+speech still reaches self/inner — that is her own improvised life, not the
+shared record, and starving it trades one continuity defect for another.
+**Reverses if:** the live lane gains a real output gate (audit option b:
+inspect() at onHerText) — then provenance is clean at source and the
+server-side filter becomes belt-and-braces or retires.
+
+---
+
+## `moment-available-not-fired` — #117's placement is deliberately mid-tail
+
+The crossed-milestone fact is appended mid-tail, NOT last, on purpose: the
+prompt-position law (0/8 mid-brief vs 8/8 appended-last) is used here in
+REVERSE. A rule you need obeyed goes last; a fact she should have
+AVAILABLE — mentionable once, in her own words, if it fits — must not fire
+8-in-8, because mentioning the milestone every turn is the robotic tell
+the feature exists to avoid. Fresh for 12h, then zero bytes; joined to the
+family-4 support set so the gate treats it as true. **Reverses if:** live
+testing shows she never mentions moments at all — then move it later in
+the tail one step at a time, measuring, never straight to last.
