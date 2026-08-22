@@ -808,8 +808,29 @@ export function findUnsupportedReceipts(text: string, openItems: readonly string
 // is no boundary between the "e" and the "m". "mail kar dungi" matched,
 // "email kar dungi" silently did not. One alternation, same fix RE_OOB_CHANNEL
 // already carries for the identical reason.
+//
+// 2026-08-22 audit (finding #12, task #122): the bare `will\s+(?:send|...)`
+// tail alternative had NO subject at all — it fires on the verb shape alone,
+// so "she will send you the file on whatsapp" and "papa will mail it to you"
+// matched exactly like her own promise did. Every OTHER alternative in this
+// regex either IS a first-person form by construction (`bhej(o)?ungi` etc.
+// are 1st-person-singular conjugations; `i'?ll`, `i'?m`, `i\s+will` spell the
+// subject out) or is gated elsewhere; this was the one alternative that
+// wasn't, and it is the one built to cover a spelled-out "will" with the
+// subject possibly a few words back — which is exactly what let a THIRD
+// PERSON subject slip through unchecked. Requiring `i`/`main`/`mai`
+// immediately before `will` — not merely present somewhere in the clause —
+// fixes it: proximity binding (`verbChannelNear`, `receiptAbout`) is this
+// file's tool for "related to", but a VERB'S SUBJECT is not a proximity
+// question, it is the token directly to its left, so this is direct adjacency
+// rather than the NEAR_WORDS calibration those two use for object/channel
+// distance. Presence-in-clause (what `RE_FIRST_PERSON_SENDER` checks in
+// `findPastSendClaims`, below) is not enough here: "she said i should send
+// you the file" has an "i" in the clause and no bearing on who "will send"
+// anything — the fix has to bind the subject to THIS verb, not to the
+// sentence.
 const RE_SEND_FUTURE =
-  /\b(?:bhej(?:\s*d)?(?:o?ungi|o?unga|enge)|bhej(?:ti|ta)\s*hu|bhej\s*(?:rahi|rhi|raha|rha)\s*hu|bhej\s*det[ia]\s*hu|(?:send|mail|e-?mail|share|forward|whats\s?app|whatsapp|dm|post|drop|upload)\s*kar\s*(?:d(?:o?ungi|o?unga)|o?ungi|o?unga)|daal\s*d(?:o?ungi|o?unga)|i'?ll\s+(?:send|mail|dm|email|share|forward|post|drop)|i'?m\s+sending|i\s+will\s+(?:send|mail|dm|email|share|forward)|will\s+(?:send|mail|dm|email)\s+(?:you|u|it))\b/i;
+  /\b(?:bhej(?:\s*d)?(?:o?ungi|o?unga|enge)|bhej(?:ti|ta)\s*hu|bhej\s*(?:rahi|rhi|raha|rha)\s*hu|bhej\s*det[ia]\s*hu|(?:send|mail|e-?mail|share|forward|whats\s?app|whatsapp|dm|post|drop|upload)\s*kar\s*(?:d(?:o?ungi|o?unga)|o?ungi|o?unga)|daal\s*d(?:o?ungi|o?unga)|i'?ll\s+(?:send|mail|dm|email|share|forward|post|drop)|i'?m\s+sending|i\s+will\s+(?:send|mail|dm|email|share|forward)|(?:i|main|mai)\s+will\s+(?:send|mail|dm|email)\s+(?:you|u|it))\b/i;
 
 /**
  * Things that get DELIVERED. `RE_DELIVERY_NOUN`'s list plus the media she

@@ -1226,6 +1226,35 @@ console.log("\n── 14. fresh-eyes audit batch (#6, #10, #11) ──");
       "chat",
     ).length === 0,
   );
+
+  // ── #12 (task #122): the bare `will send/mail/dm/email you/u/it` tail had
+  // no subject check at all, so a THIRD PERSON "will send" false-positived
+  // as HER promise. Fix binds the subject directly to `will` — mirroring the
+  // first-person discipline `RE_FIRST_PERSON_SENDER`/`findPastSendClaims` use,
+  // but bound to the verb rather than merely present somewhere in the clause.
+  console.log("  · #12 RE_SEND_FUTURE bare `will ...` needs a bound first-person subject");
+  const WILL_SEND_POSITIVES = [
+    "i will send you the pics on whatsapp",
+    "i'll email it to you",
+    "main will send you it on whatsapp",
+    "mai will mail you the file on whatsapp",
+  ];
+  for (const t of WILL_SEND_POSITIVES) {
+    report(`PROMISE CAUGHT  ${t}`, findChannelPromises(t, "chat").some((h) => h.why === "out-of-band"));
+  }
+  const WILL_SEND_NEGATIVES = [
+    ["she will send you the file on whatsapp", "THIRD PERSON — no i/main/mai subject at all, the original bug"],
+    ["he'll dm you", "THIRD PERSON contraction — no literal `will`, and no `i` either"],
+    ["woh bhej degi", "THIRD PERSON Hinglish — `degi` is not one of the 1st-person `dungi`/`unga`/`enge` suffixes"],
+    ["papa will mail it to you", "THIRD PERSON — a named subject, not a first-person pronoun, still slipped through pre-fix"],
+    [
+      "she said i should send you the file on whatsapp",
+      "an `i` is present in the clause but is not the subject of `will` — no `will` here at all, and even if there were, presence-in-clause must not be enough",
+    ],
+  ];
+  for (const [t, why] of WILL_SEND_NEGATIVES) {
+    report(`must not flag  ${t}`, findChannelPromises(t, "chat").length === 0, why);
+  }
 }
 
 console.log(fail ? `\n${fail} of ${pass + fail} FAILURES` : `\nALL ${pass} HONESTY CHECKS PASS`);
