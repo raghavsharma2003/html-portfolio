@@ -39,6 +39,7 @@ import type { ActivityState } from "./activity";
 // T-H2 (formatHerLife, below) reuses T9's overnight predicate rather than
 // re-deriving one. away.ts imports only ./timeline, so this adds no cycle.
 import { crossedNight } from "./away";
+import { greetOnce, type GreetTurn } from "./greeting";
 // WS-MANIFEST Phase D prep (docs/SPEC.md §7.3 "chat lane call-site
 // adoption"): router.ts stays WS-ROUTER's exclusively (§13) — this is a
 // read of its exported pure functions, not an edit, same discipline as the
@@ -157,6 +158,26 @@ export const SEARCH_BUCKET = 3;
 export const SEARCH_WINDOW_MS = 5 * 60_000;
 const searchFires: number[] = [];
 
+// ── the explicit ask (owner report, 2026-08-22) ─────────────────────────
+// He told her about Westside, told her to SEARCH it — twice — and she
+// insisted he explain instead. Two failures: the decision rule never named
+// a direct instruction (fixed in SEARCH_DECISION), and the curiosity cap
+// treated his ask like her own impulse. A person TOLD to look something up
+// does not get to be over budget: that reads as refusal. So an explicit ask
+// bypasses the curiosity bucket and draws from its own, much larger one —
+// still a bucket, because "search X" pasted twenty times in a loop is a
+// cost bug, not a conversation.
+export const EXPLICIT_SEARCH_BUCKET = 12;
+const explicitFires: number[] = [];
+
+/** Did HIS message tell her to look it up? Pure, testable, both languages.
+ *  The verb must be IMPERATIVE-SHAPED: bare "google"/"search" as a noun
+ *  ("kal google office ke paas tha") must never fire, so every branch binds
+ *  the word to a command frame: an English object/particle, a Hindi
+ *  kar-verb, or the pe-dekh/check word orders in both directions. */
+export const RE_EXPLICIT_SEARCH =
+  /\b(?:go\s+(?:and\s+)?)?(?:search|google)\s+(?:it|this|that|about|for|up)\b|\blook\s+(?:it|this|that)?\s*up\b|\b(?:search|google)\s+(?:kar|karo|karke|karle|kar\s*(?:na|le|ke|de))\b|\b(?:google|net|internet)\s*pe\s*(?:dekh|check|search)|\b(?:dekh|check)\s+(?:na\s+)?(?:google|net|internet)\s*pe\b|\bcheck\s+(?:online|google)\b/i;
+
 /** Test seam: drains the bucket so a suite starts from a known state. */
 export function _resetSearchBucket(): void {
   searchFires.length = 0;
@@ -169,6 +190,20 @@ export function takeSearchSlot(): boolean {
   if (searchFires.length >= SEARCH_BUCKET) return false;
   searchFires.push(now);
   return true;
+}
+
+/** The explicit-ask lane's slot — separate bucket, same window discipline. */
+export function takeExplicitSearchSlot(): boolean {
+  const now = Date.now();
+  while (explicitFires.length && now - explicitFires[0] > SEARCH_WINDOW_MS) explicitFires.shift();
+  if (explicitFires.length >= EXPLICIT_SEARCH_BUCKET) return false;
+  explicitFires.push(now);
+  return true;
+}
+
+/** Test seam for the explicit bucket, mirroring _resetSearchBucket. */
+export function _resetExplicitSearchBucket(): void {
+  explicitFires.length = 0;
 }
 
 export type ThinkMode = "chat" | "call";
@@ -1302,6 +1337,30 @@ export async function think(
     // UI around it. See `stripTextingDashes`.
     if (mode !== "call" && r.bubbles?.length) {
       r.bubbles = r.bubbles.map(stripTextingDashes).filter(Boolean);
+      // GREET ONCE PER SITTING (src/engine/greeting.ts). Reported as three
+      // hellos inside one unbroken conversation — she opened "heyyy", he said
+      // "Hello", she said "hey …", he said "Esse hi timepass", she said
+      // "heyy …". Mirroring his greeting beats any brief line that says not
+      // to, which is `gate0-structural` again: the prompt arm of a rule leaks,
+      // the predicate on the bytes does not. So the brief stays byte-unchanged
+      // and the second hello is taken off here, at the same choke point and
+      // for the same reason as the dash strip — text lane only, because a
+      // spoken hello on a call is a different act with its own timing.
+      //
+      // `history` is the record as it stands BEFORE this reply lands, which is
+      // exactly the question the predicate asks: has she already said hello in
+      // this sitting? Her first message of a sitting is untouched.
+      const g = greetOnce(r.bubbles, history as unknown as GreetTurn[], Date.now());
+      if (g.stripped || g.dropped || g.degraded) {
+        // Counts and flags only — diag.ts never logs what she said.
+        diag("chat", "greet_once", {
+          stripped: g.stripped,
+          dropped: g.dropped,
+          degraded: g.degraded,
+          bubbles: g.bubbles.length,
+        });
+      }
+      r.bubbles = g.bubbles;
     }
     const { reply, findings } = guardReply(r, honestyCtx);
     // Counts and rule names only — diag.ts never logs what she said, and the
@@ -1351,9 +1410,16 @@ export async function think(
     // that — "say you couldn't check right now, casually, and don't fill the
     // gap yourself". So a rate limit degrades into her not knowing, which is
     // true, rather than into a promise she quietly drops.
-    const slot = parsed.search ? takeSearchSlot() : false;
+    // A search HE asked for draws from the explicit bucket, not curiosity's:
+    // being over budget on a direct instruction is refusal, not thrift.
+    const explicitAsk = RE_EXPLICIT_SEARCH.test(latest);
+    const slot = parsed.search ? (explicitAsk ? takeExplicitSearchSlot() : takeSearchSlot()) : false;
     if (!slot && parsed.search) {
-      diag("chat", "search_capped", { window_ms: SEARCH_WINDOW_MS, cap: SEARCH_BUCKET });
+      diag("chat", "search_capped", {
+        window_ms: SEARCH_WINDOW_MS,
+        cap: explicitAsk ? EXPLICIT_SEARCH_BUCKET : SEARCH_BUCKET,
+        explicit: explicitAsk,
+      });
     }
     if (parsed.search && slot && left > 1_500) {
       try {

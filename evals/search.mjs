@@ -9,7 +9,11 @@
 //
 // Every search costs a holding bubble, ~3-4s of the turn, and real money on a
 // lane that has run dry twice this week.
-import { takeSearchSlot, _resetSearchBucket, SEARCH_BUCKET } from "./.bundle.mjs";
+import {
+  takeSearchSlot, _resetSearchBucket, SEARCH_BUCKET,
+  takeExplicitSearchSlot, _resetExplicitSearchBucket, EXPLICIT_SEARCH_BUCKET,
+  RE_EXPLICIT_SEARCH,
+} from "./.bundle.mjs";
 
 let fail = 0;
 const ok = (name, cond, extra = "") => {
@@ -38,6 +42,54 @@ ok("a drained bucket allows again", takeSearchSlot() === true);
 // empty, and the second pass already says "couldn't check right now") — this
 // suite pins the predicate; the honest-degradation half is covered by the
 // existing search-failure path it reuses.
+
+// ── the explicit ask (owner report: told her to search Westside, twice,
+// and she insisted he explain instead) ─────────────────────────────────
+// A direct instruction bypasses the curiosity bucket: refusal-by-budget on
+// an explicit ask is the defect this lane exists to prevent. Its own bucket
+// is larger but still real — "search X" pasted in a loop is a cost bug.
+_resetSearchBucket();
+_resetExplicitSearchBucket();
+for (let i = 0; i < SEARCH_BUCKET; i++) takeSearchSlot();
+ok("curiosity drained does not block an explicit ask", takeExplicitSearchSlot() === true);
+_resetExplicitSearchBucket();
+const exp = [];
+for (let i = 0; i < EXPLICIT_SEARCH_BUCKET; i++) exp.push(takeExplicitSearchSlot());
+ok(`the explicit lane allows ${EXPLICIT_SEARCH_BUCKET} in a row`, exp.every(Boolean));
+ok("and even the explicit lane eventually caps", takeExplicitSearchSlot() === false);
+ok("explicit bucket is meaningfully larger", EXPLICIT_SEARCH_BUCKET >= SEARCH_BUCKET * 3);
+
+// the detector: his words that ARE a search instruction
+for (const t of [
+  "search kar na iske baare me",
+  "google it",
+  "go and search about it",
+  "search about westside",
+  "net pe dekh le",
+  "check na google pe",
+  "look it up yaar",
+  "google kar ke bata",
+]) ok(`explicit ask detected: "${t}"`, RE_EXPLICIT_SEARCH.test(t), t);
+// ...and his words that are NOT
+for (const t of [
+  "i was searching for my keys all morning",
+  "researchers say chai is good",
+  "main westside gaya tha aaj",
+  "kal google office ke paas tha",
+  "dekh na kya scene h",
+  "check this out",
+]) ok(`not an ask: "${t}"`, !RE_EXPLICIT_SEARCH.test(t), t);
+
+// the decision rule carries the clause (position law: the block is appended
+// last; this pins that the explicit-ask sentence exists inside it)
+import { readFileSync } from "node:fs";
+const persona = readFileSync(new URL("../src/engine/persona.ts", import.meta.url), "utf8");
+const sd = persona.slice(persona.indexOf("SEARCH_DECISION"));
+ok("SEARCH_DECISION names the direct ask", /If they TELL you to look something up/.test(sd));
+ok("SEARCH_DECISION names the unplaceable NAME", /A NAME they drop that you cannot actually place/.test(sd));
+ok("brain routes explicit asks to the explicit bucket",
+  /explicitAsk \? takeExplicitSearchSlot\(\) : takeSearchSlot\(\)/.test(
+    readFileSync(new URL("../src/engine/brain.ts", import.meta.url), "utf8")));
 
 console.log(fail ? `${fail} FAILURES` : "ALL PASS");
 process.exit(fail ? 1 : 0);

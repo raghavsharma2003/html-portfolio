@@ -5,6 +5,10 @@ export {
   takeSearchSlot,
   _resetSearchBucket,
   SEARCH_BUCKET,
+  takeExplicitSearchSlot,
+  _resetExplicitSearchBucket,
+  EXPLICIT_SEARCH_BUCKET,
+  RE_EXPLICIT_SEARCH,
 } from "../src/engine/brain";
 export {
   buildSystemPromptParts,
@@ -15,10 +19,29 @@ export {
 export {
   burstWaitMs,
   recentUserGaps,
+  burstDecide,
+  likelyMore,
+  unansweredTail,
   BURST_DEFAULT_MS,
   BURST_MIN_MS,
   BURST_MAX_MS,
+  BURST_CONT_MAX_MS,
+  BURST_INTERJECT_MS,
+  BURST_SAMPLE_CEILING_MS,
+  CONTINUATION_WEAK_MS,
+  CONTINUATION_STRONG_MS,
+  COMPOSE_ACTIVE_MS,
+  COMPOSE_ABANDON_MS,
 } from "../src/engine/burst";
+export {
+  leadingGreeting,
+  isGreetingOnly,
+  sittingStartAt,
+  sheGreetedThisSitting,
+  greetOnce,
+  SITTING_GAP_MS,
+} from "../src/engine/greeting";
+export { toTurns } from "../src/engine/brain";
 export {
   renderAway,
   humanGap,
