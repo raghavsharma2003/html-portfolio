@@ -28,6 +28,7 @@ import {
   TrashIcon,
 } from "./icons";
 import { THEMES, THEME_LABEL } from "../engine/theme";
+import { useSky, skyVars } from "./WorldLayer";
 
 // GAP 4 (WS-FELT) — closeness card copy. App chrome, never a line she says
 // (same discipline ClockCard.tsx's own header states for its strings), and
@@ -141,12 +142,21 @@ export default function MoreSheet({
 
   const signedIn = Boolean(state.auth?.accessToken);
 
+  // PRESENTATION ONLY. The "Sky" segment does not describe the sky mode in
+  // words, it SHOWS the sky that mode is following right now — the swatch is
+  // the live four-stop gradient from the same table the world layer paints
+  // from. That is the most honest depiction available of what choosing it
+  // does, and it is why this hook is here rather than a static picture of a
+  // sunset. It cannot reach any handler: `skyVars` writes CSS variables.
+  const sky = useSky();
+
   return (
     <>
       <div className="sheet-veil" onClick={onClose} />
       <div
         className="sheet"
         ref={sheet}
+        style={skyVars(sky)}
         role="dialog"
         aria-modal="true"
         aria-label={
@@ -194,21 +204,42 @@ export default function MoreSheet({
                 it is the one setting here that someone changes for a physical
                 reason — the screen is too bright right now — and a setting you
                 reach for in that state should be one tap away, not three.
-                Reuses the existing chip row rather than inventing a control. */}
+
+                IT SHOWS WHAT IT MEANS. Four outlined pills reading "Sky",
+                "Auto", "Light", "Dark" were four identical shapes carrying
+                four words, which put the entire burden of the choice on the
+                paragraph underneath — a person had to READ their way to a
+                setting whose whole subject is what the screen looks like. So
+                every segment now carries a swatch of the thing it does: Sky is
+                the LIVE gradient from the sky table (the sky it is following,
+                at this minute), Auto is a light half and a dark half, and
+                Light and Dark are the two grounds themselves.
+
+                The swatches are deliberately hard-coded rather than tokenised
+                — see the note in global.css. A depiction of the light theme
+                has to look light while the dark theme is active, which is the
+                one place in this stylesheet where a raw value is the correct
+                answer and a token is the bug.
+
+                The wiring is untouched: same THEMES order, same values, same
+                `state.theme ?? "system"` resolution (undefined = system), same
+                setState, same data-tel, same radiogroup semantics. */}
             <label>Appearance</label>
-            <div className="chip-row" role="radiogroup" aria-label="Appearance">
+            <div className="seg" role="radiogroup" aria-label="Appearance">
               {THEMES.map((t) => {
                 const on = (state.theme ?? "system") === t;
                 return (
                   <button
                     key={t}
-                    className={`chip ${on ? "on" : ""}`}
+                    className={`seg-opt ${on ? "on" : ""}`}
+                    data-mode={t}
                     role="radio"
                     aria-checked={on}
                     data-tel={`more.theme.${t}`}
                     onClick={() => setState((cur) => ({ ...cur, theme: t }))}
                   >
-                    {THEME_LABEL[t]}
+                    <span className="seg-swatch" aria-hidden="true" />
+                    <span className="seg-label">{THEME_LABEL[t]}</span>
                   </button>
                 );
               })}
@@ -261,7 +292,17 @@ export default function MoreSheet({
                 visible break, with danger-tinted icon tiles and no chevrons: a
                 chevron promises navigation, and neither of these is a place you
                 go — they are things you DO. The audit caught them dressed as
-                ordinary rows (same pink tile, same gray chevron as "You"). */}
+                ordinary rows (same pink tile, same gray chevron as "You").
+
+                THE BREAK IS NOW A ZONE RATHER THAN A HAIRLINE. A 0.5px rule
+                above two rows that are otherwise shaped exactly like "You" and
+                "Account & sync" is a distinction only someone already looking
+                for it can see, and the owner's screenshot is what that reads
+                like in practice: a wall of identical rows where the last two
+                happen to be red. The group is an inset, tinted, outlined
+                container now, with a label that names what the two of them
+                have in common. Nothing about either handler moved. */}
+            <label className="danger-label">Permanent</label>
             <div className="sheet-rows danger">
               <button className="srow destructive" data-tel="more.clear_chat" onClick={() => setView("clear")}>
                 <span className="sicon">

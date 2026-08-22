@@ -580,14 +580,154 @@
 /* ── the band variant ───────────────────────────────────────────────────────
    DESIGN-WORLD §3: the ONE way the world is allowed to reach the thread — the
    sky visible through a translucent header. No city, no clouds crossing a
-   38px strip (they would read as artefacts), just the top of the sky. */
+   38px strip (they would read as artefacts), just the top of the sky.
+
+   PHASE 3.2 GAVE IT ITS CALL SITE. This variant shipped with zero of them
+   (audit L1) — a whole rendering path nobody could see, which is how a
+   stylesheet grows a wing that has never been walked through. `.chat-head`
+   mounts it now.
+
+   The band shows the TOP of the painting, and it shows it through the
+   WALLPAPER's veil rather than the world's, because the header's name and
+   presence line are painted in the theme's `--ink`, exactly like the thread's
+   ground text is (see the long note on `wallScrimLight` in sky.ts). One veil,
+   one set of numbers, one gate — the header and the thread are the same
+   surface with a different slice of the same picture behind them. */
 .world[data-variant="band"] .world-city,
 .world[data-variant="band"] .world-plates,
 .world[data-variant="band"] .world-clouds {
   display: none;
 }
-.world[data-variant="band"] .world-scrim::after {
-  background: linear-gradient(to bottom, transparent 0%, var(--world-scrim) 100%);
+
+/* ── the wallpaper variant ──────────────────────────────────────────────────
+   DESIGN-WORLD §Phase 3.1: "the thread gets a wallpaper, not a redesign."
+
+   THE MENTAL MODEL ALREADY EXISTS, which is the entire reason this works: a
+   chat has a wallpaper, everyone born after 2010 knows what one is, and it is
+   the one way a thread can join the world without spending a single point of
+   bubble legibility. The bubbles do not become translucent, do not pick up a
+   tint, and do not change by one byte — they sit on their existing opaque
+   tokens ON TOP of a picture, which is what a wallpaper has always meant.
+
+   A WALLPAPER IS STILL. `WorldLayer.tsx` renders no celestials, no plates and
+   no city into this variant, so there is nothing here to stop; what remains
+   is the rule that the veil is UNIFORM. The world's top/bottom emphasis is
+   wrong for a thread by construction: text in a thread is at every vertical
+   position, so a veil that is heavier at the ends is a vignette over the
+   messages at the ends, and it would buy nothing — the gate would still have
+   to hold the middle. Flat veil, flat gate, no vignette.
+
+   THE VEIL IS PICKED BY THEME, NOT BY SKY, and the selector pair below is the
+   same one global.css uses for the palette itself, for the same reason and
+   with the same law: THE TWO BLOCKS MUST STAY IDENTICAL APART FROM THE
+   SELECTOR. `scripts/check-contrast.mjs` asserts that byte-for-byte, the way
+   it already does for the two board files — if they drift, one of the two
+   ways into the dark theme silently keeps the light veil and only one kind of
+   user ever sees a thread with a white wash over a night sky. */
+.world[data-variant="wallpaper"] .world-city,
+.world[data-variant="wallpaper"] .world-plates,
+.world[data-variant="wallpaper"] .world-clouds,
+.world[data-variant="wallpaper"] .world-stars,
+.world[data-variant="wallpaper"] .world-moon,
+.world[data-variant="wallpaper"] .world-glow {
+  display: none;
+}
+
+/* The uniform veil, and NO emphasis pass — see above. `background: none` on
+   the pseudo rather than deleting it, because the base `.world-scrim::after`
+   rule is pinned by the gate and must go on existing. */
+.world[data-variant="band"] .world-scrim,
+.world[data-variant="wallpaper"] .world-scrim {
+  background: color-mix(in srgb, var(--wall-scrim) calc(var(--wall-a) * 100%), transparent);
+  opacity: 1;
+}
+.world[data-variant="band"] .world-scrim::after,
+.world[data-variant="wallpaper"] .world-scrim::after {
+  background: none;
+}
+
+/* THE LIGHT VEIL — the default, and the one that keeps the light identity
+   light. ~0.93 over the painting is a 6-7% wash: the intensity a chat
+   wallpaper has always had, and deliberately nowhere near "a photo behind
+   text". Solved against the paintings' darkest decile under the day
+   palette's near-black ink. */
+.world[data-variant="band"],
+.world[data-variant="wallpaper"] {
+  --wall-scrim: var(--wall-scrim-light);
+  --wall-a: var(--wall-a-light);
+}
+
+@media (prefers-color-scheme: dark) {
+/* Deliberately NOT indented: byte-identical to the body of the
+   `[data-theme="dark"]` block below, so a plain diff proves it. */
+:root:not([data-theme="light"]) .world[data-variant="band"],
+:root:not([data-theme="light"]) .world[data-variant="wallpaper"] {
+  --wall-scrim: var(--wall-scrim-dark);
+  --wall-a: var(--wall-a-dark);
+}
+}
+
+:root[data-theme="dark"] .world[data-variant="band"],
+:root[data-theme="dark"] .world[data-variant="wallpaper"] {
+  --wall-scrim: var(--wall-scrim-dark);
+  --wall-a: var(--wall-a-dark);
+}
+
+/* ── the gold ring, extracted ───────────────────────────────────────────────
+   Home's `.hh-face` and the thread header's avatar are the same object — her
+   face, ringed — and until now they were two implementations that happened to
+   agree. The ring itself lives here, in the world's own stylesheet, because
+   both of its call sites are surfaces the world grounds; the SIZES stay at
+   the call sites, because a 118px presence portrait and a 44px header avatar
+   are the same idea at two scales and nothing is gained by pretending one
+   number serves both.
+
+   The quiet ring is deliberately not `--world-edge`: that token is tuned to
+   make a PANEL findable at 3:1 and would put a heavy dark hoop around her
+   face at noon. A ring is a whisper; a panel edge is a statement. */
+.ring-gold {
+  border-radius: 50%;
+  background: rgba(var(--world-ink-rgb), 0.22);
+  transition: transform var(--d-press) var(--ease-squash);
+}
+.ring-gold.live {
+  background: conic-gradient(
+    from 210deg,
+    #f0c46a,
+    var(--accent-warm),
+    #f6d488,
+    var(--accent-warm),
+    #f0c46a
+  );
+}
+.ring-gold.seen {
+  background: rgba(var(--world-ink-rgb), 0.26);
+}
+.ring-gold:active {
+  transform: scale(0.965);
+}
+.ring-gold > .ring-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  /* the gap that turns a filled circle into a RING — an inset ring reads as a
+     border, a gapped one reads as a story ring */
+  box-shadow: 0 0 0 3px rgba(var(--world-scrim-rgb), 0.55);
+  background: rgba(var(--world-scrim-rgb), 0.55);
+}
+
+/* ── the serif lowercase name, extracted ────────────────────────────────────
+   The single strongest identity move in the frames this was measured against,
+   and it belonged to the home screen alone. The header wears it now at its
+   own size — same face, same lowercase, same size-specific tracking rule
+   (apple-design: tighten large text, body near zero). */
+.name-serif {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  text-transform: lowercase;
+  letter-spacing: -0.022em;
 }
 
 /* ── REDUCED MOTION ─────────────────────────────────────────────────────────

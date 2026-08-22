@@ -70,9 +70,14 @@
   margin: 4px 0 10px;
   padding: 7px 16px;
   min-height: 34px;
-  border: 0;
+  /* The read-earlier pill is a CONTROL sitting on the wallpaper, so it takes
+     the gated `--glass-edge-strong` boundary rather than the decorative one
+     the day separator and the call chip wear. `border: 0` was fine on an
+     opaque ground and is a button with no edge on a painting. */
+  border: 1px solid var(--glass-edge-strong);
   border-radius: 999px;
-  background: var(--surface-2);
+  background: var(--glass-chip);
+  backdrop-filter: blur(12px) saturate(1.4);
   color: var(--ink-dim);
   font-size: var(--t-meta);
   font-weight: 600;
@@ -88,7 +93,8 @@
 }
 .load-earlier:hover,
 .load-earlier:focus-visible {
-  background: var(--surface-3, var(--surface-2));
+  background: var(--glass-chip);
+  border-color: var(--accent);
 }
 .load-earlier:active {
   opacity: 0.7;

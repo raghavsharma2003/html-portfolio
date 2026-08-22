@@ -58,6 +58,70 @@
   --hairline-strong: rgba(32, 27, 25, 0.15);
   --scrim: rgba(32, 22, 20, 0.38);
   --chrome: rgba(252, 250, 248, 0.82); /* header/composer glass */
+  /* ── THE THREAD'S GLASS FAMILY (Phase 3.2) ──────────────────────────────
+     The thread's furniture used to sit on an opaque ground, so a day
+     separator could be bare text and a call chip could be a plain white pill.
+     Both now sit on a PICTURE, and a bare label on a picture is the thing
+     every chat app with a wallpaper learned not to ship.
+
+     Three tokens, and the split between the last two is the same one the
+     world layer already draws for its panels — the fill carries the TEXT, the
+     edge carries the OBJECT — with one honest difference stated here rather
+     than discovered later:
+
+       --glass-chip        the fill. Gated: --ink and --ink-dim on this,
+                           composited over the wallpaper, hold 4.5:1.
+       --glass-edge        a LABEL's boundary (day separator, call chip).
+                           Decorative, and deliberately NOT held to 3:1:
+                           those two are not UI components, they are text in
+                           a container, and the text is what carries the
+                           information. A 3:1 boundary between two surfaces
+                           this close in lightness would mean a mid-grey ring
+                           around every date in the thread.
+       --glass-edge-strong a CONTROL's boundary (the composer pill, the
+                           read-earlier pill). These ARE components under
+                           WCAG 1.4.11, they now float on a painting, and the
+                           gate holds them at 3:1 against it. The alpha looks
+                           heavy written down and reads as a properly drawn
+                           field on screen — the 0.15 hairline it replaces
+                           measured 1.4:1 against its own ground and was
+                           already close to invisible on paper.
+
+     Alphas are stated in rgba() rather than color-mix() because
+     check-contrast.mjs has to read the fill and the alpha as two numbers, and
+     because `rgba(var(--x-rgb), var(--a))` is the form that works in every
+     WebView this ships to (see WorldLayer.tsx's rgbOf note). */
+  --glass-chip: rgba(255, 255, 255, 0.80);
+  --glass-edge: rgba(32, 27, 25, 0.14);
+  --glass-edge-strong: rgba(32, 27, 25, 0.58);
+  /* A SHEET IS GLASS NOW TOO, and its alpha is the reason it can be: at 0.94
+     the ground contributes 6% of the composite, so the worst case a sheet can
+     ever sit on is bounded without knowing what is behind it. The gate proves
+     both ends — --ink and --ink-dim on this fill over PURE BLACK and over
+     PURE WHITE — which is a complete proof rather than a sample, and it is
+     what lets a sheet float over a thread whose ground is now a painting
+     nobody can enumerate. */
+  --sheet-glass: rgba(255, 255, 255, 0.94);
+  /* ── HER BUBBLE HAS TO BE FINDABLE ON A PICTURE ─────────────────────────
+     `--surface-2` is #f0ebe6 and the light wallpaper's ground averages
+     #f4f4f4. On the old flat `--bg` that 1.05:1 was fine — the ground was one
+     predictable colour and the bubble read as a shape against it. Over a
+     PAINTING it is not: where the wallpaper's city passes under a bubble the
+     two converge exactly, and a message loses its bubble entirely. Caught in
+     the browser battery's own screenshot, on the light morning thread, on the
+     third bubble — the first two sat over open sky and looked perfect.
+
+     The fix is the app's own elevation rule rather than a new idea: ON PAPER
+     A SURFACE RISES BY CASTING A SHADOW, ON A DARK GROUND IT IS FOUND BY ITS
+     EDGE. So this token is a shadow in the day and an inset hairline at
+     night, and it is a token precisely so the two dark blocks can carry the
+     other half without either of them growing a rule.
+
+     It does NOT touch the bubble's background, which stays byte-identically
+     opaque — that promise is what makes every ratio inside a bubble still
+     true, and `scripts/check-contrast.mjs` pins both halves. */
+  --bubble-her-lift: inset 0 0 0 1px rgba(32, 27, 25, 0.075),
+    0 1px 2px rgba(60, 40, 34, 0.10), 0 3px 10px -4px rgba(60, 40, 34, 0.20);
   /* a control that must sit ABOVE a --surface-2 well (the auth segment's
      selected pill). On paper it rises by getting whiter; on the dark ground
      --surface is BELOW --surface-2, so the same pill has to rise to
@@ -271,6 +335,17 @@
   --hairline-strong: rgba(255, 240, 235, 0.17);
   --scrim: rgba(6, 3, 4, 0.62); /* deeper: a 0.38 scrim over a dark app is not a scrim */
   --chrome: rgba(28, 21, 23, 0.82);
+  /* the thread's glass family, night side. The fill is --surface at the
+     same alpha; the two edges are the warm-white the hairlines already
+     use, at the alphas the gate solved for over the night paintings. */
+  --glass-chip: rgba(30, 23, 25, 0.80);
+  --glass-edge: rgba(255, 240, 235, 0.16);
+  --glass-edge-strong: rgba(255, 240, 235, 0.46);
+  --sheet-glass: rgba(30, 23, 25, 0.94);
+  /* elevation inverts: a shadow on a dark ground lands on something already
+     darker than the shadow, so the edge draws what the shadow cannot */
+  --bubble-her-lift: inset 0 0 0 0.5px rgba(255, 240, 235, 0.13),
+    0 1px 3px rgba(0, 0, 0, 0.32);
 
   /* inverted surfaces stop inverting — see --notice-tint above */
   --notice-tint: #4a3c40; /* ink on the composited result: 9.9:1 */
@@ -344,6 +419,17 @@
   --hairline-strong: rgba(255, 240, 235, 0.17);
   --scrim: rgba(6, 3, 4, 0.62); /* deeper: a 0.38 scrim over a dark app is not a scrim */
   --chrome: rgba(28, 21, 23, 0.82);
+  /* the thread's glass family, night side. The fill is --surface at the
+     same alpha; the two edges are the warm-white the hairlines already
+     use, at the alphas the gate solved for over the night paintings. */
+  --glass-chip: rgba(30, 23, 25, 0.80);
+  --glass-edge: rgba(255, 240, 235, 0.16);
+  --glass-edge-strong: rgba(255, 240, 235, 0.46);
+  --sheet-glass: rgba(30, 23, 25, 0.94);
+  /* elevation inverts: a shadow on a dark ground lands on something already
+     darker than the shadow, so the edge draws what the shadow cannot */
+  --bubble-her-lift: inset 0 0 0 0.5px rgba(255, 240, 235, 0.13),
+    0 1px 3px rgba(0, 0, 0, 0.32);
 
   /* inverted surfaces stop inverting — see --notice-tint above */
   --notice-tint: #4a3c40; /* ink on the composited result: 9.9:1 */
@@ -565,149 +651,19 @@ button {
 }
 
 /* ─── Onboarding ─── */
+/* MOVED TO src/styles/onboard.css (Phase 3.3). The flow runs on the world
+   layer now and is inked entirely in `--world-*` tokens, so every rule that
+   used to live here — the `--surface` ground, `.onb h1`, `.onb p.sub`,
+   `.onb input.field`, `.photo-fan` and its three tilted `.fan` children —
+   described a surface that no longer exists. They are deleted rather than
+   left behind: an unreachable rule that still parses is the thing this repo
+   calls `logged-but-unindexed`, and the next person to change onboarding
+   would have found two stylesheets and no way to tell which one ran.
 
-.onb {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  padding: calc(var(--safe-top) + 28px) calc(var(--safe-right) + 28px)
-    calc(var(--safe-bottom) + 24px) calc(var(--safe-left) + 28px);
-  background: var(--surface);
-}
-
-.onb-step {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.onb h1 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--t-display);
-  line-height: 1.12;
-  letter-spacing: -0.022em;
-  margin-bottom: 14px;
-}
-.onb h1 em {
-  font-style: normal;
-  color: var(--accent);
-}
-.onb p.sub {
-  color: var(--ink-dim);
-  font-size: 17px;
-  line-height: 1.5;
-  letter-spacing: -0.01em;
-  margin-bottom: 32px;
-  max-width: 34ch;
-}
-
-.onb input.field {
-  width: 100%;
-  min-height: 54px;
-  padding: 17px 20px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--hairline-strong);
-  background: var(--bg);
-  color: var(--ink);
-  font-size: 17px;
-  outline: none;
-  transition: border-color 0.15s, background 0.15s;
-}
-.onb input.field:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
-}
-.onb input.field:focus {
-  border-color: var(--accent);
-  background: var(--surface);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
-}
-.onb input.field::placeholder {
-  color: var(--ink-dim);
-}
-
-.chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-/* Fanned stack of her real photos — the first thing you see is a life, not a logo */
-.photo-fan {
-  position: relative;
-  height: 218px;
-  margin-bottom: 26px;
-}
-.photo-fan .fan {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 148px;
-  height: 186px;
-  object-fit: cover;
-  border-radius: 16px;
-  border: 4px solid var(--surface);
-  box-shadow: 0 10px 30px rgba(60, 40, 34, 0.18);
-}
-.photo-fan .fan-l {
-  transform: translate(-50%, -50%) translateX(-84px) rotate(-9deg);
-  z-index: 1;
-}
-.photo-fan .fan-r {
-  transform: translate(-50%, -50%) translateX(84px) rotate(9deg);
-  z-index: 1;
-}
-.photo-fan .fan-c {
-  width: 158px;
-  height: 198px;
-  transform: translate(-50%, -50%) rotate(-1.5deg);
-  z-index: 2;
-}
-
-.onb-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s3);
-  margin-bottom: 18px;
-}
-.onb-back {
-  width: 72px;
-  min-height: var(--hit);
-  text-align: left;
-  font-size: var(--t-sub);
-  color: var(--accent);
-  transition: opacity var(--d-tap) ease, transform var(--d-press) var(--ease-out);
-}
-.onb-back:disabled {
-  opacity: 0;
-  pointer-events: none;
-}
-.onb-dots {
-  display: flex;
-  gap: 7px;
-  justify-content: center;
-}
-.onb-dots i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--hairline-strong);
-  /* width costs layout — tolerated on a 7px first-run dot, never repeated.
-     motion-lint: allow a 7px dot seen once at first run; transform cannot
-     widen a pill from a circle without distorting the ends */
-  transition: width var(--d-state) var(--ease-out), background var(--d-state) ease;
-}
-.onb-dots i.on {
-  width: 22px;
-  border-radius: 4px;
-  background: var(--accent);
-}
+   `.chip` / `.chip-row` STAYED here, and deliberately: MoreSheet still uses
+   them for its "what you're looking for" row, so they are shared primitives
+   rather than onboarding's. Onboarding's own chips are `.onb-chip`, because a
+   chip on a painting and a chip on a sheet are two different objects. */
 
 /* ─── Chat ─── */
 
@@ -716,9 +672,55 @@ button {
   inset: 0;
   display: flex;
   flex-direction: column;
+  /* the wallpaper is the first child and is `position: absolute; inset: 0`;
+     this is what it is absolute inside of, and what stops it escaping */
+  isolation: isolate;
+}
+/* THE WALLPAPER LAYER, and its whole performance argument is structural
+   rather than declared: it is a SIBLING of `.chat-scroll`, not a descendant.
+   The scroller translates its own contents; this element is not among them,
+   so no amount of scrolling can invalidate it and no row entering the
+   viewport can dirty it. The windowed-thread work is untouched — there was
+   never a per-row cost to remove, because a per-row cost was never created.
+
+   `contain: strict` states it to the engine as well as to the reader: this
+   subtree's paint cannot affect anything outside its box, which is what lets
+   the compositor keep it on its own layer across a 300-message flick. */
+.chat > .world {
+  z-index: -1;
+  contain: strict;
 }
 
+/* ── THE HEADER JOINS THE WORLD (Phase 3.2) ───────────────────────────────
+   The band variant finally has a call site. What is behind this bar is now
+   the TOP OF THE PAINTING, veiled at the wallpaper's own alpha, and what is
+   drawn over it is a pane of glass: the app's `--chrome` at its usual blur.
+
+   ── WHERE `--chrome` ACTUALLY ENDS UP, MEASURED ──────────────────────────
+   This comment first claimed the chrome fill sits OVER the band and therefore
+   improves every ratio for free. It does not, and the difference is a CSS
+   painting-order rule that is easy to get backwards: A NEGATIVE-Z-INDEX CHILD
+   PAINTS ABOVE ITS PARENT'S OWN BACKGROUND, not below it. The order here is
+   chrome, then `.world` at z-index -1, then the controls at z-index 1 — so
+   the band covers the chrome completely.
+
+   Probed rather than reasoned about, on the light morning header: mean
+   luminance 232.6 with the chrome fill, 232.6 with it set to `transparent`,
+   246.6 with the BAND removed instead. The chrome moves the header by 0.0 and
+   the band moves it by 14.
+
+   Which leaves `--chrome` as exactly one thing, honestly stated: the ground
+   the band is drawn onto, and what the header falls back to if the world
+   layer is ever not there. The GLASS is the `backdrop-filter` plus the band's
+   own veil, and the gate models precisely that composite — the wallpaper veil
+   over the painting's top band, no chrome in it — so the number it proves is
+   the number that renders rather than a bound on it.
+
+   `isolation: isolate` so the band cannot paint over the row's own controls,
+   and `position: relative` so the band has something to be absolute inside. */
 .chat-head {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: var(--s3);
@@ -728,6 +730,16 @@ button {
   backdrop-filter: blur(28px) saturate(1.9);
   border-bottom: 0.5px solid var(--hairline);
   z-index: 5;
+}
+/* the band itself, behind the chrome and behind every control on the row */
+.chat-head > .world {
+  z-index: -1;
+}
+/* Every direct child that is NOT the world sits above the glass. Stated
+   once here rather than as a z-index on each of the five controls. */
+.chat-head > :not(.world) {
+  position: relative;
+  z-index: 1;
 }
 
 .chat-head .who {
@@ -739,11 +751,17 @@ button {
   background: none;
   padding: var(--s1) 0;
 }
+/* Her name, in the identity the home screen established: a lowercase book
+   serif. `.name-serif` (world.css) carries the face, the lowercase and the
+   tracking; the SIZE is the header's own, because a 40px presence portrait
+   and a 21px header line are the same idea at two scales.
+
+   21px rather than --t-head's 18px: a serif at the same nominal size as the
+   sans it replaces reads smaller (lower x-height), and matching the optical
+   size is the whole reason a type scale has a step here at all. */
 .chat-head .who .name {
-  font-family: var(--font-display);
-  font-size: var(--t-head);
-  font-weight: 650;
-  letter-spacing: -0.015em;
+  font-size: 21px;
+  line-height: 1.15;
   color: var(--ink);
 }
 .chat-head .who .status {
@@ -829,11 +847,16 @@ button {
   /* spacing lives on .msg + .msg alone — two compounding mechanisms make
      the rhythm unreadable from the source */
   gap: 0;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--surface) 55%, var(--bg)) 0%,
-    var(--bg) 30%
-  );
+  /* THE GROUND IS THE WALLPAPER NOW. This used to paint an opaque warm
+     gradient, which is exactly what the owner's two screenshots show: a flat
+     sheet of paper in the day and, on the dark ground, a near-black void with
+     four bubbles floating in the bottom fifth of it.
+
+     Transparent, so `.chat`'s wallpaper layer is what you see between the
+     bubbles. The layer is a SIBLING of this scroller, not a child of it, so
+     it does not scroll, does not repaint per row, and costs the windowed
+     thread nothing — see .chat below. */
+  background: transparent;
   /* the browser keeps the reading position when content is inserted ABOVE
      the viewport — history merges from another device used to yank the
      thread out from under whoever was reading it */
@@ -848,9 +871,20 @@ button {
   margin-top: auto;
 }
 
+/* A day separator was bare text on an opaque ground. On a wallpaper it needs
+   a carrier — the same quiet glass chip the call record wears, so the thread's
+   two "this happened" markers are one family rather than two ideas.
+
+   Small, existing content, new skin: the size, the tracking, the caps and the
+   ink are all unchanged. */
 .day-sep {
   align-self: center;
   margin: 22px 0 14px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--glass-chip);
+  border: 0.5px solid var(--glass-edge);
+  backdrop-filter: blur(12px) saturate(1.4);
   font-size: var(--t-meta);
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -1016,6 +1050,9 @@ button {
   background: var(--surface-2);
   color: var(--ink);
   border-radius: 20px 20px 20px 6px;
+  /* see --bubble-her-lift: her bubble sits on a painting now and 1.05:1
+     against the ground is not a shape */
+  box-shadow: var(--bubble-her-lift);
 }
 .msg.her:has(+ .msg.her) {
   border-radius: 20px;
@@ -1348,9 +1385,13 @@ button {
   margin: 10px 0;
   padding: 7px var(--s4);
   border-radius: 999px;
-  background: var(--surface);
-  border: 0.5px solid var(--hairline);
-  box-shadow: var(--shadow-card);
+  /* the same quiet glass as the day separator — see .day-sep. The card
+     shadow goes with the opaque fill it was drawn for: a drop shadow under a
+     translucent chip on a painting reads as a sticker, and on the dark ground
+     it was already doing about a tenth of its job. */
+  background: var(--glass-chip);
+  border: 0.5px solid var(--glass-edge);
+  backdrop-filter: blur(12px) saturate(1.4);
   font-size: var(--t-sub);
   color: var(--ink-dim);
 }
@@ -1625,16 +1666,57 @@ button {
 
 /* she was typing, now the words are there: the indicator leaves as the
    bubble enters underneath it, instead of teleporting on the same frame */
+/* ── THE TYPING ROW OWNS ITS OWN SLOT ─────────────────────────────────────
+   THE BUG (owner screenshot, 2026-08-23): the three-dot bubble sat ON the
+   previous message's bottom edge.
+
+   THE CAUSE, and it is a gap rather than a mistake: every piece of vertical
+   rhythm in this thread is written as `.msg + .msg` (3px within a run) and
+   `.msg.her + .msg.me` (14px between turns). The typing indicator is NOT a
+   `.msg` — it is its own element with its own class — so not one of those
+   adjacency rules has ever matched it. It had `margin-top: 0` against
+   whatever bubble preceded it: the boxes touched exactly, and then two
+   things bled upward out of the box and over the bubble above. Its
+   `::after` halo is `inset: -6px`, so it is drawn 6px OUTSIDE its own
+   border box by construction; and `typing-breathe` scales it to 1.018
+   about its own centre, which on a 45px-tall bubble lifts its top edge
+   another ~0.4px. The overlap is therefore ~6.4px, every time, at every
+   thread length — it is not a scroll-anchoring artefact and it is not
+   mid-burst-specific, which is why it reproduces on a 4-message thread as
+   readily as on a 300-message one.
+
+   THE FIX IS THE MISSING RULE, not a nudge: the row is given the turn gap
+   the message rules would have given it, and the halo's 6px bleed is
+   RESERVED as real layout on both sides. Reserving it is what makes this
+   structural — the clearance no longer depends on who spoke last, on the
+   scroll position, or on anyone remembering that the halo is bigger than
+   its element. The browser battery asserts the boxes do not intersect.
+
+   `margin-top` is beaten by `.chat-scroll > :first-child { margin-top: auto }`
+   when the indicator is the only row, which is correct and wanted: on an
+   empty thread it should still be pushed down onto the composer. */
 .typing-bubble {
   position: relative;
   align-self: flex-start;
   display: flex;
   gap: 5px;
+  /* the turn gap (`.msg.me + .msg.her`), plus the halo's own 6px */
+  margin-top: 14px;
+  margin-bottom: 6px;
   padding: 15px 17px;
   background: var(--surface-2);
+  /* the indicator is her bubble's fill, so it has her bubble's problem on a
+     wallpaper: same token, same lift */
+  box-shadow: var(--bubble-her-lift);
   border-radius: 5px 18px 18px 18px;
   transform-origin: 0% 100%;
   transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out);
+}
+/* She is continuing her own run rather than taking a turn, so the gap
+   tightens toward the 3px within-run rhythm — but never below the 6px the
+   halo physically occupies, which is the number that actually binds. */
+.msg.her + .typing-bubble {
+  margin-top: 8px;
 }
 @starting-style {
   .typing-bubble {
@@ -1722,14 +1804,21 @@ button {
   border-top: 1px solid var(--hairline);
 }
 
+/* The composer joins the same glass family. The pill is a CONTROL — a field
+   you put a caret in — so unlike the two label chips it takes the gated
+   `--glass-edge-strong` boundary and is held at 3:1 against the wallpaper
+   behind it. The 0.15 hairline this replaces measured 1.4:1 against its own
+   ground and was already nearly invisible on paper; over a painting it would
+   have been a field with no edge at all. */
 .chat-input {
   flex: 1;
   display: flex;
   align-items: center;
   min-height: var(--hit);
   border-radius: 22px;
-  border: 1px solid var(--hairline-strong);
-  background: var(--surface);
+  border: 1px solid var(--glass-edge-strong);
+  background: var(--glass-chip);
+  backdrop-filter: blur(12px) saturate(1.4);
   padding: 2px 6px 2px 10px;
   transition: border-color var(--d-tap) ease, box-shadow var(--d-tap) ease;
 }
@@ -2182,8 +2271,11 @@ button {
 .sheet-veil {
   position: absolute;
   inset: 0;
+  /* the world DIMS behind a sheet rather than disappearing: a heavier blur
+     than the old 2px, because the ground under a sheet is a painted thread
+     now and 2px of blur on a photograph is a photograph */
   background: var(--scrim);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(12px) saturate(1.1);
   z-index: 30;
   animation: veil-in var(--d-veil) var(--ease-out);
 }
@@ -2212,12 +2304,20 @@ button {
      the fold with nothing saying the sheet continues. The two `local`
      gradients are covers in the sheet's own surface so the shadows never
      show at rest. */
+  /* THE SHEET IS GLASS (Phase 3.2). The covers and the fill are
+     `--sheet-glass` rather than `--surface`, so the world behind it stays
+     faintly present instead of being replaced by a slab; the blur is what
+     turns "translucent" into "frosted" rather than "see-through". The scroll
+     shadows are unchanged in mechanism — the covers are still the sheet's own
+     fill, so they still hide the shadows at rest. */
   background:
-    linear-gradient(var(--surface) 33%, color-mix(in srgb, var(--surface) 0%, transparent)),
-    linear-gradient(color-mix(in srgb, var(--surface) 0%, transparent), var(--surface) 66%) 0 100%,
+    linear-gradient(var(--sheet-glass) 33%, transparent),
+    linear-gradient(transparent, var(--sheet-glass) 66%) 0 100%,
     radial-gradient(farthest-side at 50% 0, color-mix(in srgb, var(--ink) 16%, transparent), transparent),
     radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--ink) 16%, transparent), transparent) 0 100%;
-  background-color: var(--surface);
+  background-color: var(--sheet-glass);
+  backdrop-filter: blur(30px) saturate(1.7);
+  border-top: 0.5px solid var(--hairline-strong);
   background-repeat: no-repeat;
   background-size: 100% 44px, 100% 44px, 100% 14px, 100% 14px;
   background-attachment: local, local, scroll, scroll;
@@ -2261,26 +2361,45 @@ button {
   transform: scale(0.92);
   background: var(--surface-3);
 }
+/* ── TYPE HIERARCHY ───────────────────────────────────────────────────────
+   The owner's read of this sheet was "a wall of same-weight rows", and it was
+   accurate: the title, the section labels and every row title sat within one
+   weight step of each other, so nothing said which was which. Four levels
+   now, and each one is a different KIND of thing rather than a different size
+   of the same thing:
+
+     h3        the sheet's name          24px / 700 / display
+     label     a section                 11.5px / 700 / uppercase + tracked
+     .stitle   a thing you can act on    16px / 600
+     .ssub     what it will do           13.5px / 400 / --ink-dim
+
+   The section label is the one that changed most: 13px semibold sentence-case
+   read as another row title, which is precisely why the rows all looked the
+   same weight. Uppercase and tracked, it reads as a rule over a group and
+   stops competing. */
 .sheet h3 {
   font-family: var(--font-display);
   font-size: var(--t-title);
   font-weight: 700;
   letter-spacing: -0.02em;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
   padding-right: 40px;
 }
 .sheet .hint {
   color: var(--ink-dim);
   font-size: var(--t-sub);
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   line-height: 1.5;
+  max-width: 38ch;
 }
 .sheet label {
   display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-dim);
-  margin: 16px 0 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 22px 0 9px;
 }
 .sheet input.field,
 .sheet select.field {
@@ -2351,8 +2470,10 @@ button {
 }
 .srow .stitle {
   display: block;
-  font-size: var(--t-ui);
-  font-weight: 550;
+  /* a row title is a THING YOU CAN ACT ON and now outranks the section label
+     that used to match it — 16/600 against the label's 11.5/700-uppercase */
+  font-size: 16px;
+  font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.3;
 }
@@ -2373,29 +2494,137 @@ button {
   color: var(--ink-faint);
   flex-shrink: 0;
 }
+/* ── THE DANGER ZONE (Phase 3.2) ──────────────────────────────────────────
+   These two rows erase a relationship. They used to be marked as such by a
+   0.5px rule and the colour of their own text, which is a distinction you can
+   only see if you already know it is there — the owner's screenshot is
+   exactly what that looks like in use: one wall of identically shaped rows,
+   the last two of them red.
+
+   A zone instead of a line: inset, tinted in the danger hue at a whisper,
+   outlined, and labelled with the one word the two of them share. The rows
+   inside keep every handler, every confirmation flow and every word of their
+   copy — the only thing that changed is that you can now see where the
+   reversible part of this sheet ends. */
+.sheet label.danger-label {
+  margin: 22px 0 8px;
+  color: var(--danger);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 11.5px;
+}
 .sheet-rows.danger {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 0.5px solid var(--hairline);
+  margin: 0 -4px;
+  padding: 6px;
+  gap: 4px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 22%, transparent);
 }
 .srow.destructive .sicon {
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
   color: var(--danger);
 }
 .srow.destructive .stitle {
   color: var(--danger);
+  font-weight: 600;
+}
+.srow.destructive:active {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
+/* ── the appearance segmented control ─────────────────────────────────────
+   Four segments in one track, each showing the thing it does rather than
+   naming it. See MoreSheet.tsx for why the swatches are raw values: a
+   depiction of the light theme has to look light while the DARK theme is
+   active, so a token here would be the bug and a literal is the fix. */
+.seg {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  border: 0.5px solid var(--hairline);
+}
+.seg-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  min-height: 68px;
+  padding: 9px 2px 8px;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink-dim);
+  transition: background var(--d-tap) ease, color var(--d-tap) ease,
+    border-color var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.seg-opt:active {
+  transform: scale(0.96);
+}
+/* the selected segment RISES out of its track — the same elevation idiom the
+   auth segment uses, and the reason --raised exists (on the dark ground
+   --surface sits BELOW --surface-2, so a pill that rose to it would sink) */
+.seg-opt.on {
+  background: var(--raised);
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+  box-shadow: var(--shadow-card);
+}
+.seg-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(140, 120, 112, 0.34);
+}
+.seg-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1;
+}
+/* SKY: the live gradient, from the same four stops the world layer paints.
+   Not a picture of a sunset — the sky it is following, at this minute. */
+.seg-opt[data-mode="sky"] .seg-swatch {
+  background: linear-gradient(
+    to bottom,
+    var(--sky-1) 0%,
+    var(--sky-2) 34%,
+    var(--sky-3) 68%,
+    var(--sky-4) 100%
+  );
+}
+/* AUTO: a light half and a dark half, split on the diagonal */
+.seg-opt[data-mode="system"] .seg-swatch {
+  background: linear-gradient(114deg, #faf7f4 0 50%, #191315 50% 100%);
+}
+.seg-opt[data-mode="light"] .seg-swatch {
+  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #f3ece4 78%);
+}
+.seg-opt[data-mode="dark"] .seg-swatch {
+  background: radial-gradient(circle at 32% 28%, #2c2327 0%, #120d0e 82%);
+}
+
+/* THE HONESTY LINE IS TEXT, so it takes a text role. It was --ink-faint,
+   which the token block defines as non-text at 2.9:1 — and the sheet becoming
+   glass is what surfaced it: on a 0.94 fill over a dark thread it measured
+   2.69:1. This is the SECOND time this exact lesson has been paid for in this
+   product (onboarding's legal paragraph carries the same note, for the same
+   reason), which is why it is now a gate rather than a comment: a disclosure
+   nobody can read is not a disclosure. */
 .sheet-foot {
-  margin-top: 20px;
+  margin-top: 22px;
   padding-top: 14px;
   border-top: 0.5px solid var(--hairline);
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  font-size: 12px;
-  color: var(--ink-faint);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-dim);
 }
 .sheet-foot a {
   color: var(--ink-dim);

@@ -202,6 +202,53 @@ export interface SkyTokens {
    *  the horizon, which is the only part of these paintings that carries the
    *  time of day. */
   imgWide: string;
+
+  // ── THE THREAD'S WALLPAPER (docs/DESIGN-WORLD.md §Phase 3.1) ────────────
+  //
+  // A THIRD veil, and the reason it cannot be either of the two above is the
+  // one fact that decides this whole layer: THE THREAD'S TEXT IS NOT THE
+  // WORLD'S TEXT. Everything the two veils above carry is painted in
+  // `ink`/`inkDim` — tokens that belong to the SKY and flip with it. The
+  // thread's day separators, timestamps and metadata are painted in the app's
+  // `--ink-dim`, which belongs to the THEME and does not flip with the sky at
+  // all: a person who has explicitly chosen the light theme reads dark ink at
+  // midnight, over the night painting.
+  //
+  // So the wallpaper veil is indexed by THEME, not by the sky's own mode, and
+  // there are two of every number. `data-theme` beats the sky — that is a law
+  // in the direction doc, and this is what the law costs.
+  //
+  // ── the numbers were solved, not chosen ────────────────────────────────
+  //
+  // `scripts/check-contrast.mjs` composites each of these over the decoded
+  // pixels of the shipped jpg — top band, bottom band, and the WHOLE frame,
+  // avg/darkest-decile/brightest-decile — and holds 4.5:1 for every piece of
+  // text that sits on the wallpapered ground. These are the lowest alphas
+  // that clear it with a margin, which is why the two families look nothing
+  // alike:
+  //
+  //   LIGHT theme ~0.93. The day palette's near-black ink over a warm veil,
+  //   so the painting survives as a 6-7% wash — the intensity a chat
+  //   wallpaper has always had, and the reason the light identity stays
+  //   light. Every state lands in the same place because the constraint is
+  //   the painting's DARKEST decile (a roof slab under near-black ink), and
+  //   all five paintings have roofs.
+  //
+  //   DARK theme 0.60 -> 0.91, and the SPREAD is the whole point. The
+  //   constraint here is the BRIGHTEST decile under light ink, so a dark
+  //   painting costs almost nothing and a bright one costs everything: the
+  //   night sky comes through at 40% and the morning sky at 9%. That is the
+  //   correct answer rather than an awkward one — the owner's complaint was a
+  //   dark thread that is a void, and a night painting at 40% is a night. A
+  //   MORNING painting at 40% under a dark theme would be a lightbox.
+  //
+  // The tints are the theme's own ground carried a few points toward the
+  // state's mood, never a new colour: the veil's job is to BE the app's
+  // ground, with a time of day showing through it.
+  wallScrimLight: string;
+  wallAlphaLight: number;
+  wallScrimDark: string;
+  wallAlphaDark: number;
 }
 
 /**
@@ -239,6 +286,10 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     edgeAlpha: 0.5,
     img: 'url("/world/world_night.jpg")',
     imgWide: 'url("/world/world_night_wide.jpg")',
+    wallScrimLight: "#f6f4f6",
+    wallAlphaLight: 0.94,
+    wallScrimDark: "#0a0c18",
+    wallAlphaDark: 0.6,
   }),
 
   // The blue hour before sunrise: cold at the top, a thin cyan band, and the
@@ -264,6 +315,10 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     edgeAlpha: 0.62,
     img: 'url("/world/world_predawn.jpg")',
     imgWide: 'url("/world/world_predawn_wide.jpg")',
+    wallScrimLight: "#f7f5f7",
+    wallAlphaLight: 0.94,
+    wallScrimDark: "#0c0e1c",
+    wallAlphaDark: 0.65,
   }),
 
   // Full daylight. Warm rather than the default sky-blue — the app's ground
@@ -293,6 +348,10 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     edgeAlpha: 0.7,
     img: 'url("/world/world_morning.jpg")',
     imgWide: 'url("/world/world_morning_wide.jpg")',
+    wallScrimLight: "#faf8f4",
+    wallAlphaLight: 0.93,
+    wallScrimDark: "#14100f",
+    wallAlphaDark: 0.91,
   }),
 
   // Golden hour. The one state where the horizon is BRIGHTER than the zenith
@@ -318,6 +377,10 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     edgeAlpha: 0.7,
     img: 'url("/world/world_golden.jpg")',
     imgWide: 'url("/world/world_golden_wide.jpg")',
+    wallScrimLight: "#fcf7f0",
+    wallAlphaLight: 0.935,
+    wallScrimDark: "#17110d",
+    wallAlphaDark: 0.9,
   }),
 
   // Dusk. The competitor's best frame is its rose dusk, so this is the one
@@ -344,6 +407,10 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     edgeAlpha: 0.62,
     img: 'url("/world/world_dusk.jpg")',
     imgWide: 'url("/world/world_dusk_wide.jpg")',
+    wallScrimLight: "#f9f4f4",
+    wallAlphaLight: 0.94,
+    wallScrimDark: "#140f1c",
+    wallAlphaDark: 0.87,
   }),
 });
 

@@ -39,6 +39,7 @@ import { ChessIcon } from "./GamesHub";
 import { listen, sttSupported } from "../voice/speech";
 import { tap, land } from "../native/haptics";
 import MoreSheet from "./MoreSheet";
+import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import {
   PhoneIcon,
   SendIcon,
@@ -2316,6 +2317,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       ? "mic"
       : "off";
 
+  // THE THREAD'S OWN SKY. Presentation only: it feeds the wallpaper under the
+  // thread and the band behind the header, and nothing downstream of it can
+  // reach the reply cycle. `useSky` schedules off the boundary rather than
+  // polling, so this costs five re-renders a day.
+  const sky = useSky();
+
   const stories = activeStories();
   const storyLive = stories.length > 0;
   const storyUnseen = hasUnseenStory();
@@ -2333,17 +2340,30 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   const headTarget = storyLive ? "View her story" : "Account";
 
   return (
-    <div className="chat">
+    <div className="chat" style={skyVars(sky)} data-sky={sky.state}>
+      {/* THE WALLPAPER (docs/DESIGN-WORLD.md §Phase 3.1). A sibling of the
+          scroller, never a child of it: it does not move when the thread
+          moves, so a 300-message flick cannot repaint it. See `.chat > .world`
+          in global.css for the containment that states this to the engine. */}
+      <WorldLayer frame={sky} variant="wallpaper" />
       <div className="chat-head">
+        {/* the band — the sky through the header glass. This variant shipped
+            with no call sites at all (audit L1); this is its first. */}
+        <WorldLayer frame={sky} variant="band" />
+        {/* The gold ring, shared with home rather than re-implemented: the
+            treatment lives in world.css as `.ring-gold`, the SIZE stays here,
+            because a 118px presence portrait and a 44px header avatar are the
+            same idea at two scales. The story states keep their existing
+            classes so the ring still does its second job. */}
         <button
-          className={`avatar-ring ${storyLive ? (storyUnseen ? "story-live" : "story-seen") : ""}`}
-          style={{ width: 48, height: 48, padding: 2.5 }}
+          className={`ring-gold ${storyLive ? (storyUnseen ? "live" : "seen") : ""}`}
+          style={{ width: 44, height: 44, padding: 2.5 }}
           onClick={openStoryOrProfile}
           data-tel="chat.avatar"
           aria-label={headTarget}
         >
-          <div className="inner">
-            <PhotoAvatar size={43} />
+          <div className="ring-inner">
+            <PhotoAvatar size={39} />
           </div>
         </button>
         {/* its accessible name is its own content — "Meera, last seen today
@@ -2357,7 +2377,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
           onClick={onUs}
           aria-label={`You and ${HER_NAME}`}
         >
-          <div className="name">{HER_NAME}</div>
+          <div className="name name-serif">{HER_NAME}</div>
           {/* ONE node whose contents change — typing → online → last seen
               dissolves. Rendering three sibling nodes would remount the
               element and the transition would never run. */}

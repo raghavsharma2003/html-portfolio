@@ -265,6 +265,17 @@ export function skyVars(frame: SkyFrame): React.CSSProperties {
     // tablet swaps the painting without a React render.
     "--world-img": t.img || "none",
     "--world-img-wide": t.imgWide || t.img || "none",
+    // THE THREAD'S WALLPAPER, both themes' worth. Emitted together rather
+    // than resolved here because the choice between them is the THEME's, and
+    // the theme lives in a `data-theme` attribute plus a media query — a
+    // React component that tried to resolve it would be a third copy of the
+    // rule global.css already states twice, and it would be the copy that
+    // does not update when the OS flips at sunset with the app open.
+    // `world.css` picks with the same selector pair global.css uses.
+    "--wall-scrim-light": t.wallScrimLight,
+    "--wall-a-light": String(t.wallAlphaLight),
+    "--wall-scrim-dark": t.wallScrimDark,
+    "--wall-a-dark": String(t.wallAlphaDark),
   } as React.CSSProperties;
 }
 
@@ -308,15 +319,36 @@ interface Props {
   frame: SkyFrame;
   /**
    * `full` is the whole world: sky, stars, moon, clouds, city.
+   *
    * `band` is the top slice only, for a translucent header that shows the
-   * sky through it — the one way the world is allowed to reach the thread
-   * (DESIGN-WORLD §3, "the chat stays legible-first").
+   * sky through it — the one way the world was allowed to reach the thread
+   * under DESIGN-WORLD §3 ("the chat stays legible-first"), and as of Phase
+   * 3.2 it finally has a call site: `.chat-head`.
+   *
+   * `wallpaper` is the thread's ground (Phase 3.1). It is deliberately the
+   * SMALLEST variant, and that is its definition rather than an optimisation:
+   *
+   *   A WALLPAPER IS STILL.
+   *
+   * Nothing in it twinkles, drifts, rises or breathes. The full world is a
+   * place you look AT; the thread is a place you read IN, and every moving
+   * thing behind a paragraph is a thing competing with the paragraph. So the
+   * three layers that carry the picture — gradient, painting, veil — are all
+   * it renders, and the celestials, the plates, the glow and the city are not
+   * hidden here, they are NOT RENDERED, for the same countability reason the
+   * anti-fight rule gives above.
+   *
+   * It is also why the wallpaper costs the windowed thread nothing: three
+   * static layers in a `position: absolute` sibling OUTSIDE the scroll
+   * container means the scroller moves and this does not, so a row entering
+   * the viewport can never dirty it.
    */
-  variant?: "full" | "band";
+  variant?: "full" | "band" | "wallpaper";
 }
 
 export default function WorldLayer({ frame, variant = "full" }: Props) {
   const t = frame.tokens;
+  const still = variant === "wallpaper";
   const wide = useOrientationWide();
   // The crop the stylesheet is actually going to ask for, so the probe and the
   // paint agree by construction rather than by both happening to be right.
@@ -351,13 +383,13 @@ export default function WorldLayer({ frame, variant = "full" }: Props) {
              say: light does not arrive from directly above. Procedural-only —
              a painted sky already has its own light source and a second one
              laid over it is the same fight as a second moon. */}
-      {!painted && <div className="world-glow" />}
+      {!painted && !still && <div className="world-glow" />}
 
       {/* ── the procedural celestials: FALLBACK ONLY ───────────────────────
           Not `display: none` when painted — not rendered. The rule the
           battery checks is "exactly zero procedural moon nodes over a
           painting", and a hidden node is still a node. */}
-      {!painted && t.stars.count > 0 && (
+      {!painted && !still && t.stars.count > 0 && (
         <div className="world-stars">
           <i className="ws-a" style={{ boxShadow: STARS_A }} />
           <i className="ws-b" style={{ boxShadow: STARS_B }} />
@@ -365,13 +397,13 @@ export default function WorldLayer({ frame, variant = "full" }: Props) {
         </div>
       )}
 
-      {!painted && t.moon.visible && (
+      {!painted && !still && t.moon.visible && (
         <div className="world-moon">
           <i />
         </div>
       )}
 
-      {!painted && (
+      {!painted && !still && (
         <div className="world-clouds">
           <i className="wc-1" />
           <i className="wc-2" />

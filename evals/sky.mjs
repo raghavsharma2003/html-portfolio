@@ -227,6 +227,90 @@ ok(
       SKY_TOKENS[s].scrimAlphaPainted <= 0.8,
   ),
 );
+// ── 1d. the THIRD veil: the thread's wallpaper ────────────────────────────
+// docs/DESIGN-WORLD.md §Phase 3.1. `scripts/check-contrast.mjs` owns the
+// floors (it decodes the jpgs); this is the structural half — the half that
+// survives someone collapsing four numbers into one, or wiring a state's
+// wallpaper to the sky's own mode instead of to the theme.
+{
+  const FIELDS = ["wallScrimLight", "wallAlphaLight", "wallScrimDark", "wallAlphaDark"];
+  ok(
+    "every state carries all four wallpaper fields",
+    SKY_STATES.every((s) => FIELDS.every((f) => SKY_TOKENS[s][f] !== undefined)),
+    SKY_STATES.filter((s) => !FIELDS.every((f) => SKY_TOKENS[s][f] !== undefined)).join(","),
+  );
+  ok(
+    "both wallpaper scrims are 6-digit hexes the gate can parse",
+    SKY_STATES.every(
+      (s) =>
+        /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimLight) &&
+        /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimDark),
+    ),
+  );
+  ok(
+    "both wallpaper alphas are numbers inside the sane band",
+    SKY_STATES.every(
+      (s) =>
+        SKY_TOKENS[s].wallAlphaLight >= 0.35 &&
+        SKY_TOKENS[s].wallAlphaLight <= 0.97 &&
+        SKY_TOKENS[s].wallAlphaDark >= 0.35 &&
+        SKY_TOKENS[s].wallAlphaDark <= 0.97,
+    ),
+  );
+  // THE VEIL IS INDEXED BY THEME, NOT BY THE SKY'S OWN MODE, and this is the
+  // check that says so in a way a refactor cannot talk its way past. The
+  // tempting simplification is "the sky already knows if it is light or dark,
+  // use `mode`" — and it is wrong, because `data-theme` beats the sky: a
+  // person on the explicit light theme reads dark ink at midnight. If the two
+  // families were really one, every dark state would share an alpha and every
+  // light state would share the other. They do not, and cannot.
+  const darkStates = SKY_STATES.filter((s) => SKY_TOKENS[s].mode === "dark");
+  ok(
+    "the wallpaper veil does not merely track the sky's own mode",
+    new Set(darkStates.map((s) => SKY_TOKENS[s].wallAlphaDark)).size > 1,
+    darkStates.map((s) => `${s} ${SKY_TOKENS[s].wallAlphaDark}`).join(", "),
+  );
+  // A dark painting can be let through; a bright one cannot. That ordering is
+  // the physical fact underneath every number in the table, so it is pinned:
+  // the morning sky (the brightest painting) must take the heaviest dark veil,
+  // and night (the darkest) the lightest.
+  ok(
+    "the dark veil is heaviest on the brightest painting",
+    SKY_TOKENS.morning.wallAlphaDark > SKY_TOKENS.night.wallAlphaDark,
+    `morning ${SKY_TOKENS.morning.wallAlphaDark} vs night ${SKY_TOKENS.night.wallAlphaDark}`,
+  );
+  // world.css must actually consume all four, or the table is decoration.
+  {
+    const css = readFileSync(join(ROOT, "src/styles/world.css"), "utf8");
+    for (const v of ["--wall-scrim-light", "--wall-a-light", "--wall-scrim-dark", "--wall-a-dark"])
+      ok(`world.css reads ${v}`, css.includes(v));
+    ok(
+      "world.css declares the wallpaper variant",
+      /\.world\[data-variant="wallpaper"\]/.test(css),
+    );
+    // A WALLPAPER IS STILL. The variant must turn off every ambient layer —
+    // the celestials are not rendered into it at all (WorldLayer.tsx), and
+    // this is the stylesheet's half of the same promise.
+    ok(
+      "the wallpaper variant stops the emphasis vignette",
+      /\.world\[data-variant="wallpaper"\] \.world-scrim::after/.test(css),
+    );
+  }
+  // …and WorldLayer must not render a single moving thing into it.
+  {
+    const tsx = readFileSync(join(ROOT, "src/components/WorldLayer.tsx"), "utf8");
+    ok(
+      "WorldLayer knows the wallpaper variant",
+      /"full" \| "band" \| "wallpaper"/.test(tsx),
+    );
+    ok(
+      "the wallpaper renders no procedural celestials",
+      (tsx.match(/!painted && !still/g) || []).length >= 4,
+      `${(tsx.match(/!painted && !still/g) || []).length} guarded`,
+    );
+  }
+}
+
 // The scrim's top/bottom emphasis curve, which the contrast gate composites
 // and world.css draws. Pinned to the gradient's own stops: if the stylesheet
 // moves them and this does not, the gate is measuring a screen nobody ships.

@@ -429,11 +429,15 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
   } else {
     const { existsSync } = await import("fs");
 
+    // `full` is the wallpaper's band and only the wallpaper's: the world
+    // surfaces put text in two bands, a THREAD puts text at every vertical
+    // position, so the wallpaper is measured over the whole frame as well.
     const bandSamples = async (file, which) => {
       const meta = await sharp(file).metadata();
-      const frac = which === "top" ? SKY_MOD.TEXT_BAND_TOP : SKY_MOD.TEXT_BAND_BOTTOM;
+      const frac =
+        which === "full" ? 1 : which === "top" ? SKY_MOD.TEXT_BAND_TOP : SKY_MOD.TEXT_BAND_BOTTOM;
       const h = Math.max(1, Math.round(meta.height * frac));
-      const top = which === "top" ? 0 : meta.height - h;
+      const top = which === "bottom" ? meta.height - h : 0;
       // Downsampled to 240 wide first: the samples are decile MEANS, which a
       // box filter preserves and which reading 1.5M raw pixels five times over
       // would only make slower.
@@ -554,6 +558,763 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
       `  ..  world worst case OVER THE PAINTINGS: text ${pWorstText.toFixed(2)}:1, ` +
         `text-in-panel ${pWorstPanel.toFixed(2)}:1, panel edge ${pWorstEdge.toFixed(2)}:1`,
     );
+
+    // ══ THE THREAD'S WALLPAPER ═════════════════════════════════════════════
+    //
+    // docs/DESIGN-WORLD.md §Phase 3.1. The thread's ground is a painting now,
+    // and the thing that makes that survivable is a heavy veil whose alpha was
+    // SOLVED against these same decoded pixels rather than chosen by eye.
+    //
+    // ── WHY THIS IS A SEPARATE HALF AND NOT MORE ROWS ABOVE ────────────────
+    //
+    // Everything above measures `--world-ink`/`--world-ink-dim`: tokens that
+    // belong to the SKY and flip with it, so a night sky is measured under
+    // light ink and a noon sky under dark ink, always in agreement.
+    //
+    // The thread's ground text does not work that way. A day separator, a
+    // timestamp, the read-earlier pill and every `--ink-dim` metadata line are
+    // painted in the THEME's ink, and `data-theme` beats the sky — that is a
+    // law in the direction doc. So the combination this half exists to catch
+    // is the one the world half cannot produce: THE LIGHT THEME AT MIDNIGHT.
+    // Near-black ink, over the night painting, veiled by a light scrim. Ten
+    // combinations (5 skies x 2 themes), and eight of them are not on screen
+    // while you are looking at the ninth.
+    //
+    // ── WHAT IS COMPUTED ───────────────────────────────────────────────────
+    //
+    //   ground = wallScrim{Light,Dark} over the painting's decoded pixels at
+    //            wallAlpha{Light,Dark}. UNIFORM — the wallpaper variant turns
+    //            off `.world-scrim::after`'s emphasis on purpose (a vignette
+    //            over a thread is a vignette over messages), so unlike the
+    //            world half there is no additive pass to model and the number
+    //            here is the number that renders.
+    //   text   = the THEME's --ink and --ink-dim, straight onto that ground.
+    //   chip   = --glass-chip over that ground; text is read ON it, so both
+    //            inks are measured against the chip as well.
+    //   edge   = --glass-edge-strong over the chip, against the ground.
+    //
+    // Three regions rather than two: top and bottom as above (the header band
+    // reads the top through the same veil), PLUS the whole frame, because a
+    // thread puts text at every vertical position and a gate that only looked
+    // at the ends would be measuring a screen nobody scrolls.
+    //
+    // Floors: 4.5 for every piece of text, 3.0 for a CONTROL's boundary. The
+    // two label chips (day separator, call record) are deliberately NOT held
+    // to 3.0 — see the --glass-edge note in global.css; they are text in a
+    // container, not components, and a 3:1 ring around every date would be a
+    // floor invented rather than applied.
+    console.log("");
+
+    const g = read("src/styles/global.css");
+    // brace-balanced, because these blocks are long and a fixed slice is a
+    // gate that silently stops covering a token someone appends
+    const cssBlock = (src, sel) => {
+      const i = src.indexOf(sel);
+      if (i === -1) throw new Error(`selector not found: ${sel}`);
+      const open = src.indexOf("{", i);
+      let depth = 0;
+      for (let j = open; j < src.length; j++) {
+        if (src[j] === "{") depth++;
+        else if (src[j] === "}" && --depth === 0) return src.slice(open + 1, j);
+      }
+      throw new Error(`unbalanced block: ${sel}`);
+    };
+    const LIGHT = cssBlock(g, ":root {");
+    const DARK = cssBlock(g, ':root[data-theme="dark"] {');
+
+    // `--bubble-me: var(--accent-solid)` -> `var(--accent)` -> `#c23f56`, and
+    // in the dark theme the SAME chain lands on `#bc4557` because only its
+    // middle link is overridden. Resolved rather than assumed: the
+    // bubble-opacity assertion below is worth nothing if it stops at the first
+    // `var()` and calls it opaque.
+    //
+    // The dark block is an OVERRIDE LIST, not a complete palette — most tokens
+    // (`--bubble-me` among them) are declared once in `:root` and inherited.
+    // So resolution walks a cascade: the theme's own block first, `:root`
+    // behind it, which is exactly what the browser does.
+    const resolveIn = (blocks, name, depth = 0) => {
+      if (depth > 8) throw new Error(`--${name}: var() chain too deep`);
+      let v = null;
+      for (const b of blocks) {
+        try {
+          v = token(b, name);
+          break;
+        } catch {
+          /* not overridden at this level — fall through to :root */
+        }
+      }
+      if (v === null) throw new Error(`token ${name} not found in any block`);
+      const m = /^var\((--[\w-]+)\)$/.exec(v);
+      return m ? resolveIn(blocks, m[1], depth + 1) : v;
+    };
+    const rgba = (v) => {
+      const m = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$/.exec(v.trim());
+      if (!m) throw new Error(`not an rgba(): ${v}`);
+      return { c: [+m[1] / 255, +m[2] / 255, +m[3] / 255], a: m[4] === undefined ? 1 : +m[4] };
+    };
+
+    // ── the bubbles are opaque, and that is the whole safety argument ──────
+    //
+    // "Bubble contrast is untouched by construction (opaque surfaces)" is what
+    // the direction doc promises for this phase, and it is the reason not one
+    // ratio inside a bubble had to be re-measured when the ground became a
+    // picture. A promise that rests on construction has to be pinned to the
+    // construction, or the next person to make her bubbles "sit in the world"
+    // with a 0.9 alpha silently puts every message in the product on a
+    // painting — and it would look fine on the four states they checked.
+    const CASCADE = { light: [LIGHT], dark: [DARK, LIGHT] };
+    for (const [themeName, chain] of Object.entries(CASCADE)) {
+      for (const [what, tok] of [["her", "--surface-2"], ["me", "--bubble-me"]]) {
+        const v = resolveIn(chain, tok);
+        check(
+          `wallpaper/${themeName}: .msg.${what} background is fully opaque`,
+          /^#[0-9a-f]{6}$/i.test(v.trim()),
+          `${tok} -> ${v}`,
+        );
+      }
+    }
+    // …and the declarations themselves carry no alpha and no opacity, which is
+    // the other way the same promise breaks: an opaque TOKEN under a
+    // translucent RULE is still a translucent bubble.
+    // EVERY rule with this selector, not the first one: `.msg.her` is declared
+    // twice in global.css (once for its transform-origin and transition, once
+    // for its ground), and a check that read only the first would be reading a
+    // block with no `background` in it at all — passing, forever, by looking
+    // at the wrong rule. This is the same species of hole as the frozen-copy
+    // gates in `evals/archive/`, at the scale of one selector.
+    const allBlocks = (src, sel) => {
+      const out = [];
+      let i = 0;
+      while ((i = src.indexOf(`\n${sel} {`, i)) !== -1) {
+        const open = src.indexOf("{", i);
+        let depth = 0;
+        for (let j = open; j < src.length; j++) {
+          if (src[j] === "{") depth++;
+          else if (src[j] === "}" && --depth === 0) {
+            out.push(src.slice(open + 1, j));
+            i = j;
+            break;
+          }
+        }
+        if (i < open) break;
+      }
+      return out;
+    };
+    for (const sel of [".msg.her", ".msg.me"]) {
+      const blocks = allBlocks(g, sel);
+      check(`wallpaper: ${sel} rules found`, blocks.length > 0, `${blocks.length}`);
+      const bgs = blocks
+        .map((b) => /(?:^|[\s;])background:\s*([^;]+);/.exec(b)?.[1]?.trim())
+        .filter(Boolean);
+      check(
+        `wallpaper: every ${sel} background is an opaque token, no alpha`,
+        bgs.length > 0 && bgs.every((v) => /^var\(--[\w-]+\)$/.test(v)),
+        bgs.join(" | ") || "(none declared)",
+      );
+      const ops = blocks
+        .map((b) => /(?:^|[\s;])opacity:\s*([^;]+);/.exec(b)?.[1]?.trim())
+        .filter(Boolean);
+      check(
+        `wallpaper: no ${sel} rule thins the bubble with opacity`,
+        ops.every((v) => v === "1"),
+        ops.join(" | ") || "(none)",
+      );
+    }
+
+    // ── the two wallpaper veil blocks stay byte-identical ──────────────────
+    // Same law and same failure as the palette's own two dark blocks: if they
+    // drift, one of the two ways into the dark theme keeps the LIGHT veil, and
+    // only the users who got there that way ever see a white wash over a night
+    // sky. `darkBlocks` is the same helper the board files use.
+    {
+      const w = read("src/styles/world.css");
+      const veils = darkBlocks(w, ':root:not([data-theme="light"]) .world[data-variant="band"]')
+        .concat(darkBlocks(w, ':root[data-theme="dark"] .world[data-variant="band"]'));
+      check(
+        "wallpaper: the two dark-veil blocks are byte-identical",
+        veils.length === 2 && veils[0] === veils[1],
+        veils.length === 2 ? "" : `found ${veils.length}`,
+      );
+    }
+
+    const THEME_INK = {
+      light: { chain: CASCADE.light, scrimKey: "wallScrimLight", alphaKey: "wallAlphaLight" },
+      dark: { chain: CASCADE.dark, scrimKey: "wallScrimDark", alphaKey: "wallAlphaDark" },
+    };
+
+    let wWorstText = Infinity;
+    let wWorstChip = Infinity;
+    let wWorstEdge = Infinity;
+
+    for (const state of SKY_STATES ?? []) {
+      const t = SKY_TOKENS[state];
+      const painting = ROOT + "public" + SKY_MOD.imgPath(t.img);
+      if (!existsSync(painting)) continue; // already failed loudly above
+      const regions = [];
+      for (const which of ["top", "bottom", "full"]) {
+        const s = await bandSamples(painting, which);
+        for (const [name, colour] of Object.entries(s)) regions.push([`${which}/${name}`, colour]);
+      }
+
+      for (const [themeName, cfg] of Object.entries(THEME_INK)) {
+        const chain = cfg.chain;
+        const scrim = hex(t[cfg.scrimKey]);
+        const alpha = t[cfg.alphaKey];
+        const ink = hex(resolveIn(chain, "--ink"));
+        const inkDim = hex(resolveIn(chain, "--ink-dim"));
+        const chipFill = rgba(resolveIn(chain, "--glass-chip"));
+        const edgeStrong = rgba(resolveIn(chain, "--glass-edge-strong"));
+
+        check(
+          `wallpaper/${state}/${themeName}: the veil is a real veil`,
+          alpha >= 0.35 && alpha <= 0.97,
+          String(alpha),
+        );
+
+        let minText = Infinity;
+        let minChip = Infinity;
+        let minEdge = Infinity;
+        let whereText = "";
+        for (const [name, colour] of regions) {
+          const ground = over(scrim, colour, alpha);
+          const chip = over(chipFill.c, ground, chipFill.a);
+          const rText = Math.min(ratio(ink, ground), ratio(inkDim, ground));
+          if (rText < minText) {
+            minText = rText;
+            whereText = name;
+          }
+          minChip = Math.min(minChip, ratio(ink, chip), ratio(inkDim, chip));
+          minEdge = Math.min(minEdge, ratio(over(edgeStrong.c, chip, edgeStrong.a), ground));
+        }
+        wWorstText = Math.min(wWorstText, minText);
+        wWorstChip = Math.min(wWorstChip, minChip);
+        wWorstEdge = Math.min(wWorstEdge, minEdge);
+
+        check(
+          `wallpaper/${state}/${themeName}: ground text >= ${TEXT_FLOOR}`,
+          minText >= TEXT_FLOOR,
+          `${minText.toFixed(2)} worst at ${whereText} (veil ${alpha})`,
+        );
+        check(
+          `wallpaper/${state}/${themeName}: text on a glass chip >= ${TEXT_FLOOR}`,
+          minChip >= TEXT_FLOOR,
+          minChip.toFixed(2),
+        );
+        check(
+          `wallpaper/${state}/${themeName}: a CONTROL's edge >= ${EDGE_FLOOR}`,
+          minEdge >= EDGE_FLOOR,
+          minEdge.toFixed(2),
+        );
+
+        // ── HER BUBBLE HAS TO BE A SHAPE, NOT ONLY A LEGIBLE ONE ────────────
+        //
+        // THIS IS THE HOLE THE FIRST VERSION OF THIS SECTION SHIPPED WITH, and
+        // it is worth the space because it is the same hole the world half
+        // already records one floor above: a gate that measures only TEXT
+        // contrast passes a design in which the container the text sits in has
+        // vanished. The browser battery caught it in a screenshot — the light
+        // morning thread, third bubble, where the wallpaper's city passes under
+        // `--surface-2` and the two meet at 1.02:1. The first two bubbles sat
+        // over open sky and looked perfect, which is exactly why nothing else
+        // would have found it.
+        //
+        // Text contrast was never the problem: `--ink` on `--surface-2` is
+        // unchanged and still 15:1, because the bubble is still opaque. What was
+        // lost is the BUBBLE — the grouping, who said what, where one message
+        // ends. So the check is on the fill against the ground it now floats on,
+        // and where that is too close to read as a shape, the bubble must carry
+        // a lift (a shadow in the day, an inset hairline at night — the app's
+        // own elevation rule, see --bubble-her-lift).
+        {
+          const herFill = hex(resolveIn(cfg.chain, "--surface-2"));
+          const scrimC = hex(t[cfg.scrimKey]);
+          let minShape = Infinity;
+          for (const [, colour] of regions) {
+            minShape = Math.min(minShape, ratio(herFill, over(scrimC, colour, t[cfg.alphaKey])));
+          }
+          const lift = (() => {
+            try {
+              return resolveIn(cfg.chain, "--bubble-her-lift");
+            } catch {
+              return "";
+            }
+          })();
+          // THE LIFT MUST CONTAIN AN EDGE, and that is a measured requirement
+          // rather than a stylistic one. The first fix for this was a drop
+          // shadow alone — the app's own light-theme elevation idiom, and the
+          // obvious answer. It did not work: a 7-13% shadow offset 1-2px is
+          // invisible when the ground under it is the SAME COLOUR as the
+          // thing casting it, which is exactly the condition that created the
+          // bug. Re-shot, still gone. Only the inset ring made the bubble a
+          // shape again. So the token has to carry one in both themes.
+          const hasLift = Boolean(lift) && lift !== "none";
+          const hasEdge = /\binset\b/.test(lift);
+          check(
+            `wallpaper/${state}/${themeName}: her bubble is findable (fill ${minShape.toFixed(2)}:1, or a lift)`,
+            minShape >= 1.25 || (hasLift && hasEdge),
+            hasLift
+              ? hasEdge
+                ? "carries --bubble-her-lift with an inset edge"
+                : "lift has no inset edge — a shadow alone was measured invisible here"
+              : `no lift and only ${minShape.toFixed(2)}:1`,
+          );
+        }
+      }
+
+      // The two families must not converge. If a "simplification" ever gives
+      // both themes one alpha, the light theme goes dim or the dark theme goes
+      // back to being the void the owner photographed — and every ratio above
+      // would still pass, because one number CAN clear the floors. It just
+      // cannot be the right number twice.
+      check(
+        `wallpaper/${state}: the light and dark veils are different numbers`,
+        Math.abs(t.wallAlphaLight - t.wallAlphaDark) > 0.005,
+        `light ${t.wallAlphaLight} vs dark ${t.wallAlphaDark}`,
+      );
+    }
+
+    // The owner's grim-void screenshot, as a number. A dark thread whose veil
+    // is so heavy the painting cannot be seen through it is exactly what was
+    // photographed, and it passes every contrast floor there is — "too dark to
+    // read" and "too dark to be anything" are different failures and only the
+    // first one has a ratio. So the night sky's dark veil is held BELOW a
+    // ceiling as well as above the floor: at 0.60 the painting comes through
+    // at 40%, and the thread is a night rather than a black rectangle.
+    check(
+      "wallpaper/night: the dark theme lets the night painting through",
+      SKY_TOKENS.night.wallAlphaDark <= 0.72,
+      `${SKY_TOKENS.night.wallAlphaDark} (painting at ${((1 - SKY_TOKENS.night.wallAlphaDark) * 100) | 0}%)`,
+    );
+    // …and the light theme stays LIGHT. The inverse failure: a light thread
+    // that turned into a photograph would be a different product's identity.
+    for (const state of SKY_STATES ?? []) {
+      check(
+        `wallpaper/${state}: the light theme stays a wash, not a photo`,
+        SKY_TOKENS[state].wallAlphaLight >= 0.9,
+        String(SKY_TOKENS[state].wallAlphaLight),
+      );
+    }
+
+    console.log(
+      `  ..  wallpaper worst case: ground text ${wWorstText.toFixed(2)}:1, ` +
+        `chip text ${wWorstChip.toFixed(2)}:1, control edge ${wWorstEdge.toFixed(2)}:1`,
+    );
+
+    // ══ A SHEET IS GLASS TOO ═══════════════════════════════════════════════
+    //
+    // Settings, the profile editor and both destroy-confirmations are one
+    // sheet, and that sheet now floats over a thread whose ground is a
+    // PAINTING. Everything above works by decoding the exact pixels a surface
+    // sits on; this one cannot, because a sheet can be dragged up over any
+    // scroll position of any conversation, so the set of grounds is the set of
+    // things anyone has ever said plus five skies.
+    //
+    // So it is bounded instead of sampled, and that is a STRONGER proof rather
+    // than a weaker one. The fill is opaque enough that the ground contributes
+    // a fixed fraction, contrast is monotonic in the ground's luminance, and
+    // therefore the two extremes bracket every possible case: if the sheet's
+    // text clears 4.5:1 over PURE BLACK and over PURE WHITE, it clears it over
+    // everything. There is no third case. A sampled version of this check
+    // would be measuring a few of the conversations someone might have.
+    console.log("");
+    {
+      const BLACK = [0, 0, 0];
+      const WHITE = [1, 1, 1];
+      for (const [themeName, chain] of Object.entries(CASCADE)) {
+        const glass = rgba(resolveIn(chain, "--sheet-glass"));
+        const ink = hex(resolveIn(chain, "--ink"));
+        const inkDim = hex(resolveIn(chain, "--ink-dim"));
+        let worst = Infinity;
+        let where = "";
+        for (const [gName, ground] of [["black", BLACK], ["white", WHITE]]) {
+          const surface = over(glass.c, ground, glass.a);
+          for (const [iName, colour] of [["ink", ink], ["ink-dim", inkDim]]) {
+            const r = ratio(colour, surface);
+            if (r < worst) {
+              worst = r;
+              where = `${iName} over ${gName}`;
+            }
+          }
+        }
+        // NOTE ON WHAT IS *NOT* CHECKED HERE, because the first version of
+        // this block checked it and was wrong. `--ink-faint` on the sheet was
+        // held to 3:1 over both extremes, which the light theme failed at
+        // 2.69:1 — a real finding — but the FLOOR was mis-specified: the token
+        // block defines `--ink-faint` as a non-text role sitting at 2.9:1 on
+        // its own ground, so 3:1 is a bar it exists below by design and can
+        // only meet by ceasing to be itself. The finding was real and the
+        // check was not; the finding's actual subject was WHICH TOKEN the
+        // AI-disclosure footer used, and that is pinned below as a token
+        // choice rather than as a ratio it could never satisfy.
+        check(
+          `sheet/${themeName}: body text on the glass sheet >= ${TEXT_FLOOR} over ANY ground`,
+          worst >= TEXT_FLOOR,
+          `${worst.toFixed(2)} worst at ${where} (fill ${glass.a})`,
+        );
+        // The bound only exists because the fill is heavy. State the premise
+        // as a check, or the next person to make the sheet "more glassy" at
+        // 0.7 quietly turns a proof into an estimate.
+        check(
+          `sheet/${themeName}: the fill is opaque enough for the bound to hold`,
+          glass.a >= 0.9,
+          String(glass.a),
+        );
+      }
+      // …and the honesty line actually takes that text role. A property of a
+      // stylesheet the code never reads, same species as the ttt keyframe.
+      const footBlock = cssBlock(g, "\n.sheet-foot {");
+      const footColour = /(?:^|[\s;])color:\s*([^;]+);/.exec(footBlock)?.[1]?.trim();
+      check(
+        "sheet: the AI-disclosure footer is inked in a TEXT role",
+        footColour === "var(--ink-dim)" || footColour === "var(--ink)",
+        String(footColour),
+      );
+    }
+
+    // ══ THE LANDING PAGE IS THE SAME WORLD, AND HAS THE SAME FLOORS ════════
+    //
+    // `site/` is a hand-written static page with no build step, so nothing
+    // that compiles the app has ever looked at it. It now paints the same five
+    // paintings under the same five veils, which means every failure mode this
+    // whole file exists for is available to it — with one that the app does
+    // not have.
+    //
+    // THE ONE THE APP DOES NOT HAVE: the landing's text SCROLLS across a sky
+    // that does not. In the app a surface's text sits in a known band of a
+    // known picture; here a paragraph starts life at 80% of the painting and
+    // ends it at 5%, and the veil it carries travels with it. So the model is
+    // a PREFIX walk rather than a band lookup: content at depth q carries the
+    // veil authored at q, and over its life it passes every part of the
+    // painting from q upward, so that veil is measured against the worst
+    // ground in bands 0..q rather than against band q alone. Scrolling only
+    // moves content up the picture, never down, which is what makes the prefix
+    // the complete set rather than a sample of it.
+    //
+    // The rest is the same composite the world half computes, over the same
+    // decoded pixels of the same shipped files.
+    console.log("");
+    {
+      const site = read("site/styles.css");
+      const index = read("site/index.html");
+
+      const blockOf = (sel) => {
+        const i = site.indexOf(`\n${sel} {`);
+        if (i === -1) return null;
+        const open = site.indexOf("{", i);
+        const close = site.indexOf("\n}", open);
+        return close === -1 ? null : site.slice(open + 1, close);
+      };
+      const tok = (block, name) => {
+        const m = new RegExp(`(?:^|[\\s;])${name}:\\s*([^;]+);`).exec(block);
+        return m ? m[1].trim() : null;
+      };
+      const asRgba = (c, a) => {
+        const [r, g2, b] = hex(c).map((v) => Math.round(v * 255));
+        return `rgba(${r}, ${g2}, ${b}, ${a})`;
+      };
+
+      // The two mode palettes are multi-selector blocks, so they are found by
+      // the FIRST selector in the list rather than by the whole list.
+      const paletteBlock = (mode) => {
+        const first = mode === "dark" ? ":root,\n[data-sky=\"night\"]" : '[data-sky="morning"],';
+        const i = site.indexOf(first);
+        const open = site.indexOf("{", i);
+        const close = site.indexOf("\n}", open);
+        return i === -1 || close === -1 ? "" : site.slice(open + 1, close);
+      };
+
+      const SEL = {
+        night: ":root",
+        predawn: '[data-sky="predawn"]',
+        morning: '[data-sky="morning"]',
+        golden: '[data-sky="golden"]',
+        dusk: '[data-sky="dusk"]',
+      };
+
+      // ── 1. THE PICKER MUST NOT DRIFT FROM sky.ts ─────────────────────────
+      //
+      // The landing cannot import `stateAtMinute`; it ships verbatim to a
+      // browser with no bundler in front of it, so it carries a HAND COPY of
+      // the boundary table. A hand copy is fine and a hand copy that nothing
+      // compares is a second clock waiting to happen: move a boundary in
+      // sky.ts and the app changes sky at 19:40 while the page a visitor came
+      // in through changes at the old minute, and both look right alone.
+      {
+        const src = index.slice(index.indexOf("var BOUNDS = ["), index.indexOf("];", index.indexOf("var BOUNDS = [")));
+        const mine = [...src.matchAll(/\[\s*(\d+)\s*,\s*"(\w+)"\s*\]/g)].map((m) => [+m[1], m[2]]);
+        const theirs = (SKY_MOD.SKY_BOUNDARIES ?? []).map((b) => [b.at, b.state]);
+        check(
+          "landing/picker: the boundary table matches src/engine/sky.ts",
+          JSON.stringify(mine) === JSON.stringify(theirs),
+          `landing ${JSON.stringify(mine)} vs sky.ts ${JSON.stringify(theirs)}`,
+        );
+      }
+
+      // ── 2. THE STATE TABLE IS sky.ts's TABLE ─────────────────────────────
+      //
+      // Same argument one level down. The stylesheet's header claims these
+      // values are copied "to the byte"; a claim in a comment is worth exactly
+      // what checks it.
+      for (const state of SKY_STATES ?? []) {
+        const b = blockOf(SEL[state]);
+        if (!b) {
+          check(`landing/${state}: the state block exists`, false, SEL[state]);
+          continue;
+        }
+        const t = SKY_TOKENS[state];
+        const same = [
+          ["--ink", tok(b, "--ink"), t.ink],
+          ["--ink-dim", tok(b, "--ink-dim"), t.inkDim],
+          ["--sky-flat", tok(b, "--sky-flat"), t.stops[0]],
+          ["--glass", tok(b, "--glass"), asRgba(t.control, t.controlAlpha)],
+          ["--edge", tok(b, "--edge"), asRgba(t.edge, t.edgeAlpha)],
+          ["--scrim-mid", tok(b, "--scrim-mid"), asRgba(t.scrim, 0.55)],
+          ["--paint", tok(b, "--paint"), t.img],
+          ["--paint-wide", tok(b, "--paint-wide"), t.imgWide],
+        ];
+        const bad = same.filter(([, got, want]) => got !== want);
+        check(
+          `landing/${state}: sky tokens are sky.ts's, to the value`,
+          bad.length === 0,
+          bad.map(([n, got, want]) => `${n} is ${got}, sky.ts says ${want}`).join("; "),
+        );
+
+        // the two veils are the state's OWN scrims, not a colour of their own
+        const wallScrim = t.mode === "dark" ? t.wallScrimDark : t.wallScrimLight;
+        const veilA = rgba(tok(b, "--veil-a"));
+        const veilB = rgba(tok(b, "--veil-b"));
+        const veilG = rgba(tok(b, "--veil-ground"));
+        const sameColour = (x, y) => x.c.every((v, i) => Math.abs(v - hex(y)[i]) < 0.004);
+        check(
+          `landing/${state}: the hero veil is the sky's own scrim`,
+          sameColour(veilA, t.scrim) && sameColour(veilB, t.scrim),
+          t.scrim,
+        );
+        check(
+          `landing/${state}: the ground veil is the thread wallpaper's own scrim`,
+          sameColour(veilG, wallScrim),
+          wallScrim,
+        );
+        // a curve, not a number. If someone flattens it back to one value the
+        // painting goes with it (see the stylesheet's note), and every ratio
+        // below would still pass.
+        check(
+          `landing/${state}: the hero veil is still a curve`,
+          veilB.a - veilA.a > 0.05,
+          `${veilA.a} -> ${veilB.a}`,
+        );
+      }
+
+      // ── 3. THE MODEL IS PINNED TO THE STYLESHEET ─────────────────────────
+      // Same species as the `.world-scrim` opacity check above: the maths
+      // below is only true of a page whose .veil rule actually uses these four
+      // stops. A refactor to a background-image or an element `opacity` would
+      // leave every number here describing a page nobody ships.
+      {
+        const v = blockOf(".veil");
+        const bg = v ? tok(v, "background") : null;
+        check(
+          "landing/veil: .veil is a four-stop linear-gradient on the veil tokens",
+          Boolean(bg) &&
+            bg.includes("linear-gradient") &&
+            ["--veil-a", "--veil-b", "--veil-s", "--veil-e", "--veil-ground"].every((n) => bg.includes(n)),
+          String(bg).slice(0, 60),
+        );
+        const op = v ? tok(v, "opacity") : null;
+        check("landing/veil: .veil declares no fractional opacity", op === null, String(op));
+      }
+
+      // ── 4. THE FLOORS ────────────────────────────────────────────────────
+      const N = 20;
+      const stripSamples = async (file, i) => {
+        const meta = await sharp(file).metadata();
+        const top = Math.floor((meta.height * i) / N);
+        const h = Math.max(1, Math.floor((meta.height * (i + 1)) / N) - top);
+        const { data, info } = await sharp(file)
+          .extract({ left: 0, top, width: meta.width, height: h })
+          .resize({ width: 200 })
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        const px = [];
+        for (let k = 0; k < data.length; k += info.channels) {
+          px.push([data[k] / 255, data[k + 1] / 255, data[k + 2] / 255]);
+        }
+        px.sort((a, c) => lum(a) - lum(c));
+        const mean = (arr) => [0, 1, 2].map((k) => arr.reduce((s, q) => s + q[k], 0) / arr.length);
+        const d = Math.max(1, Math.round(px.length * 0.1));
+        return [mean(px), mean(px.slice(0, d)), mean(px.slice(px.length - d))];
+      };
+
+      let lWorstText = Infinity;
+      let lWorstPanel = Infinity;
+      let lWorstEdge = Infinity;
+      let lWorstGround = Infinity;
+
+      for (const state of SKY_STATES ?? []) {
+        const b = blockOf(SEL[state]);
+        if (!b) continue;
+        const t = SKY_TOKENS[state];
+        const scrim = hex(t.scrim);
+        const ink = hex(t.ink);
+        const inkDim = hex(t.inkDim);
+        const control = hex(t.control);
+        const edge = hex(t.edge);
+
+        const a0 = rgba(tok(b, "--veil-a")).a;
+        const a1 = rgba(tok(b, "--veil-b")).a;
+        const s0 = parseFloat(tok(b, "--veil-s")) / 100;
+        const s1 = parseFloat(tok(b, "--veil-e")) / 100;
+        // The authored curve, in numbers. Past `--veil-e` the real gradient
+        // keeps climbing toward the ground alpha; holding it at a1 here is the
+        // conservative reading, so the page is always at least this legible.
+        const alphaAt = (x) => (x <= s0 ? a0 : x >= s1 ? a1 : a0 + ((a1 - a0) * (x - s0)) / (s1 - s0));
+
+        const files = [SKY_MOD.imgPath(t.img), SKY_MOD.imgPath(t.imgWide)]
+          .map((rel) => ROOT + "public" + rel)
+          .filter((f) => existsSync(f));
+
+        const pool = [];
+        let minText = Infinity;
+        let minPanel = Infinity;
+        let minEdge = Infinity;
+        let where = "";
+        for (let i = 0; i < N; i++) {
+          for (const f of files) pool.push(...(await stripSamples(f, i)));
+          const A = alphaAt(i / N);
+          for (const g0 of pool) {
+            const ground = over(scrim, g0, A);
+            const panel = over(control, ground, t.controlAlpha);
+            const rText = Math.min(ratio(ink, ground), ratio(inkDim, ground));
+            if (rText < minText) {
+              minText = rText;
+              where = `${((i * 100) / N) | 0}% at veil ${A.toFixed(2)}`;
+            }
+            minPanel = Math.min(minPanel, ratio(ink, panel), ratio(inkDim, panel));
+            minEdge = Math.min(minEdge, ratio(over(edge, panel, t.edgeAlpha), ground));
+          }
+        }
+        lWorstText = Math.min(lWorstText, minText);
+        lWorstPanel = Math.min(lWorstPanel, minPanel);
+        lWorstEdge = Math.min(lWorstEdge, minEdge);
+        check(
+          `landing/${state}: hero text over the painting >= ${TEXT_FLOOR}`,
+          minText >= TEXT_FLOOR,
+          `${minText.toFixed(2)} worst at ${where}`,
+        );
+        check(
+          `landing/${state}: text on the glass over the painting >= ${TEXT_FLOOR}`,
+          minPanel >= TEXT_FLOOR,
+          minPanel.toFixed(2),
+        );
+        check(
+          `landing/${state}: the glass edge over the painting >= ${EDGE_FLOOR}`,
+          minEdge >= EDGE_FLOOR,
+          minEdge.toFixed(2),
+        );
+
+        // Past the fold the veil is the wallpaper's and the ink is the THEME's
+        // — the app's own palette for this state's mode, because the landing
+        // has no theme switch: the sky is the theme (DESIGN-WORLD §4). Content
+        // down here has crossed the whole painting, so the whole frame is the
+        // ground.
+        {
+          const chain = t.mode === "dark" ? CASCADE.dark : CASCADE.light;
+          const pal = paletteBlock(t.mode);
+          const gInkV = tok(pal, "--ground-ink");
+          const gDimV = tok(pal, "--ground-dim");
+          const gInk = hex(gInkV ?? "#000000");
+          const gDim = hex(gDimV ?? "#000000");
+          // and they must BE the app's, not a near miss
+          check(
+            `landing/${state}: the ground palette is global.css's ${t.mode} ink`,
+            gInkV === resolveIn(chain, "--ink") && gDimV === resolveIn(chain, "--ink-dim"),
+            `${resolveIn(chain, "--ink")} / ${resolveIn(chain, "--ink-dim")}`,
+          );
+
+          const veilG = rgba(tok(b, "--veil-ground"));
+          let worst = Infinity;
+          for (const f of files) {
+            const s = await bandSamples(f, "full");
+            for (const colour of [s.avg, s.darkest, s.brightest]) {
+              const ground = over(veilG.c, colour, veilG.a);
+              worst = Math.min(worst, ratio(gInk, ground), ratio(gDim, ground));
+            }
+          }
+          lWorstGround = Math.min(lWorstGround, worst);
+          check(
+            `landing/${state}: body copy on the wallpapered ground >= ${TEXT_FLOOR}`,
+            worst >= TEXT_FLOOR,
+            `${worst.toFixed(2)} (veil ${veilG.a})`,
+          );
+          // …and the ground must not become a solid colour either. The whole
+          // reason the world keeps going past the fold is that you can still
+          // see it.
+          check(
+            `landing/${state}: the ground still lets the painting through`,
+            veilG.a <= 0.95,
+            `${veilG.a} (painting at ${((1 - veilG.a) * 100) | 0}%)`,
+          );
+        }
+      }
+
+      // ── the reading variant ──────────────────────────────────────────────
+      // privacy.html swaps the hero curve for the ground veil across the whole
+      // page (`body.reading`), which puts the nav's wordmark and its glass
+      // pill on the wallpapered ground instead of on open sky. Different
+      // ground, different ink, so a different check: the numbers above prove
+      // nothing about a surface they never composited.
+      {
+        const readingSwap = site.includes("body.reading .veil") && site.includes("var(--veil-ground)");
+        check("landing/reading: privacy.html takes the wallpaper veil", readingSwap);
+        check(
+          "landing/reading: privacy.html is marked as the reading variant",
+          read("site/privacy.html").includes('<body class="reading">'),
+        );
+        let rWorst = Infinity;
+        for (const state of SKY_STATES ?? []) {
+          const b2 = blockOf(SEL[state]);
+          if (!b2) continue;
+          const t = SKY_TOKENS[state];
+          const pal = paletteBlock(t.mode);
+          const gInk = hex(tok(pal, "--ground-ink"));
+          const gDim = hex(tok(pal, "--ground-dim"));
+          const veilG = rgba(tok(b2, "--veil-ground"));
+          const control = hex(t.control);
+          const edge = hex(t.edge);
+          let minText = Infinity;
+          let minEdge = Infinity;
+          for (const rel of [SKY_MOD.imgPath(t.img), SKY_MOD.imgPath(t.imgWide)]) {
+            const f = ROOT + "public" + rel;
+            if (!existsSync(f)) continue;
+            const s2 = await bandSamples(f, "full");
+            for (const colour of [s2.avg, s2.darkest, s2.brightest]) {
+              const ground = over(veilG.c, colour, veilG.a);
+              const panel = over(control, ground, t.controlAlpha);
+              minText = Math.min(minText, ratio(gInk, ground), ratio(gDim, ground), ratio(gInk, panel));
+              minEdge = Math.min(minEdge, ratio(over(edge, panel, t.edgeAlpha), ground));
+            }
+          }
+          rWorst = Math.min(rWorst, minText);
+          check(
+            `landing/reading/${state}: nav and copy on the ground >= ${TEXT_FLOOR}`,
+            minText >= TEXT_FLOOR,
+            minText.toFixed(2),
+          );
+          check(
+            `landing/reading/${state}: the nav pill's edge >= ${EDGE_FLOOR}`,
+            minEdge >= EDGE_FLOOR,
+            minEdge.toFixed(2),
+          );
+        }
+        console.log(`  ..  landing reading variant worst case: ${rWorst.toFixed(2)}:1`);
+      }
+
+      console.log(
+        `  ..  landing worst case: hero text ${lWorstText.toFixed(2)}:1, on glass ` +
+          `${lWorstPanel.toFixed(2)}:1, glass edge ${lWorstEdge.toFixed(2)}:1, ` +
+          `body copy ${lWorstGround.toFixed(2)}:1`,
+      );
+    }
   }
 }
 
