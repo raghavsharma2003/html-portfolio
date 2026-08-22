@@ -219,6 +219,31 @@ function postWatchMoment(device: string, reaction: string) {
 // exists to prevent.
 const MOVE_POKE_MS = 700;
 
+// ── the poke's conversational discipline ────────────────────────────────
+//
+// The first version poked on EVERY exchange, and the owner watched what that
+// does to a person: she would start a story, pause for breath, a chess note
+// would land in the pause, she'd pivot to the board, try the story again,
+// get cut again — "she couldn't even continue the story properly." A human
+// playing friendly chess finishes the story, and mentions the board when the
+// board EARNS it. Three rules encode that:
+//
+// SALIENCE — a quiet developing move gets no note at all. The tail block
+// already carries the whole position, so she is never ignorant of the game;
+// she is just not PROMPTED to speak about a move nobody would speak about.
+// What earns a note: a blunder or mistake, a capture, a check, a hanging
+// piece, a sacrifice, material swinging, the game ending.
+//
+// RATE — at most one note per POKE_FLOOR_MS, except game-ending moves and
+// checks, which are the "something crazy happened" that a person interrupts
+// their own story for. Same judgment as the watch lane's ambient ceiling.
+//
+// BREATH — her voice having JUST ended is not silence, it is the pause
+// inside a story. A note delivered there hijacks the story at its weakest
+// moment. The poke waits out the pause (re-arms) unless the note is urgent.
+const POKE_FLOOR_MS = 25_000;
+const HER_BREATH_MS = 3_000;
+
 export function useCallEngine(
   state: AppState,
   setState: React.Dispatch<React.SetStateAction<AppState>>,
@@ -287,6 +312,8 @@ export function useCallEngine(
   const srFails = useRef(0);
   const srStartedAt = useRef(0);
   const speakingRef = useRef(false);
+  const herStoppedAt = useRef(0);
+  const lastPokeAt = useRef(0);
   const mutedRef = useRef(false);
   const elapsedRef = useRef(0);
   const listeningRef = useRef(false);
@@ -652,6 +679,11 @@ export function useCallEngine(
       onState: (st) => {
         if (!alive.current) return;
         const speaking = st === "speaking";
+        // The moment her voice ENDS matters as much as whether it is on: a
+        // pause 1.5s after she stopped is a breath inside a story, not the
+        // end of her turn, and anything delivered into that pause hijacks
+        // the story. The poke's quiet floor reads this.
+        if (speakingRef.current && !speaking) herStoppedAt.current = Date.now();
         speakingRef.current = speaking;
         setSpeaking(speaking);
         listeningRef.current = true; // live mic is always hot
@@ -2468,6 +2500,13 @@ export function useCallEngine(
         pokeTimer.current = null;
         const cur = stateRef.current.game;
         if (!cur || cur.closedAt || !liveSession.current) return;
+        // Urgency is decided ONCE, from the live position: an ending or a
+        // check may cross the rate floor and the breath pause — that is the
+        // "something crazy happened in the chess" a person interrupts their
+        // own story for. Everything else waits its turn or stays unsaid.
+        const urgent =
+          cur.kind === "chess" &&
+          Boolean(cur.game.status?.over || cur.game.status?.inCheck);
         // ── the quiet floor ────────────────────────────────────────────
         // Never cut across an exchange that is actually alive. The owner
         // felt exactly this: mid-conversation she "abruptly stopped and
@@ -2482,6 +2521,24 @@ export function useCallEngine(
           else diag("call", "activity_poke", { kind: cur.kind, dropped: "conversation_held_floor" });
           return;
         }
+        // ── the breath pause ───────────────────────────────────────────
+        // Her voice ended seconds ago: that is the pause INSIDE a story,
+        // not the end of her turn. "She starts telling some story... and
+        // then she starts again with the chess. This keeps happening" —
+        // because the old poke landed in exactly this gap, every time.
+        if (!urgent && Date.now() - herStoppedAt.current < HER_BREATH_MS) {
+          if (attempt < 4) armPoke(HER_BREATH_MS, attempt + 1);
+          else diag("call", "activity_poke", { kind: cur.kind, dropped: "her_story_held_floor" });
+          return;
+        }
+        // ── the rate floor ─────────────────────────────────────────────
+        if (!urgent && Date.now() - lastPokeAt.current < POKE_FLOOR_MS) {
+          diag("call", "activity_poke", { kind: cur.kind, dropped: "rate_floor" });
+          // adopt silently — this move goes unnarrated, the tail still has it
+          if (cur.kind === "chess" || cur.kind === "ttt") pokedPly.current = cur.game.played.length;
+          else pokedPly.current = cur.rounds.length;
+          return;
+        }
         if (cur.kind === "ttt") {
           pokedPly.current = cur.game.played.length;
           const whoLast = cur.game.played.length
@@ -2492,6 +2549,7 @@ export function useCallEngine(
           if (!whoLast) return;
           const note = activityNote(tttMoveFact(cur.game, whoLast));
           if (!note) return;
+          lastPokeAt.current = Date.now();
           diag("call", "activity_poke", { kind: cur.kind, ply: cur.game.played.length });
           liveSession.current.direct(note);
           return;
@@ -2503,6 +2561,7 @@ export function useCallEngine(
           if (!round || !card) return;
           const note = activityNote(wyrPickFact(card, round.his, round.her));
           if (!note) return;
+          lastPokeAt.current = Date.now();
           diag("call", "activity_poke", { kind: cur.kind, round: cur.rounds.length });
           liveSession.current.direct(note);
           return;
@@ -2511,6 +2570,21 @@ export function useCallEngine(
         const hers = lastAssessment(cur);
         if (!hers) return;
         pokedPly.current = plies;
+        // ── salience: does this exchange EARN a comment? ───────────────
+        // The last two plies decide together — his blunder is worth a note
+        // even if her reply was quiet. Ordinary development is not.
+        const noteworthy = (a: typeof hers | null): boolean =>
+          Boolean(
+            a &&
+              (a.verdict === "blunder" ||
+                a.verdict === "mistake" ||
+                a.mateIn !== null ||
+                a.hangs?.square ||
+                a.statusAfter?.over ||
+                a.tags.some((t) =>
+                  ["capture", "check", "checkmate", "promotion", "sacrifice", "wins_material", "loses_material", "punishes_hang", "hangs_piece"].includes(t),
+                )),
+          );
         // ── the exchange, not the last move ────────────────────────────
         // Her engine answers ~300ms behind his move, so by the time the
         // debounce fires the "latest move" is almost always HERS — and the
@@ -2521,20 +2595,56 @@ export function useCallEngine(
         // salience lives — and what she did about it.
         const lastMover = hers.fenBefore.split(" ")[1] === cur.herSide ? "her" : "him";
         let fact: string;
+        let earned: boolean;
         if (lastMover === "her" && cur.game.played.length >= 2) {
           const hisPly = cur.game.played[cur.game.played.length - 2];
           const his = assessMove(hisPly.fenBefore, hisPly, hisPly.fenAfter);
           fact = exchangeFact(his, hers, cur.herSide);
+          earned = noteworthy(his) || noteworthy(hers);
         } else {
           fact = moveFact(hers, cur.herSide, lastMover);
+          earned = noteworthy(hers);
+        }
+        if (!earned && !urgent) {
+          // a quiet exchange passes without a word — the position is in the
+          // tail, so she can still bring it up herself if it fits the talk
+          diag("call", "activity_poke", { kind: cur.kind, ply: plies, dropped: "quiet_move" });
+          return;
         }
         const note = activityNote(fact);
         if (!note) return;
+        lastPokeAt.current = Date.now();
         diag("call", "activity_poke", { kind: cur.kind, ply: plies, exchange: lastMover === "her" });
         liveSession.current.direct(note);
       }, delayMs);
     };
-    armPoke(MOVE_POKE_MS, 0);
+    // ── the lag fix ────────────────────────────────────────────────────
+    // The debounce exists to merge his move and her reply into ONE note. But
+    // once HER reply is the latest ply, the exchange is complete — there is
+    // nothing left to merge, and every millisecond of further debounce is lag
+    // between the piece landing on the board and her voice knowing it. The
+    // owner measured this with his own ears: "she is making a fast move on
+    // the table but calling them after some time... this lag will compound."
+    // So: exchange complete → fire nearly at once; his move alone → the full
+    // debounce, giving her engine reply time to join the note.
+    const exchangeComplete =
+      !!g &&
+      (g.kind === "chess" || g.kind === "ttt") &&
+      g.game.played.length > 0 &&
+      g.game.played[g.game.played.length - 1].by === g.herSide;
+    const boardGameOver = !!g && (g.kind === "chess" || g.kind === "ttt") && Boolean(g.game.status.over);
+    if (!!g && (g.kind === "chess" || g.kind === "ttt") && !exchangeComplete && !boardGameOver) {
+      // His move, her reply pending. In these games it is ALWAYS her turn
+      // after his move, and her reply now takes a human think-time (1–6s) —
+      // so a debounce would fire BEFORE her reply and split one exchange
+      // into two notes, which is the story-fragmentation defect reborn.
+      // Say nothing yet; the completed exchange speaks once, for both moves.
+      // (His game-ending move is the exception handled above: there is no
+      // reply coming, and an ending is worth a word.)
+      pokedPly.current = g.game.played.length;
+      return;
+    }
+    armPoke(exchangeComplete ? 150 : MOVE_POKE_MS, 0);
     return () => {
       if (pokeTimer.current) {
         clearTimeout(pokeTimer.current);

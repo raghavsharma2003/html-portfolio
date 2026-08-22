@@ -158,8 +158,43 @@ ok("whitespace fact yields no note", activityNote("   ") === "");
   const call = readFileSync(new URL("../src/components/useCallEngine.ts", import.meta.url), "utf8");
   ok("poke builds the exchange fact", /exchangeFact\(his, hers/.test(call));
   ok("poke has a quiet floor on HIS voice", /lastHeardAt\.current < 2500/.test(call));
+  // ── batch-2 discipline: she comments when the board EARNS it ───────────
+  // The owner watched the alternative: a note landing in every breath-pause
+  // of her own story, so she never finished the story. These are the three
+  // rules that make her a person at the table instead of a commentary feed.
+  ok("poke has a salience gate", /noteworthy/.test(call) && /dropped: "quiet_move"/.test(call));
+  ok("poke has a rate floor", /POKE_FLOOR_MS/.test(call) && /dropped: "rate_floor"/.test(call));
+  ok("poke waits out her breath pauses", /HER_BREATH_MS/.test(call) && /her_story_held_floor/.test(call));
+  ok("endings and checks bypass the floors", /const urgent =/.test(call) && /!urgent/.test(call));
+  // one exchange, one note — his move alone must NOT fire while her reply is
+  // pending (her think-time would split the exchange into two notes)
+  ok("his move alone waits for her reply", /!exchangeComplete && !boardGameOver/.test(call));
+  // and the note goes out AS her piece lands, not a debounce later — the
+  // compounding-lag defect ("she is calling the previous move only")
+  ok("completed exchange fires fast", /exchangeComplete \? 150 : MOVE_POKE_MS/.test(call));
   ok("pickup carries the scene on every lane",
     (call.match(/CALL_OPEN_DIRECTIVE\(activityPickupLine\(activityOf\(/g) || []).length >= 3, "want 3 sites");
+}
+
+// ── ending a game by hand is a fact, not a fabricated result ─────────────
+{
+  let mg = newGame();
+  for (const m of ["e4", "e5"]) mg = play(mg, m) ?? mg;
+  const endedNow = { kind: "chess", game: mg, herSide: "b", startedAt: NOW - 10 * 60_000, closedAt: NOW - 60_000, endedEarly: true };
+  const ea = activityOf(endedNow, NOW);
+  ok("ended-early session still present", ea !== null && ea.over === true);
+  ok("ended-early names the truth", ea.facts.some((f) => /ended the game early, no result/.test(f)), JSON.stringify(ea.facts));
+  ok("ended-early has no winner claim", !ea.facts.some((f) => /won/.test(f)), JSON.stringify(ea.facts));
+  ok("ended-early drops live-game rows", !ea.facts.some((f) => /(her|his) move/.test(f)), JSON.stringify(ea.facts));
+}
+
+// ── the spoken-vs-typed boundary carries its own rule ─────────────────────
+// The owner: she asked why he'd said something "in text" when he said it on
+// the call — the bare marker was in the window and she still misattributed.
+{
+  const brain = readFileSync(new URL("../src/engine/brain.ts", import.meta.url), "utf8");
+  ok("call boundary states SPOKEN aloud", /SPOKEN aloud, not typed/.test(brain));
+  ok("call-end boundary states typed", /back to typed texting/.test(brain));
 }
 
 // ── forgetting forgets the game ───────────────────────────────────────────

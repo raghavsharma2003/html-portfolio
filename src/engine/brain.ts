@@ -623,10 +623,19 @@ export function toTurns(history: Message[], latest: string) {
       text = `[${gapLabel(m.at - prevAt, m.at)}]\n` + text;
     }
     if (m.at) prevAt = m.at;
-    // mark medium switches so she remembers what was SAID on a call vs texted
+    // Mark medium switches so she remembers what was SAID on a call vs typed.
+    // The wording carries the attribution rule itself, because the bare
+    // "[a voice call starts]" marker measurably wasn't enough: the owner
+    // reported her asking why he'd said something "in text" when he had said
+    // it on the call — the boundary was in the window and she still
+    // misattributed. A person KNOWS whether something was said or typed;
+    // getting it wrong reads as her not having been there.
     const ch = m.channel === "call" ? "call" : "chat";
     if (ch !== lastChannel) {
-      text = (ch === "call" ? "[a voice call starts]\n" : "[the call ended, back to texting]\n") + text;
+      text =
+        (ch === "call"
+          ? "[a voice call starts — everything until it ends was SPOKEN aloud, not typed]\n"
+          : "[the call ended — back to typed texting]\n") + text;
       lastChannel = ch;
     }
     const role = m.from === "me" ? ("user" as const) : ("assistant" as const);

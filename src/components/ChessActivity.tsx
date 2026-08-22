@@ -13,6 +13,7 @@ import ActivityShell, { type ActivityCall } from "./ActivityShell";
 import ChessBoard, { type LegalMove as BoardMove, type PromotionRole, type Role } from "./ChessBoard";
 import { chooseMoveAsync, legalMoves, newGame, play } from "../engine/chess";
 import { useCallStatus } from "../state/callStatus";
+import { tap } from "../native/haptics";
 import { resolveTheme } from "../engine/theme";
 
 interface Props {
@@ -220,12 +221,52 @@ export default function ChessActivity({
     return null;
   }, [state.messages, status.live, status.connecting]);
 
+  // ── the two controls a real table has ─────────────────────────────────
+  // "End game" mid-game: he stands up. closedAt lands NOW with endedEarly, so
+  // the tail says "he ended the game early, no result" — never a fabricated
+  // win. "New game" appears once the game is over (or ended): the finished
+  // session is REPLACED, which is the moment its afterglow ends — a person
+  // starting a rematch stops narrating the last game.
+  const endGame = useCallback(() => {
+    tap();
+    setState((s) =>
+      s.game?.kind === "chess" && !s.game.closedAt
+        ? { ...s, game: { ...s.game, closedAt: Date.now(), ...(s.game.game.status.over ? {} : { endedEarly: true as const }) } }
+        : s,
+    );
+  }, [setState]);
+  const newGame_ = useCallback(() => {
+    tap();
+    setState((s) => ({
+      ...s,
+      game: { kind: "chess" as const, game: newGame(), herSide: "b", startedAt: Date.now() },
+    }));
+  }, [setState]);
+  const showEnd = Boolean(g && !over && !session?.closedAt && g.played.length > 0);
+  const showNew = Boolean(over || session?.closedAt);
+
   return (
     <ActivityShell
       title="Chess"
       onExit={exit}
       call={call}
       note={herLine}
+      footer={
+        showEnd || showNew ? (
+          <>
+            {showEnd && (
+              <button type="button" className="as-gbtn" data-tel="chess.end" onClick={endGame}>
+                End game
+              </button>
+            )}
+            {showNew && (
+              <button type="button" className="as-gbtn as-gbtn-primary" data-tel="chess.new" onClick={newGame_}>
+                New game
+              </button>
+            )}
+          </>
+        ) : null
+      }
       her={{
         phase: hers ? "thinking" : "idle",
         line: over ? "good game" : hers ? "her move" : "your move",

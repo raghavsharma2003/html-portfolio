@@ -65,6 +65,13 @@ export interface ChessSession {
    * and the played list is what the memory layer will read.
    */
   closedAt?: number;
+  /**
+   * Set when HE ended the game before it reached a result — the "End game"
+   * button. Distinct from closedAt-with-status.over because the two endings
+   * are different facts: "she won by checkmate" vs "he ended it early, no
+   * result". Conflating them would have her gloating over a game nobody won.
+   */
+  endedEarly?: true;
 }
 
 /**
@@ -119,7 +126,13 @@ export function activityOf(s: GameSession | null | undefined, nowMs?: number): A
           ? tttActivity(s.game, s.herSide, s.closedAt)
           : chessActivity(s.game, s.herSide, s.closedAt, lastAssessment(s));
     // For a finished thing, "N min ago" means since it ENDED.
-    return { ...a, over: true, startedAt: s.closedAt };
+    const facts =
+      s.kind === "chess" && s.endedEarly && !s.game.status.over
+        ? // ended by hand: strip the live-game rows (whose move, checks) and
+          // state what actually happened — no result, nobody won
+          [...a.facts.filter((f) => !/(her|his) move|in check/.test(f)), "he ended the game early, no result"]
+        : a.facts;
+    return { ...a, facts, over: true, startedAt: s.closedAt };
   }
   if (s.kind === "wyr") return wyrActivity(s);
   if (s.kind === "ttt") return tttActivity(s.game, s.herSide, s.startedAt);

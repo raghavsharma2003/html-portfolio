@@ -569,6 +569,27 @@ button.as-call:active {
   padding-bottom: calc(var(--safe-bottom) + var(--s3));
 }
 
+/* Footer game controls. Ghost by default — ending a game is quiet — and the
+   primary variant for the one action that starts something. Both inherit the
+   --ga-* tokens, so they re-ink with the theme like everything else here. */
+.as-gbtn {
+  min-height: var(--hit);
+  padding: 0 var(--s5);
+  border-radius: 999px;
+  border: 1px solid var(--ga-line-strong);
+  background: transparent;
+  color: var(--ga-ink-dim);
+  font: 600 var(--t-ui) var(--font-ui);
+}
+.as-gbtn:active {
+  background: var(--ga-well);
+}
+.as-gbtn-primary {
+  border-color: transparent;
+  background: var(--accent-solid, var(--accent));
+  color: #fff;
+}
+
 .as-foot {
   display: flex;
   align-items: center;
