@@ -2194,3 +2194,32 @@ draw). The baseline is what "she is beatable" must stay well below to not be
 "numbers are guesses" caveat — this table is what replacing that caveat with
 a measurement looks like, and chess deserves the same treatment (n≥100 games
 per level, scripted).
+
+---
+
+## `ui-perf-audit-2026-08-22` — UI/perf audit numbers (4th auditor)
+
+Method: headless Chromium (dSF 1) + node against the bundled real engine;
+n and method per line. Full report: docs/audit/2026-08-22-ui-perf.md.
+
+- Typing cost, unwindowed thread: ~0.0077 ms/message/keystroke, linear.
+  p50 at 0/50/200/500/1000 msgs = 0.5/0.9/2.2/4.7/7.7 ms (59 keystrokes at
+  45 ms intervals, Event Timing API). DOM: 4.92 nodes/message.
+- Her chess think (level 2 shipped): total 31.1 ms, 2 yields, longest block
+  11.7 ms in node; 53 ms longest main-thread gap in-app after e4 with a
+  300-message history. assessLast standalone: 36.7 ms. Phone calibration
+  4-8x (opponent.ts:23).
+- Bundle (pre-split): index.js 984.92 kB / 326.55 kB gz. Stub A/B deltas:
+  @anthropic-ai/sdk −151.6 kB raw / −39.8 gz; framer-motion −128.7 / −41.8;
+  chess.js −35.8 / −11.8.
+- Images: onboarding fan 461 kB of 900×900 painted at 148×186; avatar
+  148 kB painted at 43px. After sharp variants + legacy-import cut:
+  dist avatar/fan jpgs 1,427,205 → 568,421 bytes (−60%).
+- Contrast (measured from live computed styles): dark chess black-piece on
+  dark-square 1.27:1 → re-ink 3.28:1; squares 1.73 → 2.59. Ttt cell-vs-gap
+  1.18:1 → 2.72 light / 2.22 dark. Us day-grid unfilled 1.11:1 (light),
+  1.22 (dark) → ~2:1 via --ink mix.
+- localStorage: 500 real messages = 145.0 kB UTF-16 = 2.8% of 5 MB quota;
+  2,000 = 10.6%. Full-state persist ~0.35 ms/write at 500 msgs.
+- Storage-ladder trigger analysis: only realistic entry is a stuck data:
+  URL (1024px q0.82 JPEG ≈ 150-400 kB, ~800 kB as UTF-16).

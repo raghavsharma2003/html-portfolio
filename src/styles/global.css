@@ -753,6 +753,10 @@ button {
   align-items: center;
   gap: 5px;
   min-height: 18px;
+  /* one line, always: "last seen just now" wrapping at 320px grew the header
+     to 84px and knocked the name off the avatar's optical centre */
+  white-space: nowrap;
+  overflow: hidden;
   /* typing → online → last seen dissolves; the node is never remounted */
   transition: opacity var(--d-state) var(--ease-out), color var(--d-state) ease;
 }
@@ -835,6 +839,14 @@ button {
      thread out from under whoever was reading it */
   overflow-anchor: auto;
 }
+/* A young thread sits ON the composer, iMessage-style, instead of pinning
+   four bubbles to the top of an 844px void — day one and day two are the
+   highest-stakes sessions and they looked like an empty app. `margin-top:
+   auto` on the first row eats the slack; a full thread is unaffected, and
+   `.chat-empty`'s own `margin: auto` (centred) resolves the same way. */
+.chat-scroll > :first-child {
+  margin-top: auto;
+}
 
 .day-sep {
   align-self: center;
@@ -886,6 +898,31 @@ button {
   align-self: center;
   border-radius: 999px;
   padding: 13px 18px;
+}
+/* With the keyboard up on a small phone the scroll viewport is ~160px and
+   the full empty state is 331px — her face and the headline vanished off
+   the top (measured -97px) the moment the composer was tapped, in the
+   first minute of the product. Under a short viewport it compacts to what
+   fits: face, name, dots. The paragraph returns when the keyboard goes. */
+@media (max-height: 420px) {
+  .chat-empty {
+    padding: var(--s3) var(--s5);
+  }
+  .chat-empty .ce-face,
+  .chat-empty .ce-face img {
+    width: 56px;
+    height: 56px;
+  }
+  .chat-empty h2 {
+    margin-top: 10px;
+    font-size: 17px;
+  }
+  .chat-empty p {
+    display: none;
+  }
+  .chat-empty .ce-dots {
+    margin-top: 10px;
+  }
 }
 
 /* ── jump to latest ───────────────────────────────────────────────────────
@@ -1556,6 +1593,16 @@ button {
   width: 100%;
   border-radius: 14px;
 }
+/* HER photos come from one catalog, uniformly 340x272, lazy-loaded — without
+   a declared ratio the box has no height until decode, so opening the chat
+   landed exactly one photo-height (a measured 187px) short of the newest
+   message, and every photo scrolling into view shifted the thread under the
+   reader's thumb. His photos are exempt: arbitrary intrinsic ratios, and
+   forcing 340/272 onto them would crop what he just sent. */
+.msg.photo:not(.me) img {
+  aspect-ratio: 340 / 272;
+  object-fit: cover;
+}
 .msg.photo .cap {
   padding: 8px 10px 6px;
   font-size: var(--t-ui);
@@ -2134,9 +2181,25 @@ button {
   padding: 12px calc(var(--safe-right) + var(--s5)) calc(var(--safe-bottom) + 26px)
     calc(var(--safe-left) + var(--s5));
   animation: sheet-up var(--d-sheet) var(--ease-drawer);
-  max-height: 88%;
+  max-height: 85%;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* Scroll shadows, CSS-only (background-attachment local vs scroll): a soft
+     shadow appears at whichever edge has content past it and vanishes flush
+     at the ends. On a 320px phone this sheet holds more than a screen — the
+     audit found the AI-disclosure footer and Privacy link invisible below
+     the fold with nothing saying the sheet continues. The two `local`
+     gradients are covers in the sheet's own surface so the shadows never
+     show at rest. */
+  background:
+    linear-gradient(var(--surface) 33%, color-mix(in srgb, var(--surface) 0%, transparent)),
+    linear-gradient(color-mix(in srgb, var(--surface) 0%, transparent), var(--surface) 66%) 0 100%,
+    radial-gradient(farthest-side at 50% 0, color-mix(in srgb, var(--ink) 16%, transparent), transparent),
+    radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--ink) 16%, transparent), transparent) 0 100%;
+  background-color: var(--surface);
+  background-repeat: no-repeat;
+  background-size: 100% 44px, 100% 44px, 100% 14px, 100% 14px;
+  background-attachment: local, local, scroll, scroll;
 }
 @keyframes sheet-up {
   from { transform: translateY(100%); }
@@ -2288,6 +2351,11 @@ button {
 .srow .schev {
   color: var(--ink-faint);
   flex-shrink: 0;
+}
+.sheet-rows.danger {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--hairline);
 }
 .srow.destructive .sicon {
   background: color-mix(in srgb, var(--danger) 12%, transparent);

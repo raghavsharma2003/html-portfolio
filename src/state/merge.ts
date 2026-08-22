@@ -23,6 +23,7 @@
 
 import type { AppState, Message } from "./store";
 import type { GameSession } from "./game";
+import { isGameSession } from "./game";
 
 /** progress = how far a session has advanced, for same-session comparison */
 function progressOf(g: GameSession): number {
@@ -88,7 +89,11 @@ export function mergeStates(local: AppState, remote: any): Partial<AppState> {
     // come from different revisions.
     herLife: remote?.herLife?.length && !local.herLife?.length ? remote.herLife : local.herLife,
     inner: (Number(remote?.inner?.at) || 0) > (local.inner?.at ?? 0) ? remote.inner : local.inner,
-    game: mergeGame(local.game, remote?.game),
+    // the remote half crosses a trust boundary (another device's parse of
+    // its own localStorage) — shape-guard it, or a malformed session becomes
+    // a blank screen that SYNCS. isGameSession is the same guard loadState
+    // applies to its own boundary.
+    game: mergeGame(local.game, isGameSession(remote?.game) ? remote.game : null),
     tally,
     momentsFired,
     followup:

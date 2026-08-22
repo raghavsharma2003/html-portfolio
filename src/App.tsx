@@ -485,10 +485,13 @@ export default function App() {
                 </button>
                 <GamesHub
                   her={{ onCall: inCall }}
-                  heading=""
+                  heading="Things to do together"
                   activities={DEFAULT_ACTIVITIES.map(
                     (a): Activity =>
-                      a.id === "chess" && state.game?.kind === "chess" && !state.game.closedAt
+                      // `.over` too: a finished-but-not-yet-reconciled game
+                      // (the 3s afterglow window) must not offer "resume ·
+                      // your move" — there is no move to make.
+                      a.id === "chess" && state.game?.kind === "chess" && !state.game.closedAt && !state.game.game.status.over
                         ? {
                             ...a,
                             state: "resume",
@@ -499,7 +502,8 @@ export default function App() {
                           }
                         : a.id === "tic-tac-toe" &&
                             state.game?.kind === "ttt" &&
-                            !state.game.closedAt
+                            !state.game.closedAt &&
+                            !state.game.game.status.over
                           ? {
                               ...a,
                               state: "resume",

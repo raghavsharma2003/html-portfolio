@@ -1485,3 +1485,46 @@ The boundary, now structural (pinned in evals/milestones.mjs):
 
 **Reverses if:** nothing — this is the owner's product thesis, same rank as
 NEVER MANIPULATE. Refinements go through him.
+
+---
+
+## `board-stays-lit` — dark theme dims the chess board ~20%, never blackens it
+
+The first night inking dropped the squares most of the way to black and hung
+the black set on a 1px light rim. Measured: black piece on dark square 1.27:1,
+square-to-square 1.73:1 — the opponent's pieces read as holes in the board.
+The re-ink keeps the walnut, dimmed ~20% (`#d4b296`/`#86675a`), landing
+black-on-dark ≥3.28:1 and squares 2.59:1. This is also what chess.com and
+lichess do: the board is an OBJECT in the room, the chrome is the room, and
+only the room darkens. `scripts/check-contrast.mjs` pins the floors (3.0 /
+2.4) and the byte-identical-dark-blocks invariant in chess.css and ttt.css.
+
+**Reverses if:** someone produces a genuinely dark board where the black set
+clears 3:1 on both square colours by eye AND meter — then the floors move
+into the check and the aesthetic is free again.
+
+---
+
+## `chrome-copy-linted` — the em-dash ban now binds the chrome, not just her
+
+`stripTextingDashes` enforced the repo's written em-dash ban on every
+generated bubble while product copy accumulated 22 of them — the rule was
+binding on the model and optional for the humans. `scripts/check-copy.mjs`
+strips comments from `src/components/` and fails on any surviving em-dash
+(escape hatch: `// emdash-ok: reason`). **Reverses if:** the design standard
+itself drops the ban.
+
+---
+
+## `strip-before-truncate` — storage pressure deletes bytes, then history
+
+The storage-full ladder's first rung was `slice(-400)`: one failed photo
+upload stranding a data: URL could silently delete everything older than 400
+messages, in a product whose Settings promise is "Nothing on it resets,
+expires, or can be lost." Measured: 2,000 real messages are ~10.6% of quota —
+message volume can essentially never trip the ladder; a stuck data: URL is
+the only realistic trigger. Order now: full-length data:-URL strip first,
+truncation only if a clean copy still overflows, `tel("storage_degraded")`
+on every rung. **Reverses if:** telemetry shows clean-copy overflows actually
+happening (then the promise itself is the problem, and that is an owner
+conversation, not a ladder tweak).

@@ -23,7 +23,16 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* centred as a block, and the panels cap: on an 844px stage the two
+     panels stretched to 281px each around two lines of text — ~110px of
+     blank card above and below every sentence (audit). Capped, the pair
+     reads as cards; centred, the leftover stage is symmetric margin
+     instead of a hole under the status row. */
+  justify-content: center;
   gap: var(--s3);
+}
+.wyr-card {
+  max-height: 210px;
 }
 
 /* ── the two panels ───────────────────────────────────────────────────────
@@ -185,7 +194,9 @@
 }
 
 .wyr-hint {
-  color: var(--ga-faint);
+  /* the one instruction on the screen; it was the least legible text on it
+     (--ga-faint measured 2.88:1 at 13px). Dim, not faint. */
+  color: var(--ga-dim);
 }
 
 .wyr-waiting {
@@ -248,7 +259,12 @@
   transform: scale(0.96);
 }
 .wyr-next:disabled {
-  opacity: 0.4;
+  /* A disabled state styled AS a state: whole-element opacity composited
+     the accent label to 1.80:1 and left it looking like an enabled button
+     with unreadable text. Muted ground + dim label reads as "not yet". */
+  background: var(--ga-well);
+  color: var(--ga-dim);
+  box-shadow: inset 0 0 0 1px var(--ga-line);
 }
 
 @media (prefers-reduced-motion: reduce) {

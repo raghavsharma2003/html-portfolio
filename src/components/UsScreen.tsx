@@ -326,7 +326,10 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
   // progress bar toward a number: a young record gets a sentence about
   // beginnings and an old one gets a sentence about accumulation, and both
   // are statements of fact about what is already true.
-  const early = r.chatCount < 60 || r.dayNo < 7;
+  // "Still early" must be a claim about TIME, not volume: with the old
+  // `chatCount < 60 ||` a quiet-texting couple read "Still early, and all of
+  // it counts" under a grid showing 121 days (audit). Two weeks is early.
+  const early = r.dayNo < 14;
 
   const run = !REDUCED();
 

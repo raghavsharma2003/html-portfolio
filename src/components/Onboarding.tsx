@@ -6,8 +6,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { HER_NAME, type UserProfile } from "../engine/persona";
 import { seedDayOneConsolidation, seedCurrencyChips } from "../engine/memory";
 import meeraWalk from "../assets/moments/meera-walk.jpg";
+import meeraWalk400 from "../assets/moments/meera-walk-400.jpg";
 import meeraBeach from "../assets/moments/meera-beach.jpg";
+import meeraBeach400 from "../assets/moments/meera-beach-400.jpg";
 import meeraReading from "../assets/moments/meera-reading.jpg";
+import meeraReading400 from "../assets/moments/meera-reading-400.jpg";
 
 interface Props {
   onDone: (user: UserProfile) => void;
@@ -61,15 +64,45 @@ export default function Onboarding({ onDone, deviceId }: Props) {
           {step === 0 && (
             <motion.div key="s0" {...stepAnim}>
               <div className="photo-fan">
-                <img src={meeraReading} alt="" className="fan fan-l" draggable={false} />
-                <img src={meeraWalk} alt={HER_NAME} className="fan fan-c" draggable={false} />
-                <img src={meeraBeach} alt="" className="fan fan-r" draggable={false} />
+                <img
+                  src={meeraReading400}
+                  srcSet={`${meeraReading400} 400w, ${meeraReading} 900w`}
+                  sizes="148px"
+                  width={148}
+                  height={186}
+                  alt=""
+                  className="fan fan-l"
+                  draggable={false}
+                  decoding="async"
+                />
+                <img
+                  src={meeraWalk400}
+                  srcSet={`${meeraWalk400} 400w, ${meeraWalk} 900w`}
+                  sizes="158px"
+                  width={158}
+                  height={198}
+                  alt={HER_NAME}
+                  className="fan fan-c"
+                  draggable={false}
+                  decoding="async"
+                />
+                <img
+                  src={meeraBeach400}
+                  srcSet={`${meeraBeach400} 400w, ${meeraBeach} 900w`}
+                  sizes="148px"
+                  width={148}
+                  height={186}
+                  alt=""
+                  className="fan fan-r"
+                  draggable={false}
+                  decoding="async"
+                />
               </div>
               <h1 style={{ textAlign: "center" }}>
                 Some days deserve <em>someone to tell</em>.
               </h1>
               <p className="sub" style={{ textAlign: "center", margin: "0 auto 34px" }}>
-                {HER_NAME} is a friend who's always up for talking — the small
+                {HER_NAME} is a friend who's always up for talking: the small
                 stuff, the big stuff, whenever you need it.
               </p>
               <button className="btn-primary" data-tel="onboarding.start" onClick={() => setStep(1)}>
@@ -86,7 +119,7 @@ export default function Onboarding({ onDone, deviceId }: Props) {
                   lineHeight: 1.5,
                 }}
               >
-                {HER_NAME} is an AI companion — beautifully human in how she
+                {HER_NAME} is an AI companion, beautifully human in how she
                 talks, always honest about what she is. For adults 18+ only.
                 By continuing you confirm you're 18 or older.
               </p>
@@ -100,7 +133,7 @@ export default function Onboarding({ onDone, deviceId }: Props) {
                 <br />
                 Tumhe kya <em>bulaun</em>?
               </h1>
-              <p className="sub">Bas naam batao — jo dost bulate hain wahi chalega.</p>
+              <p className="sub">Bas naam batao, jo dost bulate hain wahi chalega.</p>
               <input
                 className="field"
                 placeholder="Your name"

@@ -67,12 +67,12 @@ export default function ClockCard() {
           <p className="cc-text">
             {isBreak ? (
               <>
-                You've been talking with {HER_NAME} for {dur}. No rush — she'll be right here
+                You've been talking with {HER_NAME} for {dur}. No rush, she'll be right here
                 whenever you come back.
               </>
             ) : (
               <>
-                {HER_NAME} is an AI, not a person — you've been chatting for {dur}.
+                {HER_NAME} is an AI, not a person. You've been chatting for {dur}.
                 {minorSafe && " She may not be suitable for younger users."}
               </>
             )}

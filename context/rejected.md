@@ -1425,7 +1425,7 @@ choice.
 
 ---
 
-## the-close-that-lived-in-a-component
+## `view-lifetime-writers` — the close that lived in a component
 
 **Tried:** writing a game's close and lifetime tally from a 25-second timer
 inside the activity component's own effect ("the close is written here and
@@ -1449,3 +1449,31 @@ idempotence across devices and StrictMode. Components keep only presentation.
 **The generalisable rule:** a state transition's consequences must be written
 by something whose lifetime matches the STATE, not the VIEW. A component
 effect is a viewer, and viewers leave.
+
+---
+
+## `animation-implicit-end` — the animation that ended where it began
+
+**Tried:** drawing tic-tac-toe marks with `stroke-dashoffset` animated by a
+keyframe that declared only `from { stroke-dashoffset: 1 }`, relying on the
+implicit `to` — while the rule that RUNS the animation also set the underlying
+value to `stroke-dashoffset: 1` (the standard start-hidden setup).
+
+**What broke:** the implicit `to` resolves to the underlying value, which was
+1 — so the stroke animated 1 → 1 and `animation-fill-mode: forwards` froze it
+there. Every fresh mark was invisible until the NEXT move re-rendered it
+without the animating attribute; the last mark of every game, including the
+winning one, and the winning line itself (same keyframe, permanent) rendered
+invisible in 100% of games. It shipped because the reduced-motion branch
+forces `stroke-dashoffset: 0` — the accessibility path worked and the default
+path never did, and nothing asserted a computed end state.
+
+**Now:** the keyframe declares `to { stroke-dashoffset: 0 }` explicitly, and
+`scripts/check-contrast.mjs` pins it.
+
+**The generalisable rule:** a keyframe that omits its end state inherits it
+from whatever the element's rules say — and the element's rules, in the
+start-hidden pattern, say HIDDEN. Any `forwards` animation must state its own
+destination, and any "it draws in" effect needs one assertion on the computed
+END state, because the broken version looks identical to the working one in
+every frame except the ones after the animation finishes.

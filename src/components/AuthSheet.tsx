@@ -77,7 +77,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
       const msg = String((e as Error).message || "");
       setError(
         /sms|provider|not enabled|disabled/i.test(msg) && mode === "phone"
-          ? "SMS sign-in isn't switched on yet — use email or Google for now"
+          ? "SMS sign-in isn't switched on yet. Use email or Google for now"
           : msg.replace(/_/g, " "),
       );
     } finally {
@@ -94,7 +94,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
       track(state.deviceId, "signin_success", { method: mode }, session.userId);
       onAuthed(session);
     } catch (e) {
-      setError("that code didn't match — check and try again");
+      setError("that code didn't match, check and try again");
       setDigits(Array(6).fill(""));
       // un-disable the boxes BEFORE focusing — focus() on a disabled input
       // is a no-op and drops the phone keyboard
@@ -152,7 +152,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
               Sign in and your chats and her memory of you follow you to any device.
             </p>
 
-            <button className="auth-google" data-tel="auth.google" disabled={busy} onClick={() => googleSignIn().catch(() => setError("google sign-in isn't switched on yet — use email"))}>
+            <button className="auth-google" data-tel="auth.google" disabled={busy} onClick={() => googleSignIn().catch(() => setError("google sign-in isn't switched on yet, use email"))}>
               <svg width="18" height="18" viewBox="0 0 48 48">
                 <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.7 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.2C12.4 13.5 17.7 9.5 24 9.5z" />
                 <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z" />
@@ -222,7 +222,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
           <>
             <h3>Enter the code</h3>
             <p className="hint">
-              Sent to <b style={{ color: "var(--ink)" }}>{sentTo || (mode === "email" ? email : phone)}</b> — check{" "}
+              Sent to <b style={{ color: "var(--ink)" }}>{sentTo || (mode === "email" ? email : phone)}</b>. Check{" "}
               {mode === "email" ? "your inbox" : "your messages"}.
             </p>
             <div className="otp-row" role="group" aria-label="Six digit code">

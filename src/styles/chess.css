@@ -111,9 +111,15 @@
 }
 
 /* ── the night inking ─────────────────────────────────────────────────────
-   Squares drop most of the way to black, and — the part that matters — the
-   BLACK pieces swap to a light rim: an unlit black piece on a dark square is
-   a hole in the board.
+   The CHROME darkens; the BOARD stays lit. A chessboard is an object sitting
+   in the room, not part of the room, and every serious chess surface renders
+   it that way — chess.com and lichess both keep the board bright inside a
+   dark UI. The first version of this block dropped the squares most of the
+   way to black and hung the black set on a 1px light rim; the audit measured
+   the result at 1.27:1 (black piece on dark square) and 1.73:1 square-to-
+   square — the opponent's pieces read as holes. These squares are the paper
+   walnut dimmed ~20%, which lands black-on-dark-square at ~3.3:1 and
+   square-to-square at ~2.6:1 (scripts/check-contrast.mjs pins both floors).
 
    TWO WAYS IN, ONE INKING. `data-tone="dark"` is set by the component when a
    call is live behind the board; the app's dark theme arrives independently
@@ -133,10 +139,10 @@
    second is left unindented so a plain diff can prove it. */
 .cb[data-tone="dark"],
 :root[data-theme="dark"] .cb {
-  --cb-light: #5d4a45;
-  --cb-dark: #33272a;
-  --cb-grain: rgba(255, 240, 232, 0.011);
-  --cb-vignette: rgba(0, 0, 0, 0.34);
+  --cb-light: #d4b296;
+  --cb-dark: #86675a;
+  --cb-grain: rgba(58, 34, 22, 0.013);
+  --cb-vignette: rgba(0, 0, 0, 0.3);
   --cb-inner-edge: rgba(0, 0, 0, 0.45);
 
   --cb-frame-hi: #2a1e20;
@@ -150,17 +156,17 @@
   --cb-white-edge: #2a1c1f;
   --cb-white-line: #5f4b48;
 
-  --cb-black-hi: #2e2326;
-  --cb-black: #1b1315;
-  --cb-black-lo: #0e090a;
-  --cb-black-edge: #9c8681;
-  --cb-black-line: rgba(240, 228, 224, 0.44);
+  --cb-black-hi: #443539;
+  --cb-black: #241b1d;
+  --cb-black-lo: #120d0e;
+  --cb-black-edge: #0e0809;
+  --cb-black-line: rgba(240, 228, 224, 0.5);
 
   --cb-cast: rgba(0, 0, 0, 0.5);
 
   --cb-sel: color-mix(in srgb, var(--accent) 36%, transparent);
   --cb-sel-ring: color-mix(in srgb, var(--accent) 54%, transparent);
-  --cb-hint: rgba(255, 242, 238, 0.26);
+  --cb-hint: rgba(40, 25, 16, 0.3);
   --cb-last: color-mix(in srgb, var(--accent-warm) 24%, transparent);
   --cb-last-to: color-mix(in srgb, var(--accent-warm) 36%, transparent);
   --cb-over: color-mix(in srgb, var(--accent) 88%, transparent);
@@ -177,10 +183,10 @@
 
 @media (prefers-color-scheme: dark) {
 :root:not([data-theme="light"]) .cb {
-  --cb-light: #5d4a45;
-  --cb-dark: #33272a;
-  --cb-grain: rgba(255, 240, 232, 0.011);
-  --cb-vignette: rgba(0, 0, 0, 0.34);
+  --cb-light: #d4b296;
+  --cb-dark: #86675a;
+  --cb-grain: rgba(58, 34, 22, 0.013);
+  --cb-vignette: rgba(0, 0, 0, 0.3);
   --cb-inner-edge: rgba(0, 0, 0, 0.45);
 
   --cb-frame-hi: #2a1e20;
@@ -194,17 +200,17 @@
   --cb-white-edge: #2a1c1f;
   --cb-white-line: #5f4b48;
 
-  --cb-black-hi: #2e2326;
-  --cb-black: #1b1315;
-  --cb-black-lo: #0e090a;
-  --cb-black-edge: #9c8681;
-  --cb-black-line: rgba(240, 228, 224, 0.44);
+  --cb-black-hi: #443539;
+  --cb-black: #241b1d;
+  --cb-black-lo: #120d0e;
+  --cb-black-edge: #0e0809;
+  --cb-black-line: rgba(240, 228, 224, 0.5);
 
   --cb-cast: rgba(0, 0, 0, 0.5);
 
   --cb-sel: color-mix(in srgb, var(--accent) 36%, transparent);
   --cb-sel-ring: color-mix(in srgb, var(--accent) 54%, transparent);
-  --cb-hint: rgba(255, 242, 238, 0.26);
+  --cb-hint: rgba(40, 25, 16, 0.3);
   --cb-last: color-mix(in srgb, var(--accent-warm) 24%, transparent);
   --cb-last-to: color-mix(in srgb, var(--accent-warm) 36%, transparent);
   --cb-over: color-mix(in srgb, var(--accent) 88%, transparent);

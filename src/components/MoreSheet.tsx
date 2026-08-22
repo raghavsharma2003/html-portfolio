@@ -172,7 +172,7 @@ export default function MoreSheet({
               <div className="rel-card" aria-label="Relationship depth">
                 <span className="rel-card-title">Where things stand</span>
                 <span className="rel-card-body">
-                  {HONORIFIC_LABEL[relBundle.relState.honorific] ?? HONORIFIC_LABEL.tum} — she's{" "}
+                  {HONORIFIC_LABEL[relBundle.relState.honorific] ?? HONORIFIC_LABEL.tum}, and she's{" "}
                   {TRUST_LABEL[bandTrust(relBundle.relState.trust)] ?? TRUST_LABEL.building}.
                 </span>
                 {(() => {
@@ -214,8 +214,8 @@ export default function MoreSheet({
               })}
             </div>
             <p className="hint">
-              Auto follows your phone, and keeps following it — including when it
-              turns dark at night on its own.
+              Auto follows your phone, and keeps following it when it turns
+              dark at night on its own.
             </p>
 
             <div className="sheet-rows">
@@ -243,14 +243,21 @@ export default function MoreSheet({
                   <span className="ssub">
                     {signedIn
                       ? `Synced · ${state.auth?.email || state.auth?.phone || "signed in"}`
-                      : "Not signed in — this chat lives on this device only"}
+                      : "Not signed in. This chat lives on this device only"}
                   </span>
                 </span>
                 <span className="schev">
                   <ChevronIcon />
                 </span>
               </button>
+            </div>
 
+            {/* The two irreversible acts live in their OWN ruled group, below a
+                visible break, with danger-tinted icon tiles and no chevrons: a
+                chevron promises navigation, and neither of these is a place you
+                go — they are things you DO. The audit caught them dressed as
+                ordinary rows (same pink tile, same gray chevron as "You"). */}
+            <div className="sheet-rows danger">
               <button className="srow destructive" data-tel="more.clear_chat" onClick={() => setView("clear")}>
                 <span className="sicon">
                   <TrashIcon />
@@ -262,9 +269,6 @@ export default function MoreSheet({
                       ? `${messageCount} message${messageCount === 1 ? "" : "s"} · she starts over`
                       : "Nothing to clear yet"}
                   </span>
-                </span>
-                <span className="schev">
-                  <ChevronIcon />
                 </span>
               </button>
 
@@ -283,9 +287,6 @@ export default function MoreSheet({
                     Everything she's worked out about your life, deleted for good
                   </span>
                 </span>
-                <span className="schev">
-                  <ChevronIcon />
-                </span>
               </button>
             </div>
 
@@ -302,8 +303,8 @@ export default function MoreSheet({
           <>
             <h3>You</h3>
             <p className="hint">
-              What she calls you, and what you came here for. Change it whenever — she
-              picks it up from the next message on.
+              What she calls you, and what you came here for. Change it whenever:
+              she picks it up from the next message on.
             </p>
             <label htmlFor="ms-name">Your name</label>
             <input
@@ -379,13 +380,13 @@ export default function MoreSheet({
                 the parts separately because they are separate things: what
                 she worked out about you, and the record of you saying it. */}
             <p className="confirm-body">
-              {HER_NAME} deletes <b>everything she has worked out about your life</b> — the
-              people, the places, the plans, the running jokes, how things felt — and{" "}
+              {HER_NAME} deletes <b>everything she has worked out about your life</b>: the
+              people, the places, the plans, the running jokes, how things felt, and{" "}
               <b>her record of every message and call</b> you two have had. This chat goes
               with it and she starts over not knowing you.
               <br />
               <br />
-              You'll get ten seconds to undo. Nothing is sent until then — but once it
+              You'll get ten seconds to undo. Nothing is sent until then, but once it
               goes, it is gone, and nobody can bring it back.
             </p>
             <div className="confirm-actions">
@@ -404,7 +405,7 @@ export default function MoreSheet({
               </button>
             </div>
             <p className="auth-fine" style={{ marginTop: 16 }}>
-              <HeartIcon size={13} /> Your account stays. You can also just ask her — "yeh
+              <HeartIcon size={13} /> Your account stays. You can also just ask her: "yeh
               bhool ja" drops one thing without touching the rest.
             </p>
           </>

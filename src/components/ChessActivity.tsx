@@ -263,6 +263,31 @@ export default function ChessActivity({
   const showEnd = Boolean(g && !over && !session?.closedAt && g.played.length > 0);
   const showNew = Boolean(over || session?.closedAt);
 
+  // The RESULT, stated on screen. The payoff moment of the whole activity is
+  // "did I win?", and the audit found the entire on-screen answer was the
+  // subtitle "good game" — identical for a checkmate either way, every draw,
+  // and an early end. status.result and status.winner existed and were
+  // rendered nowhere. "good game" stays as her VOICE line; this is the record.
+  const verdict = useMemo(() => {
+    if (!g) return null;
+    if (session?.endedEarly && !g.status.over) return "Game ended. No result";
+    if (!g.status.over) return null;
+    switch (g.status.result) {
+      case "checkmate":
+        return g.status.winner === herSide ? "Checkmate. She won" : "Checkmate. You won";
+      case "stalemate":
+        return "Stalemate. A draw";
+      case "insufficient_material":
+        return "A draw: not enough pieces left to mate";
+      case "threefold_repetition":
+        return "A draw: same position three times";
+      case "fifty_move":
+        return "A draw: fifty moves with no progress";
+      default:
+        return null;
+    }
+  }, [g, session?.endedEarly, herSide]);
+
   return (
     <ActivityShell
       title="Chess"
@@ -307,18 +332,25 @@ export default function ChessActivity({
           </button>
         </div>
       ) : g ? (
-        <ChessBoard
-          fen={g.fen}
-          legalMoves={moves}
-          onMove={onMove}
-          orientation={herSide === "w" ? "b" : "w"}
-          interactive={mine}
-          lastMove={last ? { from: last.from, to: last.to } : null}
-          inCheck={g.status.inCheck ? g.status.turn : null}
-          captured={captured}
-          tone={tone}
-          label="Chess board"
-        />
+        <>
+          <ChessBoard
+            fen={g.fen}
+            legalMoves={moves}
+            onMove={onMove}
+            orientation={herSide === "w" ? "b" : "w"}
+            interactive={mine}
+            lastMove={last ? { from: last.from, to: last.to } : null}
+            inCheck={g.status.inCheck ? g.status.turn : null}
+            captured={captured}
+            tone={tone}
+            label="Chess board"
+          />
+          {verdict ? (
+            <div className="as-result" role="status">
+              {verdict}
+            </div>
+          ) : null}
+        </>
       ) : null}
     </ActivityShell>
   );

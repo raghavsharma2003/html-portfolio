@@ -603,6 +603,12 @@ button.as-call:active {
   --sq-y: 0.94;
   transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-squash);
 }
+.as-gbtn:disabled {
+  /* styled as a state, never whole-element opacity — see .wyr-next:disabled */
+  background: var(--ga-well);
+  color: var(--ga-dim);
+  border-color: var(--ga-line);
+}
 .as-gbtn:active {
   background: var(--ga-well);
   transform: scale(var(--sq-x), var(--sq-y));
@@ -613,6 +619,22 @@ button.as-call:active {
   border-color: transparent;
   background: var(--accent-solid, var(--accent));
   color: #fff;
+}
+
+/* The result banner: the record of a finished game, under the board. One
+   quiet card, ga-inked — her "good game" is a thing she SAYS, this is what
+   HAPPENED, and the two must not be the same element. */
+.as-result {
+  align-self: center;
+  margin-top: var(--s3);
+  padding: 8px var(--s4);
+  border-radius: 999px;
+  background: var(--ga-well);
+  border: 0.5px solid var(--ga-line-strong);
+  color: var(--ga-ink);
+  font: 600 var(--t-ui) var(--font-display);
+  letter-spacing: -0.01em;
+  animation: fade var(--d-state) var(--ease-out);
 }
 
 /* The blocked state: another game holds the slot. A refusal with no remedy

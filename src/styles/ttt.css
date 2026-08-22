@@ -21,6 +21,13 @@
   --tt-line-strong: var(--hairline-strong);
   --tt-frame-bg: var(--surface-2);
   --tt-frame-shadow: var(--shadow-card);
+  /* The gaps BETWEEN cells — the lines that make it a tic-tac-toe board.
+     `.tt-grid` paints this behind the cells, so the gaps take it while the
+     outer frame keeps the softer `--tt-frame-bg`. It is mixed dark enough to
+     clear ~2.5:1 against the white cells: the audit measured the old
+     arrangement (cells on `--surface-2`) at 1.18:1, at which point a fresh
+     board is a featureless white slab. A ttt grid is drawn in ink; draw it. */
+  --tt-grid-line: color-mix(in srgb, var(--ink) 38%, var(--surface-2));
 
   /* the marks — two colours, not two shapes' worth of borrowed accent */
   --tt-x: var(--accent);
@@ -55,6 +62,7 @@
   --tt-line-strong: rgba(255, 240, 235, 0.2);
   --tt-frame-bg: rgba(0, 0, 0, 0.42);
   --tt-frame-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.8);
+  --tt-grid-line: #5f4d51;
 
   --tt-x: #e4657a;
   --tt-o: #f6f1ee;
@@ -71,6 +79,7 @@
   --tt-line-strong: rgba(255, 240, 235, 0.2);
   --tt-frame-bg: rgba(0, 0, 0, 0.42);
   --tt-frame-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.8);
+  --tt-grid-line: #5f4d51;
 
   --tt-x: #e4657a;
   --tt-o: #f6f1ee;
@@ -94,6 +103,7 @@
 .tt-grid {
   position: relative;
   display: grid;
+  background: var(--tt-grid-line);
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
   gap: 6px;
@@ -182,9 +192,17 @@ circle.tt-stroke {
   stroke-dasharray: 1 1;
   stroke-dashoffset: 0;
 }
+/* The explicit `to` is load-bearing: without it the implicit end state is the
+   underlying value, and the rule that RUNS this animation also sets that value
+   to 1 — so the stroke animated 1 -> 1 and `forwards` froze every fresh mark
+   (and the winning line, always) invisible. Found by audit, 2026-08-22;
+   pinned by scripts/check-contrast.mjs so it cannot quietly regress. */
 @keyframes tt-draw {
   from {
     stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
   }
 }
 

@@ -143,12 +143,12 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
             reaching her. Say so where you are already looking. */}
         {!eng.sttSupported && eng.phase === "live" && !showKb && (
           <div className="call-hint" role="status">
-            Your browser can't hear you here — type to her instead
+            Your browser can't hear you here. Type to her instead
           </div>
         )}
         {eng.muted && eng.phase === "live" && (
           <div className="call-hint warn" role="status">
-            Your mic is off — she can't hear you
+            Your mic is off, she can't hear you
           </div>
         )}
 
@@ -212,7 +212,7 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
                 eng.setWatchPaused(!eng.watchPaused);
               }}
               aria-pressed={eng.watchPaused}
-              aria-label={eng.watchPaused ? "Let her see your screen again" : "Look away — stop sending your screen"}
+              aria-label={eng.watchPaused ? "Let her see your screen again" : "Look away: stop sending your screen"}
             >
               {eng.watchPaused ? "Let her see" : "Look away"}
             </button>

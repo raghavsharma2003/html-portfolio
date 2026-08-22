@@ -73,6 +73,13 @@ export interface MilestoneInputs {
 
 const DAY = 24 * 60 * 60 * 1000;
 
+// A tier crossing is an EVENT that happened, and its card should say so:
+// "Your 5th chess game together", not "5 chess games together" — the audit
+// caught the count phrasing contradicting the live stat block two sections
+// up (tally said 9 games while the timeline said 5). An ordinal cannot age.
+const nth = (n: number) =>
+  `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][Math.min(n % 10, 4) > 3 ? 0 : n % 10] ?? "th"}`;
+
 // Tier tables. Sparse on purpose: a milestone that fires weekly is wallpaper,
 // and wallpaper is the death of celebration. Duolingo's own numbers thin out
 // exactly this way as they grow.
@@ -170,13 +177,13 @@ export function detectMoments(inp: MilestoneInputs): Moment[] {
   {
     const t = latestOnly(CHESS_TIERS, ta.chessGames ?? 0, fired, (n) => `chess-${n}`);
     if (t !== null) {
-      out.push({ id: `chess-${t}`, kind: "chess-games", title: `${t} chess games together` });
+      out.push({ id: `chess-${t}`, kind: "chess-games", title: `Your ${nth(t)} chess game together` });
     }
   }
   {
     const t = latestOnly(WYR_TIERS, ta.wyrCards ?? 0, fired, (n) => `wyr-${n}`);
     if (t !== null) {
-      out.push({ id: `wyr-${t}`, kind: "wyr-cards", title: `${t} would-you-rathers answered` });
+      out.push({ id: `wyr-${t}`, kind: "wyr-cards", title: `Your ${nth(t)} would-you-rather` });
     }
   }
 
@@ -200,8 +207,8 @@ export function titleFor(id: string): string | null {
     case "days": return n === 365 ? "One year of you two" : `${n} days of you two`;
     case "msgs": return `${n.toLocaleString("en-IN")} messages`;
     case "calls": return n === 1 ? "Your first call" : `${n} calls together`;
-    case "chess": return `${n} chess games together`;
-    case "wyr": return `${n} would-you-rathers answered`;
+    case "chess": return `Your ${nth(n)} chess game together`;
+    case "wyr": return `Your ${nth(n)} would-you-rather`;
   }
   return null;
 }

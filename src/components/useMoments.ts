@@ -138,14 +138,18 @@ export function useMoments(
 
       // Relationship moments: silent, always. Ledger + Us timeline, no card.
       const silent = all.filter((m) => !GAME_KINDS.has(m.kind));
-      // Game moments celebrate only inside game mode; detected outside it
-      // (he closed the board fast), they also go silent — a stale win card
-      // popping over CHAT later would be the exact boundary violation.
+      // Game moments celebrate only inside game mode. Detected OUTSIDE it,
+      // they are left UNFIRED — not burned into the ledger — so the next
+      // board open celebrates them: the same "the rest keep their turn" rule
+      // the one-at-a-time gate already applies. The first version burned
+      // them silently, and the window was brutal: the tally lands at game
+      // close, detection waits DEBOUNCE_MS, and leaving the board inside
+      // that beat consumed the first-win celebration forever — with the
+      // then-missing result banner being the very reason to leave fast
+      // (audit: two defects compounding). They still never pop over chat;
+      // the card gate below stays gameOpen-only.
       const celebratable = gameOpen ? all.find((m) => GAME_KINDS.has(m.kind)) : undefined;
-      const silentIds = [
-        ...silent.map((m) => m.id),
-        ...(gameOpen ? [] : all.filter((m) => GAME_KINDS.has(m.kind)).map((m) => m.id)),
-      ];
+      const silentIds = silent.map((m) => m.id);
 
       if (silentIds.length) {
         setState((s) => {

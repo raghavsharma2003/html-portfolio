@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { UserProfile } from "../engine/persona";
 import type { Inner } from "../engine/inner";
+import { tel } from "../engine/telemetry";
 
 export interface Message {
   id: string;
@@ -55,6 +56,7 @@ export interface SelfFact {
 }
 
 import type { GameSession } from "./game";
+import { isGameSession } from "./game";
 import type { ThemeChoice } from "../engine/theme";
 
 export interface AppState {
@@ -201,6 +203,12 @@ export function loadState(): AppState {
     if (!raw) return { ...defaultState };
     const parsed = { ...defaultState, ...JSON.parse(raw) };
     parsed.messages = migrateMessages(parsed.messages);
+    // `game` is the one field dereferenced deeply inside setState updaters
+    // with no error boundary above them — a malformed session (a bad sync,
+    // a hand-edited blob, a schema from a future build rolled back) is a
+    // blank screen that SURVIVES reload, because the crash happens after
+    // every successful load. Guard the boundary; drop only the game.
+    if (parsed.game != null && !isGameSession(parsed.game)) parsed.game = null;
     return parsed;
   } catch {
     return { ...defaultState };
@@ -225,16 +233,42 @@ export function saveState(s: AppState) {
     localStorage.setItem(KEY, JSON.stringify(s));
     return;
   } catch {
-    /* storage full — strip heavy photo data, then halve until it fits */
+    /* storage full — degrade below, least-destructive first */
+  }
+  // Strip stuck data: URLs at FULL message length before any truncation.
+  // Measured (audit): 2,000 real messages are ~10.6% of a 5MB quota, so the
+  // only realistic way to land here is one failed photo upload leaving a
+  // multi-hundred-KB data: URL — and the old ladder answered that by
+  // deleting everything older than the last 400 messages on its first rung,
+  // silently, in a product whose own Settings promise is "Nothing on it
+  // resets, expires, or can be lost." Losing a broken image byte-blob is
+  // nothing; losing a year of history to it is everything.
+  // Every rung is telemetered: an invisible degradation path is how this
+  // shipped wrong the first time.
+  const rung = (name: string) => {
+    try {
+      tel("storage_degraded", { rung: name, messages: s.messages.length });
+    } catch {
+      /* telemetry must never take persistence down with it */
+    }
+  };
+  try {
+    localStorage.setItem(KEY, persistable(s, s.messages.length));
+    rung("strip_data_urls");
+    return;
+  } catch {
+    /* genuinely over quota even clean — now, and only now, truncate */
   }
   for (const keep of [400, 200, 100, 50]) {
     try {
       localStorage.setItem(KEY, persistable(s, keep));
+      rung(`truncate_${keep}`);
       return;
     } catch {
       /* still too big — halve again */
     }
   }
+  rung("gave_up");
 }
 
 export function useAppState() {
