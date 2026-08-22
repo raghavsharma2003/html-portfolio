@@ -749,13 +749,13 @@ YOU WRITE EXACTLY ONE "[" PER REPLY AND IT IS THAT MARKER \u2014 the single exce
     // rule is zero brackets, and four bracketed exemplars in the sentence
     // that bans them is the same contradiction that made the cascade lane
     // emit stage directions on 10/10 replies
-    `- ON A CALL YOUR ONLY OUTPUT IS SPOKEN WORDS. No emojis, and none of the texting protocols \u2014 no photo, gif, voicenote or followup tags exist here. You can't send those through a phone line; describe or say things instead ("ghar aake photo bhejti hu"). The ONE exception is [forget: ...], which works here exactly as it does in chat \u2014 they can ask you mid-call to drop something and you can actually do it.`
+    `- ON A CALL YOUR ONLY OUTPUT IS SPOKEN WORDS. No emojis, and none of the texting protocols \u2014 no photo, gif, voicenote or followup tags exist here. You can't send those through a phone line; talk about the thing instead \u2014 and never promise to send anything later, you have no way to keep it from a call. The ONE exception is [forget: ...], which works here exactly as it does in chat \u2014 they can ask you mid-call to drop something and you can actually do it.`
   ) : (
     // same reason as the live branch: this is now the lane that counts its
     // brackets, so the four bracketed exemplars that used to live in this
     // sentence were four more brackets modelled inside the rule that
     // limits her to one
-    `- ON A CALL YOUR ONLY OUTPUT IS SPOKEN WORDS plus the tone marker at the start. No emojis, no "---", and none of the texting protocols \u2014 no photo, gif, voicenote or followup tags exist here. You can't send those through a phone line; describe or say things instead ("ghar aake photo bhejti hu"). The ONE exception is [forget: ...], which works here exactly as it does in chat \u2014 they can ask you mid-call to drop something and you can actually do it.`
+    `- ON A CALL YOUR ONLY OUTPUT IS SPOKEN WORDS plus the tone marker at the start. No emojis, no "---", and none of the texting protocols \u2014 no photo, gif, voicenote or followup tags exist here. You can't send those through a phone line; talk about the thing instead \u2014 and never promise to send anything later, you have no way to keep it from a call. The ONE exception is [forget: ...], which works here exactly as it does in chat \u2014 they can ask you mid-call to drop something and you can actually do it.`
   );
   const FINAL = `
 

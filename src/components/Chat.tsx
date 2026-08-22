@@ -139,7 +139,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   // to be either unreachable or one mis-tap away from destroying the chat
   const [moreOpen, setMoreOpen] = useState(false);
   // clearing parks the conversation for ten seconds instead of destroying it
-  type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt" | "game" | "callback">;
+  type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt" | "game" | "callback" | "tally" | "momentsFired">;
   const [undo, setUndo] = useState<{ label: string; snapshot: Snapshot } | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Forgetting parks the REQUEST, not just the local state: the server-side
@@ -986,6 +986,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       clearedAt: state.clearedAt,
       game: state.game,
       callback: state.callback,
+      tally: state.tally,
+      momentsFired: state.momentsFired,
     };
     busy.current = false;
     epoch.current += 1; // kill any in-flight reply from the old chat
@@ -1018,6 +1020,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       // causeless event.
       game: null,
       callback: null,
+      // The audit's second omission of the same rule: the wipe left "12
+      // games of chess, she's ahead 7-5" on a record whose first message is
+      // now today — and every id in the fired ledger stayed dead forever, so
+      // a post-forget relationship could never fire "your first game". Every
+      // AppState field decides its teardown fate the day it is added.
+      tally: null,
+      momentsFired: [],
     }));
     return snapshot;
   }
@@ -1078,6 +1087,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       clearedAt: snap.clearedAt,
       game: snap.game,
       callback: snap.callback,
+      tally: snap.tally,
+      momentsFired: snap.momentsFired,
     }));
     tap();
   }

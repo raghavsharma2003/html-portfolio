@@ -127,5 +127,10 @@ export function tttActivity(game: Game, herMark: Mark, startedAt: number): TttAc
     facts,
     nameable,
     waitingOnHer: !game.status.over && game.status.turn === herMark,
+    // Same contract chessActivity honours: without this, a finished-but-
+    // unclosed ttt game rendered "RIGHT NOW YOU TWO ARE IN THE MIDDLE OF"
+    // directly above a fact announcing the winner — one block contradicting
+    // itself on the lane she speaks from.
+    over: game.status.over,
   };
 }

@@ -7,7 +7,7 @@
 // the brain, so she remembers call conversations perfectly. The chat shows
 // only a "📞 Voice call · m:ss" record when the call ends.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
@@ -706,6 +706,7 @@ export function useCallEngine(
         // goodbye first and the line drops after it, which is what a person
         // does. See engine/hangup.ts on why this reads HIS words, not hers.
         if (asksToHangUp(t)) armHangup("live");
+        else disarmHangup(); // further speech cancels a pending goodbye
         log({ id: uid(), from: "me", kind: "text", channel: "call", text: t, at: Date.now() });
         // A factual question on a call: fire the lookup NOW, in parallel with
         // her own answer, and inject the facts a beat after she has started
@@ -2075,7 +2076,12 @@ export function useCallEngine(
       ? frameRef.current.url
       : undefined;
 
-  function toggleMute() {
+  // Stable identity, deliberately: publishCallStatus's change-guard compares
+  // toggleMute by reference, and a fresh function per render made the guard
+  // never pass — every engine render re-rendered every subscribed board,
+  // the exact cost callStatus.ts exists to prevent. Reads only refs and
+  // stable setters, so [] is truthful.
+  const toggleMute = useCallback(() => {
     const next = !mutedRef.current;
     mutedRef.current = next;
     setMuted(next);
@@ -2091,11 +2097,13 @@ export function useCallEngine(
     } else {
       startListening();
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleUser(text: string, prestart?: SpecTurn) {
     if (!alive.current || !text.trim()) return;
     if (asksToHangUp(text)) armHangup("cascade");
+    else disarmHangup(); // further speech cancels a pending goodbye
     // native watch owns the conversation — she hears them through the
     // service's own mic; a reply from here would be a second voice
     if (voiceOwner.current === "native") return;
@@ -2316,6 +2324,8 @@ export function useCallEngine(
   /** Long enough to be a call BACK rather than the same call continuing. */
   const CALLBACK_DELAY_MS = 25_000;
   const hangupArmed = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hangupWasAsked = useRef(false);
+  const endingRef = useRef(false);
   const onEndRef = useRef<(() => void) | null>(null);
 
   /**
@@ -2340,6 +2350,12 @@ export function useCallEngine(
     diag("call", "hangup_requested", { lane, graceMs: HANGUP_GRACE_MS });
     tel("call.hangup_asked", { call_id: callId.current, lane });
     hangupArmed.current = setTimeout(() => {
+      // ORDER MATTERS: endCall reads "was this asked for?" — clearing the
+      // flag first made `asked` always false on exactly this path, and the
+      // other suppressor (mid-sentence) is likely TRUE here because the
+      // grace window exists so she can speak the goodbye. Both suppressors
+      // failed together and she rang back after a hangup he requested.
+      hangupWasAsked.current = true;
       hangupArmed.current = null;
       if (!alive.current) return;
       const done = onEndRef.current;
@@ -2348,6 +2364,8 @@ export function useCallEngine(
   }
 
   function endCall(onEnd: () => void) {
+    if (endingRef.current) return; // double-tap = two callmarks, two extractions
+    endingRef.current = true;
     // ── did this call DROP, or did it end? ───────────────────────────────
     // She was mid-sentence when the line went. A person calls back after that,
     // and only after that — so the callback is armed here, on the one signal
@@ -2362,7 +2380,8 @@ export function useCallEngine(
     // this — it records when she LAST stopped, so comparing it to now can
     // never be true, and the first version of this line was exactly that bug.
     const midSentence = speakingRef.current;
-    const asked = hangupArmed.current !== null;
+    const asked = hangupArmed.current !== null || hangupWasAsked.current;
+    hangupWasAsked.current = false;
     if (midSentence && !asked && elapsedRef.current >= CALLBACK_MIN_SECS) {
       setState((st) => ({
         ...st,

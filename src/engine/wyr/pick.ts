@@ -88,10 +88,21 @@ export function nextCardId(
   deckIds: readonly string[],
   seen: readonly string[],
   salt: string,
+  /** the CURRENT sitting's cards — the hard never-repeat set. `seen` may
+   *  include carried avoid-list entries that soften but must not harden. */
+  sessionSeen?: readonly string[],
 ): string {
   const seenSet = new Set(seen);
   const pool = deckIds.filter((id) => !seenSet.has(id));
-  const base = pool.length ? pool : deckIds;
+  // Exhaustion resets to the deck MINUS this sitting's own cards — the
+  // audit measured the plain full-deck fallback repeating a question inside
+  // the same sitting in 89% of long sessions, and dealing the SAME card
+  // twice in a row 11.7% of the time (her seeded pick then repeats her
+  // answer word for word). Never within the sitting; across sittings is the
+  // acceptable price of an 80-card deck and a long relationship.
+  const thisSitting = new Set(sessionSeen ?? seen);
+  const fallback = deckIds.filter((id) => !thisSitting.has(id));
+  const base = pool.length ? pool : fallback.length ? fallback : deckIds;
   const idx = hash32(`next:${salt}:${seen.length}`) % base.length;
   return base[idx];
 }

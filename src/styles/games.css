@@ -615,6 +615,19 @@ button.as-call:active {
   color: #fff;
 }
 
+/* The blocked state: another game holds the slot. A refusal with no remedy
+   is a dead end, so the panel always carries the action that resolves it. */
+.as-blocked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s4);
+  text-align: center;
+  color: var(--ga-ink-dim);
+  font-size: var(--t-ui);
+  max-width: 30ch;
+}
+
 .as-foot {
   display: flex;
   align-items: center;

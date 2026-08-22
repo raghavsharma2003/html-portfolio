@@ -14,6 +14,7 @@ import TicTacToeActivity from "./components/TicTacToeActivity";
 import { CloseIcon } from "./components/icons";
 import { applyTheme, watchSystemTheme } from "./engine/theme";
 import { mergeStates } from "./state/merge";
+import { OPEN_STALE_MS } from "./state/game";
 import { useMoments } from "./components/useMoments";
 import Celebration from "./components/Celebration";
 import UsScreen from "./components/UsScreen";
@@ -63,6 +64,82 @@ export default function App() {
   const [callFrom, setCallFrom] = useState<"him" | "her">("him");
   const [gamesOpen, setGamesOpen] = useState(false);
   const [usOpen, setUsOpen] = useState(false);
+
+  // ── THE GAME RECONCILER ────────────────────────────────────────────────
+  // Close and tally are properties of the STATE TRANSITION, written here in
+  // the one component that is always mounted — not in whichever board
+  // happened to be watching. The audit found four failures with one cause
+  // (the close/tally living in a component effect with a 25s timer): leave
+  // the board within 25s of the ending and the game is never closed and
+  // never counted; press New game inside the window and the finished game
+  // vanishes from the tally; a game closed on another device arrives
+  // status.over and untallied forever; and an OPEN session abandoned
+  // mid-game announces "RIGHT NOW you two are in the middle of… 4320 min
+  // in" indefinitely, because RECENT_END_MS only ages CLOSED sessions.
+  //
+  // Idempotence is the `tallied` flag on the session itself, so it survives
+  // sync (a session arriving already tallied is skipped) and StrictMode.
+  // The 3s delay before closing a just-finished game exists for exactly one
+  // consumer: the move poke's ending note, which checks !closedAt — closing
+  // in the same tick as the mate would silence her reaction to it.
+  useEffect(() => {
+    const g = state.game;
+    if (!g) return;
+    const boardOver = (g.kind === "chess" || g.kind === "ttt") && Boolean(g.game.status.over);
+    const stale =
+      !g.closedAt && Date.now() - (g.touchedAt ?? g.startedAt) > OPEN_STALE_MS;
+    const needsClose = !g.closedAt && (boardOver || stale);
+    const needsTally = !g.tallied && (boardOver || (g.kind === "chess" && g.closedAt && g.endedEarly));
+    if (!needsClose && !needsTally) return;
+    const t = setTimeout(
+      () => {
+        setState((s) => {
+          const cur = s.game;
+          if (!cur) return s;
+          let next = cur;
+          const curOver =
+            (cur.kind === "chess" || cur.kind === "ttt") && Boolean(cur.game.status.over);
+          const curStale =
+            !cur.closedAt && Date.now() - (cur.touchedAt ?? cur.startedAt) > OPEN_STALE_MS;
+          if (!cur.closedAt && (curOver || curStale)) {
+            next = {
+              ...next,
+              closedAt: Date.now(),
+              // an abandoned board ended without a result — same honest
+              // wording as the End-game button, never a fabricated winner
+              ...(curStale && !curOver && cur.kind === "chess" ? { endedEarly: true as const } : {}),
+            };
+          }
+          let tally = s.tally;
+          if (!cur.tallied) {
+            const t0 = s.tally ?? {};
+            if (cur.kind === "chess" && curOver) {
+              const w = cur.game.status.winner;
+              tally = {
+                ...t0,
+                chessGames: (t0.chessGames ?? 0) + 1,
+                chessWinsHim: (t0.chessWinsHim ?? 0) + (w && w !== cur.herSide ? 1 : 0),
+                chessWinsHer: (t0.chessWinsHer ?? 0) + (w && w === cur.herSide ? 1 : 0),
+              };
+              next = { ...next, tallied: true as const };
+            } else if (cur.kind === "chess" && (cur.endedEarly || (curStale && !curOver)) && cur.game.played.length >= 10) {
+              // an early-ended game with real play COUNTS as a game and
+              // names no winner — below ten plies it is the mis-tap the
+              // exit handler already treats it as
+              tally = { ...t0, chessGames: (t0.chessGames ?? 0) + 1 };
+              next = { ...next, tallied: true as const };
+            } else if (cur.kind === "ttt" && curOver) {
+              tally = { ...t0, tttGames: (t0.tttGames ?? 0) + 1 };
+              next = { ...next, tallied: true as const };
+            }
+          }
+          return next === cur && tally === s.tally ? s : { ...s, game: next, tally };
+        });
+      },
+      boardOver && !g.closedAt ? 3000 : 0,
+    );
+    return () => clearTimeout(t);
+  }, [state.game, setState]);
   // Moments detection runs here, at the one place that owns AppState. It is
   // suppressed while a call is coming up (she is mid-pickup) — the hook's
   // own grace handles the first seconds after connect.
@@ -270,6 +347,30 @@ export default function App() {
     }
   }
 
+  // The callback had no scheduler: the gate is evaluated during render, and
+  // nothing re-rendered App at the due time — so the ring landed whenever
+  // something unrelated next touched state, usually something HE did, which
+  // is the one framing the feature exists to avoid.
+  const [, forceRing] = useState(0);
+  useEffect(() => {
+    if (!state.callback || inCall) return;
+    const wait = state.callback.at - Date.now();
+    if (wait <= 0) return;
+    const t = setTimeout(() => forceRing((n) => n + 1), wait + 50);
+    return () => clearTimeout(t);
+  }, [state.callback, inCall]);
+
+  const gameSig = [
+    state.game?.kind ?? "",
+    state.game?.startedAt ?? 0,
+    state.game?.closedAt ?? 0,
+    state.game?.touchedAt ?? 0,
+    state.momentsFired?.length ?? 0,
+    state.tally?.chessGames ?? 0,
+    state.tally?.tttGames ?? 0,
+    state.tally?.wyrCards ?? 0,
+  ].join("|");
+
   // continuous sync: push state (debounced 4s) whenever it changes, with
   // conflict detection — a 409 means another device saved first: merge
   // their copy in and let the next debounce push the union
@@ -299,7 +400,11 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // state.inner.at: an appraisal can change nothing else, and without it
     // her interior would never be pushed to the account at all
-  }, [state.messages.length, state.user, state.onboarded, state.auth?.accessToken, state.inner?.at]);
+    // The dep list lagging the syncable fields is the drift merge.ts's own
+    // header records killing half the merge once already. `gameSig` projects
+    // the untriggering-but-synced fields so a whole chess game played without
+    // a single message still pushes, without firing on every keystroke.
+  }, [state.messages.length, state.user, state.onboarded, state.auth?.accessToken, state.inner?.at, gameSig]);
 
   // The realtime call's ephemeral token is fetched while they are in chat, so
   // tapping call spends a token that already exists instead of waiting on a
@@ -340,6 +445,7 @@ export default function App() {
               unlockAudio();
               track(state.deviceId, "call_started", {}, state.auth?.userId);
               setCallFrom("him");
+              setState((s) => (s.callback ? { ...s, callback: null } : s));
               setInCall(true);
             }}
             onProfile={() => setAuthOpen(true)}
@@ -427,6 +533,7 @@ export default function App() {
                 unlockAudio(); // inside the tap gesture, or mobile mutes her
                 track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
                 setCallFrom("him");
+                setState((s) => (s.callback ? { ...s, callback: null } : s));
                 setInCall(true);
               }}
               // her picks are seeded per RELATIONSHIP: same person, same
@@ -444,6 +551,7 @@ export default function App() {
                 unlockAudio(); // inside the tap gesture, or mobile mutes her
                 track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
                 setCallFrom("him");
+                setState((s) => (s.callback ? { ...s, callback: null } : s));
                 setInCall(true);
               }}
             />
@@ -462,6 +570,7 @@ export default function App() {
                 unlockAudio(); // inside the tap gesture, or mobile mutes her
                 track(state.deviceId, "call_started", { from: "activity" }, state.auth?.userId);
                 setCallFrom("him");
+                setState((s) => (s.callback ? { ...s, callback: null } : s));
                 setInCall(true);
               }}
             />
@@ -470,7 +579,14 @@ export default function App() {
           {/* She is calling back after a call that dropped mid-sentence. Never
               while a call is already up, and never before its own due time —
               the arming happens in useCallEngine, on the drop itself. */}
-          {!inCall && state.callback && Date.now() >= state.callback.at && (
+          {!inCall &&
+            state.callback &&
+            Date.now() >= state.callback.at &&
+            // TTL: a callback that is no longer plausible is not a callback —
+            // without this, closing the app in the 25s window meant she rang
+            // "about Tuesday's drop" three days later, the moment App next
+            // re-rendered for any reason at all.
+            Date.now() - state.callback.at < 10 * 60_000 && (
             <IncomingCall
               secs={state.callback.secs}
               onAccept={() => {
@@ -478,6 +594,11 @@ export default function App() {
                 setState((s) => ({ ...s, callback: null }));
                 track(state.deviceId, "call_started", { incoming: true }, state.auth?.userId);
                 setCallFrom("her"); // SHE is the caller here, and she knows it
+                // the ring painted over Us / the games sheet (z-60), but the
+                // CALL mounts at z-20 — accepting under an open overlay left
+                // her talking with no call visible anywhere on screen
+                setUsOpen(false);
+                setGamesOpen(false);
                 setInCall(true);
               }}
               onDecline={() => {

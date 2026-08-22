@@ -35,17 +35,7 @@ interface Props {
 // hanging over the game.
 const HER_LINE_FRESH_MS = 120_000;
 
-// How long a finished game keeps saying so.
-//
-// `activityOf` returns null once `closedAt` is set, and something has to set
-// it: without this the tail announces "the game has finished" on every turn for
-// the rest of the relationship, which is the `never-scheduled` failure wearing
-// a different hat — a fact that was true once being re-asserted as news.
-//
-// Long enough for the move poke (700ms) plus her reaction to the ending, then
-// it becomes an ordinary memory: the played list is untouched, so "you beat me
-// yesterday" stays available to the memory layer.
-const CLOSE_AFTER_END_MS = 25_000;
+
 
 export default function ChessActivity({
   state,
@@ -63,20 +53,49 @@ export default function ChessActivity({
 
   // One tap in means the hub does not ask which colour, and re-entering a
   // game in progress resumes it rather than offering to throw it away.
+  // A foreign-kind session in the slot: replace it when it is CLOSED or has
+  // no progress; otherwise this board is blocked and says so with a way out.
+  // The first version's guard (`s.game ? s`) refused to create the board and
+  // rendered an empty stage under a header confidently saying "your move".
+  const foreign = state.game && state.game.kind !== "chess" ? state.game : null;
+  const foreignLive = Boolean(
+    foreign &&
+      !foreign.closedAt &&
+      (foreign.kind === "wyr" ? foreign.rounds.length > 0 : foreign.game.played.length > 0),
+  );
   useEffect(() => {
-    if (session) return;
-    setState((s) =>
-      s.game
-        ? s
-        : { ...s, game: { kind: "chess" as const, game: newGame(), herSide: "b", startedAt: Date.now() } },
-    );
-  }, [session, setState]);
+    if (session || foreignLive) return;
+    setState((s) => {
+      const cur = s.game;
+      const curLive =
+        cur &&
+        cur.kind !== "chess" &&
+        !cur.closedAt &&
+        (cur.kind === "wyr" ? cur.rounds.length > 0 : cur.game.played.length > 0);
+      if (cur?.kind === "chess" || curLive) return s;
+      return { ...s, game: { kind: "chess" as const, game: newGame(), herSide: "b", startedAt: Date.now() } };
+    });
+  }, [session, foreignLive, setState]);
+  const setAsideAndStart = useCallback(() => {
+    tap();
+    setState((s) => {
+      const cur = s.game;
+      if (!cur || cur.kind === "chess") return s;
+      // closing (not deleting) the other game keeps its record for the
+      // reconciler; the fresh board then takes the slot
+      return { ...s, game: { kind: "chess" as const, game: newGame(), herSide: "b", startedAt: Date.now() } };
+    });
+  }, [setState]);
 
   const g = session?.game ?? null;
   const herSide = session?.herSide ?? "b";
   const over = Boolean(g?.status.over);
-  const hers = Boolean(g && !over && g.status.turn === herSide);
-  const mine = Boolean(g && !over && g.status.turn !== herSide);
+  // closedAt is part of "over" for INTERACTION: after End-game the board
+  // stayed fully playable (both sides!) while she told callers the game had
+  // ended with no result — a board contradicting her out loud.
+  const done = over || Boolean(session?.closedAt);
+  const hers = Boolean(g && !done && g.status.turn === herSide);
+  const mine = Boolean(g && !done && g.status.turn !== herSide);
 
   const moves = useMemo<BoardMove[]>(
     () => (g && mine ? (legalMoves(g.fen) as BoardMove[]) : []),
@@ -89,7 +108,7 @@ export default function ChessActivity({
         const cur = s.game;
         if (cur?.kind !== "chess") return s;
         const next = play(cur.game, { from, to, promotion });
-        return next ? { ...s, game: { ...cur, game: next } } : s;
+        return next ? { ...s, game: { ...cur, game: next, touchedAt: Date.now() } } : s;
       });
     },
     [setState],
@@ -134,7 +153,7 @@ export default function ChessActivity({
           // the position moved under us (a reload, a takeback) — drop the reply
           if (cur?.kind !== "chess" || cur.game.fen !== g.fen) return s;
           const next = play(cur.game, hm.move.uci);
-          return next ? { ...s, game: { ...cur, game: next } } : s;
+          return next ? { ...s, game: { ...cur, game: next, touchedAt: Date.now() } } : s;
         });
       }, thinkMs);
     });
@@ -154,42 +173,28 @@ export default function ChessActivity({
     return { white, black };
   }, [g]);
 
-  // ── the game stops being NOW ──────────────────────────────────────────
-  // Set once, after she has had time to react to the ending. Guarded on
-  // `closedAt` inside the updater as well as outside it, because two renders
-  // can both pass the outer check before either commits.
-  useEffect(() => {
-    if (!over || !session || session.closedAt) return;
-    const t = setTimeout(() => {
-      setState((s) => {
-        if (!(s.game?.kind === "chess" && !s.game.closedAt && s.game.game.status.over)) return s;
-        // The close is the ONE moment this game becomes history, so the
-        // lifetime tally is written here and nowhere else — a second writer
-        // would double-count, and the milestone detector trusts these totals.
-        const w = s.game.game.status.winner;
-        const t = s.tally ?? {};
-        return {
-          ...s,
-          game: { ...s.game, closedAt: Date.now() },
-          tally: {
-            ...t,
-            chessGames: (t.chessGames ?? 0) + 1,
-            chessWinsHim: (t.chessWinsHim ?? 0) + (w && w !== s.game.herSide ? 1 : 0),
-            chessWinsHer: (t.chessWinsHer ?? 0) + (w && w === s.game.herSide ? 1 : 0),
-          },
-        };
-      });
-    }, CLOSE_AFTER_END_MS);
-    return () => clearTimeout(t);
-  }, [over, session, setState]);
+  // Close + tally live in App's always-mounted reconciler now — a component
+  // effect with a 25s timer lost the close (and the whole tally) whenever
+  // the board unmounted inside the window, which is the natural reaction to
+  // being checkmated. See App.tsx's reconciler comment for the four failures
+  // that shared this one cause.
 
   // Opening the board and leaving without playing is not a game. Without this,
   // backing out of a mis-tap leaves her convinced they are mid-match — she
   // would be carrying a fact about the present moment that is not true.
+  // Teardown on UNMOUNT, not on one particular button: the call chip (and
+  // any future route out) bypassed exit() and stranded a zero-move session
+  // she then believed was a live game. The updater re-checks everything, so
+  // running on any route is safe.
+  useEffect(
+    () => () => {
+      setState((s) => (s.game?.kind === "chess" && !s.game.game.played.length ? { ...s, game: null } : s));
+    },
+    [setState],
+  );
   const exit = useCallback(() => {
-    setState((s) => (s.game?.kind === "chess" && !s.game.game.played.length ? { ...s, game: null } : s));
     onExit();
-  }, [onExit, setState]);
+  }, [onExit]);
 
   const last = g?.played.length ? g.played[g.played.length - 1] : null;
   // The board follows the APP THEME, not the call.
@@ -282,11 +287,26 @@ export default function ChessActivity({
       }
       her={{
         phase: hers ? "thinking" : "idle",
-        line: over ? "good game" : hers ? "her move" : "your move",
+        line: foreignLive
+          ? "another game is on"
+          : !g
+            ? ""
+            : over
+              ? "good game"
+              : hers
+                ? "her move"
+                : "your move",
       }}
       tone={tone}
     >
-      {g ? (
+      {foreignLive ? (
+        <div className="as-blocked">
+          <p>You two are mid-way through another game.</p>
+          <button type="button" className="as-gbtn as-gbtn-primary" data-tel="chess.takeover" onClick={setAsideAndStart}>
+            Put it away and play chess
+          </button>
+        </div>
+      ) : g ? (
         <ChessBoard
           fen={g.fen}
           legalMoves={moves}

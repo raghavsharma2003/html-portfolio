@@ -84,7 +84,16 @@ export default function WouldYouRatherActivity({
 
   // See the header: a foreign-kind session already occupies the slot, and
   // this component must not touch it.
-  const blocked = Boolean(raw && !session);
+  // A CLOSED chess/ttt session must not block wyr — one chess move ever
+  // meant "Would you rather" was dead for the life of the install, with an
+  // unfollowable instruction on screen. Only a LIVE foreign game blocks,
+  // and the blocked panel now carries the action that resolves it.
+  const blocked = Boolean(
+    raw &&
+      !session &&
+      !raw.closedAt &&
+      (raw.kind === "wyr" ? true : raw.game.played.length > 0),
+  );
 
   // One tap in deals the first card, same shape as chess dealing a fresh
   // board: re-entering an open session resumes it rather than re-asking.
@@ -93,7 +102,16 @@ export default function WouldYouRatherActivity({
     if (session && !session.closedAt) return;
     setState((s) => {
       const cur = readWyr(s.game);
-      if (s.game && !cur) return s; // re-check inside the updater: still blocked
+      // re-check inside the updater — but only a LIVE foreign game blocks;
+      // a closed one is history, and refusing to deal over history was the
+      // "wyr dead for the life of the install" bug in its updater form
+      const liveForeign =
+        s.game &&
+        s.game.kind !== "wyr" &&
+        !s.game.closedAt &&
+        (s.game.kind === "chess" || s.game.kind === "ttt") &&
+        s.game.game.played.length > 0;
+      if (liveForeign) return s;
       if (cur && !cur.closedAt) return s;
       // Carry the previous wyr session's questions forward, so "new session"
       // never means "the same questions again" — the deal also seeds from
@@ -147,7 +165,7 @@ export default function WouldYouRatherActivity({
           const t = s.tally ?? {};
           return {
             ...s,
-            game: asGameSession(next),
+            game: asGameSession({ ...next, touchedAt: Date.now() }),
             tally: bumped ? { ...t, wyrCards: (t.wyrCards ?? 0) + 1 } : s.tally,
           };
         });
@@ -160,20 +178,28 @@ export default function WouldYouRatherActivity({
     tap(ImpactStyle.Light);
     setState((s) => {
       const cur = readWyr(s.game);
-      return cur ? { ...s, game: asGameSession(advance(cur)) } : s;
+      return cur ? { ...s, game: asGameSession({ ...advance(cur), touchedAt: Date.now() }) } : s;
     });
   }, [setState]);
 
   // A card dealt and left with nothing answered is not a session — the wyr
   // analogue of "a board opened and left without a move" (SPEC-GAMES §5).
+  // Teardown on UNMOUNT, whatever the route — the call chip bypassed exit()
+  // and left the session open forever, so she carried "you two are in the
+  // middle of would-you-rather right now" indefinitely.
+  useEffect(
+    () => () => {
+      setState((s) => {
+        const cur = readWyr(s.game);
+        if (!cur || cur.closedAt) return s;
+        return { ...s, game: isEmpty(cur) ? null : asGameSession({ ...cur, closedAt: Date.now() }) };
+      });
+    },
+    [setState],
+  );
   const exit = useCallback(() => {
-    setState((s) => {
-      const cur = readWyr(s.game);
-      if (!cur || cur.closedAt) return s;
-      return { ...s, game: isEmpty(cur) ? null : asGameSession({ ...cur, closedAt: Date.now() }) };
-    });
     onExit();
-  }, [onExit, setState]);
+  }, [onExit]);
 
   const tone = resolveTheme(state.theme) === "dark" ? "dark" : "paper";
   const call: ActivityCall | null =
@@ -232,7 +258,21 @@ export default function WouldYouRatherActivity({
     >
       {blocked ? (
         <div className="wyr-blocked" role="status">
-          Finish or leave the game already on the board before starting this one.
+          <p>You two are mid-way through another game.</p>
+          <button
+            type="button"
+            className="as-gbtn as-gbtn-primary"
+            data-tel="wyr.takeover"
+            onClick={() => {
+              setState((s) =>
+                s.game && s.game.kind !== "wyr"
+                  ? { ...s, game: asGameSession(freshSession(salt, Date.now())) }
+                  : s,
+              );
+            }}
+          >
+            Put it away and play this
+          </button>
         </div>
       ) : card ? (
         <div className="wyr">

@@ -430,7 +430,19 @@ export function chessActivity(
     if (r === "checkmate") {
       facts.push(game.status.winner === herSide ? "she won, by checkmate" : "he won, by checkmate");
     } else {
-      facts.push("it ended in a draw");
+      // the four draws are four different stories to a person — a stalemate
+      // she walked into and a fifty-move grind deserve different sentences
+      facts.push(
+        r === "stalemate"
+          ? "a draw, stalemate, nobody could move"
+          : r === "insufficient_material"
+            ? "a draw, not enough pieces left to mate"
+            : r === "threefold_repetition"
+              ? "a draw, same position three times"
+              : r === "fifty_move"
+                ? "a draw, fifty moves with no progress"
+                : "it ended in a draw",
+      );
     }
   } else if (turn) {
     facts.push(turn === herSide ? "it is her move" : "it is his move");

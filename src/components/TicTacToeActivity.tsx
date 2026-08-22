@@ -24,6 +24,7 @@ import type { AppState } from "../state/store";
 import ActivityShell, { type ActivityCall } from "./ActivityShell";
 import TicTacToeBoard from "./TicTacToeBoard";
 import { herTttMove, legalCells, newTttGame, playTtt } from "../engine/ttt";
+import { tap } from "../native/haptics";
 import type { Cell, Game as TttGame, Mark } from "../engine/ttt";
 import { useCallStatus } from "../state/callStatus";
 import { resolveTheme } from "../engine/theme";
@@ -82,10 +83,7 @@ interface Props {
 // constant and identical reasoning to ChessActivity.
 const HER_LINE_FRESH_MS = 120_000;
 
-// How long a finished game keeps saying so, before `closedAt` retires it from
-// the tail. Same value and same reasoning as chess: long enough for the move
-// poke plus her reaction, then it becomes an ordinary memory.
-const CLOSE_AFTER_END_MS = 25_000;
+
 
 // Her think-time before playing, seeded from the board so a given position
 // always waits the same beat — deterministic, not random, same contract as
@@ -130,8 +128,9 @@ export default function TicTacToeActivity({
   const g = session?.game ?? null;
   const herSide = session?.herSide ?? "o";
   const over = Boolean(g?.status.over);
-  const hers = Boolean(g && !over && g.status.turn === herSide);
-  const mine = Boolean(g && !over && g.status.turn !== herSide);
+  const done = over || Boolean(session?.closedAt);
+  const hers = Boolean(g && !done && g.status.turn === herSide);
+  const mine = Boolean(g && !done && g.status.turn !== herSide);
 
   const cells = useMemo<Cell[]>(() => (g && mine ? legalCells(g) : []), [g, mine]);
 
@@ -141,7 +140,7 @@ export default function TicTacToeActivity({
         const cur = s.game;
         if (cur?.kind !== "ttt") return s;
         const next = playTtt(cur.game, cell);
-        return next ? { ...s, game: { ...cur, game: next } } : s;
+        return next ? { ...s, game: { ...cur, game: next, touchedAt: Date.now() } } : s;
       });
     },
     [setState],
@@ -170,7 +169,7 @@ export default function TicTacToeActivity({
         )
           return s;
         const next = playTtt(cur.game, cell);
-        return next ? { ...s, game: { ...cur, game: next } } : s;
+        return next ? { ...s, game: { ...cur, game: next, touchedAt: Date.now() } } : s;
       });
     }, thinkDelayFor(g.board));
     return () => {
@@ -179,32 +178,21 @@ export default function TicTacToeActivity({
     };
   }, [hers, g, setState]);
 
-  // ── the game stops being NOW ──────────────────────────────────────────
-  // Identical shape and identical reasoning to ChessActivity: `closedAt` is
-  // guarded both outside and inside the updater because two renders can pass
-  // the outer check before either commits.
-  useEffect(() => {
-    if (!over || !session || session.closedAt) return;
-    const t = setTimeout(() => {
-      setState((s) => {
-        if (!(s.game?.kind === "ttt" && !s.game.closedAt && s.game.game.status.over)) return s;
-        const t = s.tally ?? {};
-        return {
-          ...s,
-          game: { ...s.game, closedAt: Date.now() },
-          tally: { ...t, tttGames: (t.tttGames ?? 0) + 1 },
-        };
-      });
-    }, CLOSE_AFTER_END_MS);
-    return () => clearTimeout(t);
-  }, [over, session, setState]);
+  // Close + tally live in App's reconciler — see ChessActivity/App.tsx.
 
   // Opening the board and leaving without playing is not a game — same rule
   // and same wording as chess's exit.
+  // Teardown on UNMOUNT — see ChessActivity's identical block for why the
+  // route must not matter.
+  useEffect(
+    () => () => {
+      setState((s) => (s.game?.kind === "ttt" && !s.game.game.played.length ? { ...s, game: null } : s));
+    },
+    [setState],
+  );
   const exit = useCallback(() => {
-    setState((s) => (s.game?.kind === "ttt" && !s.game.game.played.length ? { ...s, game: null } : s));
     onExit();
-  }, [onExit, setState]);
+  }, [onExit]);
 
   const lastCell = g?.played.length ? g.played[g.played.length - 1].cell : null;
   const winningLine = g?.status.result === "win" ? g.status.line : null;
@@ -239,12 +227,28 @@ export default function TicTacToeActivity({
     return null;
   }, [state.messages, status.live, status.connecting]);
 
+  const newGame_ = useCallback(() => {
+    tap();
+    setState((s) => ({
+      ...s,
+      game: { kind: "ttt" as const, game: newTttGame(), herSide: "o" as const, startedAt: Date.now() },
+    }));
+  }, [setState]);
+  const showNew = Boolean(over || session?.closedAt);
+
   return (
     <ActivityShell
       title="Tic tac toe"
       onExit={exit}
       call={call}
       note={herLine}
+      footer={
+        showNew ? (
+          <button type="button" className="as-gbtn as-gbtn-primary" data-tel="ttt.new" onClick={newGame_}>
+            New game
+          </button>
+        ) : undefined
+      }
       her={{
         phase: hers ? "thinking" : "idle",
         line: over ? "good game" : hers ? "her move" : "your move",

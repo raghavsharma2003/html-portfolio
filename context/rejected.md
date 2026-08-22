@@ -1422,3 +1422,30 @@ sitting should feel fresh).
 seed MEANS. "Deterministic" is not one property — per-person, per-session and
 per-moment determinism are different products, and the seed's inputs are the
 choice.
+
+---
+
+## the-close-that-lived-in-a-component
+
+**Tried:** writing a game's close and lifetime tally from a 25-second timer
+inside the activity component's own effect ("the close is written here and
+nowhere else").
+
+**What broke:** four failures from the one cause, found by the audit. Leaving
+the board within 25s of the ending — the natural reaction to being checkmated
+— cancelled the only writer, so the game was never closed and never counted,
+and she announced a finished game as "RIGHT NOW you two are in the middle of…
+2880 min in" indefinitely. Pressing "New game" inside the window (offered
+immediately) silently dropped the finished game from the tally — the
+rematch-happy player got counted least. A game closed on another device
+arrived status.over and untallied forever, because no board was mounted
+there. And an OPEN session abandoned mid-game aged out never, because
+RECENT_END_MS only bounded CLOSED sessions.
+
+**Now:** close and tally are properties of the STATE TRANSITION, written by an
+always-mounted reconciler in App with a `tallied` flag on the session for
+idempotence across devices and StrictMode. Components keep only presentation.
+
+**The generalisable rule:** a state transition's consequences must be written
+by something whose lifetime matches the STATE, not the VIEW. A component
+effect is a viewer, and viewers leave.

@@ -71,6 +71,12 @@ export interface WyrSession {
    *  derivation has. */
   readonly salt: string;
   readonly startedAt: number;
+  /** last answer/deal commit — the staleness clock for open sessions */
+  readonly touchedAt?: number;
+  /** reserved by the app-level reconciler's contract; wyr writes no tally
+   *  at close (cards tally per answer), but the field keeps GameSession
+   *  uniform for the reconciler and the merge */
+  readonly tallied?: true;
   /** Set on exit once ≥1 card has been answered — see the component. */
   readonly closedAt?: number;
   /**
@@ -106,7 +112,7 @@ export function freshSession(
     salt,
     startedAt,
     avoid,
-    seen: [nextCardId(DECK_IDS, avoid, `${salt}:${startedAt}`)],
+    seen: [nextCardId(DECK_IDS, avoid, `${salt}:${startedAt}`, [])],
     rounds: [],
   };
 }
@@ -146,7 +152,7 @@ export function advance(s: WyrSession): WyrSession {
     ...s,
     seen: [
       ...s.seen,
-      nextCardId(DECK_IDS, [...(s.avoid ?? []), ...s.seen], `${s.salt}:${s.startedAt}`),
+      nextCardId(DECK_IDS, [...(s.avoid ?? []), ...s.seen], `${s.salt}:${s.startedAt}`, s.seen),
     ],
   };
 }

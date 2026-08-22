@@ -49,6 +49,10 @@ export interface TttSession {
   herSide: Mark;
   startedAt: number;
   closedAt?: number;
+  /** last move/answer commit — the staleness clock for open sessions */
+  touchedAt?: number;
+  /** lifetime tally written for this session — the reconciler's idempotence */
+  tallied?: true;
 }
 
 export interface ChessSession {
@@ -72,6 +76,8 @@ export interface ChessSession {
    * result". Conflating them would have her gloating over a game nobody won.
    */
   endedEarly?: true;
+  touchedAt?: number;
+  tallied?: true;
 }
 
 /**
@@ -129,8 +135,10 @@ export function activityOf(s: GameSession | null | undefined, nowMs?: number): A
     const facts =
       s.kind === "chess" && s.endedEarly && !s.game.status.over
         ? // ended by hand: strip the live-game rows (whose move, checks) and
-          // state what actually happened — no result, nobody won
-          [...a.facts.filter((f) => !/(her|his) move|in check/.test(f)), "he ended the game early, no result"]
+          // state what actually happened — no result, nobody won. HEAD fact,
+          // because renderActivity drops from the END and this is the row
+          // that stops her inventing a winner.
+          ["he ended the game early, no result", ...a.facts.filter((f) => !/(her|his) move|in check/.test(f))]
         : a.facts;
     return { ...a, facts, over: true, startedAt: s.closedAt };
   }
@@ -138,6 +146,34 @@ export function activityOf(s: GameSession | null | undefined, nowMs?: number): A
   if (s.kind === "ttt") return tttActivity(s.game, s.herSide, s.startedAt);
   return chessActivity(s.game, s.herSide, s.startedAt, lastAssessment(s));
 }
+
+/**
+ * Shape guard for a session arriving from OUTSIDE — a sync payload or a
+ * parsed localStorage blob. `game` is the one AppState field dereferenced
+ * deeply (progressOf, chessActivity) inside setState updaters with no error
+ * boundary in the tree, so a malformed one is a blank screen that survives
+ * reloads. Anything failing this becomes null at the boundary.
+ */
+export function isGameSession(g: unknown): g is GameSession {
+  if (!g || typeof g !== "object") return false;
+  const s = g as Record<string, unknown>;
+  if (typeof s.startedAt !== "number") return false;
+  if (s.kind === "wyr") return Array.isArray(s.seen) && Array.isArray(s.rounds) && typeof s.salt === "string";
+  if (s.kind === "chess" || s.kind === "ttt") {
+    const game = s.game as Record<string, unknown> | undefined;
+    return Boolean(game && Array.isArray(game.played) && game.status && typeof game.status === "object");
+  }
+  return false;
+}
+
+/**
+ * How long an OPEN session stays "right now" with nobody touching it. Six
+ * hours: a board left mid-game on Tuesday must not have her convinced on
+ * Friday that they are mid-match ("RIGHT NOW … 4320 min in"). The reconciler
+ * closes it as ended-early; an ACTIVE long game is untouched because the
+ * clock runs from the last move, not the start.
+ */
+export const OPEN_STALE_MS = 6 * 60 * 60 * 1000;
 
 /**
  * How long a finished game remains part of "right now". Two hours: long
