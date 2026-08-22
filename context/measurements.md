@@ -2263,3 +2263,42 @@ After the fixes (same methods, A/B against the pre-fix tree):
 - Coordination overhead worth recording: 1 of 7 agents mutated git state
   and cost two workstreams a full re-apply (see rejected.md
   #shared-tree-concurrency).
+
+---
+
+## `bargein-onset-confirm` — the noise-robust barge-in tables (2026-08-22)
+
+Method: echosim, HEAD-built baseline vs after, same seeds. Tuning: 24
+seeds/cell on the duty axis; proofs: 8 seeds/cell. Constants shipped:
+ONSET_CONFIRM_MS=250, ONSET_DUTY=0.6, UTTER_GAP_MS=250,
+BACKCHANNEL_MAX_MS=600, BACKCHANNEL_LOUD_MULT=16.
+
+Duty axis (quiet-talker barge / normal barge / self-duck -3,-6 / leak -6):
+0.50: 18/24, 24/24, 58%/36%, 171ms · **0.60: 20/24, 24/24, 43%/14%,
+171ms** · 0.70: 15/24, 23/24, 27%/5% · 0.80: 10/24, 19/24, 10%/3%.
+0.60 is the last value holding both barge cells at/above baseline
+(baseline 19/24, 24/24) — ONE STEP FROM A CLIFF, stated in the source.
+Window length is the weak axis (120-300ms all hold).
+
+Transients, nobody in the room (falseCut / self-duck / leak-med, per
+coupling): -3: 1/8->1/8, 88->54%, 2389->2218ms · -6: 0/8->0/8, 67->18%,
+2133->171ms · -9: 0/8->0/8, 44->6%, 1365->171ms · -12: 0/8->0/8,
+31->5%, 1024->85ms.
+
+Continuers across her turn (opened-turn leak vs silent control):
+-6dB 683->0ms, -12dB 767->683ms, -18dB 768->171ms. falseCut 0/8 both arms.
+
+Genuine barge-ins: every cell 8/8 kept; cost +85ms (-3), +171ms (-6),
+0 elsewhere; quiet talker -12dB IMPROVED 7/8 -> 8/8 (median +171ms).
+
+The floor (exp1, 5 couplings x 8 seeds x 2 arms): selfRelease -3dB
+1/8 -> 0/8 (the self-interruption is GONE), self-duck 68->30% (-3),
+24->3% (-6); leak 1877->256ms (-3), 853->171ms (-6). Only movement
+against us: barge median -6dB 840->1011ms. hardMax collapsing toward 0
+is distance-to-claim increasing — the mechanism working.
+
+Rejected along the way, measured: gating the SOFT path took the quiet
+talker at -12dB from 7/8 to 1/8 — built first, thrown away.
+
+Integration: verify-release 13/13 on the assembled seven-workstream
+tree (honesty 289, surface 73, gamemem 56 all inside the eval gate).
