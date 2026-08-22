@@ -57,6 +57,9 @@ interface Props {
   onProfile: () => void;
   /** open the "things to do together" sheet — one tap from the chat header */
   onGames: () => void;
+  /** open the Us screen — the relationship made visible. Entry is the header
+   *  NAME (the Snapchat-friendship-profile idiom); the avatar keeps stories. */
+  onUs: () => void;
   // she must never send chat bubbles while actively ON a call with them
   inCall?: boolean;
 }
@@ -123,7 +126,7 @@ const typeDelay = (bubble: string) => {
   return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
 };
 
-export default function Chat({ state, setState, onVoiceCall, onProfile, onGames, inCall }: Props) {
+export default function Chat({ state, setState, onVoiceCall, onProfile, onGames, onUs, inCall }: Props) {
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   // the indicator holds for one exit beat while the bubble enters underneath
@@ -1794,7 +1797,15 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
         </button>
         {/* its accessible name is its own content — "Meera, last seen today
             at 4:06" — which is more use than repeating the avatar's label */}
-        <button className="who" data-tel="chat.header_name" onClick={openStoryOrProfile}>
+        {/* The NAME opens the Us screen — the per-relationship page, the
+            Snapchat-friendship-profile idiom. The avatar keeps the story
+            ring, so nothing existing moved. */}
+        <button
+          className="who"
+          data-tel="chat.header_name"
+          onClick={onUs}
+          aria-label={`You and ${HER_NAME}`}
+        >
           <div className="name">{HER_NAME}</div>
           {/* ONE node whose contents change — typing → online → last seen
               dissolves. Rendering three sibling nodes would remount the

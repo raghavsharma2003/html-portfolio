@@ -78,13 +78,35 @@
   line-height: 1.35;
   text-align: center;
   letter-spacing: -0.01em;
+  /* A full-width panel, so the X barely moves and the Y carries the squash —
+     the same reasoning games.css's .gh-card states. See global.css --sq-x. */
+  --sq-x: 1.02;
+  --sq-y: 0.945;
+  /* THE TILT IS ON THE PRESS, NOT AT REST — and that is a deviation from the
+     Balatro pattern the research brief describes, taken on purpose. A resting
+     ±2° on a card holding a full sentence fights the reading; these two
+     panels are stacked with an "or" between them, and two out-of-parallel
+     paragraphs read as a layout bug rather than as hand-placed. Coupling the
+     rotation to the press keeps the organic-randomness read (the panel kicks
+     a different way depending on which one you hit) and spends it only in the
+     230ms where nothing is being read. Seeded off data-side below: fixed
+     values, stable forever, never re-rolled per render. */
+  --sq-rot: 0deg;
   transition: background var(--d-state) ease, border-color var(--d-state) ease,
-    transform var(--d-press) var(--ease-out);
+    transform var(--d-press) var(--ease-squash);
+}
+.wyr-opt[data-side="a"] {
+  --sq-rot: -2.4deg;
+}
+.wyr-opt[data-side="b"] {
+  --sq-rot: 2.1deg;
 }
 /* pointerdown feedback, felt before the finger lifts */
 .wyr-opt:not(:disabled):active {
-  transform: scale(0.98);
+  transform: rotate(var(--sq-rot)) scale(var(--sq-x), var(--sq-y));
   background: var(--ga-press);
+  transition-duration: var(--d-squash);
+  transition-timing-function: var(--ease-out);
 }
 
 /* his pick — the accent, since it is the one thing HE just did */
@@ -234,7 +256,14 @@
   .wyr-verdict {
     animation: none !important;
   }
-  .wyr-opt,
+  /* the press still answers; it stops distorting and stops tilting. These
+     shadow the inherited pair global.css sets under reduced motion, so they
+     put it back themselves. */
+  .wyr-opt {
+    --sq-x: 0.98;
+    --sq-y: 0.98;
+    --sq-rot: 0deg;
+  }
   .wyr-next {
     transition: background var(--d-tap) ease, color var(--d-tap) ease !important;
   }

@@ -1419,3 +1419,41 @@ seen/rounds pairing and freezes answering — the eval proves it.
 
 **Reverses if:** the deck grows big enough that repeats stop being felt —
 then carry-forward is bookkeeping with no product effect and can go.
+
+---
+
+## gamify-without-the-lever — celebration of real moments, never variable reward
+
+**Decided 2026-08-22**, on the owner's "gamify the whole experience" directive.
+The charter (NEVER MANIPULATE, never-scheduled) rules out half of what the
+industry calls gamification; the research run confirmed which half users hate
+anyway (streak anxiety, loss framing, fake urgency — the regulator-attention
+list). What shipped is the other half: REAL progression, made visible.
+
+- The progression system is the relationship record — days, messages, calls,
+  games, rituals. Nothing is invented; `engine/milestones.ts` only notices
+  crossings, fire-once, largest-tier-only on imported histories, never
+  time-scheduled (eligible by time, FIRES on the next real interaction).
+- Celebration is FIXED magnitude, forever: identical milestones look identical.
+  Scaling intensity with reward size is the slot-machine lever (Balatro's own
+  jackpot tier) and was explicitly refused. No screen shake without owner
+  sign-off. Not a modal — pointer-events none, auto-settles, nothing waits.
+- The Us screen renders the record as an emotional artifact, not a dashboard:
+  no locked badges, no aspirational-pressure empty states — day 2 reads as
+  warm as day 300.
+
+**Reverses if:** telemetry shows celebrations being dismissed instantly at
+high rates (annoyance, not delight) — then thin the tier tables further
+before touching the anatomy.
+
+## juice-inside-the-lint — premium feel without loosening a single gate
+
+**Decided 2026-08-22.** The whole juice pass (press squash 1.08/0.92,
+seeded micro-rotation, staggers, the particle burst) shipped with exactly ONE
+new motion-lint allow (the 520ms burst, citing the two precedents already in
+the tree). Everything else is transform-only and ≤230ms. The research was
+briefed against the lint's own rules, so the agents implemented within the
+gates instead of negotiating with them — which is the repeatable method:
+research → constraints-aware brief → build. The eye still caught what
+reasoning could not (the burst's opacity peaked at 0.274 under ease-out; the
+reduced-motion burst hid behind its own badge).

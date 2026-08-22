@@ -1,0 +1,554 @@
+/* ─── "Us" — the relationship, made visible ────────────────────────────────
+   The stylesheet for src/components/UsScreen.tsx. Read that file's header
+   first; the three rules it is built to keep (nothing decays, absence never
+   a zero, app-voiced always) are product rules, and only the last of them is
+   invisible from here.
+
+   ── every colour is DERIVED, and that is the whole dark-theme story ──────
+   Same posture games.css takes and for the same payoff: each token below is
+   an app token, so when :root re-inks at night this screen re-inks with it,
+   in one place, with the contrast already measured there. There is no
+   `data-theme` block in this file and there must never be one — a second
+   palette here is a second, unmeasured copy of the first, and it drifts the
+   moment either is touched. The one thing stated outright is the bloom, and
+   it is stated as a MIX of the accent rather than a colour, so it moves too.
+
+   ── type ────────────────────────────────────────────────────────────────
+   The seven-step scale in global.css governs TEXT, and everything that is
+   text here takes a step off it. `--u-hero` is off-scale on purpose and is
+   the only such value: it is a single numeral, set once, functioning as the
+   page's image rather than as something read line by line — the same reason
+   the app already carries an 82px glyph and a 34px display step it uses for
+   exactly one headline. Tracking tightens as size grows (apple-design's
+   size-specific tracking rule); the hero numeral is the tightest thing on
+   the page and the 11.5px labels are the loosest.
+
+   ── motion ──────────────────────────────────────────────────────────────
+   One idea, used three times: things arrive from just below, staggered
+   30–60ms, over 260ms. Nothing here is a hover state, nothing loops, and
+   nothing is longer than the 300ms budget. Frequency-wise this screen is an
+   OCCASIONAL surface (the `animate` skill's modal/drawer tier), which is the
+   tier where a standard entrance is earned — and its purpose is spatial
+   consistency with the rest of the app, where every overlay rises into place
+   rather than flying in from the side.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.us {
+  /* ── the derived set ── */
+  --u-ground: var(--bg);
+  --u-card: var(--surface);
+  --u-well: var(--surface-2);
+  --u-ink: var(--ink);
+  --u-dim: var(--ink-dim);
+  --u-faint: var(--ink-faint);
+  --u-line: var(--hairline);
+  --u-line-strong: var(--hairline-strong);
+  --u-accent: var(--accent);
+  --u-accent-ink: var(--accent-deep);
+  --u-accent-soft: var(--accent-soft);
+  /* the warm light behind her face. A mix, never a literal, so the night
+     ground gets the night rose without a second value existing. */
+  --u-bloom: color-mix(in srgb, var(--accent) 16%, transparent);
+  --u-hero: clamp(52px, 17vw, 68px);
+
+  position: absolute;
+  inset: 0;
+  z-index: 26; /* over chat and the activity shell (22), under sheets (31) */
+  display: flex;
+  flex-direction: column;
+  background: var(--u-ground);
+  color: var(--u-ink);
+  animation: us-in var(--d-state) var(--ease-out) both;
+}
+
+/* It rises into place. Same gesture as the activity shell's own entrance —
+   what enters one way in this app enters that way everywhere. */
+@keyframes us-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+}
+
+/* the root is focused on mount so Escape has somewhere to land; it is a
+   container, not a control, and must not draw a ring for that */
+.us:focus,
+.us:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* ═══ the chrome ═════════════════════════════════════════════════════════
+   A back control that wears its destination in words, exactly as the
+   activity shell's does, and a title small enough that the page's real
+   headline is the hero underneath it. */
+
+.us-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-shrink: 0;
+  padding: calc(var(--safe-top) + var(--s2)) calc(var(--safe-right) + var(--s3)) var(--s2)
+    calc(var(--safe-left) + var(--s2));
+  background: var(--chrome);
+  backdrop-filter: blur(28px) saturate(1.9);
+  border-bottom: 0.5px solid var(--u-line);
+  z-index: 2;
+}
+
+.us-back {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: var(--hit);
+  padding: 0 var(--s3) 0 var(--s1);
+  border-radius: 999px;
+  flex-shrink: 0;
+  color: var(--u-accent);
+  font-size: var(--t-ui);
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  transition:
+    background var(--d-tap) ease,
+    transform var(--d-press) var(--ease-out);
+}
+.us-back svg {
+  transform: rotate(180deg);
+}
+.us-back:active {
+  transform: scale(0.96);
+  background: var(--u-accent-soft);
+}
+
+/* Centred on the HEADER, not on the space left over beside the back button —
+   two flexible spacers put it half a back-button to the left of true centre,
+   which is the kind of miss that is invisible until you look for it and then
+   is the only thing you can see. Taken out of flow instead, and made
+   untouchable so it can never eat a tap meant for the control under it. */
+.us-headpad {
+  flex: 1;
+}
+.us-headline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: var(--t-ui);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: var(--u-dim);
+}
+
+/* ═══ the page ═══════════════════════════════════════════════════════════ */
+
+.us-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 calc(var(--safe-right) + var(--s4)) calc(var(--safe-bottom) + var(--s6))
+    calc(var(--safe-left) + var(--s4));
+}
+
+/* ── the hero ─────────────────────────────────────────────────────────────
+   Her face, one number, the date it started from. The bloom is a radial
+   behind the face rather than a card under it: a card would make this a
+   header, and it is a portrait. */
+
+.us-hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--s6) 0 var(--s5);
+}
+.us-hero::before {
+  content: "";
+  position: absolute;
+  top: -14%;
+  left: 50%;
+  width: 118%;
+  height: 74%;
+  transform: translateX(-50%);
+  background: radial-gradient(50% 50% at 50% 50%, var(--u-bloom) 0%, transparent 72%);
+  pointer-events: none;
+}
+
+.us-face {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 2px var(--u-accent-soft),
+    0 0 0 3.5px color-mix(in srgb, var(--u-accent) 34%, transparent),
+    var(--shadow-card);
+}
+
+.us-eyebrow {
+  position: relative;
+  margin-top: var(--s4);
+  font-size: var(--t-meta);
+  font-weight: 620;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--u-accent-ink);
+}
+
+/* "Day 47". The word and the numeral are one line and two weights: the word
+   is the label, the numeral is the artifact. */
+.us-day {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  margin-top: var(--s2);
+  font-family: var(--font-display);
+  line-height: 1;
+}
+.us-daylabel {
+  font-size: var(--t-title);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--u-dim);
+}
+.us-day .us-n {
+  font-size: var(--u-hero);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  color: var(--u-ink);
+}
+
+.us-of {
+  position: relative;
+  margin-top: 2px;
+  font-family: var(--font-display);
+  font-size: var(--t-head);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--u-ink);
+}
+
+/* `text-wrap: balance` on every centred sentence on this page. Centred text
+   that wraps one word onto a line of its own is the single most common way a
+   premium layout stops looking made, and there are four such sentences here.
+   Unsupported browsers get the ordinary greedy wrap, which is what we had. */
+.us-since {
+  position: relative;
+  max-width: 32ch;
+  margin: var(--s3) auto 0;
+  font-size: var(--t-sub);
+  line-height: 1.45;
+  text-wrap: balance;
+  color: var(--u-dim);
+}
+
+/* ── sections ─────────────────────────────────────────────────────────── */
+
+.us-sec {
+  padding-top: var(--s5);
+  border-top: 0.5px solid var(--u-line);
+  margin-top: var(--s5);
+}
+.us-grid-sec {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* --u-dim, not --u-faint. The tokens' own rule in global.css is that ALL
+   secondary TEXT takes --ink-dim and --ink-faint is non-text only (hairlines,
+   inactive dots, large glyphs) because it lands at 2.9:1 — and 11.5px letter-
+   spaced uppercase is the smallest text on this page, i.e. the last place
+   that ratio is survivable. The faint token is used exactly once here, on the
+   anchor card's dot, which is a dot. */
+.us-h {
+  font-size: var(--t-meta);
+  font-weight: 620;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--u-dim);
+  margin-bottom: var(--s4);
+}
+
+/* ── the day grid ─────────────────────────────────────────────────────────
+   One cell per day. Wrapping flex rather than a fixed column count, so it is
+   one honest row at fourteen days and five dense rows at a hundred and
+   nineteen, with no arrangement in between that looks broken. A quiet day is
+   drawn, not skipped: this is a record of elapsed time, and a gap in it
+   would be the one thing on this page that reads as a lapse. */
+
+.us-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.us-cell {
+  width: 11px;
+  height: 11px;
+  border-radius: 3.5px;
+  background: var(--u-well);
+  animation: us-cell-in 220ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 9ms);
+}
+/* Three steps, spaced so they are three steps: 24 / 55 / 100. An even split
+   put level 1 close enough to level 2 that a hundred cells read as one flat
+   rose field, which is a texture with no information in it. */
+.us-cell[data-lvl="1"] {
+  background: color-mix(in srgb, var(--u-accent) 24%, var(--u-well));
+}
+.us-cell[data-lvl="2"] {
+  background: color-mix(in srgb, var(--u-accent) 55%, var(--u-well));
+}
+.us-cell[data-lvl="3"] {
+  background: var(--u-accent);
+}
+@keyframes us-cell-in {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+}
+
+.us-note {
+  margin-top: var(--s3);
+  font-size: var(--t-sub);
+  line-height: 1.45;
+  color: var(--u-dim);
+}
+
+/* ── the record ───────────────────────────────────────────────────────────
+   A row is three steps of hierarchy stacked, not a tile: the number, the
+   phrase, the colour. Stacked rather than tabled because a table invites a
+   second column, and a second column is a dashboard. */
+
+.us-line {
+  display: flex;
+  flex-direction: column;
+  padding: var(--s4) 0;
+  border-bottom: 0.5px solid var(--u-line);
+  animation: us-rise 260ms var(--ease-out) both;
+  animation-delay: calc(60ms + var(--i) * 45ms);
+}
+.us-line:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.us-line:first-of-type {
+  padding-top: 0;
+}
+
+/* tabular figures so a column of numbers has a column of digits, and so a
+   count-up does not shuffle the text beside it on every frame */
+.us-n {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  font-size: 40px;
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--u-ink);
+}
+
+.us-what {
+  margin-top: 3px;
+  font-size: var(--t-body);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--u-ink);
+}
+
+.us-aside {
+  margin-top: 5px;
+  font-size: var(--t-sub);
+  line-height: 1.45;
+  color: var(--u-dim);
+}
+
+@keyframes us-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ── the moments ──────────────────────────────────────────────────────────
+   Discrete named cards on a thread, newest first. The thread is drawn by the
+   list's own left border rather than by a divider per row, so the shape says
+   "one continuous history" instead of "six separate facts". */
+
+.us-time {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--s5);
+}
+.us-time::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 8px;
+  bottom: 8px;
+  width: 1.5px;
+  border-radius: 1px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--u-accent) 55%, transparent),
+    var(--u-line-strong)
+  );
+}
+
+.us-moment {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: var(--s3) var(--s4);
+  margin-bottom: var(--s2);
+  border-radius: var(--r-md);
+  background: var(--u-card);
+  border: 0.5px solid var(--u-line);
+  box-shadow: var(--shadow-card);
+  animation: us-rise 260ms var(--ease-out) both;
+  animation-delay: calc(80ms + var(--i) * 45ms);
+}
+.us-moment:last-child {
+  margin-bottom: 0;
+}
+
+.us-mdot {
+  position: absolute;
+  left: calc(var(--s5) * -1 + 1px);
+  top: 21px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--u-accent);
+  box-shadow: 0 0 0 3px var(--u-ground);
+}
+/* the anchor at the bottom of the thread is the one moment nobody fired —
+   it is simply true, from the first message onward, so it is inked as a
+   quieter kind of thing */
+.us-first {
+  background: var(--u-well);
+  box-shadow: none;
+}
+.us-first .us-mdot {
+  background: var(--u-faint);
+}
+
+.us-mtitle {
+  font-family: var(--font-display);
+  font-size: var(--t-ui);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--u-ink);
+}
+.us-mdate {
+  margin-top: 2px;
+  font-size: var(--t-meta);
+  letter-spacing: 0.01em;
+  color: var(--u-dim);
+}
+
+/* ── only you two ─────────────────────────────────────────────────────────
+   The one tinted surface on the page, because this is the one section whose
+   content exists nowhere else in the product and cannot be counted from the
+   thread. No numbers-as-score: a count of rituals inside a sentence is a
+   fact about them, the same count on its own would be a score. */
+
+.us-only {
+  padding: var(--s4);
+  border-radius: var(--r-md);
+  background: var(--u-accent-soft);
+  border: 0.5px solid color-mix(in srgb, var(--u-accent) 22%, transparent);
+  animation: us-rise 260ms var(--ease-out) both;
+  animation-delay: 80ms;
+}
+.us-onlyline {
+  font-size: var(--t-body);
+  line-height: 1.5;
+  color: var(--u-ink);
+}
+.us-onlyline + .us-onlyline {
+  margin-top: var(--s2);
+}
+.us-onlyline b {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--u-accent-ink);
+}
+
+/* ── the close ────────────────────────────────────────────────────────── */
+
+.us-foot {
+  margin-top: var(--s6);
+  padding-top: var(--s5);
+  border-top: 0.5px solid var(--u-line);
+  text-align: center;
+}
+.us-close {
+  max-width: 24ch;
+  margin: 0 auto;
+  font-family: var(--font-display);
+  font-size: var(--t-head);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+  text-wrap: balance;
+  color: var(--u-ink);
+}
+.us-close-sub {
+  max-width: 32ch;
+  margin: var(--s2) auto 0;
+  font-size: var(--t-sub);
+  line-height: 1.5;
+  text-wrap: balance;
+  color: var(--u-dim);
+}
+
+/* ── reduced motion ───────────────────────────────────────────────────────
+   Gentler, never absent — the repo's stated principle. Everything on this
+   page still arrives, and still arrives in order; what goes is the travel
+   and the scale, which are the parts that move. The stagger is kept and
+   shortened rather than dropped, because the order things arrive in is the
+   sequencing this screen is built on. The count-up is handled in the
+   component, where the same query decides it. */
+@media (prefers-reduced-motion: reduce) {
+  .us {
+    animation-duration: 140ms;
+  }
+  @keyframes us-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes us-rise {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes us-cell-in {
+    from {
+      opacity: 0;
+    }
+  }
+  .us-line,
+  .us-moment,
+  .us-only {
+    animation-duration: 160ms;
+    animation-delay: calc(var(--i, 0) * 18ms);
+  }
+  .us-cell {
+    animation-duration: 140ms;
+    animation-delay: calc(var(--i) * 4ms);
+  }
+}

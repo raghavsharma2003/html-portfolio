@@ -140,6 +140,28 @@
   --d-state: 220ms; /* bubbles, notices, popovers */
   --d-veil: 240ms; /* scrims */
   --d-sheet: 380ms; /* sheets, call enter */
+
+  /* ── the press squash ──────────────────────────────────────────────────
+     A press flattens what it lands on: wider and shorter, volume-constant,
+     then springs back. That anisotropy is the whole effect — a uniform
+     scale(0.96) reads as the thing shrinking, which is not what a finger
+     does to an object. 90ms down + 140ms back = 230ms, inside the 300ms cap
+     with room to spare, and transform-only so it costs no layout.
+
+     The RETURN is the half that overshoots, and only that half: the release
+     of a press is a real momentum event, which is DESIGN-STANDARDS' own
+     condition for earning a bounce ("bounce is earned by momentum, never
+     applied as decoration"). Nothing here overshoots on the way down.
+
+     --sq-x/--sq-y are per-surface. The default is the researched 1.08/0.92
+     and it is right for anything roughly finger-sized (the send button, a
+     board cell). A 360px-wide row at 1.08 overhangs its container by 29px
+     and gets clipped, so wide surfaces dial --sq-x down and keep the Y
+     compression, which is the half the eye actually reads. */
+  --ease-squash: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --d-squash: 90ms; /* the press-DOWN half; --d-press springs it back */
+  --sq-x: 1.08;
+  --sq-y: 0.92;
 }
 
 /* ═══ NIGHT ═══════════════════════════════════════════════════════════════
@@ -1730,7 +1752,7 @@ button {
   justify-content: center;
   color: var(--on-solid);
   flex-shrink: 0;
-  transition: transform var(--d-press) var(--ease-out), opacity var(--d-tap) ease,
+  transition: transform var(--d-press) var(--ease-squash), opacity var(--d-tap) ease,
     background var(--d-tap) ease;
   margin-bottom: 2px;
 }
@@ -1743,8 +1765,14 @@ button {
   height: var(--hit);
   transform: translate(-50%, -50%);
 }
+/* A 40px circle squashing into an ellipse under the thumb and springing back
+   is the single most-pressed control in the app — the one place the effect
+   is worth the most. Down fast (--d-squash) and out on --ease-out; the
+   spring lives on the return, which is the rule the token block states. */
 .send-btn:active {
-  transform: scale(0.92);
+  transform: scale(var(--sq-x), var(--sq-y));
+  transition-duration: var(--d-squash);
+  transition-timing-function: var(--ease-out);
 }
 /* "nothing to send yet" — not disabled (it still focuses the field), just
    quiet. 0.3 opacity made a live control look broken. */
@@ -3105,6 +3133,17 @@ input {
    Opacity and colour still carry meaning, so they stay. Spatial travel and
    every ambient infinite loop go. */
 @media (prefers-reduced-motion: reduce) {
+  /* The press squash still HAPPENS — a tap that does not answer feels
+     broken, and "reduced" is not "absent". It just stops distorting: the
+     anisotropy collapses to a plain 2% settle, the same shape every other
+     :active in this file has always used. This is the value every surface
+     INHERITS; a surface that sets its own --sq-x/--sq-y (a hub row, a wyr
+     panel, a board cell) shadows the inherited one and so resets the pair
+     itself, in its own file's reduced-motion block. */
+  :root {
+    --sq-x: 0.98;
+    --sq-y: 0.98;
+  }
   .msg,
   .chat-notice,
   .reply-chip,

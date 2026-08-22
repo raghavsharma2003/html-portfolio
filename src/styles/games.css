@@ -187,10 +187,17 @@
   list-style: none;
 }
 
-/* grouped entrance, staggered rather than fired as one block */
+/* Grouped entrance, staggered rather than fired as one block. 45ms sits in
+   the middle of DESIGN-STANDARDS' own 30-80ms band.
+   The `min()` is the refinement this list needs rather than wants: the file's
+   own header promises a tenth row costs nothing, and at ten rows an uncapped
+   45ms stagger means the last one arrives 405ms after the first — the list
+   would still be dealing itself out after the thumb had already moved. The
+   cap holds the whole deal to 240ms no matter how long the list gets, which
+   keeps the PER-ELEMENT duration (220ms) and the aggregate both honest. */
 .gh-item {
   animation: gh-in var(--d-state) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 45ms);
+  animation-delay: min(calc(var(--i, 0) * 45ms), 240ms);
 }
 @keyframes gh-in {
   from {
@@ -209,13 +216,23 @@
   border-radius: 15px;
   text-align: left;
   color: var(--ga-ink);
-  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+  /* A full-width row cannot take the default 1.08 squash: at 360px that is
+     29px of overhang and the sheet clips it. So the X barely moves and the Y
+     does the work — the row flattens under the thumb, which is the half of
+     the effect the eye actually reads. See global.css's --sq-x block. */
+  --sq-x: 1.012;
+  --sq-y: 0.955;
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-squash);
 }
 /* :active fires on pointerdown, which is where feedback belongs — the press
-   is felt before the finger leaves, not after */
+   is felt before the finger leaves, not after. Down fast and linear-ish, back
+   on the spring: the overshoot belongs to the RELEASE, which is the only half
+   that carries real momentum. */
 .gh-card:active {
   background: var(--ga-well);
-  transform: scale(0.985);
+  transform: scale(var(--sq-x), var(--sq-y));
+  transition-duration: var(--d-squash);
+  transition-timing-function: var(--ease-out);
 }
 
 .gh-ic {
@@ -580,9 +597,17 @@ button.as-call:active {
   background: transparent;
   color: var(--ga-ink-dim);
   font: 600 var(--t-ui) var(--font-ui);
+  /* a ~120px pill: wide enough that the full 1.08 would shove its neighbour,
+     narrow enough to still read as squashing rather than settling */
+  --sq-x: 1.05;
+  --sq-y: 0.94;
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-squash);
 }
 .as-gbtn:active {
   background: var(--ga-well);
+  transform: scale(var(--sq-x), var(--sq-y));
+  transition-duration: var(--d-squash);
+  transition-timing-function: var(--ease-out);
 }
 .as-gbtn-primary {
   border-color: transparent;
@@ -619,7 +644,14 @@ button.as-call:active {
     animation: none !important;
     opacity: 0.85;
   }
+  /* the press still answers, it just stops distorting — these two shadow the
+     inherited :root pair global.css sets for reduced motion, so they have to
+     put it back themselves */
   .gh-card,
+  .as-gbtn {
+    --sq-x: 0.98;
+    --sq-y: 0.98;
+  }
   .as-back,
   .as-call,
   .as-mic,

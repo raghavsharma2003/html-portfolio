@@ -1,0 +1,246 @@
+/* ═══ Celebration ═════════════════════════════════════════════════════════
+   The moment card and its one burst. Drawn by src/components/Celebration.tsx;
+   what fires it is engine/milestones.ts via components/useMoments.ts.
+
+   NO TOKEN BLOCK HERE, same reasoning wyr.css states for itself: this markup
+   is a child of `.app`, so `global.css`'s tokens — surface, ink, accent,
+   the shadow scale, the motion scale — inherit down and re-ink with the
+   theme for free. A second palette here is the drift global.css warns about.
+
+   Durations come off the shared scale where they can. The ONE number that
+   does not is the burst's 520ms, and it carries its reason next to it. */
+
+.cel {
+  position: absolute;
+  inset: 0;
+  /* Over the call (20), the activity shell (22) and the sheets (31) — a
+     moment is worth seeing wherever they are. UNDER the clock card (32),
+     which is a statutory disclosure and outranks anything decorative.
+     Mounted LAST in App so it wins the tie with `.sheet` at 31. */
+  z-index: 31;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--safe-top) + var(--s4)) calc(var(--safe-right) + var(--s4))
+    calc(var(--safe-bottom) + var(--s4)) calc(var(--safe-left) + var(--s4));
+  /* Not a modal. Nothing underneath is disabled, nothing is waiting on a
+     tap, and a scroll that starts outside the card still scrolls the thread.
+     The card re-enables pointers for itself and nothing else. */
+  pointer-events: none;
+}
+
+/* ── buildup ──────────────────────────────────────────────────────────────
+   It arrives from just below at 0.94 — under its own power, which is the one
+   case `--ease-spring` is for and the one case DESIGN-STANDARDS says an
+   overshoot is earned rather than decorative. */
+.cel-card {
+  pointer-events: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: min(300px, 84%);
+  padding: var(--s5) var(--s4) var(--s4);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 0.5px solid var(--hairline);
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
+  text-align: center;
+  animation: cel-in 240ms var(--ease-spring) both;
+}
+@keyframes cel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
+  }
+}
+
+/* ── settle ───────────────────────────────────────────────────────────────
+   Quiet, and slightly IN rather than out or down: the moment recedes, it is
+   not dismissed and it does not fall. Same 240ms both ways, so the way it
+   leaves is the way it came (spatial consistency). */
+.cel-card[data-phase="out"] {
+  animation: cel-out 240ms var(--ease-out) both;
+}
+@keyframes cel-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/* the medallion, a beat behind the card so the two arrivals are read in
+   order rather than as one lump */
+.cel-ic {
+  position: relative;
+  z-index: 1;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  animation: cel-pop 260ms var(--ease-spring) 80ms both;
+}
+@keyframes cel-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+}
+
+.cel-title {
+  margin-top: var(--s3);
+  font-family: var(--font-display);
+  font-size: var(--t-title);
+  font-weight: 650;
+  /* large text tightens; the body line below does not — tracking is
+     size-specific, per DESIGN-STANDARDS */
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.cel-detail {
+  font-style: normal;
+  font-size: var(--t-sub);
+  line-height: 1.4;
+  letter-spacing: 0;
+  color: var(--ink-dim);
+}
+
+/* ── peak ─────────────────────────────────────────────────────────────────
+   A zero-size anchor sitting on the medallion's centre, so every particle's
+   own transform is measured from one point and the burst cannot drift when
+   the card's width changes. */
+.cel-burst {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--s5) + 28px);
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  /* behind the medallion, which is also what they are launched from: they
+     appear to be thrown out from BEHIND the badge rather than to pass across
+     its face, and the first 28px of every particle's life is hidden, which is
+     the part where it has not yet become a shape */
+  z-index: 0;
+}
+
+.cel-p {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--sz);
+  height: var(--sz);
+  /* static centring offset, not an animated one — the animation below only
+     ever touches transform and opacity */
+  margin: calc(var(--sz) / -2);
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0;
+  /* motion-lint: allow 520ms is over the 300ms UI cap deliberately, and this
+     is the third exception in the tree rather than a new category: the 7px
+     onboarding dot (global.css:680) and her presence glow (global.css:1850,
+     :1889) are both allowed on the same ground — they are not feedback for a
+     tap, so the responsiveness budget the cap protects is not what is being
+     spent. This is a rare-occasion celebration (DESIGN-STANDARDS §animate:
+     "rare or first-run: a delight budget applies") and TECHNIQUE 7's own
+     range is 400-600ms. A 300ms burst does not read as a burst, it reads as
+     a flicker.
+     Fixed magnitude, one burst, identical every time — never scaled to the
+     size of the milestone. Escalating intensity with reward size is the
+     variable-reward mechanic NEVER MANIPULATE rules out. */
+  /* 110ms behind the card, which is the anatomy in one number: BUILDUP has
+     to be legible as its own beat before PEAK answers it. Without the base
+     delay the burst was fully out while the medallion was still fading in —
+     the consequence arriving ahead of the cause. */
+  animation: cel-burst 520ms var(--ease-out) calc(110ms + var(--dl)) both;
+}
+/* two inks, alternating on a fixed schedule — warmth, not randomness */
+.cel-p[data-warm="yes"] {
+  background: var(--accent-warm);
+}
+
+/* One shared keyframes for all nine. `--a` and `--d` are read off each
+   particle, so the geometry varies while the timing curve does not.
+   The two opacity holds and the explicit `linear` are not decoration — they
+   are a bug fix, and one worth writing down. With a single ease-out across
+   the whole run, `--ease-out` (0.23,1,0.32,1) has already spent 85% of its
+   travel by a fifth of the way in, so an opacity ramping 1 -> 0 across the
+   tail was reading 0.27 at the visual peak: the burst measured as dust in
+   the first screenshot pass. Holding opacity flat from 10% to 62% and
+   fading LINEARLY after keeps the easing on the travel, where it belongs,
+   and off the brightness, where it was lying. */
+@keyframes cel-burst {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--a)) translateY(-2px) scale(0.4);
+  }
+  10% {
+    opacity: 1;
+  }
+  30% {
+    transform: rotate(var(--a)) translateY(calc(var(--d) * -0.6)) scale(1.08);
+  }
+  62% {
+    opacity: 1;
+    animation-timing-function: linear;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--a)) translateY(calc(-1 * var(--d))) scale(0.55);
+  }
+}
+
+/* ── reduced motion: gentler, never absent ────────────────────────────────
+   The burst still HAPPENS — the moment is still marked, and deleting the
+   mark would be telling a person who asked for less motion that they get
+   less product. Travel collapses to a few pixels and the whole thing is over
+   in 150ms, which is TECHNIQUE 7's own prescription for this branch. */
+@media (prefers-reduced-motion: reduce) {
+  .cel-card {
+    animation: cel-quiet-in 160ms var(--ease-out) both;
+  }
+  .cel-card[data-phase="out"] {
+    animation: cel-out 160ms var(--ease-out) both;
+  }
+  .cel-ic {
+    animation: none;
+  }
+  /* The near-zero travel the reduced branch asks for puts every particle
+     INSIDE the 56px medallion, which paints over them — measured by eye on
+     the first pass and the burst was invisible, which is exactly the
+     "reduced means absent" failure this branch exists to avoid. So under
+     reduced motion the burst moves in FRONT of the badge and reads as a
+     sparkle sitting on it rather than as a throw leaving it. */
+  .cel-burst {
+    z-index: 2;
+  }
+  .cel-p {
+    animation: cel-burst-quiet 150ms var(--ease-out) calc(80ms + var(--dl)) both;
+  }
+  @keyframes cel-quiet-in {
+    from {
+      opacity: 0;
+      transform: scale(0.985);
+    }
+  }
+  @keyframes cel-burst-quiet {
+    0% {
+      opacity: 0;
+      transform: rotate(var(--a)) translateY(-4px) scale(0.6);
+    }
+    45% {
+      opacity: 1;
+      transform: rotate(var(--a)) translateY(-19px) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: rotate(var(--a)) translateY(-23px) scale(0.7);
+    }
+  }
+}

@@ -13,6 +13,9 @@ import WouldYouRatherActivity from "./components/WouldYouRatherActivity";
 import TicTacToeActivity from "./components/TicTacToeActivity";
 import { CloseIcon } from "./components/icons";
 import { applyTheme, watchSystemTheme } from "./engine/theme";
+import { useMoments } from "./components/useMoments";
+import Celebration from "./components/Celebration";
+import UsScreen from "./components/UsScreen";
 import { unlockAudio } from "./voice/speech";
 import { diagStart } from "./engine/diag";
 import { startSessionClock } from "./engine/clock";
@@ -81,6 +84,15 @@ export default function App() {
   // she has to KNOW she called, or she answers her own call like a stranger.
   const [callFrom, setCallFrom] = useState<"him" | "her">("him");
   const [gamesOpen, setGamesOpen] = useState(false);
+  const [usOpen, setUsOpen] = useState(false);
+  // Moments detection runs here, at the one place that owns AppState. It is
+  // suppressed while a call is coming up (she is mid-pickup) — the hook's
+  // own grace handles the first seconds after connect.
+  // `suppressed` is plain inCall: the hook stamps the rising edge and holds
+  // its own 10s pickup grace. (First wiring said `inCall && !state.onboarded`
+  // — always false past onboarding, so the grace never engaged. The
+  // celebration agent's review caught it.)
+  const moments = useMoments(state, setState, inCall);
   const [activity, setActivity] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -341,6 +353,7 @@ export default function App() {
             }}
             onProfile={() => setAuthOpen(true)}
             onGames={() => setGamesOpen(true)}
+            onUs={() => setUsOpen(true)}
           />
           {inCall && (
             <CallVoice
@@ -462,6 +475,7 @@ export default function App() {
               }}
             />
           )}
+          {usOpen && <UsScreen state={state} onExit={() => setUsOpen(false)} />}
           {/* She is calling back after a call that dropped mid-sentence. Never
               while a call is already up, and never before its own due time —
               the arming happens in useCallEngine, on the drop itself. */}
@@ -513,6 +527,11 @@ export default function App() {
               }}
             />
           )}
+          {/* A crossed milestone celebrates OVER whatever is on screen — an
+              overlay sibling, never an unmount, LAST in DOM so it paints over
+              same-z sheets. One at a time; fire-once is the engine's promise;
+              the hook marks the ledger on show. */}
+          <Celebration moment={moments.moment} onDone={moments.dismiss} />
         </>
       )}
     </div>

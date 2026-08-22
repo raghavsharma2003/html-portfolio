@@ -122,10 +122,17 @@
   background: var(--tt-cell);
   border-radius: var(--r-sm);
   color: inherit;
-  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+  /* Finger-sized and sitting in a gapped grid, so it can take close to the
+     researched 1.08/0.92 — dialled a notch down only so a pressed cell never
+     visually touches its neighbour. See global.css's --sq-x block. */
+  --sq-x: 1.06;
+  --sq-y: 0.945;
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-squash);
 }
 .tt-cell:active {
-  transform: scale(0.97);
+  transform: scale(var(--sq-x), var(--sq-y));
+  transition-duration: var(--d-squash);
+  transition-timing-function: var(--ease-out);
 }
 /* An empty, playable cell tints faintly on press, so a tap that lands
    confirms itself before the mark has even drawn in. A cell that already
@@ -214,7 +221,10 @@ circle.tt-stroke {
     animation: none !important;
     stroke-dashoffset: 0 !important;
   }
+  /* the press still answers, it just stops distorting — this shadows the
+     inherited pair global.css sets under reduced motion, so it puts it back */
   .tt-cell {
-    transition: background var(--d-tap) ease !important;
+    --sq-x: 0.98;
+    --sq-y: 0.98;
   }
 }
