@@ -2357,3 +2357,19 @@ byte-identity held for bundles predating the stance split. Verified to
 FAIL on the pre-fix tree (the callback-G2 and warm-count sections both
 red against HEAD at build time). Caveat stated, not hidden: vy_rel_state
 has 0 production rows, so this is a claim about code, not yet behaviour.
+
+---
+
+## `release-2026-08-22` — the painted-world APK, delivered
+
+Shipped from ac34534: the tree that passed the final zero-gap audit
+(one CRITICAL + 3 HIGH + 7 MEDIUM found, ALL fixed with measured proofs
+in the same session — forget now takes the profile, the scrim ::after
+composites for real at 7.91:1, hardware back exists, the story pool
+never repeats or re-golds at midnight, family 3's raha-amplifier
+closed at 351 honesty checks, clouds -76%). Web live at index hash of
+the same sha; APK 12.35MB with all 10 world paintings + optimized
+identity verified INSIDE the artifact before delivery. Session totals:
+~27 shipped slices, eval counts at close: honesty 351, sky 167,
+teardown 187, burst 119, greeting 75, feel/world/back browser
+batteries all green, verify-release 13/13 throughout.

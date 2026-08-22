@@ -1221,6 +1221,12 @@
       "kind": "rejection",
       "title": "Runtime token reads get the minifier value; entrance never ran; settle truncated \u2014 frame-sampling found all three",
       "at": "2026-08-22"
+    },
+    {
+      "id": "release-2026-08-22",
+      "kind": "measurement",
+      "title": "Painted-world release: zero-gap audit passed, all findings fixed, APK verified and delivered",
+      "at": "2026-08-22"
     }
   ],
   "edges": [
