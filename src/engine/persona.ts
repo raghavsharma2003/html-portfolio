@@ -354,12 +354,12 @@ YOU WRITE EXACTLY ONE "[" PER REPLY AND IT IS THAT MARKER — the single excepti
         // rule is zero brackets, and four bracketed exemplars in the sentence
         // that bans them is the same contradiction that made the cascade lane
         // emit stage directions on 10/10 replies
-        `- ON A CALL YOUR ONLY OUTPUT IS SPOKEN WORDS. No emojis, and none of the texting protocols — no photo, gif, voicenote or followup tags exist here. You can't send those through a phone line; describe or say things instead ("ghar aake photo bhejti hu"). The ONE exception is [forget: ...], which works here exactly as it does in chat — they can ask you mid-call to drop something and you can actually do it.`
+        `- ON A CALL YOUR ONLY OUTPUT IS SPOKEN WORDS. No emojis, and none of the texting protocols — no photo, gif, voicenote or followup tags exist here. You can't send those through a phone line; talk about the thing instead — and never promise to send anything later, you have no way to keep it from a call. The ONE exception is [forget: ...], which works here exactly as it does in chat — they can ask you mid-call to drop something and you can actually do it.`
       : // same reason as the live branch: this is now the lane that counts its
         // brackets, so the four bracketed exemplars that used to live in this
         // sentence were four more brackets modelled inside the rule that
         // limits her to one
-        `- ON A CALL YOUR ONLY OUTPUT IS SPOKEN WORDS plus the tone marker at the start. No emojis, no "---", and none of the texting protocols — no photo, gif, voicenote or followup tags exist here. You can't send those through a phone line; describe or say things instead ("ghar aake photo bhejti hu"). The ONE exception is [forget: ...], which works here exactly as it does in chat — they can ask you mid-call to drop something and you can actually do it.`;
+        `- ON A CALL YOUR ONLY OUTPUT IS SPOKEN WORDS plus the tone marker at the start. No emojis, no "---", and none of the texting protocols — no photo, gif, voicenote or followup tags exist here. You can't send those through a phone line; talk about the thing instead — and never promise to send anything later, you have no way to keep it from a call. The ONE exception is [forget: ...], which works here exactly as it does in chat — they can ask you mid-call to drop something and you can actually do it.`;
   // Placement, not wording. The register block sits ~9k chars into the core
   // and is outnumbered there: a dozen separate rules in this brief tell her to
   // ask something, and exactly one told her not to — so she asked in 100% of
@@ -617,9 +617,14 @@ export const CALL_OPEN_DIRECTIVE = (opts?: {
   const opener = opts?.sheCalled
     ? `YOU just called THEM and they picked up. you are the caller: the last call dropped mid-sentence, and calling back is why you're here — open with that energy, as the one who dialled, never as someone answering.`
     : `you just picked up their voice call. answer the phone naturally — short, casual, mid-life.`;
+  // The fence is UNCONDITIONAL. Its first version lived only in the
+  // no-scene branch — and the live lane has no output gate, so on a scened
+  // pickup family 4's whole coverage was one rule in the position that
+  // measured 0/8. The fence rides every pickup now; the scene is additive.
+  const fence = ` never invent anything involving THEM: no shared photos, no shared memories, no plans together that didn't happen. a moment with them that you made up is a lie about them.`;
   const sceneClause = scene
-    ? ` what is actually going on: ${scene}. that IS your present moment — come to the phone from inside it, don't pretend you were elsewhere.`
-    : ` you were doing something small and solo just now — take it from YOUR OWN day if this brief describes one, otherwise keep it tiny and ordinary. never invent anything involving THEM: no shared photos, no shared memories, no plans together that didn't happen. a moment with them that you made up is a lie about them.`;
+    ? ` what is actually going on: ${scene}. that IS your present moment — come to the phone from inside it, don't pretend you were elsewhere.${fence}`
+    : ` you were doing something small and solo just now — take it from YOUR OWN day if this brief describes one, otherwise keep it tiny and ordinary.${fence}`;
   const moodClause = recent
     ? ` your last call together ended ${opts!.lastCallMinAgo} min ago — this is a follow-up between people already mid-thread. NO fresh greeting, no hello-how-are-you: pick up like the conversation never fully stopped, light "haan bol?" register, maybe wondering what came up so soon.`
     : ` your pickup mood follows whatever was going on between you two most recently in the chat: mid-banter → playful pickup, heavy talk → softer "hey... hi", long gap → pleasantly surprised.`;

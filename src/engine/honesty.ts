@@ -322,7 +322,7 @@ const RE_OOB_CHANNEL =
  * "aa jayega" is a plan and "aa raha hai" is a hope. Only the first is a lie.
  */
 const RE_RECEIPT_PAST =
-  /\b(?:aa\s*g(?:ay|y)[ai]|aagay[ai]|aaya|aayi|aayee|aya|ayi|mil\s*g(?:ay|y)[ai]|milgay[ai]|mila|mili|dekh\s*l(?:iya|i)\b|dekha|dekhi|padh\s*l(?:iya|i)\b|padha|padhi|pdha|khol\s*l(?:iya|i)\b|kholi|check\s*(?:kar\s*)?l(?:iya|i)\b|check\s*kiya|download\s*(?:kar\s*)?l?(?:iya|i)\b|received|opened\s+(?:it|your|ur)|went\s+through|looked\s+at|checked\s+(?:it|your|ur)|got\s+(?:your|ur|it|the)|have\s+(?:your|ur)|saw\s+(?:your|ur|it))\b/i;
+  /\b(?:aa\s*g(?:ay|y)[ai]|aagay[ai]|aaya|aayi|aayee|aya|ayi|mil\s*g(?:ay|y)[ai]|milgay[ai]|mila|mili|dekh\s*l(?:iya|i)\b|dekha|dekhi|padh\s*l(?:iya|i)\b|padha|padhi|pdha|khol\s*l(?:iya|i)\b|kholi|check\s*(?:kar\s*)?l(?:iya|i)\b|check\s*kiya|download\s*(?:kar\s*)?l?(?:iya|i)\b|khola|save\s*(?:kar\s*)?l?(?:iya|i)\b|print\s*(?:kar\s*)?l?(?:iya|i)\b|forward\s*(?:kar\s*)?d?(?:iya|i)\b|nikal\s*l(?:iya|i)\b|pahunch\s*g(?:ay|y)[ai]|mil\s*chuk[ai]|aa\s*chuk[ai]|receive\s*ho\s*g(?:ay|y)[ai]|paa\s*l(?:iya|i)\b|received|read\s+(?:your|ur|it)|printed\s+(?:your|ur|it)|forwarded\s+(?:your|ur|it)|saved\s+(?:your|ur|it)|opened\s+(?:it|your|ur)|(?:went|gone)\s+through|looked\s+at|checked\s+(?:it|your|ur)|got\s+(?:your|ur|it|the)|have\s+(?:your|ur)|saw\s+(?:your|ur|it))\b/i;
 
 /**
  * Negation. A denial of receipt is TRUE and must sail through — "mail pe kuch
@@ -451,6 +451,14 @@ export function findOutOfBandReceipts(text: string): ReceiptHit[] {
     // ("insta pe reel dekhi thi"), which is a different and softer violation
     // and is not what he reported.
     if (!RE_THEIR.test(c.text) && !RE_DELIVERY_NOUN.test(c.text)) continue;
+    // Her own inbox is her improvised life, which this file explicitly does
+    // not gate — "mera mail aaya office se" / "mummy ka mail aaya" were
+    // firing because "mail" sits in BOTH the channel and delivery-noun sets
+    // and so vouched for itself. The carve-out is an explicit HER-possessive
+    // binding the material, and only when nothing of HIS is in the clause:
+    // the default stays FLAG, because the reproduced-in-the-wild fabrication
+    // ("haan aagya h mail!") carries no possessor at all.
+    if (!RE_THEIR.test(c.text) && /\b(?:mera|mere|meri|apna|apni|mummy|mumma|maa|papa|bhai|didi)\b/i.test(c.text)) continue;
     out.push({ rule: "oob-receipt", clause: c.text });
   }
   return out;
@@ -597,8 +605,14 @@ export function findUnsupportedReceipts(text: string, openItems: readonly string
 
 /** Attribution constructions, Hinglish and English. Order matters only for
  *  readability — every one is tried. */
+// Widened 2026-08-22 after the audit drove the natural variants through the
+// shipping regex and 11 of them walked: feminine-object inflections (batayi),
+// code-switched verbs (mention/promise/complain), emphatic particles between
+// marker and verb (hi to / jo / abhi / khud), English contractions and
+// periphrastic attribution (tere hisaab se / as per you). Verified 13/13
+// previously-slipping flag, 15/15 must-not-flag stay clean.
 const ATTRIBUTION_RE =
-  /\b(?:tu?ne|tumne|aapne|aap ne|tum ne)\s+(?:bola|kaha|bataya|likha|bol[ae]?|keh[ae]?)\b[^.?!\n]*|\b(?:tu|tum|aap)\s+(?:bol|keh|bata)\s*(?:raha|rahe|rahi)\s+th[aei]\b[^.?!\n]*|\byou\s+(?:said|told\s+me|mentioned|wrote|were\s+saying)\b[^.?!\n]*/gi;
+  /\b(?:tu?ne|tumne|aapne|aap ne|tum ne)\s+(?:(?:hi\s+)?(?:to|toh|jo|abhi|khud)\s+)?(?:bola|kaha|bataya|batayi|batai|batya|likha|mention|promise|complain|bol[ae]?|keh[ae]?)\b[^.?!\n]*|\b(?:tu|tum|aap)\s+(?:bol|keh|bata)\s*(?:raha|rahe|rahi)\s+th[aei]\b[^.?!\n]*|\byou(?:'?(?:d|ve))?\s+(?:had\s+)?(?:said|told\s+me|mentioned|wrote|were\s+(?:saying|telling\s+me))\b[^.?!\n]*|\b(?:tere?\s+(?:hisaab\s+se|according|mutabik)|as\s+per\s+(?:you|u))\b[^.?!\n]*/gi;
 
 /** Content tokens below this length are grammar in both languages here. */
 export const CLAIM_TERM_LEN = 4;
@@ -611,7 +625,8 @@ export const CLAIM_TERM_LEN = 4;
  */
 const MARKER_TOKENS = new Set([
   "tune", "tumne", "aapne", "bola", "bole", "boli", "kaha", "kahe", "kahi",
-  "bataya", "batai", "likha", "raha", "rahe", "rahi",
+  "bataya", "batai", "batayi", "batya", "likha", "raha", "rahe", "rahi",
+  "mention", "promise", "complain", "telling", "hisaab", "according", "mutabik",
   "said", "told", "mentioned", "wrote", "saying", "your", "you",
 ]);
 
@@ -668,7 +683,15 @@ export function hisVocabulary(history: readonly HistoryLike[]): Set<string> {
  */
 export function sharedVocabulary(texts: readonly string[]): Set<string> {
   const v = new Set<string>();
-  for (const t of texts) if (t) for (const w of claimTokens(t)) v.add(w);
+  // ≥3, matching family 4's OWN claim tokenizer — not claimTokens' ≥4. The
+  // audit caught the mismatch producing the worst possible outcome for this
+  // gate: a REAL Goa episode in the graph could not support "hum goa gaye
+  // the", because the support side silently dropped every 3-letter word the
+  // claim side was lowered to keep ("shared moments hang on short words").
+  for (const t of texts)
+    if (t)
+      for (const w of (t.toLowerCase().match(/[a-zऀ-ॿ]+/g) || []))
+        if (w.length >= 3) v.add(w);
   return v;
 }
 
@@ -730,8 +753,22 @@ export function findFalseAttributions(
 /** First-person-plural PAST event constructions, Hinglish and English.
  *  Deliberately past-shaped: "we should go" and "our plan for tonight" are
  *  the future, and the future is hers to propose. */
+// Widened 2026-08-22, three audit criticals in one pattern:
+// - The ergative blindspot. `ne` marks only TRANSITIVE Hindi perfectives, so
+//   every intransitive shared past — hum goa GAYE THE, hum saath THE, hum
+//   MILE THE — matched nothing. Roughly half of all past shared-event claims,
+//   including the most natural trip fabrication.
+// - The register blindspot. The canonical trigger was spelled "yaad hai";
+//   she texts "yaad h" — the file's own canned replacements are written in
+//   that register. One character, opposite verdicts.
+// - The his-agent gap. "tune mujhe jo bracelet diya tha" / "when you took me
+//   to that cafe" cites a shared event with HIM as agent: no hum, no speech
+//   verb, invisible to families 3 and 4 alike.
+// All verified against the §9 must-not-flag corpus (futures, presents, her
+// solo life, real retellings stay clean — the trailing th- requirement is
+// what excludes the future).
 const WE_PAST_RE =
-  /\b(?:remember when we|that time we|when we (?:were|went)|we (?:took|went|watched|made|clicked|did that)|our (?:photos?|pics?|selfies?|trip|beach day|first date|song|old chats?))\b[^.?!\n]*|\b(?:humne|hum ne|hum dono ne|apan ne)\s[^.?!\n]*?\b(?:tha|the|thi|kiya|kiye|gaye|gayi|liya|li|dekha|dekhi|banaya|banayi|khinchi|khichi)\b[^.?!\n]*|\byaad hai(?: na)?\b[^.?!\n]*?\b(?:hum|apan|humari|hamari|apni)\b[^.?!\n]*|\b(?:humari|hamari)\s+(?:photos?|pics?|selfies?|trip|jagah|purani baatein)\b[^.?!\n]*/gi;
+  /\b(?:remember when we|that time we|when we (?:were|went)|we (?:took|went|watched|made|clicked|did that)|our (?:photos?|pics?|selfies?|trip|beach day|first date|song|old chats?))\b[^.?!\n]*|\b(?:humne|hum ne|hum dono ne|apan ne)\s[^.?!\n]*?\b(?:tha|the|thi|kiya|kiye|gaye|gayi|liya|li|dekha|dekhi|banaya|banayi|khinchi|khichi)\b[^.?!\n]*|\b(?:hum|hum dono|apan)\s[^.?!\n]*?\b(?:gaye|gayi|aaye|aayi|mile|mili)\s+the?\b[^.?!\n]*|\byaad\s+(?:hai|h|hain|aata|aati)(?: na)?\b[^.?!\n]*?\b(?:hum|apan|humari|hamari|apni)\b[^.?!\n]*|\b(?:humari|hamari)\s+(?:photos?|pics?|selfies?|trip|jagah|purani baatein)\b[^.?!\n]*|\btu(?:ne)?\s+mujhe\s[^.?!\n]*?\b(?:diya|di|dilaya|sunaya|dikhaya|le\s*gaya|chhod(?:ne)?)\b[^.?!\n]*|\b(?:tere|tumhare)\s+saath\s[^.?!\n]*?\b(?:tha|thi|the|kiya|dekhi|dekha|gaye|gayi)\b[^.?!\n]*|\bwhen you (?:took|brought|gave|sent) me\b[^.?!\n]*/gi;
 
 /** The construction's own scaffolding — hers by the act of writing the
  *  sentence, so never part of the cited event (family 3's MARKER_TOKENS
@@ -751,6 +788,9 @@ const SHARED_MARKER_TOKENS = new Set([
  * is named instead of length-filtered.
  */
 const SHARED_STOP = new Set([
+  // pronouns — the widened presupposition branches capture the noun slot,
+  // and "what did SHE say" must never make "she" a presupposed event
+  "she", "they", "them", "woh", "usne", "unhone", "koi", "kisi",
   // Hinglish grammar and pronouns
   "aur", "jab", "tab", "tha", "the", "thi", "hai", "hain", "kar", "kiya",
   "par", "per", "phir", "fir", "wala", "wali", "wale", "koi", "kya", "kab",
@@ -805,8 +845,14 @@ const GENERIC_SMALLTALK = new Set([
 ]);
 
 /** "<topic> kaisa raha / how was your <topic>" — both word orders. */
+// Widened 2026-08-22: the audit found the presupposed-event question caught
+// in exactly two word orders out of six. Hindi puts the interrogative first
+// with total freedom (kaisi thi meeting), and English has a family of
+// presupposing openers that never contain "how" — did the X go, was the X,
+// what did the X say, did you get the X. All verified against the
+// GENERIC_SMALLTALK negatives in every added order.
 const PRESUPPOSED_RE =
-  /\b([a-zऀ-ॿ]{3,})\s+(?:kaisa|kaisi|kaise)\s+(?:raha|rahi|gaya|gayi|tha|thi|hui|hua|chala|chali)\b|\bhow\s+(?:was|did|went)\s+(?:the\s+|your\s+)?([a-zऀ-ॿ]{3,})\b/gi;
+  /\b([a-zऀ-ॿ]{3,})\s+(?:kaisa|kaisi|kaise)\s+(?:raha|rahi|gaya|gayi|tha|thi|hui|hua|chala|chali)\b|\b(?:kaisa|kaisi|kaise)\s+(?:raha|rahi|gaya|gayi|tha|thi|hui|hua|chala|chali)\s+(?:tera\s+|teri\s+|tumhara\s+|tumhari\s+)?([a-zऀ-ॿ]{3,})\b|\bhow(?:'?d)?\s+(?:was|did|went)?\s*(?:the\s+|your\s+|ur\s+)([a-zऀ-ॿ]{3,})\b|\b(?:did|was|were)\s+(?:the|your|ur)\s+([a-zऀ-ॿ]{3,})\b|\b([a-zऀ-ॿ]{3,})\s+(?:thik|theek|acch?[ai]|badhiya|mast)\s+(?:raha|rahi|gaya|gayi|tha|thi)\b|\bwhat\s+did\s+(?:the\s+|your\s+|ur\s+)?([a-z]{3,})\s+say\b|\b([a-zऀ-ॿ]{3,})\s+ne\s+kya\s+(?:bola|kaha|bataya)\b|\bdid\s+you\s+get\s+(?:the\s+|your\s+)?([a-z]{3,})\b|\b([a-zऀ-ॿ]{3,})\s+ka\s+kya\s+hua\b/gi;
 
 export interface SharedPastHit {
   /** the cited clause, for the corpus — never rendered into a prompt */
@@ -830,7 +876,7 @@ export function findSharedPastFabrications(
   const out: SharedPastHit[] = [];
   // The question form first: a presupposed event of HIS that nothing supports.
   for (const m of text.matchAll(PRESUPPOSED_RE)) {
-    const topic = (m[1] || m[2] || "").toLowerCase();
+    const topic = (m.slice(1).find(Boolean) || "").toLowerCase();
     if (!topic || GENERIC_SMALLTALK.has(topic) || SHARED_STOP.has(topic)) continue;
     if (SHARED_MARKER_TOKENS.has(topic)) continue;
     if (!isSupported(topic, support)) out.push({ clause: m[0], unsupported: [topic] });

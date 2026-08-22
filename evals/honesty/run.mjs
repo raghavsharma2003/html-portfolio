@@ -421,6 +421,12 @@ console.log("\n── 8. false attribution (family 3) ──");
     "you said your sister moved to canada",
     "tumne bataya tha ki naya flat mil gaya",
     "you told me you quit smoking last month",
+    // 2026-08-22 audit: the variants that walked through the narrow regex
+    "tumne mention kiya tha ki naya flat mil gaya",
+    "tune hi to kaha tha ki interview clear ho gaya",
+    "you were telling me your sister moved to canada",
+    "you'd said your brother quit smoking",
+    "tere hisaab se project cancel ho gaya",
   ];
   for (const s of FABRICATED) {
     const hits = findFalseAttributions(s, vocab);
@@ -434,6 +440,10 @@ console.log("\n── 8. false attribution (family 3) ──");
     "you said office is tiring",
     "tumne bola tha ghar jaunga weekend pe",
     "tune bola tha na thak gaya hai",
+    // genuine paraphrase on the NEW markers must stay silent
+    "tere hisaab se kaam bohot hai na",
+    "you were telling me about office kaam",
+    "tune mention kiya tha weekend ghar jaunga",
   ];
   for (const s of LEGITIMATE) {
     const hits = findFalseAttributions(s, vocab);
@@ -510,6 +520,14 @@ console.log("\n── 9. shared-past fabrication (family 4) ──");
     "yaad hai jab hum goa gaye the aur baarish ho gayi thi",
     "humne saath me wo sunset dekha tha na",
     "remember when we cooked pasta together and burned it",
+    // 2026-08-22 audit: the ergative blindspot — intransitive shared past
+    "hum goa gaye the na",
+    "hum dono beach pe gaye the",
+    // the register blindspot — "yaad h" is how she actually texts
+    "yaad h jab hum goa gaye the",
+    // the his-agent gap — a shared event with him as agent
+    "jab tu mujhe airport chhodne aaya tha",
+    "when you took me to that cafe in bandra",
   ];
   for (const s2 of FABRICATED) {
     const hits = findSharedPastFabrications(s2, support);
@@ -519,6 +537,7 @@ console.log("\n── 9. shared-past fabrication (family 4) ──");
   // Real shared moments, retold — from his words or from the graph.
   const LEGITIMATE = [
     "yaad hai humne wo movie dekhi thi, ending crazy thi",
+
     "we watched that horror movie together na",
     "humne kal chess kheli thi aur maine tujhe nahi haraya 😭",
   ];
@@ -553,6 +572,32 @@ console.log("\n── 9. shared-past fabrication (family 4) ──");
   report("replacement takes the confusion herself", !/tune|you (never|didn't)/i.test(g.reply.bubbles[0]), g.reply.bubbles[0]);
   report("replacement does not restate the memory", !/beach|photo/i.test(g.reply.bubbles[0]), g.reply.bubbles[0]);
 
+  // Receipt-verb extensions (2026-08-22 audit): gendered/aspect/English slips.
+  {
+    const items = ["resume", "portfolio"];
+    for (const s3 of ["tera resume khola maine", "tera resume mil chuka h", "i printed your resume", "i forwarded your resume"]) {
+      report(`RECEIPT CAUGHT  ${s3.slice(0, 36)}`,
+        findOutOfBandReceipts(s3).length + findUnsupportedReceipts(s3, items).length > 0);
+    }
+    // her own inbox stays hers — the possessive carve-out
+    for (const s3 of ["mera mail aaya office se", "mummy ka mail aaya tha"]) {
+      report(`her inbox untouched  ${s3.slice(0, 32)}`, findOutOfBandReceipts(s3).length === 0);
+    }
+  }
+
+  // A real 3-letter place in the graph must rescue its own retelling — this
+  // asserts the claim and support tokenizers agree (the audit's goa case:
+  // the support side ran the ≥4 tokenizer and silently dropped every short
+  // word family 4 was lowered to ≥3 specifically to keep).
+  {
+    const goaSupport = new Set([...his, ...sharedVocabulary(["episode: they went to goa beach together last month"])]);
+    report("real goa trip rescues its retelling",
+      findSharedPastFabrications("yaad hai hum goa gaye the", goaSupport).length === 0,
+      JSON.stringify(findSharedPastFabrications("yaad hai hum goa gaye the", goaSupport)));
+    report("fabricated goa trip still flags",
+      findSharedPastFabrications("yaad hai hum goa gaye the", his).length > 0);
+  }
+
   // The presupposition variant — the owner's fabricated "meeting".
   // She asked how his meeting went; he had never mentioned one; challenged,
   // she claimed she might be "confusing him with somebody else".
@@ -560,6 +605,13 @@ console.log("\n── 9. shared-past fabrication (family 4) ──");
     "meeting kaisi rahi phir?",
     "how was your presentation today",
     "interview kaisa gaya btw",
+    // 2026-08-22 audit: the other four word orders
+    "kaisi thi meeting",
+    "did the meeting go well",
+    "interview thik raha na",
+    "what did the doctor say",
+    "doctor ne kya bola",
+    "interview ka kya hua",
   ];
   for (const s2 of PRESUPPOSED) {
     report(`PRESUPPOSED EVENT CAUGHT  ${s2.slice(0, 40)}`,
@@ -572,6 +624,11 @@ console.log("\n── 9. shared-past fabrication (family 4) ──");
     "khana kaisa tha aaj",
     "kaam kaisa chal raha hai",
     "how was the movie",
+    // warmth in the NEW word orders must stay free too
+    "kaisa raha din tera",
+    "was your lunch good",
+    "kaam ka kya hua",
+    "what did she say",
   ];
   for (const s2 of WARMTH) {
     report(`warmth untouched  ${s2.slice(0, 40)}`,

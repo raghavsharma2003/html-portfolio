@@ -188,6 +188,15 @@ ok("whitespace fact yields no note", activityNote("   ") === "");
     ok("directive has a she-called opener", /YOU just called THEM/.test(persona));
     ok("directive has a follow-up register", /NO fresh greeting/.test(persona));
     ok("recent threshold is minutes, not hours", /lastCallMinAgo <= 15/.test(persona));
+    // the anti-fabrication fence rides EVERY pickup — its first version lived
+    // only in the no-scene branch, and the beach lie happened on a scened call
+    ok("the fence is unconditional",
+      (persona.match(/never invent anything involving THEM/g) || []).length >= 1 &&
+        /\$\{fence\}/.test(persona) &&
+        (persona.match(/\$\{fence\}/g) || []).length === 2);
+    // no sentence-shaped promise specimen on the call lane — it was a phrase
+    // bank teaching her an unkeepable promise (recited-prompt, 4/5)
+    ok("no send-promise specimen in the call register", !/bhejti hu"\)/.test(persona));
   }
 }
 
