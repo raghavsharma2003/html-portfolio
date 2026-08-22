@@ -64,6 +64,11 @@ interface Props {
   /** a game/activity overlay is up — the thread settles on its falling edge,
    *  same 180ms it already runs when a call or sheet closes */
   activityOpen?: boolean;
+  /** increments when another surface (home's gear) asks for the Settings
+   *  sheet — the sheet and its destructive flows live here, so the ask
+   *  travels as a signal instead of the sheet being forked (final audit H2:
+   *  Settings was unreachable from the app's own landing surface) */
+  openSettingsSignal?: number;
 }
 
 function lastSeenLabel(t: number): string {
@@ -107,7 +112,7 @@ const typeDelay = (bubble: string) => {
   return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
 };
 
-export default function Chat({ state, setState, onVoiceCall, onProfile, onGames, onUs, inCall, activityOpen }: Props) {
+export default function Chat({ state, setState, onVoiceCall, onProfile, onGames, onUs, inCall, activityOpen, openSettingsSignal }: Props) {
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   // the indicator holds for one exit beat while the bubble enters underneath
@@ -128,8 +133,18 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   // the settings sheet (profile, account, clear chat) — everything that used
   // to be either unreachable or one mis-tap away from destroying the chat
   const [moreOpen, setMoreOpen] = useState(false);
+  const lastSettingsSignal = useRef(openSettingsSignal ?? 0);
+  useEffect(() => {
+    if ((openSettingsSignal ?? 0) > lastSettingsSignal.current) setMoreOpen(true);
+    lastSettingsSignal.current = openSettingsSignal ?? 0;
+  }, [openSettingsSignal]);
   // clearing parks the conversation for ten seconds instead of destroying it
-  type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt" | "game" | "callback" | "tally" | "momentsFired" | "recentMoment" | "followup">;
+  type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt" | "game" | "callback" | "tally" | "momentsFired" | "recentMoment" | "followup"> &
+    // present ONLY on the forget path: clear-chat keeps her memory of HIM by
+    // its own copy's promise; forget-everything must take user too, or "she
+    // starts over not knowing you" ships with "lives in: pune" still in the
+    // prompt (the final audit's one ship-blocker, C1)
+    Partial<Pick<AppState, "user">>;
   const [undo, setUndo] = useState<{ label: string; snapshot: Snapshot } | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Forgetting parks the REQUEST, not just the local state: the server-side
@@ -1497,8 +1512,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   //
   // the local teardown they share: whatever she was mid-way through belongs
   // to a conversation that is about to not exist
-  function tearDownLocally(): Snapshot {
+  function tearDownLocally(mode: "clear" | "forget" = "clear"): Snapshot {
     const snapshot = {
+      // forget takes the profile with it (C1): everything she has worked out
+      // about your life INCLUDES who you are. Clear-chat leaves it, per its
+      // own dialog ("her memory of you is not touched").
+      ...(mode === "forget" ? { user: state.user } : {}),
       messages: state.messages,
       herLife: state.herLife,
       inner: state.inner,
@@ -1553,6 +1572,9 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       // causeless event.
       game: null,
       callback: null,
+      ...(mode === "forget"
+        ? { user: { name: "", vibe: [], facts: {} } }
+        : {}),
       // The audit's second omission of the same rule: the wipe left "12
       // games of chess, she's ahead 7-5" on a record whose first message is
       // now today — and every id in the fired ledger stayed dead forever, so
@@ -1606,7 +1628,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   function forgetEverything() {
     const device = state.deviceId;
     track(state.deviceId, "memory_forgotten", { scope: "all" }, state.auth?.userId);
-    park(`${HER_NAME} forgot everything`, tearDownLocally(), () => {
+    park(`${HER_NAME} forgot everything`, tearDownLocally("forget"), () => {
       forgetMemories(device, { scope: "all" });
     });
   }
@@ -1634,6 +1656,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       momentsFired: snap.momentsFired,
       recentMoment: snap.recentMoment,
       followup: snap.followup,
+      // the profile comes back only if the teardown took it (forget path)
+      ...(snap.user ? { user: snap.user } : {}),
     }));
     tap();
   }

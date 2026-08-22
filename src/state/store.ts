@@ -328,7 +328,18 @@ export function loadState(): AppState {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { ...defaultState };
     const parsed = { ...defaultState, ...JSON.parse(raw) };
-    parsed.messages = migrateMessages(parsed.messages);
+    // a bad MESSAGES field must cost the messages, never the whole state:
+    // the outer catch returns defaultState and useAppState then PERSISTS it,
+    // so one malformed row used to overwrite the entire relationship
+    try {
+      parsed.messages = migrateMessages(
+        (Array.isArray(parsed.messages) ? parsed.messages : []).filter(
+          (m: unknown): m is Message => Boolean(m) && typeof m === "object" && typeof (m as Message).id === "string",
+        ),
+      );
+    } catch {
+      parsed.messages = [];
+    }
     // `game` is the one field dereferenced deeply inside setState updaters
     // with no error boundary above them — a malformed session (a bad sync,
     // a hand-edited blob, a schema from a future build rolled back) is a

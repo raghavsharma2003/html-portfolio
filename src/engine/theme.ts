@@ -21,7 +21,7 @@
 // `:root:not([data-theme="light"])` inside the dark media query, so an
 // explicit light choice still beats a dark OS.
 
-import { skyMode, skyNow } from "./sky";
+import { skyMode, skyNow, skyClockNow } from "./sky";
 
 // ── the fourth mode: "sky" (docs/DESIGN-WORLD.md §4) ─────────────────────
 //
@@ -68,7 +68,7 @@ export function isThemeChoice(v: unknown): v is ThemeChoice {
  *  the five states are verified by simulating time, never by waiting. */
 export function resolveTheme(
   choice: ThemeChoice | undefined,
-  nowMs: number = Date.now(),
+  nowMs: number = skyClockNow(),
 ): "light" | "dark" {
   if (choice === "light" || choice === "dark") return choice;
   if (choice === "sky") return skyMode(nowMs);
@@ -86,7 +86,7 @@ export function resolveTheme(
  * shade — visible, annoying, and very hard to attribute. The stylesheet owns
  * every colour in this app; this function only asks it what it decided.
  */
-export function applyTheme(choice: ThemeChoice | undefined, nowMs: number = Date.now()): void {
+export function applyTheme(choice: ThemeChoice | undefined, nowMs: number = skyClockNow()): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   if (choice === "light" || choice === "dark") root.setAttribute("data-theme", choice);

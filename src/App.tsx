@@ -99,6 +99,7 @@ export default function App() {
   const [callFrom, setCallFrom] = useState<"him" | "her">("him");
   const [gamesOpen, setGamesOpen] = useState(false);
   const [usOpen, setUsOpen] = useState(false);
+  const [settingsSignal, setSettingsSignal] = useState(0);
   const [storyOpen, setStoryOpen] = useState(false);
 
   // ── THE SURFACE ────────────────────────────────────────────────────────
@@ -661,6 +662,7 @@ export default function App() {
               setState={setState}
               inCall={inCall}
             activityOpen={activity !== null}
+            openSettingsSignal={settingsSignal}
               onVoiceCall={() => startCall("")}
               onProfile={() => setAuthOpen(true)}
               onGames={() => setGamesOpen(true)}
@@ -685,7 +687,19 @@ export default function App() {
               The landing surface, over the thread. Hidden rather than
               unmounted so its scroll position, its sky timers and its card
               entrance survive a trip into the chat and back. */}
-          <div className="home-host" data-on={surface === "home" ? "" : undefined}>
+          <div
+            className="home-host"
+            // "on" only when home is genuinely VISIBLE: starting a call or a
+            // board from home leaves surface==="home", and the audit measured
+            // two painted worlds + four cloud plates animating behind an
+            // opaque call surface — on the most battery-sensitive screen in
+            // the product. Covered means off.
+            data-on={
+              surface === "home" && !inCall && activity === null && !storyOpen && !usOpen && !gamesOpen && !authOpen
+                ? ""
+                : undefined
+            }
+          >
             <HomeScreen
               state={state}
               onOpenChat={openChat}
@@ -694,6 +708,13 @@ export default function App() {
               onStory={() => setStoryOpen(true)}
               onUs={() => setUsOpen(true)}
               onProfile={() => setAuthOpen(true)}
+              onSettings={() => {
+                // Settings lives in Chat (its destructive flows need the
+                // thread's teardown), so home routes THROUGH the thread with
+                // the sheet opening on arrival — one tap, no forked sheet
+                openChat();
+                setSettingsSignal((n) => n + 1);
+              }}
             />
           </div>
           {inCall && (

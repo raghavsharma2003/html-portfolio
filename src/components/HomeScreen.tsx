@@ -58,6 +58,8 @@ interface Props {
   onStory: () => void;
   onUs: () => void;
   onProfile: () => void;
+  /** open the real Settings sheet (routes through the thread, which owns it) */
+  onSettings?: () => void;
 }
 
 export default function HomeScreen({
@@ -67,7 +69,7 @@ export default function HomeScreen({
   onGames,
   onStory,
   onUs,
-  onProfile,
+  onProfile, onSettings,
 }: Props) {
   const sky = useSky();
 
@@ -179,8 +181,8 @@ export default function HomeScreen({
           <button
             className="home-gear"
             data-tel="home.settings"
-            onClick={onProfile}
-            aria-label="Settings and account"
+            onClick={onSettings ?? onProfile}
+            aria-label="Settings"
           >
             <SettingsIcon size={19} />
           </button>

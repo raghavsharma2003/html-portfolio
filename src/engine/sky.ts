@@ -575,6 +575,15 @@ export function configureSky(opts: { now?: () => number }): void {
   if (opts.now) nowFn = opts.now;
 }
 
+/** The instant the seam says it is — the ONE clock, exported so consumers
+ *  that resolve the palette (theme.ts's skyMode) read the same instant the
+ *  world does. The final audit caught the drift this closes: `?sky=night`
+ *  painted a night world under a LIGHT palette, a combination production
+ *  cannot produce, in every screenshot the seam was built to take. */
+export function skyClockNow(): number {
+  return nowFn();
+}
+
 /** The frame for "now", whatever the seam says now is. */
 export function skyNow(): SkyFrame {
   return skyAt(nowFn());
