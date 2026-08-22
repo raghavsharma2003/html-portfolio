@@ -29,6 +29,20 @@ const VIBES = [
   "just curious",
 ];
 
+// #65 TOPIC CHIPS. Onboarding asked nothing topic-shaped before this, so
+// vy_currency (her "things we talk about" store, primed via
+// seedCurrencyChips → api/memory.js's opSeedCurrency) started cold for
+// every new person — the classifier it runs each chip through
+// (CURRENCY_KIND_HINTS) was correct and ready, it simply never saw a chip
+// worth matching. These five are deliberately chosen to each hit exactly
+// one of the five kinds vy_currency actually stores (cricket/food/place/
+// film/festival — db/schema.sql), verified against api/memory.js's own
+// regexes rather than guessed: "diwali & festivals" carries the literal
+// keyword because "festivals" (plural) alone does not match `\bfestival\b`.
+// Optional and skippable like VIBES above — this never blocks "Start
+// talking".
+const TOPICS = ["cricket", "bollywood & movies", "food & chai", "travel", "diwali & festivals"];
+
 // Spatial travel is the part of this that some people cannot tolerate — the
 // crossfade carries the same meaning and stays. framer-motion does not read
 // the media query for us, so it is read here.
@@ -53,9 +67,12 @@ export default function Onboarding({ onDone, deviceId }: Props) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [vibe, setVibe] = useState<string[]>([]);
+  const [topics, setTopics] = useState<string[]>([]);
 
   const toggleVibe = (v: string) =>
     setVibe((cur) => (cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]));
+  const toggleTopic = (t: string) =>
+    setTopics((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
 
   return (
     <div className="onb">
@@ -156,7 +173,7 @@ export default function Onboarding({ onDone, deviceId }: Props) {
                 {name.trim()}, what are you <em>looking for</em>?
               </h1>
               <p className="sub">Pick anything that feels true. I'll take it from there.</p>
-              <div className="chip-row" style={{ marginBottom: 30 }}>
+              <div className="chip-row" style={{ marginBottom: 22 }}>
                 {VIBES.map((v) => (
                   <button
                     key={v}
@@ -164,6 +181,20 @@ export default function Onboarding({ onDone, deviceId }: Props) {
                     onClick={() => toggleVibe(v)}
                   >
                     {v}
+                  </button>
+                ))}
+              </div>
+              <p className="sub" style={{ marginBottom: 10, fontSize: 14 }}>
+                aur baat kis pe hoti rahegi? <span style={{ opacity: 0.6 }}>(optional)</span>
+              </p>
+              <div className="chip-row" style={{ marginBottom: 30 }}>
+                {TOPICS.map((t) => (
+                  <button
+                    key={t}
+                    className={`chip ${topics.includes(t) ? "on" : ""}`}
+                    onClick={() => toggleTopic(t)}
+                  >
+                    {t}
                   </button>
                 ))}
               </div>
@@ -177,9 +208,19 @@ export default function Onboarding({ onDone, deviceId }: Props) {
                   // both regardless of whether these land.
                   if (deviceId) {
                     seedDayOneConsolidation(deviceId);
-                    if (vibe.length) seedCurrencyChips(deviceId, vibe);
+                    // #65 TOPIC CHIPS: topics FIRST — opSeedCurrency caps a
+                    // batch at 6 chips, and every VIBES chip honestly misses
+                    // the currency classifier (none are topic-shaped), so
+                    // topics-first is what keeps a full topic pick from
+                    // being silently truncated by a full vibe pick.
+                    const currencyChips = [...topics, ...vibe];
+                    if (currencyChips.length) seedCurrencyChips(deviceId, currencyChips);
                   }
-                  onDone({ name: name.trim(), vibe: vibe.length ? vibe : ["company"], facts: {} });
+                  onDone({
+                    name: name.trim(),
+                    vibe: vibe.length ? vibe : ["company"],
+                    facts: topics.length ? { topics: topics.join(", ") } : {},
+                  });
                 }}
               >
                 Start talking

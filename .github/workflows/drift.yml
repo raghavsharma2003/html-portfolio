@@ -76,6 +76,23 @@ jobs:
           node scripts/derive-adapter.mjs --mode drift \
             ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
 
+      # #56 VISIONGATE INTO DRIFT MONITOR. context/measurements.md
+      # `vision-drift-4day`: the grok-4-20 Foundry deployment shifted
+      # engagement behaviour under us in 4 days, and that entry's own
+      # conclusion is "the weekly drift monitor should re-run this exact
+      # archived battery ... rather than a proxy" (evals/archives/
+      # visiongate-confirm/). scripts/visiongate-drift.mjs is that re-run —
+      # engagement-rate telemetry only (fabrication needs the full paid
+      # judge pass, run by hand per the archive's README, not weekly).
+      # AZURE_KEY/AZURE_ENDPOINT are the only creds it needs; if either is
+      # absent (api/_config.js reconstructed above from possibly-empty
+      # secrets) the script prints a SKIP line and exits 0 rather than
+      # failing or going quiet — same posture check.mjs-* scripts use.
+      - name: Weekly vision-drift probe (engagement rate)
+        run: |
+          node scripts/visiongate-drift.mjs \
+            ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+
       # §7.3's sham hook: "the weekly drift monitor exercises the identical
       # logging path" — proven here on every scheduled run, not just once at
       # M5 landing, which is what keeps it "load-bearing continuously, not
