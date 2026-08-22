@@ -1571,3 +1571,16 @@ the feature exists to avoid. Fresh for 12h, then zero bytes; joined to the
 family-4 support set so the gate treats it as true. **Reverses if:** live
 testing shows she never mentions moments at all — then move it later in
 the tail one step at a time, measuring, never straight to last.
+
+---
+
+## `ci-secrets-live` — the Actions secrets exist as of 2026-08-22
+
+Owner added VERCEL_TOKEN, OPENROUTER_KEY, NEON_URL, GOOGLE_KEY(S),
+SUPABASE_URL/KEY, AZURE_ENDPOINT/KEY as repository Actions secrets
+(screenshot confirmed). This push to main is the workflow's first run
+with a complete secret set — the run's own HAS_* config summary is the
+verification, not the green badge (the skipped-job trap is exactly why
+that badge lied for nine days once). GOOGLE_PAID_KEY and TELEGRAM_* are
+deliberately absent (unused paths). **Reverses if:** a secret is rotated
+without updating here — the HAS_* summary in any run is the live truth.
