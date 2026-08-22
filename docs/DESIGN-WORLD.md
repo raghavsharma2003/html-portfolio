@@ -65,3 +65,32 @@ measured); motion lint applies to every drift/twinkle; reduced-motion
 gets a still sky, never a blank one; the theme choice stays honored
 (`data-theme` beats the sky); no surface may cover the honesty footer;
 and the thread's readability audit numbers may not regress by one point.
+
+## Phase 3 — the thread and the first minute join the world (owner, 2026-08-23)
+
+Owner verdict from real use: home and calls are right; the CHAT and
+ONBOARDING still read as the old paper app. Direction:
+
+1. **THE THREAD GETS A WALLPAPER, NOT A REDESIGN.** The mental model
+   already exists — a chat has a wallpaper — and it is the one way a
+   thread can live in the world without spending a single point of
+   bubble legibility: the sky painting becomes the ground BETWEEN
+   bubbles at heavy scrim (a tint, never a photo fighting text), the
+   bubbles stay fully opaque on their existing gated tokens, and the
+   scrim follows the theme (light theme = a warm, faint day version;
+   dark = the deep night). One fixed background layer: zero per-row
+   cost, the windowed-thread perf work untouched.
+2. **THE HEADER JOINS THE WORLD.** The shipped-but-unwired band
+   variant finally gets its call site: glass header, sky visible
+   through it, the gold-ring avatar and serif lowercase name matching
+   home. Composer becomes the same glass family; day separators and
+   call chips become quiet glass chips.
+3. **ONBOARDING IS HER WORLD, NOT A FORM.** The whole flow runs on the
+   WorldLayer: her window-night photo as the meeting moment, glass
+   step cards, the same motion vocabulary, name + topics as two light
+   touches — the first minute must feel like walking into the painting
+   the rest of the app lives in.
+4. **THE LAWS HOLD.** Bubble contrast is untouched by construction
+   (opaque surfaces); new gated floors for the header band and the
+   wallpapered ground (timestamps/separators sit ON the ground);
+   reduced motion; both themes x five skies; 320 and 390.
