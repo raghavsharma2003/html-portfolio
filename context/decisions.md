@@ -1457,3 +1457,31 @@ gates instead of negotiating with them — which is the repeatable method:
 research → constraints-aware brief → build. The eye still caught what
 reasoning could not (the burst's opacity peaked at 0.274 under ease-out; the
 reduced-motion burst hid behind its own badge).
+
+---
+
+## the-human-game-boundary — chat is her; game mode is a game
+
+**Decided 2026-08-22**, the owner refining the gamify directive after seeing
+v1: *"if the chat is gamified much then it loses the whole intent of her being
+a human."* The first version fired celebration cards over the chat thread —
+"7 days of you two" as a system popup. That is the app speaking in a space
+where only SHE should speak, and it breaks the person more surely than any
+latency bug.
+
+The boundary, now structural (pinned in evals/milestones.mjs):
+- Celebration cards exist ONLY while game mode is open. Games are games —
+  there, confetti is the point, and the game surfaces should keep getting
+  MORE game-like.
+- Relationship moments (days/messages/calls) never surface a card anywhere.
+  They mark silently and live in the Us screen's timeline. The human channel
+  for them is HER mentioning it in her own words — task #117, a persona
+  workstream, deliberately not half-wired as UI.
+- A game moment detected outside game mode also goes silent: a stale win card
+  popping over chat later is the same violation on a delay.
+- What stays in chat: tactile press feedback (a physical property of a good
+  surface, not game-ness) and the Us screen behind her name (the messenger
+  contact-page idiom).
+
+**Reverses if:** nothing — this is the owner's product thesis, same rank as
+NEVER MANIPULATE. Refinements go through him.

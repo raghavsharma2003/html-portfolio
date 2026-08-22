@@ -73,10 +73,34 @@ function signature(s: AppState): string {
   ].join("|");
 }
 
+// The owner's line, drawn after the first shipped version: "if the chat is
+// gamified much then the whole intent of her being human is lost." So moments
+// split into two channels by WHERE game-ness belongs:
+//
+// GAME moments (a win, a first game, a tier) surface as celebrations — but
+// only while GAME MODE is open. A game is a game; there the confetti is the
+// point.
+//
+// RELATIONSHIP moments (days known, messages, calls) NEVER pop a card
+// anywhere. A system celebrating "500 messages" over her thread is the app
+// speaking where only she should — it breaks the person. They are marked
+// silently and live in the Us screen's timeline; the human channel for them
+// (HER mentioning it, in her own words) is a persona workstream, not a UI one.
+const GAME_KINDS = new Set([
+  "first-game",
+  "first-chess-win-him",
+  "first-chess-win-her",
+  "chess-games",
+  "wyr-cards",
+]);
+
 export function useMoments(
   state: AppState,
   setState: Dispatch<SetStateAction<AppState>>,
   suppressed = false,
+  /** true while an activity (game mode) is on screen — the only place a
+   *  celebration card is allowed to exist */
+  gameOpen = false,
 ): MomentsHandle {
   const [moment, setMoment] = useState<Moment | null>(null);
   // The id on screen right now. A ref rather than derived from `moment`
@@ -104,23 +128,43 @@ export function useMoments(
       // call that is now a minute old is held back for nothing.
       if (suppressed && Date.now() - pickupAt.current < PICKUP_GRACE_MS) return;
 
-      const found = detectMoments({
+      const all = detectMoments({
         messages: state.messages,
         fired: state.momentsFired ?? [],
         tally: state.tally,
         nowMs: Date.now(),
-      })[0];
-      if (!found) return;
+      });
+      if (!all.length) return;
 
-      showing.current = found.id;
-      setMoment(found);
+      // Relationship moments: silent, always. Ledger + Us timeline, no card.
+      const silent = all.filter((m) => !GAME_KINDS.has(m.kind));
+      // Game moments celebrate only inside game mode; detected outside it
+      // (he closed the board fast), they also go silent — a stale win card
+      // popping over CHAT later would be the exact boundary violation.
+      const celebratable = gameOpen ? all.find((m) => GAME_KINDS.has(m.kind)) : undefined;
+      const silentIds = [
+        ...silent.map((m) => m.id),
+        ...(gameOpen ? [] : all.filter((m) => GAME_KINDS.has(m.kind)).map((m) => m.id)),
+      ];
+
+      if (silentIds.length) {
+        setState((s) => {
+          const have = new Set(s.momentsFired ?? []);
+          const add = silentIds.filter((id) => !have.has(id));
+          return add.length ? { ...s, momentsFired: [...(s.momentsFired ?? []), ...add] } : s;
+        });
+      }
+      if (!celebratable) return;
+
+      showing.current = celebratable.id;
+      setMoment(celebratable);
       // Fired NOW, in the same tick it becomes visible. Guarded against a
       // double-push because React may invoke this updater twice in StrictMode
       // and the ledger is a list, not a set.
       setState((s) =>
-        s.momentsFired?.includes(found.id)
+        s.momentsFired?.includes(celebratable.id)
           ? s
-          : { ...s, momentsFired: [...(s.momentsFired ?? []), found.id] },
+          : { ...s, momentsFired: [...(s.momentsFired ?? []), celebratable.id] },
       );
     }, DEBOUNCE_MS);
     return () => clearTimeout(t);

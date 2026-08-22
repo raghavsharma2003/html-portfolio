@@ -92,5 +92,23 @@ for (const banned of ["streak", "expire", "lose your", "hurry", "last chance", "
 ok("charter: detection is never time-scheduled",
   /FIRES only on the next real interaction/.test(srcRaw));
 
+// ── the human/game boundary (owner, 2026-08-22) ──────────────────────────
+// "If the chat is gamified much then the whole intent of her being human is
+// lost." Celebration cards may exist ONLY in game mode; relationship moments
+// (days/messages/calls) are always silent — Us-timeline only.
+{
+  const hook = readFileSync(new URL("../src/components/useMoments.ts", import.meta.url), "utf8");
+  ok("game kinds are enumerated", /GAME_KINDS = new Set/.test(hook));
+  ok("relationship moments are silent by construction",
+    /filter\(\(m\) => !GAME_KINDS\.has\(m\.kind\)\)/.test(hook));
+  ok("celebration requires game mode", /gameOpen \? all\.find/.test(hook));
+  ok("a game moment caught outside game mode goes silent too",
+    /gameOpen \? \[\] : all\.filter/.test(hook));
+  const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+  ok("App renders Celebration only in game mode",
+    /activity !== null && \(\s*<Celebration/.test(app));
+  ok("App passes gameOpen", /useMoments\(state, setState, inCall, activity !== null\)/.test(app));
+}
+
 console.log(fail ? `${fail} FAILURES` : "ALL PASS");
 process.exit(fail ? 1 : 0);

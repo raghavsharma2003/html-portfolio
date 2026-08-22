@@ -92,8 +92,10 @@ export default function App() {
   // its own 10s pickup grace. (First wiring said `inCall && !state.onboarded`
   // — always false past onboarding, so the grace never engaged. The
   // celebration agent's review caught it.)
-  const moments = useMoments(state, setState, inCall);
   const [activity, setActivity] = useState<string | null>(null);
+  // gameOpen gates WHERE a celebration may exist: game mode only. The chat
+  // is her; the game is a game.
+  const moments = useMoments(state, setState, inCall, activity !== null);
   const [authOpen, setAuthOpen] = useState(false);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // last server revision we saw — sent with saves so the server can reject
@@ -531,7 +533,9 @@ export default function App() {
               overlay sibling, never an unmount, LAST in DOM so it paints over
               same-z sheets. One at a time; fire-once is the engine's promise;
               the hook marks the ledger on show. */}
-          <Celebration moment={moments.moment} onDone={moments.dismiss} />
+          {activity !== null && (
+            <Celebration moment={moments.moment} onDone={moments.dismiss} />
+          )}
         </>
       )}
     </div>
