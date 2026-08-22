@@ -46,6 +46,8 @@ const suites = {
   // that `dead-writers` applied to it until someone did — a suite nothing
   // invokes is indistinguishable from a suite that does not exist.
   chess: "chess.mjs",
+  // WS-GAMES: the chess→words layer — opening book, threat facts, shapelint.
+  chesstalk: "chesstalk.mjs",
   // WS-ACTIVITY. The generic "what we are doing together" seam and its chess
   // adapter — plus the control that keeps dialogue out of it, since a line she
   // could say in this block is a line she would say every single game.

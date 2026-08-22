@@ -62,3 +62,5 @@ export {
   resolveStrength,
 } from "./opponent";
 export type { ChooseOptions } from "./opponent";
+
+export { openingName } from "./openings";

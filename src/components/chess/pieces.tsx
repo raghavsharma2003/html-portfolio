@@ -1,53 +1,108 @@
-// Chess piece glyphs — hand-drawn inline SVG, one shared 45x45 coordinate
-// space, no external asset of any kind.
-//
-// WHY SVG AND NOT THE UNICODE CHESS CHARACTERS (U+2654–265F):
-//
-//   1. The Unicode glyphs come from whatever font the device happens to
-//      have. This app ships as an APK, and Android's symbol coverage is
-//      supplied by Noto Sans Symbols 2 — where the WHITE pieces are drawn
-//      as outlines and the BLACK pieces as solid fills of a *different*
-//      optical weight. A white knight and a black knight then do not look
-//      like the same piece in two colours, which is the one thing a chess
-//      set has to do. On some OEM builds the black set falls through to an
-//      emoji font and arrives coloured.
-//   2. Glyph metrics differ per face, so the pieces do not sit centred on a
-//      square without per-character nudges that break on the next device.
-//   3. Text glyphs cannot be re-coloured independently of their outline, so
-//      a white piece on a light square has no rim and vanishes.
-//
-// Inline SVG fixes all three: identical geometry everywhere, fill and rim
-// are separate and both come from tokens (so the set re-inks itself for the
-// dark call ground), crisp at any size, zero bytes over the network and
-// nothing for a CSP to block.
-//
-// The paths are original — deliberately not the Cburnett set, whose licence
-// would put an attribution obligation into an APK. What IS taken from
-// Cburnett (and from every good Staunton set since 1849) is *proportion*,
-// because proportion is not copyrightable and is the whole reason those
-// sets read at a glance:
-//
-//   - one 45x45 space, art living inside x∈[8,37], y∈[4,40]
-//   - a confident constant rim (stroke-width 1.4 here) rather than a hairline
-//   - height ranks the pieces: king tallest, then queen, bishop, knight,
-//     rook, pawn. You identify a piece by its skyline before you see detail.
-//   - foot width ranks them the same way, which is what stops the set
-//     looking like six unrelated drawings sharing a board.
-//
-// THREE LAYERS PER PIECE, and the order is the design:
-//
-//   1. a cast shadow (soft radial ellipse) so the piece sits ON the board
-//      rather than floating over it. It is a gradient, not a `filter` —
-//      32 drop-shadows is a per-frame paint cost, 32 flat ellipses is not.
-//   2. the body: filled with a shared vertical gradient (light at the
-//      shoulder, dark at the foot) and rimmed in the edge colour. The
-//      gradient is what makes a piece read as turned wood instead of a
-//      sticker, and it costs one <defs> for the whole board.
-//   3. the detail lines, drawn in a THIRD colour that contrasts with the
-//      fill rather than with the board: dark lines on a white piece, light
-//      lines on a black one. This is the single biggest legibility win at
-//      44px — a black piece with no interior lines is a blob, and a blob is
-//      the same blob whether it is a bishop or a pawn.
+/*
+ * ─── PIECE ART: THE "CBURNETT" SET ──────────────────────────────────────────
+ *
+ * Author:   Colin M.L. Burnett
+ * Source:   https://github.com/lichess-org/lila/tree/master/public/piece/cburnett
+ *           (the twelve files wK wQ wR wB wN wP bK bQ bR bB bN bP, fetched from
+ *            https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/cburnett/<name>.svg)
+ *           originally https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces
+ * Licence:  CC BY-SA 3.0 <https://creativecommons.org/licenses/by-sa/3.0/>,
+ *           dual-licensed GPLv2-or-later. Used here under CC BY-SA 3.0.
+ * Credited also in docs/PHOTO-CREDITS.md, which is the file this repo keeps
+ * its third-party asset trail in.
+ *
+ * MODIFICATIONS made to the originals, as CC BY-SA requires be stated:
+ *   1. Transcribed from twelve standalone SVG documents into one React
+ *      component over a shared 45x45 viewBox. The path data is unchanged.
+ *   2. RECOLOURED VIA CSS CUSTOM PROPERTIES. Upstream hardcodes `#fff` / `#000`
+ *      fills, `#000` strokes and `#ececec` detail strokes. Every one of those
+ *      is now a class that resolves to a `--cb-*` token in src/styles/chess.css
+ *      (see "the token re-plumbing" below). Nothing in this file states a
+ *      colour, which is the standing rule for this repo.
+ *   3. The five jewels of the BLACK queen, which upstream draws `stroke="none"`,
+ *      are given the same rim as every other part. Upstream can leave them
+ *      unrimmed because a black piece is only ever shown on a light board; this
+ *      app also renders the set on a night board, where the black rim token
+ *      goes LIGHT and an unrimmed jewel would be a hole in the crown.
+ *   4. A soft contact shadow (one radial-gradient ellipse per piece) is drawn
+ *      under each piece. It is this repo's layer, not Burnett's, and is sized
+ *      per role from where that drawing actually meets the ground.
+ *
+ * ─── WHY THIS SET, AND NOT THE HAND-DRAWN ONE THAT WAS HERE ─────────────────
+ *
+ * The previous glyphs were original drawings, chosen partly to avoid an
+ * attribution obligation. They were tested on a real phone and failed the only
+ * test that matters: the owner could not tell knight from bishop from king at
+ * a glance. Legibility beats a licence header — the header is four lines and
+ * one row in a credits file, and it buys a set whose silhouettes have been
+ * refined against millions of games on lichess.
+ *
+ * chess.com's set has the same legibility and is proprietary; cburnett is the
+ * one with equal reading distance that is actually licensed for reuse.
+ *
+ * WHY SVG AND NOT THE UNICODE CHESS CHARACTERS (U+2654–265F) — unchanged, and
+ * still the reason a font is not an option here:
+ *
+ *   1. The Unicode glyphs come from whatever font the device happens to have.
+ *      This app ships as an APK, and Android's symbol coverage is supplied by
+ *      Noto Sans Symbols 2 — where the WHITE pieces are drawn as outlines and
+ *      the BLACK pieces as solid fills of a *different* optical weight. A white
+ *      knight and a black knight then do not look like the same piece in two
+ *      colours, which is the one thing a chess set has to do. On some OEM
+ *      builds the black set falls through to an emoji font and arrives
+ *      coloured.
+ *   2. Glyph metrics differ per face, so the pieces do not sit centred on a
+ *      square without per-character nudges that break on the next device.
+ *   3. Text glyphs cannot be re-coloured independently of their outline, so a
+ *      white piece on a light square has no rim and vanishes.
+ *
+ * ─── THE TOKEN RE-PLUMBING ──────────────────────────────────────────────────
+ *
+ * Upstream paints with three literal colours. Each maps to one class, and each
+ * class resolves to one token in chess.css:
+ *
+ *   upstream                     class        resolves to
+ *   ──────────────────────────   ──────────   ──────────────────────────────
+ *   fill #fff / #000 (a body)    .cb-part     fill --gp (the shared gradient),
+ *                                             stroke --gs (the rim)
+ *   stroke #000, fill none,      .cb-rim      stroke --gs — a STRUCTURAL line
+ *     kept #000 on black too                  (the rook's cornice, the black
+ *                                             queen's base). It must ink with
+ *                                             the rim, because it is part of
+ *                                             the silhouette rather than
+ *                                             detail inside it.
+ *   the same, but drawn OUTSIDE  .cb-halo +   the king's cross, and only that:
+ *     the body                   .cb-rim      a wide --gp under-stroke, then
+ *                                             the --gs line on top. See
+ *                                             STEM_HALO below for why.
+ *   stroke #000 on white /       .cb-line     stroke --gd — INTERIOR DETAIL.
+ *     stroke #ececec on black                 It contrasts with the FILL, not
+ *                                             with the board, which is what
+ *                                             stops a black knight at 44px
+ *                                             being the same blob as a black
+ *                                             bishop.
+ *   fill+stroke #000 / #ececec   .cb-dot      the knight's eye and nostril:
+ *                                             tiny, and they keep their stroke
+ *                                             because upstream's stroke IS
+ *                                             most of their area
+ *   fill #ececec, stroke none    .cb-mark     the black knight's mane highlight
+ *
+ * `--gp` / `--gs` / `--gd` are set from `data-color` in chess.css, so the same
+ * geometry re-inks itself for the paper board, the night board and the call
+ * ground with no second stylesheet. Every one keeps a var() fallback there,
+ * because a `var()` that resolves to nothing invalidates the declaration and
+ * an invalid `fill` computes to BLACK — a white king silently inking itself
+ * black is not a failure mode worth saving four characters over.
+ *
+ * Stroke geometry (width 1.5, round caps and joins, evenodd fill rule) is
+ * declared as presentation attributes on the root <svg> rather than in CSS, on
+ * purpose: CSS beats a presentation attribute, so a rule in the stylesheet
+ * would silently override the handful of per-path `butt` / `miter` / width-1
+ * overrides that cburnett needs. Colour comes from CSS, form comes from the
+ * markup, and neither reaches into the other.
+ */
+
+import { Fragment } from "react";
 
 export type Role = "k" | "q" | "r" | "b" | "n" | "p";
 export type PromotionRole = "q" | "r" | "b" | "n";
@@ -67,143 +122,232 @@ export const ROLE_NAME: Record<Role, string> = {
 // judged here.
 export const ROLE_VALUE: Record<Role, number> = { k: 0, q: 9, r: 5, b: 3, n: 3, p: 1 };
 
-/* ── the shared plinth ──────────────────────────────────────────────────
-   Every piece stands on the same two-tier foot, generated from ONE number:
-   the half-width of the bottom slab. Generated rather than copy-pasted
-   because six hand-written feet drift, and a set whose feet drift looks
-   like a set someone assembled rather than drew. */
+/* ── the shape table ────────────────────────────────────────────────────── */
 
-const CX = 22.5;
+/** Which paint a shape takes. The mapping to tokens is in the header. */
+type Paint = "part" | "rim" | "stem" | "line" | "dot" | "mark";
 
-/** Bottom slab: y 35.5 → 39.3, rounded like a turned base. */
-function slab(w: number) {
-  return { x: CX - w, y: 35.5, w: w * 2, h: 3.8, r: 1.5 };
+interface Shape {
+  /** path data, verbatim from the upstream file */
+  d: string;
+  /** paint layer; omitted means "part" (a filled, rimmed body) */
+  p?: Paint;
+  /** upstream `stroke-linecap="butt"` */
+  cap?: "butt";
+  /** upstream `stroke-linejoin="miter"` */
+  join?: "miter";
+  /** upstream per-path `stroke-width`, where it is not 1.5 */
+  w?: number;
 }
 
-/** The flare above the slab, from a narrower stem out to the slab's width. */
-function flare(w: number): string {
-  const s = Math.max(2.2, w - 2.6); // half-width where the flare starts
-  const spread = (w - 0.4 - s).toFixed(2);
-  return `M${(CX - s).toFixed(2)} 31.9h${(s * 2).toFixed(2)}l${spread} 3.7h-${((w - 0.4) * 2).toFixed(2)}z`;
-}
+const CLASS: Record<Paint, string> = {
+  part: "cb-part",
+  rim: "cb-rim",
+  stem: "cb-rim",
+  line: "cb-line",
+  dot: "cb-dot",
+  mark: "cb-mark",
+};
 
-/* ── the six drawings ───────────────────────────────────────────────────
-   `body` is filled and rimmed; `line` is stroked in the detail colour and
-   never filled. Feet widen with rank, which is the silhouette cue that
-   works even when the top of the piece is under a finger. */
+/**
+ * A `stem` is a rim line drawn OUTSIDE the body — in this set, only the king's
+ * cross. It gets a halo first: the same path stroked wider in the piece's own
+ * FILL colour, so the rim line has something to be a rim OF.
+ *
+ * THE PROBLEM IT SOLVES, measured. On the night board the white rim token is a
+ * near-black (#2a1c1f). The white king's cross — the one mark that separates
+ * him from the queen at a glance — is drawn in it, in mid-air above the crown,
+ * so it lands on the bare square: WCAG contrast 1.96:1 on the light square
+ * (#5d4a45) and 1.14:1 on the dark one (#33272a). 1.14:1 is not "low", it is
+ * gone. With the halo the cross reads as its own fill instead, which is
+ * #eee3dd against the same dark square: 11.3:1. (Method: WCAG 2.x relative
+ * luminance computed on the token values themselves — the flat mid-stop, not
+ * the gradient — so treat it as a floor, not a photometer reading.)
+ *
+ * Every other rim line in the set is drawn on top of its own body, so none of
+ * them ever had the problem — which is why this is one constant and not a
+ * policy.
+ *
+ * It costs nothing on the paper board, which is the test of a fix like this: a
+ * light halo on a light square is invisible, so the white king there is exactly
+ * Burnett's cross and nothing else.
+ */
+const STEM_HALO = 3;
 
-interface Art {
-  /** half-width of the bottom slab */
-  foot: number;
-  /** filled + rimmed shapes, drawn bottom-up */
-  body: string[];
-  /** [cx, cy, r] round parts that keep their own rim (jewels, the pawn head) */
-  knobs?: [number, number, number][];
-  /** detail strokes, in the contrast colour */
-  line?: string[];
-  /** [cx, cy, r] solid marks in the contrast colour (the knight's eye) */
-  dots?: [number, number, number][];
-}
+/**
+ * Where each drawing meets the ground: [centre x, half-width] of the contact
+ * shadow. Read off the base of the path rather than assumed, which is why the
+ * knight's is off-centre — cburnett's knight stands on x 15→38 with its muzzle
+ * cantilevered out to the left, and a shadow centred at 22.5 under it reads as
+ * a piece leaning over.
+ */
+const FOOT: Record<Role, [number, number]> = {
+  k: [22, 11.8],
+  q: [22.5, 13.6],
+  r: [22.5, 14.4],
+  b: [22.5, 14.6],
+  n: [26, 12.4],
+  p: [22.5, 12.4],
+};
 
-const ART: Record<Role, Art> = {
-  /* Pawn — a ball on a flared collar. The narrowest foot on the board and
-     the shortest skyline, so eight of them read as a row rather than a wall. */
-  p: {
-    foot: 7.6,
-    body: [
-      "M22.5 17.1c-2.1 0-3.8 1-3.8 2.3 0 .9.6 1.6 1.5 2-2.9 2-4.9 5.2-5.6 8.9h15.8c-.7-3.7-2.7-6.9-5.6-8.9.9-.4 1.5-1.1 1.5-2 0-1.3-1.7-2.3-3.8-2.3z",
-      "M14.1 29.4h16.8c.8 0 1.4.6 1.4 1.4s-.6 1.4-1.4 1.4H14.1c-.8 0-1.4-.6-1.4-1.4s.6-1.4 1.4-1.4z",
+/* The twelve drawings. White and black are NOT the same geometry recoloured —
+   Burnett drew each colour, and the black pieces carry interior light-lines
+   (the king's shoulder tracing, the knight's mane) that only exist because a
+   solid black body needs them. Vendoring both is the point. */
+
+const ART: Record<Color, Record<Role, Shape[]>> = {
+  white: {
+    k: [
+      { d: "M22.5 11.63V6M20 8h5", p: "stem", join: "miter" },
+      {
+        d: "M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5",
+        cap: "butt",
+        join: "miter",
+      },
+      {
+        d: "M11.5 37c5.5 3.5 15.5 3.5 21 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4V27v-3.5c-3.5-7.5-13-10.5-16-4-3 6 5 10 5 10z",
+      },
+      {
+        d: "M11.5 30c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0",
+        p: "line",
+      },
     ],
-    knobs: [[22.5, 12.6, 4.6]],
+    q: [
+      {
+        d: "M8 12a2 2 0 1 1-4 0 2 2 0 1 1 4 0m16.5-4.5a2 2 0 1 1-4 0 2 2 0 1 1 4 0M41 12a2 2 0 1 1-4 0 2 2 0 1 1 4 0M16 8.5a2 2 0 1 1-4 0 2 2 0 1 1 4 0M33 9a2 2 0 1 1-4 0 2 2 0 1 1 4 0",
+      },
+      {
+        d: "M9 26c8.5-1.5 21-1.5 27 0l2-12-7 11V11l-5.5 13.5-3-15-3 15-5.5-14V25L7 14z",
+        cap: "butt",
+      },
+      {
+        d: "M9 26c0 2 1.5 2 2.5 4 1 1.5 1 1 .5 3.5-1.5 1-1.5 2.5-1.5 2.5-1.5 1.5.5 2.5.5 2.5 6.5 1 16.5 1 23 0 0 0 1.5-1 0-2.5 0 0 .5-1.5-1-2.5-.5-2.5-.5-2 .5-3.5 1-2 2.5-2 2.5-4-8.5-1.5-18.5-1.5-27 0z",
+        cap: "butt",
+      },
+      { d: "M11.5 30c3.5-1 18.5-1 22 0M12 33.5c6-1 15-1 21 0", p: "line" },
+    ],
+    r: [
+      { d: "M9 39h27v-3H9zm3-3v-4h21v4zm-1-22V9h4v2h5V9h5v2h5V9h4v5", cap: "butt" },
+      { d: "m34 14-3 3H14l-3-3" },
+      { d: "M31 17v12.5H14V17", cap: "butt", join: "miter" },
+      { d: "m31 29.5 1.5 2.5h-20l1.5-2.5" },
+      { d: "M11 14h23", p: "rim", join: "miter" },
+    ],
+    b: [
+      {
+        d: "M9 36c3.39-.97 10.11.43 13.5-2 3.39 2.43 10.11 1.03 13.5 2 0 0 1.65.54 3 2-.68.97-1.65.99-3 .5-3.39-.97-10.11.46-13.5-1-3.39 1.46-10.11.03-13.5 1-1.35.49-2.32.47-3-.5 1.35-1.94 3-2 3-2z",
+        cap: "butt",
+      },
+      {
+        d: "M15 32c2.5 2.5 12.5 2.5 15 0 .5-1.5 0-2 0-2 0-2.5-2.5-4-2.5-4 5.5-1.5 6-11.5-5-15.5-11 4-10.5 14-5 15.5 0 0-2.5 1.5-2.5 4 0 0-.5.5 0 2z",
+        cap: "butt",
+      },
+      { d: "M25 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 1 1 5 0z", cap: "butt" },
+      { d: "M17.5 26h10M15 30h15m-7.5-14.5v5M20 18h5", p: "line", join: "miter" },
+    ],
+    n: [
+      { d: "M22 10c10.5 1 16.5 8 16 29H15c0-9 10-6.5 8-21" },
+      {
+        d: "M24 18c.38 2.91-5.55 7.37-8 9-3 2-2.82 4.34-5 4-1.042-.94 1.41-3.04 0-3-1 0 .19 1.23-1 2-1 0-4.003 1-4-4 0-2 6-12 6-12s1.89-1.9 2-3.5c-.73-.994-.5-2-.5-3 1-1 3 2.5 3 2.5h2s.78-1.992 2.5-3c1 0 1 3 1 3",
+      },
+      {
+        d: "M9.5 25.5a.5.5 0 1 1-1 0 .5.5 0 1 1 1 0m5.433-9.75a.5 1.5 30 1 1-.866-.5.5 1.5 30 1 1 .866.5",
+        p: "dot",
+      },
+    ],
+    p: [
+      {
+        d: "M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47 1.47-1.19 2.41-3 2.41-5.03 0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z",
+        join: "miter",
+      },
+    ],
   },
 
-  /* Rook — four merlons over a straight shaft. The only piece with a flat
-     top, which is why it survives being two-thirds hidden by a thumb. */
-  r: {
-    foot: 9,
-    body: [
-      "M10.6 6.2h4.3v3.2h2.2V6.2h4.3v3.2h2.2V6.2h4.3v3.2h2.2V6.2h4.3v6.4H10.6z",
-      "M13.6 12.6h17.8l-1.9 2.9v13.2l2.4 3.1H13.1l2.4-3.1V15.5z",
+  black: {
+    k: [
+      { d: "M22.5 11.6V6", p: "stem", join: "miter" },
+      {
+        d: "M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5",
+        cap: "butt",
+        join: "miter",
+      },
+      {
+        d: "M11.5 37a22.3 22.3 0 0 0 21 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4V27v-3.5c-3.5-7.5-13-10.5-16-4-3 6 5 10 5 10z",
+      },
+      { d: "M20 8h5", p: "stem", join: "miter" },
+      {
+        d: "M32 29.5s8.5-4 6-9.7C34.1 14 25 18 22.5 24.6v2.1-2.1C20 18 9.9 14 7 19.9c-2.5 5.6 4.8 9 4.8 9",
+        p: "line",
+      },
+      {
+        d: "M11.5 30c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0",
+        p: "line",
+      },
     ],
-    line: ["M15.5 15.5h14M15.5 28.7h14"],
-  },
-
-  /* Knight — the one piece identified purely by silhouette, so the outline
-     does all the work and there is nowhere to hide. Head large and low,
-     muzzle jutting down-left, TWO spikes on top (forelock in front, ear
-     behind) with a notch between them, and a crest sweeping from the skull
-     down the back of the neck into the chest. The notch is the tell: one
-     spike reads as a bird's beak, two read as a horse. */
-  n: {
-    foot: 8.6,
-    body: [
-      [
-        "M23.4 12.2",
-        "C24.1 9.8 25.2 7.6 26.6 6.2", // up the front of the ear
-        "C28.1 8.1 28.9 10.2 29.0 12.2", // down its back, onto the skull
-        "C31.4 14.2 33.5 17.4 34.4 21.6", // the crest
-        "C35.2 25.4 33.6 29.2 31.9 31.9", // down the back of the neck, tucking in
-        "L15.1 31.9", // across, where the chest meets the plinth
-        "C14.6 29.4 15.2 26.6 17.0 24.8", // up the chest to the throat
-        "C15.6 26.6 13.0 28.2 11.0 28.0", // the jaw and chin, jutting down-left
-        "C9.2 27.8 8.4 26.2 9.0 24.6", // round the end of the muzzle
-        "C10.6 21.6 13.2 18.6 16.1 16.0", // up the bridge of the nose
-        "C18.4 13.9 19.8 12.1 20.4 10.0", // the forehead
-        "L21.2 8.0", // the forelock spike
-        "C22.1 9.1 22.9 10.6 23.4 12.2", // and down into the notch
-        "Z",
-      ].join(""),
+    q: [
+      // the five jewels — upstream <circle> elements, transcribed to arcs so
+      // every shape in this file is one path with one paint. See modification
+      // (3) in the header for why they gain a rim.
+      {
+        d: "M3.25 12a2.75 2.75 0 1 0 5.5 0 2.75 2.75 0 1 0-5.5 0zM11.25 9a2.75 2.75 0 1 0 5.5 0 2.75 2.75 0 1 0-5.5 0zM19.75 8a2.75 2.75 0 1 0 5.5 0 2.75 2.75 0 1 0-5.5 0zM28.25 9a2.75 2.75 0 1 0 5.5 0 2.75 2.75 0 1 0-5.5 0zM36.25 12a2.75 2.75 0 1 0 5.5 0 2.75 2.75 0 1 0-5.5 0z",
+      },
+      {
+        d: "M9 26c8.5-1.5 21-1.5 27 0l2.5-12.5L31 25l-.3-14.1-5.2 13.6-3-14.5-3 14.5-5.2-13.6L14 25 6.5 13.5z",
+        cap: "butt",
+      },
+      {
+        d: "M9 26c0 2 1.5 2 2.5 4 1 1.5 1 1 .5 3.5-1.5 1-1.5 2.5-1.5 2.5-1.5 1.5.5 2.5.5 2.5 6.5 1 16.5 1 23 0 0 0 1.5-1 0-2.5 0 0 .5-1.5-1-2.5-.5-2.5-.5-2 .5-3.5 1-2 2.5-2 2.5-4-8.5-1.5-18.5-1.5-27 0z",
+        cap: "butt",
+      },
+      { d: "M11 38.5a35 35 1 0 0 23 0", p: "rim", cap: "butt" },
+      {
+        d: "M11 29a35 35 1 0 1 23 0m-21.5 2.5h20m-21 3a35 35 1 0 0 22 0m-23 3a35 35 1 0 0 24 0",
+        p: "line",
+      },
     ],
-    line: [
-      "M28.8 13.8c2.4 2.4 4 5.6 4.6 9.2",
-      "M10.9 27.4c1.7.4 3.3-.1 4.6-1.2",
+    r: [
+      { d: "M9 39h27v-3H9zm3.5-7 1.5-2.5h17l1.5 2.5zm-.5 4v-4h21v4z", cap: "butt" },
+      { d: "M14 29.5v-13h17v13z", cap: "butt", join: "miter" },
+      { d: "M14 16.5 11 14h23l-3 2.5zM11 14V9h4v2h5V9h5v2h5V9h4v5z", cap: "butt" },
+      {
+        d: "M12 35.5h21m-20-4h19m-18-2h17m-17-13h17M11 14h23",
+        p: "line",
+        join: "miter",
+        w: 1,
+      },
     ],
-    dots: [[13.2, 22.4, 1.15]],
-  },
-
-  /* Bishop — mitre, slit, collar. The finial is a separate knob so it keeps
-     its own rim and does not melt into the mitre at small sizes. */
-  b: {
-    foot: 8.4,
-    body: [
-      "M22.5 8.6c-3.9 3-7.1 7.2-7.1 11.2 0 3.1 1.8 5.8 4.4 7h5.4c2.6-1.2 4.4-3.9 4.4-7 0-4-3.2-8.2-7.1-11.2z",
-      "M14.6 25.6h15.8c.8 0 1.5.7 1.5 1.5s-.7 1.5-1.5 1.5H14.6c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5z",
-      "M15.4 28.4h14.2c-.3 1.8.5 2.7 1.5 3.5H13.9c1-.8 1.8-1.7 1.5-3.5z",
+    b: [
+      {
+        d: "M9 36c3.4-1 10.1.4 13.5-2 3.4 2.4 10.1 1 13.5 2 0 0 1.6.5 3 2-.7 1-1.6 1-3 .5-3.4-1-10.1.5-13.5-1-3.4 1.5-10.1 0-13.5 1-1.4.5-2.3.5-3-.5 1.4-2 3-2 3-2z",
+        cap: "butt",
+      },
+      {
+        d: "M15 32c2.5 2.5 12.5 2.5 15 0 .5-1.5 0-2 0-2 0-2.5-2.5-4-2.5-4 5.5-1.5 6-11.5-5-15.5-11 4-10.5 14-5 15.5 0 0-2.5 1.5-2.5 4 0 0-.5.5 0 2z",
+        cap: "butt",
+      },
+      { d: "M25 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 1 1 5 0z", cap: "butt" },
+      { d: "M17.5 26h10M15 30h15m-7.5-14.5v5M20 18h5", p: "line", join: "miter" },
     ],
-    knobs: [[22.5, 6.6, 2]],
-    line: ["M20.3 17.2l4.4-4.4"],
-  },
-
-  /* Queen — five points, five jewels, one bowl. The centre jewel tops out
-     at 6.6 and the king's cross at 4.2, so the king stays the tallest thing
-     on the board, which is how you tell them apart at a glance on a phone. */
-  q: {
-    foot: 9.6,
-    body: [
-      "M9 12.8l3.5 12h20l3.5-12-5 6.6-2.5-9.2-3 9-3-10.4-3 10.4-3-9-2.5 9.2z",
-      "M12.7 24.8h19.6c.9 0 1.6.7 1.6 1.6s-.7 1.6-1.6 1.6H12.7c-.9 0-1.6-.7-1.6-1.6s.7-1.6 1.6-1.6z",
-      "M13.4 27.9h18.2c-.4 2 .6 3 1.7 4H11.7c1.1-1 2.1-2 1.7-4z",
+    n: [
+      { d: "M22 10c10.5 1 16.5 8 16 29H15c0-9 10-6.5 8-21" },
+      {
+        d: "M24 18c.38 2.91-5.55 7.37-8 9-3 2-2.82 4.34-5 4-1.04-.94 1.41-3.04 0-3-1 0 .19 1.23-1 2-1 0-4 1-4-4 0-2 6-12 6-12s1.89-1.9 2-3.5c-.73-1-.5-2-.5-3 1-1 3 2.5 3 2.5h2s.78-2 2.5-3c1 0 1 3 1 3",
+      },
+      {
+        d: "M9.5 25.5a.5.5 0 1 1-1 0 .5.5 0 1 1 1 0m5.43-9.75a.5 1.5 30 1 1-.86-.5.5 1.5 30 1 1 .86.5",
+        p: "dot",
+      },
+      {
+        d: "m24.55 10.4-.45 1.45.5.15c3.15 1 5.65 2.49 7.9 6.75S35.75 29.06 35.25 39l-.05.5h2.25l.05-.5c.5-10.06-.88-16.85-3.25-21.34s-5.79-6.64-9.19-7.16z",
+        p: "mark",
+      },
     ],
-    knobs: [
-      [9, 11, 2.2],
-      [16.2, 8, 2.2],
-      [22.5, 6.6, 2.5],
-      [28.8, 8, 2.2],
-      [36, 11, 2.2],
+    p: [
+      {
+        d: "M22.5 9a4 4 0 0 0-3.22 6.38 6.48 6.48 0 0 0-.87 10.65c-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47a6.46 6.46 0 0 0-.87-10.65A4.01 4.01 0 0 0 22.5 9z",
+        join: "miter",
+      },
     ],
-    line: ["M14.2 21.4h16.6"],
-  },
-
-  /* King — cross, coronet, shoulders. Widest foot, tallest skyline. */
-  k: {
-    foot: 9.8,
-    body: [
-      "M21 4.2h3v3.2h3.2v3h-3.2v3.7h-3v-3.7h-3.2v-3H21z",
-      "M22.5 14.5c-2.7 0-4.8 1.9-4.8 4.2 0 1.3.6 2.5 1.6 3.3-2.7-1.1-5.9-1-7.6.7-2.6 2.5-1.4 6.9 1.7 9.4h18.2c3.1-2.5 4.3-6.9 1.7-9.4-1.7-1.7-4.9-1.8-7.6-.7 1-.8 1.6-2 1.6-3.3 0-2.3-2.1-4.2-4.8-4.2z",
-    ],
-    // One arc across the shoulders, not two swoops meeting at the centre —
-    // the pair read as a bird at 44px, which is a thing a king may not do.
-    line: ["M12.9 30.9c2.6-2.9 6-4.4 9.6-4.4s7 1.5 9.6 4.4"],
   },
 };
 
@@ -225,7 +369,7 @@ export function PieceDefs({ id }: { id: string }) {
           id={`${id}w`}
           gradientUnits="userSpaceOnUse"
           x1="0"
-          y1="4"
+          y1="6"
           x2="0"
           y2="40"
         >
@@ -238,7 +382,7 @@ export function PieceDefs({ id }: { id: string }) {
           id={`${id}b`}
           gradientUnits="userSpaceOnUse"
           x1="0"
-          y1="4"
+          y1="6"
           x2="0"
           y2="40"
         >
@@ -278,8 +422,8 @@ export function piecePaintVars(id: string): Record<string, string> {
 }
 
 export function PieceGlyph({ role, color }: { role: Role; color: Color }) {
-  const art = ART[role];
-  const s = slab(art.foot);
+  const shapes = ART[color][role];
+  const [fx, frx] = FOOT[role];
   return (
     <svg
       className="cb-glyph"
@@ -288,22 +432,27 @@ export function PieceGlyph({ role, color }: { role: Role; color: Color }) {
       viewBox="0 0 45 45"
       aria-hidden="true"
       focusable="false"
+      /* Form lives in the markup, colour lives in CSS — see the header. */
+      fillRule="evenodd"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
       {/* contact shadow — the piece stands on the board rather than over it */}
-      <ellipse className="cb-cast" cx={CX} cy="39.6" rx={art.foot + 2.6} ry="3.1" />
-      <path className="cb-part" d={flare(art.foot)} />
-      <rect className="cb-part" x={s.x} y={s.y} width={s.w} height={s.h} rx={s.r} />
-      {art.body.map((d, i) => (
-        <path className="cb-part" key={`b${i}`} d={d} />
-      ))}
-      {art.knobs?.map(([cx, cy, r], i) => (
-        <circle className="cb-part" key={`k${i}`} cx={cx} cy={cy} r={r} />
-      ))}
-      {art.line?.map((d, i) => (
-        <path className="cb-line" key={`l${i}`} d={d} />
-      ))}
-      {art.dots?.map(([cx, cy, r], i) => (
-        <circle className="cb-dot" key={`d${i}`} cx={cx} cy={cy} r={r} />
+      <ellipse className="cb-cast" cx={fx} cy="39.8" rx={frx} ry="2.7" />
+      {shapes.map((s, i) => (
+        <Fragment key={i}>
+          {s.p === "stem" && (
+            <path className="cb-halo" d={s.d} strokeWidth={STEM_HALO} strokeLinejoin={s.join} />
+          )}
+          <path
+            className={CLASS[s.p ?? "part"]}
+            d={s.d}
+            strokeLinecap={s.cap}
+            strokeLinejoin={s.join}
+            strokeWidth={s.w}
+          />
+        </Fragment>
       ))}
     </svg>
   );

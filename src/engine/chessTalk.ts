@@ -13,9 +13,28 @@
 // turns. Everything below is a fact in the third person about the position —
 // telegraphic, ≤14 words, never sentence-shaped, never first-person. "arre
 // blunder tha yeh" belongs to her; "he hung the queen on f7" belongs here.
+//
+// ── the second failure mode, which is the harder one ──────────────────────
+//
+// The first is her sounding like a scoresheet (`chess-facts-as-a-scoresheet`).
+// The second is her sounding like a COMMENTATOR: calling every move a crisis,
+// because a fact that fires on every move is a fact that means nothing. The
+// threat facts below are all bounded — mate only inside five moves, a hanging
+// piece only when the search actually found one, a piece "close to the king"
+// only when it CLOSED distance to within two squares, a file "opening" only
+// when the last pawn actually left it this move. A quiet developing move in a
+// normal position must produce none of them, and the eval asserts exactly that
+// as its negative control.
+//
+// It also may not SEARCH. Everything here is read off a `MoveAssessment` that
+// the assessment layer already produced, plus the FEN's own piece placement.
+// A second search in the talking layer would be a second, drifting opinion —
+// the `age-tier-never-realtime` fork shape — and it would cost a search per
+// spoken sentence.
 
 import type { ActivityState } from "./activity";
-import type { Game, MoveAssessment, Side } from "./chess";
+import type { Game, MoveAssessment, PieceType, Side } from "./chess";
+import { openingName } from "./chess";
 
 /** Coarse bands, never a centipawn number she could read out loud. */
 function standingFact(a: MoveAssessment, herSide: Side): string {
@@ -33,6 +52,11 @@ function standingFact(a: MoveAssessment, herSide: Side): string {
   if (fromHer === "level") return "position is about level";
   return `she is ${fromHer}`;
 }
+
+const LEVEL = "position is about level";
+
+/** `ActivityState.facts` rows are ≤14 words. Shapelint enforces it downstream. */
+const MAX_FACT_WORDS = 14;
 
 const TAG_FACT: Partial<Record<string, string>> = {
   checkmate: "that is checkmate",
@@ -59,6 +83,229 @@ const VERDICT_FACT: Partial<Record<string, string>> = {
   good: "a good one",
 };
 
+const PIECE_WORD: Record<PieceType, string> = {
+  p: "pawn",
+  n: "knight",
+  b: "bishop",
+  r: "rook",
+  q: "queen",
+  k: "king",
+};
+
+// ── reading the board, without a board module ──────────────────────────────
+//
+// Piece placement only, straight off the FEN string. This is not chess logic
+// and it must never become chess logic: no move generation, no attack maps, no
+// evaluation. `src/engine/chess/` owns all of that and is the only thing
+// allowed to be right about it. What is here is "which squares hold what",
+// which is the FEN's first field spelled out, and it is here rather than behind
+// an import because `pieceAt` costs a full position parse per square and these
+// facts want the whole board.
+
+/** grid[0] is rank 8, grid[r][f] with f=0 meaning the a-file. "" is empty. */
+type Grid = readonly string[][];
+
+const FILES = "abcdefgh";
+
+interface Sq {
+  /** 0..7, a..h */
+  f: number;
+  /** 0..7, rank 1..rank 8 */
+  r: number;
+}
+
+function gridOf(fen: string): Grid {
+  const out: string[][] = [];
+  for (const row of fen.split(" ")[0].split("/")) {
+    const line: string[] = [];
+    for (const ch of row) {
+      const n = ch.charCodeAt(0) - 48;
+      if (n >= 1 && n <= 8) for (let i = 0; i < n; i++) line.push("");
+      else line.push(ch);
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+function sqOf(name: string | null | undefined): Sq | null {
+  if (!name || name.length < 2) return null;
+  const f = FILES.indexOf(name[0]);
+  const r = Number(name[1]) - 1;
+  if (f < 0 || !Number.isInteger(r) || r < 0 || r > 7) return null;
+  return { f, r };
+}
+
+function kingSquare(g: Grid, side: Side): Sq | null {
+  const want = side === "w" ? "K" : "k";
+  for (let row = 0; row < 8; row++) {
+    for (let f = 0; f < 8; f++) if (g[row]?.[f] === want) return { f, r: 7 - row };
+  }
+  return null;
+}
+
+function pawnsOnFile(g: Grid, f: number): number {
+  let n = 0;
+  for (let row = 0; row < 8; row++) {
+    const p = g[row]?.[f];
+    if (p === "P" || p === "p") n++;
+  }
+  return n;
+}
+
+function heavyOnFile(g: Grid, f: number, side: Side): boolean {
+  const mine = side === "w" ? ["R", "Q"] : ["r", "q"];
+  for (let row = 0; row < 8; row++) if (mine.includes(g[row]?.[f] ?? "")) return true;
+  return false;
+}
+
+const chebyshev = (a: Sq, b: Sq): number => Math.max(Math.abs(a.f - b.f), Math.abs(a.r - b.r));
+
+// ── the threat facts ───────────────────────────────────────────────────────
+
+/**
+ * Mate distances beyond this are not said out loud. A depth-5 assessment can
+ * report a long mate it half-sees, and "mate in 9" from someone who then does
+ * not deliver it is worse than her having said nothing.
+ */
+const MAX_MATE_DISTANCE = 5;
+
+/** How close a piece has to get before it counts as coming at the king. */
+const NEAR_KING = 2;
+
+/** Being in check with this few replies is the thing a club player remarks on. */
+const CORNERED_MOVES = 3;
+
+/** Pieces that threaten a king from a distance. A pawn beside it is not news. */
+const ATTACKER: Partial<Record<PieceType, boolean>> = { n: true, b: true, r: true, q: true };
+
+interface Pressure {
+  /** Set iff a mate is on the board somewhere inside MAX_MATE_DISTANCE. */
+  mate: string | null;
+  /** Facts that outrank a verdict: someone is about to lose something now. */
+  urgent: string[];
+  /** Facts that are worth saying only when nothing louder happened. */
+  ambient: string[];
+}
+
+function pressureOf(a: MoveAssessment, herSide: Side): Pressure {
+  const empty: Pressure = { mate: null, urgent: [], ambient: [] };
+  if (!a?.move || a.statusAfter?.over) return empty;
+
+  const mover = a.fenBefore.split(" ")[1] === herSide;
+  const theirs = mover ? "her" : "his";
+  const foes = mover ? "his" : "her";
+
+  const urgent: string[] = [];
+  const ambient: string[] = [];
+
+  // 1. mate. `mateIn` is in MOVES, mover's frame: positive means the mover is
+  //    the one delivering it. Flipping it into HER frame is the whole job,
+  //    because "mate in 2" with the wrong owner is the most alarming possible
+  //    thing to get backwards.
+  let mate: string | null = null;
+  if (a.mateIn !== null && a.mateIn !== 0) {
+    const forHer = mover ? a.mateIn : -a.mateIn;
+    const n = Math.abs(forHer);
+    if (n <= MAX_MATE_DISTANCE) {
+      mate = forHer > 0
+        ? `she has mate in ${n}`
+        : `mate is threatened on her king in ${n}`;
+      urgent.push(mate);
+    }
+  }
+
+  // 2. a hanging piece. `hangs` is found from the OPPONENT's own best reply, so
+  //    the piece en prise belongs to whoever just moved — and it carries the
+  //    piece type, so nothing has to be looked up to name it.
+  //
+  //    Not when a mate is already on the board. `hangs` reads the opponent's
+  //    best reply, and when that reply is mate the "hanging" piece is whatever
+  //    the mating move happened to land on — which produced "mate is threatened
+  //    on her king in 1, her pawn is hanging on f7" for scholar's mate. The
+  //    pawn is not the story and mentioning it makes her look like she missed
+  //    the mate she just reported.
+  if (a.hangs && !mate) {
+    urgent.push(`${theirs} ${PIECE_WORD[a.hangs.piece]} is hanging on ${a.hangs.square}`);
+  }
+
+  // 3. in check with almost nothing to play. `legalMoveCount` is the count for
+  //    the side to move, which after a checking move is the side in check.
+  const st = a.statusAfter;
+  if (st?.inCheck && st.legalMoveCount > 0 && st.legalMoveCount <= CORNERED_MOVES) {
+    const who = st.turn === herSide ? "she" : "he";
+    urgent.push(
+      st.legalMoveCount === 1
+        ? `${who} is in check with one legal move left`
+        : `${who} is in check with only ${st.legalMoveCount} legal moves`,
+    );
+  }
+
+  // 4. the owner's ask, literally: *"the bishop has moved near the king, this
+  //    kind of thing is targeting the king now."* Bounded to a piece that
+  //    CLOSED distance to within two squares of the enemy king, which is what
+  //    keeps Nf3 and Bb5 — five and three squares away, and aimed at pawns —
+  //    from reading as an attack every single opening.
+  const near = nearKingFact(a, theirs, foes);
+  if (near) ambient.push(near);
+
+  // 5. a file that just came open pointing at a king, with a heavy piece
+  //    already on it. Derived by comparing the pawns on that file before and
+  //    after this move, so "opening up" is a thing that literally just
+  //    happened rather than a standing feature of the position.
+  const file = openFileFact(a, foes);
+  if (file) ambient.push(file);
+
+  return { mate, urgent, ambient };
+}
+
+function nearKingFact(a: MoveAssessment, theirs: string, foes: string): string | null {
+  const m = a.move;
+  if (!ATTACKER[m.piece]) return null;
+  const to = sqOf(m.to);
+  const from = sqOf(m.from);
+  if (!to || !from) return null;
+  const king = kingSquare(gridOf(a.fenAfter), m.by === "w" ? "b" : "w");
+  if (!king) return null;
+  const now = chebyshev(to, king);
+  // Strictly closer, or it is a piece that was already there and shuffling —
+  // which is not news and would fire on every retreat and return.
+  if (now > NEAR_KING || now >= chebyshev(from, king)) return null;
+  return `${theirs} ${PIECE_WORD[m.piece]} has come up close to ${foes} king`;
+}
+
+function openFileFact(a: MoveAssessment, foes: string): string | null {
+  const m = a.move;
+  const before = gridOf(a.fenBefore);
+  const after = gridOf(a.fenAfter);
+  const king = kingSquare(after, m.by === "w" ? "b" : "w");
+  if (!king) return null;
+  // Only the files this move touched can have changed, and only a pawn leaving
+  // a file can open it.
+  for (const name of [m.from, m.to]) {
+    const s = sqOf(name);
+    if (!s) continue;
+    if (pawnsOnFile(before, s.f) === 0) continue;
+    if (pawnsOnFile(after, s.f) !== 0) continue;
+    if (Math.abs(s.f - king.f) > 1) continue;
+    if (!heavyOnFile(after, s.f, m.by)) continue;
+    return `the ${FILES[s.f]}-file is opening up toward ${foes} king`;
+  }
+  return null;
+}
+
+/**
+ * Every threat fact this position supports, most urgent first.
+ *
+ * Usually EMPTY, and that is the point — see the commentator note in this
+ * file's header. Exported so the eval can assert the negative control directly
+ * rather than inferring it from a rendered block.
+ */
+export function threatFacts(a: MoveAssessment, herSide: Side): string[] {
+  const p = pressureOf(a, herSide);
+  return [...p.urgent, ...p.ambient];
+}
+
 /**
  * The one-line fact for a move that was just played — the per-move poke.
  *
@@ -78,14 +325,51 @@ export function moveFact(a: MoveAssessment, herSide: Side, whoMoved: "her" | "hi
   // the move, the single most salient thing about it, and where that leaves
   // them. Tag order below is the order a human would notice in.
   const bits: string[] = [`${who} played ${a.move.san ?? a.move.uci ?? ""}`.trim()];
+  const p = pressureOf(a, herSide);
+  // A mate on the board and a piece hanging both beat "a good one" — that is
+  // the whole reason the threat facts exist, and a verdict band is the blandest
+  // true thing that can be said about a move. But a BLUNDER outranks the
+  // ambient facts: when the move was simply bad, "a bad one" is what a person
+  // says, not that a bishop wandered nearer the king.
+  const grave =
+    a.verdict === "blunder" ? VERDICT_FACT.blunder
+    : a.verdict === "mistake" ? VERDICT_FACT.mistake
+    : null;
   const headline =
     (a.statusAfter?.over ? "that ends it" : null) ??
-    (a.hangs?.square ? `${a.hangs.square} is hanging now` : null) ??
+    p.urgent[0] ??
+    grave ??
+    p.ambient[0] ??
     VERDICT_FACT[a.verdict] ??
     a.tags.map((t) => TAG_FACT[t]).find(Boolean) ??
     null;
   if (headline) bits.push(headline);
-  if (!a.statusAfter?.over) bits.push(standingFact(a, herSide));
+  const standing = standingFact(a, herSide);
+  // Two clauses is a complete thought and three is the ceiling, not the target.
+  // The standing clause is dropped when it adds nothing:
+  //
+  //  - a mate on the board already says who is winning;
+  //  - "position is about level" on move three is true of nearly every opening
+  //    ever played — a tic, not an observation, and in the opening it is
+  //    exactly the row that pushes the opening's NAME out of a 420-byte block;
+  //  - "position is about level" tacked onto a threat is worse than a tic, it
+  //    is a contradiction in tone ("the h-file is opening up toward her king,
+  //    position is about level") and it was the one row that broke the 14-word
+  //    limit in testing.
+  //
+  // A quiet middlegame move with nothing else to say keeps it, because there
+  // "about level" is the actual news.
+  const vacuous =
+    standing === LEVEL && (a.phase === "opening" || p.urgent.length > 0 || p.ambient.length > 0);
+  if (!a.statusAfter?.over && !p.mate && !vacuous) bits.push(standing);
+  // The 14-word row limit is a CONTRACT, not a target, and the standing clause
+  // is the one that goes when a row is at the edge — it is the least specific
+  // thing in the line and the only one that is true of the position rather than
+  // of the move. Enforced here rather than by keeping every headline string
+  // short enough by hand: the next headline someone adds will be longer than
+  // they think, and a row over the limit fails silently at the far end of the
+  // pipe (`silent-truncation`) rather than here.
+  while (bits.length > 2 && bits.join(", ").split(/\s+/).length > MAX_FACT_WORDS) bits.pop();
   return bits.join(", ");
 }
 
@@ -111,6 +395,9 @@ export function exchangeFact(
   return `${base}; she answered ${hers.move.san}`;
 }
 
+/** Past this many plies the opening is over and its name is no longer news. */
+const OPENING_FACT_PLY = 16;
+
 /**
  * The whole activity, for the tail block at connect.
  *
@@ -126,18 +413,15 @@ export function chessActivity(
   const facts: string[] = [];
   const nameable: string[] = [];
   const ply = game.played.length;
-
-  facts.push(ply === 0 ? "the game has just started" : `${Math.ceil(ply / 2)} moves in`);
-  facts.push(`she is playing ${herSide === "w" ? "white" : "black"}`);
-
-  if (last) {
-    const whoMoved = last.fenBefore.split(" ")[1] === herSide ? "her" : "him";
-    facts.push(moveFact(last, herSide, whoMoved));
-    if (last.move?.san) nameable.push(last.move.san);
-    if (last.better) nameable.push(last.better);
-  }
-
   const turn = game.status?.turn;
+
+  // ORDER IS THE DROP POLICY. `renderActivity` pops whole facts off the END
+  // when the block is over budget, and the head alone is ~300 of the 420
+  // bytes — so on a live game roughly three rows survive and the rest is
+  // written for the cases where they fit. Least important LAST, and the two
+  // rows a person actually needs (whose move it is, which colour she has) are
+  // first for that reason. "3 moves in" used to lead and is now last: it is
+  // the only row here that nothing depends on.
   if (game.status?.over) {
     // The ending, concretely — who won and how. "the game has finished" alone
     // left her congratulating nobody: she had checkmated him minutes earlier
@@ -151,7 +435,45 @@ export function chessActivity(
   } else if (turn) {
     facts.push(turn === herSide ? "it is her move" : "it is his move");
   }
-  if (!game.status?.over && game.status?.inCheck) facts.push("someone is in check");
+
+  facts.push(`she is playing ${herSide === "w" ? "white" : "black"}`);
+
+  let told = "";
+  if (last) {
+    const whoMoved = last.fenBefore.split(" ")[1] === herSide ? "her" : "him";
+    told = moveFact(last, herSide, whoMoved);
+    facts.push(told);
+    if (last.move?.san) nameable.push(last.move.san);
+    if (last.better) nameable.push(last.better);
+  }
+
+  // ONE threat row, and only one the move fact did not already carry. Two rows
+  // saying the same thing in different words is the commentator failure with
+  // extra steps, and there is no budget for it anyway.
+  const spare = last ? threatFacts(last, herSide).find((f) => !told.includes(f)) : undefined;
+  if (spare) facts.push(spare);
+
+  // The opening's name, while it is still the opening. The owner asked for
+  // this directly — *"taking the opening name and explaining 'this is the
+  // opening' can be there, in a good sense"* — and it is deliberately below the
+  // move and the threat: it is the nicest row here and the least urgent.
+  if (ply > 0 && ply <= OPENING_FACT_PLY && !game.status?.over) {
+    const name = openingName(game.played.map((m) => m.san));
+    if (name) facts.push(`the opening is ${name}`);
+  }
+
+  const moves = Math.ceil(ply / 2);
+  facts.push(
+    ply === 0 ? "the game has just started"
+    : moves === 1 ? "1 move in"
+    : `${moves} moves in`,
+  );
+
+  // Only if nothing above already said it — the threat rows name the side in
+  // check and this one does not, so it is the weaker version and goes last.
+  if (!game.status?.over && game.status?.inCheck && !facts.some((f) => f.includes("in check"))) {
+    facts.push(turn === herSide ? "she is in check" : "he is in check");
+  }
 
   // Every move ever played is nameable — she may refer back to the game, and
   // the record is the ground truth she is allowed to cite.

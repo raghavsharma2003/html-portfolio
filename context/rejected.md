@@ -1380,3 +1380,26 @@ conversation, "wait until she is quiet" is not politeness — it is a mechanism
 for interrupting at peak vulnerability. The right gates are on the EVENT
 (does it earn a word?) and the RHYTHM (how often may the outside world speak?),
 and only then on the silence.
+
+---
+
+## the-hand-drawn-piece-set
+
+**Tried:** an original chess piece set — correct Staunton proportions studied
+from cburnett, consistent stroke weight, per-piece contact shadows, drawn
+in-house partly to avoid CC BY-SA's attribution obligation in the APK.
+
+**What broke:** the owner played on a real phone: "they are not clearly
+visible, like what is horse, what is king, what is queen." Original art that
+is correct by proportion can still fail at 44px on a handset, and the failure
+is only findable by a person squinting at a real screen — every gate passed.
+
+**Now:** the cburnett set vendored (44 of 45 paths byte-identical to lichess's
+canonical copy), recoloured through the existing token contract, attribution
+carried in pieces.tsx and PHOTO-CREDITS.md. Legibility beats a licence header.
+The vendor pass itself caught a real tone bug the original never hit: the
+white king's cross inked at 1.14:1 on the night board's dark square —
+invisible — fixed with an under-stroke in the piece's own fill (11.3:1).
+
+**Reverses if:** CC BY-SA ever becomes a genuine distribution problem for the
+APK (it covers the artwork, not the app's code, so it currently is not).

@@ -34,6 +34,15 @@
    The board carries a finish — a whisper of weave and a vignette pulled in
    from the frame. It is one overlay element at z-index 1, above the squares
    and below the pieces, so it warms the board without dulling the set.
+
+   THE ART ITSELF is no longer this repo's. It is cburnett — Colin M.L.
+   Burnett's set, the lichess default, CC BY-SA 3.0 — because the hand-drawn
+   set that was here failed on a real phone: the owner could not tell knight
+   from bishop from king at a glance, which is the only thing a chess set has
+   to do. See the licence header in src/components/chess/pieces.tsx and
+   docs/PHOTO-CREDITS.md. Everything above still holds: the new art takes the
+   SAME five-token-per-colour contract, so it re-inks itself for the night
+   board exactly as the old one did.
    ───────────────────────────────────────────────────────────────────────── */
 
 .cb {
@@ -506,27 +515,62 @@
 .cb-grad-c .cb-c1 { stop-color: color-mix(in srgb, var(--cb-cast) 55%, transparent); }
 .cb-grad-c .cb-c2 { stop-color: transparent; }
 
+/* THE ART IS cburnett (Colin M.L. Burnett, CC BY-SA 3.0) — see the licence
+   header in src/components/chess/pieces.tsx and docs/PHOTO-CREDITS.md.
+   It is drawn to fill its 45x45 box — the previous set lived inside x∈[8,37]
+   of the same box — so 88% of the square became crowding: pieces touched their
+   neighbours and buried the file letters on rank 1. 94% is where the set is as
+   large as it reads and the coordinates are still there.
+
+   NOTE, and it is the reason this block only states COLOUR: stroke width,
+   caps and joins now live as presentation attributes on the <svg> itself.
+   cburnett needs per-path `butt` caps, `miter` joins and one width-1 line,
+   and a CSS declaration here would beat every one of those — CSS wins over
+   presentation attributes. Colour comes from this file, form comes from the
+   markup, and neither reaches into the other. */
 .cb-glyph {
   display: block;
-  width: 88%;
-  height: 88%;
+  width: 94%;
+  height: 94%;
   overflow: visible;
-  stroke-width: 1.4;
-  stroke-linejoin: round;
-  stroke-linecap: round;
   transition: transform var(--d-press) var(--ease-out), filter var(--d-press) var(--ease-out);
 }
+/* a body: the shared gradient inside, the rim around it */
 .cb-glyph .cb-part {
   fill: var(--gp);
   stroke: var(--gs);
+}
+/* a STRUCTURAL line — the rook's cornice, the black queen's base, the king's
+   cross. It inks with the RIM rather than with the detail colour, because it
+   is part of the silhouette rather than something drawn inside it: on the
+   night board the rim goes light and these have to go with it. */
+.cb-glyph .cb-rim {
+  fill: none;
+  stroke: var(--gs);
+}
+/* The halo under a rim line that is drawn OUTSIDE its body — only the king's
+   cross. Same path, stroked wider in the piece's own FILL, so the rim line has
+   something to be the rim OF. Without it the white king's cross was a
+   near-black line on a near-black square on the night board, and the cross is
+   the one mark that tells him from the queen. On the paper board it is a light
+   halo on a light square: invisible, which is the point. */
+.cb-glyph .cb-halo {
+  fill: none;
+  stroke: var(--gp);
 }
 /* interior detail — contrasts with the FILL, not the board */
 .cb-glyph .cb-line {
   fill: none;
   stroke: var(--gd);
-  stroke-width: 1.5;
 }
+/* the knight's eye and nostril: upstream draws them filled AND stroked in the
+   detail colour, and the stroke is most of their area at this size */
 .cb-glyph .cb-dot {
+  fill: var(--gd);
+  stroke: var(--gd);
+}
+/* a filled detail with no rim of its own — the black knight's mane highlight */
+.cb-glyph .cb-mark {
   fill: var(--gd);
   stroke: none;
 }
@@ -620,8 +664,8 @@
   background: var(--cb-sel);
 }
 .cb-promo-opt .cb-glyph {
-  width: 82%;
-  height: 82%;
+  width: 92%;
+  height: 92%;
 }
 
 /* ── captured trays ─────────────────────────────────────────────────────
