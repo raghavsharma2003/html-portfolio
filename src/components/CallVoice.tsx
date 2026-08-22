@@ -10,7 +10,7 @@ import PhotoAvatar from "./PhotoAvatar";
 import Presence, { type Phase } from "./Presence";
 import { useCallEngine } from "./useCallEngine";
 import { tap, ImpactStyle } from "../native/haptics";
-import { EndCallIcon, MicIcon, KeyboardIcon, SendIcon } from "./icons";
+import { EndCallIcon, MicIcon, KeyboardIcon, SendIcon, OfflineIcon } from "./icons";
 
 interface Props {
   state: AppState;
@@ -27,6 +27,26 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
   const [showKb, setShowKb] = useState(false);
 
   const hearing = Boolean(eng.heard); // her mic is picking up YOUR voice
+
+  // OFFLINE PILL. Chat already has one (`Chat.tsx`'s `.offline-bar`); the
+  // call screen had none, and a call started or continued with no network
+  // goes silent with nothing on screen to say why (audit: `call-offline-
+  // silent`). Same signal, same discipline: driven only by `navigator.
+  // onLine` and its events, reported never enforced — you can keep talking,
+  // and it delivers when the line comes back, exactly like Chat's does.
+  const [online, setOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener("online", up);
+    window.addEventListener("offline", down);
+    return () => {
+      window.removeEventListener("online", up);
+      window.removeEventListener("offline", down);
+    };
+  }, []);
 
   const sendTyped = () => {
     const t = typed.trim();
@@ -81,26 +101,43 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
   // asleep — and calling it "connecting" described our socket instead of her
   // phone. The timer rides every other state, WhatsApp-style, because the one
   // thing you always want on a call is how long you have been on it.
+  // LIVE-DROP INDICATOR. The lane just changed under her — her own voice was
+  // cut mid-word by `claimVoice`, and until now nothing on screen said so
+  // (audit: `live-lane-silent-drop`). Second priority, right after
+  // "ringing…": this is exactly the beat where "hello?" would otherwise read
+  // as the call dying rather than as her voice pipeline changing. It clears
+  // itself — see `useCallEngine.ts`'s `markLaneDegraded` — so it never
+  // becomes a permanent claim about a call that has long since recovered.
   const stateLabel =
     eng.phase === "connecting"
       ? "ringing…"
-      : eng.muted
-        ? "mic off · " + eng.mmss
-        : eng.speaking
-          ? "speaking"
-          : hearing
-            ? "sun rahi hu…" // live proof she's hearing you
-            : eng.thinking
-              ? "hmm…"
-              : eng.watching && eng.watchPaused
-                ? "you closed the curtain"
-                : eng.watching
-                ? "watching with you 👀"
-                : eng.listening
-                  ? "listening…"
-                  : eng.mmss;
+      : eng.laneDegraded
+        ? "voice quality reduced…"
+        : eng.muted
+          ? "mic off · " + eng.mmss
+          : eng.speaking
+            ? "speaking"
+            : hearing
+              ? "sun rahi hu…" // live proof she's hearing you
+              : eng.thinking
+                ? "hmm…"
+                : eng.watching && eng.watchPaused
+                  ? "you closed the curtain"
+                  : eng.watching
+                  ? "watching with you 👀"
+                  : eng.listening
+                    ? "listening…"
+                    : eng.mmss;
   const stateTone =
-    eng.phase === "connecting" ? "connecting" : eng.muted ? "muted" : connected ? "live" : "";
+    eng.phase === "connecting"
+      ? "connecting"
+      : eng.laneDegraded
+        ? "degraded"
+        : eng.muted
+          ? "muted"
+          : connected
+            ? "live"
+            : "";
 
   return (
     <div
@@ -138,6 +175,16 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
           <PhotoAvatar size={244} />
         </Presence>
 
+        {/* OFFLINE PILL. Chat has one; the call screen went silent with no
+            explanation when the network dropped (audit: `call-offline-
+            silent`) — a full ring and a robotic "hello?" with nothing on
+            screen naming the one fact that would explain either. */}
+        {!online && (
+          <div className="call-hint warn" role="status">
+            <OfflineIcon size={13} /> No connection right now
+          </div>
+        )}
+
         {/* The mic is the one thing on this screen that can be wrong without
             looking wrong: she is listening, you are talking, and nothing is
             reaching her. Say so where you are already looking. */}
@@ -146,9 +193,24 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
             Your browser can't hear you here. Type to her instead
           </div>
         )}
+        {/* NATIVE-WATCH MUTE HONESTY. The Android watch service owns the mic
+            for as long as it holds the call, and there is no bridge call
+            that can silence it — so the mic control below is disabled
+            rather than reporting a mute that would not be true (audit:
+            `native-watch-mute-lie`). This says so once, plainly, rather than
+            leaving the disabled button to be read as broken. */}
+        {eng.nativeVoice && eng.phase === "live" && (
+          <div className="call-hint warn" role="status">
+            Mic can't turn off while she's watching. She can still hear and see you
+          </div>
+        )}
         {eng.muted && eng.phase === "live" && (
           <div className="call-hint warn" role="status">
+            {/* Muting is audio-only — a share in progress is not paused by
+                it, and someone who just muted may reasonably assume it was.
+                Say so, short, whenever both are true at once. */}
             Your mic is off, she can't hear you
+            {eng.watching ? ". She can still see your screen" : ""}
           </div>
         )}
 
@@ -191,7 +253,20 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
                     <b>She can't see your screen</b>
                     <em>she can still hear you</em>
                   </>
-                ) : Date.now() - eng.frameAt < 9000 ? (
+                ) : /* CASCADE-SHARE CHIP TRUTH (audit: `cascade-share-chip-
+                       truth`). On the web lane, a frame only reaches her
+                       through a live session's socket — with none up, every
+                       send fails and nothing she says is ever prompted by
+                       what is on screen. This is that case, named honestly,
+                       rather than a permanently confident claim. */
+                !eng.nativeVoice && !eng.liveVoiceActive ? (
+                  <>
+                    <b>She can only glance when you talk</b>
+                    <em>no live line to send it continuously</em>
+                  </>
+                ) : /* the chip's own freshness check now reads DELIVERY
+                       (`sentAt`), not capture (`frameAt`) — see useCallEngine.ts */
+                Date.now() - eng.sentAt < 9000 ? (
                   <>
                     <b>She can see your screen</b>
                     <em>tap look away any time</em>
@@ -209,7 +284,7 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
               data-tel="call.look_away"
               onClick={() => {
                 tap(ImpactStyle.Medium); // the curtain is worth feeling
-                eng.setWatchPaused(!eng.watchPaused);
+                eng.onLookAway();
               }}
               aria-pressed={eng.watchPaused}
               aria-label={eng.watchPaused ? "Let her see your screen again" : "Look away: stop sending your screen"}
@@ -307,12 +382,20 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
             className={`cbtn ${eng.muted ? "muted" : eng.listening ? "active-mic" : ""}`}
             data-tel="call.mute"
             onClick={() => eng.toggleMute()}
-            aria-label={eng.muted ? "Unmute microphone" : "Mute microphone"}
+            disabled={eng.nativeVoice}
+            aria-disabled={eng.nativeVoice}
+            aria-label={
+              eng.nativeVoice
+                ? "Mic can't be turned off while she's watching your screen"
+                : eng.muted
+                  ? "Unmute microphone"
+                  : "Mute microphone"
+            }
             aria-pressed={eng.muted}
           >
             <MicIcon off={eng.muted || !eng.sttSupported} />
           </button>
-          <span className="clabel">{eng.muted ? "muted" : "mic"}</span>
+          <span className="clabel">{eng.nativeVoice ? "can't mute" : eng.muted ? "muted" : "mic"}</span>
         </span>
       </div>
     </div>

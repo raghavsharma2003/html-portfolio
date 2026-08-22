@@ -58,6 +58,21 @@ export interface ActivityCall {
   onToggleMute?: () => void;
   /** Offered only when no call is live. Omitted, no call button is drawn. */
   onStart?: () => void;
+  /** WATCH / LOOK-AWAY, mirrored from `CallStatus`. A screen share is live
+   *  right now — either lane. Every surface that shows call state must show
+   *  this too: she can see the screen, and it must say so wherever the call
+   *  is represented, not only on the call screen (audit:
+   *  `watch-invisible-off-call-screen`). Omitted, no watch pill is drawn. */
+  watching?: boolean;
+  /** The look-away is engaged — nothing is leaving the device right now. */
+  watchPaused?: boolean;
+  /** Toggles the look-away from here, without leaving the board. Omitted,
+   *  the pill reports without offering a control. */
+  onLookAway?: () => void;
+  /** LIVE-DROP INDICATOR: the live lane silently dropped to the cascade
+   *  fallback moments ago. A brief, honest, quiet state — not an error —
+   *  mirrored from `CallStatus.laneDegraded`. */
+  degraded?: boolean;
 }
 
 export interface ActivityShellProps {
@@ -187,6 +202,40 @@ export default function ActivityShell({
         <div className="as-end">
           {live ? (
             <>
+              {/* WATCH / LOOK-AWAY, next to the mic — the same argument this
+                  file's header comment already makes for mute: a call that
+                  becomes invisible the moment you open a board is exactly the
+                  discreteness this shell exists to remove, and screen
+                  sharing is the one state that argument had not reached yet
+                  (audit: `watch-invisible-off-call-screen`). */}
+              {call?.watching ? (
+                <button
+                  type="button"
+                  className="as-watch"
+                  data-on={call.watchPaused ? "paused" : "on"}
+                  data-tel="activity.look_away"
+                  onClick={call.onLookAway}
+                  disabled={!call.onLookAway}
+                  aria-pressed={Boolean(call.watchPaused)}
+                  aria-label={
+                    call.watchPaused
+                      ? "She can't see your screen right now. Let her see again"
+                      : "She can see your screen. Look away"
+                  }
+                >
+                  {call.watchPaused ? (
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 12s3.6-6 9-6c1.4 0 2.7.4 3.8 1M21 12s-3.6 6-9 6c-1.5 0-2.8-.4-4-1.1" />
+                      <path d="M4 4l16 16" />
+                    </svg>
+                  ) : (
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 12s3.6-6 9-6 9 6 9 6-3.6 6-9 6-9-6-9-6Z" />
+                      <circle cx="12" cy="12" r="2.6" />
+                    </svg>
+                  )}
+                </button>
+              ) : null}
               {call?.onToggleMute ? (
                 <button
                   type="button"
@@ -200,26 +249,42 @@ export default function ActivityShell({
                   <MicIcon size={18} off={Boolean(call.muted)} />
                 </button>
               ) : null}
+              {/* LIVE-DROP INDICATOR: the same brief, quiet state CallVoice
+                  shows, mirrored here so the board does not go on reporting
+                  a call as ordinary the instant her voice pipeline changed
+                  under it (audit: `live-lane-silent-drop`). */}
               {call?.onOpen ? (
                 <button
                   type="button"
                   className="as-call"
-                  data-state={connecting ? "connecting" : "live"}
+                  data-state={connecting ? "connecting" : call?.degraded ? "degraded" : "live"}
                   data-tel="activity.to_call"
                   onClick={call.onOpen}
                   aria-label={`Go back to the call with ${HER_NAME}`}
                 >
                   <i className="as-cdot" aria-hidden="true" />
-                  <span>{connecting ? "ringing…" : call?.mmss ?? "on call"}</span>
+                  <span>
+                    {connecting
+                      ? "ringing…"
+                      : call?.degraded
+                        ? "voice reduced"
+                        : call?.mmss ?? "on call"}
+                  </span>
                 </button>
               ) : (
                 <span
                   className="as-call"
-                  data-state={connecting ? "connecting" : "live"}
+                  data-state={connecting ? "connecting" : call?.degraded ? "degraded" : "live"}
                   role="status"
                 >
                   <i className="as-cdot" aria-hidden="true" />
-                  <span>{connecting ? "ringing…" : call?.mmss ?? "on call"}</span>
+                  <span>
+                    {connecting
+                      ? "ringing…"
+                      : call?.degraded
+                        ? "voice reduced"
+                        : call?.mmss ?? "on call"}
+                  </span>
                 </span>
               )}
             </>

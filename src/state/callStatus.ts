@@ -39,9 +39,34 @@ export interface CallStatus {
   /** "3:07" — formatted by the engine, so there is one clock, not two. */
   mmss: string;
   toggleMute?: () => void;
+  /** A screen share is live right now — either lane. Every surface that
+   *  shows call state must show this too: she can see the screen, and the
+   *  UI has to say so wherever the call is represented, not only on the
+   *  call screen itself (audit: `watch-invisible-off-call-screen`). */
+  watching: boolean;
+  /** The look-away is engaged — she is not receiving anything while this
+   *  is true, even though `watching` stays true (the share itself is not
+   *  paused, only what leaves the device). */
+  watchPaused: boolean;
+  /** Toggles the look-away. Omitted, no control is drawn. Stable identity —
+   *  see `useCallEngine.ts`'s `onLookAway`. */
+  onLookAway?: () => void;
+  /** The live lane silently dropped to the cascade fallback moments ago.
+   *  True for a short, bounded beat — long enough for a quiet "voice
+   *  quality reduced" pill to be readable, never a permanent state (audit:
+   *  `live-lane-silent-drop`). */
+  laneDegraded: boolean;
 }
 
-const IDLE: CallStatus = { live: false, connecting: false, muted: false, mmss: "" };
+const IDLE: CallStatus = {
+  live: false,
+  connecting: false,
+  muted: false,
+  mmss: "",
+  watching: false,
+  watchPaused: false,
+  laneDegraded: false,
+};
 
 let current: CallStatus = IDLE;
 const listeners = new Set<(s: CallStatus) => void>();
@@ -64,7 +89,11 @@ export function publishCallStatus(next: CallStatus): void {
     current.connecting === next.connecting &&
     current.muted === next.muted &&
     current.mmss === next.mmss &&
-    current.toggleMute === next.toggleMute
+    current.toggleMute === next.toggleMute &&
+    current.watching === next.watching &&
+    current.watchPaused === next.watchPaused &&
+    current.onLookAway === next.onLookAway &&
+    current.laneDegraded === next.laneDegraded
   ) {
     return;
   }

@@ -55,6 +55,7 @@ import { HER_NAME } from "../engine/persona";
 import PhotoAvatar from "./PhotoAvatar";
 import { ChevronIcon } from "./icons";
 import { tap, ImpactStyle } from "../native/haptics";
+import { useCallStatus } from "../state/callStatus";
 import "../styles/us.css";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -198,6 +199,10 @@ function Line({
 export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProps) {
   const root = useRef<HTMLDivElement>(null);
   const nowMs = now ?? Date.now();
+  // A call accepted while Us is open used to leave with no sign one was
+  // running underneath (audit: `us-screen-call-invisible`). This is a status
+  // read, nothing more — the shell owns starting, ending and muting it.
+  const call = useCallStatus();
 
   // Same dedicated read as MoreSheet's closeness card, for the same reason,
   // and never `takeRelBundle` — see the prop's doc. `undefined` means "go
@@ -359,7 +364,25 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
         <span className="us-headline" aria-hidden="true">
           Us
         </span>
-        <span className="us-headpad" />
+        <span className="us-headpad">
+          {(call.live || call.connecting) && (
+            <button
+              type="button"
+              className="us-callchip"
+              data-state={
+                call.connecting ? "connecting" : call.laneDegraded ? "degraded" : "live"
+              }
+              data-tel="us.to_call"
+              onClick={onExit}
+              aria-label={`Back to the call with ${HER_NAME}. It's still going`}
+            >
+              <i className="us-callchip-dot" aria-hidden="true" />
+              <span>
+                {call.connecting ? "ringing…" : call.laneDegraded ? "voice reduced" : call.mmss || "on call"}
+              </span>
+            </button>
+          )}
+        </span>
       </div>
 
       <div className="us-scroll">

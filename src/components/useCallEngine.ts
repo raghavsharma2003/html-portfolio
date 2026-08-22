@@ -260,7 +260,34 @@ export function useCallEngine(
   const [muted, setMuted] = useState(false);
   // watch-together: she sees their screen while staying on the call
   const [watching, setWatching] = useState(false);
-  const [frameAt, setFrameAt] = useState(0); // UI proof that frames flow
+  const [frameAt, setFrameAt] = useState(0); // UI proof a frame was CAPTURED
+  // The truth the chip actually needs: a frame she could see, not one that
+  // merely got encoded. On the web lane, captured and delivered diverge
+  // whenever no live session owns the call — `sendFrame` returns false and
+  // `frameAt` would keep ticking over a picture that went nowhere. The
+  // native lane has no such gap (a frame callback IS a delivered frame), so
+  // it is set to the same value `frameAt` gets there.
+  const [sentAt, setSentAt] = useState(0);
+  // A per-second reactive mirror of `voiceOwner.current` — the ref itself is
+  // read everywhere else on the call path because a ref never lags a render,
+  // but a UI surface needs to actually RE-RENDER when the lane changes, which
+  // a ref cannot do on its own.
+  const [voiceLane, setVoiceLane] = useState<VoiceOwner>("none");
+  // The live lane dropped to cascade mid-call with nothing on screen saying
+  // so (audit: `live-lane-silent-drop`). A brief, honest, quiet pill — never
+  // an error screen — for the beat where her voice pipeline just changed
+  // under her. Cleared as soon as live is restored, or after a few seconds
+  // if it is not.
+  const [laneDegraded, setLaneDegraded] = useState(false);
+  const laneDegradedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function markLaneDegraded() {
+    setLaneDegraded(true);
+    if (laneDegradedTimer.current) clearTimeout(laneDegradedTimer.current);
+    laneDegradedTimer.current = setTimeout(() => {
+      laneDegradedTimer.current = null;
+      if (alive.current) setLaneDegraded(false);
+    }, 6000);
+  }
   const watchSession = useRef<WatchSession | null>(null);
   const watchStarting = useRef(false); // synchronous double-tap / re-entry gate
   const frameRef = useRef<{ url: string; at: number } | null>(null);
@@ -313,6 +340,13 @@ export function useCallEngine(
   // reassembly is a different person mid-sentence, and the failure is
   // inaudible until she contradicts herself.
   const liveAssemblies = useRef(0);
+  // The one system prompt this call ever built, kept verbatim so a lane that
+  // has to reconnect mid-call (#96: after a native watch share ends) can
+  // restore the SAME voice rather than asking compile() for a second one —
+  // which is exactly the reassembly G-C4 above forbids. Empty until the
+  // first successful compile; a reconnect attempt with nothing cached here
+  // is a no-op (see reconnectLiveAfterWatch).
+  const liveSystemRef = useRef("");
   // consecutive instant recognizer failures — backoff instead of hot-looping
   const srFails = useRef(0);
   const srStartedAt = useRef(0);
@@ -496,6 +530,14 @@ export function useCallEngine(
   type VoiceOwner = "none" | "live" | "cascade" | "native";
   const voiceOwner = useRef<VoiceOwner>("none");
   const laneSince = useRef(0);
+  // Reading THROUGH a function call, not a bare `voiceOwner.current`, is
+  // deliberate: TS's control-flow narrowing treats an earlier
+  // `voiceOwner.current === X` check as binding for every LATER bare read in
+  // the same function too, even across an `await` where the ref's value can
+  // genuinely have changed underneath it — backwards for a ref, and the
+  // reverse of what `tryStartLive`'s own "the ref is not a constant" comment
+  // warns about. A function call is opaque to that narrowing, so it resets.
+  const currentVoiceOwner = (): VoiceOwner => voiceOwner.current;
 
   // `why` is not decoration. The voice-swap class of bug is invisible in
   // every other signal we have — the call keeps working, she just stops
@@ -516,6 +558,17 @@ export function useCallEngine(
       laneSince.current = at;
     }
     voiceOwner.current = next;
+    setVoiceLane(next);
+    if (next === "live") {
+      // whatever degraded the line a moment ago, live is back — the pill's
+      // job is done and holding it open past the recovery would be its own
+      // small dishonesty
+      if (laneDegradedTimer.current) {
+        clearTimeout(laneDegradedTimer.current);
+        laneDegradedTimer.current = null;
+      }
+      setLaneDegraded(false);
+    }
     if (next !== "cascade") {
       // the cascade lane: playing/queued clips, the recognizer, the
       // re-engage nudge, accumulated speech and every in-flight think()
@@ -670,6 +723,7 @@ export function useCallEngine(
       activity: activityOf(stateRef.current.game),
     });
     const system = compiled.system;
+    liveSystemRef.current = system; // the one and only assembly (#96 reconnect reuses this)
     liveAssemblies.current += 1;
     diag("call", "live_prompt", {
       // G-C4: this must read 1 for the whole call. Structural only — byte
@@ -738,6 +792,7 @@ export function useCallEngine(
         // so the call never dies; she just keeps talking the slower way
         track(stateRef.current.deviceId, "live_call_dropped", { reason });
         claimVoice("cascade", `live_dropped:${reason}`);
+        markLaneDegraded(); // audit: nothing said so before — a quiet pill now does
         speakingRef.current = false;
         setSpeaking(false);
         listeningRef.current = false;
@@ -815,6 +870,110 @@ export function useCallEngine(
       track(stateRef.current.deviceId, "live_call_upgraded", { ...liveTiming.current });
     };
     attempt();
+  }
+
+  // ── #96: stopping a native watch share must not strand the call on the
+  // slower lane forever ──────────────────────────────────────────────────
+  // `startWatchMode` hands the WHOLE audio path to the native engine and
+  // kills the JS live session doing it (`claimVoice("native", ...)` stops and
+  // nulls `liveSession.current`). So the instant the share ends there is no
+  // live session left to hand back to, and `stopWatchMode` has always claimed
+  // cascade — correctly, in the moment, but permanently, which was never the
+  // point: a screen share ending is not a request to leave the fast lane for
+  // the rest of the call (`docs/VOICE-LANE.md` §"Recommended, not
+  // implemented"; `context/measurements.md#screen-share-triple-swap`).
+  //
+  // This reconnects using the SAME system prompt the call already committed
+  // to — `liveSystemRef.current`, set exactly once by `tryStartLive` — never
+  // a fresh `compile()`. G-C4 (`liveAssemblies` above) asserts a live prompt
+  // is assembled once per call; restoring the engine mid-call is not a second
+  // assembly; it is the same assembly, reconnected, which is what
+  // `adoptLiveLate` already does for the "connect was just slow" case. This
+  // is that same handoff for the "connect was interrupted" case.
+  async function reconnectLiveAfterWatch() {
+    // Nothing was ever compiled this call (live unsupported on this device,
+    // or the very first connect failed before reaching compile()) — nothing
+    // to restore, and cascade stays cascade exactly as it does today.
+    if (!liveSystemRef.current) return;
+    if (typeof WebSocket === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
+    // A LOT can happen while this awaits: the call can end, the user can
+    // start watching again, or a second reconnect attempt (drop → stop →
+    // drop) can already be racing. Bail rather than open a socket nobody
+    // will use.
+    if (!alive.current || voiceOwner.current !== "cascade") return;
+    let self: LiveSession | null = null;
+    const s = await startLiveCall({
+      base: LIVE_BASE,
+      system: liveSystemRef.current,
+      onState: (st) => {
+        if (!alive.current) return;
+        const spk = st === "speaking";
+        if (speakingRef.current && !spk) herStoppedAt.current = Date.now();
+        speakingRef.current = spk;
+        setSpeaking(spk);
+        listeningRef.current = true;
+        setListening(true);
+      },
+      onMyText: (t) => {
+        lastHeardAt.current = Date.now();
+        tel("call.turn", { who: "them", words: wordsIn(t), lane: "live", call_id: callId.current });
+        if (asksToHangUp(t)) armHangup("live");
+        else disarmHangup();
+        log({ id: uid(), from: "me", kind: "text", channel: "call", text: t, at: Date.now() });
+        void callLookup(t).then((note) => {
+          if (!note) return;
+          liveSession.current?.direct(note);
+        });
+      },
+      onHerText: (t) => {
+        const id = uid();
+        log({ id, from: "her", kind: "text", channel: "call", text: t, at: Date.now() });
+        noteHerLine(t, "live", id);
+      },
+      onTiming: (t) => {
+        Object.assign(liveTiming.current, t);
+      },
+      onEnded: (reason) => {
+        if (liveSession.current === self) liveSession.current = null;
+        if (liveStopping.current || !alive.current) return;
+        if (voiceOwner.current === "native") return;
+        track(stateRef.current.deviceId, "live_call_dropped", { reason });
+        claimVoice("cascade", `live_dropped:${reason}`);
+        markLaneDegraded();
+        speakingRef.current = false;
+        setSpeaking(false);
+        listeningRef.current = false;
+        setListening(false);
+        startListening();
+        armReengage();
+      },
+    }).catch(() => null);
+    self = s;
+    if (!s) return;
+    // Through the helper, not `voiceOwner.current` directly — this function
+    // already checked `voiceOwner.current !== "cascade"` before the await
+    // above, and a bare re-read here would inherit that narrowing instead of
+    // seeing whatever the ref actually holds now.
+    const ownerAfterConnect = currentVoiceOwner();
+    // the call ended, or native watch started again, while this was connecting
+    if (!alive.current || ownerAfterConnect === "native") {
+      liveStopping.current = true;
+      s.stop();
+      liveStopping.current = false;
+      return;
+    }
+    if (ownerAfterConnect !== "cascade") {
+      // something else already changed the lane in the meantime — never
+      // strand a second live session behind the one that is actually live
+      liveStopping.current = true;
+      s.stop();
+      liveStopping.current = false;
+      return;
+    }
+    tel("call.lane_change", { from: "cascade", to: "live_pending", reason: "watch_stop_reconnect" });
+    // same quiet-moment handoff a late-arriving connect gets — she is not
+    // silenced mid-word, the swap lands between turns
+    adoptLiveLate(s);
   }
 
   // connect + greet
@@ -1719,6 +1878,11 @@ export function useCallEngine(
       if (sent) {
         lastSentAt = at;
         movedSinceSent = false;
+        // the chip's own truth signal (audit: `cascade-share-chip-truth`) —
+        // set ONLY on an actual delivery, never on capture, so a share with
+        // no live session to send to (voice on cascade) cannot claim she is
+        // seeing anything
+        setSentAt(at);
         if (held) {
           lastStillFrameAt = at;
           wantStill = false;
@@ -1803,6 +1967,7 @@ export function useCallEngine(
       watchSession.current = null;
       pendingShowWake.current = null; // a wake from this share must never outlive it
       setWatching(false);
+      setSentAt(0); // no share, nothing delivered — the chip must not outlive it
       if (stopped) return;
       stopped = true;
       tel("watch.stop", {
@@ -1930,6 +2095,10 @@ export function useCallEngine(
           const prev = frameRef.current?.at ?? 0;
           frameRef.current = { url, at };
           setFrameAt(at);
+          // native: arrival IS delivery — this callback only ever fires with
+          // a frame the service already has, so captured and sent are the
+          // same event here (unlike the web lane's cascade gap, #cascade-share-chip-truth)
+          setSentAt(at);
           if (!firstFrameSeen.current) {
             firstFrameSeen.current = true;
             track(stateRef.current.deviceId, "watch_frame_first", {});
@@ -1972,6 +2141,7 @@ export function useCallEngine(
           // lane's cleanup() applies, and this is the native lane's cleanup
           pendingShowWake.current = null;
           setWatching(false);
+          setSentAt(0);
           track(stateRef.current.deviceId, "watch_stopped_externally", {});
           tel("watch.stop", {
             watch_id: watchId.current,
@@ -1985,6 +2155,7 @@ export function useCallEngine(
           setTimeout(() => {
             if (alive.current && !mutedRef.current) startListening();
           }, 450);
+          void reconnectLiveAfterWatch(); // #96 applies here too — an external stop is still a stop
         },
         (cls) => {
           // WS-ANDROID-WATCH: a SHOW-class wake actually fired natively. This
@@ -2016,6 +2187,16 @@ export function useCallEngine(
       );
       setWatching(true);
       lastCommentAt.current = Date.now();
+      // The native engine's mic is always hot — there is no bridge call that
+      // mutes it (`native/watch.ts` has no `setMuted`; audit:
+      // `native-watch-mute-lie`). A `muted` left true from before the switch
+      // would now be a claim nothing makes good on, so it is cleared here,
+      // honestly, rather than displayed and ignored. `toggleMute` below
+      // refuses to set it again while this lane owns the call.
+      if (mutedRef.current) {
+        mutedRef.current = false;
+        setMuted(false);
+      }
       // belt and braces: claimVoice already silenced the JS lane before the
       // consent dialog — anything that slipped through it dies here
       stopSpeaking();
@@ -2046,6 +2227,7 @@ export function useCallEngine(
     frameRef.current = null;
     pendingShowWake.current = null; // defense-in-depth; web's own cleanup() also clears this
     setWatching(false);
+    setSentAt(0);
     // the web lane reports its own stop from inside its teardown (one place,
     // one record); the native lane has no such hook, so it is reported here
     if (s && nativeWatchAt.current) {
@@ -2059,12 +2241,17 @@ export function useCallEngine(
       flushDiag();
     }
     s?.stop();
-    if (voiceOwner.current === "native") claimVoice("cascade", "watch_stopped");
+    const wasNative = voiceOwner.current === "native";
+    if (wasNative) claimVoice("cascade", "watch_stopped");
     // give the native recognizer a beat to release the hardware before the
     // JS one grabs it — an instant re-arm tends to land on BUSY
     setTimeout(() => {
       if (alive.current && !mutedRef.current) startListening();
     }, 450);
+    // #96: the swap to cascade above was forced (the native engine held the
+    // only live session there was and killed it on the way in) — it was
+    // never a decision to STAY on cascade. Try once to come back.
+    if (wasNative) void reconnectLiveAfterWatch();
   }
 
   // Only a frame she could honestly call "right now" is attached. The
@@ -2082,6 +2269,14 @@ export function useCallEngine(
   // the exact cost callStatus.ts exists to prevent. Reads only refs and
   // stable setters, so [] is truthful.
   const toggleMute = useCallback(() => {
+    // NATIVE-WATCH MUTE HONESTY (audit: `native-watch-mute-lie`). The native
+    // engine owns the mic in its own process for the length of the share, and
+    // there is no bridge call that can silence it (`native/watch.ts` has no
+    // `setMuted`). Flipping `muted` here would change nothing about what she
+    // hears while claiming otherwise — exactly the lie the audit found. Until
+    // the bridge grows a real mute, this is a refusal, not a fake success;
+    // the mic control disables itself and the UI says why (CallVoice.tsx).
+    if (voiceOwner.current === "native") return;
     const next = !mutedRef.current;
     mutedRef.current = next;
     setMuted(next);
@@ -2096,6 +2291,32 @@ export function useCallEngine(
       setListening(false);
     } else {
       startListening();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // THE LOOK-AWAY, exposed as one stable toggle rather than an on/off setter
+  // that closes over `watchPaused`: CallStatus's equality check (same reason
+  // `toggleMute` is wrapped above) and ActivityShell need a control that
+  // fires the same way regardless of who is holding it, without knowing the
+  // current value — it reads and flips the ref, never a captured state var.
+  const onLookAway = useCallback(() => {
+    const on = !watchPrivate.current;
+    watchPrivate.current = on;
+    // not in the contract's list, and it belongs there: a stretch where she
+    // was deliberately blind explains a silence that otherwise looks like
+    // the feature failing
+    tel("watch.look_away", { watch_id: watchId.current, on });
+    setWatchPaused(on);
+    setWatchPrivate(on).catch(() => {}); // native lane, no-op on the web
+    if (on) {
+      // she must not be left holding a picture of the moment they closed
+      // the curtain: the cascade lane reads frameRef directly
+      frameRef.current = null;
+      setFrameAt(0);
+      setSentAt(0);
+      // nor a pending reaction window from behind the closed curtain
+      pendingShowWake.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -2714,9 +2935,26 @@ export function useCallEngine(
       muted,
       mmss,
       toggleMute,
+      // WATCH / LOOK-AWAY, mirrored here so every surface that shows call
+      // state (ActivityShell today, Us tomorrow) can show watch state too —
+      // she can see the screen and the UI has to say so wherever the call is
+      // represented, not only on the call screen itself.
+      watching,
+      watchPaused,
+      onLookAway,
+      // LIVE-DROP INDICATOR: a lane that silently degraded used to render
+      // nothing anywhere the call is shown. Mirrored for the same reason.
+      laneDegraded,
     });
   });
   useEffect(() => clearCallStatus, []);
+  // the degraded-pill timer must not fire setState after this call is gone
+  useEffect(
+    () => () => {
+      if (laneDegradedTimer.current) clearTimeout(laneDegradedTimer.current);
+    },
+    [],
+  );
 
   return {
     phase,
@@ -2735,27 +2973,27 @@ export function useCallEngine(
     disarmHangup,
     watching,
     frameAt,
+    // CASCADE-SHARE CHIP TRUTH: the moment a frame actually reached her, not
+    // the moment one was captured — see `push()` and the native `onFrame`
+    // callback above.
+    sentAt,
     watchAvailable: watchAvailable() || webWatchAvailable(),
     startWatchMode,
     stopWatchMode,
     // the look-away, for whoever draws the control next to the watch chip
     watchPaused,
-    setWatchPaused: (on: boolean) => {
-      watchPrivate.current = on;
-      // not in the contract's list, and it belongs there: a stretch where she
-      // was deliberately blind explains a silence that otherwise looks like
-      // the feature failing
-      tel("watch.look_away", { watch_id: watchId.current, on });
-      setWatchPaused(on);
-      setWatchPrivate(on).catch(() => {}); // native lane, no-op on the web
-      if (on) {
-        // she must not be left holding a picture of the moment they closed
-        // the curtain: the cascade lane reads frameRef directly
-        frameRef.current = null;
-        setFrameAt(0);
-        // nor a pending reaction window from behind the closed curtain
-        pendingShowWake.current = null;
-      }
-    },
+    onLookAway,
+    // NATIVE-WATCH MUTE HONESTY: true while the Android watch service owns
+    // the mic, so the mute control can disable itself and the copy can say
+    // why instead of reporting a state nothing makes true.
+    nativeVoice: voiceLane === "native",
+    // CASCADE-SHARE CHIP TRUTH, other half: on the web lane, frames only ever
+    // reach her via a live session's socket. When this is false and
+    // `nativeVoice` is also false, a web share is running with nowhere for
+    // its frames to go except the reactive glance a cascade turn attaches —
+    // never the continuous watching the chip used to claim unconditionally.
+    liveVoiceActive: voiceLane === "live",
+    // LIVE-DROP INDICATOR, for CallVoice's own state label.
+    laneDegraded,
   };
 }

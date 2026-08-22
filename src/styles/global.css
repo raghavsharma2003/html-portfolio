@@ -1886,6 +1886,12 @@ button {
 .call-top .cstate[data-tone="muted"] {
   color: var(--danger);
 }
+/* LIVE-DROP INDICATOR: quiet, not alarming — a lane change, not an error.
+   Same warm tone the ring uses, so it reads as "something is adjusting"
+   rather than "something is broken". */
+.call-top .cstate[data-tone="degraded"] {
+  color: #ffcf9e;
+}
 
 .call-stage {
   flex: 1;
@@ -2013,6 +2019,10 @@ button {
   background: rgba(216, 64, 47, 0.22);
   color: #ffdbd5;
 }
+.call-hint svg {
+  vertical-align: -2px;
+  margin-right: 4px;
+}
 
 .call-caption {
   min-height: 54px;
@@ -2095,6 +2105,17 @@ button {
 .cbtn.muted {
   background: rgba(216, 64, 47, 0.28);
   color: #ffd9d3;
+}
+/* NATIVE-WATCH MUTE HONESTY: the mic control is disabled rather than
+   claiming a mute it cannot deliver (see CallVoice.tsx's `nativeVoice`
+   guard) — dimmed and not pressable is the honest visual, not a red "muted"
+   state that would still be a claim nothing makes true. */
+.cbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.cbtn:disabled:active {
+  transform: none;
 }
 
 .pip {
@@ -3554,4 +3575,100 @@ input {
 }
 @media (prefers-reduced-motion: reduce) {
   .incoming, .inc-pulse, .inc-btn.accept { animation: none; }
+}
+
+/* ── ActivityShell: watch pill + degraded lane, mirrored from CallStatus ───
+   These rules live here (not games.css) but resolve against the `--ga-*`
+   custom properties games.css defines on `.as[data-tone]` — CSS variables
+   cascade by DOM position, not by which stylesheet declared the rule, so an
+   `.as-watch` painted from a different file still inherits the tone the
+   board is already in. Same shape as `.as-mic` right beside it, on purpose:
+   one more circle in the same row, not a second visual language. */
+.as-watch {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--ga-well);
+  color: var(--ga-ink);
+  transition: background var(--d-tap) ease, color var(--d-tap) ease,
+    transform var(--d-press) var(--ease-out);
+}
+.as-watch::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--hit));
+  height: var(--hit);
+  transform: translate(-50%, -50%);
+}
+.as-watch:active {
+  transform: scale(0.95);
+}
+.as-watch:disabled {
+  opacity: 0.5;
+}
+/* the curtain is closed — same red the mic's muted state uses, so the two
+   "something is deliberately off" states read as one language */
+.as-watch[data-on="paused"] {
+  background: color-mix(in srgb, var(--ga-danger) 24%, transparent);
+  color: var(--ga-danger);
+}
+/* LIVE-DROP INDICATOR: quiet and warm, matching CallVoice's own pill —
+   an adjustment, not an error. */
+.as-call[data-state="degraded"] .as-cdot {
+  background: #e0a45c;
+}
+
+/* ── Us screen: a live call stays visible here too ─────────────────────────
+   The argument ActivityShell's own header comment makes ("a call that
+   becomes invisible the moment you open a board") is not specific to
+   boards — accepting a call while Us is open left it silently running
+   underneath with nothing on screen to say so. Tapping this leaves Us the
+   same way the back button does; `CallVoice` is already mounted beneath it
+   (App.tsx renders it as Chat's sibling), so closing Us is enough to
+   surface the call again. */
+.us-headpad {
+  display: flex;
+  justify-content: flex-end;
+}
+.us-callchip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 0.5px solid var(--hairline);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: var(--t-sub);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.us-callchip:active {
+  transform: scale(0.95);
+}
+.us-callchip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ok);
+}
+.us-callchip[data-state="connecting"] .us-callchip-dot {
+  background: var(--accent);
+  animation: ring-pulse 2s ease-in-out infinite;
+}
+.us-callchip[data-state="degraded"] .us-callchip-dot {
+  background: #e0a45c;
+}
+@media (prefers-reduced-motion: reduce) {
+  .us-callchip[data-state="connecting"] .us-callchip-dot { animation: none; }
 }
