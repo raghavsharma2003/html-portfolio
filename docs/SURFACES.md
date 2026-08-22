@@ -178,12 +178,59 @@ fragment, buttons ride the last — both decided once, in `deliver()`.
 8. **Run the gates:**
 
    ```
+   node evals/surface.mjs          # the honesty gate on the surface path
    node evals/surface/run.mjs      # contract + identity + pipeline
    node evals/mp/gate0.mjs         # the disclosure predicate, unchanged
    node evals/mp/withdraw.mjs      # the multi-owner forget cascade
    node evals/mp/tgbot.mjs         # the Telegram surface, 101 checks
    node scripts/verify-release.mjs # tsc + prompt budget + build + evals
    ```
+
+### What you get for free, and must not re-implement
+
+**Parse-and-gate.** Since ticket #102 (2026-08-22) every reply on every surface
+goes out through `gatedReply()` in `api/_surface.js`. That function is the
+only place in the file that calls `ctx.reply` — the raw brain call — and what
+it does with the result is the engine's own entry point, reached through the
+committed bundle:
+
+```
+ctx.reply()  ->  parseBubbles  ->  stripTextingDashes  ->  guardReply  ->  deliver()
+                 (protocol         (the em-dash          (honesty families
+                  extraction)       predicate)            1–4 + presupposition)
+```
+
+Those are the same three calls, in the same order, as `brain.ts`'s own
+`gate()`. Your adapter inherits all of it — and every family added to
+`honesty.ts` after you write your adapter — with zero code, because the surface
+layer routes to the gate instead of copying it. Three consequences for an
+adapter author:
+
+1. **`send()` receives gated bytes.** You never gate, never strip a marker,
+   never sanitise. If you find yourself wanting to, the contract is missing a
+   field.
+2. **A `[gif: …]` or `[voicenote: …]` marker no longer reaches your wire as
+   literal text** — it is extracted and, since an `OutboundMessage` has no
+   media kind yet, dropped. Dropping it is deliberate and is an improvement on
+   what shipped before, which was the marker itself arriving as her words. When
+   the contract grows a media kind, it grows in `deliver()`, once.
+3. **It fails closed.** A stale `api/_engine.gen.js` with no gate in it means
+   she sends NOTHING and the log says why. Do not add a fallback that sends the
+   ungated text; that is the bug #102 existed to fix, and it returns 200.
+
+The honesty gate needs conversation context, and the surface lanes wire it:
+`honestyContextFor()` maps the lane's own history (`assistant` = hers,
+everything else = his) into the four fields `guardReply` takes, and each lane
+passes the record it just retrieved through the disclosure predicate as
+`record` — that is family 4's support set, so a moment she was HANDED is a
+moment she may retell and nothing else is. If you add a lane, pass what that
+lane retrieved; do not pass the compiled prompt, which mentions half the world
+and would make the check vacuous.
+
+Gate: `node evals/surface.mjs` (offline, no DB, no model, ~1s). It proves the
+behaviour on a stubbed reply and — the half a future edit actually breaks —
+asserts statically that no path in `api/_surface.js` emits model text around
+the gate, with three injected defects as its own negative control.
 
 ### What you must NOT do
 
@@ -195,6 +242,12 @@ fragment, buttons ride the last — both decided once, in `deliver()`.
   reversal condition has fired: the contract is wrong and adapters go back to
   being bespoke. `evals/surface/contract.mjs` greps the engine half for
   surface-specific limits and URLs to keep that honest.
+- **Do not write your own honesty gate, and do not deliver around the one that
+  is there.** A second gate beside an adapter is `age-tier-never-realtime`
+  wearing a different hat: it silently misses every family added to
+  `honesty.ts` after the fork while continuing to return 200. Everything
+  outbound goes through `deliver()`, and everything from a model reaches
+  `deliver()` through `gatedReply()`.
 - **Do not write your own disclosure filter.** Every retrieval goes through
   `api/_disclosure.js`, where every rule is a `WHERE` clause. A second,
   hand-rolled copy is how a rule ends up with two meanings.
@@ -383,10 +436,28 @@ full Discord payload driving the entire shared pipeline end to end (30 checks).
   chat key cannot be stored, and `roomByChatKey()` returns null for one so the
   room lane refuses fail-closed rather than writing a row that means something
   else. Non-Telegram members are written with a NULL `tg_user_id` and
-  identified through `vy_surface_identity`. **Migration 010 should replace both
+  identified through `vy_surface_identity`. **The migration should replace both
   with `(surface, surface_chat_id)` / `(surface, surface_user_id)`** — the same
   move `vy_surface_identity` already made for `vy_tg_person`. That is
   WS-AGENT-SCHEMA's file, not this one's.
+
+  **Drafted, not applied (task #78, 2026-08-22):**
+  `db/migrations/drafts/DRAFT-013-surface-room-binding.sql`. Three things in it
+  are worth knowing before anyone picks it up. First, **the ticket's "migration
+  010" is a stale number** — 010, 011 and 012 have all shipped, so the draft is
+  numbered 013 and must be renumbered again to whatever is free on the day it
+  lands. Second, it lives in `drafts/` because `db/migrations/apply.mjs` applies
+  every `*.sql` in its own directory with no allowlist; a draft beside its
+  siblings is a draft that gets applied. Third, the DDL is only a third of the
+  job — it is additive and idempotent and drops nothing, and the backfill (held
+  back deliberately: it asserts a fact about existing rows that whoever applies
+  it should check, not assume) plus the `api/_room.js` read-path change are the
+  other two thirds. `surface_chat_id` is **text**, because a chat key is an
+  opaque address the contract already forbids parsing; the moment it is numeric
+  someone drops a leading zero. And there is deliberately **no
+  `check (surface in (…))`** — a CHECK there would mean adding a fifth surface
+  requires a migration, which is "do not teach the engine your surface" one
+  layer down.
 - WhatsApp's window ledger is a warm-lambda `Map`, so a cold start forgets it
   and `send()` then fails closed (no record = outside the window). The durable
   version reads the last inbound turn from `meera_log`, which is

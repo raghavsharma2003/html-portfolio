@@ -48,6 +48,36 @@ export {
 } from "./room";
 export { CRISIS_LINES, type UserProfile } from "./persona";
 
+// ── parse-and-gate, for every non-web surface (ticket #102) ────────────────
+// api/_surface.js is a plain-JS Vercel function under the same zero-imports-
+// from-src rule the header above describes, and until this export existed the
+// only thing it could reach was `compile`. So a surface reply was raw model
+// text: no protocol extraction, no texting-dash predicate, and — the reason
+// this is a ticket rather than a polish item — no honesty gate. Telegram was
+// shipping with NONE of families 1–4.
+//
+// The alternative was to re-implement the gate in JS beside the adapter, which
+// is the mirrored-persona failure this file exists to refuse, one level down
+// and worse: a second gate misses every rule added to honesty.ts after the
+// fork, silently, while continuing to return 200. `docs/CONVERSATION-DEFECTS.md`
+// names that shape ("a surface may choose how bytes reach the wire; it may not
+// choose whether the engine's guarantees apply").
+//
+// These are exported as the gate's PUBLIC contract — the same functions
+// brain.ts's own `gate()` calls, in the same order — so a surface inherits
+// every future family with zero per-surface code.
+export { parseBubbles, stripTextingDashes, type ParsedReply } from "./brain";
+export {
+  guardReply,
+  openCommitments,
+  allowedFrom,
+  hisVocabulary,
+  sharedVocabulary,
+  inspect,
+  type HonestyContext,
+  type HonestyFinding,
+} from "./honesty";
+
 // ── the self layer (Phase E2, docs/SPEC-SELF-LAYER.md) ─────────────────────
 // Exported here for the same reason room.ts is: api/consolidate.js is a
 // plain-JS serverless function under the standing zero-imports-from-src rule,

@@ -268,6 +268,162 @@ export async function think(engine, compiled, turns) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// PARSE AND GATE — the one door model text leaves by (ticket #102)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Until this section existed, `think()` handed raw model text straight to
+// `deliver()`. That meant every non-web surface shipped with NONE of the
+// engine's output-path guarantees: protocol markers went out as literal text,
+// em-dashes went out as the clearest "written by an AI" tell in a chat bubble,
+// and — the expensive one — the honesty gate never ran, so families 1–4 and
+// the presupposition detector did not exist on Telegram at all.
+//
+// The fix is deliberately NOT a copy of the gate. `docs/CONVERSATION-DEFECTS.md`
+// closes with the rule this section implements: **a surface may choose how
+// bytes reach the wire; it may never choose whether the engine's guarantees
+// apply.** A second gate beside the adapter is `age-tier-never-realtime`
+// waiting to happen — it misses every rule added after the fork, silently,
+// while returning 200. So this calls the SAME entry point the web lane calls
+// (brain.ts's `gate()`: parseBubbles → stripTextingDashes → guardReply), via
+// the committed bundle, and inherits every future family for free.
+//
+// THE INVARIANT THAT MAKES IT A GUARANTEE RATHER THAN A HABIT: `ctx.reply` is
+// called in exactly ONE place in this file — `gatedReply()` below — so there
+// is no expression anywhere that produces model text without gating it. A gate
+// the bytes can walk around is an absent gate (`dead-writers`, sharpened in
+// brain.ts's own comment on the same point). `evals/surface.mjs` asserts the
+// single call site statically, because that is the part a future edit breaks.
+
+/**
+ * The honesty gate's context for a surface turn, assembled from the same
+ * material brain.ts assembles it from, in the same roles.
+ *
+ * `turns` is the OpenAI-shaped history the surface lanes already build, so the
+ * mapping is the only surface-specific thing here and it is two lines: an
+ * `assistant` turn is HERS, everything else is HIS. In a room "his" is every
+ * human in it, which is correct — everything said in front of her is hers to
+ * quote, and nothing else is.
+ *
+ * The four fields, and why each is what it is (brain.ts's own honestyCtx holds
+ * the long version; this is the short one, kept here so the next person
+ * editing this file does not have to guess):
+ *   trustedText — provenance for family 1. Her assembled brief (which carries
+ *                 CRISIS_LINES, so the helplines survive the gate) plus HIS
+ *                 own words. Never her own past output: one fabrication would
+ *                 otherwise launder itself into permanence.
+ *   openItems   — what he said he would send and the record does not show
+ *                 arriving (family 2's ledger).
+ *   hisVocab    — family 3. His words only. ABSENT disables the family, which
+ *                 is fail-closed in the direction of saying nothing.
+ *   sharedVocab — family 4. The memory text this turn retrieved through the
+ *                 disclosure predicate: a moment she was HANDED is a moment
+ *                 she may retell. NOT the brief, which mentions half the world
+ *                 and would make the check vacuous.
+ */
+export function honestyContextFor(engine, compiled, turns, { record = [], nameable = [] } = {}) {
+  const history = (turns || []).map((m) => ({
+    from: m.role === "assistant" ? "her" : "me",
+    text: String(m.content ?? ""),
+  }));
+  const fullSystem = `${compiled?.core ?? ""}${compiled?.tail ?? ""}`;
+  return {
+    trustedText: [
+      fullSystem,
+      ...nameable.map(String),
+      ...history.filter((m) => m.from === "me").map((m) => m.text),
+    ],
+    openItems: engine.openCommitments(history),
+    hisVocab: engine.hisVocabulary(history),
+    sharedVocab: engine.sharedVocabulary([...record.map(String), ...nameable.map(String)]),
+  };
+}
+
+/** Does this bundle carry the gate at all? A stale api/_engine.gen.js is the
+ *  drift `scripts/build-engine-bundle.mjs --check` exists to catch, and this is
+ *  what turns that drift into silence rather than into ungated bytes. */
+export function hasGate(engine) {
+  return Boolean(
+    engine &&
+      typeof engine.parseBubbles === "function" &&
+      typeof engine.stripTextingDashes === "function" &&
+      typeof engine.guardReply === "function" &&
+      typeof engine.openCommitments === "function" &&
+      typeof engine.hisVocabulary === "function" &&
+      typeof engine.sharedVocabulary === "function",
+  );
+}
+
+/**
+ * Raw model text → the bytes a surface is allowed to put on the wire.
+ *
+ * FAIL CLOSED. A bundle without the gate means she says NOTHING, loudly. The
+ * alternative — sending the ungated text because the gate happened to be
+ * missing — is precisely the failure this ticket is about, and it would be
+ * invisible: everything returns 200 and the guarantee is simply gone.
+ *
+ * Findings are logged as COUNTS AND RULE NAMES ONLY. The whole point of the
+ * event is that the string it caught must not travel; logging it here would
+ * put it in a log aggregator instead of a chat window, which is not better.
+ */
+export function gateReply(engine, raw, honestyCtx, label = "surface") {
+  const text = String(raw ?? "");
+  if (!text) return { text: "", findings: [], gated: true };
+  if (!hasGate(engine)) {
+    console.error(
+      `[${label}] engine bundle carries no honesty gate — reply SUPPRESSED. ` +
+        "api/_engine.gen.js is stale; run node scripts/build-engine-bundle.mjs",
+    );
+    return { text: "", findings: [], gated: false, reason: "gate unavailable" };
+  }
+  // The same three steps, in the same order, as brain.ts's `gate()`:
+  // protocol extraction first (a marker must never reach a human as text),
+  // then the texting-dash predicate — text lane only, and every surface lane
+  // is a text lane; the live voice lane does not come through this file — then
+  // the honesty gate over the bubbles.
+  const parsed = engine.parseBubbles(text);
+  parsed.bubbles = (parsed.bubbles || []).map((b) => engine.stripTextingDashes(b)).filter(Boolean);
+  const { reply, findings } = engine.guardReply(parsed, honestyCtx);
+  if (findings.length) {
+    console.warn(
+      `[${label}] honesty_block n=${findings.length} ` +
+        `rules=${[...new Set(findings.map((f) => f.rule))].join(",")} ` +
+        `kinds=${[...new Set(findings.map((f) => f.kind).filter(Boolean))].join(",")} ` +
+        `open_items=${honestyCtx.openItems.length}`,
+    );
+  }
+  // Bubbles rejoin into ONE OutboundMessage because a surface's own render()
+  // owns fragmentation (splitForLimit) — the engine does not get to decide how
+  // many messages a wire wants. Newline-joined, so her burst structure
+  // survives into whatever the adapter makes of it.
+  return {
+    text: (reply.bubbles || []).join("\n").trim(),
+    findings,
+    gated: true,
+    parsed: reply,
+  };
+}
+
+/**
+ * THE ONLY CALL SITE OF `ctx.reply` IN THIS FILE, and the reason it is a
+ * function rather than three inline pairs of lines. Every lane below asks for
+ * a reply here; nothing below can obtain model text any other way. That is
+ * what makes "every surface inherits the gate" a structural property instead
+ * of a rule someone has to remember on the day they add the fifth surface.
+ */
+export async function gatedReply(ctx, compiled, turns, opts = {}) {
+  const label = opts.label || ctx.adapter?.surface || "surface";
+  const raw = await ctx.reply(compiled, turns);
+  // The availability check comes BEFORE the context is built, and that order
+  // is load-bearing rather than tidy: a bundle without the gate is also a
+  // bundle without the vocabulary builders `honestyContextFor` calls, so
+  // building the context first turns a refusal into a TypeError thrown out of
+  // the middle of a lane — after the user's turn is logged and before hers is.
+  // `evals/surface.mjs` drives exactly this, which is how the order was found.
+  if (!hasGate(ctx.engine)) return gateReply(ctx.engine, raw, { trustedText: [], openItems: [] }, label);
+  return gateReply(ctx.engine, raw, honestyContextFor(ctx.engine, compiled, turns, opts), label);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // DELIVERY
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -544,12 +700,30 @@ export async function onDirectMessage(ev, ctx) {
     latestUserText: text,
   });
   const history = await dmHistory(device, ctx.t);
-  const said = await ctx.reply(compiled, [...history, { role: "user", content: text }]);
+  // The shared record family 4 may retell FROM: the facts this turn retrieved
+  // through the disclosure predicate, and nothing else. A moment she was
+  // handed is a moment she may claim; one she was not is a fabrication.
+  const gatedOut = await gatedReply(
+    ctx,
+    compiled,
+    [...history, { role: "user", content: text }],
+    { record: facts.map((f) => f.body), label: `${ev.surface}/dm` },
+  );
+  const said = gatedOut.text;
   if (said) {
     await deliver(ctx, ev.chatKey, { kind: "text", text: said, replyTo: null, buttons: [] });
     await logDmTurn({ device, person, role: "her", content: said }, ctx.t);
   }
-  return { ok: true, dm: true, person, said: Boolean(said), recalled: facts.length };
+  return {
+    ok: true,
+    dm: true,
+    person,
+    said: Boolean(said),
+    recalled: facts.length,
+    // Counts only, for the same reason gateReply logs counts only. A caller
+    // may assert the gate ran; nobody may read what it caught.
+    gate: { applied: gatedOut.gated, findings: gatedOut.findings.length },
+  };
 }
 
 /**
@@ -600,9 +774,16 @@ async function onLinkTap(ev, intent, ctx) {
       herLife: "",
       cultureNoteText: "",
     });
-    const text = await ctx.reply(compiled, [
-      { role: "user", content: ctx.engine.ROOM_INTRO_DIRECTIVE() },
-    ]);
+    // The intro is model output like any other, so it is gated like any other.
+    // It has no history and no retrieved record — an introduction that claims a
+    // shared past is exactly the family-4 case, and here the gate has no
+    // support set at all, which is the strictest the check ever is.
+    const { text } = await gatedReply(
+      ctx,
+      compiled,
+      [{ role: "user", content: ctx.engine.ROOM_INTRO_DIRECTIVE() }],
+      { label: `${ev.surface}/intro` },
+    );
     if (text) {
       await deliver(ctx, ev.chatKey, { kind: "text", text, replyTo: null, buttons: [] });
       intro = "sent";
@@ -795,10 +976,20 @@ export async function onGroupMessage(ev, ctx) {
   });
 
   const history = await roomHistory(room.id, ctx.t);
-  const text = await ctx.reply(compiled, [
-    ...history,
-    { role: "user", content: `${ev.handle}: ${ev.text || ""}` },
-  ]);
+  // In a room the shared record is what came through the predicate for THIS
+  // room's recipient set, plus the bridge rows — every one of them already
+  // disclosure-checked above. She may retell what she was handed here and
+  // nothing beyond it, which is the same rule the 1:1 lane runs under.
+  const gatedOut = await gatedReply(
+    ctx,
+    compiled,
+    [...history, { role: "user", content: `${ev.handle}: ${ev.text || ""}` }],
+    {
+      record: [...facts.map((f) => f.body), ...bridge.map((b) => JSON.stringify(b))],
+      label: `${ev.surface}/room`,
+    },
+  );
+  const text = gatedOut.text;
   if (text) {
     await deliver(ctx, ev.chatKey, {
       kind: "text",
@@ -820,6 +1011,7 @@ export async function onGroupMessage(ev, ctx) {
     episodeId,
     compiled: { core: compiled.core.length, tail: compiled.tail.length, sections: compiled.sections },
     said: Boolean(text),
+    gate: { applied: gatedOut.gated, findings: gatedOut.findings.length },
   };
 }
 
@@ -942,7 +1134,13 @@ function memberKeys(surface, personId, surfaceUserId) {
 }
 
 /** Build the ctx an adapter's handler hands to dispatch(). The `send` seam is
- *  what lets an offline suite drive the REAL pipeline with no network. */
+ *  what lets an offline suite drive the REAL pipeline with no network.
+ *
+ *  `reply` is the RAW brain call and its bytes are not deliverable: everything
+ *  in this file reaches it through `gatedReply()`, which parses and gates what
+ *  it returns. An injected `reply` is therefore a way to drive the pipeline
+ *  with a fixed model output, not a way around the gate — `evals/surface.mjs`
+ *  drives exactly that path with a known family-4 violation. */
 export function makeCtx(adapter, deps = {}) {
   const engine = deps.engine !== undefined ? deps.engine : null;
   return {

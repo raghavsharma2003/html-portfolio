@@ -296,6 +296,15 @@ export function startLink(roomId, bot = BOT_USERNAME) {
  *   reply   — the brain call, so a suite can assert on the COMPILED PROMPT
  *             rather than on a generated sentence (a suite that asserted on
  *             model output would be measuring the model, not the wiring)
+ *
+ * `reply` returns RAW model text and this file never sees it again: since
+ * ticket #102 every lane in api/_surface.js takes its reply through
+ * `gatedReply()`, which runs the engine's own parse-and-gate (protocol
+ * extraction, the texting-dash predicate, honesty families 1–4 and the
+ * presupposition detector) before anything reaches `send()`. So an injected
+ * `reply` here drives the pipeline; it is not a way around the gate, and this
+ * adapter must never grow a reply path of its own — `evals/surface.mjs`
+ * asserts that it has not.
  */
 export async function handleUpdate(update, deps = {}) {
   const engine = deps.engine !== undefined ? deps.engine : await loadEngine();
