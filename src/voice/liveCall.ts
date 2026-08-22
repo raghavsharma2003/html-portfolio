@@ -325,6 +325,113 @@ const CLAIM_WIN_MS = 850;
 const SOFT_CLAIM_MS = 1100;
 const SOFT_CLAIM_WIN_MS = 2000;
 const DUCK_AT_MS = 150; // 7 sub-frames — she notices, she does not stop
+// ── ONSET CONFIRMATION, and why a COUNT IN A WINDOW was not already one ──
+//
+// CLAIM_MS/CLAIM_WIN_MS ask for 26 above-bar sub-frames anywhere inside 40.
+// That is a DUTY CYCLE, not a duration, and the 14 sub-frames of slack it
+// grants — deliberately, for plosive gaps — are also enough room for a
+// "candidate" that was never one sound at all. At −3 dB coupling her own leak
+// clears the hard bar at her syllable PEAKS, two or three sub-frames at a time,
+// and those scattered hits accumulate into a full claim without any one of them
+// lasting long enough to be a voice: measured in echosim, nobody in the room,
+// hardMax 26/26 — the window filled — and she took the floor from herself in
+// 1 of 8 calls while spending 68% of her own turn ducked by her own echo. A
+// click, a chair, a door, a keyboard, a cough do the same thing at every
+// coupling. They are loud, they are short, and a count cannot tell them from
+// the first syllable of a sentence.
+//
+// So a HARD hit now has to belong to a sound that SUSTAINED before it counts.
+// Hits are held pending until the candidate has been continuously live this
+// long; only then are they promoted into the claim window — WITH THEIR ORIGINAL
+// sub-frame indices, so the claim clock still starts at the true onset and a
+// real barge-in pays nothing for the confirmation. If the candidate dies first
+// it never existed: the pending hits are dropped, and because nothing reached
+// hardHits, nothing ducked either.
+//
+// ── WHAT THIS DELIBERATELY DOES NOT GATE, AND WHY ──
+// The SOFT path. Its own rule is 1100ms of hits inside 2000ms, which no
+// transient can reach — a click that lasted 1.1 seconds is a disturbance, not a
+// click — so confirmation buys it nothing. And it would cost it everything: the
+// soft path exists for the QUIET talker, whose above-bar sub-frames are sparse
+// by construction. Gating them was built and measured first, and took the quiet
+// talker at −12 dB from 7/8 barge-ins to 1/8, which is the deafness this file
+// refuses everywhere else. Confirmation protects the FAST bar; the slow bar is
+// already protected by being slow.
+//
+// Swept in echosim against a HEAD-built baseline (`exp-barge.mjs` and a
+// 24-seed reduction of it). 120/170/210/250/300ms were measured against
+// ONSET_DUTY 0.5-0.85; the window length is the weak axis and the duty is the
+// strong one. 250ms is where the transient rejection stops improving without
+// the duty having to rise into the range that costs barge-ins.
+const ONSET_CONFIRM_MS = 250;
+// What ends an utterance: the gate's own 250ms hangover, which is the duration
+// this file already uses everywhere to mean "still going". A person's word gaps
+// (30-90ms) and stop consonants sit inside one utterance; a click, a key and a
+// cough 1.5s apart are three.
+//
+// It is ONE clock, and that is the second thing this got wrong. The first
+// version ran a second, shorter clock (43ms — a stop closure) so that a
+// "candidate" ended at every consonant, and dropped the pending hard hits when
+// it did. Both failure directions showed up in the same table: a real talker's
+// hard hits were dropped at every gap and never confirmed, so the claim fell
+// back on the 1100ms soft path — normal talker at −6 dB went from 840ms to
+// 1864ms and the quiet talker at −12 dB from 7/8 barge-ins to 5/8.
+const UTTER_GAP_MS = 250;
+// ...and the utterance must be a SOUND, not a flicker. The test is a ROLLING
+// duty cycle over the last confirmation window, not a cumulative count: a
+// cumulative count is satisfied by any eight hits however far apart, which is
+// exactly the shape of her own leak (syllable peaks, two or three sub-frames,
+// ~200ms apart — a ~30% duty cycle that never stops). 0.6 of 12 sub-frames = 8,
+// i.e. 171ms of the last 250ms had to be audible.
+//
+// THIS IS THE SENSITIVE PARAMETER AND IT IS ONE STEP FROM A CLIFF. Measured at
+// 250ms, 24 seeds per cell, against a HEAD-built baseline (quiet talker 19/24,
+// normal talker 24/24):
+//
+//   duty   quiet talker −12dB   normal −6dB   self-duck −3dB / −6dB   leak −6dB
+//   0.50        18/24              24/24            58% / 36%           171ms
+//   0.60        20/24              24/24            43% / 14%           171ms
+//   0.70        15/24              23/24            27% /  5%           171ms
+//   0.80        10/24              19/24            10% /  3%           171ms
+//
+// The echo numbers keep improving all the way up and the talker falls off a
+// ledge between 0.60 and 0.70, which is the same trade this file makes at
+// ECHO_MARGIN and resolves the same way: "she is over-interruptible" is a
+// better product than "she is uninterruptible". 0.60 is the last value that
+// holds BOTH barge-in cells at or above the baseline.
+//
+// WHAT WOULD REVERSE THIS: a duty above 0.6 becoming safe, which needs the
+// quiet talker to stop depending on the hard path — i.e. a soft path that
+// completes sooner than 1100ms. Until then, do not raise it on the strength of
+// the echo column alone.
+const ONSET_DUTY = 0.6;
+// ── BACKCHANNEL-IGNORE ──
+// A "hmm"/"haan"/"accha" is 300-500ms. It is a CONTINUER: it means *keep
+// going*. It is already under the 550ms claim, so it cannot take the floor —
+// but what it does instead is worse than taking it. It ducks her for its whole
+// length; its hits stay in the 850/2000ms windows where they can sum with the
+// NEXT unrelated sound into a claim nobody made; and its audio sits in the hold
+// ring until the unconditional turn-end flush hands it to the server as if it
+// were his turn. She then answers a continuer. Measured, −12 dB, 8 seeds: two
+// continuers across one of her turns put 767ms of audio on the wire that a
+// silent control did not.
+//
+// So an utterance that ENDS this short, and that never got loud enough to be a
+// plain interruption, is RETIRED rather than left to decay: its hits leave both
+// windows, the duck reverses on the next tick through the existing unduck
+// branch, and its audio is dropped from the ring instead of being flushed.
+//
+// It cannot swallow speech, and that is a property of WHEN it fires rather than
+// of any guess about what was said. It fires only after the sound has already
+// stopped for UTTER_GAP_MS, and the ring is not dropped until it has stayed
+// stopped for a further ONSET_CONFIRM_MS. Anything still going is a live
+// utterance, keeps its ring and keeps its onset — so if it turns out to be a
+// sentence, the burst still starts at its first syllable and no words are lost.
+const BACKCHANNEL_MAX_MS = 600;
+// A shout is not a continuer. Same argument and same number as the steadiness
+// override: +24 dB over ambience is nobody's "hmm", so a short loud utterance
+// keeps its hits and is allowed to combine with whatever follows it.
+const BACKCHANNEL_LOUD_MULT = 16.0;
 // Steadiness veto. Between a fan switching on and the 3s the floor needs to
 // learn it, a loud machine can clear the level bar. Speech runs 5-9 dB of
 // log-RMS standard deviation over half a second (the ~4Hz syllabic
@@ -1355,6 +1462,11 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   const softWin = Math.round(SOFT_CLAIM_WIN_MS / subMs);
   const softNeed = Math.round(SOFT_CLAIM_MS / subMs);
   const duckNeed = Math.max(2, Math.round(DUCK_AT_MS / subMs));
+  // ── onset confirmation / backchannel-ignore, in sub-frames ──
+  const confirmSpan = Math.max(2, Math.round(ONSET_CONFIRM_MS / subMs));
+  const confirmHits = Math.max(2, Math.ceil(confirmSpan * ONSET_DUTY));
+  const utterGapSubs = Math.max(2, Math.round(UTTER_GAP_MS / subMs));
+  const bcMaxSubs = Math.max(confirmSpan, Math.round(BACKCHANNEL_MAX_MS / subMs));
   const floorRing: number[] = [];
   let noiseFloor = 0.003;
   let tickNo = 0;
@@ -1378,9 +1490,42 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
   const talkGapChunks = Math.max(2, Math.round(ACK_TALK_GAP_MS / chunkMs));
   // ── floor-arbitration state ──
   let subIdx = 0; // monotonic sub-frame counter — the claim windows' clock
-  const hardHits: number[] = []; // sub-frames above the BARGE bar
+  const hardHits: number[] = []; // sub-frames above the BARGE bar, CONFIRMED
   const softHits: number[] = []; // sub-frames above the SOFT bar
   let claimPeak = 0;
+  // ── THE UTTERANCE CURRENTLY BEING JUDGED ──
+  // One stretch of sound, ended by UTTER_GAP_MS of silence. It carries its
+  // ORIGINAL first sub-frame index, so promoting its held hard hits costs a
+  // real barge-in no latency: they land in the claim window they would always
+  // have landed in.
+  let utterSub = 0; // 0 = nothing live
+  let utterLast = 0; // its most recent above-bar sub-frame
+  let utterPeak = 0; // its loudest sub-frame
+  let utterHits = 0; // above-bar sub-frames in it, for the diagnostic only
+  let utterOk = false; // has it sustained long enough for its hard hits to count?
+  const pendHard: number[] = []; // its hard hits, held until it has
+  let quietSubs = 0; // consecutive below-bar sub-frames
+  // The rolling duty cycle over the last confirmation window. A ring of 0/1 and
+  // its running sum, so the test is O(1) on the audio tick.
+  const dutyRing = new Uint8Array(confirmSpan);
+  let dutyPos = 0;
+  let dutyCount = 0;
+  // A retired backchannel's audio, waiting to be sure it really stopped before
+  // the ring is dropped. 0 = nothing pending.
+  let bcSince = 0;
+  const resetOnset = () => {
+    utterSub = 0;
+    utterLast = 0;
+    utterPeak = 0;
+    utterHits = 0;
+    utterOk = false;
+    pendHard.length = 0;
+    quietSubs = 0;
+    dutyRing.fill(0);
+    dutyPos = 0;
+    dutyCount = 0;
+    bcSince = 0;
+  };
   // EVERY sub-frame while she is audible, linear RMS, oldest first — one entry
   // per sub-frame, so position maps straight back to subIdx. The steadiness
   // test reads this rather than only the above-bar sub-frames, because
@@ -1464,6 +1609,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       hardHits.length = 0;
       softHits.length = 0;
       subLin.length = 0;
+      resetOnset();
       hold = [];
       claimPeak = 0;
       kappa = ECHO_KAPPA_SEED;
@@ -1550,6 +1696,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       hardHits.length = 0;
       softHits.length = 0;
       subLin.length = 0;
+      resetOnset();
       hold = [];
       claimPeak = 0;
       floorLost = false;
@@ -1818,6 +1965,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       hardHits.length = 0;
       softHits.length = 0;
       subLin.length = 0;
+      resetOnset();
       claimPeak = 0;
       floorClaimSince = 0;
       floorLost = false;
@@ -1833,10 +1981,11 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       if (hold.length) {
         if (ws.bufferedAmount <= STALL_CEILING) for (const c of hold) sendPcm(c);
       }
-      if (floorLost || hardHits.length || softHits.length || hold.length) {
+      if (floorLost || hardHits.length || softHits.length || hold.length || utterSub) {
         hardHits.length = 0;
         softHits.length = 0;
         subLin.length = 0;
+        resetOnset();
         hold = [];
         claimPeak = 0;
       }
@@ -1851,17 +2000,114 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     }
     const holding = herSpeaking && !floorLost;
     let claim = false;
+    let ignored: { spanMs: number; hits: number; confirmed: boolean; peak: number } | null = null;
     if (holding) {
       for (let s = 0; s < SUBS; s++) {
         const v = sub[s];
         subIdx++;
         subLin.push(v);
         if (subLin.length > softWin + 1) subLin.shift();
-        if (v > thrBAt[s]) hardHits.push(subIdx);
+        const isHard = v > thrBAt[s];
         // a soft hit must also out-shout her own leak, at this instant
-        if (v > thrSAt[s] && v > echoAt[s]) softHits.push(subIdx);
+        const isSoft = v > thrSAt[s] && v > echoAt[s];
+        // the rolling duty cycle, over the last confirmSpan sub-frames
+        dutyCount -= dutyRing[dutyPos];
+        dutyRing[dutyPos] = isHard || isSoft ? 1 : 0;
+        dutyCount += dutyRing[dutyPos];
+        dutyPos = (dutyPos + 1) % confirmSpan;
+        if (isHard || isSoft) {
+          quietSubs = 0;
+          bcSince = 0; // something is live again; the ring is not stale
+          if (!utterSub) {
+            utterSub = subIdx;
+            utterPeak = 0;
+            utterHits = 0;
+            utterOk = false;
+            pendHard.length = 0;
+          }
+          utterLast = subIdx;
+          utterHits++;
+          if (v > utterPeak) utterPeak = v;
+          // The soft path is never gated — see ONSET_CONFIRM_MS for why.
+          if (isSoft) softHits.push(subIdx);
+          // ── ONSET CONFIRMATION, on the hard path only ──
+          // A hard hit is evidence about an UTTERANCE, not about the window.
+          // Nothing reaches hardHits until the utterance has sustained; when it
+          // does, everything it ever produced arrives at once, at the sub-frame
+          // index it originally had, so the claim clock still starts at the
+          // true onset.
+          if (isHard && utterOk) hardHits.push(subIdx);
+          else if (isHard) pendHard.push(subIdx);
+          if (!utterOk && subIdx - utterSub + 1 >= confirmSpan && dutyCount >= confirmHits) {
+            utterOk = true;
+            for (const i of pendHard) hardHits.push(i);
+            pendHard.length = 0;
+          }
+        } else {
+          quietSubs++;
+          // ── THE UTTERANCE ENDED ──
+          if (utterSub && quietSubs > utterGapSubs) {
+            const spanSubs = utterLast - utterSub + 1;
+            // It never sustained: a click, a chair, a key, a cough, or two of
+            // her syllable peaks in a row. Whatever it put in pendHard never
+            // counted and now never will.
+            const wasTransient = !utterOk;
+            // Or it did sustain, but it was short and it never got loud — a
+            // continuer. Either way it is retired, and everything it
+            // contributed leaves BOTH windows so it cannot sum with the next
+            // unrelated sound into a claim nobody made. Popping from the tail
+            // is exact: hits are pushed in sub-frame order, so every index
+            // >= utterSub is this utterance's.
+            const wasBackchannel =
+              spanSubs <= bcMaxSubs && utterPeak < noiseFloor * BACKCHANNEL_LOUD_MULT;
+            if (wasTransient || wasBackchannel) {
+              while (hardHits.length && hardHits[hardHits.length - 1] >= utterSub) hardHits.pop();
+              while (softHits.length && softHits[softHits.length - 1] >= utterSub) softHits.pop();
+              ignored = {
+                spanMs: Math.round(spanSubs * subMs),
+                hits: utterHits,
+                confirmed: utterOk,
+                peak: utterPeak,
+              };
+              // ...and its audio must not be flushed at the turn end as if it
+              // were his turn. Armed here, acted on below, so a sound that
+              // restarts keeps its ring.
+              bcSince = subIdx;
+            }
+            pendHard.length = 0;
+            utterSub = 0;
+            utterLast = 0;
+            utterPeak = 0;
+            utterHits = 0;
+            utterOk = false;
+          }
+        }
         while (hardHits.length && subIdx - hardHits[0] > claimWin) hardHits.shift();
         while (softHits.length && subIdx - softHits[0] > softWin) softHits.shift();
+      }
+      // The retired backchannel really has stopped — UTTER_GAP_MS of silence,
+      // then a confirmation window more. Drop what it put in the ring, but only
+      // while nothing else is live and no other sound has hits standing, so
+      // this can never take audio away from a real barge-in.
+      if (bcSince && subIdx - bcSince >= confirmSpan) {
+        if (!utterSub && !hardHits.length && !softHits.length) {
+          if (hold.length) diag("call", "barge_ring_drop", { chunks: hold.length });
+          hold = [];
+        }
+        bcSince = 0;
+      }
+      // Logged because the two failure directions look identical from outside:
+      // "she was not interrupted" is the same observation whether a continuer
+      // was correctly refused or a sentence was wrongly swallowed.
+      if (ignored) {
+        diag("call", "barge_ignored", {
+          spanMs: ignored.spanMs,
+          hits: ignored.hits,
+          confirmed: ignored.confirmed,
+          peakDb: Math.round(20 * Math.log10(Math.max(ignored.peak, 1e-6))),
+          floorDb: Math.round(20 * Math.log10(Math.max(noiseFloor, 1e-6))),
+          held: hold.length,
+        });
       }
       // THE CANDIDATE'S OWN SPAN: from its oldest surviving hit to now. Every
       // sub-frame in there counts, above the bar or not — the sub-bar dips

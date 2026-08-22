@@ -93,6 +93,18 @@ export async function runCall(cfg) {
   const stray = cfg.stray
     ? speech(SR_OUT, cfg.stray.durMs / 1000, { level: cfg.stray.level ?? 0.25, f0: 205, seed: seed + 77 })
     : null;
+  // TRANSIENTS: a click, a chair scrape, a door, a keyboard, a cough. Loud,
+  // broadband, and SHORT — the class of sound the floor arbiter's duration
+  // rules exist to refuse. Rendered straight into the mic buffer (they are in
+  // the room, not on the speaker), each with a raised-cosine envelope so it has
+  // a real onset rather than a step discontinuity.
+  //   cfg.bursts = [{ atMs, durMs, level }]
+  const bursts = (cfg.bursts ?? []).map((b, i) => {
+    const n = Math.round((SR_IN * b.durMs) / 1000);
+    const a = noise(SR_IN, b.durMs / 1000, b.level ?? 0.3, seed + 101 + i * 7);
+    for (let k = 0; k < n; k++) a[k] *= Math.pow(Math.sin((Math.PI * k) / n), 0.6);
+    return { atMs: b.atMs, audio: a };
+  });
 
   const t0 = Date.now();
   const CH = Math.round(SR_OUT * 0.2); // 200ms downlink chunks
@@ -224,6 +236,11 @@ export async function runCall(cfg) {
         const ui2 = Math.floor(((absMs - t0 - user2.startMs) / 1000) * SR_IN);
         if (ui2 >= 0 && ui2 < usr2.length) v += usr2[ui2];
       }
+      for (let bi = 0; bi < bursts.length; bi++) {
+        const B = bursts[bi];
+        const k2 = Math.floor(((absMs - t0 - B.atMs) / 1000) * SR_IN);
+        if (k2 >= 0 && k2 < B.audio.length) v += B.audio[k2];
+      }
       micBuf[i] = v;
     }
     // GROUND TRUTH for the offline statistic study: her own post-gain output,
@@ -298,5 +315,11 @@ export async function runCall(cfg) {
     alignedByTick,
     sendLog,
     uplinkTrace,
+    // Did the SERVER decide to stop her, off the bytes this client actually
+    // sent? A client that never releases the floor but leaks a backchannel to
+    // the server has still cut her off — from the listener's side the two are
+    // the same event, so the harness has to be able to see both.
+    serverInterrupted: interruptAt > 0,
+    serverInterruptMs: interruptAt ? interruptAt - t0 : null,
   };
 }
