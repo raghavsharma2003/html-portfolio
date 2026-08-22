@@ -62,6 +62,15 @@ await gate("workflow lint", "node", ["scripts/check-workflows.mjs"]);
 // transitions, keyframes with no reduced-motion answer) and leaves judgment to
 // eyes. Exceptions are written next to the code with a reason.
 await gate("motion lint", "node", ["scripts/check-motion.mjs"]);
+// Board legibility floors + the ttt keyframe's explicit end state. Same
+// species as the motion lint: properties of files the code never reads,
+// invisible to every test that runs the code. Each numbered floor in it is
+// a measured failure that shipped (1.27:1 black pieces, 1.18:1 ttt cells,
+// marks that animated 1 -> 1 into permanent invisibility).
+await gate("board legibility", "node", ["scripts/check-contrast.mjs"]);
+// The em-dash ban, on the half of the app it never bound: product chrome.
+// She has stripTextingDashes on every bubble; the humans had nothing.
+await gate("chrome copy", "node", ["scripts/check-copy.mjs"]);
 // The room path (api/tg.js and every future surface) does not import src/ — it
 // reads the committed bundle api/_engine.gen.js. So a change to the engine that
 // is not regenerated ships a DIFFERENT Meera to Telegram than the one every

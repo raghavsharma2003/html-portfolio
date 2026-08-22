@@ -1,5 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+// Static, deliberately. This was `await import("@capacitor/core")` inside
+// confirmBundleWorks, which bought nothing: fourteen other modules in the
+// initial graph import it statically, so rollup kept it in the entry chunk
+// and only printed INEFFECTIVE_DYNAMIC_IMPORT for the trouble. One style,
+// and it is the one the rest of the app already uses.
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import "./styles/global.css";
 import App from "./App";
 import { applyTheme, isThemeChoice } from "./engine/theme";
@@ -109,7 +115,6 @@ function confirmBundleWorks() {
         if (!document.getElementById("root")?.childElementCount) return;
         void (async () => {
           try {
-            const { Capacitor, registerPlugin } = await import("@capacitor/core");
             if (!Capacitor.isNativePlatform()) return;
             const Updater = registerPlugin<{ markLaunchOk(): Promise<void> }>("MeeraUpdater");
             await Updater.markLaunchOk();

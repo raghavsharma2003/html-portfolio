@@ -6,7 +6,13 @@
 //      so a fresh install has a real brain with zero setup)
 //   4. Offline heart engine (always available fallback)
 
-import Anthropic from "@anthropic-ai/sdk";
+// TYPE ONLY. The SDK is 151.6 kB of the bundle and is reachable on exactly one
+// path — the owner pasting their own Claude key into Settings — so it is
+// loaded with `await import()` at the moment that path is taken (see
+// `claudeThink`) rather than shipped to every first paint. A `import type`
+// here costs nothing at runtime and keeps `Anthropic.TextBlock` spelled the
+// same as before.
+import type AnthropicSDK from "@anthropic-ai/sdk";
 import { Capacitor } from "@capacitor/core";
 import { type UserProfile, type VoiceEngine } from "./persona";
 import { tagFromSeed } from "./photoCatalog";
@@ -804,6 +810,9 @@ async function claudeThink(
         : t.content.map((p: any) => (p.type === "text" ? p.text : "[photo]")).join(" "),
   }));
   try {
+    // Loaded here, not at module scope: this is the only call site, and the
+    // network fetch for the chunk is dwarfed by the model call it precedes.
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
     const client = new Anthropic({ apiKey: keys.apiKey!, dangerouslyAllowBrowser: true });
     const response = await client.messages.create({
       model: CLAUDE_MODEL,
@@ -814,7 +823,7 @@ async function claudeThink(
     });
     if (response.stop_reason === "refusal") return null;
     const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .filter((b): b is AnthropicSDK.TextBlock => b.type === "text")
       .map((b) => b.text)
       .join("\n");
     return text.trim() ? text : null;

@@ -1,0 +1,102 @@
+/* Thread chrome that arrived with the windowing + emoji-ramp pass.
+ *
+ * A separate file because `global.css` belongs to another workstream and two
+ * hands in one stylesheet is how a merge eats a rule. Imported from Chat.tsx,
+ * so it loads with the screen these rules describe and nowhere else.
+ * Everything here is additive: no selector below overrides a global rule
+ * except `.msg.emoji-big .t`, which is called out where it happens. */
+
+/* ── the 1–3 emoji ramp ─────────────────────────────────────────────────
+ *
+ * One emoji was ~108px and bubble-less; two were 17px body text in a normal
+ * bubble. A 5x step across one character reads as a bug. The ramp falls off
+ * instead: 108 → 64 → 44, all bubble-less, and four or more is a sentence
+ * written in emoji, which is an ordinary message.
+ *
+ * `emoji-big` still carries the bubble-removal rules in global.css; these
+ * only size the run. `--emo` is the glyph box the meta row aligns to. */
+.msg.emoji-n1 {
+  --emo: 108px;
+}
+.msg.emoji-n2 {
+  --emo: 64px;
+}
+.msg.emoji-n3 {
+  --emo: 44px;
+}
+.msg.emoji-n2 .emoji-run,
+.msg.emoji-n3 .emoji-run {
+  display: block;
+  font-size: var(--emo);
+  /* 1.0 clips the taller glyphs on Android's emoji font; 1.08 does not, and
+     is still tight enough that the run reads as one object */
+  line-height: 1.08;
+  letter-spacing: 0.04em;
+  /* the trailing letter-spacing would otherwise sit inside the box and pull
+     the meta row off-centre by half a space */
+  margin-right: -0.04em;
+}
+
+/* ── the meta row under a big emoji ────────────────────────────────────
+ *
+ * `.msg .t` is right-aligned in every bubble; `.msg.emoji-big .t` was
+ * `text-align: inherit`, i.e. hard left, so the time sat at the bubble box's
+ * padding edge while the glyph is drawn centred inside its own box. The
+ * result was a timestamp that lined up with nothing — measurably inboard of
+ * the glyph on one side and outboard on the other, and the offset changed
+ * when the animated Noto image swapped in for the platform glyph.
+ *
+ * Centred on the glyph box, which is the only edge that is stable across both
+ * states and across all three ramp sizes. The bubble shrink-wraps the run, so
+ * the meta row's own block already spans exactly that box — centring needs no
+ * width of its own, and giving it one wrapped the ticks onto a second line
+ * under a 44px three-emoji run. */
+.msg.emoji-big .t {
+  text-align: center;
+}
+.msg.emoji-big .t .tickicon {
+  vertical-align: -1px;
+}
+
+/* ── the window's edge ─────────────────────────────────────────────────
+ *
+ * Only the last ~80 rows exist in the DOM. This is the tap that admits it,
+ * and it is deliberately a control rather than an invisible sentinel: an
+ * infinite-scroll loader fires mid-flick and moves the thread under the
+ * finger, which is the one thing the scroll-ownership rule forbids. */
+.load-earlier {
+  position: relative;
+  align-self: center;
+  margin: 4px 0 10px;
+  padding: 7px 16px;
+  min-height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-dim);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background var(--d-state) var(--ease-out);
+}
+/* HIG's 44px floor without a 44px-tall pill in the middle of the thread */
+.load-earlier::after {
+  content: "";
+  position: absolute;
+  inset: -6px -10px;
+}
+.load-earlier:hover,
+.load-earlier:focus-visible {
+  background: var(--surface-3, var(--surface-2));
+}
+.load-earlier:active {
+  opacity: 0.7;
+}
+
+/* A quote is a target now: tapping it goes to what it quotes. Nothing about
+ * its appearance changes — the affordance is the pointer and the fact that
+ * the thread moves. */
+.msg .quote {
+  cursor: pointer;
+}

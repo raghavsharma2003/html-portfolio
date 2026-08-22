@@ -1,8 +1,9 @@
 // The chat — where the relationship lives. Human typing rhythm, multi-bubble
 // replies, photo moments, presence cues.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { animate } from "framer-motion";
+import "../styles/thread.css";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think, formatHerLife } from "../engine/brain";
@@ -29,12 +30,11 @@ import { track } from "../engine/account";
 import { tel, telFlush, createComposeTracker } from "../engine/telemetry";
 import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
-import PhotoCard from "./PhotoCard";
 import StoryView from "./StoryView";
 import { activeStories, hasUnseenStory, storySrc } from "../engine/storyCatalog";
-import BigEmoji, { isSingleEmoji } from "./BigEmoji";
-import VoiceNote, { registerLocalClip } from "./VoiceNote";
-import GifBubble from "./GifBubble";
+import MessageRow, { type RowApi } from "./MessageRow";
+import { fmtTime } from "./fmtTime";
+import { registerLocalClip } from "./VoiceNote";
 import { ChessIcon } from "./GamesHub";
 import { listen, sttSupported } from "../voice/speech";
 import { tap } from "../native/haptics";
@@ -42,7 +42,6 @@ import MoreSheet from "./MoreSheet";
 import {
   PhoneIcon,
   SendIcon,
-  TickIcon,
   MicIcon,
   CameraIcon,
   MoreIcon,
@@ -63,24 +62,6 @@ interface Props {
   // she must never send chat bubbles while actively ON a call with them
   inCall?: boolean;
 }
-
-// Intl formatting is not free and the thread holds up to 500 messages, each
-// of which now needs its time twice (the visible stamp and the bubble's
-// accessible name). One formatter, and one cache keyed to the minute — the
-// answer cannot change within a minute, and the map is bounded by the
-// number of distinct minutes in a conversation.
-const timeFmt = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-const timeCache = new Map<number, string>();
-const fmtTime = (t: number): string => {
-  const key = Math.floor(t / 60_000);
-  let v = timeCache.get(key);
-  if (v === undefined) {
-    v = timeFmt.format(t);
-    if (timeCache.size > 2000) timeCache.clear();
-    timeCache.set(key, v);
-  }
-  return v;
-};
 
 function lastSeenLabel(t: number): string {
   const mins = Math.floor((Date.now() - t) / 60000);
@@ -107,9 +88,6 @@ const readDelay = (incoming: string) => {
   const words = incoming.split(/\s+/).filter(Boolean).length;
   return Math.min(3000, Math.max(600, (words / 4) * 1000));
 };
-/** WhatsApp's six, in WhatsApp's order — muscle memory is the whole point. */
-const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "🙏", "👍"] as const;
-
 /**
  * How long after a call she may text about it.
  *
@@ -209,6 +187,38 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   const [showJump, setShowJump] = useState(false);
   const [missed, setMissed] = useState(0);
   const busy = useRef(false);
+  // ── how much of the thread exists in the DOM ──────────────────────────
+  //
+  // 80 rows is roughly four screens at the densest bubble size, so the tail
+  // window is never the reason something is missing when you flick up; past
+  // that it is deliberate scrollback and it can pay one tap for itself.
+  //
+  // The extended window is anchored by the ID of its oldest row, not by a
+  // count. A count would be re-derived from the END of the list, so every
+  // message that arrived while you were reading scrollback would push one row
+  // out of the top and shift everything on screen by its height. An id cannot
+  // do that: arrivals land below it and nothing visible moves.
+  const WINDOW_STEP = 80;
+  const [anchorId, setAnchorId] = useState<string | null>(null);
+  // The row callbacks, indirected through a ref. `rowApi` never changes
+  // identity (that is the whole point — see MessageRow.tsx); the ref it calls
+  // through is rewritten on every render, so no handler is ever stale.
+  const rowHandlers = useRef<RowApi>(null as unknown as RowApi);
+  const rowApi = useMemo<RowApi>(
+    () => ({
+      toggleSelect: (id) => rowHandlers.current.toggleSelect(id),
+      clearSelect: () => rowHandlers.current.clearSelect(),
+      react: (m, emoji) => rowHandlers.current.react(m, emoji),
+      replyTo: (m) => rowHandlers.current.replyTo(m),
+      focusRow: (id) => rowHandlers.current.focusRow(id),
+      moveFocus: (id, dir) => rowHandlers.current.moveFocus(id, dir),
+      voicePlayed: (id) => rowHandlers.current.voicePlayed(id),
+      gifResolved: (id, url) => rowHandlers.current.gifResolved(id, url),
+      jumpToQuoted: (m) => rowHandlers.current.jumpToQuoted(m),
+      swipe: (m) => rowHandlers.current.swipe(m),
+    }),
+    [],
+  );
   // ── burst-aware reply orchestration ──
   // The user can ALWAYS send (like WhatsApp). Each send schedules a reply
   // cycle behind a short "let them finish typing" debounce; newer messages
@@ -324,6 +334,36 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     setMissed(0);
   };
 
+  // ── extending the window without moving the thread ────────────────────
+  // Rows are added ABOVE what is on screen, so the invariant to preserve is
+  // the distance from the BOTTOM, not scrollTop. Measured before the state
+  // change, restored in a layout effect — i.e. after React commits the new
+  // rows and before the browser paints, so there is no frame in which the
+  // conversation has jumped.
+  const anchorFromBottom = useRef<number | null>(null);
+  /** Message id to scroll to once it is inside the window. */
+  const revealPending = useRef<string | null>(null);
+  const holdScroll = () => {
+    const el = scrollRef.current;
+    anchorFromBottom.current = el ? el.scrollHeight - el.scrollTop : null;
+  };
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const anchor = anchorFromBottom.current;
+    anchorFromBottom.current = null;
+    if (el && anchor != null) el.scrollTop = el.scrollHeight - anchor;
+    const want = revealPending.current;
+    revealPending.current = null;
+    if (el && want) {
+      // `data-row` rather than `data-mid`: every row kind carries it, so a
+      // photo or a voice note can be jumped to as well. Focus is only moved
+      // when the row is actually focusable, which is the text bubbles.
+      const target = el.querySelector<HTMLElement>(`[data-row="${CSS.escape(want)}"]`);
+      target?.scrollIntoView({ block: "center" });
+      if (target?.dataset.mid) target.focus({ preventScroll: true });
+    }
+  }, [anchorId]);
+
   // one passive listener; the read is a single layout query per scroll frame
   // and it never writes, so it cannot thrash
   useEffect(() => {
@@ -438,6 +478,29 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       if (fromHer) setMissed((n) => n + Math.max(1, arrivals));
     }
   }, [messages.length]);
+
+  // ── an image that finishes loading is a height change ──────────────────
+  //
+  // A photo bubble has an aspect-ratio box now, so the reserved height is
+  // right before the bytes arrive — but "right" only for the ratio it was
+  // given, and nothing reserves height for a quote thumbnail or an animated
+  // emoji at all. Any of them landing while the thread is pinned to the
+  // bottom pushes the newest message off the bottom edge, which is the
+  // "chat opens 187px short" failure by a slower route.
+  //
+  // Capture phase, on the scroller: `load` does not bubble, and delegating is
+  // what lets this cover images inside components this workstream does not
+  // own (PhotoCard, GifBubble, BigEmoji) without a prop threaded through each.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onLoad = (e: Event) => {
+      if (!(e.target instanceof HTMLImageElement)) return;
+      if (atBottom.current) el.scrollTo({ top: 1e9, behavior: "auto" });
+    };
+    el.addEventListener("load", onLoad, true);
+    return () => el.removeEventListener("load", onLoad, true);
+  }, []);
 
   // the typing indicator adds height at the bottom — same rule
   useEffect(() => {
@@ -1196,7 +1259,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   async function sendPhoto(file: File) {
     const packed = await compressImage(file);
     if (!packed || !packed.b64) {
-      showNotice("couldn't read that photo — try a different one");
+      showNotice("couldn't read that photo. try a different one");
       return;
     }
     const caption = draft.trim();
@@ -1418,7 +1481,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       setRecording(true);
       tap(); // confirms the mic opened before you start talking
     } catch {
-      showNotice("mic access needed — allow the microphone and try again");
+      showNotice("mic access needed: allow the microphone and try again");
     }
   }
 
@@ -1492,7 +1555,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
             setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
             scheduleReply(transcript);
           } else {
-            showNotice("recording didn't capture — try again");
+            showNotice("recording didn't capture. try again");
           }
           return;
         }
@@ -1505,7 +1568,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
           kind: "voice",
           text:
             transcript ||
-            "[voice note — audio was unclear, you couldn't make out the words. react like a person: ask them to resend or type, casually]",
+            "[voice note — audio was unclear, you couldn't make out the words. react like a person: ask them to resend or type, casually]", // emdash-ok: brain-facing placeholder text, never rendered (voice bubbles hide their text)
           dur: secs,
           at: Date.now(),
           status: "sent",
@@ -1553,7 +1616,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   // same-sender group (research: uncluttered = intimate)
   // call turns never render — a call is spoken, not written. Only the
   // "📞 Voice call" record shows (she still remembers everything said).
-  const visible = messages.filter((m) => m.channel !== "call");
+  const visible = useMemo(() => messages.filter((m) => m.channel !== "call"), [messages]);
   // roving tabindex: the newest message is the thread's single tab stop
   // unless the reader has moved focus somewhere else in it
   const lastTextId = (() => {
@@ -1561,35 +1624,141 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       if (visible[i].kind === "text") return visible[i].id;
     return "";
   })();
-  const focusMid = focusedMid && visible.some((m) => m.id === focusedMid) ? focusedMid : lastTextId;
+  const newestHerVoice = (() => {
+    for (let i = visible.length - 1; i >= 0; i--)
+      if (visible[i].from === "her" && visible[i].kind === "voice") return visible[i].id;
+    return "";
+  })();
+  // ── windowing ────────────────────────────────────────────────────────────
+  //
+  // Only the tail of the thread is rendered. A memoised bubble stops a
+  // keystroke from RE-rendering a thousand rows; it does not stop React from
+  // walking a thousand elements to find that out, and it does not stop the
+  // browser from laying out a thousand boxes. Windowing bounds both.
+  //
+  // Deliberately NOT a virtualiser: the rows are variable-height (photos,
+  // voice notes, quotes, reactions), the scroller is a plain flex column with
+  // `margin-top:auto` on the first row, and the read-receipt observer, the
+  // roving tabindex and the swipe gestures all walk real DOM. A measuring
+  // virtualiser would have to reproduce all of that. A tail window plus an
+  // explicit "load earlier" reproduces none of it, and matches how a
+  // conversation is actually read: from the bottom, backwards, on demand.
+  const tailStart = Math.max(0, visible.length - WINDOW_STEP);
+  const anchorIdx = anchorId ? visible.findIndex((m) => m.id === anchorId) : -1;
+  // An anchor that no longer exists (cleared chat, forgotten messages) simply
+  // stops applying — the window falls back to the tail rather than breaking.
+  const start = anchorIdx >= 0 ? Math.min(anchorIdx, tailStart) : tailStart;
+  // The tab stop has to be a row that EXISTS. A focused message that the
+  // window has since scrolled past would otherwise leave the thread with no
+  // tab stop at all — Tab would skip the conversation entirely.
+  const focusedIdx = focusedMid ? visible.findIndex((m) => m.id === focusedMid) : -1;
+  const focusMid = focusedIdx >= start ? focusedMid : lastTextId;
+
+  /** Show one more step of history, keeping what is on screen where it is. */
+  const loadEarlier = () => {
+    holdScroll();
+    setAnchorId(visible[Math.max(0, start - WINDOW_STEP)]?.id ?? null);
+  };
+
+  /**
+   * Put one message on screen, extending the window if it is older than what
+   * is rendered. `revealPending` is consumed by the layout effect above, so
+   * the scroll happens in the same frame the rows appear.
+   */
+  const revealMessage = (id: string, idx: number) => {
+    if (idx < start) {
+      holdScroll();
+      revealPending.current = id;
+      // a few rows of context ABOVE the target: landing on the very first row
+      // in the window reads as the end of the conversation, which it is not
+      setAnchorId(visible[Math.max(0, idx - 6)]?.id ?? null);
+      return;
+    }
+    scrollRef.current
+      ?.querySelector<HTMLElement>(`[data-row="${CSS.escape(id)}"]`)
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
+
+  /**
+   * Tap a quote, go to what it quotes — the one navigation a threaded chat
+   * owes you. `replyTo` carries no message id (it is a value snapshot, and
+   * `state/store.ts` is not this workstream's file), so the original is found
+   * by scanning BACKWARDS from the replying message for the same sender and
+   * the same text. Backwards, because a repeated line should resolve to the
+   * one that was actually being answered.
+   */
+  const jumpToQuoted = (m: Message) => {
+    const q = m.replyTo;
+    if (!q) return;
+    const here = visible.findIndex((x) => x.id === m.id);
+    for (let i = here - 1; i >= 0; i--) {
+      if (visible[i].from === q.from && visible[i].text === q.text) {
+        revealMessage(visible[i].id, i);
+        return;
+      }
+    }
+  };
+
+  // roving tabindex, DOM order — only text bubbles carry `data-mid`, so this
+  // walks exactly the rows that are focusable
   const moveFocus = (from: string, dir: 1 | -1) => {
     const list = Array.from(
       scrollRef.current?.querySelectorAll<HTMLElement>("[data-mid]") ?? [],
     );
     const i = list.findIndex((el) => el.dataset.mid === from);
     const next = list[i + dir];
-    if (!next) return;
-    setFocusedMid(next.dataset.mid || "");
-    next.focus();
+    if (next) {
+      setFocusedMid(next.dataset.mid || "");
+      next.focus();
+      return;
+    }
+    // Off the top of the WINDOW is not the top of the conversation: load the
+    // previous step and let the next press walk into it.
+    if (dir === -1 && i === 0 && start > 0) loadEarlier();
   };
-  const newestHerVoice = (() => {
-    for (let i = visible.length - 1; i >= 0; i--)
-      if (visible[i].from === "her" && visible[i].kind === "voice") return visible[i].id;
-    return "";
-  })();
+
+  // Every handler a row can fire, on ONE object with a stable identity — the
+  // thing that makes `memo` on MessageRow hold across a keystroke. The object
+  // is built once; the ref underneath it is refreshed every render, so the
+  // handlers always run against the current closure.
+  rowHandlers.current = {
+    toggleSelect: (id) => setReplySel((cur) => (cur === id ? null : id)),
+    clearSelect: () => setReplySel(null),
+    react: (m, emoji) => {
+      const next = m.reaction === emoji ? undefined : emoji;
+      setReaction(m.id, next);
+      setReplySel(null);
+      tel("chat.react", { msg_id: m.id, from: m.from, on: next ?? "" });
+    },
+    replyTo: (m) => {
+      setReplyTo(m);
+      setReplySel(null);
+      tel("chat.swipe_reply", { msg_id: m.id, from: m.from, via: "chip" });
+      inputRef.current?.focus();
+    },
+    focusRow: (id) => setFocusedMid(id),
+    moveFocus,
+    voicePlayed: (id) => setPlayedVoice((s) => new Set(s).add(id)),
+    gifResolved: (id, url) =>
+      setState((s) => ({
+        ...s,
+        messages: s.messages.map((x) => (x.id === id ? { ...x, gifUrl: url } : x)),
+      })),
+    jumpToQuoted,
+    swipe: swipeHandlers,
+  };
+
   // a bubble that took over from the typing indicator waits one exit beat
   // before it starts (the delay lives in CSS)
-  const followsAttr = (m: Message) =>
-    m.from === "her" && followsTyping.current.includes(m.id)
-      ? { "data-follows-typing": "" }
-      : {};
   const rows: React.ReactNode[] = [];
-  let lastDay = "";
-  for (let i = 0; i < visible.length; i++) {
+  // Seeded from the message BEFORE the window, so a separator appears exactly
+  // where it would in a full render — extending the window can never insert or
+  // remove one above what is already on screen.
+  let lastDay = start > 0 ? dayLabel(visible[start - 1].at) : "";
+  for (let i = start; i < visible.length; i++) {
     const m = visible[i];
     const next = visible[i + 1];
-    const lastOfGroup =
-      !next || next.from !== m.from || next.at - m.at > 60_000;
+    const lastOfGroup = !next || next.from !== m.from || next.at - m.at > 60_000;
     const d = dayLabel(m.at);
     if (d !== lastDay) {
       lastDay = d;
@@ -1599,181 +1768,18 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
         </div>,
       );
     }
-    if (m.kind === "callmark") {
-      rows.push(
-        <div key={m.id} className="call-chip">
-          <PhoneIcon size={14} />
-          Voice call · {m.text} <span className="ct">{fmtTime(m.at)}</span>
-        </div>,
-      );
-    } else if (m.kind === "voice") {
-      // her newest voice note, until it has been played, is the one thing in
-      // the thread that is waiting on you — the play button says so
-      const unheard = m.from === "her" && m.id === newestHerVoice && !playedVoice.has(m.id);
-      rows.push(
-        <div
-          key={m.id}
-          className={`msg ${m.from} voice ${unheard ? "unheard" : ""}`}
-          {...followsAttr(m)}
-          {...swipeHandlers(m)}
-        >
-          <VoiceNote m={m} onPlay={() => setPlayedVoice((s) => new Set(s).add(m.id))} />
-          {(lastOfGroup || m.from === "me") && (
-            <span className="t">
-              {lastOfGroup && fmtTime(m.at)}
-              {m.from === "me" && <TickIcon status={m.status ?? "read"} />}
-            </span>
-          )}
-        </div>,
-      );
-    } else if (m.kind === "gif") {
-      rows.push(
-        <div key={m.id} className={`msg ${m.from} gifmsg`} {...followsAttr(m)} {...swipeHandlers(m)}>
-          <GifBubble
-            m={m}
-            onResolved={(id, url) =>
-              setState((s) => ({
-                ...s,
-                messages: s.messages.map((x) => (x.id === id ? { ...x, gifUrl: url } : x)),
-              }))
-            }
-          />
-          {lastOfGroup && <span className="t">{fmtTime(m.at)}</span>}
-        </div>,
-      );
-    } else if (m.kind === "photo") {
-      rows.push(
-        m.from === "me" ? (
-          <div key={m.id} className="msg me photo" {...swipeHandlers(m)}>
-            {m.photoUrl && <img className="pimg" src={m.photoUrl} alt="" draggable={false} />}
-            {m.text && <div className="cap">{m.text}</div>}
-            <span className="t">
-              {fmtTime(m.at)}
-              <TickIcon status={m.status ?? "read"} />
-            </span>
-          </div>
-        ) : (
-          <div key={m.id} className="msg her photo" {...followsAttr(m)} {...swipeHandlers(m)}>
-            <PhotoCard seed={m.photoSeed || m.text} />
-            <div className="cap">{m.text}</div>
-          </div>
-        ),
-      );
-    } else {
-      const emojiOnly = isSingleEmoji(m.text);
-      rows.push(
-        <div
-          key={m.id}
-          className={`msg ${m.from} ${emojiOnly ? "emoji-big" : ""} ${replySel === m.id ? "sel" : ""}`}
-          onClick={() => setReplySel((cur) => (cur === m.id ? null : m.id))}
-          // Quote-reply was tap-only, so on a keyboard it did not exist at
-          // all. The thread is a roving-tabindex list now: ONE tab stop for
-          // the whole conversation (putting forty bubbles in the tab order
-          // would put the composer forty presses away), arrows move between
-          // messages, Enter opens the same chip the tap does.
-          role="button"
-          data-mid={m.id}
-          data-tel="chat.bubble"
-          tabIndex={m.id === focusMid ? 0 : -1}
-          aria-label={`${m.from === "her" ? HER_NAME : "You"} at ${fmtTime(m.at)}: ${m.text}. Reply`}
-          onFocus={() => setFocusedMid(m.id)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              setReplySel((cur) => (cur === m.id ? null : m.id));
-            } else if (e.key === "Escape" && replySel === m.id) {
-              setReplySel(null);
-            } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-              e.preventDefault();
-              moveFocus(m.id, e.key === "ArrowDown" ? 1 : -1);
-            }
-          }}
-          {...followsAttr(m)}
-          {...swipeHandlers(m)}
-        >
-          {replySel === m.id && (
-            // One bar, two affordances, because that is the same gesture he
-            // already uses everywhere else: tap a bubble, get the emoji row and
-            // the reply arrow. Tapping the emoji already ON the bubble clears
-            // it — WhatsApp's own toggle, and the only undo that needs no
-            // second menu.
-            <div className="react-bar" onClick={(e) => e.stopPropagation()}>
-              {QUICK_REACTIONS.map((emo) => (
-                <button
-                  key={emo}
-                  className={`react-pick ${m.reaction === emo ? "on" : ""}`}
-                  aria-label={m.reaction === emo ? `Remove ${emo} reaction` : `React ${emo}`}
-                  onClick={() => {
-                    const next = m.reaction === emo ? undefined : emo;
-                    setReaction(m.id, next);
-                    setReplySel(null);
-                    tel("chat.react", { msg_id: m.id, from: m.from, on: next ?? "" });
-                  }}
-                >
-                  {emo}
-                </button>
-              ))}
-              <button
-                className="reply-chip"
-                data-tel="chat.reply_chip"
-                onClick={() => {
-                  setReplyTo(m);
-                  setReplySel(null);
-                  tel("chat.swipe_reply", { msg_id: m.id, from: m.from, via: "chip" });
-                  inputRef.current?.focus();
-                }}
-                aria-label="Reply to this message"
-              >
-                ↩
-              </button>
-            </div>
-          )}
-          {m.replyTo && (
-            <div className={`quote ${m.replyTo.photo ? "has-photo" : ""}`}>
-              {/* A quoted PICTURE shows the picture. The text-only version
-                  rendered a story reply as her desc in quotation marks —
-                  which read as words she had typed, in a bubble she never
-                  sent. The desc still rides `text` underneath for the brain;
-                  the human-facing quote is the thumbnail plus "Story". */}
-              {m.replyTo.photo ? (
-                <>
-                  <img className="qthumb" src={m.replyTo.photo} alt="" loading="lazy" />
-                  <span className="qcol">
-                    <b>{m.replyTo.from === "her" ? HER_NAME : "You"}</b>
-                    <span className="qtext">Story</span>
-                  </span>
-                </>
-              ) : (
-                <>
-                  <b>{m.replyTo.from === "her" ? HER_NAME : "You"}</b>
-                  <span className="qtext">{m.replyTo.text.slice(0, 120)}</span>
-                </>
-              )}
-            </div>
-          )}
-          {emojiOnly ? <BigEmoji emoji={m.text} /> : m.text}
-          {(lastOfGroup || m.from === "me") && (
-            <span className="t">
-              {lastOfGroup && fmtTime(m.at)}
-              {m.from === "me" && <TickIcon status={m.status ?? "read"} />}
-            </span>
-          )}
-          {m.reaction && (
-            // Hangs off the bubble's bottom edge, so it reads as stuck ONTO the
-            // message rather than sent after it.
-            <span className="react-pill" aria-label={`Reacted ${m.reaction}`}>
-              {m.reaction}
-            </span>
-          )}
-          {/* Uncovered by dragging the thread left. aria-hidden because the
-              bubble's own accessible name already carries this time — a screen
-              reader should not hear the clock twice per message. */}
-          <span className="peek-t" aria-hidden="true">
-            {fmtTime(m.at)}
-          </span>
-        </div>,
-      );
-    }
+    rows.push(
+      <MessageRow
+        key={m.id}
+        m={m}
+        api={rowApi}
+        lastOfGroup={lastOfGroup}
+        followsTyping={m.from === "her" && followsTyping.current.includes(m.id)}
+        selected={replySel === m.id}
+        tabbable={m.id === focusMid}
+        unheard={m.from === "her" && m.id === newestHerVoice && !playedVoice.has(m.id)}
+      />,
+    );
   }
 
   const stories = activeStories();
@@ -1859,7 +1865,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       {!online && (
         <div className="offline-bar" role="status">
           <OfflineIcon />
-          No connection — she'll get it when you're back
+          No connection, she'll get it when you're back
         </div>
       )}
 
@@ -1894,6 +1900,15 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
               <i />
             </div>
           </div>
+        )}
+        {start > 0 && (
+          // The window's own edge, stated. Not an infinite-scroll sentinel:
+          // loading on approach would fire while you are still flicking and
+          // move the thread under the finger, which is the exact failure the
+          // scroll-ownership rule above exists to prevent.
+          <button className="load-earlier" data-tel="chat.load_earlier" onClick={loadEarlier}>
+            {start === 1 ? "1 earlier message" : `${start} earlier messages`}
+          </button>
         )}
         {rows}
         {typing && (

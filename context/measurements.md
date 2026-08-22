@@ -2223,3 +2223,19 @@ n and method per line. Full report: docs/audit/2026-08-22-ui-perf.md.
   2,000 = 10.6%. Full-state persist ~0.35 ms/write at 500 msgs.
 - Storage-ladder trigger analysis: only realistic entry is a stuck data:
   URL (1024px q0.82 JPEG ≈ 150-400 kB, ~800 kB as UTF-16).
+
+After the fixes (same methods, A/B against the pre-fix tree):
+- Typing with memoised rows + 80-row window: p50 0.8 ms at BOTH 300 and
+  1000 messages (was 3.2 / 9.5) — flat in history length; DOM rows capped
+  at 80 (was N). n=30 keystrokes per arm, real bubbling input dispatch.
+- Chess yield at 4k nodes: longest main-thread block 12.8 → 5.7 ms at the
+  shipped strength (n=5 medians, warm); wall clock +3%, off the critical
+  path. Determinism held: 20/20 identical moves across 4 positions × 5
+  levels; all 366 chess evals pass.
+- assessLast fen-keyed memo: 45.28 ms uncached → 0.0003 ms median on hit.
+- Bundle: main chunk 995.81 → 843.80 kB (332.99 → 293.16 kB gz); Anthropic
+  SDK now a 155.6 kB lazy chunk; INEFFECTIVE_DYNAMIC_IMPORT 2 → 0.
+  framer-motion and chess.js splits measured and REJECTED with reasons
+  (single non-CSS spring + static reachability; activityOf sync contract).
+- Photo re-pin A/B: without the delegated load listener the thread landed
+  420 px short of newest; with it, 0 px.

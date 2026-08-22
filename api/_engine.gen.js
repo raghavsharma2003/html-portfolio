@@ -2,110 +2,8 @@
 // Not a source file — edit persona.ts / compiler.ts / room.ts and re-run the
 // generator. `node scripts/build-engine-bundle.mjs --check` fails the build
 // when this file no longer matches its sources.
-var __defProp = Object.defineProperty;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __esm = (fn, res, err) => function __init() {
-  if (err) throw err[0];
-  try {
-    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
-  } catch (e) {
-    throw err = [e], e;
-  }
-};
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-
 // evals/stubs/capacitor.mjs
-var Capacitor;
-var init_capacitor = __esm({
-  "evals/stubs/capacitor.mjs"() {
-    Capacitor = { isNativePlatform: () => false };
-  }
-});
-
-// src/engine/storyCatalog.ts
-var storyCatalog_exports = {};
-__export(storyCatalog_exports, {
-  STORIES: () => STORIES,
-  activeStories: () => activeStories,
-  hasUnseenStory: () => hasUnseenStory,
-  markStorySeen: () => markStorySeen,
-  seenStoryIds: () => seenStoryIds,
-  storyAge: () => storyAge,
-  storyContext: () => storyContext,
-  storySrc: () => storySrc
-});
-function storyAge(s) {
-  const mins = Math.max(0, Math.round((Date.now() - s.at) / 6e4));
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.round(hours / 24)}d`;
-}
-function seenStoryIds() {
-  try {
-    const raw = localStorage.getItem(SEEN_KEY);
-    const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr : [];
-  } catch {
-    return [];
-  }
-}
-function markStorySeen(id) {
-  try {
-    const seen = new Set(seenStoryIds());
-    seen.add(id);
-    localStorage.setItem(SEEN_KEY, JSON.stringify([...seen].slice(-40)));
-  } catch {
-  }
-}
-function storyContext() {
-  const live = activeStories();
-  if (!live.length) return "";
-  return `
-
-YOUR CURRENT STORY (like an insta/whatsapp status they can see by tapping your profile photo): ${live.map((s) => s.desc).join("; then ")}. You posted it yourself, so you know exactly what's in it \u2014 if they mention it ("story dekhi", "kya padh rahi thi"), react naturally like someone whose story got noticed, never confused. Don't bring it up unprompted more than once.`;
-}
-var BASE, STORIES, activeStories, storySrc, SEEN_KEY, hasUnseenStory;
-var init_storyCatalog = __esm({
-  "src/engine/storyCatalog.ts"() {
-    init_capacitor();
-    BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
-    STORIES = [
-      {
-        id: "2026-08-09-1",
-        src: "/stories/2026-08-09-1.jpg",
-        at: (/* @__PURE__ */ new Date("2026-08-09T17:40:00+05:30")).getTime(),
-        desc: "golden-hour POV from your bed \u2014 open book in hand, sun on the pages, plants and your photo wall behind"
-      },
-      {
-        id: "2026-08-09-2",
-        src: "/stories/2026-08-09-2.jpg",
-        at: (/* @__PURE__ */ new Date("2026-08-09T17:44:00+05:30")).getTime(),
-        desc: "mirror selfie sitting cross-legged on the bed in the same golden light, oversized black tee, hair in a messy bun, notebook and book open in front of you"
-      }
-    ];
-    activeStories = () => {
-      const posted = STORIES.filter((s) => s.at <= Date.now());
-      if (!posted.length) return [];
-      const newest = Math.max(...posted.map((s) => s.at));
-      const day = new Date(newest).toDateString();
-      return posted.filter((s) => new Date(s.at).toDateString() === day);
-    };
-    storySrc = (s) => `${BASE}${s.src}`;
-    SEEN_KEY = "meera.stories.seen.v1";
-    hasUnseenStory = () => {
-      const seen = seenStoryIds();
-      return activeStories().some((s) => !seen.includes(s.id));
-    };
-  }
-});
-
-// src/engine/persona.ts
-init_capacitor();
+var Capacitor = { isNativePlatform: () => false };
 
 // src/engine/photoCatalog.ts
 var PHOTO_TAGS = [
@@ -482,8 +380,38 @@ function memeMenu(n = 40) {
   return pool.slice(0, n).join('", "');
 }
 
+// src/engine/storyCatalog.ts
+var BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+var STORIES = [
+  {
+    id: "2026-08-09-1",
+    src: "/stories/2026-08-09-1.jpg",
+    at: (/* @__PURE__ */ new Date("2026-08-09T17:40:00+05:30")).getTime(),
+    desc: "golden-hour POV from your bed \u2014 open book in hand, sun on the pages, plants and your photo wall behind"
+  },
+  {
+    id: "2026-08-09-2",
+    src: "/stories/2026-08-09-2.jpg",
+    at: (/* @__PURE__ */ new Date("2026-08-09T17:44:00+05:30")).getTime(),
+    desc: "mirror selfie sitting cross-legged on the bed in the same golden light, oversized black tee, hair in a messy bun, notebook and book open in front of you"
+  }
+];
+var activeStories = () => {
+  const posted = STORIES.filter((s) => s.at <= Date.now());
+  if (!posted.length) return [];
+  const newest = Math.max(...posted.map((s) => s.at));
+  const day = new Date(newest).toDateString();
+  return posted.filter((s) => new Date(s.at).toDateString() === day);
+};
+function storyContext() {
+  const live = activeStories();
+  if (!live.length) return "";
+  return `
+
+YOUR CURRENT STORY (like an insta/whatsapp status they can see by tapping your profile photo): ${live.map((s) => s.desc).join("; then ")}. You posted it yourself, so you know exactly what's in it \u2014 if they mention it ("story dekhi", "kya padh rahi thi"), react naturally like someone whose story got noticed, never confused. Don't bring it up unprompted more than once.`;
+}
+
 // src/engine/persona.ts
-init_storyCatalog();
 var IS_APP = Capacitor.isNativePlatform();
 var HER_NAME = "Meera";
 function timeOfDay() {
@@ -2055,10 +1983,9 @@ async function seedFromStories(q, stories, agentId = MEERA_AGENT_ID) {
   return report;
 }
 async function seedFromStoryCatalog(q, agentId = MEERA_AGENT_ID) {
-  const { STORIES: STORIES2 } = await Promise.resolve().then(() => (init_storyCatalog(), storyCatalog_exports));
   return seedFromStories(
     q,
-    STORIES2.map((s) => ({ id: s.id, at: s.at, desc: s.desc, src: s.src })),
+    STORIES.map((s) => ({ id: s.id, at: s.at, desc: s.desc, src: s.src })),
     agentId
   );
 }

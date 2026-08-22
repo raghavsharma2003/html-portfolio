@@ -102,8 +102,14 @@ ok("charter: detection is never time-scheduled",
   ok("relationship moments are silent by construction",
     /filter\(\(m\) => !GAME_KINDS\.has\(m\.kind\)\)/.test(hook));
   ok("celebration requires game mode", /gameOpen \? all\.find/.test(hook));
-  ok("a game moment caught outside game mode goes silent too",
-    /gameOpen \? \[\] : all\.filter/.test(hook));
+  // SUPERSEDED PIN (audit finding #18): the first behaviour BURNED a game
+  // moment detected outside game mode into the ledger — combined with the
+  // 900ms detection debounce, leaving the board fast consumed the first-win
+  // celebration forever. The moment is now left ELIGIBLE (silentIds carries
+  // only the relationship moments), so the next board open celebrates it;
+  // the boundary holds because the card gate above is still gameOpen-only.
+  ok("a game moment caught outside game mode stays eligible, never burned",
+    /const silentIds = silent\.map\(\(m\) => m\.id\);/.test(hook));
   const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
   ok("App renders Celebration only in game mode",
     /activity !== null && \(\s*<Celebration/.test(app));

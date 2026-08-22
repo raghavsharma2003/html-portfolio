@@ -284,11 +284,21 @@ function makeCtx(pos: Pos, maxNodes: number, history: readonly string[] | undefi
 
 /**
  * How much work runs between two interruption points on the async path.
- * ~13 ms on this container, ~55-110 ms on a phone: short enough that a frame
- * is not visibly dropped, long enough that the yields themselves do not cost
+ *
+ * ~4 ms on this container, ~16-32 ms on a phone (the install base measures
+ * 4-8x slower on scalar JS; see opponent.ts). Short enough that a frame is
+ * not visibly dropped, long enough that the yields themselves do not cost
  * more than the search.
+ *
+ * This was 12,000, which is LARGER than the whole node budget of the shipped
+ * strength-2 opponent (maxNodes 15,000). The async path therefore breathed
+ * exactly twice per move and the longest uninterrupted block measured 11.7 ms
+ * in node / 53 ms in-app — 210-420 ms of frozen UI per move on a phone. The
+ * budget is a node count, not a clock, so lowering it changes only WHERE the
+ * search pauses, never which move comes out: `search` and `searchAsync` stay
+ * byte-identical in result by construction.
  */
-const YIELD_EVERY_NODES = 12_000;
+const YIELD_EVERY_NODES = 4_000;
 
 /**
  * The search, as a generator that pauses at root-move boundaries.

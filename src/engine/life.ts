@@ -78,6 +78,11 @@ import type { QueryFn, RenderResult } from "./relstate";
 // Mirrored constant, not a second source of truth — see relstate.ts's own
 // note on why this comes from there rather than from agents/registry.
 import { MEERA_AGENT_ID } from "./relstate";
+// Static, deliberately. `seedFromStoryCatalog` used `await import()` here, but
+// Chat.tsx, StoryView.tsx and persona.ts all import this module statically, so
+// the dynamic form moved nothing and only printed INEFFECTIVE_DYNAMIC_IMPORT.
+// The catalog is a data table (no side effects, no assets pulled at import).
+import { STORIES } from "./storyCatalog";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types — mirror db/migrations/011_self_layer.sql exactly (already APPLIED).
@@ -539,7 +544,6 @@ export async function seedFromStoryCatalog(
   q: QueryFn,
   agentId: string = MEERA_AGENT_ID,
 ): Promise<SeedReport> {
-  const { STORIES } = await import("./storyCatalog");
   return seedFromStories(
     q,
     STORIES.map((s) => ({ id: s.id, at: s.at, desc: s.desc, src: s.src })),

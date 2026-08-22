@@ -332,7 +332,7 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
             Sign in to keep watching
           </button>
           <button className="story-skip" data-tel="story.skip" onClick={dismissGate}>
-            baad mein — continue
+            baad mein, continue
           </button>
         </div>
       )}

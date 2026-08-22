@@ -83,20 +83,42 @@ export interface ChessSession {
 /**
  * The assessment of the most recent move, or null for a fresh board.
  *
- * Recomputed rather than stored. `assessLast` is a pure function of the game,
- * deterministic and node-budgeted, and a cached copy is a second source of
- * truth that can disagree with the board it describes — which for an honesty
- * gate fed by `nameable` is not a cosmetic disagreement.
+ * NEVER STORED IN STATE. `assessLast` is a pure function of the game, and a
+ * copy persisted alongside the board is a second source of truth that can
+ * disagree with the position it describes — which for an honesty gate fed by
+ * `nameable` is not a cosmetic disagreement. That prohibition is about
+ * PERSISTENCE, and it is the whole reason this function exists.
+ *
+ * It is not a prohibition on memoising the pure call, and the two must not be
+ * confused: the memo below is keyed on the position itself (`fen` +
+ * `played.length`), so it cannot outlive the board state it describes — a
+ * different position is a different key and recomputes. Do not remove it in
+ * the name of the paragraph above.
+ *
+ * Why it is here at all: `assessLast` costs two extra searches (36.7 ms
+ * standalone in this container, 150-290 ms on a phone), and `activityOf` calls
+ * it on EVERY chat reply and EVERY call turn while a board is open. The same
+ * position was being re-searched dozens of times per game for an answer that
+ * cannot change.
  */
+let assessMemo: { key: string; val: MoveAssessment | null } = { key: "", val: null };
+
 export function lastAssessment(s: GameSession | null | undefined): MoveAssessment | null {
   if (!s || s.kind !== "chess" || !s.game.played.length) return null;
+  // The FEN carries side to move, castling, en passant and both clocks, so
+  // together with the move count it identifies the position exactly.
+  const key = `${s.game.fen}|${s.game.played.length}`;
+  if (assessMemo.key === key) return assessMemo.val;
+  let val: MoveAssessment | null;
   try {
-    return assessLast(s.game);
+    val = assessLast(s.game);
   } catch {
     // A board that cannot be assessed must never take a lane down with it. She
     // simply has no opinion about the last move, which is a thing people do.
-    return null;
+    val = null;
   }
+  assessMemo = { key, val };
+  return val;
 }
 
 /**
