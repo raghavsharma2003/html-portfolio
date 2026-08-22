@@ -2403,3 +2403,22 @@ sampling for perf; n as stated.
 - Eval counts at close: sky 180, persona 206, browser battery 115 checks
   / 43 shots (thread+onboarding+settings), landing negative-tests 8/8,
   verify-release 13/13 twice.
+
+---
+
+## `sweep-2026-08-22` — every remaining surface held against the world
+
+Method: 28 audit screenshots -> ranked defect list -> 110 after-frames
+(13 surfaces x light/dark x night/morning x 390/320 x reduced-motion),
+contrast gate extended and negative-tested.
+
+- 11 surfaces fixed, 3 proven NO-CHANGE with frames (CallVoice, auth
+  body, settings sub-sheets). Contrast gate 213 -> 268 checks, 6/6
+  injected violations caught.
+- Two stale hand-copies found still citing the call screen's REMOVED
+  gradient as their reason; both deleted rather than edited.
+- Gate bug fixed: first-block-per-selector reads masked later
+  overrides (same class of hole as the .msg.her double-declaration).
+- New anti-pattern pinned: a pure-white board cell passes every
+  contrast ratio and is still wrong on a painting; the gate now
+  requires tinted-not-neutral, read from the block the board uses.

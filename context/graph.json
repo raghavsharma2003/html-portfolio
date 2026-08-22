@@ -1263,6 +1263,12 @@
       "kind": "measurement",
       "title": "Phase 3: floors 4.70/5.48/3.49, ground sd 0 to 4.47, scroll p95 0.994x, typing -0.7 to +13.3px, landing 830 to 392KB",
       "at": "2026-08-22"
+    },
+    {
+      "id": "sweep-2026-08-22",
+      "kind": "measurement",
+      "at": "2026-08-22",
+      "title": "Surface sweep: 11 fixed / 3 proven no-change, contrast gate 213 to 268, stale hand-copies deleted"
     }
   ],
   "edges": [
@@ -2320,6 +2326,11 @@
       "src": "phase3-thread-onboarding-settings",
       "rel": "measured_by",
       "dst": "typing-row-lives-in-the-bubble-rhythm"
+    },
+    {
+      "src": "sweep-2026-08-22",
+      "rel": "measured_by",
+      "dst": "wallpaper-scrims-per-state-and-theme"
     }
   ]
 }
