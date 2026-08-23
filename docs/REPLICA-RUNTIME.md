@@ -49,16 +49,20 @@ evidence blobs are ignored. Dynamic relationship state is rendered separately
 and bounded. Evidence is explicitly labelled as data rather than instructions.
 
 This is a minimum safe compiler, not a fidelity claim. Deterministic Person
-Model and calibration builders now exist, while claim extraction, learned
-preference models and behavior generation still require human evaluation gates.
+Model, cited claim extraction and calibration builders now exist. The private
+dialogue path in `docs/REPLICA-DIALOGUE.md` consumes this compiler, but learned
+preference models and behavioural fidelity still require human evaluation.
 
 ## Protected cascade
 
-`/api/replica-speech` is a separate authenticated endpoint. The existing
-cascade player may send it only an opaque replica id, bearer token, text and
-private channel. It cannot select a provider or disable disclosure. If any
-replica field is incomplete, or real protection adapters are unavailable, the
-endpoint returns no audio.
+`/api/replica-speech` is a separate authenticated endpoint. For private
+conversation, the cascade player may send only an opaque replica id, bearer
+token and completed server-issued dialogue turn id. Text and delivery style are
+resolved from the exact owner-bound turn. Arbitrary client-authored replica
+speech is rejected. Only calibration preview may submit explicit held-out text.
+The client cannot select a provider or disable disclosure. If any replica field
+is incomplete, or real protection adapters are unavailable, the endpoint
+returns no audio.
 
 Replica speech never falls back to Meera, a user-configured ElevenLabs/Sarvam
 voice, or device TTS. A wrong human voice is a failed generation, not graceful
@@ -75,7 +79,7 @@ cannot accidentally authorize an older generation still in flight.
 ## Still closed
 
 - real age/identity/liveness and replay verification;
-- approved VoiceGenome builder and production behavioral inference adapter;
+- approved VoiceGenome builder and live-qualified behavioural inference;
 - a production voice adapter and self-hosted deployment;
 - AudioSeal qualification and production embed/detect service;
 - HSM-backed segment/receipt signing;

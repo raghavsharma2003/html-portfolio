@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { beginOwnedPrivateGeneration, markGenerationFailed } from "./_replica-generation.js";
 import { protectReplicaStream } from "./_provenance/delivery.js";
 import { assertSynthesisResult } from "./_voice/contracts.js";
+import { loadOwnedDialogueSpeech } from "./_replica-dialogue.js";
 
 function cleanText(value, max) {
   return Array.from(String(value || ""))
@@ -52,17 +53,33 @@ export function createReplicaSpeechHandler({ db, requireUser, resolveVoiceProvid
       const user = await requireUser(req);
       ownerUserId = user.id;
       const body = req.body || {};
-      if (typeof body.text !== "string" || !body.text.trim()) return res.status(400).json({ error: "text_required" });
-      if (Array.from(body.text).length > 4_000) return res.status(413).json({ error: "text_too_large" });
-      const text = cleanText(body.text, 4_000);
-      if (!text) return res.status(422).json({ error: "nothing_speakable" });
-      const style = cleanText(body.style, 240);
+      const purpose = body.purpose || "private_conversation";
+      let text;
+      let style;
+      let dialogueTurnId = null;
+      if (purpose === "private_conversation") {
+        if (typeof body.text === "string" && body.text.trim()) return res.status(400).json({ error: "client_text_not_allowed" });
+        const dialogue = await loadOwnedDialogueSpeech(db, user.id, {
+          replica_id: body.replica_id,
+          dialogue_turn_id: body.dialogue_turn_id,
+        });
+        text = dialogue.text;
+        style = dialogue.style;
+        dialogueTurnId = dialogue.dialogue_turn_id;
+      } else {
+        if (typeof body.text !== "string" || !body.text.trim()) return res.status(400).json({ error: "text_required" });
+        if (Array.from(body.text).length > 4_000) return res.status(413).json({ error: "text_too_large" });
+        text = cleanText(body.text, 4_000);
+        if (!text) return res.status(422).json({ error: "nothing_speakable" });
+        style = cleanText(body.style, 240);
+      }
       const stream = body.stream === true;
       const started = await beginOwnedPrivateGeneration(db, user.id, {
         replica_id: body.replica_id,
         channel: body.channel || "private_call",
-        purpose: body.purpose || "private_conversation",
+        purpose,
         trace_id: body.trace_id || `voice_${randomUUID().replaceAll("-", "")}`,
+        dialogue_turn_id: dialogueTurnId,
       });
       generation = started.generation;
 

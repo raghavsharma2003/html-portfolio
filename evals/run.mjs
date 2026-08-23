@@ -113,6 +113,10 @@ const suites = {
   // character-preserving direct-identifier redaction, strict Azure Foundry
   // structured output, exact quote citations and proposal-only persistence.
   replicaextract: "replica-claim-extraction/run.mjs",
+  // Version-frozen private dialogue: typed Person Model + calibration,
+  // agent/person-scoped relationship context, erasable raw logs, strict
+  // structured output and server-bound protected speech.
+  replicadialogue: "replica-dialogue/run.mjs",
   // Second-agent readiness: every shipping insert names agent_id, every
   // relational/natural-key arbiter is composite, and compatibility defaults
   // have explicit strict migrations with a working negative control.

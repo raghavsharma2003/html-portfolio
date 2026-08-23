@@ -218,3 +218,20 @@ export interface ClaimExtractionStatus {
   readiness: { ready: boolean; blockers: string[]; eligible_spans: number };
   runs: ClaimExtractionRun[];
 }
+
+export interface ReplicaDialogueDelivery {
+  mode: "grounded" | "warm" | "playful" | "direct" | "repair";
+  pace: "slow" | "natural" | "brisk";
+  intensity: number;
+  language_hint: string;
+  nonverbals: Array<"breath" | "soft_laugh" | "pause" | "sigh">;
+}
+
+export interface ReplicaDialogueTurn {
+  turn_id: string;
+  session_id: string;
+  reply: string;
+  delivery: ReplicaDialogueDelivery;
+  can_voice: boolean;
+  created_at: string;
+}

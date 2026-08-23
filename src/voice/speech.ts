@@ -86,6 +86,9 @@ export interface VoiceOpts {
   replicaId?: string;
   replicaToken?: string;
   replicaChannel?: "studio_preview" | "private_chat" | "private_call";
+  // Private conversation speech is bound to server-generated dialogue text.
+  // Calibration previews may still send explicit held-out text.
+  replicaDialogueTurnId?: string;
 }
 
 // Default ElevenLabs voice: "Monika Sogam — Calm and Natural", the most
@@ -114,6 +117,8 @@ interface ProxyVoiceRequest {
 function proxyRequest(text: string, style: string | undefined, stream: boolean, opts: VoiceOpts): ProxyVoiceRequest | null {
   if (replicaVoiceRequested(opts)) {
     if (!replicaVoiceConfigured(opts)) return null;
+    const calibration = opts.replicaChannel === "studio_preview";
+    if (!calibration && !opts.replicaDialogueTurnId) return null;
     return {
       url: REPLICA_SPEECH_URL,
       headers: {
@@ -121,12 +126,11 @@ function proxyRequest(text: string, style: string | undefined, stream: boolean, 
         Authorization: `Bearer ${opts.replicaToken}`,
       },
       body: {
-        text,
         stream,
         replica_id: opts.replicaId,
         channel: opts.replicaChannel ?? "private_call",
-        purpose: opts.replicaChannel === "studio_preview" ? "calibration" : "private_conversation",
-        ...(style ? { style } : {}),
+        purpose: calibration ? "calibration" : "private_conversation",
+        ...(calibration ? { text, ...(style ? { style } : {}) } : { dialogue_turn_id: opts.replicaDialogueTurnId }),
       },
     };
   }

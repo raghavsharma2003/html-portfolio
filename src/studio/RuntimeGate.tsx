@@ -24,11 +24,13 @@ export default function RuntimeGate({
   replicaId,
   stopped,
   onAuthError,
+  onStatusChange,
 }: {
   token: string;
   replicaId: string;
   stopped: boolean;
   onAuthError: (cause: unknown) => void;
+  onStatusChange?: (runtime: ReplicaRuntimeStatus) => void;
 }) {
   const [runtime, setRuntime] = useState<ReplicaRuntimeStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,14 +41,16 @@ export default function RuntimeGate({
     setLoading(true);
     setError("");
     try {
-      setRuntime(await readRuntimeStatus(token, replicaId));
+      const next = await readRuntimeStatus(token, replicaId);
+      setRuntime(next);
+      onStatusChange?.(next);
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
       setError(cause instanceof Error ? cause.message : "Runtime readiness is unavailable");
     } finally {
       setLoading(false);
     }
-  }, [onAuthError, replicaId, token]);
+  }, [onAuthError, onStatusChange, replicaId, token]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -54,7 +58,9 @@ export default function RuntimeGate({
     setActivating(true);
     setError("");
     try {
-      setRuntime(await activateRuntime(token, replicaId));
+      const next = await activateRuntime(token, replicaId);
+      setRuntime(next);
+      onStatusChange?.(next);
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
       setError(cause instanceof Error ? cause.message : "Runtime activation was refused");

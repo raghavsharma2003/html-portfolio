@@ -135,6 +135,11 @@ Implemented now:
   seven-suite qualification set; it resolves agent/person ownership server-side, scopes every
   RelationalOS read to that pair, and routes cloned speech only through the
   protected cascade endpoint with no wrong-voice fallback;
+- a private replica dialogue path that actually compiles that frozen Person
+  Model, typed calibration, isolated relationship state and recent session
+  history into strict Azure Foundry structured output; conversation text is
+  stored once in the erasable raw log, and protected voice accepts only the
+  exact server-issued turn rather than arbitrary client text;
 - a production Neon provenance ledger that rechecks active replica capability
   before each signed PCM segment is released, making revocation a streaming
   delivery fence rather than only a UI state;
@@ -148,6 +153,7 @@ activation remain closed until their explicit live gates pass. The full architec
 research in [`docs/research/REPLICA-FRONTIER-2026.md`](docs/research/REPLICA-FRONTIER-2026.md),
 provenance in [`docs/REPLICA-PROVENANCE.md`](docs/REPLICA-PROVENANCE.md), and
 runtime isolation in [`docs/REPLICA-RUNTIME.md`](docs/REPLICA-RUNTIME.md).
+Dialogue serving is in [`docs/REPLICA-DIALOGUE.md`](docs/REPLICA-DIALOGUE.md).
 The Person Model contract is in [`docs/PERSON-MODEL.md`](docs/PERSON-MODEL.md).
 Private cited extraction is in [`docs/CLAIM-EXTRACTION.md`](docs/CLAIM-EXTRACTION.md).
 Calibration is specified in [`docs/CALIBRATION.md`](docs/CALIBRATION.md).

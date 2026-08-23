@@ -18,6 +18,7 @@ import type {
   ConsentReceipt,
   LivenessChallenge,
   Replica,
+  ReplicaRuntimeStatus,
   ReplicaSource,
   SignedUpload,
   SourceKind,
@@ -29,6 +30,7 @@ import ProcessingReview from "./ProcessingReview";
 import PersonModelStudio from "./PersonModelStudio";
 import CalibrationStudio from "./CalibrationStudio";
 import RuntimeGate from "./RuntimeGate";
+import ReplicaDialogueLab from "./ReplicaDialogueLab";
 import {
   createSourceUpload,
   deleteSource,
@@ -404,6 +406,7 @@ function ReplicaWorkspace({
 }) {
   const [confirming, setConfirming] = useState(false);
   const [confirmation, setConfirmation] = useState("");
+  const [runtimeStatus, setRuntimeStatus] = useState<ReplicaRuntimeStatus | null>(null);
   const stopped = replica.lifecycle === "revoked" || replica.lifecycle === "purging";
   const verificationCount = [replica.age_verified, replica.identity_verified, replica.liveness_verified].filter(Boolean).length;
 
@@ -546,10 +549,21 @@ function ReplicaWorkspace({
           </section>
 
           <RuntimeGate
+            key={`runtime-${replica.replica_id}`}
             token={accessToken}
             replicaId={replica.replica_id}
             stopped={stopped}
             onAuthError={onReviewAuthError}
+            onStatusChange={setRuntimeStatus}
+          />
+
+          <ReplicaDialogueLab
+            key={`dialogue-${replica.replica_id}`}
+            token={accessToken}
+            replicaId={replica.replica_id}
+            stopped={stopped}
+            onAuthError={onReviewAuthError}
+            runtimeStatus={runtimeStatus?.replica_id === replica.replica_id ? runtimeStatus : null}
           />
         </>
       )}

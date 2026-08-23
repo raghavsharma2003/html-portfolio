@@ -280,7 +280,7 @@ past and belong to its global person profile. Memories created while somebody
 interacts with the activated replica belong to that `(agent × person)`
 relationship. The two stores may cite each other but do not collapse.
 
-### Activation blocker: bind an authenticated replica to the isolated substrate
+### Authenticated replica binding to the isolated substrate
 
 Migration 018 adds and backfills `agent_id` on `meera_log`, `meera_nodes`,
 `meera_edges` and `meera_forget`. Meera's public memory path now writes it
@@ -289,17 +289,21 @@ and sweep reads carry the same binding. The consolidation watermark and lease
 are keyed by `(agent_id, person_id)`. `evals/agent/raw-isolation.mjs` guards the
 canonical schema and these call sites offline, with cross-agent negatives.
 
-This closes raw storage isolation but does **not** activate replicas. The
-existing HTTP memory and cron handlers are deliberately pinned to Meera. A
-replica runtime still needs a server-authenticated `replica_id -> agent_id`
-capability; a request-body agent id is never authority. Relationship forget
-also needs its own `(agent, person)` cascade. The existing full-person erase is
-intentionally all-agent and also removes person-global synchronized state,
-telemetry and room participation, so reusing it for one replica would be both
-over-broad and stale for other agents' rebuilt snapshots.
+Migration 023 adds the server-authenticated `replica_id -> capability ->
+agent_id/person_id` binding; request-body agent ids are never authority.
+Migration 027 adds version-bound private sessions and dialogue turns whose raw
+content lives once in the agent-scoped log. Every completion and subsequent
+speech authorization rechecks lifecycle, inference consent and the exact
+frozen profile/calibration capability. This is implemented and tested offline,
+not deployed or fidelity-qualified.
 
-Before a replica can chat or call, that trusted binding and relationship-forget
-path must pass an isolation battery proving:
+Relationship forget still needs its own `(agent, person)` cascade. The existing
+full-person erase is intentionally all-agent and also removes person-global
+synchronized state, telemetry and room participation, so reusing it for one
+replica would be both over-broad and stale for other agents' rebuilt snapshots.
+
+Before a replica can be released, the binding, dialogue and
+relationship-forget paths must pass a live isolation battery proving:
 
 - replica A cannot retrieve replica B's logs, nodes, edges or suppressions;
 - one agent's consolidation watermark cannot hide another agent's work;
@@ -307,8 +311,8 @@ path must pass an isolation battery proving:
 - deleting the creator's conversant record does not delete their owned
   `vy_replica`, while revoking the replica follows its separate erasure path.
 
-Until that passes, the product may enroll, calibrate and preview a voice, but
-it may not activate a second RelationalOS conversational agent.
+Until that passes, the code may exercise an offline private dialogue fixture,
+but production activation remains closed.
 
 ## 6. Calibration Studio
 
@@ -400,10 +404,13 @@ unsafe or disposable:
 12. Owner-only cited claim extraction from accepted target-speaker transcripts,
     with direct-identifier redaction, strict Azure Foundry structured output,
     exact citation verification and no automatic approval.
+13. Version-bound private dialogue that consumes the typed Person Model,
+    calibration and isolated relationship state, writes erasable raw turns and
+    binds protected speech to the exact server-generated reply.
 
 These slices do not touch `liveCall.ts`. Azure Speech and Foundry adapters have
 only mocked protocol coverage; real voice models, independent liveness
-verification and a production behavioural dialogue endpoint remain gated.
+verification and live behavioural dialogue qualification remain gated.
 
 ## 9. Deliberately not active yet
 
