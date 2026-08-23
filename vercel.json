@@ -4,6 +4,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/chat", "destination": "/chat.html" },
+    { "source": "/studio", "destination": "/studio.html" },
     { "source": "/privacy", "destination": "/privacy.html" }
   ],
   "crons": [

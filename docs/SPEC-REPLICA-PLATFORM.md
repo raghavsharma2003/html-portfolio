@@ -258,7 +258,8 @@ Readers in `src/engine/texture.ts` and sweep/consolidation code can therefore
 scan raw material or advance a watermark without isolating the active agent.
 This is safe only while Meera is the sole conversational agent.
 
-Before a replica can chat or call, migration 016 must add and backfill
+Before a replica can chat or call, the dedicated agent-scope migration (next
+schema number after the enrollment queue) must add and backfill
 `agent_id` on those four raw tables, update every writer/reader and sweep, then
 remove compatibility defaults after an isolation battery proves:
 

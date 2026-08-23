@@ -1874,7 +1874,39 @@ before migration 016 would risk recall leakage or one agent hiding another's
 work. The clone therefore stays on the existing cascade audio contract later;
 `liveCall.ts` is not modified for the preview.
 
-**Reverses if:** migration 016 backfills explicit agent ids through every raw
+**Reverses if:** the dedicated agent-scope migration backfills explicit agent ids through every raw
 writer, reader and sweep, removes compatibility defaults, and the cross-agent
 isolation/forget/watermark/lane-parity battery passes. A prompt instruction to
 ignore another agent's memory cannot reverse a storage isolation blocker.
+
+## `replica-evidence-private-capability` — originals never cross the app server (2026-08-24)
+
+Replica audio, video, images, documents and archives upload directly to a
+verified private object bucket through a two-hour, one-object capability. The
+server derives the owner from a Bearer session, creates every opaque object
+path, requires current capture and storage consent, and persists no filename or
+durable URL. A client SHA-256 is only a declaration: finalization verifies
+storage size/MIME then quarantines the object until a worker independently
+hashes, scans, separates, transcribes and classifies it. Source deletion
+immediately invalidates claims and all derived voice/person versions before
+physical erasure is attempted.
+
+**Reverses if:** the storage provider changes. The invariants do not: no public
+bucket, no client-selected path, no serverless byte proxy, no processing before
+independent verification, and revocation makes derived artifacts unusable
+before asynchronous deletion.
+
+## `replica-azure-credit-is-an-eval-budget` — spend on the moat, not pretraining (2026-08-24)
+
+The $2,000 Azure grant funds a capped $1,829 program: noisy transcription,
+Direct-from-Azure reasoning/embedding/realtime comparisons, Personal Voice only
+after Limited Access approval, bounded A10 open-model inference, private
+storage/monitoring and a $200 reserve. It does not fund a new foundation model,
+Marketplace models or an always-on custom-voice endpoint. Vyakti owns the
+evidence graph, VoiceGenome, relationship/person substrate, calibration data,
+provider router and whole-replica evals; replaceable models compete behind it.
+
+**Reverses if:** legally owned data and measured provider-independent results
+show a specific foundation-training experiment is the cheapest remaining path
+to a named failing gate, with separate funding. A model demo or unused credit
+is not a reversal condition.

@@ -78,6 +78,11 @@ const suites = {
   // challenge, versioned eval verdicts, lifecycle, private object paths and
   // content-free audit. Offline and provider-free.
   replica: "replica/run.mjs",
+  // Owner enrollment: account consent cannot mint biometric/inference rights;
+  // evidence is MIME/size/hash bounded, stored under opaque owner paths and
+  // uploaded only through a short-lived capability into a verified private
+  // bucket. Offline, deterministic, no DB or storage call.
+  replicaenrollment: "replica-enrollment/run.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),

@@ -30,6 +30,7 @@ const STRINGS = [
   "NEON_URL",
   "SUPABASE_URL",
   "SUPABASE_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
   "AZURE_KEY",
   "AZURE_ENDPOINT",
   // The Telegram surface (api/tg.js). TELEGRAM_WEBHOOK_SECRET is the only

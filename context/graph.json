@@ -1369,6 +1369,18 @@
       "id": "replica-raw-memory-unscoped",
       "kind": "open",
       "title": "Raw logs, nodes, edges, forget and consolidation watermarks are not fully agent-scoped"
+    },
+    {
+      "id": "replica-evidence-private-capability",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "Replica originals use private direct-upload capabilities and quarantine before processing"
+    },
+    {
+      "id": "replica-azure-credit-is-an-eval-budget",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "The $2,000 Azure credit funds owned evaluation and bounded inference, not foundation pretraining"
     }
   ],
   "edges": [
@@ -2519,6 +2531,21 @@
     },
     {
       "src": "recited-prompt",
+      "rel": "constrains",
+      "dst": "replica-provider-portable"
+    },
+    {
+      "src": "replica-evidence-private-capability",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "replica-self-only",
+      "rel": "constrains",
+      "dst": "replica-evidence-private-capability"
+    },
+    {
+      "src": "replica-azure-credit-is-an-eval-budget",
       "rel": "constrains",
       "dst": "replica-provider-portable"
     }

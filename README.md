@@ -89,3 +89,27 @@ website is the product.
 Stack: React 19 + TypeScript + Vite, framer-motion, Capacitor 8 (Android
 shell), Anthropic SDK. Rename her in `src/engine/persona.ts` (`HER_NAME`) —
 everything follows from there.
+
+## Replica Lab (`voice-cloning` branch)
+
+This branch also contains the first product slice of Vyakti Replica Lab at
+`/studio`: an authenticated, private self-replica workspace. It is separate
+from Meera and does not change her current chat or call lanes.
+
+Implemented now:
+
+- owner-derived replica lifecycle and immediate revoke/erasure queue;
+- granular source capture, transcription and storage consent;
+- browser-side incremental SHA-256 and direct signed upload to a verified
+  private bucket, followed by quarantine and a retryable processing queue;
+- randomized, expiring live-challenge records that an owner cannot self-pass;
+- provider-neutral VoiceGenome and streamed PCM contracts;
+- offline enrollment, IDOR, lifecycle, disclosure and provider-contract gates;
+- a researched Azure Foundry spend plan below the $2,000 grant ceiling.
+
+Biometric consent, identity/age verification, anti-replay, training, synthesis,
+watermark/provenance and conversation activation remain closed until their
+explicit gates pass. The full architecture is in
+[`docs/SPEC-REPLICA-PLATFORM.md`](docs/SPEC-REPLICA-PLATFORM.md), frontier
+research in [`docs/research/REPLICA-FRONTIER-2026.md`](docs/research/REPLICA-FRONTIER-2026.md),
+and Azure allocation in [`docs/AZURE-FOUNDRY-PLAN.md`](docs/AZURE-FOUNDRY-PLAN.md).
