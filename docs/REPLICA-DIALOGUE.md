@@ -81,6 +81,16 @@ segment persistence and final C2PA sealing. Calibration is the only speech
 purpose that may accept explicit client text, because held-out test phrases are
 the object being evaluated; it is restricted to `studio_preview`.
 
+## Fidelity learning
+
+Every completed turn can receive append-only, owner-only ratings for overall
+fit, wording, behavior, relationship, memory and delivery. Voice identity is
+rateable only after that turn has a sealed protected-audio generation. An
+optional owner-authored correction is envelope-encrypted before persistence
+and can become an exact rejected/preferred pair for a future qualified model.
+It never changes the live prompt or approved calibration automatically. See
+[turn fidelity feedback](TURN-FEEDBACK.md).
+
 ## Closed gates
 
 - Live identity/liveness/inference consent, migrations 023-027, Azure model and
@@ -106,4 +116,5 @@ Offline gates:
 node evals/run.mjs replicadialogue
 node evals/run.mjs replicaruntime
 node evals/run.mjs replicaprovenance
+node evals/run.mjs replicafeedback
 ```

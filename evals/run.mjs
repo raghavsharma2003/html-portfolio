@@ -121,6 +121,9 @@ const suites = {
   // calls, measured settlement, crash/unknown reconciliation and content-free
   // accounting under one hard Azure application ceiling.
   providerbudget: "provider-budget/run.mjs",
+  // Exact-version, multidimensional owner adjudication of a private turn,
+  // including encrypted correction exemplars and sealed-audio lineage.
+  replicafeedback: "replica-feedback/run.mjs",
   // Second-agent readiness: every shipping insert names agent_id, every
   // relational/natural-key arbiter is composite, and compatibility defaults
   // have explicit strict migrations with a working negative control.

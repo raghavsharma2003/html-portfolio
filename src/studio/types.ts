@@ -236,3 +236,16 @@ export interface ReplicaDialogueTurn {
   billing_state?: "settled" | "not_metered" | "reconcile_required";
   created_at: string;
 }
+
+export type TurnFeedbackRating = "exact" | "close" | "off" | "unsafe";
+
+export interface ReplicaTurnFeedback {
+  feedback_id: string;
+  turn_id: string;
+  revision: number;
+  ratings: Record<string, TurnFeedbackRating>;
+  reason_codes: string[];
+  has_correction: boolean;
+  voice_generation_bound: boolean;
+  created_at: string;
+}

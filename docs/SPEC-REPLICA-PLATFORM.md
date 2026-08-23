@@ -410,6 +410,10 @@ unsafe or disposable:
 14. A content-free, atomic Azure Foundry spend governor that reserves a
     conservative maximum before provider I/O, settles measured usage, prevents
     duplicate allocation and quarantines ambiguous outcomes for reconciliation.
+15. Exact-version turn feedback that separates wording, behavior,
+    relationship, memory, delivery and heard voice; owner correction exemplars
+    use per-row envelope encryption and remain reviewable training/eval evidence
+    instead of silently mutating the active runtime.
 
 These slices do not touch `liveCall.ts`. Azure Speech and Foundry adapters have
 only mocked protocol coverage; real voice models, independent liveness

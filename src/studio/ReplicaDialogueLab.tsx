@@ -3,6 +3,7 @@ import { createDialogueTurn, fetchProtectedTurnVoice } from "./dialogueApi";
 import { ReplicaApiError } from "./replicaApi";
 import { readRuntimeStatus } from "./runtimeApi";
 import type { ReplicaDialogueTurn, ReplicaRuntimeStatus } from "./types";
+import TurnFeedback from "./TurnFeedback";
 
 interface VisibleTurn {
   user: string;
@@ -27,6 +28,7 @@ export default function ReplicaDialogueLab({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [speaking, setSpeaking] = useState("");
+  const [heardTurns, setHeardTurns] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef("");
@@ -80,6 +82,7 @@ export default function ReplicaDialogueLab({
       audioRef.current?.pause();
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
       const blob = await fetchProtectedTurnVoice(token, replicaId, turn.turn_id);
+      setHeardTurns((current) => new Set(current).add(turn.turn_id));
       const url = URL.createObjectURL(blob);
       objectUrlRef.current = url;
       const audio = new Audio(url);
@@ -127,6 +130,7 @@ export default function ReplicaDialogueLab({
                       {speaking === replica.turn_id ? "Stop voice" : "Play protected voice"}
                     </button>
                   </footer>
+                  <TurnFeedback token={token} replicaId={replicaId} turnId={replica.turn_id} voiceHeard={heardTurns.has(replica.turn_id)} onAuthError={onAuthError} />
                 </article>
               </div>
             )) : (

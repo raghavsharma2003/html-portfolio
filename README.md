@@ -140,6 +140,10 @@ Implemented now:
   history into strict Azure Foundry structured output; conversation text is
   stored once in the erasable raw log, and protected voice accepts only the
   exact server-issued turn rather than arbitrary client text;
+- an exact-version owner feedback loop that grades wording, behavior,
+  relationship, memory, delivery and heard voice separately; optional owner
+  corrections use per-exemplar envelope encryption and become auditable
+  preference evidence rather than automatic prompt mutations;
 - a production Neon provenance ledger that rechecks active replica capability
   before each signed PCM segment is released, making revocation a streaming
   delivery fence rather than only a UI state;
@@ -160,5 +164,6 @@ Dialogue serving is in [`docs/REPLICA-DIALOGUE.md`](docs/REPLICA-DIALOGUE.md).
 The Person Model contract is in [`docs/PERSON-MODEL.md`](docs/PERSON-MODEL.md).
 Private cited extraction is in [`docs/CLAIM-EXTRACTION.md`](docs/CLAIM-EXTRACTION.md).
 Calibration is specified in [`docs/CALIBRATION.md`](docs/CALIBRATION.md).
+Turn-level fidelity learning is in [`docs/TURN-FEEDBACK.md`](docs/TURN-FEEDBACK.md).
 Azure allocation is in [`docs/AZURE-FOUNDRY-PLAN.md`](docs/AZURE-FOUNDRY-PLAN.md).
 The enforced application ceiling is in [`docs/PROVIDER-BUDGET.md`](docs/PROVIDER-BUDGET.md).
