@@ -1716,3 +1716,44 @@ produces anything but murk. Explicit Dark's thread wallpaper is now the
 night painting always (the night room), a palette choice not a clock
 claim: home/call keep the real sky in every mode, and the browser
 battery pins that home in explicit Dark at noon still shows morning.
+
+---
+
+## `episode-of-the-present-tense` — a record made of "now" answers nothing later
+
+**Found (first external tester, 2026-08-23):** she denied two chess games
+happened, then invented moves when pressed. Root cause was double. The
+activity episode stored `facts` — the PRESENT moment by design — so a
+finished game became "she is playing black; 6 moves in", with the
+opening row deliberately suppressed past ply 16 because it stopped being
+live news; which opening they played is asked AFTERWARDS, exactly when
+the live rule had deleted it. And the record was unreachable anyway:
+one AppState.game slot (tic-tac-toe overwrote chess), the local path
+wrote nothing, and the server's keyword recall leg never read the table
+activities write to. She answered from the only game she could see and
+fabricated the rest.
+
+**The generalisable rules:** a memory writer must write the PAST tense —
+"what is still true next week" — not a snapshot of live state; a rule
+that suppresses a fact when it stops being news must not run at
+archive time; and every episode writer needs a reader that provably
+reaches it (the reader/writer disagreement class again). The
+enforcement is structural: honesty family 6 blocks any shared-game
+specific unsupported by the record, with the tester's 7 fabricated
+lines as permanent negatives.
+
+## `call-opens-with-amnesia-by-construction` — the lane that never got the turns
+
+**Found (same tester):** "kal kya baat kiya" was unanswerable on a call
+while chat answered it fine. Not a retrieval bug: chat sends the last
+90 messages as turns (call turns included); the LIVE session opens with
+ZERO turns, and its system instruction's only history block excluded
+call turns and stopped at 30 minutes. Two more blocks (since-you-last-
+spoke, open promises) were silently dark on the call lane because one
+compile site never passed nowMs — age-tier-never-realtime's exact
+shape, again, on the lane with no output gate.
+
+**The generalisable rule:** every context block that exists must be
+asserted PRESENT on every lane that claims it, with a per-lane budget
+pin — a block that renders on one lane and silently empties on another
+is how the same person remembers in text and forgets on the phone.

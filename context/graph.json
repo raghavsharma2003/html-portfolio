@@ -1299,6 +1299,24 @@
       "kind": "measurement",
       "at": "2026-08-23",
       "title": "Per-minute cost: live voice $0.014, cascade $0.029, +screen-share $0.037 list; $0 today until free pool exhausts; video frames and output audio dominate"
+    },
+    {
+      "id": "episode-of-the-present-tense",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "Activity episodes stored the live moment, unreachable anyway; memory writers must write the past tense with a proven reader"
+    },
+    {
+      "id": "call-opens-with-amnesia-by-construction",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "Live call opened with zero turns and dark context blocks; every block must be asserted present per lane"
+    },
+    {
+      "id": "tester-wave-1",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "First external tester wave: honesty 351 to 393, callmem 195, game-invite 123, gameplay browser 87, echosim floor byte-identical, 7 fabricated lines as permanent negatives"
     }
   ],
   "edges": [
@@ -2386,6 +2404,16 @@
       "src": "callcost-2026-08-23",
       "rel": "measured_by",
       "dst": "brain-model"
+    },
+    {
+      "src": "episode-of-the-present-tense",
+      "rel": "caused_by",
+      "dst": "tester-wave-1"
+    },
+    {
+      "src": "call-opens-with-amnesia-by-construction",
+      "rel": "caused_by",
+      "dst": "tester-wave-1"
     }
   ]
 }
