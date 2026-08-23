@@ -2480,3 +2480,32 @@ flows; every fix eval-pinned; n as stated per suite.
   rationale at the check; growth cost ~$0.0004/session).
 - Tester positives preserved and logged: voice clarity/latency praised,
   callback-on-drop praised, chat-side cross-modal memory worked.
+
+---
+
+## `memory-wave-2026-08-23` — the world-class memory wave, measured
+
+Method: WS-MEMAUDIT 12-scenario matrix through the real compiled engine,
+then four workstreams, each gated; numbers below are before -> after.
+
+- recall@8 on the labelled fixture set: 73.9% -> 95.7%; queries answered
+  76.9% -> 92.3%; false fires 0 -> 0. Hinglish tokenizer: 13/19 -> 17/19
+  real queries non-empty, 14 negative probes 0 fires.
+- Mid-call memory cues: 9/9 recall, 0/12 false fires, note <=500B.
+  Running note carries minute-3 AND minute-12 facts to minute 40.
+- Lane parity: T1-T16 + sub-blocks rendered per lane under a full
+  fixture (158 assertions); watch exemptions each carry a stated reason
+  at the call site; pre-fix dark lanes reproduced as negative control.
+- First-ever consolidation run, measured read-only against prod:
+  10 people, 180 pending rows, ~$0.03 typical / $0.05 worst.
+- Kin precision traps: 5/5 third-party shapes refused with reasons.
+- Cross-device: 18/18 two-real-contexts browser assertions incl.
+  clear-chat tombstone against a stale peer.
+- Hinglish-forget baseline PRE-REGISTERED: adversarial recall 5.9%
+  (1/17), controls 100%, 100% when the model resolves the referent;
+  the yardstick for survey A1, not fixed this wave.
+- Call-lane byte bound: was passing by omission (~5,920B of relational
+  blocks uncounted); now counts them, cap 24,000 -> 30,000 with
+  rationale, landing at 98.0%/99.0%.
+- Suite counts: callmem 323, recall 209, consolidation 98, lanes 158,
+  sync +22, milestones +41, forgetlex 34, game-invite 123.

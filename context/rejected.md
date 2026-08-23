@@ -1757,3 +1757,37 @@ shape, again, on the lane with no output gate.
 asserted PRESENT on every lane that claims it, with a per-lane budget
 pin — a block that renders on one lane and silently empties on another
 is how the same person remembers in text and forgets on the phone.
+
+---
+
+## `spine-that-ran-one-step-of-six` — two failures stacked so each hid the other
+
+**Found (WS-MEMAUDIT/WS-SPINE, 2026-08-23):** consolidation never ran in
+production: the hourly cron fired with dryRun defaulting true, so every
+firing reported and spent nothing. AND the sweep endpoint called only
+runConsolidation while the reference workflow chains six steps, so even
+flipping the flag would have left rel_state/patterns/phrases/texture/
+self_arc empty while the run report showed cost and progress. Every
+"she remembers the shape of us" block rendered 0 bytes for every user
+ever, silently, on every lane.
+
+**The generalisable rules:** a scheduled job needs an output-side proof,
+not a scheduling-side one (the lane-parity gate is that proof, and the
+consolidation quality eval asserts derived rows exist on fixtures); and
+a sweep that wraps a chain must be asserted equal to the chain, not
+assumed to be (the eval now pins the six steps). Also: spend counters
+must count ATTEMPTS, not successes — a failing provider measured as
+"0 model calls" on a run that had spent.
+
+## `merge-scythe` — the union slice that deleted the front of history
+
+**Found (WS-SYNC):** mergeStates did slice(-500) over the UNION of two
+message histories, i.e. "delete the front of any history longer than
+500" — on a device whose local history is deliberately unbounded. Rare
+while merges were rare; the new 90-second cross-device pull would have
+industrialised it into steady memory loss. Local history is now kept
+whole past the tombstone; the cap bounds only what a REMOTE copy may add.
+
+**The generalisable rule:** a bound applied to a merge result is a
+delete operator wearing a cap's name; bound the incoming side, never
+the union.

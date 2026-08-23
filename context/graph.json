@@ -1317,6 +1317,24 @@
       "kind": "measurement",
       "at": "2026-08-23",
       "title": "First external tester wave: honesty 351 to 393, callmem 195, game-invite 123, gameplay browser 87, echosim floor byte-identical, 7 fabricated lines as permanent negatives"
+    },
+    {
+      "id": "spine-that-ran-one-step-of-six",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "Consolidation never ran: dry-run cron AND a sweep running 1 of 6 chain steps; scheduled jobs need output-side proofs"
+    },
+    {
+      "id": "merge-scythe",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "slice(-500) over a merge union deletes the front of history; bound the incoming side, never the union"
+    },
+    {
+      "id": "memory-wave-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "Memory wave: recall@8 73.9 to 95.7, lane parity 158 checks, first consolidation ~$0.03, forget baseline 5.9% pre-registered"
     }
   ],
   "edges": [
@@ -2414,6 +2432,21 @@
       "src": "call-opens-with-amnesia-by-construction",
       "rel": "caused_by",
       "dst": "tester-wave-1"
+    },
+    {
+      "src": "spine-that-ran-one-step-of-six",
+      "rel": "caused_by",
+      "dst": "memory-wave-2026-08-23"
+    },
+    {
+      "src": "merge-scythe",
+      "rel": "caused_by",
+      "dst": "memory-wave-2026-08-23"
+    },
+    {
+      "src": "memory-wave-2026-08-23",
+      "rel": "supersedes",
+      "dst": "call-opens-with-amnesia-by-construction"
     }
   ]
 }
