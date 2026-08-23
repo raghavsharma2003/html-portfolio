@@ -2534,3 +2534,24 @@ $2.2372 spent. Archived: evals/feltmem/runs/judged-2026-08-23-REHEARSAL.json.
   which ALSO means production's cash fallback lane is dead until the
   key is topped up; free pool alone carries production today. Owner
   action. Alternative: qualify the Azure grant judges (#57).
+
+---
+
+## `judge-qualification-2026-08-23` — every zero-cash judge measured, none passes
+
+Method: judge-backtest.mjs against the archived blind verdicts
+(charm-grok + charm-luna, ground truth anthropic/claude-opus-4.8),
+80% pooled-agreement bar, both-orders-agree rule. $0 cash (Azure grant).
+
+- DeepSeek-V4-Flash 27.4% [19.4,37.1], gpt-5.6-terra 52.1% [42.2,61.8],
+  grok-4.3 34.4% [25.6,44.3] — ALL FAIL, all with heavy slot-A position
+  bias (58-81%). qualified_panel remains empty.
+- Remaining zero-cash candidate: gemini-3.6-flash as judge via the
+  OpenAI-compatible endpoint on EVAL-ONLY keys (config committed,
+  unqualified until backtested). The powered feltmem run therefore
+  WAITS on ~11 fresh AIza eval keys (owner: not right now) — the
+  one-command runner scripts/feltmem-overnight.mjs refuses to spend
+  under an unqualified judge.
+- Also measured: a pasted "AQ."-prefixed Google credential is not an
+  API key shape and returns 403 project-denied; only AIza keys join
+  any pool, after a live probe.

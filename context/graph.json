@@ -1341,6 +1341,18 @@
       "kind": "measurement",
       "at": "2026-08-23",
       "title": "Felt-memory battery rehearsal: machinery proven, n=130 underpowered, retold +0.89 and time +0.84 directional, blocked on OpenRouter key limit"
+    },
+    {
+      "id": "judge-qualification-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "All zero-cash judges fail the 80% bar (27-52%, heavy position bias); powered feltmem waits on eval keys"
+    },
+    {
+      "id": "brain-stays-36-flash-reaffirmed",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "No brain swap on a price sale; swaps go through the measured battery only"
     }
   ],
   "edges": [
@@ -2458,6 +2470,16 @@
       "src": "feltmem-rehearsal-2026-08-23",
       "rel": "measured_by",
       "dst": "memory-wave-2026-08-23"
+    },
+    {
+      "src": "judge-qualification-2026-08-23",
+      "rel": "constrains",
+      "dst": "feltmem-rehearsal-2026-08-23"
+    },
+    {
+      "src": "brain-stays-36-flash-reaffirmed",
+      "rel": "constrains",
+      "dst": "brain-model"
     }
   ]
 }

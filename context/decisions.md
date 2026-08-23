@@ -1828,3 +1828,17 @@ named ratchet at 3.3 (debt written down, not omitted).
 **Reversed if:** the owner's taste verdict changes, or the composer
 glass changes enough that the wine clears 3:1 there (then one token can
 serve both again).
+
+---
+
+## `brain-stays-36-flash-reaffirmed` (2026-08-23, owner)
+
+A 75% OpenRouter sale on gemini-3.7-flash prompted the question; the
+answer is no switch, for the standing reasons: production pays $0 (free
+AI Studio pool — an OpenRouter discount is a discount on a lane we do
+not buy), and the brain is a MEASURED choice (the Luna battery), so any
+future swap goes through the swap-test harness arm-vs-arm, never
+through a price page. Owner confirmed: "keep at 3.6 only."
+
+**Reversed if:** a pre-registered personality battery prefers another
+model within the same cost envelope, or the free tier stops serving 3.6.
