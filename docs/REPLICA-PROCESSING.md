@@ -1,0 +1,114 @@
+# Replica noisy-evidence processing contract
+
+Status: backend contract slice, offline fake implementation, no production ML claim.
+
+This slice turns a quarantined self-replica audio/video source into immutable preprocessing candidates and cited evidence. It does **not** claim that denoising, ASR, diarization, embeddings, speaker selection, voice cloning, or human similarity are solved. The only included provider is deterministic fake data for boundary and retry tests.
+
+## Non-negotiable invariants
+
+1. The upload at `<owner>/<replica>/<source>/original` is immutable evidence. A worker never writes to that path.
+2. Separation/enhancement candidates are create-only objects below `<owner>/<replica>/<source>/derived/<transform-version>/...`. Multiple candidates remain beside the original; no “best” candidate replaces it.
+3. Server-side integrity verification compares a streamed digest and byte count with the quarantined manifest before later stages run. Storage metadata checked at upload finalization is not treated as content integrity.
+4. Every artifact and evidence row carries the owner, replica, source, creating job, input digest, adapter identity/version, and its own canonical manifest/record digest.
+5. Composite foreign keys prevent a source, job, parent artifact, or evidence record from being joined across owner/replica/source boundaries.
+6. A job is complete only after its referenced artifacts/evidence exist under that same leased ownership tuple. An adapter attempt is not an outcome.
+7. Lease capabilities are returned to the worker once; only a domain-separated SHA-256 digest is stored. Expired leases are reclaimable and transient failures use bounded deterministic backoff.
+8. VoiceGenome/person-profile builders are versioned and draft-only. Approval is a separate transition requiring integrity, third-party review, owner calibration, and a passing held-out evaluation using real evidence. Fake results cannot satisfy that gate.
+9. Portable VoiceGenome/profile definitions cannot contain provider voice IDs, provider references, signed URLs, or external voice handles. Those belong only in disposable server-side voice-provider mappings.
+
+## Audio DAG
+
+```text
+quarantined original
+  -> integrity
+  -> malware_scan
+  -> media_probe
+  -> diarize
+  -> separate (immutable target/foreground candidates)
+  -> enhance (N immutable candidates)
+  -> transcribe (candidate-cited transcript/language spans)
+  -> voice_quality (multiple embedding families + distributions)
+  -> human evidence review
+  -> draft VoiceGenome
+  -> calibration + real held-out eval
+  -> explicit approval
+```
+
+Only audio and the audio track of video enter this DAG. Text, documents, images, chat archives, PII scanning, third-party classification, target-speaker confirmation, and visual processing must remain quarantined/blocked until their own reviewed worker stages exist. Unsupported input must not be silently coerced into this flow.
+
+## Modules
+
+- `api/_replica-processing/contracts.js`: canonical JSON/digests, server-derived paths, adapter validation, immutable artifact/evidence manifests.
+- `api/_replica-processing/pipeline.js`: audio DAG, dependency checks, retry classification and backoff.
+- `api/_replica-processing/queue.js`: atomic lease/reclaim and lease-token-bound complete/retry/stop transitions.
+- `api/_replica-processing/worker.js`: one leased stage executor; adapters receive private input references and return normalized results.
+- `api/_replica-processing/repository.js`: create-only, idempotent persistence; a deterministic ID collision with different content is fatal.
+- `api/_replica-processing/builders.js`: source-set hashing, portable draft builders, approval readiness, and the model-build state machine.
+- `api/_replica-processing/providers/fake.js`: test fixtures only. Its byte payload literally says `FAKE-NOT-AUDIO`.
+- `db/migrations/017_replica_processing_manifests.sql`: attempt, artifact, evidence/decision and model-build records.
+- `evals/replica-processing/run.mjs`: offline boundary suite, wired as `replicaprocessing` in the root eval runner.
+
+## Adapter interfaces
+
+All adapters expose `{ family, name, version }` plus one stage method. The current worker recognizes:
+
+| Stage | Method | Normalized output |
+|---|---|---|
+| integrity | `verify` | digest, byte count, sniffed MIME |
+| malware scan | `scan` | explicit `safe: true` verdict |
+| media probe | `probe` | duration, sample rate, channels, codec |
+| diarization | `diarize` | speaker segments with millisecond spans, confidence, target likelihood, overlap |
+| separation | `separate` | one or more create-only byte-stream candidates |
+| enhancement | `enhance` | one or more create-only byte-stream candidates with transform parameters and quality facts |
+| ASR | `transcribe` | candidate-cited text/language spans and optional word alignment |
+| voice analysis | `measure` | at least two embedding families, acoustic/prosodic/language distributions, and quality facts |
+
+Adapter names are retained for reproducibility. They do not enter the public VoiceGenome as external voice/profile IDs.
+
+An immutable artifact store must implement `writeImmutable({ bucket, objectPath, body, mime, expectedSha256, ifNoneMatch: "*" })`. A production store must stream bytes, compute or independently verify the digest, reject overwrites, keep the bucket private, and never persist a signed URL.
+
+## Worker transaction order
+
+For a leased job:
+
+1. Load the internal source row and completed dependency facts; reject any ownership mismatch.
+2. Execute exactly one adapter stage.
+3. Validate the normalized result. For derived bytes, write create-only objects and verify returned digests.
+4. Persist immutable artifact/evidence rows through `persistProcessingOutput`.
+5. Call `completeProcessingJob`. Its SQL checks every receipt ID exists for the leased job/source/replica/owner.
+6. Enqueue `result.next_steps` only after completion.
+7. On a retryable adapter failure, record `retry`; on integrity/malware failure, record `blocked`; otherwise record `failed`. Never call completion from a catch/finally path.
+
+Steps 3-5 are deliberately idempotent so a serverless stop after storage or record creation can be replayed. Object bytes and DB records may be left as unreferenced candidates during recovery, but raw evidence is never changed and a job cannot falsely complete.
+
+## VoiceGenome contents
+
+The draft builder currently carries:
+
+- accepted source, artifact and evidence IDs;
+- input/output digests and transform lineage;
+- multiple speaker-embedding families (kept separate, not averaged across families);
+- pitch, energy, speaking-rate, pause, rhythm, phrase-boundary and paralinguistic distributions supplied as evidence;
+- language/accent/code-switch observations;
+- target speaker segments with confidence;
+- the measured quality envelope and explicit exclusions;
+- builder/schema version and a canonical source-set hash;
+- required calibration layers.
+
+Changing any accepted evidence digest changes the source-set hash and therefore requires a new build/version. Deleting a source must continue to retire affected genomes/profiles through the existing source-deletion control plane.
+
+## Production work still required
+
+- Deploy an authenticated internal queue consumer/sweeper; there is no public worker endpoint in this slice.
+- Select and validate real streaming integrity, malware, media-probe, diarization, separation/enhancement, ASR/alignment and multi-family speaker-analysis adapters.
+- Add real storage and database integration tests, lease-race tests, cancellation/timeouts, resource limits and observability with content-free logs.
+- Add explicit target-speaker/third-party review, PII policy, candidate audition/selection, deletion of rejected derivatives, and encrypted biometric retention controls.
+- Establish real noisy/accent/code-switch corpora, human calibration protocols, anti-spoof/liveness tests and held-out identity/accent/prosody evaluations. Structural fake-provider tests are not evidence of model quality.
+- Add stage DAGs for non-audio evidence and a transaction/outbox for next-stage enqueueing if the production database transport cannot provide the required atomicity.
+
+Run the bounded gate with:
+
+```bash
+node evals/replica-processing/run.mjs
+node evals/run.mjs replicaprocessing
+```

@@ -250,18 +250,26 @@ past and belong to its global person profile. Memories created while somebody
 interacts with the activated replica belong to that `(agent × person)`
 relationship. The two stores may cite each other but do not collapse.
 
-### Activation blocker: the raw memory substrate is not fully agent-scoped
+### Activation blocker: bind an authenticated replica to the isolated substrate
 
-The derived relational tables are agent-scoped, but `meera_log`,
-`meera_nodes`, `meera_edges` and `meera_forget` still lack an `agent_id`.
-Readers in `src/engine/texture.ts` and sweep/consolidation code can therefore
-scan raw material or advance a watermark without isolating the active agent.
-This is safe only while Meera is the sole conversational agent.
+Migration 018 adds and backfills `agent_id` on `meera_log`, `meera_nodes`,
+`meera_edges` and `meera_forget`. Meera's public memory path now writes it
+explicitly and filters it before ranking; consolidation, texture, episode-span
+and sweep reads carry the same binding. The consolidation watermark and lease
+are keyed by `(agent_id, person_id)`. `evals/agent/raw-isolation.mjs` guards the
+canonical schema and these call sites offline, with cross-agent negatives.
 
-Before a replica can chat or call, the dedicated agent-scope migration (next
-schema number after the enrollment queue) must add and backfill
-`agent_id` on those four raw tables, update every writer/reader and sweep, then
-remove compatibility defaults after an isolation battery proves:
+This closes raw storage isolation but does **not** activate replicas. The
+existing HTTP memory and cron handlers are deliberately pinned to Meera. A
+replica runtime still needs a server-authenticated `replica_id -> agent_id`
+capability; a request-body agent id is never authority. Relationship forget
+also needs its own `(agent, person)` cascade. The existing full-person erase is
+intentionally all-agent and also removes person-global synchronized state,
+telemetry and room participation, so reusing it for one replica would be both
+over-broad and stale for other agents' rebuilt snapshots.
+
+Before a replica can chat or call, that trusted binding and relationship-forget
+path must pass an isolation battery proving:
 
 - replica A cannot retrieve replica B's logs, nodes, edges or suppressions;
 - one agent's consolidation watermark cannot hide another agent's work;
@@ -331,9 +339,9 @@ or permanent source URL.
 - revocation makes inference fail immediately, then provider/object/memory
   deletion produces receipts and passes a full store manifest walk.
 
-## 8. First vertical slice
+## 8. Delivered foundation slices
 
-This branch begins with the pieces whose absence would make every later demo
+This branch contains the pieces whose absence would make every later demo
 unsafe or disposable:
 
 1. Migration 015: replica, consent, private-source manifest, claim,
@@ -346,12 +354,19 @@ unsafe or disposable:
 5. A provider-neutral voice contract and fake provider that prove create,
    status, disclosed PCM streaming, cancellation and idempotent deletion.
 6. Research and architecture logged before a real provider is selected.
+7. A separate `/studio` entry with authenticated consent, private source
+   upload, local microphone/video challenge capture, review and revocation.
+8. Immutable noisy-audio processing contracts for integrity, malware scan,
+   media probe, diarization, target separation, multiple enhancement
+   candidates, ASR, multi-family voice analysis and draft-only VoiceGenome
+   construction. The included provider is a deterministic fake.
+9. Migration 018 and offline negatives that isolate raw RelationalOS logs,
+   graph rows, suppression tombstones and consolidation cursors by agent.
 
-The next vertical slice adds `/studio`, private signed upload/finalize, liveness
-and consent receipt endpoints, then real adapters behind the existing contract.
-It does not touch `liveCall.ts`.
+These slices do not touch `liveCall.ts`. Real model adapters, independent
+liveness verification and authenticated replica runtime binding remain gated.
 
-## 9. Deliberately not built in the first slice
+## 9. Deliberately not active yet
 
 - training a speech foundation model;
 - arbitrary third-party/public-figure/deceased/minor cloning;

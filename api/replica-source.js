@@ -63,6 +63,12 @@ export default async function handler(req, res) {
     if (body.op === "finalize") {
       const pending = await getPendingSource(q, user.id, body.replica_id, body.source_id);
       if (!pending) return res.status(404).json({ error: "pending_source_not_found" });
+      // Live evidence has a stricter atomic transition that binds the file to
+      // its unexpired randomized phrase. It must never enter quarantine via
+      // the generic evidence route.
+      if (pending.capture_mode === "live_challenge") {
+        return res.status(409).json({ error: "use_liveness_finalize" });
+      }
       const info = await replicaObjectInfo(pending.object_path);
       const source = await finalizeOwnedSource(q, user.id, body.replica_id, body.source_id, info);
       return source
@@ -104,4 +110,3 @@ export default async function handler(req, res) {
     return res.status(status).json({ error: status === 500 ? "source_failure" : error.message });
   }
 }
-

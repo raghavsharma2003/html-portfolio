@@ -74,3 +74,18 @@ export interface SignedUpload {
   headers: Record<string, string>;
   expires_at: string;
 }
+
+export type LivenessState = "issued" | "uploaded" | "verifying" | "passed" | "failed" | "expired";
+
+export interface LivenessChallenge {
+  challenge_id: string;
+  replica_id: string;
+  phrase: string;
+  state: LivenessState;
+  attempt: number;
+  source_id: string | null;
+  failure_code: string;
+  issued_at: string;
+  expires_at: string;
+  updated_at: string;
+}

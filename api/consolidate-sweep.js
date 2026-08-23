@@ -111,6 +111,7 @@ import {
   costDelta,
   WATCH_CHANNEL,
 } from "./consolidate.js";
+import { MEERA_AGENT_ID } from "./_agentscope.js";
 import { allow, ipOf } from "./_ratelimit.js";
 
 const CRON_SECRET = process.env.CRON_SECRET || "";
@@ -220,10 +221,12 @@ async function ensureSchema() {
   if (schemaEnsured) return;
   await q(`
     create table if not exists meera_consolidate_lease (
-      person_id uuid primary key,
+      agent_id  uuid not null default '${MEERA_AGENT_ID}'::uuid,
+      person_id uuid not null,
       leased_at timestamptz not null default now(),
       leased_by text not null default '',
-      run_id    text
+      run_id    text,
+      primary key (agent_id, person_id)
     )
   `).catch(() => {});
   schemaEnsured = true;
@@ -234,25 +237,13 @@ async function ensureSchema() {
  *  pending-first so a person who has been waiting longest is never starved
  *  by newer, smaller lag jumping the queue every hour.
  *
- *  NOT agent-scoped, and that is correct only for as long as it stays true
- *  that exactly one agent (Meera) exists: migration 009 already added
- *  vy_episode.agent_id live (confirmed 2026-08-18 — every row, including the
- *  ones this file wrote in its own live-path proof, carries the same
- *  default), so `max(log_to)` here is silently "max across all agents." Fine
- *  today because there is only one. The moment a SECOND agent's own
- *  consolidation path exists, this must become `group by person_id,
- *  agent_id` (and runConsolidation itself will need an agentId to pass
- *  through) or one agent's progress reads as another's and a real person's
- *  lag with agent B goes invisible because agent A already consolidated
- *  them. Not fixed pre-emptively here: `runConsolidation` has no agentId
- *  parameter yet either (out of this file's reach — api/consolidate.js
- *  internals), and mirroring MEERA_AGENT_ID into this file without a
- *  verified-mirror check (scripts/verify-agent-id.mjs only watches the
- *  migration/schema/registry trio) would be an unverified duplicate this
- *  repo's own stated discipline warns against. Land both changes together
- *  when agent #2 actually ships. */
-async function findLaggingPersons(limit) {
-  return q(
+ *  Migration 018 makes the cursor and lease work unit `(agent, person)`.
+ *  Filtering `l.agent_id` and `e.agent_id` before MAX/count means agent A's
+ *  progress cannot hide agent B's pending rows for the same human. The
+ *  production sweep remains Meera-only until an authenticated replica
+ *  scheduler supplies another trusted agent id. */
+export async function findLaggingPersons(limit, agentId = MEERA_AGENT_ID, queryFn = q) {
+  return queryFn(
     // WS-SPINE, THE WATCH CONTRACT'S SWEEP-SIDE HALF (P0-3). `api/consolidate
     // .js`'s `fetchLogBatch` refuses to derive from a `channel = 'watch'` row,
     // which on its own would create a permanent phantom lag: a watch row would
@@ -269,7 +260,7 @@ async function findLaggingPersons(limit) {
      cons as (
        select person_id, max(log_to) as log_to
        from vy_episode
-       where log_to is not null
+       where log_to is not null and agent_id = ($2)::uuid
        group by person_id
      )
      select
@@ -283,12 +274,13 @@ async function findLaggingPersons(limit) {
      from meera_log l
      left join pd on pd.device_id = l.device_id
      left join cons c on c.person_id = coalesce(pd.person_id, l.device_id)
+     where l.agent_id = ($2)::uuid
      group by coalesce(pd.person_id, l.device_id)
      having count(*) filter (where l.id > coalesce(c.log_to, 0)
                                and l.channel is distinct from '${WATCH_CHANNEL}') > 0
      order by oldest_pending_at asc
      limit $1`,
-    [limit],
+    [limit, agentId],
   );
 }
 
@@ -299,15 +291,15 @@ async function findLaggingPersons(limit) {
  *  Neon SQL-HTTP's one-statement-per-request rule (no session/xact advisory
  *  lock survives across two separate q() calls, so the claim MUST be atomic
  *  within one statement, not coordinated across several). */
-async function claim(personId, runId) {
+async function claim(agentId, personId, runId) {
   const rows = await q(
-    `insert into meera_consolidate_lease (person_id, leased_at, leased_by, run_id)
-     values ($1, now(), 'sweep', $2)
-     on conflict (person_id) do update
-       set leased_at = now(), leased_by = 'sweep', run_id = $2
+    `insert into meera_consolidate_lease (agent_id, person_id, leased_at, leased_by, run_id)
+     values (($1)::uuid, $2, now(), 'sweep', $3)
+     on conflict (agent_id, person_id) do update
+       set leased_at = now(), leased_by = 'sweep', run_id = $3
        where meera_consolidate_lease.leased_at < now() - interval '${LEASE_TTL}'
-     returning person_id`,
-    [personId, runId],
+     returning agent_id, person_id`,
+    [agentId, personId, runId],
   ).catch(() => []);
   return rows.length > 0;
 }
@@ -315,8 +307,12 @@ async function claim(personId, runId) {
 /** Release only the lease THIS run holds — guarded by run_id so a slow
  *  invocation whose lease already expired and was taken over by a newer one
  *  can never release the newer one's claim out from under it. */
-async function release(personId, runId) {
-  await q(`delete from meera_consolidate_lease where person_id = $1 and run_id = $2`, [personId, runId]).catch(
+async function release(agentId, personId, runId) {
+  await q(
+    `delete from meera_consolidate_lease
+      where agent_id = ($1)::uuid and person_id = $2 and run_id = $3`,
+    [agentId, personId, runId],
+  ).catch(
     () => {},
   );
 }
@@ -379,7 +375,11 @@ export default async function handler(req, res) {
   try {
     await ensureSchema();
     const t0 = Date.now();
-    const candidates = await findLaggingPersons(CANDIDATE_FETCH);
+    // The cron is deliberately pinned to Meera. Replica agents will need an
+    // authenticated scheduler binding; accepting an agent id from this HTTP
+    // request would turn tenant selection into user input.
+    const sweepAgentId = MEERA_AGENT_ID;
+    const candidates = await findLaggingPersons(CANDIDATE_FETCH, sweepAgentId);
 
     if (dryRun) {
       // Pure arithmetic — zero LLM calls, safe to hit as often as anyone
@@ -463,6 +463,7 @@ export default async function handler(req, res) {
         note: "arithmetic only — no LLM call made, no lease taken",
         oldest_pending_at: candidates[0]?.oldest_pending_at ?? null,
         candidates: candidates.slice(0, personBudget).map((c) => ({
+          agent_id: sweepAgentId,
           person_id: c.person_id,
           pending_rows: Number(c.pending_rows),
           oldest_pending_at: c.oldest_pending_at,
@@ -501,9 +502,9 @@ export default async function handler(req, res) {
         break;
       }
       const person = c.person_id;
-      const got = await claim(person, runId);
+      const got = await claim(sweepAgentId, person, runId);
       if (!got) {
-        results.push({ person, skipped: "leased" });
+        results.push({ agent: sweepAgentId, person, skipped: "leased" });
         continue;
       }
       try {
@@ -519,10 +520,11 @@ export default async function handler(req, res) {
         // facts and leaves every derived table empty, which renders as nothing
         // and reports as success.
         const before = spent();
-        const out = await runFullChainForPerson(person, { dryRun: false });
+        const out = await runFullChainForPerson(person, { dryRun: false, agentId: sweepAgentId });
         const fin = out.steps.finalize || {};
         const after = spent();
         results.push({
+          agent: sweepAgentId,
           person,
           pending_rows_before: Number(c.pending_rows),
           episodes: fin.episodes_finalized,
@@ -553,10 +555,10 @@ export default async function handler(req, res) {
           break; // the SAME §4.2 layer-3 halt api/consolidate.js's own run honors — never override it here
         }
       } catch (e) {
-        results.push({ person, error: e?.message || "consolidation failed" });
+        results.push({ agent: sweepAgentId, person, error: e?.message || "consolidation failed" });
         // no state write on failure — see the law note above
       } finally {
-        await release(person, runId);
+        await release(sweepAgentId, person, runId);
       }
     }
 

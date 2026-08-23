@@ -176,6 +176,11 @@ export default function EnrollmentWorkspace({
   const [deleteBusy, setDeleteBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const retryFiles = useRef(new Map<string, File>());
+  // A successful PUT and a successful manifest finalization are two distinct
+  // durability boundaries. Keep the exact file plus this marker until both
+  // finish so a transient finalize error never forces an impossible re-PUT to
+  // an x-upsert=false object that already exists.
+  const uploadedObjects = useRef(new Set<string>());
 
   const consentActive = hasEnrollmentConsent(consents);
   const latestExpiry = useMemo(() => {
@@ -258,10 +263,12 @@ export default function EnrollmentWorkspace({
       setPendingRetryId(result.source.source_id);
       setUploadPhase("Uploading directly to private storage");
       await putSignedUpload(file, result.upload, setUploadProgress);
-      retryFiles.current.delete(result.source.source_id);
-      setPendingRetryId(null);
+      uploadedObjects.current.add(result.source.source_id);
       setUploadPhase("Verifying stored file");
       await onFinalizeUpload(result.source.source_id);
+      uploadedObjects.current.delete(result.source.source_id);
+      retryFiles.current.delete(result.source.source_id);
+      setPendingRetryId(null);
       setUploadPhase("Private source received");
       setUploadProgress(100);
       setFile(null);
@@ -286,14 +293,18 @@ export default function EnrollmentWorkspace({
     setUploadBusy(true);
     setUploadProgress(0);
     try {
-      setUploadPhase("Renewing private upload authorization");
-      const result = await onRetryUpload(sourceId);
-      setUploadPhase("Retrying private upload");
-      await putSignedUpload(retryFile, result.upload, setUploadProgress);
-      retryFiles.current.delete(sourceId);
-      setPendingRetryId(null);
+      if (!uploadedObjects.current.has(sourceId)) {
+        setUploadPhase("Renewing private upload authorization");
+        const result = await onRetryUpload(sourceId);
+        setUploadPhase("Retrying private upload");
+        await putSignedUpload(retryFile, result.upload, setUploadProgress);
+        uploadedObjects.current.add(sourceId);
+      }
       setUploadPhase("Verifying stored file");
       await onFinalizeUpload(sourceId);
+      uploadedObjects.current.delete(sourceId);
+      retryFiles.current.delete(sourceId);
+      setPendingRetryId(null);
       setUploadPhase("Private source received");
       setUploadProgress(100);
       setFile(null);
@@ -308,12 +319,35 @@ export default function EnrollmentWorkspace({
     }
   }
 
+  async function verifyStoredSource(sourceId: string) {
+    setUploadError("");
+    setUploadBusy(true);
+    setUploadPhase("Checking private storage");
+    try {
+      await onFinalizeUpload(sourceId);
+      uploadedObjects.current.delete(sourceId);
+      retryFiles.current.delete(sourceId);
+      if (pendingRetryId === sourceId) setPendingRetryId(null);
+      setUploadPhase("Private source received");
+      setUploadProgress(100);
+      setTimeout(() => setUploadPhase(""), 2200);
+    } catch (cause) {
+      setUploadError(cause instanceof Error
+        ? cause.message
+        : "No complete stored upload could be verified. Retry with the original file or erase this record.");
+      setUploadPhase("");
+    } finally {
+      setUploadBusy(false);
+    }
+  }
+
   async function removeSource() {
     if (!deleteTarget) return;
     setDeleteBusy(true);
     setUploadError("");
     try {
       await onDeleteSource(deleteTarget.source_id);
+      uploadedObjects.current.delete(deleteTarget.source_id);
       retryFiles.current.delete(deleteTarget.source_id);
       if (pendingRetryId === deleteTarget.source_id) {
         setPendingRetryId(null);
@@ -513,7 +547,13 @@ export default function EnrollmentWorkspace({
                 disabled={uploadBusy || !file || containsThirdParties === null}
                 onClick={() => void (pendingRetryId ? retryUpload(pendingRetryId) : upload())}
               >
-                {uploadBusy ? "Securing source" : pendingRetryId ? "Retry interrupted upload" : "Upload to private intake"}
+                {uploadBusy
+                  ? "Securing source"
+                  : pendingRetryId && uploadedObjects.current.has(pendingRetryId)
+                    ? "Retry stored-file verification"
+                    : pendingRetryId
+                      ? "Retry interrupted upload"
+                      : "Upload to private intake"}
               </button>
 
               <div className="source-ledger">
@@ -534,7 +574,16 @@ export default function EnrollmentWorkspace({
                         <SourceState state={source.state} />
                         <span className="source-actions">
                           {source.state === "pending_upload" && retryFiles.current.has(source.source_id) && (
-                            <button className="source-retry" type="button" disabled={uploadBusy} onClick={() => void retryUpload(source.source_id)}>Retry</button>
+                            <button className="source-retry" type="button" disabled={uploadBusy} onClick={() => void retryUpload(source.source_id)}>
+                              {uploadedObjects.current.has(source.source_id) ? "Verify" : "Retry"}
+                            </button>
+                          )}
+                          {source.state === "pending_upload"
+                            && source.capture_mode !== "live_challenge"
+                            && !retryFiles.current.has(source.source_id) && (
+                            <button className="source-retry" type="button" disabled={uploadBusy} onClick={() => void verifyStoredSource(source.source_id)}>
+                              Check storage
+                            </button>
                           )}
                           <button
                             className="source-delete"

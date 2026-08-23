@@ -1,6 +1,11 @@
 import { createHash, randomInt, randomUUID } from "node:crypto";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
-import { sourceUploadInput, privateObjectPath, clientSource } from "./_replica-source.js";
+import {
+  sourceUploadInput,
+  privateObjectPath,
+  clientSource,
+  verifyStoredObject,
+} from "./_replica-source.js";
 import { REPLICA_STORAGE_BUCKET } from "./_replica-storage.js";
 
 const COLORS = ["neela", "kesari", "hara", "jamuni", "silver", "cobalt"];
@@ -184,6 +189,77 @@ export async function markChallengeUploaded(db, ownerUserId, id, challenge, sour
     [replicaId(id), ownerUserId, replicaId(challenge), replicaId(source), REPLICA_POLICY_VERSION],
   );
   return clientChallenge(rows[0]);
+}
+
+// Finalization is challenge-bound and atomic. A generic pending source lookup
+// is insufficient here: the file must still be attached to this exact,
+// unexpired server-issued phrase when it enters the biometric quarantine.
+export async function finalizeChallengeSource(
+  db,
+  ownerUserId,
+  id,
+  challenge,
+  source,
+  objectInfo,
+) {
+  const rid = replicaId(id);
+  const cid = replicaId(challenge);
+  const sid = replicaId(source);
+  const verdict = verifyStoredObject(
+    { byte_size: objectInfo.expectedByteSize, mime: objectInfo.expectedMime },
+    objectInfo,
+  );
+  const sourceState = verdict.ok ? "quarantined" : "rejected";
+  const challengeState = verdict.ok ? "uploaded" : "failed";
+  const facts = JSON.stringify({
+    storage_metadata_verified: verdict.ok,
+    sha256_status: "pending_server_verification",
+  });
+  const rows = await db(
+    `with eligible as (
+       select s.source_id, s.replica_id, s.owner_user_id
+         from vy_replica_source s
+         join vy_replica_liveness_challenge ch
+           on ch.source_id = s.source_id and ch.replica_id = s.replica_id
+          and ch.owner_user_id = s.owner_user_id
+        where s.replica_id = $1 and s.owner_user_id = $2 and s.source_id = $4
+          and s.capture_mode = 'live_challenge' and s.state = 'pending_upload'
+          and ch.challenge_id = $3 and ch.state = 'issued' and ch.expires_at > now()
+     ), updated_source as (
+       update vy_replica_source s
+          set state = $5, rejection_code = $6, updated_at = now(),
+              provenance = provenance || $7::jsonb
+         from eligible e where s.source_id = e.source_id
+       returning s.*
+     ), updated_challenge as (
+       update vy_replica_liveness_challenge ch
+          set state = $8, failure_code = $6, updated_at = now()
+         from updated_source s
+        where ch.challenge_id = $3 and ch.replica_id = $1
+          and ch.owner_user_id = $2 and ch.source_id = s.source_id
+       returning ch.*
+     ), queued as (
+       insert into vy_replica_processing_job
+         (replica_id, owner_user_id, source_id, step, state)
+       select replica_id, owner_user_id, source_id, 'integrity', 'queued'
+         from updated_source where state = 'quarantined'
+       on conflict (source_id, step, revision) do nothing
+     ), audit as (
+       insert into vy_replica_audit
+         (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
+       select $1, $2, 'liveness.challenge.upload.finalize', 'liveness_challenge',
+              challenge_id::text, $9,
+              case when $8 = 'uploaded' then 'allowed' else 'denied' end,
+              jsonb_build_object('reason_code', $6)
+         from updated_challenge
+     )
+     select row_to_json(s) as source, row_to_json(ch) as challenge
+       from updated_source s cross join updated_challenge ch`,
+    [rid, ownerUserId, cid, sid, sourceState, verdict.code, facts, challengeState, REPLICA_POLICY_VERSION],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return { source: row.source, challenge: clientChallenge(row.challenge) };
 }
 
 export { clientSource };

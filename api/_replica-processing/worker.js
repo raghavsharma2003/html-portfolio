@@ -1,0 +1,336 @@
+import {
+  ProcessingAdapterError,
+  ProcessingContractError,
+  adapterFacts,
+  assertAdapter,
+  assertJob,
+  assertProcessingSource,
+  assertSha256,
+  createArtifactManifest,
+  createEvidenceRecord,
+  derivedArtifactPath,
+  sha256Hex,
+  stableUuid,
+} from "./contracts.js";
+import { assertDependencies, classifyProcessingFailure, nextProcessingSteps } from "./pipeline.js";
+
+function sameIdentity(job, source) {
+  return job.source_id === source.source_id && job.replica_id === source.replica_id && job.owner_user_id === source.owner_user_id;
+}
+
+function wholeSourceEvidence({ job, source, adapter, type, value, confidence = null, artifactId = null, inputSha256 }) {
+  return createEvidenceRecord({
+    replica_id: source.replica_id,
+    owner_user_id: source.owner_user_id,
+    source_id: source.source_id,
+    artifact_id: artifactId,
+    created_by_job_id: job.job_id,
+    evidence_type: type,
+    span: null,
+    confidence,
+    value,
+    input_sha256: inputSha256,
+    adapter,
+    adapter_stage: job.step,
+  });
+}
+
+function spannedEvidence({ job, source, adapter, type, value, segment, artifactId = null, inputSha256 }) {
+  return createEvidenceRecord({
+    replica_id: source.replica_id,
+    owner_user_id: source.owner_user_id,
+    source_id: source.source_id,
+    artifact_id: artifactId,
+    created_by_job_id: job.job_id,
+    evidence_type: type,
+    span: { start_ms: segment.start_ms, end_ms: segment.end_ms },
+    confidence: segment.confidence,
+    value,
+    input_sha256: inputSha256,
+    adapter,
+    adapter_stage: job.step,
+  });
+}
+
+function assertSegments(segments, label) {
+  if (!Array.isArray(segments) || !segments.length) throw new ProcessingContractError(`${label} returned no segments`);
+  for (const segment of segments) {
+    if (!Number.isInteger(segment.start_ms) || segment.start_ms < 0 ||
+        !Number.isInteger(segment.end_ms) || segment.end_ms <= segment.start_ms ||
+        !Number.isFinite(segment.confidence) || segment.confidence < 0 || segment.confidence > 1) {
+      throw new ProcessingContractError(`${label} returned an invalid segment`);
+    }
+  }
+  return segments;
+}
+
+function inputReferences(source, inputArtifacts) {
+  const references = (inputArtifacts || []).map((artifact) => {
+    if (artifact.source_id !== source.source_id || artifact.replica_id !== source.replica_id ||
+        artifact.owner_user_id !== source.owner_user_id) {
+      throw new ProcessingContractError("cross-replica input artifact rejected", { code: "cross_replica_artifact" });
+    }
+    return {
+      artifact_id: artifact.artifact_id,
+      sha256: assertSha256(artifact.sha256, "input artifact sha256"),
+      mime: artifact.mime,
+      duration_ms: artifact.duration_ms,
+      object_path: artifact.object_path,
+    };
+  });
+  return references.length ? references : [{
+    artifact_id: null,
+    sha256: source.sha256,
+    mime: source.mime,
+    duration_ms: source.duration_ms ?? null,
+    object_path: source.object_path,
+  }];
+}
+
+async function writeCandidates({ job, source, adapter, candidates, artifactStore, inputReferences }) {
+  if (!artifactStore || typeof artifactStore.writeImmutable !== "function") {
+    throw new ProcessingContractError("immutable artifact store required", { code: "missing_artifact_store" });
+  }
+  if (!Array.isArray(candidates) || !candidates.length) {
+    throw new ProcessingContractError("enhancement returned no candidates", { code: "empty_enhancement_candidates" });
+  }
+  const variants = new Set();
+  const artifacts = [];
+  const derivedInputs = inputReferences.filter((entry) => entry.artifact_id);
+  for (const candidate of candidates) {
+    if (variants.has(candidate.variant_key)) {
+      throw new ProcessingContractError("enhancement candidate variants must be unique", { code: "duplicate_candidate_variant" });
+    }
+    variants.add(candidate.variant_key);
+    const parent = candidate.parent_artifact_id
+      ? inputReferences.find((entry) => entry.artifact_id === candidate.parent_artifact_id)
+      : null;
+    if (derivedInputs.length && !parent) {
+      throw new ProcessingContractError("derived candidate must cite a known parent artifact", { code: "candidate_lineage_missing" });
+    }
+    const candidateInputSha = assertSha256(candidate.input_sha256 || source.sha256, "candidate input sha256");
+    if (parent && candidateInputSha !== parent.sha256) {
+      throw new ProcessingContractError("candidate input digest does not match its parent", { code: "candidate_lineage_mismatch" });
+    }
+    if (!candidate.body || (!Buffer.isBuffer(candidate.body) && !ArrayBuffer.isView(candidate.body) &&
+        typeof candidate.body[Symbol.asyncIterator] !== "function")) {
+      throw new ProcessingContractError("candidate must provide bytes or an async byte stream", { code: "invalid_candidate_body" });
+    }
+    const artifactId = stableUuid(`${job.job_id}:${job.revision}:${candidate.variant_key}`);
+    const transformVersion = String(candidate.transform_version || "processing-v1");
+    const objectPath = derivedArtifactPath({
+      ownerUserId: source.owner_user_id,
+      replicaId: source.replica_id,
+      sourceId: source.source_id,
+      transformVersion,
+      stage: job.step,
+      artifactId,
+    });
+    if (objectPath === source.object_path) throw new ProcessingContractError("derived output cannot replace raw evidence");
+    const stored = await artifactStore.writeImmutable({
+      bucket: source.storage_bucket,
+      objectPath,
+      body: candidate.body,
+      mime: candidate.mime,
+      expectedSha256: candidate.sha256,
+      ifNoneMatch: "*",
+    });
+    const storedSha = assertSha256(stored.sha256, "stored artifact sha256");
+    if (candidate.sha256 && storedSha !== assertSha256(candidate.sha256, "candidate sha256")) {
+      throw new ProcessingContractError("stored candidate digest mismatch", { code: "artifact_integrity_mismatch" });
+    }
+    artifacts.push(createArtifactManifest({
+      artifact_id: artifactId,
+      replica_id: source.replica_id,
+      owner_user_id: source.owner_user_id,
+      source_id: source.source_id,
+      parent_artifact_id: parent?.artifact_id || null,
+      created_by_job_id: job.job_id,
+      stage: job.step,
+      variant_key: candidate.variant_key,
+      storage_bucket: source.storage_bucket,
+      object_path: objectPath,
+      mime: stored.mime || candidate.mime,
+      byte_size: stored.byteSize,
+      duration_ms: candidate.duration_ms ?? null,
+      sha256: storedSha,
+      input_sha256: candidateInputSha,
+      transform_name: candidate.transform_name || job.step,
+      transform_version: transformVersion,
+      parameter_hash: sha256Hex(candidate.parameters || {}),
+      quality: candidate.quality || {},
+      adapter,
+      adapter_stage: job.step,
+    }));
+  }
+  return artifacts;
+}
+
+async function runStage({ job, source, adapter, artifactStore, inputArtifacts, signal }) {
+  const references = inputReferences(source, inputArtifacts);
+  const common = { source, inputs: references, signal };
+  switch (job.step) {
+    case "integrity": { // Server-side stream/digest implementation belongs behind this seam.
+      const result = await adapter.verify(common);
+      const actual = assertSha256(result?.sha256, "verified source sha256");
+      if (actual !== source.sha256 || Number(result.byte_size) !== Number(source.byte_size)) {
+        throw Object.assign(new ProcessingContractError("server integrity verification did not match declaration"), {
+          code: "integrity_mismatch",
+        });
+      }
+      return { artifacts: [], evidence: [], verifiedSha256: actual };
+    }
+    case "malware_scan": {
+      const result = await adapter.scan(common);
+      if (result?.safe !== true) {
+        throw Object.assign(new ProcessingContractError("malware scan did not clear the source"), { code: "malware_detected" });
+      }
+      return { artifacts: [], evidence: [], verifiedSha256: source.sha256 };
+    }
+    case "media_probe": {
+      const result = await adapter.probe(common);
+      if (!Number.isInteger(result?.duration_ms) || result.duration_ms <= 0 || !Number.isInteger(result.sample_rate_hz)) {
+        throw new ProcessingContractError("media probe returned invalid metadata");
+      }
+      const evidence = wholeSourceEvidence({
+        job, source, adapter, type: "media_probe", inputSha256: source.sha256,
+        value: {
+          duration_ms: result.duration_ms,
+          sample_rate_hz: result.sample_rate_hz,
+          channels: result.channels,
+          codec: result.codec,
+        },
+      });
+      return { artifacts: [], evidence: [evidence], verifiedSha256: source.sha256 };
+    }
+    case "diarize": {
+      const result = await adapter.diarize(common);
+      const segments = assertSegments(result?.segments, "diarization");
+      const evidence = segments.map((segment) => spannedEvidence({
+        job, source, adapter, type: "speaker_segment", segment, inputSha256: source.sha256,
+        value: {
+          speaker_key: String(segment.speaker_key || ""),
+          target_likelihood: Number(segment.target_likelihood),
+          overlap: Boolean(segment.overlap),
+        },
+      }));
+      return { artifacts: [], evidence, verifiedSha256: source.sha256 };
+    }
+    case "separate":
+    case "enhance": {
+      const method = job.step === "separate" ? "separate" : "enhance";
+      if (job.step === "enhance" && !references.some((entry) => entry.artifact_id)) {
+        throw new ProcessingContractError("enhancement requires a separated parent artifact", { code: "separation_artifact_missing" });
+      }
+      const result = await adapter[method](common);
+      const artifacts = await writeCandidates({
+        job, source, adapter, candidates: result?.candidates, artifactStore, inputReferences: references,
+      });
+      return { artifacts, evidence: [], verifiedSha256: source.sha256 };
+    }
+    case "transcribe": {
+      const result = await adapter.transcribe(common);
+      const segments = assertSegments(result?.segments, "ASR");
+      const evidence = [];
+      for (const segment of segments) {
+        if (typeof segment.text !== "string" || !segment.text.trim() || typeof segment.language !== "string") {
+          throw new ProcessingContractError("ASR segment requires text and language");
+        }
+        const input = references.find((ref) => ref.artifact_id === (segment.artifact_id || null)) || references[0];
+        evidence.push(spannedEvidence({
+          job, source, adapter, type: "transcript_span", segment, artifactId: input.artifact_id,
+          inputSha256: input.sha256,
+          value: { text: segment.text, language: segment.language, words: segment.words || [] },
+        }));
+        evidence.push(spannedEvidence({
+          job, source, adapter, type: "language_span", segment, artifactId: input.artifact_id,
+          inputSha256: input.sha256,
+          value: { language: segment.language, code_switch: Boolean(segment.code_switch) },
+        }));
+      }
+      return { artifacts: [], evidence, verifiedSha256: source.sha256 };
+    }
+    case "voice_quality": {
+      const result = await adapter.measure(common);
+      if (!Array.isArray(result?.embeddings) || result.embeddings.length < 2) {
+        throw new ProcessingContractError("voice analysis requires at least two embedding families");
+      }
+      const evidence = [];
+      const hasDerivedInputs = references.some((entry) => entry.artifact_id);
+      for (const embedding of result.embeddings) {
+        if (!embedding.family || !Array.isArray(embedding.vector) || !embedding.vector.length ||
+            embedding.vector.some((number) => !Number.isFinite(number))) {
+          throw new ProcessingContractError("voice embedding is invalid");
+        }
+        const measuredInput = embedding.artifact_id
+          ? references.find((entry) => entry.artifact_id === embedding.artifact_id)
+          : null;
+        if ((hasDerivedInputs && !measuredInput) || (!hasDerivedInputs && embedding.input !== "raw")) {
+          throw new ProcessingContractError("voice embedding must cite a known measured input", { code: "voice_lineage_missing" });
+        }
+        const inputRef = measuredInput || references[0];
+        evidence.push(wholeSourceEvidence({
+          job, source, adapter, type: "voice_embedding", artifactId: inputRef.artifact_id,
+          inputSha256: inputRef.sha256,
+          confidence: embedding.confidence,
+          value: { family: embedding.family, vector: embedding.vector },
+        }));
+      }
+      const inputSet = references.map((entry) => ({ artifact_id: entry.artifact_id, sha256: entry.sha256 }))
+        .sort((a, b) => String(a.artifact_id).localeCompare(String(b.artifact_id)));
+      const inputSetSha = sha256Hex({ schema_version: "voice-analysis-input-set/v1", inputs: inputSet });
+      evidence.push(wholeSourceEvidence({
+        job, source, adapter, type: "voice_measurement", inputSha256: inputSetSha,
+        confidence: result.confidence,
+        value: { input_set: inputSet, measurements: result.measurements },
+      }));
+      evidence.push(wholeSourceEvidence({
+        job, source, adapter, type: "quality_measurement", inputSha256: inputSetSha,
+        confidence: result.confidence,
+        value: { input_set: inputSet, measurements: result.quality },
+      }));
+      return { artifacts: [], evidence, verifiedSha256: source.sha256 };
+    }
+    default:
+      throw new ProcessingContractError(`worker does not implement ${job.step}`, { code: "unsupported_processing_stage" });
+  }
+}
+
+export async function executeProcessingJob(input) {
+  const job = assertJob(input.job);
+  const source = assertProcessingSource(input.source);
+  if (!sameIdentity(job, source)) {
+    throw new ProcessingContractError("job and source ownership tuple mismatch", { code: "cross_replica_job" });
+  }
+  assertDependencies(job.step, input.completedSteps || []);
+  const adapter = assertAdapter(input.adapters?.[job.step], job.step);
+  try {
+    const output = await runStage({
+      job, source, adapter, artifactStore: input.artifactStore,
+      inputArtifacts: input.inputArtifacts || [], signal: input.signal,
+    });
+    return Object.freeze({
+      outcome: "complete",
+      adapter: adapterFacts(adapter),
+      artifacts: Object.freeze(output.artifacts),
+      evidence: Object.freeze(output.evidence),
+      result: {
+        step: job.step,
+        artifact_ids: output.artifacts.map((entry) => entry.artifact_id),
+        evidence_ids: output.evidence.map((entry) => entry.evidence_id),
+        next_steps: nextProcessingSteps(job.step, [...(input.completedSteps || []), job.step]),
+        verified_input_sha256: output.verifiedSha256,
+      },
+    });
+  } catch (error) {
+    if (!(error instanceof ProcessingContractError) && !(error instanceof ProcessingAdapterError) && !error?.code) {
+      error.code = "processing_worker_error";
+    }
+    return Object.freeze({
+      ...classifyProcessingFailure(error, job.attempt, { maxAttempts: input.maxAttempts || 5 }),
+      adapter: adapterFacts(adapter),
+      artifacts: [],
+      evidence: [],
+    });
+  }
+}

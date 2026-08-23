@@ -83,6 +83,11 @@ const suites = {
   // uploaded only through a short-lived capability into a verified private
   // bucket. Offline, deterministic, no DB or storage call.
   replicaenrollment: "replica-enrollment/run.mjs",
+  // Noisy-evidence processing: immutable derivatives, composite ownership,
+  // retry-safe leases, provenance-carrying ASR/diarization/analysis evidence
+  // and draft-only VoiceGenome builds. Fake adapters prove contracts only;
+  // there is no network, model call or quality claim in this gate.
+  replicaprocessing: "replica-processing/run.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),
@@ -201,6 +206,10 @@ const suites = {
   // and it is the only thing standing between a flipped flag and a fabricated
   // fact about somebody's mother.
   consolidation: "consolidation/run.mjs",
+  // Migration 018 and the raw RelationalOS boundary: schema parity, explicit
+  // writers, pre-rank readers, per-agent consolidation cursors/leases and
+  // cross-agent negative controls. Offline, deterministic, no DB/network.
+  rawisolation: "agent/raw-isolation.mjs",
   // WS-RECALL. The retrieval cluster (the Hinglish tokenizer's 19-query
   // battery and its precision negatives, the two dead stores' new readers,
   // RRF fusion, the co-citation hop, and the structural proof that spaced

@@ -16,6 +16,7 @@ import {
 import { restoreSession, writeStoredSession } from "./session";
 import type {
   ConsentReceipt,
+  LivenessChallenge,
   Replica,
   ReplicaSource,
   SignedUpload,
@@ -23,6 +24,7 @@ import type {
   StudioSession,
 } from "./types";
 import EnrollmentWorkspace from "./EnrollmentWorkspace";
+import LivenessCapture from "./LivenessCapture";
 import {
   createSourceUpload,
   deleteSource,
@@ -33,18 +35,17 @@ import {
   retrySourceUpload,
   revokeEnrollmentConsent,
 } from "./enrollmentApi";
+import {
+  createLivenessUpload,
+  finalizeLivenessUpload,
+  issueLivenessChallenge,
+  livenessStatus,
+} from "./livenessApi";
 
 type AuthStep = "email" | "code";
 type LoadState = "booting" | "loading" | "ready" | "error";
 
 const STAGES = [
-  {
-    id: "liveness",
-    number: "03",
-    title: "Biometric and live voice proof",
-    copy: "Complete a randomized spoken challenge that resists replay and synthetic enrollment.",
-    availability: "Biometric consent and liveness required",
-  },
   {
     id: "voice",
     number: "04",
@@ -60,6 +61,14 @@ const STAGES = [
     availability: "Behavioral inference remains disabled",
   },
 ] as const;
+
+function hasSourceConsent(consents: ConsentReceipt[]) {
+  const now = Date.now();
+  const active = new Set(consents.filter((receipt) =>
+    !receipt.revoked_at && (!receipt.expires_at || new Date(receipt.expires_at).getTime() > now)
+  ).map((receipt) => receipt.scope));
+  return (["capture", "transcription", "storage"] as const).every((scope) => active.has(scope));
+}
 
 function lifecycleLabel(lifecycle: Replica["lifecycle"]) {
   return lifecycle.replaceAll("_", " ");
@@ -341,12 +350,17 @@ function ReplicaWorkspace({
   consents,
   sources,
   enrollmentLoading,
+  challenge,
+  livenessLoading,
   onGrantConsent,
   onRevokeConsent,
   onCreateUpload,
   onRetryUpload,
   onFinalizeUpload,
   onDeleteSource,
+  onIssueChallenge,
+  onCreateLivenessUpload,
+  onFinalizeLiveness,
   onRevoke,
   revoking,
 }: {
@@ -354,6 +368,8 @@ function ReplicaWorkspace({
   consents: ConsentReceipt[];
   sources: ReplicaSource[];
   enrollmentLoading: boolean;
+  challenge: LivenessChallenge | null;
+  livenessLoading: boolean;
   onGrantConsent: () => Promise<void>;
   onRevokeConsent: () => Promise<void>;
   onCreateUpload: (input: {
@@ -366,6 +382,15 @@ function ReplicaWorkspace({
   onRetryUpload: (sourceId: string) => Promise<{ source: ReplicaSource; upload: SignedUpload }>;
   onFinalizeUpload: (sourceId: string) => Promise<ReplicaSource>;
   onDeleteSource: (sourceId: string) => Promise<"complete" | "pending">;
+  onIssueChallenge: () => Promise<LivenessChallenge>;
+  onCreateLivenessUpload: (input: {
+    challengeId: string;
+    kind: "audio" | "video";
+    mime: string;
+    byteSize: number;
+    sha256: string;
+  }) => Promise<{ challenge: LivenessChallenge; source: ReplicaSource; upload: SignedUpload }>;
+  onFinalizeLiveness: (challengeId: string, sourceId: string) => Promise<LivenessChallenge>;
   onRevoke: () => Promise<void>;
   revoking: boolean;
 }) {
@@ -453,11 +478,21 @@ function ReplicaWorkspace({
             onDeleteSource={onDeleteSource}
           />
 
+          <LivenessCapture
+            consentActive={hasSourceConsent(consents)}
+            challenge={challenge}
+            loading={livenessLoading}
+            onIssue={onIssueChallenge}
+            onCreateUpload={onCreateLivenessUpload}
+            onRetryUpload={onRetryUpload}
+            onFinalize={onFinalizeLiveness}
+          />
+
           <section className="stage-section locked-path" aria-labelledby="path-title">
             <div className="section-heading">
               <div>
                 <p className="eyebrow">Not yet enabled</p>
-                <h2 id="path-title">Identity and modeling gates</h2>
+                <h2 id="path-title">Modeling gates</h2>
               </div>
               <p>Uploading evidence does not authorize biometric modeling, training, inference, or generation.</p>
             </div>
@@ -553,6 +588,8 @@ export default function StudioApp() {
   const [consents, setConsents] = useState<ConsentReceipt[]>([]);
   const [sources, setSources] = useState<ReplicaSource[]>([]);
   const [enrollmentLoading, setEnrollmentLoading] = useState(false);
+  const [challenge, setChallenge] = useState<LivenessChallenge | null>(null);
+  const [livenessLoading, setLivenessLoading] = useState(false);
 
   const identity = useMemo(() => session?.email || session?.phone || "Signed in account", [session]);
   const selectedId = selected?.replica_id ?? null;
@@ -620,25 +657,32 @@ export default function StudioApp() {
     if (!session || !selectedId) {
       setConsents([]);
       setSources([]);
+      setChallenge(null);
       return;
     }
     let live = true;
     const replicaId = selectedId;
     setEnrollmentLoading(true);
+    setLivenessLoading(true);
     void (async () => {
       try {
         const fresh = await refreshForRequest(session);
-        const [nextConsents, nextSources] = await Promise.all([
+        const [consentResult, sourceResult, challengeResult] = await Promise.allSettled([
           listEnrollmentConsent(fresh.accessToken, replicaId),
           listSources(fresh.accessToken, replicaId),
+          livenessStatus(fresh.accessToken, replicaId),
         ]);
         if (!live) return;
-        setConsents(nextConsents);
-        setSources(nextSources);
+        if (consentResult.status === "fulfilled") setConsents(consentResult.value);
+        if (sourceResult.status === "fulfilled") setSources(sourceResult.value);
+        if (challengeResult.status === "fulfilled") setChallenge(challengeResult.value);
+        const failed = [consentResult, sourceResult, challengeResult].find((result) => result.status === "rejected");
+        if (failed?.status === "rejected") handleApiError(failed.reason, "Some enrollment controls could not be loaded");
       } catch (cause) {
         if (live) handleApiError(cause, "Could not load consent and private sources");
       } finally {
         if (live) setEnrollmentLoading(false);
+        if (live) setLivenessLoading(false);
       }
     })();
     return () => { live = false; };
@@ -775,6 +819,54 @@ export default function StudioApp() {
     }
   }
 
+  async function handleIssueChallenge() {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const issued = await issueLivenessChallenge(fresh.accessToken, selected.replica_id);
+      setChallenge(issued);
+      return issued;
+    } catch (cause) {
+      handleApiError(cause, "Could not issue a live phrase");
+      throw cause;
+    }
+  }
+
+  async function handleCreateLivenessUpload(input: {
+    challengeId: string;
+    kind: "audio" | "video";
+    mime: string;
+    byteSize: number;
+    sha256: string;
+  }) {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const created = await createLivenessUpload(fresh.accessToken, { replicaId: selected.replica_id, ...input });
+      setChallenge(created.challenge);
+      setSources((items) => [created.source, ...items.filter((item) => item.source_id !== created.source.source_id)]);
+      return created;
+    } catch (cause) {
+      handleApiError(cause, "Could not authorize live evidence upload");
+      throw cause;
+    }
+  }
+
+  async function handleFinalizeLiveness(challengeId: string, sourceId: string) {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const result = await finalizeLivenessUpload(fresh.accessToken, selected.replica_id, challengeId, sourceId);
+      setChallenge(result.challenge);
+      setSources((items) => [result.source, ...items.filter((item) => item.source_id !== result.source.source_id)]);
+      setNotice("Live evidence secured. Verification is pending and biometric modeling remains locked.");
+      return result.challenge;
+    } catch (cause) {
+      handleApiError(cause, "Could not finalize live evidence");
+      throw cause;
+    }
+  }
+
   async function handleDeleteSource(sourceId: string) {
     if (!session || !selected) throw new Error("Your session is no longer available");
     try {
@@ -856,12 +948,17 @@ export default function StudioApp() {
               consents={consents}
               sources={sources}
               enrollmentLoading={enrollmentLoading}
+              challenge={challenge}
+              livenessLoading={livenessLoading}
               onGrantConsent={handleGrantConsent}
               onRevokeConsent={handleRevokeConsent}
               onCreateUpload={handleCreateUpload}
               onRetryUpload={handleRetryUpload}
               onFinalizeUpload={handleFinalizeUpload}
               onDeleteSource={handleDeleteSource}
+              onIssueChallenge={handleIssueChallenge}
+              onCreateLivenessUpload={handleCreateLivenessUpload}
+              onFinalizeLiveness={handleFinalizeLiveness}
               onRevoke={handleRevoke}
               revoking={revoking}
             />

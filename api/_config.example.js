@@ -18,9 +18,9 @@ export const NEON_URL = "";
 // Auth + photo storage only.
 export const SUPABASE_URL = "";
 export const SUPABASE_KEY = "";
-// Optional explicit privileged key for the private replica bucket. Existing
-// server deployments fall back to SUPABASE_KEY, but a separate service-role
-// secret makes the privilege boundary auditable.
+// Required only for the private replica bucket. It is deliberately distinct
+// from SUPABASE_KEY: biometric storage never guesses that a general app key is
+// privileged. Replica enrollment fails closed when this is absent.
 export const SUPABASE_SERVICE_ROLE_KEY = "";
 
 // FREE-TIER Google AI Studio keys. The pool is spent before any paid provider

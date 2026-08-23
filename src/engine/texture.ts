@@ -404,14 +404,9 @@ export function textureCounts(contents: readonly string[]): TextureCounts {
  *    copied from consolidate.js's honorific query, which carries the legacy
  *    case where a device row was never written and device_id == person_id.
  *
- * NOT AGENT-SCOPED, and it cannot be: meera_log has no agent_id column
- * (migrations 009/010 added one to fourteen tables and not to this one).
- * The row this feeds is keyed (agent_id, person_id) and the agent id is
- * carried through the writer, but the SCAN is agent-blind. Today Meera is
- * the only agent writing to meera_log so the two agree; a second agent
- * sharing a device would need a log-side column first. Logged as an
- * interface ticket rather than papered over with a filter that would silently
- * match nothing.
+ * Migration 018 adds the missing raw boundary. The scan binds agent_id in the
+ * WHERE before the trailing-window limit, so another agent's high-volume log
+ * cannot consume slots or influence this relationship's texture counts.
  */
 // `l.episode_id` is projected for ONE purpose: `deriveDrift` cites the
 // episodes its two halves were counted from, and an uncited drift line does
@@ -429,6 +424,7 @@ export const TEXTURE_SCAN_SQL = `select l.content, l.episode_id
       where l.role = 'her'
         and l.channel = 'chat'
         and l.group_id is null
+        and l.agent_id = ($3)::uuid
         and l.device_id in (
               select d.device_id from vy_person_device d where d.person_id = $1
               union select $1::uuid)
@@ -612,7 +608,7 @@ export async function deriveTexture(
   personId: string,
   agentId: string = MEERA_AGENT_ID,
 ): Promise<TextureRow> {
-  const rows = await q(TEXTURE_SCAN_SQL, [personId, TEXTURE_SCAN_LIMIT]);
+  const rows = await q(TEXTURE_SCAN_SQL, [personId, TEXTURE_SCAN_LIMIT, agentId]);
   const contents = (rows ?? []).map((r: any) => String(r?.content ?? ""));
   const counts = textureCounts(contents);
   // Same rows, counted twice instead of once — no second query, no model call.

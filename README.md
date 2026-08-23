@@ -102,8 +102,14 @@ Implemented now:
 - granular source capture, transcription and storage consent;
 - browser-side incremental SHA-256 and direct signed upload to a verified
   private bucket, followed by quarantine and a retryable processing queue;
-- randomized, expiring live-challenge records that an owner cannot self-pass;
-- provider-neutral VoiceGenome and streamed PCM contracts;
+- randomized, expiring microphone/video challenge capture that an owner cannot
+  self-pass, with an explicit pending-verifier boundary;
+- immutable integrity, diarization, separation, enhancement, ASR and
+  multi-embedding adapter contracts that build only reviewable VoiceGenome
+  drafts; the included provider is a deterministic fake, not production ML;
+- hard `agent_id` isolation for raw logs, graph memory, suppressions and
+  consolidation cursors, while replica conversation activation stays closed;
+- provider-neutral VoiceGenome and streamed PCM synthesis contracts;
 - offline enrollment, IDOR, lifecycle, disclosure and provider-contract gates;
 - a researched Azure Foundry spend plan below the $2,000 grant ceiling.
 

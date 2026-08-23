@@ -1046,3 +1046,51 @@ create unique index if not exists vy_currency_person_compat_ix on vy_currency (p
 alter table vy_india_profile drop constraint if exists vy_india_profile_pkey;
 alter table vy_india_profile add constraint vy_india_profile_pkey primary key (agent_id, person_id);
 create unique index if not exists vy_india_profile_person_compat_ix on vy_india_profile (person_id);
+
+-- Migration 018 -- hard agent ownership for the raw RelationalOS substrate.
+-- Existing rows belong to Meera. Defaults preserve rolling-deploy compatibility
+-- for historical utilities; production writers name agent_id explicitly.
+
+alter table meera_log add column if not exists agent_id uuid;
+alter table meera_log alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update meera_log set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table meera_log alter column agent_id set not null;
+create index if not exists meera_log_agent_device_ix on meera_log (agent_id, device_id, id);
+create index if not exists meera_log_agent_pending_ix on meera_log (agent_id, device_id, id) where episode_id is null;
+
+alter table meera_nodes add column if not exists agent_id uuid;
+alter table meera_nodes alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update meera_nodes set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table meera_nodes alter column agent_id set not null;
+create index if not exists meera_nodes_agent_device_name_ix on meera_nodes (agent_id, device_id, name);
+create index if not exists meera_nodes_agent_device_salience_ix on meera_nodes (agent_id, device_id, salience desc, updated_at desc);
+
+alter table meera_edges add column if not exists agent_id uuid;
+alter table meera_edges alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update meera_edges set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table meera_edges alter column agent_id set not null;
+create index if not exists meera_edges_agent_device_ix on meera_edges (agent_id, device_id, src, dst);
+
+alter table meera_forget add column if not exists agent_id uuid;
+alter table meera_forget alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update meera_forget set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table meera_forget alter column agent_id set not null;
+drop index if exists meera_forget_device_term;
+create unique index if not exists meera_forget_agent_device_term_ix on meera_forget (agent_id, device_id, lower(term));
+create index if not exists meera_forget_agent_device_at_ix on meera_forget (agent_id, device_id, at desc);
+
+create table if not exists meera_consolidate_lease (
+  agent_id  uuid not null default 'a0000000-0000-4000-8000-000000000001'::uuid,
+  person_id uuid not null,
+  leased_at timestamptz not null default now(),
+  leased_by text not null default '',
+  run_id    text,
+  primary key (agent_id, person_id)
+);
+alter table meera_consolidate_lease add column if not exists agent_id uuid;
+alter table meera_consolidate_lease alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update meera_consolidate_lease set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table meera_consolidate_lease alter column agent_id set not null;
+alter table meera_consolidate_lease drop constraint if exists meera_consolidate_lease_pkey;
+alter table meera_consolidate_lease add constraint meera_consolidate_lease_pkey primary key (agent_id, person_id);
+create index if not exists meera_consolidate_lease_expiry_ix on meera_consolidate_lease (leased_at);

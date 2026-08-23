@@ -1648,6 +1648,7 @@ var TEXTURE_SCAN_SQL = `select l.content, l.episode_id
       where l.role = 'her'
         and l.channel = 'chat'
         and l.group_id is null
+        and l.agent_id = ($3)::uuid
         and l.device_id in (
               select d.device_id from vy_person_device d where d.person_id = $1
               union select $1::uuid)
@@ -1694,7 +1695,7 @@ function deriveDrift(input) {
   return { drift: moved.slice(0, 2).join("; "), drift_cites: [...new Set(cites)].sort((a, b) => a - b), reason: "" };
 }
 async function deriveTexture(q, personId, agentId = MEERA_AGENT_ID) {
-  const rows = await q(TEXTURE_SCAN_SQL, [personId, TEXTURE_SCAN_LIMIT]);
+  const rows = await q(TEXTURE_SCAN_SQL, [personId, TEXTURE_SCAN_LIMIT, agentId]);
   const contents = (rows ?? []).map((r) => String(r?.content ?? ""));
   const counts = textureCounts(contents);
   const drift = deriveDrift({

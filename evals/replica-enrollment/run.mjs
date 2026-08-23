@@ -95,6 +95,38 @@ const SHA = "d".repeat(64);
   ok("challenge issuance is owner-scoped", issued?.challenge_id === SOURCE && calls[0].params[1] === OWNER);
   ok("challenge SQL requires current capture and storage consent", /scope = required\.scope/.test(calls[0].sql) && /policy_version = \$6/.test(calls[0].sql));
   ok("challenge issuance is capped at ten attempts per day", /attempts\.n < 10/.test(calls[0].sql));
+
+  const finalizeCalls = [];
+  const finalizeDb = async (sql, params) => {
+    finalizeCalls.push({ sql, params });
+    return [{
+      source: {
+        source_id: params[3], replica_id: params[0], owner_user_id: params[1],
+        kind: "audio", capture_mode: "live_challenge", mime: "audio/wav",
+        byte_size: 4096, state: "quarantined", contains_third_parties: false,
+      },
+      challenge: {
+        challenge_id: params[2], replica_id: params[0], phrase: "test",
+        state: "uploaded", attempt: 1,
+      },
+    }];
+  };
+  const finalized = await Liveness.finalizeChallengeSource(
+    finalizeDb,
+    OWNER,
+    REPLICA,
+    SOURCE,
+    "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+    { byteSize: 4096, mime: "audio/wav", expectedByteSize: 4096, expectedMime: "audio/wav" },
+  );
+  const finalizeSql = finalizeCalls[0].sql;
+  ok("liveness finalization binds the exact challenge and source", finalized?.challenge?.state === "uploaded"
+    && /ch\.challenge_id = \$3/.test(finalizeSql) && /ch\.source_id = s\.source_id/.test(finalizeSql));
+  ok("expired challenges cannot enter biometric quarantine", /ch\.expires_at > now\(\)/.test(finalizeSql));
+  ok("source quarantine, challenge consumption, audit and integrity enqueue are atomic",
+    /updated_source as/.test(finalizeSql) && /updated_challenge as/.test(finalizeSql)
+    && /insert into vy_replica_processing_job/.test(finalizeSql)
+    && /insert into vy_replica_audit/.test(finalizeSql));
 }
 
 {
@@ -157,6 +189,11 @@ const SHA = "d".repeat(64);
     refusedPublic = error.code === "replica_bucket_must_be_private";
   }
   ok("a public biometric bucket is a hard failure", refusedPublic);
+
+  const storageCode = readFileSync(join(ROOT, "api/_replica-storage.js"), "utf8");
+  ok("biometric storage requires the dedicated service-role secret",
+    /process\.env\.SUPABASE_SERVICE_ROLE_KEY/.test(storageCode)
+    && !/process\.env\.SUPABASE_KEY\s*\|\|\s*config\.SUPABASE_KEY/.test(storageCode));
 }
 
 {
@@ -197,6 +234,10 @@ for (const endpoint of ["api/replica-consent.js", "api/replica-source.js"]) {
     /^(?:--[^\n]*\n\s*)*(?:create table if not exists|create (?:unique )?index if not exists)/i.test(statement)));
   const sourceCode = readFileSync(join(ROOT, "api/_replica-source.js"), "utf8");
   ok("quarantined evidence enters a retryable integrity queue", /insert into vy_replica_processing_job/.test(sourceCode) && /'integrity', 'queued'/.test(sourceCode));
+  const sourceEndpoint = readFileSync(join(ROOT, "api/replica-source.js"), "utf8");
+  ok("generic finalization cannot bypass the live-challenge transition",
+    /pending\.capture_mode === "live_challenge"/.test(sourceEndpoint)
+    && /use_liveness_finalize/.test(sourceEndpoint));
 }
 
 console.log(failed ? `\n${failed} FAILURES` : "\nALL PASS");

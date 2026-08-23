@@ -52,10 +52,10 @@
 // without any query below changing. Exactly one agent exists today: this is a
 // deliberate behavioural NO-OP, which is what makes it safe to land.
 //
-// meera_log, vy_person_device and meera_forget are NOT scoped and must not be:
-// the raw log and the identity mapping are person-intrinsic (§2). A second
-// agent reading the same log with its own agent_id is exactly how §9 says the
-// legacy log anchor generalizes.
+// Migration 018 closes the raw half of the boundary too: meera_log and
+// meera_forget are relationship rows and every read/write below binds the
+// active agent before selection or rank. vy_person_device remains
+// person-intrinsic; it resolves the human and never chooses the relationship.
 import { q } from "./_db.js";
 import { embedBatch, toHalfvecLiteral } from "./_embed.js";
 import { AZURE_ENDPOINT, AZURE_KEY, OPENROUTER_KEY } from "./_config.js";
@@ -308,10 +308,12 @@ export function stripWatchRows(rows) {
   return (Array.isArray(rows) ? rows : []).filter((r) => r?.channel !== WATCH_CHANNEL);
 }
 
-async function suppressionRegexes(person) {
+async function suppressionRegexes(person, agentId = MEERA_AGENT_ID) {
   const rows = await q(
-    `select term from meera_forget where device_id = $1 order by at desc limit 200`,
-    [person],
+    `select term from meera_forget f where device_id = $1
+      ${agentScopePredicate("f", { agentId: "$2" })}
+      order by at desc limit 200`,
+    [person, agentId],
   ).catch(() => []);
   const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return rows.map((r) => new RegExp(`\\b${esc(r.term)}\\b`, "i")).filter(Boolean);
@@ -355,7 +357,7 @@ async function findEligiblePersons(limit, agentId = MEERA_AGENT_ID) {
  *  reaches `renderBatch` — and therefore nothing that reaches the extraction
  *  prompt, an episode span, a fact, a kin row or a citation — can have come
  *  from a watch turn. */
-export async function fetchLogBatch(person, { queryFn = q } = {}) {
+export async function fetchLogBatch(person, { queryFn = q, agentId = MEERA_AGENT_ID } = {}) {
   // meera_log is device-keyed; a person may (eventually) span devices —
   // vy_person_device is the mapping both ways.
   const devices = await queryFn(`select device_id from vy_person_device where person_id = $1`, [person]);
@@ -363,9 +365,10 @@ export async function fetchLogBatch(person, { queryFn = q } = {}) {
   const rows = await queryFn(
     `select l.id, l.device_id, l.role, l.channel, l.kind, l.content, l.at from meera_log l
       where l.device_id = any($1::uuid[]) and l.episode_id is null
+        ${agentScopePredicate("l", { agentId: "$3" })}
         ${WATCH_EXCLUDE_SQL}
       order by l.id asc limit $2`,
-    [deviceIds, LOG_BATCH_CAP],
+    [deviceIds, LOG_BATCH_CAP, agentId],
   );
   return stripWatchRows(rows);
 }
@@ -627,7 +630,7 @@ ${sourceLines.join("\n")}`;
  *  provisional window. Returns a per-person report for the run summary. */
 async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
   const rep = { person, log_rows: 0, episodes: 0, facts: 0, rejected_episodes: 0, rejected_facts: 0, audited: 0, refuted: 0, superseded_episodes: 0, superseded_facts: 0, kin: 0, kin_rejected: 0, rituals: 0, rituals_rejected: 0, kin_errors: [] };
-  const batch = await fetchLogBatch(person);
+  const batch = await fetchLogBatch(person, { agentId });
   if (!batch.length) return rep;
   // Layer 2 of the watch contract, asserted rather than assumed at the ONE
   // place it would matter: everything below — the prompt, the spans, the
@@ -650,7 +653,7 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
   const parsed = parseJsonLoose(raw);
   if (!parsed) return rep;
 
-  const rxs = await suppressionRegexes(person);
+  const rxs = await suppressionRegexes(person, agentId);
   const proposedEpisodes = Array.isArray(parsed.episodes) ? parsed.episodes : [];
   const proposedFacts = Array.isArray(parsed.facts) ? parsed.facts : [];
 
@@ -740,8 +743,10 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
       const finalId = episodeIdByIdx.get(idx);
       if (finalId == null) continue;
       await q(
-        `update meera_log set episode_id = $1 where device_id = $2 and id between $3 and $4 and episode_id is null`,
-        [finalId, batch[0].device_id, e.logFrom, e.logTo],
+        `update meera_log l set episode_id = $1 where device_id = $2
+          and id between $3 and $4 and episode_id is null
+          ${agentScopePredicate("l", { agentId: "$5" })}`,
+        [finalId, batch[0].device_id, e.logFrom, e.logTo, agentId],
       ).catch(() => {});
     }
   } else {
@@ -1205,15 +1210,16 @@ async function refreshDerivedDims(person, agentId = MEERA_AGENT_ID) {
       // much Hindi she answers in. An English-heavy work screen would quietly
       // switch her out of Hinglish.
       `with recent as (
-         select l.content from meera_log l
-         join vy_person_device d on d.device_id = l.device_id
-         where d.person_id = $1 and l.role = 'me'
+       select l.content from meera_log l
+       join vy_person_device d on d.device_id = l.device_id
+       where d.person_id = $1 and l.role = 'me'
+           ${agentScopePredicate("l", { agentId: "$3" })}
            ${WATCH_EXCLUDE_SQL}
          order by l.at desc limit 200
        )
        select count(*)::int as total, count(*) filter (where content ~* $2)::int as hindi_hits
          from recent`,
-      [person, pattern],
+      [person, pattern, agentId],
     ).catch(() => []),
     q(
       `select count(*) filter (where r.last_at > now() - interval '30 days')::real
@@ -1360,8 +1366,9 @@ async function deriveRelEventsForPerson(person, { dryRun = false, agentId = MEER
         where l.device_id in (select device_id from vy_person_device where person_id = $1
                              union select $1::uuid)
           and l.role = 'me' and l.id between $2 and $3
+          ${agentScopePredicate("l", { agentId: "$4" })}
           ${WATCH_EXCLUDE_SQL}`,
-      [person, ep.log_from, ep.log_to],
+      [person, ep.log_from, ep.log_to, agentId],
     ).catch(() => []);
     for (const r of stripWatchRows(rows)) {
       const term = detectAddressTerm(r.content);
@@ -2054,9 +2061,10 @@ async function capturePhrasesForPerson(person, { dryRun = false, agentId = MEERA
       `select l.content, l.at, l.episode_id, l.channel from meera_log l
       where l.device_id = any($1::uuid[]) and l.role = 'me' and l.group_id is null
         and l.episode_id is not null
+        ${agentScopePredicate("l", { agentId: "$3" })}
         ${WATCH_EXCLUDE_SQL}
       order by l.at desc limit $2`,
-      [deviceIds, PHRASE_SCAN_LIMIT],
+      [deviceIds, PHRASE_SCAN_LIMIT, agentId],
     ).catch(() => []),
   );
   rep.rows_scanned = rows.length;
@@ -2335,8 +2343,9 @@ async function deriveLifeToldForPerson(person, { dryRun = false, agentId = MEERA
           where l.device_id in (select device_id from vy_person_device where person_id = $1
                                 union select $1::uuid)
             and l.role = 'her' and l.id between $2 and $3
+            ${agentScopePredicate("l", { agentId: "$4" })}
             ${WATCH_EXCLUDE_SQL}`,
-        [person, ep.log_from, ep.log_to],
+        [person, ep.log_from, ep.log_to, agentId],
       ).catch(() => []),
     );
     if (!herRows.length) continue;

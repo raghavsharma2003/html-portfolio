@@ -22,11 +22,11 @@ async function storageCredentials() {
   configPromise ||= import("./_config.js").catch(() => ({}));
   const config = await configPromise;
   const baseUrl = String(process.env.SUPABASE_URL || config.SUPABASE_URL || "").replace(/\/$/, "");
-  // Existing deployments keep the privileged server-only Storage key in
-  // SUPABASE_KEY. New deployments should use the explicitly named service
-  // role variable. Neither value is ever serialized to the client.
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || config.SUPABASE_SERVICE_ROLE_KEY
-    || process.env.SUPABASE_KEY || config.SUPABASE_KEY;
+  // Biometric storage requires an explicit, separately managed service role.
+  // SUPABASE_KEY is also used by auth/photo code and may legitimately be an
+  // anon key, so silently treating it as privileged would blur the boundary.
+  // This route fails closed until the dedicated secret is configured.
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || config.SUPABASE_SERVICE_ROLE_KEY;
   if (!baseUrl || !key) throw new ReplicaStorageError("private_storage_not_configured");
   return { baseUrl, key };
 }
