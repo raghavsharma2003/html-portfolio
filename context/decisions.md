@@ -1913,3 +1913,42 @@ untouched.
 `registerSilenceProbe` seam — the gate exists and is tested, and is wired to
 nothing today), or the echo work makes in-call cues provably free, which would
 need an echosim table and not an argument.
+
+---
+
+## `story-notification-scheduled-exception` (2026-08-23, coordinator ruling)
+
+PRODUCT-SUPERIORITY §5(a) says no notification may be scheduled. The
+story notification is a ruled exception: the event is not manufactured
+by the timer (the story pool changes at those minutes whether or not
+the code exists), the time is hers and identical for every user with
+zero input from him, the copy is what she posted, one per occurrence.
+The §5(c) lint still stands: postAt cannot express a delay or interval,
+and the eval scans for repeats/setInterval shapes.
+
+**Reversed if:** any notification fires whose triggering event would
+not have occurred without the scheduler, or story notifications are
+measured to feel like marketing rather than her (a felt-failure log).
+
+## `forget-receipt-hedges-on-fallback` (2026-08-23, coordinator ruling)
+
+When the mutation-time forget hook fails, the lexical fallback runs and
+the receipt is HEDGED, never "done": agreeing to a delete and then not
+deleting is the worst failure, but refusing the whole receipt on a
+transient model error would make forgetting flaky. done / hedged / none
+are computed server-side from summed row counts.
+
+**Reversed if:** hedged receipts are measured to confuse users more
+than honest refusal would (a felt-failure log names the fixture).
+
+## `pin-58-to-frozen-snapshot` (2026-08-23, coordinator ruling)
+
+The swap test compares MODELS under identical contexts; both arms stay
+on the 2026-08-15 frozen corpus (853 banked incumbent rows + the terra
+arm preserved). Snapshot age is a documented limitation, not a flaw;
+regenerating both arms would double quota for no scientific gain. The
+drift guard hard-refuses any live run that would mix snapshots.
+
+**Reversed if:** the compiled-context distribution shifts enough that
+reviewers judge the frozen corpus unrepresentative (then both arms
+regenerate together, never one).

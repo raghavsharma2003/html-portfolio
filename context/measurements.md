@@ -2590,3 +2590,27 @@ Not measured, and deliberately not implied: whether any of it sounds good, and
 whether Android's ringer switch silences it. Neither is reachable from this
 harness. `src/sound/index.ts` states the iOS half as `[unmeasured, platform
 documentation]` rather than as coverage.
+
+---
+
+## `improvement-wave-2026-08-23` — six slices, one integration
+
+- Forget A1: adversarial recall 5.9% -> 76.5% (pre-registered A4, 5
+  live runs identical), wrong rows 2 -> 2, false receipts 16/27 ->
+  3/27; free-pool arm INVALID (18/27 429s) recorded not hidden.
+- Patterns unreachable-forever fixed: eligibility counters were never
+  set and reinforce had no caller; T4 rendered 0 bytes for every user.
+  Consolidation suite 98 -> 144 with the pre-fix zero as negative
+  control.
+- Sound: 5-cue synthesized vocabulary + 6-entry REFUSED table, four
+  gates each with named blockers, in-run negative control (in-call
+  gate removed must leak). New suites sound + sound-browser (11/11).
+- Notify: keyless local lane live (reply/missed-call/story), FCM
+  scaffold zero-bytes-until-config, permission at first FELT moment,
+  push-token FATE on both suites (wipe yes, scoped forget deliberately
+  no). notify suite 97, browser 14/14 headed.
+- Knows: 57+23 assertions, 8 contrast checks, forget flow end-to-end
+  with refused-delete negative control; ritual/india rows honestly
+  bin-less (gated to flip when the cascade learns keys).
+- Persona core 45,493/45,500 after paid-for trims. verify-release
+  13/13 twice on the integrated tree.

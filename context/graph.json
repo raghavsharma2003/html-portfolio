@@ -1401,6 +1401,30 @@
       "kind": "rejection",
       "at": "2026-08-23",
       "title": "A call-gate assertion whose only evidence was silence, and so could not fail"
+    },
+    {
+      "id": "story-notification-scheduled-exception",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "Story notification is a ruled exception to never-schedule; the event exists without the timer"
+    },
+    {
+      "id": "forget-receipt-hedges-on-fallback",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "Hook failure falls back lexical with a hedged receipt; done/hedged/none computed from row counts"
+    },
+    {
+      "id": "pin-58-to-frozen-snapshot",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "Both swap-test arms stay on the frozen 08-15 corpus; drift guard refuses mixed snapshots"
+    },
+    {
+      "id": "improvement-wave-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "Six-slice wave: forget 5.9 to 76.5, patterns unreachable fixed, sound/notify/knows shipped, 13/13 twice"
     }
   ],
   "edges": [
@@ -2568,6 +2592,26 @@
       "src": "sound-gate-proved-by-silence",
       "rel": "constrains",
       "dst": "sound-gates-four-and-two-sources"
+    },
+    {
+      "src": "story-notification-scheduled-exception",
+      "rel": "constrains",
+      "dst": "never-scheduled"
+    },
+    {
+      "src": "forget-receipt-hedges-on-fallback",
+      "rel": "constrains",
+      "dst": "tester-wave-1"
+    },
+    {
+      "src": "pin-58-to-frozen-snapshot",
+      "rel": "constrains",
+      "dst": "judge-qualification-2026-08-23"
+    },
+    {
+      "src": "improvement-wave-2026-08-23",
+      "rel": "measured_by",
+      "dst": "memory-wave-2026-08-23"
     }
   ]
 }
