@@ -31,7 +31,12 @@ import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } fr
 import "../styles/chess.css";
 import { PieceDefs, PieceGlyph, ROLE_NAME, ROLE_VALUE, piecePaintVars } from "./chess/pieces";
 import type { Color, PromotionRole, Role } from "./chess/pieces";
-import { tap, ImpactStyle } from "../native/haptics";
+// WS-SOUND. `feel` fires the cue and its haptic level from one call, so the
+// board never picks an intensity — see src/sound/vocabulary.ts. `play` is the
+// sound alone, and it is used for exactly one thing here: HER piece landing,
+// which has no finger in front of it and therefore no haptic (the same
+// asymmetry the thread has between sending and receiving).
+import { feel, play } from "../sound";
 
 export type { Color, PromotionRole, Role };
 
@@ -152,6 +157,21 @@ interface Placed {
 
 let nextId = 1;
 
+/**
+ * Is the move from→to a capture, decided from the position alone?
+ *
+ * Pure geometry, no legality: an occupied destination is a capture, and a pawn
+ * that changes file onto an empty square is en passant, which is the one
+ * capture with nothing standing on the square it happens to. Used only to pick
+ * between the two board cues, so being wrong costs one wrong sound and never
+ * a wrong move.
+ */
+function captureAt(board: (Piece | null)[], from: number, to: number): boolean {
+  if (board[to]) return true;
+  const p = board[from];
+  return Boolean(p && p.role === "p" && from % 8 !== to % 8);
+}
+
 export default function ChessBoard({
   fen,
   legalMoves = [],
@@ -184,6 +204,11 @@ export default function ChessBoard({
   const prevRef = useRef<{ board: (Piece | null)[]; pieces: Placed[] } | null>(null);
   const ghostTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const flyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // WS-SOUND. The move HE just committed, as "e2-e4". His cue already fired in
+  // the commit handler, against his finger, where haptics.ts says it belongs;
+  // this is what stops the landing effect below sounding it a second time when
+  // the same move comes back down as a new `lastMove`.
+  const soundedMove = useRef("");
 
   // Depended on as two strings, never as the object. A parent that rebuilds
   // `{from,to}` inline on every render — which is the normal way to write a
@@ -286,6 +311,27 @@ export default function ChessBoard({
     out.sort((a, b) => a.id - b.id);
     prevRef.current = { board, pieces: out };
     setPieces(out);
+    // ── HER PIECE LANDING ────────────────────────────────────────────────
+    //
+    // This effect is the one place that knows a piece TRAVELLED (`inFlight`)
+    // and whether anything died doing it (`dead`), so it is the honest place
+    // to sound an arriving move. Three guards, and each answers a specific way
+    // this could become a ping:
+    //
+    //   `inFlight.length`  a new FEN with no carried piece is a new game, a
+    //                      takeback or a restore, not a move. Those are
+    //                      silent. `prev` is null on the first run, so a board
+    //                      that mounts with a game already in progress cannot
+    //                      make a sound either — the mount case is excluded by
+    //                      construction rather than by a flag.
+    //   `soundedMove`      his own move comes back down this path a beat after
+    //                      his finger already heard it. One move, one sound.
+    //   `play`, not `feel` nothing of his is in front of this, so it gets no
+    //                      haptic. Her bubbles land silently in the hand for
+    //                      the same reason (native/haptics.ts).
+    const landed = `${lmFrom}-${lmTo}`;
+    if (inFlight.length && soundedMove.current !== landed) play(dead.length ? "take" : "place");
+    soundedMove.current = "";
     if (inFlight.length) {
       setFlying(inFlight);
       clearTimeout(flyTimer.current);
@@ -403,7 +449,15 @@ export default function ChessBoard({
       // Fired in the same handler that clears the selection: the haptic and
       // the visual must not drift apart. One per move — a buzz on every
       // touch would train the hand to ignore all of them.
-      tap(ImpactStyle.Light);
+      //
+      // `feel` is that same tap(Light) plus the cue that goes with it, from
+      // one call. Which cue is decided from the POSITION rather than from the
+      // `isCapture` helper below, because that one reads `sel`, and by the
+      // time a drag resolves `sel` is no longer guaranteed to be the origin.
+      // Geometry off the board is total: an occupied destination is a
+      // capture, and a pawn changing file onto an empty square is en passant.
+      soundedMove.current = `${squareName(from)}-${squareName(to)}`;
+      feel(captureAt(board, from, to) ? "take" : "place");
       setSel(null);
       onMove?.(squareName(from), squareName(to));
     },
@@ -413,12 +467,13 @@ export default function ChessBoard({
   const choosePromotion = useCallback(
     (role: PromotionRole) => {
       if (!promo) return;
-      tap(ImpactStyle.Light);
       const { from, to } = promo;
+      soundedMove.current = `${squareName(from)}-${squareName(to)}`;
+      feel(captureAt(board, from, to) ? "take" : "place");
       setPromo(null);
       onMove?.(squareName(from), squareName(to), role);
     },
-    [promo, onMove],
+    [promo, board, onMove],
   );
 
   /** Tap and keyboard share this. Drag resolves through `onUp`. */

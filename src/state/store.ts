@@ -8,6 +8,12 @@ import type { Inner } from "../engine/inner";
 // engine runtime (memory.ts reaches Capacitor and the network; this does not
 // drag either into the store's bundle).
 import type { ActivityRecord } from "../engine/memory";
+// TYPE ONLY, and from the LEAF rather than from `src/notify/index.ts` — that
+// module reaches `engine/persona.ts` for her name, and a type imported through
+// it would be a runtime edge the moment someone forgot the `type` keyword.
+// `src/notify/prefs.ts` imports nothing at all, which makes the edge safe by
+// construction rather than by discipline.
+import type { NotifyPrefs } from "../notify/prefs";
 import { tel } from "../engine/telemetry";
 
 export interface Message {
@@ -242,6 +248,18 @@ export interface AppState {
   // the default and the state every existing install is already in — so this
   // field arriving changes nothing for anyone until they touch the setting.
   theme?: ThemeChoice;
+  // WS-SOUND. The one switch the sound layer has. `false` is the ONLY value
+  // that means off: absent means on, which is both the default and the state
+  // every install that predates this field is already in, so the field
+  // arriving changes nothing for anyone until they touch the setting. Same
+  // rule `theme` above follows and the same one `SelfFactKind` documents at
+  // length — a stored shape is not rewritten under a running install.
+  //
+  // A boolean and not a level, deliberately. A volume slider in a companion
+  // app is a control nobody moves and a support question everybody asks; the
+  // mix is decided once, in src/sound/index.ts, low, and the only thing a
+  // person needs from this screen is a way to make it stop.
+  soundOn?: boolean;
   // ── the milestones seam (engine/milestones.ts) ─────────────────────────
   // Fired-ledger: milestone ids that already celebrated, so a moment can
   // never fire twice — across devices too, since this syncs with the rest.
@@ -263,6 +281,23 @@ export interface AppState {
   // and syncs with the rest of the relationship. See engine/memory.ts's
   // `formatActivityLedger` for what reads it.
   activities?: ActivityRecord[];
+  // ── the notification permission's memory (src/notify/) ─────────────────
+  // Four timestamps and a switch, and every one of them exists to make the
+  // ONE ask this product is allowed unrepeatable: `felt` is the moment a
+  // notification would have been useful and there was no permission to send
+  // it (so the ask can never land at onboarding), `asked` is the single
+  // Android 13+ runtime prompt being spent, `declined` is terminal by
+  // promise, and `enabled` is his own switch afterwards.
+  //
+  // DEVICE-LOCAL, exactly like `theme`: it is absent from `syncableState` and
+  // from `mergeStates`, because a permission is a property of a phone. "He
+  // said no on the laptop" arriving on a phone that never asked would be the
+  // app answering a question on the user's behalf, on the one question it is
+  // allowed to ask. See evals/teardown.mjs's FATE verdict for why the
+  // teardown leaves it standing and where reachability itself is torn down
+  // instead (it is deliberately NOT a field here — a push token in synced
+  // state is another device's reachability).
+  notifyPrefs?: NotifyPrefs;
   // Lifetime activity tallies, written at game close. The RECORD is the
   // progression system; these are the running totals the detector reads.
   tally?: {

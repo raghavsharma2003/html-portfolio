@@ -1757,5 +1757,77 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
   }
 }
 
+// ── WS-KNOWS: the memory surface is a CALL SITE, never a new material ──────
+//
+// src/styles/knows.css paints nothing of its own. Every colour on it resolves
+// to an app token, so the floors that already cover this exact situation — ink
+// and the glass family over the wallpapered sky, measured in five skies and
+// two themes by the world block above — cover it too, with no second set of
+// numbers to keep in step.
+//
+// That is a claim about the FILE, and a claim about a file is what this script
+// exists to make enforceable. Three things can quietly break it: a hard-coded
+// colour ("just this one row"), a `data-theme` block (a second palette, which
+// drifts the moment either copy is touched, and which is the failure the two
+// board files carry byte-identical dark blocks to avoid), and a control drawn
+// with a LABEL's edge instead of a CONTROL's. The last one is a real contrast
+// bug rather than a stylistic one: global.css gates `--glass-edge-strong` to
+// >= 3:1 because a control has to be findable, and `--glass-edge` is a whisper
+// designed for a day separator.
+{
+  const k = read("src/styles/knows.css");
+
+  check(
+    "knows: no second palette (no data-theme block, no media palette)",
+    !/\[data-theme/.test(k) && !/prefers-color-scheme/.test(k),
+  );
+
+  // every --k-* token derives, with the two stated exceptions: the ground is
+  // deliberately `transparent` (the world is a real element behind it, so a
+  // ground painted here would hide the painting while every ratio went on
+  // passing), and the blur is a filter, not a colour.
+  const decls = [...k.matchAll(/(--k-[\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]);
+  check("knows: the derived token set is still there", decls.length >= 8, `${decls.length} tokens`);
+  const literal = decls.filter(
+    ([name, value]) =>
+      name !== "--k-ground" && name !== "--k-blur" && !/var\(--/.test(value),
+  );
+  check(
+    "knows: every colour derives from an app token",
+    literal.length === 0,
+    literal.map(([n, v]) => `${n}: ${v}`).join(", "),
+  );
+  check(
+    "knows: the ground is the world's, not a colour of its own",
+    /--k-ground:\s*transparent/.test(k),
+  );
+
+  // the fact card is the measured glass, and the two controls on it wear the
+  // gated CONTROL edge rather than the label one
+  const block = (sel) => {
+    const i = k.indexOf(`\n${sel} {`);
+    return i < 0 ? "" : k.slice(i, k.indexOf("\n}", i));
+  };
+  check(
+    "knows: the fact card is --glass-chip over the sky, the measured material",
+    /background:\s*var\(--k-card\)/.test(block(".knows-fact")) &&
+      decls.some(([n, v]) => n === "--k-card" && v.includes("--glass-chip")),
+  );
+  check(
+    "knows: the correction control takes the gated control edge (>= 3:1)",
+    /border:[^;]*var\(--k-line-strong\)/.test(block(".knows-fix")),
+    block(".knows-fix").split("\n").find((l) => /border:/.test(l)) ?? "(no border decl)",
+  );
+  check(
+    "knows: the timeline thread takes the control edge, not the label one",
+    /border-left:[^;]*var\(--k-line-strong\)/.test(block(".knows-time")),
+  );
+  // and the tokens those two names point at are the gated pair themselves
+  check(
+    "knows: --k-line-strong IS --glass-edge-strong",
+    decls.some(([n, v]) => n === "--k-line-strong" && v.includes("--glass-edge-strong")),
+  );
+}
+
 console.log(failed ? `\n${failed} contrast/legibility checks FAILED` : "\nboard legibility ok");
 process.exit(failed ? 1 : 0);

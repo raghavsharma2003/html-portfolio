@@ -341,6 +341,25 @@ const FATE = {
     "exempt: a device preference and nothing else (decisions: theme does not " +
     "even sync between a person's own devices). Wiping it would flash a " +
     "dark-mode user white as a side effect of forgetting.",
+  soundOn:
+    "exempt: a device preference and nothing else, exactly like `theme` " +
+    "above and for the same reason. Wiping it would turn the sound layer " +
+    "back ON for someone who had switched it off, as an invisible side " +
+    "effect of asking her to forget them, in whatever room they happened to " +
+    "be standing in. A forget is about what she knows, never about what the " +
+    "phone does.",
+  notifyPrefs:
+    "exempt: the OS permission's memory, not the relationship — and the " +
+    "exemption is the PROMISE rather than a convenience. The sheet that asks " +
+    "for notifications says 'We will not ask again', and `declined` is the " +
+    "only thing that makes that true; a teardown that wiped it would re-arm " +
+    "the ask, so 'make her forget you' would be answered by the app asking " +
+    "him for something. `asked` is worse to lose: Android 13+ grants exactly " +
+    "one runtime prompt per install, so a wiped record is a product that " +
+    "believes it still has an ask it has already spent. THE TOKEN IS NOT " +
+    "HERE — reachability is torn down by src/notify/index.ts's " +
+    "clearReachability, asserted in the REACHABILITY block below, because a " +
+    "push token in synced AppState would be another device's reachability.",
   lastSeen:
     "exempt: HER presence clock, restamped on every mount and rendered as " +
     "'last seen 2m ago'. A fact about this app session, not a memory of him.",
@@ -537,6 +556,122 @@ const FATE = {
     if (key === "messages") continue;
     ok(`account switch also resets '${key}'`, new RegExp(`\\b${key}:`).test(reset), key);
   }
+}
+
+// ══ #6 — REACHABILITY: the state the FATE table structurally cannot see ═══
+//
+// The FATE walker above enumerates `AppState`'s keys, so it is exactly as wide
+// as `AppState` — which is the rewrite note's own rule ("a coverage check is
+// only as wide as the thing it ENUMERATES") pointed at itself. A push token and
+// a pending notification are relationship state that deliberately does NOT live
+// in `AppState`:
+//
+//   * a token is per-device and `AppState` merges across devices, so a token in
+//     it would arrive on the OTHER phone and the wrong device would be the one
+//     told to stop being reachable;
+//   * a pending notification lives in the OS, which `AppState` cannot describe
+//     at all. A field mirroring it would read as coverage and be checked by
+//     nothing (`manifest-sourcestatus`).
+//
+// So they get their own verdicts here, in the same written-decision form, and
+// the checks below are what make those verdicts binding. WHY THEY MATTER: a
+// notification still on a lock screen quoting a conversation he has just
+// erased is that conversation surviving its own deletion in the most visible
+// place it could, and a push token that outlives "make her forget you" is her
+// able to contact someone she has been told she never met.
+const REACHABILITY_FATE = {
+  "local notifications (pending + delivered)":
+    "clear+forget: `cancelAll()` in src/notify/index.ts's clearReachability. " +
+    "Both doors, clear-chat included — a lock screen quoting a chat he just " +
+    "erased is the erased chat, still on screen.",
+  "push token (server row)":
+    "clear+forget: `revokePushToken` DELETES the row, never flags it. A " +
+    "flagged-inactive token is still a token.",
+  "push token (browser subscription)":
+    "clear+forget: the local unsubscribe runs even when the server call " +
+    "fails, because a browser with no subscription cannot receive a push no " +
+    "matter what row survives.",
+  "the permission's memory (AppState.notifyPrefs)":
+    "exempt: see the FATE table. Wiping it would break the 'we will not ask " +
+    "again' promise and burn an Android 13+ prompt the app has already spent.",
+};
+{
+  const notify = src("src/notify/index.ts");
+  const app = src("src/App.tsx");
+  const store = src("src/state/store.ts");
+
+  ok(
+    "every reachability artefact has a written verdict",
+    Object.keys(REACHABILITY_FATE).length === 4,
+    Object.keys(REACHABILITY_FATE).join(", "),
+  );
+
+  // ── the hand exists, and takes both halves ──
+  ok("clearReachability exists", /export async function clearReachability/.test(notify));
+  const fn = notify.slice(notify.indexOf("export async function clearReachability"));
+  ok("…and cancels every local notification", /cancelAll\(\)/.test(fn));
+  ok("…and revokes the push token", /revokePushToken\(/.test(fn));
+  const push = src("src/notify/push.ts");
+  const revoke = push.slice(push.indexOf("export async function revokePushToken"));
+  ok("the revoke DELETES the server row", /revoke: true/.test(revoke));
+  ok("…and unsubscribes locally even if that call fails", /unsubscribe\(\)/.test(revoke));
+  ok(
+    "…with the local unsubscribe OUTSIDE the network try",
+    revoke.indexOf("unsubscribe()") > revoke.indexOf("the half that always works"),
+    "a network failure must not be able to leave a live subscription behind.",
+  );
+
+  // ── and it is CALLED on every door ──
+  //
+  // Both doors stamp `clearedAt` (Chat.tsx's tearDownLocally), so one observer
+  // in App.tsx covers clear-chat and forget-me without this workstream
+  // becoming a second writer for another's state.
+  ok(
+    "App.tsx tears down reachability when the teardown stamp advances",
+    /clearedSeen/.test(app) && /clearReachability\(NOTIFY_API_BASE, state\.deviceId\)/.test(app),
+    "neither door clears reachability; a lock screen outlives the wipe.",
+  );
+  const clearedEffect = app.slice(app.indexOf("const clearedSeen"));
+  ok(
+    "…on the ADVANCE, not on every render",
+    /at <= clearedSeen\.current/.test(clearedEffect.slice(0, 800)),
+  );
+  ok(
+    "account switch tears down reachability too",
+    /state\.lastAccountId !== fresh\.userId[\s\S]{0,200}clearReachability/.test(app),
+    "the sibling boundary above says everything relational resets on a switch; " +
+      "reachability is relational and a token is per-device.",
+  );
+  ok(
+    "…and does it OUTSIDE the setState updater",
+    app.indexOf("clearReachability(NOTIFY_API_BASE, state.deviceId);\n      }\n      setState") > 0 ||
+      /if \(state\.lastAccountId && state\.lastAccountId !== fresh\.userId\) \{\s*void clearReachability[^}]*\}\s*setState/.test(app),
+    "an updater must stay pure (React may call one twice); a second revoke is " +
+      "a second network call for a token that is already gone.",
+  );
+  ok(
+    "sign-out revokes BEFORE the device id rotates",
+    app.indexOf("clearReachability(NOTIFY_API_BASE, state.deviceId)") <
+      app.indexOf("deviceId: rotateDeviceId()"),
+    "a rotation first orphans this device's registration under the old id — a " +
+      "live token nothing can ever revoke again.",
+  );
+
+  // ── the token must NEVER become AppState ──
+  const iface = store.slice(store.indexOf("export interface AppState {"));
+  const body = iface.slice(0, iface.indexOf("\n}"));
+  ok(
+    "no token-shaped field entered AppState",
+    !/\b(pushToken|fcmToken|notifyToken|pushSubscription)\b/.test(body),
+    "AppState merges across devices. A token in it is the other phone's " +
+      "reachability, and the wrong device would be the one revoked.",
+  );
+  ok(
+    "notifyPrefs does not sync",
+    !/notifyPrefs/.test(src("src/state/merge.ts")),
+    "a permission is a property of a phone; 'he said no on the laptop' " +
+      "arriving on a phone that never asked is the app answering for him.",
+  );
 }
 
 console.log(fail ? `\n${fail} FAILURES` : "\nALL PASS");

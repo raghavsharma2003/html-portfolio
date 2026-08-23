@@ -39,6 +39,12 @@ import { ChessIcon, ForkIcon, GridIcon } from "./GamesHub";
 import { detectGameInvite, type GameKind } from "../engine/gameInvite";
 import { listen, sttSupported } from "../voice/speech";
 import { tap, land } from "../native/haptics";
+// WS-SOUND. The thread is where the two most-heard cues in the product live.
+// `armSound` installs the first-gesture unlock (it builds no AudioContext by
+// itself — see src/sound/index.ts gate 1), and this component is where it is
+// installed because App never unmounts it: a layer armed inside something that
+// comes and goes is a layer that is armed some of the time.
+import { armSound, feel, play, setCallActive, setSoundEnabled } from "../sound";
 import MoreSheet from "./MoreSheet";
 import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import {
@@ -86,6 +92,11 @@ interface Props {
    *  travels as a signal instead of the sheet being forked (final audit H2:
    *  Settings was unreachable from the app's own landing surface) */
   openSettingsSignal?: number;
+  /** WS-KNOWS. A correction started on the "what she remembers" surface, handed
+   *  over as a DRAFT rather than sent: she relearns from a normal turn, in his
+   *  words, which is the one path already proven to reach a compiled prompt.
+   *  Same signal idiom as `openSettingsSignal` and for the same reason. */
+  composePrefill?: { text: string; n: number };
 }
 
 function lastSeenLabel(t: number): string {
@@ -129,7 +140,7 @@ const typeDelay = (bubble: string) => {
   return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
 };
 
-export default function Chat({ state, setState, onVoiceCall, onProfile, onGames, onOpenActivity, onUs, inCall, activityOpen, openSettingsSignal }: Props) {
+export default function Chat({ state, setState, onVoiceCall, onProfile, onGames, onOpenActivity, onUs, inCall, activityOpen, openSettingsSignal, composePrefill }: Props) {
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   // the indicator holds for one exit beat while the bubble enters underneath
@@ -155,6 +166,15 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     if ((openSettingsSignal ?? 0) > lastSettingsSignal.current) setMoreOpen(true);
     lastSettingsSignal.current = openSettingsSignal ?? 0;
   }, [openSettingsSignal]);
+
+  // the correction lands in the composer, never in the thread: he still gets
+  // to say it in his own words, and to change his mind before he does.
+  const lastPrefill = useRef(composePrefill?.n ?? 0);
+  useEffect(() => {
+    const n = composePrefill?.n ?? 0;
+    if (n > lastPrefill.current && composePrefill?.text) setDraft(composePrefill.text);
+    lastPrefill.current = n;
+  }, [composePrefill]);
   // clearing parks the conversation for ten seconds instead of destroying it
   type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt" | "game" | "activities" | "callback" | "tally" | "momentsFired" | "recentMoment" | "followup"> &
     // present ONLY on the forget path: clear-chat keeps her memory of HIM by
@@ -334,6 +354,25 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
 
   const pushMsg = (m: Message) =>
     setState((s) => ({ ...s, messages: [...s.messages, m] }));
+
+  // ── the sound layer's three wires ───────────────────────────────────────
+  //
+  // All three live here rather than in App because App belongs to another
+  // workstream and because this component is the one that is always mounted
+  // (App renders it behind every surface and never unmounts it, deliberately:
+  // it holds an in-flight reply cycle). Nothing below creates an AudioContext.
+  //
+  //   arm      installs the first-gesture listener. The context is built
+  //            inside that gesture and not one instruction earlier.
+  //   toggle   mirrors `state.soundOn` into the module. `undefined` is ON,
+  //            which is what every install that predates the field carries.
+  //   call     the wider half of the call gate: `inCall` is true from the
+  //            moment App decides a call is happening, which is earlier than
+  //            the call engine mounts and starts publishing callStatus. The
+  //            module checks BOTH and needs neither to be the only one right.
+  useEffect(() => armSound(), []);
+  useEffect(() => setSoundEnabled(state.soundOn !== false), [state.soundOn]);
+  useEffect(() => setCallActive(Boolean(inCall)), [inCall]);
 
   // tick progression on my messages: sent → delivered → read
   const upgradeMyStatus = (to: "delivered" | "read") =>
@@ -1043,6 +1082,33 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       const recentHer = messages.filter((m) => m.from === "her").slice(-6);
       if (recentHer.some((m) => m.kind === "gif")) reply.gif = undefined;
     }
+    // ── SHE ANSWERED, once ──────────────────────────────────────────────
+    //
+    // WS-SOUND. Every one of her messages in this delivery goes through
+    // `landed` instead of `pushMsg`, and the FIRST one to arrive sounds the
+    // `receive` cue. Not each one.
+    //
+    // The arithmetic is the same one haptics.ts uses to refuse her messages a
+    // haptic at all: a three-bubble reply is three arrivals inside four
+    // seconds, and three of anything in four seconds is an alarm rather than
+    // an arrival. What is different about sound is that it decays and points,
+    // so ONE of them is worth hearing where none were worth feeling. The
+    // second and third bubbles are already carried by the thing they were
+    // always carried by, which is the bubble entrance itself.
+    //
+    // Deliberately per-DELIVERY and not per-turn: a follow-up cycle after a
+    // held [search:] lookup is genuinely a second time she came back, and it
+    // gets its own arrival. A held delivery that keeps typing does not.
+    let sounded = false;
+    const landed = (m: Message) => {
+      if (!sounded) {
+        sounded = true;
+        // `play`, not `feel`: the vocabulary gives `receive` no haptic, and
+        // the reason is written next to it in src/sound/vocabulary.ts.
+        play("receive");
+      }
+      pushMsg(m);
+    };
     // if the user clears the chat while she's mid-reply, this delivery is
     // from a conversation that no longer exists — it must vanish with it
     const ep = epoch.current;
@@ -1109,7 +1175,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       };
       await handoffTyping(photo.id, lastMedia === "photo");
       if (stale()) return true;
-      pushMsg(photo);
+      landed(photo);
       // `chosen` is the catalog seed, which is code, not conversation
       tel("chat.media", { kind: "photo", msg_id: photo.id, chosen: photoOf.seed, from: "her" });
       return false;
@@ -1148,7 +1214,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       await handoffTyping(msg.id, !lastMedia && bi === reply.bubbles.length - 1);
       if (stale()) return;
       delivered.push(msg);
-      pushMsg(msg);
+      landed(msg);
       await sleep(280 + Math.random() * 420);
       if (stale()) return;
     }
@@ -1186,7 +1252,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
         await handoffTyping(msg.id, lastMedia === "voice");
         if (stale()) return;
         delivered.push(msg);
-        pushMsg(msg);
+        landed(msg);
         tel("chat.media", { kind: "voicenote", msg_id: msg.id, secs: msg.dur, from: "her" });
       }
     }
@@ -1205,7 +1271,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       await handoffTyping(msg.id, lastMedia === "gif");
       if (stale()) return;
       delivered.push(msg);
-      pushMsg(msg);
+      landed(msg);
       tel("chat.media", { kind: "gif", msg_id: msg.id, from: "her" });
     }
     if (reply.followup) {
@@ -1724,7 +1790,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     // and the app felt it. Fired HERE, in the same handler that commits the
     // message, because a haptic that arrives after a timeout has already
     // drifted away from the picture it belongs to.
-    tap();
+    //
+    // WS-SOUND: `feel("send")` is that same tap() plus the whoosh, from one
+    // call, on the same frame as the composer recoil below. It was `tap()`.
+    // The cue's haptic level is read out of the sound vocabulary's table
+    // rather than named here, so the two channels cannot be changed apart.
+    feel("send");
     // the composer recoils as the message leaves it, and the bubble it left
     // is picked up by the layout effect that owns arrivals
     launchId.current = mine.id;

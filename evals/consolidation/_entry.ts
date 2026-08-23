@@ -29,3 +29,9 @@ export {
   KIN_BUDGET,
 } from "../../src/engine/india";
 export { untoldFor, markTold, UNTOLD_SQL } from "../../src/engine/life";
+// WS-JUDGEWORK. The READ half of the judgment writers: T4 is the only thing
+// that can prove a written pattern is reachable, and `lintLine` is the real
+// rule `api/consolidate.js`'s `patternTextRejection` mirrors — bundled so the
+// mirror is checked against the source of truth instead of against a copy.
+export { renderDyadicActive, renderWeCallbacks } from "../../src/engine/relstate";
+export { lintLine } from "../../src/engine/shapelint";

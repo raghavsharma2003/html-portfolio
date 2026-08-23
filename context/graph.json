@@ -1353,6 +1353,54 @@
       "kind": "decision",
       "at": "2026-08-23",
       "title": "No brain swap on a price sale; swaps go through the measured battery only"
+    },
+    {
+      "id": "sound-vocabulary-closed",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "The sound layer is a closed five-cue vocabulary, synthesised, paired to the haptic levels"
+    },
+    {
+      "id": "sound-default-on-quiet",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "One switch, default on, no volume slider; the mix is one constant"
+    },
+    {
+      "id": "sound-gates-four-and-two-sources",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "Four gates, and the call gate reads two independent sources"
+    },
+    {
+      "id": "sound-layer",
+      "kind": "component",
+      "at": "2026-08-23",
+      "title": "src/sound/ \u2014 vocabulary, synth, and the one gated path to the speaker"
+    },
+    {
+      "id": "sound-browser-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "0 contexts before a gesture; 1 cue per send; 2 cues for a three-bubble reply; 0 when off"
+    },
+    {
+      "id": "typing-tick",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "A tick on the typing indicator: a state, fired per bubble, with no gesture in front of it"
+    },
+    {
+      "id": "receive-per-bubble",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "One arrival cue per bubble: three sounds in four seconds is an alarm"
+    },
+    {
+      "id": "sound-gate-proved-by-silence",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "A call-gate assertion whose only evidence was silence, and so could not fail"
     }
   ],
   "edges": [
@@ -2480,6 +2528,46 @@
       "src": "brain-stays-36-flash-reaffirmed",
       "rel": "constrains",
       "dst": "brain-model"
+    },
+    {
+      "src": "sound-vocabulary-closed",
+      "rel": "part_of",
+      "dst": "sound-layer"
+    },
+    {
+      "src": "sound-default-on-quiet",
+      "rel": "part_of",
+      "dst": "sound-layer"
+    },
+    {
+      "src": "sound-gates-four-and-two-sources",
+      "rel": "part_of",
+      "dst": "sound-layer"
+    },
+    {
+      "src": "sound-browser-2026-08-23",
+      "rel": "part_of",
+      "dst": "sound-layer"
+    },
+    {
+      "src": "sound-vocabulary-closed",
+      "rel": "measured_by",
+      "dst": "sound-browser-2026-08-23"
+    },
+    {
+      "src": "typing-tick",
+      "rel": "constrains",
+      "dst": "sound-vocabulary-closed"
+    },
+    {
+      "src": "receive-per-bubble",
+      "rel": "constrains",
+      "dst": "sound-vocabulary-closed"
+    },
+    {
+      "src": "sound-gate-proved-by-silence",
+      "rel": "constrains",
+      "dst": "sound-gates-four-and-two-sources"
     }
   ]
 }

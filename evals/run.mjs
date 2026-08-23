@@ -216,6 +216,23 @@ const suites = {
   // read. It fails only if the battery itself breaks or the baseline moves
   // DOWN, which is the direction nobody intends. See its header.
   forgetlex: "forget/a4.mjs",
+  // WS-FORGET-A1 (survey §Q5). The mutation-time forget matcher. THIS half IS
+  // a gate, unlike a4.mjs next door, because everything it asserts is offline
+  // and decided: the shipped prompt's schema and its lack of a voice, the
+  // parser's id closure (the anti-fabrication property — the resolver cannot
+  // name a row it was not shown), the union-not-replace composition, the
+  // two-lane call cap and fuse, the receipt gate, and the FAIL-SAFE proof —
+  // a hook that fails on every case is byte-identical to the old lexical
+  // matcher and never yields an unhedged receipt.
+  //
+  // It also re-derives A4's pre-registered headline (5.9% / 100% / 2 wrong
+  // rows) from its own emulation, so the two files agreeing is a check rather
+  // than a coincidence.
+  //
+  // Offline, $0, ZERO model calls — the live arm needs `--live` and an
+  // explicit lane, and is deliberately not reachable from here
+  // (`dryrun-still-spends`).
+  forgethook: "forget/a1.mjs",
   // WS-FELTBATTERY (docs/MEMORY-FELT.md §9). The OFFLINE half of the
   // felt-memory acceptance battery: 14 long-horizon dyads compiled through the
   // REAL engine, the pre-registration hash checked against the committed
@@ -229,6 +246,40 @@ const suites = {
   // money, and keeping it out of this object rather than skipping it in-loop is
   // what makes that true by construction instead of by remembering.
   feltmem: "feltmem/gate.mjs",
+  // WS-KNOWS. The "what she remembers" surface: the three pure selectors
+  // behind it, and the two ways it can fail that no layout review catches —
+  // offering a delete the item-scope cascade cannot actually perform (asserted
+  // against the real SQL in api/memory.js, ritual rows included as the
+  // negative), and drifting into a surveillance dashboard (no count rendered,
+  // no clock stamp anywhere, decided on the component's bytes). Offline, $0.
+  knows: "knows.mjs",
+  // WS-SOUND. The sound layer (src/sound/): the vocabulary is closed and every
+  // cue declares its haptic level, its mix and its span; there is exactly one
+  // path from a component to the speaker and it is downstream of every gate;
+  // nothing sounds before the first user gesture, with the toggle off, in a
+  // backgrounded tab, or while a call is live, connecting or sharing a screen.
+  //
+  // That last one is why this is a GATE and not a note. A cue during a call
+  // leaves the speaker, enters the mic and lands in the echo coefficient that
+  // evals/echosim/ measures the entire audio floor against, so a defect in
+  // this layer would be diagnosed in that one. It carries its own in-run
+  // negative control (the same fixture re-bundled with the in-call clause cut
+  // out, which MUST leak), because an assertion whose evidence is silence
+  // passes just as happily on a dead feature as on a working gate.
+  //
+  // Offline, deterministic, $0, no browser, no network, ~2s. It re-bundles
+  // from the REAL source on every run, same as this file does.
+  sound: "sound.mjs",
+  // WS-NOTIFY. The notification lane (src/notify/): a lock screen may only ever
+  // carry text she actually sent, which is asserted by the ABSENCE of any
+  // constructor that could produce a generic line rather than by grepping for
+  // one; the single permission ask is unrepeatable in both directions; the
+  // exact schedule payload is checked against a plugin recorder, emulator-free;
+  // and docs/PRODUCT-SUPERIORITY.md §5(c)'s lint is here — no notification call
+  // site takes a delay or an interval, enforced over the SOURCE because the
+  // failure it prevents is a future edit and no test that runs today's code can
+  // see one. Offline, deterministic, $0, ~3s.
+  notify: "notify.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

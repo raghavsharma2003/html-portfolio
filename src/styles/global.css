@@ -2586,6 +2586,86 @@ button {
   color: var(--ink-faint);
   flex-shrink: 0;
 }
+/* ── THE SOUND SWITCH (WS-SOUND) ──────────────────────────────────────────
+   The sheet's one control that changes something instead of going somewhere,
+   so it wears a track rather than a chevron. It reuses `.srow` wholesale --
+   same height, same icon tile, same two lines of text -- because a switch that
+   invented its own row shape would be the only object in this sheet that did.
+
+   THE TRACK IS THE GLASS FAMILY. `--glass-chip` on `--glass-edge` is the same
+   pair the day separator, the call chip and the composer pill wear, which is
+   what makes an off switch read as a quiet piece of the sheet rather than as a
+   disabled control. ON is the accent, filled, because the accent is what this
+   app uses for "this is live right now" everywhere else.
+
+   The row sits outside `.sheet-rows` on purpose: that container groups things
+   you navigate to, and putting a switch inside it would make the group mean
+   two things. The negative top margin closes the gap the hint above leaves. */
+.sheet .sound-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 8px;
+  margin: -6px -8px 0;
+  border-radius: 14px;
+  text-align: left;
+  color: var(--ink);
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.sheet .sound-row:active {
+  background: var(--surface-2);
+  transform: scale(0.985);
+}
+.sound-row .sswitch {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--glass-chip);
+  border: 1px solid var(--glass-edge-strong);
+  transition: background var(--d-tap) ease, border-color var(--d-tap) ease;
+}
+.sound-row .sknob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  /* `translate` and not `left`: `left` is a layout property and the motion
+     lint auto-blocks animating one, correctly -- it costs a layout pass on
+     every frame of a control someone flicks. */
+  transition: transform var(--d-tap) var(--ease-out), background var(--d-tap) ease;
+}
+.sound-row[aria-checked="true"] .sswitch {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.sound-row[aria-checked="true"] .sknob {
+  background: #fff;
+  transform: translateX(18px);
+}
+.sound-row[aria-checked="true"] .sicon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+/* OFF is drawn as off, not merely as "not on": the tile goes quiet with the
+   track, so the row reads at a glance from three feet away rather than
+   requiring the eye to find a 46px switch and decide which end it is at. */
+.sound-row[aria-checked="false"] .sicon {
+  background: var(--surface-2);
+  color: var(--ink-faint);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sound-row .sknob,
+  .sound-row .sswitch {
+    transition: none;
+  }
+}
 /* ── THE DANGER ZONE (Phase 3.2) ──────────────────────────────────────────
    These two rows erase a relationship. They used to be marked as such by a
    0.5px rule and the colour of their own text, which is a distinction you can

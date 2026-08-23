@@ -87,3 +87,21 @@ export {
   isRefusal,
   INVITE_FRESH_MS,
 } from "../src/engine/gameInvite";
+// WS-KNOWS. The "what she remembers" surface derives every row it shows from
+// pure functions of state, in src/state/knows.ts, precisely so the surface is
+// testable offline — see evals/knows.mjs.
+export {
+  timelineFrom,
+  factsFrom,
+  herSideFrom,
+  knowsIsEmpty,
+  dayLabel,
+  monthLabel,
+  ritualLabel,
+  CORRECT_OPENER,
+  KNOWS_MONTHS_MAX,
+  KNOWS_MONTH_MAX,
+  KNOWS_HER_MAX,
+  FORGET_TERM_MIN,
+  FORGET_TERM_MAX,
+} from "../src/state/knows";

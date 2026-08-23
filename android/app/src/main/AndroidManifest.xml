@@ -1,5 +1,36 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- WS-NOTIFY. POST_NOTIFICATIONS is already declared below and stays: it
+         is the Android 13+ runtime permission, requested at the first moment a
+         notification would have helped (src/notify/NotifySheet.tsx), never at
+         launch.
+
+         SCHEDULE_EXACT_ALARM IS REMOVED, and that is a decision rather than a
+         cleanup. @capacitor/local-notifications declares it in its own manifest
+         and the merger would pull it into this APK automatically. We do not
+         want it:
+
+           * nothing in this app schedules an exact alarm. The one scheduled
+             notification is her story, and src/notify/local.ts's `postAt`
+             passes `isExactNotification: false` explicitly — a story that lands
+             inside the OS's own batching window is a story that landed.
+           * the plugin's exact path, on API 31+, OPENS THE SYSTEM "Alarms &
+             reminders" SETTINGS SCREEN the first time it is used. An app that
+             answers "she posted a story" with a settings screen is worse than
+             an app with no story notification.
+           * Play treats SCHEDULE_EXACT_ALARM as a declared-use permission for
+             alarm-clock and calendar apps. Shipping one we do not use is a
+             policy review we would lose and should.
+
+         Removing it here rather than in the plugin means an upgrade of the
+         plugin cannot quietly reintroduce it. If a future feature genuinely
+         needs a to-the-second alarm, delete this line WITH the argument for
+         why, not because the build complained. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        tools:node="remove" />
+
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />

@@ -1842,3 +1842,74 @@ through a price page. Owner confirmed: "keep at 3.6 only."
 
 **Reversed if:** a pre-registered personality battery prefers another
 model within the same cost envelope, or the free tier stops serving 3.6.
+
+---
+
+## `sound-vocabulary-closed` (2026-08-23, WS-SOUND)
+
+The sound layer ships as a CLOSED vocabulary in `src/sound/vocabulary.ts` —
+five cues (`send`, `receive`, `place`, `take`, `moment`), each declaring the
+haptic level it rides with, its peak gain relative to one master, and its full
+scheduled span — and `feel(cue)` fires sound and haptic from one call so a
+component can never pick an intensity. Every sound is synthesised from
+oscillators and shaped noise at play time: zero assets, nothing to license,
+nothing to fetch, and the palette is edited by changing a frequency rather than
+by commissioning a wav.
+
+Why a table rather than a `playTone(freq, ms)`: this is the same argument
+`native/haptics.ts` makes for having exactly three levels. A sensory channel
+with no fixed vocabulary is one where nine components each invent a beep, and
+the failure mode is not "too loud", it is that the set loses its ranking and
+the ear stops attending to any of it. The table is also what the gate can
+enforce — a closed set that nothing closes is just a set.
+
+Sound gets MORE cues than haptics and the SAME three levels, because the ear
+can tell a piece of wood set on a board from a message leaving your hand and
+the hand genuinely cannot.
+
+**Reversed if:** a measured preference test shows people cannot tell two cues
+apart (then merge them), or the palette needs a sixth distinct event that is
+genuinely a user action and not an announcement.
+
+---
+
+## `sound-default-on-quiet` (2026-08-23, WS-SOUND)
+
+One switch in Settings (`AppState.soundOn`), default ON, where `false` is the
+only value that means off — absent means on, so an install that predates the
+field changes nothing until someone touches it (`age-tier-never-realtime`).
+No volume slider: the mix is decided once, low (master 0.34; the loudest cue
+peaks at 0.255 of full scale on a transient tens of milliseconds long), and the
+only thing a person needs from that screen is a way to make it stop. A volume
+control in a companion app is a thing nobody moves and everybody asks about.
+
+Turning it ON previews itself with the `receive` cue, because hearing HER
+arrival is the honest answer to "what will this sound like".
+
+**Reversed if:** the owner or a tester reports the level wrong on real hardware
+in a real room — in which case the fix is the one master constant, not a
+slider.
+
+---
+
+## `sound-gates-four-and-two-sources` (2026-08-23, WS-SOUND)
+
+Nothing sounds unless all four pass: a user gesture has happened (no
+AudioContext exists before it), the toggle is on, no call is live/connecting/
+sharing a screen, and the app is visible. The call gate reads TWO independent
+sources — `state/callStatus.ts`, published by the call engine, and a flag
+`Chat.tsx` publishes from its own `inCall` prop — because the window in which a
+call exists is wider than the window in which the engine is mounted, and a gate
+with one source is a gate with one way to be stale.
+
+The call gate is not a taste rule. Anything emitted during a call leaves the
+speaker, enters the mic, and lands in the echo coefficient the entire audio
+floor at `evals/echosim/` is measured against; a defect in the sound layer
+would be diagnosed in the voice lane. `src/sound/` therefore imports nothing
+from `src/voice/`, asserted on the source, and the existing ringback is
+untouched.
+
+**Reversed if:** a native plugin makes OS silent mode readable (add it at the
+`registerSilenceProbe` seam — the gate exists and is tested, and is wired to
+nothing today), or the echo work makes in-call cues provably free, which would
+need an echosim table and not an argument.

@@ -341,8 +341,28 @@ export type ForgetTarget =
   | { scope: "day"; day: string; tzMin: number }
   | { scope: "all" };
 
+/**
+ * A1 (docs/research/MEMORY-FIELD-SURVEY.md §Q5): what she is ENTITLED TO SAY,
+ * decided on the server where the row counts are, not inferred here.
+ *
+ *   done   — rows went; the past tense is true.
+ *   hedged — the mutation-time matcher did not answer and the deterministic
+ *            one did. Rows went, so nothing she says is false, but the delete
+ *            may be partial and the system says so rather than flattening the
+ *            two cases into one.
+ *   none   — nothing matched. There is no receipt to give, and giving one
+ *            anyway is the single worst failure this feature has
+ *            (`activity-forgot-the-teardown`: agreeing and not deleting).
+ *
+ * Older servers do not send the field; it defaults to "done", which is exactly
+ * the behaviour that shipped before, so a stale deploy degrades to the status
+ * quo rather than to silence.
+ */
+export type ForgetReceipt = "done" | "hedged" | "none";
+
 export interface ForgetResult {
   scope: ForgetTarget["scope"];
+  receipt: ForgetReceipt;
   deleted: { log: number; nodes: number; edges: number };
 }
 
@@ -386,6 +406,13 @@ export async function forgetMemories(
   device: string,
   target: ForgetTarget,
   accessToken?: string,
+  /** A1: set on a SPOKEN turn. The mutation-time matcher is worth seconds in
+   *  chat and is not worth them out loud — the survey's own constraint is
+   *  that it "must not run on the live-call lane", and a call turn that goes
+   *  quiet for five seconds is a worse product than a narrower delete plus an
+   *  honest receipt. Skipping it yields `receipt: "hedged"`, which is the
+   *  truth: the deterministic matcher answered. */
+  opts?: { nohook?: boolean },
 ): Promise<ForgetResult | null> {
   if (!device) return null;
   const done = diagTimer("chat", "forget", { scope: target.scope });
@@ -395,7 +422,12 @@ export async function forgetMemories(
   // over a second endpoint is how two copies of one rule start to disagree.
   if (target.scope === "all") void wipeServerState(accessToken, "forget");
   try {
-    const r = await post({ op: "forget", device, ...target });
+    const r = await post({
+      op: "forget",
+      device,
+      ...target,
+      ...(opts?.nohook ? { nohook: true } : {}),
+    });
     const d = r.ok ? await r.json() : null;
     if (!d?.ok) {
       done({ ok: false });
@@ -406,10 +438,12 @@ export async function forgetMemories(
       nodes: Number(d.deleted?.nodes) || 0,
       edges: Number(d.deleted?.edges) || 0,
     };
+    const receipt: ForgetReceipt =
+      d.receipt === "none" || d.receipt === "hedged" ? d.receipt : "done";
     // the SCOPE is telemetry; the name of the thing they asked her to drop
     // never is — a diag row naming it would outlive the memory it deleted
-    done({ ok: true, ...deleted });
-    return { scope: d.scope, deleted };
+    done({ ok: true, receipt, ...deleted });
+    return { scope: d.scope, receipt, deleted };
   } catch {
     done({ ok: false });
     return null;

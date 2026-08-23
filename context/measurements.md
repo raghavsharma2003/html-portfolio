@@ -2555,3 +2555,38 @@ Method: judge-backtest.mjs against the archived blind verdicts
 - Also measured: a pasted "AQ."-prefixed Google credential is not an
   API key shape and returns 403 project-denied; only AIza keys join
   any pool, after a live probe.
+
+## `sound-browser-2026-08-23` — the sound layer, in a real browser (WS-SOUND)
+
+Method: `evals/sound-browser.mjs`. Chromium (playwright), 390x844, the app
+built and served by `vite preview`, `/api/chat` stubbed so the script is
+deterministic and costs $0. `AudioContext` is patched by an init script that
+runs BEFORE any app code, recording every context constructed and every source
+node started; the sound layer's context is identified by its `latencyHint:
+"interactive"` (the voice lane builds its contexts bare). Node starts are
+grouped into CUES by a 25ms gap, because a cue schedules all its voices in one
+synchronous block and the module's own throttle floor is 70ms. n = 1 run per
+case, 5 cases; every number below is a count, not a sample.
+
+- AudioContexts belonging to the sound layer before the first user gesture: **0**
+  (app mounted, home painted, thread restored, layer armed).
+- After the first gesture: **1**, and **0 cues** — unlocking is silent, and a
+  restored thread full of her messages is not an arrival.
+- Her opener in a fresh chat: **1 cue**.
+- One send: **1 cue**.
+- A three-bubble reply: **2 cues total** (one send + one arrival), not 4.
+- Toggle tapped off in Settings: **0 cues** on the next send, and `soundOn:
+  false` in localStorage.
+
+Offline gate (`evals/sound.mjs`, fake AudioContext, ~2s, $0): every cue is
+scheduled within its declared span, respects its declared peak, and carries
+both layers (a noise transient AND a pitched body). Absolute peak of the
+loudest cue = 0.75 x 0.34 master = **0.255** of full scale; ceiling 0.28.
+Palette spans 0.55-0.75 relative, so the set is ranked rather than flat.
+Negative control in the same run: with the in-call clause deleted from the real
+bundle, a live call DOES leak a cue.
+
+Not measured, and deliberately not implied: whether any of it sounds good, and
+whether Android's ringer switch silences it. Neither is reachable from this
+harness. `src/sound/index.ts` states the iOS half as `[unmeasured, platform
+documentation]` rather than as coverage.

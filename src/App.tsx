@@ -14,6 +14,7 @@ import { activeStories } from "./engine/storyCatalog";
 import ChessActivity from "./components/ChessActivity";
 import WouldYouRatherActivity from "./components/WouldYouRatherActivity";
 import TicTacToeActivity from "./components/TicTacToeActivity";
+import KnowsScreen from "./components/KnowsScreen";
 import { CloseIcon, ChevronIcon } from "./components/icons";
 import { applyTheme, watchSystemTheme, watchSky } from "./engine/theme";
 import { configureSky, parseSkySeed } from "./engine/sky";
@@ -46,6 +47,31 @@ import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 // depend on a network-free chunk load — and the window before it resolves is
 // the window in which back closes the app.
 import { App as CapApp } from "@capacitor/app";
+// ── WS-NOTIFY ────────────────────────────────────────────────────────────
+// The whole notification surface is these two imports. Everything behind them
+// no-ops without keys (there are none to have — the local lane needs nothing
+// configured) and without permission (nothing is posted and nothing is asked
+// until the app has something real to say). See src/notify/index.ts.
+import NotifySheet from "./notify/NotifySheet";
+import {
+  cancelStory,
+  clearMissedCall,
+  clearReachability,
+  clearReply,
+  notifyAvailable,
+  permissionState,
+  postMissedCall,
+  postReply,
+  pushConfigured,
+  registerForPush,
+  requestPermission,
+  scheduleStory,
+  shouldExplain,
+  submitPushToken,
+  type NotifyPermission,
+} from "./notify";
+import type { FeltReason } from "./notify/prefs";
+import { nextStoryChange, storyAtChange } from "./notify/story";
 import {
   consumeOAuthCallback,
   ensureFresh,
@@ -91,6 +117,12 @@ const PULL_MIN_GAP_MS = 20_000;
  *  63.5 KB / 99.8 KB with a chess session (see the effect). */
 const PULL_PERIOD_MS = 90_000;
 
+/** Where the API lives for THIS build. The APK's WebView serves from
+ *  `https://localhost`, so a relative path there reaches Capacitor's own local
+ *  server and not the site. Same expression the live-token prewarm uses; stated
+ *  once at module level because two copies of an origin is one copy too many. */
+const NOTIFY_API_BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+
 // union-merge two message histories by id (never wholesale replacement —
 // a message typed during sign-in must survive), honoring the clear-chat
 // tombstone so a wiped chat can't be resurrected by a stale copy
@@ -128,6 +160,19 @@ export default function App() {
   const [callFrom, setCallFrom] = useState<"him" | "her">("him");
   const [gamesOpen, setGamesOpen] = useState(false);
   const [usOpen, setUsOpen] = useState(false);
+  // WS-KNOWS. "What she remembers" is reached from Settings > You, and Settings
+  // lives inside Chat.tsx, which this file does not own. So the row announces
+  // itself and this file listens: one event, one listener, no prop chain
+  // through a component another workstream owns, and no second writer for
+  // state that is not ours (the shape `activity-forgot-the-teardown` is filed
+  // under). Everything else about it is the ordinary overlay contract below.
+  const [knowsOpen, setKnowsOpen] = useState(false);
+  const [composePrefill, setComposePrefill] = useState<{ text: string; n: number }>({ text: "", n: 0 });
+  useEffect(() => {
+    const open = () => setKnowsOpen(true);
+    window.addEventListener("meera:knows", open);
+    return () => window.removeEventListener("meera:knows", open);
+  }, []);
   const [settingsSignal, setSettingsSignal] = useState(0);
   const [storyOpen, setStoryOpen] = useState(false);
 
@@ -387,6 +432,227 @@ export default function App() {
     };
   }, []);
 
+  // ══ WS-NOTIFY — the app went AWAY ═══════════════════════════════════════
+  //
+  // `frontTick`'s mirror image, and it needs to be its own signal rather than
+  // "not front": `focus` has no counterpart that means "the user left" (a
+  // desktop `blur` fires when a devtools panel takes focus), so this listens
+  // to `visibilitychange` alone and to the hidden half of it only. Two readers,
+  // both below: her story is armed on this edge, and a call ringing into an app
+  // that has just been backgrounded is a call he is about to miss.
+  const [awayTick, setAwayTick] = useState(0);
+  useEffect(() => {
+    const onAway = () => {
+      if (document.visibilityState === "hidden") setAwayTick((n) => n + 1);
+    };
+    document.addEventListener("visibilitychange", onAway);
+    return () => document.removeEventListener("visibilitychange", onAway);
+  }, []);
+
+  // ══ WS-NOTIFY — permission, felt moments, and the three things ══════════
+  //
+  // The law every line here answers to is `proactive-reason-contingent`:
+  // SOMETHING HAPPENED. Each notification below is caused by an event with a
+  // timestamp — her reply, her call, her story turning over — and none of them
+  // can be caused by his absence, because nothing in this block reads how long
+  // it has been since he was here. There is no elapsed-time input anywhere in
+  // it, which is a property a reader can check rather than a promise.
+
+  /** What the OS says right now, re-read on every front edge. Never cached
+   *  across one: a user can revoke this in system settings while the app is
+   *  open, and a stale "granted" turns that into notifications that silently
+   *  never arrive — the failure mode nobody reports because it looks like
+   *  nothing happening. */
+  const [notifyPerm, setNotifyPerm] = useState<NotifyPermission>("prompt");
+  useEffect(() => {
+    let dropped = false;
+    void permissionState().then((p) => {
+      if (!dropped) setNotifyPerm(p);
+    });
+    return () => {
+      dropped = true;
+    };
+  }, [frontTick]);
+
+  /** Which event made the ask worth making. Component state, not stored: it
+   *  only decides one sentence in the sheet, and a stale reason outliving the
+   *  sheet would be a fact about him this app kept for no purpose. */
+  const [feltReason, setFeltReason] = useState<FeltReason | null>(null);
+
+  /**
+   * "A notification would have helped just now, and we could not send one."
+   *
+   * This is the ONLY thing that arms the permission ask, which is what makes
+   * an ask at onboarding structurally impossible rather than merely avoided:
+   * nothing can call it until she has already replied or called. §4 #20.
+   *
+   * Written once. A second felt moment must not restamp it — the stamp is
+   * "this became worth asking about", not "the last time it did", and a moving
+   * timestamp is the seed of a re-nag.
+   */
+  const markFelt = useCallback(
+    (reason: FeltReason) => {
+      const now = Date.now();
+      setState((s) => {
+        const p = s.notifyPrefs ?? {};
+        if (p.felt || p.declined || p.asked) return s;
+        return { ...s, notifyPrefs: { ...p, felt: now } };
+      });
+      setFeltReason((cur) => cur ?? reason);
+    },
+    [setState],
+  );
+
+  // ── 1. she replied and he was not looking ──────────────────────────────
+  //
+  // Watched HERE rather than in Chat.tsx for the reason App already paints the
+  // thread's back button: Chat belongs to another workstream. It also happens
+  // to be the right place — `state.messages` is the same array both lanes
+  // append to, so a reply that arrives on the call lane, from a burst, or from
+  // a sync pull is seen identically, with no second writer.
+  const notifiedUpTo = useRef(0);
+  const notifySeeded = useRef(false);
+  useEffect(() => {
+    let newest = 0;
+    for (const m of state.messages) newest = Math.max(newest, m.at ?? 0);
+    // MOUNT IS NOT AN ARRIVAL. Without this the first render of a returning
+    // user would notify about the whole history, which on a cold start is a
+    // lock screen full of a conversation he has already read.
+    if (!notifySeeded.current) {
+      notifySeeded.current = true;
+      notifiedUpTo.current = newest;
+      return;
+    }
+    if (newest <= notifiedUpTo.current) return;
+    const since = notifiedUpTo.current;
+    notifiedUpTo.current = newest;
+    // He is looking at it. The bubble is the notification.
+    if (!document.hidden) return;
+    const hers = state.messages.filter(
+      (m) =>
+        (m.at ?? 0) > since &&
+        m.from === "her" &&
+        // Call turns are SPOKEN words: hidden from the thread by design, and a
+        // lock screen is the one place they must not leak to. `watched` turns
+        // ride the same flag.
+        (!m.channel || m.channel === "chat"),
+    );
+    if (!hers.length) return;
+    void (async () => {
+      const r = await postReply(hers, state.notifyPrefs);
+      if (r === "posted") tel("notify.posted", { kind: "reply", bubbles: hers.length });
+      // "unpermitted" is the felt moment: we had something of hers to say and
+      // the OS would not let us. "nothing" (a bare gif, a call record) must
+      // never arm the ask — asking for permission to send a notification we
+      // would not have sent is asking for nothing.
+      if (r === "unpermitted") markFelt("message");
+    })();
+  }, [state.messages, state.notifyPrefs, markFelt]);
+
+  // ── 2. the call he missed ──────────────────────────────────────────────
+  //
+  // The cause is `AppState.callback`, which `useCallEngine` arms ONLY when a
+  // call dropped mid-sentence. So this inherits an already-reason-contingent
+  // event rather than opening a new one, and it can never fire for a call that
+  // did not ring.
+  //
+  // `awayTick` is in the deps on purpose: the ring can be on screen when he
+  // switches apps, and the moment he does is the moment it becomes missed.
+  useEffect(() => {
+    const cb = state.callback;
+    if (!cb || inCall) return;
+    const fire = () => {
+      if (!document.hidden) return;
+      void (async () => {
+        const r = await postMissedCall(state.notifyPrefs);
+        if (r === "posted") tel("notify.posted", { kind: "missed_call" });
+        if (r === "unpermitted") markFelt("call");
+      })();
+    };
+    const wait = cb.at - Date.now();
+    if (wait <= 0) {
+      fire();
+      return;
+    }
+    const t = setTimeout(fire, wait + 50);
+    return () => clearTimeout(t);
+  }, [state.callback, state.notifyPrefs, inCall, awayTick, markFelt]);
+
+  // ── 3. her story, armed while he is away ───────────────────────────────
+  //
+  // The one scheduled notification in the product, and `src/notify/index.ts`'s
+  // `scheduleStory` carries the full argument for why it is not the hourglass
+  // §5(a) forbids, plus the two things that would reverse it. The mechanics
+  // that make the argument true are here:
+  //
+  //   ARMED ON LEAVING, CANCELLED ON RETURNING. It exists only in the window
+  //   where a notification is the only way to know. Someone using the app when
+  //   her story turns over sees the ring change, and gets nothing on top of it.
+  //
+  //   THE TIME IS HERS. `nextStoryChange` is a search over storyCatalog's own
+  //   slot function — Bangalore's clock, identical for every user, with no
+  //   input from him anywhere in it.
+  useEffect(() => {
+    if (awayTick === 0) return;
+    void (async () => {
+      const at = nextStoryChange();
+      const story = at ? storyAtChange(at) : null;
+      const r = await scheduleStory(
+        state.notifyPrefs,
+        at && story ? { at, desc: story.desc } : null,
+      );
+      if (r === "scheduled") tel("notify.story_armed", { at });
+    })();
+  }, [awayTick, state.notifyPrefs]);
+
+  // ── he came back: take everything down ─────────────────────────────────
+  //
+  // Including the story alarm, which is what keeps it to the away window. The
+  // promise this keeps is small and load-bearing: nothing this app posted is
+  // still sitting on a lock screen after he has read it in the app. A stale
+  // notification is a second, worse copy of a message — one that says she is
+  // waiting when she is not.
+  useEffect(() => {
+    void clearReply();
+    void clearMissedCall();
+    void cancelStory();
+  }, [frontTick]);
+
+  // ── the push slot, which registers nothing until it is configured ──────
+  useEffect(() => {
+    if (!pushConfigured()) return; // the shipping state; see src/notify/config.ts
+    if (notifyPerm !== "granted") return; // push permission IS notification permission
+    void (async () => {
+      const r = await registerForPush();
+      if (r.ok) await submitPushToken(NOTIFY_API_BASE, state.deviceId, r.token);
+    })();
+  }, [notifyPerm, state.deviceId]);
+
+  // ── the teardown's edge ────────────────────────────────────────────────
+  //
+  // BOTH doors write `clearedAt` (Chat.tsx's `tearDownLocally` stamps it for
+  // clear-chat and for "make her forget you" alike), so watching it advance is
+  // one observer for both without this file becoming a second writer for
+  // another workstream's state.
+  //
+  // Why reachability is torn down at all, and why it is not an AppState field:
+  // see `clearReachability` in src/notify/index.ts. Short version: a
+  // notification still on a lock screen quoting a conversation he has just
+  // erased is that conversation surviving its own deletion in the most visible
+  // place it could, and a push token that outlives "make her forget you" is her
+  // able to contact a stranger.
+  const clearedSeen = useRef<number | null>(null);
+  useEffect(() => {
+    const at = state.clearedAt ?? 0;
+    if (clearedSeen.current === null) {
+      clearedSeen.current = at;
+      return;
+    }
+    if (at <= clearedSeen.current) return;
+    clearedSeen.current = at;
+    void clearReachability(NOTIFY_API_BASE, state.deviceId);
+  }, [state.clearedAt, state.deviceId]);
+
   // ── THE DERIVED LEDGER ROWS ────────────────────────────────────────────
   //
   // Two things she should be able to refer to later, written into the ledger
@@ -522,6 +788,10 @@ export default function App() {
       setStoryOpen(false);
       return "overlay";
     }
+    if (knowsOpen) {
+      setKnowsOpen(false);
+      return "overlay";
+    }
     if (usOpen) {
       setUsOpen(false);
       return "overlay";
@@ -535,7 +805,7 @@ export default function App() {
       return "chat";
     }
     return "none";
-  }, [activity, gamesOpen, storyOpen, usOpen, authOpen, surface]);
+  }, [activity, gamesOpen, storyOpen, usOpen, knowsOpen, authOpen, surface]);
 
   // THE OVERLAY SENTINELS. One history entry per open overlay, so the WEB
   // back has something to consume and the two backs stay symmetric — pressing
@@ -553,6 +823,7 @@ export default function App() {
     (gamesOpen ? 1 : 0) +
     (storyOpen ? 1 : 0) +
     (usOpen ? 1 : 0) +
+    (knowsOpen ? 1 : 0) +
     (authOpen ? 1 : 0);
   const held = useRef(0);
   useEffect(() => {
@@ -815,6 +1086,16 @@ export default function App() {
       // this IS a pull — stamp it, or the focus pull below fires again 700ms
       // into a session that has just read the same row
       lastPullAt.current = Date.now();
+      // AN ACCOUNT SWITCH IS A TEARDOWN TOO (evals/teardown.mjs's sibling
+      // boundary). Reachability goes with everything else relational, and it
+      // goes HERE rather than inside the updater below because that updater
+      // must stay pure — React may call one twice, and a second revoke would be
+      // a second network call for a token that is already gone. It reads the
+      // OUTGOING deviceId deliberately: the branch below rotates it, and the
+      // token that has to be revoked belongs to the account that is leaving.
+      if (state.lastAccountId && state.lastAccountId !== fresh.userId) {
+        void clearReachability(NOTIFY_API_BASE, state.deviceId);
+      }
       setState((s) => {
         // account switch on a shared browser: never carry the previous
         // account's (or anonymous) conversation into this account
@@ -1085,6 +1366,7 @@ export default function App() {
               inCall={inCall}
             activityOpen={activity !== null}
             openSettingsSignal={settingsSignal}
+            composePrefill={composePrefill}
               onVoiceCall={() => startCall("")}
               onProfile={() => setAuthOpen(true)}
               onGames={() => setGamesOpen(true)}
@@ -1124,7 +1406,7 @@ export default function App() {
             // opaque call surface — on the most battery-sensitive screen in
             // the product. Covered means off.
             data-on={
-              surface === "home" && !inCall && activity === null && !storyOpen && !usOpen && !gamesOpen && !authOpen
+              surface === "home" && !inCall && activity === null && !storyOpen && !usOpen && !knowsOpen && !gamesOpen && !authOpen
                 ? ""
                 : undefined
             }
@@ -1272,6 +1554,17 @@ export default function App() {
             )}
           </ErrorBoundary>
           {usOpen && <UsScreen state={state} onExit={() => setUsOpen(false)} />}
+          {knowsOpen && (
+            <KnowsScreen
+              state={state}
+              onExit={() => setKnowsOpen(false)}
+              onCorrect={(text) => {
+                setKnowsOpen(false);
+                openChat();
+                setComposePrefill((cur) => ({ text, n: cur.n + 1 }));
+              }}
+            />
+          )}
           {/* ── HER STORY, from the world ─────────────────────────────────
               The story card on home opens the SAME viewer the chat header's
               ring opens, mounted here as an overlay sibling like every other
@@ -1346,6 +1639,11 @@ export default function App() {
               onSignOut={() => {
                 track(state.deviceId, "signout", {}, state.auth?.userId);
                 serverRev.current = null;
+                // Signing out mints a fresh device identity two lines below,
+                // which would orphan this device's push registration under the
+                // OLD id — a live token nothing can ever revoke again. Revoked
+                // here, while the id that owns it is still the current one.
+                void clearReachability(NOTIFY_API_BASE, state.deviceId);
                 // privacy on shared browsers: signing out wipes the local
                 // conversation and mints a fresh device identity — signing
                 // back in restores everything from the account's server copy
@@ -1364,6 +1662,77 @@ export default function App() {
               }}
             />
           )}
+          {/* ── WS-NOTIFY: the one ask ──────────────────────────────────────
+              A NON-MODAL card, and that is a constraint rather than a style.
+              App's back machinery (closeTop, the overlay sentinels, unwind) is
+              another workstream's and is not edited by this one — and a modal
+              layer the back handler does not know about is a layer the hardware
+              back closes the APP over, which is the exact defect that machinery
+              was written to fix. With no veil and no aria-modal there is
+              nothing to trap and nothing for back to mean: it covers nothing,
+              home behaves exactly as it did, and the card is still there next
+              time if he ignores it.
+
+              Home only, and only with nothing else open. Home is the surface
+              that is about her (her ring, her presence, her sky), which is the
+              right room to be asked whether you want to hear from her, and it
+              is the one surface with no composer for a bottom card to cover.
+
+              `shouldExplain` is the whole rule and it is pure — it is false
+              until a FELT moment has happened, and false forever after either
+              answer. See src/notify/index.ts. */}
+          {state.onboarded &&
+            surface === "home" &&
+            !inCall &&
+            activity === null &&
+            !storyOpen &&
+            !usOpen &&
+            !gamesOpen &&
+            !authOpen &&
+            shouldExplain(state.notifyPrefs, notifyPerm, notifyAvailable()) && (
+              <NotifySheet
+                reason={feltReason ?? "message"}
+                onAllow={() => {
+                  // Stamped BEFORE the dialog, not after: Android 13+ gives one
+                  // runtime prompt and this is it being spent. If the process
+                  // dies while the system dialog is up, the ask has still
+                  // happened, and a record that only exists on the happy path
+                  // is how a "never again" becomes "usually not".
+                  const now = Date.now();
+                  setState((s) => ({
+                    ...s,
+                    notifyPrefs: { ...(s.notifyPrefs ?? {}), asked: now },
+                  }));
+                  tel("notify.ask", { reason: feltReason ?? "message" });
+                  void (async () => {
+                    const p = await requestPermission();
+                    setNotifyPerm(p);
+                    const at = Date.now();
+                    setState((s) => ({
+                      ...s,
+                      notifyPrefs: {
+                        ...(s.notifyPrefs ?? {}),
+                        ...(p === "granted" ? { granted: at } : { declined: at }),
+                      },
+                    }));
+                    tel("notify.answered", { granted: p === "granted" });
+                  })();
+                }}
+                onDecline={() => {
+                  // Terminal, and the card's own copy says so. `shouldExplain`
+                  // never returns true again once this is set, on any device
+                  // this state reaches — which is why the switch in More has to
+                  // exist: a refusal we honour forever needs a door he can open
+                  // himself, or "no" quietly means "never".
+                  const now = Date.now();
+                  setState((s) => ({
+                    ...s,
+                    notifyPrefs: { ...(s.notifyPrefs ?? {}), declined: now },
+                  }));
+                  tel("notify.declined", { reason: feltReason ?? "message" });
+                }}
+              />
+            )}
           {/* A crossed milestone celebrates OVER whatever is on screen — an
               overlay sibling, never an unmount, LAST in DOM so it paints over
               same-z sheets. One at a time; fire-once is the engine's promise;

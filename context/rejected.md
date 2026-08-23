@@ -1791,3 +1791,87 @@ whole past the tombstone; the cap bounds only what a REMOTE copy may add.
 **The generalisable rule:** a bound applied to a merge result is a
 delete operator wearing a cap's name; bound the incoming side, never
 the union.
+
+---
+
+## `typing-tick` — the sound the typing indicator does not get (2026-08-23)
+
+**Tried (WS-SOUND, decided before building):** a very quiet tick when her
+"typing…" indicator appears, which is what the brief asked to be judged and
+what every messaging app with a sound layer does.
+
+**What breaks, and any one of the three is enough.** (1) The indicator is a
+STATE, not an event, and `native/haptics.ts`'s standing rule — a haptic is for
+an event, never for a state — binds the ear harder than the hand, because a
+state that ticks is a state that nags. (2) It is not one appearance:
+`Chat.tsx`'s delivery loop puts the indicator up and takes it down once PER
+BUBBLE, so a three-bubble reply is three ticks before a single word arrives and
+the arrival cue that actually matters lands fourth. (3) Nothing he did is in
+front of it — it is a sound the app makes while he is not looking, which is the
+definition of a ping and the exact failure `docs/PRODUCT-SUPERIORITY.md` #1
+pre-registered as fails-if (e).
+
+**Now:** the refusal is a row in `REFUSED` in `src/sound/vocabulary.ts` with
+that argument next to it, and `evals/sound.mjs` asserts it has not become a
+cue. Five more are refused there on the same terms, including a call-connect
+tone (physics, not taste) and an error buzz (a sound attached to a bad outcome
+teaches dread).
+
+**The generalisable rule:** in a sensory layer, an absence with no reason
+attached is indistinguishable from an oversight and will be "fixed" by the next
+agent. `dead-writers` has a mirror image — write the refusals down as data, not
+as an empty file.
+
+---
+
+## `receive-per-bubble` — one arrival cue per BUBBLE (2026-08-23)
+
+**Tried (WS-SOUND):** the obvious wiring — sound the `receive` cue wherever
+her message enters the thread, i.e. at every `pushMsg` inside `deliver()`.
+
+**What breaks:** the same arithmetic that made `haptics.ts` refuse her messages
+a haptic outright. A three-bubble reply is three arrivals inside four seconds,
+and three of anything in four seconds is an alarm rather than an arrival. Sound
+is allowed ONE where touch was allowed none, because it decays and points and
+so can be heard from across a desk without being felt in a pocket — but only
+one.
+
+**Now:** `deliver()` routes every one of her messages through a local `landed`
+helper that sounds on the FIRST to arrive and then never again for that
+delivery. Per-delivery and not per-turn on purpose: a follow-up cycle after a
+held `[search:]` lookup is genuinely a second time she came back and gets its
+own arrival.
+
+**Measured, in a real browser** (`evals/sound-browser.mjs`, chromium, the
+AudioContext patched before any app script): a scripted three-bubble reply
+produces exactly 2 cues — his send and one arrival. The naive wiring produces
+4.
+
+**The generalisable rule:** a rule derived for one sensory channel usually has
+a version in the next one, and it is almost never the same rule. Re-derive it
+from the same arithmetic instead of copying the verdict.
+
+---
+
+## `sound-gate-proved-by-silence` — the assertion that could not fail (2026-08-23)
+
+**Tried (WS-SOUND, caught while writing the gate):** proving the call gate by
+publishing a live call, calling `play()`, and asserting nothing was scheduled.
+
+**What breaks:** it passes identically when the gate works, when the audio
+graph is broken, when the module failed to import, and when the feature was
+deleted. An assertion whose evidence is silence has no negative arm at all, and
+this is the entire class `measured-but-not-felt` names — a gate that cannot be
+seen failing is not a gate.
+
+**Now:** `evals/sound.mjs` takes the REAL bundle, deletes the in-call clause
+from it, re-imports the broken copy, and asserts that the same fixture which
+was silent above now DOES leak a cue. The silence assertions above it are only
+evidence because that one is loud. Same in-run negative-control shape the felt
+gate uses. Also: `blockedBy()` returns WHICH gate stopped a cue rather than a
+boolean, so every gate is driven and named on its own instead of being inferred
+from a shared silence.
+
+**The generalisable rule:** if a test's pass condition is "nothing happened",
+it needs an arm in the same run where something must happen, built by breaking
+the mechanism under test rather than by mocking around it.

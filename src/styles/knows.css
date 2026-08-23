@@ -1,0 +1,476 @@
+/* ─── "What she knows" ─────────────────────────────────────────────────────
+   The stylesheet for src/components/KnowsScreen.tsx. Read that file's header
+   first: the three rules it is built to keep (no counts first, human dates
+   only, every row is a thing that happened) are product rules, and the first
+   two of them are enforced HERE as much as there. A number set at display size
+   would make this the page with the numbers on it; there is no type step in
+   this file large enough to do that, and that is deliberate.
+
+   ── every colour is DERIVED ─────────────────────────────────────────────
+   Same posture us.css and games.css take, for the same payoff: every token
+   below resolves to an app token, so when :root re-inks at night this screen
+   re-inks with it, in one place, with the contrast already measured there.
+   There is no `data-theme` block in this file and there must never be one: a
+   second palette here is a second, unmeasured copy of the first, and it drifts
+   the moment either is touched. scripts/check-contrast.mjs asserts exactly
+   that, so the rule is enforced rather than promised.
+
+   ── the ground is the world's ───────────────────────────────────────────
+   `transparent`, not a colour: the world layer is a real element behind this
+   one, so a ground painted here would sit ON TOP of the painting and hide it
+   while every ratio went on passing. The veil, and therefore the floors for
+   --ink / --ink-dim / the glass family over it, are the thread's, measured in
+   five skies and two themes by the contrast gate. This surface is a call site,
+   not a new set of numbers.
+
+   ── motion ─────────────────────────────────────────────────────────────
+   One idea, used three times: things arrive from just below, staggered, over
+   260ms, capped at seven steps so a long page does not have a row still
+   arriving after a second and a half. Nothing hovers, nothing loops, nothing
+   is longer than the 300ms UI budget. Reduced motion gets the page with no
+   entrance at all, which is the honest reading of "gentler, never absent"
+   for an entrance: there is nothing gentle between a row and the same row.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.knows {
+  /* ── the derived set ── */
+  --k-ground: transparent;
+  --k-card: var(--glass-chip);
+  --k-ink: var(--ink);
+  --k-dim: var(--ink-dim);
+  /* THERE IS NO --k-faint, AND ITS ABSENCE IS A MEASURED RESULT, not a
+     simplification. `--ink-faint` is designed to be the quietest ink there is
+     on a FLAT surface; the dates, the section labels and the closing notes on
+     this page sit on the WALLPAPERED ground, and evals/knows-browser.mjs read
+     them at 2.50:1 against the day sky (floor 3.0) while every ink above them
+     passed at 13:1 or better. So the quiet tier on this surface is --ink-dim,
+     and the page has two ink steps rather than three. The same shape as
+     us.css's `--u-cell` note: a token that is correct on paper is not
+     automatically correct over a painting, and only pixels can say which. */
+  /* a LABEL's boundary on this ground (day separators, the call chip). */
+  --k-line: var(--glass-edge);
+  /* a CONTROL's boundary, gated to >= 3:1 in global.css. The timeline thread
+     takes this one: it is the single line on the page that carries meaning
+     rather than separating things. */
+  --k-line-strong: var(--glass-edge-strong);
+  --k-blur: blur(14px) saturate(1.5);
+  --k-accent: var(--accent);
+  --k-accent-soft: var(--accent-soft);
+  --k-danger: var(--danger);
+
+  position: absolute;
+  inset: 0;
+  z-index: 26; /* over chat and the activity shell (22), under sheets (31) */
+  display: flex;
+  flex-direction: column;
+  background: var(--k-ground, var(--sky-1, var(--bg)));
+  color: var(--k-ink);
+  isolation: isolate;
+  animation: knows-in var(--d-state) var(--ease-out) both;
+}
+
+/* A SIBLING of the scroller, exactly as `.us > .world` and `.chat > .world`
+   are, so a long page can be flicked without ever invalidating the picture
+   behind it. */
+.knows > .world {
+  z-index: -1;
+  contain: strict;
+}
+
+@keyframes knows-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+}
+
+@keyframes knows-row {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* the root is focused on mount so Escape has somewhere to land; it is a
+   container, not a control, and must not draw a ring for that */
+.knows:focus,
+.knows:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* ═══ the chrome ═════════════════════════════════════════════════════════ */
+
+.knows-head {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-shrink: 0;
+  padding: calc(var(--safe-top) + var(--s2)) calc(var(--safe-right) + var(--s3)) var(--s2)
+    calc(var(--safe-left) + var(--s2));
+  background: var(--chrome);
+  backdrop-filter: blur(28px) saturate(1.9);
+  border-bottom: 0.5px solid var(--k-line);
+  z-index: 2;
+}
+.knows-head > .world {
+  z-index: -1;
+}
+/* `.knows-headline` is excluded for the reason us.css states at length: it is
+   `position: absolute` so it centres on the HEADER rather than on the space
+   left beside the back button, and a blanket `position: relative` drops it
+   back into flow against the back control. */
+.knows-head > :not(.world):not(.knows-headline) {
+  position: relative;
+  z-index: 1;
+}
+.knows-headline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  pointer-events: none;
+  text-align: center;
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 400;
+  text-transform: lowercase;
+  letter-spacing: -0.022em;
+  color: var(--k-ink);
+  /* on 320 the back control and the title share a row; the title yields */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 84px;
+}
+.knows-headpad {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.knows-back {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: var(--hit);
+  padding: 0 var(--s3) 0 var(--s1);
+  border-radius: 999px;
+  flex-shrink: 0;
+  color: var(--k-accent);
+  font-size: var(--t-ui);
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  transition:
+    background var(--d-tap) ease,
+    transform var(--d-press) var(--ease-out);
+}
+.knows-back svg {
+  transform: rotate(180deg);
+}
+.knows-back:active {
+  transform: scale(0.96);
+  background: var(--k-accent-soft);
+}
+
+/* the call that is still running underneath. Same chip, same states, same
+   reason as the one on Us: a call accepted while this is open used to leave no
+   sign it was running. */
+.knows-callchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 var(--s3);
+  border-radius: 999px;
+  border: 0.5px solid var(--k-line-strong);
+  background: var(--k-card);
+  backdrop-filter: var(--k-blur);
+  color: var(--k-ink);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.knows-callchip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.knows-callchip[data-state="connecting"] .knows-callchip-dot {
+  background: var(--k-accent);
+}
+.knows-callchip[data-state="degraded"] .knows-callchip-dot {
+  background: var(--accent-warm);
+}
+
+/* ═══ the page ═══════════════════════════════════════════════════════════ */
+
+.knows-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 calc(var(--safe-right) + var(--s4)) calc(var(--safe-bottom) + var(--s6))
+    calc(var(--safe-left) + var(--s4));
+}
+
+/* ── the opening ──────────────────────────────────────────────────────────
+   Serif lowercase, the app's own identity type, at the size a page title takes
+   and no larger. The subtitle is the only instruction on the screen and it is
+   one line. */
+.knows-top {
+  padding: var(--s6) 0 var(--s5);
+}
+.knows-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.028em;
+  text-transform: lowercase;
+  color: var(--k-ink);
+}
+.knows-sub {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-sub);
+  line-height: 1.45;
+  color: var(--k-dim);
+  max-width: 30ch;
+}
+
+/* ── sections ─────────────────────────────────────────────────────────────
+   A section heading is a small caps-height label, not a headline: the content
+   is the page, and five competing headlines is a table of contents. */
+.knows-sec {
+  padding: var(--s5) 0 0;
+}
+.knows-h {
+  margin: 0 0 var(--s3);
+  font-size: var(--t-meta);
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--k-dim);
+}
+.knows-note {
+  margin: var(--s3) 0 0;
+  font-size: var(--t-meta);
+  line-height: 1.5;
+  color: var(--k-dim);
+}
+
+/* ── the timeline ─────────────────────────────────────────────────────────
+   A month is a heading and a thread of entries hanging off one line. The line
+   is the only decorative element on the page and it is not decorative: it is
+   what makes eleven entries read as a stretch of time rather than as a list. */
+.knows-month {
+  padding: 0 0 var(--s4);
+  animation: knows-row 260ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+.knows-mlabel {
+  margin: 0 0 var(--s2);
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 400;
+  text-transform: lowercase;
+  letter-spacing: -0.02em;
+  color: var(--k-ink);
+}
+.knows-time {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--s4);
+  border-left: 1px solid var(--k-line-strong);
+}
+.knows-entry {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+}
+.knows-dot {
+  position: absolute;
+  left: calc(var(--s4) * -1 - 3.5px);
+  top: 15px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--k-line-strong);
+}
+/* the two kinds of entry that are about the two of them, rather than about
+   the app, take the accent. Never more than that: a legend with five colours
+   in it is a chart. */
+.knows-entry[data-kind="met"] .knows-dot,
+.knows-entry[data-kind="us"] .knows-dot {
+  background: var(--k-accent);
+}
+.knows-etext {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--t-sub);
+  line-height: 1.45;
+  color: var(--k-ink);
+}
+.knows-eday {
+  flex-shrink: 0;
+  font-size: var(--t-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--k-dim);
+}
+
+/* ── the facts ────────────────────────────────────────────────────────────
+   One glass card per row: the row has two controls on it, and a control needs
+   a surface to sit on that is not the sky. The controls sit UNDER the fact
+   rather than beside it, which is what keeps a 320px screen from squeezing the
+   fact into three words. */
+.knows-facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.knows-fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3) var(--s3) var(--s2);
+  border-radius: var(--r-md);
+  border: 0.5px solid var(--k-line);
+  background: var(--k-card);
+  backdrop-filter: var(--k-blur);
+  animation: knows-row 260ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+.knows-ftext {
+  font-size: var(--t-ui);
+  line-height: 1.45;
+  color: var(--k-ink);
+}
+.knows-facts-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+/* "galat hai" is HIS phrase, so it is set the way his own words are set: plain
+   weight, lowercase, quiet. It is a correction, not an alarm. */
+.knows-fix {
+  min-height: 32px;
+  padding: 0 var(--s3);
+  border-radius: 999px;
+  border: 0.5px solid var(--k-line-strong);
+  color: var(--k-dim);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  transition:
+    background var(--d-tap) ease,
+    color var(--d-tap) ease,
+    transform var(--d-press) var(--ease-out);
+}
+.knows-fix:active {
+  transform: scale(0.96);
+  background: var(--k-accent-soft);
+  color: var(--k-accent);
+}
+.knows-drop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  border-radius: 999px;
+  color: var(--k-dim);
+  transition:
+    background var(--d-tap) ease,
+    color var(--d-tap) ease,
+    transform var(--d-press) var(--ease-out);
+}
+.knows-drop:active {
+  transform: scale(0.94);
+  color: var(--k-danger);
+}
+
+/* ── her side ─────────────────────────────────────────────────────────────
+   No card, no controls: these are hers. A quiet rule under each row is enough
+   separation for a list that is only ever read. */
+.knows-hers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.knows-her {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+  border-bottom: 0.5px solid var(--k-line);
+  animation: knows-row 260ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+.knows-her:last-child {
+  border-bottom: 0;
+}
+.knows-htext {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--t-sub);
+  line-height: 1.45;
+  color: var(--k-ink);
+}
+.knows-hday {
+  flex-shrink: 0;
+  font-size: var(--t-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--k-dim);
+}
+
+/* ── the close ────────────────────────────────────────────────────────────
+   One sentence, and it is a promise the layout keeps: everything above is
+   everything there is. A future edit that adds a hidden store makes this line
+   false, which is the point of writing it down. */
+.knows-foot {
+  padding: var(--s6) 0 var(--s5);
+}
+.knows-close {
+  margin: 0;
+  font-size: var(--t-sub);
+  line-height: 1.5;
+  color: var(--k-dim);
+  max-width: 34ch;
+}
+
+/* the confirm rides the sheet family unchanged; it needs one thing of its own,
+   which is to sit above this surface's own z-index */
+.knows-confirm {
+  z-index: 32;
+}
+
+/* ── reduced motion ───────────────────────────────────────────────────────
+   The entrance goes; nothing else here moves, so nothing else has to. The
+   attribute is belt and braces for the WebViews that answer the media query
+   inconsistently, and it is set from the same `matchMedia` read the component
+   already makes. */
+@media (prefers-reduced-motion: reduce) {
+  .knows,
+  .knows-month,
+  .knows-fact,
+  .knows-her {
+    animation: none;
+  }
+}
+.knows[data-still],
+.knows[data-still] .knows-month,
+.knows[data-still] .knows-fact,
+.knows[data-still] .knows-her {
+  animation: none;
+}

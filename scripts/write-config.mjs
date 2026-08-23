@@ -41,6 +41,15 @@ const STRINGS = [
   "TELEGRAM_BOT_TOKEN",
   "TELEGRAM_WEBHOOK_SECRET",
   "TELEGRAM_BOT_USERNAME",
+  // The push slot (api/push-token.js, api/_push.js). OPTIONAL — not in the
+  // required-keys check — so a deploy never fails for lacking them, which is
+  // the shipping state: with these absent the whole push lane no-ops and local
+  // notifications are unaffected. Listed here at the same time as the code
+  // that reads them, because a key that exists locally and not in production
+  // fails in the one place nobody is watching.
+  "FCM_PROJECT_ID",
+  "FCM_CLIENT_EMAIL",
+  "FCM_PRIVATE_KEY",
 ];
 
 // Refusing to overwrite a real local config is not politeness — running this

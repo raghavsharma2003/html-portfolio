@@ -55,3 +55,34 @@ export const TELEGRAM_WEBHOOK_SECRET = "";
 // detect an @-mention. Kept in env rather than hard-coded so a second bot
 // (staging) does not need a code change.
 export const TELEGRAM_BOT_USERNAME = "";
+
+// ── the push slot (api/push-token.js, api/_push.js, src/notify/) ──────────
+//
+// ALL THREE EMPTY IS THE SHIPPING STATE and everything downstream no-ops:
+// api/push-token.js answers 200 { stored: false } without touching the
+// database, api/_push.js returns { sent: 0, reason: "unconfigured" } without a
+// fetch, and the client never registers a service worker or asks for a token.
+// Local notifications (her reply, a missed call, her story) do not read any of
+// this and work with none of it.
+//
+// These are the SERVER half of a Firebase service account — the half that can
+// actually send, which is why it lives here and not in the committed
+// src/notify/config.ts (that file holds the public web config). Get them from
+// Firebase console -> Project settings -> Service accounts -> "Generate new
+// private key", which downloads a JSON file:
+//
+//   FCM_PROJECT_ID   = <project_id>
+//   FCM_CLIENT_EMAIL = <client_email>
+//   FCM_PRIVATE_KEY  = <private_key>, with its \n escapes left exactly as they
+//                      are in the JSON. api/_push.js un-escapes them; a key
+//                      pasted with real newlines through an environment
+//                      variable is the usual way this fails, and it fails as
+//                      "DECODER routines::unsupported", which reads like a
+//                      corrupt key rather than a formatting one.
+//
+// FCM_PRIVATE_KEY is a signing key: it appears in exactly one expression in
+// this repo (accessToken() in api/_push.js) and in no log line, the same rule
+// TELEGRAM_BOT_TOKEN states above.
+export const FCM_PROJECT_ID = "";
+export const FCM_CLIENT_EMAIL = "";
+export const FCM_PRIVATE_KEY = "";

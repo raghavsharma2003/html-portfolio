@@ -1615,13 +1615,35 @@ export async function think(
     // no target = refused (a whole-memory wipe) or unreadable. Nothing is
     // deleted and nothing is claimed: `forgot` stays unset, so no caller
     // downstream shows a receipt for something that did not happen.
-    const res = target ? await forgetMemories(keys.deviceId, target) : null;
+    const res = target
+      ? await forgetMemories(keys.deviceId, target, undefined, { nohook: mode === "call" })
+      : null;
     diag("chat", "forget_fire", {
       scope: target?.scope || "refused",
       ok: Boolean(res),
+      receipt: res?.receipt || "none",
       ...(res?.deleted || {}),
     });
-    if (target && res) parsed.forgot = { target, deleted: res.deleted };
+    // ── A1: THE RECEIPT IS GATED ON WHAT ACTUALLY MATCHED ─────────────────
+    // She has already written "haan hata diya" by this point — the marker and
+    // the agreement come out of the same generation. When nothing matched,
+    // those words are a lie about the strongest promise in the product, and
+    // the ask is the honest version of the same turn: name it and she will.
+    //
+    // Replacing her bubbles with a fixed line is a thing this file does in
+    // exactly one other place (the post-search silence) and for the same
+    // reason: the alternative is worse, and this line asserts nothing about
+    // the world — it only asks. It is deliberately not in persona.ts, because
+    // a sentence in a brief is a sentence she recites elsewhere.
+    if (target && res?.receipt === "none") {
+      parsed.bubbles = ["kaunsi wali? naam bata do"];
+      parsed.photo = undefined;
+      parsed.voice = undefined;
+      parsed.gif = undefined;
+      diag("chat", "forget_unmatched", { scope: target.scope });
+    } else if (target && res) {
+      parsed.forgot = { target, receipt: res.receipt, deleted: res.deleted };
+    }
     parsed.forget = undefined;
   }
 
