@@ -165,7 +165,7 @@ const posted = await page.evaluate(async (m) => {
 }, her("kal chalein? subah nikalte hain"));
 ok("a reply posts", posted.r === "posted", JSON.stringify(posted));
 ok("…one notification, not several", posted.notes.length === 1, JSON.stringify(posted.notes));
-ok("…titled with her name", posted.notes[0]?.title === "Meera");
+ok("…titled with her name", posted.notes[0]?.title === "Maya");
 ok(
   "…and the body is HER SENTENCE, not a template",
   posted.notes[0]?.body === "kal chalein? subah nikalte hain",
@@ -205,7 +205,7 @@ const missed = await page.evaluate(async () => {
   return { r, added: all.length - before, title: n?.title, body: n?.body };
 });
 ok("a missed call posts", missed.r === "posted" && missed.added === 1, JSON.stringify(missed));
-ok("…as her name and a flat statement", missed.title === "Meera" && missed.body === "Missed call");
+ok("…as her name and a flat statement", missed.title === "Maya" && missed.body === "Missed call");
 
 await browser.close();
 console.log(fail ? `\n${fail} FAILURES` : "\nALL PASS");

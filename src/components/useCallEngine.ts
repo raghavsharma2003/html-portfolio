@@ -91,6 +91,15 @@ import {
   shareLedger,
   withRecallAge,
   RECALL_CACHE_MAX_AGE_MS,
+  // WS-LIFECYCLE: the overlap matrix and its facts. Every `direct` cell in
+  // LIFECYCLE_MATRIX has its sender in this file, and evals/lifecycle/run.mjs
+  // reads these names back out of this source to prove it.
+  boardClosedFact,
+  boardOpenedFact,
+  boardOverFact,
+  boardTurnFact,
+  shareEndedFact,
+  lifecycleStateNote,
 } from "../voice/callHistory";
 import { readsAsFarewell } from "../voice/farewell";
 // T16 her.commitments. TYPE-FREE pure transcript walk (honesty.ts imports
@@ -722,6 +731,28 @@ export function useCallEngine(
     publishShareLedger(withShareRecord(stateRef.current.shares, rec));
     setState((s) => ({ ...s, shares: withShareRecord(s.shares, rec) }));
     tel("watch.recorded", { lane, said: said.length, duration_ms: endedAt - startedAt });
+    // ── WS-LIFECYCLE: share_end × call_live ────────────────────────────
+    //
+    // The mirror above is for the NEXT call. This is for THIS one: the
+    // pictures simply stop arriving, and until now nothing told her that.
+    // She had been woken by WATCH_START_DIRECTIVE and left in the register of
+    // someone watching a screen, with no event anywhere that could end it —
+    // the exact mirror image of the start, which has had a note since it
+    // shipped.
+    //
+    // `liveSession.current` is the gate and it is doing real work rather than
+    // being defensive: `endCall` nulls the session BEFORE it calls
+    // stopWatchMode, so a hangup that ends a share sends nothing into a line
+    // that is already gone. A share the USER stopped mid-call still has a
+    // session here, which is exactly the case that needs the note.
+    const live = liveSession.current;
+    if (live) {
+      const note = activityNote(shareEndedFact(Math.round((endedAt - startedAt) / 1000)));
+      if (note) {
+        diag("call", "lifecycle_note", { cell: "share_end", lane });
+        live.direct(note);
+      }
+    }
   }
 
   const callId = useRef("");
@@ -1359,6 +1390,11 @@ export function useCallEngine(
       s.direct(
         `<context: you are mid-call; the line just cleared up. What was said so far:\n${said}\nContinue the SAME conversation from exactly where it is. Do NOT greet again, do NOT restart, do NOT mention the line or anything technical. If it isn't your turn to speak, just a tiny natural acknowledgement or near-silence>`,
       );
+      // WS-LIFECYCLE. This session runs on `liveSystemRef` — the prompt
+      // compiled at CONNECT, which is older here than on any other path: a
+      // late upgrade or a post-share reconnect can be many moves after it was
+      // written. Same close, same reason.
+      settleBoardAfterPickup(s);
       track(stateRef.current.deviceId, "live_call_upgraded", { ...liveTiming.current });
     };
     attempt();
@@ -1809,6 +1845,7 @@ export function useCallEngine(
         // rule mid-brief loses to the directive appended last
         // (`prompt-position`), so the directive itself must carry the scene.
         winner.direct(CALL_OPEN_DIRECTIVE(pickupOpts())); // she picks up, spoken live
+        settleBoardAfterPickup(winner); // WS-LIFECYCLE: close the frozen "her move"
         track(stateRef.current.deviceId, "live_call_started", { ...liveTiming.current });
         return; // realtime session owns the call from here
       }
@@ -1818,6 +1855,7 @@ export function useCallEngine(
         const s2 = liveSession.current;
         if (!mutedRef.current) s2.setMuted(false);
         s2.direct(CALL_OPEN_DIRECTIVE(pickupOpts()));
+        settleBoardAfterPickup(s2); // WS-LIFECYCLE: same close on the by-a-hair path
         track(stateRef.current.deviceId, "live_call_started", { ...liveTiming.current });
         return;
       }
@@ -3835,6 +3873,139 @@ export function useCallEngine(
       lastCallMinAgo,
       sheCalled,
     };
+  };
+
+  // ── WS-LIFECYCLE: THE OVERLAP MATRIX, WIRED ───────────────────────────
+  //
+  // `callHistory.ts`'s LIFECYCLE_MATRIX says, for every (event × concurrent
+  // context) pair, HOW the fact reaches her. This block is every cell in it
+  // whose carrier is `direct` and whose owner is this workstream. The cells
+  // carried by `assembly` need no code here — that is what makes them
+  // `assembly` — and the cells marked `state` are asserted as properties of
+  // AppState by the gate rather than implemented as anything.
+  //
+  // WHY THIS IS ONE EFFECT AND NOT THREE. The board's three endings (opened,
+  // finished, closed by hand) are ONE transition read off ONE snapshot, and
+  // splitting them is how `game_end` and `game_closed` would eventually
+  // disagree about what a closed-with-status board is. The poke effect below
+  // deliberately does NOT do this job: it is about MOVES, its whole design is
+  // salience and rate-limiting, and its `ply === null` branch — a board that
+  // vanished — returns silently by construction. That silent return is the
+  // owner's reported case and the reason this effect exists.
+  type GameSnap = { key: string; kind: string; ply: number; open: boolean; over: boolean };
+  const snapOf = (g: typeof state.game): GameSnap | null => {
+    if (!g) return null;
+    const ply = g.kind === "wyr" ? g.rounds.length : g.game.played.length;
+    const over = g.kind === "wyr" ? false : Boolean(g.game.status?.over);
+    return { key: `${g.kind}:${g.startedAt}`, kind: g.kind, ply, open: !g.closedAt, over };
+  };
+  const lastGameSnap = useRef<GameSnap | null>(null);
+  // The first run of the effect ADOPTS whatever is on screen without saying a
+  // word — a board that was already open when the call connected is the
+  // `call_start × game_open` cell, which the frozen compile already carried as
+  // T15 and as the pickup scene. Narrating it here would be telling her twice.
+  const lifecycleAdopted = useRef(false);
+
+  useEffect(() => {
+    const snap = snapOf(state.game);
+    const prev = lastGameSnap.current;
+    lastGameSnap.current = snap;
+    if (!lifecycleAdopted.current) {
+      lifecycleAdopted.current = true;
+      return;
+    }
+    const s = liveSession.current;
+    // Not on the frozen lane: chat and cascade both recompile with
+    // `activityOf(game)` on every turn, so a note here would be a second copy
+    // of T15. That is the matrix's `assembly` carrier, and it is why these
+    // cells have no code.
+    if (!s) return;
+    // ── game_start × call_live ──────────────────────────────────────────
+    if (snap?.open && (!prev || prev.key !== snap.key)) {
+      const note = activityNote(boardOpenedFact(snap.kind));
+      if (note) {
+        diag("call", "lifecycle_note", { cell: "game_start", kind: snap.kind });
+        s.direct(note);
+      }
+      return;
+    }
+    // ── game_end / game_closed × call_live ──────────────────────────────
+    // The board is gone, or the same board stopped being open. Which of the
+    // two endings it was decides the whole content: a finished game has a
+    // result and an abandoned one explicitly does not, and the second is the
+    // owner's case ("the board was just closed, left unfinished at move N").
+    const ended = prev?.open && (!snap || (snap.key === prev.key && !snap.open));
+    if (!ended || !prev) return;
+    // `activityOf` is the SINGLE derivation both lanes read (state/game.ts's
+    // own note) and it has already rewritten an ended-early board's facts to
+    // "no result". Read it rather than re-deriving the ending here, or the
+    // note and T15 start describing two different games.
+    // ── WHO ALREADY SAID IT ──────────────────────────────────────────
+    // A checkmate does NOT set `closedAt` — the finished board sits on his
+    // screen until he closes it — and the move poke below has already
+    // narrated that ending through its `urgent` branch (status.over crosses
+    // the rate floor and the breath pause, which is the whole reason that
+    // branch exists). So a board that was ALREADY over when he closed it is
+    // not news, and a note here would be her announcing the same ending
+    // twice, minutes apart. Recorded as suppressed rather than dropped
+    // silently: "she said nothing" and "nothing asked her to" are opposite
+    // bugs (the watch lane's own rule).
+    if (prev.over) {
+      diag("call", "lifecycle_note", { cell: "game_end", kind: prev.kind, dropped: "poke_already_said" });
+      return;
+    }
+    const act = activityOf(stateRef.current.game);
+    // over AND closed in one update — the ending never got its own poke.
+    const finished = Boolean(snap?.over);
+    const fact = finished
+      ? boardOverFact(prev.kind, act?.facts.join("; ") ?? "")
+      : boardClosedFact(prev.kind, prev.ply);
+    const note = activityNote(fact);
+    if (!note) return;
+    diag("call", "lifecycle_note", {
+      cell: finished ? "game_end" : "game_closed",
+      kind: prev.kind,
+      ply: prev.ply,
+    });
+    s.direct(note);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.game]);
+
+  // ── THE MOVEVOICE RESIDUAL: a pickup that landed inside her own think ──
+  //
+  // The live prompt is frozen at connect. If the connect happens while it is
+  // HER move — she is mid-think, her engine answers in 1-6s — then the T15
+  // block she will hold for the whole call says "her move", and it is false
+  // three seconds later. That single stale sentence is what had her
+  // deliberating out loud about a move her hand had already made.
+  //
+  // The compile cannot be made to read the live ply: there is exactly one
+  // compile and it happens BEFORE the move lands (G-C4, `liveAssemblies`
+  // reads 1). So the close is a note, sent once, immediately after the pickup
+  // directive, stating the position as it is at that instant.
+  //
+  // SILENT, deliberately. Nothing happened in the room — a sentence in her own
+  // brief went out of date — and a spoken reaction to that is her narrating
+  // her prompt. Same channel the running note and the mid-call re-query use.
+  const settleBoardAfterPickup = (s: LiveSession) => {
+    const g = stateRef.current.game;
+    if (!g || g.closedAt) return; // no open board: nothing in the brief to correct
+    const ply = g.kind === "wyr" ? g.rounds.length : g.game.played.length;
+    const turn: "hers" | "his" | "over" =
+      g.kind === "wyr"
+        ? "his"
+        : g.game.status.over
+          ? "over"
+          : // `status.turn` rather than the FEN: ttt has no FEN and chess's
+            // status carries the same fact, so one expression covers both
+            // boards and a third game does not have to add a branch here.
+            g.game.status.turn === g.herSide
+            ? "hers"
+            : "his";
+    const note = lifecycleStateNote(boardTurnFact(g.kind, ply, turn));
+    if (!note) return;
+    diag("call", "lifecycle_note", { cell: "board_turn", kind: g.kind, ply, turn });
+    s.direct(note, { silent: true });
   };
 
   const pokedPly = useRef<number | null>(null);

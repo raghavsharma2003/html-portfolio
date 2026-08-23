@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "app.meera.companion",
-  appName: "Meera",
+  appName: "Maya",
   webDir: "dist",
   backgroundColor: "#f5f5f7",
   android: {

@@ -1622,6 +1622,7 @@ export default function App() {
             Date.now() - state.callback.at < 10 * 60_000 && (
             <IncomingCall
               secs={state.callback.secs}
+              reason={state.callback.secs > 0 ? "callback" : "wants"}
               onAccept={() => {
                 unlockAudio(); // inside the gesture, or mobile mutes her
                 setState((s) => ({ ...s, callback: null }));

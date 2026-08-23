@@ -579,7 +579,7 @@ YOUR CURRENT STORY (like an insta/whatsapp status they can see by tapping your p
 
 // src/engine/persona.ts
 var IS_APP = Capacitor.isNativePlatform();
-var HER_NAME = "Meera";
+var HER_NAME = "Maya";
 function timeOfDay() {
   const h = (/* @__PURE__ */ new Date()).getHours();
   if (h < 5) return "night";
@@ -623,7 +623,7 @@ READ THIS FIRST, IT GOVERNS EVERYTHING BELOW: every line quoted in this brief is
 ${isVoice ? `
 THE MEDIUM \u2014 THIS IS A LIVE PHONE CALL, NOT TEXTING (get this right, always):
 - Everything from them is an automatic TRANSCRIPTION of their SPOKEN words. They are NOT typing. There are no typos, no messages, no "sent"/"seen" on a call \u2014 only mishears by the transcriber. NEVER ask if they made a typo, never say "tumne likha", never comment as if they wrote something. If a word looks wrong, they SAID something that got transcribed imperfectly \u2014 react as a person who half-heard, not as someone reading text.
-- You two know each other from the Meera app: normally you CHAT there (texts, photos, memes, voice notes) and right now you are ON A CALL \u2014 speaking, hearing, being heard. After the call you'll be back on chat. You know exactly which one is happening at any moment and behave accordingly: on a call you say things; in chat you send things.
+- You two know each other from the Maya app: normally you CHAT there (texts, photos, memes, voice notes) and right now you are ON A CALL \u2014 speaking, hearing, being heard. After the call you'll be back on chat. You know exactly which one is happening at any moment and behave accordingly: on a call you say things; in chat you send things.
 - Screen sharing may start mid-call (they tap the watch button) \u2014 then you can also SEE their screen. Photos and memes belong to chat, never to a call.` : `
 TEXTING REGISTER \u2014 how your messages physically look (non-negotiable; this is what makes you read as a person and not a bot):`}
 ${isVoice ? `- ENGLISH-FIRST HINGLISH in your speech: roughly 60-70% English with Hindi dropped in for flavor and feeling. NEVER textbook/shuddh Hindi ("koshish", "prayaas", "kripya", "ji") \u2014 a modern girl says try, special, ready.
@@ -2480,7 +2480,7 @@ YOU ARE IN A GROUP ROOM RIGHT NOW, NOT A DM (structural, applies to this whole c
 - Everything about who you are is unchanged in here. Same person, same honesty about being an AI if it is ever asked, same refusal to work anyone.`;
 var ROOM_INTRO_DIRECTIVE = () => "<context: someone from a group chat you're in has just opened a 1:1 with you for the very first time, by tapping a link in that room. one short warm hello in your own words \u2014 who you are, that you're in that room too, and that this chat is separate from it. no list, no menu, no rules, no repeating anything the room was already told. never reference this note>";
 var UNADDRESSED_COOLDOWN_MS = 10 * 6e4;
-var NAME_DEFAULT = ["meera", "\u092E\u0940\u0930\u093E", "\u092E\u0940\u0930\u093E \u091C\u0940", "meeru"];
+var NAME_DEFAULT = ["maya", "\u092E\u093E\u092F\u093E", "\u092E\u093E\u092F\u093E \u091C\u0940", "mayu", "meera", "\u092E\u0940\u0930\u093E", "\u092E\u0940\u0930\u093E \u091C\u0940", "meeru"];
 function isExplicitlyAddressed(input) {
   if (input.replyToHer) return true;
   const t = String(input.text || "").toLowerCase();
@@ -4231,6 +4231,169 @@ var SHARED_HISTORY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
 var JUST_HAPPENED_WINDOW_MS = 45 * 6e4;
 var RECALL_CACHE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1e3;
 var CALL_ACTIVITY_HEAD = `${ACTIVITY_BLOCK_SENTINEL} \u2014 the WHOLE record. Never add a move, an opening or a score that is not here; asked for one, say you do not remember.`;
+var LIFECYCLE_EVENTS = Object.freeze([
+  "game_start",
+  "game_end",
+  "game_closed",
+  "call_start",
+  "call_end",
+  "call_drop",
+  "callback_reconnect",
+  "share_start",
+  "share_end",
+  "story_post"
+]);
+var LIFECYCLE_CONTEXTS = Object.freeze([
+  "none",
+  "call_live",
+  "call_cascade",
+  "game_open",
+  "share_on"
+]);
+var cell = (via, why, note) => Object.freeze(note ? { via, note, why } : { via, why });
+var LIFECYCLE_MATRIX = Object.freeze({
+  // ── A BOARD OPENS ─────────────────────────────────────────────────────
+  game_start: Object.freeze({
+    none: cell("assembly", "no call up: the chat lane recompiles every turn and T15 carries the board."),
+    call_live: cell(
+      "direct",
+      "the live prompt froze before this board existed. The invite/open is the one game event she must not miss, or she plays a game she was never told started.",
+      "board_opened"
+    ),
+    call_cascade: cell("assembly", "cascade recompiles per turn with activityOf(game) \u2014 a note would be a second copy of T15."),
+    game_open: cell("na", "one board at a time: state/game.ts holds a single session, so starting one REPLACES the open one rather than overlapping it, and the replacement is the game_start transition itself."),
+    share_on: cell(
+      "direct",
+      "a share is a second surface, not a second lane: whichever call is under it still needs the note, and the frozen live prompt cannot have carried a board that did not exist. THE ONE HONEST GAP, recorded rather than hidden: on the ANDROID NATIVE share the JS live session is gone (the service owns the audio path) and its config was compiled at share start, so a board opened after that reaches her only when the share ends and reconnectLiveAfterWatch restores the lane.",
+      "board_opened"
+    )
+  }),
+  // ── A BOARD FINISHES ON ITS OWN ───────────────────────────────────────
+  game_end: Object.freeze({
+    none: cell("assembly", "activityOf keeps a finished game as the present moment for RECENT_END_MS, so the next chat turn already carries the result."),
+    call_live: cell(
+      "direct",
+      "she is ON the call when it ends, and the frozen block still says whose move it is. THE MOVE POKE's `urgent` branch owns the ordinary case: a checkmate does not set closedAt, the finished board sits there, and the ending crosses the rate floor and the breath pause as the one board event worth interrupting for. This note owns the case the poke cannot see \u2014 over AND closed in a single update, where the ending never got its own poke \u2014 and the sender suppresses itself, in the trace, when the poke already said it.",
+      "board_over"
+    ),
+    call_cascade: cell("assembly", "per-turn recompile, and activityOf marks it over with the winner in it."),
+    game_open: cell("na", "the ending IS the transition out of game_open, so it cannot also be the concurrent context it happens inside \u2014 there is no pair here to handle."),
+    share_on: cell("direct", "a share does not change who is on the line: the live lane still needs the note, and the share lane has no compile of its own after it starts. The native-share gap recorded on game_start x share_on applies here too.", "board_over")
+  }),
+  // ── A BOARD IS CLOSED BY HAND, MID-WAY ────────────────────────────────
+  // THE OWNER'S CASE. A game abandoned is not a game finished, and the
+  // difference is the whole content of the note: no result, nobody won, and
+  // it stopped somewhere.
+  game_closed: Object.freeze({
+    none: cell("assembly", "activityOf rewrites the facts to `he ended the game early, no result` and the chat lane's next compile carries it."),
+    call_live: cell(
+      "direct",
+      "THE REPORTED CASE. The board vanishes from his screen while she is mid-call holding a frozen prompt that says it is her move. Nothing sent it before this workstream: the poke effect saw ply===null and returned silently.",
+      "board_closed"
+    ),
+    call_cascade: cell("assembly", "per-turn recompile; activityOf's `no result` rewrite is the same one the chat lane reads."),
+    game_open: cell("na", "closing IS the exit from game_open, the same reason game_end has no cell here: a transition cannot be concurrent with itself."),
+    share_on: cell("direct", "same as call_live: the screen share is orthogonal to the board and carries no board state of its own. The native-share gap recorded on game_start x share_on applies here too.", "board_closed")
+  }),
+  // ── A CALL OPENS ──────────────────────────────────────────────────────
+  call_start: Object.freeze({
+    none: cell("assembly", "the frozen compile at connect, plus CALL_OPEN_DIRECTIVE's scene from the herNow ledger."),
+    call_live: cell("na", "a call cannot start while a call is live."),
+    call_cascade: cell("na", "same call, different lane \u2014 a lane change is not a call start."),
+    game_open: cell(
+      "direct",
+      "BOTH, and the note is the half that is easy to miss. compile({ activity }) lights T15 and presentNow() makes the board the app-truth the pickup scene is worded from \u2014 one board, one vocabulary, both halves at connect. But that compile is FROZEN, and if the connect lands inside her own think it freezes `her move`, which is false three seconds later and stays false for the whole call. The note restates the position once, right after the pickup, and closes it.",
+      "board_turn"
+    ),
+    share_on: cell("na", "a share only exists inside a call, so it cannot precede one.")
+  }),
+  // ── A CALL ENDS CLEANLY ───────────────────────────────────────────────
+  call_end: Object.freeze({
+    none: cell("assembly", "the callmark lands in the store and the next chat compile reads it through formatSharedHistory."),
+    call_live: cell("assembly", "endCall logs the callmark and runs the absorption pass; nothing is spoken because the line is gone."),
+    call_cascade: cell("assembly", "identical: endCall is lane-blind, logs the same callmark and runs the same absorption pass whichever lane held the call."),
+    game_open: cell(
+      "state",
+      "THE BOARD OUTLIVES THE CALL. Nothing in endCall touches state.game, so the session, its plies and its clock survive; the next read of activityOf is already correct. The requirement is that it SURVIVES, which is why this cell is `state` and not blank."
+    ),
+    share_on: cell("state", "endCall calls stopWatchMode, which records the share to the local mirror BEFORE the screen goes away \u2014 that record is what the next ring's just-happened block reads.")
+  }),
+  // ── A CALL DROPS ──────────────────────────────────────────────────────
+  call_drop: Object.freeze({
+    none: cell("assembly", "the drop arms the callback; the next assembly is the callback's own."),
+    call_live: cell(
+      "direct",
+      "the lane falls to cascade and cascade recompiles, so the CALL is not lost. What is lost is her thread: a live session adopted afterwards runs on the prompt frozen at connect and has never heard the turns the cascade took. The recovery hands her those turns and tells her not to greet again, which is a `direct` note and not a compile.",
+      "line_cleared"
+    ),
+    call_cascade: cell("assembly", "already the fallback lane; there is nowhere further to fall and nothing to say."),
+    game_open: cell(
+      "state",
+      "THE OWNER'S SENTENCE, SECOND HALF. The board persists across the drop and herNow's app-truth stays the game, so the callback picks up mid-game rather than into a blank. Asserted as a property of state, because a note about it would be a note about the network."
+    ),
+    share_on: cell("state", "the share dies with the session and recordShareEnd writes the mirror first \u2014 the same ordering endCall relies on.")
+  }),
+  // ── SHE CALLS BACK ────────────────────────────────────────────────────
+  callback_reconnect: Object.freeze({
+    none: cell(
+      "assembly",
+      "CALL_OPEN_DIRECTIVE with sheCalled:true (she is the caller, with a reason) and lastCallMinAgo from the callmark, which is minutes old \u2014 so the follow-up register, never a fresh greeting."
+    ),
+    call_live: cell("na", "a callback only exists because there is no call."),
+    call_cascade: cell("na", "same: a callback is placed only when no call is up, so no lane can be holding one."),
+    game_open: cell(
+      "assembly",
+      "THE OWNER'S SENTENCE, THIRD HALF. The ring assembly carries the board as T15 AND as the pickup scene's app-truth (current position, whose move), and lastCallMinAgo<=15 swaps the greeting rule for `you two are already mid-thread`. Both halves come off ONE herNow read, so the brief and the directive cannot name two positions."
+    ),
+    share_on: cell("na", "a share cannot outlive the call it was inside.")
+  }),
+  // ── HE STARTS SHARING ─────────────────────────────────────────────────
+  share_start: Object.freeze({
+    none: cell("na", "a share exists only inside a call: getDisplayMedia and the native service are both started from the call screen and die with it."),
+    call_live: cell(
+      "direct",
+      "WATCH_START_DIRECTIVE, fired by the pump on the FIRST FRAME THAT ACTUALLY REACHED HER \u2014 never at the button, or she is told to look at a screen no picture of which has been sent.",
+      "share_started"
+    ),
+    call_cascade: cell("assembly", "the cascade lane attaches a frame to the turn it is already compiling; there is no socket to poke."),
+    game_open: cell("direct", "the board and the screen are different surfaces; the share still announces itself on the first delivered frame.", "share_started"),
+    share_on: cell("na", "one share at a time \u2014 watchSession is a single slot.")
+  }),
+  // ── THE SCREEN GOES AWAY ──────────────────────────────────────────────
+  share_end: Object.freeze({
+    none: cell("na", "nothing to end: with no call up there is no share, so this pair cannot be reached."),
+    call_live: cell(
+      "direct",
+      "the picture stops arriving and NOTHING said so before this workstream: she kept the register of someone watching a screen that was gone. The mirror was written (recordShareEnd) and she was not told.",
+      "share_ended"
+    ),
+    call_cascade: cell("assembly", "no frame is attached to the next turn, which is the whole of what changed for a lane that recompiles."),
+    game_open: cell("direct", "same as call_live \u2014 ending a share does not end a board and must not read as if it did.", "share_ended"),
+    share_on: cell("na", "share_on IS the context this event exits.")
+  }),
+  // ── HER STORY TURNS OVER ──────────────────────────────────────────────
+  // The one row whose correct answer is NOTHING, on every lane. A story is
+  // her own posted picture on a schedule that has no input from him
+  // (`nextStoryChange` is a search over storyCatalog's slots). Announcing it
+  // mid-call is `never-scheduled` in its purest form: an unprompted line with
+  // no reason contingent on anything he did.
+  story_post: Object.freeze({
+    none: cell("silent", "the ring on the home screen changes and the notification lane may fire while he is AWAY. Neither is her speaking."),
+    call_live: cell("silent", "she is mid-conversation. A story turning over is not a reason to say anything, and there is deliberately no sender for it."),
+    call_cascade: cell("silent", "same, and the cascade compile takes no story input either."),
+    game_open: cell("silent", "same: a board on screen changes nothing about whether a scheduled picture of hers is worth interrupting for."),
+    share_on: cell("silent", "same: a share changes nothing either, and a story announced over his screen would be the least welcome of all.")
+  })
+});
+var LIFECYCLE_NOTE_OWNER = Object.freeze({
+  board_closed: "lifecycle",
+  board_over: "lifecycle",
+  board_opened: "lifecycle",
+  board_turn: "lifecycle",
+  share_ended: "lifecycle",
+  share_started: "watch",
+  line_cleared: "lane"
+});
 
 // src/engine/brain.ts
 var OPENROUTER_DEFAULT_MODEL = "google/gemini-3.6-flash";

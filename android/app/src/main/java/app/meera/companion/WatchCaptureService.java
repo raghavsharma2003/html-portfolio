@@ -462,7 +462,7 @@ public class WatchCaptureService extends Service {
             PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     Notification notif =
         new Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("Meera is watching with you")
+            .setContentTitle("Maya is watching with you")
             .setContentText("Screen sharing is on — tap the bubble or here to stop.")
             .setSmallIcon(getApplicationInfo().icon)
             .setContentIntent(pi)

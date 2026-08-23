@@ -201,7 +201,7 @@ const ok = (name, cond, extra = "") => {
   }
   const src = readFileSync(join(HERE, "fixtures", "dyads.mjs"), "utf8");
   const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-  for (const name of ["meera", "silk"])
+  for (const name of ["maya", "meera", "silk"])
     ok(`the fixtures never name the agent ("${name}")`, !code.toLowerCase().includes(name));
   ok("the fixtures pass no agent module (the default is the point)", !/\bagent:/.test(code));
 }

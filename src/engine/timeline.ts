@@ -889,8 +889,92 @@ export function hisClock(input: HisClockInput): HisFrame {
 // ─────────────────────────────────────────────────────────────────────────
 // 3. THE RENDERS — T14 `time.frame`. See docs/TIME.md for the slot ticket.
 // ─────────────────────────────────────────────────────────────────────────
+//
+// ╔═══════════════════════════════════════════════════════════════════════╗
+// ║ RETIRED 2026-08-23 (WS-LIFECYCLE, wire-or-retire).                    ║
+// ╚═══════════════════════════════════════════════════════════════════════╝
+//
+// EVERYTHING IN THIS SECTION IS A DEAD WRITER AND IS NOW MARKED AS ONE.
+// `HER_DAY_HEADER`, `HIS_CLOCK_HEADER`, `renderHerDay`, `renderHisClock`,
+// `renderTimeFrame` and `timeFrame` have ZERO callers outside this file and
+// `evals/time/`. There is no T14 `time.frame` row in compiler.ts's MANIFEST —
+// not "unwired", not "not-yet-modeled": the slot was never adopted at all, so
+// this whole layer has been rendering into nothing since the day it landed.
+// That is `dead-writers`, fourth instance, and the WHOLE POINT of naming that
+// family is that a block which exists and is connected to nothing produces
+// false confidence: the budgets below are real, the worst-case arithmetic is
+// real, the eval suite is real, and none of it has ever protected a byte that
+// reached her.
+//
+// ── WHY RETIRED AND NOT WIRED ───────────────────────────────────────────
+//
+// The question asked was whether the DAY-SHAPE adds real value as herNow's
+// DAY seam — i.e. whether `renderHerDay` should ride `brain.ts`'s
+// `formatHerLife` next to `formatHerNow`. It does not, for two reasons, and
+// the second is the decisive one:
+//
+//  1. THE OVERLAPPING HALF IS A SECOND ANSWER TO ONE QUESTION.
+//     `right now: <slot note>` and herNow.ts's `- doing: <activity>` answer
+//     "what is she doing this minute" from two different derivations. herNow
+//     exists precisely because two answers to that question is the reported
+//     bug ("reading a book" then "setting fairy lights", sixty seconds
+//     apart), and its whole design — ONE entry, a real span, deterministic —
+//     is built so a second answer is not a value the module can construct.
+//     Putting a second renderer of the same fact into the SAME compiler slot
+//     would hand back, in T7, the exact defect T7 was fixed to remove.
+//
+//  2. THE NON-OVERLAPPING HALF CANNOT BE DELIVERED AT ACCEPTABLE COST.
+//     The genuinely additive parts are the clock `stamp` and `next` — herNow
+//     computes successors internally and never renders one. But herNow.ts is
+//     a NEAR-LEAF ON PURPOSE (see its import header): it takes `storyCatalog`
+//     and nothing else, which is what lets `src/state/store.ts` hold its type
+//     with an import that erases entirely. This file imports `./shapelint`,
+//     which imports `./compiler` AND `./persona`. Importing timeline from
+//     herNow drags the compiler and the persona into a module whose leaf-ness
+//     is load-bearing for the engine bundle — the same cycle
+//     (`persona -> storyCatalog -> timeline -> shapelint -> compiler ->
+//     agents -> persona`) that broke it once already.
+//
+// So: no real value that can be delivered at a cost this repo should pay.
+//
+// ── WHAT REMAINS LIVE IN THIS FILE, AND IS NOT RETIRED ──────────────────
+//
+//   istParts()  — src/engine/away.ts, src/engine/sky.ts
+//   herNow()    — src/components/HomeScreen.tsx (`dayNote`), as UI
+//   scheduleFor / slotAt / the two schedules — herNow()'s own inputs
+//
+// The day-shape survives where a day-shape belongs: on the screen, and as the
+// slot structure `storyCatalog` (and through it herNow.ts) is built on. What
+// is retired is only its PROMPT RENDER.
+//
+// ── HOW THIS RETIREMENT IS ENFORCED, SO IT IS NOT JUST A COMMENT ────────
+//
+// `evals/lifecycle/run.mjs` §5 asserts that no file under `src/` imports any
+// retired symbol. A tombstone nobody can violate is a retirement; a tombstone
+// anybody can quietly step over is decoration, and this repo has a name for
+// that too.
+//
+// ── WHAT WOULD REVERSE IT ───────────────────────────────────────────────
+//
+// The dated-fact half (`hisClock` -> `renderHisClock`: "the exam he told you
+// about on Monday is behind him now") is NOT covered by anything shipping —
+// T9 `renderAway` carries facts about the CLOCK and the gap, never about his
+// dated commitments. If that is wanted, it comes back as a real compiler slot
+// with a MANIFEST row and a column in `evals/lanes/run.mjs`'s parity table —
+// never as a render function with no caller. That is the reversal condition,
+// and it is deliberately a higher bar than "uncomment it".
+//
+// NOT DELETED, and the reason is ownership rather than doubt: `evals/time/`
+// (982 lines, four suites plus a source-mutating negative control) is
+// WS-TIME's, and ~340 of those lines assert against the symbols below. Ripping
+// them out from this workstream would take the negative control that still
+// guards the LIVE half down with them. The deletion is a WS-TIME task; the
+// tombstone and the zero-importer gate are what make the retirement real in
+// the meantime.
 
+/** @deprecated RETIRED 2026-08-23 — see the tombstone above. */
 export const HER_DAY_BUDGET = 800;
+/** @deprecated RETIRED 2026-08-23 — see the tombstone above. */
 export const HIS_CLOCK_BUDGET = 800;
 /** T14 `time.frame`. See docs/TIME.md for the coordinator ticket and the
  *  arithmetic against SPEC-SELF-LAYER §8's 2,800 remaining headroom. */
@@ -907,6 +991,7 @@ export const TIME_FRAME_BUDGET = 1_600;
  *  - it states the continuity rule the owner actually reported missing: what
  *    she said she was doing four minutes ago is still what she is doing.
  */
+/** @deprecated RETIRED 2026-08-23 — see the tombstone above. */
 export const HER_DAY_HEADER =
   "WHERE YOU ARE IN YOUR OWN DAY (context only, never announced, never a topic you open). " +
   "Notes to talk from, never lines to say — your own words, different every time. " +
@@ -915,6 +1000,7 @@ export const HER_DAY_HEADER =
   "and the next thing follows it — you never jump. " +
   "Anything you already told them about today outranks this.";
 
+/** @deprecated RETIRED 2026-08-23 — see the tombstone above. */
 export const HIS_CLOCK_HEADER =
   "THEIR CLOCK — WHAT HAS MOVED IN THEIR LIFE (context only, never news, never a list to get through). " +
   "Time passed for them: anything marked behind them is DONE, so it is asked about in the past — " +
@@ -933,6 +1019,7 @@ function finish(lines: string[], header: string, budget: number): RenderResult {
 /** T14a. Always present (she is always somewhere in her day) — this is the
  *  one block in the tail that is not gated on a gap, because the bug it fixes
  *  is a MID-CONVERSATION contradiction. */
+/** @deprecated RETIRED 2026-08-23 — see the tombstone above. */
 export function renderHerDay(frame: HerFrame): RenderResult {
   const lines = [`time: ${frame.stamp}`, `right now: ${frame.note}`];
   if (frame.next) lines.push(`next: ${frame.next}`);
@@ -942,6 +1029,7 @@ export function renderHerDay(frame: HerFrame): RenderResult {
 
 /** T14b. Gap-gated inside `hisClock()`; empty on every mid-conversation turn
  *  and on every turn where nothing of his has a date that moved. */
+/** @deprecated RETIRED 2026-08-23 — see the tombstone above. */
 export function renderHisClock(frame: HisFrame): RenderResult {
   const lines: string[] = [];
   for (const n of frame.moved) lines.push(`behind them now: ${n.subject} (${n.when})`);
@@ -953,6 +1041,7 @@ export function renderHisClock(frame: HisFrame): RenderResult {
 /** The T14 slot as one string: her day, then his clock. One slot because they
  *  are one subject and they are read together; two render functions because
  *  they have different gates and only one of them may ever see the gap. */
+/** @deprecated RETIRED 2026-08-23 — see the tombstone above. */
 export function renderTimeFrame(her: HerFrame, his: HisFrame): RenderResult {
   const a = renderHerDay(her);
   const b = renderHisClock(his);
@@ -987,6 +1076,7 @@ export const HIS_CLOCK_WORST_CASE_CHARS =
 
 /** One call for a caller that has both halves. `beats` defaults to `[]`,
  *  which is the live state of `vy_agent_life` today. */
+/** @deprecated RETIRED 2026-08-23 — see the tombstone above. */
 export function timeFrame(input: {
   now: number;
   lastSpokeAt?: number;

@@ -254,6 +254,23 @@ const suites = {
   // time instead of by a paying tester. Carries its own negative control
   // (the pre-fix live lane must be seen going dark). Offline, $0, ~3s.
   lanes: "lanes/run.mjs",
+  // WS-LIFECYCLE. THE OVERLAP MATRIX: 10 lifecycle events x 5 concurrent
+  // contexts, a verdict in every one of the 50 cells, and the carrier named —
+  // `assembly`, `direct`, `state` or `silent` — with a written reason.
+  //
+  // It exists because the owner should never have to enumerate an overlap
+  // case again. Every previous wave fixed the pair he happened to hit (a board
+  // open at pickup, a move mid-call, a share mid-call, a call that dropped
+  // mid-sentence); the set of pairs is finite and this walks all of it. Same
+  // idiom as `lanes` directly above, applied to PROPAGATIONS instead of
+  // context blocks, and the same two failure modes: a cell that claims
+  // `direct` with no sender in useCallEngine.ts is a propagation DECLARED AND
+  // DEAD, and a cell that claims `silent` while something can reach her is the
+  // table lying. The `assembly` cells are driven through the real compile()
+  // and the real CALL_OPEN_DIRECTIVE off real board sessions, never a model of
+  // them. Carries seven negative controls, including the pre-fix tree going
+  // dark. Offline, $0, ~3s.
+  lifecycle: "lifecycle/run.mjs",
   // WS-MEMEVAL / survey A4. The adversarial Hinglish forget battery. NOT a
   // gate: it reports a measured baseline against the CURRENT lexical matcher,
   // which is known to be poor on cross-lingual referents — a gate that fails

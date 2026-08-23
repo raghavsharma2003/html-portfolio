@@ -463,7 +463,7 @@ for (const row of BLOCKS) {
 {
   const fx = readFileSync(join(HERE, "fixtures.mjs"), "utf8");
   const code = fx.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-  for (const name of ["meera", "silk"]) {
+  for (const name of ["maya", "meera", "silk"]) {
     ok(`the parity fixtures never name the agent ("${name}")`, !code.toLowerCase().includes(name));
   }
   ok("the parity fixtures pass no agent module (the default is the point)",
