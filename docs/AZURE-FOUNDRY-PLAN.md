@@ -60,11 +60,12 @@ Prices were checked with the official [Azure Retail Prices API](https://learn.mi
 ## Spend controls
 
 Migration 028 and `api/_provider-budget.js` implement the hard application
-ceiling for Azure Foundry token calls. They reserve conservatively before
-network I/O, settle measured usage and retain ambiguous outcomes for manual
+ceiling for Azure Foundry token calls and Azure Speech fast transcription.
+They reserve conservative tokens or per-input, per-second-rounded audio before network
+I/O, settle measured usage and retain ambiguous outcomes for manual
 reconciliation. The recommended initial application cap is `$1,500`, leaving
-`$500` of the grant outside this ledger for infrastructure and evaluated
-non-token services. See [the provider budget contract](PROVIDER-BUDGET.md).
+`$500` of the grant outside this paid-request ledger for infrastructure and
+controlled GPU evaluation. See [the provider budget contract](PROVIDER-BUDGET.md).
 
 1. Create one resource group for the replica lab and tag every resource with
    `program=replica`, `environment`, `experiment_id`, `owner` and `expiry_at`.
@@ -80,9 +81,12 @@ non-token services. See [the provider budget contract](PROVIDER-BUDGET.md).
 6. Apply now for Personal Voice Limited Access, GPT-5.6 quota and A10 capacity.
    Lack of approval is a planned branch, not a reason to bypass consent or use
    an uncovered provider.
-7. Keep Azure Speech, Personal Voice, liveness, watermarking and GPU jobs off
+7. Keep Personal Voice, liveness, watermarking and GPU jobs off
    until each has a native-unit meter under the same atomic ceiling. Portal
    alerts remain an independent backstop, not the application control.
+8. Keep Azure Speech live traffic off until migration 028 is deployed, the
+   effective resource/SKU hourly rate is configured, the subscription confirms
+   grant coverage, and the operator reconciliation drill passes.
 
 ## Model acceptance rule
 

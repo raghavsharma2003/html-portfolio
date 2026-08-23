@@ -178,6 +178,23 @@ ok("ASR keeps transcript and language spans cited to candidate artifacts",
     mime: "audio/wav",
     duration_ms: 2_400,
   };
+  const budgetEnv = {
+    AZURE_REPLICA_APP_BUDGET_USD: "1500",
+    AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR: "0.36",
+  };
+  const spendCalls = [];
+  const spendDb = async (sql, params) => {
+    spendCalls.push({ sql, params });
+    if (/insert into vy_provider_budget/i.test(sql)) return [{
+      reservation_id: "11111111-1111-4111-8111-111111111111", budget_id: params[0], request_hash: params[6],
+      state: "reserved", reserved_microusd: params[8],
+    }];
+    if (/state='in_flight'/i.test(sql)) return [{ reservation_id: params[0], state: "in_flight" }];
+    if (/with settled as/i.test(sql)) return [{ budget_id: "azure-replica-grant-v1", spent_microusd: params[4], reserved_microusd: 0, limit_microusd: 1_500_000_000, state: "active" }];
+    if (/state='released'|state='reconcile_required'/i.test(sql)) return [];
+    throw new Error(`unexpected spend SQL ${sql.slice(0, 80)}`);
+  };
+  const budgetHook = Object.freeze({ beforeProviderRequest: async () => {} });
   const payload = {
     durationMilliseconds: 2_400,
     combinedPhrases: [{ text: "Hello ji, aaj milte hain." }],
@@ -227,11 +244,16 @@ ok("ASR keeps transcript and language spans cited to candidate artifacts",
   const azureOutput = await Worker.executeProcessingJob({
     job: job("transcribe"), source, adapters: { ...adapters, transcribe: azure },
     artifactStore: store, completedSteps: dependencies.transcribe, inputArtifacts: [azureArtifact],
+    spendDb, budgetEnv,
   });
   const azureTranscripts = azureOutput.evidence.filter((entry) => entry.evidence_type === "transcript_span");
   ok("real Azure adapter satisfies the existing ASR adapter contract",
     azureOutput.outcome === "complete" &&
-    azure.family === "asr" && azure.name === "azure-speech-fast-transcription" && azureTranscripts.length === 2);
+    azure.family === "asr" && azure.name === "azure-speech-fast-transcription" && azureTranscripts.length === 2 &&
+    azureOutput.result.billing_state === "settled");
+  ok("Azure audio cost is reserved before fetch and settled from rounded billable duration",
+    /insert into vy_provider_budget/i.test(spendCalls[0].sql) && /state='in_flight'/i.test(spendCalls[1].sql) &&
+    /with settled as/i.test(spendCalls[2].sql) && spendCalls[2].params[3] === 3_000);
   ok("Azure phrases normalize Hinglish locale and word millisecond timestamps",
     azureTranscripts[0].value.language === "en-IN" && azureTranscripts[1].value.language === "hi-IN" &&
     azureTranscripts.every((entry) => entry.value.words.every((word) => word.end_ms > word.start_ms)) &&
@@ -266,12 +288,12 @@ ok("ASR keeps transcript and language spans cited to candidate artifacts",
 
   const privateUrlError = await captureAsync(() => baseAzure({
     resolveInput: async () => ({ signedReadUrl: "https://private.invalid/short-lived" }),
-  }).transcribe({ source, inputs: [azureArtifact] }));
+  }).transcribe({ source, inputs: [azureArtifact], billing: budgetHook }));
   ok("short-lived storage capabilities must resolve server-side to bytes, never Azure-facing URLs",
     privateUrlError?.code === "azure_asr_private_url_forbidden" && privateUrlError.retryable === false);
 
   const badDigest = await captureAsync(() => baseAzure().transcribe({
-    source, inputs: [{ ...azureArtifact, sha256: "f".repeat(64) }],
+    source, inputs: [{ ...azureArtifact, sha256: "f".repeat(64) }], billing: budgetHook,
   }));
   ok("Azure upload is blocked when private bytes do not match artifact lineage",
     badDigest?.code === "azure_asr_input_integrity_mismatch" && badDigest.retryable === false);
@@ -280,10 +302,10 @@ ok("ASR keeps transcript and language spans cited to candidate artifacts",
     fetchImpl: async () => new Response("content deliberately ignored", {
       status: 429, headers: { "retry-after": "3" },
     }),
-  }).transcribe({ source, inputs: [azureArtifact] }));
+  }).transcribe({ source, inputs: [azureArtifact], billing: budgetHook }));
   const unauthorized = await captureAsync(() => baseAzure({
     fetchImpl: async () => new Response("content deliberately ignored", { status: 401 }),
-  }).transcribe({ source, inputs: [azureArtifact] }));
+  }).transcribe({ source, inputs: [azureArtifact], billing: budgetHook }));
   ok("Azure 429 is retryable and bounded without exposing response content",
     throttled?.code === "azure_asr_http_429" && throttled.retryable === true && throttled.retryAfterMs === 3_000 &&
     !throttled.message.includes("content"));
@@ -294,7 +316,7 @@ ok("ASR keeps transcript and language spans cited to candidate artifacts",
     fetchImpl: async () => new Response(JSON.stringify({
       phrases: [{ offsetMilliseconds: 0, durationMilliseconds: 100, text: "missing words", locale: "en-IN", confidence: 0.8 }],
     }), { status: 200 }),
-  }).transcribe({ source, inputs: [azureArtifact] }));
+  }).transcribe({ source, inputs: [azureArtifact], billing: budgetHook }));
   ok("missing word timestamps fail closed instead of degrading the evidence contract",
     invalidResponse?.code === "azure_asr_response_invalid" && invalidResponse.retryable === false);
 
@@ -303,17 +325,31 @@ ok("ASR keeps transcript and language spans cited to candidate artifacts",
     fetchImpl: async (_url, init) => new Promise((_resolve, reject) => {
       init.signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })), { once: true });
     }),
-  }).transcribe({ source, inputs: [azureArtifact] }));
+  }).transcribe({ source, inputs: [azureArtifact], billing: budgetHook }));
   ok("Azure calls have a bounded timeout classified for worker retry",
     timeout?.code === "azure_asr_timeout" && timeout.retryable === true);
 
   const controller = new AbortController();
   controller.abort();
   const cancelled = await captureAsync(() => baseAzure().transcribe({
-    source, inputs: [azureArtifact], signal: controller.signal,
+    source, inputs: [azureArtifact], signal: controller.signal, billing: budgetHook,
   }));
   ok("caller cancellation is preserved as non-retryable cancellation",
     cancelled?.code === "azure_asr_aborted" && cancelled.retryable === false);
+  const unmetered = await captureAsync(() => baseAzure().transcribe({ source, inputs: [azureArtifact] }));
+  ok("Azure provider refuses a direct call without the budget start hook",
+    unmetered?.code === "azure_asr_budget_hook_required" && unmetered.retryable === false);
+  const uncertainStart = spendCalls.length;
+  const uncertain = await Worker.executeProcessingJob({
+    job: job("transcribe", 2), source,
+    adapters: { ...adapters, transcribe: baseAzure({ fetchImpl: async () => new Response("ignored", { status: 429 }) }) },
+    artifactStore: store, completedSteps: dependencies.transcribe, inputArtifacts: [azureArtifact], spendDb, budgetEnv,
+  });
+  const uncertainSpend = spendCalls.slice(uncertainStart);
+  ok("a provider-visible failed request is reconciliation-blocked instead of auto-retried",
+    uncertain.outcome === "failed" && uncertain.failure_code === "provider_spend_reconciliation_required" &&
+    uncertainSpend.some((call) => /state='in_flight'/i.test(call.sql)) &&
+    uncertainSpend.some((call) => /state='reconcile_required'/i.test(call.sql)));
 
   const providerSource = readFileSync(
     join(ROOT, "api/_replica-processing/providers/azure-fast-transcription.js"), "utf8",

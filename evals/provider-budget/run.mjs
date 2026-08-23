@@ -4,12 +4,17 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   beginFoundrySpend,
+  audioReservationMicrousd,
+  azureSpeechBillableAudioMs,
   conservativeTokenEstimate,
   foundryBudgetConfig,
   markFoundrySpendUncertain,
   releaseFoundrySpendBeforeCall,
+  reserveAzureSpeechSpend,
   reserveFoundrySpend,
   settleFoundrySpend,
+  settleAzureSpeechSpend,
+  speechBudgetConfig,
   tokenReservationMicrousd,
 } from "../../api/_provider-budget.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
@@ -37,6 +42,14 @@ ok("missing or grant-exceeding budget configuration fails closed", true);
 const estimated = conservativeTokenEstimate([{ role: "user", content: "नमस्ते, scene kya hai?" }]);
 ok("token reservation conservatively counts UTF-8 request bytes", estimated === Buffer.byteLength(JSON.stringify([{ role: "user", content: "नमस्ते, scene kya hai?" }]), "utf8"));
 ok("microusd math converts per-million-token rates without floating unit mistakes", tokenReservationMicrousd(1_000, 200, config) === 2_250);
+
+const speechEnv = { ...env, AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR: "0.36" };
+const speechConfig = speechBudgetConfig(speechEnv);
+ok("audio billing converts exact milliseconds into microusd", audioReservationMicrousd(10_000, speechConfig) === 1_000);
+ok("Azure Speech rounds every separately submitted input up to its billable second",
+  azureSpeechBillableAudioMs([{ duration_ms: 10_001 }, { duration_ms: 1 }]) === 12_000);
+assert.throws(() => speechBudgetConfig({ ...env }), /provider_audio_rate_required/);
+ok("missing Azure Speech rate fails closed", true);
 
 const adapter = {
   family: "dialogue",
@@ -91,6 +104,23 @@ await markFoundrySpendUncertain(async (sql, params) => { uncertainCalls.push({ s
 ok("unknown provider outcomes retain their reserve for manual reconciliation", /state='reconcile_required'/.test(uncertainCalls[0].sql) && /state='in_flight'/.test(uncertainCalls[0].sql));
 await assert.rejects(reserveFoundrySpend(async (_sql, params) => [{ reservation_id: RESERVATION, budget_id: params[0], request_hash: params[7], state: "reconcile_required", reserved_microusd: params[10] }], { operation: "dialogue", requestKey: "turn-opaque-1", adapter, messages: [], env }), /provider_spend_reconciliation_required/);
 ok("an uncertain request can never be charged a second time automatically", true);
+
+const speechAdapter = { family: "asr", name: "azure-speech-fast-transcription", version: "2025-10-15", model: "azure-speech-fast-transcription", billing: { meter: "azure_speech_audio_ms" } };
+const audioSpendCalls = [];
+const audioReservation = await reserveAzureSpeechSpend(async (sql, params) => {
+  audioSpendCalls.push({ sql, params });
+  return [{ reservation_id: RESERVATION, budget_id: params[0], request_hash: params[6], state: "reserved", reserved_microusd: params[8] }];
+}, { requestKey: "job:1:1", adapter: speechAdapter, inputs: [{ artifact_id: "a", sha256: "d".repeat(64), duration_ms: 10_000 }], env: speechEnv });
+ok("Azure Speech reserves conservatively billable audio duration under the shared grant ceiling", audioReservation.reserved_units === 10_000 && audioReservation.reserved_microusd === 1_000 && /'audio_ms'/.test(audioSpendCalls[0].sql));
+ok("audio reservation commitment binds artifact digest duration and retry identity", !audioSpendCalls[0].params.includes("job:1:1") && /^[0-9a-f]{64}$/.test(audioReservation.request_hash));
+const audioSettleCalls = [];
+await settleAzureSpeechSpend(async (sql, params) => {
+  audioSettleCalls.push({ sql, params });
+  return [{ budget_id: audioReservation.budget_id, spent_microusd: params[4], reserved_microusd: 0, limit_microusd: speechConfig.limit_microusd, state: "active" }];
+}, audioReservation, { audio_ms: 10_000 });
+ok("Azure Speech settlement charges measured audio and releases the whole reservation atomically", /unit_kind='audio_ms'/.test(audioSettleCalls[0].sql) && /reserved_microusd=greatest/.test(audioSettleCalls[0].sql));
+await assert.rejects(settleAzureSpeechSpend(async () => [], audioReservation, { audio_ms: 10_001 }), /provider_usage_missing/);
+ok("audio usage cannot exceed the input duration reserved before upload", true);
 
 const migration = readFileSync(join(ROOT, "db/migrations/028_provider_budget.sql"), "utf8");
 ok("budget migration remains one-statement-runner safe", splitSql(migration).length === 4);

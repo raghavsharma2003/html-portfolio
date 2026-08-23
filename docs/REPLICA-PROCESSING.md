@@ -15,6 +15,7 @@ This slice turns a quarantined self-replica audio/video source into immutable pr
 7. Lease capabilities are returned to the worker once; only a domain-separated SHA-256 digest is stored. Expired leases are reclaimable and transient failures use bounded deterministic backoff.
 8. VoiceGenome/person-profile builders are versioned and draft-only. Approval is a separate transition requiring integrity, third-party review, owner calibration, and a passing held-out evaluation using real evidence. Fake results cannot satisfy that gate.
 9. Portable VoiceGenome/profile definitions cannot contain provider voice IDs, provider references, signed URLs, or external voice handles. Those belong only in disposable server-side voice-provider mappings.
+10. A paid Speech adapter cannot issue network I/O without an atomic reservation under the shared Azure application ceiling. It rounds each request up to Azure's documented per-second billing unit, marks the request in flight immediately before `fetch`, settles processed billable duration, and blocks automatic retry after any provider-visible ambiguous outcome.
 
 ## Audio DAG
 
@@ -101,6 +102,7 @@ This default must be evaluated on real Hindi-English code-switching, Indian acce
 - an HTTPS Azure Speech endpoint under `*.cognitiveservices.azure.com` or `*.api.cognitive.microsoft.com`;
 - exactly one credential mechanism: an Azure Speech key or an async Microsoft Entra token provider;
 - `resolveInput({ source, input, signal })`, which consumes the application's short-lived private read capability and returns `{ body, mime, byteSize }`.
+- a worker-supplied `billing.beforeProviderRequest` capability; a direct or accidentally unmetered call fails closed before HTTP.
 
 `body` can be bounded bytes, a Blob, or an async byte stream. The adapter recomputes SHA-256 and compares it with the immutable artifact manifest before contacting Azure. Resolver results containing `url`, `signedReadUrl` or `audioUrl` are rejected: Azure receives inline bytes, never the storage capability. Authentication stays in `Ocp-Apim-Subscription-Key` or `Authorization`; it is never added to a URL or multipart field.
 
@@ -112,21 +114,36 @@ Azure's [current Speech region table](https://learn.microsoft.com/en-us/azure/ai
 
 Fast transcription is an Azure Speech meter billed per audio duration according to the [official Azure Speech pricing page](https://azure.microsoft.com/en-us/pricing/details/speech/), not a third-party marketplace endpoint. Microsoft's [startup sponsorship coverage policy](https://learn.microsoft.com/en-us/startups/benefits/technical-benefits/azure-credits/foundry-model-sponsorship-coverage) says services/models sold and billed directly by Azure are credit-eligible, but the policy page does not enumerate every Speech SKU or every grant offer. Before the first live call, confirm in the actual subscription that the Central India Speech resource can be created, its meter is covered by the user's specific $2,000 grant, a spend alert is active, and fast-transcription quota is nonzero.
 
-No resource, deployment, key, token, quota or live request was created by this implementation. The remaining live prerequisite is an explicitly approved Central India resource endpoint plus a key/Entra identity, private-object resolver wiring, and a small consented noisy-Hinglish evaluation corpus with a predeclared spend cap.
+The worker now reserves the sum of every immutable input duration under the
+same database-serialized grant ceiling used by Foundry, rounding every
+separately submitted file up to a full billable second. The reservation binds
+the job revision/attempt and each artifact digest. A private-input or
+authentication failure before network I/O releases the reservation. Once a
+request can have reached Azure, any error becomes `reconcile_required` and the
+job is non-retryable until an operator compares it with Azure billing. A
+successful response settles processed billable audio duration. This is
+structural metering tested with mocked boundaries; it has not been reconciled
+against a live Azure invoice.
+
+No resource, deployment, key, token, quota or live request was created by this implementation. The remaining live prerequisite is an explicitly approved Central India resource endpoint plus a key/Entra identity, private-object resolver wiring, deployed migration 028, verified subscription rate and coverage, an operator reconciliation procedure, and a small consented noisy-Hinglish evaluation corpus with a predeclared spend cap.
 
 ## Worker transaction order
 
 For a leased job:
 
 1. Load the internal source row and completed dependency facts; reject any ownership mismatch.
-2. Execute exactly one adapter stage.
-3. Validate the normalized result. For derived bytes, write create-only objects and verify returned digests.
-4. Persist immutable artifact/evidence rows through `persistProcessingOutput`.
-5. Call `completeProcessingJob`. Its SQL checks every receipt ID exists for the leased job/source/replica/owner.
-6. Enqueue `result.next_steps` only after completion.
-7. On a retryable adapter failure, record `retry`; on integrity/malware failure, record `blocked`; otherwise record `failed`. Never call completion from a catch/finally path.
+2. For a paid Speech stage, reserve the complete immutable input duration and
+   pass the unforgeable start hook to the adapter.
+3. Execute exactly one adapter stage. The paid adapter marks spend in flight
+   immediately before network I/O and returns measured usage.
+4. Validate the normalized result. For derived bytes, write create-only objects and verify returned digests.
+5. Settle paid usage before returning a successful worker result.
+6. Persist immutable artifact/evidence rows through `persistProcessingOutput`.
+7. Call `completeProcessingJob`. Its SQL checks every receipt ID exists for the leased job/source/replica/owner.
+8. Enqueue `result.next_steps` only after completion.
+9. On a retryable adapter failure, record `retry`; on integrity/malware failure, record `blocked`; otherwise record `failed`. A provider-visible paid failure is reconciliation-blocked, never automatically retried. Never call completion from a catch/finally path.
 
-Steps 3-5 are deliberately idempotent so a serverless stop after storage or record creation can be replayed. Object bytes and DB records may be left as unreferenced candidates during recovery, but raw evidence is never changed and a job cannot falsely complete.
+Steps 4-7 are deliberately idempotent so a serverless stop after storage or record creation can be replayed. Object bytes and DB records may be left as unreferenced candidates during recovery, but raw evidence is never changed and a job cannot falsely complete.
 
 ## VoiceGenome contents
 
@@ -157,7 +174,7 @@ and evidence from fake/test adapters are ineligible.
 
 - Deploy an authenticated internal queue consumer/sweeper; there is no public worker endpoint in this slice.
 - Select and validate real streaming integrity, malware, media-probe, diarization, separation/enhancement, alignment and multi-family speaker-analysis adapters; live-validate Azure ASR before treating it as evidence quality.
-- Add real storage and database integration tests, lease-race tests, cancellation/timeouts, resource limits and observability with content-free logs.
+- Add real storage and database integration tests, live invoice reconciliation, lease-race tests, cancellation/timeouts, resource limits and observability with content-free logs.
 - Add explicit target-speaker/third-party review, PII policy, candidate audition/selection, deletion of rejected derivatives, and encrypted biometric retention controls.
 - Establish real noisy/accent/code-switch corpora, human calibration protocols, anti-spoof/liveness tests and held-out identity/accent/prosody evaluations. Structural fake-provider tests are not evidence of model quality.
 - Add stage DAGs for non-audio evidence and a transaction/outbox for next-stage enqueueing if the production database transport cannot provide the required atomicity.

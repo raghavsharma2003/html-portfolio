@@ -268,12 +268,13 @@ export function normalizeAzureFastTranscription(payload, input) {
   return Object.freeze(segments.map((segment) => Object.freeze({ ...segment, code_switch: codeSwitch })));
 }
 
-async function postTranscription({ endpoint, authHeaders, input, audio, definition, fetchImpl, maxResponseBytes, signal }) {
+async function postTranscription({ endpoint, authHeaders, input, audio, definition, fetchImpl, maxResponseBytes, signal, beforeProviderRequest }) {
   const form = new FormData();
   form.append("audio", new Blob([audio.bytes], { type: audio.mime }), `evidence.${audio.extension}`);
   form.append("definition", JSON.stringify(definition));
   let response;
   try {
+    await beforeProviderRequest();
     response = await fetchImpl(
       `${endpoint}speechtotext/transcriptions:transcribe?api-version=${AZURE_FAST_TRANSCRIPTION_API_VERSION}`,
       { method: "POST", headers: authHeaders, body: form, signal },
@@ -321,11 +322,15 @@ export function createAzureFastTranscriptionAdapter(options = {}) {
     family: "asr",
     name: "azure-speech-fast-transcription",
     version: AZURE_FAST_TRANSCRIPTION_API_VERSION,
-    async transcribe({ source, inputs, signal }) {
+    model: "azure-speech-fast-transcription",
+    billing: Object.freeze({ meter: "azure_speech_audio_ms" }),
+    async transcribe({ source, inputs, signal, billing }) {
       if (!Array.isArray(inputs) || !inputs.length || inputs.length > maxInputs) {
         throw adapterError("azure_asr_input_count_invalid");
       }
+      if (typeof billing?.beforeProviderRequest !== "function") throw adapterError("azure_asr_budget_hook_required");
       const segments = [];
+      let audioMs = 0;
       for (const input of inputs) {
         if (!Number.isInteger(input?.duration_ms) || input.duration_ms < 1 ||
             input.duration_ms > AZURE_FAST_TRANSCRIPTION_MAX_DURATION_MS) {
@@ -338,7 +343,11 @@ export function createAzureFastTranscriptionAdapter(options = {}) {
           segments.push(...await postTranscription({
             endpoint, authHeaders, input, audio, definition,
             fetchImpl, maxResponseBytes, signal: deadline.signal,
+            beforeProviderRequest: billing.beforeProviderRequest,
           }));
+          // Azure Speech-to-text is billed per second. Each input is a
+          // separate request, so round each request upward independently.
+          audioMs += Math.ceil(input.duration_ms / 1_000) * 1_000;
         } catch (error) {
           const aborted = abortError(deadline, signal);
           if (aborted) throw aborted;
@@ -348,7 +357,7 @@ export function createAzureFastTranscriptionAdapter(options = {}) {
           deadline.cleanup();
         }
       }
-      return Object.freeze({ segments: Object.freeze(segments) });
+      return Object.freeze({ segments: Object.freeze(segments), usage: Object.freeze({ audio_ms: audioMs }) });
     },
   });
 }

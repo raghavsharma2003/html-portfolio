@@ -156,8 +156,9 @@ Implemented now:
 - offline enrollment, IDOR, lifecycle, disclosure and provider-contract gates;
 - a researched Azure Foundry spend plan below the $2,000 grant ceiling;
 - an atomic, content-free paid-provider ledger that reserves conservative
-  Azure Foundry token cost before network I/O, settles measured usage, and
-  locks ambiguous outcomes for reconciliation instead of risking double spend.
+  Azure Foundry token cost or per-request-rounded Azure Speech duration before network
+  I/O, settles measured usage, and locks ambiguous outcomes for reconciliation
+  instead of risking double spend.
 
 Biometric consent, identity/age verification, anti-replay, real voice training
 and synthesis, production watermark/C2PA/signing adapters, and live runtime

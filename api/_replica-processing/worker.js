@@ -13,6 +13,13 @@ import {
   stableUuid,
 } from "./contracts.js";
 import { assertDependencies, classifyProcessingFailure, nextProcessingSteps } from "./pipeline.js";
+import {
+  beginProviderSpend,
+  markProviderSpendUncertain,
+  releaseProviderSpendBeforeCall,
+  reserveAzureSpeechSpend,
+  settleAzureSpeechSpend,
+} from "../_provider-budget.js";
 
 function sameIdentity(job, source) {
   return job.source_id === source.source_id && job.replica_id === source.replica_id && job.owner_user_id === source.owner_user_id;
@@ -166,9 +173,9 @@ async function writeCandidates({ job, source, adapter, candidates, artifactStore
   return artifacts;
 }
 
-async function runStage({ job, source, adapter, artifactStore, inputArtifacts, signal }) {
+async function runStage({ job, source, adapter, artifactStore, inputArtifacts, signal, billing }) {
   const references = inputReferences(source, inputArtifacts);
-  const common = { source, inputs: references, signal };
+  const common = { source, inputs: references, signal, billing };
   switch (job.step) {
     case "integrity": { // Server-side stream/digest implementation belongs behind this seam.
       const result = await adapter.verify(common);
@@ -248,7 +255,7 @@ async function runStage({ job, source, adapter, artifactStore, inputArtifacts, s
           value: { language: segment.language, code_switch: Boolean(segment.code_switch) },
         }));
       }
-      return { artifacts: [], evidence, verifiedSha256: source.sha256 };
+      return { artifacts: [], evidence, verifiedSha256: source.sha256, providerUsage: result.usage };
     }
     case "voice_quality": {
       const result = await adapter.measure(common);
@@ -304,11 +311,48 @@ export async function executeProcessingJob(input) {
   }
   assertDependencies(job.step, input.completedSteps || []);
   const adapter = assertAdapter(input.adapters?.[job.step], job.step);
+  let reservation = null;
+  let providerStarted = false;
   try {
+    let billing;
+    if (adapter.billing?.meter === "azure_speech_audio_ms") {
+      const references = inputReferences(source, input.inputArtifacts || []);
+      reservation = await reserveAzureSpeechSpend(input.spendDb, {
+        requestKey: `${job.job_id}:${job.revision}:${job.attempt}`,
+        adapter,
+        inputs: references,
+        env: input.budgetEnv,
+      });
+      billing = Object.freeze({
+        async beforeProviderRequest() {
+          if (providerStarted) return;
+          try { await beginProviderSpend(input.spendDb, reservation); }
+          catch (error) {
+            await releaseProviderSpendBeforeCall(input.spendDb, reservation, error).catch(() => null);
+            throw error;
+          }
+          providerStarted = true;
+        },
+      });
+    }
     const output = await runStage({
       job, source, adapter, artifactStore: input.artifactStore,
-      inputArtifacts: input.inputArtifacts || [], signal: input.signal,
+      inputArtifacts: input.inputArtifacts || [], signal: input.signal, billing,
     });
+    let billingState = "not_metered";
+    if (reservation) {
+      if (!providerStarted) {
+        await releaseProviderSpendBeforeCall(input.spendDb, reservation, "provider_request_not_started").catch(() => null);
+        throw Object.assign(new Error("paid adapter did not start a provider request"), { code: "provider_request_not_started" });
+      }
+      try {
+        await settleAzureSpeechSpend(input.spendDb, reservation, output.providerUsage);
+        billingState = "settled";
+      } catch (error) {
+        await markProviderSpendUncertain(input.spendDb, reservation, error);
+        throw Object.assign(new Error("provider spend requires reconciliation"), { code: "provider_spend_reconciliation_required", retryable: false });
+      }
+    }
     return Object.freeze({
       outcome: "complete",
       adapter: adapterFacts(adapter),
@@ -320,9 +364,22 @@ export async function executeProcessingJob(input) {
         evidence_ids: output.evidence.map((entry) => entry.evidence_id),
         next_steps: nextProcessingSteps(job.step, [...(input.completedSteps || []), job.step]),
         verified_input_sha256: output.verifiedSha256,
+        billing_state: billingState,
       },
     });
-  } catch (error) {
+  } catch (caught) {
+    let error = caught;
+    if (reservation && providerStarted) {
+      await markProviderSpendUncertain(input.spendDb, reservation, error);
+      if (error?.code !== "provider_spend_reconciliation_required") {
+        error = Object.assign(new Error("provider spend requires reconciliation"), {
+          code: "provider_spend_reconciliation_required",
+          retryable: false,
+        });
+      }
+    } else if (reservation) {
+      await releaseProviderSpendBeforeCall(input.spendDb, reservation, error).catch(() => null);
+    }
     if (!(error instanceof ProcessingContractError) && !(error instanceof ProcessingAdapterError) && !error?.code) {
       error.code = "processing_worker_error";
     }

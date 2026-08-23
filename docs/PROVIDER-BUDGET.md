@@ -1,6 +1,7 @@
 # Fail-closed paid-provider budget
 
-Status: implemented for Azure Foundry token calls on `voice-cloning`,
+Status: implemented for Azure Foundry token calls and Azure Speech fast
+transcription on `voice-cloning`,
 2026-08-24. Migration 028 is not deployed and no live Azure charge has been
 made.
 
@@ -28,17 +29,19 @@ and lifecycle state.
 
 ## Configuration
 
-All values are server-only and required for a billable Foundry adapter:
+All values are server-only. The budget identity and ceiling are shared by
+every paid Azure adapter:
 
 ```text
 AZURE_REPLICA_BUDGET_ID=azure-replica-grant-v1
 AZURE_REPLICA_APP_BUDGET_USD=1500
 AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS=<current deployed-model rate>
 AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS=<current deployed-model rate>
+AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR=<current resource/SKU rate>
 ```
 
 The application cap cannot exceed `$2,000`. `$1,500` is the recommended
-initial cap, leaving `$500` outside this token ledger for storage, Speech,
+initial cap, leaving `$500` outside this paid-request ledger for storage,
 controlled GPU evaluation and pricing variance. Rates are deliberately not
 hardcoded: deployment must copy the effective subscription/model rates from
 Azure immediately before activation. Missing, zero or malformed values fail
@@ -49,6 +52,17 @@ framing, which is intentionally more conservative than normal tokenizer
 behavior. Output reservation uses the adapter's actual enforced
 `max_tokens`. Settlement requires nonzero provider-reported input/output usage
 and refuses an actual charge above the reservation.
+
+Speech reservation binds the retry identity, immutable input artifact IDs,
+SHA-256 digests and exact declared durations. Azure documents Speech-to-text as
+per-second billing, so the meter rounds each separately submitted input upward
+to a whole second before reserving. It reserves all billable candidate audio
+milliseconds before the worker can start a provider request. The adapter
+rechecks private bytes against their immutable digests, then invokes the
+one-way in-flight hook immediately before `fetch`. Settlement uses the same
+per-input rounded duration for successfully processed requests. Azure's fast-transcription response
+does not report a billing receipt, so this is a deterministic application
+meter, not a substitute for Azure Cost Management invoice reconciliation.
 
 ## Failure semantics
 
@@ -75,11 +89,12 @@ the reservation with a tamper-evident audit entry.
 Covered now:
 
 - Azure Foundry cited-claim extraction;
-- Azure Foundry private replica dialogue.
+- Azure Foundry private replica dialogue;
+- Azure Speech fast transcription, conservatively metered by per-request audio
+  seconds represented as milliseconds.
 
 Not yet covered:
 
-- Azure Speech transcription;
 - Personal Voice enrollment/training and synthesis;
 - liveness/identity vendors;
 - watermark, signing and C2PA infrastructure;
@@ -88,10 +103,12 @@ Not yet covered:
 Those paths stay disabled in a live environment until they implement the same
 reserve, begin, settle and reconcile contract using their native billing unit.
 The Azure subscription budget and alerts remain a second, independent backstop.
+The Speech adapter and worker integration are protocol-tested against mocked
+HTTP/database boundaries only; no resource, key or live paid call has been
+created.
 
 Offline gate:
 
 ```bash
 node evals/run.mjs providerbudget
 ```
-
