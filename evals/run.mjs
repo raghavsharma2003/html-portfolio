@@ -101,6 +101,10 @@ const suites = {
   // agent/person resolution, RelationalOS isolation, protected cascade speech
   // and revocation fencing at the signed segment boundary.
   replicaruntime: "replica-runtime/run.mjs",
+  // Evidence-backed personality: append-only owner claim decisions,
+  // contradiction-preserving typed Person Models, deterministic source-set
+  // builds and explicit exact-version approval.
+  personmodel: "person-model/run.mjs",
   // Second-agent readiness: every shipping insert names agent_id, every
   // relational/natural-key arbiter is composite, and compatibility defaults
   // have explicit strict migrations with a working negative control.

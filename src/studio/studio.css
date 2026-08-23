@@ -1657,6 +1657,63 @@
     .portrait-placeholder { max-width: 260px; }
   }
 
+  .person-model {
+    margin-top: 28px;
+    padding: 30px;
+    border: 1px solid rgba(39, 55, 49, 0.13);
+    border-radius: 24px;
+    background: #fffdfa;
+    box-shadow: 0 18px 45px rgba(44, 51, 47, 0.06);
+  }
+
+  .person-model-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 28px;
+    align-items: flex-start;
+  }
+  .person-model-head h2 {
+    margin: 5px 0 10px;
+    max-width: 720px;
+    color: #263a34;
+    font-family: var(--serif);
+    font-size: clamp(27px, 3vw, 39px);
+    font-weight: 500;
+    letter-spacing: -0.035em;
+  }
+  .person-model-head p:last-child { max-width: 740px; color: #69766f; line-height: 1.65; }
+  .model-version { flex: 0 0 135px; padding: 16px; border: 1px solid rgba(31, 92, 74, 0.15); border-radius: 14px; background: #eff6f1; }
+  .model-version strong, .model-version span { display: block; }
+  .model-version strong { color: #1d5c49; font-family: var(--serif); font-size: 27px; font-weight: 500; }
+  .model-version span { margin-top: 2px; color: #698078; font-size: 11px; }
+
+  .person-model-summary { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 24px; }
+  .person-model-summary > span { padding: 8px 11px; border-radius: 999px; color: #65736d; background: #f0f2ed; font-size: 11px; }
+  .person-model-summary strong { color: #26483e; }
+  .person-claims { display: grid; gap: 11px; margin-top: 18px; }
+  .person-claim { padding: 18px; border: 1px solid rgba(42, 65, 57, 0.12); border-radius: 15px; background: #fff; }
+  .person-claim.decision-accepted { border-color: rgba(33, 111, 83, 0.22); background: #f6fbf7; }
+  .person-claim.decision-rejected, .person-claim.decision-superseded { opacity: 0.68; background: #f5f3ef; }
+  .claim-meta { display: flex; gap: 7px; align-items: center; color: #87918c; font-size: 10px; font-weight: 750; letter-spacing: 0.09em; text-transform: uppercase; }
+  .claim-confidence { margin-left: auto; color: #507266; letter-spacing: 0; text-transform: none; }
+  .person-claim > p { margin: 10px 0 14px; color: #293d37; font-size: 14px; line-height: 1.6; }
+  .claim-foot { display: flex; justify-content: space-between; gap: 18px; align-items: center; color: #7b8882; font-size: 10px; }
+  .claim-foot > strong { color: #3c6c5d; text-transform: capitalize; }
+  .claim-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
+  .claim-actions button { padding: 7px 10px; border: 1px solid rgba(65, 79, 73, 0.15); border-radius: 8px; color: #65736d; background: #fff; font: inherit; font-weight: 750; cursor: pointer; }
+  .claim-actions .claim-accept { color: #fff; border-color: #276c57; background: #276c57; }
+  .claim-actions button:disabled { cursor: wait; opacity: 0.55; }
+  .claim-actions button[aria-pressed="true"] { box-shadow: 0 0 0 2px rgba(39, 108, 87, 0.2); opacity: 1; }
+  .person-empty { margin-top: 20px; padding: 22px; border: 1px dashed rgba(47, 75, 65, 0.21); border-radius: 14px; color: #6f7c76; background: #faf9f5; }
+  .person-empty strong { color: #40564e; }
+  .person-empty p { margin-top: 5px; font-size: 12px; line-height: 1.55; }
+  .model-blockers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 15px; margin: 20px 0 0; padding: 0; list-style: none; }
+  .model-blockers li { display: flex; gap: 8px; align-items: center; color: #725d42; font-size: 11px; }
+  .model-blockers li span { width: 7px; height: 7px; border-radius: 50%; background: #d6a96f; }
+  .person-model-action { display: flex; justify-content: space-between; gap: 24px; align-items: center; margin-top: 23px; padding-top: 21px; border-top: 1px solid rgba(42, 65, 57, 0.11); }
+  .person-model-action p { max-width: 620px; color: #738079; font-size: 11px; line-height: 1.55; }
+  .person-model-action .button { min-width: 210px; }
+
   .runtime-gate {
     margin-top: 28px;
     padding: 30px;
@@ -1810,6 +1867,12 @@
     .recording-review-meta .text-button { padding-left: 0; }
     .challenge-card blockquote { font-size: 20px; }
     .runtime-gate { padding: 23px 18px; }
+    .person-model { padding: 23px 18px; }
+    .person-model-head, .person-model-action, .claim-foot { align-items: stretch; flex-direction: column; }
+    .model-version { width: fit-content; }
+    .model-blockers { grid-template-columns: 1fr; }
+    .claim-actions { justify-content: flex-start; }
+    .person-model-action .button { width: 100%; }
     .runtime-gate-head, .runtime-action { align-items: stretch; flex-direction: column; }
     .runtime-seal { width: fit-content; }
     .runtime-score { grid-template-columns: 1fr; }

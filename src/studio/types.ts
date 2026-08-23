@@ -131,3 +131,33 @@ export interface ReplicaRuntimeStatus {
   versions: { profile: number | null; voice_genome: number | null };
   activated_at: string | null;
 }
+
+export interface ReplicaClaim {
+  claim_id: string;
+  domain: string;
+  key: string;
+  body: string;
+  origin: "self_declared" | "observed" | "imported" | "inferred";
+  confidence: number;
+  status: "proposed" | "approved" | "rejected" | "superseded";
+  sensitive: boolean;
+  source_count: number;
+  decision: "accepted" | "rejected" | "superseded" | null;
+  reason_code: string;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+export interface ReplicaProfileSummary {
+  replica_id: string;
+  version: number;
+  status: "draft" | "approved" | "retired";
+  created_at: string;
+}
+
+export interface PersonModelStatus {
+  replica_id: string;
+  claims: ReplicaClaim[];
+  readiness: { ready: boolean; blockers: string[]; conflicts: string[]; accepted_claims: number };
+  profiles: ReplicaProfileSummary[];
+}

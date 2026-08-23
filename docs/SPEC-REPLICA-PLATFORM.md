@@ -40,6 +40,11 @@ relationships, and multimodal identity are separate versioned records with
 separate evaluators. The prompt compiler receives bounded rendered views; it
 does not become their system of record.
 
+The first concrete identity record is the evidence-backed Person Model. Its
+deterministic builder consumes only accepted, currently valid, cited claims;
+retains uncertainty; and binds an approved profile to the exact source-set
+commitment. See `docs/PERSON-MODEL.md`.
+
 ### R2 — evidence and inference are different types
 
 Raw sources are immutable and encrypted. Derived segments cite the raw source

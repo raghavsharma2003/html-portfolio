@@ -26,6 +26,7 @@ import type {
 import EnrollmentWorkspace from "./EnrollmentWorkspace";
 import LivenessCapture from "./LivenessCapture";
 import ProcessingReview from "./ProcessingReview";
+import PersonModelStudio from "./PersonModelStudio";
 import RuntimeGate from "./RuntimeGate";
 import {
   createSourceUpload,
@@ -50,14 +51,14 @@ type LoadState = "booting" | "loading" | "ready" | "error";
 const STAGES = [
   {
     id: "voice",
-    number: "05",
+    number: "06",
     title: "Voice laboratory",
     copy: "Compare identity, accent, rhythm, and emotion across blinded candidate renders.",
     availability: "Voice training remains disabled",
   },
   {
     id: "behavior",
-    number: "06",
+    number: "07",
     title: "Behavior calibration",
     copy: "Correct language, values, boundaries, humor, and relationship-specific behavior.",
     availability: "Behavioral inference remains disabled",
@@ -498,6 +499,12 @@ function ReplicaWorkspace({
             token={accessToken}
             replicaId={replica.replica_id}
             sourceCount={sources.length}
+            onAuthError={onReviewAuthError}
+          />
+
+          <PersonModelStudio
+            token={accessToken}
+            replicaId={replica.replica_id}
             onAuthError={onReviewAuthError}
           />
 

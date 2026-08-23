@@ -68,7 +68,7 @@ export default function RuntimeGate({
     <section className="runtime-gate" aria-labelledby="runtime-gate-title">
       <div className="runtime-gate-head">
         <div>
-          <p className="eyebrow">07 · Private runtime</p>
+          <p className="eyebrow">08 · Private runtime</p>
           <h2 id="runtime-gate-title">One qualified identity, frozen at launch.</h2>
           <p>
             Launch binds the exact person model, VoiceGenome, provider voice, relationship namespace,

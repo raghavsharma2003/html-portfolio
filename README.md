@@ -111,6 +111,9 @@ Implemented now:
 - owner-only processing review with privacy-safe evidence summaries,
   append-only accept/reject/supersede decisions, and an idempotent draft-only
   VoiceGenome build queue;
+- an evidence-backed Person Model that turns cited, owner-reviewed claims into
+  deterministic versioned identity, speech, behaviour, values, boundaries,
+  autobiography and relationship-mode profiles while retaining uncertainty;
 - hard `agent_id` isolation for raw logs, graph memory, suppressions and
   consolidation cursors, plus strict default-removal/natural-key migrations
   gated for a second agent; production migrations remain unapplied;
@@ -137,4 +140,5 @@ activation remain closed until their explicit live gates pass. The full architec
 research in [`docs/research/REPLICA-FRONTIER-2026.md`](docs/research/REPLICA-FRONTIER-2026.md),
 provenance in [`docs/REPLICA-PROVENANCE.md`](docs/REPLICA-PROVENANCE.md), and
 runtime isolation in [`docs/REPLICA-RUNTIME.md`](docs/REPLICA-RUNTIME.md).
+The Person Model contract is in [`docs/PERSON-MODEL.md`](docs/PERSON-MODEL.md).
 Azure allocation is in [`docs/AZURE-FOUNDRY-PLAN.md`](docs/AZURE-FOUNDRY-PLAN.md).
