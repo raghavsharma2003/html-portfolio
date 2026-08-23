@@ -1281,6 +1281,24 @@
       "kind": "decision",
       "at": "2026-08-22",
       "title": "Dark his-bubble #8e4054 wine, send control keeps accent (3:1 floor), light-quote debt gated as named ratchet"
+    },
+    {
+      "id": "measured-but-not-felt",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "A 1.65x luminance delta over an invisible baseline is itself invisible; gate presence with a felt-assertion plus in-run negative control"
+    },
+    {
+      "id": "dark-theme-day-paintings-are-mud",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "Explicit Dark now always paints the night room in the thread; a dark palette and a day painting cannot harmonize"
+    },
+    {
+      "id": "callcost-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "Per-minute cost: live voice $0.014, cascade $0.029, +screen-share $0.037 list; $0 today until free pool exhausts; video frames and output audio dominate"
     }
   ],
   "edges": [
@@ -2353,6 +2371,21 @@
       "src": "dark-his-bubble-is-wine-not-alarm",
       "rel": "constrains",
       "dst": "wallpaper-scrims-per-state-and-theme"
+    },
+    {
+      "src": "measured-but-not-felt",
+      "rel": "supersedes",
+      "dst": "sky-choice-is-a-veil-not-a-palette"
+    },
+    {
+      "src": "dark-theme-day-paintings-are-mud",
+      "rel": "constrains",
+      "dst": "wallpaper-scrims-per-state-and-theme"
+    },
+    {
+      "src": "callcost-2026-08-23",
+      "rel": "measured_by",
+      "dst": "brain-model"
     }
   ]
 }

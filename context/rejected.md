@@ -1684,3 +1684,35 @@ the whole phase.
 **The generalisable rule:** floors alone ratchet toward black. Any veil
 whose purpose is "the painting shows through" needs the property gated in
 both directions.
+
+---
+
+## `measured-but-not-felt` — the 1.65x delta nobody could see
+
+**Tried (WS-SKYFELT round 1):** sky-choice presence as a FLAT colourless
+veil, 0.88 alpha at morning. Ground luminance-sd deltas of 1.4x-1.76x
+were measured in the browser and the change shipped. The owner's phone:
+"I see no sky." A ratio between two faint things is not a picture; a
+phone at daylight brightness rounds a 12% show-through to white. The
+fix was the landing's veil CURVE (thin over open sky, deep at the
+ground), and the gate that replaced the sd-delta is a felt-assertion
+(MAD from the flat theme ground, floor 6.0) that runs its own negative
+control every time: the rejected flat frame computes 4.2 and MUST fail,
+so the floor cannot drift down to match a regressed design.
+
+**The generalisable rule:** a relative improvement over an invisible
+baseline can itself be invisible. Gate presence against the FLAT ground
+a viewer would otherwise see, with the rejected artifact as a
+permanent in-run negative control. Supersedes the mechanism half of
+`sky-choice-is-a-veil-not-a-palette` (its stamp/attribute half stands).
+
+## `dark-theme-day-paintings-are-mud` — a palette and a picture that cannot agree
+
+**Found (owner, on device):** explicit Dark at 12:37pm composited the
+MORNING painting under a 0.91 near-black warm veil: muddy brown-black,
+no sky, "not a good color combo." Structural, not tunable: a dark
+palette needs a dark picture, and no veil alpha over a bright painting
+produces anything but murk. Explicit Dark's thread wallpaper is now the
+night painting always (the night room), a palette choice not a clock
+claim: home/call keep the real sky in every mode, and the browser
+battery pins that home in explicit Dark at noon still shows morning.

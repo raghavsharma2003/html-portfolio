@@ -2422,3 +2422,35 @@ contrast gate extended and negative-tested.
 - New anti-pattern pinned: a pure-white board cell passes every
   contrast ratio and is still wrong on a painting; the gate now
   requires tinted-not-neutral, read from the block the board uses.
+
+---
+
+## `callcost-2026-08-23` — what a minute of Meera costs (WS-CALLCOST)
+
+Method: lane constants read from the shipping code, prices fetched
+2026-08-23 from ai.google.dev/gemini-api/docs/pricing (they DOUBLE on
+2027-01-01 per the page), arithmetic reproducible at the scratchpad
+calc script; bands = her talk share 0.25/0.39/0.55.
+
+- List price per TYPICAL minute: live voice $0.0142, cascade voice
+  $0.0289, live+screen-share $0.0374, cascade+screen-share $0.109
+  (0.080 warm-cache to 0.399 cold: vision cache-hit rate UNMEASURED,
+  5x uncertainty). Today-cost $0 until the free pool's daily budget
+  exhausts; N minutes/day of free capacity is unmeasured.
+- 30 min/day month: live $13 (Rs.1,096), cascade $26 (Rs.2,210, within
+  2% of decisions.md's independent Rs.2,260), live+share $34.
+- Dominant drivers: video frames (47-65% of a share minute), her output
+  audio ($12/1M live, $20/1M cascade TTS: the fallback lane costs 2x),
+  the 44.8k-char system instruction (billed per cascade TURN and per
+  goAway rotation, ~$0.0105/rotation; video shortens rotation cadence).
+- Silent multipliers found: frames sent at 1.67fps against a documented
+  1fps ceiling (billing ambiguity up to 14x, ONE usageMetadata probe
+  settles it); flush frames ignore scene-change gating (up to a third
+  of the video bill on a frozen screen); MAX_ROTATES=6 drops to the
+  ~100x-cost cascade+vision lane on a server event nobody watches; a
+  greeting think+TTS is paid per call and usually discarded ($0.0044).
+- cache-9x's "cost is not the constraint" verdict SURVIVES for voice
+  ($5k = ~35,200 ten-minute calls, unchanged) and DOES NOT survive for
+  screen share (~13,400 live / ~4,600 cascade).
+- Ranked unmeasured: real usageMetadata per call, real talk share,
+  vision cache-hit rate, free-tier N, goAway rate while sharing.
