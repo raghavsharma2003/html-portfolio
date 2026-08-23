@@ -2454,3 +2454,29 @@ calc script; bands = her talk share 0.25/0.39/0.55.
   screen share (~13,400 live / ~4,600 cascade).
 - Ranked unmeasured: real usageMetadata per call, real talk share,
   vision cache-hit rate, free-tier N, goAway rate while sharing.
+
+---
+
+## `tester-wave-1` — 2026-08-23, first external tester (Gaurav)
+
+Method: WhatsApp feedback + chat screenshots reproduced as scripted
+flows; every fix eval-pinned; n as stated per suite.
+
+- Honesty checks 351 -> 393 (family 6, activity specifics; the tester's
+  7 fabricated lines are permanent must-fail negatives, and the same
+  "catalan" sentence passes against a Catalan record).
+- callmem eval 195 assertions (call brief carries yesterday + last
+  call + game ledger; budgets pinned: shared history 700B, activities
+  300B, live tail 20,895/24,000, live+watch 23,047/24,000).
+- Echosim floor: byte-identical tables before/after, run twice
+  (5 couplings x 8 seeds x 2 arms).
+- Farewell detector: 20 positives fire, 23 adversarial negatives do
+  not ("bye bolna galat laga" class); ends 1.4s after her goodbye.
+- game-invite detector 123 assertions (negative-heavy by design);
+  gameplay browser battery 87 assertions incl. full chess games from
+  the black seat (133 and 86 plies, castling + promotion).
+- Persona: core 45,494 under the 45,500 tripwire after three trims;
+  assembled tripwire deliberately raised 50000 -> 51000 (dated
+  rationale at the check; growth cost ~$0.0004/session).
+- Tester positives preserved and logged: voice clarity/latency praised,
+  callback-on-drop praised, chat-side cross-modal memory worked.
