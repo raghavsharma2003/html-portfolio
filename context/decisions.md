@@ -2024,3 +2024,43 @@ instead of being silently marked narrated.
 and then dropped. The bounded re-draft (5 attempts at 600ms) is the number to
 raise first; dropping the staleness check is not on the table, because a
 comment on a position two moves gone cannot be un-said.
+
+## `maya-rename-display-only` — she is Maya where humans read, meera where machines do
+
+**Decided 2026-08-23.** The rename rides ONE seam — `HER_NAME` in
+`persona.ts` (75 references across 16 files follow it, verified zero stray
+display literals) — plus twelve static files (manifests, Android strings,
+native notification text, landing/privacy copy, titles/og). Internal
+identifiers never change: `meera_*` tables, `MEERA_AGENT_ID`, storage keys,
+the `meera:knows` event, the `meera-messages` channel, `app.meera.companion`
+(install-over-update — a changed applicationId is a second app, not an
+update), the domain, wire headers, log tags, asset filenames. Group
+wake-names became a SUPERSET (maya + meera + Devanagari forms): rooms that
+have addressed her as Meera for months must not go unanswered. The
+Telegram/Discord/WhatsApp fallback usernames stay "Meera" because they
+double as @-mention matchers for accounts registered under that name.
+`public/og-card.jpg` still paints "meera" — owner asset, flagged.
+
+**Reverses if:** an internal identifier rename ships WITH a migration and an
+install-over-update proof (never as a find-replace); the bot fallbacks flip
+only after the registered accounts are renamed and env vars set.
+
+## `lifecycle-matrix-as-code` — every transition names its carrier or the build fails
+
+**Decided 2026-08-23.** `LIFECYCLE_MATRIX` (`src/voice/callHistory.ts`):
+10 events x 5 contexts = 50 cells, each cell a carrier
+(assembly/direct/state/silent/na) plus a mandatory written `why` (>=40
+chars, gated). `evals/lifecycle/run.mjs` (378 checks, inside verify-release)
+walks all 50: a `direct` cell must have a live sender in `useCallEngine.ts`
+SOURCE — declared-and-dead fails the build, which is the structural answer
+to the dead-writers class. Four cells were dark and got built (game_closed
+and game_start mid-call, share_end mid-call, board-settle on pickup during
+her think — sent silent so she corrects her stale brief without narrating
+her prompt). `IncomingCall` gained `reason: callback|wants` so "call cut at
+3:12" renders only when there was a drop to cite. The owner's standing
+instruction — "I need not to tell you every time" — is this matrix: a new
+overlap defect means a wrong cell, not a missing enumeration.
+
+**Reverses if:** a sixth context or eleventh event arrives that the grid
+cannot express — then the matrix GROWS a row, it does not get bypassed; any
+transition handled outside it is the defect returning.

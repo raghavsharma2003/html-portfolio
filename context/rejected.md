@@ -1968,3 +1968,21 @@ share (spend budgets on DELIVERY, never on attempt). Full entries in
 the wave reports; july's timeline.ts day-shape fix for the fairy-
 lights class sat gated-but-unwired the whole time (dead-writers,
 fourth instance: wire-or-retire is now a lifecycle-slice item).
+
+## `t14-render-layer-retired` — a second answerer of "right now", dead since birth
+
+timeline.ts's T14 render layer (`renderHerDay`/`renderHisClock`/
+`renderTimeFrame`/`timeFrame` + headers) was written in July for the
+fairy-lights class, gated by `evals/time/` (982 lines), and NEVER WIRED:
+no `time.frame` row was ever added to compiler.ts's MANIFEST, so it had
+zero callers outside its own eval for its whole life — the fifth
+dead-writers instance. Retired 2026-08-23 with a dated tombstone rather
+than wired, because wiring it now would make it a SECOND renderer of the
+exact question `herNow.ts` exists to make unanswerable twice, in the same
+slot (T7). The live half (`istParts`, `herNow()` on HomeScreen) stays.
+Enforced by a zero-importer gate, not deletion — `evals/time/` still
+guards the live half with a source-mutating negative control; deleting is
+a WS-TIME task. Honest residual: `hisClock` (his dated facts moving
+behind him) is covered by nothing shipping — T9 carries clock/gap facts
+only. **Returns only as** a real compiler slot with a MANIFEST row and a
+lane-parity column, never as a render function waiting for a caller.

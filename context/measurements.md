@@ -2701,3 +2701,21 @@ the note composition were extracted into pure functions.
   cells; burst suite 186.
 - Prompt ceilings raised with dated rationale: core 46400, assembled
   51600 (~$0.0002/session).
+
+## `maya-lifecycle-wave-2026-08-23` (n and method per line)
+
+- Rename seam: 75 `HER_NAME` refs / 16 files (grep, n=all); 0 stray
+  display "Meera" literals in src/ (grep every string literal + JSX text
+  node); browser-verified (playwright, real preview build): onboarding,
+  home header, chat header, settings footer, real Notification titles
+  all "Maya", zero "Meera" on page; notify-browser ALL PASS.
+- Lifecycle: 378 checks over 50 cells (10 events x 5 contexts), 7
+  negative controls all caught incl. the pre-fix dark tree; carriers
+  assembly 17 / direct 11 / na 13 / state 4 / silent 5.
+- multimodal native-gate 63/63 after following the grounding predicate
+  to `WatchPacer.fresh` (parity battery proves property intact; only
+  the address moved). Wired into build-apk.yml with `--offline` so the
+  stub config fails loud.
+- verify-release 13/13 twice on the isolated maya tree, twice more on
+  the integrated tree after the coordinator's persona rename + bundle
+  regen (4 full passes total).
