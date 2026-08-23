@@ -335,8 +335,14 @@ export function meeraFullChecks(agent, lanes) {
     ["sarvam", lanes.S],
     ["device", lanes.D],
   ]) {
-    add(`[${nm}] assembled < 50000 (web)`, s.length < 50000, String(s.length));
-    add(`[${nm}] assembled < 50000 (in-app +${APP})`, s.length + APP < 50000, String(s.length + APP));
+    // Raised 50000 -> 51000 on 2026-08-23 for the first-external-tester wave:
+    // the fabrication rule (never invent shared-game specifics), the
+    // call-end-is-theirs rule and the never-pretend-to-check weave, all born
+    // from measured failures on a real tester's calls. Cost of the growth,
+    // computed: ~250 tokens ~= $0.0004 per live session at 2026 list price.
+    // Margin kept tight on purpose: the next unplanned growth trips this.
+    add(`[${nm}] assembled < 51000 (web)`, s.length < 51000, String(s.length));
+    add(`[${nm}] assembled < 51000 (in-app +${APP})`, s.length + APP < 51000, String(s.length + APP));
   }
   add("[text] chat system < 50000", lanes.tt.core.length < 50000, String(lanes.tt.core.length));
 

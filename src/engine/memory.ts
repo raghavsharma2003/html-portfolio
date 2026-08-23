@@ -690,6 +690,11 @@ export interface FinishedActivity {
   kind: string;
   /** `ActivityState.facts` as they stood at the close. */
   facts: readonly string[];
+  /** `ActivityState.record` — the half that is still true next week. See that
+   *  field's doc in `activity.ts`; it is the reason this whole seam was
+   *  rebuilt in Aug 2026. Optional, and an episode without one renders exactly
+   *  what it rendered before this field existed. */
+  record?: readonly string[];
   /** the session's OWN start — the idempotence key, never the close time */
   startedAt: number;
   closedAt: number;
@@ -711,8 +716,24 @@ export const MOMENT_ROW_RE =
 /** Longest an episode summary may be. Whole facts are dropped from the END to
  *  fit — never sliced. `silent-truncation` is a law in this repo for the
  *  reason `renderActivity` states: truncation eats the end, and a sliced
- *  block is a lie. */
-export const EPISODE_SUMMARY_MAX = 180;
+ *  block is a lie.
+ *
+ *  180 → 420 (Aug 2026). 180 was sized for `facts` alone, and `facts` alone is
+ *  what made a finished chess game unanswerable: at 180 the four durable rows
+ *  a person actually carries — how it opened, which colour she had, how it
+ *  ended, what was taken — do not fit beside the momentary ones, and the drop
+ *  policy takes them from the END, which is exactly where they sit. 420 is
+ *  measured against the real worst case: a six-ply opening with a book name,
+ *  a colour, an ending with a move number and two capture rows is ~240 with
+ *  the label and date, and a six-round wyr session is ~400. It is bounded by
+ *  the same law it always was — whole rows drop, nothing is ever sliced.
+ *
+ *  MIRRORED SERVER-SIDE in `api/memory.js`'s `ACTIVITY_SUMMARY_MAX`. The two
+ *  are one number and `evals/gamemem.mjs` asserts they agree: a writer that
+ *  composes 420 characters and a reader that stores 200 is `warm-count-
+ *  unscoped` again — reader and writer disagreeing about the same record,
+ *  silently, with the disagreement landing on the END of the memory. */
+export const EPISODE_SUMMARY_MAX = 420;
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
@@ -740,9 +761,37 @@ export function episodeDateLabel(atMs: number): string {
  */
 export function activityEpisodeSummary(a: FinishedActivity, label: string): string {
   const stem = `${label} together${a.closedAt ? ` on ${episodeDateLabel(a.closedAt)}` : ""}`;
-  const rows = a.facts
+  // THE RECORD WINS OUTRIGHT WHEN THERE IS ONE.
+  //
+  // `record` is the adapter's answer to "what is still true about this next
+  // week" and `facts` is its answer to "where does this stand right now" —
+  // and at the close those two overlap almost completely, in the worst
+  // possible way: they say the SAME things in different tenses. Concatenating
+  // them produced "…he left it unfinished on move 6, no result; she had
+  // black; … he ended the game early, no result; she is playing black; the
+  // opening is the catalan opening; 6 moves in" — one memory, every fact in
+  // it twice, and the second copy in the present tense about a game that had
+  // ended. A prompt that contradicts its own tense is resolved by the model,
+  // not by us.
+  //
+  // So an adapter that has said what is durable has said it, and the momentary
+  // rows are dropped. An adapter with no `record` — a kind that has not been
+  // taught this yet, or a stored payload from before the field existed — falls
+  // back to `facts` and renders byte-for-byte what it rendered before.
+  const source = a.record?.length ? a.record : a.facts;
+  const seen = new Set<string>();
+  const rows = source
     .map((f) => String(f || "").trim())
-    .filter((f) => f && !MOMENT_ROW_RE.test(f));
+    .filter((f) => {
+      // MOMENT_ROW_RE applies to both halves. It is shape-matched, not
+      // kind-matched, so an adapter that puts a present-moment row in its
+      // record by mistake gets it dropped for free — one defence, once.
+      if (!f || MOMENT_ROW_RE.test(f)) return false;
+      const k = f.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
   let out = stem;
   for (const row of rows) {
     const next = out === stem ? `${stem} — ${row}` : `${out}; ${row}`;
@@ -763,11 +812,23 @@ export function activityEpisodeSummary(a: FinishedActivity, label: string): stri
  * reconciler over the same synced session, and a client-side guard gives each
  * of them a private opinion about whether the write already happened.
  */
-export function logFinishedActivity(device: string, a: FinishedActivity, label: string) {
-  if (!device || !a || !a.kind || !label) return;
-  if (!Number.isFinite(a.startedAt) || !Number.isFinite(a.closedAt)) return;
+export function logFinishedActivity(
+  device: string,
+  a: FinishedActivity,
+  label: string,
+): ActivityRecord | null {
+  if (!a || !a.kind || !label) return null;
+  if (!Number.isFinite(a.startedAt) || !Number.isFinite(a.closedAt)) return null;
   const summary = activityEpisodeSummary(a, label);
-  if (!summary) return;
+  if (!summary) return null;
+  // THE RETURN VALUE IS THE LOCAL HALF, and it is returned rather than written
+  // here for the reason every writer in this file is fire-and-forget: this
+  // module may not touch app state. The caller (the reconciler) puts it in the
+  // ledger. `device` is no longer required to reach that half — a signed-out
+  // person with a dead network still gets the memory, which is the entire
+  // point of the ledger existing. See `formatActivityLedger`.
+  const rec: ActivityRecord = { kind: a.kind, startedAt: a.startedAt, closedAt: a.closedAt, summary };
+  if (!device) return rec;
   try {
     post({
       op: "activity",
@@ -780,6 +841,189 @@ export function logFinishedActivity(device: string, a: FinishedActivity, label: 
   } catch {
     /* never let a memory write reach the reconciler */
   }
+  return rec;
+}
+
+// ── the LOCAL activity ledger — the half that needs no network ─────────────
+//
+// #113 put a finished activity in the graph and stopped there, and the graph
+// turned out to be reachable by exactly one route: `opRecall`'s semantic leg
+// over `vy_fact`. The keyword leg reads `meera_nodes`, which activities are
+// never written to; the `weEpisodes` leg needs a `vy_rel_state` row, which
+// only exists after a consolidation pass has run. So for a person on their
+// FIRST DAY — which is every new person, and was the first external tester —
+// the record of a game they had just played was retrievable only if an
+// embedding call had succeeded at write time and the same query embedded close
+// enough at read time. `api/_embed.js` says in its own doc that "an embedding
+// is an enhancement, never the only path to a memory". For activities it was
+// the only path.
+//
+// The fix has two halves and this is the one that cannot fail: the same
+// summary the server is sent is ALSO kept on the device, in `AppState`, and
+// rendered into the prompt from there. No round trip, no embedding, no person
+// row, no consolidation, and it works signed out exactly as it works signed
+// in. The server copy stays — it is what survives a reinstall and what the
+// relational layer builds on — but it is no longer the only copy.
+//
+// This is deliberately the SAME string in both stores rather than two
+// renderings of one session. `warm-count-unscoped`: when a reader and a writer
+// each derive the same record, they eventually disagree, and the disagreement
+// is invisible.
+
+/** One finished activity, as it is kept on the device. Small on purpose:
+ *  `AppState` is serialised to localStorage on every write. */
+export interface ActivityRecord {
+  kind: string;
+  startedAt: number;
+  closedAt: number;
+  /** exactly the string sent to the server — one rendering, two stores */
+  summary: string;
+}
+
+/** How many finished activities the device keeps. Twenty is months of real
+ *  play at this product's cadence, and ~8KB against a message history already
+ *  measured in tens of KB. Oldest are dropped first: the graph copy is what
+ *  carries the deep past, this is what carries the recent past reliably. */
+export const ACTIVITY_LEDGER_MAX = 20;
+
+/** How many rows of it reach a single prompt. She does not need every game
+ *  she has ever played in front of her; she needs the ones recent enough to
+ *  come up. */
+export const ACTIVITY_LEDGER_ROWS = 6;
+
+/** Hard ceiling on the rendered block, heading included — sized like
+ *  `CHAT_TAIL_BUDGET` and against the same measured worst case. */
+export const ACTIVITY_LEDGER_BUDGET = 1200;
+
+/**
+ * The heading's first words, and the ONE string both sides of this feature
+ * agree on. `api/memory.js`'s own activity block opens with it too, and
+ * `evals/gamemem.mjs` asserts the two agree.
+ *
+ * It is a sentinel because there are now two producers of this block and they
+ * must never both render. The server leg exists for the surfaces that have no
+ * `AppState` at all — the realtime call lane, Telegram, WhatsApp, Discord —
+ * and would otherwise have no route to a finished game. A client that HAS the
+ * ledger has the better copy of the same thing (complete, no round trip, no
+ * embedding, works signed out), so it drops the server's and renders its own.
+ * Rendering both would put every game in the prompt twice, under two headings,
+ * which is how a person starts sounding like she is reading a file.
+ */
+export const ACTIVITY_BLOCK_SENTINEL = "GAMES AND THINGS YOU TWO ACTUALLY DID";
+
+const ACTIVITY_LEDGER_HEAD =
+  `${ACTIVITY_BLOCK_SENTINEL}, newest first. This is the whole record of them: never add a move, an opening, a question or a score that is not written here — if they ask for one this list does not carry, say you do not remember it rather than filling it in. Being listed here is not a reason to bring it up.`;
+
+/**
+ * `recalled` with any server-rendered activity block taken out.
+ *
+ * Blocks in a recall string are separated by a single newline and each opens
+ * with an ALL-CAPS heading ending in a colon, so a block runs from its heading
+ * to the next heading or the end — which is what this walks. Nothing else in
+ * the string is touched: a recall with no activity block is returned by
+ * reference, so the byte-identity default for everyone who has never finished
+ * a game is exact rather than approximate.
+ */
+export function withoutServerActivityBlock(recalled: string): string {
+  const at = recalled.indexOf(ACTIVITY_BLOCK_SENTINEL);
+  if (at < 0) return recalled;
+  // back up to the start of the heading's own line, then forward to the next
+  // line that looks like a heading (a row starts with "- ", a heading does not)
+  const from = recalled.lastIndexOf("\n", at) + 1;
+  const lines = recalled.slice(from).split("\n");
+  let i = 1;
+  while (i < lines.length && (lines[i].startsWith("- ") || !lines[i].trim())) i++;
+  const rest = lines.slice(i).join("\n");
+  return `${recalled.slice(0, from)}${rest}`.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** Add a finished activity to the ledger, newest first, deduped on the
+ *  session's own identity — the same `kind:startedAt` key the server dedupes
+ *  on, so a reconciler that runs twice (a remount, a synced close, StrictMode)
+ *  cannot produce two memories of one game. Pure; the caller owns the state. */
+export function withActivityRecord(
+  ledger: readonly ActivityRecord[] | undefined,
+  rec: ActivityRecord | null,
+): ActivityRecord[] {
+  const cur = Array.isArray(ledger) ? ledger : [];
+  if (!rec || !rec.summary) return cur as ActivityRecord[];
+  const key = `${rec.kind}:${rec.startedAt}`;
+  const kept = cur.filter((r) => r && `${r.kind}:${r.startedAt}` !== key);
+  return [rec, ...kept]
+    .sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0))
+    .slice(0, ACTIVITY_LEDGER_MAX);
+}
+
+/**
+ * The ledger as a prompt block. Pure — the clock is passed in, same contract
+ * as `formatChatTail` and for the same reason.
+ *
+ * The heading is the load-bearing part and it is written as a FENCE, not as
+ * flavour: the failure this whole seam exists to fix is her supplying a detail
+ * the record does not have, and the record is the only place that boundary can
+ * be stated with the record in front of her. It is not a substitute for the
+ * gate in `honesty.ts` — `gate0-structural` measured prompt instructions
+ * leaking 57–98% where a predicate leaked 0 of 31,122 — it is the half that
+ * makes the gate's job possible, because a fence with nothing behind it just
+ * produces a refusal where an answer should be.
+ *
+ * Returns "" when the ledger is empty, which is `memories`' render-nothing
+ * default and therefore byte-identical to today for anyone who has never
+ * finished a game.
+ */
+export function formatActivityLedger(
+  ledger: readonly ActivityRecord[] | undefined,
+  nowMs: number = Date.now(),
+): string {
+  if (!ledger?.length) return "";
+  const rows = [...ledger]
+    .filter((r) => r && r.summary && Number.isFinite(r.closedAt))
+    .sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0))
+    .slice(0, ACTIVITY_LEDGER_ROWS)
+    .map((r) => `- ${r.summary} (${agoDaysLabel(r.closedAt, nowMs)})`);
+  if (!rows.length) return "";
+  // over budget, whole rows go from the OLDEST end. Never a slice: "a sliced
+  // block is a lie" and it does not stop applying inside a block.
+  let kept = rows;
+  while (kept.length && ACTIVITY_LEDGER_HEAD.length + 1 + kept.join("\n").length > ACTIVITY_LEDGER_BUDGET)
+    kept = kept.slice(0, -1);
+  if (!kept.length) return "";
+  return `${ACTIVITY_LEDGER_HEAD}\n${kept.join("\n")}`;
+}
+
+/** "today" / "yesterday" / "3 days ago" — how a person places a game they
+ *  played. Hand-rolled and lowercase for the same reason `episodeDateLabel`
+ *  is: byte-identical in a browser, in Node and in an eval. */
+function agoDaysLabel(atMs: number, nowMs: number): string {
+  const days = Math.floor((nowMs - atMs) / 86_400_000);
+  if (!Number.isFinite(days) || days < 0) return "just now";
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  const months = Math.round(days / 30);
+  return months <= 1 ? "about a month ago" : `${months} months ago`;
+}
+
+// ── the holder, so BOTH lanes read one ledger ──────────────────────────────
+//
+// `callSelfBundle`'s idiom, for its stated reason: the call lane's compile
+// sites do not share a call frame with the component that holds `AppState`,
+// and the realtime lane does not call `think()` at all. One publisher — the
+// reconciler in App.tsx, the one component always mounted, which is already
+// where a close is written — and any number of readers.
+//
+// Not a second source of truth: `AppState.activities` is the store, this is a
+// pointer at it, republished whenever it changes. A reader that gets an empty
+// array before the first publish renders nothing, which is the same
+// render-nothing default an empty ledger has.
+let ledgerHolder: readonly ActivityRecord[] = [];
+
+export function publishActivityLedger(ledger: readonly ActivityRecord[] | undefined): void {
+  ledgerHolder = Array.isArray(ledger) ? ledger : [];
+}
+
+export function activityLedger(): readonly ActivityRecord[] {
+  return ledgerHolder;
 }
 
 // GAP 4 (WS-FELT) — closeness card. A dedicated read of the same relstate

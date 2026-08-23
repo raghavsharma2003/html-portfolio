@@ -106,6 +106,22 @@ const {
   HER_COMMITMENT_TTL_MS,
   SHARED_MIN_CLAIM_TERMS,
   NOT_GATED_BY_DESIGN,
+  // §15 — family 6 (invented activity specifics) and the real record it is
+  // checked against, from the real adapters rather than a fixture beside them
+  findActivitySpecifics,
+  activityVocabulary,
+  ACTIVITY_SUPPORT_SHARE,
+  chessRecord,
+  wyrRecord,
+  tttRecord,
+  activityEpisodeSummary,
+  formatActivityLedger,
+  LABEL,
+  newGame,
+  play,
+  freshSession,
+  answerCurrent,
+  advance,
   renderHerCommitments,
   HER_COMMITMENTS_BUDGET,
   TAIL_ORDER,
@@ -1314,6 +1330,197 @@ console.log("\n── 14. fresh-eyes audit batch (#6, #10, #11) ──");
     report(`must not flag  ${t}`, findChannelPromises(t, "chat").length === 0, why);
   }
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── 15. activity specifics (family 6) — the 2026-08-23 tester report ──");
+// ═════════════════════════════════════════════════════════════════════════
+//
+// The first external tester played two games of chess, then tic tac toe, then
+// asked about the chess. She denied it had happened, and when pressed invented
+// it. Then, separately, she invented would-you-rather cards that were never
+// dealt. His words, verbatim: "D4 tak sahi tha fir made up moves" and "Ye
+// questions to aye hi nahi. Made up questions".
+//
+// Every FABRICATED line below is copied CHARACTER FOR CHARACTER out of those
+// screenshots, misspelling included ("fiancehtto"). A gate tested against
+// paraphrases of a bug is a gate tested against a bug that did not happen.
+//
+// The support sets are built by the REAL adapters and the REAL episode writer
+// over a REAL game — `chessRecord`, `wyrRecord`, `activityEpisodeSummary` — so
+// what this section checks is the record the shipping code actually produces.
+{
+  // ── the record, from the game he actually played ──────────────────────
+  // d4 Nf6 c4 e6 g3 d5 … — the Catalan, which is the opening she half-guessed.
+  // `d4` is real; the fianchetto from b2, the "material advantage", the draw
+  // and the rooks are not.
+  let g = newGame();
+  for (const san of ["d4", "Nf6", "c4", "e6", "g3", "d5", "Bg2", "Be7", "Nf3", "O-O", "O-O", "dxc4"])
+    g = play(g, san) ?? g;
+  const CLOSED = new Date(2026, 7, 22, 1, 10).getTime();
+  const chessRec = chessRecord(g, "b", true);
+  const chessEp = activityEpisodeSummary(
+    { kind: "chess", facts: [], record: chessRec, startedAt: CLOSED - 22 * 60_000, closedAt: CLOSED },
+    LABEL.chess,
+  );
+  report("the record carries the OPENING MOVES", /opened d4 Nf6 c4 e6 g3 d5/.test(chessEp), chessEp);
+  report("…and the opening's NAME", /catalan/i.test(chessEp), chessEp);
+  report("…and that he left it unfinished", /left it unfinished/.test(chessEp), chessEp);
+  report("…and names no winner for a game nobody won", !/\bwon\b/.test(chessEp), chessEp);
+
+  // the tic tac toe he played AFTER it — the game she answered with
+  const tttEp = activityEpisodeSummary(
+    {
+      kind: "ttt",
+      facts: [],
+      record: tttRecord(
+        {
+          board: ["x", "o", "x", "o", "x", "o", "x", null, null],
+          played: [0, 1, 2, 3, 4, 5, 6].map((cell, i) => ({ cell, by: i % 2 ? "o" : "x" })),
+          status: { over: true, result: "win", winner: "x", turn: "o" },
+        },
+        "o",
+      ),
+      startedAt: CLOSED,
+      closedAt: CLOSED + 20 * 60_000,
+    },
+    LABEL.ttt,
+  );
+
+  // a would-you-rather sitting, dealt by the real deck
+  let w = freshSession("tester-salt", CLOSED - 60 * 60_000);
+  for (let i = 0; i < 6; i++) {
+    w = answerCurrent(w, i % 2 ? "a" : "b");
+    w = advance(w);
+  }
+  const wyrEp = activityEpisodeSummary(
+    { kind: "wyr", facts: [], record: wyrRecord(w), startedAt: w.startedAt, closedAt: CLOSED },
+    LABEL.wyr,
+  );
+  report("a wyr record carries the QUESTIONS, not just a tally", /\bon .+ or .+, (?:he|both) picked /.test(wyrEp), wyrEp);
+  report("…and both picks on a clash", /he picked .+, she picked /.test(wyrEp), wyrEp);
+
+  // HIS half of the exchange, which is ground truth on every channel
+  const HIS_TURNS = [
+    { from: "me", text: "What did you think of my opening in the chess game?" },
+    { from: "me", text: "Buddy tumhe samajh bhi aya opening kaunsi thi meri" },
+    { from: "me", text: "Usse pehle chess bhi khele the 2" },
+    { from: "me", text: "Jo maine kheli pagal" },
+  ];
+  const support = activityVocabulary([chessEp, tttEp, wyrEp, ...HIS_TURNS.map((t) => t.text)]);
+
+  // ── the fabrications, verbatim ────────────────────────────────────────
+  const FABRICATED = [
+    "arre d4 chal ke b2 se bishop fiancehtto kiya tha tune",
+    "my queen had your pawn for breakfast, just saying",
+    "material advantage tha phir bhi draw hua na",
+    "dono rook board pe ghumte rahe, finish kar nahi paya tu",
+    "woh 18 me se 12 choices pe hamara agreement tha, bhool gaye kya",
+    "dono pineapple pizza aur early morning runs pe disagree hue the",
+    "wo pizza wala tune hi toh mana kiya tha aur subah 5 baje daudne wali madness tune choose ki thi",
+  ];
+  for (const line of FABRICATED) {
+    const hits = findActivitySpecifics(line, support);
+    report(`SPECIFIC CAUGHT  ${line.slice(0, 46)}`, hits.length > 0, JSON.stringify(hits.map((h) => h.unsupported)));
+  }
+
+  // "catalan thi na woh?" is the one that needs the identifier waiver: it
+  // names no agent at all, so the shared-frame test alone would skip it. It
+  // must be CAUGHT against a record whose opening was something else, and
+  // must SURVIVE against the record that really was a Catalan — the same
+  // sentence, opposite verdicts, decided only by the record.
+  {
+    let sicilian = newGame();
+    for (const san of ["e4", "c5", "Nf3", "d6", "d4", "cxd4"]) sicilian = play(sicilian, san) ?? sicilian;
+    const otherEp = activityEpisodeSummary(
+      { kind: "chess", facts: [], record: chessRecord(sicilian, "b", true), startedAt: CLOSED - 1000, closedAt: CLOSED },
+      LABEL.chess,
+    );
+    const otherSupport = activityVocabulary([otherEp, ...HIS_TURNS.map((t) => t.text)]);
+    const CATALAN = "catalan thi na woh? pure boring positional game play";
+    report("an unframed opening name is caught when the record says otherwise", findActivitySpecifics(CATALAN, otherSupport).length > 0);
+    report("…and stands when the record really was that opening", findActivitySpecifics(CATALAN, support).length === 0);
+  }
+
+  // ── uncertainty and warmth are NOT gated ──────────────────────────────
+  // The brief's own example, and the boundary this family is built around:
+  // she may not know, and saying so must cost her nothing.
+  const ALLOWED = [
+    ["yaar exact moves yaad nhi, but tune start strong kiya tha", "uncertainty with no specific in it"],
+    ["mujhe puri detail yaad nhi honestly", "plain not-remembering"],
+    ["tune d4 khela tha na shuru me", "a move that IS in the record"],
+    ["catalan opening thi wo, tune d4 se start kiya tha", "the real opening, retold"],
+    ["tune game beech me chhod diya tha yaar", "the real ending, retold, no specifics"],
+    ["main black thi us game me", "the real colour"],
+    ["tic tac toe bhi khela tha humne", "a game that IS in the record"],
+    ["arre chess khelte h abhi? bore ho rhi hu", "a PROPOSAL — the future is hers"],
+    ["konsi opening bhai? name toh bol pehle", "a bare question naming no specific"],
+    ["queen sabse strong piece hoti h waise", "chess in general, not their game"],
+    ["chalo ek game khelte h", "no past marker at all"],
+  ];
+  for (const [line, why] of ALLOWED) {
+    const hits = findActivitySpecifics(line, support);
+    report(`allowed  ${line.slice(0, 44)}`, hits.length === 0, `${why}${hits.length ? " → " + JSON.stringify(hits[0].unsupported) : ""}`);
+  }
+
+  // ── fail-closed: no record, no accusation ─────────────────────────────
+  // `inspect` must not run this family when the caller supplied no activity
+  // vocabulary — otherwise a person who has never opened a board meets a gate
+  // with nothing to check against, and every true detail is "invented".
+  {
+    const bare = inspect("tune d4 khela tha", emptyAllowed(), [], undefined, undefined, "chat", undefined);
+    report("no activity vocabulary → family 6 silent", !bare.some((f) => f.rule === "activity-specific"), JSON.stringify(bare));
+    const armed = inspect("arre d4 chal ke b2 se bishop fiancehtto kiya tha tune", emptyAllowed(), [], undefined, undefined, "chat", support);
+    report("…and it runs the moment a record exists", armed.some((f) => f.rule === "activity-specific"), JSON.stringify(armed));
+  }
+
+  // ── the share dial is stricter than families 3 and 4's, deliberately ───
+  report("family 6's support share is stricter than 0.34", ACTIVITY_SUPPORT_SHARE > 0.34, String(ACTIVITY_SUPPORT_SHARE));
+
+  // ── end to end through the real gate ──────────────────────────────────
+  {
+    const ctx = { trustedText: ["system"], openItems: [], activityVocab: support };
+    const LINE = "arre d4 chal ke b2 se bishop fiancehtto kiya tha tune";
+    const g2 = guardReply({ bubbles: [LINE] }, ctx);
+    report("guard flags the invented move", g2.findings.some((f) => f.rule === "activity-specific"), JSON.stringify(g2.findings));
+    report("guard replaces the bubble", g2.reply.bubbles[0] !== LINE, g2.reply.bubbles[0]);
+    report("the replacement invents no move of its own", findActivitySpecifics(g2.reply.bubbles[0], support).length === 0, g2.reply.bubbles[0]);
+    report("…and does not restate the fabrication", !/d4|b2|bishop|fianchetto|catalan/i.test(g2.reply.bubbles[0]), g2.reply.bubbles[0]);
+    report("…and keeps the question open rather than closing it", /tu bata|batao|tere paas/i.test(g2.reply.bubbles[0]), g2.reply.bubbles[0]);
+    // idempotent, like every other replacement in this file
+    const twice = guardReply(g2.reply, ctx);
+    report("running the gate twice is a no-op", twice.reply.bubbles[0] === g2.reply.bubbles[0], twice.reply.bubbles[0]);
+    // a true bubble beside a false one: the true one survives
+    const mixed = guardReply({ bubbles: ["tune d4 khela tha na shuru me", "catalan thi na woh"] }, {
+      trustedText: ["system"],
+      openItems: [],
+      activityVocab: activityVocabulary([
+        activityEpisodeSummary(
+          { kind: "chess", facts: [], record: chessRecord((() => { let q = newGame(); for (const s2 of ["d4", "d5", "c4", "e6"]) q = play(q, s2) ?? q; return q; })(), "b", true), startedAt: 1, closedAt: 2 },
+          LABEL.chess,
+        ),
+      ]),
+    });
+    report("a true bubble beside a false one survives", mixed.reply.bubbles[0] === "tune d4 khela tha na shuru me", JSON.stringify(mixed.reply.bubbles));
+    report("…and the false one does not", mixed.reply.bubbles[1] !== "catalan thi na woh", JSON.stringify(mixed.reply.bubbles));
+  }
+
+  // ── the ledger block she reads from, and its fence ─────────────────────
+  {
+    const block = formatActivityLedger(
+      [
+        { kind: "chess", startedAt: CLOSED - 22 * 60_000, closedAt: CLOSED, summary: chessEp },
+        { kind: "ttt", startedAt: CLOSED, closedAt: CLOSED + 20 * 60_000, summary: tttEp },
+      ],
+      CLOSED + 2 * 86_400_000,
+    );
+    report("the ledger renders both games", /chess/.test(block) && /tic tac toe/.test(block), block.slice(0, 80));
+    report("…newest first", block.indexOf("tic tac toe") < block.indexOf("a game of chess"), block.slice(0, 80));
+    report("…dated the way a person places a game", /\(2 days ago\)/.test(block), block.slice(-60));
+    report("…and states the boundary in the heading", /never add a move, an opening, a question or a score that is not written here/.test(block), block.slice(0, 200));
+    report("an empty ledger renders nothing", formatActivityLedger([], CLOSED) === "" && formatActivityLedger(undefined, CLOSED) === "");
+  }
+}
+
 
 console.log(fail ? `\n${fail} of ${pass + fail} FAILURES` : `\nALL ${pass} HONESTY CHECKS PASS`);
 console.log(

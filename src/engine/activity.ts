@@ -68,6 +68,34 @@ export interface ActivityState {
    * Feeds the honesty allowlist. Anything not here, she may not name.
    */
   nameable: readonly string[];
+  /**
+   * WHAT WILL STILL BE TRUE NEXT WEEK. `facts` is the present moment and
+   * expires with it ("it is his move"); this is the half a person still
+   * carries a month later — the opening they played, who had which colour,
+   * how it ended, which choices came up.
+   *
+   * It exists because the record that reached her memory USED to be `facts`
+   * alone, and `facts` is deliberately a snapshot of a moment. A finished
+   * chess game therefore became "he ended the game early; she is playing
+   * black; 6 moves in" — no moves, no opening past ply 16, nothing a person
+   * would actually recall. Asked about his opening two days later she had
+   * nothing to answer from and invented one (the 2026-08-23 tester report:
+   * "D4 tak sahi tha fir made up moves"). A gate can refuse an invented
+   * specific; only a record can supply the real one.
+   *
+   * NOT rendered by `renderActivity` — the live block is unchanged, byte for
+   * byte, because during a game the board is on screen and a move list in the
+   * prompt is the scoresheet failure `chessTalk.ts` opens by refusing. Its
+   * two consumers are the EPISODE (`activityEpisodeSummary`, which puts these
+   * rows first because they are the durable half) and the honesty gate's
+   * activity vocabulary, which is what lets her name a real move and stops
+   * her naming one that was never played.
+   *
+   * Same three shape rules as `facts`: telegraphic, ≤14 words, never a line
+   * she could say. Optional — an adapter that has nothing durable to say
+   * omits it and every byte downstream is what it was.
+   */
+  record?: readonly string[];
   /** true when it is HER turn to act. Drives nothing on its own; she decides. */
   waitingOnHer?: boolean;
   /**

@@ -14,7 +14,7 @@
 // of evals/run.mjs), and nothing in this suite executes a query, so the import
 // is safe here in exactly the way evals/trace/run.mjs's is.
 import { execSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -367,6 +367,302 @@ if (selfOnly.sections?.T12 > 0) {
   note("      ? momentGate(input.latestUserText || \"\", input.gapSinceLastMs || 0, input.relBundle?.phraseLedger || [])");
   note("      : { moment: \"none\" as const, pulled: false };");
   note("  This suite flips to a pass the moment that lands. compiler.ts was off this batch's file list.");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§7 the record carries the FACTS — the 2026-08-23 tester report");
+// ═════════════════════════════════════════════════════════════════════════
+//
+// THE SEQUENCE, from the screenshots. He played two games of chess, then tic
+// tac toe, then asked in chat: "What did you think of my opening in the chess
+// game?" She answered "arre mastermind, tic tac toe khela tha humne 💀 / konsi
+// queen aur konsi opening bhai, chess kab ho gaya 😭" — a denial — and when
+// pressed produced "arre d4 chal ke b2 se bishop fiancehtto kiya tha tune 😭 /
+// catalan thi na woh?", of which only `d4` was true.
+//
+// TWO CAUSES, and this section pins both.
+//
+//   (1) THE RECORD HAD NO FACTS. `activityEpisodeSummary` stored `facts`, and
+//       `facts` is by design the PRESENT MOMENT: "he ended the game early;
+//       she is playing black; 6 moves in". No moves. No opening past ply 16,
+//       because `chessActivity` suppresses that row once it stops being news.
+//       There was nothing to answer from.
+//
+//   (2) `AppState.game` IS ONE SLOT. Game two replaced game one, tic tac toe
+//       replaced game two, and everything behind the current slot lived only
+//       in the server graph — reachable only through `opRecall`'s semantic leg
+//       (an embedding that may never have been written), because the keyword
+//       leg reads `meera_nodes` and activities are never written there, and
+//       the we-episode leg needs a `vy_rel_state` row a first-day person does
+//       not have. So the ONLY thing in front of her was the tic tac toe, which
+//       is exactly what she answered with.
+//
+// The ledger below is the answer to (2) and it is deliberately the half that
+// cannot fail: no device id, no network, no embedding, no consolidation.
+{
+  const T0 = new Date(2026, 7, 22, 0, 30).getTime();
+  const mk = (moves, herSide, startedAt) => {
+    let g = E.newGame();
+    for (const san of moves) g = E.play(g, san) ?? g;
+    return { kind: "chess", game: g, herSide, startedAt };
+  };
+
+  // ── his first game: the Catalan, abandoned on move six ────────────────
+  const one = mk(["d4", "Nf6", "c4", "e6", "g3", "d5", "Bg2", "Be7", "Nf3", "O-O", "O-O", "dxc4"], "b", T0);
+  const closedOne = E.settleOccupant({ game: one, tally: {} }, T0 + 20 * 60_000).closed;
+  ok("an abandoned game closes as ended-early", closedOne.endedEarly === true);
+  // SIGNED OUT, and it is the point of the assertion rather than an aside: no
+  // device id at all, and the memory is still produced. Before this the local
+  // half did not exist and `emitClosedActivity` returned early without one.
+  const recOne = E.emitClosedActivity(undefined, closedOne);
+  ok("a signed-out close still produces a record", Boolean(recOne && recOne.summary), JSON.stringify(recOne));
+  ok(
+    "the abandoned game is remembered AS abandoned, and located",
+    /left it unfinished on move 6, no result/.test(recOne.summary),
+    recOne.summary,
+  );
+  ok("and it still names no winner", !/\bwon\b/.test(recOne.summary), recOne.summary);
+  ok("the OPENING MOVES are in the record", /opened d4 Nf6 c4 e6 g3 d5/.test(recOne.summary), recOne.summary);
+  ok("the opening's NAME is in the record", /the catalan opening/.test(recOne.summary), recOne.summary);
+  ok("which colour she had is in the record", /she had black/.test(recOne.summary), recOne.summary);
+  ok("and what was captured", /she took his pawn/.test(recOne.summary), recOne.summary);
+  ok("the record fits the budget", recOne.summary.length <= E.EPISODE_SUMMARY_MAX, `${recOne.summary.length}`);
+
+  // ── his second game: a decisive one ───────────────────────────────────
+  // Scholar's mate, so the ending row has a winner AND a move number.
+  const two = mk(["e4", "e5", "Bc4", "Nc6", "Qh5", "Nf6", "Qxf7#"], "w", T0 + 30 * 60_000);
+  const closedTwo = E.settleOccupant({ game: two, tally: {} }, T0 + 45 * 60_000).closed;
+  const recTwo = E.emitClosedActivity(undefined, closedTwo);
+  ok("a decisive game records WHO won and HOW", /she won by checkmate on move 4/.test(recTwo.summary), recTwo.summary);
+  ok("…and how it opened", /opened e4 e5 Bc4 Nc6 Qh5 Nf6/.test(recTwo.summary), recTwo.summary);
+
+  // ── then tic tac toe, which is what she answered with ─────────────────
+  const ttt = {
+    kind: "ttt",
+    herSide: "o",
+    startedAt: T0 + 60 * 60_000,
+    closedAt: T0 + 70 * 60_000,
+    game: {
+      board: ["x", "o", "x", "o", "x", "o", "x", null, null],
+      played: [0, 1, 2, 3, 4, 5, 6].map((cell, i) => ({ cell, by: i % 2 ? "o" : "x" })),
+      status: { over: true, result: "win", winner: "x", turn: "o" },
+    },
+  };
+  const recTtt = E.emitClosedActivity(undefined, ttt);
+  ok("the tic tac toe is a record too", /a game of tic tac toe together/.test(recTtt.summary), recTtt.summary);
+
+  // ── THE LEDGER: all three, in the order a person carries them ─────────
+  let ledger = [];
+  for (const r of [recOne, recTwo, recTtt]) ledger = E.withActivityRecord(ledger, r);
+  ok("three sessions, three memories", ledger.length === 3, JSON.stringify(ledger.map((r) => r.kind)));
+  ok("newest first", ledger[0].kind === "ttt" && ledger[2].kind === "chess", JSON.stringify(ledger.map((r) => r.kind)));
+  ok(
+    "BOTH chess games survive the tic tac toe replacing them",
+    ledger.filter((r) => r.kind === "chess").length === 2,
+    JSON.stringify(ledger.map((r) => r.kind)),
+  );
+  // the dedupe is on the SESSION, matching the server's own idempotence key,
+  // so a reconciler that runs twice cannot produce two memories of one game
+  ok("a re-emitted close does not double the memory", E.withActivityRecord(ledger, recOne).length === 3);
+  ok("…and the re-emitted copy takes the slot", E.withActivityRecord(ledger, recOne).some((r) => r === recOne));
+  ok("nothing in, nothing out", E.withActivityRecord(undefined, null).length === 0);
+  // bounded, because AppState is serialised to localStorage on every write
+  let big = [];
+  for (let i = 0; i < E.ACTIVITY_LEDGER_MAX + 5; i++)
+    big = E.withActivityRecord(big, { kind: "chess", startedAt: i, closedAt: i, summary: `game ${i}` });
+  ok("the ledger is bounded", big.length === E.ACTIVITY_LEDGER_MAX, `${big.length}`);
+  ok("and it keeps the NEWEST", big[0].summary === `game ${E.ACTIVITY_LEDGER_MAX + 4}`, big[0].summary);
+
+  // ── THE ANSWER SHE NOW HAS ────────────────────────────────────────────
+  // three days on, which puts every one of the three sessions in the same
+  // "2 days ago" bucket — the label is relative to each session's OWN close,
+  // so a NOW only two days out reads "yesterday" for all of them and asserts
+  // nothing about the arithmetic.
+  const NOW = T0 + 3 * 86_400_000;
+  const block = E.formatActivityLedger(ledger, NOW);
+  ok("the block names chess when he asks about chess", /a game of chess together/.test(block));
+  ok("…and the opening he actually played", /opened d4 Nf6 c4 e6 g3 d5, the catalan opening/.test(block), block);
+  ok("…and does not pretend the tic tac toe was the only thing", (block.match(/a game of chess/g) || []).length === 2);
+  // the ages are relative to each session's OWN close, so the tic tac toe an
+  // hour later is a day younger than the chess — which is the point of the
+  // label existing rather than one stamp for the whole block
+  ok(
+    "…dated the way a person places it",
+    (block.match(/\(2 days ago\)/g) || []).length === 3,
+    block.replace(/^[^\n]*\n/, ""),
+  );
+  ok("…and a fresh one says so plainly", /\(today\)/.test(E.formatActivityLedger(ledger, T0 + 71 * 60_000)));
+  ok("…and states the boundary the record cannot enforce by itself", /never add a move, an opening, a question or a score that is not written here/.test(block), block.slice(0, 260));
+  ok("no live row leaks into the memory", !/it is (her|his) move|the question: /.test(block), block);
+  ok("nothing sentence-shaped she could recite", !/^- [A-Z]/m.test(block.split("\n").slice(1).join("\n")), block);
+  ok("an empty ledger renders nothing", E.formatActivityLedger([], NOW) === "" && E.formatActivityLedger(undefined, NOW) === "");
+  ok("the block never carries more rows than its cap", (E.formatActivityLedger(big, NOW).match(/^- /gm) || []).length <= E.ACTIVITY_LEDGER_ROWS);
+
+  // ── THE DENY-THEN-INVENT SEQUENCE, REPRODUCED FIXED ───────────────────
+  // The gate's support set is built from the same ledger the block above
+  // renders, which is the whole shape of the fix: what she may SAY is bounded
+  // by what she was HANDED, and she is now handed the truth.
+  const support = E.activityVocabulary([
+    ...ledger.map((r) => r.summary),
+    "What did you think of my opening in the chess game?",
+    "Usse pehle chess bhi khele the 2",
+  ]);
+  const FABRICATED = [
+    "arre d4 chal ke b2 se bishop fiancehtto kiya tha tune",
+    "material advantage tha phir bhi draw hua na",
+    "dono rook board pe ghumte rahe, finish kar nahi paya tu",
+    "my queen had your pawn for breakfast, just saying",
+  ];
+  for (const line of FABRICATED)
+    ok(`the invention does not survive: ${line.slice(0, 40)}`, E.findActivitySpecifics(line, support).length > 0);
+  // and the TRUE answer he was asking for does survive, unchanged
+  for (const line of [
+    "catalan opening thi teri, d4 se start kiya tha tune",
+    "tune game beech me chhod diya tha yaar",
+    "tic tac toe bhi khela tha humne uske baad",
+    "yaar exact moves yaad nhi, but tune start strong kiya tha",
+  ])
+    ok(`the true answer survives: ${line.slice(0, 40)}`, E.findActivitySpecifics(line, support).length === 0);
+  // end to end through the shipping gate
+  {
+    const bad = "arre d4 chal ke b2 se bishop fiancehtto kiya tha tune";
+    const g = E.guardReply({ bubbles: [bad] }, { trustedText: ["system"], openItems: [], activityVocab: support });
+    ok("the gate replaces the invented move", g.reply.bubbles[0] !== bad, g.reply.bubbles[0]);
+    ok("…and the replacement invents nothing itself", E.findActivitySpecifics(g.reply.bubbles[0], support).length === 0, g.reply.bubbles[0]);
+  }
+
+  // ── THE WYR HALF: the questions, not a tally ──────────────────────────
+  let w = E.freshSession("tester-salt", T0);
+  for (let i = 0; i < 5; i++) {
+    w = E.answerCurrent(w, i % 2 ? "a" : "b");
+    w = E.advance(w);
+  }
+  const wrec = E.emitClosedActivity(undefined, { ...w, closedAt: T0 + 40 * 60_000 });
+  ok("a wyr session records the QUESTIONS", /\bon .+ or .+, (?:he|both) picked /.test(wrec.summary), wrec.summary);
+  ok("…and both picks, exactly, on a clash", /he picked .+, she picked /.test(wrec.summary), wrec.summary);
+  ok("…and the tally survives the budget, because it is first", /^a round of would-you-rather together on 22 aug — 5 rounds, \d agreed, \d clashed/.test(wrec.summary), wrec.summary);
+  ok("the wyr record fits the budget", wrec.summary.length <= E.EPISODE_SUMMARY_MAX, `${wrec.summary.length}`);
+  ok("the card on screen never enters the memory", !/the question: /.test(wrec.summary), wrec.summary);
+  {
+    // the invented cards from the report, against the real deal
+    const wsupport = E.activityVocabulary([wrec.summary, "Mujhe wo would you rather wale game ki choices teri kuch bahot oot patang lagi"]);
+    for (const line of [
+      "woh 18 me se 12 choices pe hamara agreement tha, bhool gaye kya",
+      "dono pineapple pizza aur early morning runs pe disagree hue the",
+      "wo pizza wala tune hi toh mana kiya tha aur subah 5 baje daudne wali madness tune choose ki thi",
+    ])
+      ok(`the invented card does not survive: ${line.slice(0, 34)}`, E.findActivitySpecifics(line, wsupport).length > 0);
+    // a REAL round, quoted back out of the record, must survive — this is the
+    // half that decides whether the family ships: a gate that eats the true
+    // retelling costs the feature it was built to protect.
+    const round = /on ([^,]+) or ([^,]+), he picked ([^,]+), she picked ([^;]+)/.exec(wrec.summary);
+    if (round) {
+      const real = `${round[1]} or ${round[2]} wala? tune ${round[3]} chuna tha, maine ${round[4].trim()}`;
+      ok("a real round retold from the record survives", E.findActivitySpecifics(real, wsupport).length === 0, real);
+    } else {
+      note("no clashed round in this deal — the retelling control did not run");
+    }
+  }
+
+  // ── SIGNED-IN AND SIGNED-OUT ARE THE SAME RECORD ──────────────────────
+  // `logFinishedActivity` composes the summary ONCE and returns it; the device
+  // id only decides whether a POST also goes out. Two devices, one memory —
+  // `warm-count-unscoped`'s lesson applied before it can bite: a reader and a
+  // writer that each derive the record will eventually disagree.
+  const signedIn = E.logFinishedActivity("11111111-2222-3333-4444-555555555555", { kind: "chess", facts: [], record: E.chessRecord(one.game, "b", true), startedAt: T0, closedAt: T0 + 20 * 60_000 }, E.LABEL.chess);
+  const signedOut = E.logFinishedActivity("", { kind: "chess", facts: [], record: E.chessRecord(one.game, "b", true), startedAt: T0, closedAt: T0 + 20 * 60_000 }, E.LABEL.chess);
+  ok("signed-out parity: the same bytes either way", signedIn.summary === signedOut.summary, `${signedIn.summary}\n      ${signedOut.summary}`);
+  ok("…and it is the same string the server is sent", signedOut.summary === recOne.summary);
+
+  // ── THE LEDGER MERGES LIKE A LEDGER ───────────────────────────────────
+  // A game played on the phone must not be a game the laptop denies.
+  {
+    const local = { messages: [], lastSeen: 0, activities: [recOne], user: { name: "", vibe: [], facts: {} } };
+    const remote = { messages: [], activities: [recTtt] };
+    const merged = E.mergeStates(local, remote);
+    ok("both devices' games survive the merge", merged.activities.length === 2, JSON.stringify(merged.activities.map((r) => r.kind)));
+    ok("the same session on both is ONE memory", E.mergeStates({ ...local, activities: [recOne] }, { activities: [recOne] }).activities.length === 1);
+    ok("merge.ts's ledger cap mirrors memory.ts's", E.mergeStates({ ...local, activities: big }, { activities: big }).activities.length === E.ACTIVITY_LEDGER_MAX);
+    // both halves cross a trust boundary and are SPREAD — a non-array from an
+    // older build or a hand-edited blob must cost the ledger, never the app
+    for (const junk of [null, undefined, 7, "nope", {}]) {
+      ok(`a malformed remote ledger cannot throw (${JSON.stringify(junk)})`, (() => {
+        try { E.mergeStates(local, { activities: junk }); return true; } catch { return false; }
+      })());
+      ok(`…nor a malformed local one (${JSON.stringify(junk)})`, (() => {
+        try { E.mergeStates({ ...local, activities: junk }, remote); return true; } catch { return false; }
+      })());
+    }
+    ok("a malformed row is dropped, not stored", E.mergeStates(local, { activities: [null, { kind: "chess" }, recTtt] }).activities.length === 2);
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§8 reader and writer agree about the record's size and its route");
+// ═════════════════════════════════════════════════════════════════════════
+//
+// `warm-count-unscoped`, in this file's own pair of modules: the client
+// composes the summary and the server stores it, and until now the two carried
+// different caps (180 client, 200 server). Comfortable, invisible — and the
+// moment the client cap moved to make room for the moves, a silent slice at
+// the server would have eaten the END of every record, which is exactly where
+// the drop policy puts what it can afford to lose.
+{
+  const server = readFileSync(join(ROOT, "api/memory.js"), "utf8");
+  ok("the server's cap equals the client's", S.ACTIVITY_SUMMARY_MAX === E.EPISODE_SUMMARY_MAX, `${S.ACTIVITY_SUMMARY_MAX} vs ${E.EPISODE_SUMMARY_MAX}`);
+  ok("the summary is sliced at that constant, not a literal", /slice\(0, ACTIVITY_SUMMARY_MAX\)/.test(server));
+  ok("the fact BODY is no longer cut below the summary", !/summary\.slice\(0, 160\)/.test(server));
+
+  // THE ROUTE. Before this batch every keyword read in opRecall was over
+  // `meera_nodes`, and an activity is never written there — so a finished game
+  // was reachable only if an embedding had been written for it. This is the
+  // missing leg, asserted at the source because the query itself needs a
+  // database this suite deliberately does not have.
+  ok("opRecall has a keyword leg over activity facts", /from vy_fact f[\s\S]{0,200}name like 'activity:%'/.test(server));
+  ok("…scoped to the person", /where f\.person_id = \$1 and f\.name like 'activity:%'/.test(server));
+  ok("…and agent-scoped like every sibling read", /name like 'activity:%'[\s\S]{0,200}agentScopePredicate\("f"/.test(server));
+  ok("…it word-boundary matches rather than substring", /f\.body ~\* \$\$\{i \+ 3\}/.test(server) || /f\.body ~\*/.test(server));
+  ok("…it answers even when the query has no matchable words", /clauses\.length \? `and \(/.test(server));
+  ok("…it runs concurrently, never serially", /activityFetch,\s*\n\s*relBundleFetch/.test(server));
+  ok("…and the empty-recall early return no longer swallows it", /!seen\.size && !semantic\.length && !activities\.length/.test(server));
+  ok("the activity block is rendered FIRST, ahead of the graph rows", server.indexOf("GAMES AND THINGS YOU TWO ACTUALLY DID") < server.indexOf("RELEVANT TO WHAT THEY JUST SAID"));
+  ok("a fact reached by both legs is deduped", /\[\.\.\.matched, \.\.\.background, \.\.\.activities\]/.test(server));
+  ok("the leg is countable in the trace (`realtime-recall-never`)", /activity: \{ fact_ids: traceIds\(activities\)/.test(server));
+
+  // THE CLIENT SIDE OF THE SAME ROUTE: the ledger goes ahead of the graph
+  // rows for the identical reason — api/chat.js keeps the FIRST n characters.
+  const brain = readFileSync(join(ROOT, "src/engine/brain.ts"), "utf8");
+  ok("brain.ts puts the ledger in front of the recall", /ledgerBlock \? \(graph \? `\$\{ledgerBlock\}\\n\\n\$\{graph\}`/.test(brain));
+  ok("…reading the holder when no caller passed one", /keys\.activities !== undefined \? keys\.activities : activityLedger\(\)/.test(brain));
+  ok("the activity record feeds the gate's vocabulary", /keys\.activity\?\.record \?\? \[\]/.test(brain));
+  ok("family 6 is wired on the real path", /activityVocab:/.test(brain));
+  ok("…and fails closed with no record", /keys\.activity \|\| ledger\.length/.test(brain));
+
+  // ONE BLOCK, TWO PRODUCERS. The server renders its own activity block for
+  // the surfaces with no AppState (the realtime lane, the bot surfaces); a
+  // client holding a ledger drops it and renders its own, or every game lands
+  // in the prompt twice under two headings.
+  ok("the server's heading opens with the shared sentinel", server.includes(E.ACTIVITY_BLOCK_SENTINEL));
+  {
+    const serverBlock =
+      `${E.ACTIVITY_BLOCK_SENTINEL}, newest first. This is the whole record:\n` +
+      "- a game of chess together on 22 aug — opened d4 (2 days ago)\n" +
+      "- a game of tic tac toe together on 22 aug — she was o (2 days ago)";
+    const other = "RELEVANT TO WHAT THEY JUST SAID:\n- sneha (person, 2 days ago): her flatmate";
+    ok("the client takes the server's block out", !E.withoutServerActivityBlock(`${serverBlock}\n${other}`).includes(E.ACTIVITY_BLOCK_SENTINEL));
+    ok("…and leaves everything else standing", E.withoutServerActivityBlock(`${serverBlock}\n${other}`) === other);
+    ok("…in either order", E.withoutServerActivityBlock(`${other}\n${serverBlock}`) === other);
+    ok("…and a recall with no activity block is returned untouched", E.withoutServerActivityBlock(other) === other);
+    ok("…including the empty one", E.withoutServerActivityBlock("") === "");
+  }
+  ok("brain.ts drops the server copy when it has its own", /withoutServerActivityBlock\(recalled\)/.test(brain));
+
+  // AND THE PUBLISHER — `dead-writers`: a ledger nothing publishes is a ledger
+  // the call lane never sees.
+  const app = readFileSync(join(ROOT, "src/App.tsx"), "utf8");
+  ok("App.tsx publishes the ledger for the lanes that cannot reach state", /publishActivityLedger\(state\.activities\)/.test(app));
+  ok("…and the reconciler writes the record it just emitted", /withActivityRecord\(s\.activities, rec\)/.test(app));
+  ok("…and the emission carries the durable half", /record: a\.record/.test(app));
 }
 
 console.log(`\n${failed ? "FAILED" : "PASS"}  ${passed} passed, ${failed} failed`);

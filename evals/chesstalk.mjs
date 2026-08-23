@@ -59,8 +59,8 @@ const C = await import(pathToFileURL(BUNDLE).href);
 const {
   newGame, play, assessLast, assessMove, legalMoves,
   openingName, OPENING_NAMES,
-  chessActivity, moveFact, exchangeFact, threatFacts,
-  renderActivity, ACTIVITY_BUDGET,
+  chessActivity, chessRecord, moveFact, exchangeFact, threatFacts,
+  renderActivity, ACTIVITY_BUDGET, RECORD_OPENING_PLIES,
 } = C;
 
 let fail = 0;
@@ -538,6 +538,95 @@ for (const f of collected) {
   const again = assessLast(replay(["e4", "e5", "Qh5", "Nc6", "Qxf7"]));
   eq("a fresh assessment says the same thing",
     moveFact(again, "w", "her"), moveFact(a, "w", "her"));
+}
+
+// ══ 9. THE DURABLE RECORD — what is still true next week ══════════════════
+//
+// `chessRecord` is the half `facts` structurally cannot be. `facts` answers
+// "where does this stand right now" and is correct to expire; this answers
+// "what will he ask about on Thursday", and until it existed the answer was
+// nothing — which is how the 2026-08-23 tester got made-up moves back when he
+// asked about his own opening.
+//
+// IT IS NOT LINTED FOR SQUARE SOUP, and the exemption is the point rather than
+// a loophole. That rule exists because a LIVE remark listing squares reads as
+// a scoresheet being read out (`chess-facts-as-a-scoresheet`), and these rows
+// are never a live remark: `renderActivity` does not render them, they reach
+// only the episode she carries afterwards, and the opening of a game is the
+// one thing a person genuinely does recall move by move. Every OTHER shape
+// rule still applies, and is asserted below.
+{
+  const recordLint = (label, f) => {
+    const bad = [];
+    if (/^[A-Z][^.?!]*[.?!]$/.test(f)) bad.push("sentence-shaped");
+    if (/^(i\b|i'm\b|main\b|mai\b|mujhe\b|meri\b|mera\b|maine\b)/i.test(f)) bad.push("first-person");
+    if (f.trim().split(/\s+/).length > 14) bad.push(`${f.trim().split(/\s+/).length} words`);
+    if (/\/[rnbqkpRNBQKP1-8]{2,}\//.test(f)) bad.push("FEN");
+    if (/\bcp\b|centipawn|[-+]?\d{4,}/.test(f)) bad.push("engine number");
+    ok(`record shapelint ${label}: "${f}"`, bad.length === 0, bad.join(", "));
+  };
+
+  // ── the abandoned Catalan he actually played ──────────────────────────
+  const cat = replay(["d4", "Nf6", "c4", "e6", "g3", "d5", "Bg2", "Be7", "Nf3", "O-O", "O-O", "dxc4"]);
+  const rec = chessRecord(cat, "b", true);
+  for (const f of rec) recordLint("catalan", f);
+  ok("the record opens with the opening MOVES", /^opened d4 Nf6 c4 e6 g3 d5/.test(rec[0]), rec[0]);
+  ok("…exactly RECORD_OPENING_PLIES of them", rec[0].split(",")[0].split(/\s+/).length - 1 === RECORD_OPENING_PLIES, rec[0]);
+  ok("…and names the book line", /the catalan opening/.test(rec[0]), rec[0]);
+  ok("the colour is PAST tense — this is a memory, not the board", rec.includes("she had black"), JSON.stringify(rec));
+  ok("an abandoned game says so, and says WHERE", rec.some((f) => /^he left it unfinished on move 6, no result$/.test(f)), JSON.stringify(rec));
+  ok("…and claims no winner", !rec.some((f) => /\bwon\b/.test(f)), JSON.stringify(rec));
+  ok("what was captured is in it", rec.includes("she took his pawn"), JSON.stringify(rec));
+  ok("…and 'a pawn', never '1 pawns'", !rec.some((f) => /\b1 \w+s\b/.test(f)), JSON.stringify(rec));
+
+  // ── the opening's NAME survives past the live block's ply cap ──────────
+  // `chessActivity` drops the opening row after 16 plies because it stops
+  // being news IN THE MOMENT. The record must not, because "which opening did
+  // we play" is asked afterwards, which is precisely when the live rule has
+  // already suppressed it.
+  {
+    const long = replay(["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "Nf6", "O-O", "Be7", "Re1", "b5", "Bb3", "d6", "c3", "O-O", "h3", "Nb8", "d4", "Nbd7"]);
+    ok("live block has dropped the opening by ply 20", !chessActivity(long, "w", 0).facts.some((f) => /the opening is/.test(f)));
+    const r = chessRecord(long, "w", true);
+    ok("…and the record still has it", /ruy lopez|spanish/i.test(r[0]), r[0]);
+    ok("…plus where it got to", r.some((f) => /^the last move was /.test(f)), JSON.stringify(r));
+    for (const f of r) recordLint("ruy", f);
+  }
+
+  // ── every ending is its own memory ────────────────────────────────────
+  {
+    const mate = replay(["e4", "e5", "Bc4", "Nc6", "Qh5", "Nf6", "Qxf7"]);
+    const r = chessRecord(mate, "w", false);
+    ok("a checkmate records who won and on which move", r.some((f) => /^she won by checkmate on move 4$/.test(f)), JSON.stringify(r));
+    for (const f of r) recordLint("mate", f);
+  }
+  {
+    // a board that is simply still going, neither over nor abandoned
+    const live = replay(["e4", "e5"]);
+    const r = chessRecord(live, "b", false);
+    ok("an open game says it is open, not that it ended", r.some((f) => /^still unfinished at move 1$/.test(f)), JSON.stringify(r));
+    ok("…and names no result", !r.some((f) => /won|draw/.test(f)), JSON.stringify(r));
+  }
+  {
+    const empty = newGame();
+    const r = chessRecord(empty, "w", true);
+    ok("a board abandoned before a move says exactly that", r.some((f) => /before a move was played/.test(f)), JSON.stringify(r));
+    ok("…and invents no opening for it", !r.some((f) => /^opened/.test(f)), JSON.stringify(r));
+    ok("…and no capture row either", !r.some((f) => /took|captured/.test(f)), JSON.stringify(r));
+  }
+
+  // ── the LIVE block is untouched by any of this ────────────────────────
+  // The whole design rests on it: `record` rides `ActivityState` so the
+  // episode writer stays kind-agnostic, and it must cost the live prompt
+  // nothing. A move list in front of a board she can see IS the scoresheet
+  // failure this file opens by refusing.
+  {
+    const act = chessActivity(cat, "b", 0, assessLast(cat), true);
+    ok("the activity carries a record", Array.isArray(act.record) && act.record.length > 0);
+    const rendered = renderActivity(act, 0);
+    ok("…and renderActivity renders none of it", !act.record.some((f) => rendered.includes(f)), rendered);
+    ok("…so the live block still fits its budget", rendered.length <= ACTIVITY_BUDGET, `${rendered.length}`);
+  }
 }
 
 console.log(fail ? `${fail} FAILURES of ${count}` : `ALL ${count} PASS`);

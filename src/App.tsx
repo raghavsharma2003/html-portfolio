@@ -21,7 +21,7 @@ import { mergeStates, safeUser } from "./state/merge";
 import { OPEN_STALE_MS, activityOf, isGameSession } from "./state/game";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { LABEL } from "./engine/activity";
-import { logFinishedActivity } from "./engine/memory";
+import { logFinishedActivity, publishActivityLedger, withActivityRecord } from "./engine/memory";
 import { useMoments } from "./components/useMoments";
 import Celebration from "./components/Celebration";
 import UsScreen from "./components/UsScreen";
@@ -316,14 +316,37 @@ export default function App() {
     const a = activityOf(g, g.closedAt + 1);
     if (!a || !a.facts.length) return;
     emittedActivity.current.add(key);
-    logFinishedActivity(
+    const rec = logFinishedActivity(
       state.deviceId,
-      { kind: a.kind, facts: a.facts, startedAt: g.startedAt, closedAt: g.closedAt },
+      {
+        kind: a.kind,
+        facts: a.facts,
+        // the durable half — what is still true next week (activity.ts's
+        // `record`). Without it the episode was the momentary rows alone, and
+        // a finished game was remembered as "6 moves in" with no moves.
+        record: a.record,
+        startedAt: g.startedAt,
+        closedAt: g.closedAt,
+      },
       // one vocabulary for what an activity is CALLED — the same table the
       // tail block and the pickup line render from
       LABEL[a.kind],
     );
-  }, [state.game, state.deviceId]);
+    // THE LOCAL HALF, and it is the one that cannot fail. The POST above is
+    // fire-and-forget over a network, into a graph whose only keyword route
+    // does not cover activities; this write is synchronous, works signed out,
+    // and is what she actually reads from. Both halves carry the SAME string.
+    if (rec) setState((s) => ({ ...s, activities: withActivityRecord(s.activities, rec) }));
+  }, [state.game, state.deviceId, setState]);
+
+  // The ledger, published for the lanes that cannot reach `AppState`. Same
+  // holder idiom as `callSelfBundle` and for the same reason: the cascade call
+  // lane compiles outside this component's frame. One publisher, any number of
+  // readers, and it republishes on hydrate so a reload does not start her with
+  // an empty record of games she definitely played.
+  useEffect(() => {
+    publishActivityLedger(state.activities);
+  }, [state.activities]);
 
   // Moments detection runs here, at the one place that owns AppState. It is
   // suppressed while a call is coming up (she is mid-pickup) — the hook's
@@ -710,6 +733,11 @@ export default function App() {
             // here is a white screen that then SYNCS and survives reload —
             // the game is what may be lost at a boundary, never the app.
             game: isGameSession(r?.game) ? (r.game as AppState["game"]) : null,
+            // the ledger of games PLAYED, and it resets for exactly the reason
+            // `tally` does: "we played chess on 22 aug, you left it on move 6"
+            // in a conversation with an account that has never played anything
+            // is the same cross-account bleed, made worse by being specific.
+            activities: (r?.activities as AppState["activities"]) ?? [],
             tally: (r?.tally as AppState["tally"]) ?? null,
             momentsFired: (r?.momentsFired as string[]) ?? [],
             // Device-local present-moment state, and it belongs to the
@@ -855,6 +883,13 @@ export default function App() {
               onVoiceCall={() => startCall("")}
               onProfile={() => setAuthOpen(true)}
               onGames={() => setGamesOpen(true)}
+              // THE INVITE CHIP'S ROUTE. The chat header's games button opens
+              // the SHEET (a list of things to do); a chip that already knows
+              // which game the two of them agreed on must open that game, or
+              // it is the menu with an extra step. Same `openActivity` the
+              // hub's own rows and home's cards take, so there is one door
+              // and not three.
+              onOpenActivity={openActivity}
               onUs={() => setUsOpen(true)}
             />
             {/* the way out of the thread. App paints it because Chat.tsx is

@@ -25,6 +25,10 @@ import {
   takeRelBundle,
   takeSelfBundle,
   callSelfBundle,
+  activityLedger,
+  formatActivityLedger,
+  withoutServerActivityBlock,
+  type ActivityRecord,
 } from "./memory";
 import { innerContext, overlaps, type Inner } from "./inner";
 import { diag } from "./diag";
@@ -64,6 +68,7 @@ import {
   createStreamGuard,
   hisVocabulary,
   sharedVocabulary,
+  activityVocabulary,
 } from "./honesty";
 import type { Message } from "../state/store";
 
@@ -235,6 +240,19 @@ export interface BrainKeys {
   // for the same reason relBundle does: the lane that HAS one ships it with
   // everything else it knows, and think()'s signature stays readable.
   activity?: ActivityState | null;
+  // What they have ALREADY done — the finished-activity ledger (AppState's
+  // `activities`). `activity` above is the one live session and is null the
+  // moment it is replaced; this is every game behind it.
+  //
+  // OPTIONAL AND USUALLY UNSET, deliberately, and this is the `selfBundle`
+  // idiom rather than an oversight: the ledger lives in App.tsx's state, the
+  // cascade call lane compiles from a frame that cannot reach it, and the
+  // realtime lane does not call this function at all — so App.tsx publishes it
+  // into memory.ts's holder and every lane reads the same one. A caller that
+  // already holds the ledger passes it here and the holder is not consulted;
+  // `!== undefined` rather than `??`, so a caller that means "no ledger this
+  // turn" is obeyed instead of silently overruled.
+  activities?: readonly ActivityRecord[];
   // #117 — a milestone that just crossed (state.recentMoment): ONE telegraphic
   // fact, rendered while fresh so she can bring it up herself. Optional on
   // both lanes like everything above; absent renders zero bytes.
@@ -1012,12 +1030,44 @@ export async function think(
   // graph-memory recall: what she knows about their world, woven into
   // context. On live calls the lookup is done ONCE at pickup and passed in
   // as extraMemories — never in front of a spoken reply. Chat looks it up.
-  const memories =
+  const recalled =
     mode === "call"
       ? extraMemories || ""
       : keys.deviceId
         ? await recallMemories(keys.deviceId, latest)
         : "";
+  // ── THE ACTIVITY LEDGER, in front of the graph ────────────────────────
+  //
+  // #113 wrote a finished game into the graph and nothing read it back
+  // reliably: `opRecall`'s keyword leg queries `meera_nodes`, which activities
+  // are never written to; the we-episode leg needs a `vy_rel_state` row, which
+  // does not exist until a consolidation pass has run; so the only route left
+  // was the semantic leg, which needs an embedding call to have succeeded at
+  // write time. On the first external tester's device, on his first day, that
+  // was the whole retrieval story for two games of chess — and when he asked
+  // about them she said they had not happened, and then invented them.
+  //
+  // So the ledger goes FIRST, ahead of the graph rows. `api/chat.js` keeps the
+  // FIRST n characters of the tail and cuts the END, which makes ordering the
+  // drop policy: of the two, the graph rows are the ones that may be lost,
+  // never the record of what they actually played. Same arithmetic and same
+  // reason as `callMemories`' chat tail.
+  //
+  // It rides `memories` (T5) rather than taking a compiler slot of its own for
+  // the reason stated at `formatChatTail`: compile() is pure and db-free and
+  // the CALLER resolves strings, and a second heading is a second place for
+  // T5's recall law to drift.
+  //
+  // TWO PRODUCERS, ONE BLOCK. `api/memory.js` renders its own activity block
+  // for the surfaces that have no AppState to read a ledger from (the realtime
+  // call lane, Telegram, WhatsApp, Discord). This lane has the better copy of
+  // the same games — complete, no round trip, no embedding, correct signed out
+  // — so it takes the server's out rather than rendering both and putting
+  // every game in the prompt twice under two headings.
+  const ledger = keys.activities !== undefined ? keys.activities : activityLedger();
+  const ledgerBlock = formatActivityLedger(ledger, Date.now());
+  const graph = ledgerBlock ? withoutServerActivityBlock(recalled) : recalled;
+  const memories = ledgerBlock ? (graph ? `${ledgerBlock}\n\n${graph}` : ledgerBlock) : graph;
   // WS-INTEGRATE seam 1 (T2/T3/T4/T6): the relstate bundle rode the SAME
   // op:"recall" response `memories` just resolved from (memory.ts's
   // takeRelBundle — see that file's header for why this isn't its own
@@ -1277,12 +1327,47 @@ export async function think(
       ...(relBundle?.rituals ?? []).map((r) => JSON.stringify(r)),
       ...(keys.activity?.facts ?? []),
       ...(keys.activity?.nameable ?? []),
+      // the durable half of the live activity, and the ledger of finished
+      // ones. Both are records she was HANDED — same provenance class as an
+      // episode — so a game she really played is a game she may retell.
+      ...(keys.activity?.record ?? []),
+      ...ledger.map((r) => r.summary),
       // #117 — a crossed milestone is shared past SHE WAS HANDED, same
       // provenance class as an activity fact: without this, "100 din ho
       // gaye humein" would be flagged as an invented shared memory by the
       // very gate that exists to catch invented shared memories.
       ...(momentLine ? [momentLine] : []),
     ]),
+    // Family 6 (invented specifics of a real activity). Its own set, because
+    // `sharedVocabulary`'s tokenizer drops digits and every chess move is a
+    // letter and a digit — see `activityVocabulary`. Same sources as family
+    // 4's, plus HIS words, which are ground truth on every channel and are
+    // what make "d4 tak sahi tha" checkable when he is the one who said d4.
+    //
+    // FAIL-CLOSED, and the condition is the record rather than the context:
+    // the field is set ONLY when this person has actually done an activity —
+    // one live, or one in the ledger. Two reasons, and the second is the one
+    // that matters. (1) `honesty-provenance-allowlist`: with no record to
+    // check against, every real detail is unsupported, so the gate would flag
+    // truths. (2) The named seam this family accepts, stated rather than
+    // hidden: the predicate reads "a claim about a game", and a sentence about
+    // a cricket match — "kal ka match draw hua tha" — has that shape. Someone
+    // who has never opened a board should never meet this family at all, and
+    // for someone who has, the cost of the residual is one soft canned line
+    // that hands the question back to him. Same trade families 3 and 4 make.
+    activityVocab:
+      keys.activity || ledger.length
+        ? activityVocabulary([
+            ...(keys.activity?.facts ?? []),
+            ...(keys.activity?.nameable ?? []),
+            ...(keys.activity?.record ?? []),
+            ...ledger.map((r) => r.summary),
+            memories,
+            ...(relBundle?.weEpisodes ?? []).map((e) => JSON.stringify(e)),
+            latest,
+            ...history.filter((m) => m.from === "me").map((m) => m.text || ""),
+          ])
+        : undefined,
   };
   const honestyAllowed = allowedFrom(honestyCtx.trustedText);
   // The streaming door. Only class (A) — an identifier is a self-contained

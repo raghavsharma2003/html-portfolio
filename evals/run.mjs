@@ -60,6 +60,11 @@ const suites = {
   wyr: "wyr.mjs",
   // WS-GAMES: tic-tac-toe — exhaustive legality + bounded imperfection.
   ttt: "ttt.mjs",
+  // WS-GAMEPLAY: the chat-initiated game invite (src/engine/gameInvite.ts).
+  // Deliberately lopsided toward NEGATIVE cases — a missed invite costs one
+  // trip to the games menu, a spurious one is the app interrupting a
+  // conversation to sell a board.
+  gameinvite: "game-invite.mjs",
   // WS-GAMIFY: moments fire once, largest-tier-only, charter-clean.
   milestones: "milestones.mjs",
   // WS-SYNC: the push list, merge semantics and account-switch reset agree.
@@ -83,6 +88,14 @@ const suites = {
   // ~2s — wired here rather than left standalone for the reason T-H4 gives:
   // `dead-writers` does not stop applying to evals.
   chattail: "chattail/run.mjs",
+  // WS-CALLMEM. The four voice-call defects the first external tester found:
+  // the call lane never carried what was said on the PREVIOUS call (chat did,
+  // as turns), a long call loses its own beginning to the server's sliding
+  // window, "bye" never ended anything, and a failed lookup was silent so she
+  // announced a check and then invented. Offline, deterministic, $0, ~3s —
+  // wired here rather than left standalone because `dead-writers` does not
+  // stop applying to evals.
+  callmem: "callmem/run.mjs",
   surface: "surface.mjs",
   // WS-MEMORY: finished games become graph episodes; the laundering predicate;
   // photo-forget path round-trips. Offline, db-free (config stub), ~2s.

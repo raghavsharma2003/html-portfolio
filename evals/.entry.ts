@@ -66,3 +66,12 @@ export { activityOf, activityPickupLine, RECENT_END_MS, lastAssessment } from ".
 export { resolveTheme, isThemeChoice, THEMES, THEME_LABEL } from "../src/engine/theme";
 export { detectMoments, momentFact } from "../src/engine/milestones";
 export { mergeStates, mergeGame } from "../src/state/merge";
+export {
+  detectGameInvite,
+  playAskIn,
+  gameTermIn,
+  hasPlayIntent,
+  isAffirmation,
+  isRefusal,
+  INVITE_FRESH_MS,
+} from "../src/engine/gameInvite";

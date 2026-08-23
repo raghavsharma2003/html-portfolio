@@ -774,6 +774,48 @@
   color: var(--ga-ink);
   font-weight: 650;
 }
+/* WHOSE COLUMN IS WHOSE. Two unlabelled columns were readable by convention
+   while he was always white; the moment he can be black they are a scoresheet
+   that quietly lies about who played what. The swatch takes its fill from the
+   board's own set, restated. `--cb-*` is scoped to `.cb` and this row is a
+   SIBLING of the board, so reading those tokens here would silently resolve
+   to nothing; the values are written out and inked again in the dark block
+   below, exactly as the set itself is. A 10px dot with a `--ga-line-strong`
+   rim is a shape in both themes whichever fill it carries, which is the same
+   argument `board-stays-lit` makes at full size. */
+.cx-sides {
+  /* THE LIST'S OWN GRID, so each label sits over the column it names. The
+     first cell is the move-number gutter and stays empty. */
+  display: grid;
+  grid-template-columns: 2.4em 1fr 1fr;
+  gap: var(--s2);
+  padding: 0 var(--s3);
+  font-size: var(--t-meta);
+  color: var(--ga-dim);
+}
+.cx-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cx-side i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 0.5px solid var(--ga-line-strong);
+}
+.cx-side[data-side="w"] i {
+  background: #f8f1e9;
+}
+.cx-side[data-side="b"] i {
+  background: #2e2325;
+}
+.as[data-tone="dark"] .cx-side[data-side="w"] i {
+  background: #eee3dd;
+}
+.as[data-tone="dark"] .cx-side[data-side="b"] i {
+  background: #241b1d;
+}
 /* WS-SWEEP: the room is the world now, so this panel sits on a painting
    rather than on flat paper. `--ga-well` is `--glass-chip` there — a fill the
    contrast gate measures text on — but a translucent fill with no blur behind

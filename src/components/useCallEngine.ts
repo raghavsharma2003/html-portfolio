@@ -58,6 +58,7 @@ import type { RelBundleInput } from "../engine/compiler";
 // the next call — the live prompt is frozen at connect on purpose.
 import { gatesFor, getAgeTier } from "../engine/clock";
 import {
+  activityLedger,
   logTurns,
   rememberFrom,
   recallForCall,
@@ -68,6 +69,25 @@ import {
   type RememberResult,
 } from "../engine/memory";
 import { asksToHangUp } from "../engine/hangup";
+// WS-CALLMEM. The three blocks the call lane was missing, each in its own
+// module for a reason this file has learned twice: `age-tier-never-realtime`
+// is what happens when a rule lives inside a call site instead of beside its
+// own eval.
+//   callHistory — what you two said before today (the chat lane sees it as
+//                 turns; the live lane saw nothing at all)
+//   farewell    — "bye" as a social close, which `asksToHangUp` deliberately
+//                 does not and must not cover
+import {
+  callGraphBlocks,
+  formatActivityLedgerForCall,
+  formatRunningNote,
+  formatSharedHistory,
+} from "../voice/callHistory";
+import { readsAsFarewell } from "../voice/farewell";
+// T16 her.commitments. TYPE-FREE pure transcript walk (honesty.ts imports
+// nothing at all), and the compiler slot has existed and rendered zero bytes
+// on this lane since it shipped — the caller is what was missing.
+import { herCommitments } from "../engine/honesty";
 import { activityOf, activityPickupLine, lastAssessment } from "../state/game";
 import { clearCallStatus, publishCallStatus } from "../state/callStatus";
 import { activityNote } from "../engine/activity";
@@ -88,7 +108,12 @@ import {
 import { prewarmAckClips, startLiveCall, type LiveSession } from "../voice/liveCall";
 import { readLevel } from "../voice/level";
 import { SceneReader, gridFromRGBA, isShowClass, type WakeClass } from "../watch/scene";
-import { callLookup } from "../voice/liveLookup";
+import {
+  callLookup,
+  checkPromiseNote,
+  readsAsCheckPromise,
+  shouldLookUp,
+} from "../voice/liveLookup";
 import { track } from "../engine/account";
 import { diag, diagEnd, diagStart, flushDiag } from "../engine/diag";
 import { countNamedEntities, tel, telSubId } from "../engine/telemetry";
@@ -344,6 +369,16 @@ export function useCallEngine(
   const relBundleRef = useRef<RelBundleInput | null>(null);
   const ringFetch = useRef<Promise<void> | null>(null);
   const ringFetchMs = useRef(-1);
+  // WS-CALLMEM. The shared-history block, kept separately from `recallRef`
+  // ONLY so the diag record can report its bytes without re-deriving it — a
+  // telemetry field that recomputes the thing it reports on is a field that
+  // can start lying the moment either side moves (T-H3's own rule, and the
+  // reason `chatTail` is rendered once above).
+  const sharedHistoryRef = useRef("");
+  // WS-GAMEMEM residual: the local activity ledger's call-lane block, kept
+  // beside it and for the same reason — the diag record reports its bytes
+  // without re-deriving them.
+  const activityBlockRef = useRef("");
   // G-C4, as an assertion rather than a promise: the number of times a LIVE
   // system prompt has been built on this call. It must be 1. A mid-call
   // reassembly is a different person mid-sentence, and the failure is
@@ -718,6 +753,9 @@ export function useCallEngine(
     // moves. Measured at ~17µs over a 2,000-message store, so this is not a
     // performance concern in either direction — it is a truthfulness one.
     const chatTail = formatChatTail(stateRef.current.messages, nowAt);
+    // Rendered ONCE for the same reason `chatTail` is: the compile below and
+    // the diag record beneath it must be reporting on the same bytes.
+    const herOpen = herCommitments(stateRef.current.messages, nowAt);
     // ── ONE ASSEMBLER (G-C6) ──────────────────────────────────────────────
     // Everything below used to be a hand-rolled concatenation that shadowed
     // compile() and drifted from it: its own shorter T5 and T7 headings, no
@@ -775,6 +813,30 @@ export function useCallEngine(
       // brain.ts is under. This is also the first time an age-tier refusal
       // has ever reached the realtime lane.
       ageGates: gatesFor(getAgeTier()),
+      // ── WS-CALLMEM: the two slots this lane declared and never filled ────
+      // `age-tier-never-realtime`'s law, one more time: a compiler slot whose
+      // CALLER never passes it renders zero bytes forever, and nothing says
+      // so. Measured against the pre-fix tree: this compile passed no `nowMs`,
+      // so `renderAway(input.nowMs, …)` returned "" on every call ever made
+      // (T9 SINCE YOU LAST SPOKE — its first line is `if (nowMs === undefined)
+      // return ""`), and passed no `herCommitments`, so T16 did too. The chat
+      // lane has had both since they shipped.
+      //
+      // T9 is what makes "kal" mean something on a call: the gap was already
+      // being computed here (`gapSinceLastMs`, right above) and thrown away
+      // for want of a clock. T16 is the open-promise half of the tester's
+      // memory report — a promise the system forgets is a promise she breaks
+      // on schedule, and he is the one who notices.
+      //
+      // NOT passed at the native-watch compile below, and that asymmetry is a
+      // BUDGET decision rather than an oversight: `live+watch tail (bound)`
+      // is the tightest lane in the repo (22,051 of 24,000 before this
+      // change) and the shared-history block takes 700 of the 1,949 spare
+      // bytes. scripts/check-prompt-budget.mjs states the split as two
+      // separate extras and `evals/callmem/run.mjs` asserts the watch site
+      // really does not carry them, so the bound cannot quietly become wrong.
+      nowMs: nowAt,
+      herCommitments: herOpen,
       // WHAT THEY ARE DOING. If a game is already on when the call connects,
       // she knows it the moment she picks up — she does not have to be told by
       // him that they are mid-game, which is what a person would never need.
@@ -805,6 +867,19 @@ export function useCallEngine(
       // 30-minute window is cut in the right place.
       chat_tail: chatTail.length,
       chat_tail_age_ms: lastMsgAt ? Math.max(0, nowAt - lastMsgAt) : -1,
+      // WS-CALLMEM's production seam, and the same firewall every field here
+      // is under: BYTES, never a character of content. `shared_history: 0` on
+      // a device with a call history is the signal that the block found
+      // nothing to carry — which is the failure this whole workstream is
+      // about, arriving from the other direction.
+      shared_history: sharedHistoryRef.current.length,
+      // `activity_block: 0` on a device that has finished a game is the
+      // signal that the LOCAL ledger never reached this lane — which is the
+      // defect this block closes, arriving from the other direction.
+      activity_block: activityBlockRef.current.length,
+      // ROWS, not bytes: `herCommitments` returns records, and a field named
+      // for one unit carrying the other is how a number starts lying quietly.
+      her_commitments_n: herOpen.length,
       sections: compiled.sections ?? {},
     });
     let self: LiveSession | null = null;
@@ -831,25 +906,54 @@ export function useCallEngine(
         // goodbye first and the line drops after it, which is what a person
         // does. See engine/hangup.ts on why this reads HIS words, not hers.
         if (asksToHangUp(t)) armHangup("live");
-        else disarmHangup(); // further speech cancels a pending goodbye
+        else if (readsAsFarewell(t)) armFarewell("live");
+        else {
+          disarmHangup(); // further speech cancels a pending goodbye
+          disarmFarewell(); // …and a goodbye he did not mean costs nothing
+        }
         log({ id: uid(), from: "me", kind: "text", channel: "call", text: t, at: Date.now() });
         // A factual question on a call: fire the lookup NOW, in parallel with
         // her own answer, and inject the facts a beat after she has started
         // talking. `callLookup` is a no-op unless the turn is unambiguously
-        // factual (measured 0 false fires in 55 ordinary turns), and it
-        // resolves to "" on any failure, so the worst case is that nothing
-        // happens and she answers from her own head as she does today.
+        // factual (measured 0 false fires in 55 ordinary turns).
+        //
+        // WS-CALLMEM: it no longer resolves to "" on a failure. The tester's
+        // *"she said she's checking but then just said something random"* was
+        // the silent-miss path — she announces the check because the register
+        // tells her to, and nothing ever came back to answer the announcement.
+        // A miss is now a note of its own (liveLookup.ts `missNote`), so the
+        // gap gets an honest line instead of an invented score.
+        if (shouldLookUp(t)) lookupUntil.current = Date.now() + LOOKUP_WINDOW_MS;
         void callLookup(t).then((note) => {
-          if (!note) return;
-          // direct() already waits (capped at 1.2s) for her to stop speaking
-          // before committing the turn, so this cannot guillotine her mid-word
-          liveSession.current?.direct(note);
+          if (note) {
+            // facts OR an honest miss — either way the gap has been answered
+            // and the check-promise backstop must not answer it again
+            lookupUntil.current = Date.now() + LOOKUP_SETTLE_MS;
+            // direct() already waits (capped at 1.2s) for her to stop speaking
+            // before committing the turn, so this cannot guillotine her mid-word
+            liveSession.current?.direct(note);
+          } else if (lookupUntil.current) {
+            // nothing was checked (rate-limited, or the endpoint said the
+            // question has no fact to find) — the backstop is free again
+            lookupUntil.current = 0;
+          }
         });
       },
       onHerText: (t) => {
         const id = uid();
         log({ id, from: "her", kind: "text", channel: "call", text: t, at: Date.now() });
         noteHerLine(t, "live", id);
+        // ── the promise nothing is going to answer ────────────────────────
+        // The other half of the same defect. `shouldLookUp` is narrow by
+        // measurement, so there are factual turns it does not fire on — and on
+        // those she still says she is checking, because the spoken register
+        // tells her to announce before a gap. Left alone, the announcement is
+        // the only thing that happens and she fills the silence herself.
+        //
+        // Reads HER transcript rather than his, because the promise is the
+        // event: it is the one moment where the product knows a fact has been
+        // owed and knows nothing is coming to pay it.
+        maybeAnswerCheckPromise(t);
       },
       onTiming: (t) => {
         // where the connect seconds actually went, per device/network
@@ -1115,9 +1219,42 @@ export function useCallEngine(
       .map((m) => m.text)
       .join(" ");
     const tRing = Date.now();
+    // ── WS-CALLMEM: what you two already said, from the LOCAL store ───────
+    // The tester's report — *"usko kuch yaad nahi kal kya baat kiya. But chat
+    // me yaad hai"* — is this block's whole reason to exist, and see
+    // callHistory.ts's header for why chat had it and the call did not.
+    //
+    // Written SYNCHRONOUSLY, before the network call, and deliberately not
+    // inside its continuation: this block is derived from `state.messages`,
+    // which is already in memory, so making it wait on a round trip would
+    // hand `realtime-recall-never` a second chance — a rejected ring fetch
+    // would take the local history down with it. The fetch's `.then` composes
+    // the two; its `.catch` leaves the local half standing.
+    const shared = formatSharedHistory(state.messages, tRing);
+    sharedHistoryRef.current = shared;
+    // ── the games, from the LOCAL ledger ─────────────────────────────────
+    // WS-GAMEMEM's residual, and it is the same shape as the block above: the
+    // chat lane reads `AppState.activities` and the realtime lane read only
+    // the server recall, whose one route to an activity is a semantic match
+    // over `vy_fact`. Local, so it needs no network and works signed out —
+    // and on THIS lane the block's heading is the only family-6 fence there
+    // is, because the honesty gate has no text of hers to stand on.
+    //
+    // `state.activities` first, the published holder second: the ring HAS the
+    // live state, and the holder is the fallback for the compile sites that
+    // do not (its own doc's contract). Not two sources of truth — one store,
+    // one pointer at it.
+    const ledgerBlock = formatActivityLedgerForCall(
+      state.activities ?? activityLedger(),
+      tRing,
+    );
+    activityBlockRef.current = ledgerBlock;
+    recallRef.current = callGraphBlocks(ledgerBlock, shared, "");
     ringFetch.current = recallForCall(state.deviceId, recent)
       .then(({ memories, relBundle }) => {
-        recallRef.current = memories;
+        // callGraphBlocks drops the SERVER's activity block when the local one
+        // rendered — brain.ts's rule, called rather than copied.
+        recallRef.current = callGraphBlocks(ledgerBlock, shared, memories);
         relBundleRef.current = relBundle;
         ringFetchMs.current = Date.now() - tRing;
       })
@@ -2457,7 +2594,11 @@ export function useCallEngine(
   async function handleUser(text: string, prestart?: SpecTurn) {
     if (!alive.current || !text.trim()) return;
     if (asksToHangUp(text)) armHangup("cascade");
-    else disarmHangup(); // further speech cancels a pending goodbye
+    else if (readsAsFarewell(text)) armFarewell("cascade");
+    else {
+      disarmHangup(); // further speech cancels a pending goodbye
+      disarmFarewell();
+    }
     // native watch owns the conversation — she hears them through the
     // service's own mic; a reply from here would be a second voice
     if (voiceOwner.current === "native") return;
@@ -2717,9 +2858,203 @@ export function useCallEngine(
     }, HANGUP_GRACE_MS);
   }
 
+  // ── HE SAID BYE ─────────────────────────────────────────────────────────
+  //
+  // The tester: *"always eager to hang up … if you say bye she should hang up
+  // on her own."* Both halves of that are real and only one of them is here:
+  // the eager exit LINES are persona, and this is the missing mechanism.
+  //
+  // The difference from `armHangup` above is the whole design. That one
+  // answers an INSTRUCTION ("rakh de") with a fixed 9-second grace, because an
+  // instruction is unambiguous and the only question is whether she got to
+  // speak. A goodbye is a social close, so the call must end WHEN SHE HAS
+  // FINISHED SAYING GOODBYE — not on a stopwatch that either guillotines her
+  // or leaves both of them sitting on an open line, which is exactly the
+  // silence he described.
+  //
+  // Four conditions, and every one of them is a way of NOT firing:
+  //   1. the words are a goodbye and nothing else   (readsAsFarewell, closed
+  //      vocabulary — see src/voice/farewell.ts for why "bye bolna galat
+  //      laga" cannot reach here)
+  //   2. the call is past its opening seconds       (a "bye" at 0:04 is a
+  //      misdial or a joke)
+  //   3. nothing is already counting down           (an explicit ask wins)
+  //   4. SHE gets to answer it                      (the poll below waits for
+  //      her voice to start and stop; the cap is the only path that ends a
+  //      call she never got to say goodbye on)
+  // Any further speech from him disarms it, so a goodbye that turns out to be
+  // "bye— arre wait, ek aur baat" costs nothing.
+  /** Under this a "bye" is not the end of a conversation, it is the start of
+   *  one. Chosen against `CALLBACK_MIN_SECS` (8s = a misdial) with room. */
+  const FAREWELL_MIN_SECS = 20;
+  /** After her goodbye finishes. Long enough to be a beat rather than a cut,
+   *  short enough that neither of them is left listening to an open line. */
+  const FAREWELL_TAIL_MS = 1_400;
+  /** She never wrapped up (mute, a dropped turn, a lane change mid-goodbye).
+   *  The call still ends — a farewell answered by silence is over either way
+   *  — but only after long enough that "she was about to speak" is excluded. */
+  const FAREWELL_MAX_MS = 12_000;
+  const FAREWELL_POLL_MS = 200;
+  const farewellAt = useRef(0);
+  const farewellPoll = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function disarmFarewell() {
+    if (!farewellPoll.current) return;
+    clearInterval(farewellPoll.current);
+    farewellPoll.current = null;
+    farewellAt.current = 0;
+    diag("call", "farewell_cancelled", {});
+  }
+
+  function armFarewell(lane: string) {
+    if (farewellPoll.current || hangupArmed.current || endingRef.current) return;
+    if (elapsedRef.current < FAREWELL_MIN_SECS) {
+      diag("call", "farewell_ignored", { reason: "too_early", secs: elapsedRef.current });
+      return;
+    }
+    const at = Date.now();
+    farewellAt.current = at;
+    diag("call", "farewell_armed", { lane, secs: elapsedRef.current });
+    tel("call.farewell", { call_id: callId.current, lane, secs: elapsedRef.current });
+    farewellPoll.current = setInterval(() => {
+      if (!alive.current || endingRef.current) {
+        disarmFarewell();
+        return;
+      }
+      const now = Date.now();
+      // her goodbye: she started speaking after his, and has since stopped.
+      // BOTH lanes are read — `herStoppedAt` is the live lane's state edge and
+      // `herSpokeUntil` is the cascade's — because a farewell that only works
+      // on one lane is the `age-tier-never-realtime` shape in miniature.
+      const herEnd = Math.max(herStoppedAt.current, herSpokeUntil.current);
+      const sheAnswered = herEnd > at;
+      const capped = now - at >= FAREWELL_MAX_MS;
+      if (capped || (sheAnswered && !speakingRef.current && now - herEnd >= FAREWELL_TAIL_MS)) {
+        const waited = now - at;
+        disarmFarewell();
+        // ORDER MATTERS, and `armHangup` above already paid for this lesson:
+        // `endCall` reads "was this asked for?" to decide whether to arm the
+        // ring-back, and a goodbye is the one ending that must NEVER ring
+        // back. Set it BEFORE endCall, not after.
+        hangupWasAsked.current = true;
+        diag("call", "farewell_ended", { waited_ms: waited, answered: sheAnswered, capped });
+        const done = onEndRef.current;
+        if (done) endCall(done);
+      }
+    }, FAREWELL_POLL_MS);
+  }
+
+  // ── SHE SAID SHE'D CHECK, AND NOTHING IS COMING ─────────────────────────
+  /** How long a fired lookup may still answer for. `callLookup`'s own fetch
+   *  fuse is 5.5s; this is that plus the slack a slow phone adds. */
+  const LOOKUP_WINDOW_MS = 9_000;
+  /** After a note of EITHER kind went out, the backstop stays quiet: the gap
+   *  has already been answered, honestly or with facts, and answering it
+   *  twice is its own kind of broken. */
+  const LOOKUP_SETTLE_MS = 20_000;
+  /** One honest admission per topic, not per sentence. */
+  const CHECK_PROMISE_GAP_MS = 90_000;
+  const lookupUntil = useRef(0);
+  const lastPromiseNoteAt = useRef(0);
+
+  function maybeAnswerCheckPromise(herLine: string) {
+    if (!alive.current || !liveSession.current) return;
+    if (!readsAsCheckPromise(herLine)) return;
+    const now = Date.now();
+    if (now < lookupUntil.current) {
+      diag("call", "check_promise_skip", { reason: "lookup_pending" });
+      return;
+    }
+    if (now - lastPromiseNoteAt.current < CHECK_PROMISE_GAP_MS) {
+      diag("call", "check_promise_skip", { reason: "rate" });
+      return;
+    }
+    lastPromiseNoteAt.current = now;
+    diag("call", "check_promise", { secs: elapsedRef.current });
+    tel("call.check_promise", { call_id: callId.current });
+    liveSession.current.direct(checkPromiseNote());
+  }
+
+  // ── THE RUNNING NOTE ────────────────────────────────────────────────────
+  // See callHistory.ts's `formatRunningNote` for WHY: the live session drops
+  // its own oldest turns (`slidingWindow`), so on a long call the beginning
+  // leaves while she is still talking. This says the beginning again, as
+  // context, on a period — never as a cue, which is what `silent: true` buys.
+  //
+  // Live lane only. The cascade lane needs nothing: brain.ts hands the model
+  // the whole transcript as turns on every single reply, so it has no window
+  // to fall out of.
+  /** No note before this: a call shorter than this has lost nothing. */
+  const NOTE_FIRST_MS = 4 * 60_000;
+  /** …and one every this often after. Chosen well inside a compression
+   *  cycle rather than against one: the trigger is server-side and
+   *  unobservable from here, so the note has to be frequent enough that a
+   *  fresh copy is always near the end of the window, and rare enough to be
+   *  invisible next to a mic uplink (one ≤900-byte frame every four minutes,
+   *  against ~32KB/s of audio). */
+  const NOTE_EVERY_MS = 4 * 60_000;
+  /** The tick that ASKS. Deliberately much shorter than the period, so the
+   *  note lands near its due moment rather than up to four minutes late. */
+  const NOTE_TICK_MS = 30_000;
+  /** A ceiling on a per-call cost is what stops an all-night call from being
+   *  the one shape nobody tested. Twelve notes is roughly an hour. */
+  const NOTE_MAX = 12;
+  const notesSent = useRef(0);
+  const lastNoteAt = useRef(0);
+
+  /** The turns of the call that is happening RIGHT NOW: everything after the
+   *  newest callmark (which `endCall` writes at hangup), minus anything said
+   *  over a shared screen — `watchTurnIds`' rule, and it applies here for a
+   *  sharper reason than it does for the graph: a wrong reading of his screen
+   *  re-injected as her own memory is a wrong claim she then defends. */
+  function currentCallTurns(): Message[] {
+    const ms = stateRef.current.messages;
+    let start = 0;
+    for (let i = ms.length - 1; i >= 0; i--) {
+      if (ms[i]?.kind === "callmark") {
+        start = i + 1;
+        break;
+      }
+    }
+    return ms
+      .slice(start)
+      .filter(
+        (m) =>
+          m.kind === "text" &&
+          m.channel === "call" &&
+          Boolean(m.text?.trim()) &&
+          !watchTurnIds.current.has(m.id),
+      );
+  }
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (!alive.current || endingRef.current) return;
+      const s = liveSession.current;
+      if (!s) return; // cascade/native lanes carry their own history
+      const now = Date.now();
+      if (elapsedRef.current * 1000 < NOTE_FIRST_MS) return;
+      if (lastNoteAt.current && now - lastNoteAt.current < NOTE_EVERY_MS) return;
+      if (notesSent.current >= NOTE_MAX) return;
+      const note = formatRunningNote(currentCallTurns());
+      if (!note) return;
+      lastNoteAt.current = now;
+      notesSent.current += 1;
+      diag("call", "running_note", {
+        n: notesSent.current,
+        bytes: note.length,
+        secs: elapsedRef.current,
+      });
+      s.direct(note, { silent: true });
+    }, NOTE_TICK_MS);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function endCall(onEnd: () => void) {
     if (endingRef.current) return; // double-tap = two callmarks, two extractions
     endingRef.current = true;
+    disarmFarewell();
     // ── did this call DROP, or did it end? ───────────────────────────────
     // She was mid-sentence when the line went. A person calls back after that,
     // and only after that — so the callback is armed here, on the one signal

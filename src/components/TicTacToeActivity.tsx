@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import type { AppState } from "../state/store";
 import ActivityShell, { type ActivityCall } from "./ActivityShell";
 import TicTacToeBoard from "./TicTacToeBoard";
+import SidePick from "./SidePick";
 import { herTttMove, legalCells, newTttGame, playTtt } from "../engine/ttt";
 import { tap } from "../native/haptics";
 import type { Cell, Game as TttGame, Mark } from "../engine/ttt";
@@ -167,7 +168,11 @@ export default function TicTacToeActivity({
   }, [state, setState]);
 
   const g = session?.game ?? null;
-  const herSide = session?.herSide ?? "o";
+  const herSide: Mark = session?.herSide ?? "o";
+  // HIS mark, which is what every label on this surface speaks in. X opens in
+  // tic tac toe, so the default gives him X for the same reason chess gives
+  // him white: an empty board should be waiting for him, not already moving.
+  const hisSide: Mark = herSide === "x" ? "o" : "x";
   const over = Boolean(g?.status.over);
   const done = over || Boolean(session?.closedAt);
   const hers = Boolean(g && !done && g.status.turn === herSide);
@@ -275,22 +280,48 @@ export default function TicTacToeActivity({
   // no-op rather than a second count.
   const newGame_ = useCallback(() => {
     tap();
+    // The rematch keeps the marks, for the reason ChessActivity's identical
+    // block states: a person who chose O chose it, and the picker is on the
+    // fresh board anyway.
     replaceOccupant(state, setState, {
       kind: "ttt" as const,
       game: newTttGame(),
-      herSide: "o" as const,
+      herSide,
       startedAt: Date.now(),
     });
-  }, [state, setState]);
+  }, [state, setState, herSide]);
   const showNew = Boolean(over || session?.closedAt);
+
+  // ── which mark he is playing ──────────────────────────────────────────
+  //
+  // Same contract as chess's, same reasoning (SidePick.tsx): offered only on
+  // an empty board, and taking X flips `herSide` to O... or the other way
+  // round, which is the whole point. Picking O makes it HER move on an empty
+  // board and the think-and-play effect above opens for her, with nothing
+  // here knowing that it did.
+  const showPick = Boolean(g && !done && g.played.length === 0);
+  const chooseMark = useCallback(
+    (his: Mark) => {
+      setState((s) => {
+        const cur = s.game;
+        if (cur?.kind !== "ttt" || cur.closedAt || cur.game.played.length) return s;
+        const her: Mark = his === "x" ? "o" : "x";
+        if (her === cur.herSide) return s;
+        return { ...s, game: { ...cur, herSide: her, startedAt: Date.now() } };
+      });
+    },
+    [setState],
+  );
 
   // Whose mark is whose, and the room's fill for the rest of the dead space
   // (audit #11) — a legend plus a score. `state.game.ttt` carries no
   // per-sitting series (one session is one game, replaced on "New game"), so
   // per the brief this falls back to the lifetime tally already written at
   // close (App.tsx's reconciler) rather than inventing a counter nothing
-  // else reads.
-  const hisSide: Mark = herSide === "x" ? "o" : "x";
+  // else reads. `hisSide` is derived once, at the top of this component, and
+  // read here: it used to be computed a second time in this spot, which was
+  // free while it was a constant and is a place for two answers to disagree
+  // now that a person chooses it.
   const lifetimeRounds = state.tally?.tttGames ?? 0;
 
   return (
@@ -301,10 +332,26 @@ export default function TicTacToeActivity({
       note={herLine}
       presence={!foreignLive}
       footer={
-        showNew ? (
-          <button type="button" className="as-gbtn as-gbtn-primary" data-tel="ttt.new" onClick={newGame_}>
-            New game
-          </button>
+        showPick || showNew ? (
+          <>
+            {showPick && (
+              <SidePick
+                legend="you play"
+                options={[
+                  { value: "x", label: "X", aria: "You play X, and you go first" },
+                  { value: "o", label: "O", aria: "You play O, and she goes first" },
+                ]}
+                value={hisSide}
+                onChange={chooseMark}
+                tel="ttt.mark"
+              />
+            )}
+            {showNew && (
+              <button type="button" className="as-gbtn as-gbtn-primary" data-tel="ttt.new" onClick={newGame_}>
+                New game
+              </button>
+            )}
+          </>
         ) : undefined
       }
       her={{

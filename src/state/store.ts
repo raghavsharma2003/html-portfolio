@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { UserProfile } from "../engine/persona";
 import type { Inner } from "../engine/inner";
+// TYPE ONLY — erased at compile time, so the state layer still imports no
+// engine runtime (memory.ts reaches Capacitor and the network; this does not
+// drag either into the store's bundle).
+import type { ActivityRecord } from "../engine/memory";
 import { tel } from "../engine/telemetry";
 
 export interface Message {
@@ -234,6 +238,17 @@ export interface AppState {
   // local on purpose: this is present-moment flavour; the fired-LEDGER
   // above is what carries the permanent truth and it does sync.
   recentMoment?: { id: string; fact: string; at: number } | null;
+  // WHAT THEY HAVE ACTUALLY PLAYED — the local half of #113's episode write.
+  // `game` is the ONE current session and is replaced the moment a second one
+  // starts; before this field the games behind it existed only in the server
+  // graph, reachable only through a semantic embedding that may never have
+  // been written. So the first external tester played two games of chess and
+  // then tic tac toe, asked about the chess, and she answered about the tic
+  // tac toe — the only game left in state — and then invented the chess.
+  // Bounded (ACTIVITY_LEDGER_MAX), newest first, deduped on kind:startedAt,
+  // and syncs with the rest of the relationship. See engine/memory.ts's
+  // `formatActivityLedger` for what reads it.
+  activities?: ActivityRecord[];
   // Lifetime activity tallies, written at game close. The RECORD is the
   // progression system; these are the running totals the detector reads.
   tally?: {
@@ -346,6 +361,12 @@ export function loadState(): AppState {
     // blank screen that SURVIVES reload, because the crash happens after
     // every successful load. Guard the boundary; drop only the game.
     if (parsed.game != null && !isGameSession(parsed.game)) parsed.game = null;
+    // Same boundary, same reason, one field over: `activities` arrives from a
+    // parsed blob, an older build, or a synced server row, and `mergeStates`
+    // SPREADS it — spreading a number throws, and a throw on this path is the
+    // white screen that survives every reload. Every reader downstream already
+    // filters malformed ROWS; this guards the container.
+    if (!Array.isArray(parsed.activities)) parsed.activities = undefined;
     // `{ ...defaultState, ...JSON.parse(raw) }` is a SHALLOW spread: a stored
     // `user` of `{ name: "Rohan" }` (an older build's write, a half-finished
     // onboarding, a restored backup) replaces the default wholesale and
@@ -441,6 +462,7 @@ function crossTabSig(s: AppState): string {
     s.herLife ?? null,
     s.inner ?? null,
     s.game ?? null,
+    s.activities ?? null,
     s.tally ?? null,
     [...(s.momentsFired ?? [])].sort(),
     s.followup ?? null,

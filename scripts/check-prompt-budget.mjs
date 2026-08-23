@@ -323,14 +323,52 @@ console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts
   // Bounds mirror check-prompt-budget v1's TAIL_EXTRAS/TASTE_EXTRAS comment.
   const TAIL_EXTRAS = 12 * 570 + 900 + 12 * 150 + 370 + 1_500;
   const TASTE_EXTRAS = 1_100; // inner.ts suppresses taste+week-shape on surface "watch" only
+  // ── WS-CALLMEM ────────────────────────────────────────────────────────
+  // What guards the CALL brief is this block and nothing else: the live
+  // prompt never passes through api/chat.js, so the operational caps above
+  // reach it only because this section measures it against them by hand.
+  // Every new block on this lane therefore has to be added HERE or it is
+  // unguarded — which is the same "the guard exists and nobody extended it"
+  // shape `engine-bundle-check-uncalled` records.
+  //
+  // BOTH lanes now carry the shared-history block (useCallEngine.ts folds it
+  // into the `memories` string at the ring, so the live compile and the
+  // native-watch compile both get it).
+  const SHARED_HISTORY_EXTRAS = 700; // src/voice/callHistory.ts SHARED_HISTORY_BUDGET
+  // WS-GAMEMEM's local activity ledger, call-sized. Rides the same `memories`
+  // string (assembly-side, at the ring), so BOTH call lanes carry it — and it
+  // is the family-6 fence on the one lane where the honesty gate cannot run.
+  // Net cost is at most this: when it renders, `withoutServerActivityBlock`
+  // takes the server's copy back out of the recall.
+  const CALL_ACTIVITY_EXTRAS = 300; // src/voice/callHistory.ts CALL_ACTIVITY_BUDGET
+  // The LIVE lane alone additionally passes `nowMs` (lighting T9, away.ts
+  // AWAY_BUDGET) and `herCommitments` (T16, compiler.ts
+  // HER_COMMITMENTS_BUDGET). The watch compile deliberately passes neither —
+  // it is the tightest lane in the repo and 700 bytes was what it had to
+  // spare. evals/callmem/run.mjs asserts that asymmetry against the SOURCE,
+  // so this bound cannot quietly become a lie about what the watch site does.
+  const LIVE_ONLY_EXTRAS = 300 + 400;
   check("live core", liveCore.length, OPERATIONAL_CORE_CAP);
-  check("live tail (bound)", parts.tail.length + TAIL_EXTRAS + TASTE_EXTRAS, OPERATIONAL_TAIL_CAP);
+  check(
+    "live tail (bound)",
+    parts.tail.length +
+      TAIL_EXTRAS +
+      TASTE_EXTRAS +
+      SHARED_HISTORY_EXTRAS +
+      CALL_ACTIVITY_EXTRAS +
+      LIVE_ONLY_EXTRAS,
+    OPERATIONAL_TAIL_CAP,
+  );
   check("live core (target, SPEC §3.1)", liveCore.length, CORE_CAP, { warnOnly: true });
   const liveWatchCore = parts.core + buildSpeechStyle("live"); // native watch config's systemLive is identical
   check("live+watch core", liveWatchCore.length, OPERATIONAL_CORE_CAP);
   check(
     "live+watch tail (bound)",
-    parts.tail.length + WATCH_MODE_NOTE.length + TAIL_EXTRAS,
+    parts.tail.length +
+      WATCH_MODE_NOTE.length +
+      TAIL_EXTRAS +
+      SHARED_HISTORY_EXTRAS +
+      CALL_ACTIVITY_EXTRAS,
     OPERATIONAL_TAIL_CAP,
   ); // watch surface suppresses taste — no TASTE_EXTRAS here
   if (!liveCore.includes(CRISIS_LINES)) {

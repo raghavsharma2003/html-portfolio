@@ -120,6 +120,10 @@ export function syncableState(s: AppState) {
     herLife: s.herLife,
     inner: s.inner,
     game: s.game,
+    // The finished-games ledger. It is the relationship's record of what they
+    // have actually done together, so it syncs with the rest of it — a game
+    // played on the phone must not be a game the laptop denies.
+    activities: s.activities,
     tally: s.tally,
     momentsFired: s.momentsFired,
     followup: s.followup,

@@ -228,7 +228,15 @@ ok("whitespace fact yields no note", activityNote("   ") === "");
 {
   const chat = readFileSync(new URL("../src/components/Chat.tsx", import.meta.url), "utf8");
   ok("teardown clears the game", /clearedAt: Date\.now\(\),[\s\S]{0,900}game: null/.test(chat));
-  ok("teardown clears the callback", /game: null,\s*\n\s*callback: null/.test(chat));
+  // The three now sit together and the assertion no longer demands they be
+  // ADJACENT: `activities` (the ledger of games already finished) joined them,
+  // and a check that pins line order is a check that fails on the next correct
+  // addition. What it pins is that all three are cleared in the same wipe.
+  ok("teardown clears the callback", /game: null,[\s\S]{0,900}callback: null/.test(chat));
+  ok(
+    "teardown clears the finished-game ledger too",
+    /game: null,[\s\S]{0,900}activities: \[\]/.test(chat),
+  );
   ok("undo restores the game too", /game: snap\.game/.test(chat));
 }
 

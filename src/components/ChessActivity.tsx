@@ -11,7 +11,10 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { AppState } from "../state/store";
 import ActivityShell, { type ActivityCall } from "./ActivityShell";
 import ChessBoard, { type LegalMove as BoardMove, type PromotionRole, type Role } from "./ChessBoard";
+import SidePick from "./SidePick";
+import { HER_NAME } from "../engine/persona";
 import { chooseMoveAsync, legalMoves, newGame, openingName, play } from "../engine/chess";
+import type { Side } from "../engine/chess";
 import { useCallStatus } from "../state/callStatus";
 import { tap } from "../native/haptics";
 import { resolveTheme } from "../engine/theme";
@@ -95,7 +98,13 @@ export default function ChessActivity({
   }, [state, setState]);
 
   const g = session?.game ?? null;
-  const herSide = session?.herSide ?? "b";
+  const herSide: Side = session?.herSide ?? "b";
+  // HIS side, which is the one the picker and every label speak in. She has
+  // black by default because that is the game this app has always opened:
+  // white is the side that moves first, and handing him the first move is
+  // what makes the empty board a thing waiting for him rather than a thing
+  // already happening.
+  const hisSide: Side = herSide === "w" ? "b" : "w";
   const over = Boolean(g?.status.over);
   // closedAt is part of "over" for INTERACTION: after End-game the board
   // stayed fully playable (both sides!) while she told callers the game had
@@ -307,15 +316,48 @@ export default function ChessActivity({
     // session is therefore settled synchronously here, before the fresh board
     // takes the slot; the reconciler's own `tallied`/`closedAt` guards make
     // its later run a no-op rather than a second count.
+    //
+    // THE REMATCH KEEPS THE SIDES. Alternating colours is the tournament
+    // convention and it is the wrong default here: a person who just chose
+    // black chose it, and a rematch that silently hands him white is the app
+    // undoing a decision he made forty moves ago. The picker is on the fresh
+    // board anyway, one tap away, so keeping is recoverable and swapping is
+    // not (he would have to notice it happened).
     replaceOccupant(state, setState, {
       kind: "chess" as const,
       game: newGame(),
-      herSide: "b",
+      herSide,
       startedAt: Date.now(),
     });
-  }, [state, setState]);
+  }, [state, setState, herSide]);
   const showEnd = Boolean(g && !over && !session?.closedAt && g.played.length > 0);
   const showNew = Boolean(over || session?.closedAt);
+
+  // ── which side he is playing ──────────────────────────────────────────
+  //
+  // Offered exactly while it is TRUE: an empty board, nothing closed. A side
+  // cannot be changed on move nine, so the control does not linger to say so
+  // (SidePick.tsx states the reasoning at length). Picking black flips
+  // `herSide` to white, which makes it HER move on an empty board, which the
+  // think-and-play effect above is already watching for — so she opens
+  // without a single line here knowing that she does.
+  //
+  // `startedAt` is deliberately re-stamped: until the first move nothing has
+  // happened yet, and "we have been at this twenty minutes" must not count
+  // the time he spent deciding which colour to be.
+  const showPick = Boolean(g && !done && g.played.length === 0);
+  const chooseSide = useCallback(
+    (his: Side) => {
+      setState((s) => {
+        const cur = s.game;
+        if (cur?.kind !== "chess" || cur.closedAt || cur.game.played.length) return s;
+        const her: Side = his === "w" ? "b" : "w";
+        if (her === cur.herSide) return s;
+        return { ...s, game: { ...cur, herSide: her, startedAt: Date.now() } };
+      });
+    },
+    [setState],
+  );
 
   // The RESULT, stated on screen. The payoff moment of the whole activity is
   // "did I win?", and the audit found the entire on-screen answer was the
@@ -350,8 +392,20 @@ export default function ChessActivity({
       note={herLine}
       presence={!foreignLive}
       footer={
-        showEnd || showNew ? (
+        showPick || showEnd || showNew ? (
           <>
+            {showPick && (
+              <SidePick
+                legend="you play"
+                options={[
+                  { value: "w", label: "White", aria: "You play white, and you move first" },
+                  { value: "b", label: "Black", aria: "You play black, and she moves first" },
+                ]}
+                value={hisSide}
+                onChange={chooseSide}
+                tel="chess.side"
+              />
+            )}
             {showEnd && (
               <button type="button" className="as-gbtn" data-tel="chess.end" onClick={endGame}>
                 End game
@@ -392,7 +446,10 @@ export default function ChessActivity({
             fen={g.fen}
             legalMoves={moves}
             onMove={onMove}
-            orientation={herSide === "w" ? "b" : "w"}
+            // HIS pieces are at the bottom, ALWAYS. Stated as his own colour
+            // rather than as the negation of hers, because that is the rule
+            // and the rule should be what the line says.
+            orientation={hisSide}
             interactive={mine}
             lastMove={last ? { from: last.from, to: last.to } : null}
             inCheck={g.status.inCheck ? g.status.turn : null}
@@ -401,6 +458,30 @@ export default function ChessActivity({
             label="Chess board"
           />
           <div className="cx-moves">
+            {/* WHOSE COLUMN IS WHOSE. The move list has always had two
+                unlabelled columns, and while he was always white that was
+                readable by convention. It stops being readable the moment he
+                can be black, and an unlabelled scoresheet is the one place a
+                flipped game would quietly lie about who played what.
+
+                It is a HEADER ROW, not a legend beside the list, and it
+                shares the list's own grid: white first, black second, in
+                column order, because a legend that reads "you, her" above
+                columns that run "white, black" is a second thing to
+                reconcile rather than an answer. */}
+            <p className="cx-sides" aria-hidden="true">
+              <span />
+              {(["w", "b"] as const).map((side) => (
+                <span className="cx-side" data-side={side} key={side}>
+                  <i />
+                  {side === hisSide ? "you" : "her"}
+                </span>
+              ))}
+            </p>
+            <p className="sr-only">
+              You are playing {hisSide === "w" ? "white" : "black"}. {HER_NAME} is playing{" "}
+              {herSide === "w" ? "white" : "black"}.
+            </p>
             {opening ? (
               <p className="cx-opening">
                 opening: <b>{opening}</b>

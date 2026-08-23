@@ -550,6 +550,57 @@ async function opRecall(device, body) {
       2_500,
     ).catch(() => []);
   })();
+  // ── THE ACTIVITY LEG (2026-08-23) ──────────────────────────────────────
+  //
+  // WHAT WAS BROKEN. `opActivity` writes a finished game to `vy_episode` +
+  // `vy_fact`. Every keyword read in this function is over `meera_nodes`,
+  // which activities are never written to. `fetchRelBundle`'s `weEpisodes`
+  // reads `vy_episode` but returns null unless a `vy_rel_state` row exists,
+  // and that row is written by the nightly consolidator. So for a person with
+  // no consolidation yet — every person on their first day — the ONLY route
+  // from a finished game back into a prompt was the semantic leg above, which
+  // requires an `embedOne` call to have succeeded at write time AND the query
+  // to embed close enough at read time. `api/_embed.js` says in its own doc
+  // that "an embedding is an enhancement, never the only path to a memory".
+  // For this one class of memory it was the only path, and the failure mode is
+  // the worst one this product has: the first external tester played two games
+  // of chess, asked about them, and she said they had not happened.
+  //
+  // This is the missing keyword leg, and it is deliberately scoped to activity
+  // rows rather than opened over `vy_fact` generally: conversational facts
+  // already reach a prompt through `meera_nodes` (opRemember writes both), so
+  // a general read would change what every existing turn recalls in order to
+  // fix a class that has no route at all. `name like 'activity:%'` is the same
+  // key `activityFactName` composes, which is what keeps the reader and the
+  // writer naming one thing.
+  //
+  // Runs CONCURRENTLY with everything else — one more batched round trip, not
+  // a serial one — and degrades to [] on any failure, exactly like the
+  // semantic leg it sits beside.
+  const activityFetch = (async () => {
+    const person = await personPromise;
+    if (!person) return [];
+    // With query words: word-boundary match, same `~*` predicate and the same
+    // `\m…\M` anchoring the `meera_nodes` leg uses (an `ilike '%…%'` would
+    // match "chess" inside "chessboard-shaped" and hand her a memory the
+    // message never referred to). WITHOUT them: the most recent few, because
+    // "kya khela tha humne" tokenises to nothing this leg can match on and is
+    // precisely the question that must be answerable.
+    const clauses = words.map((_, i) => `f.body ~* $${i + 3}`);
+    return q(
+      `select f.id, f.kind, f.name, f.body, f.feel, f.created_at
+         from vy_fact f
+        where f.person_id = $1 and f.name like 'activity:%'
+          and f.t_invalid is null and f.retracted_at is null
+          ${agentScopePredicate("f", { agentId: "$2" })}
+          ${clauses.length ? `and (${clauses.join(" or ")})` : ""}
+        order by f.created_at desc
+        limit 4`,
+      [person, agentId, ...words.map((w) => `\\m${w}\\M`)],
+      2_500,
+    ).catch(() => []);
+  })();
+
   // WS-INTEGRATE seam 1: run concurrently with everything else in this
   // function — one extra batched round trip, never a serial one (SPEC §3.3
   // retrieval-budget discipline). Any failure degrades to `relstate: null`,
@@ -561,15 +612,17 @@ async function opRecall(device, body) {
   // person a third time, and it degrades to `self: null` on any failure.
   const selfBundleFetch = personPromise.then((person) => fetchSelfBundle(person, agentId)).catch(() => null);
 
-  const [[bgRaw, matchedRaw = []], semanticRaw, relBundle, selfBundle] = await Promise.all([
+  const [[bgRaw, matchedRaw = []], semanticRaw, activityRaw, relBundle, selfBundle] = await Promise.all([
     Promise.all(fetches),
     semanticFetch,
+    activityFetch,
     relBundleFetch,
     selfBundleFetch,
   ]);
   const background = Array.isArray(bgRaw) ? bgRaw : [];
   const matched = Array.isArray(matchedRaw) ? matchedRaw : [];
   const semantic = (Array.isArray(semanticRaw) ? semanticRaw : []).slice(0, 4);
+  const activities = (Array.isArray(activityRaw) ? activityRaw : []).slice(0, 4);
   const seen = new Map();
   for (const n of [...matched, ...background]) seen.set(n.id, n);
 
@@ -593,6 +646,10 @@ async function opRecall(device, body) {
       ms_total: Date.now() - traceT0,
       keyword: { matched_ids: traceIds(matched), background_ids: traceIds(background) },
       semantic: { ...traceSem, fact_ids: traceIds(semantic) },
+      // the activity leg, as ids — `realtime-recall-never` is the reason every
+      // retrieval leg is countable: a leg reading zero rows for months is
+      // invisible unless something records how many it read.
+      activity: { fact_ids: traceIds(activities), n: activities.length },
       observations: { ids: obsIds || [], n: (obsIds || []).length },
       relbundle: relBundleShape(relBundle),
       selfbundle: selfBundleShape(selfBundle),
@@ -612,7 +669,11 @@ async function opRecall(device, body) {
   // and rides both paths too: her arc and her untold life exist whether or not
   // this particular query matched a node, and the empty-memories path is
   // exactly the early-relationship case where texture is most of what she has.
-  if (!seen.size && !semantic.length)
+  // The activity leg rides this condition too. It has to: a person whose only
+  // memory is a game they just played has an empty `seen` and no semantic hit
+  // (no embedding may have been written), and the early return above would
+  // send back "" — which is the exact state the 2026-08-23 report describes.
+  if (!seen.size && !semantic.length && !activities.length)
     return { memories: "", relstate: relBundle, self: selfBundle, trace: buildTrace("", [], []) };
 
   const idArr = [...seen.keys()];
@@ -670,6 +731,31 @@ async function opRecall(device, body) {
   // prompt to bring six unrelated facts into a reply about something else
   const matchedIds = new Set(matched.map((n) => n.id));
   const blocks = [];
+  // THE ACTIVITY BLOCK GOES FIRST, and the position is the drop policy rather
+  // than an opinion about importance: `api/chat.js` keeps the FIRST n
+  // characters of what it is handed and cuts the END, so of everything here
+  // the record of what the two of them actually DID is the one thing that must
+  // not be the casualty. It is also the only block whose contents are
+  // verifiable by the person reading her reply — he was at the board.
+  //
+  // The heading carries the fence, for the same reason the client-side ledger
+  // block does: this is the class of memory where supplying a missing detail
+  // is indistinguishable from remembering it, and the boundary can only be
+  // stated where the record is.
+  //
+  // ONE HEADING, TWO PRODUCERS. `src/engine/memory.ts` exports
+  // ACTIVITY_BLOCK_SENTINEL and its own ledger block opens with the same
+  // words, so a client that holds a local ledger can recognise this block and
+  // drop it rather than rendering both — see `withoutServerActivityBlock`.
+  // This block is what reaches the surfaces that have no AppState at all: the
+  // realtime call lane, and every bot surface in api/route.js. The sentinel is
+  // a hand-kept mirror and `evals/gamemem.mjs` pins the two together.
+  if (activities.length)
+    blocks.push(
+      `GAMES AND THINGS YOU TWO ACTUALLY DID, newest first. This is the whole record of them: never add a move, an opening, a question or a score that is not written here — if they ask for one it does not carry, say you do not remember it rather than filling it in:\n${activities
+        .map((f) => `- ${f.body} (${ageLabel(f.created_at)})`)
+        .join("\n")}`,
+    );
   if (matched.length) blocks.push(`RELEVANT TO WHAT THEY JUST SAID:\n${matched.map(line).join("\n")}`);
   const bgOnly = background.filter((n) => !matchedIds.has(n.id));
   if (bgOnly.length)
@@ -684,7 +770,12 @@ async function opRecall(device, body) {
   // signal than an exact word hit and the two must stay distinguishable to
   // anyone reading a diag trace later. Deduped against anything the keyword
   // path already surfaced by name.
-  const namesShown = new Set([...matched, ...background].map((n) => String(n.name || "").toLowerCase()));
+  // The activity leg and the semantic leg both read `vy_fact`, so an activity
+  // whose embedding DID land can come back on both — deduped by the same fact
+  // name they share, or she is told about one game twice under two headings.
+  const namesShown = new Set(
+    [...matched, ...background, ...activities].map((n) => String(n.name || "").toLowerCase()),
+  );
   const semanticOnly = semantic.filter((f) => f && !namesShown.has(String(f.name || "").toLowerCase()));
   if (semanticOnly.length) {
     const factLine = (f) => {
@@ -1311,6 +1402,24 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
 const ACTIVITY_KIND_RE = /^[a-z][a-z0-9_]{1,15}$/;
 
 /**
+ * HAND-KEPT MIRROR of `src/engine/memory.ts`'s `EPISODE_SUMMARY_MAX`.
+ *
+ * It was 200 here against a client cap of 180 — comfortable, and therefore
+ * invisible when the client cap moved to 420 to make room for the durable rows
+ * (the opening, the colours, the ending, the captures). A writer that composes
+ * 420 characters and a reader that stores 200 does not fail: it silently
+ * stores the FIRST 200 and drops the end, which is where the drop policy
+ * deliberately put the least important rows — so the disagreement would have
+ * eaten exactly the half nobody would notice missing until someone asked about
+ * a game. `warm-count-unscoped` is the same shape and the same file pair.
+ *
+ * `evals/gamemem.mjs` asserts the two numbers agree, over the REAL modules.
+ * A slice still exists because this value crosses a trust boundary — but it is
+ * now a bound on a hostile client, not a second opinion about the record.
+ */
+export const ACTIVITY_SUMMARY_MAX = 420;
+
+/**
  * THE IDEMPOTENCE KEY. The session's own `startedAt`, never the close time:
  * two synced devices agree on when a session began (it is a synced field),
  * they do not agree on the millisecond either of them noticed it close, and
@@ -1326,7 +1435,7 @@ async function opActivity(device, body) {
   const kind = String(body.kind || "");
   const startedAt = Number(body.startedAt);
   const closedAt = Number(body.closedAt);
-  const summary = String(body.summary || "").trim().replace(/\s+/g, " ").slice(0, 200);
+  const summary = String(body.summary || "").trim().replace(/\s+/g, " ").slice(0, ACTIVITY_SUMMARY_MAX);
   if (!ACTIVITY_KIND_RE.test(kind)) return { ok: false, error: "bad kind" };
   if (!Number.isFinite(startedAt) || startedAt <= 0) return { ok: false, error: "bad session" };
   if (!Number.isFinite(closedAt) || closedAt < startedAt) return { ok: false, error: "bad session" };
@@ -1400,7 +1509,12 @@ async function opActivity(device, body) {
          (agent_id, person_id, kind, name, body, provenance, confidence, citations, provisional)
        values (${agentValue("$5")},$1,'user',$2,$3,'extracted',0.95,$4::bigint[],false)
        returning id`,
-      [person, name, summary.slice(0, 160), [episodeId], agentId],
+      // the fact BODY carries the whole summary, not a 160-char head of it.
+      // The fact is what the semantic and keyword legs return, so a body
+      // truncated below the summary is a memory that is complete in the
+      // episode table and amputated everywhere it is actually read from —
+      // and the amputation lands on the record rows, which sit at the end.
+      [person, name, summary, [episodeId], agentId],
     ).catch(() => []);
 
     // Semantic recall, same as opRemember's provisional tier: embedding is an

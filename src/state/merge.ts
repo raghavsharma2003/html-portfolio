@@ -23,8 +23,17 @@
 
 import type { AppState, Message } from "./store";
 import type { UserProfile } from "../engine/persona";
+import type { ActivityRecord } from "../engine/memory";
 import type { GameSession } from "./game";
 import { isGameSession } from "./game";
+
+/** Hand-kept mirror of `engine/memory.ts`'s ACTIVITY_LEDGER_MAX, restated
+ *  rather than imported for the reason `memory.ts`'s CHAT_TAIL_MAX_WORDS is
+ *  restated in the other direction: importing a VALUE from `engine/memory.ts`
+ *  would drag Capacitor and the network layer into the state bundle to read
+ *  one integer, and this file is on the state boundary every parse crosses.
+ *  `evals/sync.mjs` pins the two together so the restatement cannot drift. */
+const LEDGER_MAX = 20;
 
 /**
  * `user`, coerced to a shape the prompt builder can survive.
@@ -108,6 +117,31 @@ export function mergeStates(local: AppState, remote: any): Partial<AppState> {
       ? [...new Set([...(local.momentsFired ?? []), ...(remote?.momentsFired ?? [])])]
       : local.momentsFired;
 
+  // The activity ledger is a LEDGER, so it merges by union, for the reason
+  // stated at the top of this file: an entry made anywhere holds everywhere.
+  // Keyed on the session's own identity — the same `kind:startedAt` the server
+  // dedupes the episode on, so one game played on a phone and synced to a
+  // laptop is one memory on both, never two. Bounded and newest-first on the
+  // way out, so a union of two full ledgers cannot grow without limit.
+  // Both halves crossed a trust boundary — another device's parse of its own
+  // localStorage, or a server row written by an older build — so the SHAPE is
+  // checked before either is spread. Spreading a non-array throws, and a throw
+  // in the sync path is a blank screen that then syncs.
+  const localActs = Array.isArray(local.activities) ? local.activities : [];
+  const remoteActs = Array.isArray(remote?.activities) ? (remote.activities as ActivityRecord[]) : [];
+  const activities =
+    localActs.length || remoteActs.length
+      ? (() => {
+          const byKey = new Map<string, ActivityRecord>();
+          for (const r of [...remoteActs, ...localActs])
+            if (r && r.kind && Number.isFinite(r.startedAt) && r.summary)
+              byKey.set(`${r.kind}:${r.startedAt}`, r);
+          return [...byKey.values()]
+            .sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0))
+            .slice(0, LEDGER_MAX);
+        })()
+      : local.activities;
+
   return {
     onboarded: remote?.onboarded || local.onboarded,
     deviceId: remote?.deviceId || local.deviceId, // keep her memory graph
@@ -133,6 +167,7 @@ export function mergeStates(local: AppState, remote: any): Partial<AppState> {
     // a blank screen that SYNCS. isGameSession is the same guard loadState
     // applies to its own boundary.
     game: mergeGame(local.game, isGameSession(remote?.game) ? remote.game : null),
+    activities,
     tally,
     momentsFired,
     followup:

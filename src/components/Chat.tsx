@@ -35,7 +35,8 @@ import { activeStories, hasUnseenStory, storySrc } from "../engine/storyCatalog"
 import MessageRow, { type RowApi } from "./MessageRow";
 import { fmtTime } from "./fmtTime";
 import { registerLocalClip } from "./VoiceNote";
-import { ChessIcon } from "./GamesHub";
+import { ChessIcon, ForkIcon, GridIcon } from "./GamesHub";
+import { detectGameInvite, type GameKind } from "../engine/gameInvite";
 import { listen, sttSupported } from "../voice/speech";
 import { tap, land } from "../native/haptics";
 import MoreSheet from "./MoreSheet";
@@ -47,8 +48,18 @@ import {
   CameraIcon,
   MoreIcon,
   ArrowDownIcon,
+  ChevronIcon,
   OfflineIcon,
 } from "./icons";
+
+/** What the invite chip says. App-voiced, never a line she would say — the
+ *  same discipline `GamesHub`'s blurbs and `ClockCard`'s strings keep. Her
+ *  own words are in the bubble directly above it. */
+const INVITE_LABEL: Record<GameKind, string> = {
+  chess: "Open the chess board",
+  "tic-tac-toe": "Open tic tac toe",
+  "would-you-rather": "Open would you rather",
+};
 
 interface Props {
   state: AppState;
@@ -57,6 +68,11 @@ interface Props {
   onProfile: () => void;
   /** open the "things to do together" sheet — one tap from the chat header */
   onGames: () => void;
+  /** open ONE activity room by id, the same route the hub's rows take. The
+   *  invite chip in the thread needs it: the whole point of that chip is that
+   *  the game opens from the conversation rather than from a menu, and a chip
+   *  that opened the menu would be the menu with an extra step. */
+  onOpenActivity?: (id: string) => void;
   /** open the Us screen — the relationship made visible. Entry is the header
    *  NAME (the Snapchat-friendship-profile idiom); the avatar keeps stories. */
   onUs: () => void;
@@ -113,7 +129,7 @@ const typeDelay = (bubble: string) => {
   return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
 };
 
-export default function Chat({ state, setState, onVoiceCall, onProfile, onGames, onUs, inCall, activityOpen, openSettingsSignal }: Props) {
+export default function Chat({ state, setState, onVoiceCall, onProfile, onGames, onOpenActivity, onUs, inCall, activityOpen, openSettingsSignal }: Props) {
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   // the indicator holds for one exit beat while the bubble enters underneath
@@ -140,7 +156,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     lastSettingsSignal.current = openSettingsSignal ?? 0;
   }, [openSettingsSignal]);
   // clearing parks the conversation for ten seconds instead of destroying it
-  type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt" | "game" | "callback" | "tally" | "momentsFired" | "recentMoment" | "followup"> &
+  type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt" | "game" | "activities" | "callback" | "tally" | "momentsFired" | "recentMoment" | "followup"> &
     // present ONLY on the forget path: clear-chat keeps her memory of HIM by
     // its own copy's promise; forget-everything must take user too, or "she
     // starts over not knowing you" ships with "lives in: pune" still in the
@@ -1524,6 +1540,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       inner: state.inner,
       clearedAt: state.clearedAt,
       game: state.game,
+      activities: state.activities,
       callback: state.callback,
       tally: state.tally,
       momentsFired: state.momentsFired,
@@ -1572,6 +1589,15 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       // callback: "she calls you back" from a wiped relationship is a
       // causeless event.
       game: null,
+      // The ledger of finished games goes with the current one, and for the
+      // same reason `game` does: she asked whether they should continue the
+      // chess match in the conversation that starts by not knowing him. A
+      // ledger that survives is that, three games over and in writing —
+      // "we played chess on 22 aug, you left it on move 6" said to a stranger.
+      // It also feeds `activityVocab`, so a surviving ledger would make her
+      // invented shared history SUPPORTED by the very gate that exists to
+      // catch it — the identical hole `recentMoment` was the third instance of.
+      activities: [],
       callback: null,
       ...(mode === "forget"
         ? { user: { name: "", vibe: [], facts: {} } }
@@ -1652,6 +1678,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       inner: snap.inner,
       clearedAt: snap.clearedAt,
       game: snap.game,
+      activities: snap.activities,
       callback: snap.callback,
       tally: snap.tally,
       momentsFired: snap.momentsFired,
@@ -2150,6 +2177,68 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       if (visible[i].from === "her" && visible[i].kind === "voice") return visible[i].id;
     return "";
   })();
+  // ── THE GAME INVITE ──────────────────────────────────────────────────────
+  //
+  // The tester: *"she should be able to initiate game chat me se if prompted
+  // to"*. He types "chalo chess khelte h" and the board should be one tap
+  // from that sentence instead of a trip through a menu.
+  //
+  // PRESENTATION ONLY, and the split is load-bearing. Nothing here touches
+  // the reply cycle, the burst clock or `deliver()`: the whole decision is
+  // `detectGameInvite`, a pure function of the messages that are already on
+  // screen (src/engine/gameInvite.ts), re-derived every render with no state
+  // of its own. That is also what makes "at most one pending invite" true by
+  // construction rather than by bookkeeping — the detector anchors on HER
+  // latest line, and there is only ever one of those.
+  //
+  // IT DOES NOT AUTO-OPEN. He may be mid-sentence, and a room that takes the
+  // screen because of something he typed is the app deciding what he meant.
+  // The tap IS the consent, which is the same rule the story ring and the
+  // call button already follow.
+  const [inviteTaken, setInviteTaken] = useState<string | null>(null);
+  const invite = useMemo(
+    // No route in means no chip: a chip that cannot open anything is worse
+    // than no chip, and this prop is optional so the thread still renders in
+    // a harness that does not pass it.
+    () => (onOpenActivity ? detectGameInvite(visible, Date.now()) : null),
+    [visible, onOpenActivity],
+  );
+  const pendingInvite = useMemo(() => {
+    if (!invite) return null;
+    // Keyed on the ASK, never on the anchor. The anchor moves every time she
+    // says anything else, and keyed on it a chip he had already tapped came
+    // back the moment her next bubble landed (caught by the browser battery,
+    // not by review).
+    if (inviteTaken === invite.askId) return null;
+    // Already taken, on this device or another one. The local flag above dies
+    // with the mount; this survives a reload, which is when a chip he already
+    // used would otherwise come back looking unpressed. A session that STARTED
+    // before the invite was offered is a different, older game and does not
+    // count as having answered it.
+    const g = state.game;
+    const openKind: GameKind | null =
+      !g || g.closedAt
+        ? null
+        : g.kind === "chess"
+          ? "chess"
+          : g.kind === "ttt"
+            ? "tic-tac-toe"
+            : "would-you-rather";
+    if (openKind === invite.kind) {
+      const at = visible.find((m) => m.id === invite.askId)?.at ?? 0;
+      if ((g?.startedAt ?? 0) >= at) return null;
+    }
+    return invite;
+  }, [invite, inviteTaken, state.game, visible]);
+  // Reported once per invite, on the rising edge — a chip is a thing the app
+  // OFFERED, and an offer nobody counts is an offer nobody can tune.
+  const invitedRef = useRef("");
+  useEffect(() => {
+    if (!pendingInvite || invitedRef.current === pendingInvite.askId) return;
+    invitedRef.current = pendingInvite.askId;
+    tel("chat.game_invite", { kind: pendingInvite.kind, via: pendingInvite.via });
+  }, [pendingInvite]);
+
   // ── windowing ────────────────────────────────────────────────────────────
   //
   // Only the tail of the thread is rendered. A memoised bubble stops a
@@ -2306,6 +2395,46 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
         unheard={m.from === "her" && m.id === newestHerVoice && !playedVoice.has(m.id)}
       />,
     );
+    // The chip hangs UNDER the line she said it in, not at the bottom of the
+    // thread: he may have typed two more messages since, and a chip that
+    // floated to the end would be attached to whatever he last said instead
+    // of to her offer. It scrolls away with her words, which is correct — an
+    // offer is part of the conversation it was made in.
+    if (pendingInvite && pendingInvite.msgId === m.id) {
+      rows.push(
+        <button
+          key={`gi${m.id}`}
+          type="button"
+          className="gi-chip"
+          data-tel={`chat.game_open.${pendingInvite.kind}`}
+          // The label is already a complete accessible name ("Open the chess
+          // board"); a suffix would only be a second, vaguer version of it,
+          // and one of the three games has no board to open.
+          aria-label={INVITE_LABEL[pendingInvite.kind]}
+          onPointerDown={() => tap()}
+          onClick={() => {
+            const { kind, via } = pendingInvite;
+            setInviteTaken(pendingInvite.askId);
+            tel("chat.game_open", { kind, via });
+            onOpenActivity?.(kind);
+          }}
+        >
+          <span className="gi-ic" aria-hidden="true">
+            {pendingInvite.kind === "chess" ? (
+              <ChessIcon size={19} />
+            ) : pendingInvite.kind === "tic-tac-toe" ? (
+              <GridIcon size={19} />
+            ) : (
+              <ForkIcon size={19} />
+            )}
+          </span>
+          <b>{INVITE_LABEL[pendingInvite.kind]}</b>
+          <span className="gi-go" aria-hidden="true">
+            <ChevronIcon size={15} />
+          </span>
+        </button>,
+      );
+    }
   }
 
   // The composer's right-hand control has three modes and ONE button (the

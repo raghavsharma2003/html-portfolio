@@ -152,7 +152,12 @@ export function activityOf(s: GameSession | null | undefined, nowMs?: number): A
         ? wyrActivity(s)
         : s.kind === "ttt"
           ? tttActivity(s.game, s.herSide, s.closedAt)
-          : chessActivity(s.game, s.herSide, s.closedAt, lastAssessment(s));
+          : // `endedEarly` reaches the adapter here and only here: the SESSION
+            // owns the difference between "no result yet" and "he stopped
+            // playing", and `record`'s ending row is the one place that
+            // difference has to survive into the permanent memory. The `facts`
+            // rewrite below does the same job for the present-moment half.
+            chessActivity(s.game, s.herSide, s.closedAt, lastAssessment(s), Boolean(s.endedEarly));
     // For a finished thing, "N min ago" means since it ENDED.
     const facts =
       s.kind === "chess" && s.endedEarly && !s.game.status.over

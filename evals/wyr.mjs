@@ -67,6 +67,8 @@ const {
   isEmpty,
   wyrActivity,
   wyrPickFact,
+  wyrRecord,
+  RECORD_ROUNDS,
 } = M;
 
 let fail = 0;
@@ -348,6 +350,78 @@ for (const c of DECK.slice(0, 12)) {
   // her PICKS stay salt-stable across sessions — taste is a property of her
   ok("her pick for a card is session-independent",
     herPick("ev-chai-coffee", "salty") === herPick("ev-chai-coffee", "salty"));
+}
+
+// ═══ 8. the DURABLE record — which questions came up, and who chose what ══
+//
+// `facts` carries the card on screen and a running tally, which is right for
+// the present moment and was ALL that reached her memory. So a finished
+// session was remembered as "6 rounds so far; 4 agreed, 2 clashed so far" —
+// two numbers with nothing under them. Asked afterwards which choices they had
+// disagreed on, the first external tester got two cards that were never dealt
+// ("Ye questions to aye hi nahi. Made up questions", 2026-08-23). A tally is
+// not a memory of a game; the rounds are.
+{
+  let r = freshSession("record-salt", 1_700_000_000_000);
+  for (let i = 0; i < 8; i++) {
+    r = answerCurrent(r, i % 3 === 0 ? "a" : "b");
+    r = advance(r);
+  }
+  const rec = wyrRecord(r);
+  ok("the record exists once rounds have been played", rec.length > 0);
+  ok("the tally is FIRST, so the budget can never cost it", /^8 rounds, \d+ agreed, \d+ clashed$/.test(rec[0]), rec[0]);
+  ok("the tally agrees with the fold over rounds", rec[0] === `8 rounds, ${tally(r).agreed} agreed, ${tally(r).clashed} clashed`, rec[0]);
+  const rounds = rec.slice(1);
+  ok("it is bounded — a record, never a transcript", rounds.length <= RECORD_ROUNDS, `${rounds.length}`);
+  ok("…and it keeps the LATEST rounds", rounds.length === Math.min(RECORD_ROUNDS, r.rounds.length));
+
+  // every row is a QUESTION plus both picks — the thing that was missing
+  for (const row of rounds) {
+    ok(`a round row names its question: "${row}"`, /^on .+ or .+, /.test(row));
+    ok(`…and what was chosen: "${row}"`, /(both picked .+|he picked .+, she picked .+)$/.test(row));
+  }
+
+  // the picks are the REAL ones, not a re-derivation — a record that recomputes
+  // what it is recording can agree with itself while disagreeing with the game
+  for (const [i, round] of r.rounds.slice(-RECORD_ROUNDS).entries()) {
+    const c = cardById(round.cardId);
+    const row = rounds[i];
+    const label = (p) => (p === "a" ? c.aShort : c.bShort);
+    ok(
+      `round ${i} records the real picks [${c.id}]`,
+      round.his === round.her
+        ? row === `on ${c.aShort} or ${c.bShort}, both picked ${label(round.his)}`
+        : row === `on ${c.aShort} or ${c.bShort}, he picked ${label(round.his)}, she picked ${label(round.her)}`,
+      row,
+    );
+  }
+
+  // the same shape laws the facts obey. A row here is not a line she could
+  // say, and it never quotes a card's full sentence — the UI copy is a full
+  // sentence because HE reads it; leaking it in here is `recited-prompt`.
+  for (const row of rec) {
+    ok(`record row ≤14 words: "${row}"`, words(row).length <= 14, String(words(row).length));
+    ok(`record row not sentence-shaped: "${row}"`, !sentenceShaped(row));
+    ok(`record row not first-person: "${row}"`, !firstPerson.test(row));
+  }
+  for (const c of DECK) {
+    for (const row of rec) {
+      ok(`record does not quote card a verbatim [${c.id}]`, !row.includes(c.a));
+      ok(`record does not quote card b verbatim [${c.id}]`, !row.includes(c.b));
+    }
+  }
+
+  // an untouched session has nothing durable to say, and says nothing
+  ok("a session with no answered round records nothing", wyrRecord(freshSession("x", 1)).length === 0);
+
+  // and the LIVE block is untouched: the record rides ActivityState so the
+  // episode writer stays kind-agnostic, and it must cost the live prompt zero
+  const a2 = wyrActivity(r);
+  ok("the activity carries the record", Array.isArray(a2.record) && a2.record.length === rec.length);
+  ok("…and the facts are still just the moment", a2.facts.every((f) => !rec.includes(f)), JSON.stringify(a2.facts));
+
+  // determinism: same session, same record
+  ok("same session twice is byte-identical", JSON.stringify(wyrRecord(r)) === JSON.stringify(wyrRecord(r)));
 }
 
 console.log(`\n${count} checks, ${fail} failure(s)`);

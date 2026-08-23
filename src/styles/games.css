@@ -801,6 +801,78 @@ button.as-call:active {
   max-width: 30ch;
 }
 
+/* ── WHICH SIDE HE IS PLAYING ──────────────────────────────────────────────
+   A quiet segmented control on the fresh board, in the footer where the
+   table's own controls live (`SidePick.tsx` argues at length for why the
+   choice is HERE and not in front of the room).
+
+   It is drawn out of the glass family and nothing else: `--ga-well` is
+   `--glass-chip`, `--ga-line*` are the two `--glass-edge` steps, and both
+   inks are `--ink`/`--ink-dim`. So every ratio on this control is already
+   held by `scripts/check-contrast.mjs`'s wallpaper rows, across five skies
+   and two themes, and it adds a CALL SITE rather than a new set of numbers.
+
+   The selected half is a fill rather than a ring: a ring on a two-item set
+   reads as focus, and the thing being said here is "this one is you". */
+.as-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+.as-pick-lg {
+  color: var(--ga-dim);
+  font: 600 var(--t-meta) var(--font-ui);
+  letter-spacing: 0.02em;
+}
+/* The track is a hairline and nothing else — it must NOT carry the chip fill,
+   because the chip fill is what the selected half uses to lift out of it, and
+   a raised pill on a pill of the same colour is a rectangle. */
+.as-pick-set {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 0.5px solid var(--ga-line);
+}
+.as-pick-b {
+  position: relative;
+  min-height: 34px;
+  min-width: 62px;
+  padding: 0 var(--s4);
+  border-radius: 999px;
+  border: 0.5px solid transparent;
+  background: transparent;
+  color: var(--ga-dim);
+  font: 600 var(--t-ui) var(--font-ui);
+  --sq-x: 0.96;
+  --sq-y: 0.94;
+  transition: background var(--d-tap) ease, color var(--d-tap) ease,
+    transform var(--d-press) var(--ease-squash);
+}
+/* SELECTED = the glass chip plus the control edge, exactly the pair the
+   wallpaper gate measures (`text on a glass chip >= 4.5`, `a CONTROL's edge
+   >= 3.0`). A ring alone would read as keyboard focus; a fill says "this one
+   is you". */
+.as-pick-b[data-on] {
+  background: var(--ga-well);
+  border-color: var(--ga-line-strong);
+  color: var(--ga-ink);
+  backdrop-filter: var(--ga-blur);
+}
+.as-pick-b:active {
+  transform: scale(var(--sq-x), var(--sq-y));
+  transition-duration: var(--d-squash);
+  transition-timing-function: var(--ease-out);
+}
+/* The pill draws at 34px and is TOUCHED at 44: a segmented control is the
+   commonest place a real hit target quietly shrinks to its own artwork. The
+   pseudo-element carries the extra height and moves not one drawn pixel. */
+.as-pick-b::after {
+  content: "";
+  position: absolute;
+  inset: -5px 0;
+}
+
 .as-foot {
   display: flex;
   align-items: center;
@@ -834,7 +906,8 @@ button.as-call:active {
      inherited :root pair global.css sets for reduced motion, so they have to
      put it back themselves */
   .gh-card,
-  .as-gbtn {
+  .as-gbtn,
+  .as-pick-b {
     --sq-x: 0.98;
     --sq-y: 0.98;
   }

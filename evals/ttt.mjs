@@ -307,6 +307,40 @@ const ok = (name, cond, extra = "") => {
   ok("draw is reported", act.facts.some((f) => /nobody won/.test(f)), JSON.stringify(act.facts));
 }
 
+// ═══ 5b. tttTalk: the DURABLE record ═══════════════════════════════════════
+//
+// `facts` is the present moment and expires with it; this is what is still
+// true next week. Before it existed a finished board left "3 moves in; she is
+// playing x; it is his move" in her memory, and the tester's report turned on
+// exactly this: he played chess and then tic tac toe, and the only game she
+// could still see was the one in the slot.
+{
+  let g = C.newTttGame();
+  for (const cell of [4, 0, 1, 3, 7]) g = C.playTtt(g, cell);
+  const rec = C.tttRecord(g, "x");
+  ok("the record exists", rec.length > 0, JSON.stringify(rec));
+  ok("it says which mark she had, in the PAST", rec.includes("she was x"), JSON.stringify(rec));
+  ok("it says who won and in how many", rec.some((f) => /^(she|he) won it in 5 moves$/.test(f)), JSON.stringify(rec));
+  ok("and where it opened — the one move anyone recalls", rec.some((f) => /^(she|he) opened in centre$/.test(f)), JSON.stringify(rec));
+  for (const f of rec) {
+    ok(`record row <=14 words: "${f}"`, f.trim().split(/\s+/).length <= 14);
+    ok(`record row not sentence-shaped: "${f}"`, !/^[A-Z][^.?!]*[.?!]$/.test(f));
+    ok(`record row not first-person: "${f}"`, !/^(i\b|main\b|mai\b|mujhe\b|maine\b)/i.test(f));
+  }
+  // the live block must not carry it — a move list in front of a visible board
+  const act2 = C.tttActivity(g, "x", 0);
+  ok("the activity carries a record", Array.isArray(act2.record) && act2.record.length === rec.length);
+  ok("…and the facts are still just the moment", act2.facts.every((f) => !rec.includes(f)), JSON.stringify(act2.facts));
+  // an abandoned board says so rather than naming a winner
+  let open2 = C.newTttGame();
+  open2 = C.playTtt(open2, 0);
+  const openRec = C.tttRecord(open2, "o");
+  ok("an unfinished board is remembered as unfinished", openRec.some((f) => /^left unfinished after 1 move$/.test(f)), JSON.stringify(openRec));
+  ok("…in English, not '1 moves'", !openRec.some((f) => /\b1 moves\b/.test(f)), JSON.stringify(openRec));
+  ok("…and names no winner", !openRec.some((f) => /won/.test(f)), JSON.stringify(openRec));
+  ok("an untouched board says nothing was played", C.tttRecord(C.newTttGame(), "x").some((f) => /before a move was played/.test(f)));
+}
+
 // ═══ 6. the imperfection is bounded — enumerated against the same referee ═══
 //
 // Reuses the referee and `tally` defined above §1. "She loses SOME of the

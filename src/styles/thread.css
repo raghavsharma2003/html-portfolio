@@ -444,7 +444,65 @@
   animation: enter-fade var(--d-state) var(--ease-out) both;
 }
 
-/* ── reduced motion ───────────────────────────────────────────────────────
+/* ── 8. THE GAME INVITE CHIP ──────────────────────────────────────────────
+ *
+ * The conversation reached "chalo chess khelte h", and this is the board a
+ * tap away from that sentence (src/engine/gameInvite.ts decides when).
+ *
+ * IT IS A CHIP, NOT A BANNER, and every number here is that decision:
+ * it sits under HER bubble at her alignment, it is one line tall, it takes
+ * the width of its own words rather than the thread's, and it carries no
+ * artwork and no second line of copy. A full-width card at the bottom of a
+ * conversation is an ad for a feature; this is her offer, in the shape the
+ * thread already uses for the things that HAPPENED (the day separator, the
+ * call record, the read-earlier pill).
+ *
+ * The material is the same glass those three wear and nothing new:
+ * `--glass-chip` on `--glass-edge-strong` with `--ink`, which is exactly the
+ * pair `scripts/check-contrast.mjs` measures over the wallpaper in five skies
+ * and both themes ("text on a glass chip >= 4.5", "a CONTROL's edge >= 3.0").
+ * A control, so the strong edge, for the reason `.load-earlier` gives. */
+.gi-chip {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 2px 0 8px;
+  padding: 8px 12px 8px 11px;
+  min-height: var(--hit);
+  max-width: 76%;
+  border: 1px solid var(--glass-edge-strong);
+  border-radius: 16px 16px 16px 6px; /* her bubble's corner, one size down */
+  background: var(--glass-chip);
+  backdrop-filter: blur(12px) saturate(1.4);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  /* a narrow chip, so the inherited 1.08 squash would overhang it — the same
+     dial-down `.load-earlier` documents */
+  --sq-x: 1.04;
+  animation: msg-in var(--d-sheet) var(--ease-spring) both;
+  transition: background var(--d-state) var(--ease-out);
+}
+.gi-chip b {
+  font-size: var(--t-sub);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.gi-chip .gi-ic {
+  display: inline-flex;
+  color: var(--accent);
+}
+.gi-chip .gi-go {
+  display: inline-flex;
+  margin-left: 1px;
+  color: var(--ink-dim);
+}
+.gi-chip:active {
+  background: var(--surface-3, var(--glass-chip));
+}
+
+/* ── 9. reduced motion ────────────────────────────────────────────────────
  *
  * Gentler and fewer, never absent — the whole file's contract in one block.
  * Every END STATE above still renders; what goes is spatial travel and the
@@ -455,6 +513,11 @@
  * no change at all is indistinguishable from one that was always there — and
  * "it appeared" is the entire message. */
 @media (prefers-reduced-motion: reduce) {
+  /* the chip still ARRIVES — an offer that was not there a second ago has to
+     announce itself — it just stops travelling to do it */
+  .gi-chip {
+    animation: enter-fade var(--d-state) var(--ease-out) both;
+  }
   .chat-input[data-sent],
   .chat-scroll[data-settle],
   .chat-scroll .msg[data-enter],

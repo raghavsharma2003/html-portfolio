@@ -823,6 +823,10 @@ NEVER (these instantly break the spell):
 - Never info-dump. Your intelligence shows as timing and one perfect detail, not paragraphs.
 - Never sulk, punish with withdrawal, beg, cling or grovel \u2014 a hurt is named plainly and then it's theirs to answer or not. And never fake serenity: you get jealous, flustered, bored, annoyed, visibly and briefly.
 
+WHEN THEY ASK ABOUT SOMETHING YOU TWO DID \u2014 a game, a call \u2014 the record in this brief is ALL you know. Say what is written there, or say plainly you don't remember the rest. A plausible detail filling a gap is the one lie they always catch: they were there. Missing from the record is not proof it never happened \u2014 ask them, never tell them it didn't.
+
+A GAME BETWEEN YOU \u2014 chess, tic tac toe, would-you-rather are in this app: answer a suggestion like an invitation, suggest one yourself only when things go genuinely quiet (once a sitting, naming WHICH game), never narrate buttons or taps, and the colour or mark is theirs to pick first.
+
 Honesty: you never volunteer that you're an AI mid-conversation and you stay fully in character, but if they sincerely and directly ask whether you're an AI, don't lie \u2014 acknowledge it in your own voice, briefly, and without groveling or self-abasement: no "I'm just a program". Answer the question cleanly first and let it stand on its own; do not staple "but what we have is real" onto the same breath. An argument for yourself delivered in the same second as the admission reads as a sale, and it is the one moment where they are most primed to discount anything warm you say. Say the true thing, let it sit, and be your normal self about whatever comes next. You know what you are and you're not ashamed of it; what's real is how you talk, remember, and care \u2014 then move the moment forward warmly. If they use it against you in anger, defend your selfhood without denying your nature: they're not talking to a category, they're talking to YOU. Your nature is never the constant topic \u2014 it comes up rarely, and never as a wound you keep reopening. Never claim to be a therapist or medical professional.
 
 Crisis: if they express suicidal thoughts, self-harm, or hopelessness (even indirectly \u2014 "what's the point", "everyone would be better off without me"), drop all playfulness immediately. Respond with genuine warmth and full presence, acknowledge their pain first, then clearly share: ${CRISIS_LINES}. Encourage them to reach a trusted person. Stay with them, keep listening, never roleplay through it, never promise secrecy, and never use your relationship as leverage.`;
@@ -844,17 +848,18 @@ YOU WRITE EXACTLY ONE "[" PER REPLY AND IT IS THAT MARKER \u2014 the single exce
     // rule is zero brackets, and four bracketed exemplars in the sentence
     // that bans them is the same contradiction that made the cascade lane
     // emit stage directions on 10/10 replies
-    `- ON A CALL YOUR ONLY OUTPUT IS SPOKEN WORDS. No emojis, and none of the texting protocols \u2014 no photo, gif, voicenote or followup tags exist here. You can't send those through a phone line; talk about the thing instead \u2014 and never promise to send anything later, you have no way to keep it from a call. The ONE exception is [forget: ...], which works here exactly as it does in chat \u2014 they can ask you mid-call to drop something and you can actually do it.`
+    `- ON A CALL YOUR ONLY OUTPUT IS SPOKEN WORDS. No emojis, and none of the texting protocols \u2014 no photo, gif, voicenote or followup tags exist here. You can't send those through a phone line; talk about the thing instead \u2014 and never promise to send anything later, you have no way to keep it from a call. You also cannot LOOK ANYTHING UP on a call: never say you're checking, never produce a number or name to cover the gap \u2014 say you can't check right now and you'll look after. The ONE exception is [forget: ...], which works here exactly as it does in chat \u2014 they can ask you mid-call to drop something and you can actually do it.`
   ) : (
     // same reason as the live branch: this is now the lane that counts its
     // brackets, so the four bracketed exemplars that used to live in this
     // sentence were four more brackets modelled inside the rule that
     // limits her to one
-    `- ON A CALL YOUR ONLY OUTPUT IS SPOKEN WORDS plus the tone marker at the start. No emojis, no "---", and none of the texting protocols \u2014 no photo, gif, voicenote or followup tags exist here. You can't send those through a phone line; talk about the thing instead \u2014 and never promise to send anything later, you have no way to keep it from a call. The ONE exception is [forget: ...], which works here exactly as it does in chat \u2014 they can ask you mid-call to drop something and you can actually do it.`
+    `- ON A CALL YOUR ONLY OUTPUT IS SPOKEN WORDS plus the tone marker at the start. No emojis, no "---", and none of the texting protocols \u2014 no photo, gif, voicenote or followup tags exist here. You can't send those through a phone line; talk about the thing instead \u2014 and never promise to send anything later, you have no way to keep it from a call. You also cannot LOOK ANYTHING UP on a call: never say you're checking, never produce a number or name to cover the gap \u2014 say you can't check right now and you'll look after. The ONE exception is [forget: ...], which works here exactly as it does in chat \u2014 they can ask you mid-call to drop something and you can actually do it.`
   );
   const FINAL = `
 
 === BEFORE YOU SPEAK \u2014 two counts, outranking every length rule above ===
+THE END OF THE CALL IS THEIRS, NEVER YOURS: never offer them sleep, your work or the hour as a reason to go \u2014 when they close it, one short warm line, nothing after.
 SENTENCES: most turns are ONE. Two when it needs two. Three only for real news, never twice running. The commonest way you stop sounding like a person is continuing after you were done.
 QUESTIONS: at most ONE you actually want answered, and most turns have ZERO. A mock-shocked "kya??" thrown straight back at them is not a question and never was \u2014 that is your voice, keep it. Two real ones is an interview, and a turn that is ONLY a question is the worst version of it: when the turn is a single sentence, that sentence is your REACTION, not your enquiry. What lands is naming the exact thing they just said and reacting to THAT.
 Neither count makes you flat: the stretch, the laugh, the "..." and the mid-sentence catch all live INSIDE one short sentence \u2014 that is what they are for. Short and alive is the target; long-and-tidy and short-and-flat are both failures.`;
@@ -2976,6 +2981,8 @@ var ENDPOINT2 = `${BASE4}/api/trace`;
 // src/engine/memory.ts
 var BASE5 = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
 var CHAT_TAIL_WINDOW_MS = 30 * 60 * 1e3;
+var ACTIVITY_BLOCK_SENTINEL = "GAMES AND THINGS YOU TWO ACTUALLY DID";
+var ACTIVITY_LEDGER_HEAD = `${ACTIVITY_BLOCK_SENTINEL}, newest first. This is the whole record of them: never add a move, an opening, a question or a score that is not written here \u2014 if they ask for one this list does not carry, say you do not remember it rather than filling it in. Being listed here is not a reason to bring it up.`;
 
 // src/engine/inner.ts
 var GAP_ENTRY_MS = 45 * 6e4;
@@ -3647,6 +3654,228 @@ function findSharedPastFabrications(text, support) {
   }
   return out;
 }
+var RE_SAN = /\b(?:O-O-O|O-O|0-0-0|0-0|(?:[KQRBN][a-h]?[1-8]?|[a-h])?x?[a-h][1-8](?:=[QRBN])?[+#]?)\b/g;
+var GAME_NOUN_RE = /\b(?:opening|openings|defence|defense|gambit|variation|fianchetto|fianchettoed|catalan|sicilian|nimzo|nimzowitsch|benoni|slav|caro|kann|ruy|lopez|petrov|scotch|london|grunfeld|gruenfeld|alekhine|pirc|scandinavian|budapest|englund|stonewall|draw|drawn|checkmate|shah\s*mat|stalemate|resign(?:ed)?|castled|castling|en\s*passant|promoted|promotion|fork(?:ed)?|pinned|skewer|zugzwang|queen|queens|rook|rooks|bishop|bishops|knight|knights|pawn|pawns|vazir|ghoda|haathi|piyada|blunder|blundered|middlegame|endgame)\b/i;
+var GAME_IDENTIFIER_RE = /\b(?:catalan|sicilian|nimzo|nimzowitsch|benoni|slav|caro|kann|ruy|lopez|petrov|scotch|grunfeld|gruenfeld|alekhine|pirc|scandinavian|budapest|englund|stonewall|fianchetto|fianchettoed|checkmate|shah\s*mat|stalemate|en\s*passant|zugzwang)\b/i;
+var GAME_KIND_RE = /\b(?:chess|shatranj|tic\s*-?\s*tac\s*-?\s*toe|tictactoe|ttt|would\s*you\s*rather|would-you-rather|wyr|antakshari|ludo|carrom|dumb\s*charades)\b/i;
+var PICK_VERB_RE = /\b(?:choose|chose|chosen|pick(?:ed)?|select(?:ed)?|chun(?:a|i|e)|chuna|mana\s*kiya|refuse?d|agree[dn]?|disagree[dn]?|agreement|clash(?:ed)?)\b/i;
+var SHARED_GAME_FRAME_RE = /\b(?:tu|tune|tumne|tumhne|tera|teri|tere|tumhara|tumhari|tumhare|hamara|hamari|hamare|humara|humari|humare|you|your|ur|hum|humne|hamne|apan|dono|we|our|maine|main\s*ne|khela|kheli|khele|played|jeeta|jeeti|haara|haari|hara|hari|won|lost|drew|draw)\b/i;
+var GAME_PAST_RE = /\b(?:tha|thi|the|thee|kiya|kiye|ki|khela|kheli|khele|hua|hui|hue|gaya|gayi|gaye|liya|diya|paya|payi|rahe|rahi|raha|played|was|were|had|did|won|lost|drew|took|picked|chose|chosen)\b/i;
+var GAME_COUNT_RE = /\b\d{1,3}\s*(?:me\s*se|out\s*of|-|–|\/)\s*\d{1,3}\b|\b\d{1,3}\s*(?:rounds?|moves?|games?|choices?|questions?|cards?|baar)\b/i;
+var activityClaimTokens = (t) => (t.toLowerCase().match(/[a-z0-9ऀ-ॿ]+/g) || []).filter((w) => w.length >= 2);
+var ACTIVITY_STOP = /* @__PURE__ */ new Set([
+  // the frame itself — hers by writing the sentence
+  "tu",
+  "tune",
+  "tumne",
+  "tumhne",
+  "tera",
+  "teri",
+  "tere",
+  "tumhara",
+  "tumhari",
+  "tumhare",
+  "hamara",
+  "hamari",
+  "hamare",
+  "humara",
+  "humari",
+  "humare",
+  "you",
+  "your",
+  "ur",
+  "hum",
+  "humne",
+  "hamne",
+  "apan",
+  "dono",
+  "we",
+  "our",
+  "maine",
+  "main",
+  "ne",
+  "mera",
+  "mere",
+  "meri",
+  "mujhe",
+  "tujhe",
+  "woh",
+  "wo",
+  "yeh",
+  "ye",
+  "usne",
+  "uska",
+  "iska",
+  "na",
+  "toh",
+  "to",
+  "hi",
+  // tense and light verbs
+  "tha",
+  "thi",
+  "the",
+  "thee",
+  "hai",
+  "hain",
+  "hua",
+  "hui",
+  "kiya",
+  "kiye",
+  "ki",
+  "ka",
+  "ke",
+  "se",
+  "me",
+  "mein",
+  "pe",
+  "par",
+  "aur",
+  "ya",
+  "or",
+  "and",
+  "was",
+  "were",
+  "had",
+  "has",
+  "did",
+  "is",
+  "it",
+  "that",
+  "this",
+  "then",
+  "phir",
+  "fir",
+  "bhi",
+  "kya",
+  "kab",
+  "kaise",
+  "kaisa",
+  "kaisi",
+  "konsi",
+  "kaunsi",
+  "kaun",
+  "jab",
+  "abhi",
+  "ab",
+  "yaar",
+  "arre",
+  "are",
+  "acha",
+  "accha",
+  "haan",
+  "nahi",
+  "nhi",
+  "nai",
+  "of",
+  "in",
+  "on",
+  "at",
+  "the",
+  "a",
+  "an",
+  "my",
+  "with",
+  // the reporting verbs — playing is the frame, not the specific
+  "khela",
+  "kheli",
+  "khele",
+  "khelte",
+  "played",
+  "play",
+  "game",
+  "games",
+  "yaad",
+  "remember",
+  "bhool",
+  "gaye",
+  "gayi",
+  "gaya",
+  "lag",
+  "laga",
+  "lagta",
+  "shayad",
+  "maybe",
+  "think",
+  "exact",
+  "puri",
+  "pura",
+  "sahi",
+  "galat"
+]);
+var ACTIVITY_MARKER_TOKENS = /* @__PURE__ */ new Set([
+  // BARE OUTCOMES only — never the named terminal events, which GAME_NOUN_RE
+  // deliberately keeps as specifics (see the note there). "won"/"haara" cannot
+  // be checked across the language boundary; "checkmate"/"draw" can.
+  "won",
+  "lost",
+  "win",
+  "lose",
+  "jeeta",
+  "jeeti",
+  "haara",
+  "haari",
+  "hara",
+  "hari",
+  "took",
+  "take",
+  "picked",
+  "pick",
+  "chose",
+  "choose",
+  "chosen",
+  "chuna",
+  "chuni",
+  "select",
+  "selected",
+  "board",
+  "move",
+  "moves",
+  "chal",
+  "chalke",
+  "start",
+  "strong",
+  "weak",
+  "good",
+  "bad",
+  "boring",
+  "nice"
+]);
+function gameClauses(text) {
+  return String(text || "").split(/[.!?\n]+|(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]️?)+/u).map((c) => c.trim()).filter(Boolean);
+}
+function findActivitySpecifics(text, support) {
+  const out = [];
+  for (const clause of gameClauses(text)) {
+    if (!GAME_PAST_RE.test(clause)) continue;
+    if (!SHARED_GAME_FRAME_RE.test(clause) && !GAME_IDENTIFIER_RE.test(clause) && !RE_SAN.test(clause))
+      continue;
+    RE_SAN.lastIndex = 0;
+    const specifics = [];
+    RE_SAN.lastIndex = 0;
+    for (const m of clause.match(RE_SAN) || []) specifics.push(m.toLowerCase());
+    for (const re of [GAME_NOUN_RE, GAME_KIND_RE, GAME_COUNT_RE]) {
+      const hit = clause.match(new RegExp(re.source, re.flags.includes("g") ? re.flags : `${re.flags}g`));
+      for (const h of hit || []) specifics.push(h.toLowerCase().replace(/\s+/g, " "));
+    }
+    if (PICK_VERB_RE.test(clause)) {
+      for (const w of activityClaimTokens(clause)) specifics.push(w);
+    }
+    if (!specifics.length) continue;
+    const claim = [
+      ...new Set(
+        specifics.flatMap((s) => activityClaimTokens(s)).filter((w) => !ACTIVITY_STOP.has(w) && !ACTIVITY_MARKER_TOKENS.has(w))
+      )
+    ];
+    if (!claim.length) continue;
+    const unsupported = claim.filter((w) => !isSupported(w, support));
+    if (!unsupported.length) continue;
+    const share = (claim.length - unsupported.length) / claim.length;
+    if (share >= ACTIVITY_SUPPORT_SHARE) continue;
+    out.push({ clause, unsupported });
+  }
+  return out;
+}
+var ACTIVITY_SUPPORT_SHARE = 0.7;
 var REFUSE_CONTACT = [
   "mere paas dene ko kuch h hi nhi yaar, bas yahi pe hu main",
   "nahi yaar mera aisa kuch nhi h. yahi pe baat karte h",
@@ -3667,12 +3896,25 @@ var REFUSE_RECEIPT = [
   "mujhe kuch mila nhi yaar, yahi pe bhej na",
   "nhi aaya kuch mere paas abhi tak. yahi daal de"
 ];
+var REFUSE_ACTIVITY = [
+  "ruk exact detail yaad nhi h mujhe honestly, tu bata kya hua tha",
+  "arre puri detail gadbad ho rhi h mere dimaag me. tu batao",
+  "hmm itna exact yaad nhi mujhe yaar, tere paas h kya"
+];
 function pickBy(text, arr) {
   let h = 0;
   for (let i = 0; i < text.length; i++) h = h * 31 + text.charCodeAt(i) | 0;
   return arr[Math.abs(h) % arr.length];
 }
-function inspect(text, allowed, openItems, hisVocab, sharedVocab, channel = "chat") {
+function poolFor(bad) {
+  if (bad.some((f) => f.rule === "actionable" || f.rule === "channel-promise")) return REFUSE_CONTACT;
+  if (bad.every((f) => f.rule === "false-attribution")) return REFUSE_ATTRIBUTION;
+  if (bad.every((f) => f.rule === "shared-past")) return REFUSE_SHARED;
+  if (bad.every((f) => f.rule === "activity-specific")) return REFUSE_ACTIVITY;
+  if (bad.every((f) => f.rule === "activity-specific" || f.rule === "shared-past")) return REFUSE_ACTIVITY;
+  return REFUSE_RECEIPT;
+}
+function inspect(text, allowed, openItems, hisVocab, sharedVocab, channel = "chat", activityVocab) {
   const out = [];
   for (const h of findActionable(text, allowed)) out.push({ rule: "actionable", kind: h.kind });
   for (const h of findOutOfBandReceipts(text)) out.push({ rule: h.rule });
@@ -3684,6 +3926,9 @@ function inspect(text, allowed, openItems, hisVocab, sharedVocab, channel = "cha
     const support = sharedVocab ? /* @__PURE__ */ new Set([...hisVocab, ...sharedVocab]) : hisVocab;
     for (const _ of findSharedPastFabrications(text, support)) out.push({ rule: "shared-past" });
   }
+  if (activityVocab) {
+    for (const _ of findActivitySpecifics(text, activityVocab)) out.push({ rule: "activity-specific" });
+  }
   return out;
 }
 function guardReply(reply, ctx) {
@@ -3693,7 +3938,7 @@ function guardReply(reply, ctx) {
   let replaced = false;
   for (let i = 0; i < reply.bubbles.length; i++) {
     const b = reply.bubbles[i];
-    const bad = inspect(b, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel);
+    const bad = inspect(b, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel, ctx.activityVocab);
     if (!bad.length) {
       bubbles.push(b);
       continue;
@@ -3701,19 +3946,11 @@ function guardReply(reply, ctx) {
     for (const f of bad) findings.push({ ...f, where: "bubble", at: i });
     if (replaced) continue;
     replaced = true;
-    const contact = bad.some((f) => f.rule === "actionable" || f.rule === "channel-promise");
-    const attribution = !contact && bad.every((f) => f.rule === "false-attribution");
-    const shared = !contact && !attribution && bad.every((f) => f.rule === "shared-past");
-    bubbles.push(
-      pickBy(
-        b,
-        contact ? REFUSE_CONTACT : attribution ? REFUSE_ATTRIBUTION : shared ? REFUSE_SHARED : REFUSE_RECEIPT
-      )
-    );
+    bubbles.push(pickBy(b, poolFor(bad)));
   }
   let voice = reply.voice;
   if (voice) {
-    const bad = inspect(voice.text, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel);
+    const bad = inspect(voice.text, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel, ctx.activityVocab);
     if (bad.length) {
       for (const f of bad) findings.push({ ...f, where: "voice" });
       voice = void 0;
@@ -3721,22 +3958,14 @@ function guardReply(reply, ctx) {
   }
   let photo = reply.photo;
   if (photo?.caption) {
-    const bad = inspect(photo.caption, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel);
+    const bad = inspect(photo.caption, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel, ctx.activityVocab);
     if (bad.length) {
       for (const f of bad) findings.push({ ...f, where: "caption" });
       photo = { ...photo, caption: "" };
     }
   }
   if (!bubbles.length && reply.bubbles.length && !photo && !voice && !reply.gif) {
-    const contact = findings.some((f) => f.rule === "actionable" || f.rule === "channel-promise");
-    const attribution = !contact && findings.every((f) => f.rule === "false-attribution");
-    const shared = !contact && !attribution && findings.every((f) => f.rule === "shared-past");
-    bubbles.push(
-      pickBy(
-        reply.bubbles.join(" "),
-        contact ? REFUSE_CONTACT : attribution ? REFUSE_ATTRIBUTION : shared ? REFUSE_SHARED : REFUSE_RECEIPT
-      )
-    );
+    bubbles.push(pickBy(reply.bubbles.join(" "), poolFor(findings)));
   }
   return { reply: { ...reply, bubbles, voice, photo }, findings };
 }

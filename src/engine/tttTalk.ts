@@ -79,6 +79,36 @@ export function tttMoveFact(game: Game, whoMoved: "her" | "him"): string {
 }
 
 /**
+ * The rows that outlive the board — ttt's `chessRecord`. Read that function's
+ * header for the reasoning; it applies here unchanged.
+ *
+ * The tester's own sequence is the case this serves: two games of chess and
+ * then tic tac toe, and when he asked about the chess she answered with the
+ * tic tac toe — the only game still in the present moment. Both games needed
+ * a durable record for either answer to be possible.
+ */
+export function tttRecord(game: Game, herMark: Mark): string[] {
+  const rows: string[] = [`she was ${herMark}`];
+  const ply = game.played.length;
+  // "1 moves" is the tell that a sentence was assembled rather than said —
+  // the same one `chessTalk.ts`'s capture row had to grow out of.
+  const moves = `${ply} move${ply === 1 ? "" : "s"}`;
+  if (game.status.over) {
+    rows.push(
+      game.status.result === "draw"
+        ? `a draw, the board filled up after ${moves}`
+        : `${game.status.winner === herMark ? "she" : "he"} won it in ${moves}`,
+    );
+  } else {
+    rows.push(ply ? `left unfinished after ${moves}` : "left before a move was played");
+  }
+  // The opening square, which is the only move of a ttt game anyone recalls.
+  const first = game.played[0];
+  if (first) rows.push(`${first.by === herMark ? "she" : "he"} opened in ${CELL_NAME[first.cell]}`);
+  return rows;
+}
+
+/**
  * The whole activity, for the tail block at connect — ttt's `chessActivity`.
  *
  * Short by construction. A person sitting down mid-game knows roughly where
@@ -126,6 +156,7 @@ export function tttActivity(game: Game, herMark: Mark, startedAt: number): TttAc
     startedAt,
     facts,
     nameable,
+    record: tttRecord(game, herMark),
     waitingOnHer: !game.status.over && game.status.turn === herMark,
     // Same contract chessActivity honours: without this, a finished-but-
     // unclosed ttt game rendered "RIGHT NOW YOU TWO ARE IN THE MIDDLE OF"

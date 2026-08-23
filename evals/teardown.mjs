@@ -303,6 +303,12 @@ const FATE = {
   inner: "clear+forget", // a feeling whose cause was deleted is a causeless mood
   clearedAt: "clear+forget", // written, not cleared: the synced tombstone IS the teardown
   game: "clear+forget", // `activity-forgot-the-teardown`: resuming a match you were forgotten over
+  // the same rule one level up: the LEDGER of finished games is "we played
+  // chess on 22 aug, you left it on move 6" said to someone she has just been
+  // told she has never met — and it feeds activityVocab, so a surviving ledger
+  // would make her invented shared history SUPPORTED by the gate built to
+  // catch it, exactly as `recentMoment` did
+  activities: "clear+forget",
   callback: "clear+forget", // "she calls you back" out of a wiped relationship is causeless
   tally: "clear+forget", // "12 games, she's ahead 7-5" over a record that starts today
   momentsFired: "clear+forget", // a dead ledger means a new relationship can never fire its first game

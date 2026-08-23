@@ -398,6 +398,148 @@ export function exchangeFact(
 /** Past this many plies the opening is over and its name is no longer news. */
 const OPENING_FACT_PLY = 16;
 
+// ── the DURABLE half: what is still true about this game next week ─────────
+//
+// `chessActivity`'s `facts` are the present moment and are correct to be: they
+// answer "where does this stand right now". The memory layer used to store
+// exactly those rows and nothing else, which meant a finished game was
+// remembered as "he ended the game early, no result; she is playing black; 6
+// moves in". Not one move. No opening at all past ply 16, because the opening
+// row is deliberately suppressed once it stops being news IN THE MOMENT — and
+// "which opening did we play" is the single most likely thing to be asked
+// about a game afterwards.
+//
+// The first external tester asked exactly that, two days later, and she
+// invented an answer: "d4 chal ke b2 se bishop fianchetto kiya tha tune …
+// catalan thi na woh?" — of which only `d4` was real. That is not a gate
+// failure first, it is a RECORD failure: there was nothing to answer from.
+//
+// So the durable rows are built here, beside the momentary ones, from the same
+// `Game` and with the same laws (telegraphic, ≤14 words, third person, not a
+// line she could say, no centipawns, no FEN).
+
+/** How many plies of the opening go into the record, in SAN. Six is three
+ *  moves each — the part of a game a person can actually replay from memory,
+ *  and enough that the opening is identifiable even when the book does not
+ *  name it. A full move list is a scoresheet, which is the thing this file
+ *  exists to not produce. */
+export const RECORD_OPENING_PLIES = 6;
+
+const PIECE_PLURAL: Record<PieceType, string> = {
+  p: "pawns",
+  n: "knights",
+  b: "bishops",
+  r: "rooks",
+  q: "queens",
+  k: "kings",
+};
+
+/** "his queen, a rook and 3 pawns" — or "" when nothing was taken. */
+function captureClause(taken: readonly PieceType[], whose: "his" | "her"): string {
+  if (!taken.length) return "";
+  // Heaviest first: a queen is the capture a person remembers, a pawn is not.
+  const ORDER: PieceType[] = ["q", "r", "b", "n", "p"];
+  const counts = new Map<PieceType, number>();
+  for (const p of taken) counts.set(p, (counts.get(p) ?? 0) + 1);
+  const parts: string[] = [];
+  for (let i = 0; i < ORDER.length; i++) {
+    const p = ORDER[i];
+    const n = counts.get(p) ?? 0;
+    if (!n) continue;
+    // "1 pawns" is the shape a count-formatter reaches on its own, and it is
+    // the tell that a sentence was assembled rather than said. One of a thing
+    // is "a pawn"; the possessive lands on the FIRST item only, so the row
+    // reads as one phrase instead of a list of separately-owned pieces.
+    const head = parts.length ? "" : `${whose} `;
+    parts.push(n === 1 ? `${head || "a "}${PIECE_WORD[p]}` : `${head}${n} ${PIECE_PLURAL[p]}`);
+  }
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * The rows that outlive the game. Pure, search-free, and deliberately kind to
+ * the budget: four rows, each of them a thing a person actually carries.
+ *
+ * `endedEarly` is passed rather than inferred because the session owns it —
+ * `state/game.ts` keeps the distinction between "nobody won" and "he stopped
+ * playing", and conflating them is how she ends up gloating over a game that
+ * had no result.
+ */
+export function chessRecord(game: Game, herSide: Side, endedEarly = false): string[] {
+  const rows: string[] = [];
+  const sans = game.played.map((m) => m.san).filter(Boolean);
+  const moves = Math.ceil(sans.length / 2);
+
+  // 1. HOW IT OPENED. The name is looked up over the WHOLE line, not the
+  //    first sixteen plies: `openingName` already walks back from the longest
+  //    book prefix it can find, and a forty-move game still had an opening.
+  if (sans.length) {
+    const opened = sans.slice(0, RECORD_OPENING_PLIES).join(" ");
+    const name = openingName(sans);
+    rows.push(`opened ${opened}${name ? `, ${name}` : ""}`);
+  }
+
+  // 2. WHICH SIDE SHE HAD. Past tense, because this row is a memory — the
+  //    live block says "she is playing white" and that row is its own.
+  rows.push(`she had ${herSide === "w" ? "white" : "black"}`);
+
+  // 3. HOW IT ENDED, and the three endings are three different memories.
+  const st = game.status;
+  if (st?.over && st.result === "checkmate") {
+    rows.push(`${st.winner === herSide ? "she" : "he"} won by checkmate on move ${moves}`);
+  } else if (st?.over) {
+    const how =
+      st.result === "stalemate" ? "stalemate"
+      : st.result === "insufficient_material" ? "not enough pieces left"
+      : st.result === "threefold_repetition" ? "the same position three times"
+      : st.result === "fifty_move" ? "fifty moves with no progress"
+      : "";
+    rows.push(`a draw${how ? `, ${how}` : ""}, after ${moves} moves`);
+  } else if (endedEarly) {
+    // The abandoned game, stated as abandoned AND located. "he left it
+    // unfinished" without a move number is a memory with no shape; the tester
+    // walked away mid-game and she needs to be able to say where.
+    rows.push(
+      sans.length
+        ? `he left it unfinished on move ${moves}, no result`
+        : "he left it before a move was played",
+    );
+  } else {
+    rows.push(`still unfinished at move ${moves}`);
+  }
+
+  // 4. WHAT WAS TAKEN. One row for both sides — the exchange is the memory,
+  //    not two independent inventories.
+  const herTook: PieceType[] = [];
+  const hisTook: PieceType[] = [];
+  for (const m of game.played) {
+    if (!m.captured) continue;
+    (m.by === herSide ? herTook : hisTook).push(m.captured);
+  }
+  //    Two rows rather than one joined clause: a joined "she took his queen, a
+  //    rook and 3 pawns, he took her 2 pawns" runs to exactly the 14-word
+  //    ceiling, and a row at the ceiling is a row the filter below silently
+  //    deletes WHOLE — losing both halves to save one. Split, the budget can
+  //    only ever cost the second.
+  const hers = captureClause(herTook, "his");
+  const his = captureClause(hisTook, "her");
+  if (hers) rows.push(`she took ${hers}`);
+  if (his) rows.push(`he took ${his}`);
+  if (!hers && !his && sans.length) rows.push("nothing was captured either side");
+
+  // 5. WHERE IT WAS WHEN IT STOPPED — the last move, and only for a game that
+  //    outran its own opening. Under seven plies the opening row above already
+  //    IS the whole game and repeating its last token is noise. Last, because
+  //    it is the most droppable row here and the drop policy takes the end.
+  if (sans.length > RECORD_OPENING_PLIES) rows.push(`the last move was ${sans[sans.length - 1]}`);
+
+  // The ≤14-word contract, enforced rather than hoped for — same reason
+  // `moveFact` enforces it: a row over the limit fails silently at the far end
+  // of the pipe (`silent-truncation`), never here.
+  return rows.filter((r) => r.split(/\s+/).length <= MAX_FACT_WORDS);
+}
+
 /**
  * The whole activity, for the tail block at connect.
  *
@@ -409,6 +551,11 @@ export function chessActivity(
   herSide: Side,
   startedAt: number,
   last?: MoveAssessment | null,
+  /** the session's own `endedEarly` — only the session knows the difference
+   *  between "no result yet" and "he stopped playing", and `record`'s ending
+   *  row is the one place that difference has to be right. Defaulted, so every
+   *  existing call site is unchanged. */
+  endedEarly = false,
 ): ActivityState {
   const facts: string[] = [];
   const nameable: string[] = [];
@@ -496,6 +643,7 @@ export function chessActivity(
     startedAt,
     facts,
     nameable,
+    record: chessRecord(game, herSide, endedEarly),
     waitingOnHer: !game.status?.over && turn === herSide,
     over: Boolean(game.status?.over),
   };
