@@ -44,3 +44,4 @@ evals/candidate/out/
 # the next one — unlike evals/archives/, which is kept on purpose — so they
 # must never reach a commit by way of `git add -A`.
 *-shots/
+evals/feltmem/out/

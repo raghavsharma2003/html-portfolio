@@ -216,6 +216,19 @@ const suites = {
   // read. It fails only if the battery itself breaks or the baseline moves
   // DOWN, which is the direction nobody intends. See its header.
   forgetlex: "forget/a4.mjs",
+  // WS-FELTBATTERY (docs/MEMORY-FELT.md §9). The OFFLINE half of the
+  // felt-memory acceptance battery: 14 long-horizon dyads compiled through the
+  // REAL engine, the pre-registration hash checked against the committed
+  // manifest, every one of the eight behavioral laws covered by at least two
+  // probes, the named adversarial twins paired, every rubric linted as a
+  // rubric, and every context block a probe leans on asserted present on that
+  // probe's lane. Carries its own two negative controls. Offline, $0, ~2s.
+  //
+  // The JUDGED half (evals/feltmem/run.mjs --live) is deliberately NOT in this
+  // map, for exactly the reason the d0/d1 note above gives for D2: it spends
+  // money, and keeping it out of this object rather than skipping it in-loop is
+  // what makes that true by construction instead of by remembering.
+  feltmem: "feltmem/gate.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

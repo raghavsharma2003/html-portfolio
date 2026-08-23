@@ -99,6 +99,36 @@ build with the pre-registered margin. Fixtures live in evals/feltmem/;
 the pre-registration commit precedes any judged run (the terra idiom,
 #51).
 
+### §9.1 The pre-registration manifest (WS-FELTBATTERY, 2026-08-23)
+
+The suite exists and is pre-registered. **`evals/feltmem/prereg.manifest.json`
+is the pre-registration**; the commit that introduces it is the timestamp, and
+every later change is an amendment that must say what it changed and why —
+`docs/SWAP-TEST-PREREG.md`'s rule, with a mechanism attached this time:
+
+| where | what |
+|---|---|
+| `evals/feltmem/fixtures/dyads.mjs` | 14 long-horizon dyads (5–8 weeks each: chat, calls, a screen share, photos, a finished game, a rupture and its repair, her own told-life). Memory blocks render **per arm**, because the wave changed the server's own render format. |
+| `evals/feltmem/fixtures/probes.mjs` | 33 probes, every law ≥2, five named adversarial twin pairs, the closed failure vocabulary |
+| `evals/feltmem/fixtures/rubrics.mjs` | one best-human-move rubric per probe, 2–4 sentences, named failure modes, written before any reply existed |
+| `evals/feltmem/fixtures/acceptance.mjs` | the decision rule and the scope, frozen in the same hash |
+| `evals/feltmem/gate.mjs` | the OFFLINE half, wired into `evals/run.mjs` as suite `feltmem` (741 assertions, $0) |
+| `evals/feltmem/run.mjs` | the judged half. **Refuses `--live` unless the fixtures+rubrics hash matches the committed manifest.** |
+
+Arms are BUILDS, not models: the pre-wave tree (`482b01b^`, materialized
+read-only with `git archive`) against the current tree, same brain and sampling
+on both, blind A/B in both presentation orders, unit wins only when the orders
+agree. Pre-registered acceptance: **no permanent negative at any rate; ≥10 pp
+preference margin; every law ≥4.0 mean and none down more than 0.3; both sides
+of every twin ≥4.** n = 33 probes × 10 draws = 330 units/arm, which clears the
+`fab-noise-floor` n≥300 floor.
+
+**Scope, pre-registered so it cannot widen afterwards:** this battery measures
+the retrieval-JUDGMENT layer — what she does with a record she has been given.
+It does not measure retrieval itself (the row set is pinned; `evals/recall`
+owns recall@8) and it does not measure the realtime transport (`evals/echosim`
+owns that floor). A pass is one of §9's three conditions, not all of them.
+
 ## Reversal conditions
 
 Any law here is superseded only by a measured felt-failure it causes —

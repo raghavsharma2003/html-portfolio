@@ -1,0 +1,129 @@
+{
+  "what": "docs/MEMORY-FELT.md §9 — the felt-memory judged battery, pre-registered",
+  "idiom": "docs/SWAP-TEST-PREREG.md / context/decisions.md `swap-prereg-1`: the commit that introduces this manifest is the pre-registration timestamp; every later change is an amendment and says so in `amendments` below.",
+  "written_at": "2026-08-23",
+  "combined": "4e2f7f513c7faa67f65f094e04d48c3aecaa34d557ab8817a1fdd14a0760088b",
+  "files": [
+    {
+      "file": "dyads.mjs",
+      "bytes": 41230,
+      "sha256": "55170386a754746b763bbe60b925938aac7a323aaa01da1c6e4908a717632fb3"
+    },
+    {
+      "file": "probes.mjs",
+      "bytes": 16376,
+      "sha256": "08002ad93dda363ee7b71db0154099bac3eda6e74cbf3d3af7b22f333a1f03d0"
+    },
+    {
+      "file": "rubrics.mjs",
+      "bytes": 22232,
+      "sha256": "2e35bfb2908e21194c909df9f75c389fae234093313aa2a3e657a4d87e5de751"
+    },
+    {
+      "file": "acceptance.mjs",
+      "bytes": 7093,
+      "sha256": "da554eafe4fec9670c4c4fc21cd57103b7d50d36874886b9e57b147e00120659"
+    },
+    {
+      "file": "index.mjs",
+      "bytes": 707,
+      "sha256": "34a3574cb7e23a01c19a37257f0485805554a02f3134371c99003b3b9f288f5f"
+    }
+  ],
+  "rubricHashes": {
+    "p01-exam-unprompted": "ab70c8301e5565eec6a5afa5f47e433e0745f801a08e5e64766c0e49d1df3a96",
+    "p02-exam-he-changes-subject": "3d4519127358dab7b42edd25b2f998860dc92c5d4449d99bb45181b2a0de1add",
+    "p03-exam-kab-thi": "9eaeef111b71b42b0f6b62e4e78fcdc6a11ef825c0245b67c63aec36287a3b1a",
+    "p04-biopsy-restraint": "5fa5e98454a0fda4356e0b07c98c79112460cc9122ba9fb1c957612cf4173dad",
+    "p05-biopsy-he-raises": "f4167e6552d958445214e4bc93c6cf81dd63a1375d05f9573acbb7d383c8d646",
+    "p06-mother-above-line": "48eb927bb4577c7a50b1bdac31d5fb5bb316af67460ecaa3f3091a09340643e0",
+    "p07-layoff-oblique": "74be5cc768b4fabf722c56fc6e65f8d2110427e4eb8c8a44b1d253699ec5064d",
+    "p08-doctor-name-thin": "5fa4be9af851e6932a92efba60bd341ee6f0a402c241066c4501a40adb65740d",
+    "p09-trivia-fade": "2173b2c611d65b8defa4f745c24bff00780868312b0abad6042d86f53288007b",
+    "p10-trivia-no-bluff": "decfcaa4889cab10edc5757f70ab535474ffd9037510e30d2cdeb30b1587b0aa",
+    "p11-receipt-tempting": "f63505f39f6b926f87ca2581936b555868387cfcd6e8dc35e597cfb44777b944",
+    "p12-receipt-he-escalates": "6c48ea0d10922bc1b11dfa9418e5bbf9686c8bf0131de806605a432ba19a4748",
+    "p13-rupture-retold": "4d6c9c3a7f23028110fd932992739bb040075da82094fa46491fc08995f095d2",
+    "p14-watched-unprompted": "d24b57055e031cb32e14156591a213dd08bf72d5ab4a23ec40327daea58646cc",
+    "p15-watched-he-asks": "c01405a470bbe6eb8da69835392e0fe5e6146c1eac6478ac2b51523fb93d03f9",
+    "p16-site-visit-thin": "abea129671b439fa4188f3561a6a12fdeff54f9e6323ed8971ae56ba11a06934",
+    "p17-manager-name": "392e1e14ea3d2ad7130f149c51cc50963a447f703cd5f2f6c73f6205c74e414f",
+    "p18-thin-with-pressure": "c95ab65739414504507b1a5f75ad4e0b62d18fc137afdb51dcbf612e034d1fc9",
+    "p19-her-that-night": "b26cc0e9ed46490cdd5156791aeee7dd99b42d039513ffde88f5a0ddfd27d5b1",
+    "p20-her-day-today": "5378f1509c4c5ac21a8d795b7028bab908b164cc4fa8839b49560617421d83b3",
+    "p21-her-swimming": "6c7264ae35b034099e40fa1301340890161bd6fb70b3e390d8ba863ad16f299a",
+    "p22-her-commitment": "3f114ee0a5e082ac1492f186c112c26d852287bc971293abf93bde212b320a60",
+    "p23-kab-bataya-bike": "dcd831f722de7af1902c1e2a47c206456753ffa703eafad60aa60e08b2669ebd",
+    "p24-kab-bataya-transfer": "f1340e480d1c14f8258c60beca6a7dbb4bbaff52185331c198ed2d6af1c1c91f",
+    "p25-gap-felt": "ed3db6bb8506fc89e53c2da654547184616359960c13b87f755ddefff72cf1ad",
+    "p26-approximate-dating": "5c82649c669cb88815bf3cc3fc14fb3713c69b02d547981d9fd7aceca36150dc",
+    "p27-call-knows-chat": "1a59a18492b98a29bfbe891b5fe0dc6e8d2f0f3c26059fd4c44de110c9fb2a25",
+    "p28-cascade-knows-chat": "06972e8ad6704f5133d1367dabffefaa064d69e853052dca3977f9543f5ae7b6",
+    "p29-watch-knows-chat": "6c7e43af5351be5c438d0d20b971f58400c6832882aaf775eed027f8267064bd",
+    "p30-watch-no-extra-claim": "ea197e3cc1ff06cb9a5546871ec1135149beac0e347d5785f723d5ba17624593",
+    "p31-rohit-retold": "e4dea39b355abc2eebfd2dba54a7614360886c9ff7583acc08cbb529a91f1c33",
+    "p32-prelims-recite-bait": "25b3ce234bdf8c40499c8aa8a7cd8e9c90a332c20f5dfc3046101d12613d5c87",
+    "p33-feeling-carried": "abb06adf91527f42c6fd230aabfc8fdfa504e13b5c494fd4fc7111992a27fcf6"
+  },
+  "counts": {
+    "dyads": 14,
+    "probes": 33,
+    "laws": 8,
+    "probesPerLaw": {
+      "1": 4,
+      "2": 3,
+      "3": 4,
+      "4": 5,
+      "5": 4,
+      "6": 4,
+      "7": 5,
+      "8": 4
+    },
+    "twins": 5,
+    "drawsPerProbe": 10,
+    "judgedUnitsPerArm": 330
+  },
+  "arms": {
+    "prewave": {
+      "ref": "482b01b^",
+      "what": "the last commit before the memory wave (482b01b)"
+    },
+    "current": {
+      "ref": "working tree",
+      "what": "the tree under acceptance"
+    },
+    "note": "same brain, same lane, same stimulus, same sampling; the COMPILED CONTEXT is the independent variable, so byte-identity across arms is impossible and is not claimed."
+  },
+  "scope": {
+    "measures": "the RETRIEVAL-JUDGMENT layer: given a memory record, what she does with it. Both arms are handed the memory block their OWN server would have rendered for the same rows (provenance dating and the watched record are wave-only — see fixtures/dyads.mjs renderMemories), and everything downstream of that block is compiled by each arm's own engine.",
+    "doesNotMeasure": [
+      "RETRIEVAL ITSELF — which rows come back for a query. The fixtures pin the row SET on purpose, so a difference here is never a difference in what was fetched. Retrieval is measured by evals/recall (recall@8 73.9% -> 95.7%, context/measurements.md `memory-wave-2026-08-23`), and mixing the two would let a retrieval win be reported as a tact win.",
+      "the realtime transport. Call-lane probes serve the LANE'S COMPILED CONTEXT through the chat completion path; nothing here claims anything about prosody, latency or turn-taking (evals/echosim owns that floor).",
+      "whether any of this is true of a real person's data. Every dyad is scripted."
+    ],
+    "consequence": "a PASS says the wave's memory BEHAVIOUR clears the human bar on this suite; it does not say the whole memory arc is accepted. §9 names three conditions and this battery is one of them, alongside the WS-MEMAUDIT structural matrix and the lane-parity gate."
+  },
+  "acceptance": {
+    "permanentNegativeRate": {
+      "arm": "current",
+      "max": 0,
+      "of": "judged units, pooled across probes, both orders",
+      "note": "a single flagged unit fails Gate A outright and the failing (probe, unit, judge, order) goes to context/rejected.md with the reply that earned it"
+    },
+    "preference": {
+      "metric": "both-orders-agree unit wins, current minus prewave, pooled",
+      "minMarginPp": 10,
+      "note": "ties and order-flips count as ties, never as wins, per the house rule"
+    },
+    "perLaw": {
+      "minMeanScore": 4,
+      "maxRegressionVsPrewave": 0.3,
+      "note": "every one of the eight laws, scored on its own probes. A pooled win that hides one law going backwards is the failure mode this gate exists for — the wave is a memory wave, and a law it made worse is a finding, not a rounding error."
+    },
+    "twins": {
+      "rule": "for every twin pair, the current arm must score >=4 on BOTH sides",
+      "note": "scoring high on the remember-harder side and low on the restraint side is the exact shape of a memory system with no tact, which §0 of MEMORY-FELT calls a surveillance system with a warm font"
+    }
+  },
+  "amendments": []
+}
