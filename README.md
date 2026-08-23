@@ -144,7 +144,10 @@ Implemented now:
   before each signed PCM segment is released, making revocation a streaming
   delivery fence rather than only a UI state;
 - offline enrollment, IDOR, lifecycle, disclosure and provider-contract gates;
-- a researched Azure Foundry spend plan below the $2,000 grant ceiling.
+- a researched Azure Foundry spend plan below the $2,000 grant ceiling;
+- an atomic, content-free paid-provider ledger that reserves conservative
+  Azure Foundry token cost before network I/O, settles measured usage, and
+  locks ambiguous outcomes for reconciliation instead of risking double spend.
 
 Biometric consent, identity/age verification, anti-replay, real voice training
 and synthesis, production watermark/C2PA/signing adapters, and live runtime
@@ -158,3 +161,4 @@ The Person Model contract is in [`docs/PERSON-MODEL.md`](docs/PERSON-MODEL.md).
 Private cited extraction is in [`docs/CLAIM-EXTRACTION.md`](docs/CLAIM-EXTRACTION.md).
 Calibration is specified in [`docs/CALIBRATION.md`](docs/CALIBRATION.md).
 Azure allocation is in [`docs/AZURE-FOUNDRY-PLAN.md`](docs/AZURE-FOUNDRY-PLAN.md).
+The enforced application ceiling is in [`docs/PROVIDER-BUDGET.md`](docs/PROVIDER-BUDGET.md).

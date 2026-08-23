@@ -48,9 +48,13 @@ Configuration is fail-closed:
 - there is no fake or offline fallback in the production route.
 
 The actual model must support strict structured output for the chosen
-deployment. Before a live call, confirm the meter is covered by the user's
-specific Azure grant, set a budget alert and a hard application spend ceiling,
-then run the consented noisy-Hinglish evaluation set.
+deployment. The route now reserves the configured worst-case token cost under
+migration 028 before provider I/O and settles only provider-reported usage.
+Unknown outcomes retain their reserve and block duplicate charging. Before a
+live call, deploy that migration, verify the current model rates and grant
+coverage, add the independent Azure budget alerts and operator reconciliation
+procedure, then run the consented noisy-Hinglish evaluation set. See
+[the paid-provider budget](PROVIDER-BUDGET.md).
 
 ## Citation and review invariants
 

@@ -233,5 +233,6 @@ export interface ReplicaDialogueTurn {
   reply: string;
   delivery: ReplicaDialogueDelivery;
   can_voice: boolean;
+  billing_state?: "settled" | "not_metered" | "reconcile_required";
   created_at: string;
 }

@@ -60,6 +60,7 @@ export function createAzureFoundryDialogueGenerator(options = {}) {
     name: "azure-foundry-structured-output",
     version: `${AZURE_DIALOGUE_API_VERSION}:${DIALOGUE_PROMPT}`,
     model,
+    billing: Object.freeze({ meter: "azure_foundry_tokens", max_output_tokens: 700 }),
     async generate({ prompt, signal }) {
       const timer = deadline(signal, timeoutMs);
       try {

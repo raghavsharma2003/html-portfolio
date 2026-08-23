@@ -78,6 +78,7 @@ export function createAzureFoundryClaimExtractor(options = {}) {
     name: "azure-foundry-structured-output",
     version: `${AZURE_FOUNDRY_INFERENCE_API_VERSION}:${CLAIM_EXTRACTION_PROMPT}`,
     model,
+    billing: Object.freeze({ meter: "azure_foundry_tokens", max_output_tokens: 4_000 }),
     async extract({ batch, signal }) {
       const auth = await authorization(options);
       const timer = deadline(signal, timeoutMs);

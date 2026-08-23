@@ -59,6 +59,13 @@ Prices were checked with the official [Azure Retail Prices API](https://learn.mi
 
 ## Spend controls
 
+Migration 028 and `api/_provider-budget.js` implement the hard application
+ceiling for Azure Foundry token calls. They reserve conservatively before
+network I/O, settle measured usage and retain ambiguous outcomes for manual
+reconciliation. The recommended initial application cap is `$1,500`, leaving
+`$500` of the grant outside this ledger for infrastructure and evaluated
+non-token services. See [the provider budget contract](PROVIDER-BUDGET.md).
+
 1. Create one resource group for the replica lab and tag every resource with
    `program=replica`, `environment`, `experiment_id`, `owner` and `expiry_at`.
 2. Set alerts at $250, $750, $1,250, $1,600 and $1,800. The $1,800 alert blocks
@@ -73,6 +80,9 @@ Prices were checked with the official [Azure Retail Prices API](https://learn.mi
 6. Apply now for Personal Voice Limited Access, GPT-5.6 quota and A10 capacity.
    Lack of approval is a planned branch, not a reason to bypass consent or use
    an uncovered provider.
+7. Keep Azure Speech, Personal Voice, liveness, watermarking and GPU jobs off
+   until each has a native-unit meter under the same atomic ceiling. Portal
+   alerts remain an independent backstop, not the application control.
 
 ## Model acceptance rule
 
@@ -89,4 +99,3 @@ demo. It must win the owned consented evaluation set on the relevant slice:
 
 Personal Voice requires a recorded consent statement and Limited Access
 approval. See [Personal Voice overview](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/personal-voice-overview) and [limited-access requirements](https://learn.microsoft.com/en-us/azure/ai-foundry/responsible-ai/speech-service/text-to-speech/limited-access).
-

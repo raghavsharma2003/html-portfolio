@@ -14,6 +14,7 @@ import {
   openOwnedRuntimeSession,
 } from "./_replica-runtime.js";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
+import { beginFoundrySpend, markFoundrySpendUncertain, releaseFoundrySpendBeforeCall, reserveFoundrySpend, settleFoundrySpend } from "./_provider-budget.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TRACE = /^[A-Za-z0-9_-]{8,96}$/;
@@ -209,20 +210,48 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
     message: input.message,
   });
   const turn = await beginDialogueTurn(db, ownerUserId, runtime, session, generator, input, prompt);
+  let reservation = null;
+  let providerStarted = false;
   try {
+    reservation = await reserveFoundrySpend(db, {
+      operation: "dialogue",
+      requestKey: turn.turn_id,
+      adapter: generator,
+      messages: prompt.messages,
+    });
+    if (reservation) {
+      try { await beginFoundrySpend(db, reservation); }
+      catch (error) {
+        await releaseFoundrySpendBeforeCall(db, reservation, error).catch(() => null);
+        throw error;
+      }
+      providerStarted = true;
+    }
     const generated = await generator.generate({ prompt, signal });
     const output = validateDialogueOutput(generated?.output);
     const finished = await finishDialogueTurn(db, ownerUserId, runtime, turn, output);
     if (!finished) fail("dialogue_authorization_changed");
+    let billingState = "not_metered";
+    if (reservation) {
+      try {
+        await settleFoundrySpend(db, reservation, generated.usage);
+        billingState = "settled";
+      } catch (error) {
+        await markFoundrySpendUncertain(db, reservation, error);
+        billingState = "reconcile_required";
+      }
+    }
     return {
       turn_id: finished.turn_id,
       session_id: finished.session_id,
       reply: output.reply,
       delivery: output.delivery,
       can_voice: true,
+      billing_state: billingState,
       created_at: finished.created_at,
     };
   } catch (error) {
+    if (providerStarted) await markFoundrySpendUncertain(db, reservation, error);
     await failDialogueTurn(db, ownerUserId, turn.turn_id, error);
     throw error;
   }

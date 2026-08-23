@@ -407,10 +407,15 @@ unsafe or disposable:
 13. Version-bound private dialogue that consumes the typed Person Model,
     calibration and isolated relationship state, writes erasable raw turns and
     binds protected speech to the exact server-generated reply.
+14. A content-free, atomic Azure Foundry spend governor that reserves a
+    conservative maximum before provider I/O, settles measured usage, prevents
+    duplicate allocation and quarantines ambiguous outcomes for reconciliation.
 
 These slices do not touch `liveCall.ts`. Azure Speech and Foundry adapters have
 only mocked protocol coverage; real voice models, independent liveness
-verification and live behavioural dialogue qualification remain gated.
+verification and live behavioural dialogue qualification remain gated. Paid
+Speech, voice, liveness, watermark and GPU paths also remain disabled until
+they have native-unit meters under the same application ceiling.
 
 ## 9. Deliberately not active yet
 

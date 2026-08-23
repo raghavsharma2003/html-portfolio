@@ -62,7 +62,11 @@ and [structured outputs guidance](https://learn.microsoft.com/en-us/azure/foundr
 It requires `AZURE_FOUNDRY_ENDPOINT`, `AZURE_FOUNDRY_DIALOGUE_MODEL` and
 `AZURE_FOUNDRY_API_KEY`, accepts only HTTPS `*.services.ai.azure.com`, bounds
 the whole response-body deadline and does not return provider bodies or
-credentials in errors. There is no production fake fallback.
+credentials in errors. There is no production fake fallback. A paid turn also
+requires the server-only budget limit and current deployed-model input/output
+rates. It reserves the maximum call before Azure I/O, settles provider-reported
+usage, and returns a reconciliation marker without retrying when settlement is
+ambiguous. See [the paid-provider budget](PROVIDER-BUDGET.md).
 
 ## Text-to-voice binding
 
@@ -82,6 +86,8 @@ the object being evaluated; it is restricted to `studio_preview`.
 - Live identity/liveness/inference consent, migrations 023-027, Azure model and
   production protection adapters are not deployed, so real dialogue remains
   unavailable.
+- Migration 028, current subscription rates and an operator-only usage
+  reconciliation procedure are also required before the paid adapter is live.
 - The first UI is owner-only private self conversation. Other people cannot
   interact with a replica until scoped participant consent, relationship
   authorization, disclosure and per-relationship erasure are implemented.

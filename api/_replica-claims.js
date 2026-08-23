@@ -1,4 +1,5 @@
-import { createExtractionBatch, CLAIM_EXTRACTION_SCHEMA } from "./_claim-extraction/contracts.js";
+import { createExtractionBatch, extractionMessages, CLAIM_EXTRACTION_SCHEMA } from "./_claim-extraction/contracts.js";
+import { beginFoundrySpend, markFoundrySpendUncertain, releaseFoundrySpendBeforeCall, reserveFoundrySpend, settleFoundrySpend } from "./_provider-budget.js";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 
 const ELIGIBLE_TRANSCRIPTS_SQL = `with latest_speaker_decision as (
@@ -205,13 +206,37 @@ export async function extractOwnedClaims(db, ownerUserId, id, extractor, signal)
   const run = await openRun(db, ownerUserId, state, extractor, batch);
   if (!run) throw Object.assign(new Error("claim_extraction_authorization_changed"), { code: "claim_extraction_authorization_changed", status: 409 });
   if (run.state === "complete") return run;
+  let reservation = null;
+  let providerStarted = false;
   try {
+    reservation = await reserveFoundrySpend(db, {
+      operation: "claim_extraction",
+      requestKey: run.run_id,
+      adapter: extractor,
+      messages: extractionMessages(batch),
+    });
+    if (reservation) {
+      try { await beginFoundrySpend(db, reservation); }
+      catch (error) {
+        await releaseFoundrySpendBeforeCall(db, reservation, error).catch(() => null);
+        throw error;
+      }
+      providerStarted = true;
+    }
     const extracted = await extractor.extract({ batch, signal });
     if (!extracted?.output) throw new Error("claim_extractor_output_missing");
     const completed = await persistProposals(db, ownerUserId, state, run, batch, extracted.output);
     if (!completed) throw new Error("claim_extraction_persist_denied");
+    if (reservation) {
+      try { await settleFoundrySpend(db, reservation, extracted.usage); }
+      catch (error) {
+        await markFoundrySpendUncertain(db, reservation, error);
+        return { ...completed, billing_state: "reconcile_required" };
+      }
+    }
     return completed;
   } catch (error) {
+    if (providerStarted) await markFoundrySpendUncertain(db, reservation, error);
     await failRun(db, ownerUserId, run.run_id, cleanCode(error));
     throw error;
   }

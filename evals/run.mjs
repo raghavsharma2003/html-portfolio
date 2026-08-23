@@ -117,6 +117,10 @@ const suites = {
   // agent/person-scoped relationship context, erasable raw logs, strict
   // structured output and server-bound protected speech.
   replicadialogue: "replica-dialogue/run.mjs",
+  // Atomic finite-grant control: conservative reservation before paid network
+  // calls, measured settlement, crash/unknown reconciliation and content-free
+  // accounting under one hard Azure application ceiling.
+  providerbudget: "provider-budget/run.mjs",
   // Second-agent readiness: every shipping insert names agent_id, every
   // relational/natural-key arbiter is composite, and compatibility defaults
   // have explicit strict migrations with a working negative control.

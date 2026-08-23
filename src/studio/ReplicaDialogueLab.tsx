@@ -56,6 +56,9 @@ export default function ReplicaDialogueLab({
       const turn = await createDialogueTurn(token, replicaId, message, turns.at(-1)?.replica.session_id);
       setTurns((current) => [...current, { user: message, replica: turn }]);
       setDraft("");
+      if (turn.billing_state === "reconcile_required") {
+        setError("This reply completed, but Azure usage needs operator reconciliation before another paid turn.");
+      }
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
       setError(cause instanceof Error ? cause.message : "The replica could not answer");
