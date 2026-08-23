@@ -633,12 +633,55 @@
   display: none;
 }
 
-/* The uniform veil, and NO emphasis pass — see above. `background: none` on
-   the pseudo rather than deleting it, because the base `.world-scrim::after`
-   rule is pinned by the gate and must go on existing. */
-.world[data-variant="band"] .world-scrim,
+/* ── THE VEIL IS A CURVE (WS-SKYFELT round 2) ───────────────────────────────
+   It was a flat `color-mix` at one alpha, and the owner's second verdict on
+   the shipped APK is what retired it: "I see no sky." He was looking at a
+   morning thread whose veil was 0.88 everywhere, which is a NUMBER that had
+   moved (round one measured a real 1.65x on the ground's luminance spread) and
+   a PICTURE that had not.
+
+   ONE NUMBER IS THE WORST NUMBER IN THE FRAME APPLIED TO THE WHOLE FRAME.
+   Solved band by band against the shipped jpgs, the morning painting needs
+   0.88 over its bottom sixth — roof slabs under the day palette's dim ink —
+   and 0.77 at its top, dipping to 0.47 across the bright horizon. A flat veil
+   pays the city's price over the sky, and the sky is what someone is looking
+   at and the entire subject of the mode.
+
+   THE LANDING ALREADY SOLVED THIS AND SHIPPED IT. `site/styles.css` paints its
+   hero on a three-alpha curve for the same reason, in the same words, with its
+   morning running 0.38 at the top to 0.74 at the horizon. This is that
+   mechanism ported: same shape, same per-state stops, same "solved not chosen"
+   discipline, and `scripts/check-contrast.mjs` now walks it band by band the
+   way it already walks the landing's.
+
+   The four stops interpolate ONE colour at three alphas, which is interpolating
+   alpha and nothing else — the same construction the landing states, and the
+   reason the gate can model this with `wallCurveAt` rather than with a colour
+   space. `sky.ts`'s `wallCurveAt` IS these stops in numbers; change one and
+   change both, or the gate is measuring a screen nobody ships.
+
+   The flat case did not go away, it became a curve whose three alphas are
+   equal — which is what the light non-sky flavour below sets, byte-for-byte
+   the wash that shipped and that the owner has not objected to. */
 .world[data-variant="wallpaper"] .world-scrim {
-  background: color-mix(in srgb, var(--wall-scrim) calc(var(--wall-a) * 100%), transparent);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--wall-scrim) calc(var(--wall-a-top) * 100%), transparent) 0,
+    color-mix(in srgb, var(--wall-scrim) calc(var(--wall-a-top) * 100%), transparent) var(--wall-s),
+    color-mix(in srgb, var(--wall-scrim) calc(var(--wall-a-mid) * 100%), transparent) var(--wall-e),
+    color-mix(in srgb, var(--wall-scrim) calc(var(--wall-a-bot) * 100%), transparent) 100%
+  );
+  opacity: 1;
+}
+
+/* THE BAND TAKES THE CURVE'S TOP, FLAT, and that is the curve being applied
+   correctly rather than an exception to it. The band is a 38px strip showing
+   the TOP of the painting; running a whole vertical curve through 38px would
+   compress the city's alpha into the header. It gets the alpha the top of the
+   painting gets, which is the same number the thread's own first rows get, so
+   the header and the row under it are one continuous picture. */
+.world[data-variant="band"] .world-scrim {
+  background: color-mix(in srgb, var(--wall-scrim) calc(var(--wall-a-top) * 100%), transparent);
   opacity: 1;
 }
 .world[data-variant="band"] .world-scrim::after,
@@ -646,77 +689,155 @@
   background: none;
 }
 
-/* THE LIGHT VEIL — the default, and the one that keeps the light identity
-   light. ~0.93 over the painting is a 6-7% wash: the intensity a chat
-   wallpaper has always had, and deliberately nowhere near "a photo behind
-   text". Solved against the paintings' darkest decile under the day
-   palette's near-black ink. */
+/* WHICH PAINTING THE WALLPAPER SHOWS, as its own variable rather than
+   `--world-img`. `--world-img` is written by `skyVars()` as an INLINE custom
+   property, and an inline custom property cannot be overridden by a stylesheet
+   rule — so the night room below would have had no way to swap the picture.
+   One level of indirection, set by every flavour block, and the full world is
+   untouched by all of it. */
+.world[data-variant="band"] .world-paint,
+.world[data-variant="wallpaper"] .world-paint {
+  background-image: var(--wall-img, var(--world-img, none));
+}
+/* …AND THE BAND SHOWS THE TOP OF IT, which it has never actually done.
+   This variant's own header three screens up says "just the top of the sky",
+   and the veil it wears is solved against the painting's TOP band — but
+   `.world-paint` anchors `background-position: 50% 100%`, which is right for a
+   full-height world and means a 38px strip crops to the painting's BOTTOM. So
+   the header has been showing roof slabs and lit windows this whole time,
+   under an alpha solved for open sky.
+
+   Invisible at a 0.94 wash and impossible to miss the moment the veil became a
+   curve: the night room's first frame had a lit city in the header and a
+   starfield directly under it. One line, and it makes the header and the row
+   below it the same continuous picture again — which is the only reason the
+   two share a veil at all. */
+.world[data-variant="band"] .world-paint {
+  background-position: 50% 0;
+}
+@media (orientation: landscape) {
+  .world[data-variant="band"] .world-paint,
+  .world[data-variant="wallpaper"] .world-paint {
+    background-image: var(--wall-img-wide, var(--wall-img, var(--world-img, none)));
+  }
+}
+
+/* ── FLAVOUR 1: THE DAY WASH — explicit Light, or a light OS with no choice ──
+   Unchanged, deliberately. This is the wash that shipped, the owner has not
+   objected to it, and Sky is the mode that is meant to be alive. Three equal
+   alphas is the flat veil expressed in the curve's own form, so there is one
+   code path rather than a flat one and a curved one that drift. */
 .world[data-variant="band"],
 .world[data-variant="wallpaper"] {
   --wall-scrim: var(--wall-scrim-light);
-  --wall-a: var(--wall-a-light);
+  --wall-a-top: var(--wall-a-light);
+  --wall-a-mid: var(--wall-a-light);
+  --wall-a-bot: var(--wall-a-light);
+  --wall-s: 50%;
+  --wall-e: 80%;
+  --wall-img: var(--world-img);
+  --wall-img-wide: var(--world-img-wide);
 }
 
+/* ── FLAVOUR 2: THE NIGHT ROOM — the dark palette, however it was reached ───
+   OWNER DECISION, 2026-08-23, from the shipped APK: "dark mode is still bad.
+   this is not a good color combo for dark mode." The frame is explicit Dark at
+   12:37 in the afternoon and it is a muddy brown-black with no sky in it.
+
+   THE MUD IS STRUCTURAL AND NO ALPHA FIXES IT. A warm near-black palette and a
+   bright blue noon painting with a sunlit city in it cannot be reconciled by a
+   veil: the only veil heavy enough to stop the painting fighting the palette
+   is a veil heavy enough to hide it, which is exactly the frame that was
+   photographed — and it passes every contrast floor in this repo.
+
+   So in the dark palette the thread's wallpaper is ALWAYS the night painting,
+   at the night curve, whatever the real hour is. It is a PALETTE choice and it
+   is scoped to the one surface where the palette is the subject: home and both
+   call screens (`variant="full"`) go on showing the real sky in every mode,
+   exactly as theme.ts documents, and SKY mode is still the mode whose promise
+   is that the thread follows the real hour, one tap away with a live line
+   under it saying which hour that is.
+
+   It is the SKY'S OWN NIGHT rather than a second table: `--night-*` are
+   `TOKENS.night`'s own fields. So at night, explicit Dark and Sky paint the
+   same thread — which is correct, because at night the honest sky IS the night
+   room. They diverge only in daylight, which is the only place they were ever
+   in conflict.
+
+   `:not([data-sky-choice])` is what keeps Sky honest: without it, Sky at dusk
+   would paint a night. THE TWO BLOCKS MUST STAY IDENTICAL APART FROM THE
+   SELECTOR, same law and same gate as the palette's own two dark blocks. */
 @media (prefers-color-scheme: dark) {
 /* Deliberately NOT indented: byte-identical to the body of the
    `[data-theme="dark"]` block below, so a plain diff proves it. */
-:root:not([data-theme="light"]) .world[data-variant="band"],
-:root:not([data-theme="light"]) .world[data-variant="wallpaper"] {
-  --wall-scrim: var(--wall-scrim-dark);
-  --wall-a: var(--wall-a-dark);
+:root:not([data-theme="light"]):not([data-sky-choice]) .world[data-variant="band"],
+:root:not([data-theme="light"]):not([data-sky-choice]) .world[data-variant="wallpaper"] {
+  --wall-scrim: var(--night-scrim);
+  --wall-a-top: var(--night-a-top);
+  --wall-a-mid: var(--night-a-mid);
+  --wall-a-bot: var(--night-a-bot);
+  --wall-s: var(--night-s);
+  --wall-e: var(--night-e);
+  --wall-img: var(--night-img);
+  --wall-img-wide: var(--night-img-wide);
 }
 }
 
-:root[data-theme="dark"] .world[data-variant="band"],
-:root[data-theme="dark"] .world[data-variant="wallpaper"] {
-  --wall-scrim: var(--wall-scrim-dark);
-  --wall-a: var(--wall-a-dark);
+:root[data-theme="dark"]:not([data-sky-choice]) .world[data-variant="band"],
+:root[data-theme="dark"]:not([data-sky-choice]) .world[data-variant="wallpaper"] {
+  --wall-scrim: var(--night-scrim);
+  --wall-a-top: var(--night-a-top);
+  --wall-a-mid: var(--night-a-mid);
+  --wall-a-bot: var(--night-a-bot);
+  --wall-s: var(--night-s);
+  --wall-e: var(--night-e);
+  --wall-img: var(--night-img);
+  --wall-img-wide: var(--night-img-wide);
 }
 
-/* ── THE SKY CHOICE'S OWN VEIL (WS-SKYFELT) ─────────────────────────────────
-   The owner's defect, in one sentence: "I selected Sky and no change." He was
-   right and the cause is above — `sky` RESOLVES to one of the two palettes, so
-   at 11:27 IST it wrote `data-theme="light"` and this file then painted the
-   light veil at 0.93, which is the same screen explicit Light paints. From
-   06:10 to 18:10 the two modes were pixel-identical.
+/* …and the gradient UNDER the painting goes with it, or a 404 on the night jpg
+   would leave a blue morning gradient behind a night palette — the same mud,
+   arrived at from the other side. One flat night colour, because nothing is
+   meant to be visible through the painting anyway. */
+:root:not([data-theme="light"]):not([data-sky-choice]) .world[data-variant="band"] .world-sky,
+:root:not([data-theme="light"]):not([data-sky-choice]) .world[data-variant="wallpaper"] .world-sky,
+:root[data-theme="dark"]:not([data-sky-choice]) .world[data-variant="band"] .world-sky,
+:root[data-theme="dark"]:not([data-sky-choice]) .world[data-variant="wallpaper"] .world-sky {
+  background: var(--night-flat);
+}
+
+/* ── FLAVOUR 3: THE SKY CHOICE ──────────────────────────────────────────────
+   The owner's first defect: "I selected Sky and no change." He was right —
+   `sky` RESOLVES to one of the two palettes, so at 11:27 IST it wrote
+   `data-theme="light"` and this file painted the light wash, the same screen
+   explicit Light paints. From 06:10 to 18:10 the two modes were identical.
 
    `applyTheme` now leaves a trace of the CHOICE as well as of what it resolved
-   to (`data-sky-choice`), and these two blocks are the only thing in the app
-   that reads it. THE LAW IS INTACT: sky is still not a third palette. Nothing
-   here declares a colour the palette does not already own — the two blocks
-   swap ONE veil for a thinner one, which is not a palette, it is how much of a
+   to (`data-sky-choice`), and this block is the only thing in the app that
+   reads it. THE LAW IS INTACT: sky is still not a third palette. Nothing here
+   declares a colour the palette does not already own — it swaps ONE veil for a
+   curve over the same picture, which is not a palette, it is how much of a
    picture you can see through.
 
-   ── WHY THIS PAIR NEEDS NO `prefers-color-scheme` TWIN ─────────────────────
-   The plain veil above is written twice because "system" leaves `data-theme`
-   ABSENT, so the media query is the only thing that knows. `data-sky-choice`
-   cannot be in that position: applyTheme writes `data-theme` FIRST and only
-   then stamps this attribute, so a root that carries `data-sky-choice` always
-   carries an explicit `data-theme` too. Two mutually exclusive blocks cover
-   the whole space, both at one specificity step above the plain pair, so they
-   win over it in either source order — and if the attribute ever appeared
-   without a theme, NEITHER matches and the plain veil renders. A fallback that
-   is the previous shipped design is the right kind of fallback.
+   ONE BLOCK, NO PALETTE BRANCH, and that is a simplification the curve bought:
+   the veil's colour and its three alphas are per-STATE now (`--wall-*-sky`,
+   emitted from the state's own row), and each state's row already knows which
+   palette it resolves to. So there is nothing here for `data-theme` to decide,
+   which also means there is no `prefers-color-scheme` twin to keep in sync.
 
-   ── THE COLOURS ARE THE POINT, AND THEY ARE ABSENCES ───────────────────────
-   `--wall-scrim-*-sky` is `#ffffff` by day and `#000000` at night. The plain
-   veils are the theme's ground with a few points of the hour mixed in; these
-   carry no tint at all, so the only colour on the thread's ground is the sky's
-   own. That is also where the extra room comes from: a veil already at the
-   palette's extreme spends none of its alpha budget on its own colour, so it
-   clears the same measured floors while letting 1.4x to 1.8x more painting
-   through. Every number is solved in sky.ts and gated in check-contrast.mjs
-   against the shipped jpgs' decoded pixels, exactly like the plain pair. */
-:root[data-sky-choice][data-theme="light"] .world[data-variant="band"],
-:root[data-sky-choice][data-theme="light"] .world[data-variant="wallpaper"] {
-  --wall-scrim: var(--wall-scrim-light-sky);
-  --wall-a: var(--wall-a-light-sky);
-}
-
-:root[data-sky-choice][data-theme="dark"] .world[data-variant="band"],
-:root[data-sky-choice][data-theme="dark"] .world[data-variant="wallpaper"] {
-  --wall-scrim: var(--wall-scrim-dark-sky);
-  --wall-a: var(--wall-a-dark-sky);
+   It comes after flavour 2 and is mutually exclusive with it by `:not()`, and
+   it outweighs flavour 1 on specificity, so the cascade needs no ordering
+   trick to work. */
+:root[data-sky-choice] .world[data-variant="band"],
+:root[data-sky-choice] .world[data-variant="wallpaper"] {
+  --wall-scrim: var(--wall-scrim-sky);
+  --wall-a-top: var(--wall-a-sky-top);
+  --wall-a-mid: var(--wall-a-sky-mid);
+  --wall-a-bot: var(--wall-a-sky-bot);
+  --wall-s: var(--wall-sky-s);
+  --wall-e: var(--wall-sky-e);
+  --wall-img: var(--world-img);
+  --wall-img-wide: var(--world-img-wide);
 }
 
 /* ── the gold ring, extracted ───────────────────────────────────────────────

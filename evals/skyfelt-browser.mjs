@@ -150,73 +150,166 @@ async function groundVariance(page) {
   return { mean, sd, n: lums.length };
 }
 
-// ── 1. DEFECT 1: "I SELECTED SKY AND NO CHANGE" ───────────────────────────
+/** Mean absolute deviation of the ground from the theme's own flat --bg, in
+ *  0-255 units, over the UPPER THIRD of the thread — the open, mostly-empty
+ *  part someone actually looks at. This is the gate's "felt" metric read off
+ *  real pixels instead of modelled ones. A tint is a few units from --bg; a
+ *  painting is not. */
+async function feltUpperThird(page) {
+  const box = await page.evaluate(() => {
+    const s = document.querySelector(".chat-scroll");
+    const r = s.getBoundingClientRect();
+    return { x: r.x + 6, y: r.top + 4, width: Math.max(8, r.width - 12), height: Math.max(8, r.height / 3) };
+  });
+  const bg = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--bg").trim());
+  const m = /^#?([0-9a-f]{6})$/i.exec(bg);
+  const flat = m ? [0, 2, 4].map((k) => parseInt(m[1].slice(k, k + 2), 16)) : [250, 247, 244];
+  const buf = await page.screenshot({ clip: box });
+  const sharp = (await import("sharp")).default;
+  const { data, info } = await sharp(buf).raw().toBuffer({ resolveWithObject: true });
+  let sum = 0, n = 0;
+  for (let k = 0; k < data.length; k += info.channels) {
+    for (let c = 0; c < 3; c++) { sum += Math.abs(data[k + c] - flat[c]); n++; }
+  }
+  return sum / n;
+}
+
+/** Which painting the wallpaper layer is actually showing, off computed style. */
+const paintingOf = (page, sel) =>
+  page.evaluate((s) => {
+    const el = document.querySelector(s);
+    return el ? getComputedStyle(el).backgroundImage : null;
+  }, sel);
+
+// ── 1. THE PAINTING IS FELT, NOT MERELY MEASURED ──────────────────────────
 //
-// Two arms per state, same hour, same thread, same width: the CHOICE is `sky`
-// in one and the palette sky resolves to in the other. Under the shipped
-// build those two arms were byte-identical screens on morning and golden, and
-// the assertion below is exactly the sentence that was false.
+// ROUND ONE IS WHY THIS SECTION IS SHAPED THIS WAY. It asserted a luminance-sd
+// RATIO between two arms, got 1.65x on morning, passed, shipped — and the owner
+// looked at the result on a phone and said "I see no sky". A ratio between two
+// faint things is a real number and it is not a picture. So the assertion is
+// now an ABSOLUTE against the theme's own flat ground, with the rejected frame
+// measured in the same run as a control.
 //
-// The floor is stated as a RATIO of standard deviations rather than an
-// absolute, because the absolute is a property of the painting: the night
-// picture has a moon and a lit city in it and the morning one is mostly haze,
-// so a single number would be met by one and unmeetable by another. 1.25x is
-// under every measured value and well over measurement noise (two loads of the
-// same arm differ by ~1%).
+// The floor is 6.0, the same number the contrast gate calibrates, and the same
+// two-sided calibration applies: explicit Light must sit UNDER it (that wash is
+// deliberately quiet and the owner has not objected to it), and every alive
+// flavour must clear it.
 {
-  console.log("\n── 1. sky mode is visible, at every hour ──");
-  const table = [];
-  for (const [sky, palette] of [
-    ["night", "dark"],
-    ["predawn", "dark"],
-    ["morning", "light"],
-    ["golden", "light"],
-    ["dusk", "dark"],
-  ]) {
+  console.log("\n── 1. the upper third is a painting ──");
+  const FELT_FLOOR = 6.0;
+  const rows = [];
+
+  // THE CONTROL, in the same browser and the same run: the quiet day wash.
+  {
+    const { page, ctx } = await open({ sky: "morning", theme: "light", state: { messages: THREAD } });
+    await shot(page, "01-felt-control-light-morning");
+    const felt = await feltUpperThird(page);
+    rows.push(["light/morning (control)", felt]);
+    ok(
+      "control: explicit Light stays a quiet wash, under the floor",
+      felt < FELT_FLOOR,
+      `${felt.toFixed(1)} vs floor ${FELT_FLOOR}`,
+    );
+    await ctx.close();
+  }
+
+  for (const sky of ["night", "predawn", "morning", "golden", "dusk"]) {
+    const { page, ctx } = await open({ sky, theme: "sky", state: { messages: THREAD } });
+    const attrs = await page.evaluate(() => ({
+      theme: document.documentElement.getAttribute("data-theme"),
+      choice: document.documentElement.getAttribute("data-sky-choice"),
+    }));
+    ok(`sky/${sky}: the choice is stamped`, attrs.choice === "on", String(attrs.choice));
+    // …and it still resolves to one of the two palettes and nothing else.
+    ok(`sky/${sky}: resolves to a real palette`, attrs.theme === "light" || attrs.theme === "dark", String(attrs.theme));
+    // SKY IS THE HONEST-CLOCK MODE: it shows the painting for the hour, which
+    // is the promise the night room below is deliberately not making.
+    const paint = await paintingOf(page, '.chat > .world .world-paint');
+    ok(`sky/${sky}: shows the painting for the hour`, String(paint).includes(`world_${sky}`), String(paint).slice(0, 60));
+    await shot(page, `01-felt-sky-${sky}`);
+    const felt = await feltUpperThird(page);
+    rows.push([`sky/${sky}`, felt]);
+    ok(`sky/${sky}: the upper third is a PAINTING (>= ${FELT_FLOOR})`, felt >= FELT_FLOOR, felt.toFixed(1));
+    await ctx.close();
+  }
+
+  // THE ORIGINAL DEFECT, still asserted as an A/B: at the two daylight hours,
+  // Sky and explicit Light must not be the same screen. This is the sentence
+  // that was false when the owner first wrote it.
+  for (const sky of ["morning", "golden"]) {
     const arms = {};
-    for (const [arm, theme] of [["plain", palette], ["sky", "sky"]]) {
+    for (const [arm, theme] of [["light", "light"], ["sky", "sky"]]) {
       const { page, ctx } = await open({ sky, theme, state: { messages: THREAD } });
-      // The palette must be the same in both arms or this is not an A/B, it
-      // is two different themes. This is the sky-is-not-a-third-palette law,
-      // read off the live DOM rather than trusted.
-      const attrs = await page.evaluate(() => ({
-        theme: document.documentElement.getAttribute("data-theme"),
-        choice: document.documentElement.getAttribute("data-sky-choice"),
-      }));
-      ok(
-        `${sky}/${arm}: resolves to the ${palette} palette`,
-        attrs.theme === palette,
-        `data-theme=${attrs.theme}`,
-      );
-      ok(
-        `${sky}/${arm}: data-sky-choice is ${arm === "sky" ? "stamped" : "absent"}`,
-        arm === "sky" ? attrs.choice === "on" : attrs.choice === null,
-        String(attrs.choice),
-      );
-      await shot(page, `01-thread-${sky}-${arm}`);
-      arms[arm] = await groundVariance(page);
+      arms[arm] = await feltUpperThird(page);
       await ctx.close();
     }
-    const r = arms.sky.sd / arms.plain.sd;
-    table.push([sky, arms.plain.sd, arms.sky.sd, r]);
     ok(
-      `${sky}: sky mode shows more of the painting than the plain palette`,
-      r >= 1.25,
-      `ground sd ${arms.plain.sd.toFixed(2)} -> ${arms.sky.sd.toFixed(2)} (${r.toFixed(2)}x), ` +
-        `mean ${arms.plain.mean.toFixed(1)} -> ${arms.sky.mean.toFixed(1)}`,
-    );
-    // …and the palette's identity survives being shown more of the sky. The
-    // inverse failure of the one above, and the one someone tuning for
-    // presence reaches first: a light thread that became a photograph.
-    ok(
-      `${sky}: the ${palette} identity holds in sky mode`,
-      palette === "light" ? arms.sky.mean >= 195 : arms.sky.mean <= 80,
-      `mean ${arms.sky.mean.toFixed(1)}/255`,
+      `${sky}: Sky is not the same screen as explicit Light`,
+      arms.sky - arms.light >= 2.0,
+      `felt ${arms.light.toFixed(1)} -> ${arms.sky.toFixed(1)}`,
     );
   }
-  console.log("\n  ..  ground sd, plain -> sky:");
-  for (const [s, a, b, r] of table) {
-    console.log(`  ..    ${s.padEnd(8)} ${a.toFixed(2)} -> ${b.toFixed(2)}  (${r.toFixed(2)}x)`);
+
+  console.log("\n  ..  felt (MAD from the theme's flat --bg, upper third):");
+  for (const [n, v] of rows) console.log(`  ..    ${n.padEnd(26)} ${v.toFixed(1)}`);
+}
+
+// ── 1b. THE NIGHT ROOM ────────────────────────────────────────────────────
+//
+// The owner's second defect: explicit Dark at 12:37 in the afternoon, a muddy
+// brown-black with no sky in it. The cause is structural — a warm near-black
+// palette with a bright noon painting behind it — so the fix is structural:
+// in the dark palette the thread's wallpaper is the NIGHT painting, always.
+//
+// Four assertions, and the last two are the ones that keep the decision
+// honest rather than merely making the screen prettier.
+{
+  console.log("\n── 1b. explicit Dark is the night room ──");
+  const FELT_FLOOR = 6.0;
+  for (const sky of ["morning", "golden", "night", "dusk"]) {
+    const { page, ctx } = await open({ sky, theme: "dark", state: { messages: THREAD } });
+    await shot(page, `01b-night-room-at-${sky}`);
+    const paint = await paintingOf(page, '.chat > .world .world-paint');
+    ok(
+      `dark at ${sky}: the thread's wallpaper is the NIGHT painting`,
+      String(paint).includes("world_night"),
+      String(paint).slice(0, 60),
+    );
+    const felt = await feltUpperThird(page);
+    ok(`dark at ${sky}: the upper third is a PAINTING (>= ${FELT_FLOOR})`, felt >= FELT_FLOOR, felt.toFixed(1));
+    await ctx.close();
+  }
+
+  // THE HONEST-CLOCK HALF, which the night room must not take. Home and the
+  // call screens are `variant="full"` and go on showing the REAL sky in every
+  // mode — that is what makes the thread's night room a palette choice rather
+  // than the app lying about the time. Checked on home, in explicit Dark, at
+  // noon: if this ever shows world_night the decision has leaked.
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+    const page = await ctx.newPage();
+    for (const p of ["**/api/**"]) await page.route(p, (r) => r.fulfill({ status: 200, contentType: "application/json", body: "{}" }));
+    await page.goto(`${B}/chat?sky=morning`, { waitUntil: "domcontentloaded" });
+    await page.evaluate((s) => localStorage.setItem("meera.state.v1", JSON.stringify(s)), { ...BASE_STATE, theme: "dark", messages: THREAD });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await sleep(1200);
+    await shot(page, "01b-home-dark-at-noon-keeps-the-real-sky");
+    const paint = await paintingOf(page, '.world[data-variant="full"] .world-paint');
+    ok(
+      "home in explicit Dark at noon still shows the REAL sky",
+      String(paint).includes("world_morning"),
+      String(paint).slice(0, 60),
+    );
+    await ctx.close();
+  }
+
+  // …and SKY at dusk must still be a DUSK, or the night room has captured the
+  // one mode whose whole promise is the real hour.
+  {
+    const { page, ctx } = await open({ sky: "dusk", theme: "sky", state: { messages: THREAD } });
+    const paint = await paintingOf(page, '.chat > .world .world-paint');
+    ok("sky at dusk is still a dusk, not the night room", String(paint).includes("world_dusk"), String(paint).slice(0, 60));
+    await ctx.close();
   }
 }
 
@@ -274,10 +367,10 @@ async function groundVariance(page) {
   const WINE = "rgb(142, 64, 84)"; // #8e4054
   const DAY = "rgb(194, 63, 86)"; // #c23f56 — untouched
   for (const [sky, theme, label, want] of [
-    ["night", "dark", "night-dark", WINE],
-    ["night", "sky", "night-sky", WINE],
-    ["dusk", "dark", "dusk-dark", WINE],
-    ["dusk", "sky", "dusk-sky", WINE],
+    ["night", "dark", "night-room", WINE],
+    ["morning", "dark", "night-room-at-noon", WINE],
+    ["night", "sky", "sky-night", WINE],
+    ["dusk", "sky", "sky-dusk", WINE],
     ["morning", "light", "morning-light", DAY],
   ]) {
     const { page, ctx } = await open({ sky, theme, state: { messages: THREAD } });

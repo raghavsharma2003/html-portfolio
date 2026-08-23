@@ -55,7 +55,7 @@
 //    day the world is showing — rides on the surfaces themselves.
 
 import { useEffect, useState } from "react";
-import { skyNow, imgPath, type SkyFrame } from "../engine/sky";
+import { skyNow, imgPath, tokensFor, NIGHT_ROOM_STATE, type SkyFrame } from "../engine/sky";
 import "../styles/world.css";
 
 /**
@@ -192,6 +192,11 @@ function rgbOf(hex: string): string {
   return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
 }
 
+/** The night room's tokens, resolved once at module scope. It is a constant by
+ *  construction — `NIGHT_ROOM_STATE` is a fixed state, not a clock reading —
+ *  and resolving it here rather than per render is what makes that visible. */
+const NIGHT = tokensFor(NIGHT_ROOM_STATE);
+
 export function skyVars(frame: SkyFrame): React.CSSProperties {
   const t = frame.tokens;
   const n = frame.nextTokens;
@@ -274,18 +279,56 @@ export function skyVars(frame: SkyFrame): React.CSSProperties {
     // `world.css` picks with the same selector pair global.css uses.
     "--wall-scrim-light": t.wallScrimLight,
     "--wall-a-light": String(t.wallAlphaLight),
-    "--wall-scrim-dark": t.wallScrimDark,
-    "--wall-a-dark": String(t.wallAlphaDark),
-    // …and the same veil for the person who chose SKY rather than a palette.
-    // Emitted alongside rather than instead, for the reason the pair above is
-    // emitted in both flavours: the choice between them belongs to a root
-    // attribute (`data-sky-choice`, stamped by applyTheme) and to a selector,
-    // and a component that resolved it here would be a copy of that rule that
-    // does not update when the clock crosses dusk with the app open.
-    "--wall-scrim-light-sky": t.wallScrimLightSky,
-    "--wall-a-light-sky": String(t.wallAlphaLightSky),
-    "--wall-scrim-dark-sky": t.wallScrimDarkSky,
-    "--wall-a-dark-sky": String(t.wallAlphaDarkSky),
+    // `wallScrimDark`/`wallAlphaDark` are deliberately NOT emitted any more.
+    // The dark palette's thread is the night room now (world.css, flavour 2),
+    // so nothing in the app would read them and a variable nothing reads is a
+    // dead writer waiting to be "tuned" by someone expecting the screen to
+    // change. They are still live in the TABLE, for the landing: site/ has no
+    // theme switch, so its dark states are the only surface still painting
+    // that veil, and the landing half of check-contrast.mjs measures it there.
+    // …and the same veil for the person who chose SKY rather than a palette,
+    // which is a CURVE rather than a number (see the long note in sky.ts: a
+    // flat veil pays the city's price over the sky, and the sky is the whole
+    // subject of the mode). Emitted alongside rather than instead, for the
+    // reason the pair above is emitted in both flavours: the choice between
+    // them belongs to a root attribute (`data-sky-choice`, stamped by
+    // applyTheme) and to a selector, and a component that resolved it here
+    // would be a copy of that rule that does not update when the clock crosses
+    // dusk with the app open.
+    "--wall-scrim-sky": t.wallScrimSky,
+    "--wall-a-sky-top": String(t.wallSkyTop),
+    "--wall-a-sky-mid": String(t.wallSkyMid),
+    "--wall-a-sky-bot": String(t.wallSkyBot),
+    "--wall-sky-s": `${(t.wallSkyS * 100).toFixed(1)}%`,
+    "--wall-sky-e": `${(t.wallSkyE * 100).toFixed(1)}%`,
+
+    // ── THE NIGHT ROOM, CONSTANT (sky.ts NIGHT_ROOM_STATE) ────────────────
+    //
+    // In the dark palette the thread's wallpaper is the NIGHT painting at the
+    // night curve, whatever the real hour is — the owner's decision, and the
+    // reasoning is in sky.ts. These are the night state's own fields, emitted
+    // on every frame regardless of what the clock says, because the surface
+    // that consumes them is chosen by a SELECTOR and not by this component.
+    //
+    // That split is deliberate and it is the constraint the brief set: the
+    // dark palette is reachable two ways — `data-theme="dark"` and a
+    // `prefers-color-scheme` media query with no attribute at all — so no
+    // component can resolve it without becoming a third copy of a rule that
+    // stops updating when the OS flips at sunset. React emits the values; CSS
+    // picks. `--night-img` is a separate variable from `--world-img` for the
+    // most boring reason there is: `--world-img` is written HERE, as an inline
+    // style, and an inline custom property cannot be overridden by any
+    // stylesheet rule. So the wallpaper's paint layer reads `--wall-img`, and
+    // the selector sets that to one of these two.
+    "--night-img": NIGHT.img || "none",
+    "--night-img-wide": NIGHT.imgWide || NIGHT.img || "none",
+    "--night-flat": NIGHT.stops[0],
+    "--night-scrim": NIGHT.wallScrimSky,
+    "--night-a-top": String(NIGHT.wallSkyTop),
+    "--night-a-mid": String(NIGHT.wallSkyMid),
+    "--night-a-bot": String(NIGHT.wallSkyBot),
+    "--night-s": `${(NIGHT.wallSkyS * 100).toFixed(1)}%`,
+    "--night-e": `${(NIGHT.wallSkyE * 100).toFixed(1)}%`,
   } as React.CSSProperties;
 }
 

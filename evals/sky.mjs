@@ -71,6 +71,8 @@ const {
   parseSkySeed,
   midpointOf,
   tokensFor,
+  NIGHT_ROOM_STATE: SKY_MOD_NIGHT_ROOM,
+  wallCurveAt,
 } = sky;
 
 let fail = 0;
@@ -235,15 +237,18 @@ ok(
 {
   const FIELDS = [
     "wallScrimLight", "wallAlphaLight", "wallScrimDark", "wallAlphaDark",
-    // WS-SKYFELT. Four more, and they are the answer to a defect rather than a
-    // refinement: at 11:27 IST `sky` resolves to the light palette, so the
-    // thread painted the LIGHT veil and Sky was pixel-identical to Light until
-    // dusk. These carry the same veil for a person who chose SKY, thinner and
-    // colourless, so the mode can be SEEN. `check-contrast.mjs` owns their
-    // floors and the three laws that keep them apart from the plain pair; this
-    // is the structural half, and its whole job is to fail loudly if a state
-    // ever loses one and the var resolves to nothing on a night thread.
-    "wallScrimLightSky", "wallAlphaLightSky", "wallScrimDarkSky", "wallAlphaDarkSky",
+    // WS-SKYFELT. Six more, and they are the answer to a defect rather than a
+    // refinement. Round one: at 11:27 IST `sky` resolves to the light palette,
+    // so the thread painted the LIGHT veil and Sky was pixel-identical to Light
+    // until dusk. Round two: a thinner FLAT veil measured 1.65x better and the
+    // owner still said "I see no sky", because one number is the worst number
+    // in the frame applied to the whole frame. These six are the veil as a
+    // CURVE — thin over the open sky, deepening into the city — which is the
+    // mechanism the landing page already shipped. `check-contrast.mjs` owns
+    // their floors band by band; this is the structural half, and its whole job
+    // is to fail loudly if a state ever loses one and a var resolves to nothing
+    // on a night thread.
+    "wallScrimSky", "wallSkyTop", "wallSkyMid", "wallSkyBot", "wallSkyS", "wallSkyE",
   ];
   ok(
     "every state carries all four wallpaper fields",
@@ -256,24 +261,39 @@ ok(
       (s) =>
         /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimLight) &&
         /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimDark) &&
-        /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimLightSky) &&
-        /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimDarkSky),
+        /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimSky),
     ),
   );
-  // The sky-choice veil is the one a person SEES the mode through, so a state
-  // whose sky alpha is not thinner than its plain one is a state on which the
-  // mode is invisible — the exact defect this pair was added for, one state at
-  // a time. The ratio floors live in check-contrast.mjs; this is the property
-  // that has no ratio.
+  // THE CURVE HAS TO STAY A CURVE. Flatten it and every contrast floor still
+  // passes — one number CAN clear them, it just cannot be the right number
+  // twice — and the screen goes back to the one the owner photographed and
+  // captioned "I see no sky". The ratio floors live in check-contrast.mjs;
+  // this is the property that has no ratio.
   ok(
-    "every state's sky-choice veil is thinner than its plain one",
-    SKY_STATES.every(
-      (s) =>
-        SKY_TOKENS[s].wallAlphaLight - SKY_TOKENS[s].wallAlphaLightSky >= 0.02 &&
-        SKY_TOKENS[s].wallAlphaDark - SKY_TOKENS[s].wallAlphaDarkSky >= 0.02,
-    ),
-    SKY_STATES.map((s) => `${s} L${SKY_TOKENS[s].wallAlphaLight}/${SKY_TOKENS[s].wallAlphaLightSky}`).join(" "),
+    "every state's sky veil rises from its top alpha into the city",
+    SKY_STATES.every((s) => SKY_TOKENS[s].wallSkyMid - SKY_TOKENS[s].wallSkyTop >= 0.05),
+    SKY_STATES.map((s) => `${s} ${SKY_TOKENS[s].wallSkyTop}->${SKY_TOKENS[s].wallSkyMid}`).join(" "),
   );
+  ok(
+    "every state's curve stops are ordered and inside the frame",
+    SKY_STATES.every((s) => SKY_TOKENS[s].wallSkyS > 0 && SKY_TOKENS[s].wallSkyS < SKY_TOKENS[s].wallSkyE && SKY_TOKENS[s].wallSkyE < 1),
+    SKY_STATES.map((s) => `${s} ${SKY_TOKENS[s].wallSkyS}/${SKY_TOKENS[s].wallSkyE}`).join(" "),
+  );
+  // The night room is the sky's own night, not a second table — one painting,
+  // one curve, one veil colour, shared by explicit Dark and by Sky at 2am.
+  ok("the night room names a real state", SKY_STATES.includes(SKY_MOD_NIGHT_ROOM));
+  // `wallCurveAt` is the stylesheet's gradient in numbers, and the contrast
+  // gate walks it band by band. If it stops being the curve the CSS paints,
+  // every band number in that gate describes a screen nobody ships — the same
+  // hole `scrimEmphasisAt` records one section up.
+  for (const s of SKY_STATES) {
+    const t = SKY_TOKENS[s];
+    const at = (f) => wallCurveAt(f, t.wallSkyTop, t.wallSkyMid, t.wallSkyBot, t.wallSkyS, t.wallSkyE);
+    ok(`${s}: the curve holds its top alpha to the first stop`, Math.abs(at(0) - t.wallSkyTop) < 1e-9 && Math.abs(at(t.wallSkyS) - t.wallSkyTop) < 1e-9);
+    ok(`${s}: the curve reaches mid at the second stop`, Math.abs(at(t.wallSkyE) - t.wallSkyMid) < 1e-9);
+    ok(`${s}: the curve ends at bot`, Math.abs(at(1) - t.wallSkyBot) < 1e-9);
+    ok(`${s}: the curve is clamped outside 0..1`, Math.abs(at(-1) - t.wallSkyTop) < 1e-9 && Math.abs(at(2) - t.wallSkyBot) < 1e-9);
+  }
   ok(
     "both wallpaper alphas are numbers inside the sane band",
     SKY_STATES.every(
@@ -306,11 +326,26 @@ ok(
     SKY_TOKENS.morning.wallAlphaDark > SKY_TOKENS.night.wallAlphaDark,
     `morning ${SKY_TOKENS.morning.wallAlphaDark} vs night ${SKY_TOKENS.night.wallAlphaDark}`,
   );
-  // world.css must actually consume all four, or the table is decoration.
+  // world.css must actually consume what the table declares, or the table is
+  // decoration. The dark FLAT pair is deliberately not in this list any more:
+  // the app's dark thread is the night room now, so nothing in world.css reads
+  // `--wall-*-dark` and WorldLayer no longer emits them. They stay live in the
+  // table for the LANDING (site/ has no theme switch, so its dark states are
+  // the only surface still painting that veil) and the landing half of
+  // check-contrast.mjs is what pins them there.
   {
     const css = readFileSync(join(ROOT, "src/styles/world.css"), "utf8");
-    for (const v of ["--wall-scrim-light", "--wall-a-light", "--wall-scrim-dark", "--wall-a-dark"])
+    for (const v of [
+      "--wall-scrim-light", "--wall-a-light",
+      "--wall-scrim-sky", "--wall-a-sky-top", "--wall-a-sky-mid", "--wall-a-sky-bot",
+      "--wall-sky-s", "--wall-sky-e",
+      "--night-scrim", "--night-a-top", "--night-a-mid", "--night-a-bot", "--night-img",
+    ])
       ok(`world.css reads ${v}`, css.includes(v));
+    ok(
+      "the retired dark flat pair is not read by world.css any more",
+      !css.includes("--wall-a-dark"),
+    );
     ok(
       "world.css declares the wallpaper variant",
       /\.world\[data-variant="wallpaper"\]/.test(css),

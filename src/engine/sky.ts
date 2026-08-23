@@ -234,7 +234,19 @@ export interface SkyTokens {
   //   the painting's DARKEST decile (a roof slab under near-black ink), and
   //   all five paintings have roofs.
   //
-  //   DARK theme 0.60 -> 0.91, and the SPREAD is the whole point. The
+  //   DARK theme 0.60 -> 0.91, and the SPREAD is the whole point.
+  //
+  //   ── WHERE THE DARK PAIR IS STILL PAINTED (WS-SKYFELT round 2) ────────
+  //   In the APP it no longer is. The dark palette's thread is the night room
+  //   (see NIGHT_ROOM_STATE below): one painting, one curve, whatever the hour
+  //   is, because a warm near-black palette and a bright noon painting cannot
+  //   be reconciled by any veil that still lets the painting be seen. The pair
+  //   survives here because the LANDING paints it: site/ has no theme switch,
+  //   so its three dark-mode states use this veil for everything past the fold,
+  //   and check-contrast.mjs's landing half pins these exact values against
+  //   site/styles.css's `--veil-ground`. Tuning them changes the landing and
+  //   nothing else, which is the opposite of what the name suggests, which is
+  //   why this paragraph is here. The
   //   constraint here is the BRIGHTEST decile under light ink, so a dark
   //   painting costs almost nothing and a bright one costs everything: the
   //   night sky comes through at 40% and the morning sky at 9%. That is the
@@ -250,80 +262,141 @@ export interface SkyTokens {
   wallScrimDark: string;
   wallAlphaDark: number;
 
-  // ── THE SAME VEIL WHEN THE CHOICE ITSELF IS "SKY" (WS-SKYFELT) ──────────
+  // ── THE SAME VEIL WHEN THE CHOICE IS "SKY", AS A CURVE (WS-SKYFELT) ────
   //
-  // The defect this pair exists for is a design defect, not a code one, and
-  // it was reported in one sentence: "I selected Sky and no change." At 11:27
-  // IST the sky is `morning`, `morning.mode` is "light", so the choice
-  // resolved to `data-theme="light"` and the thread painted the LIGHT veil at
-  // 0.93 — pixel-identical to explicit Light, and identical until dusk. A
-  // mode whose selection changes nothing visible reads as broken, and it is
-  // the only mode in the app that can be selected and then not seen.
+  // Two rounds of this, and the second one is the one that matters, because
+  // the first was measured right and FELT wrong. The defect was reported in
+  // one sentence: "I selected Sky and no change." Round one answered it with a
+  // thinner FLAT veil (0.93 -> 0.88 on morning), which was a real 1.65x on the
+  // ground's measured luminance spread and was still, on a phone at 12:36 in
+  // the afternoon, a near-white screen. The owner's second verdict: "I see no
+  // sky." A number that moves and a picture that does not are not the same
+  // thing, and this is the entry that says so.
   //
-  // The fix does NOT add a third palette — that law is stated at the top of
-  // theme.ts and it still holds: `sky` resolves to one of the two `data-theme`
-  // values and nothing else. What it adds is PRESENCE. `applyTheme` stamps one
-  // extra root attribute (`data-sky-choice`) when the CHOICE is sky, and the
-  // thread's wallpaper keys a more-present veil off it. Same two palettes,
-  // same ink, same everything a selector reads — one more picture.
+  // ── WHY A FLAT VEIL COULD NEVER HAVE WORKED ────────────────────────────
   //
-  // ── WHY THE SKY VEIL IS COLOURLESS, AND WHY THAT IS THE MECHANISM ──────
+  // One number is the WORST number in the frame applied to the whole frame.
+  // These paintings are a sky above and a CITY below: solved band by band, the
+  // morning painting needs 0.88 over its bottom sixth (roof slabs under the
+  // day palette's dim ink) and only 0.77 at its top, dipping to 0.47 across
+  // the bright horizon in the middle. A flat veil pays the city's price
+  // everywhere, and the sky — which is the part someone actually looks at, and
+  // the entire subject of the mode — is what it spends it on.
   //
-  // The four numbers above are the theme's own ground carried a few points
-  // toward the state's mood: the THEME decides the colour and the sky is a
-  // hint in it. The sky-choice veil inverts that. It carries no tint at all —
-  // it is the palette's own extreme, `#ffffff` by day and `#000000` at night
-  // (`WALL_SCRIM_LIGHT_SKY`/`WALL_SCRIM_DARK_SKY`) — so the only colour left
-  // on the thread's ground is the hour's.
+  // The landing page had already solved exactly this and shipped it: its veil
+  // is a CURVE (`--veil-a`/`--veil-b`/`--veil-ground` in site/styles.css, its
+  // morning hero running 0.38 at the top to 0.74 at the horizon), and its own
+  // header states the reason in the same words. This is that mechanism ported
+  // to the thread, and the ports are honest: same shape, same three-alpha
+  // form, same per-state stops, same "solved, not chosen" discipline, and the
+  // gate walks it band by band the way the landing's does.
   //
-  // That is not merely a nice sentence, it is where the room comes from. Both
-  // veils are alpha-bound by ink: the light one by `--ink-dim` over the
-  // painting's DARKEST decile, the dark one by light ink over its BRIGHTEST.
-  // A veil that is already the whitest (or blackest) thing available spends
-  // none of its budget on its own tint, so it can be THINNER at the same
-  // measured floor. Solved against the shipped jpgs' decoded pixels, the swap
-  // buys between 1.4x and 1.8x more of the painting on every state:
+  //   top    held from 0 to `wallSkyS`
+  //   mid    reached at `wallSkyE`, ramping from `top`
+  //   bot    reached at 1.0, ramping from `mid`
   //
-  //   state    light: plain -> sky        dark: plain -> sky
-  //   night    0.94 -> 0.90  (6% -> 10%)  0.60 -> 0.44  (40% -> 56%)
-  //   predawn  0.94 -> 0.90  (6% -> 10%)  0.65 -> 0.48  (35% -> 52%)
-  //   morning  0.93 -> 0.88  (7% -> 12%)  0.91 -> 0.83  ( 9% -> 17%)
-  //   golden   0.935-> 0.885 (7% -> 12%)  0.90 -> 0.81  (10% -> 19%)
-  //   dusk     0.94 -> 0.895 (6% -> 11%)  0.87 -> 0.77  (13% -> 23%)
+  // ── WHAT THE CURVE BUYS, PER STATE (painting visible at the top) ───────
   //
-  // Both families are gated exactly as the plain pair is — same regions, same
-  // decoded pixels, same 4.5/4.5/3.0 floors — plus three laws of their own in
-  // `scripts/check-contrast.mjs`: every sky alpha is at least 0.02 thinner
-  // than its plain twin (or the mode is invisible again, which is the bug),
-  // the light sky veil stays >= 0.85 (a wash, never a photograph), and night's
-  // dark sky veil stays <= 0.55 (it has to beat the plain veil's own ceiling,
-  // not merely sit under it).
+  //   night    0.60 flat (40%)  ->  0.08 at top (92%), 0.62 mid, 0.18 bottom
+  //   predawn  0.65 flat (35%)  ->  0.08 at top (92%), 0.92 mid, 0.14 bottom
+  //   morning  0.93 flat ( 7%)  ->  0.78 at top (22%), 0.88 mid, 0.90 bottom
+  //   golden   0.935 flat( 7%)  ->  0.83 at top (17%), 0.90 mid, 0.89 bottom
+  //   dusk     0.87 flat (13%)  ->  0.66 at top (34%), 0.86 mid, 0.50 bottom
   //
-  // TEN NUMBERS FOR FIVE REACHABLE COMBINATIONS, deliberately. In production
-  // `data-sky-choice` is only ever stamped together with `data-theme` =
-  // `mode`, so morning-under-dark cannot be reached by choosing anything. It
-  // CAN be reached for a frame while the clock crosses a boundary and the
-  // attribute write and the React render have not yet met, and a var that
-  // resolves to nothing for one frame is a white flash on a night thread.
-  wallScrimLightSky: string;
-  wallAlphaLightSky: number;
-  wallScrimDarkSky: string;
-  wallAlphaDarkSky: number;
+  // The two light states stay in the 20s and that is not timidity, it is the
+  // measurement: their ceiling is `--ink-dim` (#6d635e) read on a veiled blue
+  // sky, and #ffffff is already the brightest veil that exists. What changed
+  // for them is that the sky is now a SKY with clouds in it rather than a
+  // cream wash. The dark states go where they go because light ink over a dark
+  // painting is nearly free at the top of the frame.
+  //
+  // ── THE VEIL STILL CARRIES NO COLOUR OF ITS OWN ────────────────────────
+  //
+  // `#ffffff` by day, `#000000` at night, unchanged from round one and for the
+  // same measured reason: a veil already at the palette's extreme spends none
+  // of its alpha budget on its own tint. Re-tested against the night blues the
+  // owner asked for (each dark state's own `scrim`, which is what the landing
+  // uses for its hero veil): night came out the same, predawn's middle went
+  // from 0.82 to 0.89 and dusk's top from 0.60 to 0.72. So the blue in a night
+  // thread comes from the PAINTING, at 94% of it, rather than from a tint over
+  // a painting nobody can see. That is the better answer to the same request.
+  wallScrimSky: string;
+  wallSkyTop: number;
+  wallSkyMid: number;
+  wallSkyBot: number;
+  /** fraction of the surface the top alpha is held to */
+  wallSkyS: number;
+  /** fraction at which the ramp reaches `wallSkyMid` */
+  wallSkyE: number;
 }
 
 /**
  * The sky-choice veil's two colours, stated once rather than five times.
  *
  * They are a LAW rather than a tuning knob — "in sky mode the veil carries no
- * tint of its own" is the whole reason the alphas above can be thinner than
- * their plain twins — so they live here as constants and every state's fields
- * are assigned from them. Five copies of one law is five chances for one of
- * them to be nudged warm by someone tuning a single state, and the gate would
- * still pass because the ratio would still hold; it is the PRESENCE that would
- * quietly go.
+ * tint of its own" is the whole reason the alphas above can be as thin as they
+ * are — so they live here as constants and every state's field is assigned
+ * from them. Five copies of one law is five chances for one of them to be
+ * nudged warm by someone tuning a single state, and the gate would still pass
+ * because the ratio would still hold; it is the PRESENCE that would quietly go.
  */
 export const WALL_SCRIM_LIGHT_SKY = "#ffffff";
 export const WALL_SCRIM_DARK_SKY = "#000000";
+
+/**
+ * The authored curve, in numbers, exactly as `world.css` paints it.
+ *
+ * It lives here for the same reason `scrimEmphasisAt` does one section up: the
+ * contrast gate has to walk it band by band, and a gate holding its own copy
+ * of a stylesheet fact is a gate that passes after the stylesheet changes.
+ * Change the gradient stops in world.css and change this with them.
+ */
+export function wallCurveAt(f: number, top: number, mid: number, bot: number, s: number, e: number): number {
+  const p = f < 0 ? 0 : f > 1 ? 1 : f;
+  if (p <= s) return top;
+  if (p <= e) return top + ((mid - top) * (p - s)) / (e - s);
+  return mid + ((bot - mid) * (p - e)) / (1 - e);
+}
+
+/**
+ * THE NIGHT ROOM (owner decision, 2026-08-23).
+ *
+ * Owner's verdict on the shipped APK: "dark mode is still bad. this is not a
+ * good color combo for dark mode." The screenshot is explicit Dark at 12:37 in
+ * the afternoon, and it is a muddy brown-black with no sky in it at all.
+ *
+ * THE MUD IS STRUCTURAL AND NO ALPHA FIXES IT. The dark palette is a warm
+ * near-black; the painting behind it at that hour is a bright blue morning
+ * with a sunlit city in it. Those two cannot be reconciled by a veil, because
+ * the only veil heavy enough to stop a noon painting from fighting a night
+ * palette is a veil heavy enough to hide it — which is precisely the frame the
+ * owner photographed, and it passes every contrast floor in this repo.
+ *
+ * So the decision is to stop trying: IN THE DARK PALETTE THE THREAD'S
+ * WALLPAPER IS ALWAYS THE NIGHT PAINTING, whatever the real hour is.
+ *
+ * ── WHY THAT IS NOT A LIE ABOUT THE CLOCK ────────────────────────────────
+ *
+ * Because it is a PALETTE choice and it is scoped to the one surface where the
+ * palette is the subject. Someone on explicit Dark has said "I want the dark
+ * room" — the room is a night room, and its window looks out on a night. The
+ * app's honest-clock claims are made elsewhere and are untouched: home and
+ * both call screens (`variant="full"`) go on showing the real sky in every
+ * mode, exactly as `theme.ts` already documents, and SKY mode remains the mode
+ * whose whole promise is that the thread follows the real hour. A person who
+ * wants the thread to know what time it is has a mode for that and it is one
+ * tap away, with a line under it saying so.
+ *
+ * ── AND IT IS THE SKY'S OWN NIGHT, NOT A SECOND ONE ─────────────────────
+ *
+ * The night room is not a new table. It is `TOKENS.night` — the same painting,
+ * the same veil colour, the same solved curve that `sky` mode uses when the
+ * real sky is night. One consequence worth stating because it is a feature:
+ * at night, explicit Dark and Sky paint the same thread, which is correct,
+ * since at night the honest sky IS the night room. The two only diverge in
+ * daylight, which is the only place they were ever in conflict.
+ */
+export const NIGHT_ROOM_STATE: SkyState = "night";
 
 /**
  * The five skies.
@@ -364,10 +437,12 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     wallAlphaLight: 0.94,
     wallScrimDark: "#0a0c18",
     wallAlphaDark: 0.6,
-    wallScrimLightSky: WALL_SCRIM_LIGHT_SKY,
-    wallAlphaLightSky: 0.9,
-    wallScrimDarkSky: WALL_SCRIM_DARK_SKY,
-    wallAlphaDarkSky: 0.44,
+    wallScrimSky: WALL_SCRIM_DARK_SKY,
+    wallSkyTop: 0.08,
+    wallSkyMid: 0.62,
+    wallSkyBot: 0.18,
+    wallSkyS: 0.1,
+    wallSkyE: 0.75,
   }),
 
   // The blue hour before sunrise: cold at the top, a thin cyan band, and the
@@ -397,10 +472,12 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     wallAlphaLight: 0.94,
     wallScrimDark: "#0c0e1c",
     wallAlphaDark: 0.65,
-    wallScrimLightSky: WALL_SCRIM_LIGHT_SKY,
-    wallAlphaLightSky: 0.9,
-    wallScrimDarkSky: WALL_SCRIM_DARK_SKY,
-    wallAlphaDarkSky: 0.48,
+    wallScrimSky: WALL_SCRIM_DARK_SKY,
+    wallSkyTop: 0.08,
+    wallSkyMid: 0.92,
+    wallSkyBot: 0.14,
+    wallSkyS: 0.2,
+    wallSkyE: 0.65,
   }),
 
   // Full daylight. Warm rather than the default sky-blue — the app's ground
@@ -434,10 +511,12 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     wallAlphaLight: 0.93,
     wallScrimDark: "#14100f",
     wallAlphaDark: 0.91,
-    wallScrimLightSky: WALL_SCRIM_LIGHT_SKY,
-    wallAlphaLightSky: 0.88,
-    wallScrimDarkSky: WALL_SCRIM_DARK_SKY,
-    wallAlphaDarkSky: 0.83,
+    wallScrimSky: WALL_SCRIM_LIGHT_SKY,
+    wallSkyTop: 0.78,
+    wallSkyMid: 0.88,
+    wallSkyBot: 0.9,
+    wallSkyS: 0.52,
+    wallSkyE: 0.75,
   }),
 
   // Golden hour. The one state where the horizon is BRIGHTER than the zenith
@@ -467,10 +546,12 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     wallAlphaLight: 0.935,
     wallScrimDark: "#17110d",
     wallAlphaDark: 0.9,
-    wallScrimLightSky: WALL_SCRIM_LIGHT_SKY,
-    wallAlphaLightSky: 0.885,
-    wallScrimDarkSky: WALL_SCRIM_DARK_SKY,
-    wallAlphaDarkSky: 0.81,
+    wallScrimSky: WALL_SCRIM_LIGHT_SKY,
+    wallSkyTop: 0.83,
+    wallSkyMid: 0.9,
+    wallSkyBot: 0.89,
+    wallSkyS: 0.58,
+    wallSkyE: 0.85,
   }),
 
   // Dusk. The competitor's best frame is its rose dusk, so this is the one
@@ -501,10 +582,12 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     wallAlphaLight: 0.94,
     wallScrimDark: "#140f1c",
     wallAlphaDark: 0.87,
-    wallScrimLightSky: WALL_SCRIM_LIGHT_SKY,
-    wallAlphaLightSky: 0.895,
-    wallScrimDarkSky: WALL_SCRIM_DARK_SKY,
-    wallAlphaDarkSky: 0.77,
+    wallScrimSky: WALL_SCRIM_DARK_SKY,
+    wallSkyTop: 0.66,
+    wallSkyMid: 0.86,
+    wallSkyBot: 0.5,
+    wallSkyS: 0.1,
+    wallSkyE: 0.7,
   }),
 });
 
