@@ -89,3 +89,34 @@ export interface LivenessChallenge {
   expires_at: string;
   updated_at: string;
 }
+
+export type EvidenceDecision = "accepted" | "rejected" | "superseded";
+
+export interface ReviewProvenance { family: string; name: string; version: string }
+export interface ReviewEvidence {
+  evidence_id: string;
+  source_id: string;
+  artifact_id: string | null;
+  evidence_type: string;
+  reviewable: boolean;
+  span_start_ms: number | null;
+  span_end_ms: number | null;
+  confidence: number | null;
+  provenance: ReviewProvenance;
+  summary: Record<string, string | number | boolean>;
+  decision: EvidenceDecision | null;
+  reason_code: string;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+export interface ReplicaReview {
+  replica_id: string;
+  sources: Array<Pick<ReplicaSource, "source_id" | "kind" | "capture_mode" | "mime" | "byte_size" | "state" | "contains_third_parties" | "rejection_code" | "created_at" | "updated_at"> & { duration_ms: number | null }>;
+  jobs: Array<{ job_id: string; source_id: string; step: string; revision: number; state: string; attempt: number; failure_code: string; next_attempt_at: string; created_at: string; updated_at: string }>;
+  attempts: Array<{ job_id: string; attempt: number; outcome: string; provenance: ReviewProvenance; failure_code: string; facts: Record<string, string | number | boolean>; started_at: string; finished_at: string | null }>;
+  artifacts: Array<{ artifact_id: string; source_id: string; parent_artifact_id: string | null; created_by_job_id: string | null; stage: string; variant_key: string; mime: string; byte_size: number; duration_ms: number | null; transform: { name: string; version: string }; provenance: ReviewProvenance; created_at: string }>;
+  evidence: ReviewEvidence[];
+  builds: Array<{ build_id: string; build_kind: string; target_version: number; builder_version: string; state: string; attempt: number; failure_code: string; created_at: string; updated_at: string }>;
+  voice_genome_readiness: { ready: boolean; blockers: string[]; reviewed_real_evidence: number; embedding_families: number; voice_measurements: number; quality_measurements: number; speaker_segments: number };
+}

@@ -106,16 +106,26 @@ Implemented now:
   self-pass, with an explicit pending-verifier boundary;
 - immutable integrity, diarization, separation, enhancement, ASR and
   multi-embedding adapter contracts that build only reviewable VoiceGenome
-  drafts; the included provider is a deterministic fake, not production ML;
+  drafts, plus a real Azure Speech fast-transcription HTTP adapter that has
+  been tested against mocked responses but not live quality data;
+- owner-only processing review with privacy-safe evidence summaries,
+  append-only accept/reject/supersede decisions, and an idempotent draft-only
+  VoiceGenome build queue;
 - hard `agent_id` isolation for raw logs, graph memory, suppressions and
-  consolidation cursors, while replica conversation activation stays closed;
+  consolidation cursors, plus strict default-removal/natural-key migrations
+  gated for a second agent; production migrations remain unapplied;
 - provider-neutral VoiceGenome and streamed PCM synthesis contracts;
+- a non-bypassable output-protection contract: audible prefix, streaming
+  watermark proof, signed 240 ms segment hash chain, final C2PA-bound asset
+  receipt, revocation-aware authorization, and production refusal of fake
+  adapters;
 - offline enrollment, IDOR, lifecycle, disclosure and provider-contract gates;
 - a researched Azure Foundry spend plan below the $2,000 grant ceiling.
 
-Biometric consent, identity/age verification, anti-replay, training, synthesis,
-watermark/provenance and conversation activation remain closed until their
-explicit gates pass. The full architecture is in
+Biometric consent, identity/age verification, anti-replay, real voice training
+and synthesis, production watermark/C2PA adapters, and conversation activation
+remain closed until their explicit live gates pass. The full architecture is in
 [`docs/SPEC-REPLICA-PLATFORM.md`](docs/SPEC-REPLICA-PLATFORM.md), frontier
 research in [`docs/research/REPLICA-FRONTIER-2026.md`](docs/research/REPLICA-FRONTIER-2026.md),
-and Azure allocation in [`docs/AZURE-FOUNDRY-PLAN.md`](docs/AZURE-FOUNDRY-PLAN.md).
+provenance in [`docs/REPLICA-PROVENANCE.md`](docs/REPLICA-PROVENANCE.md), and
+Azure allocation in [`docs/AZURE-FOUNDRY-PLAN.md`](docs/AZURE-FOUNDRY-PLAN.md).

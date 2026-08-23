@@ -25,6 +25,7 @@ import type {
 } from "./types";
 import EnrollmentWorkspace from "./EnrollmentWorkspace";
 import LivenessCapture from "./LivenessCapture";
+import ProcessingReview from "./ProcessingReview";
 import {
   createSourceUpload,
   deleteSource,
@@ -48,14 +49,14 @@ type LoadState = "booting" | "loading" | "ready" | "error";
 const STAGES = [
   {
     id: "voice",
-    number: "04",
+    number: "05",
     title: "Voice laboratory",
     copy: "Compare identity, accent, rhythm, and emotion across blinded candidate renders.",
     availability: "Voice training remains disabled",
   },
   {
     id: "behavior",
-    number: "05",
+    number: "06",
     title: "Behavior calibration",
     copy: "Correct language, values, boundaries, humor, and relationship-specific behavior.",
     availability: "Behavioral inference remains disabled",
@@ -363,6 +364,8 @@ function ReplicaWorkspace({
   onFinalizeLiveness,
   onRevoke,
   revoking,
+  accessToken,
+  onReviewAuthError,
 }: {
   replica: Replica;
   consents: ConsentReceipt[];
@@ -393,6 +396,8 @@ function ReplicaWorkspace({
   onFinalizeLiveness: (challengeId: string, sourceId: string) => Promise<LivenessChallenge>;
   onRevoke: () => Promise<void>;
   revoking: boolean;
+  accessToken: string;
+  onReviewAuthError: (cause: unknown) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [confirmation, setConfirmation] = useState("");
@@ -486,6 +491,13 @@ function ReplicaWorkspace({
             onCreateUpload={onCreateLivenessUpload}
             onRetryUpload={onRetryUpload}
             onFinalize={onFinalizeLiveness}
+          />
+
+          <ProcessingReview
+            token={accessToken}
+            replicaId={replica.replica_id}
+            sourceCount={sources.length}
+            onAuthError={onReviewAuthError}
           />
 
           <section className="stage-section locked-path" aria-labelledby="path-title">
@@ -961,6 +973,8 @@ export default function StudioApp() {
               onFinalizeLiveness={handleFinalizeLiveness}
               onRevoke={handleRevoke}
               revoking={revoking}
+              accessToken={session.accessToken}
+              onReviewAuthError={(cause) => handleApiError(cause, "Processing review could not be loaded")}
             />
           ) : null}
         </main>

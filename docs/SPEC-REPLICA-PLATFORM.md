@@ -72,8 +72,10 @@ capability unreachable before asynchronous deletion begins.
 
 Every audio output begins with a non-disableable synthetic disclosure on the
 initial India launch path, carries a robust watermark and signed provenance,
-and creates a content-free audit record. Provider output without these is not
-deliverable output.
+and creates a content-free audit record. Realtime protected PCM is committed
+as a signed segment hash chain before each segment is released, then sealed by
+a final C2PA asset credential. Provider output without these is not deliverable
+output. See `docs/REPLICA-PROVENANCE.md`.
 
 ### R7 — noisy input is never cleaned into false certainty
 

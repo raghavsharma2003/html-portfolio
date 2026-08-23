@@ -13,6 +13,7 @@ const Queue = await import(pathToFileURL(join(ROOT, "api/_replica-processing/que
 const Worker = await import(pathToFileURL(join(ROOT, "api/_replica-processing/worker.js")));
 const Builders = await import(pathToFileURL(join(ROOT, "api/_replica-processing/builders.js")));
 const Fake = await import(pathToFileURL(join(ROOT, "api/_replica-processing/providers/fake.js")));
+const AzureFast = await import(pathToFileURL(join(ROOT, "api/_replica-processing/providers/azure-fast-transcription.js")));
 const Repository = await import(pathToFileURL(join(ROOT, "api/_replica-processing/repository.js")));
 const { splitSql } = await import(pathToFileURL(join(ROOT, "db/migrations/apply.mjs")));
 
@@ -27,6 +28,7 @@ const ok = (name, condition, extra = "") => {
 const throwsAsync = async (fn, code = "") => {
   try { await fn(); return false; } catch (error) { return code ? error.code === code : true; }
 };
+const captureAsync = async (fn) => { try { await fn(); return null; } catch (error) { return error; } };
 const throws = (fn) => { try { fn(); return false; } catch { return true; } };
 
 const OWNER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -167,6 +169,158 @@ const transcript = await Worker.executeProcessingJob({
 ok("ASR keeps transcript and language spans cited to candidate artifacts",
   transcript.outcome === "complete" && transcript.evidence.length === 4 &&
   transcript.evidence.every((entry) => entry.artifact_id && entry.input_sha256 !== SHA));
+
+{
+  const azureAudio = Buffer.from("bounded mocked Azure audio bytes", "utf8");
+  const azureArtifact = {
+    ...enhanced.artifacts[0],
+    sha256: Contracts.sha256Hex(azureAudio),
+    mime: "audio/wav",
+    duration_ms: 2_400,
+  };
+  const payload = {
+    durationMilliseconds: 2_400,
+    combinedPhrases: [{ text: "Hello ji, aaj milte hain." }],
+    phrases: [
+      {
+        offsetMilliseconds: 0, durationMilliseconds: 1_000,
+        text: "Hello ji.", locale: "en-IN", confidence: 0.91, speaker: 0,
+        words: [
+          { text: "Hello", offsetMilliseconds: 0, durationMilliseconds: 440 },
+          { text: "ji.", offsetMilliseconds: 460, durationMilliseconds: 340 },
+        ],
+      },
+      {
+        offsetMilliseconds: 1_200, durationMilliseconds: 800,
+        text: "Aaj milte hain.", locale: "hi-IN", confidence: 0.86, speaker: 0,
+        words: [
+          { text: "Aaj", offsetMilliseconds: 1_200, durationMilliseconds: 220 },
+          { text: "milte", offsetMilliseconds: 1_440, durationMilliseconds: 220 },
+          { text: "hain.", offsetMilliseconds: 1_680, durationMilliseconds: 260 },
+        ],
+      },
+    ],
+  };
+  const requests = [];
+  const azure = AzureFast.createAzureFastTranscriptionAdapter({
+    endpoint: "https://fixture-speech.cognitiveservices.azure.com/",
+    apiKey: "fixture-key-never-sent-to-azure",
+    timeoutMs: 5_000,
+    diarizationMaxSpeakers: 4,
+    async resolveInput() {
+      return {
+        mime: "audio/wav",
+        byteSize: azureAudio.length,
+        body: (async function* () { yield azureAudio.subarray(0, 9); yield azureAudio.subarray(9); })(),
+      };
+    },
+    async fetchImpl(url, init) {
+      const definition = JSON.parse(init.body.get("definition"));
+      const uploaded = Buffer.from(await init.body.get("audio").arrayBuffer());
+      requests.push({ url, init, definition, uploaded });
+      return new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  const azureOutput = await Worker.executeProcessingJob({
+    job: job("transcribe"), source, adapters: { ...adapters, transcribe: azure },
+    artifactStore: store, completedSteps: dependencies.transcribe, inputArtifacts: [azureArtifact],
+  });
+  const azureTranscripts = azureOutput.evidence.filter((entry) => entry.evidence_type === "transcript_span");
+  ok("real Azure adapter satisfies the existing ASR adapter contract",
+    azureOutput.outcome === "complete" &&
+    azure.family === "asr" && azure.name === "azure-speech-fast-transcription" && azureTranscripts.length === 2);
+  ok("Azure phrases normalize Hinglish locale and word millisecond timestamps",
+    azureTranscripts[0].value.language === "en-IN" && azureTranscripts[1].value.language === "hi-IN" &&
+    azureTranscripts.every((entry) => entry.value.words.every((word) => word.end_ms > word.start_ms)) &&
+    azureOutput.evidence.filter((entry) => entry.evidence_type === "language_span").every((entry) => entry.value.code_switch));
+  ok("Azure request uses direct inline multipart bytes and never a storage URL",
+    requests.length === 1 && requests[0].url ===
+      "https://fixture-speech.cognitiveservices.azure.com/speechtotext/transcriptions:transcribe?api-version=2025-10-15" &&
+    requests[0].uploaded.equals(azureAudio) && !requests[0].definition.audioUrl &&
+    JSON.stringify(requests[0].definition) === JSON.stringify({
+      locales: ["en-IN", "hi-IN"], diarization: { enabled: true, maxSpeakers: 4 },
+    }) && !Object.keys(requests[0].init.headers).some((key) => key.toLowerCase() === "content-type"));
+  ok("Azure key stays in the auth header rather than URL or multipart body",
+    requests[0].init.headers["Ocp-Apim-Subscription-Key"] === "fixture-key-never-sent-to-azure" &&
+    !requests[0].url.includes("fixture-key") && !requests[0].uploaded.includes("fixture-key"));
+
+  const baseAzure = (overrides = {}) => AzureFast.createAzureFastTranscriptionAdapter({
+    endpoint: "https://centralindia.api.cognitive.microsoft.com/",
+    apiKey: "fixture-key-never-sent-to-azure",
+    timeoutMs: 5_000,
+    resolveInput: async () => ({ body: azureAudio, mime: "audio/wav", byteSize: azureAudio.length }),
+    fetchImpl: async () => new Response(JSON.stringify(payload), { status: 200 }),
+    ...overrides,
+  });
+  ok("Azure adapter fails closed without explicit endpoint and authentication",
+    throws(() => AzureFast.createAzureFastTranscriptionAdapter({ resolveInput: async () => ({}) })) &&
+    throws(() => AzureFast.createAzureFastTranscriptionAdapter({
+      endpoint: "https://centralindia.api.cognitive.microsoft.com/", resolveInput: async () => ({}),
+    })));
+  ok("non-Azure and path-bearing endpoints are rejected before fetch",
+    throws(() => baseAzure({ endpoint: "https://example.com/" })) &&
+    throws(() => baseAzure({ endpoint: "https://fixture-speech.cognitiveservices.azure.com/proxy" })));
+
+  const privateUrlError = await captureAsync(() => baseAzure({
+    resolveInput: async () => ({ signedReadUrl: "https://private.invalid/short-lived" }),
+  }).transcribe({ source, inputs: [azureArtifact] }));
+  ok("short-lived storage capabilities must resolve server-side to bytes, never Azure-facing URLs",
+    privateUrlError?.code === "azure_asr_private_url_forbidden" && privateUrlError.retryable === false);
+
+  const badDigest = await captureAsync(() => baseAzure().transcribe({
+    source, inputs: [{ ...azureArtifact, sha256: "f".repeat(64) }],
+  }));
+  ok("Azure upload is blocked when private bytes do not match artifact lineage",
+    badDigest?.code === "azure_asr_input_integrity_mismatch" && badDigest.retryable === false);
+
+  const throttled = await captureAsync(() => baseAzure({
+    fetchImpl: async () => new Response("content deliberately ignored", {
+      status: 429, headers: { "retry-after": "3" },
+    }),
+  }).transcribe({ source, inputs: [azureArtifact] }));
+  const unauthorized = await captureAsync(() => baseAzure({
+    fetchImpl: async () => new Response("content deliberately ignored", { status: 401 }),
+  }).transcribe({ source, inputs: [azureArtifact] }));
+  ok("Azure 429 is retryable and bounded without exposing response content",
+    throttled?.code === "azure_asr_http_429" && throttled.retryable === true && throttled.retryAfterMs === 3_000 &&
+    !throttled.message.includes("content"));
+  ok("Azure authentication failures are permanent until configuration changes",
+    unauthorized?.code === "azure_asr_http_401" && unauthorized.retryable === false);
+
+  const invalidResponse = await captureAsync(() => baseAzure({
+    fetchImpl: async () => new Response(JSON.stringify({
+      phrases: [{ offsetMilliseconds: 0, durationMilliseconds: 100, text: "missing words", locale: "en-IN", confidence: 0.8 }],
+    }), { status: 200 }),
+  }).transcribe({ source, inputs: [azureArtifact] }));
+  ok("missing word timestamps fail closed instead of degrading the evidence contract",
+    invalidResponse?.code === "azure_asr_response_invalid" && invalidResponse.retryable === false);
+
+  const timeout = await captureAsync(() => baseAzure({
+    timeoutMs: 20,
+    fetchImpl: async (_url, init) => new Promise((_resolve, reject) => {
+      init.signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })), { once: true });
+    }),
+  }).transcribe({ source, inputs: [azureArtifact] }));
+  ok("Azure calls have a bounded timeout classified for worker retry",
+    timeout?.code === "azure_asr_timeout" && timeout.retryable === true);
+
+  const controller = new AbortController();
+  controller.abort();
+  const cancelled = await captureAsync(() => baseAzure().transcribe({
+    source, inputs: [azureArtifact], signal: controller.signal,
+  }));
+  ok("caller cancellation is preserved as non-retryable cancellation",
+    cancelled?.code === "azure_asr_aborted" && cancelled.retryable === false);
+
+  const providerSource = readFileSync(
+    join(ROOT, "api/_replica-processing/providers/azure-fast-transcription.js"), "utf8",
+  );
+  ok("provider contains no content logging or silent fake fallback",
+    !/console\.(?:log|info|warn|error)/.test(providerSource) && !/providers\/fake|deterministic-fake/.test(providerSource));
+}
 
 const voice = await Worker.executeProcessingJob({
   job: job("voice_quality"), source, adapters, artifactStore: store,

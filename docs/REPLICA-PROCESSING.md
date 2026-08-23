@@ -1,8 +1,8 @@
 # Replica noisy-evidence processing contract
 
-Status: backend contract slice, offline fake implementation, no production ML claim.
+Status: backend contract slice plus one real Azure Speech HTTP adapter. All provider tests are mocked; no live quality claim or spend has occurred.
 
-This slice turns a quarantined self-replica audio/video source into immutable preprocessing candidates and cited evidence. It does **not** claim that denoising, ASR, diarization, embeddings, speaker selection, voice cloning, or human similarity are solved. The only included provider is deterministic fake data for boundary and retry tests.
+This slice turns a quarantined self-replica audio/video source into immutable preprocessing candidates and cited evidence. It does **not** claim that denoising, ASR accuracy, diarization, embeddings, speaker selection, voice cloning, or human similarity are solved. Deterministic fake providers remain the default structural fixtures. The Azure adapter is real request/response code, but has only been exercised against mocked HTTP responses.
 
 ## Non-negotiable invariants
 
@@ -45,6 +45,7 @@ Only audio and the audio track of video enter this DAG. Text, documents, images,
 - `api/_replica-processing/repository.js`: create-only, idempotent persistence; a deterministic ID collision with different content is fatal.
 - `api/_replica-processing/builders.js`: source-set hashing, portable draft builders, approval readiness, and the model-build state machine.
 - `api/_replica-processing/providers/fake.js`: test fixtures only. Its byte payload literally says `FAKE-NOT-AUDIO`.
+- `api/_replica-processing/providers/azure-fast-transcription.js`: direct Azure Speech fast-transcription adapter with private inline upload, Hinglish locale normalization, deadlines and bounded error classification.
 - `db/migrations/017_replica_processing_manifests.sql`: attempt, artifact, evidence/decision and model-build records.
 - `evals/replica-processing/run.mjs`: offline boundary suite, wired as `replicaprocessing` in the root eval runner.
 
@@ -66,6 +67,52 @@ All adapters expose `{ family, name, version }` plus one stage method. The curre
 Adapter names are retained for reproducibility. They do not enter the public VoiceGenome as external voice/profile IDs.
 
 An immutable artifact store must implement `writeImmutable({ bucket, objectPath, body, mime, expectedSha256, ifNoneMatch: "*" })`. A production store must stream bytes, compute or independently verify the digest, reject overwrites, keep the bucket private, and never persist a signed URL.
+
+## First real adapter: Azure Speech fast transcription
+
+Decision date: 2026-08-24. The adapter uses the Azure Speech synchronous fast-transcription operation:
+
+```text
+POST {speech-resource-endpoint}/speechtotext/transcriptions:transcribe?api-version=2025-10-15
+Content-Type: multipart/form-data
+audio: inline binary
+definition: { "locales": ["en-IN", "hi-IN"] }
+```
+
+This interface was chosen over batch transcription for the first real integration because:
+
+- the [official fast-transcription guide](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/fast-transcription-create) describes synchronous, faster-than-realtime transcription for uploaded audio;
+- the [2025-10-15 REST reference](https://learn.microsoft.com/en-us/rest/api/speechtotext/transcriptions/transcribe?view=rest-speechtotext-2025-10-15) accepts inline multipart bytes and returns phrase offsets, durations, confidence, locale, speaker and word timestamps;
+- batch transcription is intended for large sets/long files supplied through URLs or Azure containers, while this boundary must not disclose a private storage URL;
+- no asynchronous job is created by this operation, so there is no polling or cancellation endpoint to implement. Cancellation aborts the in-flight HTTP request.
+
+The official reference currently states a maximum of 250 MB and two hours per file. The adapter enforces those conservative limits even though another Azure overview page currently shows larger limits. Its default in-process byte cap is lower (64 MiB) to protect a serverless worker; callers may explicitly raise it, but never above 250 MB. Inputs are processed sequentially and capped at four candidates per job.
+
+### Hinglish behavior
+
+The default candidate locales are `en-IN` and `hi-IN`. Both appear in Azure's [Speech-to-text language support table](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-support), and Azure's [language-identification guidance](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/configure-language-identification-diarization) recommends a small accurate candidate set for short/noisy recordings. Each returned phrase keeps Azure's locale, confidence and exact word offsets. `code_switch` means that Azure returned more than one phrase locale for that candidate; it is evidence to review, not ground truth about every word.
+
+This default must be evaluated on real Hindi-English code-switching, Indian accents, names, informal speech and the project's actual noise distributions. Mocked phrases prove normalization only. They say nothing about Azure's word error rate, language labels, accent fidelity or downstream replica quality.
+
+### Private input and authentication contract
+
+`createAzureFastTranscriptionAdapter` requires all of the following explicitly:
+
+- an HTTPS Azure Speech endpoint under `*.cognitiveservices.azure.com` or `*.api.cognitive.microsoft.com`;
+- exactly one credential mechanism: an Azure Speech key or an async Microsoft Entra token provider;
+- `resolveInput({ source, input, signal })`, which consumes the application's short-lived private read capability and returns `{ body, mime, byteSize }`.
+
+`body` can be bounded bytes, a Blob, or an async byte stream. The adapter recomputes SHA-256 and compares it with the immutable artifact manifest before contacting Azure. Resolver results containing `url`, `signedReadUrl` or `audioUrl` are rejected: Azure receives inline bytes, never the storage capability. Authentication stays in `Ocp-Apim-Subscription-Key` or `Authorization`; it is never added to a URL or multipart field.
+
+The adapter has no environment defaults and no fake fallback. Missing endpoint, credential, resolver, duration, MIME, digest, word timestamps, locale or confidence fails closed. It does not log transcript text, response bodies, endpoints or credentials. Each input has a deadline and accepts the worker's `AbortSignal`. Network errors, timeouts, HTTP 408/409/429 and 5xx are retryable by the existing bounded job policy; authentication, invalid request/media, integrity and malformed-response failures are not. Azure response content is never copied into thrown errors.
+
+### Region, billing and live prerequisite
+
+Azure's [current Speech region table](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/regions) lists fast transcription in `centralindia`; it explicitly says `southindia` does not support Speech processing. The closest configured choice should therefore be a Speech or Azure AI Services resource in Central India, subject to quota availability. Keys are region-scoped and must match the resource endpoint.
+
+Fast transcription is an Azure Speech meter billed per audio duration according to the [official Azure Speech pricing page](https://azure.microsoft.com/en-us/pricing/details/speech/), not a third-party marketplace endpoint. Microsoft's [startup sponsorship coverage policy](https://learn.microsoft.com/en-us/startups/benefits/technical-benefits/azure-credits/foundry-model-sponsorship-coverage) says services/models sold and billed directly by Azure are credit-eligible, but the policy page does not enumerate every Speech SKU or every grant offer. Before the first live call, confirm in the actual subscription that the Central India Speech resource can be created, its meter is covered by the user's specific $2,000 grant, a spend alert is active, and fast-transcription quota is nonzero.
+
+No resource, deployment, key, token, quota or live request was created by this implementation. The remaining live prerequisite is an explicitly approved Central India resource endpoint plus a key/Entra identity, private-object resolver wiring, and a small consented noisy-Hinglish evaluation corpus with a predeclared spend cap.
 
 ## Worker transaction order
 
@@ -100,7 +147,7 @@ Changing any accepted evidence digest changes the source-set hash and therefore 
 ## Production work still required
 
 - Deploy an authenticated internal queue consumer/sweeper; there is no public worker endpoint in this slice.
-- Select and validate real streaming integrity, malware, media-probe, diarization, separation/enhancement, ASR/alignment and multi-family speaker-analysis adapters.
+- Select and validate real streaming integrity, malware, media-probe, diarization, separation/enhancement, alignment and multi-family speaker-analysis adapters; live-validate Azure ASR before treating it as evidence quality.
 - Add real storage and database integration tests, lease-race tests, cancellation/timeouts, resource limits and observability with content-free logs.
 - Add explicit target-speaker/third-party review, PII policy, candidate audition/selection, deletion of rejected derivatives, and encrypted biometric retention controls.
 - Establish real noisy/accent/code-switch corpora, human calibration protocols, anti-spoof/liveness tests and held-out identity/accent/prosody evaluations. Structural fake-provider tests are not evidence of model quality.

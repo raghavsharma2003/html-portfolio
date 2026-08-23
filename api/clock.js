@@ -35,6 +35,7 @@
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { personIdFor } from "./memory.js";
+import { MEERA_AGENT_ID } from "./_agentscope.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_SESSION = 96; // same cap as the telemetry session id
@@ -80,9 +81,9 @@ export default async function handler(req, res) {
       // and read the tier in the same round trip.
       const rows = await q(
         `with s as (
-           insert into vy_session (session_id, person_id, continuous_ms)
-           values ($1, $2, $3)
-           on conflict (session_id) do update set
+           insert into vy_session (agent_id, session_id, person_id, continuous_ms)
+           values (($4)::uuid, $1, $2, $3)
+           on conflict (agent_id, session_id) do update set
              continuous_ms = greatest(
                case when now() - vy_session.last_activity > interval '30 minutes'
                     then 0
@@ -96,7 +97,7 @@ export default async function handler(req, res) {
          select s.continuous_ms, s.disclosures, s.last_disclosure_at,
                 coalesce(p.age_tier, 'unverified') as age_tier
          from s left join vy_person p on p.person_id = s.person_id`,
-        [session, person, claimed],
+        [session, person, claimed, MEERA_AGENT_ID],
         5_000,
       );
       const r = rows[0] || {};
@@ -122,13 +123,13 @@ export default async function handler(req, res) {
       // greatest(), not assignment: fires can arrive out of order after an
       // offline stretch, and the ledger must never count backwards
       await q(
-        `insert into vy_session (session_id, person_id, disclosures, last_disclosure_at)
-         values ($1, $2, $3, now())
-         on conflict (session_id) do update set
+        `insert into vy_session (agent_id, session_id, person_id, disclosures, last_disclosure_at)
+         values (($4)::uuid, $1, $2, $3, now())
+         on conflict (agent_id, session_id) do update set
            disclosures = greatest(vy_session.disclosures, $3::integer),
            last_disclosure_at = now(),
            last_activity = now()`,
-        [session, person, n],
+        [session, person, n, MEERA_AGENT_ID],
         5_000,
       );
       // the audit event (§2.6): compliance is a query over meera_events

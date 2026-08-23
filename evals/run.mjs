@@ -88,6 +88,19 @@ const suites = {
   // and draft-only VoiceGenome builds. Fake adapters prove contracts only;
   // there is no network, model call or quality claim in this gate.
   replicaprocessing: "replica-processing/run.mjs",
+  // Replica delivery safety: active verified self-only capability, approved
+  // version bindings, audible disclosure before playback, streaming watermark,
+  // C2PA asset binding and a signed content-free public receipt. Production
+  // refuses the deterministic adapters used by this offline gate.
+  replicaprovenance: "replica-provenance/run.mjs",
+  // Owner processing review: strict tenant binding, append-only controlled
+  // decisions, privacy-safe summaries, real-evidence readiness and an
+  // idempotent draft-only VoiceGenome queue.
+  replicareview: "replica-review/run.mjs",
+  // Second-agent readiness: every shipping insert names agent_id, every
+  // relational/natural-key arbiter is composite, and compatibility defaults
+  // have explicit strict migrations with a working negative control.
+  agentstrict: "agent/strict-readiness.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),
