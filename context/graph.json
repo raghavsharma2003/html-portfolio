@@ -1425,6 +1425,42 @@
       "kind": "measurement",
       "at": "2026-08-23",
       "title": "Six-slice wave: forget 5.9 to 76.5, patterns unreachable fixed, sound/notify/knows shipped, 13/13 twice"
+    },
+    {
+      "id": "move-voice-one-timeline",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "Seeded think-time table + no pre-line + a clause stating the choice closed; her hand and her voice on one clock"
+    },
+    {
+      "id": "game-notes-ride-a-send-seam",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "noteVerdict(ply, session, speaking) -> send/stale/hold; a note may not outlive the position it describes"
+    },
+    {
+      "id": "pre-line-before-the-move",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "The deliberating pre-line cannot be ordered before the piece on the live lane; silent move + past-tense line instead"
+    },
+    {
+      "id": "past-tense-is-not-enough",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "The note was already past tense when the defect shipped; what was missing was stating the choice CLOSED"
+    },
+    {
+      "id": "movevoice-timing-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "Browser: 25 of her turns timed per game, floor held, spread ~6.3s, 245/265 ordering pairs track the table"
+    },
+    {
+      "id": "movevoice",
+      "kind": "component",
+      "at": "2026-08-23",
+      "title": "The board's clock and her voice: think table, settled clause, send seam"
     }
   ],
   "edges": [
@@ -2612,6 +2648,36 @@
       "src": "improvement-wave-2026-08-23",
       "rel": "measured_by",
       "dst": "memory-wave-2026-08-23"
+    },
+    {
+      "src": "move-voice-one-timeline",
+      "rel": "measured_by",
+      "dst": "movevoice-timing-2026-08-23"
+    },
+    {
+      "src": "move-voice-one-timeline",
+      "rel": "caused_by",
+      "dst": "pre-line-before-the-move"
+    },
+    {
+      "src": "game-notes-ride-a-send-seam",
+      "rel": "caused_by",
+      "dst": "past-tense-is-not-enough"
+    },
+    {
+      "src": "past-tense-is-not-enough",
+      "rel": "constrains",
+      "dst": "move-voice-one-timeline"
+    },
+    {
+      "src": "move-voice-one-timeline",
+      "rel": "part_of",
+      "dst": "movevoice"
+    },
+    {
+      "src": "game-notes-ride-a-send-seam",
+      "rel": "part_of",
+      "dst": "movevoice"
     }
   ]
 }

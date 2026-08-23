@@ -300,6 +300,13 @@ const FATE = {
   messages: "clear+forget",
   followup: "clear+forget", // an armed "back in 20 min" belongs to a chat that no longer exists
   herLife: "clear+forget", // her improvised life was improvised AT him
+  // WS-HERNOW, and `activity-forgot-the-teardown` for the fourth time: her
+  // present moment is one row with a started-at in it, and a survivor would
+  // open the conversation that begins by not knowing him with "twenty minutes
+  // into a book" — a duration she started living in a relationship that has
+  // just been deleted. It is deterministic (engine/herNow.ts), so wiping it
+  // costs nothing: the next read rebuilds one from the clock.
+  herNow: "clear+forget",
   inner: "clear+forget", // a feeling whose cause was deleted is a causeless mood
   clearedAt: "clear+forget", // written, not cleared: the synced tombstone IS the teardown
   game: "clear+forget", // `activity-forgot-the-teardown`: resuming a match you were forgotten over
@@ -313,6 +320,13 @@ const FATE = {
   tally: "clear+forget", // "12 games, she's ahead 7-5" over a record that starts today
   momentsFired: "clear+forget", // a dead ledger means a new relationship can never fire its first game
   recentMoment: "clear+forget", // her first sentences to a stranger, about their hundred days
+  declinedRing: "clear+forget", // the moment a her-ring was declined; a moment, not memory, but a fresh one must not survive either door and re-fire a line at a stranger
+  // WS-SHARENOW's local share mirror. Same rule, fifth instance: "you were
+  // watching their screen together till 3 min ago, and here is what you said
+  // about it" is a shared minute recited to somebody she has just been told she
+  // has never met — and it is the block that sits FIRST in the brief, ahead of
+  // everything else, so a surviving mirror would be the first thing she says.
+  shares: "clear+forget",
 
   // ── relational memory, forget only ──
   // C1, the final audit's one ship-blocker. Clear-chat leaves the profile

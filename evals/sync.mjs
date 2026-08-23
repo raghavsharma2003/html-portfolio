@@ -65,7 +65,12 @@ const base = {
 // ── the push list carries every relational field ──────────────────────────
 {
   const acct = readFileSync(new URL("../src/engine/account.ts", import.meta.url), "utf8");
-  for (const f of ["herLife", "inner", "game", "activities", "tally", "momentsFired", "followup"]) {
+  // `herNow` joined this list on the day it was added, which is the rule the
+  // comment in syncableState states: her present moment is the same present
+  // moment on the phone and on the laptop, or she is reading on one device
+  // and doing something else on the other — the reported bug, arriving over
+  // the wire instead of over a re-roll.
+  for (const f of ["herLife", "herNow", "inner", "game", "activities", "tally", "momentsFired", "followup"]) {
     ok(`syncableState pushes ${f}`, new RegExp(`${f}: s\\.${f}`).test(acct));
   }
   // theme is a device preference by decision — it must NOT sync
@@ -85,7 +90,7 @@ const base = {
   // knowing you — and momentLine feeds sharedVocab, so the honesty layer
   // scored that invented history as supported. evals/teardown.mjs now checks
   // this class mechanically; this line is the specific field.
-  for (const f of ["herLife", "inner", "game", "activities", "tally", "momentsFired", "callback", "recentMoment"]) {
+  for (const f of ["herLife", "herNow", "inner", "game", "activities", "tally", "momentsFired", "callback", "recentMoment"]) {
     ok(`account switch resets ${f}`, upto.includes(`${f}:`), f);
   }
   // the game arrives from the same server row merge.ts shape-guards, and this

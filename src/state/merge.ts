@@ -116,6 +116,39 @@ export function mergeGame(
   return progressOf(remote) > progressOf(local) ? remote : local;
 }
 
+/**
+ * Her present moment, merged. LATER START WINS, WHOLESALE.
+ *
+ * Wholesale for the reason `inner` is: an activity and the instant it began
+ * must never come from different revisions, or she claims a duration for
+ * something she started somewhere else. A field-by-field merge could produce
+ * "reading, since forty minutes ago" out of two rows that never both existed,
+ * and `herNow` exists precisely so every duration is computable.
+ *
+ * The remote half crossed a trust boundary — another device's parse of its own
+ * localStorage, or a row written by an older build — so it is shape-checked
+ * before it can win, exactly like `game` two lines down. A malformed row is
+ * not adopted; the local one stands, and the derivation would rebuild it
+ * anyway.
+ */
+function isHerNow(v: any): boolean {
+  return (
+    !!v &&
+    typeof v === "object" &&
+    typeof v.activity === "string" &&
+    v.activity.length > 0 &&
+    typeof v.key === "string" &&
+    Number.isFinite(v.startedAt) &&
+    Number.isFinite(v.naturalSpanMs)
+  );
+}
+
+export function mergeHerNow(local: AppState["herNow"], remote: any): AppState["herNow"] {
+  if (!isHerNow(remote)) return local;
+  if (!local) return remote as AppState["herNow"];
+  return remote.startedAt > local.startedAt ? (remote as AppState["herNow"]) : local;
+}
+
 export function mergeStates(local: AppState, remote: any): Partial<AppState> {
   const clearedAt = Math.max(local.clearedAt ?? 0, Number(remote?.clearedAt) || 0);
   // THE LOCAL HALF IS KEPT ENTIRE, past the tombstone. Not "the last N of the
@@ -199,6 +232,13 @@ export function mergeStates(local: AppState, remote: any): Partial<AppState> {
     // come from different revisions.
     herLife: remote?.herLife?.length && !local.herLife?.length ? remote.herLife : local.herLife,
     inner: (Number(remote?.inner?.at) || 0) > (local.inner?.at ?? 0) ? remote.inner : local.inner,
+    // Her present moment — LATER START WINS, wholesale, exactly like `inner`
+    // above and for a sharper version of the same reason: an activity and the
+    // instant it began must never come from different revisions, or she
+    // claims a duration for something she started somewhere else. A merge
+    // that took the fields apart would be able to produce "reading, since
+    // 40 minutes ago" out of two rows that never both existed.
+    herNow: mergeHerNow(local.herNow, remote?.herNow),
     // the remote half crosses a trust boundary (another device's parse of
     // its own localStorage) — shape-guard it, or a malformed session becomes
     // a blank screen that SYNCS. isGameSession is the same guard loadState

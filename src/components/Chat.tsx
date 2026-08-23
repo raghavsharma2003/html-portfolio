@@ -7,12 +7,16 @@ import "../styles/thread.css";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think, formatHerLife } from "../engine/brain";
-import { activityOf } from "../state/game";
+import { activityOf, activityPickupLine } from "../state/game";
+// WS-HERNOW. Her present moment is a ledger with one row, not a fresh
+// improvisation per turn — see src/engine/herNow.ts.
+import { herNowAt } from "../engine/herNow";
 import {
   HER_NAME,
   OPEN_DIRECTIVE,
   FOLLOWUP_DIRECTIVE,
   AFTERCALL_DIRECTIVE,
+  DECLINED_CALL_DIRECTIVE,
 } from "../engine/persona";
 import type { Story } from "../engine/storyCatalog";
 import {
@@ -25,7 +29,7 @@ import {
   messagesAfterForget,
 } from "../engine/memory";
 import { applyInner, wantsForAppraisal } from "../engine/inner";
-import { burstDecide, recentUserGaps, unansweredTail, type BurstTurn } from "../engine/burst";
+import { burstDecide, followUpRate, recentUserGaps, unansweredTail, type BurstTurn } from "../engine/burst";
 import { track } from "../engine/account";
 import { tel, telFlush, createComposeTracker } from "../engine/telemetry";
 import type { HeartReply } from "../engine/localHeart";
@@ -37,6 +41,9 @@ import { fmtTime } from "./fmtTime";
 import { registerLocalClip } from "./VoiceNote";
 import { ChessIcon, ForkIcon, GridIcon } from "./GamesHub";
 import { detectGameInvite, type GameKind } from "../engine/gameInvite";
+// WS-SHECALLS. His ask, read off the thread — she rings him through the
+// callback seam App already owns. See the block by `callInvite` below.
+import { detectCallInvite, ringAt, type CallTurn } from "../engine/callInvite";
 import { listen, sttSupported } from "../voice/speech";
 import { tap, land } from "../native/haptics";
 // WS-SOUND. The thread is where the two most-heard cues in the product live.
@@ -176,7 +183,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     lastPrefill.current = n;
   }, [composePrefill]);
   // clearing parks the conversation for ten seconds instead of destroying it
-  type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt" | "game" | "activities" | "callback" | "tally" | "momentsFired" | "recentMoment" | "followup"> &
+  type Snapshot = Pick<AppState, "messages" | "herLife" | "herNow" | "inner" | "clearedAt" | "game" | "activities" | "shares" | "callback" | "tally" | "momentsFired" | "recentMoment" | "followup" | "declinedRing"> &
     // present ONLY on the forget path: clear-chat keeps her memory of HIM by
     // its own copy's promise; forget-everything must take user too, or "she
     // starts over not knowing you" ships with "lives in: pune" still in the
@@ -319,30 +326,78 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   // the tracker note above), and this rides the handlers that exist.
   const draftRef = useRef("");
   const lastKeyAt = useRef(0);
+  // ── and the two signals that were missing, which is WHY it recurred ──
+  //
+  // A keystroke is only the LAST thing a person does before sending. Before it
+  // they reach for the box and the keyboard comes up, and for the second or two
+  // that takes there is a draft of zero characters and no key has been pressed —
+  // which the shipped policy could not tell apart from a phone face-down on a
+  // table. That gap is where "she won't let me type one, two messages" lives:
+  // measured at 2.13s to her reply with the composer focused, the keyboard up
+  // and his hand on it.
+  //
+  // `engagedAt` is the union clock — focus, keyboard, keystroke — and it never
+  // advances while he is idle, which is what keeps `burstDecide`'s holds bounded
+  // without a second timer. Refs for the same reason as the two above: presence
+  // must not cost a render.
+  const composerFocused = useRef(false);
+  const keyboardOpen = useRef(false);
+  const lastEngagedAt = useRef(0);
+  const engaged = () => {
+    lastEngagedAt.current = Date.now();
+  };
   // the same clock as burstTimer, but owned by a chain that is already mid-turn
   const chainTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { messages, user, apiKey, openrouterKey } = state;
 
-  const brainKeys = () => ({
-    openrouterKey,
-    openrouterModel: state.openrouterModel,
-    apiKey,
-    deviceId: state.deviceId,
-    herLife: formatHerLife(state.herLife),
-    // where she actually is: one carried feeling and what she wants. Read
-    // only — brain.ts decides whether it reaches the prompt at all.
-    inner: state.inner,
-    // WHAT THEY ARE DOING. Same derivation the call lane reads, from the same
-    // field — that is the point of `activityOf` living in state/game.ts rather
-    // than in either lane. A game paused to type a message is still a game, so
-    // she can be mid-board in chat and pick the call up already knowing where
-    // it stands. Null when nothing is going on, which renders zero bytes and
-    // leaves every byte-identity fixture untouched.
-    activity: activityOf(state.game),
-    // #117 — the milestone that just crossed, if any; brain.ts owns freshness
-    moment: state.recentMoment ?? null,
-  });
+  // WS-HERNOW. What she is doing THIS MINUTE, read from the one ledger every
+  // lane reads. App truth outranks it, so a board on screen is still what she
+  // is in the middle of; otherwise the stored row wins for as long as its
+  // natural span runs, which is what stops a second question five minutes
+  // later getting a different answer. `commit` is non-null only when the
+  // ledger genuinely moved on, so this writes at a transition and never per
+  // turn. ONE Date.now() for the whole bag: the elapsed she may claim and the
+  // row it is computed from have to come from the same instant.
+  const presentNow = (now: number) => {
+    const act = activityOf(state.game, now);
+    return herNowAt({
+      now,
+      stored: state.herNow,
+      appTruth: act ? { line: activityPickupLine(act), startedAt: act.startedAt } : null,
+    });
+  };
+
+  const brainKeys = () => {
+    const now = Date.now();
+    const present = presentNow(now);
+    if (present.commit) {
+      const row = present.commit;
+      setState((s) => (s.herNow?.key === row.key ? s : { ...s, herNow: row }));
+    }
+    return {
+      openrouterKey,
+      openrouterModel: state.openrouterModel,
+      apiKey,
+      deviceId: state.deviceId,
+      // T7 carries BOTH halves of her own life: the told ledger (fixed between
+      // them, never expires) and — appended — her present minute (never told,
+      // expires by its own span). formatHerLife's header states the seam.
+      herLife: formatHerLife(state.herLife, now, present.entry),
+      // where she actually is: one carried feeling and what she wants. Read
+      // only — brain.ts decides whether it reaches the prompt at all.
+      inner: state.inner,
+      // WHAT THEY ARE DOING. Same derivation the call lane reads, from the same
+      // field — that is the point of `activityOf` living in state/game.ts rather
+      // than in either lane. A game paused to type a message is still a game, so
+      // she can be mid-board in chat and pick the call up already knowing where
+      // it stands. Null when nothing is going on, which renders zero bytes and
+      // leaves every byte-identity fixture untouched.
+      activity: activityOf(state.game),
+      // #117 — the milestone that just crossed, if any; brain.ts owns freshness
+      moment: state.recentMoment ?? null,
+    };
+  };
   const sendCount = useRef(0);
   // ── reply pacing ──
   // She reads while the model thinks. `lastUserAt` is when they actually hit
@@ -956,6 +1011,42 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
 
+  // WS-SHECALLS residual (coordinator): she rang, he declined. One small
+  // unhurt line, once, a beat later - the AFTERCALL idiom with a different
+  // event. Local moment, cleared on consumption; any his-message first wins.
+  const declinedDone = useRef(0);
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const at = state.declinedRing;
+      if (!at || busy.current || delivering.current) return;
+      if (declinedDone.current === at) return;
+      const agoMs = Date.now() - at;
+      if (agoMs < 25_000 || agoMs > 10 * 60_000) {
+        if (agoMs > 10 * 60_000) setState((s) => ({ ...s, declinedRing: null }));
+        return;
+      }
+      // he spoke after declining: the thread is alive, no line needed
+      if (state.messages.some((m) => m.from === "me" && m.at > at)) {
+        declinedDone.current = at;
+        setState((s) => ({ ...s, declinedRing: null }));
+        return;
+      }
+      declinedDone.current = at;
+      setState((s) => ({ ...s, declinedRing: null }));
+      busy.current = true;
+      think(user, brainKeys(), state.messages, DECLINED_CALL_DIRECTIVE(Math.round(agoMs / 60_000)), "chat", "device", true).then(async (reply) => {
+        if (reply.bubbles.length) {
+          delivering.current = true;
+          await deliver(reply);
+          delivering.current = false;
+        } else busy.current = false;
+        if (dirty.current) armBurst(chatSeq.current);
+      });
+    }, 20_000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.declinedRing, state.messages.length]);
+
   // her self-scheduled follow-up: "back in 20 min" → when the clock hits,
   // she texts first (survives reloads — the timestamp is persisted)
   useEffect(() => {
@@ -1307,6 +1398,51 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   // NEVER-SCHEDULED, still true. `firstUnansweredAt` is 0 when nothing of his
   // is waiting, and both waiters stop dead on that. She is never on a bare
   // timer; the trigger is always a message of his that has not been answered.
+  // ── the soft keyboard, as a presence signal ──────────────────────────────
+  //
+  // There is no keyboard API. What every platform DOES do is shrink the visual
+  // viewport, and this app already watches that (`main.tsx` writes --vvh from
+  // it, and the effect above keeps the thread pinned through it) — the signal
+  // was already arriving and nothing downstream of it knew what it meant.
+  //
+  // Sensed against the TALLEST viewport seen in this orientation rather than
+  // `innerHeight`: Chromium resizes the layout viewport via the
+  // interactive-widget meta and iOS Safari does not, so `innerHeight` means two
+  // different things on the two platforms and the high-water mark means the
+  // same thing on both. A rotation invalidates the mark, so it is reset there.
+  //
+  // 140px, and it is a DEVICE threshold rather than a policy constant — no
+  // soft keyboard on any phone is shorter than that, and no browser chrome
+  // collapse is taller. The policy that reads it lives in burst.ts, which is
+  // the line burstwiring.mjs holds this file to.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let tallest = vv.height;
+    const onResize = () => {
+      tallest = Math.max(tallest, vv.height);
+      const open = tallest - vv.height > 140;
+      if (open !== keyboardOpen.current) {
+        keyboardOpen.current = open;
+        // OPENING is the act — he reached for the box. Closing is not: it is
+        // the state every sent message leaves behind, and stamping the clock on
+        // it would put a hold under every message. `burstDecide` only counts
+        // engagement that postdates his last message; see its own note.
+        if (open) engaged();
+      }
+    };
+    const onRotate = () => {
+      tallest = window.visualViewport?.height ?? tallest;
+      keyboardOpen.current = false;
+    };
+    vv.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onRotate);
+    return () => {
+      vv.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onRotate);
+    };
+  }, []);
+
   function burstNow(): { fire: boolean; recheckMs: number; log: () => void } | null {
     const turns = messagesRef.current as unknown as BurstTurn[];
     const tail = unansweredTail(turns);
@@ -1329,6 +1465,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       herLast: tail.herLast,
       draftLength: draftRef.current.trim().length,
       lastKeyAt: lastKeyAt.current,
+      // how often HE doubles, from the whole persisted thread — the wait's
+      // breadth, where `gaps` is only its depth
+      followUpRate: followUpRate(turns),
+      composerFocused: composerFocused.current,
+      keyboardOpen: keyboardOpen.current,
+      lastEngagedAt: lastEngagedAt.current,
     });
     return {
       fire: d.fire,
@@ -1343,6 +1485,11 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
           wait_ms: d.waitMs,
           msgs: tail.count,
           cont: d.continuation.reason,
+          // the two fields that would have found this recurrence from the
+          // telemetry alone: what shortened the breath, and whether she could
+          // see him at the keyboard at all when she took the floor.
+          done: d.completion.reason,
+          eng: (composerFocused.current ? "f" : "") + (keyboardOpen.current ? "k" : "") || "-",
         }),
     };
   }
@@ -1603,6 +1750,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       ...(mode === "forget" ? { user: state.user } : {}),
       messages: state.messages,
       herLife: state.herLife,
+      herNow: state.herNow,
       inner: state.inner,
       clearedAt: state.clearedAt,
       game: state.game,
@@ -1611,6 +1759,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       tally: state.tally,
       momentsFired: state.momentsFired,
       recentMoment: state.recentMoment,
+      declinedRing: state.declinedRing ?? null,
+      shares: state.shares,
       // wiped below like the rest, and so it has to come back like the rest:
       // an undone clear that silently drops her armed "back in 20 min" is a
       // promise she made and then didn't keep, which is the one kind of
@@ -1642,6 +1792,14 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       messages: [],
       followup: null,
       herLife: [],
+      // Her present moment goes with the conversation. It is a small row and
+      // it would have been a loud survival: the first thing she says to
+      // someone she has just been told she has never met would be twenty
+      // minutes into a book she was reading FOR HIM — `activity-forgot-the-
+      // teardown`, a fourth time. It is deterministic, so the next read
+      // rebuilds one; what must not survive is the started-at she shared
+      // with the relationship that has just been deleted.
+      herNow: null,
       inner: undefined,
       clearedAt: Date.now(),
       // The game and any armed callback die with the conversation. The owner
@@ -1685,6 +1843,14 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       // class mechanically: every optional AppState field is either wiped here
       // or exempted in writing, so the fourth field cannot slip quietly.
       recentMoment: null,
+      declinedRing: null,
+      // The FIFTH field under the same rule (WS-SHARENOW), and it is the class
+      // the rule was written for: "you were watching their screen together
+      // till 3 min ago, and here is what you said about it" is a shared minute
+      // recited to someone she has just been told she has never met. Wiped by
+      // BOTH doors like the ledger above it — the mirror is the conversation's
+      // own state, not a device fact.
+      shares: [],
     }));
     return snapshot;
   }
@@ -1742,6 +1908,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       ...s,
       messages: snap.messages,
       herLife: snap.herLife,
+      herNow: snap.herNow,
       inner: snap.inner,
       clearedAt: snap.clearedAt,
       game: snap.game,
@@ -1750,6 +1917,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       tally: snap.tally,
       momentsFired: snap.momentsFired,
       recentMoment: snap.recentMoment,
+      declinedRing: snap.declinedRing ?? null,
+      shares: snap.shares,
       followup: snap.followup,
       // the profile comes back only if the teardown took it (forget path)
       ...(snap.user ? { user: snap.user } : {}),
@@ -2311,6 +2480,90 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     tel("chat.game_invite", { kind: pendingInvite.kind, via: pendingInvite.via });
   }, [pendingInvite]);
 
+  // ── SHE CALLS HIM ────────────────────────────────────────────────────────
+  //
+  // The owner's screenshot, in two lines:
+  //
+  //     him: "U can call me"
+  //     her: "call button click kar na, main thodi kar sakti hu"
+  //
+  // She has been able to ring him since #107 — a dropped call arms
+  // `AppState.callback`, App paints `IncomingCall`, and accepting mounts the
+  // live call with `sheCalled=true` so she opens as the CALLER. What was
+  // stale was her belief, and she spent it declining a thing she can do.
+  //
+  // THE RING GOES THROUGH THAT SAME SEAM, and building a second one was the
+  // main thing this change had to not do. `AppState.callback` is the single
+  // fact in this product that means "she is phoning him": App owns the due
+  // time, the 10-minute plausibility TTL, the accept path that sets
+  // `callFrom="her"`, and the decline path that clears it and does not
+  // reschedule. A parallel path would be a second answer to "does she know
+  // she called", and two answers to that question is exactly the drift
+  // `useCallEngine`'s own comment warns about where it threads `sheCalled`.
+  // It also inherits the notify lane for free: App's missed-call effect is
+  // armed by `state.callback` itself, so a ring that lands while the app is
+  // backgrounded already reaches the lock screen on web and on Android.
+  //
+  // ANCHORED ON HER REPLY, WHICH IS THE SEQUENCING. `detectCallInvite`
+  // returns nothing until she has answered his ask in words, so the ring can
+  // only ever follow her line — and `ringAt` puts it 2-6s behind it. Nothing
+  // here touches the reply cycle, the burst clock or `deliver()`; the whole
+  // decision is a pure function of the messages already on screen.
+  //
+  // THIS IS INVITATION-TRIGGERED, NOT PROACTIVE. Its only input is a sentence
+  // he typed. `decisions.md#proactive-reason-contingent` is untouched: there
+  // is no timer here, no predicate on his silence, and nothing that can ring
+  // a thread he has not asked in.
+  const callInvite = useMemo(
+    () => detectCallInvite(visible as unknown as CallTurn[], Date.now()),
+    [visible],
+  );
+  // ONE PENDING SHE-CALL, ACROSS RELOADS. `state.callback` alone makes a
+  // repeat ask non-stacking while the ring is up, and a ref makes it
+  // non-stacking within this mount — but neither survives a reload, and the
+  // ask is still sitting in the thread afterwards. Without this, declining
+  // her call and reopening the app inside the freshness window rang him
+  // again, which is `IncomingCall.tsx`'s own law broken ("a declined call
+  // that comes back is a product nobody wants"). Device-local, like the
+  // callback it guards, and capped so it cannot grow.
+  const CALL_TAKEN_KEY = "meera.shecall.taken";
+  const callTaken = (askId: string): boolean => {
+    try {
+      return (JSON.parse(localStorage.getItem(CALL_TAKEN_KEY) || "[]") as string[]).includes(askId);
+    } catch {
+      return false;
+    }
+  };
+  const markCallTaken = (askId: string) => {
+    try {
+      const prev = JSON.parse(localStorage.getItem(CALL_TAKEN_KEY) || "[]") as string[];
+      localStorage.setItem(CALL_TAKEN_KEY, JSON.stringify([...prev, askId].slice(-20)));
+    } catch {
+      /* private mode, quota, no storage — the ref and state.callback still hold */
+    }
+  };
+  const sheCallArmed = useRef("");
+  useEffect(() => {
+    if (!callInvite) return;
+    if (inCall) return; // they are already talking
+    if (state.callback) return; // a ring is already pending: asks do not stack
+    if (sheCallArmed.current === callInvite.askId) return;
+    if (callTaken(callInvite.askId)) return;
+    // A call that already happened ANSWERS the ask. Without this, hanging up
+    // and saying anything else re-derived the same invite off the same ask.
+    const askAt = visible.find((m) => m.id === callInvite.askId)?.at ?? 0;
+    if (visible.some((m) => m.kind === "callmark" && (m.at || 0) > askAt)) return;
+    sheCallArmed.current = callInvite.askId;
+    markCallTaken(callInvite.askId);
+    const at = ringAt(Date.now());
+    // `secs: 0` — the subtitle's "call cut at m:ss" is a fact about a dropped
+    // call and there was no dropped call here, so it renders nothing rather
+    // than a number that would be a small lie on the biggest screen in the
+    // product.
+    setState((s) => (s.callback ? s : { ...s, callback: { at, secs: 0 } }));
+    tel("chat.she_calls", { via: callInvite.via, in_ms: at - Date.now() });
+  }, [callInvite, inCall, state.callback, visible, setState]);
+
   // ── windowing ────────────────────────────────────────────────────────────
   //
   // Only the tail of the thread is rendered. A memoised bubble stops a
@@ -2818,13 +3071,26 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
                 // composition all count as him still working on the message.
                 draftRef.current = e.target.value;
                 lastKeyAt.current = Date.now();
+                engaged();
                 setDraft(e.target.value);
                 e.target.style.height = "auto";
                 e.target.style.height = Math.min(110, e.target.scrollHeight) + "px";
               }}
-              onFocus={() =>
-                composer.focus(messagesRef.current[messagesRef.current.length - 1]?.at ?? 0)
-              }
+              onFocus={() => {
+                composer.focus(messagesRef.current[messagesRef.current.length - 1]?.at ?? 0);
+                // he is at the keyboard. On every other messaging product that
+                // is visible to the other person as the box lighting up, and it
+                // is the whole of the think-pause before the first letter.
+                composerFocused.current = true;
+                engaged();
+              }}
+              onBlur={() => {
+                // Not an `engaged()`: letting go of the box is not reaching for
+                // it, and stamping the clock here would arm a hold on the blur
+                // that sending itself produces. The settle beat he gets is the
+                // one his LAST real act already bought.
+                composerFocused.current = false;
+              }}
               onPaste={(e) => composer.paste(e.clipboardData?.getData("text")?.length ?? 0)}
               onCompositionStart={() => composer.imeStart()}
               onCompositionEnd={() => composer.imeEnd()}
@@ -2837,6 +3103,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
                 // a held backspace emits keydown without changing the value,
                 // and it is still him working on the message
                 lastKeyAt.current = Date.now();
+                engaged();
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   send();

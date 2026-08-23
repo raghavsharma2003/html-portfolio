@@ -28,6 +28,20 @@ const suites = {
   // WS-BURST. The multi-message wait policy — pure, offline, no model call,
   // wired here under the same `dead-writers` test as the suites below.
   burst: "burst.mjs",
+  // WS-BREATH. The scenario GRID — first-message shape × follow-up timing ×
+  // device shape × his rhythm, ~480 cells, each driven through the real surface
+  // clock in virtual time and checked against the seven properties the human
+  // model is made of (never cut him off, liveness, the floor, no dead air,
+  // handoff stays fast, the think-pause is not a cliff, web/Android parity).
+  //
+  // It exists because this defect has now been reported three times. Each wave
+  // fixed the shapes it could think of, and the shape that came back — a
+  // complete-LOOKING sentence followed by a think-pause — is the most ordinary
+  // cell in the space and had no test anywhere in the repo. The answer to
+  // "there will be thousands of cases" is a grid, not another patch.
+  //
+  // Pure, offline, deterministic, $0, ~1s.
+  burstgrid: "burstgrid.mjs",
   // WS-AWAY. T9 session.clock — the overnight-gap facts, and the negative
   // control that keeps them from becoming a greeting she recites.
   away: "away.mjs",
@@ -60,6 +74,15 @@ const suites = {
   wyr: "wyr.mjs",
   // WS-GAMES: tic-tac-toe — exhaustive legality + bounded imperfection.
   ttt: "ttt.mjs",
+  // WS-MOVEVOICE: her hand and her mouth on ONE timeline. The owner played
+  // chess on a call, she moved milliseconds after him, and then her voice said
+  // she SHOULD play the move already on the board. Gates the three halves of
+  // the fix — the seeded think-time table, the composed note that states the
+  // CHOICE as closed, and the send seam that drops a note whose position has
+  // moved. Carries the owner's exact case as a permanent fixture and its own
+  // negative control (the pre-fix note shape, which MUST be rejected).
+  // Offline, deterministic, $0, ~3s.
+  movevoice: "movevoice.mjs",
   // WS-GAMEPLAY: the chat-initiated game invite (src/engine/gameInvite.ts).
   // Deliberately lopsided toward NEGATIVE cases — a missed invite costs one
   // trip to the games menu, a spurious one is the app interrupting a
@@ -96,6 +119,18 @@ const suites = {
   // wired here rather than left standalone because `dead-writers` does not
   // stop applying to evals.
   callmem: "callmem/run.mjs",
+  // WS-SHARENOW. The share he had one minute before he called back: he
+  // screen-shared, hung up, called again sixty seconds later, asked what they
+  // had watched, and she did not know. The shared-history block DID carry
+  // share commentary — as the last three turns before the callmark, under a
+  // heading that calls it "BEFORE TODAY" and forbids reading it back — so the
+  // freshest thing that ever happens between them was the one thing the brief
+  // could not say. This drives the whole flow from the real source (her lines
+  // → the share-end mirror → the just-happened block → the real compiler) and
+  // carries the owner's exact scenario as a permanent fixture, plus its honest
+  // half: a share she was quiet through says so instead of inventing.
+  // Offline, deterministic, $0, ~3s.
+  sharenow: "sharenow/run.mjs",
   surface: "surface.mjs",
   // WS-MEMORY: finished games become graph episodes; the laundering predicate;
   // photo-forget path round-trips. Offline, db-free (config stub), ~2s.
@@ -105,6 +140,16 @@ const suites = {
   // and the legacy byte-identity fixture proving a kind-less ledger still
   // renders exactly as it did. Offline, $0, ~2s.
   herlife: "herlife.mjs",
+  // WS-HERNOW. Her present moment as a LEDGER with one row rather than a
+  // fresh improvisation per pickup: he called and she was reading; he called
+  // back one minute later and she was setting fairy lights, which are two
+  // nouns from the same story picture and nothing in the app held the answer
+  // she had already given. The suite carries BOTH fixtures — the one-minute
+  // re-call that must not change the activity, and the ninety-minute one that
+  // must — plus its own negative control (the pre-fix scene, seen going empty
+  // on exactly the pickup that broke). Offline, deterministic, $0, ~3s, and
+  // it re-bundles from the real source like everything else here.
+  hernow: "hernow.mjs",
   // WS-AFFECT: one rupture, every channel — the T2 stance block compiles
   // byte-identical across chat/cascade/live/watch, lapses cross all four
   // together, the record never moves, and G2 holds in both directions on

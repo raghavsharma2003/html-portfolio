@@ -12,6 +12,14 @@ import type { UserProfile } from "../persona";
 import type { RelState, PatternRow, WeEpisodeRow, PhraseRow } from "../relstate";
 import type { RitualRow, CurrencyRow } from "../india";
 import type { TierGates } from "../clock";
+// WS-HERNOW. The present-minute half of T7, built by the REAL renderer so the
+// bound cannot drift from what production assembles. `HERNOW_AT` is a fixed
+// instant (2026-08-23 19:45 IST — the night story slot, five minutes in) so
+// this fixture stays deterministic; the block's own worst case is asserted
+// separately in evals/hernow.mjs.
+import { deriveHerNow, formatHerNow } from "../herNow";
+
+const HERNOW_AT = Date.UTC(2026, 7, 23, 14, 15, 0);
 
 const USER: UserProfile = {
   name: "Aaaaaaaaaaaaaaaaaaaa", // worst-case-length name, matching the v1 guard's profile
@@ -28,9 +36,21 @@ const HEAVY_MEMORIES = Array.from(
     `- topic_${i} (kind, last came up ${i}h ago): ${"summary text ".repeat(11).trim().slice(0, 160)} — their own words: "feel_${i}" [rel_a, rel_b, rel_c, rel_d]`,
 ).join("\n");
 
-const HEAVY_HERLIFE = Array.from({ length: 12 }, (_, i) => `- fact about her own life number ${i} (${i}h ago)`).join(
-  "\n",
-);
+// WS-HERNOW. T7's string is TWO blocks now: the told ledger (12 rows, the cap
+// `formatHerLife` renders) and — on the lanes that re-compile per turn — her
+// present minute. The second half is built by the REAL renderer from a real
+// ledger row rather than typed out here, so this fixture cannot drift from
+// what production actually assembles; a hand-copied worst case is a bound
+// that stops being one the first time the block is edited.
+//
+// The two FROZEN call lanes deliberately carry only the first half (an
+// elapsed baked into a prompt that never recompiles is a duration that
+// becomes false as the call runs) — see scripts/check-prompt-budget.mjs's
+// HER_NOW_EXTRAS, which is 0 for exactly that reason.
+const HEAVY_HERLIFE =
+  Array.from({ length: 12 }, (_, i) => `- fact about her own life number ${i} (${i}h ago)`).join("\n") +
+  "\n\n" +
+  formatHerNow(deriveHerNow(HERNOW_AT), HERNOW_AT + 40 * 60_000);
 
 const HEAVY_INNER_THREAD =
   "\n\nSOMETHING YOU'RE CARRYING — " + "carried feeling text ".repeat(30).trim();

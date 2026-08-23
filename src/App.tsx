@@ -1122,6 +1122,13 @@ export default function App() {
             // her carried inner life, which is cross-account state bleed of
             // exactly the kind the lastAccountId guard exists to prevent.
             herLife: (r?.herLife as AppState["herLife"]) ?? [],
+            // Her present moment, from the row the account being switched TO
+            // actually holds — never carried across. It is small and it would
+            // bleed loudly: "reading, about twenty minutes in" is a duration
+            // she started living in somebody else's relationship. It is also
+            // deterministic (engine/herNow.ts), so an absent row costs nothing
+            // — the next read rebuilds one from the clock.
+            herNow: (r?.herNow as AppState["herNow"]) ?? null,
             inner: r?.inner,
             // SAME GUARD AS merge.ts, and it has to be spelled out here
             // rather than assumed: this branch is the sibling of the sync
@@ -1143,6 +1150,14 @@ export default function App() {
             // that has no days — and `momentLine` feeds `sharedVocab`, so the
             // honesty layer scored her invented shared history as SUPPORTED.
             recentMoment: null,
+            declinedRing: null,
+            // WS-SHARENOW's share mirror, and it is the same class one field
+            // over: "you were watching their screen together till 3 min ago"
+            // said to an account that has never shared a screen is the bleed
+            // this branch exists to stop, and it would be the FIRST block in
+            // the brief. Device-local like `recentMoment`, so there is no
+            // server row to adopt — it simply goes.
+            shares: [],
             callback: null,
           };
         }
@@ -1623,7 +1638,7 @@ export default function App() {
                 // Cleared, not rescheduled. A declined call that comes back is
                 // a product nobody wants, and "she called, he said no" is a
                 // complete answer.
-                setState((s) => ({ ...s, callback: null }));
+                setState((s) => ({ ...s, callback: null, declinedRing: Date.now() }));
                 track(state.deviceId, "call_declined", { incoming: true }, state.auth?.userId);
               }}
             />

@@ -1952,3 +1952,75 @@ drift guard hard-refuses any live run that would mix snapshots.
 **Reversed if:** the compiled-context distribution shifts enough that
 reviewers judge the frozen corpus unrepresentative (then both arms
 regenerate together, never one).
+
+---
+
+## `move-voice-one-timeline` — her hand and her mouth are one being
+
+**Decided 2026-08-23**, from the owner playing chess on a live call: she made
+her move milliseconds after his, and then two to three seconds later her voice
+said she SHOULD make the move that was already on the board.
+
+That is two agents on two clocks, and the fix is three separate things because
+the defect was three separate things wearing one coat.
+
+**1. The hold is a table, not a formula at a call site.** `her-chess-pace`
+already held her move for 0.8–2.2s / 1.8–6s off the ply count. That covered
+chess only (ttt had an unrelated 0.8–2.5s constant), was blind to the position
+beyond the ply count — a forced recapture and a wide-open middlegame decision
+took her the same three seconds — and lived inside a component effect where no
+eval could reach it. `state/game.ts` now owns `chessThinkMs`/`tttThinkMs`:
+pure, seeded on (position, session) so a replay agrees with the run it
+replays, bounded to [300ms, 7s] for every input including nonsense, with bands
+for book / opening / middlegame / endgame / forced and multiplicative
+modifiers for check, recapture and the width of the position.
+
+**2. There is no pre-line, and that is deliberate.** A short deliberating line
+before the piece lands would be lovely and is unshippable on the live lane:
+`direct()` hands text to a model that takes seconds to generate and start
+speaking, so a pre-line drafted during a 0.8s opening think arrives AFTER the
+move — the defect in a nicer hat. A silent move followed by a past-tense line
+is always coherent; a move followed by a future-tense line never is.
+
+**3. Past tense was necessary and not sufficient.** `moveFact` and
+`exchangeFact` were ALREADY past tense when the owner heard the defect. What
+the note did not say is that nothing is PENDING — and a model whose frozen
+prompt said "it is her move" at connect will happily deliberate about a move it
+was just told she made. `settledClause` / `tttSettledClause` state the choice
+as closed ("her move is already on the board, his turn now"), and
+`chessMoveNote` / `tttMoveNote` compose fact + clause so a call site cannot
+send one without the other.
+
+**Reverses if:** the held beat starts reading as lag rather than thought — the
+owner saying she is slow rather than that she is thinking. The fix would then
+be the middlegame band's ceiling (6s), not the floor, and not the determinism.
+
+## `game-notes-ride-a-send-seam` — a note may not outlive its position
+
+**Decided 2026-08-23**, same report. A game note is drafted against a board and
+then waits: for the conversation floor, for the breath pause, for the rate
+floor, and finally inside `direct()`, which holds it up to 1.2s while she
+finishes speaking. Her engine answers within a couple of seconds. So a note
+written at ply N could enter the socket at ply N+2.
+
+`noteVerdict(draftedAtPly, session, herVoiceIsLive)` is now the decision, in
+`state/game.ts` and therefore reachable from an eval rather than only from a
+running browser with a live socket — which is to say, only from the owner's
+ears, which is how this was found. Three outcomes: `stale` (the board moved →
+DROP, never send late), `hold` (she is mid-sentence → re-draft against the
+board as it is then, rather than hand a note into `direct()`'s wait), `send`.
+Staleness outranks holding: holding a stale note only makes it staler.
+
+The stamp is internal and never appears in the note's text — bracket-shaped
+metadata on this lane gets SPOKEN (`ack-bracket-direction`). What survives the
+seam is safe to land a beat late because of the settled clause above; a late
+note about a settled position is a small redundancy, a late note about an open
+one is the defect.
+
+`pokedPly` now advances only on a committed send, so a held note stays owed
+instead of being silently marked narrated.
+
+**Reverses if:** she goes quiet through games because too many notes are held
+and then dropped. The bounded re-draft (5 attempts at 600ms) is the number to
+raise first; dropping the staleness check is not on the table, because a
+comment on a position two moves gone cannot be un-said.

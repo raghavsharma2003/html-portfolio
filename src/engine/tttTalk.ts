@@ -79,6 +79,25 @@ export function tttMoveFact(game: Game, whoMoved: "her" | "him"): string {
 }
 
 /**
+ * ttt's `settledClause` — read `chessTalk.ts`'s for the reasoning, which
+ * applies here unchanged. A note about a move that does not also say the choice
+ * is CLOSED is a note a model will deliberate against, whatever tense it is in.
+ */
+export function tttSettledClause(game: Game, herMark: Mark): string {
+  if (game.status.over) return "";
+  if (!game.played.length) return game.status.turn === herMark ? "she opens, nothing played yet" : "";
+  return game.status.turn === herMark
+    ? "it is her turn, her square is not taken yet"
+    : "her square is already taken, his turn now";
+}
+
+/** ttt's `chessMoveNote` — read that function's header; same law, same reason
+ *  the composition lives here and not at the call site. */
+export function tttMoveNote(game: Game, herMark: Mark, whoMoved: "her" | "him"): string {
+  return [tttMoveFact(game, whoMoved), tttSettledClause(game, herMark)].filter(Boolean).join("; ");
+}
+
+/**
  * The rows that outlive the board — ttt's `chessRecord`. Read that function's
  * header for the reasoning; it applies here unchanged.
  *

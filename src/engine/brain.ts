@@ -43,6 +43,10 @@ import type { ActivityState } from "./activity";
 // T-H2 (formatHerLife, below) reuses T9's overnight predicate rather than
 // re-deriving one. away.ts imports only ./timeline, so this adds no cycle.
 import { crossedNight } from "./away";
+// WS-HERNOW. Her present moment as a ledger rather than a per-pickup roll.
+// herNow.ts imports only storyCatalog.ts (a leaf), so this adds no cycle —
+// the same check the away.ts line above documents for itself.
+import { formatHerNow, type HerNowEntry } from "./herNow";
 import { greetOnce, type GreetTurn } from "./greeting";
 // WS-MANIFEST Phase D prep (docs/SPEC.md §7.3 "chat lane call-site
 // adoption"): router.ts stays WS-ROUTER's exclusively (§13) — this is a
@@ -71,6 +75,12 @@ import {
   activityVocabulary,
 } from "./honesty";
 import type { Message } from "../state/store";
+// WS-SHARENOW. The just-happened block and the share mirror's holder, imported
+// rather than restated: there is exactly one definition in this repo of "what
+// the two of them just did" and a second one would diverge by not being
+// updated (`age-tier-never-realtime`'s law). The module reaches nothing this
+// file did not already reach — ./memory, ./honesty and ../state/store types.
+import { formatJustHappened, shareLedger } from "../voice/callHistory";
 
 const CLAUDE_MODEL = "claude-opus-5";
 // Default brain: Gemini 3.6 Flash — the best modern-Hinglish register we
@@ -349,22 +359,50 @@ export function activityStillRunning(at: number, nowMs: number): boolean {
   return !crossedNight(nowMs, age);
 }
 
+/**
+ * T7's string: what she has TOLD them, and — appended — where she actually is
+ * this minute.
+ *
+ * ── THE SEAM, BECAUSE THE TWO HALVES LOOK ALIKE AND ARE NOT ──────────────
+ *
+ *   the TOLD ledger (these rows)  is THE DAY AND BEFORE IT. She said these,
+ *     so they are fixed between the two of them and do not expire by the
+ *     clock; the compiler's own T7 header is written in exactly those words.
+ *   `present` (the appended block) is THE MINUTE. One activity, going on
+ *     right now, with an elapsed time computable from its `startedAt`, and
+ *     NOT something she has said. See src/engine/herNow.ts's header.
+ *
+ * The two never claim the same thing, and the block appended below opens by
+ * saying so — because T7's header says "you said these", and nothing in the
+ * present-moment block has been said to anybody.
+ *
+ * It rides T7 rather than earning a compiler slot for a structural reason:
+ * T7 is claimed by every lane in the parity table, so a present moment
+ * carried here cannot render in chat and go dark on the phone
+ * (`rejected.md#call-opens-with-amnesia-by-construction`). `present` is
+ * optional and defaults to nothing, so every existing caller is byte-
+ * identical — the watch lane deliberately stays one of them (see the herNow
+ * rows in `evals/lanes/run.mjs`).
+ */
 export function formatHerLife(
   facts?: Array<{ text: string; at: number; kind?: "activity" | "fact" }>,
   nowMs: number = Date.now(),
+  present?: HerNowEntry | null,
 ): string {
-  if (!facts?.length) return "";
-  const kept: Array<{ text: string; at: number }> = [];
-  for (const f of facts) {
+  const told: Array<{ text: string; at: number }> = [];
+  for (const f of facts ?? []) {
     if (!f?.text) continue;
     // Before the supersede check, not after: an activity that is over must not
     // go on shadowing an older durable fact it happens to share words with.
     if (f.kind === "activity" && !activityStillRunning(f.at, nowMs)) continue;
-    if (kept.some((k) => overlaps(k.text, f.text))) continue; // superseded
-    kept.push(f);
-    if (kept.length >= 12) break;
+    if (told.some((k) => overlaps(k.text, f.text))) continue; // superseded
+    told.push(f);
+    if (told.length >= 12) break;
   }
-  return kept.map((f) => `- ${f.text} (${agoLabel(f.at, nowMs)})`).join("\n");
+  const ledger = told.map((f) => `- ${f.text} (${agoLabel(f.at, nowMs)})`).join("\n");
+  const now = formatHerNow(present, nowMs);
+  if (!ledger) return now;
+  return now ? `${ledger}\n\n${now}` : ledger;
 }
 
 // Make device-spoken text breathe: openers, thinking pauses. Used on the
@@ -1067,7 +1105,24 @@ export async function think(
   const ledger = keys.activities !== undefined ? keys.activities : activityLedger();
   const ledgerBlock = formatActivityLedger(ledger, Date.now());
   const graph = ledgerBlock ? withoutServerActivityBlock(recalled) : recalled;
-  const memories = ledgerBlock ? (graph ? `${ledgerBlock}\n\n${graph}` : ledgerBlock) : graph;
+  const withLedger = ledgerBlock ? (graph ? `${ledgerBlock}\n\n${graph}` : ledgerBlock) : graph;
+  // ── WS-SHARENOW: what they JUST did, in front of all of it ─────────────
+  // The owner's defect was a CALL one (share, hang up, call back a minute
+  // later, "kya dekha humne"), but the block belongs on this lane for the
+  // reason `call-opens-with-amnesia-by-construction` ends with: a block that
+  // renders on one lane and silently empties on another is how the same person
+  // remembers on the phone and forgets in text. The 45-minute window means a
+  // share that ended before this message is still the present moment here too.
+  //
+  // Same composition rule as the ledger above and for the same truncation
+  // argument — `api/chat.js` keeps the FIRST n characters of the tail — except
+  // one notch stronger: of everything in this string it is the block a later
+  // round trip can least re-derive, since the share mirror is device-local.
+  // Bounded by `JUST_HAPPENED_BUDGET` (300), and it is "" for anyone whose
+  // last share, game or call is older than the window, which is this string's
+  // render-nothing default.
+  const justBlock = formatJustHappened(shareLedger(), ledger, history, Date.now());
+  const memories = justBlock ? (withLedger ? `${justBlock}\n\n${withLedger}` : justBlock) : withLedger;
   // WS-INTEGRATE seam 1 (T2/T3/T4/T6): the relstate bundle rode the SAME
   // op:"recall" response `memories` just resolved from (memory.ts's
   // takeRelBundle — see that file's header for why this isn't its own

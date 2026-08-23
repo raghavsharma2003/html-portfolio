@@ -45,7 +45,7 @@
 // this one starts where CHAT_TAIL_WINDOW_MS ends — so a line can never be
 // paid for twice in a budget that has under 2,000 bytes of headroom.
 
-import type { Message } from "../state/store";
+import type { Message, ShareRecord } from "../state/store";
 import {
   ACTIVITY_BLOCK_SENTINEL,
   withoutServerActivityBlock,
@@ -126,7 +126,8 @@ export function agoLabel(atMs: number, nowMs: number): string {
   return `${days} days ago`;
 }
 
-/** A row is also capped in CHARACTERS, not only in words.
+/** The default per-row character cap. Rows are also capped in CHARACTERS, not
+ *  only in words.
  *
  *  A word cap alone bounds how much a row can be RECITED; it does not bound
  *  how many bytes it can take, and one pathological turn (a pasted URL, a
@@ -159,7 +160,12 @@ const WATCH_ROW_MARK = " (screen share)";
  *  read as a line written for her or crowd out every other row. Clipping is
  *  at a word boundary with a visible ellipsis — a clipped row says so rather
  *  than passing a half-sentence off as whole. */
-function row(who: "them" | "you", text: string, watched = false): string {
+function row(
+  who: "them" | "you",
+  text: string,
+  watched = false,
+  maxChars = SHARED_HISTORY_MAX_CHARS,
+): string {
   const flat = text.replace(/\s+/g, " ").trim();
   const cap = who === "them" ? SHARED_HISTORY_MAX_WORDS_THEM : CHAT_TAIL_MAX_WORDS;
   // the two tokens of "- who:", plus the two the screen-share marker adds —
@@ -168,18 +174,18 @@ function row(who: "them" | "you", text: string, watched = false): string {
   const words = flat.split(" ");
   const clippedWords = words.length > body;
   let out = clippedWords ? words.slice(0, body - 1).join(" ") : flat;
-  if (out.length > SHARED_HISTORY_MAX_CHARS) {
+  if (out.length > maxChars) {
     // word boundary first; a single unbroken token that is already too long
     // has no boundary to find, so it is cut where it is — a row that says it
     // was clipped is honest either way.
     const kept: string[] = [];
     let n = 0;
     for (const w of out.split(" ")) {
-      if (n + w.length + (kept.length ? 1 : 0) > SHARED_HISTORY_MAX_CHARS - 2) break;
+      if (n + w.length + (kept.length ? 1 : 0) > maxChars - 2) break;
       n += w.length + (kept.length ? 1 : 0);
       kept.push(w);
     }
-    out = kept.length ? kept.join(" ") : out.slice(0, SHARED_HISTORY_MAX_CHARS - 2);
+    out = kept.length ? kept.join(" ") : out.slice(0, maxChars - 2);
     return `- ${who}${watched ? WATCH_ROW_MARK : ""}: ${out} …`;
   }
   const mark = watched ? WATCH_ROW_MARK : "";
@@ -298,6 +304,247 @@ export function formatSharedHistory(msgs: readonly Message[], nowMs: number): st
   }
   if (!kept.some((l) => l.startsWith("- "))) return "";
   return `${HEAD}\n${kept.join("\n")}`;
+}
+
+// ── THE JUST-HAPPENED BLOCK (WS-SHARENOW) ─────────────────────────────────
+//
+// The owner's report, and it is the sharpest one this file has had: he shared
+// his screen with her, hung up, called back ONE MINUTE later and asked what
+// they had just watched. She did not know, and (his words) probably made
+// something up.
+//
+// ── WHY THE BLOCK ABOVE DOES NOT ANSWER IT ───────────────────────────────
+//
+// `formatSharedHistory` DOES carry share commentary, marked, and its eval
+// proves it (section 5e). It still cannot answer this question, for three
+// reasons that stack:
+//
+//   1. IT IS A HOW-IT-WAS-LEFT WINDOW, NOT A WHAT-WE-DID RECORD. Group 1 takes
+//      the LAST `SHARED_HISTORY_CALL_ROWS` (3) turns before the callmark. In
+//      the owner's shape the share ends, they talk for another minute, and
+//      then he hangs up — so those three rows are spent on the small talk
+//      AFTER the share and two of her three commentary lines are simply not in
+//      the prompt. Measured on the fixture in `evals/callmem` §5f: three
+//      commentary lines in, one out.
+//   2. ITS HEADING TELLS HER NOT TO USE IT. `HEAD` opens "BEFORE TODAY" — for
+//      something sixty seconds old — and then says, correctly for its own
+//      purpose, "it is not news, it never gets read back to them, and being
+//      listed here is not a reason to raise it." That is exactly the wrong
+//      instruction in front of a direct question about it.
+//   3. NOTHING ELSE LOCAL CARRIES IT AT ALL. `formatChatTail` excludes call
+//      turns by design, so it renders "" here; the graph route needs the
+//      server (`vy_shared_moment` via `api/episodes.js`), which is written
+//      fire-and-forget, gated to the first line she speaks inside a 12-second
+//      SHOW-wake window, and read back by a leg that matches her reaction text
+//      against words taken from the last four things HE typed — and then only
+//      if the ring fetch beats `RING_FETCH_DEADLINE_MS`.
+//
+// So the freshest, most vivid thing that ever happens between them was the one
+// thing the brief could not say. This block is the answer, and it is the same
+// species of fix as everything above it: a block that exists on one lane and
+// is missing on the one that took the call.
+//
+// ── WHAT IT IS ───────────────────────────────────────────────────────────
+//
+// A compact "you two JUST did this" row, ABOVE the shared history, rendering
+// only inside `JUST_HAPPENED_WINDOW_MS`. For a share it carries HER OWN LINES
+// and the fact that they were watching his screen together until N minutes
+// ago. It never carries a word about what was ON the screen.
+//
+// That last sentence is the watch-content contract and it is not a nicety:
+// `Message.watched`'s rule is that screen-derived talk is conversation and
+// never durable memory about his life, because one glance at a thread and
+// "Rohit na?" becomes a permanent, confidently wrong claim. Her reactions are
+// hers to remember — she said them, they are true regardless of whether the
+// reading behind them was, and this is precisely why `vy_shared_moment` stores
+// a reaction with a NULLABLE assertion_id. The screen's contents beyond what
+// she said are not re-derived here or anywhere.
+//
+// ── AND THE HONEST HALF ──────────────────────────────────────────────────
+//
+// A share where she said nothing produces an EMPTY record, and an empty record
+// is a real answer rather than a gap to fill. The block says so in words, so
+// the honest line ("haan dekha, par maine kuch bola nahi tha") is the one the
+// brief actually supports and the invented one has nothing behind it. This is
+// `formatActivityLedgerForCall`'s fence argument on a lane where it matters
+// more: `honesty.ts`'s family-6 gate cannot run on the live lane at all, so
+// the prompt fence is the only protection there is.
+
+/** How fresh "just" is. Forty-five minutes, and it is not a taste number: it
+ *  is `api/episodes.js`'s own `GAP_MS`, the boundary the server segments
+ *  episodes on. Past it the server has closed the episode and the thing has
+ *  stopped being the present moment for both halves of the product at once, so
+ *  the two agree by construction instead of by coincidence. */
+export const JUST_HAPPENED_WINDOW_MS = 45 * 60_000;
+
+/** Hard ceiling on the rendered block, heading included.
+ *
+ *  THE ARITHMETIC, measured 2026-08-23 against the real guard rather than
+ *  claimed: `scripts/check-prompt-budget.mjs` puts the tightest lane in the
+ *  repo — `live+watch tail (bound)` — at 29,684 of a `CALL_TAIL_CAP` of
+ *  30,000, i.e. 316 bytes spare, and `live tail (bound)` at 29,382, i.e. 618.
+ *  300 of them is this, leaving 16 and 318. `evals/callmem/run.mjs` asserts
+ *  that subtraction against the guard's own constants, so the bound and its
+ *  budget cannot drift apart — which is how the crisis helplines were lost
+ *  once.
+ *
+ *  It is deliberately the tightest block on the lane. Everything it must
+ *  carry is three short sentences somebody actually said; anything that needs
+ *  more room than that is not "what just happened", it is history, and the
+ *  700-byte block below is what holds history. */
+export const JUST_HAPPENED_BUDGET = 300;
+
+/** Rows of her own commentary the block ever carries. Three is a person
+ *  remembering a shared minute; more is a transcript of one, and a transcript
+ *  in a system prompt is a script (`SHARED_HISTORY_ROWS`' reasoning). */
+export const JUST_HAPPENED_ROWS = 3;
+
+/** Per-row character cap, tighter than `SHARED_HISTORY_MAX_CHARS` because this
+ *  block has less than half the budget. Sized so that two MAXIMAL rows still
+ *  fit under `JUST_HAPPENED_BUDGET` alongside both headings (78 + 1 + 78 + 1 +
+ *  74 + 73 = 305 at 66… see the eval, which measures the real worst case
+ *  rather than trusting this line) and real commentary — which runs 30-50
+ *  characters — fits three times over. */
+export const JUST_HAPPENED_MAX_CHARS = 66;
+
+/** "just now" / "3 min ago" — MINUTES, unlike `agoLabel`, and the difference
+ *  is the point of the block. `agoLabel` is coarse because the age is the
+ *  whole signal for something a day old ("kal kya baat kiya" is a question
+ *  about a day); here the age is the CLAIM — "we were watching this together
+ *  three minutes ago" is a different sentence from "we were watching this
+ *  together", and the number is what makes it one. Still no seconds and no
+ *  timestamp: there is nothing here she could quote back as a clock. */
+export function minsAgoLabel(atMs: number, nowMs: number): string {
+  if (!atMs || !Number.isFinite(atMs) || !Number.isFinite(nowMs) || nowMs < atMs) return "";
+  const mins = Math.floor((nowMs - atMs) / 60_000);
+  return mins < 1 ? "just now" : `${mins} min ago`;
+}
+
+// Lower-case after the opening token and terminated with a colon, for
+// `HEAD`'s reason: shapelint's SENTENCE_SHAPED_RE needs a capital start AND
+// terminal `.?!`, so a line ending in ":" can never match, and there is
+// nothing in it she could say. "add nothing to it" is the watch-content fence,
+// stated once here rather than per row.
+const JUST_HEAD =
+  "JUST NOW — this just happened and they may ask straight out; add nothing to it:";
+
+/** The share line, in both of its forms. The second one is the honest half and
+ *  it is a POSITIVE statement, not an absence: a share she was quiet through
+ *  is a thing she knows about itself, and saying so is what makes "haan dekha,
+ *  par maine kuch bola nahi tha" the supported answer instead of the invented
+ *  one. */
+const shareLine = (label: string, said: boolean) =>
+  said
+    ? `you were watching their screen together till ${label}; you said this about it:`
+    : `you were watching their screen together till ${label}; you said nothing about it, and what was on it is not yours to describe`;
+
+interface JustEvent {
+  head: string;
+  rows: string[];
+}
+
+/**
+ * What the two of them JUST did, as a call-sized block, or "" when nothing has
+ * happened inside the window — which is `memories`' render-nothing default, so
+ * a person whose last share was yesterday gets byte-identically the prompt they
+ * get today.
+ *
+ * Pure; the clock is an input, the same contract as everything else in this
+ * file and for the same byte-identity reason.
+ *
+ * Three sources, in a fixed PRIORITY order rather than in recency order, and
+ * the difference matters: the callmark is written at hangup and is therefore
+ * always the newest event, so recency ordering would spend the budget on "you
+ * were on a call" and drop the share rows that are the entire reason the block
+ * exists.
+ *
+ *   1. THE SHARE, from the local mirror (`AppState.shares`) — her own lines.
+ *   2. THE GAME, from the local activity ledger — a POINTER, not a second
+ *      rendering. `warm-count-unscoped`: two derivations of one record
+ *      eventually disagree, invisibly, so the game's detail stays in the one
+ *      block that owns it and this only says it was minutes ago.
+ *   3. THE CALL that just ended, from the newest callmark — and only when
+ *      there is no share line, which would already have said it better.
+ */
+export function formatJustHappened(
+  shares: readonly ShareRecord[] | undefined,
+  activities: readonly ActivityRecord[] | undefined,
+  msgs: readonly Message[],
+  nowMs: number,
+): string {
+  const since = nowMs - JUST_HAPPENED_WINDOW_MS;
+  const fresh = (at: number | undefined) =>
+    Number.isFinite(at) && (at as number) > since && (at as number) <= nowMs;
+
+  const events: JustEvent[] = [];
+
+  // 1 — the newest ENDED share
+  const share = [...(shares ?? [])]
+    .filter((s) => s && fresh(s.endedAt))
+    .sort((a, b) => b.endedAt - a.endedAt)[0];
+  if (share) {
+    const said = (Array.isArray(share.said) ? share.said : [])
+      .filter((t) => typeof t === "string" && t.trim())
+      .slice(-JUST_HAPPENED_ROWS);
+    events.push({
+      head: shareLine(minsAgoLabel(share.endedAt, nowMs), said.length > 0),
+      rows: said.map((t) => row("you", t, false, JUST_HAPPENED_MAX_CHARS)),
+    });
+  }
+
+  // 2 — the newest finished game, as a pointer at the record that holds it
+  const game = [...(activities ?? [])]
+    .filter((r) => r && r.summary && fresh(r.closedAt))
+    .sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0))[0];
+  if (game) {
+    events.push({
+      head: `you finished a game together ${minsAgoLabel(game.closedAt, nowMs)} — the record below is all of it`,
+      rows: [],
+    });
+  }
+
+  // 3 — the call that just ended, when the share line has not already said it
+  if (!share) {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i];
+      if (m?.kind !== "callmark" || !m.at) continue;
+      if (fresh(m.at)) {
+        events.push({ head: `you were on a call together till ${minsAgoLabel(m.at, nowMs)}`, rows: [] });
+      }
+      break;
+    }
+  }
+
+  if (!events.length) return "";
+
+  const render = (evs: readonly JustEvent[]) => evs.flatMap((e) => [e.head, ...e.rows]);
+  const size = (ls: readonly string[]) => JUST_HEAD.length + 1 + ls.join("\n").length;
+
+  // Over budget, WHOLE lines go — never a slice (`activity-block-sliced-mid-word`,
+  // and "a sliced block is a lie" does not stop applying inside a block).
+  // Trailing EVENTS go first: they are the lower-priority ones by construction,
+  // and each is a self-contained sentence, so losing one costs a fact rather
+  // than leaving a heading pointing at nothing.
+  const kept = events.slice();
+  while (kept.length > 1 && size(render(kept)) > JUST_HAPPENED_BUDGET) kept.pop();
+  // Then her OLDEST commentary rows, keeping the newest — the last thing she
+  // said about a screen is the thing "kya dekha humne" most often means.
+  while (size(render(kept)) > JUST_HAPPENED_BUDGET) {
+    const withRows = kept.find((e) => e.rows.length);
+    if (!withRows) break;
+    withRows.rows.shift();
+    // a head that promised rows and now has none would be a dangling claim;
+    // re-state it in its no-record form, which is true either way
+    if (!withRows.rows.length && withRows.head.endsWith("; you said this about it:")) {
+      withRows.head = withRows.head.replace(
+        "; you said this about it:",
+        "; nothing you said about it fits here, so add none of it",
+      );
+    }
+  }
+  const lines = render(kept);
+  if (!lines.length || size(lines) > JUST_HAPPENED_BUDGET) return "";
+  return `${JUST_HEAD}\n${lines.join("\n")}`;
 }
 
 // ── WHAT THE FROZEN COMPILE SITES ARE HANDED (P1-7 / P1-9) ────────────────
@@ -889,12 +1136,44 @@ export function formatActivityLedgerForCall(
  * function rather than a second copy of the rule.
  */
 export function callGraphBlocks(
+  justHappened: string,
   activityLedgerBlock: string,
   sharedHistory: string,
   graphRecall: string,
 ): string {
   const graph = activityLedgerBlock ? withoutServerActivityBlock(graphRecall) : graphRecall;
-  return withSharedHistory(activityLedgerBlock, withSharedHistory(sharedHistory, graph));
+  // WS-SHARENOW: the just-happened block goes in FRONT of all three, and the
+  // reason is the same truncation argument the ledger's position rests on —
+  // `api/chat.js` and the live setup frame both keep the FIRST n characters.
+  // Of everything here it is the block that a later round trip can least
+  // re-derive (the share mirror is device-local and 45 minutes wide) and the
+  // one most likely to be the actual subject of the first question on the
+  // call, so it is the last thing that may be lost rather than the first.
+  return withSharedHistory(
+    justHappened,
+    withSharedHistory(activityLedgerBlock, withSharedHistory(sharedHistory, graph)),
+  );
+}
+
+// ── the share mirror's holder, so BOTH lanes read one ledger ──────────────
+//
+// `publishActivityLedger`'s idiom, for its stated reason and one more of this
+// block's own: the call lane's compile sites do not share a frame with the
+// component that holds `AppState`, AND the write here happens at share end
+// while the read happens at the NEXT call's ring — two different renders, with
+// a React state update and possibly a whole component unmount between them.
+// The ring reads `state.shares` first and this second, exactly as it does for
+// the activity ledger: one store, one pointer at it, never two sources of
+// truth. A reader that gets an empty array before the first publish renders
+// nothing, which is the same render-nothing default an empty mirror has.
+let shareHolder: readonly ShareRecord[] = [];
+
+export function publishShareLedger(shares: readonly ShareRecord[] | undefined): void {
+  shareHolder = Array.isArray(shares) ? shares : [];
+}
+
+export function shareLedger(): readonly ShareRecord[] {
+  return shareHolder;
 }
 
 /**

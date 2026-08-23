@@ -24,7 +24,8 @@ import type { AppState } from "../state/store";
 import ActivityShell, { type ActivityCall } from "./ActivityShell";
 import TicTacToeBoard from "./TicTacToeBoard";
 import SidePick from "./SidePick";
-import { herTttMove, legalCells, newTttGame, playTtt } from "../engine/ttt";
+import { herTttMove, legalCells, newTttGame, playTtt, winningCells } from "../engine/ttt";
+import { tttThinkMs } from "../state/game";
 import { tap } from "../native/haptics";
 import type { Cell, Game as TttGame, Mark } from "../engine/ttt";
 import { useCallStatus } from "../state/callStatus";
@@ -92,18 +93,23 @@ const HER_LINE_FRESH_MS = 120_000;
 // the engine's own seeding, but this knob is PACING and belongs to the
 // component, not to `engine/ttt`, which decides WHAT she plays and nothing
 // about when she appears to play it.
-const THINK_MIN_MS = 800;
-const THINK_SPAN_MS = 1700; // 800 + 1700 = 2500ms ceiling
-
-function thinkDelayFor(board: readonly (Mark | null)[]): number {
-  let h = 0;
-  const key = board.map((c) => c ?? ".").join("");
-  for (let i = 0; i < key.length; i++) h = (Math.imul(h, 31) + key.charCodeAt(i)) | 0;
-  const frac = (h >>> 0) % 1000 / 1000;
-  return THINK_MIN_MS + Math.round(frac * THINK_SPAN_MS);
-}
-
+// WS-MOVEVOICE moved this onto `state/game.ts`'s shared table. The local
+// constant was a flat 800–2500ms band over the board key: correct in spirit,
+// blind in one specific way that reads as a program rather than a person — she
+// took the same two seconds over a square she HAD to take (block or lose next
+// move) as over an open board. A person sees a forced block instantly. The
+// table's `ttt_obvious` band is that, and the seed is now the session as well
+// as the board, so two sittings are not metronomes of each other.
 const boardKey = (b: readonly (Mark | null)[]): string => b.map((c) => c ?? ".").join("");
+
+/** She can win right now, or she must block right now — the two squares nobody
+ *  has to think about. Read off the real `winningCells`, never a stored flag. */
+function obviousFor(game: TttGame, herMark: Mark): boolean {
+  const opp: Mark = herMark === "x" ? "o" : "x";
+  const empties = game.board.reduce<number>((n, c) => n + (c ? 0 : 1), 0);
+  if (empties <= 1) return true;
+  return winningCells(game.board, herMark).length > 0 || winningCells(game.board, opp).length > 0;
+}
 
 export default function TicTacToeActivity({
   state,
@@ -217,12 +223,12 @@ export default function TicTacToeActivity({
         const next = playTtt(cur.game, cell);
         return next ? { ...s, game: { ...cur, game: next, touchedAt: Date.now() } } : s;
       });
-    }, thinkDelayFor(g.board));
+    }, tttThinkMs({ key: atCell, ply: atPly, obvious: obviousFor(g, herSide), seed: session?.startedAt ?? 0 }));
     return () => {
       live = false;
       clearTimeout(t);
     };
-  }, [hers, g, setState]);
+  }, [hers, g, herSide, setState, session?.startedAt]);
 
   // Close + tally live in App's reconciler — see ChessActivity/App.tsx.
 

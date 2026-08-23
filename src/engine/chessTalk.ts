@@ -395,6 +395,62 @@ export function exchangeFact(
   return `${base}; she answered ${hers.move.san}`;
 }
 
+/**
+ * TENSE IS LAW: the clause that closes the choice.
+ *
+ * The owner heard her play a move and then, seconds later, say she SHOULD play
+ * the move that was already on the board. The mechanism is not the wording of
+ * any one fact — `moveFact` and `exchangeFact` are both already past tense. It
+ * is that a note describing what happened does not, on its own, say that
+ * NOTHING IS PENDING. Handed "he played Qh5; she answered Nf6" a model with a
+ * frozen prompt that said "it is her move" at connect will happily deliberate
+ * about the move it was just told she made.
+ *
+ * So every note about a move carries the state of the CHOICE alongside the
+ * state of the board: her move is on the board and there is nothing to decide,
+ * or it genuinely is her turn and it is not played yet. That second branch is
+ * the only one in which a deliberative register is ever correct, and on the
+ * live lane it is unreachable by construction (the poke fires on a COMPLETED
+ * exchange), which is exactly the guarantee this function exists to make
+ * checkable rather than assumed.
+ *
+ * Telegraphic, third person, ≤14 words, not a line she could say — the same law
+ * as every other row in this file.
+ */
+export function settledClause(game: Game, herSide: Side): string {
+  // A finished game closes the choice by itself, and louder than this could.
+  if (game.status?.over) return "";
+  if (!game.played.length) return game.status?.turn === herSide ? "she opens, nothing played yet" : "";
+  return game.status?.turn === herSide
+    ? "it is her turn, her move is not played yet"
+    : "her move is already on the board, his turn now";
+}
+
+/**
+ * THE NOTE THE LIVE LANE SENDS. One function, so the composition is a thing
+ * that can be tested rather than a line of assembly at the call site.
+ *
+ * It is not a convenience wrapper. The defect this fixes was born of exactly
+ * the assembly it replaces: the poke site built a past-tense fact and sent it,
+ * and the clause that says the CHOICE IS CLOSED did not exist. Building the
+ * note here means a caller cannot send the fact without the clause, and the
+ * eval can tense-check the real thing instead of a re-assembly of its parts.
+ *
+ * `his` is the move she is answering, when there is one — the exchange carries
+ * more salience than either half (`exchange-not-move`).
+ */
+export function chessMoveNote(
+  game: Game,
+  herSide: Side,
+  his: MoveAssessment | null,
+  hers: MoveAssessment,
+  lastMover: "her" | "him",
+): string {
+  const fact =
+    his && lastMover === "her" ? exchangeFact(his, hers, herSide) : moveFact(hers, herSide, lastMover);
+  return [fact, settledClause(game, herSide)].filter(Boolean).join("; ");
+}
+
 /** Past this many plies the opening is over and its name is no longer news. */
 const OPENING_FACT_PLY = 16;
 

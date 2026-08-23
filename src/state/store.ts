@@ -63,6 +63,93 @@ export interface Message {
   desc?: string; // user photos: one-line vision description (context + memory)
 }
 
+/**
+ * ONE screen share, as it is kept ON THE DEVICE — WS-SHARENOW's local mirror
+ * of the `vy_shared_moment` rows `api/episodes.js` writes.
+ *
+ * It exists because of a timing the server copy structurally cannot win. The
+ * owner shared his screen, hung up, and called back ONE MINUTE later to ask
+ * what they had watched. The server write is fire-and-forget from
+ * `postWatchMoment`, it is gated to the FIRST line she speaks inside a 12s
+ * SHOW-wake window, and the read that would fetch it back races
+ * `RING_FETCH_DEADLINE_MS` on the next ring. A record that has to survive a
+ * hangup, a network round trip and a 1,200ms deadline to be remembered is a
+ * record that is sometimes not remembered, and "sometimes" on the one question
+ * he actually asked is the whole defect.
+ *
+ * So this is written SYNCHRONOUSLY at share end, off `AppState.messages`,
+ * which is already in memory. No round trip, no embedding, works signed out.
+ * The server row still gets written — this is a mirror, not a replacement, and
+ * `warm-count-unscoped`'s rule holds: `said` is EXACTLY the text
+ * `postWatchMoment` sends as `reaction`, never a second derivation of it.
+ *
+ * `said` is what SHE said and nothing else. Not one word about what was on the
+ * screen: the watch-content contract (`Message.watched` above, and
+ * `useCallEngine.ts`'s share-turn rule) is that screen-derived talk is
+ * conversation and never durable memory about his life. Her own reactions are
+ * hers to remember; the screen's contents beyond them are not re-derived here
+ * or anywhere.
+ *
+ * DEVICE-LOCAL, like `recentMoment` and for its stated reason: this is
+ * present-moment flavour with a 45-minute shelf life, and the durable
+ * cross-device copy is `vy_shared_moment` on the server. It is absent from
+ * `syncableState` and from `mergeStates` for that reason, and present in
+ * `crossTabSig` so two tabs of the same device agree.
+ */
+export interface ShareRecord {
+  startedAt: number;
+  endedAt: number;
+  lane: "web" | "native";
+  /** her own lines while the share was up, oldest first, verbatim and clipped
+   *  — the same strings `postWatchMoment` sends. Empty is a real answer: a
+   *  share where she said nothing is a share she has nothing to report from,
+   *  and the brief says so rather than letting her fill it in. */
+  said: string[];
+}
+
+/** How many finished shares the device keeps. The block that reads them looks
+ *  back 45 minutes, so this is generous by an order of magnitude and still
+ *  costs under a kilobyte in a localStorage blob measured in tens of KB. */
+export const SHARE_LEDGER_MAX = 8;
+
+/** Lines kept per share. Three is the whole of the block's row budget
+ *  (`JUST_HAPPENED_ROWS`); a fourth could never render and storing it would be
+ *  a second, longer answer to "what did she say" that nothing reads. */
+export const SHARE_SAID_MAX = 3;
+
+/** Per-line clip at STORE time. Twice the render cap, so the renderer still
+ *  owns the visible clipping and the store never becomes the thing that
+ *  silently shortened her sentence. */
+export const SHARE_SAID_MAX_CHARS = 160;
+
+/** Add a finished share to the ledger, newest first, deduped on `startedAt`.
+ *  Deduped rather than appended because the teardown paths overlap by design —
+ *  `endCall` → `stopWatchMode` → the web lane's own `cleanup()` all end the
+ *  same share — and a share recorded twice would put her commentary in the
+ *  brief twice. Pure; the caller owns the state. */
+export function withShareRecord(
+  ledger: readonly ShareRecord[] | undefined,
+  rec: ShareRecord | null,
+): ShareRecord[] {
+  const cur = Array.isArray(ledger) ? ledger : [];
+  if (!rec || !Number.isFinite(rec.startedAt) || !Number.isFinite(rec.endedAt)) {
+    return cur as ShareRecord[];
+  }
+  const clean: ShareRecord = {
+    startedAt: rec.startedAt,
+    endedAt: rec.endedAt,
+    lane: rec.lane === "native" ? "native" : "web",
+    said: (Array.isArray(rec.said) ? rec.said : [])
+      .filter((t) => typeof t === "string" && t.trim())
+      .map((t) => t.replace(/\s+/g, " ").trim().slice(0, SHARE_SAID_MAX_CHARS))
+      .slice(-SHARE_SAID_MAX),
+  };
+  const kept = cur.filter((r) => r && r.startedAt !== clean.startedAt);
+  return [clean, ...kept]
+    .sort((a, b) => (b.endedAt || 0) - (a.endedAt || 0))
+    .slice(0, SHARE_LEDGER_MAX);
+}
+
 export interface AuthInfo {
   userId: string;
   email?: string;
@@ -202,6 +289,9 @@ import { isGameSession } from "./game";
 // solving it twice is how the two answers drift apart.
 import { mergeStates, safeUser } from "./merge";
 import type { ThemeChoice } from "../engine/theme";
+// TYPE-ONLY, so this import erases entirely and store.ts gains no runtime
+// edge — herNow.ts's only import is storyCatalog.ts, a documented leaf.
+import type { HerNowEntry } from "../engine/herNow";
 
 export interface AppState {
   onboarded: boolean;
@@ -227,6 +317,27 @@ export interface AppState {
   callback?: { at: number; secs: number } | null;
   // what she has told them about her own life, newest first (bounded)
   herLife?: SelfFact[];
+  // WHAT SHE IS DOING RIGHT NOW — one activity, with the instant it started
+  // and how long that class of thing runs (src/engine/herNow.ts).
+  //
+  // This is a LEDGER, not a roll, and the difference is the whole reason the
+  // field exists: he called, she said she was reading; he called again one
+  // minute later and she said she was setting fairy lights, because her
+  // present moment was being improvised fresh at every pickup. One row, read
+  // by every lane, means the second call gets the same answer with the clock
+  // moved on — and past the activity's natural span it means she has MOVED
+  // ON, which is the same mechanism seen from the other side.
+  //
+  // It SYNCS, like the rest of the relationship: her evening is the same
+  // evening on the phone and on the laptop. It is also deterministic from the
+  // clock (`deriveHerNow`), so a device that has never received this row
+  // computes the same present moment anyway — the stored copy is the record
+  // of what she actually said, not the only source of it.
+  //
+  // The seam with `herLife` above, stated where both are declared: herNow is
+  // THE MINUTE (going on now, never yet told), herLife is what she has TOLD
+  // him and is fixed between them. See src/engine/herNow.ts's header.
+  herNow?: HerNowEntry | null;
   // her carried interior: ONE feeling in her own words, and what she wants.
   // ~600 bytes, deliberately tiny — a ledger she re-reads, not a simulation
   // she runs. Rides this state's existing local + account sync; no new table.
@@ -270,6 +381,12 @@ export interface AppState {
   // local on purpose: this is present-moment flavour; the fired-LEDGER
   // above is what carries the permanent truth and it does sync.
   recentMoment?: { id: string; fact: string; at: number } | null;
+  // WS-SHECALLS residual: the moment a her-initiated ring was declined or
+  // rang out. Local-only like recentMoment (a moment, not memory); read once
+  // by Chat's declined-ring effect, then cleared. FATE: exempt-with-reason
+  // (it expires in minutes by its own consumer; wiping it early only
+  // suppresses one small line).
+  declinedRing?: number | null;
   // WHAT THEY HAVE ACTUALLY PLAYED — the local half of #113's episode write.
   // `game` is the ONE current session and is replaced the moment a second one
   // starts; before this field the games behind it existed only in the server
@@ -281,6 +398,14 @@ export interface AppState {
   // and syncs with the rest of the relationship. See engine/memory.ts's
   // `formatActivityLedger` for what reads it.
   activities?: ActivityRecord[];
+  // WHAT THEY JUST WATCHED TOGETHER — WS-SHARENOW's local mirror of the
+  // `vy_shared_moment` rows, written synchronously at share end so a call
+  // placed sixty seconds later cannot lose to a slow server write. See
+  // `ShareRecord` above for why the server copy is not enough on its own, and
+  // `formatJustHappened` in src/voice/callHistory.ts for what reads it.
+  // Device-local, like `recentMoment`: 45 minutes of shelf life, and the
+  // durable copy is the server's.
+  shares?: ShareRecord[];
   // ── the notification permission's memory (src/notify/) ─────────────────
   // Four timestamps and a switch, and every one of them exists to make the
   // ONE ask this product is allowed unrepeatable: `felt` is the moment a
@@ -416,6 +541,12 @@ export function loadState(): AppState {
     // white screen that survives every reload. Every reader downstream already
     // filters malformed ROWS; this guards the container.
     if (!Array.isArray(parsed.activities)) parsed.activities = undefined;
+    // …and once more for the share mirror, which arrives from exactly the same
+    // three places (a parsed blob, an older build, a rolled-back schema) and is
+    // spread by the same code. Every reader filters malformed ROWS; this is the
+    // container guard, and it is here rather than trusted for the reason the
+    // line above it states.
+    if (!Array.isArray(parsed.shares)) parsed.shares = undefined;
     // `{ ...defaultState, ...JSON.parse(raw) }` is a SHALLOW spread: a stored
     // `user` of `{ name: "Rohan" }` (an older build's write, a half-finished
     // onboarding, a restored backup) replaces the default wholesale and
@@ -509,9 +640,14 @@ function crossTabSig(s: AppState): string {
     s.messages[s.messages.length - 1]?.id ?? "",
     s.clearedAt ?? 0,
     s.herLife ?? null,
+    s.herNow ?? null,
     s.inner ?? null,
     s.game ?? null,
     s.activities ?? null,
+    // device-local like `recentMoment` below, and here for its reason: two TABS
+    // of one device are one device, and a share that ended in the other tab is
+    // a share this tab must be able to answer for.
+    s.shares ?? null,
     s.tally ?? null,
     [...(s.momentsFired ?? [])].sort(),
     s.followup ?? null,

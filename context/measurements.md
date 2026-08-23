@@ -2614,3 +2614,66 @@ documentation]` rather than as coverage.
   bin-less (gated to flip when the cascade learns keys).
 - Persona core 45,493/45,500 after paid-for trims. verify-release
   13/13 twice on the integrated tree.
+
+---
+
+## `movevoice-timing-2026-08-23` — how long her move actually takes, measured in a browser
+
+**Method.** `evals/movevoice-browser.mjs`, chromium, the built app served by
+`vite preview`. A full game of chess is played move by move against the real
+opponent; on every one of her turns the page's OWN clock
+(`performance.timeOrigin + performance.now()`, polled at 25ms inside the page
+so this harness's round-trip is not counted as her think time) stamps the
+moment his ply appears in state and the moment hers does. The gap is held
+against `chessThinkMs` called on the same position with the same session seed —
+the function the component itself reads, not a copy of its formula.
+
+Predictions are emitted as a PAIR (recapture / non-recapture) because her reply
+is not known when his move is made, and the assertion admits either branch
+rather than pretending to know which she will play.
+
+**Measured (n = 25 of her turns, one complete game, container under load):**
+
+| | |
+|---|---|
+| gaps | 455 – 6759 ms |
+| spread within one game | 6304 ms |
+| below the 300ms floor | 0 of 25 |
+| landing before the board finished drawing his move (360ms) | 0 of 25 |
+| gap inside the table's predicted band | 25 of 25 |
+| ordering pairs (predicted gap differing by >400ms) where observed order matched predicted | 245 of 265 (92.5%) |
+
+The last row is the one that matters and is the one a constant delay would
+fail: the first three rows are all satisfied by "always wait 2 seconds". The
+pacing has to TRACK the position for her to read as thinking rather than as
+lagging, and it does.
+
+**Pre-fix baseline, from the owner's report rather than an instrument:** her
+move landing "milliseconds after his". The floor is now 300ms by construction
+and was not observed below 455ms in this run.
+
+**Offline half:** `evals/movevoice.mjs`, 162 assertions, ~3s, $0. Bounds swept
+over 5,120 synthetic chess inputs (every combination of ply × legal-move-count
+× check × recapture × book × seed) with no result outside [300ms, 7000ms].
+
+**Aggregate cost against the formula it replaced (n = 1600 of her turns over 40
+real games, both colours, driven by the real engine):** the position-scaled
+table is 8.7% SLOWER in aggregate than the flat ply-band formula — mean 3078ms
+vs 2831ms per turn, max 7000ms vs 5996ms. Small, and it is the price of the
+92.5% ordering agreement above: the modifiers that make a forced reply quick
+are outweighed by the wide-position and non-book-opening bands. It matters in
+exactly one place, which is why it was measured rather than assumed:
+`evals/gameplay-browser.mjs` bounds a full game by WALL CLOCK, and its 6-minute
+budget was only ~1.5x a long game's expected duration. Raised to 10 minutes in
+the same change.
+
+**Mutation test of the gate itself (n = 10 injected defects, all caught):**
+dropping the settled clause from the chess composer; dropping it from the ttt
+composer; neutering the staleness check; sending held notes into `direct()`'s
+wait; routing the chess note around the seam; returning a constant 5ms from
+`chessThinkMs`; the same for `tttThinkMs`; reseeding pacing on `Math.random`;
+removing the position scaling so every band collapses to one; and deferring
+`pokedPly` past the send so a dropped note un-marks its exchange. An earlier
+version of the suite caught 0 of the first 3 — its assertions were shape-greps
+over the call site rather than tests of a decision — which is why the seam and
+the note composition were extracted into pure functions.

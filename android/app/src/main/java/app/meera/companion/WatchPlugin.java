@@ -127,6 +127,27 @@ public class WatchPlugin extends Plugin {
     call.resolve();
   }
 
+  /**
+   * WS-WATCHPERF part 2 — "let her hear it".
+   *
+   * <p>DEFAULT OFF, and off again at the end of every share: device audio is
+   * consented to per share, exactly as the screen itself is, and a preference
+   * that survives a session would be a consent nobody gave for the next one.
+   * The capture is scoped to the SAME MediaProjection as the picture, so it
+   * cannot start without a live share and cannot outlive one.
+   *
+   * <p>Turning it on mid-share is deliberate and is the whole point of the
+   * chip: the moment someone wants her to hear something is the moment they
+   * play it, which is not the moment they started sharing.
+   */
+  @PluginMethod
+  public void setMediaAudio(PluginCall call) {
+    WatchCaptureService.setMediaAudio(Boolean.TRUE.equals(call.getBoolean("on", false)));
+    JSObject r = new JSObject();
+    r.put("on", WatchCaptureService.isMediaAudioOn());
+    call.resolve(r);
+  }
+
   @PluginMethod
   public void stop(PluginCall call) {
     getContext().stopService(new Intent(getContext(), WatchCaptureService.class));

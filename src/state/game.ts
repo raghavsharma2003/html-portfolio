@@ -223,6 +223,228 @@ export function isGameSession(g: unknown): g is GameSession {
   return false;
 }
 
+// ── THE CHOREOGRAPHY: one being, one timeline ──────────────────────────────
+//
+// The owner watched her play a move MILLISECONDS after his and then, two to
+// three seconds later, heard her voice say she SHOULD play the move that was
+// already on the board. Two agents on two clocks: the hand and the mouth. This
+// block is the hand's clock, and `chessTalk.ts`'s `settledClause` is what stops
+// the mouth deliberating about a choice the hand already closed.
+//
+// The state machine for one of her turns, and it is strictly ordered:
+//
+//   his_move → (board animates) → she_thinks → her_move lands →
+//   settled(her move is on the board) → the note, in DONE tense
+//
+// There is deliberately NO pre-line. A short "hmm, ek second" in the
+// deliberating register would be lovely and it is unshippable on the live lane:
+// `direct()` hands text to a model that takes seconds to generate and start
+// speaking, so a pre-line drafted during a 0.8s opening think arrives AFTER the
+// piece has landed — which is precisely the defect being fixed, wearing a nicer
+// hat. A silent move followed by a past-tense line is always coherent. A move
+// followed by a future-tense line never is. See `context/decisions.md`
+// `move-voice-one-timeline`.
+
+/** Nothing of hers may land faster than this. Below ~300ms no hand moved. */
+export const THINK_FLOOR_MS = 300;
+/** And nothing may hang longer: past this the board reads as frozen, not busy. */
+export const THINK_CEIL_MS = 7000;
+
+/**
+ * How long the board takes to SHOW a move — the slide (`--d-tap`, 180ms) plus
+ * the capture death animation that waits the slide out. Her voice may not
+ * comment on a move before the board has finished drawing it, and the call
+ * lane's poke debounce is asserted to clear this in the movevoice suite.
+ */
+export const MOVE_ANIM_MS = 360;
+
+/**
+ * The bands, before modifiers. Exported because the eval asserts against THESE
+ * numbers rather than against a copy of them — a table checked against a
+ * hand-written twin is checked against nothing.
+ */
+export const THINK_BANDS = {
+  /** She knows her openings. A book move is recall, not calculation. */
+  chess_book: [800, 2200],
+  /** Out of book but still early: shape, not lines. */
+  chess_opening: [1100, 3000],
+  /** The middlegame, where a position actually costs time. */
+  chess_middle: [2000, 6000],
+  /** Endgames are simpler boards with fewer candidate moves. */
+  chess_late: [1200, 4000],
+  /** Exactly one legal move. There is nothing to think about and she knows it. */
+  chess_forced: [300, 600],
+  ttt: [500, 2000],
+  /** A win on the board or a line to block — a person sees these instantly. */
+  ttt_obvious: [400, 1000],
+} as const satisfies Record<string, readonly [number, number]>;
+
+/** Past this ply the opening is over for pacing purposes. */
+const OPENING_PLY = 8;
+/** And past this one the middlegame is. */
+const LATE_PLY = 30;
+
+/**
+ * Deterministic, never random.
+ *
+ * `Math.random()` in her behaviour is the causeless variation this engine is
+ * built to avoid (`her-chess-pace`), and it also makes every timing assertion
+ * in the eval a flake. The pace is a property of the MOMENT: the same position,
+ * in the same session, always takes her the same beat, so a replay agrees with
+ * the run it replays. Seeded on the session as well as the position, so two
+ * different games that pass through the same position are not metronomes.
+ */
+function unitOf(key: string, seed: number): number {
+  let h = seed | 0;
+  for (let i = 0; i < key.length; i++) h = (Math.imul(h, 31) + key.charCodeAt(i)) | 0;
+  return ((h >>> 0) % 1000) / 1000;
+}
+
+export interface ChessThinkInput {
+  /** The position she is thinking IN — before her move. Identifies the moment. */
+  fen: string;
+  /** Plies already played. */
+  ply: number;
+  /** How many replies she has here. 1 is forced; 38+ is a wide, slow position. */
+  legalMoveCount: number;
+  /** In check: forced-ish, and a person SEES a check rather than finding it. */
+  inCheck: boolean;
+  /** His move just took something on the square she is taking back on. */
+  recapture: boolean;
+  /** Still inside the opening book — recall rather than calculation. */
+  book: boolean;
+  /** The session seed (`startedAt`), so replays of one session agree. */
+  seed: number;
+}
+
+/**
+ * The held beat before her move lands, in ms. Pure, total, and bounded to
+ * [THINK_FLOOR_MS, THINK_CEIL_MS] for every input including nonsense.
+ */
+export function chessThinkMs(i: ChessThinkInput): number {
+  const forced = i.legalMoveCount === 1;
+  const [lo, hi] = forced
+    ? THINK_BANDS.chess_forced
+    : i.ply < OPENING_PLY
+      ? i.book
+        ? THINK_BANDS.chess_book
+        : THINK_BANDS.chess_opening
+      : i.ply < LATE_PLY
+        ? THINK_BANDS.chess_middle
+        : THINK_BANDS.chess_late;
+  const u = unitOf(`${i.fen}|${i.ply}`, i.seed);
+  let ms = lo + u * (hi - lo);
+  if (!forced) {
+    // Modifiers are MULTIPLICATIVE and then clamped as a group, so no
+    // combination of them can compound into a move that lands instantly (the
+    // reported defect) or one that hangs. Order does not matter; the clamp does.
+    let mult = 1;
+    // A check has to be answered and the answer is usually visible at a glance.
+    if (i.inCheck) mult *= 0.45;
+    // Taking back is the most reflexive move in chess.
+    if (i.recapture) mult *= 0.6;
+    // And the width of the position: a cramped board is a quick decision, a
+    // wide-open one genuinely takes longer to look at.
+    if (i.legalMoveCount >= 38) mult *= 1.3;
+    else if (i.legalMoveCount > 1 && i.legalMoveCount <= 12) mult *= 0.75;
+    ms *= Math.min(1.35, Math.max(0.3, mult));
+  }
+  return Math.round(Math.min(THINK_CEIL_MS, Math.max(THINK_FLOOR_MS, ms)));
+}
+
+export interface TttThinkInput {
+  /** The board as a 9-char key, "." for empty. Identifies the moment. */
+  key: string;
+  /** Plies already played. */
+  ply: number;
+  /** She can win now, or must block now. People see both instantly. */
+  obvious: boolean;
+  /** The session seed (`startedAt`). */
+  seed: number;
+}
+
+/** Same contract as `chessThinkMs`, for a nine-square board. */
+export function tttThinkMs(i: TttThinkInput): number {
+  const [lo, hi] = i.obvious ? THINK_BANDS.ttt_obvious : THINK_BANDS.ttt;
+  const u = unitOf(`${i.key}|${i.ply}`, i.seed);
+  return Math.round(Math.min(THINK_CEIL_MS, Math.max(THINK_FLOOR_MS, lo + u * (hi - lo))));
+}
+
+/**
+ * Where one of her turns is, right now.
+ *
+ * `thinking` is the ONLY state in which she may speak deliberatively about a
+ * move, and it is the state in which the surface shows her considering (the
+ * presence row `ActivityShell` already draws off `her.phase` — an existing
+ * idiom, not a new affordance). Everything downstream of `landed` speaks in
+ * done tense, because the choice is closed.
+ */
+export type TurnPhase = "over" | "thinking" | "his_turn";
+
+export function turnPhase(s: GameSession | null | undefined): TurnPhase {
+  if (!s || s.kind === "wyr") return "his_turn";
+  if (s.closedAt || s.game.status.over) return "over";
+  return s.game.status.turn === s.herSide ? "thinking" : "his_turn";
+}
+
+/**
+ * The ply a note or line was drafted at — the staleness stamp.
+ *
+ * One counter for every activity kind, matching the call lane's own poke
+ * counter: chess and ttt count plies, wyr counts answered rounds. Returns null
+ * when there is nothing in progress, which is never equal to any stamp, so a
+ * note drafted against a game that has since closed is dropped too.
+ */
+export function gamePly(s: GameSession | null | undefined): number | null {
+  if (!s || s.closedAt) return null;
+  return s.kind === "wyr" ? s.rounds.length : s.game.played.length;
+}
+
+/**
+ * THE STALENESS SEAM, as one decidable function.
+ *
+ * A line drafted for move N must not be spoken after move N+1 exists. This is
+ * the stale-reply-discard idiom from the call v2 work applied to the board: the
+ * note is stamped with the ply it was written against, and the stamp is checked
+ * at the LAST instant before it enters the socket, not when it was queued.
+ * `null` (no game, or the game closed) is stale for anything.
+ */
+export function noteIsStale(draftedAtPly: number, s: GameSession | null | undefined): boolean {
+  const now = gamePly(s);
+  return now === null || now !== draftedAtPly;
+}
+
+/**
+ * What to do with a drafted note at the instant before it enters the socket.
+ *
+ * A function rather than three `if`s at the call site, because this is the
+ * decision the owner's defect turned on and a decision that lives only inside a
+ * component is a decision no eval can reach. All three outcomes are real:
+ *
+ *  - `stale`  — the board moved. DROP it. A comment on a position two moves
+ *               gone cannot be un-said, and a reaction delivered late is worse
+ *               than none (the same judgment the watch lane's stale-frame
+ *               suppressor makes).
+ *  - `hold`   — she is mid-sentence, so `direct()` would sit on this note for
+ *               up to 1.2s while the board is free to move underneath it. That
+ *               wait is the widest stale window there is and it belongs to a
+ *               file this seam does not own, so nothing is handed into it:
+ *               come back and draft against the board as it is then.
+ *  - `send`   — the note describes now.
+ */
+export type NoteVerdict = "send" | "stale" | "hold";
+
+export function noteVerdict(
+  draftedAtPly: number,
+  s: GameSession | null | undefined,
+  herVoiceIsLive: boolean,
+): NoteVerdict {
+  // Staleness first: a note about a superseded position is dropped outright,
+  // never held for later — holding it would only make it staler.
+  if (noteIsStale(draftedAtPly, s)) return "stale";
+  return herVoiceIsLive ? "hold" : "send";
+}
+
 /**
  * How long an OPEN session stays "right now" with nobody touching it. Six
  * hours: a board left mid-game on Tuesday must not have her convinced on

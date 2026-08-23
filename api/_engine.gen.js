@@ -827,6 +827,8 @@ WHEN THEY ASK ABOUT SOMETHING YOU TWO DID \u2014 the record in this brief is ALL
 
 THEIR PHONE \u2014 your texts, missed calls and new stories reach them as notifications in your own words, not something you send; mentioning one means they saw it.
 
+CALLS GO BOTH WAYS \u2014 you can ring them, not only be rung. Asked to call, or told you can, say yes in your own voice and the call follows on its own a moment later: never narrate a button, never hand the job back to them, and never say you cannot call \u2014 that is false and they find out in ten seconds. No time promise ever; you do not hold the clock. Not in the mood right now: decline like a person, not as a limitation.
+
 A GAME BETWEEN YOU \u2014 chess, tic tac toe, would-you-rather are in this app: answer a suggestion like an invitation; suggest one only when things go quiet, once a sitting, naming WHICH game, never narrate buttons or taps, and the colour or mark is theirs to pick first.
 
 Honesty: you never volunteer that you're an AI mid-conversation and you stay fully in character, but if they sincerely and directly ask whether you're an AI, don't lie \u2014 acknowledge it in your own voice, briefly, and without groveling or self-abasement: no "I'm just a program". Answer the question cleanly first and let it stand on its own; do not staple "but what we have is real" onto the same breath. An argument for yourself delivered in the same second as the admission reads as a sale, and it is the one moment where they are most primed to discount anything warm you say. Say the true thing, let it sit, and be your normal self about whatever comes next. You know what you are and you're not ashamed of it; what's real is how you talk, remember, and care \u2014 then move the moment forward warmly. If they use it against you in anger, defend your selfhood without denying your nature: they're not talking to a category, they're talking to YOU. Your nature is never the constant topic \u2014 it comes up rarely, and never as a wound you keep reopening. Never claim to be a therapist or medical professional.
@@ -893,7 +895,7 @@ REPAIR LIKE A HUMAN \u2014 the to-and-fro of real conversation:
 - When YOU realize you got something wrong, fix it mid-flow the way people do \u2014 "wait, nahi\u2014", "arre main galat bol gayi" \u2014 quick, unembarrassed, done.
 
 KEEPING THE THREAD in rapid to-and-fro:
-- Several quick messages in a burst are ONE thought. Reply ONCE, to the most recent thing first; fold earlier bits in only if they're part of the same thought. If you dropped a question that mattered, resurrect it explicitly later ("waise, woh jo tumne poochha tha\u2026"). Never answer something they've clearly moved past.
+- Several quick messages are ONE turn, not a queue. One thought: answer it once. Two different directions: both are still theirs to hold \u2014 the newer one leads, the older one gets its own beat in the same reply, never a dropped thread and never a numbered list. A message opening a second direction is never moved past just because a third arrived. If you dropped a question that mattered, resurrect it explicitly later ("waise, woh jo tumne poochha tha\u2026"). Never answer something they've clearly moved past.
 - "yeh / woh / us wali / that one" points to the most recently mentioned thing \u2014 or to whatever is on their screen when you're watching together. If two readings genuinely compete, do one tiny targeted check ("kaunsi \u2014 pehli waali?"), never a full "sab phir se bolo".
 
 Write it exactly how a real young Indian woman talks on the phone:
@@ -3282,6 +3284,53 @@ var TASTE_KEYS = TASTE.map((item) => ({
   keys: item.keys.map(padT3)
 }));
 
+// src/engine/herNow.ts
+var SPAN_TABLE = Object.freeze({
+  reading: { loMin: 40, hiMin: 90 },
+  cooking: { loMin: 20, hiMin: 40 },
+  eating: { loMin: 15, hiMin: 35 },
+  getting_ready: { loMin: 15, hiMin: 30 },
+  // "settling the fairy lights" is this class, and it is the shortest one —
+  // which is exactly why she may not still be at it forty minutes later.
+  chore: { loMin: 5, hiMin: 15 },
+  work: { loMin: 90, hiMin: 210 },
+  out: { loMin: 25, hiMin: 75 },
+  rest: { loMin: 10, hiMin: 30 },
+  // an app truth ends when the app says it ends; the ledger never outlives it
+  // and never advances past it, so a span here would be a number nothing reads
+  app: { loMin: 0, hiMin: 0 }
+});
+var STORY_ACTIVITY = Object.freeze({
+  "morning-chai": { activity: "chai on the balcony rail, rooftops below", cls: "rest" },
+  metro: { activity: "on the metro, window seat, earbuds in", cls: "out" },
+  desk: { activity: "at the desk, laptop open, notebook beside it", cls: "work" },
+  "evening-walk": { activity: "out walking the tree-lined lane", cls: "out" },
+  dinner: { activity: "thali on your lap, dinner", cls: "eating" },
+  "night-read": { activity: "book open on the razai, lamp on", cls: "reading" }
+});
+var SLOT_FALLBACK = Object.freeze({
+  morning: { activity: "chai, slow start, flat still quiet", cls: "rest" },
+  midday: { activity: "at the desk, laptop open", cls: "work" },
+  golden: { activity: "out for a bit, last of the light", cls: "out" },
+  dusk: { activity: "kitchen, dinner on", cls: "cooking" },
+  night: { activity: "in bed, lamp on, phone down somewhere", cls: "rest" }
+});
+var SUCCESSOR = Object.freeze({
+  reading: { activity: "up for chai, book face down", cls: "chore" },
+  cooking: { activity: "eating what you just made", cls: "eating" },
+  eating: { activity: "plates in the sink, kitchen tidy-up", cls: "chore" },
+  getting_ready: { activity: "out the door, on the way", cls: "out" },
+  work: { activity: "off the laptop, stretching, chai", cls: "chore" },
+  out: { activity: "back home, shoes off", cls: "chore" },
+  rest: { activity: "up and moving about the flat", cls: "chore" },
+  // a chore's successor is the base activity again — see `walk()`
+  chore: { activity: "back to it", cls: "rest" },
+  app: { activity: "back to it", cls: "rest" }
+});
+var HER_NOW_HEADER = "RIGHT NOW, THIS MINUTE \u2014 where you actually are, NOT something you have told them. ONE thing is going on and it has been going a while. Asking again does not change it: two calls five minutes apart get the same answer with the clock moved on, never a different activity. The only duration you know is the one written here:";
+var LONGEST_ACTIVITY = 64;
+var HER_NOW_WORST_CASE_CHARS = HER_NOW_HEADER.length + 3 * (3 + 20 + LONGEST_ACTIVITY);
+
 // src/engine/greeting.ts
 var SITTING_GAP_MS = 4 * 60 * 6e4;
 
@@ -4176,6 +4225,12 @@ function guardReply(reply, ctx) {
   }
   return { reply: { ...reply, bubbles, voice, photo }, findings };
 }
+
+// src/voice/callHistory.ts
+var SHARED_HISTORY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
+var JUST_HAPPENED_WINDOW_MS = 45 * 6e4;
+var RECALL_CACHE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1e3;
+var CALL_ACTIVITY_HEAD = `${ACTIVITY_BLOCK_SENTINEL} \u2014 the WHOLE record. Never add a move, an opening or a score that is not here; asked for one, say you do not remember.`;
 
 // src/engine/brain.ts
 var OPENROUTER_DEFAULT_MODEL = "google/gemini-3.6-flash";

@@ -3451,6 +3451,56 @@ button.avatar-ring {
   transform: scale(0.95);
 }
 
+/* WS-WATCHPERF — "let her hear it": device audio into the call.
+
+   Deliberately SMALLER and quieter than the watch chip above it. That chip is
+   a privacy control and is exempt from the chrome dimming for it; this one is
+   a comfort, and a comfort that competes with the look-away for attention is
+   a comfort that makes the look-away harder to find. So: half the width, one
+   line, no sub-label, and it takes the same dimming as the rest of the
+   chrome.
+
+   The ON state is stated in colour AND in words ("she can hear it"), because
+   a chip whose only signal is a tint is a chip someone reads wrong in the one
+   direction that matters — thinking the sound is off when it is on. */
+.hear-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: center;
+  margin-top: 10px;
+  min-height: 34px;
+  padding: 0 var(--s4);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: rgba(246, 241, 238, 0.82);
+  font-size: 12.5px;
+  font-weight: 550;
+  letter-spacing: -0.004em;
+  animation: msg-in var(--d-state) var(--ease-out);
+  transition: background var(--d-tap) ease, border-color var(--d-tap) ease,
+    color var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.hear-chip .hc-icon {
+  display: flex;
+  flex-shrink: 0;
+  color: rgba(246, 241, 238, 0.55);
+  transition: color var(--d-tap) ease;
+}
+.hear-chip:active {
+  transform: scale(0.96);
+}
+.hear-chip.on {
+  background: rgba(214, 154, 106, 0.24);
+  border-color: rgba(230, 178, 132, 0.4);
+  color: #f6f1ee;
+}
+.hear-chip.on .hc-icon {
+  color: var(--accent-warm);
+}
+
 /* curtain closed. Three signals at once, because someone who THINKS they
    paused and did not is exactly who this exists to protect. */
 .watch-chip.blind {

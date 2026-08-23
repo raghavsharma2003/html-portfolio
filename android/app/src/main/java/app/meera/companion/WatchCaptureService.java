@@ -56,10 +56,13 @@ public class WatchCaptureService extends Service {
   // then guesses about. Frames go out at full rate and quality and the link
   // carries it or drops individual frames; she is never fed a worse picture
   // on purpose.
-  private static final long LIVE_FRAME_MS = 600L;
+  //
+  // WS-WATCHPERF: the CADENCE half of these constants now lives in
+  // WatchPacer, which is pure Java and can therefore be compiled and RUN by
+  // evals/watchlat/. The quality half stays here, next to the encoder that
+  // uses it.
   private static final int LIVE_JPEG_Q = 68;
   private static final int LIVE_MAX_SIDE = 768;
-  private static final long FRAME_INTERVAL_MS = 1400;
 
   // ── waking her up, fast ────────────────────────────────────────────────
   // The Live API never generates from video on its own, so nothing she sees
@@ -77,8 +80,7 @@ public class WatchCaptureService extends Service {
   // replaced, and how long it has been standing still — never what any of it
   // means. Her own brain decides what, and whether, to say, and silence
   // answers every wake.
-  private static final long DETECT_MS = 120; // screen sampled this often
-  private static final long CHANGE_SEND_MS = 250; // floor between reaction frames
+  private static final long DETECT_MS = WatchPacer.DETECT_MS; // screen sampled this often
   private static final int SIG_SIDE = SceneReader.SIG_SIDE;
   private static final int SIG_LEN = SceneReader.SIG_LEN;
   // A screen that has not moved since the last frame we sent carries no new
@@ -93,19 +95,22 @@ public class WatchCaptureService extends Service {
   // The keep-alive is LOAD-BEARING and must stay under LiveWatchEngine's
   // FRAME_FRESH_MS (3000): no picture that new, no wake-up at all, so a
   // slower beat would blind her on exactly the still screens this saves on.
-  private static final long IDLE_FRAME_MS = 2500L;
-  /** Mirrors LiveWatchEngine.FRAME_FRESH_MS: no picture this new, no wake-up.
-   *  This is THE grounding invariant of the whole feature — she is never told
-   *  to look at a screen she was not actually shown. */
-  private static final long FRAME_FRESH_MS = 3000L;
+  //
+  // Both of those numbers, the 600/1400 baselines and the 250ms encode floor
+  // are WatchPacer's now — see that file's header for why, and for the
+  // delivery-accounting bug it was extracted to fix.
   private final SceneReader scene = new SceneReader();
-  private boolean movedSinceSent = true; // the first frame always goes
+  private final WatchPacer pacer = new WatchPacer();
   private String lastB64; // the last picture we encoded, for the keep-alive
   private boolean lastB64Held; // ...and whether it caught the screen standing still
-  private boolean wantStill; // the screen stopped and we still owe a still frame
-  private long lastSentAt = 0; // elapsedRealtime of the last frame that went out
-  private long lastStillFrameAt = 0; // ...captured while the screen was HELD
   private boolean startedWake = false;
+  /** Refusal records are rate-limited to this — see deliver(). */
+  private static final long REFUSAL_DIAG_MS = 400;
+  private long lastRefusalDiagAt = 0;
+  /** When the last wake ACTUALLY went out — the start of her reaction leg.
+   *  Correlated with onSpeaking(true) to produce the one number the owner's
+   *  complaint is about: nudge sent -> her voice starts. */
+  private long lastNudgeAt = 0;
   /** THE LOOK-AWAY. User-initiated only: while this is set nothing is encoded
    *  and nothing enters the socket, so the existing "no wake without a
    *  delivered frame" rule makes her politely blind for free. Nothing may
@@ -145,6 +150,86 @@ public class WatchCaptureService extends Service {
   private ImageReader reader;
   private Handler handler;
   private boolean running = false;
+
+  // ── WS-WATCHPERF: the encoder does not run on the UI thread ───────────
+  // The expensive half of a frame — a full-resolution pixel copy, a filtered
+  // downscale, a JPEG compress and a base64 — used to run inside tick(), on
+  // the MAIN LOOPER, with the next detect tick posted only AFTER it returned.
+  // Two costs, both paid on every single frame at 1.67 fps:
+  //
+  //   1. the detect loop's own period became 120ms + encode, so the 120ms
+  //      luma tick that the whole wake latency is measured in was not 120ms
+  //      on the ticks that mattered most — the ones where something changed;
+  //   2. it was the app's UI thread, shared with the hovering bubble and the
+  //      WebView, during a session whose entire premise is that the user is
+  //      in some OTHER app.
+  //
+  // Encoding now happens on its own thread and reports delivery back. Exactly
+  // ONE encode is ever in flight (WatchPacer.WHY_BUSY), so a slow device
+  // queues nothing and the reusable capture Bitmap below cannot be overwritten
+  // while the encoder is reading it.
+  private android.os.HandlerThread encThread;
+  private Handler enc;
+  private Bitmap capBitmap; // reused: a 2.6MB ARGB allocation per frame was
+  private int capBitmapW, capBitmapH; // pure GC pressure at 1.67fps
+  private boolean encodeBusy = false; // capture-thread confined
+  private final ByteArrayOutputStream jpegOut = new ByteArrayOutputStream(96 * 1024);
+
+  // ── WS-WATCHPERF part 2: the phone's own audio, behind a setting ──────
+  /** OFF unless the user turns it on, per share. See MediaAudioCapture. */
+  private static volatile boolean mediaAudioOn = false;
+  private MediaAudioCapture mediaAudio;
+  /** The running service, so the chip can turn device audio on and off DURING
+   *  a share without tearing the projection down and re-running consent. */
+  private static volatile WatchCaptureService instance;
+
+  static void setMediaAudio(boolean on) {
+    mediaAudioOn = on;
+    WatchCaptureService svc = instance;
+    if (svc == null) return;
+    Handler h = svc.handler;
+    if (h != null) h.post(() -> { if (on) svc.startMediaAudio(); else svc.stopMediaAudio(); });
+  }
+
+  static boolean isMediaAudioOn() {
+    return mediaAudioOn;
+  }
+
+  /**
+   * Start AudioPlaybackCapture on THIS share's MediaProjection.
+   *
+   * <p>Everything about the lifetime here is Android's own, deliberately: the
+   * capture is constructed from the same {@link MediaProjection} the screen
+   * share holds, so it cannot start without a live share, cannot outlive one,
+   * and dies at the same instant the user revokes it from the system UI. There
+   * is no second consent surface to get wrong and no way to be recording
+   * device audio with the screen share stopped.
+   */
+  private void startMediaAudio() {
+    if (!running || !mediaAudioOn || mediaAudio != null) return;
+    if (projection == null || Build.VERSION.SDK_INT < 29) return;
+    LiveWatchEngine l = live;
+    if (l == null) return; // cascade lane has no PCM uplink to mix into
+    MediaAudioCapture m = MediaAudioCapture.start(projection);
+    if (m == null) {
+      watchDiag("media_audio", "on", false, "why", "unavailable");
+      return;
+    }
+    mediaAudio = m;
+    l.setMediaSource(m);
+    watchDiag("media_audio", "on", true, "why", "");
+  }
+
+  private void stopMediaAudio() {
+    MediaAudioCapture m = mediaAudio;
+    mediaAudio = null;
+    LiveWatchEngine l = live;
+    // the engine's reference goes first: the mic thread must never read a
+    // source that is being released underneath it
+    if (l != null) l.setMediaSource(null);
+    if (m != null) m.stop();
+    if (m != null) watchDiag("media_audio", "on", false, "why", "stopped");
+  }
 
   private final Runnable sampler = new Runnable() {
     @Override
@@ -220,15 +305,25 @@ public class WatchCaptureService extends Service {
             null);
     running = true;
     sessionActive = true;
+    instance = this;
     // the native brain loop — lives HERE because Android freezes the WebView
     // (timers and fetch) while another app is foreground. Realtime first:
     // the Gemini Live session co-watches with ~zero latency and real barge-in;
     // the snapshot→think→speak cascade is the fallback rung underneath it.
     config = intent.getStringExtra(EXTRA_CONFIG);
     if (!startLive()) startCascade();
+    // WS-WATCHPERF: the phone's own audio, if and only if the user asked for
+    // it on this share. Scoped to THIS MediaProjection by Android's own API —
+    // when the projection dies the capture dies with it, so there is no path
+    // where device audio outlives the screen share it was consented to.
+    startMediaAudio();
     BubbleService.startBubble(this); // she hovers over the screen (needs SAW)
     BubbleService.setState(this, BubbleService.STATE_WATCHING);
     handler = new Handler(Looper.getMainLooper());
+    android.os.HandlerThread et = new android.os.HandlerThread("meera-watch-enc");
+    et.start();
+    encThread = et;
+    enc = new Handler(et.getLooper());
     handler.postDelayed(sampler, 400);
     return START_NOT_STICKY;
   }
@@ -271,6 +366,18 @@ public class WatchCaptureService extends Service {
               @Override
               public void onSpeaking(boolean speaking) {
                 if (stale(gen) || lane != LANE_LIVE) return;
+                // THE NUMBER THE OWNER REPORTED. Everything else in this
+                // trace is a leg of it: her voice starting, measured from the
+                // wake that asked her to look. Stamped once per wake — a
+                // second onSpeaking inside the same reaction (she pauses and
+                // resumes) must not report a second, shorter latency.
+                if (speaking && lastNudgeAt != 0) {
+                  watchDiag(
+                      "reaction",
+                      "ms", SystemClock.elapsedRealtime() - lastNudgeAt,
+                      "seq", pacer.seq());
+                  lastNudgeAt = 0;
+                }
                 // HALF-DUPLEX ON SPEAKER: without this, the phone's mic feeds
                 // her own voice straight back to the server VAD — she'd
                 // interrupt herself mid-syllable in an endless loop. Mute the
@@ -387,6 +494,7 @@ public class WatchCaptureService extends Service {
   private void tick() {
     if (reader == null) return;
     long now = SystemClock.elapsedRealtime();
+    long t0 = now;
     Image image = reader.acquireLatestImage();
     // NO NEW IMAGE IS NOT NOTHING. A virtual display only produces a buffer
     // when the screen composites something, so a static screen delivers
@@ -396,11 +504,20 @@ public class WatchCaptureService extends Service {
     // the one moment that matters most in this whole feature executed nothing.
     // It also meant her newest picture aged past FRAME_FRESH_MS and she went
     // blind and unwakeable for as long as they held.
+    LiveWatchEngine l0 = live;
+    long baseline = l0 != null ? WatchPacer.LIVE_FRAME_MS : WatchPacer.CASCADE_FRAME_MS;
     if (image == null) {
       SceneReader.Out s = scene.still(now);
       // the keep-alive re-sends the LAST ENCODED picture — no plane read, no
       // Bitmap, no JPEG: this is a socket write of a string we already have
-      keepAlive(now);
+      if (pacer.decide(false, s.quiet, s.preroll, encodeBusy, privateMode, baseline, now)
+              == WatchPacer.KEEPALIVE
+          && lastB64 != null) {
+        // it only counts as a picture of the HELD screen if it actually caught
+        // the screen standing still — re-sending a mid-transition frame must
+        // not let a show wake claim she is looking at what they stopped on
+        deliver(lastB64, 0, lastB64Held, now, pacer.seq(), 0, 0, true);
+      }
       dispatch(s, now);
       return;
     }
@@ -409,33 +526,34 @@ public class WatchCaptureService extends Service {
       // an unreadable plane is not a still screen: advance the hold off the
       // last grid rather than pretending the picture changed to nothing
       SceneReader.Out s = sig != null ? scene.read(sig, now) : scene.still(now);
-      // "identical" is the detector's own hold test, not byte equality: a
-      // blinking caret, a clock digit or a spinner is a screen standing still,
-      // and a paused video under a UI overlay redraws without changing —
-      // exactly the case acquireLatestImage()'s null check never covered.
-      if (!s.quiet) movedSinceSent = true;
-      LiveWatchEngine l = live;
-      long baseline = l != null ? LIVE_FRAME_MS : FRAME_INTERVAL_MS;
       // Full cadence whenever anything moved; the slow keep-alive beat only on
       // a screen the detector says is genuinely identical. A redraw that
       // changed nothing is not worth a vision tile — and it tells her nothing
       // she is not already looking at. Never a quality change, only a
-      // frequency one, and only on a screen that is standing still.
-      long cadence = movedSinceSent ? baseline : Math.max(baseline, IDLE_FRAME_MS);
-      // The screen just STOPPED: get a legible still picture up now, ahead of
-      // the cadence, so the hold that confirms a moment later is backed by the
-      // frame they are actually looking at — and the poke itself is a bare
-      // socket write with nothing on the critical path. A frame captured
-      // mid-transition is half the old screen and half the new one, which is
-      // precisely the input that makes her guess at what she is seeing.
-      // the pre-roll is STICKY: if the 250ms re-encode floor swallows the tick
-      // the screen stopped on, the debt carries to the next tick that can pay
-      // it, so a hold is never left backed by a mid-transition picture
-      if (s.preroll) wantStill = true;
-      boolean want = wantStill || now - lastSentAt >= cadence;
-      if (want && now - lastSentAt >= CHANGE_SEND_MS) {
-        String b64 = encode(image);
-        if (b64 != null) send(b64, s.motion, s.quiet, now);
+      // frequency one, and only on a screen that is standing still. The whole
+      // decision — including the sticky pre-roll, the idle-exit re-phase and
+      // the one-in-flight backpressure — is WatchPacer's, so it can be run
+      // against a clock in evals/watchlat/ instead of only on a phone.
+      if (pacer.decide(true, s.quiet, s.preroll, encodeBusy, privateMode, baseline, now)
+          == WatchPacer.ENCODE) {
+        // The full-resolution pixel copy is the last thing that needs the
+        // Image alive, so it happens here and the rest — crop, downscale,
+        // JPEG, base64, socket — happens on the encoder thread.
+        Bitmap raw = grab(image);
+        long capMs = SystemClock.elapsedRealtime() - t0;
+        if (raw != null) {
+          final int seq = pacer.onEncodeStart(now);
+          final int motion = s.motion;
+          final boolean held = s.quiet;
+          final int w = image.getWidth();
+          final int h = image.getHeight();
+          final long capturedMs = capMs;
+          encodeBusy = true;
+          Handler e = enc;
+          if (e == null || !e.post(() -> encodeAndSend(raw, w, h, motion, held, seq, capturedMs))) {
+            encodeBusy = false;
+          }
+        }
       }
       dispatch(s, now);
     } finally {
@@ -443,39 +561,108 @@ public class WatchCaptureService extends Service {
     }
   }
 
-  /** Re-send the picture we already have, so a held screen never ages past
-   *  the freshness window that every wake-up depends on. No encode, no plane
-   *  read — the cost is the vision tile and nothing else. */
-  private void keepAlive(long now) {
-    if (lastB64 == null || now - lastSentAt < IDLE_FRAME_MS) return;
-    // it only counts as a picture of the HELD screen if it actually caught the
-    // screen standing still — re-sending a mid-transition frame must not let a
-    // show wake claim she is looking at what they stopped on
-    send(lastB64, 0, lastB64Held, now);
+  /** ENCODER THREAD. Crop, downscale, JPEG, base64, then hand the result back
+   *  to the capture thread — which is the only thread allowed to decide
+   *  whether the cadence slot was spent. */
+  private void encodeAndSend(
+      Bitmap raw, int w, int h, int motion, boolean held, int seq, long capturedMs) {
+    long e0 = SystemClock.elapsedRealtime();
+    String b64 = null;
+    try {
+      b64 = compress(raw, w, h);
+    } catch (Exception ignored) {
+      // a dropped frame is fine; the next tick retries — and because the
+      // pacer credits nothing until delivery, "the next tick" is 120ms
+    }
+    final String out = b64;
+    final long encMs = SystemClock.elapsedRealtime() - e0;
+    Handler c = handler;
+    if (c == null) return;
+    c.post(() -> {
+      encodeBusy = false;
+      // the share may have ended while this frame was being encoded; a frame
+      // for a dead session must reach neither the socket nor the trace
+      if (!running) return;
+      if (out == null) {
+        pacer.onRefused();
+        watchDiag(
+            "frame",
+            "seq", seq, "delivered", false, "refused_by", "encode",
+            "encode_ms", encMs, "capture_ms", capturedMs);
+        return;
+      }
+      deliver(out, motion, held, SystemClock.elapsedRealtime(), seq, capturedMs, encMs, false);
+    });
   }
 
-  private void send(String b64, int motion, boolean held, long now) {
+  /**
+   * Put a frame on the wire and account for it HONESTLY.
+   *
+   * <p>The engines report whether the socket actually took the frame.
+   * {@link LiveWatchEngine#onFrame} refuses whenever the uplink is behind on
+   * her audio — video yields to her ears, which is right — and the old code
+   * credited that refusal as a send. See WatchPacer's header for the 2.5s of
+   * blindness that bought. Only {@link WatchPacer#onDelivered} spends a
+   * cadence slot, and only a real delivery reaches it.
+   */
+  private void deliver(
+      String b64, int motion, boolean held, long now, int seq, long capMs, long encMs, boolean keepAlive) {
     // THE LOOK-AWAY: nothing is encoded and nothing enters the socket while
     // they have the curtain closed, so no wake can fire and she cannot invent
     // a word about what she missed.
     if (privateMode) return;
-    lastSentAt = now;
-    lastB64 = b64;
-    lastB64Held = held;
-    movedSinceSent = false;
-    if (held) {
-      lastStillFrameAt = now;
-      wantStill = false;
-    }
-    WatchPlugin.emitFrame(b64); // UI chip liveness (when the app is visible)
-    // the brain lives natively — realtime lane while its socket is up,
-    // cascade otherwise (frames before setupComplete are simply skipped)
+    boolean sent;
+    String why = null;
     LiveWatchEngine l = live;
     if (l != null) {
-      if (l.isReady()) l.onFrame(b64, motion);
+      if (l.isReady()) {
+        sent = l.onFrame(b64, motion);
+        if (!sent) why = "uplink";
+      } else {
+        sent = false;
+        why = "not_ready";
+      }
     } else if (engine != null) {
-      engine.onFrame(b64, motion);
+      sent = engine.onFrame(b64, motion);
+      if (!sent) why = "cascade";
+    } else {
+      sent = false;
+      why = "no_lane";
     }
+    if (sent) {
+      lastB64 = b64;
+      lastB64Held = held;
+      pacer.onDelivered(now, held);
+      WatchPlugin.emitFrame(b64); // UI chip liveness (when the app is visible)
+    } else {
+      pacer.onRefused();
+    }
+    // SAMPLED, deliberately — one record per frame would be a bigger stream
+    // than the thing it describes. A REFUSAL is never sampled AWAY, because a
+    // frame that did not reach her is the whole reason this trace exists, but
+    // it is rate-limited: refusals arrive in bursts that all share one cause
+    // (the radio stalled), and 2.5 records a second is more resolution than
+    // any question about them needs. This ships permanently, not for one
+    // debugging session, so the stream has to have a ceiling.
+    boolean tellRefusal = false;
+    if (!sent) {
+      if (now - lastRefusalDiagAt >= REFUSAL_DIAG_MS) {
+        lastRefusalDiagAt = now;
+        tellRefusal = true;
+      }
+    }
+    if (tellRefusal || (sent && (seq % 10 == 1 || keepAlive)))
+      watchDiag(
+          "frame",
+          "seq", seq,
+          "delivered", sent,
+          "refused_by", why == null ? "" : why,
+          "keep_alive", keepAlive,
+          "held", held,
+          "motion", motion,
+          "bytes", b64.length(),
+          "capture_ms", capMs,
+          "encode_ms", encMs);
   }
 
   /** Hand the wake-up to whichever lane is live. Every honesty gate still
@@ -487,15 +674,20 @@ public class WatchCaptureService extends Service {
     LiveWatchEngine l = live;
     int wake = s.wake;
     if (!startedWake) {
-      if (lastSentAt == 0) return;
+      if (!pacer.anyDelivered()) return;
       wake = SceneReader.WAKE_START;
     } else if (wake == SceneReader.WAKE_NONE) {
       return;
     }
     // a SHOW must ride behind a picture of the HELD screen, not one captured
     // mid-transition; the ambient beat is happy with any delivered frame
-    long backing = SceneReader.isShow(wake) ? lastStillFrameAt : lastSentAt;
-    if (backing == 0 || now - backing > FRAME_FRESH_MS) return;
+    boolean show = SceneReader.isShow(wake);
+    if (!pacer.fresh(show, now)) {
+      watchDiag(
+          "wake", "class", wakeLabel(wake), "sent", false, "refused_by", "stale_frame",
+          "frame_age_ms", pacer.frameAge(now), "still_age_ms", pacer.stillAge(now));
+      return;
+    }
     boolean sent;
     if (l != null) {
       sent = l.nudge(wake);
@@ -504,12 +696,76 @@ public class WatchCaptureService extends Service {
     } else {
       return;
     }
+    // The wake is the START of her reaction leg — reaction_started is
+    // correlated to it by onSpeaking, so it is stamped here and nowhere else.
+    if (sent) lastNudgeAt = now;
+    watchDiag(
+        "wake",
+        "class", wakeLabel(wake),
+        "sent", sent,
+        "refused_by", sent ? "" : "engine",
+        "seq", pacer.seq(),
+        "frame_age_ms", pacer.frameAge(now),
+        "still_age_ms", pacer.stillAge(now));
     if (sent) {
       scene.noteWake(wake, now);
       if (wake == SceneReader.WAKE_START) startedWake = true;
       // ONLY here — past every gate above and past the engine's own — may a
       // wake be reported to the web layer for recording. See emitShowWake.
       emitShowWake(wake, s.blank);
+    }
+  }
+
+  /** Every wake class by name, INCLUDING the ambient ones. Distinct from
+   *  wakeName() below on purpose: wakeName is the recording contract (only
+   *  SHOW classes may be armed, so an ambient class deliberately has no name
+   *  there), while this is the trace, which must be able to say what was
+   *  refused. A label that cannot name a suppressed ambient wake cannot tell
+   *  "she was never asked to look" from "she was asked and refused". */
+  private static String wakeLabel(int wake) {
+    switch (wake) {
+      case SceneReader.WAKE_START:
+        return "start";
+      case SceneReader.WAKE_SETTLE:
+        return "settle";
+      case SceneReader.WAKE_RESHOW:
+        return "reshow";
+      case SceneReader.WAKE_POINT:
+        return "point";
+      case SceneReader.WAKE_SWITCH:
+        return "switch";
+      case SceneReader.WAKE_ALONG:
+        return "along";
+      case SceneReader.WAKE_IDLE:
+        return "idle";
+      default:
+        return "none";
+    }
+  }
+
+  /**
+   * WS-WATCHPERF — the frame lifecycle, out of the service process and into
+   * the ONE diag stream, so the owner's next real share is readable by
+   * {@code scripts/pull-trace.mjs} instead of guessed at from source.
+   *
+   * <p>Content-free by the same contract every other diag record obeys:
+   * timings, counts, sizes, class names and refusal reasons. No picture, no
+   * pixel, no text, and nothing about what was on the screen beyond the
+   * geometry's own class name — which is what the "watchwake" bridge event
+   * already carries.
+   *
+   * <p>Fire-and-forget through the existing plugin bridge: a failed record is
+   * a missing line in a trace, never a broken call. Nothing on the capture,
+   * speech or wake path reads it back.
+   */
+  private void watchDiag(String event, Object... kv) {
+    try {
+      org.json.JSONObject d = new org.json.JSONObject();
+      d.put("ev", event);
+      for (int i = 0; i + 1 < kv.length; i += 2) d.put(String.valueOf(kv[i]), kv[i + 1]);
+      d.put("lane", live != null ? "live" : engine != null ? "cascade" : "none");
+      WatchPlugin.emitEvent("watchdiag", d);
+    } catch (Exception ignored) {
     }
   }
 
@@ -583,26 +839,55 @@ public class WatchCaptureService extends Service {
     }
   }
 
-  /** Full-res copy -> crop -> downscale -> JPEG -> base64. The expensive
-   *  half, run only for frames that are actually going out. */
-  private String encode(Image image) {
-    Image.Plane plane = image.getPlanes()[0];
-    ByteBuffer buffer = plane.getBuffer();
-    int pixelStride = plane.getPixelStride();
-    int rowStride = plane.getRowStride();
-    int rowPadding = rowStride - pixelStride * image.getWidth();
-    Bitmap bitmap =
-        Bitmap.createBitmap(
-            image.getWidth() + rowPadding / pixelStride,
-            image.getHeight(),
-            Bitmap.Config.ARGB_8888);
-    bitmap.copyPixelsFromBuffer(buffer);
-    // crop padding, downscale so the longest side is ~768 — one vision tile,
-    // the same full quality on every link
-    LiveWatchEngine l = live;
-    int maxSide = l != null ? LIVE_MAX_SIDE : 768;
-    int quality = l != null ? LIVE_JPEG_Q : 68;
-    Bitmap cropped = Bitmap.createBitmap(bitmap, 0, 0, image.getWidth(), image.getHeight());
+  /**
+   * CAPTURE THREAD — the only half that needs the {@link Image} alive: a
+   * full-resolution pixel copy out of the capture plane.
+   *
+   * <p>The destination Bitmap is REUSED. A 1080-tall half-res capture is
+   * ~2.6MB of ARGB_8888, and allocating one per frame at 1.67 fps was ~4.4
+   * MB/s of pure garbage on the app's main heap for the length of a film.
+   * Reuse is safe because exactly one encode is ever in flight
+   * ({@link WatchPacer#WHY_BUSY}) — the capture thread cannot start writing
+   * frame N+1 into it until the encoder has reported frame N back.
+   */
+  private Bitmap grab(Image image) {
+    try {
+      Image.Plane plane = image.getPlanes()[0];
+      ByteBuffer buffer = plane.getBuffer();
+      int pixelStride = plane.getPixelStride();
+      int rowStride = plane.getRowStride();
+      int rowPadding = rowStride - pixelStride * image.getWidth();
+      int w = image.getWidth() + rowPadding / pixelStride;
+      int h = image.getHeight();
+      if (w <= 0 || h <= 0) return null;
+      Bitmap b = capBitmap;
+      if (b == null || capBitmapW != w || capBitmapH != h) {
+        if (b != null) b.recycle();
+        b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        capBitmap = b;
+        capBitmapW = w;
+        capBitmapH = h;
+      }
+      buffer.rewind();
+      b.copyPixelsFromBuffer(buffer);
+      return b;
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
+  /** ENCODER THREAD — crop the row padding, downscale so the longest side is
+   *  ~768 (one vision tile, the same full quality on every link), JPEG,
+   *  base64. This is the expensive half and it no longer runs on the looper
+   *  that also owns the detect tick. */
+  private String compress(Bitmap raw, int w, int h) {
+    // ONE quality, always the best one — so this thread needs to know nothing
+    // about which lane is up, and deliberately reads no field the main thread
+    // writes. (It used to branch on `live` for a maxSide and a quality that
+    // were the same number on both sides of the branch.)
+    final int maxSide = LIVE_MAX_SIDE;
+    final int quality = LIVE_JPEG_Q;
+    Bitmap cropped = raw.getWidth() == w ? raw : Bitmap.createBitmap(raw, 0, 0, w, h);
     float scale = maxSide / (float) Math.max(cropped.getWidth(), cropped.getHeight());
     Bitmap frame =
         scale < 1f
@@ -612,9 +897,11 @@ public class WatchCaptureService extends Service {
                 Math.round(cropped.getHeight() * scale),
                 true)
             : cropped;
-    ByteArrayOutputStream out = new ByteArrayOutputStream();
-    frame.compress(Bitmap.CompressFormat.JPEG, quality, out);
-    return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
+    jpegOut.reset();
+    frame.compress(Bitmap.CompressFormat.JPEG, quality, jpegOut);
+    if (frame != cropped) frame.recycle();
+    if (cropped != raw) cropped.recycle();
+    return Base64.encodeToString(jpegOut.toByteArray(), Base64.NO_WRAP);
   }
 
   /** Luma thumbnail sampled straight from the capture plane — no Bitmap, no
@@ -652,14 +939,18 @@ public class WatchCaptureService extends Service {
     running = false;
     sessionActive = false;
     scene.reset(); // a new share's first frame is new content again
-    movedSinceSent = true;
+    pacer.reset();
     lastB64 = null;
     lastB64Held = false;
-    wantStill = false;
-    lastSentAt = 0;
-    lastStillFrameAt = 0;
     startedWake = false;
+    lastNudgeAt = 0;
+    lastRefusalDiagAt = 0;
+    encodeBusy = false;
     privateMode = false; // a look-away never survives the session it was in
+    // Device audio is per-share by the same rule the look-away is per-session:
+    // a consent given for one share may not be inherited by the next one.
+    mediaAudioOn = false;
+    stopMediaAudio();
     BubbleService.stopBubble(this);
     stopLive();
     stopCascade();
@@ -668,12 +959,23 @@ public class WatchCaptureService extends Service {
     sessionGen++;
     config = null;
     if (handler != null) handler.removeCallbacksAndMessages(null);
+    if (enc != null) enc.removeCallbacksAndMessages(null);
+    if (encThread != null) encThread.quitSafely();
+    encThread = null;
+    enc = null;
+    // NOT recycled: quitSafely() lets a message that is ALREADY RUNNING
+    // finish, and that message is the encoder reading exactly this bitmap.
+    // A recycled bitmap in use throws; a dropped reference is collected.
+    capBitmap = null;
+    capBitmapW = 0;
+    capBitmapH = 0;
     if (display != null) display.release();
     if (reader != null) reader.close();
     if (projection != null) projection.stop();
     display = null;
     reader = null;
     projection = null;
+    if (instance == this) instance = null;
   }
 
   private void stopEverything() {

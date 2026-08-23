@@ -43,6 +43,15 @@ jobs:
       # an accidental query fails loudly rather than quietly reaching prod.
       - run: node scripts/write-config.mjs --stub
       - run: node evals/run.mjs
+      # WS-WATCHPERF. Two suites that compile and RUN shipping Java, so this
+      # job — the one that already installs a JDK to build the APK — is the
+      # only place they can live. They gate the screen-share lane's two
+      # reported defects: the frame pacing (evals/watchlat, which proves a wake
+      # can no longer evaporate between the service's accounting of a frame and
+      # the engine's) and the device-audio mixer (evals/watchaudio, which
+      # proves by position that nothing in the barge-in floor can even name the
+      # media buffers). Both FAIL rather than skip without javac.
+      - run: node evals/watchperf/run.mjs
       - run: npx vite build
       - run: npx cap sync android
       - run: cd android && ./gradlew assembleDebug --no-daemon

@@ -88,6 +88,11 @@ const {
   innerContext,
   SHARED_HISTORY_MAX_CHARS,
   formatActivityLedgerForCall,
+  formatJustHappened,
+  minsAgoLabel,
+  JUST_HAPPENED_BUDGET,
+  JUST_HAPPENED_ROWS,
+  JUST_HAPPENED_WINDOW_MS,
   callGraphBlocks,
   CALL_ACTIVITY_BUDGET,
   CALL_ACTIVITY_ROWS,
@@ -713,7 +718,7 @@ console.log("\n── 5c. P1-4: the ring that missed its deadline ──");
   );
   ok(
     "it composes into the one recall string the compile sites read",
-    callGraphBlocks("", "", labelled).includes("(these rows are from"),
+    callGraphBlocks("", "", "", labelled).includes("(these rows are from"),
   );
 }
 
@@ -863,6 +868,129 @@ console.log("\n── 5e. P0-3: a share turn is kept, and marked ──");
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+console.log("\n── 5f. WS-SHARENOW: the share that ended one minute ago ──");
+// ─────────────────────────────────────────────────────────────────────────
+// The owner's report: he screen-shared, hung up, called back ONE MINUTE later
+// and asked what they had just watched. Section 5e above proves the
+// shared-history block CARRIES share commentary; this section is why that was
+// not enough, and it is a defect of POSITION rather than of retrieval — which
+// is the same shape as `recited-prompt`'s "position is mechanism, not style".
+//
+// The block's own flow, its honest half and its wiring are driven end to end
+// in `evals/sharenow/run.mjs`. What is asserted HERE is the part that belongs
+// to this file: how it composes with the two blocks above it, that it never
+// makes anyone pay for a line twice, and the budget arithmetic, pinned to the
+// real guard.
+{
+  const SHARE_FROM = NOW - min(12);
+  const SHARE_TO = NOW - min(8);
+  const HER_LINES = [
+    "arre ye toh pura dashboard red hai",
+    "us graph me dusra spike bada weird hai",
+    "haha wo popup band kar pehle",
+  ];
+  // The owner's exact shape: the share ends, they talk for a minute, he hangs
+  // up. That last minute is what evicts her commentary from the shared-history
+  // block's three-row window.
+  const OWNER = [
+    call("me", "ruk main screen share karta hu", min(12)),
+    msg("her", HER_LINES[0], min(11), { channel: "call", watched: true }),
+    msg("her", HER_LINES[1], min(10), { channel: "call", watched: true }),
+    msg("her", HER_LINES[2], min(9), { channel: "call", watched: true }),
+    call("me", "haan theek hai", min(8)),
+    call("her", "haan", min(7)),
+    mark(min(1)),
+  ];
+  const MIRROR = [{ startedAt: SHARE_FROM, endedAt: SHARE_TO, lane: "web", said: HER_LINES }];
+
+  // THE CONTROL, on the block this file owns. It must fail, or the section
+  // below proves nothing.
+  const shared = formatSharedHistory(OWNER, NOW);
+  ok(
+    "control: the shared-history block carries fewer than all three commentary lines",
+    HER_LINES.filter((l) => shared.includes(l)).length < HER_LINES.length,
+    `${HER_LINES.filter((l) => shared.includes(l)).length}/3`,
+  );
+  ok(
+    "control: and its heading is the wrong instruction for a direct question — 'BEFORE TODAY', never read back",
+    shared.includes("BEFORE TODAY") && shared.includes("never gets read back"),
+  );
+
+  const just = formatJustHappened(MIRROR, [], OWNER, NOW);
+  const memories = callMemories(callGraphBlocks(just, "", shared, ""), formatChatTail(OWNER, NOW));
+  const after = compile(liveInput(memories));
+  ok("all three lines she said over the screen are in the live prompt", HER_LINES.every((l) => after.system.includes(l)));
+  ok("…with how long ago they stopped watching, in minutes", /watching their screen together till 8 min ago/.test(after.system));
+
+  // ── ORDER, which is a truncation decision exactly as it is for the two
+  // blocks above: the tail is cut from the END, so what may be lost is the
+  // graph rows — never the minute they just spent together.
+  ok("the just-happened block precedes the shared-history block", memories.indexOf("JUST NOW") < memories.indexOf("BEFORE TODAY"));
+  const withAll = callGraphBlocks(just, formatActivityLedgerForCall([], NOW), shared, "- goa trip (event): planned for december");
+  ok("…and precedes the graph rows too", withAll.indexOf("JUST NOW") < withAll.indexOf("goa trip"));
+  ok("the graph rows survive alongside it", withAll.includes("goa trip"));
+
+  // ── NO LINE IS PAID FOR TWICE. The one commentary row the shared-history
+  // block still carries is the newest, which this block also carries — and
+  // that is the ONE overlap, bounded at a row, not a block. Asserted rather
+  // than assumed, because "two producers of one line" is how a prompt starts
+  // sounding like a file being read out.
+  {
+    const dupes = HER_LINES.filter((l) => memories.split(l).length > 2);
+    ok(
+      "at most ONE line appears twice across the two blocks, and never more",
+      dupes.length <= 1,
+      dupes.join(" | "),
+    );
+  }
+
+  // ── THE BUDGET, pinned to the guard's own constants. A bound and its guard
+  // drifting apart is how the crisis helplines were lost once.
+  ok(`the block is within JUST_HAPPENED_BUDGET (${just.length} <= ${JUST_HAPPENED_BUDGET})`, just.length <= JUST_HAPPENED_BUDGET);
+  {
+    const guard = readFileSync(join(ROOT, "scripts/check-prompt-budget.mjs"), "utf8");
+    const extras = Number(guard.match(/const JUST_HAPPENED_EXTRAS = ([0-9_]+)/)?.[1]?.replace(/_/g, ""));
+    ok(
+      `the guard's JUST_HAPPENED_EXTRAS (${extras}) equals JUST_HAPPENED_BUDGET (${JUST_HAPPENED_BUDGET})`,
+      extras === JUST_HAPPENED_BUDGET,
+    );
+    ok(
+      "…and it is counted on BOTH call lanes, not only the one the defect was found on",
+      /live tail \(bound\)[\s\S]{0,320}JUST_HAPPENED_EXTRAS/.test(guard) &&
+        /live\+watch tail \(bound\)[\s\S]{0,320}JUST_HAPPENED_EXTRAS/.test(guard),
+    );
+  }
+
+  // ── THE WINDOW. Past 45 minutes it is not "just now" any more, and the
+  // shared-history block below is what holds it from then on — one block per
+  // age tier, with no gap between them.
+  ok("nothing inside the window renders nothing", formatJustHappened([], [], [mark(hr(30))], NOW) === "");
+  ok(
+    "an old share falls back to the shared-history block rather than to nothing",
+    formatJustHappened(
+      [{ startedAt: NOW - hr(26), endedAt: NOW - hr(26) + min(4), lane: "web", said: HER_LINES }],
+      [], [], NOW,
+    ) === "" &&
+      formatSharedHistory(
+        [
+          msg("her", HER_LINES[0], hr(26), { channel: "call", watched: true }),
+          mark(hr(26) - min(1)),
+        ],
+        NOW,
+      ).includes("dashboard"),
+  );
+  ok(`the window is 45 minutes, api/episodes.js's own GAP_MS`, JUST_HAPPENED_WINDOW_MS === 45 * 60_000);
+  ok("its label is minutes, where agoLabel would have said only 'just now'", minsAgoLabel(NOW - min(8), NOW) === "8 min ago" && agoLabel(NOW - min(8), NOW) === "just now");
+  ok(`never more than JUST_HAPPENED_ROWS rows`, just.split("\n").filter((l) => l.startsWith("- ")).length <= JUST_HAPPENED_ROWS);
+  ok(
+    "compile() with no just-happened block is byte-identical to today",
+    compile(liveInput(callGraphBlocks("", "", "", ""))).system === compile(liveInput("")).system,
+  );
+  const lint = lintBlock(just.split("\n").filter((l) => l.startsWith("- ")).join("\n"));
+  ok("its rows are shapelint-clean (`recited-prompt`, at the very front of the brief)", lint.clean, lint.violations.map((v) => v.reasons.join(";")).join(" | "));
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 console.log("\n── 6. the farewell: what it fires on, and what it REFUSES ──");
 // ─────────────────────────────────────────────────────────────────────────
 {
@@ -1007,11 +1135,11 @@ console.log("\n── 8. the wiring (source assertions — the set of call sites
   const src = readFileSync(join(ROOT, "src/components/useCallEngine.ts"), "utf8");
   ok(
     "the shared-history block is computed SYNCHRONOUSLY at the ring, not inside the fetch's continuation",
-    /const shared = formatSharedHistory\(state\.messages, tRing\);[\s\S]{0,2600}ringFetch\.current = recallForCall/.test(src),
+    /const shared = formatSharedHistory\(state\.messages, tRing\);[\s\S]{0,4200}ringFetch\.current = recallForCall/.test(src),
   );
   ok(
     "…and it stands even when the ring fetch fails (`realtime-recall-never` cannot recur through it)",
-    /recallRef\.current = callGraphBlocks\(\s*ledgerBlock,\s*shared,\s*cacheUsable \? withRecallAge\(cached\.block, cached\.at, tRing\) : "",\s*\);/.test(src),
+    /recallRef\.current = callGraphBlocks\(\s*justBlock,\s*ledgerBlock,\s*shared,\s*cacheUsable \? withRecallAge\(cached\.block, cached\.at, tRing\) : "",\s*\);/.test(src),
   );
   // ── P1-4: the ring that missed its deadline ─────────────────────────────
   ok(
@@ -1024,7 +1152,7 @@ console.log("\n── 8. the wiring (source assertions — the set of call sites
   );
   ok(
     "an empty recall never wipes a usable cache (the floor stands)",
-    /if \(memories\) \{\s*\n\s*recallRef\.current = callGraphBlocks\(ledgerBlock, shared, memories\);/.test(src),
+    /if \(memories\) \{\s*\n\s*recallRef\.current = callGraphBlocks\(justBlock, ledgerBlock, shared, memories\);/.test(src),
   );
   ok(
     "a recall that landed is cached for the next cold call",
@@ -1050,7 +1178,7 @@ console.log("\n── 8. the wiring (source assertions — the set of call sites
   );
   ok(
     "the fetch's continuation composes them rather than overwriting one",
-    /recallRef\.current = callGraphBlocks\(ledgerBlock, shared, memories\);/.test(src),
+    /recallRef\.current = callGraphBlocks\(justBlock, ledgerBlock, shared, memories\);/.test(src),
   );
   const memoriesFields = src.match(/^\s*memories:.*$/gm) || [];
   ok("useCallEngine still has exactly two compile-site `memories:` fields", memoriesFields.length === 2, memoriesFields.join(" | "));
@@ -1211,10 +1339,10 @@ console.log("\n── 9. WS-GAMEMEM's residual: the games, on a call ──");
   ];
 
   // THE GATE, with its control.
-  const before = compile(liveInput(callGraphBlocks("", "", "")));
+  const before = compile(liveInput(callGraphBlocks("", "", "", "")));
   ok("control: with no ledger the live prompt has no game record", !before.system.includes("catalan"));
   const block = formatActivityLedgerForCall(LEDGER, NOW);
-  const after = compile(liveInput(callMemories(callGraphBlocks(block, "", ""), "")));
+  const after = compile(liveInput(callMemories(callGraphBlocks("", block, "", ""), "")));
   ok("the newest finished game IS in the assembled live prompt", after.system.includes("she won, by checkmate"));
   ok("…and the one before it", after.system.includes("would-you-rather together"));
   ok("…and when it happened", block.includes("yesterday"));
@@ -1229,7 +1357,7 @@ console.log("\n── 9. WS-GAMEMEM's residual: the games, on a call ──");
   ok("undefined ledger renders nothing", formatActivityLedgerForCall(undefined, NOW) === "");
   ok(
     "no ledger is byte-identical to today",
-    compile(liveInput(callGraphBlocks("", "", ""))).system === compile(liveInput("")).system,
+    compile(liveInput(callGraphBlocks("", "", "", ""))).system === compile(liveInput("")).system,
   );
 
   // BOUNDS
@@ -1279,7 +1407,7 @@ console.log("\n── 9. WS-GAMEMEM's residual: the games, on a call ──");
     // a real recall string: blocks separated by a blank line, each opening
     // with its own ALL-CAPS heading (what withoutServerActivityBlock walks)
     const serverRecall = `${formatActivityLedger(LEDGER, NOW)}\n\nWHAT YOU KNOW ABOUT THEM:\n- goa trip (event): planned for december`;
-    const composed = callGraphBlocks(block, "", serverRecall);
+    const composed = callGraphBlocks("", block, "", serverRecall);
     ok(
       "the server's activity block is dropped when the local one renders",
       composed.split(ACTIVITY_BLOCK_SENTINEL).length - 1 === 1,
@@ -1288,7 +1416,7 @@ console.log("\n── 9. WS-GAMEMEM's residual: the games, on a call ──");
     ok("…and the rest of the recall survives it", composed.includes("goa trip"));
     ok(
       "with NO local ledger the server's block is left untouched",
-      callGraphBlocks("", "", serverRecall) === serverRecall,
+      callGraphBlocks("", "", "", serverRecall) === serverRecall,
     );
   }
 
@@ -1296,7 +1424,7 @@ console.log("\n── 9. WS-GAMEMEM's residual: the games, on a call ──");
   // shared history, then the graph rows.
   {
     const shared = formatSharedHistory(YESTERDAY, NOW);
-    const composed = callGraphBlocks(block, shared, "- goa trip (event): planned for december");
+    const composed = callGraphBlocks("", block, shared, "- goa trip (event): planned for december");
     ok("the ledger precedes the shared history", composed.indexOf(ACTIVITY_BLOCK_SENTINEL) < composed.indexOf("BEFORE TODAY"));
     ok("…which precedes the graph rows", composed.indexOf("BEFORE TODAY") < composed.indexOf("goa trip"));
     ok("all three survive together", composed.includes("she won") && composed.includes("lehenga") && composed.includes("goa trip"));
@@ -1306,7 +1434,7 @@ console.log("\n── 9. WS-GAMEMEM's residual: the games, on a call ──");
   // with no device, no recall and no network.
   ok(
     "signed out (no recall string at all) still carries the games",
-    callGraphBlocks(block, "", "").includes("she won, by checkmate"),
+    callGraphBlocks("", block, "", "").includes("she won, by checkmate"),
   );
 
   // BUDGET ARITHMETIC, pinned to the real guard.
@@ -1347,7 +1475,7 @@ console.log("\n── 9. WS-GAMEMEM's residual: the games, on a call ──");
       "the ring reads AppState first and the published holder second",
       /formatActivityLedgerForCall\(\s*state\.activities \?\? activityLedger\(\),/.test(src),
     );
-    ok("both compile sites get it through the one recall string", /recallRef\.current = callGraphBlocks\(ledgerBlock, shared, memories\);/.test(src));
+    ok("both compile sites get it through the one recall string", /recallRef\.current = callGraphBlocks\(justBlock, ledgerBlock, shared, memories\);/.test(src));
     ok(
       "…and it stands when the ring fetch never lands — now on the last recall that DID land, labelled",
       /cacheUsable \? withRecallAge\(cached\.block, cached\.at, tRing\) : "",/.test(src),

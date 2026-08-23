@@ -1875,3 +1875,63 @@ from a shared silence.
 **The generalisable rule:** if a test's pass condition is "nothing happened",
 it needs an arm in the same run where something must happen, built by breaking
 the mechanism under test rather than by mocking around it.
+
+---
+
+## `pre-line-before-the-move` — the deliberating line that cannot arrive first (2026-08-23)
+
+**Tried (WS-MOVEVOICE, refused at design time and worth writing down because it
+is the obvious design):** the full human choreography — she says a short "hmm,
+ek second" in a deliberating register, THEN the piece lands, THEN she comments
+on it. Three beats, exactly like a person across a board.
+
+**What breaks:** the live lane has no way to guarantee the order. `direct()`
+writes a note to the socket; the model then has to generate and begin speaking,
+which is seconds, and it waits up to 1.2s for her to stop talking first. Her
+think window is 0.8–2.2s in the opening. So the pre-line lands AFTER the piece
+on most openings — which is not a degraded version of the feature, it is the
+exact defect the workstream exists to fix, delivered by the mechanism meant to
+fix it. Worse, it is intermittent, so it would read as her being confused
+rather than as a timing bug.
+
+**Now:** no pre-line at all. Think delay → move lands → post-line in done
+tense. A silent move followed by a past-tense line is always coherent; a move
+followed by a future-tense line never is. If the speech lane ever gets a
+latency guarantee (a local TTS path, a pre-warmed turn), the pre-line becomes
+buildable and this entry is the spec for it.
+
+**The generalisable rule:** an ordering you cannot enforce is not a feature you
+can ship, however small the window looks. Where the two orders read very
+differently to a person, ship the one that is always right rather than the one
+that is usually better.
+
+---
+
+## `past-tense-is-not-enough` — the note that was already correct and still wrong (2026-08-23)
+
+**Tried:** nothing — this is the diagnosis, and it is the part of the owner's
+report that nearly got mis-fixed. The obvious reading of "her voice said she
+should make the move she had already made" is that the note was in the wrong
+tense.
+
+**What was actually true:** `moveFact` and `exchangeFact` were ALREADY strictly
+past tense ("he played Qh5; she answered Nf6") when the defect was heard. Had
+the fix stopped at "check the tense", it would have changed nothing and the
+suite would have passed.
+
+The missing half is that a past-tense fact does not say the choice is CLOSED.
+Her frozen prompt says "it is her move" if the call connected during her turn,
+the activity block is compiled once at connect and never again, and a model
+handed a true past-tense fact alongside a stale "it is her move" will
+deliberate. The note has to state, in so many words, that there is nothing
+pending.
+
+**Now:** `settledClause` / `tttSettledClause`, composed into every game note by
+`chessMoveNote` / `tttMoveNote`. The eval's tense checker asserts BOTH halves —
+no deliberative verb, and the choice explicitly stated closed — and carries the
+pre-fix note shape as a negative control that must be rejected. Without that
+control the whole suite would have passed on the broken build.
+
+**The generalisable rule:** when a lane's context is frozen and the note is
+incremental, the note must carry enough state to CONTRADICT the frozen half,
+not merely to add to it. Correct-and-incomplete reads exactly like wrong.

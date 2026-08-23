@@ -489,12 +489,23 @@ const chessSession = (fen, herSide) => ({
 // proved legality, notation, capture bookkeeping, the flip and the terminal
 // verdict in one pass, from that colour.
 const MAX_PLIES = 200;
-// Her think-time is 0.8–6s per move (ChessActivity's held move), so the loop
-// spends most of its iterations WAITING. Counting those against the ply budget
-// was the first version's bug: a legitimate 60-ply game exhausted a 160-ply
-// cap without either side making a mistake. The two budgets are separate now —
-// plies bound the GAME, wall time bounds the loop.
-const MAX_WALL_MS = 6 * 60_000;
+// Her think-time is 0.3–7s per move (`state/game.ts`'s `chessThinkMs`, which
+// WS-MOVEVOICE moved out of this component), so the loop spends most of its
+// iterations WAITING. Counting those against the ply budget was the first
+// version's bug: a legitimate 60-ply game exhausted a 160-ply cap without
+// either side making a mistake. The two budgets are separate now — plies bound
+// the GAME, wall time bounds the loop.
+//
+// Raised from 6 to 10 minutes by WS-MOVEVOICE, which owes this file the
+// arithmetic rather than the assumption: the new position-scaled table is 8.7%
+// slower in aggregate than the flat ply-band formula it replaced (mean 3078ms
+// vs 2831ms per turn, n=1600 turns over 40 real games — see
+// `context/measurements.md#movevoice-timing-2026-08-23`). That is small, and
+// this budget was already only ~1.5x a long game's expected duration, so the
+// margin it ate was the margin that mattered. A wall-clock timeout here does
+// not read as "the pacing changed"; it reads as "the board stopped working",
+// which is the most expensive possible way to spend a debugging session.
+const MAX_WALL_MS = 10 * 60_000;
 
 async function playOut(page, hisSide) {
   let plies = 0;
