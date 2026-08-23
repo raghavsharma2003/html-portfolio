@@ -26,6 +26,7 @@ import type {
 import EnrollmentWorkspace from "./EnrollmentWorkspace";
 import LivenessCapture from "./LivenessCapture";
 import ProcessingReview from "./ProcessingReview";
+import RuntimeGate from "./RuntimeGate";
 import {
   createSourceUpload,
   deleteSource,
@@ -529,6 +530,13 @@ function ReplicaWorkspace({
               ))}
             </div>
           </section>
+
+          <RuntimeGate
+            token={accessToken}
+            replicaId={replica.replica_id}
+            stopped={stopped}
+            onAuthError={onReviewAuthError}
+          />
         </>
       )}
 
@@ -630,6 +638,10 @@ export default function StudioApp() {
     }
     setError(cause instanceof Error ? cause.message : fallback);
   }, [signOut]);
+
+  const handleReviewAuthError = useCallback((cause: unknown) => {
+    handleApiError(cause, "Replica qualification controls could not be loaded");
+  }, [handleApiError]);
 
   const loadReplicas = useCallback(async (activeSession: StudioSession) => {
     setLoadState("loading");
@@ -974,7 +986,7 @@ export default function StudioApp() {
               onRevoke={handleRevoke}
               revoking={revoking}
               accessToken={session.accessToken}
-              onReviewAuthError={(cause) => handleApiError(cause, "Processing review could not be loaded")}
+              onReviewAuthError={handleReviewAuthError}
             />
           ) : null}
         </main>

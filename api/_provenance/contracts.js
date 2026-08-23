@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { SYNTHETIC_AUDIO_DISCLOSURE, VOICE_PCM_FORMAT } from "../_voice/contracts.js";
+import { REPLICA_POLICY_VERSION } from "../_replica.js";
 
 export const PROVENANCE_POLICY = "vyakti-replica-output-v1";
 export const C2PA_STANDARD = "c2pa-2.4";
@@ -84,14 +85,18 @@ export function assertGenerationAuthorization(input, now = new Date()) {
   sameUuid(replica?.owner_user_id, request.ownerUserId, "owner_binding_mismatch");
   if (replica?.subject_mode !== "self") fail("self_replica_only");
   if (replica?.lifecycle !== "active") fail("replica_not_active");
-  if (replica?.policy_version !== PROVENANCE_POLICY) fail("replica_policy_mismatch");
+  // The replica control policy and the output-protection policy govern
+  // different receipts. Conflating them made activation impossible: replica
+  // rows are created under replica-self-v1 while generation requests are
+  // intentionally signed under vyakti-replica-output-v1.
+  if (replica?.policy_version !== REPLICA_POLICY_VERSION) fail("replica_policy_mismatch");
   if (!validDate(replica?.age_verified_at) || !validDate(replica?.identity_verified_at) || !validDate(replica?.liveness_verified_at))
     fail("identity_verification_incomplete");
 
   sameUuid(consent?.replica_id, request.replicaId, "consent_binding_mismatch");
   sameUuid(consent?.owner_user_id, request.ownerUserId, "consent_owner_mismatch");
   if (consent?.scope !== "inference" || consent?.revoked_at) fail("inference_consent_inactive");
-  if (consent?.policy_version !== PROVENANCE_POLICY) fail("consent_policy_mismatch");
+  if (consent?.policy_version !== REPLICA_POLICY_VERSION) fail("consent_policy_mismatch");
   const expiresAt = consent?.expires_at ? validDate(consent.expires_at) : null;
   if (consent?.expires_at && (!expiresAt || expiresAt <= nowMs)) fail("inference_consent_expired");
 

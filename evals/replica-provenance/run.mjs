@@ -15,6 +15,7 @@ import {
 import { protectReplicaStream } from "../../api/_provenance/delivery.js";
 import { createFakeProtectionAdapters } from "../../api/_provenance/providers/fake.js";
 import { VOICE_PCM_FORMAT } from "../../api/_voice/contracts.js";
+import { REPLICA_POLICY_VERSION } from "../../api/_replica.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -56,7 +57,7 @@ function fixture() {
       owner_user_id: ids.owner,
       subject_mode: "self",
       lifecycle: "active",
-      policy_version: PROVENANCE_POLICY,
+      policy_version: REPLICA_POLICY_VERSION,
       age_verified_at: "2026-08-23T10:00:00.000Z",
       identity_verified_at: "2026-08-23T10:01:00.000Z",
       liveness_verified_at: "2026-08-23T10:02:00.000Z",
@@ -65,7 +66,7 @@ function fixture() {
       replica_id: ids.replica,
       owner_user_id: ids.owner,
       scope: "inference",
-      policy_version: PROVENANCE_POLICY,
+      policy_version: REPLICA_POLICY_VERSION,
       expires_at: "2027-08-23T00:00:00.000Z",
       revoked_at: null,
     },

@@ -1,8 +1,8 @@
 # Replica output provenance contract
 
-Status: delivery architecture and offline deterministic gate. No production
-watermark model, signing key, public verifier, C2PA claim generator, database
-adapter, or live replica synthesis is connected yet.
+Status: delivery architecture, production tenant-bound Neon ledger adapter and
+offline deterministic gate. No production watermark model, signing key, public
+verifier, C2PA claim generator, or live replica synthesis is connected yet.
 
 ## What this protects
 
@@ -53,6 +53,12 @@ text, transcripts, memories, owner ids, replica ids, provider ids or storage
 paths. They remain verifiable if a call aborts or replica data is later erased.
 The operational generation row remains owner/replica-bound and is deleted with
 the replica.
+
+The production Neon ledger rechecks both `vy_replica.lifecycle='active'` and
+the exact runtime capability's `state='active'` in the same statement that
+persists each segment receipt. `protectReplicaStream` awaits that insert before
+yielding the segment. Revocation therefore fences subsequent delivery at the
+next 240 ms segment boundary even when a serverless stream is already open.
 
 ## Authorization gate
 

@@ -81,6 +81,11 @@ export interface VoiceOpts {
   elevenVoiceId?: string;
   sarvamKey?: string; // Sarvam AI — best-in-class for Hinglish (bulbul:v3)
   deviceVoice?: string; // voiceURI (web) or voice name (native) chosen in Settings
+  // Private replicas cross only the authenticated opaque boundary. Provider
+  // names, provider voice ids and credentials remain server-side.
+  replicaId?: string;
+  replicaToken?: string;
+  replicaChannel?: "studio_preview" | "private_chat" | "private_call";
 }
 
 // Default ElevenLabs voice: "Monika Sogam — Calm and Natural", the most
@@ -93,6 +98,44 @@ const SARVAM_SPEAKER = "priya";
 const PROXY_SPEECH_URL = isNative
   ? "https://meera-silk.vercel.app/api/speech"
   : "/api/speech";
+const REPLICA_SPEECH_URL = isNative
+  ? "https://meera-silk.vercel.app/api/replica-speech"
+  : "/api/replica-speech";
+
+const replicaVoiceRequested = (opts: VoiceOpts) => Boolean(opts.replicaId || opts.replicaToken);
+const replicaVoiceConfigured = (opts: VoiceOpts) => Boolean(opts.replicaId && opts.replicaToken);
+
+interface ProxyVoiceRequest {
+  url: string;
+  headers: Record<string, string>;
+  body: Record<string, unknown>;
+}
+
+function proxyRequest(text: string, style: string | undefined, stream: boolean, opts: VoiceOpts): ProxyVoiceRequest | null {
+  if (replicaVoiceRequested(opts)) {
+    if (!replicaVoiceConfigured(opts)) return null;
+    return {
+      url: REPLICA_SPEECH_URL,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${opts.replicaToken}`,
+      },
+      body: {
+        text,
+        stream,
+        replica_id: opts.replicaId,
+        channel: opts.replicaChannel ?? "private_call",
+        purpose: opts.replicaChannel === "studio_preview" ? "calibration" : "private_conversation",
+        ...(style ? { style } : {}),
+      },
+    };
+  }
+  return {
+    url: PROXY_SPEECH_URL,
+    headers: { "Content-Type": "application/json" },
+    body: { text, stream, ...(style ? { style } : {}) },
+  };
+}
 
 const hasAudioTags = (t: string) => /\[[a-z ]+\]/i.test(t);
 
@@ -652,6 +695,7 @@ const JITTER_MS = 150;
 // through another engine's door.
 function usesProxyVoice(text: string, opts: VoiceOpts): boolean {
   if (!proxyStreams) return false;
+  if (replicaVoiceRequested(opts)) return replicaVoiceConfigured(opts);
   const preferEleven = Boolean(opts.elevenKey) && (hasAudioTags(text) || !opts.sarvamKey);
   return !preferEleven && !opts.sarvamKey;
 }
@@ -672,6 +716,7 @@ async function streamProxyClip(
   text: string,
   style: string | undefined,
   session: number,
+  opts: VoiceOpts,
   onFirstAudio?: () => void,
 ): Promise<boolean> {
   const ctx = audioCtx;
@@ -686,10 +731,12 @@ async function streamProxyClip(
   const mine: AudioBufferSourceNode[] = [];
   const t0 = Date.now();
   try {
-    const res = await fetch(PROXY_SPEECH_URL, {
+    const request = proxyRequest(spoken, style, true, opts);
+    if (!request) return false;
+    const res = await fetch(request.url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: spoken, stream: true, ...(style ? { style } : {}) }),
+      headers: request.headers,
+      body: JSON.stringify(request.body),
       signal: ctl.signal,
     });
     if (!res.ok || !res.body) return false;
@@ -798,14 +845,16 @@ async function streamProxyClip(
   }
 }
 
-async function meeraFetch(text: string, style?: string): Promise<Blob | null> {
+async function meeraFetch(text: string, style?: string, opts: VoiceOpts = {}): Promise<Blob | null> {
   const spoken = stripTagsForPlainVoice(text);
   if (!spoken) return null;
   try {
-    const res = await fetch(PROXY_SPEECH_URL, {
+    const request = proxyRequest(spoken, style, false, opts);
+    if (!request) return null;
+    const res = await fetch(request.url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: spoken, ...(style ? { style } : {}) }),
+      headers: request.headers,
+      body: JSON.stringify(request.body),
       signal: AbortSignal.timeout(40_000),
     });
     if (!res.ok) return null;
@@ -832,16 +881,19 @@ export async function speak(
   // and IS the voice for a fresh, keyless install.
   const cloudText = stripForCloud(text);
   if (cloudText) {
+    const isReplica = replicaVoiceRequested(opts);
     const preferEleven = Boolean(opts.elevenKey) && (hasAudioTags(text) || !opts.sarvamKey);
     const tries: Array<() => Promise<Blob | null>> = [];
-    if (preferEleven) {
+    if (isReplica) {
+      tries.push(() => meeraFetch(cloudText, undefined, opts));
+    } else if (preferEleven) {
       tries.push(() => elevenFetch(cloudText, opts));
       if (opts.sarvamKey) tries.push(() => sarvamFetch(stripForDevice(text), opts));
     } else if (opts.sarvamKey) {
       tries.push(() => sarvamFetch(stripForDevice(text), opts));
       if (opts.elevenKey) tries.push(() => elevenFetch(cloudText, opts));
     }
-    tries.push(() => meeraFetch(cloudText));
+    if (!isReplica) tries.push(() => meeraFetch(cloudText));
     for (const attempt of tries) {
       const blob = await attempt();
       if (blob) {
@@ -850,7 +902,9 @@ export async function speak(
         if (ok) return;
       }
     }
-    // all cloud attempts failed → device fallback below
+    // A replica may never fall through to a different human/device voice.
+    if (isReplica) return onEnd?.();
+    // all ordinary cloud attempts failed → device fallback below
   }
 
   // ── tier 2: device TTS, humanized ──
@@ -957,10 +1011,11 @@ async function fetchClipFor(
   opts: VoiceOpts,
   style?: string,
 ): Promise<Blob | null> {
+  if (replicaVoiceRequested(opts)) return meeraFetch(text, style, opts);
   const preferEleven = Boolean(opts.elevenKey) && (hasAudioTags(text) || !opts.sarvamKey);
   if (preferEleven) return elevenFetch(text, opts);
   if (opts.sarvamKey) return sarvamFetch(stripForDevice(text), opts);
-  return meeraFetch(text, style);
+  return meeraFetch(text, style, opts);
 }
 
 // Hedged fetch for the FIRST clip of a reply — the one the user is waiting
@@ -1087,7 +1142,7 @@ export async function speakCall(
   if (!pre && usesProxyVoice(phrases[0], opts)) {
     // phrase 2 must not wait on phrase 1 finishing SOUNDING — start it now
     if (phrases.length > 1) fetches[1] = fetchClipFor(phrases[1], opts, style);
-    const ok = await streamProxyClip(phrases[0], style, session, begin);
+    const ok = await streamProxyClip(phrases[0], style, session, opts, begin);
     if (session !== speakSession) return;
     if (ok) {
       from = 1;
@@ -1110,6 +1165,7 @@ export async function speakCall(
     if (i + 1 < phrases.length) await sleep(120 + Math.random() * 200);
   }
   if (!started) {
+    if (replicaVoiceRequested(opts)) return onEnd?.();
     // every clip failed → humanized device fallback via the normal path
     return speak(text, onStart, onEnd, opts);
   }
@@ -1185,7 +1241,7 @@ export function createStreamSpeaker(
         }
       };
       if ("streamText" in next) {
-        const ok = await streamProxyClip(next.streamText, style, session, begin);
+        const ok = await streamProxyClip(next.streamText, style, session, opts, begin);
         if (session !== speakSession) return;
         if (ok) {
           await sleep(100 + Math.random() * 160); // inter-phrase breath
@@ -1215,6 +1271,7 @@ export function createStreamSpeaker(
     pumping = false;
     if (session === speakSession && closed && !queue.length) {
       if (!started && allText) {
+        if (replicaVoiceRequested(opts)) return onEnd?.();
         // every clip fetch failed — she still speaks, via device TTS
         void speak(allText, onStart, onEnd, opts);
         return;

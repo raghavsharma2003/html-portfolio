@@ -119,13 +119,22 @@ Implemented now:
   watermark proof, signed 240 ms segment hash chain, final C2PA-bound asset
   receipt, revocation-aware authorization, and production refusal of fake
   adapters;
+- an immutable private runtime capability that freezes the exact approved
+  person profile, VoiceGenome, provider voice and seven-suite qualification
+  set; it resolves agent/person ownership server-side, scopes every
+  RelationalOS read to that pair, and routes cloned speech only through the
+  protected cascade endpoint with no wrong-voice fallback;
+- a production Neon provenance ledger that rechecks active replica capability
+  before each signed PCM segment is released, making revocation a streaming
+  delivery fence rather than only a UI state;
 - offline enrollment, IDOR, lifecycle, disclosure and provider-contract gates;
 - a researched Azure Foundry spend plan below the $2,000 grant ceiling.
 
 Biometric consent, identity/age verification, anti-replay, real voice training
-and synthesis, production watermark/C2PA adapters, and conversation activation
-remain closed until their explicit live gates pass. The full architecture is in
+and synthesis, production watermark/C2PA/signing adapters, and live runtime
+activation remain closed until their explicit live gates pass. The full architecture is in
 [`docs/SPEC-REPLICA-PLATFORM.md`](docs/SPEC-REPLICA-PLATFORM.md), frontier
 research in [`docs/research/REPLICA-FRONTIER-2026.md`](docs/research/REPLICA-FRONTIER-2026.md),
 provenance in [`docs/REPLICA-PROVENANCE.md`](docs/REPLICA-PROVENANCE.md), and
-Azure allocation in [`docs/AZURE-FOUNDRY-PLAN.md`](docs/AZURE-FOUNDRY-PLAN.md).
+runtime isolation in [`docs/REPLICA-RUNTIME.md`](docs/REPLICA-RUNTIME.md).
+Azure allocation is in [`docs/AZURE-FOUNDRY-PLAN.md`](docs/AZURE-FOUNDRY-PLAN.md).

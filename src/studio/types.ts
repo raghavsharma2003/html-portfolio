@@ -120,3 +120,14 @@ export interface ReplicaReview {
   builds: Array<{ build_id: string; build_kind: string; target_version: number; builder_version: string; state: string; attempt: number; failure_code: string; created_at: string; updated_at: string }>;
   voice_genome_readiness: { ready: boolean; blockers: string[]; reviewed_real_evidence: number; embedding_families: number; voice_measurements: number; quality_measurements: number; speaker_segments: number };
 }
+
+export interface ReplicaRuntimeStatus {
+  replica_id: string;
+  lifecycle: ReplicaLifecycle;
+  active: boolean;
+  can_activate: boolean;
+  blockers: string[];
+  qualification: { passed: number; required: number };
+  versions: { profile: number | null; voice_genome: number | null };
+  activated_at: string | null;
+}

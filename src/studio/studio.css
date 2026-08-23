@@ -1657,6 +1657,101 @@
     .portrait-placeholder { max-width: 260px; }
   }
 
+  .runtime-gate {
+    margin-top: 28px;
+    padding: 30px;
+    border: 1px solid rgba(23, 74, 60, 0.16);
+    border-radius: 24px;
+    background:
+      radial-gradient(circle at 92% 12%, rgba(77, 151, 126, 0.12), transparent 27%),
+      #fbfaf5;
+    box-shadow: 0 18px 50px rgba(25, 55, 47, 0.08);
+  }
+
+  .runtime-gate-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 28px;
+    align-items: flex-start;
+  }
+
+  .runtime-gate-head h2 {
+    margin: 5px 0 10px;
+    max-width: 660px;
+    color: #173c32;
+    font-family: var(--serif);
+    font-size: clamp(27px, 3vw, 39px);
+    font-weight: 500;
+    letter-spacing: -0.035em;
+  }
+
+  .runtime-gate-head p:last-child {
+    max-width: 690px;
+    color: #66766f;
+    line-height: 1.65;
+  }
+
+  .runtime-seal {
+    flex: 0 0 auto;
+    min-width: 150px;
+    padding: 15px 18px;
+    border: 1px solid rgba(145, 97, 44, 0.24);
+    border-radius: 14px;
+    color: #8b5f2d;
+    background: rgba(247, 235, 214, 0.66);
+  }
+
+  .runtime-seal.active {
+    color: #1b6a52;
+    border-color: rgba(27, 106, 82, 0.22);
+    background: rgba(218, 239, 230, 0.8);
+  }
+
+  .runtime-seal span, .runtime-seal small { display: block; }
+  .runtime-seal span { font-size: 11px; font-weight: 800; letter-spacing: 0.18em; }
+  .runtime-seal small { margin-top: 5px; color: currentColor; opacity: 0.74; }
+
+  .runtime-score {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 25px;
+    border-block: 1px solid rgba(23, 74, 60, 0.11);
+  }
+
+  .runtime-score > div { padding: 20px 22px 20px 0; }
+  .runtime-score > div + div { padding-left: 22px; border-left: 1px solid rgba(23, 74, 60, 0.11); }
+  .runtime-score strong, .runtime-score span { display: block; }
+  .runtime-score strong { color: #173c32; font-family: var(--serif); font-size: 30px; font-weight: 500; }
+  .runtime-score span { margin-top: 3px; color: #728078; font-size: 12px; }
+
+  .runtime-blockers { margin-top: 23px; }
+  .runtime-blockers > strong { color: #4a5c55; font-size: 13px; }
+  .runtime-blockers ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px 18px;
+    margin: 13px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .runtime-blockers li { display: flex; gap: 9px; align-items: center; color: #66766f; font-size: 12px; }
+  .runtime-blockers li span { width: 7px; height: 7px; border: 1px solid #b38146; border-radius: 50%; background: #f6e5cd; }
+
+  .runtime-action {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    margin-top: 25px;
+    padding-top: 23px;
+    border-top: 1px solid rgba(23, 74, 60, 0.11);
+  }
+  .runtime-action p { max-width: 600px; color: #66766f; font-size: 12px; line-height: 1.6; }
+  .runtime-action .button { flex: 0 0 auto; min-width: 220px; }
+  .runtime-loading { margin-top: 24px; color: #66766f; }
+  .runtime-error { display: flex; justify-content: space-between; gap: 18px; margin-top: 22px; padding: 14px 16px; border-radius: 12px; color: #86433b; background: #fae9e5; }
+  .runtime-error button { border: 0; color: inherit; background: transparent; font-weight: 750; cursor: pointer; }
+
   @media (max-width: 590px) {
     .auth-page { padding-inline: 15px; }
     .auth-brand { margin-left: 6px; }
@@ -1714,6 +1809,14 @@
     .recording-review-meta { align-items: flex-start; flex-direction: column; }
     .recording-review-meta .text-button { padding-left: 0; }
     .challenge-card blockquote { font-size: 20px; }
+    .runtime-gate { padding: 23px 18px; }
+    .runtime-gate-head, .runtime-action { align-items: stretch; flex-direction: column; }
+    .runtime-seal { width: fit-content; }
+    .runtime-score { grid-template-columns: 1fr; }
+    .runtime-score > div { padding: 15px 0; }
+    .runtime-score > div + div { padding-left: 0; border-top: 1px solid rgba(23, 74, 60, 0.11); border-left: 0; }
+    .runtime-blockers ul { grid-template-columns: 1fr; }
+    .runtime-action .button { width: 100%; min-width: 0; }
   }
 
   @media (prefers-reduced-motion: reduce) {

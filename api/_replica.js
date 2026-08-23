@@ -47,10 +47,33 @@ const RETURNING = `replica_id, display_name, subject_mode, lifecycle, policy_ver
 export async function createSelfReplica(db, ownerUserId, displayName) {
   const name = replicaDisplayName(displayName);
   const rows = await db(
-    `with replica as (
+    `with owner_lock as (
+       select pg_advisory_xact_lock(hashtextextended($1::text, 0))
+     ), existing_person as (
+       select ap.person_id
+         from vy_account_person ap, owner_lock
+        where ap.auth_user_id = $1
+     ), created_person as (
+       insert into vy_person (age_tier)
+       select 'unverified' from owner_lock
+        where not exists (select 1 from existing_person)
+       returning person_id
+     ), owner_person as (
+       select person_id from existing_person
+       union all
+       select person_id from created_person
+       limit 1
+     ), account_bridge as (
+       insert into vy_account_person (auth_user_id, person_id)
+       select $1, person_id from owner_person
+       on conflict (auth_user_id) do update
+         set auth_user_id = excluded.auth_user_id
+       returning person_id
+     ), replica as (
        insert into vy_replica
-         (owner_user_id, display_name, subject_mode, lifecycle, policy_version)
-       values ($1, $2, 'self', 'consent_pending', $3)
+         (owner_user_id, subject_person_id, display_name, subject_mode, lifecycle, policy_version)
+       select $1, person_id, $2, 'self', 'consent_pending', $3
+         from account_bridge
        returning ${RETURNING}
      ), audit as (
        insert into vy_replica_audit
@@ -97,6 +120,22 @@ export async function revokeOwnedReplica(db, ownerUserId, id) {
        select replica_id, $2, 'replica.revoke', 'replica', replica_id::text,
               policy_version, 'allowed', '{}'::jsonb
          from revoked
+     ), runtime_capabilities as (
+       update vy_replica_runtime_capability c
+          set state = 'revoked', revoked_at = coalesce(revoked_at, now())
+         from revoked r
+        where c.replica_id = r.replica_id and c.owner_user_id = $2 and c.state = 'active'
+     ), runtime_sessions as (
+       update vy_replica_runtime_session s
+          set state = 'revoked', ended_at = coalesce(ended_at, now()), updated_at = now()
+         from revoked r
+        where s.replica_id = r.replica_id and s.owner_user_id = $2 and s.state = 'active'
+     ), open_generations as (
+       update vy_replica_generation g
+          set state = 'aborted', failure_code = 'replica_revoked', updated_at = now()
+         from revoked r
+        where g.replica_id = r.replica_id and g.owner_user_id = $2
+          and g.state in ('authorized','streaming')
      ), erasure as (
        insert into vy_replica_erasure_job (replica_id, owner_user_id, state)
        select replica_id, $2, 'pending' from revoked

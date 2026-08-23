@@ -97,6 +97,10 @@ const suites = {
   // decisions, privacy-safe summaries, real-evidence readiness and an
   // idempotent draft-only VoiceGenome queue.
   replicareview: "replica-review/run.mjs",
+  // Private replica runtime: immutable qualified version bindings, owner-only
+  // agent/person resolution, RelationalOS isolation, protected cascade speech
+  // and revocation fencing at the signed segment boundary.
+  replicaruntime: "replica-runtime/run.mjs",
   // Second-agent readiness: every shipping insert names agent_id, every
   // relational/natural-key arbiter is composite, and compatibility defaults
   // have explicit strict migrations with a working negative control.
