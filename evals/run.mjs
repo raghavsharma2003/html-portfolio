@@ -109,6 +109,10 @@ const suites = {
   // append-only revisions, deterministic calibration policies and exact
   // Person Model/runtime version binding without free-text prompt accretion.
   replicacalibration: "replica-calibration/run.mjs",
+  // Privacy-bounded claim extraction: reviewed target-speaker spans only,
+  // character-preserving direct-identifier redaction, strict Azure Foundry
+  // structured output, exact quote citations and proposal-only persistence.
+  replicaextract: "replica-claim-extraction/run.mjs",
   // Second-agent readiness: every shipping insert names agent_id, every
   // relational/natural-key arbiter is composite, and compatibility defaults
   // have explicit strict migrations with a working negative control.

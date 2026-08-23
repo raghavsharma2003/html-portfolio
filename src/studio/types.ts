@@ -201,3 +201,20 @@ export interface PersonModelStatus {
   readiness: { ready: boolean; blockers: string[]; conflicts: string[]; accepted_claims: number };
   profiles: ReplicaProfileSummary[];
 }
+
+export interface ClaimExtractionRun {
+  run_id: string;
+  state: "extracting" | "complete" | "failed" | "superseded";
+  proposed_count: number;
+  rejected_count: number;
+  attempt: number;
+  failure_code: string;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface ClaimExtractionStatus {
+  replica_id: string;
+  readiness: { ready: boolean; blockers: string[]; eligible_spans: number };
+  runs: ClaimExtractionRun[];
+}

@@ -114,6 +114,11 @@ Implemented now:
 - an evidence-backed Person Model that turns cited, owner-reviewed claims into
   deterministic versioned identity, speech, behaviour, values, boundaries,
   autobiography and relationship-mode profiles while retaining uncertainty;
+- a private cited-claim extraction lane for accepted target-speaker
+  transcripts: direct identifiers are masked before a strict Azure Foundry
+  structured-output request, citations are independently revalidated, and all
+  results remain owner-review proposals; the adapter is protocol-tested only
+  and stays blocked until verified training consent is live;
 - a typed owner calibration lab with safe server-owned contrasts,
   append-only revisions, deterministic policy builds and exact runtime/eval/
   generation version binding instead of free-text prompt accretion;
@@ -144,5 +149,6 @@ research in [`docs/research/REPLICA-FRONTIER-2026.md`](docs/research/REPLICA-FRO
 provenance in [`docs/REPLICA-PROVENANCE.md`](docs/REPLICA-PROVENANCE.md), and
 runtime isolation in [`docs/REPLICA-RUNTIME.md`](docs/REPLICA-RUNTIME.md).
 The Person Model contract is in [`docs/PERSON-MODEL.md`](docs/PERSON-MODEL.md).
+Private cited extraction is in [`docs/CLAIM-EXTRACTION.md`](docs/CLAIM-EXTRACTION.md).
 Calibration is specified in [`docs/CALIBRATION.md`](docs/CALIBRATION.md).
 Azure allocation is in [`docs/AZURE-FOUNDRY-PLAN.md`](docs/AZURE-FOUNDRY-PLAN.md).

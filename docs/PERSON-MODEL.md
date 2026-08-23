@@ -1,8 +1,9 @@
 # Evidence-backed Person Model
 
 Status: implemented control-plane slice on `voice-cloning`, 2026-08-24. It is
-not a claim of human-replica fidelity and is not yet connected to automatic
-multimodal claim extraction or a qualified generation model.
+not a claim of human-replica fidelity. A private, cited audio-transcript claim
+extractor now feeds review-pending claims, but general multimodal extraction
+and a qualified behavioural generation model remain closed.
 
 ## Purpose
 
@@ -67,11 +68,19 @@ uncertainty rather than averaging them into a fabricated fact.
 - Activation still requires a separately approved VoiceGenome, live consent,
   self-verification and all seven qualification suites.
 
+## Extracted proposals
+
+`docs/CLAIM-EXTRACTION.md` defines the first automatic intake lane. It accepts
+only reviewed target-speaker transcript evidence, masks direct identifiers,
+requires exact server-verified citations and writes proposals that still need
+the same owner decisions above. It cannot approve a claim, manufacture
+`self_declared` provenance or bypass the deterministic profile builder.
+
 ## Deliberate closed gates
 
-Automatic claim extraction, memory import, fine-tuning and runtime activation
-remain closed. Typed preference collection and deterministic calibration policy
-building are implemented separately in `docs/CALIBRATION.md`; learned
-preference models are not. The remaining adapters require cited model outputs,
-owner review, privacy tests and real quality evaluation. Until those gates
-exist, this subsystem is an auditable control plane, not a finished replica.
+General memory import, non-audio extraction, fine-tuning and production
+dialogue generation remain closed. Typed preference collection and
+deterministic calibration policy building are implemented separately in
+`docs/CALIBRATION.md`; learned preference models are not. Until live consent,
+provider quality and end-to-end dialogue gates exist, this subsystem is an
+auditable control plane, not a finished replica.

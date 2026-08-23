@@ -144,6 +144,15 @@ The draft builder currently carries:
 
 Changing any accepted evidence digest changes the source-set hash and therefore requires a new build/version. Deleting a source must continue to retire affected genomes/profiles through the existing source-deletion control plane.
 
+## Reviewed transcripts to cited claims
+
+Accepted target-speaker transcript spans can enter the separate private claim
+extraction contract in `docs/CLAIM-EXTRACTION.md`. Processing evidence remains
+immutable and is not rewritten into a model summary. The extractor masks
+direct identifiers, verifies exact citations against the selected evidence and
+writes only review-pending Person Model claims. Sources declaring third parties
+and evidence from fake/test adapters are ineligible.
+
 ## Production work still required
 
 - Deploy an authenticated internal queue consumer/sweeper; there is no public worker endpoint in this slice.

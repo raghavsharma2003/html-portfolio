@@ -111,6 +111,15 @@ They earn a new capability and explicitly supersede the old one. The browser
 supplies only an opaque replica id and bearer token; agent ids, person ids,
 provider ids and profile definitions remain server-side.
 
+### R10 — extraction proposes; only the owner disposes
+
+Model-assisted memory and behaviour extraction receives the smallest redacted
+evidence view that can support its task. Every output must cite an exact
+immutable evidence span, pass independent server validation and enter as a
+proposal. A model cannot create self-declared provenance, accept its own claim
+or silently change an approved Person Model. The first audio-transcript lane is
+specified in `docs/CLAIM-EXTRACTION.md`.
+
 ## 2. Domain model
 
 ```text
@@ -383,9 +392,18 @@ unsafe or disposable:
    construction. The included provider is a deterministic fake.
 9. Migration 018 and offline negatives that isolate raw RelationalOS logs,
    graph rows, suppression tombstones and consolidation cursors by agent.
+10. Immutable runtime capabilities and protected streamed PCM delivery bound to
+    exact profile, calibration, VoiceGenome, provider and qualification
+    versions.
+11. Append-only Person Model review, deterministic typed profiles and
+    owner-calibrated behavioural preference policies.
+12. Owner-only cited claim extraction from accepted target-speaker transcripts,
+    with direct-identifier redaction, strict Azure Foundry structured output,
+    exact citation verification and no automatic approval.
 
-These slices do not touch `liveCall.ts`. Real model adapters, independent
-liveness verification and authenticated replica runtime binding remain gated.
+These slices do not touch `liveCall.ts`. Azure Speech and Foundry adapters have
+only mocked protocol coverage; real voice models, independent liveness
+verification and a production behavioural dialogue endpoint remain gated.
 
 ## 9. Deliberately not active yet
 
