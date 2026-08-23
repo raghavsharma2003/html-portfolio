@@ -147,6 +147,9 @@ Implemented now:
 - a content-free feedback dataset compiler that freezes whole conversations
   into immutable train/development/test splits, uses only latest revisions,
   forces unsafe new sessions into holdout, and emits draft-only readiness;
+- a blinded paired candidate gate that demands target-layer improvement,
+  cross-layer noninferiority, zero critical safety failures, bounded false
+  memories and exact artifact/dataset/baseline commitments without activation;
 - a production Neon provenance ledger that rechecks active replica capability
   before each signed PCM segment is released, making revocation a streaming
   delivery fence rather than only a UI state;
@@ -169,5 +172,6 @@ Private cited extraction is in [`docs/CLAIM-EXTRACTION.md`](docs/CLAIM-EXTRACTIO
 Calibration is specified in [`docs/CALIBRATION.md`](docs/CALIBRATION.md).
 Turn-level fidelity learning is in [`docs/TURN-FEEDBACK.md`](docs/TURN-FEEDBACK.md).
 Leakage-safe dataset construction is in [`docs/FEEDBACK-DATASET.md`](docs/FEEDBACK-DATASET.md).
+Candidate statistics and promotion boundaries are in [`docs/CANDIDATE-QUALIFICATION.md`](docs/CANDIDATE-QUALIFICATION.md).
 Azure allocation is in [`docs/AZURE-FOUNDRY-PLAN.md`](docs/AZURE-FOUNDRY-PLAN.md).
 The enforced application ceiling is in [`docs/PROVIDER-BUDGET.md`](docs/PROVIDER-BUDGET.md).

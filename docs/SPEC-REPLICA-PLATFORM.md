@@ -417,6 +417,9 @@ unsafe or disposable:
 16. A content-free dataset compiler with immutable whole-session split
     assignments, latest-revision mutation rechecks, unsafe-session holdout and
     minimum cross-layer depth gates; output remains draft-only.
+17. A blind paired candidate-qualification gate with statistically supported
+    target improvement, cross-layer noninferiority, critical-safety and
+    false-memory ceilings, exact artifact lineage and no automatic activation.
 
 These slices do not touch `liveCall.ts`. Azure Speech and Foundry adapters have
 only mocked protocol coverage; real voice models, independent liveness

@@ -138,6 +138,8 @@ export function buildFeedbackDatasetDefinition(rows, existingAssignments, option
   if (sessionCounts.train < 6) blockers.push("six_train_sessions_required");
   if (sessionCounts.development < 2) blockers.push("two_development_sessions_required");
   if (sessionCounts.test < 2) blockers.push("two_test_sessions_required");
+  if (splitCounts.development < 20) blockers.push("twenty_development_examples_required");
+  if (splitCounts.test < 30) blockers.push("thirty_test_examples_required");
   for (const dimension of REQUIRED_DIMENSIONS) if (dimensionCounts[dimension] < 3) blockers.push(`${dimension}_coverage_required`);
   if (examples.some((example) => example.kind === "safety_holdout" && example.split !== "test")) blockers.push("unsafe_session_was_previously_frozen_outside_test");
   const definition = {

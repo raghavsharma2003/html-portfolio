@@ -127,6 +127,9 @@ const suites = {
   // Content-free, conversation-locked feedback datasets with immutable split
   // assignments, depth/coverage gates and exact latest-revision rechecks.
   feedbackdataset: "feedback-dataset/run.mjs",
+  // Blinded paired target-improvement plus cross-layer noninferiority and
+  // zero-tolerance safety gates; qualification never activates a candidate.
+  candidatequal: "candidate-qualification/run.mjs",
   // Second-agent readiness: every shipping insert names agent_id, every
   // relational/natural-key arbiter is composite, and compatibility defaults
   // have explicit strict migrations with a working negative control.

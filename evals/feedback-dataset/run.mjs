@@ -33,7 +33,7 @@ for (let session = 1; session <= 12; session++) {
     });
     id += 1;
   }
-  for (let positive = 0; positive < 5; positive++) {
+  for (let positive = 0; positive < 12; positive++) {
     rows.push({
       feedback_id: uuid(id), turn_id: uuid(20_000 + id), session_id: sessionId, revision: 1,
       profile_version: 7, calibration_version: 3,
@@ -49,11 +49,12 @@ rows.push({ ...rows[0], feedback_id: uuid(id++), revision: 2, ratings_hash: "e".
 
 const built = buildFeedbackDatasetDefinition(rows, [], { replica_id: RID, profile_version: 7, calibration_version: 3 });
 ok("dataset manifest is schema and exact Person Model calibration bound", built.definition.schema === FEEDBACK_DATASET_SCHEMA && built.definition.profile_version === 7 && built.definition.calibration_version === 3);
-ok("only the latest append-only feedback revision enters the dataset", built.definition.examples.length === 108 && !built.definition.examples.some((example) => example.feedback_id === rows[0].feedback_id));
+ok("only the latest append-only feedback revision enters the dataset", built.definition.examples.length === 192 && !built.definition.examples.some((example) => example.feedback_id === rows[0].feedback_id));
 ok("whole sessions receive one immutable split with no turn leakage", built.assignments.length === 12 && built.assignments.every((assignment) => new Set(built.definition.examples.filter((example) => example.session_commitment === assignment.session_commitment).map((example) => example.split)).size === 1));
 ok("initial assignment guarantees useful 70/15/15 session partitions", built.definition.stats.session_counts.train === 8 && built.definition.stats.session_counts.development === 2 && built.definition.stats.session_counts.test === 2);
 ok("training readiness counts preference pairs only inside train", built.definition.stats.train_preferences === 32);
-ok("positive holdout evidence is counted only outside train", built.definition.stats.holdout_positives === 20);
+ok("positive holdout evidence is counted only outside train", built.definition.stats.holdout_positives === 48);
+ok("development and test contain enough independent examples for paired statistics", built.definition.stats.split_counts.development === 32 && built.definition.stats.split_counts.test === 32);
 ok("adequate multi-layer evidence is structurally ready for a candidate dataset", built.readiness.ready_for_candidate_dataset === true && built.readiness.blockers.length === 0);
 ok("manifest is content-free and uses session commitments rather than session ids", !JSON.stringify(built.definition).includes(uuid(10_001)) && built.definition.examples.every((example) => /^[0-9a-f]{64}$/.test(example.session_commitment)));
 ok("source-set commitment is deterministic across input order", built.source_set_hash === buildFeedbackDatasetDefinition([...rows].reverse(), [], { replica_id: RID, profile_version: 7, calibration_version: 3 }).source_set_hash);

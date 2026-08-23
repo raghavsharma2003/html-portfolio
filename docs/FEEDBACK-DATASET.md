@@ -50,6 +50,7 @@ A draft needs at least:
 
 - 12 independent sessions;
 - 6 train, 2 development and 2 test sessions;
+- 20 development and 30 test examples;
 - 30 owner-authored train preference pairs;
 - 10 positive holdout judgments;
 - 3 judgments each for wording, behavior, relationship, memory and delivery;
@@ -81,10 +82,11 @@ then pass:
 A trained candidate then needs paired holdout evaluation against the frozen
 baseline on its target layer and regression gates on every other layer. It may
 create a new draft adapter/calibration version, never overwrite the active one.
+The implemented decision contract is in
+[candidate qualification](CANDIDATE-QUALIFICATION.md).
 
 Offline gate:
 
 ```bash
 node evals/run.mjs feedbackdataset
 ```
-
