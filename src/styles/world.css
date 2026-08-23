@@ -673,6 +673,52 @@
   --wall-a: var(--wall-a-dark);
 }
 
+/* ── THE SKY CHOICE'S OWN VEIL (WS-SKYFELT) ─────────────────────────────────
+   The owner's defect, in one sentence: "I selected Sky and no change." He was
+   right and the cause is above — `sky` RESOLVES to one of the two palettes, so
+   at 11:27 IST it wrote `data-theme="light"` and this file then painted the
+   light veil at 0.93, which is the same screen explicit Light paints. From
+   06:10 to 18:10 the two modes were pixel-identical.
+
+   `applyTheme` now leaves a trace of the CHOICE as well as of what it resolved
+   to (`data-sky-choice`), and these two blocks are the only thing in the app
+   that reads it. THE LAW IS INTACT: sky is still not a third palette. Nothing
+   here declares a colour the palette does not already own — the two blocks
+   swap ONE veil for a thinner one, which is not a palette, it is how much of a
+   picture you can see through.
+
+   ── WHY THIS PAIR NEEDS NO `prefers-color-scheme` TWIN ─────────────────────
+   The plain veil above is written twice because "system" leaves `data-theme`
+   ABSENT, so the media query is the only thing that knows. `data-sky-choice`
+   cannot be in that position: applyTheme writes `data-theme` FIRST and only
+   then stamps this attribute, so a root that carries `data-sky-choice` always
+   carries an explicit `data-theme` too. Two mutually exclusive blocks cover
+   the whole space, both at one specificity step above the plain pair, so they
+   win over it in either source order — and if the attribute ever appeared
+   without a theme, NEITHER matches and the plain veil renders. A fallback that
+   is the previous shipped design is the right kind of fallback.
+
+   ── THE COLOURS ARE THE POINT, AND THEY ARE ABSENCES ───────────────────────
+   `--wall-scrim-*-sky` is `#ffffff` by day and `#000000` at night. The plain
+   veils are the theme's ground with a few points of the hour mixed in; these
+   carry no tint at all, so the only colour on the thread's ground is the sky's
+   own. That is also where the extra room comes from: a veil already at the
+   palette's extreme spends none of its alpha budget on its own colour, so it
+   clears the same measured floors while letting 1.4x to 1.8x more painting
+   through. Every number is solved in sky.ts and gated in check-contrast.mjs
+   against the shipped jpgs' decoded pixels, exactly like the plain pair. */
+:root[data-sky-choice][data-theme="light"] .world[data-variant="band"],
+:root[data-sky-choice][data-theme="light"] .world[data-variant="wallpaper"] {
+  --wall-scrim: var(--wall-scrim-light-sky);
+  --wall-a: var(--wall-a-light-sky);
+}
+
+:root[data-sky-choice][data-theme="dark"] .world[data-variant="band"],
+:root[data-sky-choice][data-theme="dark"] .world[data-variant="wallpaper"] {
+  --wall-scrim: var(--wall-scrim-dark-sky);
+  --wall-a: var(--wall-a-dark-sky);
+}
+
 /* ── the gold ring, extracted ───────────────────────────────────────────────
    Home's `.hh-face` and the thread header's avatar are the same object — her
    face, ringed — and until now they were two implementations that happened to

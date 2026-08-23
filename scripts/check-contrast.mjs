@@ -747,6 +747,102 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
       );
     }
 
+    // ── HIS BUBBLE CARRIES FIVE PIECES OF INK, AND NONE OF THEM WERE GATED ──
+    //
+    // The owner's second defect: "the red and black not going together in dark
+    // theme." The dark fill moves to a wine (`--bubble-me: #8e4054`, see the
+    // long note in global.css), and the moment a fill can be retuned for taste
+    // it needs a floor, because everything on it is a WASH — white at 92%, a
+    // pale cyan tick, a 16% quote panel — and a wash's ratio is a function of
+    // the fill it is washing. Deepening the fill made all five better; the
+    // next tune might not, and nothing in this file could have said so.
+    //
+    // Both themes, because the light bubble is untouched and "untouched" is a
+    // claim worth pinning: if a future change collapses the two back into one
+    // token, the row that fails should be the one that names which theme lost.
+    //
+    // Floors: 4.5 for the three that are TEXT (the label, the timestamp, the
+    // quoted line). The read tick and the quote's own bar are non-text marks
+    // and take 3.0 — the tick is held at 4.0 anyway rather than 3.0, because
+    // global.css's own note calls it "the smallest and most-watched piece of
+    // state in the product" and that is not a 3:1 job.
+    {
+      const bubbleInk = [
+        // [name, colour, alpha over the fill, floor]
+        ["--bubble-me-ink (the message)", "--bubble-me-ink", TEXT_FLOOR],
+        ["--bubble-me-dim (the timestamp)", "--bubble-me-dim", TEXT_FLOOR],
+        ["--tick-read (the read tick)", "--tick-read", 4.0],
+      ];
+      for (const [themeName, chain] of Object.entries(CASCADE)) {
+        const fillV = resolveIn(chain, "--bubble-me");
+        const fill = hex(fillV);
+        for (const [label, tok, floor] of bubbleInk) {
+          const v = resolveIn(chain, tok);
+          const c = /^rgba?\(/.test(v) ? over(rgba(v).c, fill, rgba(v).a) : hex(v);
+          const r = ratio(c, fill);
+          check(
+            `bubble-me/${themeName}: ${label} >= ${floor}`,
+            r >= floor,
+            `${r.toFixed(2)} (${tok} -> ${v} on ${fillV})`,
+          );
+        }
+        // The quoted reply lives INSIDE the bubble and is three washes on the
+        // same fill, stated as raw rgba() at the call site (`.msg.me .quote`)
+        // because "all three are washes on the rose FILL" — which was true of
+        // one fill and is now true of two. Read from the stylesheet rather
+        // than copied here, for the reason every other number in this file is.
+        const q = allBlocks(g, ".msg.me .quote")[0] ?? "";
+        const qBg = rgba(/background:\s*([^;]+);/.exec(q)?.[1] ?? "rgba(255,255,255,0.16)");
+        const qTxt = rgba(/(?:^|[\s;])color:\s*([^;]+);/.exec(q)?.[1] ?? "rgba(255,255,255,0.88)");
+        const qBar = rgba(/border-left-color:\s*([^;]+);/.exec(q)?.[1] ?? "rgba(255,255,255,0.85)");
+        const panel = over(qBg.c, fill, qBg.a);
+        // ── A RATCHET, NOT A FLOOR, AND THE NUMBER IS SAID OUT LOUD ────────
+        //
+        // This one does NOT get 4.5, and pretending otherwise by quietly
+        // omitting it would be worse than the gap. As it renders today:
+        // light 3.38:1, dark 4.15:1 (it was 3.36:1 before the wine).
+        //
+        // The cause is structural rather than a bad alpha. `.msg.me .quote` is
+        // a 16% white wash on the bubble's own fill, so the panel sits 1.05:1
+        // above the thing it is drawn on, and text washed on THAT is capped by
+        // arithmetic: even opaque white reaches only 3.90:1 on the light
+        // bubble. No alpha on the text can fix it — the panel would have to
+        // stop being a wash, which is a change to the LIGHT bubble and this
+        // workstream's brief says that one is untouched.
+        //
+        // So it is pinned where it renders, and the pin is what makes the debt
+        // real: the wine may not make it worse, a future fill tune may not
+        // make it worse, and the day the quote panel is redesigned this number
+        // goes up and the floor should follow it. 3.3 is today's light value
+        // with a hair of room, not a standard anyone should quote.
+        const QUOTE_RATCHET = 3.3;
+        check(
+          `bubble-me/${themeName}: the quoted line inside his bubble >= ${QUOTE_RATCHET} (known: not AA, see note)`,
+          ratio(over(qTxt.c, panel, qTxt.a), panel) >= QUOTE_RATCHET,
+          ratio(over(qTxt.c, panel, qTxt.a), panel).toFixed(2),
+        );
+        check(
+          `bubble-me/${themeName}: the quoted-reply bar >= ${EDGE_FLOOR}`,
+          ratio(over(qBar.c, panel, qBar.a), panel) >= EDGE_FLOOR,
+          ratio(over(qBar.c, panel, qBar.a), panel).toFixed(2),
+        );
+      }
+      // THE LIGHT BUBBLE IS THE ACCENT AND THE NIGHT BUBBLE IS NOT, which is
+      // the split the owner's verdict bought and the thing a "simplification"
+      // would undo first. Pinned as a structural fact rather than a ratio,
+      // because collapsing them back would pass every ratio above.
+      check(
+        "bubble-me: the day bubble is still the accent fill",
+        resolveIn(CASCADE.light, "--bubble-me") === resolveIn(CASCADE.light, "--accent-solid"),
+        resolveIn(CASCADE.light, "--bubble-me"),
+      );
+      check(
+        "bubble-me: the night bubble is its own wine, not the accent fill",
+        resolveIn(CASCADE.dark, "--bubble-me") !== resolveIn(CASCADE.dark, "--accent-solid"),
+        `${resolveIn(CASCADE.dark, "--bubble-me")} vs accent ${resolveIn(CASCADE.dark, "--accent-solid")}`,
+      );
+    }
+
     // ── the two wallpaper veil blocks stay byte-identical ──────────────────
     // Same law and same failure as the palette's own two dark blocks: if they
     // drift, one of the two ways into the dark theme keeps the LIGHT veil, and
@@ -763,9 +859,37 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
       );
     }
 
+    // FOUR ROWS PER STATE, NOT TWO (WS-SKYFELT). The wallpaper veil is now
+    // indexed by theme AND by whether the person chose the palette or chose
+    // SKY: `applyTheme` stamps `data-sky-choice` for the latter and world.css
+    // swaps to the thinner, colourless `wallAlpha*Sky` family so the painting
+    // is actually present (the owner's "I selected Sky and no change").
+    //
+    // Both flavours are measured identically — same regions, same decoded
+    // pixels, same floors — because a veil that is thinner is a veil that has
+    // spent the margin the plain one was keeping. Everything below reads
+    // `cfg.scrimKey`/`cfg.alphaKey`, so the sky rows carry the glass-chip, the
+    // control edge, her bubble's findability and the two activity-room
+    // palettes with them rather than being a special case that measures less.
+    // `cfg.theme` is the PALETTE (what `data-theme` says); the key is the
+    // combination, and only the palette may be used to pick a dark-mode block.
     const THEME_INK = {
-      light: { chain: CASCADE.light, scrimKey: "wallScrimLight", alphaKey: "wallAlphaLight" },
-      dark: { chain: CASCADE.dark, scrimKey: "wallScrimDark", alphaKey: "wallAlphaDark" },
+      light: {
+        theme: "light", chain: CASCADE.light,
+        scrimKey: "wallScrimLight", alphaKey: "wallAlphaLight",
+      },
+      "light/sky": {
+        theme: "light", chain: CASCADE.light,
+        scrimKey: "wallScrimLightSky", alphaKey: "wallAlphaLightSky",
+      },
+      dark: {
+        theme: "dark", chain: CASCADE.dark,
+        scrimKey: "wallScrimDark", alphaKey: "wallAlphaDark",
+      },
+      "dark/sky": {
+        theme: "dark", chain: CASCADE.dark,
+        scrimKey: "wallScrimDarkSky", alphaKey: "wallAlphaDarkSky",
+      },
     };
 
     let wWorstText = Infinity;
@@ -927,7 +1051,7 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
           // equal specificity: later wins. Same hole, same shape, as the
           // `.msg.her`-declared-twice one this file already records.
           const roomBlocks = allBlocks(src, baseSel).reverse();
-          if (themeName === "dark" && darkSel) roomBlocks.unshift(cssBlock(src, darkSel));
+          if (cfg.theme === "dark" && darkSel) roomBlocks.unshift(cssBlock(src, darkSel));
           for (const tok of tokens) {
             const declared = resolveIn([...roomBlocks, ...chain], tok);
             // a room token is either a literal or a var() into the palette;
@@ -986,6 +1110,127 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
         `wallpaper/${state}: the light theme stays a wash, not a photo`,
         SKY_TOKENS[state].wallAlphaLight >= 0.9,
         String(SKY_TOKENS[state].wallAlphaLight),
+      );
+    }
+
+    // ── THE SKY CHOICE'S OWN THREE LAWS (WS-SKYFELT) ───────────────────────
+    //
+    // The defect this fixes is not a contrast failure and no ratio above can
+    // see it: every number in the sky rows would pass with the sky alphas set
+    // equal to the plain ones, and that is EXACTLY the shipped bug — Sky and
+    // Light painting the same pixels from 06:10 to 18:10, which the owner read
+    // as a button that does nothing. So the property that has to be gated is
+    // the DIFFERENCE, and it has to be gated in both directions.
+    for (const state of SKY_STATES ?? []) {
+      const t = SKY_TOKENS[state];
+      for (const [themeName, plainKey, skyKey] of [
+        ["light", "wallAlphaLight", "wallAlphaLightSky"],
+        ["dark", "wallAlphaDark", "wallAlphaDarkSky"],
+      ]) {
+        // 1. IT HAS TO BE VISIBLY MORE PRESENT. 0.02 is not a round number for
+        //    its own sake: it is roughly a third of the whole light-theme
+        //    budget (0.93 -> 0.90 is the entire room the ink floor leaves), so
+        //    anything under it is a change nobody could photograph.
+        check(
+          `wallpaper/${state}/${themeName}: the sky-choice veil is thinner than the plain one`,
+          t[plainKey] - t[skyKey] >= 0.02,
+          `plain ${t[plainKey]} vs sky ${t[skyKey]} (delta ${(t[plainKey] - t[skyKey]).toFixed(3)})`,
+        );
+      }
+      // 2. …AND IT IS STILL A VEIL. The inverse failure of the one above, and
+      //    the one a person tuning for presence would reach: the light thread
+      //    turning into a photograph is a different product's identity, which
+      //    is the same law the plain light veil is held to one floor higher.
+      check(
+        `wallpaper/${state}: the sky-choice light veil is still a wash`,
+        t.wallAlphaLightSky >= 0.85,
+        String(t.wallAlphaLightSky),
+      );
+      // 3. THE VEIL CARRIES NO COLOUR OF ITS OWN. This is the mechanism, not a
+      //    preference: a veil already at the palette's extreme spends none of
+      //    its alpha on its own tint, which is where the extra painting comes
+      //    from. Tint one state warm "to match the hour" and its alpha has to
+      //    climb to hold the same floor, and the mode goes quiet again on that
+      //    state alone — passing every ratio while doing it.
+      check(
+        `wallpaper/${state}: the sky-choice veil is the palette's own extreme`,
+        t.wallScrimLightSky === SKY_MOD.WALL_SCRIM_LIGHT_SKY &&
+          t.wallScrimDarkSky === SKY_MOD.WALL_SCRIM_DARK_SKY,
+        `${t.wallScrimLightSky} / ${t.wallScrimDarkSky}`,
+      );
+    }
+    // And night's sky veil has to beat the plain veil's OWN ceiling rather
+    // than merely sit under it. 0.72 is what stops the dark thread being the
+    // void the owner photographed; 0.55 is what stops the SKY mode being
+    // indistinguishable from Dark on the state where someone is most likely to
+    // be looking at it.
+    check(
+      "wallpaper/night: the sky-choice veil beats the plain veil's own ceiling",
+      SKY_TOKENS.night.wallAlphaDarkSky <= 0.55,
+      `${SKY_TOKENS.night.wallAlphaDarkSky} (painting at ${((1 - SKY_TOKENS.night.wallAlphaDarkSky) * 100) | 0}%)`,
+    );
+
+    // ── THE ATTRIBUTE THE WHOLE SWAP RESTS ON ──────────────────────────────
+    //
+    // Every sky row above describes a screen that only exists if two things
+    // are true of files no test here runs: `applyTheme` stamps the attribute
+    // world.css keys off, and it writes `data-theme` BEFORE stamping it. The
+    // second is not pedantry — the sky-choice blocks are written as
+    // `[data-sky-choice][data-theme="light"|"dark"]` with no
+    // `prefers-color-scheme` twin precisely because the attribute can never
+    // appear without a theme beside it. Reorder the two writes and there is a
+    // frame with a sky choice and no theme, where neither block matches.
+    //
+    // Same species as the `.world-scrim` opacity lint above, and for the same
+    // reason: a gate that models a composite cannot notice the composite is
+    // not happening.
+    {
+      const themeTs = read("src/engine/theme.ts");
+      const iTheme = themeTs.indexOf('root.setAttribute("data-theme", skyMode(nowMs))');
+      const iSky = themeTs.indexOf('root.setAttribute("data-sky-choice"');
+      check("sky-choice: applyTheme stamps the presence attribute", iSky > -1);
+      check(
+        "sky-choice: it is removed for every other choice",
+        /root\.removeAttribute\("data-sky-choice"\)/.test(themeTs),
+      );
+      check(
+        "sky-choice: data-theme is written BEFORE it",
+        iTheme > -1 && iSky > iTheme,
+        `theme at ${iTheme}, sky-choice at ${iSky}`,
+      );
+      // …and the stylesheet actually keys off it, on both palettes, reading
+      // the sky family rather than the plain one.
+      const w2 = read("src/styles/world.css");
+      for (const pal of ["light", "dark"]) {
+        const sel = `:root[data-sky-choice][data-theme="${pal}"] .world[data-variant="wallpaper"]`;
+        const i = w2.indexOf(sel);
+        const body = i > -1 ? w2.slice(w2.indexOf("{", i), w2.indexOf("}", i)) : "";
+        check(
+          `sky-choice: world.css swaps the ${pal} wallpaper veil`,
+          i > -1 &&
+            body.includes(`var(--wall-scrim-${pal}-sky)`) &&
+            body.includes(`var(--wall-a-${pal}-sky)`),
+          body.trim().replace(/\s+/g, " ").slice(0, 70),
+        );
+        // the header band is the same surface with a different slice of the
+        // same picture behind it, and it takes the same veil above — so it
+        // takes this one too, or the thread and its own header disagree about
+        // what time it is
+        check(
+          `sky-choice: the header band takes the ${pal} sky veil too`,
+          w2.includes(`:root[data-sky-choice][data-theme="${pal}"] .world[data-variant="band"]`),
+        );
+      }
+      // The FULL variant is deliberately absent from those selectors. Home and
+      // both call screens already show the whole world in every mode (that is
+      // stated in applyTheme's own note: an explicit Dark at noon is a dark app
+      // in front of a morning sky), so there is nothing there for a sky choice
+      // to reveal. Pinned rather than left to memory: adding `full` would put a
+      // second, thinner veil on surfaces whose numbers are solved from
+      // `scrimAlphaPainted` and measured nowhere near here.
+      check(
+        "sky-choice: it does NOT touch the full world (home and calls show it already)",
+        !/\[data-sky-choice\][^{]*data-variant="full"/.test(w2),
       );
     }
 

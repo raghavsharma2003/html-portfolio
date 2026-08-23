@@ -28,6 +28,7 @@ import {
   TrashIcon,
 } from "./icons";
 import { THEMES, THEME_LABEL } from "../engine/theme";
+import type { SkyState } from "../engine/sky";
 import { useSky, skyVars } from "./WorldLayer";
 
 // GAP 4 (WS-FELT) — closeness card copy. App chrome, never a line she says
@@ -54,6 +55,35 @@ const PACING_LABEL: Record<string, string> = {
   regular: "You check in regularly",
   sparse: "You catch up now and then",
   occasional: "You reconnect every so often",
+};
+
+// ── THE CHOICE CONFIRMS ITSELF (WS-SKYFELT, owner defect) ─────────────────
+//
+// Half of "I selected Sky and no change" is a picture problem (the wallpaper
+// veil, see sky.ts) and half of it is a WORDS problem. The static paragraph
+// under the segmented control described the mode in general — "warm through
+// the day, deep after dusk" — which is exactly the sentence a person cannot
+// use at 11:27 in the morning, because it does not tell them whether the tap
+// they just made did anything or which half of it they are looking at.
+//
+// So when Sky is the live choice the line stops explaining and starts
+// REPORTING: what the sky over her city is doing this minute, which of the two
+// palettes that resolves to, and when it turns over. That is the confirmation
+// the tap owed them, and it costs nothing but a lookup.
+//
+// Built from the ONE clock, and from the same field the palette resolves
+// through. `useSky()` is `skyNow()` and `frame.tokens.mode` is the single
+// field `skyMode()` reads, so this line and the screen it describes cannot
+// disagree — a second derivation here would be a second clock, which is the
+// failure sky.ts's own header exists to prevent.
+//
+// Lowercase, one sentence pair, no em-dash (gated by check-copy.mjs).
+const SKY_NOW_LINE: Record<SkyState, string> = {
+  night: "night in bangalore, so she's in dark. light again at dawn.",
+  predawn: "pre-dawn in bangalore, so she's in dark. light at sunrise.",
+  morning: "morning in bangalore, so she's in light. dark after dusk.",
+  golden: "golden hour in bangalore, so she's in light. dark after dusk.",
+  dusk: "dusk in bangalore, so she's in dark. light again at dawn.",
 };
 
 const VIBES = [
@@ -176,8 +206,13 @@ export default function MoreSheet({
 
         {view === "menu" && (
           <>
+            {/* APPLE-TERSE (owner, 2026-08-23: "many places there is too much
+                text we don't want that. we want apple like design"). The
+                subtitle under this title said "Everything about you, and about
+                this conversation", which is a restatement of the word
+                Settings. A headline that needs a gloss is a headline that is
+                wrong; this one is not. */}
             <h3>Settings</h3>
-            <p className="hint">Everything about you, and about this conversation.</p>
             {relBundle && (
               <div className="rel-card" aria-label="Relationship depth">
                 <span className="rel-card-title">Where things stand</span>
@@ -244,14 +279,24 @@ export default function MoreSheet({
                 );
               })}
             </div>
-            {/* One line per mode, and only the two that need explaining get
-                one. "Light" and "Dark" explain themselves; Sky and Auto are
-                both "it changes on its own", and a person choosing between
-                them needs to know WHAT decides. */}
-            <p className="hint">
-              Sky follows the real sky where {HER_NAME} is: warm through the
-              day, deep after dusk. Auto follows your phone, and keeps
-              following it when it turns dark at night on its own.
+            {/* ONE LINE, and it changes job depending on what is selected.
+                "Light" and "Dark" explain themselves; Sky and Auto are both
+                "it changes on its own", so the static line names WHAT decides
+                and stops. The owner's read of the old four-line paragraph was
+                the same as his read of every other paragraph in this sheet:
+                too much text.
+
+                When Sky is live the line stops describing the mode and
+                reports it — the state over her city right now and the palette
+                that resolves to. That sentence is the whole answer to "I
+                selected Sky and no change", because it is the one thing on
+                screen that is different the instant the tap lands, at any hour
+                of the day. It is the copy half of the fix; the wallpaper is
+                the other half. */}
+            <p className="hint" data-tel="more.theme_hint">
+              {(state.theme ?? "system") === "sky"
+                ? SKY_NOW_LINE[sky.state as SkyState]
+                : `Sky follows the sky over ${HER_NAME}'s city. Auto follows your phone.`}
             </p>
 
             <div className="sheet-rows">
@@ -279,7 +324,7 @@ export default function MoreSheet({
                   <span className="ssub">
                     {signedIn
                       ? `Synced · ${state.auth?.email || state.auth?.phone || "signed in"}`
-                      : "Not signed in. This chat lives on this device only"}
+                      : "Not signed in. On this device only"}
                   </span>
                 </span>
                 <span className="schev">
@@ -329,9 +374,7 @@ export default function MoreSheet({
                 </span>
                 <span className="stext">
                   <span className="stitle">Make her forget you</span>
-                  <span className="ssub">
-                    Everything she's worked out about your life, deleted for good
-                  </span>
+                  <span className="ssub">Everything she knows about you, deleted</span>
                 </span>
               </button>
             </div>
@@ -348,10 +391,11 @@ export default function MoreSheet({
         {view === "profile" && (
           <>
             <h3>You</h3>
-            <p className="hint">
-              What she calls you, and what you came here for. Change it whenever:
-              she picks it up from the next message on.
-            </p>
+            {/* APPLE-TERSE. Two sentences that said "you can change this" about
+                a screen made entirely of editable fields. One line, and it
+                keeps the only fact the fields do not state themselves: when
+                the change lands. */}
+            <p className="hint">She picks up changes from your next message on.</p>
             <label htmlFor="ms-name">Your name</label>
             <input
               id="ms-name"
@@ -391,13 +435,19 @@ export default function MoreSheet({
         {view === "clear" && (
           <>
             <h3>Clear this chat?</h3>
+            {/* APPLE-TERSE (owner, 2026-08-23). One line, and it still names
+                both halves of what goes: the messages, and her side of the
+                conversation.
+
+                THE UNDO PROMISE LEFT THE SHEET ON PURPOSE. "You'll get ten
+                seconds to undo" was the app narrating a thing it is about to
+                do anyway — the undo toast appears the moment this button is
+                pressed and IS the promise, so saying it here first is a
+                paragraph spent on something the next screen shows. Nothing
+                about the ten seconds changed; only the pre-announcement. */}
             <p className="confirm-body">
-              This removes <b>{messageCount} message{messageCount === 1 ? "" : "s"}</b> from every
-              device you're signed in on. {HER_NAME} also forgets{" "}
-              <b>what she has told you about her own days</b> and starts the conversation fresh.
-              <br />
-              <br />
-              You'll get ten seconds to undo.
+              Removes <b>{messageCount} message{messageCount === 1 ? "" : "s"}</b> everywhere
+              you're signed in. {HER_NAME} starts over.
             </p>
             <div className="confirm-actions">
               <button
@@ -415,7 +465,7 @@ export default function MoreSheet({
               </button>
             </div>
             <p className="auth-fine" style={{ marginTop: 16 }}>
-              <HeartIcon size={13} /> Your account, and her memory of <em>you</em>, are not touched.
+              <HeartIcon size={13} /> Her memory of <em>you</em> stays.
             </p>
           </>
         )}
@@ -423,18 +473,24 @@ export default function MoreSheet({
         {view === "forget" && (
           <>
             <h3>Make her forget you?</h3>
-            {/* Named in words, the same as the clear-chat copy, and it names
-                the parts separately because they are separate things: what
-                she worked out about you, and the record of you saying it. */}
+            {/* APPLE-TERSE, WITH A FLOOR. This is a privacy-charter surface,
+                so compression is allowed to take the ENUMERATION ("the people,
+                the places, the plans, the running jokes") and is not allowed
+                to take a fact. Two load-bearing facts survive, one per line,
+                and they are the two a person would sue over not being told:
+                the deletion covers everything she knows about your life AND
+                the record of every message and call, and it is permanent.
+
+                The undo pre-narration goes for the reason it goes on the
+                clear sheet — the toast is the promise. "This cannot be undone"
+                is a different sentence and it stays: it is about the act, not
+                about the ten seconds. */}
             <p className="confirm-body">
-              {HER_NAME} deletes <b>everything she has worked out about your life</b>: the
-              people, the places, the plans, the running jokes, how things felt, and{" "}
-              <b>her record of every message and call</b> you two have had. This chat goes
-              with it and she starts over not knowing you.
+              {HER_NAME} deletes <b>everything she knows about your life</b>, and{" "}
+              <b>every message and call</b> you two have had.
               <br />
               <br />
-              You'll get ten seconds to undo. Nothing is sent until then, but once it
-              goes, it is gone, and nobody can bring it back.
+              This cannot be undone.
             </p>
             <div className="confirm-actions">
               <button
@@ -452,8 +508,7 @@ export default function MoreSheet({
               </button>
             </div>
             <p className="auth-fine" style={{ marginTop: 16 }}>
-              <HeartIcon size={13} /> Your account stays. You can also just ask her: "yeh
-              bhool ja" drops one thing without touching the rest.
+              <HeartIcon size={13} /> To drop one thing instead, just tell her "yeh bhool ja".
             </p>
           </>
         )}

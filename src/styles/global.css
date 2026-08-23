@@ -46,7 +46,8 @@
 
   --bubble-me: var(--accent-solid);
   --bubble-me-ink: var(--on-solid);
-  --bubble-me-dim: rgba(255, 255, 255, 0.92); /* 4.54:1 on the bubble */
+  --bubble-me-dim: rgba(255, 255, 255, 0.92); /* 4.54:1 on the day bubble,
+                                                 6.18:1 on the night wine */
   --tick-read: #b9f0ff;
   /* the read tick on a photo CARD rather than in the rose bubble: on paper
      the cyan has to be dragged down to hold against white, on the dark
@@ -309,12 +310,52 @@
   --accent-deep: #f2798c; /* 5.4:1 on --accent-soft over a card */
   --accent-soft: rgba(228, 101, 122, 0.16);
   /* the fill, DEEPENED instead — it carries white, so it moves the other
-     way. White on it is 5.09:1 against the light theme's own 5.07:1, and
-     her bubble's timestamp and read tick land on 4.6:1 and 4.1:1 against
-     4.5:1 and 4.1:1 in the day. Her bubble reads at night exactly as well
-     as it reads at noon, which is the whole point of splitting these. */
+     way. White on it is 5.09:1 against the light theme's own 5.07:1, so a
+     primary button reads at night exactly as well as it reads at noon, which
+     is the whole point of splitting these. It is ALSO the send circle, and
+     that is what pins it here rather than letting it follow the bubble down
+     into the wine below: a control has to be findable against what surrounds
+     it, and on the composer's glass over the night wallpaper this sits at
+     3.36:1 against the 3:1 floor with nothing to spare. */
   --accent-solid: #bc4557;
   --accent-solid-press: #c94a60; /* white 4.5:1 — press LIGHTENS here */
+
+  /* ── HIS BUBBLE IS FURNITURE, NOT A NOTIFICATION (WS-SKYFELT) ──────────
+     Owner's verdict from real device use, verbatim: "the red and black not
+     going together in dark theme." He is right, and the reason is that the
+     night ground stopped being flat. #bc4557 is a saturated rose at ~47%
+     chroma; against the warm near-black it was tuned on it read as a fill,
+     and against the NIGHT PAINTING behind it — indigo zenith, violet middle,
+     a blue-lit city — it reads as an alert. Red on blue at that chroma is the
+     most agitated pair the wheel has, and a chat is a room you sit in.
+
+     So the bubble goes wine: same rose lineage (h345 against the family's
+     h350, still unmistakably hers), deeper (L 40% from 50%) and quieter
+     (S 38% from 47%). Deep enough to belong to the night blues, saturated
+     enough that nobody would call it grey. Chosen from real side-by-side
+     screenshots over the night AND dusk wallpapers, which is the only way a
+     "does it sit in the room" question can be answered.
+
+     EVERY RATIO ON IT IMPROVES, because the fill got darker and everything
+     that lands on it is a white wash or a pale tick. White 5.09:1 -> 6.97:1,
+     --bubble-me-dim (the timestamp) 4.56:1 -> 6.18:1, --tick-read 4.11:1 ->
+     5.64:1, the quoted-reply text inside the bubble 3.36:1 -> 4.15:1 and its
+     bar 3.13:1 -> 3.84:1. All five are gated now (they were not before, which
+     is how a fill could be retuned without anyone measuring what sits on it).
+
+     ── WHY THIS IS ITS OWN TOKEN AND --accent-solid DID NOT MOVE ──────────
+     The obvious change is to deepen --accent-solid and let the bubble, the
+     send button and the primary button move together. It was measured and
+     rejected: --accent-solid is also the 40px send circle, and a CONTROL has
+     to be findable against what surrounds it (WCAG 1.4.11, 3:1). On the
+     composer's glass over the night wallpaper the current rose sits at
+     3.36:1 — already close to the floor — and the wine takes it to 2.45:1.
+     A bubble is not a button: a bubble is found by being a large shape full
+     of white text, a button is found by its fill. So the fill splits the same
+     way `--accent` and `--accent-solid` split one step above, and for the
+     same kind of reason: two jobs that were one colour until the ground
+     changed under them. The light theme's bubble is untouched. */
+  --bubble-me: #8e4054;
 
   /* --accent-warm (#e2724f, 6.1:1 here) and --ok (#2fa855, 6.2:1) are
      deliberately NOT redefined: both already clear the ground, both are
@@ -393,12 +434,52 @@
   --accent-deep: #f2798c; /* 5.4:1 on --accent-soft over a card */
   --accent-soft: rgba(228, 101, 122, 0.16);
   /* the fill, DEEPENED instead — it carries white, so it moves the other
-     way. White on it is 5.09:1 against the light theme's own 5.07:1, and
-     her bubble's timestamp and read tick land on 4.6:1 and 4.1:1 against
-     4.5:1 and 4.1:1 in the day. Her bubble reads at night exactly as well
-     as it reads at noon, which is the whole point of splitting these. */
+     way. White on it is 5.09:1 against the light theme's own 5.07:1, so a
+     primary button reads at night exactly as well as it reads at noon, which
+     is the whole point of splitting these. It is ALSO the send circle, and
+     that is what pins it here rather than letting it follow the bubble down
+     into the wine below: a control has to be findable against what surrounds
+     it, and on the composer's glass over the night wallpaper this sits at
+     3.36:1 against the 3:1 floor with nothing to spare. */
   --accent-solid: #bc4557;
   --accent-solid-press: #c94a60; /* white 4.5:1 — press LIGHTENS here */
+
+  /* ── HIS BUBBLE IS FURNITURE, NOT A NOTIFICATION (WS-SKYFELT) ──────────
+     Owner's verdict from real device use, verbatim: "the red and black not
+     going together in dark theme." He is right, and the reason is that the
+     night ground stopped being flat. #bc4557 is a saturated rose at ~47%
+     chroma; against the warm near-black it was tuned on it read as a fill,
+     and against the NIGHT PAINTING behind it — indigo zenith, violet middle,
+     a blue-lit city — it reads as an alert. Red on blue at that chroma is the
+     most agitated pair the wheel has, and a chat is a room you sit in.
+
+     So the bubble goes wine: same rose lineage (h345 against the family's
+     h350, still unmistakably hers), deeper (L 40% from 50%) and quieter
+     (S 38% from 47%). Deep enough to belong to the night blues, saturated
+     enough that nobody would call it grey. Chosen from real side-by-side
+     screenshots over the night AND dusk wallpapers, which is the only way a
+     "does it sit in the room" question can be answered.
+
+     EVERY RATIO ON IT IMPROVES, because the fill got darker and everything
+     that lands on it is a white wash or a pale tick. White 5.09:1 -> 6.97:1,
+     --bubble-me-dim (the timestamp) 4.56:1 -> 6.18:1, --tick-read 4.11:1 ->
+     5.64:1, the quoted-reply text inside the bubble 3.36:1 -> 4.15:1 and its
+     bar 3.13:1 -> 3.84:1. All five are gated now (they were not before, which
+     is how a fill could be retuned without anyone measuring what sits on it).
+
+     ── WHY THIS IS ITS OWN TOKEN AND --accent-solid DID NOT MOVE ──────────
+     The obvious change is to deepen --accent-solid and let the bubble, the
+     send button and the primary button move together. It was measured and
+     rejected: --accent-solid is also the 40px send circle, and a CONTROL has
+     to be findable against what surrounds it (WCAG 1.4.11, 3:1). On the
+     composer's glass over the night wallpaper the current rose sits at
+     3.36:1 — already close to the floor — and the wine takes it to 2.45:1.
+     A bubble is not a button: a bubble is found by being a large shape full
+     of white text, a button is found by its fill. So the fill splits the same
+     way `--accent` and `--accent-solid` split one step above, and for the
+     same kind of reason: two jobs that were one colour until the ground
+     changed under them. The light theme's bubble is untouched. */
+  --bubble-me: #8e4054;
 
   /* --accent-warm (#e2724f, 6.1:1 here) and --ok (#2fa855, 6.2:1) are
      deliberately NOT redefined: both already clear the ground, both are

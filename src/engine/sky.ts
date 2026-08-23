@@ -249,7 +249,81 @@ export interface SkyTokens {
   wallAlphaLight: number;
   wallScrimDark: string;
   wallAlphaDark: number;
+
+  // ── THE SAME VEIL WHEN THE CHOICE ITSELF IS "SKY" (WS-SKYFELT) ──────────
+  //
+  // The defect this pair exists for is a design defect, not a code one, and
+  // it was reported in one sentence: "I selected Sky and no change." At 11:27
+  // IST the sky is `morning`, `morning.mode` is "light", so the choice
+  // resolved to `data-theme="light"` and the thread painted the LIGHT veil at
+  // 0.93 — pixel-identical to explicit Light, and identical until dusk. A
+  // mode whose selection changes nothing visible reads as broken, and it is
+  // the only mode in the app that can be selected and then not seen.
+  //
+  // The fix does NOT add a third palette — that law is stated at the top of
+  // theme.ts and it still holds: `sky` resolves to one of the two `data-theme`
+  // values and nothing else. What it adds is PRESENCE. `applyTheme` stamps one
+  // extra root attribute (`data-sky-choice`) when the CHOICE is sky, and the
+  // thread's wallpaper keys a more-present veil off it. Same two palettes,
+  // same ink, same everything a selector reads — one more picture.
+  //
+  // ── WHY THE SKY VEIL IS COLOURLESS, AND WHY THAT IS THE MECHANISM ──────
+  //
+  // The four numbers above are the theme's own ground carried a few points
+  // toward the state's mood: the THEME decides the colour and the sky is a
+  // hint in it. The sky-choice veil inverts that. It carries no tint at all —
+  // it is the palette's own extreme, `#ffffff` by day and `#000000` at night
+  // (`WALL_SCRIM_LIGHT_SKY`/`WALL_SCRIM_DARK_SKY`) — so the only colour left
+  // on the thread's ground is the hour's.
+  //
+  // That is not merely a nice sentence, it is where the room comes from. Both
+  // veils are alpha-bound by ink: the light one by `--ink-dim` over the
+  // painting's DARKEST decile, the dark one by light ink over its BRIGHTEST.
+  // A veil that is already the whitest (or blackest) thing available spends
+  // none of its budget on its own tint, so it can be THINNER at the same
+  // measured floor. Solved against the shipped jpgs' decoded pixels, the swap
+  // buys between 1.4x and 1.8x more of the painting on every state:
+  //
+  //   state    light: plain -> sky        dark: plain -> sky
+  //   night    0.94 -> 0.90  (6% -> 10%)  0.60 -> 0.44  (40% -> 56%)
+  //   predawn  0.94 -> 0.90  (6% -> 10%)  0.65 -> 0.48  (35% -> 52%)
+  //   morning  0.93 -> 0.88  (7% -> 12%)  0.91 -> 0.83  ( 9% -> 17%)
+  //   golden   0.935-> 0.885 (7% -> 12%)  0.90 -> 0.81  (10% -> 19%)
+  //   dusk     0.94 -> 0.895 (6% -> 11%)  0.87 -> 0.77  (13% -> 23%)
+  //
+  // Both families are gated exactly as the plain pair is — same regions, same
+  // decoded pixels, same 4.5/4.5/3.0 floors — plus three laws of their own in
+  // `scripts/check-contrast.mjs`: every sky alpha is at least 0.02 thinner
+  // than its plain twin (or the mode is invisible again, which is the bug),
+  // the light sky veil stays >= 0.85 (a wash, never a photograph), and night's
+  // dark sky veil stays <= 0.55 (it has to beat the plain veil's own ceiling,
+  // not merely sit under it).
+  //
+  // TEN NUMBERS FOR FIVE REACHABLE COMBINATIONS, deliberately. In production
+  // `data-sky-choice` is only ever stamped together with `data-theme` =
+  // `mode`, so morning-under-dark cannot be reached by choosing anything. It
+  // CAN be reached for a frame while the clock crosses a boundary and the
+  // attribute write and the React render have not yet met, and a var that
+  // resolves to nothing for one frame is a white flash on a night thread.
+  wallScrimLightSky: string;
+  wallAlphaLightSky: number;
+  wallScrimDarkSky: string;
+  wallAlphaDarkSky: number;
 }
+
+/**
+ * The sky-choice veil's two colours, stated once rather than five times.
+ *
+ * They are a LAW rather than a tuning knob — "in sky mode the veil carries no
+ * tint of its own" is the whole reason the alphas above can be thinner than
+ * their plain twins — so they live here as constants and every state's fields
+ * are assigned from them. Five copies of one law is five chances for one of
+ * them to be nudged warm by someone tuning a single state, and the gate would
+ * still pass because the ratio would still hold; it is the PRESENCE that would
+ * quietly go.
+ */
+export const WALL_SCRIM_LIGHT_SKY = "#ffffff";
+export const WALL_SCRIM_DARK_SKY = "#000000";
 
 /**
  * The five skies.
@@ -290,6 +364,10 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     wallAlphaLight: 0.94,
     wallScrimDark: "#0a0c18",
     wallAlphaDark: 0.6,
+    wallScrimLightSky: WALL_SCRIM_LIGHT_SKY,
+    wallAlphaLightSky: 0.9,
+    wallScrimDarkSky: WALL_SCRIM_DARK_SKY,
+    wallAlphaDarkSky: 0.44,
   }),
 
   // The blue hour before sunrise: cold at the top, a thin cyan band, and the
@@ -319,6 +397,10 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     wallAlphaLight: 0.94,
     wallScrimDark: "#0c0e1c",
     wallAlphaDark: 0.65,
+    wallScrimLightSky: WALL_SCRIM_LIGHT_SKY,
+    wallAlphaLightSky: 0.9,
+    wallScrimDarkSky: WALL_SCRIM_DARK_SKY,
+    wallAlphaDarkSky: 0.48,
   }),
 
   // Full daylight. Warm rather than the default sky-blue — the app's ground
@@ -352,6 +434,10 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     wallAlphaLight: 0.93,
     wallScrimDark: "#14100f",
     wallAlphaDark: 0.91,
+    wallScrimLightSky: WALL_SCRIM_LIGHT_SKY,
+    wallAlphaLightSky: 0.88,
+    wallScrimDarkSky: WALL_SCRIM_DARK_SKY,
+    wallAlphaDarkSky: 0.83,
   }),
 
   // Golden hour. The one state where the horizon is BRIGHTER than the zenith
@@ -381,6 +467,10 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     wallAlphaLight: 0.935,
     wallScrimDark: "#17110d",
     wallAlphaDark: 0.9,
+    wallScrimLightSky: WALL_SCRIM_LIGHT_SKY,
+    wallAlphaLightSky: 0.885,
+    wallScrimDarkSky: WALL_SCRIM_DARK_SKY,
+    wallAlphaDarkSky: 0.81,
   }),
 
   // Dusk. The competitor's best frame is its rose dusk, so this is the one
@@ -411,6 +501,10 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     wallAlphaLight: 0.94,
     wallScrimDark: "#140f1c",
     wallAlphaDark: 0.87,
+    wallScrimLightSky: WALL_SCRIM_LIGHT_SKY,
+    wallAlphaLightSky: 0.895,
+    wallScrimDarkSky: WALL_SCRIM_DARK_SKY,
+    wallAlphaDarkSky: 0.77,
   }),
 });
 

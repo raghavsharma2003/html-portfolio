@@ -276,6 +276,16 @@ export function skyVars(frame: SkyFrame): React.CSSProperties {
     "--wall-a-light": String(t.wallAlphaLight),
     "--wall-scrim-dark": t.wallScrimDark,
     "--wall-a-dark": String(t.wallAlphaDark),
+    // …and the same veil for the person who chose SKY rather than a palette.
+    // Emitted alongside rather than instead, for the reason the pair above is
+    // emitted in both flavours: the choice between them belongs to a root
+    // attribute (`data-sky-choice`, stamped by applyTheme) and to a selector,
+    // and a component that resolved it here would be a copy of that rule that
+    // does not update when the clock crosses dusk with the app open.
+    "--wall-scrim-light-sky": t.wallScrimLightSky,
+    "--wall-a-light-sky": String(t.wallAlphaLightSky),
+    "--wall-scrim-dark-sky": t.wallScrimDarkSky,
+    "--wall-a-dark-sky": String(t.wallAlphaDarkSky),
   } as React.CSSProperties;
 }
 

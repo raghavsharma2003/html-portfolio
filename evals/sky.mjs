@@ -233,7 +233,18 @@ ok(
 // survives someone collapsing four numbers into one, or wiring a state's
 // wallpaper to the sky's own mode instead of to the theme.
 {
-  const FIELDS = ["wallScrimLight", "wallAlphaLight", "wallScrimDark", "wallAlphaDark"];
+  const FIELDS = [
+    "wallScrimLight", "wallAlphaLight", "wallScrimDark", "wallAlphaDark",
+    // WS-SKYFELT. Four more, and they are the answer to a defect rather than a
+    // refinement: at 11:27 IST `sky` resolves to the light palette, so the
+    // thread painted the LIGHT veil and Sky was pixel-identical to Light until
+    // dusk. These carry the same veil for a person who chose SKY, thinner and
+    // colourless, so the mode can be SEEN. `check-contrast.mjs` owns their
+    // floors and the three laws that keep them apart from the plain pair; this
+    // is the structural half, and its whole job is to fail loudly if a state
+    // ever loses one and the var resolves to nothing on a night thread.
+    "wallScrimLightSky", "wallAlphaLightSky", "wallScrimDarkSky", "wallAlphaDarkSky",
+  ];
   ok(
     "every state carries all four wallpaper fields",
     SKY_STATES.every((s) => FIELDS.every((f) => SKY_TOKENS[s][f] !== undefined)),
@@ -244,8 +255,24 @@ ok(
     SKY_STATES.every(
       (s) =>
         /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimLight) &&
-        /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimDark),
+        /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimDark) &&
+        /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimLightSky) &&
+        /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimDarkSky),
     ),
+  );
+  // The sky-choice veil is the one a person SEES the mode through, so a state
+  // whose sky alpha is not thinner than its plain one is a state on which the
+  // mode is invisible — the exact defect this pair was added for, one state at
+  // a time. The ratio floors live in check-contrast.mjs; this is the property
+  // that has no ratio.
+  ok(
+    "every state's sky-choice veil is thinner than its plain one",
+    SKY_STATES.every(
+      (s) =>
+        SKY_TOKENS[s].wallAlphaLight - SKY_TOKENS[s].wallAlphaLightSky >= 0.02 &&
+        SKY_TOKENS[s].wallAlphaDark - SKY_TOKENS[s].wallAlphaDarkSky >= 0.02,
+    ),
+    SKY_STATES.map((s) => `${s} L${SKY_TOKENS[s].wallAlphaLight}/${SKY_TOKENS[s].wallAlphaLightSky}`).join(" "),
   );
   ok(
     "both wallpaper alphas are numbers inside the sane band",
