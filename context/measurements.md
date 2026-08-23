@@ -2677,3 +2677,27 @@ removing the position scaling so every band collapses to one; and deferring
 version of the suite caught 0 of the first 3 — its assertions were shape-greps
 over the call site rather than tests of a decision — which is why the seam and
 the note composition were extracted into pure functions.
+
+---
+
+## `timeline-wave-2026-08-23` — the live-test correction wave, measured
+
+- herNow: sticky present across a 1-minute re-call (moved:false), moves
+  on at span end knowing what it finished; elapsed floors swept 0-600
+  min with zero over-claims; hernow suite 154, lanes 196.
+- Just-happened: owner's share-then-60s-call scenario carries 3/3 of
+  her commentary lines (pre-fix control: 1/3 and unanswerable); block
+  283B real / 300 cap; sharenow 78 + callmem 341.
+- Share latency: held-frame worst 3114 to <=1090ms via delivery
+  accounting; wakesLost 15-100 per 8 runs to 0; phone-audio mix with
+  42-check echo-safety, echosim byte-identical.
+- Movevoice: think-time within predicted bands 25/25, ordering tracks
+  complexity 249/265, mutation test 10/10; suite 163.
+- She-calls: ring at 4.2-5.0s after her line, caller-branch directive
+  verified in the pickup POST; detector 377 at 2:1 negative ratio.
+- Breath: "U can call me" + typing at 4s went from cut-off-at-2.05s to
+  silent-through-the-draft; focused-idle 2.13s to 6.71s with release;
+  liveness ceiling 15.89s unchanged; burstgrid 1477 assertions/484
+  cells; burst suite 186.
+- Prompt ceilings raised with dated rationale: core 46400, assembled
+  51600 (~$0.0002/session).

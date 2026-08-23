@@ -1461,6 +1461,18 @@
       "kind": "component",
       "at": "2026-08-23",
       "title": "The board's clock and her voice: think table, settled clause, send seam"
+    },
+    {
+      "id": "evidence-only-patience",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "Every patience signal required evidence; the ordinary evidence-free message got 1300ms - grace must be the default; dead battery compounded it"
+    },
+    {
+      "id": "timeline-wave-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "Live-test wave: herNow sticky state, just-happened block, share lag 3.1 to 1.1s + phone audio, movevoice choreography, she-calls 377 checks, burst grace floor 2600ms on 484 cells"
     }
   ],
   "edges": [
@@ -2678,6 +2690,16 @@
       "src": "game-notes-ride-a-send-seam",
       "rel": "part_of",
       "dst": "movevoice"
+    },
+    {
+      "src": "evidence-only-patience",
+      "rel": "caused_by",
+      "dst": "timeline-wave-2026-08-23"
+    },
+    {
+      "src": "past-tense-is-not-enough",
+      "rel": "caused_by",
+      "dst": "timeline-wave-2026-08-23"
     }
   ]
 }

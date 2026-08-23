@@ -1935,3 +1935,36 @@ control the whole suite would have passed on the broken build.
 **The generalisable rule:** when a lane's context is frozen and the note is
 incremental, the note must carry enough state to CONTRADICT the frozen half,
 not merely to add to it. Correct-and-incomplete reads exactly like wrong.
+
+---
+
+## `evidence-only-patience` — the wait that could not cover the ordinary case
+
+**Found (WS-BREATH post-mortem, third recurrence of the burst complaint):**
+every shipped patience signal (continuation cues, typing hold, learned
+rhythm) required EVIDENCE of a follow-up; a complete-looking sentence
+with idle hands carries none, so "U can call me" got the 1300ms default
+and she fired before his hand reached the keyboard. A polarity error:
+grace must be the default and evidence should shorten it, not create
+it. Compounding cause: the felt-timing browser battery had been
+silently dead since the home-surface wave (navigated to /chat, which
+now boots home; its sends timed out outside the release gate) - the
+only instrument for this class was unable to reach the composer, so
+two waves shipped unmeasured.
+
+**The generalisable rules:** a default is a policy, not an absence -
+audit what the system does when every signal is silent; and a battery
+outside the release gate needs its own liveness check (it must FAIL
+loudly when it cannot drive the app, never time out quietly).
+
+## `past-tense-is-not-enough` + `spent-before-delivered` (movevoice/watchperf)
+
+Two summarized: a past-tense game fact does not CLOSE a choice for a
+frozen prompt (the model deliberates about a move it was told she
+made - the note must state the choice closed); and the native frame
+pipeline spent cadence/still-debt/moved flags at hand-off before the
+socket accepted, so one refused frame silently degraded the whole
+share (spend budgets on DELIVERY, never on attempt). Full entries in
+the wave reports; july's timeline.ts day-shape fix for the fairy-
+lights class sat gated-but-unwired the whole time (dead-writers,
+fourth instance: wire-or-retire is now a lifecycle-slice item).
