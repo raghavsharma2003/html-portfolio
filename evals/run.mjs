@@ -124,6 +124,9 @@ const suites = {
   // Exact-version, multidimensional owner adjudication of a private turn,
   // including encrypted correction exemplars and sealed-audio lineage.
   replicafeedback: "replica-feedback/run.mjs",
+  // Content-free, conversation-locked feedback datasets with immutable split
+  // assignments, depth/coverage gates and exact latest-revision rechecks.
+  feedbackdataset: "feedback-dataset/run.mjs",
   // Second-agent readiness: every shipping insert names agent_id, every
   // relational/natural-key arbiter is composite, and compatibility defaults
   // have explicit strict migrations with a working negative control.

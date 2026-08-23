@@ -144,6 +144,9 @@ Implemented now:
   relationship, memory, delivery and heard voice separately; optional owner
   corrections use per-exemplar envelope encryption and become auditable
   preference evidence rather than automatic prompt mutations;
+- a content-free feedback dataset compiler that freezes whole conversations
+  into immutable train/development/test splits, uses only latest revisions,
+  forces unsafe new sessions into holdout, and emits draft-only readiness;
 - a production Neon provenance ledger that rechecks active replica capability
   before each signed PCM segment is released, making revocation a streaming
   delivery fence rather than only a UI state;
@@ -165,5 +168,6 @@ The Person Model contract is in [`docs/PERSON-MODEL.md`](docs/PERSON-MODEL.md).
 Private cited extraction is in [`docs/CLAIM-EXTRACTION.md`](docs/CLAIM-EXTRACTION.md).
 Calibration is specified in [`docs/CALIBRATION.md`](docs/CALIBRATION.md).
 Turn-level fidelity learning is in [`docs/TURN-FEEDBACK.md`](docs/TURN-FEEDBACK.md).
+Leakage-safe dataset construction is in [`docs/FEEDBACK-DATASET.md`](docs/FEEDBACK-DATASET.md).
 Azure allocation is in [`docs/AZURE-FOUNDRY-PLAN.md`](docs/AZURE-FOUNDRY-PLAN.md).
 The enforced application ceiling is in [`docs/PROVIDER-BUDGET.md`](docs/PROVIDER-BUDGET.md).

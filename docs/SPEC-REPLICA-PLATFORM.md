@@ -414,6 +414,9 @@ unsafe or disposable:
     relationship, memory, delivery and heard voice; owner correction exemplars
     use per-row envelope encryption and remain reviewable training/eval evidence
     instead of silently mutating the active runtime.
+16. A content-free dataset compiler with immutable whole-session split
+    assignments, latest-revision mutation rechecks, unsafe-session holdout and
+    minimum cross-layer depth gates; output remains draft-only.
 
 These slices do not touch `liveCall.ts`. Azure Speech and Foundry adapters have
 only mocked protocol coverage; real voice models, independent liveness

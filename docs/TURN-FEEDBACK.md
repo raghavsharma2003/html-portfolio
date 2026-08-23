@@ -81,9 +81,14 @@ must additionally:
 The active runtime never learns silently from a single correction. Promotion
 remains explicit, versioned, reversible and qualification-gated.
 
+Migration 030 and the [feedback dataset compiler](FEEDBACK-DATASET.md) turn
+latest revisions into content-free, whole-conversation split manifests. A
+structurally ready manifest is still only a draft; semantic deduplication,
+poisoning review, deletion reconciliation and layer-specific qualification are
+separate required gates.
+
 Offline gate:
 
 ```bash
 node evals/run.mjs replicafeedback
 ```
-
