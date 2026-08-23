@@ -1790,3 +1790,41 @@ last bubble, at 4 messages, at 300, and sampled 40x across a live burst.
 **Reversed if:** the thread's row model changes so typing is no longer a
 sibling of messages — the bounding-box assertion travels with whatever
 replaces it.
+
+---
+
+## `sky-choice-is-a-veil-not-a-palette` (2026-08-22, WS-SKYFELT)
+
+"I selected Sky and no change": at daytime, sky resolves to the light
+palette and was pixel-identical to explicit Light, and a mode whose
+selection changes nothing visible is indistinguishable from broken. The
+fix keeps the sky-is-not-a-third-palette law intact: applyTheme stamps
+`data-sky-choice` alongside the resolved `data-theme`, and only the
+thread wallpaper/band veils key off it, swapping to a COLOURLESS veil
+(the palette's extreme, #fff/#000) that spends no alpha on its own tint
+and therefore clears the same text floors while letting visibly more
+painting through in every state (measured luminance-sd 1.4x to 1.76x
+over plain). global.css must never branch on the attribute (eval-pinned)
+so sky stays a decider, never a palette. The settings helper line goes
+live in sky mode and reads the same skyMode() field the screen does.
+
+**Reversed if:** the two-palette model itself changes, or a future
+migration makes undefined mean sky (then the stamp's presence semantics
+need re-deriving).
+
+## `dark-his-bubble-is-wine-not-alarm` (2026-08-22, owner verdict)
+
+Owner: "the red and black not going together in dark theme." Dark-theme
+his-bubble moved from the accent rose to #8e4054 (same lineage, s47->38,
+l50->40), which sits with the night blues instead of reading as a
+notification. Every ink on it IMPROVED (white 5.09->6.97). The send
+control deliberately keeps the accent: it shares the old token but is a
+control against composer glass, and the wine measures 2.45:1 there,
+under the 3:1 floor. The split is written in the stylesheet with the
+numbers. Light theme untouched. A pre-existing light-quote-line 3.38:1
+that cannot reach AA without changing the light bubble is gated as a
+named ratchet at 3.3 (debt written down, not omitted).
+
+**Reversed if:** the owner's taste verdict changes, or the composer
+glass changes enough that the wine clears 3:1 there (then one token can
+serve both again).

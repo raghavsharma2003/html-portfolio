@@ -1269,6 +1269,18 @@
       "kind": "measurement",
       "at": "2026-08-22",
       "title": "Surface sweep: 11 fixed / 3 proven no-change, contrast gate 213 to 268, stale hand-copies deleted"
+    },
+    {
+      "id": "sky-choice-is-a-veil-not-a-palette",
+      "kind": "decision",
+      "at": "2026-08-22",
+      "title": "Sky choice stamps data-sky-choice; only wallpaper veils key off it, colourless, so sky is visible at any hour yet never a third palette"
+    },
+    {
+      "id": "dark-his-bubble-is-wine-not-alarm",
+      "kind": "decision",
+      "at": "2026-08-22",
+      "title": "Dark his-bubble #8e4054 wine, send control keeps accent (3:1 floor), light-quote debt gated as named ratchet"
     }
   ],
   "edges": [
@@ -2330,6 +2342,16 @@
     {
       "src": "sweep-2026-08-22",
       "rel": "measured_by",
+      "dst": "wallpaper-scrims-per-state-and-theme"
+    },
+    {
+      "src": "sky-choice-is-a-veil-not-a-palette",
+      "rel": "constrains",
+      "dst": "wallpaper-scrims-per-state-and-theme"
+    },
+    {
+      "src": "dark-his-bubble-is-wine-not-alarm",
+      "rel": "constrains",
       "dst": "wallpaper-scrims-per-state-and-theme"
     }
   ]
