@@ -16,23 +16,8 @@
 
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
-
-import { SUPABASE_URL, SUPABASE_KEY } from "./_config.js";
-
-const SB_URL = process.env.SUPABASE_URL || SUPABASE_URL;
-const SB_KEY = process.env.SUPABASE_KEY || SUPABASE_KEY;
+import { SB_URL, SB_KEY, authFetch, userFromToken } from "./_auth.js";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const authFetch = (path, body, headers = {}) =>
-  fetch(`${SB_URL}/auth/v1/${path}`, {
-    method: body === undefined ? "GET" : "POST",
-    headers: {
-      apikey: SB_KEY,
-      "Content-Type": "application/json",
-      ...headers,
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
 
 const rest = (path, params, opts = {}) => {
   const qs = params ? "?" + new URLSearchParams(params).toString() : "";
@@ -46,14 +31,6 @@ const rest = (path, params, opts = {}) => {
     },
   });
 };
-
-async function userFromToken(accessToken) {
-  if (typeof accessToken !== "string" || accessToken.length < 20) return null;
-  const res = await authFetch("user", undefined, { Authorization: `Bearer ${accessToken}` });
-  if (!res.ok) return null;
-  const u = await res.json();
-  return u?.id ? u : null;
-}
 
 async function passthrough(res, upstream) {
   const data = await upstream.json().catch(() => ({}));

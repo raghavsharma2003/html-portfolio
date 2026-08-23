@@ -1828,3 +1828,53 @@ named ratchet at 3.3 (debt written down, not omitted).
 **Reversed if:** the owner's taste verdict changes, or the composer
 glass changes enough that the wine clears 3:1 there (then one token can
 serve both again).
+
+---
+
+## `replica-self-only` — enrollment starts with the verified living adult (2026-08-24)
+
+The first human-replica product is private self-replication. Ownership comes
+only from a verified Supabase user; a device id, body user id, uploaded voice,
+or checkbox cannot authorize another person's biometric identity. Activation
+requires adult/identity/liveness verification, a randomized live challenge,
+granular current-policy consent, an approved VoiceGenome/profile, a ready
+provider and passing enrollment/voice/behaviour/memory/provenance batteries.
+Public figures, politicians, minors, deceased and third-party subjects, public
+sharing, downloadable weights, bulk generation and outbound calls stay closed.
+This is both the narrowest lawful launch and the strongest way to build the
+consent/revocation machinery before the system has distribution.
+
+**Reverses if:** a subject-rights, delegated-authority, liveness, takedown and
+jurisdiction-specific legal program passes independent red-team and counsel
+review. Better cloning quality or user attestation alone cannot reverse it.
+
+## `replica-provider-portable` — the person outlives the speech vendor (2026-08-24)
+
+The durable product is separately versioned acoustic identity, delivery,
+language behaviour, biography, values, relationships and multimodal identity.
+A provider voice id is a disposable server-only mapping from a VoiceGenome.
+Hosted Fish/Cartesia/Eleven routes and permissive VoxCPM2/MOSS/ZONOS2/
+OmniVoice/Chatterbox candidates compete behind one semantic render contract
+and exact PCM stream. Voice and behaviour adaptation remain separate. Training
+a foundation model is deferred until a legally owned Hindi/Hinglish corpus and
+internal benchmark show that routing/self-hosted adapters cannot meet the bar.
+
+**Reverses if:** one provider wins every required identity, delivery, Hinglish,
+latency, deletion, privacy and provenance gate across model updates. MOS, price
+or one impressive demo cannot reverse portability.
+
+## `replica-preview-before-conversation` — second-agent recall is blocked (2026-08-24)
+
+Enrollment, calibration and authenticated disclosed voice preview can ship as
+a control plane. Replica chat/calls cannot. Although derived relational tables
+are keyed by `(agent, person)`, `meera_log`, `meera_nodes`, `meera_edges` and
+`meera_forget` are not agent-scoped, and raw log scanning/consolidation
+watermarks can cross an agent boundary. A second active conversational agent
+before migration 016 would risk recall leakage or one agent hiding another's
+work. The clone therefore stays on the existing cascade audio contract later;
+`liveCall.ts` is not modified for the preview.
+
+**Reverses if:** migration 016 backfills explicit agent ids through every raw
+writer, reader and sweep, removes compatibility defaults, and the cross-agent
+isolation/forget/watermark/lane-parity battery passes. A prompt instruction to
+ignore another agent's memory cannot reverse a storage isolation blocker.

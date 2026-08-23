@@ -74,6 +74,10 @@ const suites = {
   // CLASS CHECK: every optional AppState field is either wiped by the
   // teardown or exempted in writing. Offline, $0, ~2s.
   teardown: "teardown.mjs",
+  // Human-replica control plane: consent capability, verified self-only live
+  // challenge, versioned eval verdicts, lifecycle, private object paths and
+  // content-free audit. Offline and provider-free.
+  replica: "replica/run.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),

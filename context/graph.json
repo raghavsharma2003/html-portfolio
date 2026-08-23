@@ -1341,6 +1341,34 @@
       "kind": "measurement",
       "at": "2026-08-23",
       "title": "Felt-memory battery rehearsal: machinery proven, n=130 underpowered, retold +0.89 and time +0.84 directional, blocked on OpenRouter key limit"
+    },
+    {
+      "id": "replica-control-plane",
+      "kind": "component",
+      "title": "Consented human-replica enrollment, calibration, voice routing and erasure control plane"
+    },
+    {
+      "id": "replica-self-only",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "Initial human-replica launch is private, verified-adult self-replication only"
+    },
+    {
+      "id": "replica-provider-portable",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "The durable person model and VoiceGenome stay independent of speech/brain/avatar providers"
+    },
+    {
+      "id": "replica-preview-before-conversation",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "Enrollment and disclosed voice preview precede any second conversational agent"
+    },
+    {
+      "id": "replica-raw-memory-unscoped",
+      "kind": "open",
+      "title": "Raw logs, nodes, edges, forget and consolidation watermarks are not fully agent-scoped"
     }
   ],
   "edges": [
@@ -2458,6 +2486,41 @@
       "src": "feltmem-rehearsal-2026-08-23",
       "rel": "measured_by",
       "dst": "memory-wave-2026-08-23"
+    },
+    {
+      "src": "replica-control-plane",
+      "rel": "part_of",
+      "dst": "relational-state"
+    },
+    {
+      "src": "replica-self-only",
+      "rel": "constrains",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "replica-provider-portable",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "replica-preview-before-conversation",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "replica-preview-before-conversation",
+      "rel": "caused_by",
+      "dst": "replica-raw-memory-unscoped"
+    },
+    {
+      "src": "audio-floor",
+      "rel": "constrains",
+      "dst": "replica-preview-before-conversation"
+    },
+    {
+      "src": "recited-prompt",
+      "rel": "constrains",
+      "dst": "replica-provider-portable"
     }
   ]
 }
