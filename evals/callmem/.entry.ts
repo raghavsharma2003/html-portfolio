@@ -13,8 +13,19 @@ export {
   SHARED_HISTORY_MAX_WORDS_THEM,
   SHARED_HISTORY_MAX_CHARS,
   RUNNING_NOTE_TURNS,
+  RUNNING_NOTE_HEAD_TURNS,
+  RUNNING_NOTE_FRESH_TAIL,
   RUNNING_NOTE_MIN_TURNS,
   RUNNING_NOTE_BUDGET,
+  readsAsMemoryCue,
+  formatMemoryNote,
+  MEMORY_NOTE_BUDGET,
+  MEMORY_NOTE_ROWS,
+  withRecallAge,
+  preCallUserText,
+  callRecentTurns,
+  RECALL_CACHE_MAX_AGE_MS,
+  RECALL_AGE_NOTE_MAX,
   formatActivityLedgerForCall,
   callGraphBlocks,
   CALL_ACTIVITY_BUDGET,
@@ -46,5 +57,11 @@ export {
 } from "../../src/engine/memory";
 export { compile, OPERATIONAL_TAIL_CAP, HER_COMMITMENTS_BUDGET } from "../../src/engine/compiler";
 export { AWAY_BUDGET } from "../../src/engine/away";
+export { RAISED_BUDGET, raisedRecently, renderRaised } from "../../src/engine/repeat";
+// P1-7's reclaim, negative-tested against the REAL rule rather than asserted:
+// innerContext returns thread:"" on surface "watch" BY CONSTRUCTION, which is
+// what scripts/check-prompt-budget.mjs's WATCH_NO_THREAD gives back.
+export { innerContext } from "../../src/engine/inner";
+
 export { lintBlock } from "../../src/engine/shapelint";
 export { buildSystemPromptParts, buildSpeechStyle, WATCH_MODE_NOTE } from "../../src/engine/persona";

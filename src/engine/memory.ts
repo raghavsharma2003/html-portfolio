@@ -19,12 +19,31 @@ function post(body: unknown): Promise<Response> {
   });
 }
 
+/** The wire value for one stored turn.
+ *
+ *  THREE channels on the wire, two in the store. `Message.watched` is a flag
+ *  rather than a third `channel` value because nine local readers switch on
+ *  `channel !== "call"` and every one of them is right to treat a share turn
+ *  as a call turn (see store.ts's own note). The SERVER's readers are not: a
+ *  line she said about a screenshot of his inbox must never become a durable
+ *  fact about his life, which is the whole reason `watchTurnIds` exists
+ *  client-side, and the server cannot re-derive it — meera_log's row is one
+ *  turn, not the session around it. So the distinction is made exactly here,
+ *  at the one place where the two sides of it meet.
+ *
+ *  Kept as a named function rather than inlined at both call sites for
+ *  `age-tier-never-realtime`'s reason: `rememberFrom` below sends the same
+ *  field for the same reason and a second copy of this expression is the kind
+ *  that diverges by not being updated. */
+const wireChannel = (m: Message): "chat" | "call" | "watch" =>
+  m.watched === true ? "watch" : m.channel === "call" ? "call" : "chat";
+
 export function logTurns(device: string, msgs: Message[]) {
   const turns = msgs
     .filter((m) => m.kind !== "callmark")
     .map((m) => ({
       role: m.from === "me" ? "me" : "her",
-      channel: m.channel === "call" ? "call" : "chat",
+      channel: wireChannel(m),
       kind: m.kind,
       content: m.text,
       at: m.at,
@@ -43,7 +62,10 @@ export function logTurns(device: string, msgs: Message[]) {
       const roles = turns.map((t) => t.role);
       const mine = ids.filter((_, i) => roles[i] === "me");
       const hers = ids.filter((_, i) => roles[i] === "her");
-      const channel: TraceChannel = turns[0].channel === "call" ? "call" : "chat";
+      // TraceChannel has two values and a share turn is a call turn for
+      // tracing purposes — it happened inside a call and its trace belongs on
+      // that call's turn. Only the STORED channel above is three-valued.
+      const channel: TraceChannel = turns[0].channel === "chat" ? "chat" : "call";
       if (!traceTurnId(channel)) return;
       tracePatch(channel, {
         ...(mine.length ? { in_log_id: mine[0] } : {}),
@@ -94,7 +116,7 @@ export async function rememberFrom(
     // laundering predicate is on the server, over the node list only.
     .map((m) => ({
       role: m.from === "me" ? "me" : "her",
-      channel: m.channel === "call" ? "call" : "chat",
+      channel: wireChannel(m),
       content: m.text,
     }));
   if (recent.length < 2) return { self: [], inner: null };
@@ -324,12 +346,54 @@ export interface ForgetResult {
   deleted: { log: number; nodes: number; edges: number };
 }
 
+/**
+ * P2-1: the authenticated half of a forget, for the ONE row the device-keyed
+ * cascade cannot always reach.
+ *
+ * `meera_state` is the server's copy of AppState — the transcript, `user`,
+ * herLife, the activity ledger. api/memory.js's opForget purges and rewrites
+ * it keyed on `device_id`, which covers every anonymous user and every
+ * signed-in user forgetting from the device that last synced. The row's real
+ * key is `user_id` though, so a second device of the same account can leave a
+ * copy standing that the next `load_state` hands straight back — a forget that
+ * was true about the database and false about the product.
+ *
+ * This is a POST to api/account.js's `wipe_state`, which is the only endpoint
+ * that verifies a token and can therefore act on `user_id`. Fire-and-forget
+ * and failure-tolerant BY DESIGN: it is a second net under a cascade that
+ * already ran, so it may never turn a successful forget into a failed one.
+ * A signed-out user has no token, no server row and nothing to do here.
+ */
+export async function wipeServerState(
+  accessToken: string | undefined,
+  mode: "clear" | "forget",
+): Promise<boolean> {
+  if (!accessToken) return false;
+  try {
+    const r = await fetch(`${BASE}/api/account`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ op: "wipe_state", access_token: accessToken, mode }),
+    });
+    const d = r.ok ? await r.json() : null;
+    return d?.ok === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function forgetMemories(
   device: string,
   target: ForgetTarget,
+  accessToken?: string,
 ): Promise<ForgetResult | null> {
   if (!device) return null;
   const done = diagTimer("chat", "forget", { scope: target.scope });
+  // The account row goes with a whole wipe, and only with a whole wipe: a
+  // scoped forget's server-side rewrite is api/memory.js's job (it is the side
+  // that knows the window and the term), and re-running the arithmetic here
+  // over a second endpoint is how two copies of one rule start to disagree.
+  if (target.scope === "all") void wipeServerState(accessToken, "forget");
   try {
     const r = await post({ op: "forget", device, ...target });
     const d = r.ok ? await r.json() : null;

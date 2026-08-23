@@ -36,6 +36,31 @@ import { isGameSession } from "./game";
 const LEDGER_MAX = 20;
 
 /**
+ * How many messages a merge may take FROM THE REMOTE COPY. It bounds what a
+ * peer can add; it is not a length limit on the result.
+ *
+ * It used to be `slice(-500)` over the union, which reads as "keep the last
+ * 500" and behaves as "delete everything before the last 500 on any device
+ * that has more". Local history is deliberately unbounded — `saveState`
+ * truncates only under real quota pressure, and the audit measured 2,000 real
+ * messages at ~10.6% of a 5 MB quota — so a long history lost its front the
+ * first time it merged: on a 409, on a cross-tab write, at sign-in. It went
+ * unnoticed because merges were rare. A pull on focus makes them routine,
+ * every 90 seconds on every open device, which would have industrialised it.
+ *
+ * So: the local half is kept entire, and the remote half may contribute at
+ * most this many messages this device has never seen. `syncableState` sends
+ * at most `SYNC_MESSAGE_CAP` (400) anyway, so in the normal world the bound
+ * is never even reached — it is here for the abnormal one (a corrupt row, a
+ * hand-edited blob, a future client with a different idea of the cap).
+ *
+ * A merge may add messages. It may never subtract them. Settings promises
+ * "nothing on it resets, expires, or can be lost", and a merge is the one
+ * operation in the app that could quietly make that untrue.
+ */
+export const MERGE_MESSAGE_CAP = 500;
+
+/**
  * `user`, coerced to a shape the prompt builder can survive.
  *
  * It lives here, next to `isGameSession`'s use, because this file is where
@@ -93,11 +118,23 @@ export function mergeGame(
 
 export function mergeStates(local: AppState, remote: any): Partial<AppState> {
   const clearedAt = Math.max(local.clearedAt ?? 0, Number(remote?.clearedAt) || 0);
-  const byId = new Map<string, Message>();
-  for (const m of Array.isArray(remote?.messages) ? remote.messages : [])
-    if (m && m.id && (m.at ?? 0) >= clearedAt) byId.set(m.id, m);
-  for (const m of local.messages) if ((m.at ?? 0) >= clearedAt) byId.set(m.id, m);
-  const messages = [...byId.values()].sort((a, b) => (a.at ?? 0) - (b.at ?? 0)).slice(-500);
+  // THE LOCAL HALF IS KEPT ENTIRE, past the tombstone. Not "the last N of the
+  // union" — see MERGE_MESSAGE_CAP for what that did to a long history.
+  const mine: Message[] = [];
+  const localIds = new Set<string>();
+  for (const m of local.messages)
+    if ((m.at ?? 0) >= clearedAt) {
+      mine.push(m);
+      localIds.add(m.id);
+    }
+  // …and the remote half adds only what this device has never seen, bounded.
+  // A message BOTH sides have keeps our copy: its status ticks and its
+  // reaction happened here, and a peer's row may predate both.
+  const theirs = (Array.isArray(remote?.messages) ? (remote.messages as Message[]) : [])
+    .filter((m) => m && m.id && !localIds.has(m.id) && (m.at ?? 0) >= clearedAt)
+    .sort((a, b) => (a.at ?? 0) - (b.at ?? 0))
+    .slice(-MERGE_MESSAGE_CAP);
+  const messages = [...mine, ...theirs].sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
 
   const t = local.tally ?? {};
   const rt = remote?.tally ?? {};

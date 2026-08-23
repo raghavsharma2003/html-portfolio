@@ -21,7 +21,14 @@ import { mergeStates, safeUser } from "./state/merge";
 import { OPEN_STALE_MS, activityOf, isGameSession } from "./state/game";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { LABEL } from "./engine/activity";
-import { logFinishedActivity, publishActivityLedger, withActivityRecord } from "./engine/memory";
+import {
+  episodeDateLabel,
+  logFinishedActivity,
+  publishActivityLedger,
+  withActivityRecord,
+  type ActivityRecord,
+} from "./engine/memory";
+import { dyadRecord, momentRecord, recordCounts } from "./engine/milestones";
 import { useMoments } from "./components/useMoments";
 import Celebration from "./components/Celebration";
 import UsScreen from "./components/UsScreen";
@@ -68,6 +75,21 @@ try {
 } catch {
   /* no location (SSR, a test harness) — the real clock stands */
 }
+
+// ── THE PULL'S THREE NUMBERS ─────────────────────────────────────────────
+// Module level so `evals/sync.mjs` can read them out of the source and pin
+// them: a periodic network read whose period lives only in a closure is a
+// cost nobody can audit. See the pull effect for what each one buys.
+/** Focus fires visibilitychange AND focus, and the OTA check runs on the same
+ *  edge — coalesce them into one read. */
+const PULL_DEBOUNCE_MS = 700;
+/** A floor between two reads from any trigger, so tab-flapping (or a boot
+ *  load followed by the first focus) cannot turn into a request per switch. */
+const PULL_MIN_GAP_MS = 20_000;
+/** The open-and-quiet case, where no focus edge is ever coming. Above the 60s
+ *  floor because the response is the whole state row — measured, not guessed:
+ *  63.5 KB / 99.8 KB with a chess session (see the effect). */
+const PULL_PERIOD_MS = 90_000;
 
 // union-merge two message histories by id (never wholesale replacement —
 // a message typed during sign-in must survive), honoring the clear-chat
@@ -348,6 +370,92 @@ export default function App() {
     publishActivityLedger(state.activities);
   }, [state.activities]);
 
+  // "the app came to the front" — one signal, two readers (the derived rows
+  // below and the pull further down). `focus` as well as `visibilitychange`
+  // because a desktop browser switching WINDOWS fires only the former, and a
+  // second window is exactly the second device this whole seam is about.
+  const [frontTick, setFrontTick] = useState(0);
+  useEffect(() => {
+    const onFront = () => {
+      if (document.visibilityState === "visible") setFrontTick((n) => n + 1);
+    };
+    document.addEventListener("visibilitychange", onFront);
+    window.addEventListener("focus", onFront);
+    return () => {
+      document.removeEventListener("visibilitychange", onFront);
+      window.removeEventListener("focus", onFront);
+    };
+  }, []);
+
+  // ── THE DERIVED LEDGER ROWS ────────────────────────────────────────────
+  //
+  // Two things she should be able to refer to later, written into the ledger
+  // `AppState.activities` already carries rather than into a store of their
+  // own — which is what makes them free: `formatActivityLedger` (chat, 1,200B)
+  // and `formatActivityLedgerForCall` (call, 300B) already read that array on
+  // every lane, it already syncs, already merges by union, and is already
+  // wiped by "make her forget you". No new field, no new budget, no new
+  // reader, and nothing on any lane that claims a block it does not get.
+  //
+  //  1. A MILESTONE THEY CELEBRATED. `momentsFired` holds ids and ids are not
+  //     text; `recentMoment` is the text and it is deliberately local and
+  //     12-hour (`moment-available-not-fired`, unchanged here). So "humne 100
+  //     din complete kiye the", asked three weeks later, reached a prompt with
+  //     no record of the thing at all. One row fixes that, and the row is a
+  //     pure function of (id, at) so a reload re-deriving it is a no-op rather
+  //     than a re-dated memory.
+  //  2. THE DYAD'S OWN NUMBERS. Days, calls, games in the first clause (all
+  //     the call lane's 300 bytes will hold beside the newest game); messages,
+  //     time on calls and the start date after the ";", which is the chat
+  //     lane's fuller business — `callActivityRow`'s existing clause split,
+  //     used rather than fought. Every number is a COUNTER, never an estimate.
+  //
+  // Recomputed when a counted thing moves AND when the app comes to the front:
+  // `days` is the one number that changes while nobody is typing, and the
+  // front edge is what catches the midnight roll before the first turn of the
+  // morning rather than one turn after it.
+  const dyadSig = [
+    state.messages.length,
+    state.tally?.chessGames ?? 0,
+    state.tally?.tttGames ?? 0,
+    state.tally?.wyrCards ?? 0,
+    state.recentMoment?.id ?? "",
+  ].join("|");
+  useEffect(() => {
+    if (!state.onboarded) return;
+    const now = Date.now();
+    const counts = recordCounts(state.messages, now);
+    const rows: ActivityRecord[] = [];
+    const dyad = dyadRecord(
+      counts,
+      state.tally,
+      now,
+      counts.firstAt ? episodeDateLabel(counts.firstAt) : "",
+    );
+    if (dyad) rows.push(dyad);
+    const rm = state.recentMoment;
+    if (rm?.id && rm.at) {
+      const rec = momentRecord(rm.id, rm.at, episodeDateLabel(rm.at));
+      if (rec) rows.push(rec);
+    }
+    if (!rows.length) return;
+    setState((s) => {
+      let next = s.activities;
+      for (const rec of rows) {
+        const key = `${rec.kind}:${rec.startedAt}`;
+        const had = (next ?? []).find((r) => `${r.kind}:${r.startedAt}` === key);
+        // BYTE-IDENTICAL IS A NO-OP, and it has to be: this effect runs on
+        // every counted change, and a write that changes nothing would still
+        // hand every reader a new array — a rerender per keystroke, and a
+        // `state.activities` clock that ticks without the record moving.
+        if (had && had.summary === rec.summary) continue;
+        next = withActivityRecord(next, rec);
+      }
+      return next === s.activities ? s : { ...s, activities: next };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dyadSig, frontTick, state.onboarded]);
+
   // Moments detection runs here, at the one place that owns AppState. It is
   // suppressed while a call is coming up (she is mid-pickup) — the hook's
   // own grace handles the first seconds after connect.
@@ -522,6 +630,11 @@ export default function App() {
   // last server revision we saw — sent with saves so the server can reject
   // a stale write instead of letting this tab clobber another device
   const serverRev = useRef<string | null>(null);
+  // when we last READ the server copy — see the pull effect below. Stamped by
+  // every route that loads it, `adoptSession` included, so the boot load and
+  // the focus pull cannot fire twice within one min-gap of each other.
+  const lastPullAt = useRef(0);
+  const pulling = useRef(false);
 
   // one-time boot: finish a Google redirect, pull the account's server copy
   // if we're already signed in, app_open analytics
@@ -699,6 +812,9 @@ export default function App() {
     try {
       const remote = await loadStateRemote(fresh);
       serverRev.current = remote?.updated_at ?? null;
+      // this IS a pull — stamp it, or the focus pull below fires again 700ms
+      // into a session that has just read the same row
+      lastPullAt.current = Date.now();
       setState((s) => {
         // account switch on a shared browser: never carry the previous
         // account's (or anonymous) conversation into this account
@@ -787,6 +903,10 @@ export default function App() {
     state.tally?.wyrCards ?? 0,
   ].join("|");
 
+  // bumped by the 409 branch below, so a merge-and-retry is a real trigger
+  // rather than a hope that the merge moved something in the dep list
+  const [pushRetry, setPushRetry] = useState(0);
+
   // continuous sync: push state (debounced 4s) whenever it changes, with
   // conflict detection — a 409 means another device saved first: merge
   // their copy in and let the next debounce push the union
@@ -805,7 +925,17 @@ export default function App() {
         if (e instanceof AccountError && e.status === 409 && e.data?.state) {
           serverRev.current = e.data.updated_at ?? null;
           setState((s) => ({ ...s, ...mergeStates(s, e.data.state) }));
-          return; // merged state re-triggers this effect → retry push
+          // RETRY ON PURPOSE, not as a side effect. This line used to say
+          // "merged state re-triggers this effect", and that was true only
+          // when the merge happened to move a field in the dep list below.
+          // When it did not — the common case, since the other device's copy
+          // usually adds nothing we do not have — the message that lost the
+          // race sat on this device, unsent, until something unrelated
+          // changed. Measured in the two-device browser run
+          // (evals/sync-browser.mjs): a message stayed off the account for
+          // ~35s after a 409 and arrived only because the person typed again.
+          setPushRetry((n) => n + 1);
+          return;
         }
         authFailed(e); // otherwise: offline — next change retries
       }
@@ -820,7 +950,82 @@ export default function App() {
     // header records killing half the merge once already. `gameSig` projects
     // the untriggering-but-synced fields so a whole chess game played without
     // a single message still pushes, without firing on every keystroke.
-  }, [state.messages.length, state.user, state.onboarded, state.auth?.accessToken, state.inner?.at, gameSig]);
+  }, [state.messages.length, state.user, state.onboarded, state.auth?.accessToken, state.inner?.at, gameSig, pushRetry]);
+
+  // ── THE OTHER HALF OF SYNC: THE PULL ───────────────────────────────────
+  //
+  // Everything above pushes. The only READ of the account's copy was
+  // `adoptSession`, which runs at boot and at sign-in — so a second device
+  // left open (a laptop tab while he texts from his phone) was stale from the
+  // moment it loaded, forever, and the only cure was a reload. The 409 path
+  // reads the server copy too, but only as a consequence of THIS device
+  // writing: a device that is merely open and quiet never writes, so it never
+  // learns anything either.
+  //
+  // Two triggers, both of them events rather than schedules:
+  //   FOCUS — the app coming to the front is the moment staleness starts to
+  //     cost something, because it is the moment somebody looks at it.
+  //     Debounced, because a tab switch fires visibilitychange and focus back
+  //     to back, and because the OTA check runs on the same edge.
+  //   A GENTLE PERIOD while visible — the open-laptop case: he is looking at
+  //     it and never leaves it, so focus never fires again. 90s rather than
+  //     the 60s floor because the response is the whole state row: MEASURED
+  //     63.5 KB for a 400-message history, 99.8 KB with an 80-ply chess
+  //     session in it (`syncableState`, real function, realistic fixture,
+  //     2026-08-23). At 90s that is a bounded ~2.5 MB/hour on the worst-case
+  //     row and ~0 for the common one; at 10s it would be a data plan.
+  //
+  // WHAT MAKES THIS SAFE IS `mergeStates`, not this effect. Every rule that
+  // protects a local write is already there and is asserted in evals/sync:
+  // messages union BY ID (so a message typed here and not yet pushed cannot
+  // be erased by a copy that predates it), `clearedAt` takes the MAX and
+  // filters both halves (so a stale peer cannot resurrect a cleared chat),
+  // ledgers union, tallies take the max, and the message cap is a FLOOR over
+  // the local half rather than a scythe. This effect adds no merge semantics
+  // of its own — that is the point of it having none.
+  //
+  // Not while a call is up: the live lane's assembly is frozen at connect and
+  // a merge under it buys nothing, while a `messages` rewrite mid-call is a
+  // rerender of the one surface that must not stutter. `inCall` is a dep, so
+  // hanging up pulls immediately — which is also when the OTHER device has
+  // just been given a callmark to tell us about.
+  useEffect(() => {
+    const token = state.auth?.accessToken;
+    if (!token || inCall) return;
+    let cancelled = false;
+    const pull = async (why: string) => {
+      if (pulling.current || cancelled) return;
+      if (document.visibilityState !== "visible") return; // a hidden tab reads nothing
+      if (Date.now() - lastPullAt.current < PULL_MIN_GAP_MS) return;
+      pulling.current = true;
+      try {
+        const fresh = await ensureFresh(state.auth as AuthSession);
+        if (fresh.accessToken !== token) setState((s) => ({ ...s, auth: fresh as AuthInfo }));
+        const remote = await loadStateRemote(fresh);
+        lastPullAt.current = Date.now();
+        if (cancelled || !remote?.state) return;
+        // the revision we just READ becomes the base of the next write, or
+        // the very next push 409s against the copy it has already merged
+        serverRev.current = remote?.updated_at ?? serverRev.current;
+        setState((s) => ({ ...s, ...mergeStates(s, remote.state) }));
+        tel("sync.pull", { why });
+      } catch (e) {
+        // offline is the normal case here and must stay silent; a dead token
+        // is not, and `authFailed` is the one place that decides which
+        authFailed(e);
+      } finally {
+        pulling.current = false;
+      }
+    };
+    const t = setTimeout(() => void pull("focus"), PULL_DEBOUNCE_MS);
+    const iv = setInterval(() => void pull("period"), PULL_PERIOD_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+      clearInterval(iv);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.auth?.accessToken, inCall, frontTick]);
 
   // The realtime call's ephemeral token is fetched while they are in chat, so
   // tapping call spends a token that already exists instead of waiting on a

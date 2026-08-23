@@ -31,6 +31,20 @@ export interface Message {
   // "call" turns are spoken words: hidden from the chat UI, but fed to the
   // brain so she remembers call conversations perfectly
   channel?: "chat" | "call";
+  // Said while their SCREEN was shared. A separate flag rather than a third
+  // `channel` value, deliberately: nine readers across six files switch on
+  // `channel !== "call"` (the chat UI's own visibility filter among them), so
+  // a third value would have leaked share-derived speech into the thread, the
+  // chat tail, the repeat window and the burst grouper all at once. Absent
+  // means "not a share turn" — `SelfFactKind`'s precedent, and for its reason:
+  // every message already on a device predates this field.
+  //
+  // It is what useCallEngine.ts's `watchTurnIds` ref could not be. That ref is
+  // trimmed to the newest 200 ids on a long session, so the OLDEST share turns
+  // of a long call silently stop being recognised as share turns — on exactly
+  // the call this matters for. A flag on the message cannot be trimmed, and it
+  // is what `logTurns` maps to `channel: "watch"` on the wire.
+  watched?: true;
   dur?: number; // voice notes: length in seconds
   spoken?: string; // her voice notes: raw expressive text (with audio tags)
   gifUrl?: string; // gif bubbles: resolved CDN url (cached after first fetch)

@@ -179,6 +179,43 @@ const suites = {
   // stuck-open-forever gap the ticket was filed for. Offline, fixture-based,
   // $0, bundled fresh from relstate.ts on every run.
   rupturelapse: "rupture-lapse.mjs",
+  // WS-SPINE. The consolidation spine: the watch contract's negative test
+  // (screen-derived turns can never become durable facts), kin precision
+  // including the friend's-mother trap, watch-episode finalization, the
+  // grounding checks for rel-state/phrase/pattern/life-told derivation,
+  // change-over-time, second-agent parity, and the enablement rails.
+  //
+  // Wired here specifically because this is the suite that guards the change
+  // which turns REAL SPEND ON: the hourly cron has been dry-run since it
+  // shipped, and the run that flips it is the first one ever to derive from
+  // months of backlog. Offline, deterministic, $0, ~3s — it costs CI nothing
+  // and it is the only thing standing between a flipped flag and a fabricated
+  // fact about somebody's mother.
+  consolidation: "consolidation/run.mjs",
+  // WS-RECALL. The retrieval cluster (the Hinglish tokenizer's 19-query
+  // battery and its precision negatives, the two dead stores' new readers,
+  // RRF fusion, the co-citation hop, and the structural proof that spaced
+  // resurfacing is a rank modifier and never a trigger) plus the FATE walk
+  // that asks every SERVER store what a forget does to it — the question
+  // evals/teardown.mjs asks of every AppState field, one layer down, and the
+  // one nobody was asking of the database. Offline, $0, no network, no DB.
+  recall: "recall/run.mjs",
+  // WS-MEMEVAL. THE LANE-PARITY GATE: one row per context block, one column
+  // per lane (chat/cascade/live/watch), a verdict in every cell, and an
+  // exemption that must state its reason in writing. It mechanises the rule
+  // `rejected.md#call-opens-with-amnesia-by-construction` ends with and left
+  // as prose — "every context block that exists must be asserted PRESENT on
+  // every lane that claims it" — so the next dark block is caught at commit
+  // time instead of by a paying tester. Carries its own negative control
+  // (the pre-fix live lane must be seen going dark). Offline, $0, ~3s.
+  lanes: "lanes/run.mjs",
+  // WS-MEMEVAL / survey A4. The adversarial Hinglish forget battery. NOT a
+  // gate: it reports a measured baseline against the CURRENT lexical matcher,
+  // which is known to be poor on cross-lingual referents — a gate that fails
+  // on a known-unfixed thing is noise, and noise is how a suite stops being
+  // read. It fails only if the battery itself breaks or the baseline moves
+  // DOWN, which is the direction nobody intends. See its header.
+  forgetlex: "forget/a4.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

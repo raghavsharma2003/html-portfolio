@@ -623,10 +623,29 @@ console.log("\n§8 reader and writer agree about the record's size and its route
   ok("…and agent-scoped like every sibling read", /name like 'activity:%'[\s\S]{0,200}agentScopePredicate\("f"/.test(server));
   ok("…it word-boundary matches rather than substring", /f\.body ~\* \$\$\{i \+ 3\}/.test(server) || /f\.body ~\*/.test(server));
   ok("…it answers even when the query has no matchable words", /clauses\.length \? `and \(/.test(server));
-  ok("…it runs concurrently, never serially", /activityFetch,\s*\n\s*relBundleFetch/.test(server));
-  ok("…and the empty-recall early return no longer swallows it", /!seen\.size && !semantic\.length && !activities\.length/.test(server));
+  // WS-RECALL moved two things under this assertion and neither weakened it.
+  // (1) The concurrent block gained `watchFetch` between the activity leg and
+  // the rel bundle, so the pair is no longer adjacent — what has to hold is
+  // that the activity leg is INSIDE the one Promise.all, never awaited before
+  // it. (2) The early return gained the three new legs. Asserting the exact
+  // old line would have made this check a check on line adjacency, which is
+  // not what "concurrently, never serially" means.
+  // anchored on `Promise.all(fetches)`, which appears once and only inside
+  // opRecall's concurrent block — the first `await Promise.all([` in the file
+  // belongs to fetchRelBundle, and anchoring there would have made this
+  // assertion about a different function entirely
+  const CBLOCK = server.indexOf("Promise.all(fetches),");
+  const CONCURRENT = server.slice(CBLOCK, server.indexOf("]);", CBLOCK));
+  ok("…it runs concurrently, never serially",
+    /activityFetch,/.test(CONCURRENT) && !/await activityFetch/.test(server));
+  ok("…and the empty-recall early return no longer swallows it",
+    /!seen\.size &&[\s\S]{0,200}!activities\.length/.test(server));
   ok("the activity block is rendered FIRST, ahead of the graph rows", server.indexOf("GAMES AND THINGS YOU TWO ACTUALLY DID") < server.indexOf("RELEVANT TO WHAT THEY JUST SAID"));
-  ok("a fact reached by both legs is deduped", /\[\.\.\.matched, \.\.\.background, \.\.\.activities\]/.test(server));
+  // `matched` became `matchedFused` when RRF fusion landed (world-class #2):
+  // the rows that survive fusion are the rows that render, so they are also
+  // the rows the semantic leg must dedupe against. The dedupe itself is
+  // unchanged — this assertion follows the rename rather than pinning it.
+  ok("a fact reached by both legs is deduped", /\[\.\.\.matchedFused, \.\.\.background, \.\.\.activities\]/.test(server));
   ok("the leg is countable in the trace (`realtime-recall-never`)", /activity: \{ fact_ids: traceIds\(activities\)/.test(server));
 
   // THE CLIENT SIDE OF THE SAME ROUTE: the ledger goes ahead of the graph

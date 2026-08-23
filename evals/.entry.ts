@@ -64,8 +64,20 @@ export { chessActivity, moveFact, exchangeFact } from "../src/engine/chessTalk";
 export { newGame, play, assessLast, assessMove } from "../src/engine/chess";
 export { activityOf, activityPickupLine, RECENT_END_MS, lastAssessment } from "../src/state/game";
 export { resolveTheme, isThemeChoice, THEMES, THEME_LABEL } from "../src/engine/theme";
-export { detectMoments, momentFact } from "../src/engine/milestones";
-export { mergeStates, mergeGame } from "../src/state/merge";
+export {
+  detectMoments,
+  momentFact,
+  momentRecord,
+  dyadRecord,
+  recordCounts,
+  milestoneRecordKind,
+  MILESTONE_RECORD_KIND,
+  DYAD_RECORD_KIND,
+} from "../src/engine/milestones";
+export { mergeStates, mergeGame, MERGE_MESSAGE_CAP } from "../src/state/merge";
+export { syncableState, SYNC_MESSAGE_CAP } from "../src/engine/account";
+export { formatActivityLedger, episodeDateLabel, withActivityRecord } from "../src/engine/memory";
+export { formatActivityLedgerForCall } from "../src/voice/callHistory";
 export {
   detectGameInvite,
   playAskIn,

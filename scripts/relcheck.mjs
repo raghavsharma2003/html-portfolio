@@ -220,20 +220,67 @@ mpCheck(
 let failed = 0;
 const t0 = Date.now();
 
-// manifest coverage (local, no extra round trip beyond one catalog query)
+// ── manifest coverage ──────────────────────────────────────────────────────
+//
+// P2-1: THIS QUERY USED TO READ `table_name like 'vy\_%'`.
+//
+// The one guard whose entire job is "a user-data table nobody listed must fail
+// loudly" enumerated a PREFIX, so it could only ever see half the database.
+// `meera_state` — the server's copy of the whole conversation plus the user
+// profile, the single most complete document about a person this system holds
+// — sat outside the manifest, outside forget and outside export for as long as
+// it has existed, and this check reported full coverage the entire time. Same
+// class as `engine-bundle-check-uncalled` and worse in one way: that guard was
+// merely uncalled, this one ran, printed "ok", and named a count.
+//
+// The generalisable rule is the one evals/teardown.mjs's walker rewrite states
+// from the other side: A COVERAGE CHECK IS ONLY AS WIDE AS THE THING IT
+// ENUMERATES, and enumerating a subset is how a gate reports full coverage of
+// a part. So the enumeration is now every table in the schema carrying an
+// owning column, and `user_id` joins the column list — meera_state is keyed on
+// it, so a person/device-only scan would still have missed the row even after
+// the prefix came off.
+//
+// EXEMPT is the escape hatch and it is deliberately a written reason per
+// table, the same discipline as the FATE table's "exempt: …" verdicts: a table
+// leaves this check by someone deciding it is not user data, in writing, not
+// by not matching a pattern.
+const EXEMPT = {
+  meera_culture:
+    "her recognition index, rebuilt daily by culture.yml — one row per day, " +
+    "shared by every user, and its user_id-shaped columns are none.",
+  meera_consolidate_lease:
+    "a concurrency lease, not content: a person_id, two timestamps and a " +
+    "run_id, self-expiring via LEASE_TTL whether or not forget ever touches " +
+    "it. api/consolidate-sweep.js's own header argues this case in writing " +
+    "and is where it is maintained; the exemption is recorded here because " +
+    "this is the check it is an exemption FROM, and an argument that lives " +
+    "only next to the table it excuses is an argument nobody reviewing this " +
+    "gate will ever read.",
+};
 const keyed = await q(
   `select distinct table_name from information_schema.columns
     where table_schema = 'public'
-      and table_name like 'vy\\_%'
-      and column_name in ('person_id','device_id')`,
+      and (table_name like 'vy\\_%' or table_name like 'meera\\_%')
+      and column_name in ('person_id','device_id','user_id')`,
 );
 const listed = new Set(PERSON_TABLES.map((t) => t.table));
-const missing = keyed.map((r) => r.table_name).filter((t) => !listed.has(t));
+const missing = keyed
+  .map((r) => r.table_name)
+  .filter((t) => !listed.has(t) && !EXEMPT[t]);
 if (missing.length) {
   failed++;
-  console.log(`FAIL  manifest coverage: ${missing.join(", ")} keyed by person/device but absent from PERSON_TABLES`);
+  console.log(
+    `FAIL  manifest coverage: ${missing.join(", ")} keyed by person/device/user but absent from ` +
+      `PERSON_TABLES (api/memory.js). A table that is in neither the manifest nor the EXEMPT map ` +
+      `in this file is invisible to BOTH forget and export.`,
+  );
 } else {
-  console.log(`  ok  manifest coverage (${keyed.length} person-keyed tables all listed)`);
+  const ex = Object.keys(EXEMPT).length;
+  console.log(
+    `  ok  manifest coverage (${keyed.length} owned tables across vy_ and meera_, ` +
+      `${ex} exempted in writing, the rest all listed)`,
+  );
 }
 
 // migration 008 lands in three parts and is deployed by the owner, not by

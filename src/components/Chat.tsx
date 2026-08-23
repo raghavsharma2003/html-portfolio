@@ -1655,8 +1655,9 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   function forgetEverything() {
     const device = state.deviceId;
     track(state.deviceId, "memory_forgotten", { scope: "all" }, state.auth?.userId);
+    const token = state.auth?.accessToken;
     park(`${HER_NAME} forgot everything`, tearDownLocally("forget"), () => {
-      forgetMemories(device, { scope: "all" });
+      forgetMemories(device, { scope: "all" }, token);
     });
   }
 

@@ -28,6 +28,12 @@ export interface KinRow {
   fictive: boolean;
   address_term: string;
   citations: number[];
+  /** migration 014. TRUE = derived from conversation by the consolidation
+   *  pass and never confirmed by him; FALSE = he told her directly, or an
+   *  owner entered it. Optional on the type so a reader that predates the
+   *  column (or a fixture) is unaffected — absent is treated as provisional
+   *  by `renderKin`, which is the under-claiming direction. */
+  provisional?: boolean;
 }
 
 export interface RitualRow {
@@ -69,6 +75,11 @@ export interface WriteKinInput {
   fictive?: boolean;
   address_term?: string;
   citations: number[];
+  /** migration 014. OMIT to write exactly the statement this function wrote
+   *  before the column existed — the SQL below names `provisional` only when
+   *  a caller passes it, so an unmigrated database and every existing caller
+   *  are byte-identical. api/consolidate.js passes `true`. */
+  provisional?: boolean;
 }
 
 /** Address term "learned once" per §8's table row — upsert on
@@ -83,8 +94,22 @@ export async function writeKin(
   if (!input.citations || input.citations.length < 1) {
     throw new Error(`vy_kin requires >=1 citation (${input.name} for ${input.person_id})`);
   }
-  const rows = await q(
-    `insert into vy_kin (person_id, agent_id, name, relation, fictive, address_term, citations)
+  // Two statements, not one with a conditional fragment, and deliberately so:
+  // the no-`provisional` form is the EXACT text this function shipped before
+  // migration 014, so a caller that does not opt in cannot be affected by the
+  // column existing or not existing. The `provisional` form is only ever
+  // composed when a caller explicitly asked for it.
+  //
+  // `provisional` is NOT in the `do update` set list on the upsert path, for
+  // the same reason `upsertTexture` omits nickname/avoid: the writer that
+  // does not own a column does not name it. A derived re-mention must never
+  // silently demote a row he already CONFIRMED back to a guess — confirmation
+  // is a one-way door, and a second sighting of the same kin is evidence for
+  // the row, not against its status.
+  const rows =
+    input.provisional === undefined
+      ? await q(
+          `insert into vy_kin (person_id, agent_id, name, relation, fictive, address_term, citations)
      values ($1,($7)::uuid,$2,$3,$4,$5,$6)
      on conflict (agent_id, person_id, lower(name)) do update set
        relation = excluded.relation,
@@ -93,8 +118,29 @@ export async function writeKin(
        citations = (select array(select distinct unnest(vy_kin.citations || excluded.citations))),
        updated_at = now()
      returning id`,
-    [input.person_id, input.name, input.relation, input.fictive ?? false, input.address_term ?? "", input.citations, agentId],
-  );
+          [input.person_id, input.name, input.relation, input.fictive ?? false, input.address_term ?? "", input.citations, agentId],
+        )
+      : await q(
+          `insert into vy_kin (person_id, agent_id, name, relation, fictive, address_term, citations, provisional)
+     values ($1,($7)::uuid,$2,$3,$4,$5,$6,$8)
+     on conflict (agent_id, person_id, lower(name)) do update set
+       relation = excluded.relation,
+       fictive = excluded.fictive,
+       address_term = coalesce(nullif(excluded.address_term, ''), vy_kin.address_term),
+       citations = (select array(select distinct unnest(vy_kin.citations || excluded.citations))),
+       updated_at = now()
+     returning id`,
+          [
+            input.person_id,
+            input.name,
+            input.relation,
+            input.fictive ?? false,
+            input.address_term ?? "",
+            input.citations,
+            agentId,
+            input.provisional,
+          ],
+        );
   return Number(rows[0]?.id);
 }
 
@@ -277,11 +323,61 @@ export function currentFestivalWindow(homeRegion: string | null, now: Date = new
 // `renderIndiaDynamic(rituals, homeRegion, currency, now?) => RenderResult`.
 // ─────────────────────────────────────────────────────────────────────────
 
+/** T3's kin sub-budget. Kin is the LAST thing appended and the FIRST thing
+ *  cut: rituals and currency are about right-now (a due ritual expires, a
+ *  fresh topic goes stale), while a kin row is durable and will still be
+ *  there tomorrow. A block that overflows because someone has a large family
+ *  must lose the family, not the freshness. */
+export const KIN_BUDGET = 240;
+/** Three is the cap on rows, ahead of the byte cap, so the line count is
+ *  bounded by a rule rather than by how long the names happen to be. */
+const KIN_MAX_ROWS = 3;
+
+/**
+ * Kin lines, byte-capped, fail-closed. PURE and exported so the render can be
+ * asserted directly.
+ *
+ * FOUR THINGS IT REFUSES TO RENDER, each for a stated reason:
+ *
+ *  - an UNCITED row. `vy_kin_cited` requires >=1 citation at the DB level, so
+ *    an uncited row should not exist; if one does, it is a row whose
+ *    provenance nothing can reconstruct, and this block is the last place
+ *    that should be the first to trust it. Same fail-closed rule
+ *    `renderTexture` applies to `avoid`.
+ *  - a row with no name or no relation. Half a kin fact is not a kin fact.
+ *  - anything past KIN_MAX_ROWS or KIN_BUDGET bytes.
+ *  - and it never renders a bare name as an assertion: a PROVISIONAL row
+ *    (migration 014 — derived by the consolidation pass, never confirmed by
+ *    him) is marked `?`, so the prompt carries the uncertainty the data has
+ *    rather than laundering a derivation into a fact between the database and
+ *    the model. `provisional !== false` — an ABSENT flag hedges too, because
+ *    the safe direction for a claim about someone's family is down.
+ */
+export function renderKinLines(kin: readonly KinRow[]): string[] {
+  const lines: string[] = [];
+  let used = 0;
+  for (const k of kin) {
+    if (lines.length >= KIN_MAX_ROWS) break;
+    const name = String(k?.name ?? "").trim();
+    const relation = String(k?.relation ?? "").trim();
+    if (!name || !relation) continue;
+    if (!Array.isArray(k?.citations) || k.citations.length < 1) continue;
+    const hedge = k.provisional !== false ? "?" : "";
+    const addr = String(k?.address_term ?? "").trim();
+    const line = `kin: ${name} — his ${relation}${addr ? `, calls them ${addr}` : ""}${hedge}`;
+    if (used + line.length + 3 > KIN_BUDGET) break;
+    used += line.length + 3;
+    lines.push(line);
+  }
+  return lines;
+}
+
 export function renderIndiaDynamic(
   rituals: readonly RitualRow[],
   homeRegion: string | null,
   currency: readonly CurrencyRow[],
   now: Date = new Date(),
+  kin: readonly KinRow[] = [],
 ): RenderResult {
   const lines: string[] = [];
 
@@ -296,6 +392,11 @@ export function renderIndiaDynamic(
   for (const c of pickFreshCurrency(currency, now)) {
     lines.push(`currency: ${c.topic} (${c.kind})`);
   }
+
+  // Appended LAST and capped separately (see KIN_BUDGET). `kin` defaults to
+  // an empty array, so every existing four-argument-or-fewer call site is
+  // byte-identical — this parameter cannot change a single existing prompt.
+  lines.push(...renderKinLines(kin));
 
   const text = lines.length
     ? `INDIA CONTEXT (context only, never raise unprompted — a due ritual is not an instruction to perform it, just a note it exists):\n${lines

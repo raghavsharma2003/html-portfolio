@@ -55,7 +55,7 @@ import {
   type WeEpisodeRow,
   type PhraseRow,
 } from "./relstate";
-import { renderIndiaDynamic, type RitualRow, type CurrencyRow } from "./india";
+import { renderIndiaDynamic, type RitualRow, type CurrencyRow, type KinRow } from "./india";
 // ── self layer (Phase E2, docs/SPEC-SELF-LAYER.md) ──────────────────────────
 // Same seam discipline as relBundle above: every call below is gated behind
 // `if (input.selfBundle)`, so an absent bundle means none of these render
@@ -157,6 +157,12 @@ export interface RelBundleInput {
   rituals: readonly RitualRow[];
   homeRegion: string | null;
   currency: readonly CurrencyRow[];
+  /** vy_kin, for T3's kin lines. OPTIONAL: the producer half lives in
+   *  api/memory.js's `fetchRelBundle`, which is WS-RECALL's file — until that
+   *  query lands this is absent and T3 renders exactly as it does today.
+   *  Declared here rather than after the fact so the reader half is testable
+   *  and the interface is one line for WS-RECALL to fill, not a design. */
+  kin?: readonly KinRow[];
   weEpisodes: readonly WeEpisodeRow[];
   phrases: readonly PhraseRow[];
   // vy_phrase.phrase list — moment.ts's hasDeixis phrase-ledger hit signal
@@ -529,7 +535,13 @@ export function compile(input: CompileInput): CompiledPrompt {
       if (t2.text) tail += `\n\n${t2.text}`;
     }
     _track("T2");
-    const t3 = renderIndiaDynamic(input.relBundle.rituals, input.relBundle.homeRegion, input.relBundle.currency);
+    const t3 = renderIndiaDynamic(
+      input.relBundle.rituals,
+      input.relBundle.homeRegion,
+      input.relBundle.currency,
+      undefined,
+      input.relBundle.kin ?? [],
+    );
     if (t3.text) tail += `\n\n${t3.text}`;
     _track("T3");
     if (romanceOk) {

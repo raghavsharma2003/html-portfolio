@@ -79,9 +79,15 @@ import { asksToHangUp } from "../engine/hangup";
 //                 does not and must not cover
 import {
   callGraphBlocks,
+  callRecentTurns,
   formatActivityLedgerForCall,
+  formatMemoryNote,
   formatRunningNote,
   formatSharedHistory,
+  preCallUserText,
+  readsAsMemoryCue,
+  withRecallAge,
+  RECALL_CACHE_MAX_AGE_MS,
 } from "../voice/callHistory";
 import { readsAsFarewell } from "../voice/farewell";
 // T16 her.commitments. TYPE-FREE pure transcript walk (honesty.ts imports
@@ -278,6 +284,81 @@ const MOVE_POKE_MS = 700;
 const POKE_FLOOR_MS = 25_000;
 const HER_BREATH_MS = 3_000;
 
+// ── P1-4: THE RING THAT MISSED ITS DEADLINE ───────────────────────────────
+//
+// `RING_FETCH_DEADLINE_MS` races a recall measured at ~165ms warm and ~900ms
+// COLD (memory.ts's `runRecall`, which hard-caps itself at 2s). The FIRST call
+// of a day is the cold one by definition — and it is also the call with the
+// most to remember. When that race is lost the live prompt compiles with
+// `relBundle: null` and an empty graph block, and because that prompt is
+// frozen at connect (`liveAssemblies` must read 1), the fetch landing 200ms
+// later can never reach the session. She spends the whole call with no memory
+// and no way to get any.
+//
+// So the last recall that DID land is kept. Two layers, and the split is the
+// point:
+//
+//   • the module holder survives call → call inside one app session, which
+//     covers the "she called back" and "second call this evening" cases with
+//     zero storage and zero staleness risk.
+//   • a small PERSISTED slice survives a cold start, which is the case that
+//     actually produces the defect. Only the recall STRING is persisted, and
+//     only up to `RECALL_CACHE_MAX` bytes: the rel bundle is a structured
+//     snapshot of where the relationship IS, and serving a three-day-old one
+//     as current is a different and worse failure than serving no bundle. The
+//     bundle therefore rides the in-memory holder only, where its age is
+//     bounded by the app session.
+//
+// Nothing here is served without saying how old it is — `withRecallAge` is
+// what makes a cached block honest rather than merely present.
+const RECALL_CACHE_KEY = "meera.call.recall";
+/** Bytes of recall text persisted. Sized under the block's own prompt bound
+ *  (`TAIL_EXTRAS`' 12 × 570 + 900) so a restored cache can never make the
+ *  frozen prompt bigger than a fresh fetch could have. */
+const RECALL_CACHE_MAX = 4_000;
+
+interface RecallCache {
+  at: number;
+  /** The rendered recall block. NAMED `block`, not `memories`, deliberately:
+   *  `evals/chattail/run.mjs` and `evals/callmem/run.mjs` both count the
+   *  `memories:` fields in this file to assert there are exactly two COMPILE
+   *  SITES, and a field of that name anywhere else in the file makes their
+   *  count — and therefore their guarantee — wrong. Measured: it did. */
+  block: string;
+  relBundle: RelBundleInput | null;
+}
+let recallCache: RecallCache | null = null;
+
+/** The persisted slice, or null. Never throws: a private window, a cleared
+ *  store and a corrupt value all mean "no cache", which is today's behaviour
+ *  exactly. */
+function readRecallCache(): RecallCache | null {
+  if (recallCache) return recallCache;
+  try {
+    const raw = localStorage.getItem(RECALL_CACHE_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as { at?: number; block?: string };
+    if (!d || typeof d.block !== "string" || !d.block || !Number.isFinite(d.at)) return null;
+    // the bundle is NOT persisted — see the note above
+    recallCache = { at: Number(d.at), block: d.block, relBundle: null };
+    return recallCache;
+  } catch {
+    return null;
+  }
+}
+
+/** Record a recall that actually landed. Called from the ring's continuation
+ *  and nowhere else, so "last successful" cannot come to mean anything looser. */
+function writeRecallCache(block: string, relBundle: RelBundleInput | null, at: number) {
+  if (!block) return; // an empty recall is not a success to remember
+  recallCache = { at, block: block.slice(0, RECALL_CACHE_MAX), relBundle };
+  try {
+    localStorage.setItem(RECALL_CACHE_KEY, JSON.stringify({ at, block: recallCache.block }));
+  } catch {
+    /* storage full or unavailable — the in-memory holder still stands */
+  }
+}
+
 export function useCallEngine(
   state: AppState,
   setState: React.Dispatch<React.SetStateAction<AppState>>,
@@ -375,6 +456,21 @@ export function useCallEngine(
   // can start lying the moment either side moves (T-H3's own rule, and the
   // reason `chatTail` is rendered once above).
   const sharedHistoryRef = useRef("");
+  // P1-4: did this call's recall come out of the cache rather than off the
+  // wire? Diag only — `ring_fetch_ms: -1` says the fetch failed and this says
+  // whether anything stood in for it, which is the difference between "no
+  // memory" and "memory, labelled old".
+  const recallFromCache = useRef(false);
+  // ── P0-2: the mid-call re-query ───────────────────────────────────────
+  // Rows that came back from a lookup fired DURING the call. Kept separately
+  // from `recallRef` on purpose: `recallRef` is what the two frozen-prompt
+  // compile sites read, and its size is pinned in
+  // scripts/check-prompt-budget.mjs. These rows reach the cascade lane as
+  // extra `extraMemories` at the think() call sites, and the live lane
+  // through a silent direct() frame — neither of which is a compile.
+  const midCallRecall = useRef("");
+  const midCallRecallN = useRef(0);
+  const lastMemoryQueryAt = useRef(0);
   // WS-GAMEMEM residual: the local activity ledger's call-lane block, kept
   // beside it and for the same reason — the diag record reports its bytes
   // without re-deriving them.
@@ -433,17 +529,29 @@ export function useCallEngine(
   const overlapStart = useRef(0); // when user speech over her speech began
   const reengaged = useRef(0); // continuation nudges this silence stretch
 
-  // Turns spoken while their screen was shared. Frames are ephemeral — they
-  // are streamed and never stored — but what she SAYS about a screen is not,
-  // and that is the leak nobody had covered: at the end of every call the
-  // last turns go to the graph extractor, which mints durable rows about the
-  // user's life from them. One glance at a thread and "Rohit na?" stops being
-  // a passing mistake and becomes a permanent, confidently wrong claim she
-  // will raise weeks later — and it goes to a second vendor to get there.
-  // Screen-derived talk is conversation; it is never durable memory about
-  // their life. The price is losing some genuine memory ("they were shopping
-  // for a bike") and that is the correct price.
-  const watchTurnIds = useRef<Set<string>>(new Set());
+  // ── TURNS SPOKEN WHILE THEIR SCREEN WAS SHARED ────────────────────────
+  //
+  // Frames are ephemeral — they are streamed and never stored — but what she
+  // SAYS about a screen is not, and that is the leak nobody had covered: at
+  // the end of every call the last turns go to the graph extractor, which
+  // mints durable rows about the user's life from them. One glance at a
+  // thread and "Rohit na?" stops being a passing mistake and becomes a
+  // permanent, confidently wrong claim she will raise weeks later — and it
+  // goes to a second vendor to get there. Screen-derived talk is
+  // conversation; it is never durable memory about their life. The price is
+  // losing some genuine memory ("they were shopping for a bike") and that is
+  // the correct price.
+  //
+  // This used to be a `useRef<Set<string>>` of message ids, trimmed to the
+  // newest 200 once it passed 400. That trim was the bug (P0-3): on a long
+  // shared call the OLDEST share turns silently fell out of the set and
+  // started reading as ordinary call turns again — in the extraction window,
+  // in the running note, everywhere. It is now a flag on the MESSAGE
+  // (`store.ts`'s `watched`), written once in `log()` below, which nothing
+  // trims and which `logTurns` also carries to the server as
+  // `channel: "watch"`. The set is gone rather than kept alongside: a
+  // write-only ref is `dead-writers` in the other direction, and two notions
+  // of "was a share up" is how one of them drifts.
   // WS-MULTIMODAL: armed by a SHOW-class wake, consumed by the next line she
   // speaks (see armMomentWindow / consumeMomentWindow above).
   //
@@ -458,14 +566,26 @@ export function useCallEngine(
   // a second thing to drift.
   const pendingShowWake = useRef<PendingShowWake | null>(null);
 
-  const log = (m: Message) => {
-    if (watchSession.current && m.kind === "text") {
-      watchTurnIds.current.add(m.id);
-      if (watchTurnIds.current.size > 400) {
-        // unbounded growth across a long session is the only cost here
-        watchTurnIds.current = new Set([...watchTurnIds.current].slice(-200));
-      }
-    }
+  const log = (rawMsg: Message) => {
+    // ── P0-3, THE CLIENT THIRD ───────────────────────────────────────────
+    // A share turn is stamped ON THE MESSAGE, once, here — the only place in
+    // the product that knows a share was up when a line was said. Two readers
+    // depend on it and neither could be served by the ref alone:
+    //
+    //   • `logTurns` maps `watched` to `channel: "watch"` on the wire, so
+    //     consolidation can refuse to derive durable facts about his life from
+    //     something she read off his screen. The server cannot re-derive this.
+    //   • every local reader that used to consult the `watchTurnIds` set —
+    //     the running note, the end-of-call extraction, the shared-history
+    //     block — now reads a flag that a 400-entry TRIM cannot lose. On a
+    //     call long enough for the trim to fire, the oldest share turns were
+    //     silently rejoining the record as ordinary call turns.
+    //
+    // `channel` stays "call": nine local readers switch on `channel !== "call"`
+    // (the chat thread's own visibility filter among them) and every one of
+    // them is right to treat a share turn as a call turn. See store.ts.
+    const watched = Boolean(watchSession.current) && rawMsg.kind === "text";
+    const m: Message = watched ? { ...rawMsg, watched: true } : rawMsg;
     setState((s) => ({ ...s, messages: [...s.messages, m] }));
     if (m.kind !== "callmark") logTurns(stateRef.current.deviceId, [m]);
   };
@@ -673,11 +793,29 @@ export function useCallEngine(
   // The ring is free time, not free rein. This is the only wait the connect
   // path is allowed to take, and it is a RACE, never an await: a slow or dead
   // network costs the call nothing but the relational slots it could not
-  // fetch. 900ms is chosen against the measured recall (~165ms warm, ~900ms
-  // cold, hard-capped at 2s inside runRecall) and against the connect budget
-  // (ring 1.1-2.4s + 3.5s of grace before the cascade takes the call), so the
-  // typical cost is ~165ms of a ~4.6s budget and the worst case is 900ms.
-  const RING_FETCH_DEADLINE_MS = 900;
+  // fetch. The deadline is chosen against the measured recall (~165ms warm,
+  // ~900ms cold, hard-capped at 2s inside runRecall) and against the connect
+  // budget (ring 1.1-2.4s + 3.5s of grace before the cascade takes the call),
+  // so the typical cost is ~165ms of a ~4.6s budget.
+  //
+  // ── P1-4: 900 → 1,200, and why exactly that ──────────────────────────
+  // 900 was set to the COLD MEASUREMENT ITSELF, which makes the first call of
+  // a day a coin flip: p50 of a ~900ms distribution misses a 900ms deadline
+  // half the time, and on this lane a miss is permanent (the prompt is frozen
+  // at connect). 1,200 is the same measurement plus a third — enough that the
+  // cold case lands rather than races — and it is still:
+  //   • inside `runRecall`'s own 2,000ms cap, so the deadline can never be the
+  //     thing that decides, only the network;
+  //   • inside the RING itself (1.1-2.4s measured), so on the typical device
+  //     this wait is still spent on time the call was going to spend anyway
+  //     and the 3.5s of connect grace is untouched.
+  // What it costs in the worst case is 300ms more of a ~4.6s budget, on the
+  // calls where the alternative is a whole call with no memory at all. If the
+  // connect-path telemetry (`ring_fetch_ms` in `live_prompt`, against
+  // `readyMs`) ever shows this pushing pickups past the cascade adoption
+  // window, it comes back down and the cache below carries the cold call
+  // instead — that is the evidence that reverses it.
+  const RING_FETCH_DEADLINE_MS = 1_200;
   async function awaitRingFetch(deadlineMs = RING_FETCH_DEADLINE_MS): Promise<void> {
     const p = ringFetch.current;
     if (!p) return;
@@ -756,6 +894,12 @@ export function useCallEngine(
     // Rendered ONCE for the same reason `chatTail` is: the compile below and
     // the diag record beneath it must be reporting on the same bytes.
     const herOpen = herCommitments(stateRef.current.messages, nowAt);
+    // The last thing HE typed before dialling, and "" unless it is fresh
+    // enough to still be this conversation. See `latestUserText` below for
+    // what it unlocks and why staleness is the thing that has to be gated.
+    // A share turn is excluded for `Message.watched`'s reason — a line said
+    // over his screen is not a turn he addressed to her.
+    const preCallText = preCallUserText(stateRef.current.messages, nowAt);
     // ── ONE ASSEMBLER (G-C6) ──────────────────────────────────────────────
     // Everything below used to be a hand-rolled concatenation that shadowed
     // compile() and drifted from it: its own shorter T5 and T7 headings, no
@@ -802,12 +946,29 @@ export function useCallEngine(
         // `sheInitiated` field exists for exactly this and was never fed
         return sheCalled && b ? { ...b, sheInitiated: true } : b;
       })(),
-      // moment.ts's pull-only law reads ONLY the live turn, and a pickup has
-      // no turn yet — so "" here, never the last thing they typed. That keeps
-      // T6 on its STANDING BACKGROUND heading ("do not raise any of this
-      // yourself") and leaves T4 unmomented, which is the 0-unprompted-raises
-      // property. The gap still speaks for itself below.
-      latestUserText: "",
+      // ── P1-9: THE MOMENT-GATED SLOTS WERE DARK ON EVERY CALL ────────────
+      // moment.ts's pull-only law reads ONLY the live turn, and this call site
+      // passed "". That is right when there IS no turn — but measured against
+      // the compiler, `momentGate("")` means moment "none", and BOTH
+      // `renderDyadicActive` (T4) and `renderSelfArc` (T12) return "" on
+      // moment "none". So two slots that render fine in chat rendered zero
+      // bytes on every call this product has ever taken: not gated off,
+      // DARK — `age-tier-never-realtime`'s exact shape again.
+      //
+      // What is passed instead is the last thing he TYPED before dialling,
+      // and only when it is fresh (inside CHAT_TAIL_WINDOW_MS, the same
+      // window that decides the pre-call stretch is still "this
+      // conversation"). Two properties come out of that choice:
+      //   • it is a REAL turn of his, which is what the pull-only law asks
+      //     for — not a synthesised one, and never her own words;
+      //   • a cold pickup after a day of silence still passes "", so the
+      //     0-unprompted-raises property is byte-identical to today on
+      //     exactly the calls where there is nothing to pull FROM. A message
+      //     from last week must never read as a callback he just made.
+      // T6's label rides the same gate, which is correct rather than
+      // incidental: if his last typed line carried deixis ninety seconds ago,
+      // an active-callback framing is what a person would have.
+      latestUserText: preCallText,
       gapSinceLastMs: lastMsgAt ? Math.max(0, nowAt - lastMsgAt) : 0,
       // fresh at the point of compile, never memoized — same contract
       // brain.ts is under. This is also the first time an age-tier refusal
@@ -828,15 +989,20 @@ export function useCallEngine(
       // memory report — a promise the system forgets is a promise she breaks
       // on schedule, and he is the one who notices.
       //
-      // NOT passed at the native-watch compile below, and that asymmetry is a
-      // BUDGET decision rather than an oversight: `live+watch tail (bound)`
-      // is the tightest lane in the repo (22,051 of 24,000 before this
-      // change) and the shared-history block takes 700 of the 1,949 spare
-      // bytes. scripts/check-prompt-budget.mjs states the split as two
-      // separate extras and `evals/callmem/run.mjs` asserts the watch site
-      // really does not carry them, so the bound cannot quietly become wrong.
+      // WS-CALLLANE: BOTH now reach the native-watch compile below as well.
+      // The asymmetry that used to sit here was a budget decision and the
+      // budget moved — see that call site for the arithmetic and for what is
+      // still dark there.
       nowMs: nowAt,
       herCommitments: herOpen,
+      // ── P1-7 / audit footnote 6: T14 rel.raised, on the call lanes ──────
+      // The owner's "she keeps bringing the same thing up" is a compiler slot
+      // that has been WIRED since it shipped — on the chat lane, where
+      // brain.ts passes `recentTurns: history`. Neither frozen-prompt call
+      // lane passed it, so `raisedRecently([])` returned [] and T14 rendered
+      // zero bytes on every call. `raisedRecently` drops call turns itself, so
+      // what this hands over is the store and the one rule decides.
+      recentTurns: callRecentTurns(stateRef.current.messages),
       // WHAT THEY ARE DOING. If a game is already on when the call connects,
       // she knows it the moment she picks up — she does not have to be told by
       // him that they are mid-game, which is what a person would never need.
@@ -859,6 +1025,15 @@ export function useCallEngine(
       ring_fetch_ms: ringFetchMs.current,
       rel_bundle: Boolean(relBundleRef.current),
       recall: recallRef.current.length,
+      // P1-4's production seam, and the one number that says whether the
+      // deadline change worked. `ring_fetch_ms: -1` with `recall_cached:
+      // false` is the failure this fix exists for — a call compiled with no
+      // memory at all. With `recall_cached: true` it is the fix working: old
+      // memory, labelled old. The RATE of `recall_cached: true` against
+      // `ring_fetch_ms` is also what would reverse the 1,200ms deadline: if
+      // the cache is carrying most cold calls anyway, the extra 300ms of ring
+      // is buying nothing and should come back out.
+      recall_cached: recallFromCache.current,
       // T-H3's production seam. BYTES AND AGE, never a character of content —
       // same firewall every other field here is under. `chat_tail` > 0 is what
       // says the frozen prompt actually carried the stretch that was typed
@@ -924,6 +1099,11 @@ export function useCallEngine(
         // A miss is now a note of its own (liveLookup.ts `missNote`), so the
         // gap gets an honest line instead of an invented score.
         if (shouldLookUp(t)) lookupUntil.current = Date.now() + LOOKUP_WINDOW_MS;
+        // …and the other kind of question this lane could not answer: one
+        // about THEIR OWN past. See maybeReQuery — the ring query was fired
+        // before he said a word, so a name he raises now is unreachable
+        // without this.
+        maybeReQuery(t);
         void callLookup(t).then((note) => {
           if (note) {
             // facts OR an honest miss — either way the gap has been answered
@@ -1095,6 +1275,7 @@ export function useCallEngine(
         if (asksToHangUp(t)) armHangup("live");
         else disarmHangup();
         log({ id: uid(), from: "me", kind: "text", channel: "call", text: t, at: Date.now() });
+        maybeReQuery(t); // same reason as the primary lane's — see maybeReQuery
         void callLookup(t).then((note) => {
           if (!note) return;
           liveSession.current?.direct(note);
@@ -1249,13 +1430,45 @@ export function useCallEngine(
       tRing,
     );
     activityBlockRef.current = ledgerBlock;
-    recallRef.current = callGraphBlocks(ledgerBlock, shared, "");
+    // ── P1-4(a): the FLOOR is the last recall that landed, not nothing ────
+    // Written synchronously, before the fetch, for the same reason the local
+    // blocks above are: a compile that happens before (or instead of) the
+    // fetch must find the best thing available rather than the emptiest. The
+    // age label is what makes serving it honest — see `withRecallAge`.
+    //
+    // `relBundleRef` takes the cached bundle too, but ONLY the in-memory one:
+    // `readRecallCache` never restores a bundle from storage, so what can be
+    // served here is bounded by the app session. A cache older than
+    // RECALL_CACHE_MAX_AGE_MS is not served at all.
+    const cached = readRecallCache();
+    const cacheUsable =
+      cached && tRing - cached.at > 0 && tRing - cached.at <= RECALL_CACHE_MAX_AGE_MS;
+    recallRef.current = callGraphBlocks(
+      ledgerBlock,
+      shared,
+      cacheUsable ? withRecallAge(cached.block, cached.at, tRing) : "",
+    );
+    if (cacheUsable && cached.relBundle) relBundleRef.current = cached.relBundle;
+    recallFromCache.current = Boolean(cacheUsable);
     ringFetch.current = recallForCall(state.deviceId, recent)
       .then(({ memories, relBundle }) => {
         // callGraphBlocks drops the SERVER's activity block when the local one
         // rendered — brain.ts's rule, called rather than copied.
-        recallRef.current = callGraphBlocks(ledgerBlock, shared, memories);
-        relBundleRef.current = relBundle;
+        //
+        // P1-4(c): this continuation can land AFTER the live session connected
+        // — the whole point of the deadline is that it may. Writing the refs is
+        // still correct and is NOT a mid-call reassembly: `recallRef` is read
+        // at COMPILE SITES (the live compile, the native-watch compile, the
+        // cascade's per-turn think()), and the one that already ran holds its
+        // own frozen copy in `liveSystemRef`. Nothing here touches a live
+        // session's instruction; it upgrades what the NEXT compile site sees.
+        // An empty result must not wipe a usable cache, so the floor stands.
+        if (memories) {
+          recallRef.current = callGraphBlocks(ledgerBlock, shared, memories);
+          recallFromCache.current = false;
+          writeRecallCache(memories, relBundle, Date.now());
+        }
+        if (relBundle) relBundleRef.current = relBundle;
         ringFetchMs.current = Date.now() - tRing;
       })
       // A rejected ring fetch must never reject the connect that races it:
@@ -1644,7 +1857,7 @@ export function useCallEngine(
             if (s.sink) s.sink(d);
             else s.deltas.push(d);
           },
-          recallRef.current,
+          callExtraMemories(),
           freshFrame(),
         );
         spec.current = s;
@@ -1697,7 +1910,7 @@ export function useCallEngine(
         engine,
         true,
         undefined,
-        recallRef.current,
+        callExtraMemories(),
       );
       // they may have started talking (or a reply may be in flight) while
       // this nudge generated — never talk over either
@@ -2339,11 +2552,57 @@ export function useCallEngine(
         // the native watch engine is not the one lane that forgot. Unset
         // `sheInitiated` is correct here too — a share is THEM starting it.
         selfBundle: callSelfBundle(stateRef.current.deviceId),
-        // same pull-only reasoning as the live lane's compile: no live turn
-        // exists at the moment a share starts
+        // ── WHAT THIS LANE STILL DOES NOT CARRY, AND THE EXACT NUMBER ──────
+        // `latestUserText` stays "" here, and it is a BUDGET decision rather
+        // than the pull-only reasoning the live lane now overrides. Lighting
+        // T4 + T12 costs 1,600 + 500 = 2,100 bound bytes; after the three
+        // slots below this lane stands at 23,782 of 24,000 — 218 spare,
+        // measured 2026-08-23 (the figure moves with persona.ts's tail; the
+        // guard prints the live one). It does not fit, it
+        // cannot be made to fit out of this workstream's own blocks (the
+        // shared-history and activity blocks total 1,000), and the honest
+        // thing is to say so rather than to shave a bound until it passes.
+        // `evals/callmem/run.mjs` asserts this site really does pass "", so
+        // the omission is a pinned fact and not a hope.
+        //
+        // The lane is also less exposed to it than the live lane: a share
+        // starts MID-CALL, so the freshest turn is a spoken one, and
+        // `preCallUserText` would refuse it anyway.
         latestUserText: "",
         gapSinceLastMs: watchLastAt ? Math.max(0, watchNow - watchLastAt) : 0,
         ageGates: gatesFor(getAgeTier()),
+        // ── P1-7: THE ASYMMETRY THAT USED TO LIVE HERE ─────────────────────
+        // This site deliberately passed neither `nowMs` nor `herCommitments`
+        // because `live+watch tail (bound)` was the tightest lane in the repo
+        // and 700 bytes was what it did not have. It has them now, and the
+        // room came from making the bound HONEST rather than from cutting a
+        // block: `innerContext` returns `thread: ""` for surface "watch" BY
+        // CONSTRUCTION (`allowThread = gapEntry && !sheInitiated && surface
+        // !== "watch"`), and the week-shape block rides the same gate — so the
+        // carried-feeling half of the guard's TAIL_EXTRAS cannot be spent on
+        // this lane at all. scripts/check-prompt-budget.mjs reclaims it as
+        // WATCH_NO_THREAD and evals/callmem/run.mjs negative-tests the claim
+        // by rendering the same interior on "pickup" and on "watch".
+        //
+        // What each buys HERE, stated so the bytes are honest:
+        //   nowMs   — T9 renders only past AWAY_MIN_MS (10 min), and a share
+        //             usually starts seconds after a spoken turn, so this is
+        //             mostly "" — but it is also what puts the AGE on T16's
+        //             rows, and an open promise with no "when" is half a fact.
+        //   herOpen — the promises she made and has not kept. A share is often
+        //             the longest single stretch of a call, and it was the one
+        //             stretch where she could not know she owed anything.
+        nowMs: watchNow,
+        herCommitments: herCommitments(stateRef.current.messages, watchNow),
+        // T14, same reason and same input shape as the live compile: the slot
+        // has been wired since it shipped and this lane never passed it.
+        recentTurns: callRecentTurns(stateRef.current.messages),
+        // T15 session.activity is DELIBERATELY not passed here (coordinator,
+        // 2026-08-23, confirming the lane-parity gate's recorded exemption):
+        // a screen share starts mid-call and this prompt is frozen at share
+        // start, so any activity named here would be the state of one moment
+        // served for the whole share; the live compile already carried it at
+        // pickup. evals/lanes pins this exemption with this reason.
       };
       const cascadeCompiled = compile({ ...watchInput, voiceEngine: engine });
       const liveCompiled = compile({ ...watchInput, voiceEngine: "live" });
@@ -2641,6 +2900,12 @@ export function useCallEngine(
       at: Date.now(),
     };
     log(mine);
+    // P0-2 on the CASCADE lane. brain.ts hands this lane `extraMemories` and
+    // never re-queries in `mode === "call"` — correctly, since a lookup in
+    // front of a spoken reply is the latency this whole design refuses. So the
+    // re-query runs BESIDE the turn here too, and its rows join
+    // `callExtraMemories()` for the NEXT turn rather than delaying this one.
+    maybeReQuery(text);
     // GUARANTEED acknowledgment: a soft "hmm/haan" tells them she heard —
     // the audio equivalent of read-ticks. Deterministic, once per turn,
     // never layered over speech. After a substantive turn (they said a real
@@ -2761,7 +3026,7 @@ export function useCallEngine(
         engine,
         false,
         onDelta,
-        recallRef.current,
+        callExtraMemories(),
         freshFrame(), // watching? she sees the screen while answering
       );
     }
@@ -2975,6 +3240,114 @@ export function useCallEngine(
     liveSession.current.direct(checkPromiseNote());
   }
 
+  // ── THE MID-CALL RE-QUERY (P0-2) ────────────────────────────────────────
+  //
+  // "He asked about Rohit at minute 20; the ring query was about the weather."
+  //
+  // Everything this lane can remember was decided during the ring, against the
+  // last four things he TYPED, and the live prompt is frozen at connect. So a
+  // name or a callback he raises mid-call has no route to her at all. This is
+  // that route, and it is the same shape `callLookup` is — `readsAsMemoryCue`
+  // decides, this fires, and the answer arrives BESIDE her turn rather than
+  // inside it, because nothing on this lane may block her audio.
+  //
+  // Three bounds, all of them for the same reason (`silence-tuning`: this lane
+  // pays for every frame it puts in front of her):
+  //
+  //   FUSE   5.5s — `callLookup`'s, and it is the ONLY fuse on this path:
+  //          `runRecall`'s internal 2s cap belongs to memory.ts's own wrapper
+  //          and this posts the op directly (see below for why).
+  //   GAP    60s — one re-query per topic, not per clause. Longer than the
+  //          lookup's 45s because a memory cue repeats itself across a stretch
+  //          of conversation in a way a factual question does not.
+  //   BUDGET 3 per call — a ceiling on a per-call cost is what stops an
+  //          all-night call being the one shape nobody tested (`NOTE_MAX`'s
+  //          reasoning, one notch tighter because each of these is a round
+  //          trip rather than a local render). It is also what bounds the
+  //          CASCADE side: 3 × MEMORY_NOTE_BUDGET = 1,500 bytes is the most
+  //          `callExtraMemories()` can ever add to that lane's tail, which
+  //          api/chat.js slices at OPERATIONAL_TAIL_CAP like any other turn.
+  //
+  // FAILS SILENT, always. There is no honest-miss note here and there must not
+  // be: unlike `callLookup`, nothing was ANNOUNCED — he asked her a question
+  // and she is answering it out of her own head at ~1.5s, exactly as she does
+  // today. A note saying "you could not remember" would invent a failure and
+  // put a hesitation in her mouth she never had.
+  const MEMORY_QUERY_FUSE_MS = 5_500;
+  const MEMORY_QUERY_GAP_MS = 60_000;
+  const MEMORY_QUERY_MAX = 3;
+  const MEMORY_BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+
+  function maybeReQuery(said: string) {
+    if (!alive.current || endingRef.current) return;
+    if (!readsAsMemoryCue(said)) return;
+    const now = Date.now();
+    if (midCallRecallN.current >= MEMORY_QUERY_MAX) {
+      diag("call", "requery_skip", { reason: "budget" });
+      return;
+    }
+    if (now - lastMemoryQueryAt.current < MEMORY_QUERY_GAP_MS) {
+      diag("call", "requery_skip", { reason: "rate" });
+      return;
+    }
+    lastMemoryQueryAt.current = now;
+    midCallRecallN.current += 1;
+    const device = stateRef.current.deviceId;
+    if (!device) return;
+    const t0 = now;
+    // The EXISTING op — no new endpoint, no new server code. Called directly
+    // rather than through `recallForCall` because that function moves the
+    // self/rel bundles into the call-lane holders, and a mid-call fetch must
+    // never swap out the bundles the frozen prompt was compiled against: half
+    // her relational state coming from one moment and half from another is the
+    // drift `takeRelBundle`'s consume-once contract exists to prevent.
+    void fetch(`${MEMORY_BASE}/api/memory`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ op: "recall", device, query: said.slice(0, 200) }),
+      signal: AbortSignal.timeout(MEMORY_QUERY_FUSE_MS),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const memories = typeof d?.memories === "string" ? d.memories : "";
+        const note = formatMemoryNote(memories);
+        diag("call", "requery", {
+          n: midCallRecallN.current,
+          ms: Date.now() - t0,
+          rows: memories.split("\n").filter((l: string) => l.trim().startsWith("- ")).length,
+          bytes: note.length,
+          secs: elapsedRef.current,
+        });
+        if (!note || !alive.current) return;
+        tel("call.requery", { call_id: callId.current, n: midCallRecallN.current });
+        // THE CASCADE HALF. brain.ts refuses a per-turn `recallMemories` in
+        // `mode === "call"` (it takes `extraMemories` instead, so a lookup
+        // never sits in front of a spoken reply) — which is right, and which
+        // also meant the cascade lane could not re-query either. It does not
+        // have to: `extraMemories` is a string this file owns, so the rows go
+        // in behind the ring result and the NEXT cascade turn compiles with
+        // them. The ring result stays as the fallback underneath, exactly as
+        // brain.ts's contract expects.
+        midCallRecall.current = `${midCallRecall.current}${midCallRecall.current ? "\n\n" : ""}${note}`;
+        // THE LIVE HALF. The prompt is frozen, so the rows ride the one
+        // channel that is not a compile — the same silent frame the running
+        // note uses. `silent: true` is turnComplete:false: appended to the
+        // turn context, never answered, never a cue.
+        liveSession.current?.direct(note, { silent: true });
+      })
+      .catch(() => {
+        diag("call", "requery", { n: midCallRecallN.current, ms: Date.now() - t0, rows: -1 });
+      });
+  }
+
+  /** What the CASCADE lane is handed as `extraMemories`: the ring result plus
+   *  anything the mid-call re-query found. One helper rather than four call
+   *  sites concatenating two refs — `age-tier-never-realtime`'s shape. */
+  const callExtraMemories = () =>
+    midCallRecall.current
+      ? `${recallRef.current}\n\n${midCallRecall.current}`
+      : recallRef.current;
+
   // ── THE RUNNING NOTE ────────────────────────────────────────────────────
   // See callHistory.ts's `formatRunningNote` for WHY: the live session drops
   // its own oldest turns (`slidingWindow`), so on a long call the beginning
@@ -3004,7 +3377,7 @@ export function useCallEngine(
 
   /** The turns of the call that is happening RIGHT NOW: everything after the
    *  newest callmark (which `endCall` writes at hangup), minus anything said
-   *  over a shared screen — `watchTurnIds`' rule, and it applies here for a
+   *  over a shared screen — `Message.watched`'s rule, and it applies here for a
    *  sharper reason than it does for the graph: a wrong reading of his screen
    *  re-injected as her own memory is a wrong claim she then defends. */
   function currentCallTurns(): Message[] {
@@ -3023,7 +3396,10 @@ export function useCallEngine(
           m.kind === "text" &&
           m.channel === "call" &&
           Boolean(m.text?.trim()) &&
-          !watchTurnIds.current.has(m.id),
+          // the FLAG, not an id set: the set this replaced was trimmed to the
+          // newest 200 ids, and a 35-minute call is exactly where that trim
+          // starts losing the oldest share turns — the ones this note carries
+          m.watched !== true,
       );
   }
 
@@ -3115,9 +3491,10 @@ export function useCallEngine(
     absorbRemembered(
       rememberFrom(
         stateRef.current.deviceId,
-        // see watchTurnIds: anything said over a shared screen is conversation,
-        // never durable memory about their life
-        stateRef.current.messages.filter((m) => !watchTurnIds.current.has(m.id)).slice(-60),
+        // see store.ts's `watched`: anything said over a shared screen is
+        // conversation, never durable memory about their life. Read off the
+        // MESSAGE rather than off an id set, which a long session trimmed.
+        stateRef.current.messages.filter((m) => m.watched !== true).slice(-60),
         wantsForAppraisal(stateRef.current.inner),
       ),
     );

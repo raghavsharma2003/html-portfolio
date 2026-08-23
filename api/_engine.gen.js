@@ -1303,11 +1303,21 @@ function renderDyadicActive(patterns, moment) {
   return capToRenderResult(result, 1600);
 }
 var WE_TOKEN_RE = /\b(dono|dono[nm]e|saath|sath|we|together|hum(dono)?|humne)\b/i;
+function weDay(at) {
+  const ms = new Date(at).getTime();
+  if (!Number.isFinite(ms)) return "";
+  const d = new Date(ms);
+  const mon = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"][d.getMonth()];
+  return ` [${d.getDate()} ${mon}]`;
+}
 function renderWeCallbacks(episodes, phrases, pulled) {
   const validEpisodes = episodes.filter((e) => WE_TOKEN_RE.test(e.summary)).slice(0, 2);
   const validPhrases = phrases.slice(0, 2);
   const lines = [
-    ...validEpisodes.map((e) => `we: ${e.summary}`),
+    // P1-6: the date was fetched, carried and then dropped at the render, so
+    // "us din jo baat hui thi" had no day attached to it. Telegraphic and
+    // bracketed — a rendered sentence here is a line she recites (L4).
+    ...validEpisodes.map((e) => `we: ${e.summary}${weDay(e.at)}`),
     ...validPhrases.map((p) => `phrase: "${p.phrase}" \u2014 ${p.gloss}`)
   ];
   const header = pulled ? "SHARED HISTORY \u2014 ACTIVE (they just referenced this; context only, still never announce that you remember):" : "SHARED HISTORY \u2014 STANDING BACKGROUND (context only; do not raise any of this yourself):";
@@ -1337,6 +1347,44 @@ function stageForDims(state, meta = {}, now = /* @__PURE__ */ new Date()) {
 }
 
 // src/engine/india.ts
+async function writeKin(q, input, agentId = MEERA_AGENT_ID) {
+  if (!input.citations || input.citations.length < 1) {
+    throw new Error(`vy_kin requires >=1 citation (${input.name} for ${input.person_id})`);
+  }
+  const rows = input.provisional === void 0 ? await q(
+    `insert into vy_kin (person_id, agent_id, name, relation, fictive, address_term, citations)
+     values ($1,($7)::uuid,$2,$3,$4,$5,$6)
+     on conflict (agent_id, person_id, lower(name)) do update set
+       relation = excluded.relation,
+       fictive = excluded.fictive,
+       address_term = coalesce(nullif(excluded.address_term, ''), vy_kin.address_term),
+       citations = (select array(select distinct unnest(vy_kin.citations || excluded.citations))),
+       updated_at = now()
+     returning id`,
+    [input.person_id, input.name, input.relation, input.fictive ?? false, input.address_term ?? "", input.citations, agentId]
+  ) : await q(
+    `insert into vy_kin (person_id, agent_id, name, relation, fictive, address_term, citations, provisional)
+     values ($1,($7)::uuid,$2,$3,$4,$5,$6,$8)
+     on conflict (agent_id, person_id, lower(name)) do update set
+       relation = excluded.relation,
+       fictive = excluded.fictive,
+       address_term = coalesce(nullif(excluded.address_term, ''), vy_kin.address_term),
+       citations = (select array(select distinct unnest(vy_kin.citations || excluded.citations))),
+       updated_at = now()
+     returning id`,
+    [
+      input.person_id,
+      input.name,
+      input.relation,
+      input.fictive ?? false,
+      input.address_term ?? "",
+      input.citations,
+      agentId,
+      input.provisional
+    ]
+  );
+  return Number(rows[0]?.id);
+}
 var RITUAL_MIN_SPACING_H = 20;
 function dueRituals(rows, now = /* @__PURE__ */ new Date()) {
   const out = [];
@@ -1352,6 +1400,18 @@ function dueRituals(rows, now = /* @__PURE__ */ new Date()) {
     if (b.hoursSinceLast === null) return -1;
     return b.hoursSinceLast - a.hoursSinceLast;
   });
+}
+async function recordRitualOccurrence(q, personId, key, citation, coldReception = false, agentId = MEERA_AGENT_ID) {
+  await q(
+    `insert into vy_ritual (person_id, agent_id, key, last_at, count, cold_last, citations)
+     values ($1,($5)::uuid,$2, now(), 1, $3, array[$4]::bigint[])
+     on conflict (agent_id, person_id, key) do update set
+       last_at = now(),
+       count = vy_ritual.count + 1,
+       cold_last = $3,
+       citations = (select array(select distinct unnest(vy_ritual.citations || array[$4]::bigint[])))`,
+    [personId, key, coldReception, citation, agentId]
+  );
 }
 var CURRENCY_REUSE_EXCLUSION_DAYS = 14;
 var CURRENCY_MAX_FRESH = 2;
@@ -1399,7 +1459,27 @@ function currentFestivalWindow(homeRegion, now = /* @__PURE__ */ new Date()) {
   void day;
   return best ? best.row : null;
 }
-function renderIndiaDynamic(rituals, homeRegion, currency, now = /* @__PURE__ */ new Date()) {
+var KIN_BUDGET = 240;
+var KIN_MAX_ROWS = 3;
+function renderKinLines(kin) {
+  const lines = [];
+  let used = 0;
+  for (const k of kin) {
+    if (lines.length >= KIN_MAX_ROWS) break;
+    const name = String(k?.name ?? "").trim();
+    const relation = String(k?.relation ?? "").trim();
+    if (!name || !relation) continue;
+    if (!Array.isArray(k?.citations) || k.citations.length < 1) continue;
+    const hedge = k.provisional !== false ? "?" : "";
+    const addr = String(k?.address_term ?? "").trim();
+    const line = `kin: ${name} \u2014 his ${relation}${addr ? `, calls them ${addr}` : ""}${hedge}`;
+    if (used + line.length + 3 > KIN_BUDGET) break;
+    used += line.length + 3;
+    lines.push(line);
+  }
+  return lines;
+}
+function renderIndiaDynamic(rituals, homeRegion, currency, now = /* @__PURE__ */ new Date(), kin = []) {
   const lines = [];
   for (const r of dueRituals(rituals, now)) {
     const label = r.hoursSinceLast === null ? "never yet" : `${Math.round(r.hoursSinceLast / 24)}d since last`;
@@ -1410,6 +1490,7 @@ function renderIndiaDynamic(rituals, homeRegion, currency, now = /* @__PURE__ */
   for (const c of pickFreshCurrency(currency, now)) {
     lines.push(`currency: ${c.topic} (${c.kind})`);
   }
+  lines.push(...renderKinLines(kin));
   const text = lines.length ? `INDIA CONTEXT (context only, never raise unprompted \u2014 a due ritual is not an instruction to perform it, just a note it exists):
 ${lines.map((l) => `- ${l}`).join("\n")}` : "";
   const lint = lintBlock(lines.join("\n"));
@@ -1418,6 +1499,47 @@ ${lines.map((l) => `- ${l}`).join("\n")}` : "";
     return { ...result, lint: { ...result.lint, violations: result.lint.violations + 1 } };
   }
   return result;
+}
+var SENSITIVE_FIELDS = ["religion", "family_structure"];
+async function writeIndiaProfile(q, input, agentId = MEERA_AGENT_ID) {
+  for (const field of SENSITIVE_FIELDS) {
+    const touching = field in input && input[field] !== void 0;
+    if (touching && !input.consentReceipts?.[field]) {
+      throw new Error(`vy_india_profile.${field} is DPDP-sensitive and requires a consent receipt before write`);
+    }
+  }
+  const existing = await q(
+    `select sensitive_consent from vy_india_profile where person_id = $1 and agent_id = ($2)::uuid`,
+    [input.person_id, agentId]
+  );
+  const mergedConsent = {
+    ...existing[0]?.sensitive_consent ?? {},
+    ...input.consentReceipts ?? {}
+  };
+  await q(
+    `insert into vy_india_profile
+       (person_id, agent_id, mother_tongue, home_region, religion, family_structure, dietary,
+        sensitive_consent, updated_at)
+     values ($1,($8)::uuid,$2,$3,$4::jsonb,$5::jsonb,$6,$7::jsonb, now())
+     on conflict (agent_id, person_id) do update set
+       mother_tongue = coalesce($2, vy_india_profile.mother_tongue),
+       home_region = coalesce($3, vy_india_profile.home_region),
+       religion = coalesce($4::jsonb, vy_india_profile.religion),
+       family_structure = coalesce($5::jsonb, vy_india_profile.family_structure),
+       dietary = coalesce($6, vy_india_profile.dietary),
+       sensitive_consent = $7::jsonb,
+       updated_at = now()`,
+    [
+      input.person_id,
+      input.mother_tongue ?? null,
+      input.home_region ?? null,
+      input.religion === void 0 ? null : JSON.stringify(input.religion),
+      input.family_structure === void 0 ? null : JSON.stringify(input.family_structure),
+      input.dietary ?? null,
+      JSON.stringify(mergedConsent),
+      agentId
+    ]
+  );
 }
 
 // src/engine/texture.ts
@@ -1521,7 +1643,7 @@ function textureCounts(contents) {
     n_turns: n
   };
 }
-var TEXTURE_SCAN_SQL = `select l.content
+var TEXTURE_SCAN_SQL = `select l.content, l.episode_id
        from meera_log l
       where l.role = 'her'
         and l.channel = 'chat'
@@ -1531,30 +1653,88 @@ var TEXTURE_SCAN_SQL = `select l.content
               union select $1::uuid)
       order by l.id desc
       limit $2`;
+var DRIFT_MIN_PER_HALF = 20;
+var TEASING_ORDER = ["rare", "light", "regular", "constant"];
+var HUMOUR_ORDER = ["quiet", "easy", "loud", "nonstop"];
+function deriveDrift(input) {
+  const contents = input.contents ?? [];
+  const episodeIds = input.episodeIds ?? [];
+  const half = Math.floor(contents.length / 2);
+  if (half < DRIFT_MIN_PER_HALF) {
+    return { drift: "", drift_cites: [], reason: `fewer than ${DRIFT_MIN_PER_HALF} turns per half` };
+  }
+  const recent = contents.slice(0, half);
+  const earlier = contents.slice(half, half * 2);
+  const r = textureCounts(recent);
+  const e = textureCounts(earlier);
+  const moved = [];
+  const bandMove = (label, order, fromBand, toBand) => {
+    const fi = order.indexOf(fromBand);
+    const ti = order.indexOf(toBand);
+    if (fi < 0 || ti < 0 || fi === ti) return;
+    moved.push(`${label}: ${fromBand} -> ${toBand} (lately)`);
+  };
+  bandMove("teasing", TEASING_ORDER, bandTeasing(e.teasing), bandTeasing(r.teasing));
+  bandMove("humour", HUMOUR_ORDER, bandHumour(e.humour), bandHumour(r.humour));
+  const eSwear = bandProfanity(e.profanity) || "none";
+  const rSwear = bandProfanity(r.profanity) || "none";
+  if (eSwear !== rSwear) moved.push(`swearing: ${eSwear} -> ${rSwear} (lately)`);
+  if (!moved.length) return { drift: "", drift_cites: [], reason: "no band moved" };
+  const firstEp = (from, to) => {
+    for (let i = from; i < to && i < episodeIds.length; i++) {
+      const v = Number(episodeIds[i]);
+      if (Number.isFinite(v) && v > 0) return v;
+    }
+    return null;
+  };
+  const cites = [firstEp(0, half), firstEp(half, half * 2)].filter((v) => v !== null);
+  if (!cites.length) {
+    return { drift: "", drift_cites: [], reason: "no cited episode on either side \u2014 uncited drift never renders" };
+  }
+  return { drift: moved.slice(0, 2).join("; "), drift_cites: [...new Set(cites)].sort((a, b) => a - b), reason: "" };
+}
 async function deriveTexture(q, personId, agentId = MEERA_AGENT_ID) {
   const rows = await q(TEXTURE_SCAN_SQL, [personId, TEXTURE_SCAN_LIMIT]);
   const contents = (rows ?? []).map((r) => String(r?.content ?? ""));
   const counts = textureCounts(contents);
+  const drift = deriveDrift({
+    contents,
+    episodeIds: (rows ?? []).map((r) => {
+      const v = Number(r?.episode_id);
+      return Number.isFinite(v) && v > 0 ? v : null;
+    })
+  });
   return {
     agent_id: agentId,
     person_id: personId,
     ...counts,
     nickname: "",
     avoid: [],
-    avoid_cites: []
+    avoid_cites: [],
+    drift: drift.drift,
+    drift_cites: drift.drift_cites
   };
 }
 async function upsertTexture(q, row) {
   await q(
+    // `drift`/`drift_cites` ARE named in the update set list, unlike
+    // nickname/avoid — and the difference is ownership, the same test that
+    // decided those. nickname and avoid are CURATED (a human's, an owner's);
+    // this deriver must not be able to clobber them with its own empties.
+    // drift is DERIVED, by this function, from this window: it is exactly the
+    // column this writer owns, and a stale drift line surviving a pass that
+    // found no movement would be the worse bug — a claim that she has gone
+    // quiet lately, still on the row weeks after she stopped being quiet.
     `insert into vy_rel_texture
        (agent_id, person_id, teasing, humour, media_rate, words_median,
-        emoji_rate, profanity, n_turns, updated_at)
-     values (($1)::uuid,($2)::uuid,$3,$4,$5,$6,$7,$8,$9, now())
+        emoji_rate, profanity, n_turns, drift, drift_cites, updated_at)
+     values (($1)::uuid,($2)::uuid,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())
      on conflict (agent_id, person_id) do update set
        teasing = excluded.teasing, humour = excluded.humour,
        media_rate = excluded.media_rate, words_median = excluded.words_median,
        emoji_rate = excluded.emoji_rate, profanity = excluded.profanity,
-       n_turns = excluded.n_turns, updated_at = now()`,
+       n_turns = excluded.n_turns, drift = excluded.drift,
+       drift_cites = excluded.drift_cites, updated_at = now()`,
     [
       row.agent_id,
       row.person_id,
@@ -1564,7 +1744,9 @@ async function upsertTexture(q, row) {
       row.words_median,
       row.emoji_rate,
       row.profanity,
-      row.n_turns
+      row.n_turns,
+      row.drift ?? "",
+      row.drift_cites ?? []
     ]
   );
 }
@@ -1584,7 +1766,8 @@ function pgBigintArray(v) {
 async function readTexture(q, personId, agentId = MEERA_AGENT_ID) {
   const rows = await q(
     `select agent_id, person_id, teasing, humour, media_rate, words_median,
-            emoji_rate, profanity, nickname, avoid, avoid_cites, n_turns
+            emoji_rate, profanity, nickname, avoid, avoid_cites, n_turns,
+            drift, drift_cites
        from vy_rel_texture where agent_id = ($1)::uuid and person_id = ($2)::uuid`,
     [agentId, personId]
   );
@@ -1602,7 +1785,9 @@ async function readTexture(q, personId, agentId = MEERA_AGENT_ID) {
     nickname: String(r.nickname ?? ""),
     avoid: pgTextArray(r.avoid),
     avoid_cites: pgBigintArray(r.avoid_cites),
-    n_turns: Number(r.n_turns ?? 0)
+    n_turns: Number(r.n_turns ?? 0),
+    drift: String(r.drift ?? ""),
+    drift_cites: pgBigintArray(r.drift_cites)
   };
 }
 function bandTeasing(rate) {
@@ -1644,6 +1829,11 @@ function renderTexture(row) {
   if (swearing) lines.push(`swearing: ${swearing}`);
   const nick = safeFreeText(row.nickname, 24);
   if (nick && nick.split(/\s+/).length <= 2) lines.push(`nickname: "${nick}"`);
+  const drift = safeFreeText(row.drift ?? "", 90);
+  const driftCites = row.drift_cites ?? [];
+  if (drift && driftCites.length >= 1 && driftCites.every((c) => Number.isFinite(c) && Number(c) > 0)) {
+    lines.push(drift);
+  }
   const avoid = row.avoid ?? [];
   const cites = row.avoid_cites ?? [];
   if (avoid.length && avoid.length === cites.length) {
@@ -2826,7 +3016,13 @@ function compile(input) {
 ${t2.text}`;
     }
     _track("T2");
-    const t3 = renderIndiaDynamic(input.relBundle.rituals, input.relBundle.homeRegion, input.relBundle.currency);
+    const t3 = renderIndiaDynamic(
+      input.relBundle.rituals,
+      input.relBundle.homeRegion,
+      input.relBundle.currency,
+      void 0,
+      input.relBundle.kin ?? []
+    );
     if (t3.text) tail += `
 
 ${t3.text}`;
@@ -4211,6 +4407,7 @@ async function decayObservations(q, agentId, now = /* @__PURE__ */ new Date(), h
 }
 export {
   CRISIS_LINES,
+  KIN_BUDGET,
   MIN_SPAN_DAYS,
   MP_BRIDGE_BUDGET,
   MP_ROSTER_BUDGET,
@@ -4237,7 +4434,9 @@ export {
   parseBubbles,
   promoteObservation,
   readTexture,
+  recordRitualOccurrence,
   refreshTexture,
+  renderKinLines,
   renderMpBridge,
   renderMpRoster,
   seedFromStoryCatalog,
@@ -4245,5 +4444,7 @@ export {
   stripTextingDashes,
   untoldFor,
   upsertTexture,
+  writeIndiaProfile,
+  writeKin,
   writeObservation
 };

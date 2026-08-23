@@ -65,6 +65,14 @@ const ORDER = {
   meera_forget: "id",
   meera_tel: "id",
   meera_tel_session: "session_id",
+  // P2-1: both joined PERSON_TABLES in the same change that made forget able
+  // to reach them. Export gets them for free and must — meera_state is the
+  // most complete single document about a person this system holds (the raw
+  // transcript plus the profile), and a DSAR that omitted it because the table
+  // name did not start with `vy_` would be the wrong answer, not a kind one.
+  meera_state: "user_id",
+  meera_events: "id",
+  meera_diag: "id",
   vy_episode: "id",
   vy_visual_assertion: "id",
   vy_shared_moment: "id",

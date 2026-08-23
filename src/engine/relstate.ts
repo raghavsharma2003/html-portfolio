@@ -1064,6 +1064,16 @@ export interface PhraseRow {
  * but never carries an active-callback framing. Signature:
  * `renderWeCallbacks(episodes, phrases, pulled) => RenderResult`.
  */
+/** " [21 aug]" for a dated episode, "" for anything undated or unparseable —
+ *  a bad timestamp must cost the date, never the callback. */
+function weDay(at: string): string {
+  const ms = new Date(at).getTime();
+  if (!Number.isFinite(ms)) return "";
+  const d = new Date(ms);
+  const mon = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"][d.getMonth()];
+  return ` [${d.getDate()} ${mon}]`;
+}
+
 export function renderWeCallbacks(
   episodes: readonly WeEpisodeRow[],
   phrases: readonly PhraseRow[],
@@ -1072,7 +1082,10 @@ export function renderWeCallbacks(
   const validEpisodes = episodes.filter((e) => WE_TOKEN_RE.test(e.summary)).slice(0, 2);
   const validPhrases = phrases.slice(0, 2);
   const lines = [
-    ...validEpisodes.map((e) => `we: ${e.summary}`),
+    // P1-6: the date was fetched, carried and then dropped at the render, so
+    // "us din jo baat hui thi" had no day attached to it. Telegraphic and
+    // bracketed — a rendered sentence here is a line she recites (L4).
+    ...validEpisodes.map((e) => `we: ${e.summary}${weDay(e.at)}`),
     ...validPhrases.map((p) => `phrase: "${p.phrase}" — ${p.gloss}`),
   ];
   const header = pulled

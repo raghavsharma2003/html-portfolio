@@ -34,6 +34,13 @@
 //   wants her aware of the moment, same contract as activity facts.
 
 import type { Message } from "../state/store";
+// TYPE ONLY, and deliberately so: this file stays a pure function of the
+// record (no DOM, no network, no clock), and a type import is erased at build
+// time, so nothing in `engine/memory.ts` — which carries the network layer —
+// enters this module's runtime graph. The shape is imported rather than
+// restated because the rows below are written INTO that ledger: a restated
+// shape here is the reader/writer drift `warm-count-unscoped` names.
+import type { ActivityRecord } from "./memory";
 
 export type MilestoneKind =
   | "days-known"
@@ -102,6 +109,64 @@ function latestOnly(
   return best;
 }
 
+/** The dyad's own numbers, counted off the record. Every field here is a
+ *  COUNTER, never an estimate: `days` and `firstAt` come from the first
+ *  message's stamp, `msgCount`/`callCount` from the store, `callSecs` from the
+ *  "m:ss" each callmark carries. A number this file cannot count is absent
+ *  rather than approximated — see `dyadRecord`'s note on what is missing. */
+export interface RecordCounts {
+  /** first message's stamp, or null on an empty record */
+  firstAt: number | null;
+  /** whole days since the first message. FLOOR, matching DAY_TIERS: the row
+   *  this feeds sits in the same block as a "100 days" milestone, and the two
+   *  disagreeing by one is the reader/writer drift `warm-count-unscoped`
+   *  names. (UsScreen's hero deliberately shows floor+1 — "day 47" is an
+   *  ordinal, "47 days" is a duration, and they are different numbers.) */
+  days: number;
+  /** messages that are conversation — callmarks are records, not turns */
+  msgCount: number;
+  callCount: number;
+  /** total seconds spent on calls, summed from the callmarks. 0 when nothing
+   *  parseable is there, which is indistinguishable from "no calls" ON
+   *  PURPOSE: both render nothing rather than a guess. */
+  callSecs: number;
+}
+
+/** `callmark.text` is the "m:ss" `useCallEngine`'s `endCall` writes at hangup.
+ *  UsScreen.tsx parses the same string for the Us timeline; `evals/milestones`
+ *  pins THIS parser against the writer's own format, which is the pin that
+ *  matters — a writer change is what would silently zero both readers. */
+function callSecsOf(m: Message): number {
+  if (m.kind !== "callmark") return 0;
+  const parts = String(m.text ?? "").split(":");
+  if (parts.length !== 2) return 0;
+  const mins = Number(parts[0]);
+  const secs = Number(parts[1]);
+  return Number.isFinite(mins) && Number.isFinite(secs) && mins >= 0 && secs >= 0 ? mins * 60 + secs : 0;
+}
+
+/** The one pass over the record every counter in this file reads. */
+export function recordCounts(messages: readonly Message[], nowMs: number): RecordCounts {
+  let firstAt: number | null = null;
+  let msgCount = 0;
+  let callCount = 0;
+  let callSecs = 0;
+  for (const m of messages) {
+    if (firstAt === null && m.at) firstAt = m.at;
+    if (m.kind === "callmark") {
+      callCount++;
+      callSecs += callSecsOf(m);
+    } else msgCount++;
+  }
+  return {
+    firstAt,
+    days: firstAt === null ? 0 : Math.floor((nowMs - firstAt) / DAY),
+    msgCount,
+    callCount,
+    callSecs,
+  };
+}
+
 /**
  * Every moment currently eligible to fire, most significant first.
  *
@@ -114,9 +179,11 @@ export function detectMoments(inp: MilestoneInputs): Moment[] {
   const fired = new Set(inp.fired);
   const out: Moment[] = [];
 
-  const firstAt = inp.messages.find((m) => m.at)?.at ?? null;
+  // ONE COUNTING VOCABULARY for the whole file — the tiers below and the dyad
+  // line at the bottom read the same counters, so a milestone that says "100
+  // days" can never sit next to a stats line that says 101.
+  const { firstAt, days, msgCount, callCount } = recordCounts(inp.messages, inp.nowMs);
   if (firstAt) {
-    const days = Math.floor((inp.nowMs - firstAt) / DAY);
     const t = latestOnly(DAY_TIERS, days, fired, (n) => `days-${n}`);
     if (t !== null) {
       out.push({
@@ -128,7 +195,6 @@ export function detectMoments(inp: MilestoneInputs): Moment[] {
     }
   }
 
-  const msgCount = inp.messages.filter((m) => m.kind !== "callmark").length;
   {
     const t = latestOnly(MSG_TIERS, msgCount, fired, (n) => `msgs-${n}`);
     if (t !== null) {
@@ -141,7 +207,6 @@ export function detectMoments(inp: MilestoneInputs): Moment[] {
     }
   }
 
-  const callCount = inp.messages.filter((m) => m.kind === "callmark").length;
   {
     const t = latestOnly(CALL_TIERS, callCount, fired, (n) => `calls-${n}`);
     if (t !== null) {
@@ -237,4 +302,163 @@ export function momentFact(m: Moment): string {
     case "wyr-cards":
       return `${m.id.replace("wyr-", "")} would-you-rather cards answered between them`;
   }
+}
+
+// ── THE DURABLE HALF ──────────────────────────────────────────────────────
+//
+// `momentsFired` and `recentMoment` are the LOCAL, PRESENT-TENSE half of this
+// system and they stay that way: `moment-available-not-fired` fixes the
+// crossed-milestone fact mid-tail and gives it 12 hours, on purpose, because a
+// milestone she mentions every turn is the robotic tell the feature exists to
+// avoid. That decision is not re-litigated here and nothing below changes it.
+//
+// What it leaves open is the OTHER direction. After 12 hours the fact is zero
+// bytes, so "humne 100 din complete kiye the" — him referring back, weeks
+// later, to something they actually celebrated — reaches a prompt with no
+// record of it at all. `momentsFired` holds the ids, but ids are not text and
+// nothing renders them into any lane.
+//
+// The fix costs no new budget and no new store: a milestone, once celebrated,
+// writes ONE ROW into the ledger `AppState.activities` already carries, so the
+// two readers that already exist pick it up — `formatActivityLedger` (chat,
+// 1,200B, 6 rows) and `formatActivityLedgerForCall` (call, 300B, 2 rows).
+// Same union merge across devices, same teardown, same everything. It is
+// AVAILABLE, never fired: the block's own heading says being listed there is
+// not a reason to bring it up.
+//
+// Two shapes to respect, both the call lane's and both already in the ledger's
+// own vocabulary (`callHistory.ts`'s `callActivityRow`):
+//   - the FIRST CLAUSE (up to a ";") is what the call lane renders; anything
+//     after it is the chat lane's fuller business. That is the budget lever.
+//   - " on 7 jul" is stripped on the call lane, which appends its own relative
+//     label. So an absolute date that must SURVIVE says "since 7 jul".
+
+/** The ledger `kind` for a celebrated milestone. `startedAt` is the key's
+ *  other half and milestones have no duration, so the ID goes in the kind and
+ *  `startedAt` is 0 — which makes the ledger key (`kind:startedAt`, the same
+ *  key `mergeStates` unions on) DEVICE-INDEPENDENT. Two devices that both
+ *  crossed 100 days before syncing write one row, not two: without that, the
+ *  union of two ledgers renders the same memory twice under one heading. */
+export const MILESTONE_RECORD_KIND = "milestone";
+export const DYAD_RECORD_KIND = "dyad";
+export const milestoneRecordKind = (id: string) => `${MILESTONE_RECORD_KIND}:${id}`;
+
+/**
+ * A celebrated milestone as a ledger row, FROM ITS ID — the id is what the
+ * fired-ledger and `recentMoment` carry, so the durable row can be written by
+ * whoever holds one of those without reconstructing a `Moment`. Returns null
+ * for an id no tier table produces (a hand-edited blob, a build that fired a
+ * family this one has never heard of), which is the same refusal `titleFor`
+ * makes at the same boundary.
+ *
+ * Durable tense, third person, telegraphic — the register every other row in
+ * the ledger is written in. `momentFact` is the PRESENT-tense twin ("today
+ * crosses 100 days"); read three weeks later that sentence is false, which is
+ * exactly why this is a separate string and not a reuse of that one.
+ *
+ * `atMs` is when it was celebrated (the ledger sorts and dates on `closedAt`);
+ * `dateLabel` is that same instant already rendered by `engine/memory.ts`'s
+ * `episodeDateLabel` and passed IN, so this file keeps its no-clock contract.
+ * Pure in both arguments: writing the same id twice produces the same row, so
+ * a reload that re-runs the writer is a no-op rather than a re-dated memory.
+ */
+export function momentRecord(id: string, atMs: number, dateLabel: string): ActivityRecord | null {
+  const on = dateLabel ? ` on ${dateLabel}` : "";
+  // exact ids before families, for the reason `titleFor` does the same:
+  // "chess-first-win-him" is in the "chess-" family by prefix and in none of
+  // it by meaning.
+  let summary: string | null = null;
+  if (id === "first-game") summary = `their first game together${on}`;
+  else if (id === "chess-first-win-him") summary = `he beat her at chess for the first time${on}`;
+  else if (id === "chess-first-win-her") summary = `she beat him at chess for the first time${on}`;
+  else {
+    const m = /^([a-z-]+?)-(\d+)$/.exec(id);
+    const n = m ? Number(m[2]) : NaN;
+    if (m && Number.isFinite(n)) {
+      switch (m[1]) {
+        case "days": summary = `they crossed ${n} days together${on}`; break;
+        case "msgs": summary = `their ${nth(n)} message went by${on}`; break;
+        case "calls": summary = n === 1 ? `their first ever call${on}` : `their ${nth(n)} call together${on}`; break;
+        case "chess": summary = `their ${nth(n)} chess game together${on}`; break;
+        case "wyr": summary = `their ${nth(n)} would-you-rather card${on}`; break;
+      }
+    }
+  }
+  if (!summary) return null;
+  return { kind: milestoneRecordKind(id), startedAt: 0, closedAt: atMs, summary };
+}
+
+/** "4h 10m" / "35m". Duration, not a clock — the same reading UsScreen gives
+ *  the same seconds, restated here rather than imported because this module
+ *  may not depend on a React surface. */
+function humanDuration(totalSecs: number): string {
+  const mins = Math.round(totalSecs / 60);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (!h) return `${m}m`;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+/**
+ * THE DYAD'S NUMBERS — how long they have known each other, how much they have
+ * said, how many calls and games, in one row of the ledger both lanes already
+ * read.
+ *
+ * Every number is counted, never estimated. What is NOT here, and what each
+ * would need:
+ *   - photos/voice notes exchanged: countable from the record, left out to
+ *     keep the first clause inside the call lane's 300B block.
+ *   - time spent in CHAT ("how long we've talked" in the other sense): there
+ *     is no session-duration counter on the device — it would need one, and a
+ *     counter that does not exist is not a number this row may invent.
+ *   - anything from before a reinstall on a device that never synced: the
+ *     record is the record. A count is of what is here.
+ *
+ * Returns null on an empty record — a row that says "0 days, 0 messages" is
+ * the app introducing itself to someone who just arrived.
+ */
+export function dyadRecord(
+  counts: RecordCounts,
+  tally: MilestoneInputs["tally"],
+  atMs: number,
+  sinceLabel: string,
+): ActivityRecord | null {
+  if (!counts.firstAt || counts.msgCount <= 0) return null;
+  const t = tally ?? {};
+  const games = (t.chessGames ?? 0) + (t.tttGames ?? 0);
+
+  // FIRST CLAUSE = what the call lane gets. Days, calls, games: the three a
+  // person asks about out loud. Kept short on purpose — measured, the call
+  // block holds this row AND the newest game inside its 300 bytes only while
+  // this clause stays short, and the newest game is the row "kal wali" means.
+  const head = [
+    // FLOOR, so this can never contradict a "100 days" milestone sitting two
+    // rows above it — which also means day one is 0, and "0 days" is a number
+    // no person says. On day one the start date in the second clause is the
+    // whole truth there is, so the token is simply absent.
+    counts.days >= 1 ? `${counts.days} ${counts.days === 1 ? "day" : "days"}` : "",
+    counts.callCount ? `${counts.callCount} ${counts.callCount === 1 ? "call" : "calls"}` : "",
+    games ? `${games} ${games === 1 ? "game" : "games"}` : "",
+  ].filter(Boolean);
+
+  // SECOND CLAUSE = chat only, where 1,200 bytes make the fuller answer free.
+  const rest = [
+    `${counts.msgCount} messages`,
+    counts.callSecs ? `${humanDuration(counts.callSecs)} on calls` : "",
+    (t.wyrCards ?? 0) ? `${t.wyrCards} would-you-rather cards` : "",
+    sinceLabel ? `talking since ${sinceLabel}` : "",
+  ].filter(Boolean);
+
+  return {
+    kind: DYAD_RECORD_KIND,
+    // deterministic key, for the reason MILESTONE_RECORD_KIND gives: there is
+    // exactly one of these per relationship, and two devices must write the
+    // same one rather than one each.
+    startedAt: 0,
+    closedAt: atMs,
+    // the ";" is the call lane's clause boundary, so it exists only when there
+    // is a second clause to hide behind it — a row that opens with one would
+    // render as an empty block on that lane
+    summary: `their record: ${[head.join(", "), rest.join(", ")].filter(Boolean).join("; ")}`,
+  };
 }

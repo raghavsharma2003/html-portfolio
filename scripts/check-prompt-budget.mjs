@@ -264,7 +264,12 @@ console.log("\n── with-state fixtures (WS-INTEGRATE seams 1/2) ──");
       failed = true;
       console.log("FAIL  we-callbacks: T6 over budget");
     }
-    const lint = lintBlock(`${contentRows(t6Pulled)}\n${contentRows(t6Standing)}`);
+    // The " [21 aug]" episode-date suffix (relstate.ts weDay, P1-6) is
+    // bracketed metadata, not a recitable clause — strip it before the word
+    // count so a writer-capped 14-word summary plus its date does not read
+    // as a 15-word line. Only the exact date shape is stripped.
+    const stripWeDay = (b) => b.replace(/ \[\d{1,2} [a-z]{3}\]/g, "");
+    const lint = lintBlock(stripWeDay(`${contentRows(t6Pulled)}\n${contentRows(t6Standing)}`));
     if (!lint.clean) {
       failed = true;
       console.log(`FAIL  we-callbacks: shapelint violations: ${lint.violations.map((v) => v.reasons.join(";")).join(" | ")}`);
@@ -323,6 +328,40 @@ console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts
   // Bounds mirror check-prompt-budget v1's TAIL_EXTRAS/TASTE_EXTRAS comment.
   const TAIL_EXTRAS = 12 * 570 + 900 + 12 * 150 + 370 + 1_500;
   const TASTE_EXTRAS = 1_100; // inner.ts suppresses taste+week-shape on surface "watch" only
+  // ── WHAT THIS BOUND STILL DOES NOT COUNT (WS-CALLLANE, 2026-08-23) ─────
+  // Stated because an unstated omission is how a guard becomes a lie, and
+  // NOT fixed here because fixing it is a product decision rather than an
+  // arithmetic one.
+  //
+  // TAIL_EXTRAS is v1's: graph recall, herLife, and inner (thread + wants).
+  // Both live compile sites also pass `relBundle` and `selfBundle`, which
+  // light T2 (1,200) + T3 (1,000) + T6 (2,000) + T11 (600) + T13 (700), and
+  // the live site's `activity` lights T15 (420) — 5,920 manifest bytes this
+  // number has never included. They render only for a person a consolidation
+  // pass has already run for, which is why the omission has never been felt,
+  // and the honest worst case for an established user is therefore ~5,900
+  // above what this prints.
+  //
+  // Adding them would put `live+watch tail (bound)` over 24,000 immediately,
+  // i.e. the fix is "drop a block from the call lanes", which needs an owner
+  // and an ear. Filed rather than performed. Every term added BELOW this line
+  // is counted honestly against the number as it stands.
+  //
+  // ── WATCH_NO_THREAD: a reclaim, not a shave ───────────────────────────
+  // `innerContext` computes `allowThread = gapEntry && !sheInitiated &&
+  // surface !== "watch"`, so on the watch surface the carried-feeling block
+  // and the week-shape block that shares its gate are structurally
+  // unreachable — the native-watch compile site passes `innerThread: ""` and
+  // could not do otherwise. TAIL_EXTRAS' last term (1,500) covers "her
+  // carried feeling (one thread) and up to 3 wants"; this gives back only the
+  // FIXED prose of the longer (negative) thread variant, measured from
+  // inner.ts, leaving `thread.text`, the pickup suffix and the whole
+  // week-shape allowance inside the 1,500 as headroom.
+  // evals/callmem/run.mjs negative-tests the claim by rendering the same
+  // interior on surface "pickup" and on surface "watch".
+  // Measured 2026-08-23 at 455 characters of fixed prose; 450 is taken, so
+  // the reclaim is strictly smaller than the thing reclaimed.
+  const WATCH_NO_THREAD = -450;
   // ── WS-CALLMEM ────────────────────────────────────────────────────────
   // What guards the CALL brief is this block and nothing else: the live
   // prompt never passes through api/chat.js, so the operational caps above
@@ -341,13 +380,51 @@ console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts
   // Net cost is at most this: when it renders, `withoutServerActivityBlock`
   // takes the server's copy back out of the recall.
   const CALL_ACTIVITY_EXTRAS = 300; // src/voice/callHistory.ts CALL_ACTIVITY_BUDGET
-  // The LIVE lane alone additionally passes `nowMs` (lighting T9, away.ts
-  // AWAY_BUDGET) and `herCommitments` (T16, compiler.ts
-  // HER_COMMITMENTS_BUDGET). The watch compile deliberately passes neither —
-  // it is the tightest lane in the repo and 700 bytes was what it had to
-  // spare. evals/callmem/run.mjs asserts that asymmetry against the SOURCE,
-  // so this bound cannot quietly become a lie about what the watch site does.
-  const LIVE_ONLY_EXTRAS = 300 + 400;
+  // ── WS-CALLLANE: the session-fact slots, now on BOTH call lanes ────────
+  // `nowMs` (T9, away.ts AWAY_BUDGET), `herCommitments` (T16, compiler.ts
+  // HER_COMMITMENTS_BUDGET) and `recentTurns` (T14, repeat.ts RAISED_BUDGET).
+  // The name changed from LIVE_ONLY_EXTRAS because the asymmetry it recorded
+  // is gone: the native-watch compile passes all three too, paid for by
+  // WATCH_NO_THREAD above. evals/callmem/run.mjs asserts every one of these
+  // against the SOURCE of both call sites, so this bound cannot quietly
+  // become a lie about what either site does.
+  //
+  // T15 session.activity rides `nowMs` too (renderActivity), but only the
+  // LIVE site passes an `activity`, so it is structurally zero on watch. It
+  // is not added here because it was already renderable on the live lane
+  // before this change and was already uncounted — it belongs to the omission
+  // recorded above (420 of that ~5,500), not to this term.
+  const CALL_CLOCK_EXTRAS = 300 + 400 + 400;
+  // The LIVE lane alone additionally passes `latestUserText` (the last thing
+  // he typed before dialling, when it is fresh), which un-darks the two
+  // moment-gated slots: T4 dyadic.active (1,600) and T12 self.arc (500). Both
+  // returned "" on every call ever taken, because `momentGate("")` is moment
+  // "none" and both renderers refuse it. The watch site cannot afford these —
+  // see its own comment for the arithmetic.
+  const LIVE_ONLY_EXTRAS = 1_600 + 500;
+  // P1-4's cached-recall label (`withRecallAge`, RECALL_AGE_NOTE_MAX). Rides
+  // the `memories` string, so BOTH lanes carry it, and only on the calls where
+  // the ring fetch missed its deadline.
+  const RECALL_AGE_EXTRAS = 80;
+  // ── THE SIX BLOCKS THE BOUND NEVER COUNTED (coordinator, 2026-08-23) ───
+  // WS-CALLLANE measured that T2 (1,200) + T3 (1,000) + T6 (2,000) +
+  // T11 (600) + T13 (700) + T15 (420) all render on the call lanes for a
+  // user the consolidation pass has run for, and none were in this
+  // arithmetic — the bound passed by omission. Decision: count them and
+  // raise the call-lane cap rather than drop memory blocks from calls; the
+  // whole memory wave exists so that every lane is the same person, and the
+  // marginal cost of the larger brief is ~$0.001/call at 2026 list price.
+  // CALL_TAIL_CAP replaces OPERATIONAL_TAIL_CAP for the two call bounds only;
+  // the chat tail keeps the original cap. Margin kept deliberately modest so
+  // the next unplanned growth trips this line, not production.
+  const RELATIONAL_BLOCK_EXTRAS = 1_200 + 1_000 + 2_000 + 600 + 700 + 420;
+  const CALL_TAIL_CAP = 30_000;
+
+  // P0-2's mid-call re-query is deliberately NOT here. Its rows never enter a
+  // compile: on the live lane they ride a silent direct() frame (uplink, not
+  // prompt) and on the cascade lane they ride `extraMemories`, which is
+  // api/chat.js's own sliced tail rather than this hand-measured one.
+  // `MEMORY_NOTE_BUDGET` bounds it and evals/callmem/run.mjs asserts it.
   check("live core", liveCore.length, OPERATIONAL_CORE_CAP);
   check(
     "live tail (bound)",
@@ -356,8 +433,11 @@ console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts
       TASTE_EXTRAS +
       SHARED_HISTORY_EXTRAS +
       CALL_ACTIVITY_EXTRAS +
+      RECALL_AGE_EXTRAS +
+      CALL_CLOCK_EXTRAS +
+      RELATIONAL_BLOCK_EXTRAS +
       LIVE_ONLY_EXTRAS,
-    OPERATIONAL_TAIL_CAP,
+    CALL_TAIL_CAP,
   );
   check("live core (target, SPEC §3.1)", liveCore.length, CORE_CAP, { warnOnly: true });
   const liveWatchCore = parts.core + buildSpeechStyle("live"); // native watch config's systemLive is identical
@@ -367,10 +447,14 @@ console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts
     parts.tail.length +
       WATCH_MODE_NOTE.length +
       TAIL_EXTRAS +
+      WATCH_NO_THREAD +
       SHARED_HISTORY_EXTRAS +
-      CALL_ACTIVITY_EXTRAS,
-    OPERATIONAL_TAIL_CAP,
-  ); // watch surface suppresses taste — no TASTE_EXTRAS here
+      CALL_ACTIVITY_EXTRAS +
+      RECALL_AGE_EXTRAS +
+      CALL_CLOCK_EXTRAS +
+      RELATIONAL_BLOCK_EXTRAS,
+    CALL_TAIL_CAP,
+  ); // watch surface suppresses taste AND the carried thread — see above
   if (!liveCore.includes(CRISIS_LINES)) {
     failed = true;
     console.log("FAIL  live lane core is missing CRISIS_LINES");
