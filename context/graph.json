@@ -1335,6 +1335,12 @@
       "kind": "measurement",
       "at": "2026-08-23",
       "title": "Memory wave: recall@8 73.9 to 95.7, lane parity 158 checks, first consolidation ~$0.03, forget baseline 5.9% pre-registered"
+    },
+    {
+      "id": "feltmem-rehearsal-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "Felt-memory battery rehearsal: machinery proven, n=130 underpowered, retold +0.89 and time +0.84 directional, blocked on OpenRouter key limit"
     }
   ],
   "edges": [
@@ -2447,6 +2453,11 @@
       "src": "memory-wave-2026-08-23",
       "rel": "supersedes",
       "dst": "call-opens-with-amnesia-by-construction"
+    },
+    {
+      "src": "feltmem-rehearsal-2026-08-23",
+      "rel": "measured_by",
+      "dst": "memory-wave-2026-08-23"
     }
   ]
 }

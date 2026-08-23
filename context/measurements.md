@@ -2509,3 +2509,28 @@ then four workstreams, each gated; numbers below are before -> after.
   rationale, landing at 98.0%/99.0%.
 - Suite counts: callmem 323, recall 209, consolidation 98, lanes 158,
   sync +22, milestones +41, forgetlex 34, game-invite 123.
+
+---
+
+## `feltmem-rehearsal-2026-08-23` — the battery's first judged run (underpowered, archived)
+
+Method: pre-registered battery (hash 4e2f7f51..), blind both-orders A/B,
+arms = pre-wave build vs current, judge anthropic/claude-opus-4.8 via
+OpenRouter. Run TRUNCATED by the OpenRouter key's total limit: 241 of
+1,320 judgments landed, n=130/arm < the 300 floor, so per
+fab-noise-floor NO rate below is citable; verdict label: rehearsal.
+$2.2372 spent. Archived: evals/feltmem/runs/judged-2026-08-23-REHEARSAL.json.
+
+- Direction only: law 1 retold-not-recited +0.89, law 7 human-time
+  +0.84 (the wave's two directly-built laws), ammunition flags halved
+  (30 to 16). Preference 5.4pp (needs 10 at power).
+- Permanent-negative flags fired on BOTH arms (fabricated 35 pre /
+  31 cur) — before the powered run, VERIFY whether the battery's
+  generation path runs the full brain gate chain; if it does, the
+  judge's "fabricated" is catching classes outside family 4/6 coverage
+  and that is the next honesty frontier; if it does not, the battery
+  is judging ungated output and must be fixed first.
+- BLOCKER for the powered run: OPENROUTER_KEY total limit exceeded —
+  which ALSO means production's cash fallback lane is dead until the
+  key is topped up; free pool alone carries production today. Owner
+  action. Alternative: qualify the Azure grant judges (#57).
