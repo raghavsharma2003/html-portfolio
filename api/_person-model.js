@@ -301,6 +301,8 @@ export async function approveOwnedPersonProfile(db, ownerUserId, input) {
      ), retired as (
        update vy_replica_profile p set status='retired'
         from owned o where p.replica_id=o.replica_id and p.status='approved'
+          and not exists(select 1 from vy_replica_runtime_capability cap
+            where cap.replica_id=p.replica_id and cap.profile_version=p.version and cap.state='active')
      ), approved as (
        update vy_replica_profile p set status='approved'
         from owned o where p.replica_id=o.replica_id and p.version=o.version

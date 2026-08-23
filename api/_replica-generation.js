@@ -23,9 +23,9 @@ export async function beginOwnedPrivateGeneration(db, ownerUserId, input) {
 
   const rows = await db(
     `insert into vy_replica_generation
-       (replica_id,owner_user_id,voice_profile_id,genome_version,profile_version,
+       (replica_id,owner_user_id,voice_profile_id,genome_version,profile_version,calibration_version,
         channel,purpose,policy_version,trace_id,state,disclosure_scheme,watermark_algorithm,provenance_standard)
-     select r.replica_id,r.owner_user_id,c.voice_profile_id,c.genome_version,c.profile_version,
+     select r.replica_id,r.owner_user_id,c.voice_profile_id,c.genome_version,c.profile_version,c.calibration_version,
             $3,$4,$5,$6,'authorized','audible-prefix-v1','pending','c2pa-2.4'
        from vy_replica r
        join vy_replica_runtime_capability c
@@ -37,6 +37,9 @@ export async function beginOwnedPrivateGeneration(db, ownerUserId, input) {
        join vy_replica_voice_profile vp
          on vp.voice_profile_id=c.voice_profile_id and vp.replica_id=c.replica_id
         and vp.genome_version=c.genome_version and vp.status='ready'
+       join vy_replica_calibration cal
+         on cal.replica_id=c.replica_id and cal.owner_user_id=c.owner_user_id
+        and cal.version=c.calibration_version and cal.profile_version=c.profile_version and cal.status='approved'
       where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
         and r.lifecycle='active' and r.policy_version=$7
         and r.age_verified_at is not null and r.identity_verified_at is not null
@@ -46,13 +49,16 @@ export async function beginOwnedPrivateGeneration(db, ownerUserId, input) {
             and x.scope='inference' and x.policy_version=$7 and x.revoked_at is null
             and (x.expires_at is null or x.expires_at>now()))
      returning generation_id,replica_id,owner_user_id,voice_profile_id,genome_version,
-               profile_version,channel,purpose,policy_version,trace_id,state`,
+               profile_version,calibration_version,channel,purpose,policy_version,trace_id,state`,
     [rid, ownerUserId, channel, purpose, PROVENANCE_POLICY, traceId, REPLICA_POLICY_VERSION],
   );
   const generation = rows[0];
   if (!generation) fail("generation_not_authorized");
   const runtime = await loadOwnedRuntimeContext(db, ownerUserId, rid);
-  if (!runtime || runtime.voiceProfile.voice_profile_id !== generation.voice_profile_id) {
+  if (!runtime || runtime.voiceProfile.voice_profile_id !== generation.voice_profile_id ||
+      runtime.voiceGenome.version !== Number(generation.genome_version) ||
+      runtime.personProfile.version !== Number(generation.profile_version) ||
+      runtime.calibration.version !== Number(generation.calibration_version)) {
     await markGenerationFailed(db, ownerUserId, generation.generation_id, "runtime_changed_during_authorization");
     fail("runtime_changed_during_authorization");
   }
@@ -71,6 +77,7 @@ export async function beginOwnedPrivateGeneration(db, ownerUserId, input) {
     voiceProfile: runtime.voiceProfile,
     voiceGenome: runtime.voiceGenome,
     personProfile: runtime.personProfile,
+    calibration: runtime.calibration,
     qualification: { verdict: "pass", passedSuites: [...REQUIRED_QUALIFICATION_SUITES] },
   };
   const authorization = assertGenerationAuthorization(authorizationInput);

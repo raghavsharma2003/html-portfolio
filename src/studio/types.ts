@@ -128,8 +128,48 @@ export interface ReplicaRuntimeStatus {
   can_activate: boolean;
   blockers: string[];
   qualification: { passed: number; required: number };
-  versions: { profile: number | null; voice_genome: number | null };
+  versions: { profile: number | null; calibration: number | null; voice_genome: number | null };
   activated_at: string | null;
+}
+
+export type CalibrationChoice = "left" | "right" | "tie" | "neither";
+
+export interface CalibrationPreference {
+  preference_id: string;
+  scenario_id: string;
+  scenario_revision: number;
+  layer: "delivery" | "language" | "behaviour" | "memory" | "relationship";
+  choice: CalibrationChoice;
+  confidence: number;
+  revision: number;
+  created_at: string;
+}
+
+export interface CalibrationScenario {
+  scenario_id: string;
+  revision: number;
+  layer: CalibrationPreference["layer"];
+  axis: string;
+  context: string;
+  left: { id: string; label: string; description: string };
+  right: { id: string; label: string; description: string };
+  preference: CalibrationPreference | null;
+}
+
+export interface CalibrationVersion {
+  replica_id: string;
+  version: number;
+  profile_version: number;
+  status: "draft" | "approved" | "retired";
+  created_at: string;
+}
+
+export interface CalibrationStatus {
+  replica_id: string;
+  profile_version: number | null;
+  scenarios: CalibrationScenario[];
+  readiness: { ready: boolean; blockers: string[]; reviewed: number; resolved: number; required: number; covered_layers: string[] };
+  versions: CalibrationVersion[];
 }
 
 export interface ReplicaClaim {

@@ -23,6 +23,8 @@ export function createNeonProvenanceLedger(db) {
             and r.lifecycle='active'
             and c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
             and c.agent_id=r.agent_id and c.state='active'
+            and c.voice_profile_id=g.voice_profile_id and c.genome_version=g.genome_version
+            and c.profile_version=g.profile_version and c.calibration_version=g.calibration_version
             and g.state='authorized'
           returning g.generation_id`,
         [input.generationId,input.replicaId,input.ownerUserId,input.disclosureScheme,
@@ -39,8 +41,10 @@ export function createNeonProvenanceLedger(db) {
            from vy_replica_generation g
            join vy_replica r on r.replica_id=g.replica_id and r.owner_user_id=g.owner_user_id
            join vy_replica_runtime_capability c
-             on c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
+            on c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
             and c.agent_id=r.agent_id and c.state='active'
+            and c.voice_profile_id=g.voice_profile_id and c.genome_version=g.genome_version
+            and c.profile_version=g.profile_version and c.calibration_version=g.calibration_version
           where g.generation_id=$1 and g.replica_id=$2 and g.owner_user_id=$3
             and g.state='streaming' and r.lifecycle='active'
          on conflict (generation_id,sequence) do update
@@ -72,6 +76,8 @@ export function createNeonProvenanceLedger(db) {
               and r.replica_id=g.replica_id and r.owner_user_id=g.owner_user_id
               and r.lifecycle='active' and c.replica_id=r.replica_id
               and c.owner_user_id=r.owner_user_id and c.agent_id=r.agent_id and c.state='active'
+              and c.voice_profile_id=g.voice_profile_id and c.genome_version=g.genome_version
+              and c.profile_version=g.profile_version and c.calibration_version=g.calibration_version
               and g.state='streaming'
            returning g.generation_id
          ), public_receipt as (

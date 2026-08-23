@@ -69,6 +69,7 @@ export function assertGenerationAuthorization(input, now = new Date()) {
   const voice = input?.voiceProfile;
   const genome = input?.voiceGenome;
   const profile = input?.personProfile;
+  const calibration = input?.calibration;
   const qualification = input?.qualification;
   const nowMs = now instanceof Date ? now.getTime() : validDate(now);
 
@@ -108,6 +109,9 @@ export function assertGenerationAuthorization(input, now = new Date()) {
     fail("voice_genome_not_approved");
   sameUuid(profile?.replica_id, request.replicaId, "profile_binding_mismatch");
   if (!Number.isInteger(profile?.version) || profile.status !== "approved") fail("person_profile_not_approved");
+  sameUuid(calibration?.replica_id, request.replicaId, "calibration_binding_mismatch");
+  if (!Number.isInteger(calibration?.version) || calibration.status !== "approved" || calibration.profile_version !== profile.version)
+    fail("calibration_not_approved");
 
   const passed = new Set(qualification?.passedSuites || []);
   if (qualification?.verdict !== "pass" || REQUIRED_QUALIFICATION_SUITES.some((suite) => !passed.has(suite)))
@@ -120,6 +124,7 @@ export function assertGenerationAuthorization(input, now = new Date()) {
     voiceProfileId: voice.voice_profile_id.toLowerCase(),
     genomeVersion: genome.version,
     profileVersion: profile.version,
+    calibrationVersion: calibration.version,
     channel: request.channel,
     purpose: request.purpose,
     policyVersion: request.policyVersion,

@@ -125,6 +125,7 @@ const approveDb = async (sql, params) => {
 const approved = await approveOwnedPersonProfile(approveDb, OWNER, { replica_id: RID, version: 1 });
 ok("owner approval promotes an exact current source-set version", approved.status === "approved" && approveCalls.at(-1).params[3] === personModelSourceHash(claims));
 ok("approval retires the previous version atomically", /update vy_replica_profile p set status='retired'/i.test(approveCalls.at(-1).sql));
+ok("approval preserves a profile frozen by an active capability", /not exists\(select 1 from vy_replica_runtime_capability cap[\s\S]*cap\.profile_version=p\.version and cap\.state='active'/i.test(approveCalls.at(-1).sql));
 
 const migration = readFileSync(join(ROOT, "db/migrations/024_person_model.sql"), "utf8");
 ok("Person Model migration is split-safe", splitSql(migration).length === 13);

@@ -10,7 +10,7 @@ Activation writes `vy_replica_runtime_capability`. It freezes:
 
 - authenticated owner and verified self subject;
 - the replica's opaque agent and intrinsic person ids;
-- approved person-profile and VoiceGenome versions;
+- approved Person Model, calibration-policy and VoiceGenome versions;
 - one ready disposable provider voice;
 - a SHA-256 commitment to the latest passing identity, noisy-robustness,
   behavior, relationship, privacy, abuse and provenance evals;
@@ -41,14 +41,16 @@ binding fails closed. Another replica cannot express itself in the predicate.
 ## Prompt compilation
 
 The runtime compiler accepts only builder-owned typed fields for identity,
-speech, behavior, values and boundaries. Unknown JSON keys, transcripts,
-vectors, provider metadata and arbitrary evidence blobs are ignored. Dynamic
-relationship state is rendered separately and bounded. Evidence is explicitly
-labelled as data rather than instructions.
+speech, behavior, values and boundaries. It also accepts registered strategy
+ids from one approved calibration policy; the directive is resolved from the
+server registry rather than copied from stored or client text. Unknown JSON
+keys, forged strategies, transcripts, vectors, provider metadata and arbitrary
+evidence blobs are ignored. Dynamic relationship state is rendered separately
+and bounded. Evidence is explicitly labelled as data rather than instructions.
 
-This is a minimum safe compiler, not a fidelity claim. Person-profile builders,
-contradiction handling and behavior preference training still require their
-own human evaluation gates.
+This is a minimum safe compiler, not a fidelity claim. Deterministic Person
+Model and calibration builders now exist, while claim extraction, learned
+preference models and behavior generation still require human evaluation gates.
 
 ## Protected cascade
 
@@ -65,13 +67,15 @@ it cannot render the qualified external voice identity.
 
 Protected PCM flows through audible disclosure, streaming watermarking, signed
 segment commitments and final C2PA sealing. The Neon ledger rechecks active
-replica and capability state in the same insert that commits each 240 ms
-segment; bytes are yielded only after that succeeds.
+replica state plus the exact capability-bound voice, VoiceGenome, Person Model
+and calibration versions in the same insert that commits each 240 ms segment;
+bytes are yielded only after that succeeds. Superseding a capability therefore
+cannot accidentally authorize an older generation still in flight.
 
 ## Still closed
 
 - real age/identity/liveness and replay verification;
-- approved VoiceGenome/person-profile builders;
+- approved VoiceGenome builder and production behavioral inference adapter;
 - a production voice adapter and self-hosted deployment;
 - AudioSeal qualification and production embed/detect service;
 - HSM-backed segment/receipt signing;

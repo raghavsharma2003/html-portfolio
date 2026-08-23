@@ -12,6 +12,7 @@ const LABELS: Record<string, string> = {
   liveness_verification_required: "Live anti-replay check",
   inference_consent_required: "Inference permission",
   person_profile_not_approved: "Approved person model",
+  calibration_not_approved: "Approved behavior calibration",
   voice_genome_not_approved: "Approved VoiceGenome",
   voice_not_ready: "Production voice mapping",
   production_voice_required: "Non-test voice provider",
@@ -68,7 +69,7 @@ export default function RuntimeGate({
     <section className="runtime-gate" aria-labelledby="runtime-gate-title">
       <div className="runtime-gate-head">
         <div>
-          <p className="eyebrow">08 · Private runtime</p>
+          <p className="eyebrow">09 · Private runtime</p>
           <h2 id="runtime-gate-title">One qualified identity, frozen at launch.</h2>
           <p>
             Launch binds the exact person model, VoiceGenome, provider voice, relationship namespace,
@@ -92,6 +93,7 @@ export default function RuntimeGate({
           <div className="runtime-score">
             <div><strong>{runtime.qualification.passed}/{runtime.qualification.required}</strong><span>qualification suites passed</span></div>
             <div><strong>{runtime.versions.profile ?? "—"}</strong><span>person model version</span></div>
+            <div><strong>{runtime.versions.calibration ?? "—"}</strong><span>calibration version</span></div>
             <div><strong>{runtime.versions.voice_genome ?? "—"}</strong><span>VoiceGenome version</span></div>
           </div>
           {blockers.length > 0 && (

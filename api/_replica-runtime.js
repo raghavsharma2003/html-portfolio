@@ -5,6 +5,7 @@
 // one active immutable capability. This module never returns provider refs,
 // profile definitions, memory rows or agent/person ids to the client.
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
+import { calibrationDirectives } from "./_replica-calibration.js";
 
 export const RUNTIME_POLICY_VERSION = "replica-runtime-v1";
 export const RUNTIME_QUALIFICATION_SUITES = Object.freeze([
@@ -52,6 +53,7 @@ export function runtimeBlockers(row) {
   if (!row.liveness_verified_at) blockers.push("liveness_verification_required");
   if (!truth(row.inference_consent)) blockers.push("inference_consent_required");
   if (!truth(row.profile_approved)) blockers.push("person_profile_not_approved");
+  if (!truth(row.calibration_approved)) blockers.push("calibration_not_approved");
   if (!truth(row.genome_approved)) blockers.push("voice_genome_not_approved");
   if (!truth(row.voice_ready)) blockers.push("voice_not_ready");
   if (truth(row.test_voice)) blockers.push("production_voice_required");
@@ -75,6 +77,7 @@ export function clientRuntimeStatus(row) {
     },
     versions: {
       profile: Number(row.profile_version || 0) || null,
+      calibration: Number(row.calibration_version || 0) || null,
       voice_genome: Number(row.genome_version || 0) || null,
     },
     activated_at: row.capability_activated_at || null,
@@ -91,6 +94,7 @@ const RUNTIME_STATUS_SQL = `select r.replica_id,r.subject_mode,r.lifecycle,r.sub
             and c.scope='inference' and c.policy_version=$3 and c.revoked_at is null
             and (c.expires_at is null or c.expires_at>now())) as inference_consent,
   pp.version as profile_version,(pp.status='approved') as profile_approved,
+  cal.version as calibration_version,(cal.status='approved') as calibration_approved,
   vg.version as genome_version,(vg.status='approved') as genome_approved,
   vp.voice_profile_id,(vp.status='ready') as voice_ready,
   (lower(coalesce(vp.provider,'')) in ('fake','test','fixture','deterministic-fake')) as test_voice,
@@ -99,7 +103,7 @@ const RUNTIME_STATUS_SQL = `select r.replica_id,r.subject_mode,r.lifecycle,r.sub
 from vy_replica r
 left join vy_person p on p.person_id=r.subject_person_id
 left join lateral (
-  select c.state,c.activated_at,c.profile_version,c.genome_version,c.voice_profile_id
+  select c.state,c.activated_at,c.profile_version,c.calibration_version,c.genome_version,c.voice_profile_id
     from vy_replica_runtime_capability c
    where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id and c.state='active'
    order by c.activated_at desc limit 1
@@ -110,6 +114,13 @@ left join lateral (
      and (cap.state is null or x.version=cap.profile_version)
    order by x.version desc limit 1
 ) pp on true
+left join lateral (
+  select x.version,x.status from vy_replica_calibration x
+   where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
+     and x.profile_version=pp.version and x.status='approved'
+     and (cap.state is null or x.version=cap.calibration_version)
+   order by x.version desc limit 1
+) cal on true
 left join lateral (
   select x.version,x.status from vy_replica_voice_genome x
    where x.replica_id=r.replica_id and x.status='approved'
@@ -128,7 +139,7 @@ left join lateral (
     select distinct on (e.suite) e.suite,e.verdict
       from vy_replica_eval_run e
      where e.replica_id=r.replica_id
-       and e.profile_version=pp.version and e.genome_version=vg.version
+       and e.profile_version=pp.version and e.calibration_version=cal.version and e.genome_version=vg.version
        and e.candidate=vp.voice_profile_id::text and e.suite=any($4::text[])
      order by e.suite,e.created_at desc
   ) latest
@@ -150,7 +161,7 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
         for update
      ), selected as (
        select r.replica_id,r.owner_user_id,r.subject_person_id,r.agent_id,r.display_name,
-              p.version as profile_version,vg.version as genome_version,
+              p.version as profile_version,cal.version as calibration_version,vg.version as genome_version,
               vp.voice_profile_id,
               encode(digest(string_agg(latest.suite||':'||latest.eval_id::text||':'||latest.corpus_hash,
                                       '|' order by latest.suite),'sha256'),'hex') as qualification_hash,
@@ -165,6 +176,12 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
             order by x.version desc limit 1
          ) p on true
          join lateral (
+           select x.version from vy_replica_calibration x
+            where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
+              and x.profile_version=p.version and x.status='approved'
+            order by x.version desc limit 1
+         ) cal on true
+         join lateral (
            select x.version from vy_replica_voice_genome x
             where x.replica_id=r.replica_id and x.status='approved'
             order by x.version desc limit 1
@@ -178,7 +195,7 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
          join lateral (
            select distinct on (e.suite) e.eval_id,e.suite,e.corpus_hash,e.verdict
              from vy_replica_eval_run e
-            where e.replica_id=r.replica_id and e.profile_version=p.version
+            where e.replica_id=r.replica_id and e.profile_version=p.version and e.calibration_version=cal.version
               and e.genome_version=vg.version and e.candidate=vp.voice_profile_id::text
               and e.suite=any($4::text[])
             order by e.suite,e.created_at desc
@@ -191,7 +208,7 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
               and c.scope='inference' and c.policy_version=$3 and c.revoked_at is null
               and (c.expires_at is null or c.expires_at>now()))
         group by r.replica_id,r.owner_user_id,r.subject_person_id,r.agent_id,r.display_name,
-                 p.version,vg.version,vp.voice_profile_id
+                 p.version,cal.version,vg.version,vp.voice_profile_id
        having count(*) filter (where latest.verdict='pass')=$5
           and count(distinct latest.suite)=$5
      ), existing_capability as (
@@ -218,16 +235,16 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
      ), created_capability as (
        insert into vy_replica_runtime_capability
          (replica_id,owner_user_id,agent_id,subject_person_id,voice_profile_id,
-          genome_version,profile_version,qualification_hash,policy_version,state)
+          genome_version,profile_version,calibration_version,qualification_hash,policy_version,state)
        select b.replica_id,b.owner_user_id,b.agent_id,b.subject_person_id,
-              x.voice_profile_id,x.genome_version,x.profile_version,x.qualification_hash,$6,'active'
+              x.voice_profile_id,x.genome_version,x.profile_version,x.calibration_version,x.qualification_hash,$6,'active'
          from bound b join resolved x on x.replica_id=b.replica_id
        returning *
      )
-     select capability_id,replica_id,state,genome_version,profile_version,activated_at
+     select capability_id,replica_id,state,genome_version,profile_version,calibration_version,activated_at
        from existing_capability
      union all
-     select capability_id,replica_id,state,genome_version,profile_version,activated_at
+     select capability_id,replica_id,state,genome_version,profile_version,calibration_version,activated_at
        from created_capability
      limit 1`,
     [rid, ownerUserId, REPLICA_POLICY_VERSION, [...RUNTIME_QUALIFICATION_SUITES], RUNTIME_QUALIFICATION_SUITES.length, RUNTIME_POLICY_VERSION],
@@ -240,7 +257,11 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
   return {
     replica_id: rows[0].replica_id,
     active: rows[0].state === "active",
-    versions: { profile: Number(rows[0].profile_version), voice_genome: Number(rows[0].genome_version) },
+    versions: {
+      profile: Number(rows[0].profile_version),
+      calibration: Number(rows[0].calibration_version),
+      voice_genome: Number(rows[0].genome_version),
+    },
     activated_at: rows[0].activated_at,
   };
 }
@@ -250,9 +271,10 @@ export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
     `select r.replica_id,r.owner_user_id,r.subject_person_id,r.agent_id,r.subject_mode,r.lifecycle,
             r.policy_version,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,
             a.status as agent_status,c.capability_id,c.state as capability_state,c.policy_version as runtime_policy,
-            c.voice_profile_id,c.genome_version,c.profile_version,c.qualification_hash,
+            c.voice_profile_id,c.genome_version,c.profile_version,c.calibration_version,c.qualification_hash,
             vp.provider,vp.provider_ref,vp.model,vp.status as voice_status,vp.capabilities,
             vg.status as genome_status,pp.status as profile_status,pp.definition as profile_definition,
+            cal.status as calibration_status,cal.definition as calibration_definition,
             consent.consent_id,consent.scope as consent_scope,consent.policy_version as consent_policy,
             consent.expires_at as consent_expires_at
        from vy_replica r
@@ -269,6 +291,9 @@ export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
          on vg.replica_id=c.replica_id and vg.version=c.genome_version and vg.status='approved'
        join vy_replica_profile pp
          on pp.replica_id=c.replica_id and pp.version=c.profile_version and pp.status='approved'
+       join vy_replica_calibration cal
+         on cal.replica_id=c.replica_id and cal.owner_user_id=c.owner_user_id
+        and cal.version=c.calibration_version and cal.profile_version=c.profile_version and cal.status='approved'
        join lateral (
          select x.consent_id,x.scope,x.policy_version,x.expires_at
            from vy_replica_consent x
@@ -321,6 +346,13 @@ export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
       status: row.profile_status,
       definition: parsed(row.profile_definition),
     },
+    calibration: {
+      replica_id: row.replica_id,
+      version: Number(row.calibration_version),
+      profile_version: Number(row.profile_version),
+      status: row.calibration_status,
+      definition: parsed(row.calibration_definition),
+    },
     inferenceConsent: {
       consent_id: row.consent_id,
       replica_id: row.replica_id,
@@ -347,6 +379,9 @@ export async function openOwnedRuntimeSession(db, ownerUserId, input) {
          on c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
         and c.agent_id=r.agent_id and c.subject_person_id=r.subject_person_id and c.state='active'
        join vy_agent a on a.agent_id=r.agent_id and a.status='active'
+       join vy_replica_calibration cal
+         on cal.replica_id=c.replica_id and cal.owner_user_id=c.owner_user_id
+        and cal.version=c.calibration_version and cal.profile_version=c.profile_version and cal.status='approved'
       where r.replica_id=$1 and r.owner_user_id=$2 and r.lifecycle='active'
         and exists(select 1 from vy_replica_consent x
           where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
@@ -378,7 +413,7 @@ function list(value, maxItems, maxChars) {
 
 // Only typed, builder-owned fields may become runtime instructions. Imported
 // transcripts, arbitrary JSON keys and evidence/provider metadata are ignored.
-export function compileReplicaRuntimeCore(profileDefinition) {
+export function compileReplicaRuntimeCore(profileDefinition, calibrationDefinition) {
   const d = parsed(profileDefinition);
   const identity = parsed(d.identity);
   const speech = parsed(d.speech);
@@ -410,6 +445,11 @@ export function compileReplicaRuntimeCore(profileDefinition) {
   if (values.length) lines.push(`Values: ${values.join("; ")}`);
   const boundaries = list(d.boundaries, 16, 160);
   if (boundaries.length) lines.push(`Boundaries: ${boundaries.join("; ")}`);
+  const calibrated = calibrationDirectives(parsed(calibrationDefinition));
+  if (calibrated.length) {
+    lines.push("Owner-calibrated behavior (controlled strategies):");
+    for (const item of calibrated) lines.push(`${item.layer}.${item.axis}: ${cleanText(item.directive, 240)}`);
+  }
   return lines.join("\n").slice(0, 6_000);
 }
 

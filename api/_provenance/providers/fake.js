@@ -117,8 +117,10 @@ export function createFakeProtectionAdapters() {
       name: "fake-replica-committer",
       version: "1",
       testOnly: true,
-      async commit({ replicaId, policyVersion }) {
-        return createHmac("sha256", TEST_SECRET).update(bytes(`${policyVersion}:${replicaId}`)).digest("hex");
+      async commit({ replicaId, policyVersion, voiceProfileId, genomeVersion, profileVersion, calibrationVersion }) {
+        return createHmac("sha256", TEST_SECRET)
+          .update(bytes(`${policyVersion}:${replicaId}:${voiceProfileId}:${genomeVersion}:${profileVersion}:${calibrationVersion}`))
+          .digest("hex");
       },
     },
   };

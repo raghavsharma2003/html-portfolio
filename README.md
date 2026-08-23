@@ -114,6 +114,9 @@ Implemented now:
 - an evidence-backed Person Model that turns cited, owner-reviewed claims into
   deterministic versioned identity, speech, behaviour, values, boundaries,
   autobiography and relationship-mode profiles while retaining uncertainty;
+- a typed owner calibration lab with safe server-owned contrasts,
+  append-only revisions, deterministic policy builds and exact runtime/eval/
+  generation version binding instead of free-text prompt accretion;
 - hard `agent_id` isolation for raw logs, graph memory, suppressions and
   consolidation cursors, plus strict default-removal/natural-key migrations
   gated for a second agent; production migrations remain unapplied;
@@ -123,8 +126,8 @@ Implemented now:
   receipt, revocation-aware authorization, and production refusal of fake
   adapters;
 - an immutable private runtime capability that freezes the exact approved
-  person profile, VoiceGenome, provider voice and seven-suite qualification
-  set; it resolves agent/person ownership server-side, scopes every
+  Person Model, calibration policy, VoiceGenome, provider voice and
+  seven-suite qualification set; it resolves agent/person ownership server-side, scopes every
   RelationalOS read to that pair, and routes cloned speech only through the
   protected cascade endpoint with no wrong-voice fallback;
 - a production Neon provenance ledger that rechecks active replica capability
@@ -141,4 +144,5 @@ research in [`docs/research/REPLICA-FRONTIER-2026.md`](docs/research/REPLICA-FRO
 provenance in [`docs/REPLICA-PROVENANCE.md`](docs/REPLICA-PROVENANCE.md), and
 runtime isolation in [`docs/REPLICA-RUNTIME.md`](docs/REPLICA-RUNTIME.md).
 The Person Model contract is in [`docs/PERSON-MODEL.md`](docs/PERSON-MODEL.md).
+Calibration is specified in [`docs/CALIBRATION.md`](docs/CALIBRATION.md).
 Azure allocation is in [`docs/AZURE-FOUNDRY-PLAN.md`](docs/AZURE-FOUNDRY-PLAN.md).

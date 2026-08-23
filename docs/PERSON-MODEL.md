@@ -43,9 +43,10 @@ to the claim body, provenance class, confidence and validity interval. Repeating
 the same build is idempotent. Any change in accepted evidence produces a new
 draft version.
 
-Approval recomputes the current eligible source set server-side, approves only
-the exact matching draft and retires any previous approved profile. A stale
-browser cannot approve a profile after its evidence changed.
+Approval recomputes the current eligible source set server-side and approves
+only the exact matching draft. An older profile is retired unless an active
+runtime capability has frozen it. A stale browser cannot approve a profile
+after its evidence changed, and an upgrade cannot silently break a live one.
 
 Minimum readiness currently requires:
 
@@ -68,9 +69,9 @@ uncertainty rather than averaging them into a fabricated fact.
 
 ## Deliberate closed gates
 
-Automatic claim extraction, memory import, calibration preference learning,
-fine-tuning and runtime activation remain closed. They require cited model
-outputs, owner review, privacy tests and real quality evaluation. Until those
-adapters and gates exist, this subsystem is an auditable control plane, not a
-finished replica.
-
+Automatic claim extraction, memory import, fine-tuning and runtime activation
+remain closed. Typed preference collection and deterministic calibration policy
+building are implemented separately in `docs/CALIBRATION.md`; learned
+preference models are not. The remaining adapters require cited model outputs,
+owner review, privacy tests and real quality evaluation. Until those gates
+exist, this subsystem is an auditable control plane, not a finished replica.

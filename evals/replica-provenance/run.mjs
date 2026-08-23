@@ -78,6 +78,7 @@ function fixture() {
     },
     voiceGenome: { replica_id: ids.replica, version: 3, status: "approved" },
     personProfile: { replica_id: ids.replica, version: 7, status: "approved" },
+    calibration: { replica_id: ids.replica, version: 2, profile_version: 7, status: "approved" },
     qualification: { verdict: "pass", passedSuites: [...REQUIRED_QUALIFICATION_SUITES] },
   };
 }
@@ -97,7 +98,7 @@ function streamOf(...chunks) {
 }
 
 const authorized = assertGenerationAuthorization(fixture(), new Date("2026-08-24T00:00:00.000Z"));
-ok("verified active self replica with current inference capability is authorized", authorized.profileVersion === 7);
+ok("verified active self replica with current inference capability is authorized", authorized.profileVersion === 7 && authorized.calibrationVersion === 2);
 ok("canonical JSON is key-order invariant", canonicalJson({ z: 1, a: { y: 2, x: 3 } }) === canonicalJson({ a: { x: 3, y: 2 }, z: 1 }));
 ok("SHA-256 helper hashes canonical objects, not insertion order", sha256Hex({ b: 2, a: 1 }) === sha256Hex({ a: 1, b: 2 }));
 
@@ -111,6 +112,8 @@ throwsCode("voice profile must belong to replica", () => assertGenerationAuthori
 throwsCode("voice provider mapping must be ready", () => assertGenerationAuthorization(mutate(["voiceProfile", "status"], "creating")), "voice_not_ready");
 throwsCode("VoiceGenome must be approved", () => assertGenerationAuthorization(mutate(["voiceGenome", "status"], "draft")), "voice_genome_not_approved");
 throwsCode("person profile must be approved", () => assertGenerationAuthorization(mutate(["personProfile", "status"], "draft")), "person_profile_not_approved");
+throwsCode("calibration must be approved", () => assertGenerationAuthorization(mutate(["calibration", "status"], "draft")), "calibration_not_approved");
+throwsCode("calibration must bind the exact Person Model", () => assertGenerationAuthorization(mutate(["calibration", "profile_version"], 6)), "calibration_not_approved");
 throwsCode("public delivery channel is absent", () => assertGenerationAuthorization(mutate(["request", "channel"], "public_share")), "channel_not_allowed");
 throwsCode("telephony purpose is absent", () => assertGenerationAuthorization(mutate(["request", "purpose"], "outbound_call")), "purpose_not_allowed");
 throwsCode("missing provenance qualification is denied", () => assertGenerationAuthorization(mutate(["qualification", "passedSuites"], REQUIRED_QUALIFICATION_SUITES.filter((item) => item !== "provenance"))), "qualification_incomplete");
@@ -140,6 +143,18 @@ ok("receipt audio hash binds exact protected bytes", receipt.audio_sha256 === cr
 ok("receipt binds fixed audible disclosure", receipt.disclosure_text_hash === sha256Hex(SYNTHETIC_AUDIO_DISCLOSURE));
 ok("receipt declares external C2PA 2.4 manifest", receipt.provenance_standard === "c2pa-2.4" && receipt.manifest_location === "external");
 ok("receipt contains watermark and ledger signatures", receipt.watermark_algorithm.startsWith("audioseal-streaming@") && receipt.envelope_signature.length >= 32);
+const changedCalibrationHarness = createFakeProtectionAdapters();
+const changedCalibrationOutput = await protectReplicaStream({
+  authorization: mutate(["calibration", "version"], 3),
+  sourceStream: streamOf([1, 2], [3, 4]),
+  format: VOICE_PCM_FORMAT,
+  adapters: changedCalibrationHarness.adapters,
+  allowTestAdapters: true,
+  now: new Date("2026-08-24T00:00:00.000Z"),
+});
+for await (const _ of changedCalibrationOutput.stream) void _;
+await changedCalibrationOutput.completion;
+ok("replica commitment binds the exact calibration version", successHarness.events.opened[0].replicaCommitment !== changedCalibrationHarness.events.opened[0].replicaCommitment);
 const publicJson = JSON.stringify(receipt);
 ok("public receipt contains no owner or raw replica identifier", !publicJson.includes(ids.owner) && !publicJson.includes(ids.replica));
 ok("public receipt contains no prompt transcript memory or provider reference", !/(prompt|transcript|memory|provider_ref|object_path|audio_bytes)/i.test(publicJson));

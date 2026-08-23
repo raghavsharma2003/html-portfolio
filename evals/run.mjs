@@ -105,6 +105,10 @@ const suites = {
   // contradiction-preserving typed Person Models, deterministic source-set
   // builds and explicit exact-version approval.
   personmodel: "person-model/run.mjs",
+  // Typed owner calibration: server-owned behavioral contrast pairs,
+  // append-only revisions, deterministic calibration policies and exact
+  // Person Model/runtime version binding without free-text prompt accretion.
+  replicacalibration: "replica-calibration/run.mjs",
   // Second-agent readiness: every shipping insert names agent_id, every
   // relational/natural-key arbiter is composite, and compatibility defaults
   // have explicit strict migrations with a working negative control.

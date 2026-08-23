@@ -97,10 +97,15 @@ relationship. Fine-tuning/adapters may consume the corpus later; the immediate
 system can rerank candidates. The system prompt does not grow one correction at
 a time.
 
+The first implementation uses server-owned safe contrast pairs, append-only
+owner revisions and a deterministic calibration policy bound to the exact
+Person Model version. Only registered strategy ids compile at runtime. See
+`docs/CALIBRATION.md`.
+
 ### R9 — activation freezes a capability, never a moving `latest`
 
-An active runtime binds one owner, self subject, agent, person-profile version,
-VoiceGenome version, disposable provider voice and exact seven-suite
+An active runtime binds one owner, self subject, agent, Person Model version,
+calibration-policy version, VoiceGenome version, disposable provider voice and exact seven-suite
 qualification commitment. New drafts or retrains cannot alter a live session.
 They earn a new capability and explicitly supersede the old one. The browser
 supplies only an opaque replica id and bearer token; agent ids, person ids,

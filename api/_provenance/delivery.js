@@ -88,6 +88,10 @@ export async function protectReplicaStream({
   const replicaCommitment = await adapters.replicaCommitter.commit({
     replicaId: authorization.replicaId,
     policyVersion: authorization.policyVersion,
+    voiceProfileId: authorization.voiceProfileId,
+    genomeVersion: authorization.genomeVersion,
+    profileVersion: authorization.profileVersion,
+    calibrationVersion: authorization.calibrationVersion,
   });
   if (!/^[0-9a-f]{64}$/.test(String(replicaCommitment || ""))) throw new Error("invalid_replica_commitment");
 

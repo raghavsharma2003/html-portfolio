@@ -27,6 +27,7 @@ import EnrollmentWorkspace from "./EnrollmentWorkspace";
 import LivenessCapture from "./LivenessCapture";
 import ProcessingReview from "./ProcessingReview";
 import PersonModelStudio from "./PersonModelStudio";
+import CalibrationStudio from "./CalibrationStudio";
 import RuntimeGate from "./RuntimeGate";
 import {
   createSourceUpload,
@@ -51,17 +52,17 @@ type LoadState = "booting" | "loading" | "ready" | "error";
 const STAGES = [
   {
     id: "voice",
-    number: "06",
+    number: "07",
     title: "Voice laboratory",
     copy: "Compare identity, accent, rhythm, and emotion across blinded candidate renders.",
     availability: "Voice training remains disabled",
   },
   {
-    id: "behavior",
-    number: "07",
-    title: "Behavior calibration",
-    copy: "Correct language, values, boundaries, humor, and relationship-specific behavior.",
-    availability: "Behavioral inference remains disabled",
+    id: "multimodal",
+    number: "08",
+    title: "Embodiment laboratory",
+    copy: "Calibrate face, gaze, gesture, timing, and cross-modal identity against the same person model.",
+    availability: "Visual modeling remains disabled",
   },
 ] as const;
 
@@ -503,6 +504,12 @@ function ReplicaWorkspace({
           />
 
           <PersonModelStudio
+            token={accessToken}
+            replicaId={replica.replica_id}
+            onAuthError={onReviewAuthError}
+          />
+
+          <CalibrationStudio
             token={accessToken}
             replicaId={replica.replica_id}
             onAuthError={onReviewAuthError}
