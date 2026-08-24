@@ -74,6 +74,21 @@ export function azurePersonalVoiceConfig(env = process.env) {
   return Object.freeze({ endpoint, ttsEndpoint, key, projectId, companyName, model, privateOrigin });
 }
 
+// Erasure deliberately has a smaller configuration surface than creation or
+// synthesis. Turning off new cloning, losing limited-access approval, or
+// misconfiguring a TTS/model setting must never prevent deletion of an
+// already-created biometric voice at the provider.
+export function azurePersonalVoiceErasureConfig(env = process.env) {
+  const endpoint = httpsEndpoint(
+    env.AZURE_PERSONAL_VOICE_ENDPOINT,
+    [".cognitiveservices.azure.com", ".api.cognitive.microsoft.com"],
+    "azure_personal_voice_endpoint_required",
+  );
+  const key = String(env.AZURE_PERSONAL_VOICE_KEY || "").trim();
+  if (key.length < 20 || /\s/.test(key)) fail("azure_personal_voice_key_required");
+  return Object.freeze({ endpoint, key });
+}
+
 function normalizedReference(value, role) {
   const sourceId = String(value?.sourceId || "").trim().toLowerCase();
   const sha256 = String(value?.sha256 || "").trim().toLowerCase();
@@ -385,4 +400,38 @@ export function createAzurePersonalVoiceProvider(options = {}) {
       return Object.freeze({ deleted: true });
     },
   };
+}
+
+export function createAzurePersonalVoiceEraser(options = {}) {
+  const env = options.env || process.env;
+  const config = azurePersonalVoiceErasureConfig(env);
+  const fetchImpl = options.fetchImpl || fetch;
+
+  return Object.freeze({
+    name: "azure_personal_voice",
+    async deleteVoice(providerRef, deleteOptions = {}) {
+      const { voiceId, consentId } = parseAzurePersonalVoiceRef(providerRef);
+      for (const [kind, id] of [["personalvoices", voiceId], ["consents", consentId]]) {
+        let response;
+        try {
+          response = await fetchImpl(
+            `${config.endpoint}/customvoice/${kind}/${encodeURIComponent(id)}?api-version=${API_VERSION}`,
+            {
+              method: "DELETE",
+              headers: { "Ocp-Apim-Subscription-Key": config.key },
+              signal: signalFor(deleteOptions.signal, 20_000),
+            },
+          );
+        } catch {
+          fail("azure_personal_voice_unreachable");
+        }
+        // Azure deletion is retried after every ambiguous outcome. A 404 is a
+        // successful idempotent observation: the biometric object is absent.
+        if (!response.ok && response.status !== 404) {
+          fail(`azure_personal_voice_http_${response.status}`, response.status >= 500 ? 503 : 409);
+        }
+      }
+      return Object.freeze({ deleted: true });
+    },
+  });
 }

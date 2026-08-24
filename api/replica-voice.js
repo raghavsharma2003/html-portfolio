@@ -13,7 +13,7 @@ import {
   persistCreatedVoiceProfile,
   updateOwnedVoiceProfileStatus,
 } from "./_replica-voice-profile.js";
-import { createVoiceProvider } from "./_voice/registry.js";
+import { createVoiceEraser, createVoiceProvider } from "./_voice/registry.js";
 import { azurePersonalVoiceConfig } from "./_voice/providers/azure-personal-voice.js";
 
 const cors = (res) => {
@@ -72,7 +72,7 @@ export default async function handler(req, res) {
       const profile = await markOwnedVoiceProfileDeleting(q, user.id, body.replica_id, body.voice_profile_id);
       if (!profile) return res.status(404).json({ error: "voice_profile_not_found" });
       try {
-        const provider = createVoiceProvider(profile.provider, { db: q });
+        const provider = createVoiceEraser(profile.provider);
         await provider.deleteVoice(profile.provider_ref);
         const deleted = await completeOwnedVoiceProfileDeletion(q, user.id, profile);
         return res.status(deleted ? 200 : 202).json({

@@ -8,6 +8,7 @@
     { "source": "/privacy", "destination": "/privacy.html" }
   ],
   "crons": [
-    { "path": "/api/consolidate-sweep", "schedule": "0 * * * *" }
+    { "path": "/api/consolidate-sweep", "schedule": "0 * * * *" },
+    { "path": "/api/replica-erasure-sweep", "schedule": "*/10 * * * *" }
   ]
 }

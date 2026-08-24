@@ -93,6 +93,20 @@ copy. A 404 is idempotent success. This provider deletion is one step inside
 the larger replica erasure job, not a substitute for source, derivative,
 relationship and key erasure.
 
+The owner path marks the profile `deleting` and revokes runtime capabilities,
+sessions and open generations before making the first provider call. A
+separate authenticated reconciler runs every ten minutes and leases unfinished
+deletions with a one-way token hash. It removes both Azure resources and only
+then removes the local provider mapping. Ambiguous outcomes are retried with
+30-second-to-six-hour exponential backoff; they never reactivate the voice and
+never become a terminal "gave up" state. Provider identifiers and raw errors
+are excluded from the append-only attempt ledger and public responses.
+
+Erasure intentionally requires only the Azure endpoint and server key. The
+new-cloning enable flag, Limited Access creation approval, TTS endpoint,
+project and model configuration cannot strand an existing biometric copy when
+they are disabled or changed.
+
 ## Spend control
 
 Training and synthesis share migration 028's one atomic Azure ceiling:
@@ -122,6 +136,7 @@ AZURE_PERSONAL_VOICE_BASE_MODEL=<fixed version, never Latest>
 AZURE_PERSONAL_VOICE_USD_PER_PROFILE=<effective rate>
 AZURE_PERSONAL_VOICE_SYNTHESIS_USD_PER_MCHARACTERS=<effective rate>
 SUPABASE_URL=https://<private project origin>
+CRON_SECRET=<strong Vercel cron bearer secret>
 ```
 
 ## Still closed
@@ -130,8 +145,6 @@ SUPABASE_URL=https://<private project origin>
 - real synthesis quality, latency, cross-language identity and spend results;
 - production Vyakti watermark, signing and C2PA adapters;
 - sealed blind audio evaluation and promotion;
-- an asynchronous provider-erasure worker for retries after transient deletion
-  failure;
 - end-to-end revocation/erasure against a live provider.
 
 Until all of those pass, the Studio correctly reports voice training as
@@ -143,4 +156,5 @@ Offline gate:
 node evals/run.mjs personalvoice
 node evals/run.mjs providerconsent
 node evals/run.mjs voiceenrollment
+node evals/run.mjs voiceerasure
 ```

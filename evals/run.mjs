@@ -132,6 +132,10 @@ const suites = {
   // deterministic metered profile through short-lived private reads. Status,
   // tenant binding and deletion remain server-only and provider-neutral.
   voiceenrollment: "voice-enrollment/run.mjs",
+  // Crash-safe biometric deletion: disable-first semantics, one-way leases,
+  // idempotent Azure voice+consent deletion, bounded backoff and a scheduled
+  // reconciler that keeps working even when new cloning has been disabled.
+  voiceerasure: "voice-erasure/run.mjs",
   // Exact-version, multidimensional owner adjudication of a private turn,
   // including encrypted correction exemplars and sealed-audio lineage.
   replicafeedback: "replica-feedback/run.mjs",
