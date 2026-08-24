@@ -48,10 +48,6 @@ function wavHeader(pcmBytes) {
   return header;
 }
 
-function previewSeed(generationId) {
-  return createHash("sha256").update(`vyakti:voice-preview-seed:v1:${generationId}`).digest().readUInt32BE(0) & 0x7fffffff;
-}
-
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
@@ -74,6 +70,9 @@ export default async function handler(req, res) {
       replica_id: body.replica_id,
       genome_version: body.genome_version,
       trace_id: `preview_${randomUUID().replaceAll("-", "")}`,
+      language_id: languageId,
+      text_hash: createHash("sha256").update(text, "utf8").digest("hex"),
+      style_key: body.style_key,
     });
     const stored = await readPrivateReplicaObject(started.reference.objectPath, {
       maxBytes: 20 * 1024 * 1024,
@@ -88,16 +87,16 @@ export default async function handler(req, res) {
       requestId: started.generation.generation_id,
       text,
       languageId,
-      seed: previewSeed(started.generation.generation_id),
+      seed: started.previewSeed,
       reference: {
         bytes: stored.body,
         sha256: started.reference.sha256,
         durationMs: started.reference.durationMs,
       },
       style: {
-        exaggeration: body.style?.exaggeration ?? 0.5,
-        cfgWeight: body.style?.cfg_weight ?? 0.5,
-        temperature: body.style?.temperature ?? 0.8,
+        exaggeration: started.previewStyle.exaggeration,
+        cfgWeight: started.previewStyle.cfg_weight,
+        temperature: started.previewStyle.temperature,
       },
       signal: aborter.signal,
     }));

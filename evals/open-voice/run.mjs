@@ -11,7 +11,11 @@ import {
   openChatterboxConfig,
 } from "../../api/_voice/providers/open-chatterbox-preview.js";
 import { assertVoicePreviewAuthorization } from "../../api/_provenance/contracts.js";
-import { beginOwnedVoicePreview, createNeonVoicePreviewLedger } from "../../api/_replica-voice-preview.js";
+import {
+  beginOwnedVoicePreview,
+  createNeonVoicePreviewLedger,
+  voicePreviewMatchedSeed,
+} from "../../api/_replica-voice-preview.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SECRET = "ab".repeat(32);
@@ -152,6 +156,16 @@ assert.throws(() => assertVoicePreviewAuthorization({ ...previewAuthorization, p
 assert.throws(() => assertVoicePreviewAuthorization({ ...previewAuthorization, voiceGenome: { ...previewAuthorization.voiceGenome, status: "approved" } }, new Date("2026-08-25T00:00:00.000Z")), /draft_voice_genome_required/);
 ok("superseded artifacts and non-draft genomes cannot enter the preview corridor", true);
 
+const matchedSeedInput = {
+  replicaId: IDS.replica,
+  genomeVersion: 4,
+  languageId: "hi",
+  textHash: "9".repeat(64),
+};
+const matchedSeed = voicePreviewMatchedSeed(matchedSeedInput);
+ok("matched trials derive one positive seed from identity, genome, language and prompt", matchedSeed > 0 && matchedSeed === voicePreviewMatchedSeed(matchedSeedInput));
+ok("changing the committed prompt changes the deterministic trial seed", matchedSeed !== voicePreviewMatchedSeed({ ...matchedSeedInput, textHash: "8".repeat(64) }));
+
 let beginSql = "";
 const begun = await beginOwnedVoicePreview(async (sql) => {
   beginSql = sql;
@@ -164,8 +178,16 @@ const begun = await beginOwnedVoicePreview(async (sql) => {
     artifact_id: IDS.artifact, source_id: IDS.source, object_path: `${IDS.owner}/${IDS.replica}/${IDS.source}/derived/enhance.wav`, mime: "audio/wav", byte_size: reference.length, duration_ms: 5_000, sha256: digest(reference), stage: "enhance", selection_decision: "selected", source_state: "ready", contains_third_parties: false, genome_status: "draft",
     consent_id: IDS.consent, consent_scope: "inference", consent_policy_version: "replica-self-v1", consent_granted_at: "2026-08-01T00:00:00.000Z", consent_expires_at: "2030-01-01T00:00:00.000Z", consent_revoked_at: null,
   }];
-}, IDS.owner, { replica_id: IDS.replica, genome_version: 4, trace_id: "preview_12345678" });
+}, IDS.owner, {
+  replica_id: IDS.replica,
+  genome_version: 4,
+  trace_id: "preview_12345678",
+  language_id: "hi",
+  text_hash: "9".repeat(64),
+  style_key: "balanced",
+});
 ok("authorization is atomically inserted from the exact current draft and selected artifact", begun.reference.artifactId === IDS.artifact && /vg\.status='draft'/.test(beginSql) && /selected\.decision='selected'/.test(beginSql));
+ok("the generation records the matched-trial seed used by synthesis", begun.previewSeed === matchedSeed && /preview_seed/.test(beginSql));
 ok("preview issuance rechecks current inference, biometric and training grants", /scope='inference'/.test(beginSql) && /scope='biometric'/.test(beginSql) && /scope='training'/.test(beginSql));
 ok("every preview consent must match the current replica policy", (beginSql.match(/policy_version=r\.policy_version/g) || []).length >= 2 && /c\.policy_version=\$7/.test(beginSql));
 

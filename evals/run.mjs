@@ -106,6 +106,10 @@ const suites = {
   // private HMAC transport, exact disclosure, verified PerTh watermark,
   // Hindi support and a digest-pinned scale-to-zero Azure GPU deployment.
   openvoice: "open-voice/run.mjs",
+  // Blinded owner A/B calibration: exact protected generations, constant
+  // prompt/identity/model controls, server-owned delivery conditions and an
+  // append-only content-free preference ledger for future model updates.
+  voicepreference: "voice-preference/run.mjs",
   // Deployable scale-to-zero consumer: composite-tenant leasing, real private
   // byte verification, current ClamAV, ffprobe, exact evidence adapters,
   // immutable persistence and one-step DAG settlement.

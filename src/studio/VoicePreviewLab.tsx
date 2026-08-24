@@ -2,14 +2,36 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getReplicaReview } from "./processingApi";
 import { ReplicaApiError } from "./replicaApi";
 import type { ReplicaReview } from "./types";
-import { generateVoicePreview } from "./voicePreviewApi";
+import {
+  generateVoicePreview,
+  saveVoicePreference,
+  type VoicePreferenceChoice,
+  type VoicePreferenceReason,
+} from "./voicePreviewApi";
 
 const STYLES = {
-  faithful: { label: "Faithful", copy: "Tighter identity and steadier pacing", exaggeration: 0.35, cfgWeight: 0.65, temperature: 0.65 },
-  balanced: { label: "Balanced", copy: "Natural delivery for everyday speech", exaggeration: 0.5, cfgWeight: 0.5, temperature: 0.8 },
-  expressive: { label: "Expressive", copy: "More emotional movement and risk", exaggeration: 0.8, cfgWeight: 0.3, temperature: 0.9 },
+  faithful: { label: "Faithful", copy: "Tighter identity and steadier pacing" },
+  balanced: { label: "Balanced", copy: "Natural delivery for everyday speech" },
+  expressive: { label: "Expressive", copy: "More emotional movement and risk" },
 } as const;
 type StyleKey = keyof typeof STYLES;
+type Preview = { url: string; generationId: string; modelCommitment: string; styleKey: StyleKey };
+
+const BLIND_PAIRS: ReadonlyArray<readonly [StyleKey, StyleKey]> = [
+  ["faithful", "balanced"],
+  ["balanced", "expressive"],
+  ["faithful", "expressive"],
+];
+
+const PREFERENCE_REASONS: ReadonlyArray<{ value: VoicePreferenceReason; label: string }> = [
+  { value: "identity", label: "Voice identity" },
+  { value: "accent", label: "Accent" },
+  { value: "rhythm", label: "Rhythm" },
+  { value: "emotion", label: "Emotion" },
+  { value: "naturalness", label: "Naturalness" },
+  { value: "pronunciation", label: "Pronunciation" },
+  { value: "noise_or_artifact", label: "Fewer artifacts" },
+];
 
 const STARTERS = {
   en: "I know this voice is only a first draft. Listen for my rhythm, pauses, accent, and the way I hold the last word.",
@@ -28,7 +50,14 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
   const [styleKey, setStyleKey] = useState<StyleKey>("balanced");
   const [text, setText] = useState<string>(STARTERS.en);
   const [error, setError] = useState("");
-  const [preview, setPreview] = useState<{ url: string; generationId: string; modelCommitment: string } | null>(null);
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [pair, setPair] = useState<{ left: Preview; right: Preview } | null>(null);
+  const [pairBusy, setPairBusy] = useState(false);
+  const [heard, setHeard] = useState({ left: false, right: false });
+  const [preferenceReasons, setPreferenceReasons] = useState<VoicePreferenceReason[]>([]);
+  const [preferenceBusy, setPreferenceBusy] = useState(false);
+  const [preferenceSaved, setPreferenceSaved] = useState<{ id: string; choice: VoicePreferenceChoice } | null>(null);
+  const [pairError, setPairError] = useState("");
 
   const draft = useMemo(() => review?.voice_genomes.find((item) => item.status === "draft") ?? null, [review]);
 
@@ -43,35 +72,72 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
+  useEffect(() => () => {
+    if (pair) { URL.revokeObjectURL(pair.left.url); URL.revokeObjectURL(pair.right.url); }
+  }, [pair]);
+
+  function discardPair() {
+    setPair(null); setPairError(""); setPreferenceSaved(null); setPreferenceReasons([]); setHeard({ left: false, right: false });
+  }
 
   function changeLanguage(next: "en" | "hi") {
     setLanguage(next);
     if (text === STARTERS.en || text === STARTERS.hi) setText(STARTERS[next]);
+    discardPair();
   }
 
   async function generate() {
     if (!draft) return;
     setGenerating(true); setError("");
-    if (preview) URL.revokeObjectURL(preview.url);
     setPreview(null);
-    const style = STYLES[styleKey];
     try {
-      const result = await generateVoicePreview(token, {
-        replicaId,
-        genomeVersion: draft.version,
-        text,
-        languageId: language,
-        style: { exaggeration: style.exaggeration, cfgWeight: style.cfgWeight, temperature: style.temperature },
-      });
-      setPreview({
-        url: URL.createObjectURL(result.audio),
-        generationId: result.generationId,
-        modelCommitment: result.modelCommitment,
-      });
+      const result = await generateVoicePreview(token, { replicaId, genomeVersion: draft.version, text, languageId: language, styleKey });
+      setPreview({ url: URL.createObjectURL(result.audio), generationId: result.generationId, modelCommitment: result.modelCommitment, styleKey });
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
       setError(cause instanceof Error ? cause.message : "The protected preview could not be generated");
     } finally { setGenerating(false); }
+  }
+
+  async function generateBlindPair() {
+    if (!draft || pairBusy) return;
+    setPairBusy(true); setPairError(""); setPreferenceSaved(null); setPreferenceReasons([]); setHeard({ left: false, right: false }); setPair(null);
+    const random = crypto.getRandomValues(new Uint8Array(2));
+    const selected = BLIND_PAIRS[random[0] % BLIND_PAIRS.length];
+    const order: readonly [StyleKey, StyleKey] = random[1] % 2 ? selected : [selected[1], selected[0]];
+    let left: Preview | null = null;
+    try {
+      const leftResult = await generateVoicePreview(token, { replicaId, genomeVersion: draft.version, text, languageId: language, styleKey: order[0] });
+      left = { url: URL.createObjectURL(leftResult.audio), generationId: leftResult.generationId, modelCommitment: leftResult.modelCommitment, styleKey: order[0] };
+      const rightResult = await generateVoicePreview(token, { replicaId, genomeVersion: draft.version, text, languageId: language, styleKey: order[1] });
+      setPair({ left, right: { url: URL.createObjectURL(rightResult.audio), generationId: rightResult.generationId, modelCommitment: rightResult.modelCommitment, styleKey: order[1] } });
+    } catch (cause) {
+      if (left) URL.revokeObjectURL(left.url);
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+      setPairError(cause instanceof Error ? cause.message : "The blind comparison could not be generated");
+    } finally { setPairBusy(false); }
+  }
+
+  function togglePreferenceReason(reason: VoicePreferenceReason) {
+    setPreferenceReasons((current) => current.includes(reason) ? current.filter((item) => item !== reason) : [...current, reason]);
+  }
+
+  async function savePreference(choice: VoicePreferenceChoice) {
+    if (!pair || preferenceBusy || !heard.left || !heard.right) return;
+    setPreferenceBusy(true); setPairError("");
+    try {
+      const saved = await saveVoicePreference(token, {
+        replicaId,
+        leftGenerationId: pair.left.generationId,
+        rightGenerationId: pair.right.generationId,
+        choice,
+        reasonCodes: preferenceReasons,
+      });
+      setPreferenceSaved({ id: saved.preference_id, choice: saved.choice });
+    } catch (cause) {
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+      setPairError(cause instanceof Error ? cause.message : "The voice preference could not be secured");
+    } finally { setPreferenceBusy(false); }
   }
 
   return (
@@ -81,9 +147,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
           <h2 id="voice-preview-title">Hear the evidence become a voice.</h2>
           <p>This private draft is for your ears and judgment. It cannot join calls or activate a replica.</p>
         </div>
-        <button className="review-refresh" type="button" disabled={loading || generating} onClick={() => void load()}>
-          {loading ? "Checking" : "Refresh draft"}
-        </button>
+        <button className="review-refresh" type="button" disabled={loading || generating || pairBusy} onClick={() => void load()}>{loading ? "Checking" : "Refresh draft"}</button>
       </div>
 
       <div className="voice-preview-workbench">
@@ -92,19 +156,16 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
             <span>{draft ? `VoiceGenome v${draft.version}` : "Draft required"}</span>
             <small>{draft ? `${draft.embedding_families} identity models bound` : "Review and build your selected voice first"}</small>
           </div>
-
           <fieldset className="voice-preview-language">
             <legend>Language</legend>
             <button type="button" className={language === "en" ? "active" : ""} aria-pressed={language === "en"} onClick={() => changeLanguage("en")}>English</button>
             <button type="button" className={language === "hi" ? "active" : ""} aria-pressed={language === "hi"} onClick={() => changeLanguage("hi")}>Hindi and Hinglish</button>
           </fieldset>
-
           <label className="voice-preview-script" htmlFor="voice-preview-text">
             <span>What should the draft say?</span>
-            <textarea id="voice-preview-text" value={text} maxLength={600} rows={5} onChange={(event) => setText(event.target.value)} />
+            <textarea id="voice-preview-text" value={text} maxLength={600} rows={5} onChange={(event) => { setText(event.target.value); discardPair(); }} />
             <small>{Array.from(text).length}/600 characters. The audible AI disclosure is added automatically.</small>
           </label>
-
           <fieldset className="voice-preview-styles">
             <legend>Delivery</legend>
             {Object.entries(STYLES).map(([key, value]) => (
@@ -113,10 +174,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
               </button>
             ))}
           </fieldset>
-
-          <button className="button primary-button voice-preview-generate" type="button" disabled={!draft || generating || !text.trim()} onClick={() => void generate()}>
-            {generating ? "Protecting your preview" : "Generate private preview"}
-          </button>
+          <button className="button primary-button voice-preview-generate" type="button" disabled={!draft || generating || pairBusy || !text.trim()} onClick={() => void generate()}>{generating ? "Protecting your preview" : "Generate private preview"}</button>
           {generating && <p className="voice-preview-wait" role="status">The scale-to-zero voice lab may take a few minutes on its first run.</p>}
           {error && <p className="inline-error" role="alert">{error}</p>}
         </div>
@@ -129,9 +187,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
               <p>Listen once for identity, once for delivery, then change one control at a time.</p>
               <audio controls autoPlay preload="metadata" src={preview.url}>Your browser cannot play this protected WAV.</audio>
               <dl>
-                <div><dt>Disclosure</dt><dd>Audible</dd></div>
-                <div><dt>Watermarks</dt><dd>PerTh + AudioSeal</dd></div>
-                <div><dt>Provenance</dt><dd>C2PA signed</dd></div>
+                <div><dt>Disclosure</dt><dd>Audible</dd></div><div><dt>Watermarks</dt><dd>PerTh + AudioSeal</dd></div><div><dt>Provenance</dt><dd>C2PA signed</dd></div>
               </dl>
               <small>Receipt {preview.generationId.slice(0, 8)}. Model {preview.modelCommitment.slice(0, 10)}.</small>
             </>
@@ -140,12 +196,53 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
               <div className="voice-preview-empty-mark" aria-hidden="true">V</div>
               <h3>{draft ? "The room is ready" : "No draft can speak yet"}</h3>
               <p>{draft ? "Choose the words and delivery. No audio leaves the protection boundary unmarked." : "Select a processed voice candidate, accept its evidence, and build a draft VoiceGenome."}</p>
-              <div className="voice-preview-proof">
-                <span>Owner-only</span><span>Self-replica</span><span>No runtime access</span>
-              </div>
+              <div className="voice-preview-proof"><span>Owner-only</span><span>Self-replica</span><span>No runtime access</span></div>
             </>
           )}
         </div>
+      </div>
+
+      <div className="voice-preference-lab">
+        <div className="voice-preference-intro">
+          <div><span>Blind preference lab</span><h3>Teach the model with your ears.</h3></div>
+          <p>We render the same words through two hidden delivery conditions. Listen to both before choosing. Your answer is bound to the exact protected generations, not remembered as a loose note.</p>
+          <button className="review-refresh" type="button" disabled={!draft || pairBusy || generating || !text.trim()} onClick={() => void generateBlindPair()}>{pairBusy ? "Rendering A, then B" : pair ? "New blind pair" : "Start blind A/B"}</button>
+        </div>
+        {pair ? (
+          <div className="voice-preference-body">
+            <div className="voice-preference-players">
+              {(["left", "right"] as const).map((side, index) => (
+                <article key={side} className={heard[side] ? "heard" : ""}>
+                  <span>{index === 0 ? "A" : "B"}</span>
+                  <div><strong>Protected candidate {index === 0 ? "A" : "B"}</strong><small>{heard[side] ? "Completed" : "Listen fully before deciding"}</small></div>
+                  <audio controls preload="metadata" src={pair[side].url} onEnded={() => setHeard((current) => ({ ...current, [side]: true }))}>Protected voice candidate.</audio>
+                </article>
+              ))}
+            </div>
+            {preferenceSaved ? (
+              <div className="voice-preference-saved" role="status">
+                <strong>Preference secured</strong>
+                <span>{preferenceSaved.choice === "neither" ? "Neither candidate qualified." : preferenceSaved.choice === "tie" ? "The candidates were equivalent." : `${preferenceSaved.choice === "left" ? "A" : "B"} was closer.`} A was {STYLES[pair.left.styleKey].label.toLowerCase()}; B was {STYLES[pair.right.styleKey].label.toLowerCase()}.</span>
+                <small>Evidence {preferenceSaved.id.slice(0, 8)} is exact-generation bound.</small>
+              </div>
+            ) : (
+              <>
+                <div className="voice-preference-reasons">
+                  <span>What separated them? <small>optional</small></span>
+                  <div>{PREFERENCE_REASONS.map((reason) => <button type="button" key={reason.value} className={preferenceReasons.includes(reason.value) ? "active" : ""} aria-pressed={preferenceReasons.includes(reason.value)} onClick={() => togglePreferenceReason(reason.value)}>{reason.label}</button>)}</div>
+                </div>
+                <div className="voice-preference-choice" aria-label="Choose the closer protected voice">
+                  <button type="button" disabled={!heard.left || !heard.right || preferenceBusy} onClick={() => void savePreference("left")}>A is closer</button>
+                  <button type="button" disabled={!heard.left || !heard.right || preferenceBusy} onClick={() => void savePreference("right")}>B is closer</button>
+                  <button type="button" disabled={!heard.left || !heard.right || preferenceBusy} onClick={() => void savePreference("tie")}>Both</button>
+                  <button type="button" disabled={!heard.left || !heard.right || preferenceBusy} onClick={() => void savePreference("neither")}>Neither</button>
+                </div>
+                {!heard.left || !heard.right ? <p className="voice-preference-gate">Finish both candidates to unlock the judgment.</p> : null}
+              </>
+            )}
+          </div>
+        ) : <div className="voice-preference-empty">{pairBusy ? "Two fully protected generations are being built. Cold starts can take a few minutes." : "No comparison is open. Your current words and language will be held constant."}</div>}
+        {pairError ? <p className="inline-error" role="alert">{pairError}</p> : null}
       </div>
     </section>
   );

@@ -1,8 +1,16 @@
+import { createHash } from "node:crypto";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 import { PROVENANCE_POLICY, assertVoicePreviewAuthorization, canonicalJson } from "./_provenance/contracts.js";
 import { OPEN_CHATTERBOX_MODEL_COMMITMENT } from "./_voice/providers/open-chatterbox-preview.js";
 
 const TRACE = /^[A-Za-z0-9_-]{8,96}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+const LANGUAGES = new Set(["en", "hi"]);
+const STYLE_PRESETS = Object.freeze({
+  faithful: Object.freeze({ schema: "vyakti.voice-preview-style.v1", key: "faithful", exaggeration: 0.35, cfg_weight: 0.65, temperature: 0.65 }),
+  balanced: Object.freeze({ schema: "vyakti.voice-preview-style.v1", key: "balanced", exaggeration: 0.5, cfg_weight: 0.5, temperature: 0.8 }),
+  expressive: Object.freeze({ schema: "vyakti.voice-preview-style.v1", key: "expressive", exaggeration: 0.8, cfg_weight: 0.3, temperature: 0.9 }),
+});
 
 function fail(code, status = 409) {
   throw Object.assign(new Error(code), { code, status });
@@ -41,12 +49,38 @@ const PREVIEW_FENCE = `
               and newer.owner_user_id=d.owner_user_id
               and (newer.created_at,newer.decision_id)>(d.created_at,d.decision_id))))`;
 
+export function voicePreviewStyle(value) {
+  const style = STYLE_PRESETS[String(value || "")];
+  if (!style) fail("voice_preview_style_invalid", 400);
+  return style;
+}
+
+export function voicePreviewMatchedSeed({ replicaId: rid, genomeVersion, languageId, textHash }) {
+  const replica = replicaId(rid);
+  const version = Number(genomeVersion);
+  const language = String(languageId || "").toLowerCase();
+  const hash = String(textHash || "").toLowerCase();
+  if (!Number.isInteger(version) || version < 1) fail("voice_preview_genome_version_invalid", 400);
+  if (!LANGUAGES.has(language)) fail("voice_preview_language_invalid", 400);
+  if (!SHA256.test(hash)) fail("voice_preview_text_hash_invalid", 400);
+  return (createHash("sha256")
+    .update(`vyakti:voice-preview-matched-seed:v2:${replica}:${version}:${language}:${hash}`)
+    .digest()
+    .readUInt32BE(0) & 0x7fffffff) || 1;
+}
+
 export async function beginOwnedVoicePreview(db, ownerUserId, input) {
   const rid = replicaId(input?.replica_id);
   const genomeVersion = Number(input?.genome_version);
   const traceId = String(input?.trace_id || "");
+  const languageId = String(input?.language_id || "").toLowerCase();
+  const textHash = String(input?.text_hash || "").toLowerCase();
+  const previewStyle = voicePreviewStyle(input?.style_key);
   if (!Number.isInteger(genomeVersion) || genomeVersion < 1) fail("voice_preview_genome_version_invalid", 400);
   if (!TRACE.test(traceId)) fail("voice_preview_trace_id_invalid", 400);
+  if (!LANGUAGES.has(languageId)) fail("voice_preview_language_invalid", 400);
+  if (!SHA256.test(textHash)) fail("voice_preview_text_hash_invalid", 400);
+  const previewSeed = voicePreviewMatchedSeed({ replicaId: rid, genomeVersion, languageId, textHash });
   const rows = await db(
     `with inference_consent as materialized (
        select c.* from vy_replica_consent c
@@ -92,9 +126,10 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
        insert into vy_replica_generation
          (replica_id,owner_user_id,voice_profile_id,genome_version,profile_version,calibration_version,
           dialogue_turn_id,channel,purpose,policy_version,trace_id,state,disclosure_scheme,
-          watermark_algorithm,provenance_standard,preview_artifact_id,preview_model,preview_model_commitment)
+          watermark_algorithm,provenance_standard,preview_artifact_id,preview_model,preview_model_commitment,
+          preview_language_id,preview_text_hash,preview_style,preview_seed)
        select replica_id,owner_user_id,null,genome_version,null,null,null,'studio_preview','voice_preview',
-              $4,$5,'authorized','audible-prefix-v1','pending','c2pa-2.4',artifact_id,$6,$8
+              $4,$5,'authorized','audible-prefix-v1','pending','c2pa-2.4',artifact_id,$6,$8,$9,$10,$11::jsonb,$12
          from eligible
        returning *
      ) select i.*,e.subject_mode,e.lifecycle,e.policy_version replica_policy_version,
@@ -105,7 +140,8 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
               e.consent_expires_at,e.consent_revoked_at
          from inserted i join eligible e on e.replica_id=i.replica_id`,
     [rid, ownerUserId, genomeVersion, PROVENANCE_POLICY, traceId,
-      "open_chatterbox_multilingual_v3", REPLICA_POLICY_VERSION, OPEN_CHATTERBOX_MODEL_COMMITMENT],
+      "open_chatterbox_multilingual_v3", REPLICA_POLICY_VERSION, OPEN_CHATTERBOX_MODEL_COMMITMENT,
+      languageId, textHash, JSON.stringify(previewStyle), previewSeed],
   );
   const row = rows[0];
   if (!row) fail("voice_preview_not_authorized");
@@ -158,6 +194,8 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
     generation: row,
     authorizationInput,
     authorization,
+    previewStyle,
+    previewSeed,
     reference: Object.freeze({
       artifactId: row.artifact_id,
       sourceId: row.source_id,
