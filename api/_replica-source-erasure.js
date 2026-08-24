@@ -185,13 +185,29 @@ export async function completeSourceErasure(db, lease) {
        update vy_replica_candidate c set status='retired',updated_at=now()
          from target t where c.replica_id=t.replica_id and c.owner_user_id=t.owner_user_id
           and c.status<>'retired'
-     ), builds as (
-       update vy_replica_model_build b set state='retired',updated_at=now()
-         from target t where b.replica_id=t.replica_id and b.owner_user_id=t.owner_user_id
-          and b.state<>'retired'
-     ), removed as (
-       delete from vy_replica_source s using target t
-        where s.source_id=t.source_id and s.replica_id=t.replica_id and s.owner_user_id=t.owner_user_id
+      ), builds as (
+        update vy_replica_model_build b set state='retired',updated_at=now()
+          from target t where b.replica_id=t.replica_id and b.owner_user_id=t.owner_user_id
+           and b.state<>'retired'
+      ), voice_preferences as (
+        delete from vy_replica_voice_preference p using target t
+         where p.replica_id=t.replica_id and p.owner_user_id=t.owner_user_id
+           and exists (
+             select 1 from vy_replica_generation g
+             join vy_replica_processing_artifact a on a.artifact_id=g.preview_artifact_id
+              and a.replica_id=g.replica_id and a.owner_user_id=g.owner_user_id
+              where g.generation_id in (p.left_generation_id,p.right_generation_id)
+                and a.source_id=t.source_id and a.replica_id=t.replica_id
+                and a.owner_user_id=t.owner_user_id
+           )
+      ), preview_generations as (
+        delete from vy_replica_generation g using vy_replica_processing_artifact a,target t
+         where g.preview_artifact_id=a.artifact_id and g.replica_id=a.replica_id
+           and g.owner_user_id=a.owner_user_id and a.source_id=t.source_id
+           and a.replica_id=t.replica_id and a.owner_user_id=t.owner_user_id
+      ), removed as (
+        delete from vy_replica_source s using target t
+         where s.source_id=t.source_id and s.replica_id=t.replica_id and s.owner_user_id=t.owner_user_id
           and (select count(*) from identity_cases)>=0 and (select count(*) from preserved_identity)>=0
        returning t.source_id,t.replica_id,t.owner_user_id,t.erasure_attempts
      ), attempted as (
