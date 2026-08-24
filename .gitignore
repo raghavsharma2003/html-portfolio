@@ -53,3 +53,7 @@ evals/feltmem/out/
 # is regenerated per run, and the broken copy in particular must never reach a
 # commit — it is a build of this layer with the echo gate cut out.
 evals/.sound/
+
+# key pool + RCA labels (secrets — never commit)
+api/keyring.json
+api/google-keys.env

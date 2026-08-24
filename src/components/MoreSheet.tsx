@@ -13,6 +13,7 @@
 // ten seconds after.
 
 import NotifyRow from "../notify/NotifyRow";
+import toBody from "./bodyPortal";
 import { useEffect, useRef, useState } from "react";
 import type { AppState } from "../state/store";
 import { HER_NAME } from "../engine/persona";
@@ -220,7 +221,7 @@ export default function MoreSheet({
   // sunset. It cannot reach any handler: `skyVars` writes CSS variables.
   const sky = useSky();
 
-  return (
+  return toBody(
     <>
       <div className="sheet-veil" onClick={onClose} />
       <div
@@ -623,6 +624,6 @@ export default function MoreSheet({
           </>
         )}
       </div>
-    </>
+    </>,
   );
 }

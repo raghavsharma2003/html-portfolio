@@ -14,6 +14,14 @@ import PhotoAvatar from "./PhotoAvatar";
 import { CloseIcon, MoreIcon, ArrowUpIcon } from "./icons";
 import { AnimGlyph } from "./anim";
 import gateArt from "../assets/empty/story-gate.svg";
+// task #134 — see bodyPortal.tsx. This viewer has TWO call sites: App.tsx
+// mounts it as a sibling of `.chat-wrap` (never trapped), Chat.tsx mounts it
+// as a CHILD of `.chat` (trapped under `.home-back`, isolation: isolate).
+// Portalling here, in the one component, fixes both uniformly rather than
+// leaving the fix dependent on which call site happens to be used —
+// PhotoViewer.tsx's header names this exact file as the same defect,
+// deliberately left for this workstream to pick up.
+import toBody from "./bodyPortal";
 
 const SEGMENT_MS = 5200;
 
@@ -136,7 +144,7 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
 
   if (!cur) return null;
 
-  return (
+  return toBody(
     <div
       className="story-view"
       role="dialog"
@@ -357,6 +365,6 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
           </button>
         </div>
       )}
-    </div>
+    </div>,
   );
 }

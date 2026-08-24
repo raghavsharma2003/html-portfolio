@@ -15,6 +15,7 @@ import {
 } from "../engine/account";
 import { ChevronIcon, CloseIcon } from "./icons";
 import { AnimGlyph } from "./anim";
+import toBody from "./bodyPortal";
 
 interface Props {
   state: AppState;
@@ -122,7 +123,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
     if (code.length === 6) verify(code);
   }
 
-  return (
+  return toBody(
     <>
       <div className="sheet-veil" onClick={onClose} />
       <div className="sheet auth-sheet" role="dialog" aria-modal="true" aria-label="Account">
@@ -278,6 +279,6 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
           </>
         )}
       </div>
-    </>
+    </>,
   );
 }

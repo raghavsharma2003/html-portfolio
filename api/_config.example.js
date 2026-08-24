@@ -25,6 +25,12 @@ export const SUPABASE_KEY = "";
 export const GOOGLE_KEYS = [];
 // Kept for compatibility; folded into the pool above when set.
 export const GOOGLE_KEY = "";
+// The LABELED pool, for RCA: [{ label, key }, ...] where label is the owner tag
+// ("gaurav-3", "team@x.world") — never a secret, names WHOSE key. Preferred over
+// GOOGLE_KEYS locally; the trace records which label served each turn. In the
+// Vercel env, use GOOGLE_KEYS="label~key,label~key,..." instead. Managed by
+// scripts/keyring.mjs from api/keyring.json (both gitignored). See docs/KEYRING.md.
+export const GOOGLE_KEYRING = [];
 
 // A BILLED Google key. Optional, and the difference between ~600ms and ~2s to
 // first audio once the free pool is spent: it is the same streaming endpoint,

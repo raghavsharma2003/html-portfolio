@@ -398,6 +398,10 @@ export default async function handler(req, res) {
       trace.retries += budget.retries;
       trace.pool.transient_attempts = budget.attempts;
       trace.pool.deadline_ms = TRANSIENT_DEADLINE_MS;
+      // RCA: WHICH account served this turn — the owner-label, never the key.
+      // Pairs with pool.aborted / fallbacks so a day of meera_turn answers
+      // "which key is carrying the load and which one dies at noon".
+      if (got.label) trace.pool.served_label = got.label;
       if (got.value) return got.value;
       trace.pool.aborted = !got.triedAll;
       trace.fallbacks.push({

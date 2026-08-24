@@ -37,14 +37,42 @@ const ENV_POOL = (process.env.GOOGLE_KEYS || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
-const POOL = (ENV_POOL.length
-  ? ENV_POOL
-  : Array.isArray(CFG.GOOGLE_KEYS) && CFG.GOOGLE_KEYS.length
-    ? CFG.GOOGLE_KEYS
-    : [CFG.GOOGLE_KEY])
-  .filter((k) => typeof k === "string" && k.length > 20)
-  // a key pasted twice would otherwise be tried twice before moving on
-  .filter((k, i, a) => a.indexOf(k) === i);
+
+// EACH POOL ENTRY MAY CARRY A LABEL, for RCA. Format: `label~key` (or a bare
+// `key`). The label is the owner/account tag the owner supplies — "gaurav-3",
+// "team@carbonsettle.world" — and it is NOT a secret: it names WHOSE key, never
+// the key. When a key 429s or 503s at 11am, the trace records its label so
+// "which account is the one dying at noon" is a query, not a guess. `~` is a
+// safe separator: base64url keys use only [A-Za-z0-9-_.] and never contain it.
+// A gitignored `label~key` mapping also lets the same env string carry the
+// labels straight into Vercel with no second store to keep in sync.
+// Local `_config.js` may provide the same shape via GOOGLE_KEYRING [{label,key}].
+const rawEntries = ENV_POOL.length
+  ? ENV_POOL.map((e) => {
+      const i = e.indexOf("~");
+      return i > 0 ? { label: e.slice(0, i), key: e.slice(i + 1) } : { label: null, key: e };
+    })
+  : Array.isArray(CFG.GOOGLE_KEYRING) && CFG.GOOGLE_KEYRING.length
+    ? CFG.GOOGLE_KEYRING.map((r) => ({ label: r.label ?? null, key: r.key }))
+    : (Array.isArray(CFG.GOOGLE_KEYS) && CFG.GOOGLE_KEYS.length ? CFG.GOOGLE_KEYS : [CFG.GOOGLE_KEY]).map((k) => ({
+        label: null,
+        key: k,
+      }));
+
+const seen = new Set();
+const KEYRING = rawEntries.filter((e) => {
+  if (typeof e.key !== "string" || e.key.length <= 20) return false;
+  if (seen.has(e.key)) return false; // a key pasted twice is tried once
+  seen.add(e.key);
+  return true;
+});
+const POOL = KEYRING.map((e) => e.key);
+// key -> label, for the trace. Never the reverse: nothing maps a label back to
+// its key, so a leaked label can never reconstruct a secret.
+const LABEL_OF = new Map(KEYRING.map((e, i) => [e.key, e.label || `key-${i}`]));
+
+/** The owner/account label for a key, for RCA in the trace. Never the key. */
+export const labelFor = (key) => LABEL_OF.get(key) || "unknown";
 
 /**
  * A BILLED Google key, if one is configured. Optional, and everything works
@@ -87,6 +115,21 @@ export function healthyKeys() {
 export function markExhausted(key) {
   cooled.set(key, Date.now() + COOL_MS);
 }
+
+// PER-LABEL RCA COUNTERS — process-lifetime, labels only, never a key. This is
+// the answer to "which account keeps dying": a running tally by owner-tag of
+// how often each key hit quota or a transient. Per-instance like `cooled` (the
+// same measured tradeoff — a Neon write per 429 to centralise it is not worth
+// it), read via poolRca() by a diagnostics endpoint. A number, not a secret.
+const rca = new Map(); // label -> { quota, transient }
+function bumpRca(key, kind) {
+  const label = labelFor(key);
+  const row = rca.get(label) || { quota: 0, transient: 0 };
+  row[kind] = (row[kind] || 0) + 1;
+  rca.set(label, row);
+}
+/** RCA snapshot: per-owner-label quota/transient counts since this instance woke. */
+export const poolRca = () => Object.fromEntries(rca);
 
 /**
  * Run `fn(key)` against each healthy key until one succeeds.
@@ -157,9 +200,10 @@ export async function walkKeys(keys, fn, paidKey = PAID_KEY) {
       lastErr = e?.message || "threw";
       continue; // network flake — the next key is a free retry
     }
-    if (r?.ok) return { value: r.value, key };
+    if (r?.ok) return { value: r.value, key, label: labelFor(key) };
     if (r?.exhausted) {
       if (key !== paidKey) markExhausted(key); // a billed key is never "spent"
+      bumpRca(key, "quota");
       lastErr = "quota";
       continue;
     }
@@ -171,6 +215,7 @@ export async function walkKeys(keys, fn, paidKey = PAID_KEY) {
     // served by the slower paid lane as a result.
     if (r?.retry) {
       cooled.set(key, Date.now() + SICK_MS);
+      bumpRca(key, "transient");
       lastErr = r.error || "transient";
       continue;
     }

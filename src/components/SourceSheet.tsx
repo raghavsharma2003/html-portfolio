@@ -26,6 +26,7 @@ import { useEffect, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 import { CameraIcon, ChevronIcon, CloseIcon } from "./icons";
 import { MAX_ATTACHMENTS, MAX_DOCS } from "./attachments";
+import toBody from "./bodyPortal";
 
 /**
  * A picture-shaped icon for the gallery row.
@@ -160,7 +161,7 @@ export default function SourceSheet({
     sheet.current?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
   }, []);
 
-  return (
+  return toBody(
     <>
       <div className="sheet-veil" onClick={onClose} />
       <div
@@ -255,6 +256,6 @@ export default function SourceSheet({
           )}
         </div>
       </div>
-    </>
+    </>,
   );
 }

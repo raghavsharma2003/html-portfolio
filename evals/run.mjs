@@ -385,6 +385,9 @@ const suites = {
   // It also lints the SOURCE for the folding coming back, which no test that
   // runs today's code can see. Offline, deterministic, $0, ~4s.
   resilience: "resilience/run.mjs",
+  // The labeled key pool: an owner-tag travels with each key so RCA can name
+  // WHICH account 429s, and a label can never reconstruct a secret. Hermetic.
+  keyring: "keyring/run.mjs",
   // WS-COMPOSER. Sending more than one picture, with something written on it:
   // the five-cap and its partial-accept behaviour, the total-byte rail, the
   // collage a count resolves to, the `images` + `caption` wire shape and the
