@@ -2287,3 +2287,21 @@ filetypes, ErrorBoundary — the last one deliberately, so the crash card
 needs no fetch at the moment something already failed). src/components/
 anim.tsx is the single seam that knows /anim/ paths and makes the
 reduced-motion decision. **Reverses if** the marks stop being currentColor.
+
+## `os-first-optimization` — owner directive (2026-08-24), standing law for all optimization work
+
+Three rules the owner set when cost/scale work began, ranking above any
+optimization win:
+1. **Quality is never compromised.** The goal is human-to-human interaction;
+   an optimization that moves felt quality by even 1% is rejected regardless
+   of savings. (Consistent with the standing speed/quality directive.)
+2. **Changes land at the OS layer by default** — so when the personality
+   changes (Maya to anyone else), the work carries over. The OS gets better
+   permanently; per-persona rework is the failure mode.
+3. **Maya-level changes are allowed where truly persona-specific**, but must
+   be logged and documented well enough that the next personality-building
+   agent can read what is Maya's and what is the OS's. persona.ts's coming
+   core/character split is the structural form of this rule.
+
+**Reverses if:** the owner says so. This node is the anchor future agents
+cite when deciding where a change belongs.

@@ -1611,6 +1611,12 @@
    "kind": "rejection",
    "at": "2026-08-24",
    "title": "No animated glyph inside an aria-live status label; eyes removed from CallVoice copy, kept on the story gate"
+  },
+  {
+   "id": "os-first-optimization",
+   "kind": "decision",
+   "at": "2026-08-24",
+   "title": "Owner directive: quality untouchable; optimize at the OS layer by default; Maya-level changes allowed but documented for the next personality agent"
   }
  ],
  "edges": [
