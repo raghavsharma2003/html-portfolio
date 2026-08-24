@@ -36,12 +36,16 @@ Enrollment requires two distinct evidence classes:
 
 The generic Vyakti liveness phrase is not reused as Microsoft consent. A
 training source cannot also be relabelled as the consent source. The adapter
-accepts only WAV/MP3, 5-90 seconds per file, no more than ten prompts and no
-more than 30 MiB across the bounded request.
+accepts only canonical 24 kHz, 16-bit, mono PCM WAV, 5-90 seconds per file, no
+more than ten prompts and no more than 30 MiB across the bounded request.
 
 Private audio is downloaded only from the exact configured Supabase origin
-with redirects disabled. Each file is hashed again before any paid reservation
-or Azure mutation. Azure receives memory-only multipart files with synthetic
+with redirects disabled. Each file is hashed again and its RIFF length, chunk
+bounds, format fields, frame alignment, measured duration and basic signal
+integrity are byte-probed before any paid reservation or Azure mutation.
+Declared duration cannot override the duration encoded in PCM. Polyglot tails,
+silence, severe clipping, excessive DC offset and hash-valid disguised files
+fail closed. Azure receives memory-only multipart files with synthetic
 filenames; private storage paths and signed URLs are not stored in the spend
 ledger.
 

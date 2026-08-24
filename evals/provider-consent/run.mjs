@@ -179,7 +179,7 @@ ok("hash duration and speaker verification remain explicitly pending after objec
 const migration = readFileSync(join(ROOT, "db/migrations/033_replica_provider_consent.sql"), "utf8");
 const schema = readFileSync(join(ROOT, "db/schema.sql"), "utf8");
 const sourceRoute = readFileSync(join(ROOT, "api/replica-source.js"), "utf8");
-const sourceCore = readFileSync(join(ROOT, "api/_replica-source.js"), "utf8");
+const sourceErasureCore = readFileSync(join(ROOT, "api/_replica-source-erasure.js"), "utf8");
 const consentCore = readFileSync(join(ROOT, "api/_replica-consent.js"), "utf8");
 const endpoint = readFileSync(join(ROOT, "api/replica-provider-consent.js"), "utf8");
 ok("migration is accepted by the production one-statement splitter", splitSql(migration).length === 4);
@@ -191,8 +191,8 @@ ok("canonical schema includes migration 033", schema.includes("vy_replica_provid
 ok("generic source finalization cannot bypass the provider-specific transition",
   sourceRoute.includes("use_provider_consent_finalize"));
 ok("source erasure first revokes and detaches provider evidence before the restrictive FK delete",
-  /provider_consent as \([\s\S]*set source_id = null, state = 'revoked'/.test(sourceCore) &&
-  /provider_consent_detached/.test(sourceCore));
+  /provider_consent as \([\s\S]*set source_id=null,state='revoked'/.test(sourceErasureCore) &&
+  sourceErasureCore.indexOf("provider_consent as (") < sourceErasureCore.indexOf("delete from vy_replica_source"));
 ok("capture biometric or training withdrawal immediately revokes provider consent",
   /provider_consents as \([\s\S]*update vy_replica_provider_consent set state = 'revoked'/.test(consentCore) &&
   /'biometric' = any\(\$3::text\[\]\)/.test(consentCore));

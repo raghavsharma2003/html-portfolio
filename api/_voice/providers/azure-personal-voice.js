@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { probeEnrollmentWav } from "../../_audio/wav.js";
 import { canonicalJson, sha256Hex } from "../../_provenance/contracts.js";
 import {
   beginProviderSpend,
@@ -22,8 +23,6 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const AUDIO_MIMES = new Map([
   ["audio/wav", ".wav"],
   ["audio/x-wav", ".wav"],
-  ["audio/mpeg", ".mp3"],
-  ["audio/mp3", ".mp3"],
 ]);
 const MAX_AUDIO_BYTES = 30 * 1024 * 1024;
 
@@ -246,7 +245,16 @@ export function createAzurePersonalVoiceProvider(options = {}) {
     if (!bytes.length || bytes.length > MAX_AUDIO_BYTES) fail("azure_personal_voice_audio_too_large", 413);
     if (createHash("sha256").update(bytes).digest("hex") !== reference.sha256)
       fail("azure_personal_voice_audio_hash_mismatch", 409);
-    return Object.freeze({ bytes, mime: reference.mime, extension: AUDIO_MIMES.get(reference.mime) });
+    const probe = probeEnrollmentWav(bytes, { expectedDurationMs: reference.durationMs });
+    if (probe.durationMs < 5_000 || probe.durationMs > 90_000)
+      fail("azure_personal_voice_audio_duration_invalid", 409);
+    return Object.freeze({
+      bytes,
+      mime: reference.mime,
+      extension: AUDIO_MIMES.get(reference.mime),
+      durationMs: probe.durationMs,
+      probe,
+    });
   }
 
   async function ensureConsent(id, input, audio, signal) {
@@ -289,26 +297,6 @@ export function createAzurePersonalVoiceProvider(options = {}) {
     ...descriptor,
     async createVoice(rawInput) {
       const input = assertAzurePersonalVoiceInput(rawInput);
-      const commitment = sha256Hex(canonicalJson({
-        protocol: PROVIDER_VERSION,
-        replica_id: input.replicaId,
-        genome_version: input.genomeVersion,
-        project_id: config.projectId,
-        company_name: config.companyName,
-        consent: {
-          source_id: input.consent.sourceId,
-          sha256: input.consent.sha256,
-          locale: input.consent.locale,
-          voice_talent_name: input.consent.voiceTalentName,
-        },
-        references: input.references.map((reference) => ({
-          source_id: reference.sourceId, sha256: reference.sha256, duration_ms: reference.durationMs,
-        })).sort((left, right) => left.source_id.localeCompare(right.source_id)),
-        model: config.model,
-      }));
-      const suffix = sha256Hex(`${input.idempotencyKey}:${commitment}`).slice(0, 32);
-      const voiceId = `vy-${suffix}`;
-      const consentId = `vyc-${suffix}`;
       const signal = rawInput.signal;
       const consentAudio = await privateAudio(input.consent, signal);
       const audios = [];
@@ -319,6 +307,31 @@ export function createAzurePersonalVoiceProvider(options = {}) {
         if (totalBytes > MAX_AUDIO_BYTES) fail("azure_personal_voice_audio_too_large", 413);
         audios.push(audio);
       }
+      const actualTrainingDurationMs = audios.reduce((total, audio) => total + audio.durationMs, 0);
+      if (actualTrainingDurationMs < 30_000 || actualTrainingDurationMs > 90_000)
+        fail("azure_personal_voice_training_duration_invalid", 409);
+      const commitment = sha256Hex(canonicalJson({
+        protocol: PROVIDER_VERSION,
+        replica_id: input.replicaId,
+        genome_version: input.genomeVersion,
+        project_id: config.projectId,
+        company_name: config.companyName,
+        consent: {
+          source_id: input.consent.sourceId,
+          sha256: input.consent.sha256,
+          duration_ms: consentAudio.durationMs,
+          locale: input.consent.locale,
+          voice_talent_name: input.consent.voiceTalentName,
+        },
+        references: input.references.map((reference, index) => ({
+          source_id: reference.sourceId, sha256: reference.sha256, duration_ms: audios[index].durationMs,
+          format: `${audios[index].probe.sampleRate}/${audios[index].probe.bitsPerSample}/${audios[index].probe.channels}`,
+        })).sort((left, right) => left.source_id.localeCompare(right.source_id)),
+        model: config.model,
+      }));
+      const suffix = sha256Hex(`${input.idempotencyKey}:${commitment}`).slice(0, 32);
+      const voiceId = `vy-${suffix}`;
+      const consentId = `vyc-${suffix}`;
       const reservation = await budget.reserve(db, {
         operation: "voice_training", requestKey: input.idempotencyKey, inputCommitment: commitment,
         adapter: descriptor, env,

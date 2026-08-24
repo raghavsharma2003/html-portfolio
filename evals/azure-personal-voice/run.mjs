@@ -9,6 +9,7 @@ import {
   createAzurePersonalVoiceProvider,
   parseAzurePersonalVoiceRef,
 } from "../../api/_voice/providers/azure-personal-voice.js";
+import { probeEnrollmentWav } from "../../api/_audio/wav.js";
 import { SYNTHETIC_AUDIO_DISCLOSURE, VOICE_PCM_FORMAT, assertSynthesisResult } from "../../api/_voice/contracts.js";
 import { createVoiceProvider } from "../../api/_voice/registry.js";
 
@@ -17,8 +18,39 @@ const RID = "10000000-0000-4000-8000-000000000001";
 const CONSENT_SOURCE = "20000000-0000-4000-8000-000000000002";
 const VOICE_SOURCE = "30000000-0000-4000-8000-000000000003";
 const SPEAKER_PROFILE = "40000000-0000-4000-8000-000000000004";
-const consentBytes = Buffer.from("consent-audio-fixture");
-const voiceBytes = Buffer.from("clean-target-voice-fixture");
+
+function pcmWav(durationMs, options = {}) {
+  const sampleRate = options.sampleRate || 24_000;
+  const channels = options.channels || 1;
+  const bits = options.bits || 16;
+  const frames = Math.round(durationMs * sampleRate / 1000);
+  const blockAlign = channels * bits / 8;
+  const dataBytes = frames * blockAlign;
+  const bytes = Buffer.alloc(44 + dataBytes);
+  bytes.write("RIFF", 0);
+  bytes.writeUInt32LE(36 + dataBytes, 4);
+  bytes.write("WAVE", 8);
+  bytes.write("fmt ", 12);
+  bytes.writeUInt32LE(16, 16);
+  bytes.writeUInt16LE(1, 20);
+  bytes.writeUInt16LE(channels, 22);
+  bytes.writeUInt32LE(sampleRate, 24);
+  bytes.writeUInt32LE(sampleRate * blockAlign, 28);
+  bytes.writeUInt16LE(blockAlign, 32);
+  bytes.writeUInt16LE(bits, 34);
+  bytes.write("data", 36);
+  bytes.writeUInt32LE(dataBytes, 40);
+  if (bits === 16) {
+    for (let frame = 0; frame < frames; frame++) {
+      const sample = options.silence ? 0 : options.clipped ? (frame % 2 ? -32_768 : 32_767) : Math.round(Math.sin(frame * 0.071) * 7_000);
+      for (let channel = 0; channel < channels; channel++) bytes.writeInt16LE(sample, 44 + (frame * channels + channel) * 2);
+    }
+  }
+  return bytes;
+}
+
+const consentBytes = pcmWav(7_000);
+const voiceBytes = pcmWav(60_000);
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 let checks = 0;
 
@@ -43,6 +75,19 @@ assert.throws(() => azurePersonalVoiceConfig({ ...env, AZURE_PERSONAL_VOICE_ENAB
 assert.throws(() => azurePersonalVoiceConfig({ ...env, AZURE_PERSONAL_VOICE_LIMITED_ACCESS_APPROVED: "false" }), /azure_personal_voice_approval_required/);
 assert.throws(() => azurePersonalVoiceConfig({ ...env, AZURE_PERSONAL_VOICE_BASE_MODEL: "PhoenixLatestNeural" }), /model_must_be_version_pinned/);
 ok("production Azure voice requires an explicit enable flag, Limited Access approval and a pinned base model", true);
+
+const probed = probeEnrollmentWav(consentBytes, { expectedDurationMs: 7_000 });
+ok("enrollment WAV is byte-probed as exact 24 kHz mono PCM16 with measured signal and duration",
+  probed.durationMs === 7_000 && probed.sampleRate === 24_000 && probed.channels === 1 && probed.rms > 0.1);
+assert.throws(() => probeEnrollmentWav(Buffer.from("RIFF not actually a wave")), /wav_container_invalid/);
+assert.throws(() => probeEnrollmentWav(pcmWav(100, { sampleRate: 16_000 })), /wav_format_unsupported/);
+assert.throws(() => probeEnrollmentWav(pcmWav(100, { channels: 2 })), /wav_format_unsupported/);
+assert.throws(() => probeEnrollmentWav(pcmWav(100, { silence: true })), /wav_signal_missing/);
+assert.throws(() => probeEnrollmentWav(pcmWav(100, { clipped: true })), /wav_clipping_excessive/);
+assert.throws(() => probeEnrollmentWav(pcmWav(100), { expectedDurationMs: 200 }), /wav_duration_mismatch/);
+const trailing = Buffer.concat([pcmWav(100), Buffer.from("hidden")]);
+assert.throws(() => probeEnrollmentWav(trailing), /wav_container_length_mismatch/);
+ok("polyglot tails, fake headers, silence, clipping, wrong shape and false durations fail closed", true);
 
 const input = {
   replicaId: RID,
@@ -244,6 +289,22 @@ const tampered = createAzurePersonalVoiceProvider({
 });
 await assert.rejects(tampered.createVoice({ ...input, idempotencyKey: "voice-build-idempotency-0003" }), /audio_hash_mismatch/);
 ok("tampered private audio is rejected before any paid reservation or Azure request", tamperEvents.length === 0);
+
+const disguisedBytes = Buffer.from("RIFF-not-a-real-wave");
+const structureEvents = [];
+const disguised = createAzurePersonalVoiceProvider({
+  env,
+  db: async () => [],
+  budget: { ...budget, async reserve(...args) { structureEvents.push("reserved"); return budget.reserve(...args); } },
+  sleep: async () => {},
+  fetchImpl: async (url) => new Response(url.includes("consent") ? consentBytes : disguisedBytes, { status: 200 }),
+});
+await assert.rejects(disguised.createVoice({
+  ...input,
+  idempotencyKey: "voice-build-idempotency-0006",
+  references: [{ ...input.references[0], sha256: digest(disguisedBytes) }],
+}), /wav_container_invalid/);
+ok("a hash-valid disguised media payload is rejected before budget reservation or Azure mutation", structureEvents.length === 0);
 
 await assert.rejects(provider.synthesizeStream({ providerRef: created.providerRef, text: "Hello" }), /synthesis_request_key_required/);
 ok("client text alone cannot mint a paid synthesis retry identity", true);
