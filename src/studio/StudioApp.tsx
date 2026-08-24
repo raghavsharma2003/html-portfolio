@@ -32,6 +32,7 @@ import CalibrationStudio from "./CalibrationStudio";
 import RuntimeGate from "./RuntimeGate";
 import ReplicaDialogueLab from "./ReplicaDialogueLab";
 import CandidateEvaluationLab from "./CandidateEvaluationLab";
+import VoiceEnrollmentLab from "./VoiceEnrollmentLab";
 import {
   createSourceUpload,
   deleteSource,
@@ -53,13 +54,6 @@ type AuthStep = "email" | "code";
 type LoadState = "booting" | "loading" | "ready" | "error";
 
 const STAGES = [
-  {
-    id: "voice",
-    number: "07",
-    title: "Voice laboratory",
-    copy: "Compare identity, accent, rhythm, and emotion across blinded candidate renders.",
-    availability: "Voice training remains disabled",
-  },
   {
     id: "multimodal",
     number: "08",
@@ -516,6 +510,14 @@ function ReplicaWorkspace({
           <CalibrationStudio
             token={accessToken}
             replicaId={replica.replica_id}
+            onAuthError={onReviewAuthError}
+          />
+
+          <VoiceEnrollmentLab
+            key={`voice-enrollment-${replica.replica_id}`}
+            token={accessToken}
+            replica={replica}
+            consents={consents}
             onAuthError={onReviewAuthError}
           />
 

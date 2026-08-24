@@ -100,6 +100,9 @@ export function buildVoiceGenomeDraft(input) {
     references: {
       source_ids: uniqueSorted(evidence.map((row) => row.source_id)),
       artifact_ids: uniqueSorted(artifacts.map((row) => row.artifact_id)),
+      enrollment_artifact_ids: uniqueSorted(artifacts.filter((row) =>
+        row.stage === "enhance" && ["audio/wav", "audio/x-wav"].includes(String(row.mime || "").toLowerCase())
+      ).map((row) => row.artifact_id)),
       evidence_ids: uniqueSorted(evidence.map((row) => row.evidence_id)),
       transform_lineage: artifacts.map((row) => ({
         artifact_id: row.artifact_id,
@@ -184,6 +187,7 @@ export function voiceGenomeApprovalReadiness(input) {
     if (Object.keys(definition.speaker_identity?.embedding_families || {}).length < 2) issues.push("embedding_family_coverage");
     if (!definition.acoustic_distributions?.length) issues.push("acoustic_distributions_missing");
     if (!definition.target_segments?.length) issues.push("target_segments_missing");
+    if (!definition.references?.enrollment_artifact_ids?.length) issues.push("enrollment_artifacts_missing");
     if ((definition.references?.transform_lineage || []).some((entry) =>
       /fake/i.test(String(entry.adapter?.name || "")) || /(?:^|-)test$/.test(String(entry.adapter?.version || "")))) {
       issues.push("test_fixture_provenance");

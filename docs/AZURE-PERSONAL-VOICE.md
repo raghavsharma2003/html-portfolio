@@ -1,8 +1,9 @@
 # Azure Personal Voice adapter
 
-Status: production-shaped adapter and mocked protocol qualification implemented
-on `voice-cloning`, 2026-08-24. No Azure Personal Voice request has been made,
-no profile has been created and Limited Access approval has not been verified.
+Status: production-shaped adapter, provider-specific owner capture and the
+VoiceGenome-to-provider control plane are implemented and offline-qualified on
+`voice-cloning`, 2026-08-24. No Azure Personal Voice request has been made, no
+profile has been created and Limited Access approval has not been verified.
 
 ## Why this lane exists
 
@@ -43,6 +44,19 @@ with redirects disabled. Each file is hashed again before any paid reservation
 or Azure mutation. Azure receives memory-only multipart files with synthetic
 filenames; private storage paths and signed URLs are not stored in the spend
 ledger.
+
+The Studio records provider consent as native microphone PCM, resamples it to
+24 kHz mono and emits a WAV locally. Raw samples never pass through a third
+party or a generic media upload. The legal name is envelope-encrypted under a
+dedicated provider-consent KEK; PostgreSQL stores neither the name nor the
+rendered statement as plaintext.
+
+The enrollment control plane accepts only an exact approved VoiceGenome
+version. That version pins explicit enhanced WAV artifact IDs. The server then
+selects at most one artifact per source, rejects fixture/test provenance and
+third-party sources, and enforces a deterministic 30-90 second prompt set.
+Five-minute reads are signed immediately before use and their rotating tokens
+do not change enrollment identity.
 
 ## Provider lifecycle
 
@@ -113,12 +127,11 @@ SUPABASE_URL=https://<private project origin>
 ## Still closed
 
 - Microsoft Limited Access approval and a live approved project;
-- the owner-facing Microsoft consent recording flow;
-- the service that selects approved enhanced artifacts from a VoiceGenome and
-  creates/polls `vy_replica_voice_profile`;
 - real synthesis quality, latency, cross-language identity and spend results;
 - production Vyakti watermark, signing and C2PA adapters;
 - sealed blind audio evaluation and promotion;
+- an asynchronous provider-erasure worker for retries after transient deletion
+  failure;
 - end-to-end revocation/erasure against a live provider.
 
 Until all of those pass, the Studio correctly reports voice training as
@@ -128,4 +141,6 @@ Offline gate:
 
 ```bash
 node evals/run.mjs personalvoice
+node evals/run.mjs providerconsent
+node evals/run.mjs voiceenrollment
 ```

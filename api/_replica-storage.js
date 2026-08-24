@@ -109,6 +109,35 @@ export async function createSignedReplicaUpload(objectPath, fetchImpl = fetch) {
   };
 }
 
+export async function createSignedReplicaRead(objectPath, options = {}) {
+  const fetchImpl = options.fetchImpl || fetch;
+  const expiresIn = Number(options.expiresIn || 300);
+  if (!Number.isInteger(expiresIn) || expiresIn < 60 || expiresIn > 600) {
+    throw new ReplicaStorageError("signed_read_expiry_invalid", 500);
+  }
+  const { baseUrl } = await storageCredentials();
+  const { data } = await storageRequest(
+    `/object/sign/${encodeURIComponent(REPLICA_STORAGE_BUCKET)}/${segments(objectPath)}`,
+    { method: "POST", body: { expiresIn }, fetchImpl },
+  );
+  const raw = data?.signedURL || data?.signedUrl || data?.url;
+  if (typeof raw !== "string" || !raw.includes("token=")) {
+    throw new ReplicaStorageError("signed_read_not_issued");
+  }
+  const url = /^https?:\/\//i.test(raw)
+    ? new URL(raw)
+    : new URL(`${baseUrl}/storage/v1${raw.startsWith("/") ? "" : "/"}${raw}`);
+  const expected = new URL(baseUrl);
+  if (url.protocol !== "https:" || url.origin !== expected.origin || url.username || url.password ||
+      !url.pathname.startsWith(`/storage/v1/object/sign/${encodeURIComponent(REPLICA_STORAGE_BUCKET)}/`)) {
+    throw new ReplicaStorageError("signed_read_origin_invalid");
+  }
+  return {
+    url: url.toString(),
+    expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+  };
+}
+
 export async function replicaObjectInfo(objectPath, fetchImpl = fetch) {
   const { data } = await storageRequest(
     `/object/info/${encodeURIComponent(REPLICA_STORAGE_BUCKET)}/${segments(objectPath)}`,

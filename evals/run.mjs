@@ -128,6 +128,10 @@ const suites = {
   // exact provider statement, encrypted legal name, private audio artifact,
   // verified self-only eligibility and a non-generic finalization path.
   providerconsent: "provider-consent/run.mjs",
+  // The exact approved VoiceGenome and provider-consent artifact become one
+  // deterministic metered profile through short-lived private reads. Status,
+  // tenant binding and deletion remain server-only and provider-neutral.
+  voiceenrollment: "voice-enrollment/run.mjs",
   // Exact-version, multidimensional owner adjudication of a private turn,
   // including encrypted correction exemplars and sealed-audio lineage.
   replicafeedback: "replica-feedback/run.mjs",

@@ -2149,3 +2149,96 @@
     }
   }
 }
+.voice-enrollment-section {
+  margin-top: 28px;
+  padding: clamp(24px, 4vw, 44px);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.voice-enrollment-intro {
+  max-width: 760px;
+  margin: 10px 0 24px;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+.voice-provider-state {
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink-faint);
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.voice-provider-state.ready {
+  border-color: rgba(117, 184, 139, 0.35);
+  color: var(--forest);
+  background: var(--forest-soft);
+}
+
+.voice-gate-blockers {
+  margin-bottom: 22px;
+  padding: 16px 18px;
+  border: 1px solid rgba(157, 48, 45, 0.16);
+  border-radius: 16px;
+  background: var(--danger-soft);
+}
+
+.voice-gate-blockers p { margin: 5px 0 9px; color: var(--ink-soft); }
+.voice-gate-blockers ul { display: flex; flex-wrap: wrap; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.voice-gate-blockers li { padding: 5px 8px; border-radius: 8px; color: var(--ink-soft); background: rgba(255, 255, 255, 0.72); font-size: 0.78rem; }
+
+.voice-enrollment-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+
+.voice-enrollment-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 310px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.voice-enrollment-card h3 { margin: 8px 0 12px; font: 500 clamp(1.25rem, 2vw, 1.65rem)/1.15 var(--serif); }
+.voice-enrollment-card > p { margin: 0 0 16px; color: var(--ink-soft); line-height: 1.55; }
+.voice-enrollment-card .field { width: 100%; margin-bottom: 12px; }
+.voice-step { color: var(--forest); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; }
+
+.provider-statement { width: 100%; margin: 2px 0 16px; padding: 16px; border-left: 2px solid var(--forest); background: var(--forest-soft); }
+.provider-statement > span { display: block; margin-bottom: 8px; color: var(--forest); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.provider-statement blockquote { margin: 0 0 9px; color: var(--forest-deep); font: 400 1.03rem/1.6 var(--serif); }
+.provider-statement small { color: var(--ink-faint); }
+
+.provider-recording-review { width: 100%; }
+.provider-recording-review audio { width: 100%; margin: 4px 0 8px; }
+.provider-recording-review > span { display: block; color: var(--ink-faint); font-size: 0.78rem; }
+.voice-row-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+.voice-success { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 18px; color: #4b9564; }
+.voice-success > span { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; background: rgba(63, 122, 81, 0.2); }
+.voice-success p, .voice-success small { display: block; margin: 0; }
+.voice-success small { color: var(--ink-faint); }
+.voice-consent-receipt { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin: 20px 0 0; }
+.voice-consent-receipt > div { padding: 11px 12px; border-radius: 10px; background: var(--paper); }
+.voice-consent-receipt dt { color: var(--ink-faint); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.voice-consent-receipt dd { margin: 4px 0 0; color: var(--forest-deep); font-size: 0.82rem; }
+
+.voice-binding-list { display: grid; gap: 9px; width: 100%; margin: 2px 0 20px; }
+.voice-binding-list span { display: flex; align-items: center; gap: 9px; color: var(--ink-soft); font-size: 0.84rem; }
+.voice-binding-list i { width: 8px; height: 8px; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 50%; }
+.voice-binding-list i.done { border-color: #75b88b; background: #75b88b; box-shadow: 0 0 0 4px rgba(117, 184, 139, 0.08); }
+.voice-profile-control { width: 100%; margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.voice-enrollment-note { margin: 18px 0 0; color: var(--ink-faint); font-size: 0.78rem; }
+
+@media (max-width: 760px) {
+  .voice-enrollment-grid { grid-template-columns: 1fr; }
+  .voice-enrollment-card { min-height: auto; }
+  .voice-row-actions { flex-direction: column; }
+}

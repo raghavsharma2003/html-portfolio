@@ -31,7 +31,7 @@ export interface StudioSession {
   expiresAt: number;
 }
 
-export type ConsentScope = "capture" | "transcription" | "storage";
+export type ConsentScope = "capture" | "transcription" | "storage" | "biometric" | "training" | "inference";
 
 export interface ConsentReceipt {
   consent_id: string;
@@ -87,6 +87,38 @@ export interface LivenessChallenge {
   failure_code: string;
   issued_at: string;
   expires_at: string;
+  updated_at: string;
+}
+
+export type ProviderConsentState = "issued" | "uploaded" | "accepted" | "revoked" | "expired" | "failed";
+
+export interface ProviderConsent {
+  provider_consent_id: string;
+  replica_id: string;
+  provider: "azure_personal_voice";
+  policy_version: string;
+  template_version: string;
+  locale: "en-US";
+  statement_sha256: string;
+  statement?: string;
+  state: ProviderConsentState;
+  attempt: number;
+  source_id: string | null;
+  failure_code: string;
+  issued_at: string;
+  expires_at: string;
+  uploaded_at: string | null;
+  accepted_at: string | null;
+  updated_at: string;
+}
+
+export interface VoiceProfile {
+  voice_profile_id: string;
+  replica_id: string;
+  genome_version: number;
+  status: "creating" | "ready" | "failed" | "deleting";
+  capabilities: Record<string, string | number | boolean>;
+  created_at: string;
   updated_at: string;
 }
 

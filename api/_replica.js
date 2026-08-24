@@ -136,6 +136,15 @@ export async function revokeOwnedReplica(db, ownerUserId, id) {
          from revoked r
         where g.replica_id = r.replica_id and g.owner_user_id = $2
           and g.state in ('authorized','streaming')
+     ), voice_profiles as (
+       update vy_replica_voice_profile vp set status = 'deleting', updated_at = now()
+        from revoked r where vp.replica_id = r.replica_id and vp.owner_user_id = $2
+          and vp.status <> 'deleting'
+     ), provider_consents as (
+       update vy_replica_provider_consent pc set state = 'revoked',
+              revoked_at = coalesce(revoked_at, now()), updated_at = now()
+        from revoked r where pc.replica_id = r.replica_id and pc.owner_user_id = $2
+          and pc.state <> 'revoked'
      ), erasure as (
        insert into vy_replica_erasure_job (replica_id, owner_user_id, state)
        select replica_id, $2, 'pending' from revoked
