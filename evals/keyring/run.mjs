@@ -51,4 +51,40 @@ console.log(`\n${pass} passed, ${fail} failed`);
   ok("the 2 malformed entries are dropped, not sent upstream, and counted", health.includes("!2"), health);
 }
 
+
+// ── the bake seam: write-config must parse label~key like the runtime ────
+// The pool-0 outage: baked GOOGLE_KEYS carried "label~key" strings verbatim;
+// upstream answered 400 API_KEY_INVALID for the glued-on label, and after
+// the paste sanitiser landed the same entries were charset-dropped to zero.
+{
+  const { execSync } = await import("node:child_process");
+  const { mkdtempSync, mkdirSync, copyFileSync, readFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const A = "AQ." + "D".repeat(44);
+  const B = "AQ." + "E".repeat(44);
+  const dir = mkdtempSync(join(tmpdir(), "wc-"));
+  mkdirSync(join(dir, "scripts"));
+  mkdirSync(join(dir, "api"));
+  copyFileSync("scripts/write-config.mjs", join(dir, "scripts", "write-config.mjs"));
+  execSync("node scripts/write-config.mjs", {
+    encoding: "utf8", cwd: dir,
+    env: { ...process.env, CI: "1", OPENROUTER_KEY: "sk-or-battery-not-real", NEON_URL: "postgres://battery:not@real.invalid/db", GOOGLE_KEYS: "alice~" + A + "," + B },
+  });
+  const baked = readFileSync(join(dir, "api", "_config.js"), "utf8");
+  ok("the bake parses label~key: no tilde survives into the key array", !/GOOGLE_KEYS = \[[^\]]*~/.test(baked), "");
+  ok("…the label lands in GOOGLE_KEYRING for RCA", baked.includes('"label":"alice"'), "");
+  ok("…and a bare key gets a null label, not a mangled one", baked.includes('"label":null'), "");
+}
+// ── the baked-array runtime path parses label~key too ────────────────────
+{
+  const { execSync } = await import("node:child_process");
+  const A = "AQ." + "F".repeat(44);
+  const out = execSync(
+    "node --input-type=module -e \"const g = await import('./api/_gkeys.js'); console.log(g.poolSize(), g.labelFor('" + A + "'));\"",
+    { encoding: "utf8", env: { ...process.env, GOOGLE_KEYS: "frank~" + A } },
+  ).trim();
+  ok("env label~key: pool 1, label resolves for RCA", out === "1 frank", out);
+}
+
 if (fail) process.exit(1);

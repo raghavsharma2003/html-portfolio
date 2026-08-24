@@ -73,10 +73,14 @@ const rawEntries = ENV_POOL.length
     })
   : Array.isArray(CFG.GOOGLE_KEYRING) && CFG.GOOGLE_KEYRING.length
     ? CFG.GOOGLE_KEYRING.map((r) => ({ label: r.label ?? null, key: r.key }))
-    : (Array.isArray(CFG.GOOGLE_KEYS) && CFG.GOOGLE_KEYS.length ? CFG.GOOGLE_KEYS : [CFG.GOOGLE_KEY]).map((k) => ({
-        label: null,
-        key: k,
-      }));
+    : (Array.isArray(CFG.GOOGLE_KEYS) && CFG.GOOGLE_KEYS.length ? CFG.GOOGLE_KEYS : [CFG.GOOGLE_KEY]).map((k) => {
+        // the baked-array path parses label~key too — one entry format at
+        // every seam, or the label rides into the wire as part of the "key"
+        // (the 2026-08-24 400 API_KEY_INVALID outage, via write-config)
+        const s = typeof k === "string" ? k : "";
+        const i = s.indexOf("~");
+        return i > 0 ? { label: s.slice(0, i), key: s.slice(i + 1) } : { label: null, key: s };
+      });
 
 const seen = new Set();
 let DROPPED_MALFORMED = 0;
