@@ -61,6 +61,7 @@ export async function createSourceUpload(
   input: {
     replicaId: string;
     kind: SourceKind;
+    purpose: "memory" | "identity_document";
     mime: string;
     byteSize: number;
     sha256: string;
@@ -73,6 +74,7 @@ export async function createSourceUpload(
       op: "create_upload",
       replica_id: input.replicaId,
       kind: input.kind,
+      purpose: input.purpose,
       mime: input.mime,
       byte_size: input.byteSize,
       sha256: input.sha256,

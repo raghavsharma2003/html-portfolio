@@ -55,7 +55,22 @@ export function sourceUploadInput(value) {
   const sha256 = String(input.sha256 || "").trim().toLowerCase();
   if (!SHA256.test(sha256)) fail("lowercase SHA-256 is required");
   if (typeof input.contains_third_parties !== "boolean") fail("contains_third_parties declaration required");
-  return { kind, mime, byteSize, sha256, containsThirdParties: input.contains_third_parties };
+  const purpose = String(input.purpose || "memory").trim();
+  if (!new Set(["memory", "identity_document"]).has(purpose)) fail("unsupported source purpose");
+  if (purpose === "identity_document") {
+    const accepted = (kind === "image" && new Set(["image/jpeg", "image/png"]).has(mime)) ||
+      (kind === "document" && mime === "application/pdf");
+    if (!accepted) fail("identity document must be JPEG PNG or PDF");
+    if (input.contains_third_parties) fail("identity document must contain only the verified subject");
+  }
+  return {
+    kind,
+    mime,
+    byteSize,
+    sha256,
+    containsThirdParties: input.contains_third_parties,
+    captureMode: purpose === "identity_document" ? "identity_document" : "upload",
+  };
 }
 
 export function privateObjectPath(ownerUserId, replica, source) {
@@ -116,7 +131,7 @@ export async function createPendingSource(db, ownerUserId, id, value, options = 
          (source_id, replica_id, owner_user_id, consent_id, kind, capture_mode,
           storage_bucket, object_path, mime, byte_size, sha256,
           contains_third_parties, provenance)
-       select $3, owned.replica_id, $2, capture.consent_id, $4, 'upload',
+       select $3, owned.replica_id, $2, capture.consent_id, $4, $12,
               $5, $6, $7, $8, $9, $10, $11::jsonb
          from owned cross join capture cross join storage_ok
        returning ${SOURCE_RETURNING}
@@ -126,12 +141,13 @@ export async function createPendingSource(db, ownerUserId, id, value, options = 
        select $1, $2, 'source.create_upload', 'source', source_id::text,
               (select policy_version from owned), 'allowed',
               jsonb_build_object('kind', kind, 'byte_size', byte_size,
-                                 'contains_third_parties', contains_third_parties)
+                                 'contains_third_parties', contains_third_parties,
+                                 'capture_mode', capture_mode)
          from inserted
      )
      select * from inserted`,
     [rid, ownerUserId, sourceId, input.kind, REPLICA_STORAGE_BUCKET, path, input.mime,
-      input.byteSize, input.sha256, input.containsThirdParties, provenance],
+      input.byteSize, input.sha256, input.containsThirdParties, provenance, input.captureMode],
   );
   return rows[0] || null;
 }
@@ -208,7 +224,7 @@ export async function finalizeOwnedSource(db, ownerUserId, id, source, objectInf
        insert into vy_replica_processing_job
          (replica_id, owner_user_id, source_id, step, state)
        select replica_id, owner_user_id, source_id, 'integrity', 'queued'
-         from updated where state = 'quarantined'
+         from updated where state = 'quarantined' and capture_mode = 'upload'
        on conflict (source_id, step, revision) do nothing
      )
      select * from updated`,
@@ -229,6 +245,40 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
        update vy_replica_claim set status = 'superseded', updated_at = now()
         where replica_id = $1 and $3 = any(source_ids)
           and status in ('proposed','approved') and exists (select 1 from target)
+     ), liveness_challenges as (
+       update vy_replica_liveness_challenge ch set state='failed',failure_code='liveness_evidence_deleted',
+              updated_at=now() where ch.replica_id=$1 and ch.owner_user_id=$2 and ch.source_id=$3
+          and exists (select 1 from target)
+       returning ch.replica_id,ch.owner_user_id
+     ), liveness_replica as (
+       update vy_replica r set identity_verified_at=null,liveness_verified_at=null,identity_expires_at=null,updated_at=now()
+        where r.replica_id=$1 and r.owner_user_id=$2 and exists (select 1 from liveness_challenges)
+     ), liveness_consent as (
+       update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
+        where c.replica_id=$1 and c.owner_user_id=$2 and c.scope='biometric' and c.revoked_at is null
+          and exists (select 1 from liveness_challenges)
+     ), identity_cases as (
+       update vy_replica_identity_case c set state='revoked',revoked_at=coalesce(revoked_at,now()),
+              lease_token_hash='',leased_at=null,lease_expires_at=null,updated_at=now()
+        where c.replica_id=$1 and c.owner_user_id=$2 and c.source_id=$3 and c.state<>'revoked'
+          and exists (select 1 from target)
+       returning c.identity_case_id
+     ), identity_challenges as (
+       update vy_replica_liveness_challenge ch set state='failed',failure_code='identity_evidence_deleted',updated_at=now()
+        where ch.identity_case_id in (select identity_case_id from identity_cases)
+          and ch.state in ('issued','uploaded','verifying')
+     ), identity_replica as (
+       update vy_replica r set age_verified_at=null,identity_verified_at=null,liveness_verified_at=null,
+              identity_expires_at=null,updated_at=now() where r.replica_id=$1 and r.owner_user_id=$2
+          and exists (select 1 from identity_cases)
+       returning r.subject_person_id
+     ), identity_consent as (
+       update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
+        where c.replica_id=$1 and c.owner_user_id=$2 and c.scope='biometric' and c.revoked_at is null
+          and exists (select 1 from identity_cases)
+     ), identity_person as (
+       update vy_person p set age_tier='unverified'
+        where exists (select 1 from identity_replica r where r.subject_person_id=p.person_id)
      ), genomes as (
        update vy_replica_voice_genome set status = 'retired'
         where replica_id = $1 and status <> 'retired' and exists (select 1 from target)

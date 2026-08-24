@@ -70,7 +70,7 @@ export interface ReplicaSource {
   source_id: string;
   replica_id: string;
   kind: SourceKind;
-  capture_mode: "live_challenge" | "provider_consent" | "upload" | "import" | "derived";
+  capture_mode: "live_challenge" | "provider_consent" | "identity_document" | "upload" | "import" | "derived";
   mime: string;
   byte_size: number;
   state: SourceState;
@@ -99,6 +99,26 @@ export interface LivenessChallenge {
   failure_code: string;
   issued_at: string;
   expires_at: string;
+  updated_at: string;
+}
+
+export type IdentityCaseState = "submitted" | "verifying" | "evidence_ready" | "verified" | "expired" | "failed" | "revoked";
+
+export interface IdentityCase {
+  identity_case_id: string;
+  replica_id: string;
+  source_id: string | null;
+  state: IdentityCaseState;
+  attempt: number;
+  adult_evidence: boolean;
+  document_authentic: boolean;
+  document_current: boolean;
+  face_reference_ready: boolean;
+  credential_expires_at: string | null;
+  failure_code: string;
+  consented_at: string;
+  verified_at: string | null;
+  created_at: string;
   updated_at: string;
 }
 

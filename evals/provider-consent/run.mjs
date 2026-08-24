@@ -100,6 +100,7 @@ ok("eligible owner receives the exact ephemeral statement", issued.statement ===
 ok("issuance rechecks verified adult self ownership and all four training capabilities",
   /r\.owner_user_id=\$2/.test(issueSql) && /age_verified_at is not null/.test(issueSql) &&
   /identity_verified_at is not null/.test(issueSql) && /liveness_verified_at is not null/.test(issueSql) &&
+  /identity_expires_at>now\(\)/.test(issueSql) &&
   /array\['capture','storage','biometric','training'\]/.test(issueSql));
 ok("the daily attempt ceiling and one-live-provider-challenge arbiter are server-side",
   /attempts\.n<5/.test(issueSql) && /state in \('issued','uploaded'\)/.test(issueSql));

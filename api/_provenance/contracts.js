@@ -93,6 +93,8 @@ export function assertGenerationAuthorization(input, now = new Date()) {
   if (replica?.policy_version !== REPLICA_POLICY_VERSION) fail("replica_policy_mismatch");
   if (!validDate(replica?.age_verified_at) || !validDate(replica?.identity_verified_at) || !validDate(replica?.liveness_verified_at))
     fail("identity_verification_incomplete");
+  if (!validDate(replica?.identity_expires_at) || new Date(replica.identity_expires_at).getTime() <= Date.now())
+    fail("identity_evidence_expired");
 
   sameUuid(consent?.replica_id, request.replicaId, "consent_binding_mismatch");
   sameUuid(consent?.owner_user_id, request.ownerUserId, "consent_owner_mismatch");

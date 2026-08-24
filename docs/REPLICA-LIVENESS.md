@@ -47,7 +47,9 @@ passed.
 ## Verification boundary
 
 The worker leases only quarantined, single-subject video belonging to a
-non-revoked adult self-replica with identity verification already present. Raw
+non-revoked self-replica with independently accepted adult ID evidence and the
+exact still-private ID reference bound to the challenge. Identity is not
+pre-approved. A composite face match establishes identity and liveness together. Raw
 lease capabilities are never stored. Expired work is reclaimed, ambiguous
 provider outcomes retry forever with bounded backoff, and every attempt is
 append-only.

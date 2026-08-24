@@ -116,6 +116,7 @@ const ENROLLMENT_SQL = `select r.replica_id,r.owner_user_id,r.policy_version,
  where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
    and r.policy_version=$7 and r.lifecycle not in ('revoked','purging')
    and r.age_verified_at is not null and r.identity_verified_at is not null and r.liveness_verified_at is not null
+   and r.identity_expires_at>now()
    and not exists (
      select 1 from unnest(array['capture','storage','biometric','training']::text[]) required(scope)
       where not exists (select 1 from vy_replica_consent c where c.replica_id=r.replica_id

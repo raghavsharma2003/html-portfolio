@@ -60,6 +60,11 @@ export async function issueOwnedChallenge(db, ownerUserId, id, options = {}) {
      ), attempts as (
        select count(*)::integer as n from vy_replica_liveness_challenge
         where replica_id = $1 and owner_user_id = $2 and issued_at > now() - interval '24 hours'
+     ), identity as (
+       select c.identity_case_id from vy_replica_identity_case c join owned o on o.replica_id=c.replica_id
+        where c.owner_user_id=$2 and c.state='evidence_ready' and c.adult_evidence=true
+          and c.document_authentic=true and c.document_current=true and c.face_reference_ready=true
+          and c.credential_expires_at>now() order by c.verified_at desc limit 1
      ), expired as (
        update vy_replica_liveness_challenge set state = 'expired', updated_at = now()
         where replica_id = $1 and owner_user_id = $2
@@ -68,10 +73,10 @@ export async function issueOwnedChallenge(db, ownerUserId, id, options = {}) {
      ), issued as (
        insert into vy_replica_liveness_challenge
          (challenge_id, replica_id, owner_user_id, phrase, phrase_hash,
-          policy_version, attempt, expires_at)
-       select $3, owned.replica_id, $2, $4, $5, owned.policy_version,
+          policy_version, identity_case_id, attempt, expires_at)
+       select $3, owned.replica_id, $2, $4, $5, owned.policy_version,identity.identity_case_id,
               attempts.n + 1, now() + interval '5 minutes'
-         from owned cross join attempts
+         from owned cross join attempts cross join identity
          cross join (select count(*) from expired) cleared
         where attempts.n < 10
        returning ${CHALLENGE_RETURNING}

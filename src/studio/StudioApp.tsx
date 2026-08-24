@@ -27,6 +27,7 @@ import type {
   StudioSession,
 } from "./types";
 import EnrollmentWorkspace from "./EnrollmentWorkspace";
+import IdentityProofing from "./IdentityProofing";
 import LivenessCapture from "./LivenessCapture";
 import ProcessingReview from "./ProcessingReview";
 import PersonModelStudio from "./PersonModelStudio";
@@ -390,6 +391,7 @@ function ReplicaWorkspace({
   onIssueChallenge,
   onCreateLivenessUpload,
   onFinalizeLiveness,
+  onIdentityChanged,
   onRevoke,
   revoking,
   accessToken,
@@ -406,6 +408,7 @@ function ReplicaWorkspace({
   onRevokeConsent: () => Promise<void>;
   onCreateUpload: (input: {
     kind: SourceKind;
+    purpose: "memory" | "identity_document";
     mime: string;
     byteSize: number;
     sha256: string;
@@ -423,6 +426,7 @@ function ReplicaWorkspace({
     sha256: string;
   }) => Promise<{ challenge: LivenessChallenge; source: ReplicaSource; upload: SignedUpload }>;
   onFinalizeLiveness: (challengeId: string, sourceId: string) => Promise<LivenessChallenge>;
+  onIdentityChanged: () => Promise<void>;
   onRevoke: () => Promise<void>;
   revoking: boolean;
   accessToken: string;
@@ -529,8 +533,16 @@ function ReplicaWorkspace({
             onDeleteSource={onDeleteSource}
           />
 
+          <IdentityProofing
+            token={accessToken}
+            replicaId={replica.replica_id}
+            sources={sources}
+            onChanged={onIdentityChanged}
+            onAuthError={onReviewAuthError}
+          />
+
           <LivenessCapture
-            consentActive={hasSourceConsent(consents)}
+            consentActive={hasSourceConsent(consents) && replica.age_verified}
             challenge={challenge}
             loading={livenessLoading}
             onIssue={onIssueChallenge}
@@ -757,6 +769,21 @@ export default function StudioApp() {
     return replica;
   }, []);
 
+  const handleIdentityChanged = useCallback(async () => {
+    if (!session || !selectedId) return;
+    try {
+      const fresh = await refreshForRequest(session);
+      const [nextSources] = await Promise.all([
+        listSources(fresh.accessToken, selectedId),
+        refreshReplicaView(fresh, selectedId),
+      ]);
+      setSources(nextSources);
+    } catch (cause) {
+      handleApiError(cause, "Could not refresh identity evidence");
+      throw cause;
+    }
+  }, [handleApiError, refreshForRequest, refreshReplicaView, selectedId, session]);
+
   useEffect(() => {
     let live = true;
     restoreSession().then((restored) => {
@@ -971,6 +998,7 @@ export default function StudioApp() {
 
   async function handleCreateUpload(input: {
     kind: SourceKind;
+    purpose: "memory" | "identity_document";
     mime: string;
     byteSize: number;
     sha256: string;
@@ -1158,6 +1186,7 @@ export default function StudioApp() {
               onIssueChallenge={handleIssueChallenge}
               onCreateLivenessUpload={handleCreateLivenessUpload}
               onFinalizeLiveness={handleFinalizeLiveness}
+              onIdentityChanged={handleIdentityChanged}
               onRevoke={handleRevoke}
               revoking={revoking}
               accessToken={session.accessToken}

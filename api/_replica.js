@@ -25,6 +25,8 @@ export function replicaDisplayName(value) {
 
 export function clientReplica(row) {
   if (!row) return null;
+  const identityCurrent = row.identity_expires_at === undefined ||
+    (Boolean(row.identity_expires_at) && new Date(row.identity_expires_at).getTime() > Date.now());
   // Whitelist by construction. Ownership ids, provider handles, raw evidence,
   // verification internals and erasure processor state never enter a response.
   return {
@@ -33,16 +35,16 @@ export function clientReplica(row) {
     subject_mode: row.subject_mode,
     lifecycle: row.lifecycle,
     policy_version: row.policy_version,
-    age_verified: Boolean(row.age_verified_at),
-    identity_verified: Boolean(row.identity_verified_at),
-    liveness_verified: Boolean(row.liveness_verified_at),
+    age_verified: Boolean(row.age_verified_at) && identityCurrent,
+    identity_verified: Boolean(row.identity_verified_at) && identityCurrent,
+    liveness_verified: Boolean(row.liveness_verified_at) && identityCurrent,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
 }
 
 const RETURNING = `replica_id, display_name, subject_mode, lifecycle, policy_version,
-  age_verified_at, identity_verified_at, liveness_verified_at, created_at, updated_at`;
+  age_verified_at, identity_verified_at, liveness_verified_at, identity_expires_at, created_at, updated_at`;
 
 export async function createSelfReplica(db, ownerUserId, displayName) {
   const name = replicaDisplayName(displayName);
@@ -161,7 +163,7 @@ export async function requestOwnedReplicaErasure(db, ownerUserId, id) {
   if (!rows[0]) {
     rows = await db(
       `select r.replica_id,r.display_name,r.subject_mode,r.lifecycle,r.policy_version,
-              r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,r.created_at,r.updated_at,
+              r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,r.identity_expires_at,r.created_at,r.updated_at,
               j.job_id as erasure_request_id from vy_replica r
         join vy_replica_erasure_job j on j.replica_id=r.replica_id and j.owner_user_id=r.owner_user_id
         where r.replica_id = $1 and r.owner_user_id = $2 and r.lifecycle = 'purging' limit 1`,

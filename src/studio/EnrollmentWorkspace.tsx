@@ -48,6 +48,14 @@ const SOURCE_POLICY: Record<SourceKind, { label: string; accept: string; maxByte
   },
 };
 
+const IDENTITY_DOCUMENT_POLICY = {
+  label: "Government ID (identity only)",
+  accept: ".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf",
+  maxBytes: 52_428_800,
+  mimes: ["image/jpeg", "image/png", "application/pdf"],
+} as const;
+type UploadMode = SourceKind | "identity_document";
+
 const MIME_BY_EXTENSION: Record<string, string> = {
   wav: "audio/wav",
   mp3: "audio/mpeg",
@@ -116,6 +124,23 @@ function sourceError(file: File, kind: SourceKind, mime: string) {
   return "";
 }
 
+function identityDocumentInput(file: File) {
+  const declared = String(file.type || "").split(";", 1)[0].trim().toLowerCase();
+  const extension = file.name.split(".").pop()?.toLowerCase() || "";
+  const mime = IDENTITY_DOCUMENT_POLICY.mimes.includes(declared as typeof IDENTITY_DOCUMENT_POLICY.mimes[number])
+    ? declared
+    : MIME_BY_EXTENSION[extension] || declared;
+  const kind: SourceKind = mime === "application/pdf" ? "document" : "image";
+  const problem = file.size < 1
+    ? "This file is empty."
+    : file.size > IDENTITY_DOCUMENT_POLICY.maxBytes
+      ? `This identity document exceeds the ${bytesLabel(IDENTITY_DOCUMENT_POLICY.maxBytes)} limit.`
+      : !IDENTITY_DOCUMENT_POLICY.mimes.includes(mime as typeof IDENTITY_DOCUMENT_POLICY.mimes[number])
+        ? "Identity evidence must be a JPEG, PNG, or PDF."
+        : "";
+  return { kind, mime, problem };
+}
+
 function SourceState({ state }: { state: ReplicaSource["state"] }) {
   const labels: Record<ReplicaSource["state"], string> = {
     pending_upload: "Upload pending",
@@ -137,6 +162,7 @@ interface Props {
   onRevokeConsent: () => Promise<void>;
   onCreateUpload: (input: {
     kind: SourceKind;
+    purpose: "memory" | "identity_document";
     mime: string;
     byteSize: number;
     sha256: string;
@@ -163,7 +189,7 @@ export default function EnrollmentWorkspace({
   const [consentError, setConsentError] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawText, setWithdrawText] = useState("");
-  const [kind, setKind] = useState<SourceKind>("audio");
+  const [uploadMode, setUploadMode] = useState<UploadMode>("audio");
   const [file, setFile] = useState<File | null>(null);
   const [containsThirdParties, setContainsThirdParties] = useState<boolean | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
@@ -238,8 +264,10 @@ export default function EnrollmentWorkspace({
 
   async function upload() {
     if (!file || containsThirdParties === null) return;
-    const mime = normalizedMime(file, kind);
-    const problem = sourceError(file, kind, mime);
+    const identityInput = uploadMode === "identity_document" ? identityDocumentInput(file) : null;
+    const kind = identityInput?.kind || uploadMode as SourceKind;
+    const mime = identityInput?.mime || normalizedMime(file, kind);
+    const problem = identityInput?.problem || sourceError(file, kind, mime);
     if (problem) {
       setUploadError(problem);
       return;
@@ -254,6 +282,7 @@ export default function EnrollmentWorkspace({
       setUploadProgress(0);
       const result = await onCreateUpload({
         kind,
+        purpose: uploadMode === "identity_document" ? "identity_document" : "memory",
         mime,
         byteSize: file.size,
         sha256,
@@ -477,15 +506,18 @@ export default function EnrollmentWorkspace({
                   <span className="field-label">Source type</span>
                   <select
                     className="studio-select"
-                    value={kind}
+                    value={uploadMode}
                     disabled={uploadBusy || Boolean(pendingRetryId)}
                     onChange={(event) => {
-                      setKind(event.target.value as SourceKind);
+                      const next = event.target.value as UploadMode;
+                      setUploadMode(next);
                       setFile(null);
+                      setContainsThirdParties(next === "identity_document" ? false : null);
                       setUploadError("");
                       if (fileRef.current) fileRef.current.value = "";
                     }}
                   >
+                    <option value="identity_document">{IDENTITY_DOCUMENT_POLICY.label}</option>
                     {Object.entries(SOURCE_POLICY).map(([value, policy]) => <option key={value} value={value}>{policy.label}</option>)}
                   </select>
                 </label>
@@ -493,7 +525,7 @@ export default function EnrollmentWorkspace({
                   <input
                     ref={fileRef}
                     type="file"
-                    accept={SOURCE_POLICY[kind].accept}
+                    accept={uploadMode === "identity_document" ? IDENTITY_DOCUMENT_POLICY.accept : SOURCE_POLICY[uploadMode].accept}
                     disabled={uploadBusy || Boolean(pendingRetryId)}
                     onChange={(event) => {
                       setFile(event.target.files?.[0] ?? null);
@@ -503,13 +535,13 @@ export default function EnrollmentWorkspace({
                   <span className="file-icon" aria-hidden="true">↑</span>
                   <span className="file-picker-copy">
                     <strong>{file ? file.name : "Choose one file"}</strong>
-                    <small>{file ? bytesLabel(file.size) : `Up to ${bytesLabel(SOURCE_POLICY[kind].maxBytes)}`}</small>
+                    <small>{file ? bytesLabel(file.size) : `Up to ${bytesLabel(uploadMode === "identity_document" ? IDENTITY_DOCUMENT_POLICY.maxBytes : SOURCE_POLICY[uploadMode].maxBytes)}`}</small>
                   </span>
                   <span className="file-action">Browse</span>
                 </label>
               </div>
 
-              <fieldset className="people-declaration">
+              {uploadMode !== "identity_document" && <fieldset className="people-declaration">
                 <legend>Whose voice, face, or private information appears?</legend>
                 <label>
                   <input type="radio" name="people" checked={containsThirdParties === false} onChange={() => setContainsThirdParties(false)} />
@@ -519,11 +551,17 @@ export default function EnrollmentWorkspace({
                   <input type="radio" name="people" checked={containsThirdParties === true} onChange={() => setContainsThirdParties(true)} />
                   <span><strong>Other people appear</strong><small>I have the right to use this source</small></span>
                 </label>
-              </fieldset>
+              </fieldset>}
 
               {containsThirdParties === true && (
                 <p className="third-party-note" role="status">
                   This source will stay in quarantine. Other people must be separated from your evidence before any identity processing can be considered.
+                </p>
+              )}
+
+              {uploadMode === "identity_document" && (
+                <p className="identity-source-note" role="status">
+                  Identity-only mode bypasses memory extraction and model-training queues. The document is available only to the independent identity and live-match gates, then queued for erasure.
                 </p>
               )}
 
@@ -567,7 +605,7 @@ export default function EnrollmentWorkspace({
                       <div className="source-row" key={source.source_id}>
                         <span className="source-kind">{source.kind.slice(0, 2).toUpperCase()}</span>
                         <div className="source-copy">
-                          <strong>{SOURCE_POLICY[source.kind].label}</strong>
+                          <strong>{source.capture_mode === "identity_document" ? "Government ID (identity only)" : SOURCE_POLICY[source.kind].label}</strong>
                           <span>{bytesLabel(source.byte_size)} · added {dateLabel(source.created_at)}{source.contains_third_parties ? " · includes others" : ""}</span>
                           {source.rejection_code && <small>{source.rejection_code.replaceAll("_", " ")}</small>}
                         </div>

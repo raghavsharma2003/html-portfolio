@@ -115,7 +115,7 @@ export async function issueOwnedProviderConsent(db, ownerUserId, id, value, opti
         where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
           and r.policy_version=$8 and r.lifecycle not in ('revoked','purging')
           and r.age_verified_at is not null and r.identity_verified_at is not null
-          and r.liveness_verified_at is not null
+          and r.liveness_verified_at is not null and r.identity_expires_at>now()
           and not exists (
             select 1 from unnest(array['capture','storage','biometric','training']::text[]) required(scope)
              where not exists (

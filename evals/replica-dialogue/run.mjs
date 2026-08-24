@@ -79,6 +79,7 @@ function contextRow() {
     replica_id: RID, owner_user_id: OWNER, subject_person_id: PERSON, agent_id: AGENT,
     subject_mode: "self", lifecycle: "active", policy_version: REPLICA_POLICY_VERSION,
     age_verified_at: "2026-08-24T00:00:00.000Z", identity_verified_at: "2026-08-24T00:00:00.000Z", liveness_verified_at: "2026-08-24T00:00:00.000Z",
+    identity_expires_at: "2031-08-24T00:00:00.000Z",
     agent_status: "active", capability_id: CAP, capability_state: "active", runtime_policy: "replica-runtime-v1", qualification_hash: "a".repeat(64),
     voice_profile_id: VOICE, genome_version: 3, profile_version: 7, calibration_version: 2,
     provider: "real-voice", provider_ref: "private-provider-ref", model: "voice-v1", voice_status: "ready", capabilities: {}, genome_status: "approved",

@@ -83,6 +83,11 @@ ok("source completion is fenced until every external provider voice mapping is g
   /not exists \(select 1 from vy_replica_voice_profile/.test(completeSql));
 ok("source completion removes cited claims and cascaded processing lineage only after object deletion",
   /delete from vy_replica_claim/.test(completeSql) && /delete from vy_replica_source/.test(completeSql));
+ok("verified ID media is detached while invalid evidence clears its case challenge and every derived gate before unlink",
+  /preserved_identity as/.test(completeSql) && /set source_id=null/.test(completeSql) &&
+  /delete from vy_replica_identity_case/.test(completeSql) && /not b\.preserve/.test(completeSql) &&
+  /age_verified_at=null,identity_verified_at=null,liveness_verified_at=null/.test(completeSql) &&
+  completeSql.indexOf("identity_cases as") < completeSql.indexOf("delete from vy_replica_source"));
 ok("untraceable derived person voice and calibration definitions are scrubbed rather than merely retired",
   /update vy_replica_voice_genome/.test(completeSql) && /update vy_replica_profile/.test(completeSql) &&
   /update vy_replica_calibration/.test(completeSql) && /'erased',true/.test(completeSql));

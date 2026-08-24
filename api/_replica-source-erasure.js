@@ -104,6 +104,46 @@ export async function completeSourceErasure(db, lease) {
               revoked_at=coalesce(revoked_at,now()),updated_at=now()
          from target t where pc.source_id=t.source_id and pc.replica_id=t.replica_id
           and pc.owner_user_id=t.owner_user_id
+     ), identity_binding as (
+       select ic.identity_case_id,ic.replica_id,ic.owner_user_id,
+              (ic.state='verified' and r.age_verified_at is not null
+               and r.identity_verified_at is not null and r.liveness_verified_at is not null
+               and r.identity_expires_at>now()) preserve
+         from vy_replica_identity_case ic
+         join target t on t.source_id=ic.source_id and t.replica_id=ic.replica_id
+          and t.owner_user_id=ic.owner_user_id
+         join vy_replica r on r.replica_id=ic.replica_id and r.owner_user_id=ic.owner_user_id
+     ), preserved_identity as (
+       update vy_replica_identity_case ic set source_id=null,updated_at=now()
+        from identity_binding b where b.preserve and ic.identity_case_id=b.identity_case_id
+       returning ic.identity_case_id
+     ), identity_challenge_sources as (
+       update vy_replica_source live set state='deleting',updated_at=now()
+         from vy_replica_liveness_challenge ch
+         join identity_binding b on b.identity_case_id=ch.identity_case_id and not b.preserve
+         join target t on t.replica_id=b.replica_id and t.owner_user_id=b.owner_user_id
+        where live.source_id=ch.source_id and live.replica_id=ch.replica_id
+          and live.owner_user_id=ch.owner_user_id and live.source_id<>t.source_id
+     ), identity_cases as (
+       delete from vy_replica_identity_case ic using identity_binding b
+        where ic.identity_case_id=b.identity_case_id and not b.preserve
+          and (select count(*) from identity_challenge_sources)>=0
+       returning ic.replica_id,ic.owner_user_id
+     ), identity_replica as (
+       update vy_replica r set age_verified_at=null,identity_verified_at=null,liveness_verified_at=null,
+              identity_expires_at=null,
+              lifecycle=case when lifecycle in ('revoked','purging') then lifecycle else 'enrolling' end,
+              updated_at=now()
+        where exists (select 1 from identity_cases ic where ic.replica_id=r.replica_id
+          and ic.owner_user_id=r.owner_user_id)
+       returning r.subject_person_id
+     ), identity_consent as (
+       update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
+        where exists (select 1 from identity_cases ic where ic.replica_id=c.replica_id
+          and ic.owner_user_id=c.owner_user_id) and c.scope='biometric' and c.revoked_at is null
+     ), identity_person as (
+       update vy_person p set age_tier='unverified'
+        where exists (select 1 from identity_replica r where r.subject_person_id=p.person_id)
      ), claims as (
        delete from vy_replica_claim c using target t
         where c.replica_id=t.replica_id and c.owner_user_id=t.owner_user_id
@@ -138,6 +178,7 @@ export async function completeSourceErasure(db, lease) {
      ), removed as (
        delete from vy_replica_source s using target t
         where s.source_id=t.source_id and s.replica_id=t.replica_id and s.owner_user_id=t.owner_user_id
+          and (select count(*) from identity_cases)>=0 and (select count(*) from preserved_identity)>=0
        returning t.source_id,t.replica_id,t.owner_user_id,t.erasure_attempts
      ), attempted as (
        update vy_replica_source_erasure_attempt a set outcome='complete',failure_code='',finished_at=now()

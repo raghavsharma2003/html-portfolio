@@ -54,7 +54,7 @@ export async function beginOwnedPrivateGeneration(db, ownerUserId, input) {
       where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
         and r.lifecycle='active' and r.policy_version=$7
         and r.age_verified_at is not null and r.identity_verified_at is not null
-        and r.liveness_verified_at is not null
+        and r.liveness_verified_at is not null and r.identity_expires_at>now()
         and exists(select 1 from vy_replica_consent x
           where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
             and x.scope='inference' and x.policy_version=$7 and x.revoked_at is null

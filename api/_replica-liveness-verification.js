@@ -175,12 +175,19 @@ export async function leaseNextLivenessVerification(db, verifier, options = {}) 
          join vy_replica r on r.replica_id=ch.replica_id and r.owner_user_id=ch.owner_user_id
          join vy_replica_source s on s.source_id=ch.source_id and s.replica_id=ch.replica_id
           and s.owner_user_id=ch.owner_user_id
+         join vy_replica_identity_case ic on ic.identity_case_id=ch.identity_case_id
+          and ic.replica_id=ch.replica_id and ic.owner_user_id=ch.owner_user_id
+         join vy_replica_source ids on ids.source_id=ic.source_id and ids.replica_id=ic.replica_id
+          and ids.owner_user_id=ic.owner_user_id
         where ((ch.state='uploaded' and ch.verification_next_attempt_at<=now()) or
                (ch.state='verifying' and (ch.verification_lease_expires_at is null or ch.verification_lease_expires_at<=now())))
           and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
-          and r.age_verified_at is not null and r.identity_verified_at is not null
+          and r.age_verified_at is not null
           and s.state='quarantined' and s.capture_mode='live_challenge' and s.kind='video'
           and s.contains_third_parties=false
+          and ic.state='evidence_ready' and ic.adult_evidence=true and ic.document_authentic=true
+          and ic.document_current=true and ic.face_reference_ready=true and ic.credential_expires_at>now()
+          and ids.state='quarantined' and ids.sha256=ic.source_sha256
         order by ch.verification_next_attempt_at,ch.issued_at limit 1 for update of ch skip locked
      ), expired as (
        update vy_replica_liveness_verification_attempt a set outcome='retry',failure_code='lease_expired',finished_at=now()
@@ -193,15 +200,22 @@ export async function leaseNextLivenessVerification(db, verifier, options = {}) 
               updated_at=now()
         from candidate c where ch.challenge_id=c.challenge_id
        returning ch.challenge_id,ch.replica_id,ch.owner_user_id,ch.source_id,ch.phrase,ch.phrase_hash,
-                 ch.verification_attempt,ch.verification_lease_expires_at
+                 ch.identity_case_id,ch.verification_attempt,ch.verification_lease_expires_at
      ), attempted as (
        insert into vy_replica_liveness_verification_attempt
          (challenge_id,replica_id,owner_user_id,attempt,verifier,verifier_version,outcome)
        select challenge_id,replica_id,owner_user_id,verification_attempt,$2,$3,'running' from leased
      )
-     select l.*,s.kind,s.mime,s.byte_size,s.sha256,s.storage_bucket,s.object_path
+     select l.*,s.kind,s.mime,s.byte_size,s.sha256,s.storage_bucket,s.object_path,
+            ids.source_id identity_source_id,ids.kind identity_kind,ids.mime identity_mime,
+            ids.byte_size identity_byte_size,ids.sha256 identity_sha256,
+            ids.storage_bucket identity_storage_bucket,ids.object_path identity_object_path
        from leased l join vy_replica_source s on s.source_id=l.source_id and s.replica_id=l.replica_id
-        and s.owner_user_id=l.owner_user_id`,
+        and s.owner_user_id=l.owner_user_id
+       join vy_replica_identity_case ic on ic.identity_case_id=l.identity_case_id
+        and ic.replica_id=l.replica_id and ic.owner_user_id=l.owner_user_id
+       join vy_replica_source ids on ids.source_id=ic.source_id and ids.replica_id=ic.replica_id
+        and ids.owner_user_id=ic.owner_user_id`,
     [livenessVerificationLeaseHash(leaseToken), provider, version, leaseMs],
   );
   const row = rows[0];
@@ -225,6 +239,15 @@ export async function leaseNextLivenessVerification(db, verifier, options = {}) 
       sha256: row.sha256,
       storageBucket: row.storage_bucket,
       objectPath: row.object_path,
+    }),
+    identityReference: Object.freeze({
+      sourceId: row.identity_source_id,
+      kind: row.identity_kind,
+      mime: row.identity_mime,
+      byteSize: Number(row.identity_byte_size),
+      sha256: row.identity_sha256,
+      storageBucket: row.identity_storage_bucket,
+      objectPath: row.identity_object_path,
     }),
   });
 }
@@ -283,14 +306,21 @@ export async function completeLivenessVerification(db, lease, verdict, options =
           and s.owner_user_id=ch.owner_user_id
          join vy_replica_liveness_verification_attempt a on a.challenge_id=ch.challenge_id
           and a.attempt=ch.verification_attempt and a.outcome='running'
+         join vy_replica_identity_case ic on ic.identity_case_id=ch.identity_case_id
+          and ic.replica_id=ch.replica_id and ic.owner_user_id=ch.owner_user_id
+         join vy_replica_source ids on ids.source_id=ic.source_id and ids.replica_id=ic.replica_id
+          and ids.owner_user_id=ic.owner_user_id
         where ch.challenge_id=$1 and ch.replica_id=$2 and ch.owner_user_id=$3
           and ch.state='verifying' and ch.verification_attempt=$4
           and ch.verification_lease_token_hash=$5 and ch.verification_lease_expires_at>now()
           and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
-          and r.age_verified_at is not null and r.identity_verified_at is not null
+          and r.age_verified_at is not null
           and s.state='quarantined' and s.capture_mode='live_challenge' and s.kind='video'
           and s.contains_third_parties=false and s.sha256=$16
           and ch.verifier=$17 and a.verifier=$17 and a.verifier_version=$18
+          and ic.state='evidence_ready' and ic.adult_evidence=true and ic.document_authentic=true
+          and ic.document_current=true and ic.face_reference_ready=true and ic.credential_expires_at>now()
+          and ids.state='quarantined' and ids.sha256=ic.source_sha256 and ids.sha256=$19
         for update of ch
      ), challenge as (
        update vy_replica_liveness_challenge ch set state=$6,consumed_at=now(),failure_code=$7,
@@ -298,14 +328,26 @@ export async function completeLivenessVerification(db, lease, verdict, options =
               verification_lease_expires_at=null,updated_at=now()
         from target t where ch.challenge_id=t.challenge_id returning ch.*
      ), source as (
-       update vy_replica_source s set state=case when $6='passed' then s.state else 'rejected' end,
+       update vy_replica_source s set state=case when $6='passed' then 'deleting' else 'rejected' end,
               rejection_code=$7,provenance=provenance||$9::jsonb,updated_at=now()
         from challenge ch where s.source_id=ch.source_id and s.replica_id=ch.replica_id
           and s.owner_user_id=ch.owner_user_id returning s.source_id
+     ), identity_case as (
+       update vy_replica_identity_case ic set state='verified',updated_at=now()
+        from challenge ch where $6='passed' and ic.identity_case_id=ch.identity_case_id
+          and ic.replica_id=ch.replica_id and ic.owner_user_id=ch.owner_user_id
+       returning ic.identity_case_id,ic.replica_id,ic.owner_user_id,ic.source_id,ic.credential_expires_at
+     ), identity_source as (
+       update vy_replica_source ids set state='deleting',updated_at=now()
+        from identity_case ic where ids.source_id=ic.source_id and ids.replica_id=ic.replica_id
+          and ids.owner_user_id=ic.owner_user_id
      ), replica as (
-       update vy_replica r set liveness_verified_at=coalesce(liveness_verified_at,now()),updated_at=now()
-        from challenge ch where $6='passed' and r.replica_id=ch.replica_id and r.owner_user_id=ch.owner_user_id
-          and r.age_verified_at is not null and r.identity_verified_at is not null
+       update vy_replica r set identity_verified_at=coalesce(identity_verified_at,now()),
+              liveness_verified_at=coalesce(liveness_verified_at,now()),
+              identity_expires_at=ic.credential_expires_at,updated_at=now()
+        from challenge ch join identity_case ic on ic.identity_case_id=ch.identity_case_id
+        where $6='passed' and r.replica_id=ch.replica_id and r.owner_user_id=ch.owner_user_id
+          and r.age_verified_at is not null
        returning r.replica_id,r.owner_user_id
      ), revoked as (
        update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
@@ -339,7 +381,7 @@ export async function completeLivenessVerification(db, lease, verdict, options =
       }), REPLICA_POLICY_VERSION, consent.hash, consent.grantedAt,
       LIVENESS_VERIFICATION_POLICY.biometricConsentDays, JSON.stringify(consent.metadata),
       LIVENESS_VERIFICATION_POLICY.version, verdict.result.input_sha256,
-      verdict.result.provider_family, verdict.result.verifier_version],
+      verdict.result.provider_family, verdict.result.verifier_version, lease.identityReference.sha256],
   );
   return requireSettlement(rows, "liveness_verification_settlement_failed");
 }

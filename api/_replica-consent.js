@@ -193,6 +193,32 @@ export async function revokeOwnedConsent(db, ownerUserId, id, value) {
           and exists (select 1 from revoked)
           and ('storage' = any($3::text[]) or 'capture' = any($3::text[])
                or 'biometric' = any($3::text[]) or 'training' = any($3::text[]))
+     ), identity_cases as (
+       update vy_replica_identity_case c set state='revoked',revoked_at=coalesce(revoked_at,now()),
+              lease_token_hash='',leased_at=null,lease_expires_at=null,updated_at=now()
+        where c.replica_id=$1 and c.owner_user_id=$2 and c.state<>'revoked'
+          and exists (select 1 from revoked)
+          and ('storage'=any($3::text[]) or 'capture'=any($3::text[]) or 'biometric'=any($3::text[]))
+       returning c.identity_case_id,c.source_id
+     ), identity_sources as (
+       update vy_replica_source s set state='deleting',updated_at=now()
+        where s.replica_id=$1 and s.owner_user_id=$2
+          and (s.source_id in (select source_id from identity_cases) or s.source_id in (
+            select ch.source_id from vy_replica_liveness_challenge ch
+             where ch.identity_case_id in (select identity_case_id from identity_cases)
+          ))
+     ), identity_challenges as (
+       update vy_replica_liveness_challenge ch set state='failed',failure_code='identity_consent_revoked',updated_at=now()
+        where ch.identity_case_id in (select identity_case_id from identity_cases)
+          and ch.state in ('issued','uploaded','verifying')
+     ), identity_replica as (
+       update vy_replica r set age_verified_at=null,identity_verified_at=null,liveness_verified_at=null,
+              identity_expires_at=null,updated_at=now() where r.replica_id=$1 and r.owner_user_id=$2
+          and exists (select 1 from identity_cases)
+       returning r.subject_person_id
+     ), identity_person as (
+       update vy_person p set age_tier='unverified'
+        where exists (select 1 from identity_replica r where r.subject_person_id=p.person_id)
      ), claims as (
        update vy_replica_claim set status = 'superseded', updated_at = now()
         where replica_id = $1 and status in ('proposed','approved')

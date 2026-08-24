@@ -52,6 +52,9 @@ export function runtimeBlockers(row) {
   if (row.person_age_tier !== "adult_verified" || !row.age_verified_at) blockers.push("adult_verification_required");
   if (!row.identity_verified_at) blockers.push("identity_verification_required");
   if (!row.liveness_verified_at) blockers.push("liveness_verification_required");
+  if (row.identity_expires_at !== undefined &&
+      (!row.identity_expires_at || new Date(row.identity_expires_at).getTime() <= Date.now()))
+    blockers.push("identity_evidence_expired");
   if (!truth(row.inference_consent)) blockers.push("inference_consent_required");
   if (!truth(row.profile_approved)) blockers.push("person_profile_not_approved");
   if (!truth(row.calibration_approved)) blockers.push("calibration_not_approved");
@@ -86,7 +89,7 @@ export function clientRuntimeStatus(row) {
 }
 
 const RUNTIME_STATUS_SQL = `select r.replica_id,r.subject_mode,r.lifecycle,r.subject_person_id,
-  r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,
+  r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,r.identity_expires_at,
   p.age_tier as person_age_tier,
   exists(select 1 from vy_account_person ap
           where ap.auth_user_id=r.owner_user_id and ap.person_id=r.subject_person_id) as account_person_matches,
@@ -203,7 +206,7 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
          ) latest on true
         where r.subject_mode='self' and r.lifecycle in ('ready','active')
           and r.age_verified_at is not null and r.identity_verified_at is not null
-          and r.liveness_verified_at is not null
+          and r.liveness_verified_at is not null and r.identity_expires_at>now()
           and exists(select 1 from vy_replica_consent c
             where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
               and c.scope='inference' and c.policy_version=$3 and c.revoked_at is null
@@ -270,7 +273,7 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
 export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
   const rows = await db(
     `select r.replica_id,r.owner_user_id,r.subject_person_id,r.agent_id,r.subject_mode,r.lifecycle,
-            r.policy_version,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,
+            r.policy_version,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,r.identity_expires_at,
             a.status as agent_status,c.capability_id,c.state as capability_state,c.policy_version as runtime_policy,
             c.voice_profile_id,c.genome_version,c.profile_version,c.calibration_version,c.qualification_hash,
             vp.provider,vp.provider_ref,vp.model,vp.status as voice_status,vp.capabilities,
@@ -306,7 +309,7 @@ export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
       where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
         and r.lifecycle='active' and r.policy_version=$3
         and r.age_verified_at is not null and r.identity_verified_at is not null
-        and r.liveness_verified_at is not null
+        and r.liveness_verified_at is not null and r.identity_expires_at>now()
       limit 1`,
     [replicaId(id), ownerUserId, REPLICA_POLICY_VERSION],
   );
@@ -324,6 +327,7 @@ export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
       age_verified_at: row.age_verified_at,
       identity_verified_at: row.identity_verified_at,
       liveness_verified_at: row.liveness_verified_at,
+      identity_expires_at: row.identity_expires_at,
     },
     capability: {
       capability_id: row.capability_id,

@@ -86,7 +86,10 @@ export function createAzureCompositeLivenessVerifier(options = {}) {
   return Object.freeze({
     ...descriptor,
     async verify(claim) {
-      const signed = await signRead(claim.source.objectPath);
+      const [signed, identitySigned] = await Promise.all([
+        signRead(claim.source.objectPath),
+        signRead(claim.identityReference.objectPath),
+      ]);
       const payload = canonicalJson({
         protocol: PROTOCOL,
         request_id: `${claim.challengeId}:${claim.attempt}`,
@@ -101,6 +104,14 @@ export function createAzureCompositeLivenessVerifier(options = {}) {
           sha256: claim.source.sha256,
           byte_size: claim.source.byteSize,
           mime: claim.source.mime,
+        },
+        identity_reference: {
+          source_id: claim.identityReference.sourceId,
+          url: identitySigned.url,
+          expires_at: identitySigned.expires_at,
+          sha256: claim.identityReference.sha256,
+          byte_size: claim.identityReference.byteSize,
+          mime: claim.identityReference.mime,
         },
         verifier_version: config.version,
       });

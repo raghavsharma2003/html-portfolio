@@ -290,7 +290,7 @@ export default function LivenessCapture({
 
   return (
     <section className="liveness-section" aria-labelledby="liveness-title">
-      <div className="liveness-index">03</div>
+      <div className="liveness-index">04</div>
       <div className="liveness-body">
         <div className="panel-title-row">
           <div>
@@ -305,7 +305,7 @@ export default function LivenessCapture({
         {!consentActive ? (
           <div className="evidence-gate">
             <span className="large-lock" aria-hidden="true" />
-            <div><strong>Source permission is required first</strong><p>Record capture and private storage permission above before requesting a live phrase.</p></div>
+            <div><strong>Source permission and adult ID evidence are required first</strong><p>Record capture and private storage permission, then complete the independent ID evidence step above.</p></div>
           </div>
         ) : loading ? (
           <div className="liveness-wait" role="status"><span className="spinner" />Loading live challenge status</div>

@@ -102,6 +102,9 @@ const SHA = "d".repeat(64);
   });
   ok("challenge issuance is owner-scoped", issued?.challenge_id === SOURCE && calls[0].params[1] === OWNER);
   ok("challenge SQL requires current capture and storage consent", /scope = required\.scope/.test(calls[0].sql) && /policy_version = \$6/.test(calls[0].sql));
+  ok("challenge issuance requires a current authentic adult ID case with a usable face reference",
+    /c\.state='evidence_ready'/.test(calls[0].sql) && /c\.document_authentic=true/.test(calls[0].sql) &&
+    /c\.face_reference_ready=true/.test(calls[0].sql) && /c\.credential_expires_at>now\(\)/.test(calls[0].sql));
   ok("challenge issuance is capped at ten attempts per day", /attempts\.n < 10/.test(calls[0].sql));
 
   const finalizeCalls = [];
@@ -152,6 +155,20 @@ const SHA = "d".repeat(64);
   ok("third-party declaration cannot be omitted", throws(() => Source.sourceUploadInput({
     kind: "audio", mime: "audio/wav", byte_size: 1, sha256: SHA,
   })));
+  const identityDocument = Source.sourceUploadInput({
+    purpose: "identity_document", kind: "image", mime: "image/jpeg", byte_size: 4096,
+    sha256: SHA, contains_third_parties: false,
+  });
+  ok("identity documents enter a dedicated non-training capture mode",
+    identityDocument.captureMode === "identity_document");
+  ok("identity mode accepts only self-only JPEG PNG or PDF evidence",
+    throws(() => Source.sourceUploadInput({
+      purpose: "identity_document", kind: "image", mime: "image/webp", byte_size: 4096,
+      sha256: SHA, contains_third_parties: false,
+    })) && throws(() => Source.sourceUploadInput({
+      purpose: "identity_document", kind: "document", mime: "application/pdf", byte_size: 4096,
+      sha256: SHA, contains_third_parties: true,
+    })));
   ok("server object path contains only opaque ids", Source.privateObjectPath(OWNER, REPLICA, SOURCE) === `${OWNER}/${REPLICA}/${SOURCE}/original`);
   ok("filenames and URL fragments cannot enter object paths", throws(() => Source.privateObjectPath(OWNER, REPLICA, "voice.wav")));
   const client = Source.clientSource({
@@ -210,7 +227,7 @@ const SHA = "d".repeat(64);
     calls.push({ sql, params });
     return [{
       source_id: params[2], replica_id: params[0], owner_user_id: params[1],
-      kind: params[3], capture_mode: "upload", storage_bucket: params[4], object_path: params[5],
+      kind: params[3], capture_mode: params[11], storage_bucket: params[4], object_path: params[5],
       mime: params[6], byte_size: params[7], sha256: params[8], state: "pending_upload",
       contains_third_parties: params[9], rejection_code: "", created_at: "now", updated_at: "now",
     }];
@@ -221,6 +238,12 @@ const SHA = "d".repeat(64);
   ok("database source row is owner-scoped", calls[0].params[1] === OWNER && /owner_user_id = \$2/.test(calls[0].sql));
   ok("source insert requires both capture and storage consent in SQL", /scope = 'capture'/.test(calls[0].sql) && /scope = 'storage'/.test(calls[0].sql));
   ok("the client never chooses the stored path", source.object_path === `${OWNER}/${REPLICA}/${SOURCE}/original`);
+  const identitySource = await Source.createPendingSource(db, OWNER, REPLICA, {
+    purpose: "identity_document", kind: "document", mime: "application/pdf", byte_size: 4096,
+    sha256: SHA, contains_third_parties: false,
+  }, { sourceId: SOURCE });
+  ok("identity-only purpose is persisted server-side instead of inferred later",
+    identitySource.capture_mode === "identity_document" && calls[1].params[11] === "identity_document");
 }
 
 for (const endpoint of ["api/replica-consent.js", "api/replica-source.js"]) {
@@ -242,6 +265,8 @@ for (const endpoint of ["api/replica-consent.js", "api/replica-source.js"]) {
     /^(?:--[^\n]*\n\s*)*(?:create table if not exists|create (?:unique )?index if not exists)/i.test(statement)));
   const sourceCode = readFileSync(join(ROOT, "api/_replica-source.js"), "utf8");
   ok("quarantined evidence enters a retryable integrity queue", /insert into vy_replica_processing_job/.test(sourceCode) && /'integrity', 'queued'/.test(sourceCode));
+  ok("identity-only documents can never enter the generic memory processing DAG",
+    /where state = 'quarantined' and capture_mode = 'upload'/.test(sourceCode));
   const sourceEndpoint = readFileSync(join(ROOT, "api/replica-source.js"), "utf8");
   ok("generic finalization cannot bypass the live-challenge transition",
     /pending\.capture_mode === "live_challenge"/.test(sourceEndpoint)

@@ -61,6 +61,7 @@ function fixture() {
       age_verified_at: "2026-08-23T10:00:00.000Z",
       identity_verified_at: "2026-08-23T10:01:00.000Z",
       liveness_verified_at: "2026-08-23T10:02:00.000Z",
+      identity_expires_at: "2031-08-23T10:02:00.000Z",
     },
     inferenceConsent: {
       replica_id: ids.replica,

@@ -25,8 +25,10 @@ const CHALLENGE = "10000000-0000-4000-8000-000000000001";
 const RID = "20000000-0000-4000-8000-000000000002";
 const OWNER = "30000000-0000-4000-8000-000000000003";
 const SOURCE = "40000000-0000-4000-8000-000000000004";
+const ID_SOURCE = "70000000-0000-4000-8000-000000000007";
 const TOKEN = "liveness-verification-lease-token-more-than-thirty-two-bytes";
 const SHA = "a".repeat(64);
+const ID_SHA = "b".repeat(64);
 const PHRASE = livenessPhrase(() => 0);
 const PHRASE_HASH = createHash("sha256").update(PHRASE).digest("hex");
 let checks = 0;
@@ -54,6 +56,10 @@ const claim = {
   verifierName: "azure_face_speech_composite",
   verifierVersion: "face-live-2026-03+speech-2026-01",
   source: { kind: "video", mime: "video/webm", sha256: SHA },
+  identityReference: {
+    sourceId: ID_SOURCE, kind: "image", mime: "image/jpeg", byteSize: 3210, sha256: ID_SHA,
+    objectPath: `${OWNER}/${RID}/${ID_SOURCE}/original`,
+  },
 };
 const positive = {
   providerFamily: claim.verifierName,
@@ -105,7 +111,7 @@ const requestSignature = createHmac("sha256", brokerKey).update(brokerRequest.bo
 ok("the Azure broker sees only a two-minute private capability and a request signed over exact challenge media and model version",
   brokerRequest.headers["X-Vyakti-Signature"] === `sha256=${requestSignature}` &&
   brokerRequest.body.includes("token=opaque") && brokerRequest.body.includes(PHRASE_HASH) &&
-  brokerOutput.inputSha256 === SHA);
+  brokerRequest.body.includes(ID_SHA) && brokerOutput.inputSha256 === SHA);
 const unsignedAdapter = createAzureCompositeLivenessVerifier({
   env: brokerEnv,
   signRead: async () => ({ url: "https://private.example/signed?token=opaque", expires_at: "2026-08-24T00:02:00.000Z" }),
@@ -150,13 +156,18 @@ const leased = await leaseNextLivenessVerification(async (sql, params) => {
   assert.equal(params[0], livenessVerificationLeaseHash(TOKEN));
   return [{ challenge_id: CHALLENGE, replica_id: RID, owner_user_id: OWNER, source_id: SOURCE,
     phrase: PHRASE, phrase_hash: PHRASE_HASH, verification_attempt: 2,
+    identity_case_id: "80000000-0000-4000-8000-000000000008",
     verification_lease_expires_at: "2026-08-24T00:03:00.000Z", kind: "video", mime: "video/webm",
     byte_size: 1234, sha256: SHA, storage_bucket: "vyakti-replica-private",
-    object_path: `${OWNER}/${RID}/${SOURCE}/original` }];
+    object_path: `${OWNER}/${RID}/${SOURCE}/original`, identity_source_id: ID_SOURCE,
+    identity_kind: "image", identity_mime: "image/jpeg", identity_byte_size: 3210,
+    identity_sha256: ID_SHA, identity_storage_bucket: "vyakti-replica-private",
+    identity_object_path: `${OWNER}/${RID}/${ID_SOURCE}/original` }];
 }, { name: claim.verifierName, version: claim.verifierVersion, verify() {} }, { leaseToken: TOKEN });
-ok("one atomic lease requires verified adult identity private video single subject and appends an attempt",
+ok("one atomic lease requires adult evidence exact ID reference private video single subject and appends an attempt",
   leased.attempt === 2 && leased.verifierVersion === claim.verifierVersion &&
-  /age_verified_at is not null/.test(leaseSql) && /identity_verified_at is not null/.test(leaseSql) &&
+  /age_verified_at is not null/.test(leaseSql) && /ic\.state='evidence_ready'/.test(leaseSql) &&
+  !/r\.identity_verified_at is not null/.test(leaseSql) && leased.identityReference.sha256 === ID_SHA &&
   /s\.kind='video'/.test(leaseSql) && /contains_third_parties=false/.test(leaseSql) &&
   /insert into vy_replica_liveness_verification_attempt/.test(leaseSql));
 ok("expired work is reclaimed without ever storing the raw lease capability",
@@ -174,10 +185,13 @@ ok("settlement binds the live lease and independently rechecks non-revoked self 
   /r\.subject_mode='self'/.test(completeSql) && /lifecycle not in \('revoked','purging'\)/.test(completeSql) &&
   /s\.state='quarantined'/.test(completeSql) && /s\.sha256=\$16/.test(completeSql) &&
   /join vy_replica_liveness_verification_attempt a/.test(completeSql) &&
-  /a\.outcome='running'/.test(completeSql) && /a\.verifier_version=\$18/.test(completeSql));
-ok("only a composite pass sets liveness and grants expiring evidence-bound biometric consent",
-  /liveness_verified_at=coalesce/.test(completeSql) && /'biometric','live_challenge'/.test(completeSql) &&
-  /evidence_source_id/.test(completeSql) && /identity_verified_at is not null/.test(completeSql));
+  /a\.outcome='running'/.test(completeSql) && /a\.verifier_version=\$18/.test(completeSql) &&
+  /ids\.sha256=\$19/.test(completeSql));
+ok("only one composite pass sets identity plus liveness and grants expiring evidence-bound biometric consent",
+  /identity_verified_at=coalesce/.test(completeSql) && /liveness_verified_at=coalesce/.test(completeSql) &&
+  /identity_expires_at=ic\.credential_expires_at/.test(completeSql) &&
+  /set state='verified'/.test(completeSql) && /then 'deleting'/.test(completeSql) &&
+  /'biometric','live_challenge'/.test(completeSql) && /evidence_source_id/.test(completeSql));
 ok("attempt audit and source provenance persist scores and hashes but never raw spoken text",
   /result=\$8::jsonb/.test(completeSql) && /sha256_status/.test(JSON.stringify(completeParams)) &&
   !JSON.stringify(completeParams).includes(PHRASE) && !/transcript|embedding|provider_ref/i.test(JSON.stringify(completeParams)));
