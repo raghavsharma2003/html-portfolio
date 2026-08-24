@@ -55,7 +55,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
   const [text, setText] = useState<string>(STARTERS.en);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [pair, setPair] = useState<{ trialId: string; progress: { completed: number; covered: number; total: number; converged: boolean }; left: Preview; right: Preview } | null>(null);
+  const [pair, setPair] = useState<{ trialId: string; prompt: { domain: string; text: string }; progress: { completed: number; covered: number; total: number; prompts: number; requiredPrompts: number; converged: boolean }; left: Preview; right: Preview } | null>(null);
   const [pairBusy, setPairBusy] = useState(false);
   const [heard, setHeard] = useState({ left: false, right: false });
   const [preferenceReasons, setPreferenceReasons] = useState<VoicePreferenceReason[]>([]);
@@ -108,13 +108,14 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
     setPairBusy(true); setPairError(""); setPreferenceSaved(null); setPreferenceReasons([]); setHeard({ left: false, right: false }); setPair(null);
     let left: Preview | null = null;
     try {
-      const trial = await issueVoiceTrial(token, { replicaId, genomeVersion: draft.version, text, languageId: language });
-      const leftResult = await generateVoicePreview(token, { replicaId, genomeVersion: draft.version, text, languageId: language, trialId: trial.trial_id, trialSide: "left" });
+      const trial = await issueVoiceTrial(token, { replicaId, genomeVersion: draft.version, languageId: language });
+      const leftResult = await generateVoicePreview(token, { replicaId, genomeVersion: draft.version, text: trial.prompt.text, languageId: language, trialId: trial.trial_id, trialSide: "left" });
       left = { url: URL.createObjectURL(leftResult.audio), generationId: leftResult.generationId, modelCommitment: leftResult.modelCommitment };
-      const rightResult = await generateVoicePreview(token, { replicaId, genomeVersion: draft.version, text, languageId: language, trialId: trial.trial_id, trialSide: "right" });
+      const rightResult = await generateVoicePreview(token, { replicaId, genomeVersion: draft.version, text: trial.prompt.text, languageId: language, trialId: trial.trial_id, trialSide: "right" });
       setPair({
         trialId: trial.trial_id,
-        progress: { completed: trial.progress.completed, covered: trial.progress.covered_conditions, total: trial.progress.total_conditions, converged: trial.progress.converged },
+        prompt: { domain: trial.prompt.domain, text: trial.prompt.text },
+        progress: { completed: trial.progress.completed, covered: trial.progress.covered_conditions, total: trial.progress.total_conditions, prompts: trial.progress.unique_prompts, requiredPrompts: trial.progress.required_prompts, converged: trial.progress.converged },
         left,
         right: { url: URL.createObjectURL(rightResult.audio), generationId: rightResult.generationId, modelCommitment: rightResult.modelCommitment },
       });
@@ -213,12 +214,13 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
       <div className="voice-preference-lab">
         <div className="voice-preference-intro">
           <div><span>Blind preference lab</span><h3>Teach the model with your ears.</h3></div>
-          <p>The server chooses the next most informative hidden contrast from a seven-condition search space. The words, identity evidence, model, language, and sampling seed stay fixed.</p>
-          <button className="review-refresh" type="button" disabled={!draft || pairBusy || generating || !text.trim()} onClick={() => void generateBlindPair()}>{pairBusy ? "Rendering A, then B" : pair ? "New blind pair" : "Start blind A/B"}</button>
+          <p>The server balances a multilingual challenge deck and chooses the next most informative hidden contrast. Both sides keep the assigned words, identity evidence, model, language, and sampling seed fixed.</p>
+          <button className="review-refresh" type="button" disabled={!draft || pairBusy || generating} onClick={() => void generateBlindPair()}>{pairBusy ? "Rendering A, then B" : pair ? "New blind pair" : "Start blind A/B"}</button>
         </div>
         {pair ? (
           <div className="voice-preference-body">
-            <div className="voice-preference-progress"><span>Adaptive comparison {pair.progress.completed + 1}</span><span>{pair.progress.covered}/{pair.progress.total} conditions covered</span><span>{pair.progress.converged ? "Boundary converged" : "Still learning"}</span></div>
+            <div className="voice-preference-progress"><span>Adaptive comparison {pair.progress.completed + 1}</span><span>{pair.progress.covered}/{pair.progress.total} conditions covered</span><span>{pair.progress.prompts}/{pair.progress.requiredPrompts} prompt families</span><span>{pair.progress.converged ? "Boundary converged" : "Still learning"}</span></div>
+            <div className="voice-preference-prompt"><span>{pair.prompt.domain.replaceAll("_", " ")} challenge</span><p>{pair.prompt.text}</p></div>
             <div className="voice-preference-players">
               {(["left", "right"] as const).map((side, index) => (
                 <article key={side} className={heard[side] ? "heard" : ""}>
@@ -250,7 +252,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
               </>
             )}
           </div>
-        ) : <div className="voice-preference-empty">{pairBusy ? "Two fully protected generations are being built. Cold starts can take a few minutes." : "No comparison is open. Your current words and language will be held constant."}</div>}
+        ) : <div className="voice-preference-empty">{pairBusy ? "Two fully protected generations are being built. Cold starts can take a few minutes." : "No comparison is open. The lab will assign a new challenge sentence and hold it constant across both sides."}</div>}
         {pairError ? <p className="inline-error" role="alert">{pairError}</p> : null}
       </div>
     </section>

@@ -4,10 +4,13 @@ import { canonicalJson, sha256Hex } from "./_provenance/contracts.js";
 import {
   voicePreviewMatchedSeed,
   voicePreviewStyle,
+  voicePreviewTextHash,
 } from "./_replica-voice-preview.js";
 import { OPEN_CHATTERBOX_MODEL_COMMITMENT } from "./_voice/providers/open-chatterbox-preview.js";
 
-export const VOICE_CURRICULUM_ALGORITHM = "voice-curriculum/bt-active-v1";
+export const VOICE_CURRICULUM_ALGORITHM = "voice-curriculum/bt-active-v2";
+export const VOICE_CALIBRATION_DECK_VERSION = "voice-calibration-deck/v1";
+export const VOICE_CALIBRATION_REQUIRED_PROMPTS = 6;
 export const VOICE_TRIAL_STYLE_KEYS = Object.freeze([
   "identity_anchor",
   "faithful",
@@ -17,6 +20,27 @@ export const VOICE_TRIAL_STYLE_KEYS = Object.freeze([
   "expressive",
   "animated",
 ]);
+
+export const VOICE_CALIBRATION_PROMPTS = Object.freeze({
+  en: Object.freeze([
+    Object.freeze({ key: "en.identity-neutral.v1", domain: "identity", text: "The morning light moved slowly across the room while I finished my tea." }),
+    Object.freeze({ key: "en.question-rise.v1", domain: "prosody", text: "Did you really leave the blue notebook beside the window, or did I imagine that?" }),
+    Object.freeze({ key: "en.numbers-dates.v1", domain: "precision", text: "On Friday, August twenty eighth, call me at seven forty five in the evening." }),
+    Object.freeze({ key: "en.warm-memory.v1", domain: "emotion", text: "I still smile when I remember that ridiculous song we sang on the way home." }),
+    Object.freeze({ key: "en.consonant-density.v1", domain: "articulation", text: "Bright copper cups clicked softly as Priya packed the picnic basket." }),
+    Object.freeze({ key: "en.pause-repair.v1", domain: "rhythm", text: "I thought I knew the answer, but wait, let me say that again more carefully." }),
+    Object.freeze({ key: "en.long-arc.v1", domain: "breath", text: "Even when the plan changes at the last minute, I like to pause, look at what still matters, and choose the next small step." }),
+  ]),
+  hi: Object.freeze([
+    Object.freeze({ key: "hi.identity-neutral.v1", domain: "identity", text: "सुबह की रोशनी धीरे धीरे कमरे में आई और मैं चाय खत्म करता रहा।" }),
+    Object.freeze({ key: "hi.hinglish-switch.v1", domain: "code_switch", text: "Honestly, mujhe laga plan simple hoga, lekin last moment par sab kuch change ho gaya." }),
+    Object.freeze({ key: "hi.numbers-dates.v1", domain: "precision", text: "शुक्रवार, अट्ठाईस अगस्त को शाम सात बजकर पैंतालीस मिनट पर मुझे फोन करना।" }),
+    Object.freeze({ key: "hi.warm-memory.v1", domain: "emotion", text: "वो पुराना गाना याद आते ही आज भी अपने आप चेहरे पर मुस्कान आ जाती है।" }),
+    Object.freeze({ key: "hi.honorific-question.v1", domain: "prosody", text: "आप सच में कल इतनी दूर से सिर्फ मुझसे मिलने आए थे?" }),
+    Object.freeze({ key: "hi.pause-repair.v1", domain: "rhythm", text: "मुझे लगा जवाब पता है, लेकिन रुको, मैं इसे फिर से ठीक तरह से कहता हूँ।" }),
+    Object.freeze({ key: "hi.long-arc.v1", domain: "breath", text: "जब आखिरी पल में योजना बदल जाती है, तब मैं थोड़ा रुककर सोचता हूँ कि अभी सबसे ज़रूरी बात क्या है।" }),
+  ]),
+});
 
 const STYLE_SET = new Set(VOICE_TRIAL_STYLE_KEYS);
 const LANGUAGES = new Set(["en", "hi"]);
@@ -47,20 +71,47 @@ function deterministicUnit(value) {
   return Number.parseInt(sha256Hex(value).slice(0, 12), 16) / 0xffffffffffff;
 }
 
+function promptBucket(row) {
+  return String(row?.prompt_key || row?.text_hash || "legacy:unknown");
+}
+
+export function recommendVoiceCalibrationPrompt(history, languageId, seedMaterial = "") {
+  const language = String(languageId || "").toLowerCase();
+  const prompts = VOICE_CALIBRATION_PROMPTS[language];
+  if (!prompts) fail("voice_trial_language_invalid");
+  const exposure = new Map(prompts.map((prompt) => [prompt.key, 0]));
+  for (const row of Array.isArray(history) ? history : []) {
+    if (exposure.has(row?.prompt_key)) exposure.set(row.prompt_key, exposure.get(row.prompt_key) + 1);
+  }
+  return [...prompts].sort((one, two) =>
+    exposure.get(one.key) - exposure.get(two.key) ||
+    deterministicUnit(`${seedMaterial}:${one.key}`) - deterministicUnit(`${seedMaterial}:${two.key}`) ||
+    one.key.localeCompare(two.key))[0];
+}
+
 export function recommendVoiceTrial(history, seedMaterial = "") {
   const rows = Array.isArray(history) ? history.filter(validHistoryRow) : [];
   const ratings = Object.fromEntries(VOICE_TRIAL_STYLE_KEYS.map((key) => [key, 0]));
   const exposures = Object.fromEntries(VOICE_TRIAL_STYLE_KEYS.map((key) => [key, 0]));
   const rejections = Object.fromEntries(VOICE_TRIAL_STYLE_KEYS.map((key) => [key, 0]));
   const pairCounts = new Map();
+  const promptCounts = new Map();
+  const uniquePrompts = new Set();
+  for (const row of rows) {
+    const bucket = promptBucket(row);
+    promptCounts.set(bucket, (promptCounts.get(bucket) || 0) + 1);
+    uniquePrompts.add(bucket);
+  }
   for (const row of rows) {
     exposures[row.left_style_key]++;
     exposures[row.right_style_key]++;
     const key = pairKey(row.left_style_key, row.right_style_key);
     pairCounts.set(key, (pairCounts.get(key) || 0) + 1);
     if (row.choice === "neither") {
-      rejections[row.left_style_key]++;
-      rejections[row.right_style_key]++;
+      const weight = Math.max(0, Math.min(1, Number(row.confidence ?? 1))) /
+        Math.sqrt(promptCounts.get(promptBucket(row)) || 1);
+      rejections[row.left_style_key] += weight;
+      rejections[row.right_style_key] += weight;
     }
   }
 
@@ -71,10 +122,12 @@ export function recommendVoiceTrial(history, seedMaterial = "") {
     const gradient = Object.fromEntries(VOICE_TRIAL_STYLE_KEYS.map((key) => [key, -0.025 * ratings[key]]));
     for (const row of rows) {
       if (row.choice === "neither") continue;
+      const weight = Math.max(0, Math.min(1, Number(row.confidence ?? 1))) /
+        Math.sqrt(promptCounts.get(promptBucket(row)) || 1);
       const target = row.choice === "left" ? 1 : row.choice === "right" ? 0 : 0.5;
       const delta = Math.max(-12, Math.min(12, ratings[row.left_style_key] - ratings[row.right_style_key]));
       const probability = 1 / (1 + Math.exp(-delta));
-      const error = target - probability;
+      const error = weight * (target - probability);
       gradient[row.left_style_key] += error;
       gradient[row.right_style_key] -= error;
     }
@@ -121,8 +174,11 @@ export function recommendVoiceTrial(history, seedMaterial = "") {
     completedComparisons: rows.length,
     coveredConditions: covered,
     totalConditions: VOICE_TRIAL_STYLE_KEYS.length,
+    uniquePrompts: uniquePrompts.size,
+    requiredPrompts: VOICE_CALIBRATION_REQUIRED_PROMPTS,
     provisionalChampion: rows.length >= 5 ? ranked[0] : null,
-    converged: rows.length >= 18 && covered === VOICE_TRIAL_STYLE_KEYS.length && exposures[ranked[0]] >= 5 && margin >= 0.42,
+    converged: rows.length >= 18 && covered === VOICE_TRIAL_STYLE_KEYS.length &&
+      uniquePrompts.size >= VOICE_CALIBRATION_REQUIRED_PROMPTS && exposures[ranked[0]] >= 5 && margin >= 0.42,
   });
 }
 
@@ -166,15 +222,15 @@ export async function issueOwnedVoiceTrial(db, ownerUserId, input) {
   const rid = replicaId(input?.replica_id);
   const genomeVersion = Number(input?.genome_version);
   const languageId = String(input?.language_id || "").toLowerCase();
-  const textHash = String(input?.text_hash || "").toLowerCase();
   if (!Number.isInteger(genomeVersion) || genomeVersion < 1) fail("voice_trial_genome_version_invalid");
   if (!LANGUAGES.has(languageId)) fail("voice_trial_language_invalid");
-  if (!SHA256.test(textHash)) fail("voice_trial_text_hash_invalid");
   const context = await ownedTrialContext(db, ownerUserId, rid, genomeVersion);
   if (!context) fail("voice_trial_not_authorized", 409);
   const history = await db(
-    `select p.choice,l.preview_style->>'key' left_style_key,r.preview_style->>'key' right_style_key
+    `select p.choice,p.confidence,t.prompt_key,t.text_hash,
+            l.preview_style->>'key' left_style_key,r.preview_style->>'key' right_style_key
        from vy_replica_voice_preference p
+       join vy_replica_voice_trial t on t.trial_id=p.trial_id and t.replica_id=p.replica_id and t.owner_user_id=p.owner_user_id
        join vy_replica_generation l on l.generation_id=p.left_generation_id and l.replica_id=p.replica_id and l.owner_user_id=p.owner_user_id
       join vy_replica_generation r on r.generation_id=p.right_generation_id and r.replica_id=p.replica_id and r.owner_user_id=p.owner_user_id
       where p.replica_id=$1 and p.owner_user_id=$2 and p.genome_version=$3 and p.preview_artifact_id=$4
@@ -183,12 +239,18 @@ export async function issueOwnedVoiceTrial(db, ownerUserId, input) {
       order by p.created_at,p.preference_id`,
     [rid, ownerUserId, genomeVersion, context.artifact_id, languageId, OPEN_CHATTERBOX_MODEL_COMMITMENT],
   );
-  const schedule = recommendVoiceTrial(history, `${rid}:${genomeVersion}:${context.artifact_id}:${textHash}:${languageId}`);
+  const prompt = recommendVoiceCalibrationPrompt(history, languageId,
+    `${rid}:${genomeVersion}:${context.artifact_id}:${languageId}:${history.length}`);
+  const textHash = voicePreviewTextHash(prompt.text);
+  const schedule = recommendVoiceTrial(history,
+    `${rid}:${genomeVersion}:${context.artifact_id}:${prompt.key}:${languageId}`);
   const trialId = randomUUID();
   const previewSeed = voicePreviewMatchedSeed({ replicaId: rid, genomeVersion, languageId, textHash });
   const pairHash = sha256Hex(canonicalJson({
     schema: "vyakti.voice-trial-pair.v1",
     algorithm: schedule.algorithm,
+    prompt_deck_version: VOICE_CALIBRATION_DECK_VERSION,
+    prompt_key: prompt.key,
     replica_id: rid,
     genome_version: genomeVersion,
     artifact_id: context.artifact_id,
@@ -202,9 +264,9 @@ export async function issueOwnedVoiceTrial(db, ownerUserId, input) {
   const rows = await db(
     `with inserted as (
      insert into vy_replica_voice_trial
-       (trial_id,replica_id,owner_user_id,genome_version,preview_artifact_id,language_id,text_hash,
+       (trial_id,replica_id,owner_user_id,genome_version,preview_artifact_id,language_id,prompt_key,prompt_deck_version,text_hash,
         preview_seed,model_commitment,left_style_key,right_style_key,pair_hash,algorithm,state,expires_at)
-     select $5,r.replica_id,r.owner_user_id,$3,$4,$6,$7,$8,$9,$10,$11,$12,$13,'issued',now()+interval '30 minutes'
+     select $5,r.replica_id,r.owner_user_id,$3,$4,$6,$15,$16,$7,$8,$9,$10,$11,$12,$13,'issued',now()+interval '30 minutes'
        from vy_replica r join vy_replica_voice_genome vg on vg.replica_id=r.replica_id and vg.version=$3 and vg.status='draft'
        join vy_replica_processing_artifact a on a.artifact_id=$4 and a.replica_id=r.replica_id and a.owner_user_id=r.owner_user_id
        join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id and s.owner_user_id=a.owner_user_id
@@ -227,22 +289,27 @@ export async function issueOwnedVoiceTrial(db, ownerUserId, input) {
      ), audit as (
        insert into vy_replica_audit(replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
        select replica_id,owner_user_id,'voice.trial.issue','voice_trial',trial_id::text,$14,'allowed',
-              jsonb_build_object('algorithm',$13,'pair_hash',$12,'model_commitment',$9)
+              jsonb_build_object('algorithm',$13,'prompt_deck_version',$16,'prompt_key',$15,
+                'pair_hash',$12,'model_commitment',$9)
          from inserted
      ) select trial_id,expires_at from inserted`,
     [rid, ownerUserId, genomeVersion, context.artifact_id, trialId, languageId, textHash, previewSeed,
       OPEN_CHATTERBOX_MODEL_COMMITMENT, schedule.leftStyleKey, schedule.rightStyleKey, pairHash,
-      VOICE_CURRICULUM_ALGORITHM, REPLICA_POLICY_VERSION],
+      VOICE_CURRICULUM_ALGORITHM, REPLICA_POLICY_VERSION, prompt.key, VOICE_CALIBRATION_DECK_VERSION],
   );
   if (!rows[0]) fail("voice_trial_context_changed", 409);
   return Object.freeze({
     trial_id: rows[0].trial_id,
     algorithm: schedule.algorithm,
     expires_at: rows[0].expires_at,
+    prompt_deck_version: VOICE_CALIBRATION_DECK_VERSION,
+    prompt: Object.freeze({ key: prompt.key, domain: prompt.domain, text: prompt.text }),
     progress: Object.freeze({
       completed: schedule.completedComparisons,
       covered_conditions: schedule.coveredConditions,
       total_conditions: schedule.totalConditions,
+      unique_prompts: schedule.uniquePrompts,
+      required_prompts: schedule.requiredPrompts,
       converged: schedule.converged,
     }),
   });

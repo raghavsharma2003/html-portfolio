@@ -32,8 +32,17 @@ export interface VoicePreferenceResult {
 export interface VoiceTrialResult {
   trial_id: string;
   algorithm: string;
+  prompt_deck_version: string;
   expires_at: string;
-  progress: { completed: number; covered_conditions: number; total_conditions: number; converged: boolean };
+  prompt: { key: string; domain: string; text: string };
+  progress: {
+    completed: number;
+    covered_conditions: number;
+    total_conditions: number;
+    unique_prompts: number;
+    required_prompts: number;
+    converged: boolean;
+  };
 }
 
 export async function generateVoicePreview(token: string, input: VoicePreviewInput): Promise<VoicePreviewResult> {
@@ -70,7 +79,6 @@ export async function generateVoicePreview(token: string, input: VoicePreviewInp
 export async function issueVoiceTrial(token: string, input: {
   replicaId: string;
   genomeVersion: number;
-  text: string;
   languageId: "en" | "hi";
 }): Promise<VoiceTrialResult> {
   const response = await fetch("/api/replica-voice-trial", {
@@ -79,7 +87,6 @@ export async function issueVoiceTrial(token: string, input: {
     body: JSON.stringify({
       replica_id: input.replicaId,
       genome_version: input.genomeVersion,
-      text: input.text,
       language_id: input.languageId,
     }),
     signal: AbortSignal.timeout(25_000),
@@ -89,7 +96,16 @@ export async function issueVoiceTrial(token: string, input: {
     const raw = typeof data?.error === "string" ? data.error : `trial failed (${response.status})`;
     throw new ReplicaApiError(raw.replaceAll("_", " "), response.status, data);
   }
-  return data.trial as VoiceTrialResult;
+  const trial = data?.trial as VoiceTrialResult | undefined;
+  const promptLength = Array.from(String(trial?.prompt?.text || "")).length;
+  if (!trial || !/^[0-9a-f-]{36}$/i.test(String(trial.trial_id || "")) ||
+      trial.algorithm !== "voice-curriculum/bt-active-v2" ||
+      trial.prompt_deck_version !== "voice-calibration-deck/v1" ||
+      !/^[a-z0-9_.:-]{3,96}$/.test(String(trial.prompt?.key || "")) ||
+      !/^[a-z_]{3,32}$/.test(String(trial.prompt?.domain || "")) || promptLength < 1 || promptLength > 600) {
+    throw new Error("Voice calibration assignment was invalid");
+  }
+  return trial;
 }
 
 export async function saveVoicePreference(token: string, input: {

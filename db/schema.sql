@@ -1879,18 +1879,22 @@ create table if not exists vy_replica_voice_trial (
   genome_version integer not null check (genome_version>0),
   preview_artifact_id uuid not null,
   language_id text not null check (language_id in ('en','hi')),
+  prompt_key text not null default 'legacy.owner_custom.v1',
+  prompt_deck_version text not null default 'legacy.owner-custom/v1',
   text_hash text not null check (text_hash~'^[0-9a-f]{64}$'),
   preview_seed integer not null check (preview_seed between 1 and 2147483647),
   model_commitment text not null check (model_commitment~'^[0-9a-f]{64}$'),
   left_style_key text not null,
   right_style_key text not null,
   pair_hash text not null check (pair_hash~'^[0-9a-f]{64}$'),
-  algorithm text not null check (algorithm='voice-curriculum/bt-active-v1'),
+  algorithm text not null check (algorithm in ('voice-curriculum/bt-active-v1','voice-curriculum/bt-active-v2')),
   state text not null default 'issued' check (state in ('issued','completed','expired','cancelled')),
   expires_at timestamptz not null,
   completed_at timestamptz,
   created_at timestamptz not null default now(),
   constraint vy_replica_voice_trial_distinct check (left_style_key<>right_style_key),
+  constraint vy_replica_voice_trial_prompt_key_check check (prompt_key~'^[a-z0-9_.:-]{3,96}$'),
+  constraint vy_replica_voice_trial_prompt_deck_check check (prompt_deck_version in ('legacy.owner-custom/v1','voice-calibration-deck/v1')),
   constraint vy_replica_voice_trial_left_style check (left_style_key in ('identity_anchor','faithful','steady_warm','balanced','warm_expressive','expressive','animated')),
   constraint vy_replica_voice_trial_right_style check (right_style_key in ('identity_anchor','faithful','steady_warm','balanced','warm_expressive','expressive','animated')),
   constraint vy_replica_voice_trial_time check (expires_at>created_at),
@@ -1902,6 +1906,7 @@ create table if not exists vy_replica_voice_trial (
 );
 create index if not exists vy_replica_voice_trial_owner_ix on vy_replica_voice_trial(owner_user_id,replica_id,created_at desc);
 create index if not exists vy_replica_voice_trial_expiry_ix on vy_replica_voice_trial(expires_at) where state='issued';
+create index if not exists vy_replica_voice_trial_prompt_coverage_ix on vy_replica_voice_trial(owner_user_id,replica_id,genome_version,language_id,prompt_key) where state='completed';
 
 alter table vy_replica_generation add column if not exists preview_trial_id uuid;
 alter table vy_replica_generation add column if not exists preview_trial_side text;

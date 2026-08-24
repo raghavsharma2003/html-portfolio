@@ -2,7 +2,6 @@ import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { issueOwnedVoiceTrial } from "./_replica-voice-curriculum.js";
-import { cleanVoicePreviewText, voicePreviewTextHash } from "./_replica-voice-preview.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -20,12 +19,10 @@ export default async function handler(req, res) {
     const user = await requireUser(req);
     if (!allow(user.id, "replica_voice_trial_user", 20)) return res.status(429).json({ error: "slow_down" });
     const body = req.body || {};
-    const text = cleanVoicePreviewText(body.text);
     const trial = await issueOwnedVoiceTrial(q, user.id, {
       replica_id: body.replica_id,
       genome_version: body.genome_version,
       language_id: body.language_id,
-      text_hash: voicePreviewTextHash(text),
     });
     return res.status(201).json({ trial });
   } catch (error) {
