@@ -21,7 +21,7 @@ import { createFakeProtectionAdapters } from "../../api/_provenance/providers/fa
 import { createNeonProvenanceLedger } from "../../api/_provenance/providers/neon-ledger.js";
 import { PROVENANCE_POLICY } from "../../api/_provenance/contracts.js";
 import { REPLICA_POLICY_VERSION } from "../../api/_replica.js";
-import { VOICE_PCM_FORMAT } from "../../api/_voice/contracts.js";
+import { SYNTHETIC_AUDIO_DISCLOSURE, VOICE_PCM_FORMAT } from "../../api/_voice/contracts.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -246,7 +246,11 @@ const handler = createReplicaSpeechHandler({
     name: "offline-voice",
     async synthesizeStream(input) {
       providerRequestKey = input.requestKey;
-      return { format: VOICE_PCM_FORMAT, stream: (async function* () { yield Uint8Array.from([1, 2, 3, 4]); })() };
+      return {
+        format: VOICE_PCM_FORMAT,
+        renderedText: `${SYNTHETIC_AUDIO_DISCLOSURE} hello`,
+        stream: (async function* () { yield Uint8Array.from([1, 2, 3, 4]); })(),
+      };
     },
   }),
   resolveProtectionAdapters: async () => protection.adapters,

@@ -48,6 +48,11 @@ export function assertSynthesisResult(result) {
   }
   if (!result.stream || typeof result.stream[Symbol.asyncIterator] !== "function")
     throw new Error("provider must return an async byte stream");
+  if (typeof result.renderedText !== "string" ||
+      !result.renderedText.startsWith(`${SYNTHETIC_AUDIO_DISCLOSURE} `) ||
+      result.renderedText.length <= SYNTHETIC_AUDIO_DISCLOSURE.length + 1) {
+    throw new Error("provider must render the exact synthetic-audio disclosure");
+  }
   return result;
 }
 

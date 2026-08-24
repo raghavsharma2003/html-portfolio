@@ -67,6 +67,7 @@ export async function protectReplicaStream({
   sourceStream,
   format,
   adapters,
+  disclosureEvidence,
   signal,
   now = new Date(),
   allowTestAdapters = false,
@@ -111,6 +112,7 @@ export async function protectReplicaStream({
       stream: sourceStream,
       format,
       text: SYNTHETIC_AUDIO_DISCLOSURE,
+      evidence: disclosureEvidence,
       signal,
     });
     assertByteStream(disclosureResult?.stream);
@@ -120,6 +122,7 @@ export async function protectReplicaStream({
       format,
       message: issued.message,
       tokenHash: issued.tokenHash,
+      generationId: authorization.generationId,
       signal,
     });
     assertByteStream(watermarkResult?.stream);
@@ -140,6 +143,7 @@ export async function protectReplicaStream({
     if (consumed) throw new Error("protected_stream_already_consumed");
     consumed = true;
     const audioHasher = createHash("sha256");
+    const committedAudio = [];
     let pending = new Uint8Array(0);
     let sequence = 0;
     let byteOffset = 0;
@@ -161,6 +165,7 @@ export async function protectReplicaStream({
       const segmentReceipt = publicSegmentReceipt(segment, signature);
       await adapters.ledger.appendSegment({ authorization, receipt: segmentReceipt });
       audioHasher.update(segmentBytes);
+      committedAudio.push(Buffer.from(segmentBytes));
       sequence++;
       byteOffset += segmentBytes.byteLength;
       chainSha256 = segment.chainSha256;
@@ -194,12 +199,14 @@ export async function protectReplicaStream({
         generationId: authorization.generationId,
         assetHash: audioHash,
         assetFormat: format,
+        assetBytes: Buffer.concat(committedAudio),
         title: "AI-generated voice replica",
         claim: {
           generated: true,
           disclosed: true,
           policyVersion: authorization.policyVersion,
         },
+        signal,
       });
       assertManifestProof(manifest, audioHash);
       const sealedAt = new Date().toISOString();
@@ -225,6 +232,7 @@ export async function protectReplicaStream({
       await adapters.ledger.seal({
         authorization,
         receipt,
+        envelopeCanonical: canonicalJson(envelope),
         audioHash,
         watermarkTokenHash: issued.tokenHash,
         manifestHash: manifest.manifestHash,

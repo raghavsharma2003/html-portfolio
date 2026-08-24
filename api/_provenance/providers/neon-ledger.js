@@ -64,7 +64,9 @@ export function createNeonProvenanceLedger(db) {
          receipt.signer_key_id,receipt.chain_signature,receipt.issued_at],
       ), "generation_revoked_or_segment_replayed");
     },
-    async seal({ authorization, receipt, audioHash, watermarkTokenHash, manifestHash, segmentCount, finalChainSha256, sealedAt }) {
+    async seal({ authorization, receipt, envelopeCanonical, audioHash, watermarkTokenHash, manifestHash, segmentCount, finalChainSha256, sealedAt }) {
+      if (typeof envelopeCanonical !== "string" || Buffer.byteLength(envelopeCanonical) < 128 ||
+          Buffer.byteLength(envelopeCanonical) > 16_384) throw new Error("invalid_public_envelope");
       return one(await db(
         `with sealed as (
            update vy_replica_generation g
@@ -88,16 +90,21 @@ export function createNeonProvenanceLedger(db) {
               final_chain_sha256,envelope_sha256,signature_algorithm,signer_key_id,envelope_signature,issued_at)
            select $1,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$6,$4,$8,$9,$7,$21,$22,$23,$24
              from sealed
-           on conflict (generation_id) do nothing
            returning generation_id
-         ) select generation_id from public_receipt`,
+         ), public_envelope as (
+           insert into vy_replica_generation_receipt_envelope
+             (generation_id,envelope_sha256,envelope_canonical)
+           select generation_id,$7,decode($25,'base64') from public_receipt
+           returning generation_id
+         ) select generation_id from public_envelope`,
         [authorization.generationId,authorization.replicaId,authorization.ownerUserId,
          audioHash,watermarkTokenHash,manifestHash,receipt.envelope_sha256,segmentCount,
          finalChainSha256,sealedAt,receipt.replica_commitment,receipt.policy_version,
          receipt.channel,receipt.disclosure_scheme,receipt.disclosure_text_hash,
          receipt.watermark_algorithm,receipt.watermark_token_hash,receipt.detector_policy_hash,
          receipt.provenance_standard,receipt.manifest_location,receipt.signature_algorithm,
-         receipt.signer_key_id,receipt.envelope_signature,receipt.issued_at],
+         receipt.signer_key_id,receipt.envelope_signature,receipt.issued_at,
+         Buffer.from(envelopeCanonical).toString("base64")],
       ), "generation_seal_denied");
     },
     async abort(input) {

@@ -11,7 +11,7 @@ const serve = createReplicaSpeechHandler({
   db: q,
   requireUser,
   resolveVoiceProvider: async (profile) => createVoiceProvider(profile.provider, { db: q }),
-  resolveProtectionAdapters: async () => createProductionProtectionAdapters(),
+  resolveProtectionAdapters: async () => createProductionProtectionAdapters({ db: q }),
 });
 
 function cors(res) {

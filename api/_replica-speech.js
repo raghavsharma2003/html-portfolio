@@ -99,6 +99,10 @@ export function createReplicaSpeechHandler({ db, requireUser, resolveVoiceProvid
         sourceStream: synthesized.stream,
         format: synthesized.format,
         adapters,
+        disclosureEvidence: {
+          renderedText: synthesized.renderedText,
+          renderer: `${provider.name}@server-controlled`,
+        },
         signal: aborter.signal,
         allowTestAdapters,
       });
