@@ -73,8 +73,15 @@ function dbFixture({ owned = true, evidenceRows = readyEvidence } = {}) {
     if (/from vy_replica_source s join vy_replica r/i.test(sql)) return [];
     if (/from vy_replica_processing_job j/i.test(sql)) return [];
     if (/from vy_replica_processing_attempt a/i.test(sql)) return [];
-    if (/from vy_replica_processing_artifact a/i.test(sql)) return [];
+    if (/from vy_replica_processing_artifact a/i.test(sql)) return [{
+      artifact_id: ARTIFACT, source_id: SOURCE, parent_artifact_id: null, stage: "enhance",
+      variant_key: "identity", mime: "audio/wav", byte_size: 48000, duration_ms: 1000,
+      sha256: "b".repeat(64), input_sha256: HASH, transform_name: "enhance",
+      transform_version: "1.0", adapter_family: "real-family", adapter_name: "real-enhancer",
+      adapter_version: "1.0", created_at: "2026-08-24T00:00:00.000Z",
+    }];
     if (/from vy_replica_model_build b/i.test(sql)) return [];
+    if (/from vy_replica_voice_genome g/i.test(sql)) return [];
     if (/insert into vy_replica_processing_evidence_decision/i.test(sql)) {
       return owned ? [{ decision_id: RID, evidence_id: EID, decision: params[3], reason_code: params[4], created_at: "2026-08-24T00:00:00.000Z" }] : [];
     }
@@ -113,6 +120,8 @@ ok("owner decision is appended", decision?.decision === "rejected");
 const decisionCall = decisionHarness.calls.find((call) => /insert into vy_replica_processing_evidence_decision/i.test(call.sql));
 ok("decision insert persists replica and owner tuple from owned evidence", /\(evidence_id,replica_id,owner_user_id,decision/i.test(decisionCall.sql) && decisionCall.params[1] === OWNER);
 ok("decision SQL only admits review-safe evidence types", /e\.evidence_type=any\(\$6::text\[\]\)/i.test(decisionCall.sql) && !decisionCall.params[5].includes("transcript_span"));
+ok("evidence decisions fail fast instead of racing an in-flight immutable build snapshot",
+  /pg_try_advisory_xact_lock/.test(decisionCall.sql) && /voice_genome_review/.test(decisionCall.sql));
 
 const fakeRows = readyEvidence.map((row) => ({ ...row, adapter_name: "deterministic-fake" }));
 await assert.rejects(queueOwnedVoiceGenome(dbFixture({ evidenceRows: fakeRows }).db, OWNER, RID), (error) => error?.message === "voice_genome_not_ready" && error?.details?.reviewed_real_evidence === 0);

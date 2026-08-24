@@ -12,6 +12,7 @@
     { "path": "/api/replica-erasure-sweep", "schedule": "*/10 * * * *" },
     { "path": "/api/replica-liveness-sweep", "schedule": "*/5 * * * *" },
     { "path": "/api/replica-identity-sweep", "schedule": "*/5 * * * *" },
-    { "path": "/api/replica-face-session-sweep", "schedule": "*/5 * * * *" }
+    { "path": "/api/replica-face-session-sweep", "schedule": "*/5 * * * *" },
+    { "path": "/api/replica-model-build-sweep", "schedule": "*/5 * * * *" }
   ]
 }

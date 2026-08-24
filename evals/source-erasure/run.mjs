@@ -83,6 +83,8 @@ await completeSourceErasure(async (sql, params) => {
 }, claimed);
 ok("source completion is fenced until every external provider voice mapping is gone",
   /not exists \(select 1 from vy_replica_voice_profile/.test(completeSql));
+ok("source erasure and VoiceGenome settlement share a fail-fast arbiter so neither misses the other's commit",
+  /pg_try_advisory_xact_lock/.test(completeSql) && /voice_genome_review/.test(completeSql) && /review_lock\.acquired/.test(completeSql));
 ok("source completion rechecks that no official Face handle can be cascaded away",
   /vy_replica_liveness_challenge/.test(completeSql) && /'issuing','ready','polling'/.test(completeSql));
 ok("source completion removes cited claims and cascaded processing lineage only after object deletion",

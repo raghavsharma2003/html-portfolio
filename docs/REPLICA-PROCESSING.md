@@ -161,6 +161,14 @@ The draft builder currently carries:
 
 Changing any accepted evidence digest changes the source-set hash and therefore requires a new build/version. Deleting a source must continue to retire affected genomes/profiles through the existing source-deletion control plane.
 
+### Durable draft materialization
+
+Migration 042 and `/api/replica-model-build-sweep` make the VoiceGenome builder executable. The cron-authenticated worker leases at most two builds per invocation with one-way, expiring capabilities; reclaims abandoned leases; rechecks current adult identity, biometric consent and training consent; loads only owner-accepted evidence from ready self-only sources; and refuses fake/test provenance. The exact accepted evidence plus private enhanced-artifact lineage is hashed before queueing and again before settlement.
+
+Settlement never approves a genome. It writes an immutable `draft` and moves the build to `review`. Evidence decisions, source erasure and settlement share a fail-fast PostgreSQL arbiter, while settlement also locks the exact sources. A racing rejection or erase therefore wins cleanly or makes the worker retry; neither operation can miss the other's commit. Studio exposes only counts and a canonical manifest digest, never embeddings, storage paths or raw measurements.
+
+Run its offline gate with `node evals/model-build/run.mjs`. This proves control-plane invariants, not the quality of upstream evidence.
+
 ## Reviewed transcripts to cited claims
 
 Accepted target-speaker transcript spans can enter the separate private claim
@@ -172,7 +180,7 @@ and evidence from fake/test adapters are ineligible.
 
 ## Production work still required
 
-- Deploy an authenticated internal queue consumer/sweeper; there is no public worker endpoint in this slice.
+- Deploy an authenticated internal consumer for the upstream audio processing DAG. The VoiceGenome draft consumer now exists, but it cannot manufacture real diarization, enhancement or speaker evidence that the earlier stages did not produce.
 - Select and validate real streaming integrity, malware, media-probe, diarization, separation/enhancement, alignment and multi-family speaker-analysis adapters; live-validate Azure ASR before treating it as evidence quality.
 - Add real storage and database integration tests, live invoice reconciliation, lease-race tests, cancellation/timeouts, resource limits and observability with content-free logs.
 - Add explicit target-speaker/third-party review, PII policy, candidate audition/selection, deletion of rejected derivatives, and encrypted biometric retention controls.

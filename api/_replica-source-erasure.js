@@ -96,9 +96,12 @@ function requireSettlement(rows, code) {
 
 export async function completeSourceErasure(db, lease) {
   const rows = await db(
-    `with target as (
+    `with review_lock as materialized (
+       select pg_try_advisory_xact_lock(hashtextextended($2::text || ':voice_genome_review',0)) acquired
+     ), target as (
        select s.source_id,s.replica_id,s.owner_user_id,s.erasure_attempts
-         from vy_replica_source s where s.source_id=$1 and s.replica_id=$2 and s.owner_user_id=$3
+         from vy_replica_source s cross join review_lock
+        where review_lock.acquired and s.source_id=$1 and s.replica_id=$2 and s.owner_user_id=$3
           and s.state='deleting' and s.erasure_lease_token_hash=$4
           and s.erasure_lease_expires_at>now()
            and not exists (select 1 from vy_replica_voice_profile vp

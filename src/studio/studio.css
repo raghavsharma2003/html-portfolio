@@ -2350,6 +2350,13 @@
 .model-consent-active .voice-row-actions { align-items: flex-end; }
 .model-consent-active .field { flex: 1; }
 
+.genome-draft-ledger { display: grid; gap: 9px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.genome-draft-ledger > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; padding: 11px 12px; border-radius: 11px; background: var(--paper); }
+.genome-draft-ledger span { color: var(--forest-deep); font-size: 0.84rem; }
+.genome-draft-ledger small { color: var(--ink-faint); font-size: 0.72rem; }
+.genome-draft-ledger code { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--ink-faint); font-size: 0.68rem; }
+.genome-draft-ledger p { margin: 2px 0 0; color: var(--ink-faint); font-size: 0.75rem; }
+
 @media (max-width: 590px) {
   .model-consent-section { padding: 23px 17px; }
   .model-consent-active .voice-row-actions { align-items: stretch; }

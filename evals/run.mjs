@@ -97,6 +97,9 @@ const suites = {
   // decisions, privacy-safe summaries, real-evidence readiness and an
   // idempotent draft-only VoiceGenome queue.
   replicareview: "replica-review/run.mjs",
+  // Crash-recoverable, consent-fenced VoiceGenome materialization: one exact
+  // owner-accepted evidence set becomes a draft only, never an active voice.
+  modelbuild: "model-build/run.mjs",
   // Private replica runtime: immutable qualified version bindings, owner-only
   // agent/person resolution, RelationalOS isolation, protected cascade speech
   // and revocation fencing at the signed segment boundary.

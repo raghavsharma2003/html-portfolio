@@ -126,6 +126,15 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
           {review.voice_genome_readiness.blockers.length > 0 && <ul>{review.voice_genome_readiness.blockers.map((blocker) => <li key={blocker}>{words(blocker)}</li>)}</ul>}
           <button className="button primary-button" type="button" disabled={!review.voice_genome_readiness.ready || busyId === "build"} onClick={() => void queueBuild()}>{busyId === "build" ? "Queueing draft" : "Queue draft VoiceGenome"}</button>
           {review.builds.length > 0 && <div className="build-ledger"><strong>Build ledger</strong>{review.builds.map((build) => <span key={build.build_id}>v{build.target_version} · {words(build.state)} · {when(build.created_at)}</span>)}</div>}
+          {review.voice_genomes.length > 0 && <div className="genome-draft-ledger">
+            <strong>Immutable draft ledger</strong>
+            {review.voice_genomes.map((genome) => <div key={genome.version}>
+              <span>VoiceGenome v{genome.version} · {words(genome.status)}</span>
+              <small>{genome.embedding_families} independent embeddings · {genome.target_segments} target segments · {genome.enrollment_artifacts} private enrollment artifacts</small>
+              <code>{genome.manifest_hash.slice(0, 16)}…</code>
+            </div>)}
+            <p>Drafts cannot synthesize audio. Approval still requires owner calibration and a real held-out identity evaluation.</p>
+          </div>}
         </article>}
       </div>
     </section>
