@@ -3,9 +3,12 @@ import { getReplicaReview } from "./processingApi";
 import { ReplicaApiError } from "./replicaApi";
 import type { ReplicaReview } from "./types";
 import {
+  buildVoiceDeliveryPolicy,
   generateVoicePreview,
+  getVoiceDeliveryStatus,
   issueVoiceTrial,
   saveVoicePreference,
+  type VoiceDeliveryStatus,
   type VoicePreferenceChoice,
   type VoicePreferenceReason,
 } from "./voicePreviewApi";
@@ -62,6 +65,8 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
   const [preferenceBusy, setPreferenceBusy] = useState(false);
   const [preferenceSaved, setPreferenceSaved] = useState<{ id: string; choice: VoicePreferenceChoice; leftStyle: string; rightStyle: string } | null>(null);
   const [pairError, setPairError] = useState("");
+  const [delivery, setDelivery] = useState<VoiceDeliveryStatus | null>(null);
+  const [deliveryBusy, setDeliveryBusy] = useState(false);
 
   const draft = useMemo(() => review?.voice_genomes.find((item) => item.status === "draft") ?? null, [review]);
 
@@ -79,6 +84,18 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
   useEffect(() => () => {
     if (pair) { URL.revokeObjectURL(pair.left.url); URL.revokeObjectURL(pair.right.url); }
   }, [pair]);
+
+  const loadDelivery = useCallback(async () => {
+    if (!draft) { setDelivery(null); return; }
+    try {
+      setDelivery(await getVoiceDeliveryStatus(token, { replicaId, genomeVersion: draft.version, languageId: language }));
+    } catch (cause) {
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+      setDelivery(null);
+    }
+  }, [draft, language, onAuthError, replicaId, token]);
+
+  useEffect(() => { void loadDelivery(); }, [loadDelivery]);
 
   function discardPair() {
     setPair(null); setPairError(""); setPreferenceSaved(null); setPreferenceReasons([]); setHeard({ left: false, right: false });
@@ -143,10 +160,23 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
         reasonCodes: preferenceReasons,
       });
       setPreferenceSaved({ id: saved.preference_id, choice: saved.choice, leftStyle: saved.left_style_key, rightStyle: saved.right_style_key });
+      await loadDelivery();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
       setPairError(cause instanceof Error ? cause.message : "The voice preference could not be secured");
     } finally { setPreferenceBusy(false); }
+  }
+
+  async function freezeDeliveryPolicy() {
+    if (!draft || !delivery?.readiness.ready || deliveryBusy) return;
+    setDeliveryBusy(true); setPairError("");
+    try {
+      await buildVoiceDeliveryPolicy(token, { replicaId, genomeVersion: draft.version, languageId: language });
+      await loadDelivery();
+    } catch (cause) {
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+      setPairError(cause instanceof Error ? cause.message : "The Voice Delivery Genome could not be frozen");
+    } finally { setDeliveryBusy(false); }
   }
 
   return (
@@ -254,6 +284,22 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
           </div>
         ) : <div className="voice-preference-empty">{pairBusy ? "Two fully protected generations are being built. Cold starts can take a few minutes." : "No comparison is open. The lab will assign a new challenge sentence and hold it constant across both sides."}</div>}
         {pairError ? <p className="inline-error" role="alert">{pairError}</p> : null}
+        {delivery ? (
+          <div className="voice-delivery-freeze">
+            <div>
+              <span>Voice Delivery Genome</span>
+              <h4>{delivery.policies[0] ? `Version ${delivery.policies[0].version} is frozen` : "Build an immutable delivery candidate"}</h4>
+              <p>{delivery.policies[0] ? `${CONDITION_LABELS[delivery.policies[0].champion_key] || "Learned delivery"} is bound to ${delivery.policies[0].comparisons} exact judgments. It remains draft-only until held-out qualification.` : "The candidate is created only after the multilingual comparison boundary is deep and diverse enough."}</p>
+            </div>
+            <div className="voice-delivery-readiness">
+              <span>{delivery.readiness.completed} comparisons</span>
+              <span>{delivery.readiness.covered_conditions}/{delivery.readiness.total_conditions} conditions</span>
+              <span>{delivery.readiness.unique_prompts}/{delivery.readiness.required_prompts} prompts</span>
+            </div>
+            <button className="button primary-button" type="button" disabled={!delivery.readiness.ready || deliveryBusy} onClick={() => void freezeDeliveryPolicy()}>{deliveryBusy ? "Freezing evidence" : delivery.policies[0] ? "Freeze updated version" : "Freeze delivery candidate"}</button>
+            {!delivery.readiness.ready ? <small>More blind evidence is required. Repeating one familiar sentence cannot unlock this gate.</small> : <small>Freezing does not activate the voice. A separate held-out ABX gate is next.</small>}
+          </div>
+        ) : null}
       </div>
     </section>
   );

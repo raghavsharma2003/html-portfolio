@@ -189,6 +189,11 @@ export async function completeSourceErasure(db, lease) {
         update vy_replica_model_build b set state='retired',updated_at=now()
           from target t where b.replica_id=t.replica_id and b.owner_user_id=t.owner_user_id
            and b.state<>'retired'
+      ), voice_delivery_policies as (
+        delete from vy_replica_voice_delivery_policy p using vy_replica_processing_artifact a,target t
+         where p.preview_artifact_id=a.artifact_id and p.replica_id=a.replica_id
+           and p.owner_user_id=a.owner_user_id and a.source_id=t.source_id
+           and a.replica_id=t.replica_id and a.owner_user_id=t.owner_user_id
       ), voice_preferences as (
         delete from vy_replica_voice_preference p using target t
          where p.replica_id=t.replica_id and p.owner_user_id=t.owner_user_id

@@ -111,6 +111,7 @@ const suites = {
   // append-only content-free preference ledger for future model updates.
   voicepreference: "voice-preference/run.mjs",
   voicecurriculum: "voice-curriculum/run.mjs",
+  voicedeliverypolicy: "voice-delivery-policy/run.mjs",
   // Deployable scale-to-zero consumer: composite-tenant leasing, real private
   // byte verification, current ClamAV, ffprobe, exact evidence adapters,
   // immutable persistence and one-step DAG settlement.

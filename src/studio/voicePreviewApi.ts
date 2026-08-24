@@ -45,6 +45,27 @@ export interface VoiceTrialResult {
   };
 }
 
+export interface VoiceDeliveryPolicy {
+  policy_id: string;
+  version: number;
+  language_id: "en" | "hi";
+  status: "draft" | "qualifying" | "qualified" | "approved" | "rejected" | "retired";
+  champion_key: string;
+  comparisons: number;
+  prompt_families: number;
+  latent_margin: number;
+  source_set_hash: string;
+  created_at: string;
+}
+
+export interface VoiceDeliveryStatus {
+  replica_id: string;
+  genome_version: number;
+  language_id: "en" | "hi";
+  readiness: { ready: boolean; completed: number; covered_conditions: number; total_conditions: number; unique_prompts: number; required_prompts: number };
+  policies: VoiceDeliveryPolicy[];
+}
+
 export async function generateVoicePreview(token: string, input: VoicePreviewInput): Promise<VoicePreviewResult> {
   const response = await fetch("/api/replica-voice-preview", {
     method: "POST",
@@ -137,4 +158,50 @@ export async function saveVoicePreference(token: string, input: {
     throw new ReplicaApiError(raw.replaceAll("_", " "), response.status, data);
   }
   return data.preference as VoicePreferenceResult;
+}
+
+export async function getVoiceDeliveryStatus(token: string, input: {
+  replicaId: string;
+  genomeVersion: number;
+  languageId: "en" | "hi";
+}): Promise<VoiceDeliveryStatus> {
+  const query = new URLSearchParams({
+    replica_id: input.replicaId,
+    genome_version: String(input.genomeVersion),
+    language_id: input.languageId,
+  });
+  const response = await fetch(`/api/replica-voice-delivery-policy?${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(25_000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const raw = typeof data?.error === "string" ? data.error : `delivery status failed (${response.status})`;
+    throw new ReplicaApiError(raw.replaceAll("_", " "), response.status, data);
+  }
+  return data.voice_delivery as VoiceDeliveryStatus;
+}
+
+export async function buildVoiceDeliveryPolicy(token: string, input: {
+  replicaId: string;
+  genomeVersion: number;
+  languageId: "en" | "hi";
+}): Promise<VoiceDeliveryPolicy> {
+  const response = await fetch("/api/replica-voice-delivery-policy", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      op: "build",
+      replica_id: input.replicaId,
+      genome_version: input.genomeVersion,
+      language_id: input.languageId,
+    }),
+    signal: AbortSignal.timeout(25_000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const raw = typeof data?.error === "string" ? data.error : `delivery build failed (${response.status})`;
+    throw new ReplicaApiError(raw.replaceAll("_", " "), response.status, data);
+  }
+  return data.policy as VoiceDeliveryPolicy;
 }

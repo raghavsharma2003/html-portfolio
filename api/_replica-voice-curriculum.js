@@ -177,6 +177,11 @@ export function recommendVoiceTrial(history, seedMaterial = "") {
     uniquePrompts: uniquePrompts.size,
     requiredPrompts: VOICE_CALIBRATION_REQUIRED_PROMPTS,
     provisionalChampion: rows.length >= 5 ? ranked[0] : null,
+    runnerUp: rows.length >= 5 ? ranked[1] : null,
+    latentMargin: margin,
+    conditionScores: Object.freeze(Object.fromEntries(VOICE_TRIAL_STYLE_KEYS.map((key) => [key, ratings[key]]))),
+    exposures: Object.freeze({ ...exposures }),
+    rejections: Object.freeze({ ...rejections }),
     converged: rows.length >= 18 && covered === VOICE_TRIAL_STYLE_KEYS.length &&
       uniquePrompts.size >= VOICE_CALIBRATION_REQUIRED_PROMPTS && exposures[ranked[0]] >= 5 && margin >= 0.42,
   });
@@ -218,7 +223,7 @@ async function ownedTrialContext(db, ownerUserId, rid, genomeVersion) {
   return rows[0] || null;
 }
 
-export async function issueOwnedVoiceTrial(db, ownerUserId, input) {
+export async function loadOwnedVoiceCurriculumContext(db, ownerUserId, input) {
   const rid = replicaId(input?.replica_id);
   const genomeVersion = Number(input?.genome_version);
   const languageId = String(input?.language_id || "").toLowerCase();
@@ -227,18 +232,28 @@ export async function issueOwnedVoiceTrial(db, ownerUserId, input) {
   const context = await ownedTrialContext(db, ownerUserId, rid, genomeVersion);
   if (!context) fail("voice_trial_not_authorized", 409);
   const history = await db(
-    `select p.choice,p.confidence,t.prompt_key,t.text_hash,
+    `select p.preference_id,p.trial_id,p.pair_hash,p.choice,p.confidence,p.reason_codes,p.created_at,
+            t.prompt_key,t.prompt_deck_version,t.text_hash,t.algorithm,
             l.preview_style->>'key' left_style_key,r.preview_style->>'key' right_style_key
        from vy_replica_voice_preference p
        join vy_replica_voice_trial t on t.trial_id=p.trial_id and t.replica_id=p.replica_id and t.owner_user_id=p.owner_user_id
        join vy_replica_generation l on l.generation_id=p.left_generation_id and l.replica_id=p.replica_id and l.owner_user_id=p.owner_user_id
-      join vy_replica_generation r on r.generation_id=p.right_generation_id and r.replica_id=p.replica_id and r.owner_user_id=p.owner_user_id
+       join vy_replica_generation r on r.generation_id=p.right_generation_id and r.replica_id=p.replica_id and r.owner_user_id=p.owner_user_id
       where p.replica_id=$1 and p.owner_user_id=$2 and p.genome_version=$3 and p.preview_artifact_id=$4
         and l.preview_language_id=$5 and r.preview_language_id=$5
         and l.preview_model_commitment=$6 and r.preview_model_commitment=$6
-      order by p.created_at,p.preference_id`,
-    [rid, ownerUserId, genomeVersion, context.artifact_id, languageId, OPEN_CHATTERBOX_MODEL_COMMITMENT],
+        and t.algorithm=$7 and t.prompt_deck_version=$8
+      order by p.created_at,p.preference_id limit 513`,
+    [rid, ownerUserId, genomeVersion, context.artifact_id, languageId, OPEN_CHATTERBOX_MODEL_COMMITMENT,
+      VOICE_CURRICULUM_ALGORITHM, VOICE_CALIBRATION_DECK_VERSION],
   );
+  if (history.length > 512) fail("voice_curriculum_history_limit", 409);
+  return Object.freeze({ rid, genomeVersion, languageId, context, history: Object.freeze(history) });
+}
+
+export async function issueOwnedVoiceTrial(db, ownerUserId, input) {
+  const { rid, genomeVersion, languageId, context, history } =
+    await loadOwnedVoiceCurriculumContext(db, ownerUserId, input);
   const prompt = recommendVoiceCalibrationPrompt(history, languageId,
     `${rid}:${genomeVersion}:${context.artifact_id}:${languageId}:${history.length}`);
   const textHash = voicePreviewTextHash(prompt.text);
