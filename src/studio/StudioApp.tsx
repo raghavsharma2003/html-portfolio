@@ -700,6 +700,8 @@ export default function StudioApp() {
   const identity = useMemo(() => session?.email || session?.phone || "Signed in account", [session]);
   const selectedId = selected?.replica_id ?? null;
   const sessionUserId = session?.userId || "";
+  const activeChallengeId = challenge?.challenge_id || "";
+  const activeChallengeState = challenge?.state || "";
 
   const signOut = useCallback(() => {
     writeStoredSession(null);
@@ -840,6 +842,35 @@ export default function StudioApp() {
     })();
     return () => { live = false; };
   }, [handleApiError, refreshForRequest, selectedId, session]);
+
+  useEffect(() => {
+    if (!session || !selectedId || !activeChallengeId || !["uploaded", "verifying"].includes(activeChallengeState)) return;
+    let live = true;
+    let timer = 0;
+    const poll = async () => {
+      try {
+        const fresh = await refreshForRequest(session);
+        const next = await livenessStatus(fresh.accessToken, selectedId);
+        if (!live) return;
+        setChallenge(next);
+        if (next && ["uploaded", "verifying"].includes(next.state)) {
+          timer = window.setTimeout(() => void poll(), 5_000);
+        } else if (next?.state === "passed") {
+          await refreshReplicaView(fresh, selectedId);
+          if (live) setNotice("Independent liveness verification passed. Training and inference remain separately permissioned.");
+        }
+      } catch (cause) {
+        if (!live) return;
+        handleApiError(cause, "Could not refresh liveness verification");
+        timer = window.setTimeout(() => void poll(), 10_000);
+      }
+    };
+    timer = window.setTimeout(() => void poll(), 2_000);
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+  }, [activeChallengeId, activeChallengeState, handleApiError, refreshForRequest, refreshReplicaView, selectedId, session]);
 
   async function selectReplica(id: string) {
     if (!session) return;

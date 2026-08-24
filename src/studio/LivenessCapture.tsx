@@ -22,12 +22,11 @@ type Recording = {
   mime: string;
 };
 
-const AUDIO_TYPES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
 const VIDEO_TYPES = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"];
 
 function supportedType(mode: CaptureMode) {
   if (typeof MediaRecorder === "undefined") return "";
-  return (mode === "video" ? VIDEO_TYPES : AUDIO_TYPES).find((mime) => MediaRecorder.isTypeSupported(mime)) || "";
+  return (mode === "video" ? VIDEO_TYPES : []).find((mime) => MediaRecorder.isTypeSupported(mime)) || "";
 }
 
 function remainingLabel(milliseconds: number) {
@@ -75,7 +74,7 @@ export default function LivenessCapture({
   onRetryUpload,
   onFinalize,
 }: Props) {
-  const [mode, setMode] = useState<CaptureMode>("audio");
+  const [mode] = useState<CaptureMode>("video");
   const [stage, setStage] = useState<CaptureStage>("idle");
   const [recording, setRecording] = useState<Recording | null>(null);
   const [error, setError] = useState("");
@@ -91,9 +90,8 @@ export default function LivenessCapture({
   const previewRef = useRef<HTMLVideoElement>(null);
   const autoStopRef = useRef<number | null>(null);
 
-  const audioMime = useMemo(() => supportedType("audio"), []);
   const videoMime = useMemo(() => supportedType("video"), []);
-  const selectedMime = mode === "video" ? videoMime : audioMime;
+  const selectedMime = videoMime;
   const expiresAt = challenge ? new Date(challenge.expires_at).getTime() : 0;
   const remaining = expiresAt - now;
   const challengeState = challenge?.state;
@@ -319,21 +317,21 @@ export default function LivenessCapture({
               <h4>Waiting for an independent verifier</h4>
               <p>
                 The challenge recording is isolated in private quarantine. It has not granted biometric, training, inference,
-                or generation permission. No verifier is connected yet, so this gate remains locked.
+                or generation permission. The gate stays locked until the independent composite verifier settles every check.
               </p>
             </div>
           </div>
         ) : challenge?.state === "passed" ? (
           <div className="verification-pending verification-passed" role="status">
             <span className="verification-check">✓</span>
-            <div><p className="eyebrow">Verifier result</p><h4>Live challenge passed</h4><p>Separate biometric and model permissions are still required before identity modeling.</p></div>
+            <div><p className="eyebrow">Verifier result</p><h4>Live challenge passed</h4><p>Biometric comparison permission is bound to this evidence. Training and inference permission remain separate.</p></div>
           </div>
         ) : !challengeIssued ? (
           <div className="challenge-empty">
             <div>
               <p>
                 Request a one-time phrase, then record it before the five-minute timer ends. Each phrase combines Hindi,
-                English, an unpredictable code, and a spoken ownership statement to resist replay.
+                English, an unpredictable code, and a narrow biometric-consent statement to resist replay.
               </p>
               {challenge?.state === "failed" && <p className="challenge-failure">Previous attempt failed: {challenge.failure_code.replaceAll("_", " ") || "verification did not pass"}</p>}
               {challenge?.state === "expired" && <p className="challenge-failure">The previous phrase expired without a completed upload.</p>}
@@ -361,14 +359,10 @@ export default function LivenessCapture({
             {stage === "idle" && !recording && (
               <div className="capture-setup">
                 <fieldset className="capture-mode">
-                  <legend>Capture format</legend>
-                  <label className={!audioMime ? "unsupported" : ""}>
-                    <input type="radio" name="capture-mode" checked={mode === "audio"} disabled={!audioMime} onChange={() => setMode("audio")} />
-                    <span><strong>Voice only</strong><small>{audioMime ? "Microphone access" : "Not supported"}</small></span>
-                  </label>
+                  <legend>Required capture</legend>
                   <label className={!videoMime ? "unsupported" : ""}>
-                    <input type="radio" name="capture-mode" checked={mode === "video"} disabled={!videoMime} onChange={() => setMode("video")} />
-                    <span><strong>Voice + video</strong><small>{videoMime ? "Camera and microphone" : "Not supported"}</small></span>
+                    <input type="radio" name="capture-mode" checked readOnly disabled={!videoMime} />
+                    <span><strong>Voice + live face</strong><small>{videoMime ? "Camera and microphone required" : "Not supported"}</small></span>
                   </label>
                 </fieldset>
                 <button className="button primary-button permission-button" type="button" disabled={!selectedMime} onClick={() => void requestMedia()}>
@@ -418,7 +412,7 @@ export default function LivenessCapture({
           </>
         )}
         {error && <p className="inline-error liveness-error" role="alert">{error}</p>}
-        <p className="liveness-boundary">Live evidence is not a verifier result. This interface cannot mark identity or liveness as passed.</p>
+        <p className="liveness-boundary">Live evidence is not a verifier result. Only the independent server verifier can mark this challenge as passed.</p>
       </div>
     </section>
   );

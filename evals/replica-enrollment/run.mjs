@@ -75,10 +75,18 @@ const SHA = "d".repeat(64);
   ok("third-party challenge capture is refused before SQL", await (async () => {
     try {
       await Liveness.createChallengeSource(async () => [], OWNER, REPLICA, SOURCE, {
-        kind: "audio", mime: "audio/wav", byte_size: 12, sha256: SHA, contains_third_parties: true,
+        kind: "video", mime: "video/webm", byte_size: 12, sha256: SHA, contains_third_parties: true,
       });
       return false;
     } catch (error) { return error.message.includes("only the verified subject"); }
+  })());
+  ok("audio-only challenge evidence cannot satisfy independent face liveness", await (async () => {
+    try {
+      await Liveness.createChallengeSource(async () => [], OWNER, REPLICA, SOURCE, {
+        kind: "audio", mime: "audio/wav", byte_size: 12, sha256: SHA, contains_third_parties: false,
+      });
+      return false;
+    } catch (error) { return error.message.includes("voice and video"); }
   })());
 
   const calls = [];

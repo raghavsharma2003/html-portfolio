@@ -15,7 +15,7 @@ const ACTIONS = ["crosses", "meets", "follows", "circles", "greets", "remembers"
 export function livenessPhrase(pick = randomInt) {
   const choose = (values) => values[pick(values.length)];
   const code = String(100_000 + pick(900_000));
-  return `Aaj ka live code ${choose(COLORS)} ${choose(OBJECTS)} ${code} hai. The ${choose(OBJECTS)} ${choose(ACTIONS)} the quiet river. This recording is mine and was made now.`;
+  return `Aaj ka live code ${choose(COLORS)} ${choose(OBJECTS)} ${code} hai. The ${choose(OBJECTS)} ${choose(ACTIONS)} the quiet river. This recording is mine and was made now. I consent to Vyakti using its biometric signals only for private identity and liveness verification.`;
 }
 
 export function clientChallenge(row) {
@@ -115,6 +115,12 @@ export async function createChallengeSource(db, ownerUserId, id, challenge, valu
   const input = sourceUploadInput(value);
   if (input.kind !== "audio" && input.kind !== "video") {
     throw Object.assign(new Error("live challenge evidence must be audio or video"), { status: 400 });
+  }
+  if (input.kind !== "video") {
+    throw Object.assign(new Error("voice and video are both required for independent liveness verification"), { status: 409 });
+  }
+  if (input.byteSize > 52_428_800) {
+    throw Object.assign(new Error("live challenge video must be 50 MiB or less"), { status: 413 });
   }
   if (input.containsThirdParties) {
     throw Object.assign(new Error("live challenge must contain only the verified subject"), { status: 409 });

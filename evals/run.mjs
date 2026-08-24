@@ -132,6 +132,10 @@ const suites = {
   // deterministic metered profile through short-lived private reads. Status,
   // tenant binding and deletion remain server-only and provider-neutral.
   voiceenrollment: "voice-enrollment/run.mjs",
+  // Replay-resistant self-verification: exact randomized phrase, face
+  // liveness+identity, single-speaker continuity, synthetic-media risk,
+  // capture binding, one-way leases and evidence-bound biometric consent.
+  livenessverify: "liveness-verification/run.mjs",
   // Crash-safe biometric deletion: disable-first semantics, one-way leases,
   // idempotent Azure voice+consent deletion, bounded backoff and a scheduled
   // reconciler that keeps working even when new cloning has been disabled.
