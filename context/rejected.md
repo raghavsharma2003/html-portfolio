@@ -1986,3 +1986,20 @@ a WS-TIME task. Honest residual: `hisClock` (his dated facts moving
 behind him) is covered by nothing shipping — T9 carries clock/gap facts
 only. **Returns only as** a real compiler slot with a MANIFEST row and a
 lane-parity column, never as a render function waiting for a caller.
+
+## `isquota-only-folding` — "every key rejects it identically" folded 5xx into 4xx
+
+api/chat.js's pool walk (and api/live-token.js's, independently) classified
+upstream failures as quota-or-deterministic: quota rotated keys, everything
+else aborted the pool after ONE call under the comment "every key would
+reject it identically, so stop rather than burning the pool". True for
+400/401/403/404; false for 5xx. Production paid for it 2026-08-24
+02:30-04:30Z: single Google 502s ({ms:6693}, {ms:9869}) aborted a NINE-key
+pool with retries:0 and shipped the canned connectivity pair — three times
+in 90 minutes, and during a ring it meant she never picked up. The twist
+that makes this a rejection and not just a bug: `_gkeys.js` already
+exported `isTransient` and two other callers (speech.js, memory.js) already
+classified correctly — the assumption survived in the two places nobody
+re-read (`age-tier-never-realtime`'s shape). Replaced by the classified
+ladder in api/_lanes.js; evals/resilience re-runs the pre-fix folding as a
+negative control and asserts it loses the turn at calls=1.

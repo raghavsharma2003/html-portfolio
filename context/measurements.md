@@ -2719,3 +2719,17 @@ the note composition were extracted into pure functions.
 - verify-release 13/13 twice on the isolated maya tree, twice more on
   the integrated tree after the coordinator's persona rename + bundle
   regen (4 full passes total).
+
+## `resilience-latency-2026-08-24` (real api/chat.js handler, mocked upstream honouring aborts, 9-key pool, n=1/cell, scratchpad/lat.mjs)
+
+- instant 200: 74ms, lane gemini-free. fast 502 -> same-key retry -> 200:
+  778ms (+~700ms), retries=1. 1.2s 502 -> retry -> 200: 1919ms (+~720ms).
+- the production failure shape (6.7s 502): 6957ms, lands on azure at +257ms,
+  1 key burned — vs the pre-fix canned line.
+- every key slow-502 (3s each): 4203ms, deadline bound at 4000ms held, 2
+  keys burned (a first attempt that eats the deadline stops the walk).
+- quota on every key: 253ms, unchanged path.
+- no-repeat oops draw: 4000 consecutive draws, 0 back-to-back repeats, all 6
+  variants reached, not a fixed rotation; pre-fix uniform draw ~650 repeats.
+- composer: 121 + 59 browser assertions on the real preview build; 14
+  screenshots light+dark; "capture" in input false on desktop Chromium 141.

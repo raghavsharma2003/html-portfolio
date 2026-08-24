@@ -1497,6 +1497,30 @@
    "kind": "measurement",
    "at": "2026-08-23",
    "title": "Rename: 75 refs/16 files via one seam, 0 stray literals, browser-verified; lifecycle 378 checks/50 cells/7 controls; verify-release 13/13 x4"
+  },
+  {
+   "id": "isquota-only-folding",
+   "kind": "rejection",
+   "at": "2026-08-24",
+   "title": "Quota-or-abort classification folded transient 5xx into deterministic 4xx: one Google 502 aborted a nine-key pool; isTransient already existed and two callers already used it"
+  },
+  {
+   "id": "lane-order-azure-first-attachments",
+   "kind": "decision",
+   "at": "2026-08-24",
+   "title": "Named lane order: text free->openrouter->azure, attachments azure-first; azure wired+gated, not yet measured live"
+  },
+  {
+   "id": "no-capacitor-camera-plugin",
+   "kind": "decision",
+   "at": "2026-08-24",
+   "title": "Camera rides <input capture> via the WebView; a plugin would force an OTA_NATIVE_CONTRACT reinstall for a capability we have"
+  },
+  {
+   "id": "resilience-latency-2026-08-24",
+   "kind": "measurement",
+   "at": "2026-08-24",
+   "title": "Retry ladder latency table: production 502 shape lands on next lane at +257ms; 4000ms deadline held; no-repeat draw 0/4000 vs ~650 pre-fix"
   }
  ],
  "edges": [
@@ -2744,6 +2768,16 @@
    "src": "t14-render-layer-retired",
    "rel": "part_of",
    "dst": "dead-writers"
+  },
+  {
+   "src": "isquota-only-folding",
+   "rel": "caused_by",
+   "dst": "resilience-latency-2026-08-24"
+  },
+  {
+   "src": "lane-order-azure-first-attachments",
+   "rel": "measured_by",
+   "dst": "resilience-latency-2026-08-24"
   }
  ]
 }

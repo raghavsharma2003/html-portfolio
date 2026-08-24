@@ -2064,3 +2064,38 @@ overlap defect means a wrong cell, not a missing enumeration.
 **Reverses if:** a sixth context or eleventh event arrives that the grid
 cannot express — then the matrix GROWS a row, it does not get bypassed; any
 transition handled outside it is the defect returning.
+
+## `lane-order-azure-first-attachments` — who answers, in what order
+
+**Decided 2026-08-24.** Brain lanes are a named constant (api/_lanes.js):
+text goes gemini-free -> openrouter -> azure; turns carrying attachments go
+AZURE-FIRST (owner directive: the grant should carry images/docs; OpenRouter
+is cash-dead). `hasAttachments` is true for request-borne images/docs OR an
+assembled prompt already carrying image_url parts — without the second half,
+Azure-first would fire for a fresh data-URL send and never for the ordinary
+upload-then-history flow, which is most picture turns. The Azure lane
+defaults to the one deployment this repo has evidence for (vy_gate_run 35;
+realtime-azure 5/5 at real frame fidelity; non-reasoning per extract-model's
+81% deficit on emotionally heavy beats) and skips cleanly when unconfigured.
+Wired and gated, NOT yet measured live — served_by:"azure" has never
+appeared in a real trace.
+
+**Reverses if:** a paired incumbent-vs-Azure run at the app's real image
+shape shows free-Gemini vision is not worse (then attachments rejoin the
+text order); or the grant expires (then Azure drops to last everywhere).
+
+## `no-capacitor-camera-plugin` — the WebView already owns the camera
+
+**Decided 2026-08-24, WS-COMPOSER, ratified.** The camera option rides
+`<input capture>`: Capacitor's BridgeWebChromeClient answers it with a real
+ACTION_IMAGE_CAPTURE intent and forwards `multiple`. Adding @capacitor/camera
+would be a second native surface for a capability we have, and
+android/app/build.gradle's own contract says a new plugin method bumps
+OTA_NATIVE_CONTRACT — forcing every installed copy to reinstall. Camera
+detection asks the pointer (coarse + maxTouchPoints>0), measured because
+`"capture" in input` reads false on desktop Chromium 141 and cannot be
+trusted to differ on phones.
+
+**Reverses if:** a needed capability (e.g. in-app camera UI, editing) cannot
+ride the input path — and then the plugin lands WITH the contract bump done
+deliberately, in its own release.
