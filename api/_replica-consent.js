@@ -1,10 +1,22 @@
 import { createHash, randomBytes } from "node:crypto";
 import { REPLICA_POLICY_VERSION, replicaId } from "./_replica.js";
+import { canonicalJson } from "./_provenance/contracts.js";
 
 export const ACCOUNT_ATTESTATION_SCOPES = Object.freeze([
   "capture",
   "transcription",
   "storage",
+]);
+
+export const VERIFIED_MODEL_SCOPES = Object.freeze(["training", "inference"]);
+export const VERIFIED_MODEL_STATEMENT_SET = "verified-model-consent/v1";
+export const VERIFIED_MODEL_ATTESTATIONS = Object.freeze([
+  "private_self_replica_only",
+  "authorize_biometric_voice_modeling",
+  "authorize_private_training",
+  "authorize_disclosed_inference",
+  "understand_synthetic_disclosure_and_watermarking",
+  "understand_revocation_stops_use_and_deletes_copies",
 ]);
 
 const ALL_SCOPES = new Set([
@@ -44,6 +56,15 @@ export function accountAttestations(value) {
   return Object.fromEntries(required.map((key) => [key, true]));
 }
 
+export function verifiedModelAttestations(value) {
+  const input = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  if (Object.keys(input).length !== VERIFIED_MODEL_ATTESTATIONS.length ||
+      VERIFIED_MODEL_ATTESTATIONS.some((key) => input[key] !== true)) {
+    fail("all verified model consent statements are required", 409);
+  }
+  return Object.freeze(Object.fromEntries(VERIFIED_MODEL_ATTESTATIONS.map((key) => [key, true])));
+}
+
 export function makeConsentReceipt({ ownerUserId, replica, scopes, method, attestations, now = new Date(), nonce } = {}) {
   const at = now instanceof Date ? now.toISOString() : new Date(now).toISOString();
   const payload = {
@@ -56,16 +77,54 @@ export function makeConsentReceipt({ ownerUserId, replica, scopes, method, attes
     nonce: nonce || randomBytes(24).toString("hex"),
     attestations,
   };
-  const canonical = JSON.stringify(payload);
+  const canonicalPayload = {
+    receipt_format: "vyakti-consent-v1",
+    canonicalization: "vyakti-canonical-json/v1",
+    hash_algorithm: "sha256",
+    statement_set: "self-replica-enrollment-v1",
+    ...payload,
+  };
   return {
-    hash: createHash("sha256").update(canonical).digest("hex"),
+    hash: createHash("sha256").update(canonicalJson(canonicalPayload)).digest("hex"),
     grantedAt: at,
     metadata: {
-      receipt_format: "vyakti-consent-v1",
-      statement_set: "self-replica-enrollment-v1",
-      attestations,
+      ...canonicalPayload,
     },
   };
+}
+
+
+export function makeVerifiedModelConsentReceipt({ ownerUserId, replica, scopes, attestations, basis, now = new Date(), nonce } = {}) {
+  const at = now instanceof Date ? now.toISOString() : new Date(now).toISOString();
+  const payload = Object.freeze({
+    receipt_format: "vyakti-consent-v1",
+    canonicalization: "vyakti-canonical-json/v1",
+    hash_algorithm: "sha256",
+    statement_set: VERIFIED_MODEL_STATEMENT_SET,
+    owner_user_id: String(ownerUserId),
+    replica_id: replicaId(replica),
+    scopes: [...scopes].sort(),
+    method: "live_challenge",
+    policy_version: REPLICA_POLICY_VERSION,
+    verification_basis: {
+      consent_id: String(basis?.consent_id || ""),
+      receipt_hash: String(basis?.receipt_hash || ""),
+      granted_at: new Date(basis?.granted_at).toISOString(),
+    },
+    granted_at: at,
+    nonce: nonce || randomBytes(24).toString("hex"),
+    attestations,
+  });
+  if (!/^[0-9a-f]{48}$/.test(payload.nonce)) fail("verified model consent nonce invalid", 500);
+  if (!/^[0-9a-f-]{36}$/i.test(payload.verification_basis.consent_id) ||
+      !/^[0-9a-f]{64}$/.test(payload.verification_basis.receipt_hash)) {
+    fail("verified biometric consent basis required", 409);
+  }
+  return Object.freeze({
+    hash: createHash("sha256").update(canonicalJson(payload)).digest("hex"),
+    grantedAt: at,
+    payload,
+  });
 }
 
 export function clientConsent(row) {
@@ -78,11 +137,13 @@ export function clientConsent(row) {
     granted_at: row.granted_at,
     expires_at: row.expires_at,
     revoked_at: row.revoked_at,
+    receipt_hash: row.receipt_hash,
+    statement_set: row.metadata?.statement_set || null,
   };
 }
 
 const CONSENT_RETURNING = `consent_id, replica_id, scope, method, policy_version,
-  granted_at, expires_at, revoked_at`;
+  granted_at, expires_at, revoked_at, receipt_hash, metadata`;
 
 export async function grantAccountConsent(db, ownerUserId, id, input, options = {}) {
   const rid = replicaId(id);
@@ -160,6 +221,79 @@ export async function listOwnedConsent(db, ownerUserId, id) {
       order by granted_at desc limit 100`,
     [replicaId(id), ownerUserId],
   );
+  return rows.map(clientConsent);
+}
+
+export async function grantVerifiedModelConsent(db, ownerUserId, id, input, options = {}) {
+  const rid = replicaId(id);
+  const scopes = consentScopes(input?.scopes, "verified");
+  if (scopes.length !== VERIFIED_MODEL_SCOPES.length ||
+      VERIFIED_MODEL_SCOPES.some((scope) => !scopes.includes(scope))) {
+    fail("verified ceremony grants only training and inference together", 409);
+  }
+  const attestations = verifiedModelAttestations(input?.attestations);
+  const basisRows = await db(
+    `select c.consent_id,c.receipt_hash,c.granted_at
+       from vy_replica r
+       join vy_replica_consent c on c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
+      where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
+        and r.policy_version=$3 and r.lifecycle not in ('revoked','purging')
+        and r.age_verified_at is not null and r.identity_verified_at is not null
+        and r.liveness_verified_at is not null and r.identity_expires_at>now()
+        and c.scope='biometric' and c.method='live_challenge'
+        and c.policy_version=r.policy_version and c.revoked_at is null
+        and (c.expires_at is null or c.expires_at>now())
+      order by c.granted_at desc limit 1`,
+    [rid, ownerUserId, REPLICA_POLICY_VERSION],
+  );
+  const basis = basisRows[0];
+  if (!basis) fail("current verified biometric consent is required", 409);
+  const receipt = makeVerifiedModelConsentReceipt({
+    ownerUserId,
+    replica: rid,
+    scopes,
+    attestations,
+    basis,
+    now: options.now,
+    nonce: options.nonce,
+  });
+  const rows = await db(
+    `with owned as (
+       select r.replica_id,r.policy_version
+         from vy_replica r
+         join vy_replica_consent basis on basis.consent_id=$4
+          and basis.replica_id=r.replica_id and basis.owner_user_id=r.owner_user_id
+        where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
+          and r.policy_version=$8 and r.lifecycle not in ('revoked','purging')
+          and r.age_verified_at is not null and r.identity_verified_at is not null
+          and r.liveness_verified_at is not null and r.identity_expires_at>now()
+          and basis.scope='biometric' and basis.method='live_challenge'
+          and basis.policy_version=r.policy_version and basis.receipt_hash=$5
+          and basis.revoked_at is null and (basis.expires_at is null or basis.expires_at>now())
+     ), revoked as (
+       update vy_replica_consent set revoked_at=coalesce(revoked_at,$7::timestamptz)
+        where replica_id=$1 and owner_user_id=$2 and scope=any($3::text[])
+          and revoked_at is null and exists (select 1 from owned)
+     ), granted as (
+       insert into vy_replica_consent
+         (replica_id,owner_user_id,scope,method,policy_version,receipt_hash,
+          evidence_source_id,granted_at,expires_at,metadata)
+       select owned.replica_id,$2,requested.scope,'live_challenge',owned.policy_version,$6,null,
+              $7::timestamptz,$7::timestamptz + case when requested.scope='inference'
+                then interval '30 days' else interval '180 days' end,$9::jsonb
+         from owned cross join unnest($3::text[]) requested(scope)
+       returning ${CONSENT_RETURNING}
+     ), audit as (
+       insert into vy_replica_audit
+         (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
+       select $1,$2,'consent.verified_model_grant','consent_batch',$6,$8,'allowed',
+              jsonb_build_object('scope_count',cardinality($3::text[]),'basis_consent_id',$4)
+        where exists (select 1 from granted)
+     ) select * from granted order by scope`,
+    [rid, ownerUserId, scopes, basis.consent_id, basis.receipt_hash, receipt.hash,
+      receipt.grantedAt, REPLICA_POLICY_VERSION, JSON.stringify(receipt.payload)],
+  );
+  if (!rows.length) fail("verified consent basis changed; verify again", 409);
   return rows.map(clientConsent);
 }
 

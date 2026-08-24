@@ -36,6 +36,7 @@ import RuntimeGate from "./RuntimeGate";
 import ReplicaDialogueLab from "./ReplicaDialogueLab";
 import CandidateEvaluationLab from "./CandidateEvaluationLab";
 import VoiceEnrollmentLab from "./VoiceEnrollmentLab";
+import ModelConsentGate from "./ModelConsentGate";
 import {
   createSourceUpload,
   deleteSource,
@@ -399,6 +400,7 @@ function ReplicaWorkspace({
   onCreateLivenessUpload,
   onFinalizeLiveness,
   onIdentityChanged,
+  onVerifiedConsentChanged,
   onRevoke,
   revoking,
   accessToken,
@@ -440,6 +442,7 @@ function ReplicaWorkspace({
   }) => Promise<{ challenge: LivenessChallenge; source: ReplicaSource; upload: SignedUpload }>;
   onFinalizeLiveness: (challengeId: string, sourceId: string) => Promise<LivenessChallenge>;
   onIdentityChanged: () => Promise<void>;
+  onVerifiedConsentChanged: () => Promise<void>;
   onRevoke: () => Promise<void>;
   revoking: boolean;
   accessToken: string;
@@ -565,6 +568,14 @@ function ReplicaWorkspace({
             onCreateUpload={onCreateLivenessUpload}
             onRetryUpload={onRetryUpload}
             onFinalize={onFinalizeLiveness}
+          />
+
+          <ModelConsentGate
+            token={accessToken}
+            replica={replica}
+            consents={consents}
+            onChanged={onVerifiedConsentChanged}
+            onAuthError={onReviewAuthError}
           />
 
           <ProcessingReview
@@ -899,7 +910,11 @@ export default function StudioApp() {
         if (next && ["uploaded", "verifying"].includes(next.state)) {
           timer = window.setTimeout(() => void poll(), 5_000);
         } else if (next?.state === "passed") {
-          await refreshReplicaView(fresh, selectedId);
+          const [nextConsents] = await Promise.all([
+            listEnrollmentConsent(fresh.accessToken, selectedId),
+            refreshReplicaView(fresh, selectedId),
+          ]);
+          if (live) setConsents(nextConsents);
           if (live) setNotice("Independent liveness verification passed. Training and inference remain separately permissioned.");
         }
       } catch (cause) {
@@ -1008,6 +1023,24 @@ export default function StudioApp() {
       setNotice("Source permissions withdrawn. The replica is non-operational and source erasure is pending.");
     } catch (cause) {
       handleApiError(cause, "Could not withdraw source permissions");
+      throw cause;
+    }
+  }
+
+  async function handleVerifiedConsentChanged() {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const [nextConsents] = await Promise.all([
+        listEnrollmentConsent(fresh.accessToken, selected.replica_id),
+        refreshReplicaView(fresh, selected.replica_id),
+      ]);
+      setConsents(nextConsents);
+      setNotice(nextConsents.some((receipt) => receipt.scope === "inference" && !receipt.revoked_at)
+        ? "Private training and disclosed inference permissions recorded. No model is active until every independent gate passes."
+        : "Training and inference withdrawn. Model use is disabled and derived copies are queued for erasure.");
+    } catch (cause) {
+      handleApiError(cause, "Could not refresh verified model permissions");
       throw cause;
     }
   }
@@ -1257,6 +1290,7 @@ export default function StudioApp() {
               onCreateLivenessUpload={handleCreateLivenessUpload}
               onFinalizeLiveness={handleFinalizeLiveness}
               onIdentityChanged={handleIdentityChanged}
+              onVerifiedConsentChanged={handleVerifiedConsentChanged}
               onRevoke={handleRevoke}
               revoking={revoking}
               accessToken={session.accessToken}

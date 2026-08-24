@@ -54,6 +54,8 @@ export interface ConsentReceipt {
   granted_at: string;
   expires_at: string | null;
   revoked_at: string | null;
+  receipt_hash?: string;
+  statement_set?: string | null;
 }
 
 export type SourceKind = "audio" | "video" | "image" | "text" | "document" | "chat_archive";

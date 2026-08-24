@@ -1,7 +1,7 @@
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
-import { grantAccountConsent, listOwnedConsent, revokeOwnedConsent } from "./_replica-consent.js";
+import { grantAccountConsent, grantVerifiedModelConsent, listOwnedConsent, revokeOwnedConsent } from "./_replica-consent.js";
 import { configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
 import { deleteOwnedFaceSessionNow } from "./_replica-face-session.js";
 
@@ -30,6 +30,10 @@ export default async function handler(req, res) {
       return consents.length
         ? res.status(201).json({ consents })
         : res.status(404).json({ error: "replica_not_found" });
+    }
+    if (body.op === "grant_verified_model") {
+      const consents = await grantVerifiedModelConsent(q, user.id, body.replica_id, body);
+      return res.status(201).json({ consents });
     }
     if (body.op === "list") {
       return res.status(200).json({ consents: await listOwnedConsent(q, user.id, body.replica_id) });

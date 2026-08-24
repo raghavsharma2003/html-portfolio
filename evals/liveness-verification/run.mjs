@@ -19,6 +19,7 @@ import {
   createAzureCompositeLivenessVerifier,
 } from "../../api/_liveness/providers/azure-composite.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
+import { canonicalJson } from "../../api/_provenance/contracts.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const CHALLENGE = "10000000-0000-4000-8000-000000000001";
@@ -212,6 +213,10 @@ ok("only one composite pass sets identity plus liveness and grants expiring evid
   /set state='verified'/.test(completeSql) && /vy_replica_source s set state='deleting'/.test(completeSql) &&
   /'biometric','live_challenge'/.test(completeSql) && /evidence_source_id/.test(completeSql) &&
   /vy_replica_biometric_verification_grant/.test(completeSql) && /set state='consumed'/.test(completeSql));
+const biometricReceipt = JSON.parse(completeParams[13]);
+ok("the durable biometric consent stores a canonical independently verifiable receipt rather than an orphan digest",
+  biometricReceipt.canonicalization === "vyakti-canonical-json/v1" && biometricReceipt.nonce === "f".repeat(48) &&
+  createHash("sha256").update(canonicalJson(Object.fromEntries(Object.entries(biometricReceipt).reverse()))).digest("hex") === completeParams[10]);
 ok("attempt audit and source provenance persist scores and hashes but never raw spoken text",
   /result=\$8::jsonb/.test(completeSql) && /sha256_status/.test(JSON.stringify(completeParams)) &&
   !JSON.stringify(completeParams).includes(PHRASE) && !/transcript|embedding|provider_ref/i.test(JSON.stringify(completeParams)));

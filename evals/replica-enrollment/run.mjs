@@ -62,6 +62,54 @@ const SHA = "d".repeat(64);
   });
   ok("consent receipt is a deterministic SHA-256 digest", /^[0-9a-f]{64}$/.test(receipt.hash));
   ok("unrecognized client attestation fields are not retained", !("ignored_client_field" in receipt.metadata.attestations));
+  ok("account consent receipts survive JSONB key reordering", receipt.metadata.canonicalization === "vyakti-canonical-json/v1" &&
+    createHash("sha256").update(canonicalJson(Object.fromEntries(Object.entries(receipt.metadata).reverse()))).digest("hex") === receipt.hash);
+}
+
+{
+  const exact = Object.fromEntries(Consent.VERIFIED_MODEL_ATTESTATIONS.map((key) => [key, true]));
+  ok("verified model ceremony requires every exact affirmative statement",
+    throws(() => Consent.verifiedModelAttestations({ private_self_replica_only: true })) &&
+    throws(() => Consent.verifiedModelAttestations({ ...exact, injected: true })));
+  const calls = [];
+  const basis = {
+    consent_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    receipt_hash: "e".repeat(64),
+    granted_at: "2026-08-24T00:00:00.000Z",
+  };
+  const db = async (sql, params) => {
+    calls.push({ sql, params });
+    if (calls.length === 1) return [basis];
+    return ["inference", "training"].map((scope, index) => ({
+      consent_id: `${index + 1}1111111-1111-4111-8111-111111111111`,
+      replica_id: REPLICA,
+      scope,
+      method: "live_challenge",
+      policy_version: "replica-self-v1",
+      receipt_hash: params[5],
+      metadata: JSON.parse(params[8]),
+      granted_at: params[6],
+      expires_at: "2027-01-01T00:00:00.000Z",
+      revoked_at: null,
+    }));
+  };
+  const granted = await Consent.grantVerifiedModelConsent(db, OWNER, REPLICA, {
+    scopes: ["inference", "training"],
+    attestations: exact,
+  }, { now: new Date("2026-08-24T01:00:00.000Z"), nonce: "a".repeat(48) });
+  ok("training and inference are minted only from a current live-challenge biometric receipt",
+    granted.length === 2 && /c\.scope='biometric'/.test(calls[0].sql) && /c\.method='live_challenge'/.test(calls[0].sql));
+  ok("the mutation boundary rechecks the exact biometric receipt hash and current verified identity",
+    /basis\.receipt_hash=\$5/.test(calls[1].sql) && /r\.identity_expires_at>now\(\)/.test(calls[1].sql) &&
+    calls[1].params[3] === basis.consent_id && calls[1].params[4] === basis.receipt_hash);
+  const payload = JSON.parse(calls[1].params[8]);
+  ok("verified model receipt is independently canonical and binds both scopes plus its verification basis",
+    payload.statement_set === Consent.VERIFIED_MODEL_STATEMENT_SET && payload.scopes.join(",") === "inference,training" &&
+    payload.verification_basis.consent_id === basis.consent_id &&
+    createHash("sha256").update(canonicalJson(Object.fromEntries(Object.entries(payload).reverse()))).digest("hex") === calls[1].params[5]);
+  ok("inference expires sooner than training and neither enables public channels",
+    /requested\.scope='inference'[\s\S]*interval '30 days'[\s\S]*interval '180 days'/.test(calls[1].sql) &&
+    !calls[1].params[2].some((scope) => ["sharing", "api", "telephony", "model_improvement"].includes(scope)));
 }
 
 {

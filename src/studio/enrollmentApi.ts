@@ -8,6 +8,7 @@ import type {
 } from "./types";
 
 export const ENROLLMENT_SCOPES: ConsentScope[] = ["capture", "transcription", "storage"];
+export const MODEL_SCOPES: ConsentScope[] = ["training", "inference"];
 
 const ATTESTATIONS = {
   is_self: true,
@@ -45,6 +46,35 @@ export async function revokeEnrollmentConsent(token: string, replicaId: string) 
   }>(token, "/api/replica-consent", {
     method: "POST",
     body: JSON.stringify({ op: "revoke", replica_id: replicaId, scopes: ENROLLMENT_SCOPES }),
+  });
+}
+
+export const VERIFIED_MODEL_ATTESTATIONS = {
+  private_self_replica_only: true,
+  authorize_biometric_voice_modeling: true,
+  authorize_private_training: true,
+  authorize_disclosed_inference: true,
+  understand_synthetic_disclosure_and_watermarking: true,
+  understand_revocation_stops_use_and_deletes_copies: true,
+} as const;
+
+export async function grantVerifiedModelConsent(token: string, replicaId: string) {
+  const data = await replicaRequest<{ consents: ConsentReceipt[] }>(token, "/api/replica-consent", {
+    method: "POST",
+    body: JSON.stringify({
+      op: "grant_verified_model",
+      replica_id: replicaId,
+      scopes: MODEL_SCOPES,
+      attestations: VERIFIED_MODEL_ATTESTATIONS,
+    }),
+  });
+  return data.consents;
+}
+
+export async function revokeVerifiedModelConsent(token: string, replicaId: string) {
+  return replicaRequest<{ consents: ConsentReceipt[]; replica_state: string }>(token, "/api/replica-consent", {
+    method: "POST",
+    body: JSON.stringify({ op: "revoke", replica_id: replicaId, scopes: MODEL_SCOPES }),
   });
 }
 

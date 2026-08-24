@@ -2317,6 +2317,44 @@
   .voice-row-actions { flex-direction: column; }
 }
 
+.model-consent-section {
+  margin-top: 28px;
+  padding: clamp(24px, 3.2vw, 38px);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.model-consent-state {
+  padding: 7px 11px;
+  border: 1px solid rgba(157, 48, 45, 0.18);
+  border-radius: 999px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.model-consent-state.ready { border-color: rgba(63, 122, 81, 0.22); color: var(--forest); background: var(--forest-soft); }
+.model-consent-ceremony, .model-consent-active { max-width: 880px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255, 255, 255, 0.52); }
+.model-consent-basis { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; }
+.model-consent-basis > span { padding: 7px 8px; border-radius: 8px; color: white; background: var(--forest); font-size: 0.65rem; letter-spacing: 0.12em; }
+.model-consent-basis p, .model-consent-basis small { display: block; margin: 0; }
+.model-consent-basis small { margin-top: 3px; color: var(--ink-faint); }
+.model-consent-statements { display: grid; gap: 8px; margin-bottom: 18px; }
+.model-consent-check { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 11px; align-items: start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink-soft); background: var(--paper); font-size: 0.82rem; line-height: 1.5; cursor: pointer; }
+.model-consent-check input { width: 16px; height: 16px; margin-top: 2px; accent-color: var(--forest); }
+.model-consent-active > p { color: var(--ink-soft); font-size: 0.84rem; }
+.model-consent-active .voice-row-actions { align-items: flex-end; }
+.model-consent-active .field { flex: 1; }
+
+@media (max-width: 590px) {
+  .model-consent-section { padding: 23px 17px; }
+  .model-consent-active .voice-row-actions { align-items: stretch; }
+}
+
 .identity-section {
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);

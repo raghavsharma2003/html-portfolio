@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { REPLICA_POLICY_VERSION } from "./_replica.js";
+import { canonicalJson } from "./_provenance/contracts.js";
 
 export const LIVENESS_VERIFICATION_POLICY = Object.freeze({
   version: "vyakti-liveness-composite/v2",
@@ -302,6 +303,8 @@ function makeLivenessConsentReceipt(lease, verdict, options = {}) {
   const statementSet = "liveness-biometric-consent/v1";
   const payload = {
     receipt_format: "vyakti-consent-v1",
+    canonicalization: "vyakti-canonical-json/v1",
+    hash_algorithm: "sha256",
     statement_set: statementSet,
     owner_user_id: lease.ownerUserId,
     replica_id: lease.replicaId,
@@ -317,15 +320,9 @@ function makeLivenessConsentReceipt(lease, verdict, options = {}) {
     nonce,
   };
   return Object.freeze({
-    hash: createHash("sha256").update(JSON.stringify(payload)).digest("hex"),
+    hash: createHash("sha256").update(canonicalJson(payload)).digest("hex"),
     grantedAt,
-    metadata: Object.freeze({
-      receipt_format: "vyakti-consent-v1",
-      statement_set: statementSet,
-      verifier_policy: LIVENESS_VERIFICATION_POLICY.version,
-      phrase_hash: lease.phraseHash,
-      input_sha256: verdict.result.input_sha256,
-    }),
+    metadata: Object.freeze(payload),
   });
 }
 
