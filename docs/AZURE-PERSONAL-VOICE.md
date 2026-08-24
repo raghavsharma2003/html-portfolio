@@ -107,6 +107,17 @@ new-cloning enable flag, Limited Access creation approval, TTS endpoint,
 project and model configuration cannot strand an existing biometric copy when
 they are disabled or changed.
 
+Source deletion uses the same scheduler but is fenced behind provider voice
+deletion. The source worker snapshots the exact private original and every
+derived processing object under the owner/replica/source namespace, deletes
+those objects in bounded batches, and only then removes the source manifest.
+Claims citing the source are deleted. Because earlier model tables did not
+carry perfect field-level derivation lineage, every VoiceGenome, Person Model
+and calibration definition for that replica is conservatively scrubbed and
+retired, and feedback datasets/candidate adapters are retired for rebuild from
+the remaining sources. This intentionally chooses verifiable erasure over
+preserving a potentially contaminated derivative.
+
 ## Spend control
 
 Training and synthesis share migration 028's one atomic Azure ceiling:
@@ -157,4 +168,5 @@ node evals/run.mjs personalvoice
 node evals/run.mjs providerconsent
 node evals/run.mjs voiceenrollment
 node evals/run.mjs voiceerasure
+node evals/run.mjs sourceerasure
 ```

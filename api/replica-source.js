@@ -7,7 +7,6 @@ import {
   listOwnedSources,
   finalizeOwnedSource,
   markOwnedSourceDeleting,
-  completeOwnedSourceDeletion,
   clientSource,
 } from "./_replica-source.js";
 import {
@@ -15,7 +14,6 @@ import {
   ensurePrivateReplicaBucket,
   createSignedReplicaUpload,
   replicaObjectInfo,
-  deleteReplicaObject,
 } from "./_replica-storage.js";
 
 const cors = (res) => {
@@ -84,24 +82,14 @@ export default async function handler(req, res) {
     if (body.op === "delete") {
       const source = await markOwnedSourceDeleting(q, user.id, body.replica_id, body.source_id);
       if (!source) return res.status(404).json({ error: "source_not_found" });
-      try {
-        await deleteReplicaObject(source.object_path);
-        const deleted = await completeOwnedSourceDeletion(q, user.id, body.replica_id, body.source_id);
-        return res.status(deleted ? 200 : 202).json({
-          source_id: source.source_id,
-          erasure: deleted ? "complete" : "pending",
-          rebuild_required: true,
-        });
-      } catch (error) {
-        if (!(error instanceof ReplicaStorageError)) throw error;
-        // The manifest stays in the unusable `deleting` state. A retry is safe
-        // because Supabase object removal is idempotent.
-        return res.status(202).json({
-          source_id: source.source_id,
-          erasure: "pending",
-          rebuild_required: true,
-        });
-      }
+      // Physical deletion is always handled by the durable reconciler. It
+      // enumerates and removes every exact derived object before allowing the
+      // source row and its lineage manifests to disappear.
+      return res.status(202).json({
+        source_id: source.source_id,
+        erasure: "pending",
+        rebuild_required: true,
+      });
     }
     return res.status(400).json({ error: "unknown_op" });
   } catch (error) {

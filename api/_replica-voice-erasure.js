@@ -73,13 +73,36 @@ function requireSettlement(rows) {
 
 export async function completeVoiceErasure(db, lease) {
   const rows = await db(
-    `with removed as (
-       delete from vy_replica_voice_profile vp
+    `with target as (
+       select vp.voice_profile_id,vp.replica_id,vp.owner_user_id,vp.provider_consent_id,
+              vp.provider,vp.erasure_attempts
+         from vy_replica_voice_profile vp
         where vp.voice_profile_id=$1 and vp.replica_id=$2 and vp.owner_user_id=$3
           and vp.status='deleting' and vp.erasure_lease_token_hash=$4
           and vp.erasure_lease_expires_at>now()
-       returning vp.voice_profile_id,vp.replica_id,vp.owner_user_id,vp.provider_consent_id,
-                 vp.provider,vp.erasure_attempts
+        for update
+     ), generations as (
+       delete from vy_replica_generation g using target t
+        where g.voice_profile_id=t.voice_profile_id and g.replica_id=t.replica_id
+          and g.owner_user_id=t.owner_user_id
+       returning g.generation_id
+     ), candidates as (
+       delete from vy_replica_candidate c using target t
+        where exists (select 1 from vy_replica_runtime_capability rc
+          where rc.capability_id=c.base_capability_id and rc.voice_profile_id=t.voice_profile_id
+            and rc.replica_id=t.replica_id and rc.owner_user_id=t.owner_user_id)
+       returning c.candidate_id
+     ), capabilities as (
+       delete from vy_replica_runtime_capability c using target t
+        where c.voice_profile_id=t.voice_profile_id and c.replica_id=t.replica_id
+          and c.owner_user_id=t.owner_user_id
+       returning c.capability_id
+     ), removed as (
+       delete from vy_replica_voice_profile vp using target t
+        where vp.voice_profile_id=t.voice_profile_id and vp.replica_id=t.replica_id
+          and vp.owner_user_id=t.owner_user_id
+       returning t.voice_profile_id,t.replica_id,t.owner_user_id,t.provider_consent_id,
+                 t.provider,t.erasure_attempts
      ), attempted as (
        update vy_replica_voice_erasure_attempt a
           set outcome='complete',failure_code='',finished_at=now()

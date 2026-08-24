@@ -64,6 +64,9 @@ await completeVoiceErasure(async (sql, params) => {
 }, claimed);
 ok("completion requires a live exact lease and atomically removes the provider mapping",
   /erasure_lease_expires_at>now\(\)/.test(completeSql) && /delete from vy_replica_voice_profile/.test(completeSql));
+ok("dependent private generations capabilities and candidates are removed before the provider mapping",
+  /delete from vy_replica_generation/.test(completeSql) && /delete from vy_replica_runtime_capability/.test(completeSql) &&
+  /delete from vy_replica_candidate/.test(completeSql));
 ok("completion revokes provider consent and emits only content-free reconciliation audit",
   /update vy_replica_provider_consent/.test(completeSql) && /worker','reconciler'/.test(completeSql) &&
   !completeSql.includes("provider_ref"));

@@ -156,9 +156,24 @@ export async function replicaObjectInfo(objectPath, fetchImpl = fetch) {
 }
 
 export async function deleteReplicaObject(objectPath, fetchImpl = fetch) {
+  return deleteReplicaObjects([objectPath], fetchImpl);
+}
+
+export async function deleteReplicaObjects(objectPaths, fetchImpl = fetch) {
+  const paths = [...new Set(Array.isArray(objectPaths) ? objectPaths : [])];
+  if (!paths.length || paths.length > 10_000 || paths.some((path) =>
+    typeof path !== "string" || !path || path.includes("://") || path.startsWith("/")
+  )) {
+    throw new ReplicaStorageError("replica_delete_paths_invalid", 400);
+  }
+  // Supabase's remove endpoint accepts exact object names. Chunking prevents
+  // one unusually rich source from exceeding request-body/provider limits.
+  for (let offset = 0; offset < paths.length; offset += 100) {
+    const prefixes = paths.slice(offset, offset + 100);
   await storageRequest(`/object/${encodeURIComponent(REPLICA_STORAGE_BUCKET)}`, {
     method: "DELETE",
-    body: { prefixes: [objectPath] },
+      body: { prefixes },
     fetchImpl,
   });
+  }
 }

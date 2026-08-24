@@ -336,10 +336,28 @@ export async function markOwnedVoiceProfileDeleting(db, ownerUserId, id, profile
 
 export async function completeOwnedVoiceProfileDeletion(db, ownerUserId, profile) {
   const rows = await db(
-    `with removed as (
-       delete from vy_replica_voice_profile where voice_profile_id=$3 and replica_id=$1
-         and owner_user_id=$2 and status='deleting'
-       returning voice_profile_id,replica_id,provider_consent_id
+    `with target as (
+       select voice_profile_id,replica_id,owner_user_id,provider_consent_id
+         from vy_replica_voice_profile where voice_profile_id=$3 and replica_id=$1
+          and owner_user_id=$2 and status='deleting' for update
+     ), generations as (
+       delete from vy_replica_generation g using target t
+        where g.voice_profile_id=t.voice_profile_id and g.replica_id=t.replica_id
+          and g.owner_user_id=t.owner_user_id
+     ), candidates as (
+       delete from vy_replica_candidate c using target t
+        where exists (select 1 from vy_replica_runtime_capability rc
+          where rc.capability_id=c.base_capability_id and rc.voice_profile_id=t.voice_profile_id
+            and rc.replica_id=t.replica_id and rc.owner_user_id=t.owner_user_id)
+     ), capabilities as (
+       delete from vy_replica_runtime_capability c using target t
+        where c.voice_profile_id=t.voice_profile_id and c.replica_id=t.replica_id
+          and c.owner_user_id=t.owner_user_id
+     ), removed as (
+       delete from vy_replica_voice_profile vp using target t
+        where vp.voice_profile_id=t.voice_profile_id and vp.replica_id=t.replica_id
+          and vp.owner_user_id=t.owner_user_id
+       returning t.voice_profile_id,t.replica_id,t.provider_consent_id
      ), revoked_consent as (
        update vy_replica_provider_consent pc set state='revoked',
               revoked_at=coalesce(revoked_at,now()),updated_at=now()

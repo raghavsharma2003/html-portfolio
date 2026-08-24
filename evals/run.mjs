@@ -136,6 +136,10 @@ const suites = {
   // idempotent Azure voice+consent deletion, bounded backoff and a scheduled
   // reconciler that keeps working even when new cloning has been disabled.
   voiceerasure: "voice-erasure/run.mjs",
+  // Raw-source deletion is a complete lineage operation: exact private
+  // original+derivative removal, external-voice fencing, claim deletion and
+  // conservative scrubbing/retirement of models that cannot prove exclusion.
+  sourceerasure: "source-erasure/run.mjs",
   // Exact-version, multidimensional owner adjudication of a private turn,
   // including encrypted correction exemplars and sealed-audio lineage.
   replicafeedback: "replica-feedback/run.mjs",
