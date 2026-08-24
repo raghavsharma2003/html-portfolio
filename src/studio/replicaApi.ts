@@ -19,7 +19,7 @@ export async function replicaRequest<T>(token: string, path: string, init?: Requ
       "Content-Type": "application/json",
       ...init?.headers,
     },
-    signal: AbortSignal.timeout(20_000),
+    signal: init?.signal || AbortSignal.timeout(20_000),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {

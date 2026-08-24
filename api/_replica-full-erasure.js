@@ -38,7 +38,7 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
     nonce,
     backupExpiresAt: new Date((options.nowMs ?? Date.now()) + retentionDays * 86_400_000).toISOString(),
     deletedClasses: Object.freeze([
-      "provider_voice", "provider_consent", "private_originals", "private_derivatives",
+      "provider_voice", "provider_face_session", "provider_consent", "private_originals", "private_derivatives",
       "replica_models", "replica_feedback", "replica_runtime", "replica_audit",
       "agent_relational_memory", "agent_identity",
     ]),
@@ -65,9 +65,27 @@ export async function prepareReplicaErasures(db, options = {}) {
      ), consents as (
        update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
          from replicas r where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
-     ), provider_consents as (
+      ), provider_consents as (
        update vy_replica_provider_consent c set state='revoked',revoked_at=coalesce(revoked_at,now()),updated_at=now()
-         from replicas r where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id and c.state<>'revoked'
+          from replicas r where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id and c.state<>'revoked'
+      ), face_sessions as (
+        update vy_replica_liveness_challenge ch set state='failed',failure_code='replica_revoked',
+               face_session_state=case
+                 when ch.face_session_handle<>'' and ch.face_session_state not in
+                   ('passed_deleted','failed_deleted','expired_deleted') then 'expired_deleting'
+                 else ch.face_session_state end,
+               verification_lease_token_hash='',verification_leased_at=null,
+               verification_lease_expires_at=null,updated_at=now()
+          from replicas r where ch.replica_id=r.replica_id and ch.owner_user_id=r.owner_user_id
+        returning ch.challenge_id,ch.verification_attempt
+      ), liveness_attempts as (
+        update vy_replica_liveness_verification_attempt a set outcome='failed',
+               failure_code='replica_revoked',finished_at=now()
+          from face_sessions ch where a.challenge_id=ch.challenge_id
+            and a.attempt=ch.verification_attempt and a.outcome='running'
+      ), biometric_verification_grants as (
+        update vy_replica_biometric_verification_grant g set state='revoked',revoked_at=now()
+          from replicas r where g.replica_id=r.replica_id and g.owner_user_id=r.owner_user_id and g.state='active'
      ), sources as (
        update vy_replica_source s set state='deleting',updated_at=now()
          from replicas r where s.replica_id=r.replica_id and s.owner_user_id=r.owner_user_id
@@ -90,7 +108,8 @@ export async function prepareReplicaErasures(db, options = {}) {
      ), jobs as (
        update vy_replica_erasure_job j set state='pending',lease_token_hash='',leased_at=null,
               lease_expires_at=null,next_attempt_at=now(),
-              provider_status=jsonb_build_object('voice','pending','count',(select count(*) from voices)),
+               provider_status=coalesce(j.provider_status,'{}'::jsonb)||
+                 jsonb_build_object('voice','pending','voice_count',(select count(*) from voices),'face','pending'),
               storage_status=jsonb_build_object('source','pending','count',(select count(*) from sources)),updated_at=now()
          from replicas r where j.replica_id=r.replica_id and j.owner_user_id=r.owner_user_id
        returning j.job_id,j.replica_id
@@ -118,8 +137,14 @@ export async function leaseNextReplicaErasure(db, options = {}) {
         where r.lifecycle='purging' and j.next_attempt_at<=now() and (
           j.state in ('pending','blocked') or
           (j.state='running' and (j.lease_expires_at is null or j.lease_expires_at<=now()))
-        ) and not exists (select 1 from vy_replica_voice_profile v where v.replica_id=j.replica_id)
-          and not exists (select 1 from vy_replica_source s where s.replica_id=j.replica_id)
+         ) and not exists (select 1 from vy_replica_voice_profile v where v.replica_id=j.replica_id)
+           and not exists (select 1 from vy_replica_source s where s.replica_id=j.replica_id)
+           and not exists (
+             select 1 from vy_replica_liveness_challenge ch where ch.replica_id=j.replica_id
+               and ch.owner_user_id=j.owner_user_id and ch.face_session_state in (
+                 'issuing','ready','polling','passed_deleting','failed_deleting','expired_deleting'
+               )
+           )
         order by j.next_attempt_at,j.requested_at for update skip locked limit 1
      ), expired as (
        update vy_replica_erasure_attempt a set outcome='retry',failure_code='lease_expired',finished_at=now()
@@ -198,8 +223,14 @@ export async function completeReplicaErasure(db, lease, receipt) {
          left join vy_agent a on a.agent_id=r.agent_id
         where j.job_id=$1 and j.replica_id=$2 and j.owner_user_id=$3 and j.state='running'
           and j.lease_token_hash=$4 and j.lease_expires_at>now() and r.lifecycle='purging'
-          and not exists (select 1 from vy_replica_voice_profile v where v.replica_id=r.replica_id)
-          and not exists (select 1 from vy_replica_source s where s.replica_id=r.replica_id)
+           and not exists (select 1 from vy_replica_voice_profile v where v.replica_id=r.replica_id)
+           and not exists (select 1 from vy_replica_source s where s.replica_id=r.replica_id)
+           and not exists (
+             select 1 from vy_replica_liveness_challenge ch where ch.replica_id=r.replica_id
+               and ch.owner_user_id=r.owner_user_id and ch.face_session_state in (
+                 'issuing','ready','polling','passed_deleting','failed_deleting','expired_deleting'
+               )
+           )
           and (r.agent_id is null or (a.slug='replica-'||replace(r.replica_id::text,'-','')
             and a.register->>'selfReplica'='true'))
         for update
@@ -291,10 +322,16 @@ export async function getReplicaErasureStatus(db, ownerUserId, requestId) {
   const rows = await db(
     `select 'pending' state,j.requested_at,j.updated_at,null::timestamptz completed_at,
             null::timestamptz backup_expires_at,j.attempts,
-            case when exists (
-              select 1 from vy_replica_voice_profile v
-               where v.replica_id=j.replica_id and v.owner_user_id=j.owner_user_id
-            ) then 'pending' else 'confirmed' end provider_state,
+             case when exists (
+               select 1 from vy_replica_voice_profile v
+                where v.replica_id=j.replica_id and v.owner_user_id=j.owner_user_id
+             ) or exists (
+               select 1 from vy_replica_liveness_challenge ch
+                where ch.replica_id=j.replica_id and ch.owner_user_id=j.owner_user_id
+                  and ch.face_session_state in (
+                    'issuing','ready','polling','passed_deleting','failed_deleting','expired_deleting'
+                  )
+             ) then 'pending' else 'confirmed' end provider_state,
             case when exists (
               select 1 from vy_replica_source s
                where s.replica_id=j.replica_id and s.owner_user_id=j.owner_user_id

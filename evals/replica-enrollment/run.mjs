@@ -1,6 +1,7 @@
 // Offline enrollment boundary suite. It exercises consent restrictions,
 // private-source validation, owner-derived object paths and the signed-upload
 // storage adapter without touching a real database or bucket.
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -14,6 +15,7 @@ const Consent = await import(pathToFileURL(join(ROOT, "api/_replica-consent.js")
 const Source = await import(pathToFileURL(join(ROOT, "api/_replica-source.js")));
 const Storage = await import(pathToFileURL(join(ROOT, "api/_replica-storage.js")));
 const Liveness = await import(pathToFileURL(join(ROOT, "api/_replica-liveness.js")));
+const { canonicalJson } = await import(pathToFileURL(join(ROOT, "api/_provenance/contracts.js")));
 const { splitSql } = await import(pathToFileURL(join(ROOT, "db/migrations/apply.mjs")));
 
 let failed = 0;
@@ -99,6 +101,14 @@ const SHA = "d".repeat(64);
   };
   const issued = await Liveness.issueOwnedChallenge(db, OWNER, REPLICA, {
     challengeId: SOURCE, phrase: "A sufficiently long server phrase for this unit test.",
+    now: new Date("2026-08-24T00:00:00.000Z"), nonce: "f".repeat(48),
+    attestations: {
+      live_face_and_voice_processing: true,
+      compare_face_to_my_id: true,
+      anti_spoof_and_synthetic_detection: true,
+      erase_raw_and_provider_session: true,
+      self_only_private_replica: true,
+    },
   });
   ok("challenge issuance is owner-scoped", issued?.challenge_id === SOURCE && calls[0].params[1] === OWNER);
   ok("challenge SQL requires current capture and storage consent", /scope = required\.scope/.test(calls[0].sql) && /policy_version = \$6/.test(calls[0].sql));
@@ -106,6 +116,36 @@ const SHA = "d".repeat(64);
     /c\.state='evidence_ready'/.test(calls[0].sql) && /c\.document_authentic=true/.test(calls[0].sql) &&
     /c\.face_reference_ready=true/.test(calls[0].sql) && /c\.credential_expires_at>now\(\)/.test(calls[0].sql));
   ok("challenge issuance is capped at ten attempts per day", /attempts\.n < 10/.test(calls[0].sql));
+  ok("a second challenge cannot supersede uploaded or verifying evidence and only an unprocessed issue is auto-expired",
+    /active_verification\.state in \('uploaded','verifying'\)/.test(calls[0].sql) &&
+    /and state = 'issued'/.test(calls[0].sql));
+  ok("concurrent challenge issuance is resolved by the live unique arbiter without surfacing a database error",
+    /insert into vy_replica_liveness_challenge[\s\S]*on conflict do nothing[\s\S]*returning/.test(calls[0].sql) &&
+    !/pg_advisory_xact_lock/.test(calls[0].sql));
+  ok("challenge issuance atomically records narrow pre-processing biometric consent",
+    /vy_replica_biometric_verification_grant/.test(calls[0].sql) &&
+    /biometric-verification-consent\/v1/.test(JSON.stringify(calls[0].params)));
+  const receiptPayload = JSON.parse(calls[0].params[9]);
+  const reorderedReceipt = Object.fromEntries(Object.entries({
+    ...receiptPayload,
+    attestations: Object.fromEntries(Object.entries(receiptPayload.attestations).reverse()),
+  }).reverse());
+  ok("the persisted JSONB consent receipt remains independently hash-verifiable after key reordering",
+    receiptPayload.canonicalization === "vyakti-canonical-json/v1" &&
+    createHash("sha256").update(canonicalJson(reorderedReceipt)).digest("hex") === calls[0].params[6]);
+
+  let cancelSql = "";
+  const cancelled = await Liveness.cancelOwnedChallenge(async (sql, params) => {
+    cancelSql = sql;
+    return [{
+      challenge_id: params[2], replica_id: params[0], phrase: "test", state: "failed", attempt: 1,
+      source_id: SOURCE, failure_code: "owner_cancelled", issued_at: "now", expires_at: "later", updated_at: "now",
+    }];
+  }, OWNER, REPLICA, SOURCE);
+  ok("owner cancellation remains available during asynchronous verification and atomically terminates its lease and ledger",
+    cancelled?.failure_code === "owner_cancelled" && /state in \('issued','uploaded','verifying'\)/.test(cancelSql) &&
+    /verification_lease_token_hash=''/.test(cancelSql) && /vy_replica_liveness_verification_attempt/.test(cancelSql) &&
+    /failure_code='owner_cancelled'/.test(cancelSql) && /set state='deleting'/.test(cancelSql));
 
   const finalizeCalls = [];
   const finalizeDb = async (sql, params) => {

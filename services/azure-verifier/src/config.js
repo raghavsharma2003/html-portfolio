@@ -65,8 +65,12 @@ export function loadConfig(env = process.env) {
   );
   const version = pinned(env.VERIFIER_VERSION, "verifier_version_required");
   const livenessEnabled = String(env.AZURE_FACE_LIVENESS_ENABLED || "").toLowerCase() === "true";
+  const livenessErasureEnabled = livenessEnabled ||
+    String(env.AZURE_FACE_LIVENESS_ERASURE_ENABLED || "").toLowerCase() === "true";
   if (livenessEnabled && String(env.AZURE_FACE_LIVENESS_LIMITED_ACCESS_APPROVED || "").toLowerCase() !== "true")
     fail("face_liveness_approval_required", 500);
+  if (livenessErasureEnabled && String(env.AZURE_FACE_DEDICATED_RESOURCE || "").toLowerCase() !== "true")
+    fail("face_liveness_dedicated_resource_required", 500);
   return Object.freeze({
     port: boundedInt(env.PORT, 8080, 1, 65_535, "port_invalid"),
     protocol: "vyakti-azure-identity-broker/v1",
@@ -88,17 +92,21 @@ export function loadConfig(env = process.env) {
       detectionModel: "detection_03",
       recognitionModel: "recognition_04",
     }),
-    liveness: Object.freeze(livenessEnabled ? {
-      enabled: true,
+    liveness: Object.freeze(livenessErasureEnabled ? {
+      enabled: livenessEnabled,
+      erasureEnabled: true,
       protocol: "vyakti-azure-liveness-session-broker/v1",
       modelVersion: pinned(env.AZURE_FACE_LIVENESS_MODEL_VERSION, "face_liveness_model_version_required"),
-      verifyThreshold: boundedFloat(env.AZURE_FACE_VERIFY_CONFIDENCE_THRESHOLD, 0.5, 0.99, "face_verify_threshold_invalid"),
+      verifyThreshold: boundedFloat(env.AZURE_FACE_VERIFY_CONFIDENCE_THRESHOLD, 0.9, 0.99, "face_verify_threshold_invalid"),
       sessionTtlSeconds: boundedInt(env.AZURE_FACE_LIVENESS_SESSION_TTL_SECONDS, 300, 60, 600, "face_liveness_ttl_invalid"),
       sealKey: key(env.AZURE_LIVENESS_SESSION_SEAL_KEY_B64, "liveness_session_seal_key_required"),
-      returnUrl: `${publicOrigin(env.VYAKTI_PUBLIC_APP_ORIGIN)}/studio?liveness=return`,
+      returnUrl: livenessEnabled
+        ? `${publicOrigin(env.VYAKTI_PUBLIC_APP_ORIGIN)}/studio?liveness=return`
+        : "",
       quickLinkEndpoint: "https://liveness.face.azure.com/api/quicklink",
       quickLinkOrigin: "https://liveness.face.azure.com",
-    } : { enabled: false }),
+      cleanupApiVersion: "v1.2-preview.1",
+    } : { enabled: false, erasureEnabled: false }),
     review: Object.freeze({
       endpoint: reviewEndpoint.toString(),
       hmacKey: key(env.AZURE_DOCUMENT_REVIEW_HMAC_KEY_B64, "document_review_key_required"),

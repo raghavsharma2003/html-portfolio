@@ -34,7 +34,12 @@ export async function leaseNextSourceErasure(db, options = {}) {
          from vy_replica_source s where s.state='deleting' and (
           (s.erasure_lease_token_hash='' and s.erasure_next_attempt_at<=now()) or
           (s.erasure_lease_token_hash<>'' and s.erasure_lease_expires_at<=now())
-         ) order by s.erasure_next_attempt_at,s.updated_at for update skip locked limit 1
+          ) and not exists (
+            select 1 from vy_replica_liveness_challenge ch where ch.replica_id=s.replica_id
+              and ch.owner_user_id=s.owner_user_id and ch.face_session_state in (
+                'issuing','ready','polling','passed_deleting','failed_deleting','expired_deleting'
+              )
+          ) order by s.erasure_next_attempt_at,s.updated_at for update skip locked limit 1
      ), expired as (
        update vy_replica_source_erasure_attempt a
           set outcome='retry',failure_code='lease_expired',finished_at=now()
@@ -96,8 +101,14 @@ export async function completeSourceErasure(db, lease) {
          from vy_replica_source s where s.source_id=$1 and s.replica_id=$2 and s.owner_user_id=$3
           and s.state='deleting' and s.erasure_lease_token_hash=$4
           and s.erasure_lease_expires_at>now()
-          and not exists (select 1 from vy_replica_voice_profile vp
-            where vp.replica_id=s.replica_id and vp.owner_user_id=s.owner_user_id)
+           and not exists (select 1 from vy_replica_voice_profile vp
+             where vp.replica_id=s.replica_id and vp.owner_user_id=s.owner_user_id)
+           and not exists (
+             select 1 from vy_replica_liveness_challenge ch where ch.replica_id=s.replica_id
+               and ch.owner_user_id=s.owner_user_id and ch.face_session_state in (
+                 'issuing','ready','polling','passed_deleting','failed_deleting','expired_deleting'
+               )
+           )
         for update
      ), provider_consent as (
        update vy_replica_provider_consent pc set source_id=null,state='revoked',

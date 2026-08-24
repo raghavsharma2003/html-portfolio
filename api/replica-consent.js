@@ -2,6 +2,10 @@ import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { grantAccountConsent, listOwnedConsent, revokeOwnedConsent } from "./_replica-consent.js";
+import { configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
+import { deleteOwnedFaceSessionNow } from "./_replica-face-session.js";
+
+export const config = { maxDuration: 60 };
 
 const cors = (res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -34,10 +38,27 @@ export default async function handler(req, res) {
       const consents = await revokeOwnedConsent(q, user.id, body.replica_id, body.scopes);
       const sourceErasure = Array.isArray(body.scopes)
         && body.scopes.some((scope) => scope === "capture" || scope === "storage");
+      const biometricWithdrawal = Array.isArray(body.scopes)
+        && body.scopes.some((scope) => ["capture", "storage", "biometric"].includes(scope));
+      let providerSessionErasure = biometricWithdrawal ? "pending" : "not_required";
+      if (consents.length && biometricWithdrawal) {
+        try {
+          const broker = configuredFaceSessionErasureBroker();
+          const deleted = broker
+            ? await deleteOwnedFaceSessionNow(q, user.id, body.replica_id, null, broker, {
+              providerTimeoutMs: 12_000,
+            })
+            : null;
+          providerSessionErasure = deleted ? "confirmed" : "pending";
+        } catch {
+          providerSessionErasure = "pending";
+        }
+      }
       return consents.length
         ? res.status(200).json({
           consents,
           replica_state: "non_operational",
+          provider_session_erasure: providerSessionErasure,
           ...(sourceErasure ? { source_erasure: "pending" } : {}),
         })
         : res.status(404).json({ error: "active_consent_not_found" });

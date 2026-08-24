@@ -88,6 +88,10 @@ export interface SignedUpload {
 }
 
 export type LivenessState = "issued" | "uploaded" | "verifying" | "passed" | "failed" | "expired";
+export type FaceSessionState =
+  | "not_started" | "issuing" | "ready" | "polling"
+  | "passed_deleting" | "failed_deleting" | "expired_deleting"
+  | "passed_deleted" | "failed_deleted" | "expired_deleted";
 
 export interface LivenessChallenge {
   challenge_id: string;
@@ -97,6 +101,8 @@ export interface LivenessChallenge {
   attempt: number;
   source_id: string | null;
   failure_code: string;
+  face_session_state: FaceSessionState;
+  face_session_expires_at: string | null;
   issued_at: string;
   expires_at: string;
   updated_at: string;

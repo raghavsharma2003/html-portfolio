@@ -60,6 +60,15 @@ const claim = {
     sourceId: ID_SOURCE, kind: "image", mime: "image/jpeg", byteSize: 3210, sha256: ID_SHA,
     objectPath: `${OWNER}/${RID}/${ID_SOURCE}/original`,
   },
+  officialFaceProof: {
+    livenessPassed: true,
+    identityMatch: true,
+    identityScore: 0.97,
+    modelVersion: "2025-05-20",
+    providerDigest: "c".repeat(64),
+    referenceSha256: ID_SHA,
+    providerDeleted: true,
+  },
 };
 const positive = {
   providerFamily: claim.verifierName,
@@ -122,23 +131,25 @@ await assert.rejects(unsignedAdapter.verify({ ...claim, attempt: 2,
 ok("a network-success response without the exact broker HMAC cannot become biometric evidence", true);
 
 const passed = createLivenessVerdict(claim, claim.source, positive);
-ok("pass requires phrase face identity speaker continuity anti-spoof and one bound capture",
-  passed.passed && !passed.failureCode && passed.result.face_liveness_score === 0.995);
+ok("pass requires official deleted Face proof plus phrase speaker continuity anti-spoof and one bound capture",
+  passed.passed && !passed.failureCode && passed.result.official_face_identity_score === 0.97 &&
+  passed.result.official_face_liveness_passed);
 ok("the durable verdict is content-free and cannot retain the phrase transcript embedding or provider reference",
   !JSON.stringify(passed.result).includes(PHRASE) &&
   !/(transcript|embedding|provider_ref|recognized_text)/i.test(JSON.stringify(passed.result)));
 
 const negativeCases = [
-  ["random_code_mismatch", { recognizedText: PHRASE.replace("100000", "100001") }],
-  ["face_liveness_failed", { faceLivenessScore: 0.7 }],
-  ["face_identity_mismatch", { faceIdentityScore: 0.7 }],
-  ["multiple_speakers", { singleSpeaker: false }],
-  ["speaker_continuity_failed", { speakerContinuityScore: 0.5 }],
-  ["synthetic_media_risk", { syntheticRiskScore: 0.3 }],
-  ["capture_binding_failed", { captureBinding: false }],
+  ["random_code_mismatch", { recognizedText: PHRASE.replace("100000", "100001") }, {}],
+  ["face_liveness_failed", {}, { livenessPassed: false }],
+  ["face_identity_mismatch", {}, { identityScore: 0.7 }],
+  ["multiple_speakers", { singleSpeaker: false }, {}],
+  ["speaker_continuity_failed", { speakerContinuityScore: 0.5 }, {}],
+  ["synthetic_media_risk", { syntheticRiskScore: 0.3 }, {}],
+  ["capture_binding_failed", { captureBinding: false }, {}],
 ];
-for (const [failureCode, delta] of negativeCases) {
-  const verdict = createLivenessVerdict(claim, claim.source, { ...positive, ...delta });
+for (const [failureCode, delta, officialDelta] of negativeCases) {
+  const changedClaim = { ...claim, officialFaceProof: { ...claim.officialFaceProof, ...officialDelta } };
+  const verdict = createLivenessVerdict(changedClaim, claim.source, { ...positive, ...delta });
   assert.equal(verdict.passed, false);
   assert.equal(verdict.failureCode, failureCode);
 }
@@ -162,13 +173,21 @@ const leased = await leaseNextLivenessVerification(async (sql, params) => {
     object_path: `${OWNER}/${RID}/${SOURCE}/original`, identity_source_id: ID_SOURCE,
     identity_kind: "image", identity_mime: "image/jpeg", identity_byte_size: 3210,
     identity_sha256: ID_SHA, identity_storage_bucket: "vyakti-replica-private",
-    identity_object_path: `${OWNER}/${RID}/${ID_SOURCE}/original` }];
+    identity_object_path: `${OWNER}/${RID}/${ID_SOURCE}/original`,
+    face_session_state: "passed_deleted", face_session_provider_deleted_at: "2026-08-24T00:00:00.000Z",
+    face_session_model_version: "2025-05-20", face_session_reference_sha256: ID_SHA,
+    face_session_result: {
+      passed: true, liveness_passed: true, identity_match: true, identity_score: 0.97,
+      provider_digest: "c".repeat(64),
+    } }];
 }, { name: claim.verifierName, version: claim.verifierVersion, verify() {} }, { leaseToken: TOKEN });
 ok("one atomic lease requires adult evidence exact ID reference private video single subject and appends an attempt",
   leased.attempt === 2 && leased.verifierVersion === claim.verifierVersion &&
   /age_verified_at is not null/.test(leaseSql) && /ic\.state='evidence_ready'/.test(leaseSql) &&
   !/r\.identity_verified_at is not null/.test(leaseSql) && leased.identityReference.sha256 === ID_SHA &&
   /s\.kind='video'/.test(leaseSql) && /contains_third_parties=false/.test(leaseSql) &&
+  /face_session_state='passed_deleted'/.test(leaseSql) && /face_session_provider_deleted_at is not null/.test(leaseSql) &&
+  leased.officialFaceProof.providerDeleted && leased.officialFaceProof.referenceSha256 === ID_SHA &&
   /insert into vy_replica_liveness_verification_attempt/.test(leaseSql));
 ok("expired work is reclaimed without ever storing the raw lease capability",
   /failure_code='lease_expired'/.test(leaseSql) && !leaseSql.includes(TOKEN));
@@ -190,8 +209,9 @@ ok("settlement binds the live lease and independently rechecks non-revoked self 
 ok("only one composite pass sets identity plus liveness and grants expiring evidence-bound biometric consent",
   /identity_verified_at=coalesce/.test(completeSql) && /liveness_verified_at=coalesce/.test(completeSql) &&
   /identity_expires_at=ic\.credential_expires_at/.test(completeSql) &&
-  /set state='verified'/.test(completeSql) && /then 'deleting'/.test(completeSql) &&
-  /'biometric','live_challenge'/.test(completeSql) && /evidence_source_id/.test(completeSql));
+  /set state='verified'/.test(completeSql) && /vy_replica_source s set state='deleting'/.test(completeSql) &&
+  /'biometric','live_challenge'/.test(completeSql) && /evidence_source_id/.test(completeSql) &&
+  /vy_replica_biometric_verification_grant/.test(completeSql) && /set state='consumed'/.test(completeSql));
 ok("attempt audit and source provenance persist scores and hashes but never raw spoken text",
   /result=\$8::jsonb/.test(completeSql) && /sha256_status/.test(JSON.stringify(completeParams)) &&
   !JSON.stringify(completeParams).includes(PHRASE) && !/transcript|embedding|provider_ref/i.test(JSON.stringify(completeParams)));
@@ -211,7 +231,7 @@ const settled = [];
 const retried = [];
 const verifier = { name: claim.verifierName, version: claim.verifierVersion, async verify(item) {
   if (item.challengeId.startsWith("6")) throw Object.assign(new Error("offline"), { code: "provider_unreachable" });
-  return item.challengeId.startsWith("5") ? { ...positive, faceLivenessScore: 0.4 } : positive;
+  return item.challengeId.startsWith("5") ? { ...positive, singleSpeaker: false } : positive;
 } };
 const summary = await runLivenessVerificationSweep({
   db: async () => [], verifier, maxJobs: 3,
@@ -222,6 +242,13 @@ const summary = await runLivenessVerificationSweep({
 ok("one sweep can pass fail and retry independent challenges without widening authority",
   summary.passed === 1 && summary.failed === 1 && summary.retried === 1 &&
   settled.length === 2 && retried[0][1] === "provider_unreachable");
+const cancelledRace = await runLivenessVerificationSweep({
+  db: async () => [], verifier: { ...verifier, async verify() { throw new Error("late provider failure"); } }, maxJobs: 1,
+  lease: async () => work.length ? work.shift() : claim,
+  retry: async () => { throw Object.assign(new Error("lost"), { code: "liveness_verification_lease_lost" }); },
+});
+ok("a consent withdrawal racing a verifier completion is discarded without failing the scheduled worker",
+  cancelledRace.discarded === 1 && cancelledRace.retried === 0);
 
 const migration = readFileSync(join(ROOT, "db/migrations/039_replica_liveness_verification.sql"), "utf8");
 const schema = readFileSync(join(ROOT, "db/schema.sql"), "utf8");

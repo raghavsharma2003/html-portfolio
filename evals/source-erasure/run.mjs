@@ -45,6 +45,8 @@ const claimed = await leaseNextSourceErasure(async (sql, params) => {
 }, { token: TOKEN, leaseMs: 240_000 });
 ok("one atomic lease snapshots the original plus every exact derived artifact before manifests can disappear",
   /for update skip locked limit 1/.test(leaseSql) && /vy_replica_processing_artifact/.test(leaseSql) && claimed.source.paths.length === 3);
+ok("source bytes cannot disappear while an official Face session may still reference their identity case",
+  /vy_replica_liveness_challenge/.test(leaseSql) && /face_session_state in/.test(leaseSql));
 ok("deletion paths remain inside the exact owner replica source namespace",
   claimed.source.paths.every((path) => path.startsWith(PREFIX)) && claimed.source.paths.includes(`${PREFIX}original`));
 
@@ -81,6 +83,8 @@ await completeSourceErasure(async (sql, params) => {
 }, claimed);
 ok("source completion is fenced until every external provider voice mapping is gone",
   /not exists \(select 1 from vy_replica_voice_profile/.test(completeSql));
+ok("source completion rechecks that no official Face handle can be cascaded away",
+  /vy_replica_liveness_challenge/.test(completeSql) && /'issuing','ready','polling'/.test(completeSql));
 ok("source completion removes cited claims and cascaded processing lineage only after object deletion",
   /delete from vy_replica_claim/.test(completeSql) && /delete from vy_replica_source/.test(completeSql));
 ok("verified ID media is detached while invalid evidence clears its case challenge and every derived gate before unlink",
@@ -135,7 +139,9 @@ ok("source erasure migration is splitter-safe and mirrored in canonical schema",
 ok("the HTTP delete path can no longer delete only the original and orphan derived blobs",
   !sourceRoute.includes("deleteReplicaObject(") && sourceRoute.includes("erasure: \"pending\""));
 ok("source deletion revokes capabilities sessions and open generations synchronously",
-  sourceCore.includes("runtime_capabilities as") && sourceCore.includes("runtime_sessions as") && sourceCore.includes("open_generations as"));
+  sourceCore.includes("runtime_capabilities as") && sourceCore.includes("runtime_sessions as") && sourceCore.includes("open_generations as") &&
+  sourceCore.includes("liveness_attempts as") && sourceCore.includes("identity_attempts as") &&
+  sourceCore.includes("verification_lease_token_hash=''"));
 ok("the authenticated scheduled reconciler runs provider erasure before source erasure",
   sweep.indexOf("runVoiceErasureSweep") < sweep.indexOf("runSourceErasureSweep"));
 

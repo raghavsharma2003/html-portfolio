@@ -1,10 +1,10 @@
 # Replica liveness and biometric consent
 
-Status: the fail-closed control plane, durable worker, owner polling and a
-production-shaped Azure broker adapter are implemented. No production verifier
-has passed a user. Azure Face liveness access, an approved identity reference,
-the browser Face SDK and the Azure-hosted composite service are still external
-release blockers.
+Status: the fail-closed control plane, durable worker, owner polling, official
+Azure quick-link flow and Azure broker are implemented. No deployed production
+verifier has passed a user. Azure Face limited-access approval, deployment,
+representative calibration, and end-to-end live-environment QA remain release
+blockers.
 
 ## Why one score is not enough
 
@@ -75,14 +75,27 @@ AZURE_FACE_LIVENESS_LIMITED_ACCESS_APPROVED=true
 AZURE_COMPOSITE_LIVENESS_ENDPOINT=https://<service>.azurecontainerapps.io/v1/liveness/verify
 AZURE_COMPOSITE_LIVENESS_HMAC_KEY_B64=<32 random bytes, base64>
 AZURE_COMPOSITE_LIVENESS_VERSION=<pinned composite model manifest>
+AZURE_FACE_SESSION_BROKER_ENABLED=true
+AZURE_FACE_SESSION_BROKER_ORIGIN=https://<service>.azurecontainerapps.io
+AZURE_FACE_SESSION_BROKER_HMAC_KEY_B64=<separate 32 random bytes, base64>
+AZURE_FACE_DEVICE_CORRELATION_HMAC_KEY_B64=<separate 32 random bytes, base64>
+AZURE_FACE_SESSION_BROKER_VERSION=<pinned broker deployment manifest>
+AZURE_FACE_LIVENESS_MODEL_VERSION=2025-05-20
+AZURE_FACE_DEDICATED_RESOURCE=true
 CRON_SECRET=<strong scheduler bearer secret>
 ```
 
 The broker must run with network egress restricted to the private storage and
 approved Azure AI endpoints, no request logging, bounded concurrency, managed
 identity where available, and zero retained media/transcripts. The web app must
-integrate the gated Azure Face liveness client before the external release gate
-can open.
+pass the official quick-link flow against the approved production resource
+before the external release gate can open.
+
+On the Azure verifier, `AZURE_FACE_LIVENESS_ENABLED` controls creation while
+`AZURE_FACE_LIVENESS_ERASURE_ENABLED` independently controls provider deletion
+and dedicated-resource cleanup. A production shutdown disables creation first
+and leaves erasure enabled until all provider-session fences are confirmed
+deleted.
 
 ## Primary references
 

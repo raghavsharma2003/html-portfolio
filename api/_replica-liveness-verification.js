@@ -2,9 +2,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { REPLICA_POLICY_VERSION } from "./_replica.js";
 
 export const LIVENESS_VERIFICATION_POLICY = Object.freeze({
-  version: "vyakti-liveness-composite/v1",
+  version: "vyakti-liveness-composite/v2",
   phraseSimilarityMin: 0.9,
-  faceLivenessMin: 0.98,
   faceIdentityMin: 0.9,
   speakerContinuityMin: 0.85,
   syntheticRiskMax: 0.02,
@@ -15,7 +14,9 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const MAX_RETRY_MS = 6 * 60 * 60 * 1000;
 const SAFE_RESULT_KEYS = new Set([
   "policy_version", "provider_family", "verifier_version", "input_sha256", "phrase_hash",
-  "phrase_similarity", "random_code_match", "face_liveness_score", "face_identity_score",
+  "phrase_similarity", "random_code_match", "official_face_liveness_passed",
+  "official_face_identity_match", "official_face_identity_score", "official_face_model_version",
+  "official_face_provider_digest", "official_face_reference_sha256",
   "speaker_continuity_score", "synthetic_risk_score", "single_speaker", "capture_binding", "passed",
 ]);
 
@@ -118,8 +119,17 @@ export function createLivenessVerdict(challenge, source, raw) {
   if (source?.kind !== "video") fail("liveness_video_required", 409);
 
   const phrase = scoreLivenessPhrase(challenge.phrase, raw?.recognizedText);
-  const faceLivenessScore = finiteScore(raw?.faceLivenessScore, "liveness_face_score_invalid");
-  const faceIdentityScore = finiteScore(raw?.faceIdentityScore, "liveness_identity_score_invalid");
+  const official = challenge?.officialFaceProof;
+  const officialReferenceSha = String(official?.referenceSha256 || "").toLowerCase();
+  const officialDigest = String(official?.providerDigest || "").toLowerCase();
+  const officialModel = String(official?.modelVersion || "");
+  const faceLivenessPassed = official?.livenessPassed === true;
+  const faceIdentityMatch = official?.identityMatch === true;
+  const faceIdentityScore = finiteScore(official?.identityScore, "liveness_identity_score_invalid");
+  if (!SHA256.test(officialReferenceSha) || officialReferenceSha !== challenge?.identityReference?.sha256 ||
+      !SHA256.test(officialDigest) || !officialModel || official?.providerDeleted !== true) {
+    fail("official_face_evidence_binding_invalid", 503);
+  }
   const speakerContinuityScore = finiteScore(raw?.speakerContinuityScore, "liveness_speaker_score_invalid");
   const syntheticRiskScore = finiteScore(raw?.syntheticRiskScore, "liveness_synthetic_score_invalid");
   const captureBinding = raw?.captureBinding === true;
@@ -127,16 +137,15 @@ export function createLivenessVerdict(challenge, source, raw) {
   const providerAccepted = raw?.providerAccepted === true;
   const passed = providerAccepted && phrase.randomCodeMatch &&
     phrase.similarity >= LIVENESS_VERIFICATION_POLICY.phraseSimilarityMin &&
-    faceLivenessScore >= LIVENESS_VERIFICATION_POLICY.faceLivenessMin &&
-    faceIdentityScore >= LIVENESS_VERIFICATION_POLICY.faceIdentityMin &&
+    faceLivenessPassed && faceIdentityMatch && faceIdentityScore >= LIVENESS_VERIFICATION_POLICY.faceIdentityMin &&
     speakerContinuityScore >= LIVENESS_VERIFICATION_POLICY.speakerContinuityMin &&
     syntheticRiskScore <= LIVENESS_VERIFICATION_POLICY.syntheticRiskMax && singleSpeaker && captureBinding;
   const failureCode = passed ? "" :
     !providerAccepted ? "verifier_rejected" :
     !phrase.randomCodeMatch ? "random_code_mismatch" :
     phrase.similarity < LIVENESS_VERIFICATION_POLICY.phraseSimilarityMin ? "phrase_mismatch" :
-    faceLivenessScore < LIVENESS_VERIFICATION_POLICY.faceLivenessMin ? "face_liveness_failed" :
-    faceIdentityScore < LIVENESS_VERIFICATION_POLICY.faceIdentityMin ? "face_identity_mismatch" :
+    !faceLivenessPassed ? "face_liveness_failed" :
+    !faceIdentityMatch || faceIdentityScore < LIVENESS_VERIFICATION_POLICY.faceIdentityMin ? "face_identity_mismatch" :
     !singleSpeaker ? "multiple_speakers" :
     speakerContinuityScore < LIVENESS_VERIFICATION_POLICY.speakerContinuityMin ? "speaker_continuity_failed" :
     syntheticRiskScore > LIVENESS_VERIFICATION_POLICY.syntheticRiskMax ? "synthetic_media_risk" :
@@ -149,8 +158,12 @@ export function createLivenessVerdict(challenge, source, raw) {
     phrase_hash: phraseHash,
     phrase_similarity: phrase.similarity,
     random_code_match: phrase.randomCodeMatch,
-    face_liveness_score: faceLivenessScore,
-    face_identity_score: faceIdentityScore,
+    official_face_liveness_passed: faceLivenessPassed,
+    official_face_identity_match: faceIdentityMatch,
+    official_face_identity_score: faceIdentityScore,
+    official_face_model_version: officialModel,
+    official_face_provider_digest: officialDigest,
+    official_face_reference_sha256: officialReferenceSha,
     speaker_continuity_score: speakerContinuityScore,
     synthetic_risk_score: syntheticRiskScore,
     single_speaker: singleSpeaker,
@@ -188,6 +201,16 @@ export async function leaseNextLivenessVerification(db, verifier, options = {}) 
           and ic.state='evidence_ready' and ic.adult_evidence=true and ic.document_authentic=true
           and ic.document_current=true and ic.face_reference_ready=true and ic.credential_expires_at>now()
           and ids.state='quarantined' and ids.sha256=ic.source_sha256
+          and ch.face_session_state='passed_deleted' and ch.face_session_provider_deleted_at is not null
+          and ch.face_session_result->>'passed'='true'
+          and ch.face_session_result->>'liveness_passed'='true'
+          and ch.face_session_result->>'identity_match'='true'
+          and ch.face_session_reference_sha256=ids.sha256
+          and exists (
+            select 1 from vy_replica_biometric_verification_grant g
+             where g.challenge_id=ch.challenge_id and g.replica_id=ch.replica_id
+               and g.owner_user_id=ch.owner_user_id and g.state='active' and g.expires_at>now()
+          )
         order by ch.verification_next_attempt_at,ch.issued_at limit 1 for update of ch skip locked
      ), expired as (
        update vy_replica_liveness_verification_attempt a set outcome='retry',failure_code='lease_expired',finished_at=now()
@@ -200,7 +223,9 @@ export async function leaseNextLivenessVerification(db, verifier, options = {}) 
               updated_at=now()
         from candidate c where ch.challenge_id=c.challenge_id
        returning ch.challenge_id,ch.replica_id,ch.owner_user_id,ch.source_id,ch.phrase,ch.phrase_hash,
-                 ch.identity_case_id,ch.verification_attempt,ch.verification_lease_expires_at
+                 ch.identity_case_id,ch.verification_attempt,ch.verification_lease_expires_at,
+                 ch.face_session_state,ch.face_session_provider_deleted_at,ch.face_session_model_version,
+                 ch.face_session_reference_sha256,ch.face_session_result
      ), attempted as (
        insert into vy_replica_liveness_verification_attempt
          (challenge_id,replica_id,owner_user_id,attempt,verifier,verifier_version,outcome)
@@ -209,7 +234,9 @@ export async function leaseNextLivenessVerification(db, verifier, options = {}) 
      select l.*,s.kind,s.mime,s.byte_size,s.sha256,s.storage_bucket,s.object_path,
             ids.source_id identity_source_id,ids.kind identity_kind,ids.mime identity_mime,
             ids.byte_size identity_byte_size,ids.sha256 identity_sha256,
-            ids.storage_bucket identity_storage_bucket,ids.object_path identity_object_path
+            ids.storage_bucket identity_storage_bucket,ids.object_path identity_object_path,
+            l.face_session_state,l.face_session_provider_deleted_at,l.face_session_model_version,
+            l.face_session_reference_sha256,l.face_session_result
        from leased l join vy_replica_source s on s.source_id=l.source_id and s.replica_id=l.replica_id
         and s.owner_user_id=l.owner_user_id
        join vy_replica_identity_case ic on ic.identity_case_id=l.identity_case_id
@@ -248,6 +275,15 @@ export async function leaseNextLivenessVerification(db, verifier, options = {}) 
       sha256: row.identity_sha256,
       storageBucket: row.identity_storage_bucket,
       objectPath: row.identity_object_path,
+    }),
+    officialFaceProof: Object.freeze({
+      livenessPassed: row.face_session_result?.liveness_passed === true,
+      identityMatch: row.face_session_result?.identity_match === true,
+      identityScore: Number(row.face_session_result?.identity_score),
+      modelVersion: row.face_session_model_version,
+      providerDigest: row.face_session_result?.provider_digest,
+      referenceSha256: row.face_session_reference_sha256,
+      providerDeleted: Boolean(row.face_session_provider_deleted_at),
     }),
   });
 }
@@ -321,6 +357,13 @@ export async function completeLivenessVerification(db, lease, verdict, options =
           and ic.state='evidence_ready' and ic.adult_evidence=true and ic.document_authentic=true
           and ic.document_current=true and ic.face_reference_ready=true and ic.credential_expires_at>now()
           and ids.state='quarantined' and ids.sha256=ic.source_sha256 and ids.sha256=$19
+          and ch.face_session_state='passed_deleted' and ch.face_session_provider_deleted_at is not null
+          and ch.face_session_result->>'passed'='true' and ch.face_session_reference_sha256=ids.sha256
+          and exists (
+            select 1 from vy_replica_biometric_verification_grant g
+             where g.challenge_id=ch.challenge_id and g.replica_id=ch.replica_id
+               and g.owner_user_id=ch.owner_user_id and g.state='active' and g.expires_at>now()
+          )
         for update of ch
      ), challenge as (
        update vy_replica_liveness_challenge ch set state=$6,consumed_at=now(),failure_code=$7,
@@ -328,7 +371,7 @@ export async function completeLivenessVerification(db, lease, verdict, options =
               verification_lease_expires_at=null,updated_at=now()
         from target t where ch.challenge_id=t.challenge_id returning ch.*
      ), source as (
-       update vy_replica_source s set state=case when $6='passed' then 'deleting' else 'rejected' end,
+       update vy_replica_source s set state='deleting',
               rejection_code=$7,provenance=provenance||$9::jsonb,updated_at=now()
         from challenge ch where s.source_id=ch.source_id and s.replica_id=ch.replica_id
           and s.owner_user_id=ch.owner_user_id returning s.source_id
@@ -341,6 +384,10 @@ export async function completeLivenessVerification(db, lease, verdict, options =
        update vy_replica_source ids set state='deleting',updated_at=now()
         from identity_case ic where ids.source_id=ic.source_id and ids.replica_id=ic.replica_id
           and ids.owner_user_id=ic.owner_user_id
+     ), verification_grant as (
+       update vy_replica_biometric_verification_grant g set state='consumed',consumed_at=now()
+        from challenge ch where g.challenge_id=ch.challenge_id and g.replica_id=ch.replica_id
+          and g.owner_user_id=ch.owner_user_id and g.state='active'
      ), replica as (
        update vy_replica r set identity_verified_at=coalesce(identity_verified_at,now()),
               liveness_verified_at=coalesce(liveness_verified_at,now()),
@@ -416,6 +463,48 @@ export function livenessRetryDelayMs(attempt) {
   return Math.min(MAX_RETRY_MS, 30_000 * (2 ** (safe - 1)));
 }
 
+export async function expireLivenessEvidence(db) {
+  const rows = await db(
+    `with expired as (
+       update vy_replica_liveness_challenge ch set state='expired',failure_code='liveness_consent_expired',
+              face_session_state=case
+                when ch.face_session_handle<>'' and ch.face_session_state in ('ready','polling')
+                  then 'expired_deleting' else ch.face_session_state end,
+              verification_lease_token_hash='',verification_leased_at=null,
+              verification_lease_expires_at=null,updated_at=now()
+        where (
+          (ch.state='issued' and ch.expires_at<=now()) or
+          (ch.state='uploaded' and not exists (
+            select 1 from vy_replica_biometric_verification_grant g where g.challenge_id=ch.challenge_id
+              and g.replica_id=ch.replica_id and g.owner_user_id=ch.owner_user_id
+              and g.state='active' and g.expires_at>now()
+          )) or
+          (ch.state='verifying' and ch.verification_lease_expires_at<=now() and not exists (
+            select 1 from vy_replica_biometric_verification_grant g where g.challenge_id=ch.challenge_id
+              and g.replica_id=ch.replica_id and g.owner_user_id=ch.owner_user_id
+              and g.state='active' and g.expires_at>now()
+          ))
+        )
+        returning ch.challenge_id,ch.replica_id,ch.owner_user_id,ch.source_id,ch.verification_attempt
+     ), grants as (
+       update vy_replica_biometric_verification_grant g set state='expired'
+        from expired e where g.challenge_id=e.challenge_id and g.replica_id=e.replica_id
+          and g.owner_user_id=e.owner_user_id and g.state='active'
+     ), sources as (
+       update vy_replica_source s set state='deleting',updated_at=now()
+        from expired e where e.source_id is not null and s.source_id=e.source_id
+          and s.replica_id=e.replica_id and s.owner_user_id=e.owner_user_id
+          and s.state in ('pending_upload','quarantined','rejected')
+     ), attempts as (
+       update vy_replica_liveness_verification_attempt a set outcome='failed',
+              failure_code='liveness_consent_expired',finished_at=now()
+        from expired e where a.challenge_id=e.challenge_id and a.attempt=e.verification_attempt
+          and a.outcome='running'
+     ) select count(*)::integer expired_count from expired`,
+  );
+  return Number(rows?.[0]?.expired_count || 0);
+}
+
 export async function runLivenessVerificationSweep(options = {}) {
   const db = options.db;
   const verifier = options.verifier;
@@ -423,8 +512,9 @@ export async function runLivenessVerificationSweep(options = {}) {
   const lease = options.lease || leaseNextLivenessVerification;
   const complete = options.complete || completeLivenessVerification;
   const retry = options.retry || retryLivenessVerification;
+  const expire = options.expire || expireLivenessEvidence;
   const maxJobs = Math.max(1, Math.min(4, Number(options.maxJobs || 2)));
-  const summary = { leased: 0, passed: 0, failed: 0, retried: 0 };
+  const summary = { expired: await expire(db), leased: 0, passed: 0, failed: 0, retried: 0, discarded: 0 };
   while (summary.leased < maxJobs) {
     const claimed = await lease(db, verifier);
     if (!claimed) break;
@@ -436,8 +526,13 @@ export async function runLivenessVerificationSweep(options = {}) {
       if (verdict.passed) summary.passed += 1;
       else summary.failed += 1;
     } catch (error) {
-      await retry(db, claimed, { error, retryAfterMs: livenessRetryDelayMs(claimed.attempt) });
-      summary.retried += 1;
+      try {
+        await retry(db, claimed, { error, retryAfterMs: livenessRetryDelayMs(claimed.attempt) });
+        summary.retried += 1;
+      } catch (retryError) {
+        if (retryError?.code !== "liveness_verification_lease_lost") throw retryError;
+        summary.discarded += 1;
+      }
     }
   }
   return Object.freeze(summary);

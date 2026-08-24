@@ -39,7 +39,8 @@ ok("deletion receipt carries unlinkable HMAC commitments rather than raw owner o
   /^[0-9a-f]{64}$/.test(receipt.replicaIdHash) && /^[0-9a-f]{64}$/.test(receipt.ownerUserHash) &&
   !JSON.stringify(receipt).includes(RID) && !JSON.stringify(receipt).includes(OWNER));
 ok("receipt records every private data class and the configured backup expiry",
-  receipt.deletedClasses.includes("provider_voice") && receipt.deletedClasses.includes("agent_relational_memory") &&
+  receipt.deletedClasses.includes("provider_voice") && receipt.deletedClasses.includes("provider_face_session") &&
+  receipt.deletedClasses.includes("agent_relational_memory") &&
   receipt.backupExpiresAt === "1970-01-31T00:00:00.000Z" && receipt.erasureRequestHash === replicaErasureRequestHash(JOB));
 assert.throws(() => createReplicaErasureReceipt(RID, OWNER, { ...env, REPLICA_ERASURE_RECEIPT_KEY_B64: "short" }), /receipt key required/);
 assert.throws(() => createReplicaErasureReceipt(RID, OWNER, { ...env, REPLICA_BACKUP_RETENTION_DAYS: "0" }), /retention policy required/);
@@ -52,10 +53,12 @@ const prepared = await prepareReplicaErasures(async (sql) => {
 });
 ok("preparation atomically moves the replica to purging and revokes every live execution surface",
   prepared.length === 1 && /lifecycle='purging'/.test(prepareSql) && /runtime_capability/.test(prepareSql) &&
-  /runtime_session/.test(prepareSql) && /generation/.test(prepareSql));
+  /runtime_session/.test(prepareSql) && /generation/.test(prepareSql) &&
+  /verification_lease_token_hash=''/.test(prepareSql) && /vy_replica_liveness_verification_attempt/.test(prepareSql));
 ok("preparation enqueues every source and provider voice before any database purge",
   /update vy_replica_source s set state='deleting'/.test(prepareSql) &&
-  /update vy_replica_voice_profile v set status='deleting'/.test(prepareSql));
+  /update vy_replica_voice_profile v set status='deleting'/.test(prepareSql) &&
+  /face_session_state=case/.test(prepareSql) && /biometric_verification_grant/.test(prepareSql));
 
 let leaseSql = "";
 const lease = await leaseNextReplicaErasure(async (sql, params) => {
@@ -69,7 +72,8 @@ const lease = await leaseNextReplicaErasure(async (sql, params) => {
 }, { token: TOKEN });
 ok("final purge leases only after both provider voices and private source manifests are gone",
   /not exists \(select 1 from vy_replica_voice_profile/.test(leaseSql) &&
-  /not exists \(select 1 from vy_replica_source/.test(leaseSql) && lease.agentId === AGENT);
+  /not exists \(select 1 from vy_replica_source/.test(leaseSql) &&
+  /vy_replica_liveness_challenge/.test(leaseSql) && /face_session_state in/.test(leaseSql) && lease.agentId === AGENT);
 ok("expired finalization leases are recovered without exposing the raw lease token",
   /failure_code='lease_expired'/.test(leaseSql) && /for update skip locked limit 1/.test(leaseSql) && !leaseSql.includes(TOKEN));
 
@@ -94,7 +98,8 @@ await completeReplicaErasure(async (sql, params) => {
   return [{ receipt_id: "50000000-0000-4000-8000-000000000005" }];
 }, lease, receipt);
 ok("final completion rechecks live lease no remaining voice/source and exact replica-agent ownership",
-  /lease_expires_at>now\(\)/.test(completeSql) && /a\.register->>'selfReplica'='true'/.test(completeSql));
+  /lease_expires_at>now\(\)/.test(completeSql) && /a\.register->>'selfReplica'='true'/.test(completeSql) &&
+  /vy_replica_liveness_challenge/.test(completeSql));
 ok("full purge covers raw logs traces graph relationship self and group memory for only the replica agent",
   ["meera_log", "meera_turn", "meera_nodes", "vy_episode", "vy_rel_state", "vy_pattern", "vy_phrase",
     "vy_kin", "vy_rel_texture", "vy_observation", "vy_self_arc", "vy_agent_life", "vy_group"].every((table) =>
@@ -130,7 +135,8 @@ ok("the opaque request capability resolves completion after owner and replica li
   /erasure_request_hash=\$3/.test(statusSql));
 ok("owner identity scopes the live job while only the unguessable request capability scopes the blinded receipt",
   /j\.job_id=\$1 and j\.owner_user_id=\$2/.test(statusSql) &&
-  statusSql.includes("vy_replica_voice_profile") && statusSql.includes("vy_replica_source"));
+  statusSql.includes("vy_replica_voice_profile") && statusSql.includes("vy_replica_source") &&
+  statusSql.includes("vy_replica_liveness_challenge"));
 
 const work = [lease, { ...lease, jobId: "60000000-0000-4000-8000-000000000006" }];
 const completed = [];
@@ -159,5 +165,8 @@ ok("the scheduled endpoint prepares children then erases voice source and replic
   endpoint.lastIndexOf("prepareReplicaErasures") < endpoint.lastIndexOf("runVoiceErasureSweep") &&
   endpoint.lastIndexOf("runVoiceErasureSweep") < endpoint.lastIndexOf("runSourceErasureSweep") &&
   endpoint.lastIndexOf("runSourceErasureSweep") < endpoint.lastIndexOf("runReplicaErasureFinalizer"));
+ok("Face broker construction is isolated inside the settled lane so configuration failure cannot starve erasure",
+  /const faceWork = Promise\.resolve\(\)\.then\(\(\) => \{\s*const faceBroker = configuredFaceSessionErasureBroker\(\)/s.test(endpoint) &&
+  /Promise\.allSettled\(\[\s*faceWork,\s*runVoiceErasureSweep/s.test(endpoint));
 
 console.log(`\n${checks} full replica erasure checks passed`);

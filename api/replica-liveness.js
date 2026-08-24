@@ -4,17 +4,22 @@ import { allow, ipOf } from "./_ratelimit.js";
 import {
   issueOwnedChallenge,
   latestOwnedChallenge,
+  cancelOwnedChallenge,
   createChallengeSource,
   finalizeChallengeSource,
   clientSource,
 } from "./_replica-liveness.js";
 import { getPendingSource } from "./_replica-source.js";
+import { configuredFaceSessionBroker, configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
+import { deleteOwnedFaceSessionNow, pollOwnedFaceSession, startOwnedFaceSession } from "./_replica-face-session.js";
 import {
   ReplicaStorageError,
   ensurePrivateReplicaBucket,
   createSignedReplicaUpload,
   replicaObjectInfo,
 } from "./_replica-storage.js";
+
+export const config = { maxDuration: 240 };
 
 const cors = (res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -46,13 +51,54 @@ export default async function handler(req, res) {
     const body = req.body || {};
 
     if (body.op === "issue") {
-      const challenge = await issueOwnedChallenge(q, user.id, body.replica_id);
+      const challenge = await issueOwnedChallenge(q, user.id, body.replica_id, { attestations: body.attestations });
       return challenge
         ? res.status(201).json({ challenge })
         : res.status(409).json({ error: "challenge_not_authorized_or_daily_limit" });
     }
     if (body.op === "status") {
       return res.status(200).json({ challenge: await latestOwnedChallenge(q, user.id, body.replica_id) });
+    }
+    if (body.op === "cancel") {
+      let challenge = await cancelOwnedChallenge(q, user.id, body.replica_id, body.challenge_id);
+      if (!challenge) return res.status(409).json({ error: "challenge_not_cancellable" });
+      let erasure = ["passed_deleting", "failed_deleting", "expired_deleting", "issuing"]
+        .includes(challenge.face_session_state) ? "pending" : "not_required";
+      if (["passed_deleting", "failed_deleting", "expired_deleting"].includes(challenge.face_session_state)) {
+        try {
+          const broker = configuredFaceSessionErasureBroker();
+          const deleted = broker
+            ? await deleteOwnedFaceSessionNow(q, user.id, body.replica_id, body.challenge_id, broker, {
+              providerTimeoutMs: 12_000,
+            })
+            : null;
+          if (deleted) {
+            challenge = deleted;
+            erasure = "confirmed";
+          }
+        } catch {
+          erasure = "pending";
+        }
+      }
+      return res.status(200).json({ challenge, erasure });
+    }
+    if (body.op === "start_face") {
+      const broker = configuredFaceSessionBroker();
+      const started = await startOwnedFaceSession(
+        q,
+        user.id,
+        body.replica_id,
+        body.challenge_id,
+        body.device_id,
+        broker,
+      );
+      res.setHeader("Referrer-Policy", "no-referrer");
+      return res.status(201).json({ challenge: started.challenge, quick_link_url: started.quickLinkUrl });
+    }
+    if (body.op === "poll_face") {
+      const broker = configuredFaceSessionBroker();
+      const challenge = await pollOwnedFaceSession(q, user.id, body.replica_id, body.challenge_id, broker);
+      return res.status(200).json({ challenge });
     }
     if (body.op === "create_upload") {
       await ensurePrivateReplicaBucket();

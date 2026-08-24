@@ -208,9 +208,26 @@ export async function revokeOwnedConsent(db, ownerUserId, id, value) {
              where ch.identity_case_id in (select identity_case_id from identity_cases)
           ))
      ), identity_challenges as (
-       update vy_replica_liveness_challenge ch set state='failed',failure_code='identity_consent_revoked',updated_at=now()
+       update vy_replica_liveness_challenge ch set state='failed',failure_code='identity_consent_revoked',
+              face_session_state=case
+                when ch.face_session_handle<>'' and ch.face_session_state not in
+                  ('passed_deleted','failed_deleted','expired_deleted') then 'expired_deleting'
+                else ch.face_session_state end,
+              verification_lease_token_hash='',verification_leased_at=null,
+              verification_lease_expires_at=null,updated_at=now()
         where ch.identity_case_id in (select identity_case_id from identity_cases)
           and ch.state in ('issued','uploaded','verifying')
+       returning ch.challenge_id,ch.verification_attempt
+     ), liveness_attempts as (
+       update vy_replica_liveness_verification_attempt a set outcome='failed',
+              failure_code='identity_consent_revoked',finished_at=now()
+        from identity_challenges ch where a.challenge_id=ch.challenge_id
+          and a.attempt=ch.verification_attempt and a.outcome='running'
+     ), biometric_verification_grants as (
+       update vy_replica_biometric_verification_grant g set state='revoked',revoked_at=now()
+        where g.replica_id=$1 and g.owner_user_id=$2 and g.state='active'
+          and exists (select 1 from revoked)
+          and ('storage'=any($3::text[]) or 'capture'=any($3::text[]) or 'biometric'=any($3::text[]))
      ), identity_replica as (
        update vy_replica r set age_verified_at=null,identity_verified_at=null,liveness_verified_at=null,
               identity_expires_at=null,updated_at=now() where r.replica_id=$1 and r.owner_user_id=$2

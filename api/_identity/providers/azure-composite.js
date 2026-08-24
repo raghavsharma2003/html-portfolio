@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { canonicalJson } from "../../_provenance/contracts.js";
 import { createSignedReplicaRead } from "../../_replica-storage.js";
 
@@ -98,6 +98,8 @@ export function createAzureCompositeIdentityVerifier(options = {}) {
           mime: claim.source.mime,
         },
         verifier_version: config.version,
+        broker_nonce: randomBytes(16).toString("hex"),
+        broker_issued_at: new Date().toISOString(),
       });
       let response;
       try {

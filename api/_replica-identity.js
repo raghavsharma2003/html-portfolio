@@ -390,9 +390,27 @@ export async function revokeOwnedIdentityCase(db, ownerUserId, id, identityCaseI
         where c.identity_case_id=$3 and c.replica_id=$1 and c.owner_user_id=$2
           and c.state<>'revoked' returning c.*
      ), challenges as (
-       update vy_replica_liveness_challenge ch set state='failed',failure_code='identity_evidence_revoked',updated_at=now()
+       update vy_replica_liveness_challenge ch set state='failed',failure_code='identity_evidence_revoked',
+              face_session_state=case
+                when ch.face_session_handle<>'' and ch.face_session_state not in
+                  ('passed_deleted','failed_deleted','expired_deleted') then 'expired_deleting'
+                else ch.face_session_state end,
+              verification_lease_token_hash='',verification_leased_at=null,
+              verification_lease_expires_at=null,updated_at=now()
         from revoked c where ch.identity_case_id=c.identity_case_id
           and ch.state in ('issued','uploaded','verifying')
+       returning ch.challenge_id,ch.verification_attempt
+     ), liveness_attempts as (
+       update vy_replica_liveness_verification_attempt a set outcome='failed',
+              failure_code='identity_evidence_revoked',finished_at=now()
+        from challenges ch where a.challenge_id=ch.challenge_id
+          and a.attempt=ch.verification_attempt and a.outcome='running'
+     ), verification_grants as (
+       update vy_replica_biometric_verification_grant g set state='revoked',revoked_at=now()
+        where g.state='active' and exists (
+          select 1 from vy_replica_liveness_challenge ch join revoked c on c.identity_case_id=ch.identity_case_id
+           where g.challenge_id=ch.challenge_id and g.replica_id=ch.replica_id and g.owner_user_id=ch.owner_user_id
+        )
      ), challenge_sources as (
        update vy_replica_source s set state='deleting',updated_at=now()
         from vy_replica_liveness_challenge ch join revoked c on c.identity_case_id=ch.identity_case_id
@@ -464,9 +482,30 @@ export async function expireIdentityEvidence(db) {
           set outcome='failed',failure_code='identity_case_expired',finished_at=now()
         where a.outcome='running' and a.identity_case_id in (select identity_case_id from stale)
      ), challenges as (
-       update vy_replica_liveness_challenge ch set state='failed',failure_code='identity_document_expired',updated_at=now()
-        where ch.identity_case_id in (select identity_case_id from expired)
-          and ch.state in ('issued','uploaded','verifying')
+       update vy_replica_liveness_challenge ch set state='failed',failure_code='identity_document_expired',
+              face_session_state=case
+                when ch.face_session_handle<>'' and ch.face_session_state not in
+                  ('passed_deleted','failed_deleted','expired_deleted') then 'expired_deleting'
+                else ch.face_session_state end,
+              verification_lease_token_hash='',verification_leased_at=null,
+              verification_lease_expires_at=null,updated_at=now()
+         where ch.identity_case_id in (select identity_case_id from expired)
+           and ch.state in ('issued','uploaded','verifying')
+        returning ch.challenge_id,ch.replica_id,ch.owner_user_id,ch.source_id,ch.verification_attempt
+     ), liveness_attempts as (
+       update vy_replica_liveness_verification_attempt a set outcome='failed',
+              failure_code='identity_document_expired',finished_at=now()
+        from challenges ch where a.challenge_id=ch.challenge_id
+          and a.attempt=ch.verification_attempt and a.outcome='running'
+     ), verification_grants as (
+       update vy_replica_biometric_verification_grant g set state='expired'
+        from challenges ch where g.challenge_id=ch.challenge_id and g.replica_id=ch.replica_id
+          and g.owner_user_id=ch.owner_user_id and g.state='active'
+     ), challenge_sources as (
+       update vy_replica_source s set state='deleting',updated_at=now()
+        from challenges ch where ch.source_id is not null and s.source_id=ch.source_id
+          and s.replica_id=ch.replica_id and s.owner_user_id=ch.owner_user_id
+          and s.state in ('pending_upload','quarantined','rejected')
      ), source as (
        update vy_replica_source s set state='deleting',updated_at=now()
         where s.source_id in (select source_id from expired where source_id is not null)
@@ -510,7 +549,7 @@ export async function runIdentityVerificationSweep(options = {}) {
   const retry = options.retry || retryIdentityCase;
   const expire = options.expire || expireIdentityEvidence;
   const maxJobs = Math.max(1, Math.min(4, Number(options.maxJobs || 2)));
-  const summary = { expired: await expire(db), leased: 0, evidence_ready: 0, failed: 0, retried: 0 };
+  const summary = { expired: await expire(db), leased: 0, evidence_ready: 0, failed: 0, retried: 0, discarded: 0 };
   while (summary.leased < maxJobs) {
     const claim = await lease(db, verifier);
     if (!claim) break;
@@ -522,8 +561,13 @@ export async function runIdentityVerificationSweep(options = {}) {
       if (verdict.passed) summary.evidence_ready += 1;
       else summary.failed += 1;
     } catch (error) {
-      await retry(db, claim, { error, retryAfterMs: identityRetryDelayMs(claim.attempt) });
-      summary.retried += 1;
+      try {
+        await retry(db, claim, { error, retryAfterMs: identityRetryDelayMs(claim.attempt) });
+        summary.retried += 1;
+      } catch (retryError) {
+        if (retryError?.code !== "identity_verification_lease_lost") throw retryError;
+        summary.discarded += 1;
+      }
     }
   }
   return Object.freeze(summary);

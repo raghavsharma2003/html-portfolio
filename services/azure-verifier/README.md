@@ -53,12 +53,26 @@ AZURE_DOCUMENT_REVIEW_ENDPOINT=https://<service>.azurecontainerapps.io
 AZURE_DOCUMENT_REVIEW_HMAC_KEY_B64=<32 random bytes, canonical base64>
 AZURE_DOCUMENT_REVIEW_VERSION=<pinned review manifest>
 AZURE_FACE_LIVENESS_ENABLED=false
+AZURE_FACE_LIVENESS_ERASURE_ENABLED=false
 AZURE_FACE_LIVENESS_LIMITED_ACCESS_APPROVED=false
+AZURE_FACE_DEDICATED_RESOURCE=true
 AZURE_FACE_LIVENESS_MODEL_VERSION=2025-05-20
 AZURE_FACE_VERIFY_CONFIDENCE_THRESHOLD=0.9
 AZURE_LIVENESS_SESSION_SEAL_KEY_B64=<separate 32 random bytes, canonical base64>
 VYAKTI_PUBLIC_APP_ORIGIN=https://<application-origin>
 ```
+
+The Bicep parameters `faceResourceDedicated` and
+`faceLivenessErasureEnabled` default to `false`. Enabling new sessions fails
+deployment unless the erasure plane is also enabled and an operator explicitly
+asserts that the Face endpoint is dedicated to this verifier. The template
+passes both controls to runtime instead of hardcoding them.
+
+Emergency shutdown is two-phase. Disable `faceLivenessEnabled` to stop all new
+sessions while keeping `faceLivenessErasureEnabled=true` until every database
+fence and Azure session has reached a provider-confirmed deleted state. Turning
+off the erasure plane first is an invalid runbook: it preserves safety by
+blocking local finalization, but violates the deletion SLA.
 
 `infra/main.bicep` deploys one scale-to-zero Container App with a maximum of one
 replica. That is intentional: the in-memory ten-minute replay fence must not be
@@ -79,9 +93,28 @@ requires an immutable container image digest in production.
   to the exact source digest.
 - The broker now implements Azure's official liveness-with-verify session,
   five-minute authorization, single-use quick-link exchange, result retrieval
-  and explicit deletion. The platform and Studio do not consume that contract
-  yet. The existing Studio video recording remains evidence capture and must
-  never be relabeled as Azure liveness.
+  and explicit deletion. The platform consumes the contract through a signed,
+  fresh, semantically idempotent broker protocol and will not unlock its own
+  evidence capture until the Azure result passes and provider deletion is
+  confirmed. The existing Studio video recording remains separate evidence
+  capture and must never be relabeled as Azure liveness.
+- A successful create response, including its one-time link, may exist only in
+  this process's volatile retry cache until the earlier of authorization expiry
+  or ten minutes. It is never written to logs, a database, blob storage, or a
+  durable cache. The short-lived Azure authorization is held only inside the
+  AES-GCM sealed provider handle so the broker can regenerate a lost link within
+  the remaining session TTL without creating a second biometric session. The
+  platform deletes that handle after provider deletion. A dedicated Face
+  resource is mandatory so cleanup can enumerate and delete every expired
+  orphan after a process crash.
+- A handle-less ambiguous create is never retried into another provider session.
+  The challenge stays fenced until its issuance lease and provider TTL expire,
+  then a successful resource-wide cleanup is required before local erasure can
+  advance. This keeps scale-to-zero or deployment restarts from creating an
+  untracked duplicate session.
+- Session creation and erasure are separate controls. Emergency shutdown can
+  reject create, resume and result requests while delete and exhaustive
+  dedicated-resource cleanup remain authenticated and available.
 - Face liveness is limited access. No deployment may enable the platform flag
   until Microsoft has approved the resource and the end-to-end live session is
   verified in the deployment region.

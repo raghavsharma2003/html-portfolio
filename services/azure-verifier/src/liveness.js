@@ -6,8 +6,9 @@ import { openSession, sealSession } from "./seal.js";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256 = /^[0-9a-f]{64}$/i;
 
-function exactRequest(payload, config) {
-  if (!config.liveness.enabled) fail("face_liveness_disabled");
+function exactRequest(payload, config, erasureOnly = false) {
+  if (erasureOnly ? !config.liveness.erasureEnabled : !config.liveness.enabled)
+    fail("face_liveness_disabled");
   if (payload?.protocol !== config.liveness.protocol || payload?.verifier_version !== config.version)
     fail("liveness_session_protocol_binding_invalid", 400);
   const requestId = String(payload?.request_id || "");
@@ -77,8 +78,8 @@ async function exchangeQuickLink(authToken, config, options) {
   return link.toString();
 }
 
-function sessionBinding(payload, config, options) {
-  const ids = exactRequest(payload, config);
+function sessionBinding(payload, config, options, erasureOnly = false) {
+  const ids = exactRequest(payload, config, erasureOnly);
   const value = openSession(payload?.session_handle, config.liveness.sealKey);
   const now = clock(options);
   if (value?.v !== 1 || value.requestId !== ids.requestId || value.challengeId !== ids.challengeId ||
@@ -146,6 +147,7 @@ export async function createLivenessSession(payload, config, options = {}) {
     replicaId: ids.replicaId,
     referenceSha256: descriptor.expectedHash,
     sessionId,
+    authToken,
     modelVersion: config.liveness.modelVersion,
     sessionExpiresAt,
     handleExpiresAt,
@@ -157,6 +159,25 @@ export async function createLivenessSession(payload, config, options = {}) {
     model_version: config.liveness.modelVersion,
     session_expires_at: sessionExpiresAt,
     session_handle: handle,
+    quick_link_url: quickLink,
+  });
+}
+
+export async function resumeLivenessSession(payload, config, options = {}) {
+  const binding = sessionBinding(payload, config, options);
+  const authToken = String(binding.value.authToken || "");
+  if (authToken.length < 32 || authToken.length > 8_192 ||
+      Date.parse(binding.value.sessionExpiresAt) <= binding.now.getTime()) {
+    fail("liveness_session_resume_expired", 409);
+  }
+  const quickLink = await exchangeQuickLink(authToken, config, options);
+  return Object.freeze({
+    request_id: binding.requestId,
+    reference_sha256: binding.value.referenceSha256,
+    provider_accepted: true,
+    model_version: binding.value.modelVersion,
+    session_expires_at: binding.value.sessionExpiresAt,
+    session_handle: payload.session_handle,
     quick_link_url: quickLink,
   });
 }
@@ -236,11 +257,75 @@ export async function getLivenessResult(payload, config, options = {}) {
 }
 
 export async function deleteLivenessSession(payload, config, options = {}) {
-  const binding = sessionBinding(payload, config, options);
+  const binding = sessionBinding(payload, config, options, true);
   await deleteAzureSession(binding.value.sessionId, config, options);
   return Object.freeze({
     request_id: binding.requestId,
     reference_sha256: binding.value.referenceSha256,
     provider_deleted: true,
   });
+}
+
+function cleanupRequest(payload, config) {
+  if (!config.liveness.erasureEnabled || payload?.protocol !== config.liveness.protocol ||
+      payload?.verifier_version !== config.version) fail("liveness_cleanup_protocol_binding_invalid", 400);
+  const requestId = String(payload?.request_id || "");
+  if (!/^cleanup:[0-9a-f-]{36}$/i.test(requestId)) fail("liveness_cleanup_request_invalid", 400);
+  return requestId;
+}
+
+function cleanupListUrl(config, start = "") {
+  const url = new URL(`${config.face.endpoint}/face/${config.liveness.cleanupApiVersion}/detectLivenessWithVerify/singleModal/sessions`);
+  url.searchParams.set("top", "1000");
+  if (start) url.searchParams.set("start", start);
+  return url;
+}
+
+export async function cleanupExpiredLivenessSessions(payload, config, options = {}) {
+  const requestId = cleanupRequest(payload, config);
+  const scanStartedAt = clock(options).toISOString();
+  const fetchImpl = options.fetchImpl || fetch;
+  let start = "";
+  let scanned = 0;
+  let deleted = 0;
+  for (let page = 0; page < 10; page++) {
+    let response;
+    try {
+      response = await fetchImpl(cleanupListUrl(config, start), {
+        method: "GET",
+        headers: faceHeaders(config),
+        redirect: "error",
+        signal: abortAfter(config.limits.providerDeadlineMs, options.signal),
+      });
+    } catch { fail("face_liveness_cleanup_list_unreachable"); }
+    if (!response.ok) fail(`face_liveness_cleanup_list_http_${response.status}`, response.status >= 500 ? 503 : 409);
+    const sessions = await boundedJson(response, config.limits.providerBytes, "face_liveness_cleanup_list_invalid");
+    if (!Array.isArray(sessions) || sessions.length > 1000) fail("face_liveness_cleanup_list_invalid");
+    let last = "";
+    for (const session of sessions) {
+      const id = String(session?.id || "");
+      if (!UUID.test(id) || typeof session?.sessionExpired !== "boolean")
+        fail("face_liveness_cleanup_item_invalid");
+      last = id;
+      scanned++;
+      if (session.sessionExpired === true) {
+        await deleteAzureSession(id, config, options);
+        deleted++;
+      }
+    }
+    if (sessions.length < 1000) {
+      return Object.freeze({
+        request_id: requestId,
+        provider_accepted: true,
+        cleanup_api_version: config.liveness.cleanupApiVersion,
+        exhaustive: true,
+        scan_started_at: scanStartedAt,
+        sessions_scanned: scanned,
+        expired_sessions_deleted: deleted,
+      });
+    }
+    if (!last || last === start) fail("face_liveness_cleanup_pagination_invalid");
+    start = last;
+  }
+  fail("face_liveness_cleanup_page_limit_reached");
 }

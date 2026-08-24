@@ -1,4 +1,4 @@
-import { createHash, randomInt, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 import {
   sourceUploadInput,
@@ -7,10 +7,56 @@ import {
   verifyStoredObject,
 } from "./_replica-source.js";
 import { REPLICA_STORAGE_BUCKET } from "./_replica-storage.js";
+import { canonicalJson } from "./_provenance/contracts.js";
 
 const COLORS = ["neela", "kesari", "hara", "jamuni", "silver", "cobalt"];
 const OBJECTS = ["sitara", "nadi", "patang", "badal", "diya", "compass"];
 const ACTIONS = ["crosses", "meets", "follows", "circles", "greets", "remembers"];
+
+export const BIOMETRIC_VERIFICATION_STATEMENT_SET = "biometric-verification-consent/v1";
+export const BIOMETRIC_VERIFICATION_ATTESTATIONS = Object.freeze([
+  "live_face_and_voice_processing",
+  "compare_face_to_my_id",
+  "anti_spoof_and_synthetic_detection",
+  "erase_raw_and_provider_session",
+  "self_only_private_replica",
+]);
+
+function exactBiometricAttestations(value) {
+  const input = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  if (Object.keys(input).length !== BIOMETRIC_VERIFICATION_ATTESTATIONS.length ||
+      !BIOMETRIC_VERIFICATION_ATTESTATIONS.every((key) => input[key] === true)) {
+    throw Object.assign(new Error("biometric verification consent is required"), { status: 400 });
+  }
+  return Object.freeze(Object.fromEntries(BIOMETRIC_VERIFICATION_ATTESTATIONS.map((key) => [key, true])));
+}
+
+function verificationGrantReceipt(ownerUserId, rid, challengeId, phraseHash, attestations, options) {
+  const normalizedAttestations = exactBiometricAttestations(attestations);
+  const grantedAt = options.now instanceof Date
+    ? options.now.toISOString()
+    : new Date(options.now || Date.now()).toISOString();
+  const nonce = String(options.nonce || randomBytes(24).toString("hex"));
+  if (!/^[0-9a-f]{48}$/.test(nonce)) throw Object.assign(new Error("biometric consent nonce invalid"), { status: 500 });
+  const receipt = {
+    receipt_format: "vyakti-consent-v1",
+    canonicalization: "vyakti-canonical-json/v1",
+    hash_algorithm: "sha256",
+    statement_set: BIOMETRIC_VERIFICATION_STATEMENT_SET,
+    owner_user_id: ownerUserId,
+    replica_id: rid,
+    challenge_id: challengeId,
+    phrase_hash: phraseHash,
+    attestations: normalizedAttestations,
+    granted_at: grantedAt,
+    nonce,
+  };
+  return Object.freeze({
+    hash: createHash("sha256").update(canonicalJson(receipt)).digest("hex"),
+    grantedAt,
+    payload: Object.freeze(receipt),
+  });
+}
 
 export function livenessPhrase(pick = randomInt) {
   const choose = (values) => values[pick(values.length)];
@@ -28,6 +74,8 @@ export function clientChallenge(row) {
     attempt: Number(row.attempt),
     source_id: row.source_id || null,
     failure_code: row.failure_code || "",
+    face_session_state: row.face_session_state || "not_started",
+    face_session_expires_at: row.face_session_expires_at || null,
     issued_at: row.issued_at,
     expires_at: row.expires_at,
     updated_at: row.updated_at,
@@ -35,19 +83,41 @@ export function clientChallenge(row) {
 }
 
 const CHALLENGE_RETURNING = `challenge_id, replica_id, phrase, state, attempt,
-  source_id, failure_code, issued_at, expires_at, updated_at`;
+  source_id, failure_code, face_session_state, face_session_expires_at,
+  issued_at, expires_at, updated_at`;
 
 export async function issueOwnedChallenge(db, ownerUserId, id, options = {}) {
   const rid = replicaId(id);
   const phrase = options.phrase || livenessPhrase(options.pick);
   const hash = createHash("sha256").update(phrase).digest("hex");
   const challengeId = options.challengeId || randomUUID();
+  const grant = verificationGrantReceipt(
+    ownerUserId,
+    rid,
+    challengeId,
+    hash,
+    options.attestations,
+    options,
+  );
   const rows = await db(
     `with owned as (
        select r.replica_id, r.policy_version from vy_replica r
         where r.replica_id = $1 and r.owner_user_id = $2
           and r.subject_mode = 'self' and r.policy_version = $6
           and r.lifecycle not in ('revoked','purging')
+          and not exists (
+            select 1 from vy_replica_liveness_challenge active_face
+             where active_face.replica_id=r.replica_id and active_face.owner_user_id=r.owner_user_id
+               and active_face.face_session_state in (
+                 'issuing','ready','polling','passed_deleting','failed_deleting','expired_deleting'
+               )
+          )
+          and not exists (
+            select 1 from vy_replica_liveness_challenge active_verification
+             where active_verification.replica_id=r.replica_id
+               and active_verification.owner_user_id=r.owner_user_id
+               and active_verification.state in ('uploaded','verifying')
+          )
           and not exists (
             select 1 from unnest(array['capture','storage']::text[]) required(scope)
              where not exists (
@@ -68,18 +138,35 @@ export async function issueOwnedChallenge(db, ownerUserId, id, options = {}) {
      ), expired as (
        update vy_replica_liveness_challenge set state = 'expired', updated_at = now()
         where replica_id = $1 and owner_user_id = $2
-          and state in ('issued','uploaded','verifying') and exists (select 1 from owned)
-       returning challenge_id
+          and state = 'issued' and exists (select 1 from owned)
+        returning challenge_id,source_id
+     ), expired_grants as (
+       update vy_replica_biometric_verification_grant g set state='expired'
+        from expired e where g.challenge_id=e.challenge_id and g.state='active'
+       returning g.challenge_id
+     ), expired_sources as (
+       update vy_replica_source s set state='deleting',updated_at=now()
+        from expired e where e.source_id is not null and s.source_id=e.source_id
+          and s.replica_id=$1 and s.owner_user_id=$2 and s.state in ('pending_upload','quarantined','rejected')
+       returning s.source_id
      ), issued as (
        insert into vy_replica_liveness_challenge
          (challenge_id, replica_id, owner_user_id, phrase, phrase_hash,
           policy_version, identity_case_id, attempt, expires_at)
        select $3, owned.replica_id, $2, $4, $5, owned.policy_version,identity.identity_case_id,
-              attempts.n + 1, now() + interval '5 minutes'
+              attempts.n + 1, now() + interval '10 minutes'
          from owned cross join attempts cross join identity
          cross join (select count(*) from expired) cleared
+         cross join (select count(*) from expired_grants) grant_cleared
+         cross join (select count(*) from expired_sources) sources_cleared
         where attempts.n < 10
+       on conflict do nothing
        returning ${CHALLENGE_RETURNING}
+     ), biometric_grant as (
+       insert into vy_replica_biometric_verification_grant
+         (challenge_id,replica_id,owner_user_id,statement_set,receipt_hash,receipt_payload,granted_at,expires_at)
+       select challenge_id,replica_id,$2,$9,$7,$10::jsonb,$8::timestamptz,expires_at from issued
+       returning challenge_id
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
@@ -87,18 +174,32 @@ export async function issueOwnedChallenge(db, ownerUserId, id, options = {}) {
               challenge_id::text, $6, 'allowed', jsonb_build_object('attempt', attempt)
          from issued
      )
-     select * from issued`,
-    [rid, ownerUserId, challengeId, phrase, hash, REPLICA_POLICY_VERSION],
+     select issued.* from issued join biometric_grant using (challenge_id)`,
+    [rid, ownerUserId, challengeId, phrase, hash, REPLICA_POLICY_VERSION,
+      grant.hash, grant.grantedAt, BIOMETRIC_VERIFICATION_STATEMENT_SET, JSON.stringify(grant.payload)],
   );
   return clientChallenge(rows[0]);
 }
 
 export async function latestOwnedChallenge(db, ownerUserId, id) {
   const rows = await db(
-    `update vy_replica_liveness_challenge
-        set state = 'expired', updated_at = now()
-      where replica_id = $1 and owner_user_id = $2 and state = 'issued' and expires_at <= now()
-      returning challenge_id`,
+    `with expired as (
+       update vy_replica_liveness_challenge
+          set state='expired',
+              face_session_state=case
+                when face_session_state in ('ready','polling') then 'expired_deleting'
+                else face_session_state end,
+              updated_at=now()
+        where replica_id=$1 and owner_user_id=$2 and state='issued' and expires_at<=now()
+        returning challenge_id,source_id,face_session_state
+     ), grants as (
+       update vy_replica_biometric_verification_grant g set state='expired'
+        from expired e where g.challenge_id=e.challenge_id and g.state='active'
+     ), sources as (
+       update vy_replica_source s set state='deleting',updated_at=now()
+        from expired e where e.source_id is not null and s.source_id=e.source_id
+          and s.replica_id=$1 and s.owner_user_id=$2 and s.state in ('pending_upload','quarantined','rejected')
+     ) select challenge_id from expired`,
     [replicaId(id), ownerUserId],
   );
   void rows;
@@ -108,6 +209,44 @@ export async function latestOwnedChallenge(db, ownerUserId, id) {
     [replicaId(id), ownerUserId],
   );
   return clientChallenge(current[0]);
+}
+
+export async function cancelOwnedChallenge(db, ownerUserId, id, challenge) {
+  const rows = await db(
+    `with cancelled as (
+       update vy_replica_liveness_challenge ch set state='failed',failure_code='owner_cancelled',
+              face_session_state=case
+                when ch.face_session_handle<>'' and ch.face_session_state not in
+                  ('passed_deleted','failed_deleted','expired_deleted') then 'expired_deleting'
+                else ch.face_session_state end,
+              verification_lease_token_hash='',verification_leased_at=null,
+              verification_lease_expires_at=null,updated_at=now()
+        where ch.challenge_id=$3 and ch.replica_id=$1 and ch.owner_user_id=$2
+          and ch.state in ('issued','uploaded','verifying')
+        returning ch.*
+     ), grants as (
+       update vy_replica_biometric_verification_grant g set state='revoked',revoked_at=now()
+        from cancelled ch where g.challenge_id=ch.challenge_id and g.replica_id=ch.replica_id
+          and g.owner_user_id=ch.owner_user_id and g.state='active'
+     ), sources as (
+       update vy_replica_source s set state='deleting',updated_at=now()
+        from cancelled ch where ch.source_id is not null and s.source_id=ch.source_id
+          and s.replica_id=ch.replica_id and s.owner_user_id=ch.owner_user_id
+          and s.state in ('pending_upload','quarantined','rejected')
+     ), attempts as (
+       update vy_replica_liveness_verification_attempt a set outcome='failed',
+              failure_code='owner_cancelled',finished_at=now()
+        from cancelled ch where a.challenge_id=ch.challenge_id
+          and a.attempt=ch.verification_attempt and a.outcome='running'
+     ), audit as (
+       insert into vy_replica_audit
+         (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
+       select replica_id,owner_user_id,'liveness.challenge.cancel','liveness_challenge',challenge_id::text,
+              policy_version,'allowed',jsonb_build_object('raw_erasure_queued',source_id is not null) from cancelled
+     ) select * from cancelled`,
+    [replicaId(id), ownerUserId, replicaId(challenge)],
+  );
+  return clientChallenge(rows[0]);
 }
 
 const LIVE_SOURCE_RETURNING = `source_id, replica_id, owner_user_id, kind,
@@ -157,6 +296,15 @@ export async function createChallengeSource(db, ownerUserId, id, challenge, valu
         where c.owner_user_id = $2 and c.scope = 'storage'
           and c.policy_version = ch.policy_version and c.revoked_at is null
           and (c.expires_at is null or c.expires_at > now()) limit 1
+     ), biometric_ok as (
+       select 1 from vy_replica_biometric_verification_grant g join challenge ch on ch.challenge_id=g.challenge_id
+        where g.replica_id=ch.replica_id and g.owner_user_id=$2 and g.state='active' and g.expires_at>now()
+          and exists (
+            select 1 from vy_replica_liveness_challenge live
+             where live.challenge_id=ch.challenge_id and live.face_session_state='passed_deleted'
+               and live.face_session_provider_deleted_at is not null
+               and live.face_session_result->>'passed'='true'
+          ) limit 1
      ), inserted as (
        insert into vy_replica_source
          (source_id, replica_id, owner_user_id, consent_id, kind, capture_mode,
@@ -164,7 +312,7 @@ export async function createChallengeSource(db, ownerUserId, id, challenge, valu
           contains_third_parties, provenance)
        select $4, challenge.replica_id, $2, capture.consent_id, $5, 'live_challenge',
               $6, $7, $8, $9, $10, false, $11::jsonb
-         from challenge cross join capture cross join storage_ok
+         from challenge cross join capture cross join storage_ok cross join biometric_ok
        returning ${LIVE_SOURCE_RETURNING}
      ), attached as (
        update vy_replica_liveness_challenge ch set source_id = inserted.source_id, updated_at = now()
@@ -235,20 +383,32 @@ export async function finalizeChallengeSource(
           and ch.owner_user_id = s.owner_user_id
         where s.replica_id = $1 and s.owner_user_id = $2 and s.source_id = $4
           and s.capture_mode = 'live_challenge' and s.state = 'pending_upload'
-          and ch.challenge_id = $3 and ch.state = 'issued' and ch.expires_at > now()
+         and ch.challenge_id = $3 and ch.state = 'issued' and ch.expires_at > now()
+          and ch.face_session_state='passed_deleted' and ch.face_session_provider_deleted_at is not null
+          and ch.face_session_result->>'passed'='true'
+          and exists (
+            select 1 from vy_replica_biometric_verification_grant g
+             where g.challenge_id=ch.challenge_id and g.replica_id=ch.replica_id
+               and g.owner_user_id=ch.owner_user_id and g.state='active' and g.expires_at>now()
+          )
      ), updated_source as (
        update vy_replica_source s
           set state = $5, rejection_code = $6, updated_at = now(),
               provenance = provenance || $7::jsonb
          from eligible e where s.source_id = e.source_id
        returning s.*
-     ), updated_challenge as (
+      ), updated_challenge as (
        update vy_replica_liveness_challenge ch
           set state = $8, failure_code = $6, updated_at = now()
          from updated_source s
         where ch.challenge_id = $3 and ch.replica_id = $1
           and ch.owner_user_id = $2 and ch.source_id = s.source_id
-       returning ch.*
+        returning ch.*
+     ), extended_grant as (
+       update vy_replica_biometric_verification_grant g
+          set expires_at=greatest(g.expires_at,now()+interval '30 minutes')
+         from updated_challenge ch where ch.state='uploaded' and g.challenge_id=ch.challenge_id
+           and g.replica_id=ch.replica_id and g.owner_user_id=ch.owner_user_id and g.state='active'
      ), queued as (
        insert into vy_replica_processing_job
          (replica_id, owner_user_id, source_id, step, state)

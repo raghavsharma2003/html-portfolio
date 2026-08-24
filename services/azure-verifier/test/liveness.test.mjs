@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sha256 } from "../src/canonical.js";
-import { createLivenessSession, deleteLivenessSession, getLivenessResult } from "../src/liveness.js";
+import {
+  cleanupExpiredLivenessSessions,
+  createLivenessSession,
+  deleteLivenessSession,
+  getLivenessResult,
+  resumeLivenessSession,
+} from "../src/liveness.js";
 import { openSession } from "../src/seal.js";
 
 const NOW = new Date("2026-08-24T10:00:00.000Z");
@@ -24,6 +30,7 @@ function config() {
     }),
     liveness: Object.freeze({
       enabled: true,
+      erasureEnabled: true,
       protocol: "vyakti-azure-liveness-session-broker/v1",
       modelVersion: "2025-05-20",
       verifyThreshold: 0.9,
@@ -32,6 +39,7 @@ function config() {
       returnUrl: "https://vyakti.example/studio?liveness=return",
       quickLinkEndpoint: "https://liveness.face.azure.com/api/quicklink",
       quickLinkOrigin: "https://liveness.face.azure.com",
+      cleanupApiVersion: "v1.2-preview.1",
     }),
     limits: Object.freeze({
       mediaBytes: 8 * 1_024 * 1_024,
@@ -139,6 +147,26 @@ test("official liveness-with-verify session is pinned, short-lived, image-bound 
   assert.equal(serialized.includes(SESSION_ID), false);
   assert.equal(serialized.includes("authorization-token"), false);
   assert.equal(serialized.includes("opaque"), false);
+});
+
+test("an encrypted provider authorization can reissue a lost one-time link without creating another Face session", async () => {
+  const { result: session } = await createSession();
+  const providers = sessionProviders();
+  const resumed = await resumeLivenessSession(boundPayload(session.session_handle), config(), {
+    fetchImpl: providers.fetchImpl,
+    now: new Date("2026-08-24T10:01:00.000Z"),
+  });
+  assert.equal(resumed.session_handle, session.session_handle);
+  assert.equal(resumed.session_expires_at, session.session_expires_at);
+  assert.equal(new URL(resumed.quick_link_url).searchParams.get("s"), LINK_ID);
+  assert.equal(providers.calls.some((call) => call.url.endsWith("/detectLivenessWithVerify-sessions")), false);
+  await assert.rejects(
+    resumeLivenessSession(boundPayload(session.session_handle), config(), {
+      fetchImpl: providers.fetchImpl,
+      now: new Date("2026-08-24T10:05:00.000Z"),
+    }),
+    (error) => error.code === "liveness_session_resume_expired",
+  );
 });
 
 test("terminal result chooses the highest attempt id and binds Azure's verify hash to the exact ID image", async () => {
@@ -250,4 +278,40 @@ test("session deletion is explicit, idempotent at the Azure boundary and returns
     reference_sha256: SHA,
     provider_deleted: true,
   });
+});
+
+test("dedicated-resource cleanup enumerates bounded preview pages and deletes only expired sessions", async () => {
+  const liveId = "60000000-0000-4000-8000-000000000006";
+  const calls = [];
+  const result = await cleanupExpiredLivenessSessions({
+    protocol: "vyakti-azure-liveness-session-broker/v1",
+    verifier_version: "identity-2026.08.24+1",
+    request_id: "cleanup:70000000-0000-4000-8000-000000000007",
+  }, config(), {
+    now: NOW,
+    fetchImpl: async (input, init = {}) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.includes("/v1.2-preview.1/detectLivenessWithVerify/singleModal/sessions?")) {
+        return Response.json([
+          { id: SESSION_ID, sessionExpired: true },
+          { id: liveId, sessionExpired: false },
+        ]);
+      }
+      if (url.endsWith(`/detectLivenessWithVerify-sessions/${SESSION_ID}`) && init.method === "DELETE")
+        return new Response(null, { status: 204 });
+      throw new Error(`unexpected URL: ${url}`);
+    },
+  });
+  assert.deepEqual(result, {
+    request_id: "cleanup:70000000-0000-4000-8000-000000000007",
+    provider_accepted: true,
+    cleanup_api_version: "v1.2-preview.1",
+    exhaustive: true,
+    scan_started_at: NOW.toISOString(),
+    sessions_scanned: 2,
+    expired_sessions_deleted: 1,
+  });
+  assert.equal(calls.filter((call) => call.init.method === "DELETE").length, 1);
+  assert.equal(calls.some((call) => call.url.endsWith(liveId) && call.init.method === "DELETE"), false);
 });

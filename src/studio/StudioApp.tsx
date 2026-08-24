@@ -47,10 +47,14 @@ import {
   revokeEnrollmentConsent,
 } from "./enrollmentApi";
 import {
+  type BiometricVerificationAttestations,
+  cancelLivenessChallenge,
   createLivenessUpload,
   finalizeLivenessUpload,
   issueLivenessChallenge,
   livenessStatus,
+  pollOfficialFaceSession,
+  startOfficialFaceSession,
 } from "./livenessApi";
 
 type AuthStep = "email" | "code";
@@ -389,6 +393,9 @@ function ReplicaWorkspace({
   onFinalizeUpload,
   onDeleteSource,
   onIssueChallenge,
+  onStartFaceSession,
+  onPollFaceSession,
+  onCancelChallenge,
   onCreateLivenessUpload,
   onFinalizeLiveness,
   onIdentityChanged,
@@ -417,7 +424,13 @@ function ReplicaWorkspace({
   onRetryUpload: (sourceId: string) => Promise<{ source: ReplicaSource; upload: SignedUpload }>;
   onFinalizeUpload: (sourceId: string) => Promise<ReplicaSource>;
   onDeleteSource: (sourceId: string) => Promise<"complete" | "pending">;
-  onIssueChallenge: () => Promise<LivenessChallenge>;
+  onIssueChallenge: (attestations: BiometricVerificationAttestations) => Promise<LivenessChallenge>;
+  onStartFaceSession: (challengeId: string) => Promise<{ challenge: LivenessChallenge; quick_link_url: string }>;
+  onPollFaceSession: (challengeId: string) => Promise<LivenessChallenge>;
+  onCancelChallenge: (challengeId: string) => Promise<{
+    challenge: LivenessChallenge;
+    erasure: "pending" | "confirmed" | "not_required";
+  }>;
   onCreateLivenessUpload: (input: {
     challengeId: string;
     kind: "audio" | "video";
@@ -546,6 +559,9 @@ function ReplicaWorkspace({
             challenge={challenge}
             loading={livenessLoading}
             onIssue={onIssueChallenge}
+            onStartFace={onStartFaceSession}
+            onPollFace={onPollFaceSession}
+            onCancel={onCancelChallenge}
             onCreateUpload={onCreateLivenessUpload}
             onRetryUpload={onRetryUpload}
             onFinalize={onFinalizeLiveness}
@@ -1045,15 +1061,66 @@ export default function StudioApp() {
     }
   }
 
-  async function handleIssueChallenge() {
+  async function handleIssueChallenge(attestations: BiometricVerificationAttestations) {
     if (!session || !selected) throw new Error("Your session is no longer available");
     try {
       const fresh = await refreshForRequest(session);
-      const issued = await issueLivenessChallenge(fresh.accessToken, selected.replica_id);
+      const issued = await issueLivenessChallenge(fresh.accessToken, selected.replica_id, attestations);
       setChallenge(issued);
       return issued;
     } catch (cause) {
       handleApiError(cause, "Could not issue a live phrase");
+      throw cause;
+    }
+  }
+
+  async function handleStartFaceSession(challengeId: string) {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const started = await startOfficialFaceSession(fresh.accessToken, selected.replica_id, challengeId);
+      setChallenge(started.challenge);
+      return started;
+    } catch (cause) {
+      handleApiError(cause, "Could not start the official live-face check");
+      throw cause;
+    }
+  }
+
+  async function handlePollFaceSession(challengeId: string) {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const updated = await pollOfficialFaceSession(fresh.accessToken, selected.replica_id, challengeId);
+      setChallenge(updated);
+      if (updated.face_session_state === "passed_deleted") {
+        setNotice("Official live-face and ID match passed. The Azure session was deleted; voice challenge capture is now unlocked.");
+      }
+      return updated;
+    } catch (cause) {
+      handleApiError(cause, "Could not retrieve the official live-face result");
+      throw cause;
+    }
+  }
+
+  async function handleCancelChallenge(challengeId: string) {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const result = await cancelLivenessChallenge(fresh.accessToken, selected.replica_id, challengeId);
+      setChallenge(result.challenge);
+      setSources((items) => items.map((source) =>
+        source.capture_mode === "live_challenge"
+          ? { ...source, state: "deleting" }
+          : source));
+      setNotice(result.erasure === "confirmed"
+        ? "Verification cancelled. The provider session is deleted; raw evidence remains queued for confirmed erasure."
+        : result.erasure === "pending"
+          ? "Verification cancelled. Provider and raw-evidence deletion are pending with the durable cleanup worker."
+          : "Verification cancelled. No provider session existed; raw evidence is queued for confirmed erasure.");
+      return result;
+    } catch (cause) {
+      handleApiError(cause, "Could not cancel this verification attempt");
       throw cause;
     }
   }
@@ -1184,6 +1251,9 @@ export default function StudioApp() {
               onFinalizeUpload={handleFinalizeUpload}
               onDeleteSource={handleDeleteSource}
               onIssueChallenge={handleIssueChallenge}
+              onStartFaceSession={handleStartFaceSession}
+              onPollFaceSession={handlePollFaceSession}
+              onCancelChallenge={handleCancelChallenge}
               onCreateLivenessUpload={handleCreateLivenessUpload}
               onFinalizeLiveness={handleFinalizeLiveness}
               onIdentityChanged={handleIdentityChanged}

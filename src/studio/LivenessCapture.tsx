@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { putSignedUpload, sha256File } from "./enrollmentApi";
+import type { BiometricVerificationAttestations } from "./livenessApi";
 import type { LivenessChallenge, ReplicaSource, SignedUpload } from "./types";
 
 type CaptureMode = "audio" | "video";
@@ -53,7 +54,13 @@ interface Props {
   consentActive: boolean;
   challenge: LivenessChallenge | null;
   loading: boolean;
-  onIssue: () => Promise<LivenessChallenge>;
+  onIssue: (attestations: BiometricVerificationAttestations) => Promise<LivenessChallenge>;
+  onStartFace: (challengeId: string) => Promise<{ challenge: LivenessChallenge; quick_link_url: string }>;
+  onPollFace: (challengeId: string) => Promise<LivenessChallenge>;
+  onCancel: (challengeId: string) => Promise<{
+    challenge: LivenessChallenge;
+    erasure: "pending" | "confirmed" | "not_required";
+  }>;
   onCreateUpload: (input: {
     challengeId: string;
     kind: CaptureMode;
@@ -70,6 +77,9 @@ export default function LivenessCapture({
   challenge,
   loading,
   onIssue,
+  onStartFace,
+  onPollFace,
+  onCancel,
   onCreateUpload,
   onRetryUpload,
   onFinalize,
@@ -83,12 +93,21 @@ export default function LivenessCapture({
   const [now, setNow] = useState(Date.now());
   const [pendingSourceId, setPendingSourceId] = useState<string | null>(null);
   const [objectUploaded, setObjectUploaded] = useState(false);
+  const [faceBusy, setFaceBusy] = useState(false);
+  const [verificationConsent, setVerificationConsent] = useState<Record<keyof BiometricVerificationAttestations, boolean>>({
+    live_face_and_voice_processing: false,
+    compare_face_to_my_id: false,
+    anti_spoof_and_synthetic_detection: false,
+    erase_raw_and_provider_session: false,
+    self_only_private_replica: false,
+  });
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef(0);
   const previewRef = useRef<HTMLVideoElement>(null);
   const autoStopRef = useRef<number | null>(null);
+  const facePopupRef = useRef<Window | null>(null);
 
   const videoMime = useMemo(() => supportedType("video"), []);
   const selectedMime = videoMime;
@@ -97,6 +116,10 @@ export default function LivenessCapture({
   const challengeState = challenge?.state;
   const challengeIssued = challenge?.state === "issued" && remaining > 0;
   const pendingVerification = challenge?.state === "uploaded" || challenge?.state === "verifying";
+  const cancellableChallenge = challenge && ["issued", "uploaded", "verifying"].includes(challenge.state);
+  const facePassed = challenge?.face_session_state === "passed_deleted";
+  const faceFailed = challenge?.face_session_state === "failed_deleted" || challenge?.face_session_state === "expired_deleted";
+  const allVerificationConsent = Object.values(verificationConsent).every(Boolean);
   const busy = ["requesting", "recording", "hashing", "authorizing", "uploading", "finalizing"].includes(stage);
 
   function stopTracks() {
@@ -132,6 +155,8 @@ export default function LivenessCapture({
 
   useEffect(() => () => {
     stopTracks();
+    facePopupRef.current?.close();
+    facePopupRef.current = null;
     if (recording) URL.revokeObjectURL(recording.url);
     if (autoStopRef.current) window.clearTimeout(autoStopRef.current);
   }, [recording]);
@@ -156,18 +181,89 @@ export default function LivenessCapture({
   }, [challengeState, remaining, stage]);
 
   async function issue() {
+    if (!allVerificationConsent) {
+      setError("Confirm every narrow biometric verification statement before requesting a challenge.");
+      return;
+    }
     setError("");
     clearRecording();
     stopTracks();
     setStage("requesting");
     try {
-      await onIssue();
+      await onIssue(Object.fromEntries(
+        Object.keys(verificationConsent).map((key) => [key, true]),
+      ) as BiometricVerificationAttestations);
+      setVerificationConsent((current) => Object.fromEntries(
+        Object.keys(current).map((key) => [key, false]),
+      ) as Record<keyof BiometricVerificationAttestations, boolean>);
       setStage("idle");
       setNow(Date.now());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "A live phrase could not be issued");
       setStage("idle");
     }
+  }
+
+  async function cancelChallenge() {
+    if (!cancellableChallenge || !challenge) return;
+    setFaceBusy(true);
+    setError("");
+    facePopupRef.current?.close();
+    facePopupRef.current = null;
+    stopTracks();
+    if (recorderRef.current?.state === "recording") {
+      recorderRef.current.onstop = null;
+      recorderRef.current.stop();
+      chunksRef.current = [];
+    }
+    try {
+      await onCancel(challenge.challenge_id);
+      clearRecording();
+      setStage("idle");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "This verification attempt could not be cancelled");
+    } finally {
+      setFaceBusy(false);
+    }
+  }
+
+  async function startFaceSession() {
+    if (!challengeIssued || !challenge) return;
+    const popup = window.open("about:blank", "vyakti-official-face-check", "popup,width=520,height=760");
+    if (!popup) {
+      setError("The official face-check window was blocked. Allow pop-ups for this site, then try again.");
+      return;
+    }
+    facePopupRef.current?.close();
+    facePopupRef.current = popup;
+    popup.opener = null;
+    setFaceBusy(true);
+    setError("");
+    try {
+      const started = await onStartFace(challenge.challenge_id);
+      const link = new URL(started.quick_link_url);
+      if (link.origin !== "https://liveness.face.azure.com") throw new Error("The official Azure link was invalid");
+      popup.location.replace(link.toString());
+    } catch (cause) {
+      popup.close();
+      if (facePopupRef.current === popup) facePopupRef.current = null;
+      setError(cause instanceof Error ? cause.message : "The official face check could not start");
+    } finally {
+      setFaceBusy(false);
+    }
+  }
+
+  async function pollFaceSession() {
+    if (!challenge) return;
+    setFaceBusy(true);
+    setError("");
+    try {
+      await onPollFace(challenge.challenge_id);
+      facePopupRef.current?.close();
+      facePopupRef.current = null;
+    }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "The official face result is not available yet"); }
+    finally { setFaceBusy(false); }
   }
 
   async function requestMedia() {
@@ -319,6 +415,9 @@ export default function LivenessCapture({
                 The challenge recording is isolated in private quarantine. It has not granted biometric, training, inference,
                 or generation permission. The gate stays locked until the independent composite verifier settles every check.
               </p>
+              <button className="text-button" type="button" disabled={faceBusy} onClick={() => void cancelChallenge()}>
+                Withdraw verification and erase evidence
+              </button>
             </div>
           </div>
         ) : challenge?.state === "passed" ? (
@@ -330,13 +429,33 @@ export default function LivenessCapture({
           <div className="challenge-empty">
             <div>
               <p>
-                Request a one-time phrase, then record it before the five-minute timer ends. Each phrase combines Hindi,
-                English, an unpredictable code, and a narrow biometric-consent statement to resist replay.
+                Request a one-time phrase, then complete both checks inside the ten-minute challenge window. The Azure
+                camera link expires sooner. Each phrase combines Hindi, English, an unpredictable code, and a narrow
+                biometric-consent statement to resist replay.
               </p>
               {challenge?.state === "failed" && <p className="challenge-failure">Previous attempt failed: {challenge.failure_code.replaceAll("_", " ") || "verification did not pass"}</p>}
               {challenge?.state === "expired" && <p className="challenge-failure">The previous phrase expired without a completed upload.</p>}
+              <fieldset className="biometric-consent-list">
+                <legend>Before any biometric processing</legend>
+                {([
+                  ["live_face_and_voice_processing", "Process my live face and voice only to verify this private self-replica."],
+                  ["compare_face_to_my_id", "Compare my live face with the government ID I submitted."],
+                  ["anti_spoof_and_synthetic_detection", "Run replay, synthetic-media, and single-speaker checks on this attempt."],
+                  ["erase_raw_and_provider_session", "Erase raw verification media and the provider session after the decision."],
+                  ["self_only_private_replica", "This is me, I am an adult, and this replica will remain private and disclosed as synthetic."],
+                ] as const).map(([key, label]) => (
+                  <label key={key}>
+                    <input
+                      type="checkbox"
+                      checked={verificationConsent[key]}
+                      onChange={(event) => setVerificationConsent((current) => ({ ...current, [key]: event.target.checked }))}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </fieldset>
             </div>
-            <button className="button primary-button" type="button" disabled={stage === "requesting"} onClick={() => void issue()}>
+            <button className="button primary-button" type="button" disabled={stage === "requesting" || !allVerificationConsent} onClick={() => void issue()}>
               {stage === "requesting" ? "Issuing phrase" : "Request live phrase"}
             </button>
           </div>
@@ -349,8 +468,39 @@ export default function LivenessCapture({
               </div>
               <blockquote>{challenge.phrase}</blockquote>
               <p>Read every word exactly as shown, naturally and without playback in the room.</p>
+              <button className="text-button" type="button" disabled={busy} onClick={() => void cancelChallenge()}>
+                Cancel and erase this attempt
+              </button>
             </div>
 
+            {!facePassed ? (
+              <div className={`official-face-gate ${faceFailed ? "official-face-failed" : ""}`}>
+                <div className="official-face-mark" aria-hidden="true">ID</div>
+                <div>
+                  <p className="eyebrow">Official live-face check</p>
+                  <h4>{faceFailed ? "This face session did not pass" : "Match your live face to your ID"}</h4>
+                  <p>
+                    Azure hosts a single-use camera check. Vyakti receives only the bounded live/not-live and same-person
+                    decision. The one-time link is never durably stored; a short volatile retry cache expires with the
+                    authorization. An encrypted recovery credential exists only until confirmed provider deletion, which
+                    must complete before capture unlocks.
+                  </p>
+                  {challenge.face_session_state === "not_started" ? (
+                    <button className="button primary-button" type="button" disabled={faceBusy} onClick={() => void startFaceSession()}>
+                      {faceBusy ? "Creating protected session" : "Open official face check"}
+                    </button>
+                  ) : faceFailed ? (
+                    <p className="challenge-failure">Request a new randomized challenge to try again. This provider session has been deleted.</p>
+                  ) : (
+                    <button className="button secondary-button" type="button" disabled={faceBusy} onClick={() => void pollFaceSession()}>
+                      {faceBusy ? "Checking and deleting session" : "I finished — check result"}
+                    </button>
+                  )}
+                  <small>Pop-ups must be allowed for the Azure-hosted check. Do not share its one-time link.</small>
+                </div>
+              </div>
+            ) : (
+              <>
             <div className="capture-privacy">
               <span className="fingerprint-icon" aria-hidden="true">○</span>
               <p><strong>Nothing uploads when permission opens.</strong> Capture stays only in this browser until you review it and choose Upload. Device tracks close after recording.</p>
@@ -408,6 +558,8 @@ export default function LivenessCapture({
                   {busy ? "Securing evidence" : pendingSourceId ? "Retry private upload" : "Upload for verification"}
                 </button>
               </div>
+            )}
+              </>
             )}
           </>
         )}

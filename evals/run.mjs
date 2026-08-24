@@ -142,6 +142,10 @@ const suites = {
   // review, content-free results, tamper/replay fencing, official Face
   // liveness-with-verify quick links, sealed handles and provider deletion.
   azureverify: "azure-verifier/run.mjs",
+  // Owner-only consumption of the official Face session contract: narrow
+  // pre-processing consent, pseudonymous device binding, sealed handles,
+  // crash-safe issue/poll/delete states and provider deletion before pass.
+  facesession: "face-session/run.mjs",
   // Crash-safe biometric deletion: disable-first semantics, one-way leases,
   // idempotent Azure voice+consent deletion, bounded backoff and a scheduled
   // reconciler that keeps working even when new cloning has been disabled.

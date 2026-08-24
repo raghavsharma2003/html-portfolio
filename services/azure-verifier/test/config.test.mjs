@@ -27,20 +27,64 @@ test("configuration pins providers and accepts only strict Azure/Supabase bounda
 
 test("liveness remains disabled unless limited access is explicitly approved and every security parameter is pinned", () => {
   assert.equal(loadConfig(ENV).liveness.enabled, false);
+  assert.equal(loadConfig(ENV).liveness.erasureEnabled, false);
   assert.throws(() => loadConfig({ ...ENV, AZURE_FACE_LIVENESS_ENABLED: "true" }),
     (error) => error.code === "face_liveness_approval_required");
   const liveness = loadConfig({
     ...ENV,
     AZURE_FACE_LIVENESS_ENABLED: "true",
     AZURE_FACE_LIVENESS_LIMITED_ACCESS_APPROVED: "true",
+    AZURE_FACE_DEDICATED_RESOURCE: "true",
     AZURE_FACE_LIVENESS_MODEL_VERSION: "2025-05-20",
     AZURE_FACE_VERIFY_CONFIDENCE_THRESHOLD: "0.9",
     AZURE_LIVENESS_SESSION_SEAL_KEY_B64: KEY,
     VYAKTI_PUBLIC_APP_ORIGIN: "https://vyakti.example",
   }).liveness;
   assert.equal(liveness.enabled, true);
+  assert.equal(liveness.erasureEnabled, true);
   assert.equal(liveness.modelVersion, "2025-05-20");
+  assert.equal(liveness.cleanupApiVersion, "v1.2-preview.1");
   assert.equal(liveness.returnUrl, "https://vyakti.example/studio?liveness=return");
+  assert.throws(() => loadConfig({
+    ...ENV,
+    AZURE_FACE_LIVENESS_ENABLED: "true",
+    AZURE_FACE_LIVENESS_LIMITED_ACCESS_APPROVED: "true",
+    AZURE_FACE_DEDICATED_RESOURCE: "true",
+    AZURE_FACE_LIVENESS_MODEL_VERSION: "2025-05-20",
+    AZURE_FACE_VERIFY_CONFIDENCE_THRESHOLD: "0.85",
+    AZURE_LIVENESS_SESSION_SEAL_KEY_B64: KEY,
+    VYAKTI_PUBLIC_APP_ORIGIN: "https://vyakti.example",
+  }), (error) => error.code === "face_verify_threshold_invalid");
+});
+
+test("new Face sessions can be disabled while the erasure plane remains available", () => {
+  const liveness = loadConfig({
+    ...ENV,
+    AZURE_FACE_LIVENESS_ENABLED: "false",
+    AZURE_FACE_LIVENESS_ERASURE_ENABLED: "true",
+    AZURE_FACE_DEDICATED_RESOURCE: "true",
+    AZURE_FACE_LIVENESS_MODEL_VERSION: "2025-05-20",
+    AZURE_FACE_VERIFY_CONFIDENCE_THRESHOLD: "0.9",
+    AZURE_LIVENESS_SESSION_SEAL_KEY_B64: KEY,
+  }).liveness;
+  assert.equal(liveness.enabled, false);
+  assert.equal(liveness.erasureEnabled, true);
+  assert.equal(liveness.returnUrl, "");
+});
+
+test("resource-wide expiry cleanup cannot be enabled on a shared Face resource", () => {
+  assert.throws(() => loadConfig({
+    ...ENV,
+    AZURE_FACE_LIVENESS_ENABLED: "true",
+    AZURE_FACE_LIVENESS_LIMITED_ACCESS_APPROVED: "true",
+  }), (error) => error.code === "face_liveness_dedicated_resource_required");
+  assert.throws(() => loadConfig({
+    ...ENV,
+    AZURE_FACE_LIVENESS_ERASURE_ENABLED: "true",
+    AZURE_FACE_LIVENESS_MODEL_VERSION: "2025-05-20",
+    AZURE_FACE_VERIFY_CONFIDENCE_THRESHOLD: "0.9",
+    AZURE_LIVENESS_SESSION_SEAL_KEY_B64: KEY,
+  }), (error) => error.code === "face_liveness_dedicated_resource_required");
 });
 
 for (const [name, value, code] of [

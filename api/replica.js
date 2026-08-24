@@ -14,6 +14,10 @@ import {
   requestOwnedReplicaErasure,
 } from "./_replica.js";
 import { getReplicaErasureStatus } from "./_replica-full-erasure.js";
+import { configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
+import { deleteOwnedFaceSessionNow } from "./_replica-face-session.js";
+
+export const config = { maxDuration: 60 };
 
 const cors = (res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -46,9 +50,27 @@ export default async function handler(req, res) {
     }
     if (body.op === "revoke") {
       const result = await requestOwnedReplicaErasure(q, user.id, body.replica_id);
-      return result
-        ? res.status(200).json({ ...result, erasure: "pending" })
-        : res.status(404).json({ error: "replica_not_found" });
+      if (!result) return res.status(404).json({ error: "replica_not_found" });
+      // Revocation is committed before this best-effort provider call. A Face
+      // outage can therefore delay deletion but can never reactivate the replica;
+      // the scheduled erasure path remains the durable retry mechanism.
+      let providerSessionErasure = "pending";
+      try {
+        const broker = configuredFaceSessionErasureBroker();
+        const deleted = broker
+          ? await deleteOwnedFaceSessionNow(q, user.id, body.replica_id, null, broker, {
+            providerTimeoutMs: 12_000,
+          })
+          : null;
+        providerSessionErasure = deleted ? "confirmed" : "pending";
+      } catch {
+        providerSessionErasure = "pending";
+      }
+      return res.status(200).json({
+        ...result,
+        erasure: "pending",
+        provider_session_erasure: providerSessionErasure,
+      });
     }
     if (body.op === "erasure_status") {
       const status = await getReplicaErasureStatus(q, user.id, body.erasure_request_id);

@@ -1533,6 +1533,11 @@
   .challenge-empty .button { flex: 0 0 auto; }
   .challenge-failure { margin: 10px 0 0; color: var(--danger); font-size: 9px; }
 
+  .biometric-consent-list { display: grid; gap: 8px; margin: 18px 0 0; border: 0; padding: 0; }
+  .biometric-consent-list legend { margin-bottom: 2px; color: var(--ink); font-size: 9px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+  .biometric-consent-list label { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 8px; color: var(--ink-soft); font-size: 9px; line-height: 1.45; cursor: pointer; }
+  .biometric-consent-list input { width: 14px; height: 14px; margin: 0; accent-color: var(--forest); }
+
   .challenge-card {
     position: relative;
     margin-top: 24px;
@@ -1551,6 +1556,25 @@
   .challenge-meta time.urgent { color: #ffe0cc; border-color: rgba(255, 143, 90, 0.4); background: rgba(255, 104, 56, 0.12); }
   .challenge-card blockquote { position: relative; z-index: 1; max-width: 820px; margin: 27px 0 17px; font-family: Georgia, serif; font-size: clamp(21px, 2.6vw, 31px); letter-spacing: -0.022em; line-height: 1.38; }
   .challenge-card > p { position: relative; z-index: 1; margin: 0; color: rgba(255, 255, 255, 0.59); font-size: 9px; }
+
+  .official-face-gate {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    align-items: start;
+    gap: 17px;
+    margin-top: 16px;
+    border: 1px solid rgba(23, 73, 59, 0.16);
+    border-radius: 15px;
+    padding: 20px;
+    background: linear-gradient(135deg, rgba(225, 238, 231, 0.72), rgba(255, 254, 249, 0.72));
+  }
+  .official-face-mark { width: 54px; height: 54px; display: grid; place-items: center; border: 1px solid rgba(23, 73, 59, 0.22); border-radius: 14px; color: var(--forest); background: rgba(255, 255, 255, 0.7); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 800; }
+  .official-face-gate h4 { margin: 2px 0 7px; font-family: Georgia, serif; font-size: 20px; font-weight: 400; }
+  .official-face-gate p:not(.eyebrow, .challenge-failure) { max-width: 700px; margin: 0 0 14px; color: var(--ink-soft); font-size: 10px; line-height: 1.58; }
+  .official-face-gate .button { margin-right: 9px; }
+  .official-face-gate small { display: block; margin-top: 10px; color: var(--ink-faint); font-size: 8px; }
+  .official-face-failed { border-color: rgba(157, 48, 45, 0.17); background: var(--danger-soft); }
+  .official-face-failed .official-face-mark { color: var(--danger); border-color: rgba(157, 48, 45, 0.2); }
 
   .capture-privacy {
     display: flex;
@@ -2138,6 +2162,8 @@
     .recording-review-meta { align-items: flex-start; flex-direction: column; }
     .recording-review-meta .text-button { padding-left: 0; }
     .challenge-card blockquote { font-size: 20px; }
+    .official-face-gate { grid-template-columns: 1fr; padding: 17px; }
+    .official-face-gate .button { width: 100%; margin-right: 0; }
     .runtime-gate { padding: 23px 18px; }
     .person-model { padding: 23px 18px; }
     .calibration-studio { padding: 23px 18px; }

@@ -31,14 +31,23 @@ param documentReviewVersion string
 @description('Keep false until Microsoft has granted Face liveness limited access for this exact resource.')
 param faceLivenessEnabled bool = false
 
+@description('Keep the deletion and dedicated-resource cleanup plane enabled while any provider session may exist, including during creation shutdowns.')
+param faceLivenessErasureEnabled bool = false
+
 @description('Separate explicit acknowledgement of the limited-access grant. Enabling without this fails service startup.')
 param faceLivenessLimitedAccessApproved bool = false
+
+@description('Explicit operator assertion that faceEndpoint belongs only to this Vyakti verifier. Required before resource-wide cleanup can be enabled.')
+param faceResourceDedicated bool = false
+
+assert livenessRequiresErasurePlane = !faceLivenessEnabled || faceLivenessErasureEnabled
+assert livenessRequiresDedicatedFaceResource = (!faceLivenessEnabled && !faceLivenessErasureEnabled) || faceResourceDedicated
 
 @description('Pinned Azure Face liveness model version, never latest.')
 param faceLivenessModelVersion string = '2025-05-20'
 
 @description('Provisional high-security threshold. Must be recalibrated on representative, consented launch data.')
-@allowed([ '0.8', '0.85', '0.9', '0.95' ])
+@allowed([ '0.9', '0.95' ])
 param faceVerifyConfidenceThreshold string = '0.9'
 
 @secure()
@@ -127,7 +136,9 @@ resource verifier 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'DOCUMENT_MAX_POLLS', value: '24' }
             { name: 'MAX_CONCURRENCY', value: '2' }
             { name: 'AZURE_FACE_LIVENESS_ENABLED', value: string(faceLivenessEnabled) }
+            { name: 'AZURE_FACE_LIVENESS_ERASURE_ENABLED', value: string(faceLivenessErasureEnabled) }
             { name: 'AZURE_FACE_LIVENESS_LIMITED_ACCESS_APPROVED', value: string(faceLivenessLimitedAccessApproved) }
+            { name: 'AZURE_FACE_DEDICATED_RESOURCE', value: string(faceResourceDedicated) }
             { name: 'AZURE_FACE_LIVENESS_MODEL_VERSION', value: faceLivenessModelVersion }
             { name: 'AZURE_FACE_VERIFY_CONFIDENCE_THRESHOLD', value: faceVerifyConfidenceThreshold }
             { name: 'AZURE_FACE_LIVENESS_SESSION_TTL_SECONDS', value: '300' }

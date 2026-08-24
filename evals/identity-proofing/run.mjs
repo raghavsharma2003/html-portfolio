@@ -219,7 +219,8 @@ ok("owner revocation clears every identity gate fails linked live challenges and
   revoked.state === "revoked" && /age_verified_at=null,identity_verified_at=null,liveness_verified_at=null/.test(revokeSql) &&
   /identity_evidence_revoked/.test(revokeSql) && /set state='deleting'/.test(revokeSql) &&
   /vy_replica_runtime_capability/.test(revokeSql) && /vy_replica_runtime_session/.test(revokeSql) &&
-  /vy_replica_generation/.test(revokeSql) && /c\.scope='biometric'/.test(revokeSql));
+  /vy_replica_generation/.test(revokeSql) && /c\.scope='biometric'/.test(revokeSql) &&
+  /verification_lease_token_hash=''/.test(revokeSql) && /vy_replica_liveness_verification_attempt/.test(revokeSql));
 
 let expirySql = "";
 const expiredCount = await expireIdentityEvidence(async (sql) => {
@@ -229,7 +230,7 @@ const expiredCount = await expireIdentityEvidence(async (sql) => {
 ok("credential expiry is an independent kill switch even when the verifier is disabled",
   expiredCount === 2 && /identity_expires_at=null/.test(expirySql) &&
   /vy_replica_runtime_capability/.test(expirySql) && /vy_replica_runtime_session/.test(expirySql) &&
-  /identity_document_expired/.test(expirySql));
+  /identity_document_expired/.test(expirySql) && /vy_replica_liveness_verification_attempt/.test(expirySql));
 ok("unfinished identity proofing has a hard 24-hour raw-evidence retention ceiling",
   /c\.created_at<=now\(\)-interval '24 hours'/.test(expirySql) &&
   /failure_code='identity_case_expired'/.test(expirySql) && /a\.outcome='running'/.test(expirySql));
@@ -248,6 +249,13 @@ const summary = await runIdentityVerificationSweep({
 ok("one worker pass can ready fail and retry independent owner cases",
   summary.evidence_ready === 1 && summary.failed === 1 && summary.retried === 1 &&
   identityRetryDelayMs(99) === 6 * 60 * 60 * 1000);
+const revokedRace = await runIdentityVerificationSweep({
+  db: async () => [], verifier: { ...provider, async verify() { throw new Error("late provider failure"); } }, maxJobs: 1,
+  lease: async () => claim,
+  retry: async () => { throw Object.assign(new Error("lost"), { code: "identity_verification_lease_lost" }); },
+});
+ok("an identity withdrawal racing provider work is discarded without failing the scheduled worker",
+  revokedRace.discarded === 1 && revokedRace.retried === 0);
 
 const migration = readFileSync(join(ROOT, "db/migrations/040_replica_identity_proofing.sql"), "utf8");
 const schema = readFileSync(join(ROOT, "db/schema.sql"), "utf8");
@@ -259,6 +267,10 @@ ok("migration is splitter-safe and canonical schema mirrors owner source attempt
 ok("HTTP authority comes only from bearer identity and responses are non-cacheable",
   endpoint.includes("requireUser(req)") && endpoint.includes("user.id") && !endpoint.includes("body.owner_user_id") &&
   endpoint.includes('Cache-Control", "no-store'));
+ok("identity evidence withdrawal attempts immediate provider-session deletion with durable pending fallback",
+  endpoint.includes("deleteOwnedFaceSessionNow") && endpoint.includes("configuredFaceSessionErasureBroker") &&
+  endpoint.includes("provider_session_erasure") && endpoint.indexOf("revokeOwnedIdentityCase") <
+    endpoint.indexOf("deleteOwnedFaceSessionNow(q"));
 ok("liveness now requires exact evidence-ready ID but no longer circularly requires identity beforehand",
   /ic\.state='evidence_ready'/.test(liveness) && /ids\.sha256=ic\.source_sha256/.test(liveness) &&
   !/r\.identity_verified_at is not null/.test(liveness) && /identity_verified_at=coalesce/.test(liveness));

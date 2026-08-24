@@ -6,6 +6,10 @@ import {
   revokeOwnedIdentityCase,
   submitOwnedIdentityCase,
 } from "./_replica-identity.js";
+import { configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
+import { deleteOwnedFaceSessionNow } from "./_replica-face-session.js";
+
+export const config = { maxDuration: 60 };
 
 const cors = (res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -34,9 +38,24 @@ export default async function handler(req, res) {
     }
     if (body.op === "revoke") {
       const identityCase = await revokeOwnedIdentityCase(q, user.id, body.replica_id, body.identity_case_id);
-      return identityCase
-        ? res.status(202).json({ identity_case: identityCase, source_erasure: "pending" })
-        : res.status(404).json({ error: "identity_case_not_found" });
+      if (!identityCase) return res.status(404).json({ error: "identity_case_not_found" });
+      let providerSessionErasure = "pending";
+      try {
+        const broker = configuredFaceSessionErasureBroker();
+        const deleted = broker
+          ? await deleteOwnedFaceSessionNow(q, user.id, body.replica_id, null, broker, {
+            providerTimeoutMs: 12_000,
+          })
+          : null;
+        providerSessionErasure = deleted ? "confirmed" : "pending";
+      } catch {
+        providerSessionErasure = "pending";
+      }
+      return res.status(202).json({
+        identity_case: identityCase,
+        source_erasure: "pending",
+        provider_session_erasure: providerSessionErasure,
+      });
     }
     return res.status(400).json({ error: "unknown_op" });
   } catch (error) {
