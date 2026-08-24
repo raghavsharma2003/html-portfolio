@@ -3,6 +3,7 @@ import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { runVoiceErasureSweep } from "./_replica-voice-erasure.js";
 import { runSourceErasureSweep } from "./_replica-source-erasure.js";
+import { prepareReplicaErasures, runReplicaErasureFinalizer } from "./_replica-full-erasure.js";
 
 export const config = { maxDuration: 300 };
 
@@ -27,11 +28,13 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, disabled: true });
   }
   try {
+    const prepared = await prepareReplicaErasures(q);
     // Provider voice goes first because source completion is fenced until no
     // external clone mapping remains for the replica.
     const voice = await runVoiceErasureSweep({ db: q, maxJobs: 3, timeBudgetMs: 110_000 });
     const source = await runSourceErasureSweep({ db: q, maxJobs: 2, timeBudgetMs: 120_000 });
-    return res.status(200).json({ ok: true, voice, source });
+    const replica = await runReplicaErasureFinalizer({ db: q, maxJobs: 2 });
+    return res.status(200).json({ ok: true, prepared: prepared.length, voice, source, replica });
   } catch {
     return res.status(503).json({ error: "replica_erasure_sweep_failed" });
   }

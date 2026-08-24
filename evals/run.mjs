@@ -140,6 +140,10 @@ const suites = {
   // original+derivative removal, external-voice fencing, claim deletion and
   // conservative scrubbing/retirement of models that cannot prove exclusion.
   sourceerasure: "source-erasure/run.mjs",
+  // Full replica deletion: child provider/storage fencing, exact synthetic
+  // agent memory purge, encrypted private-row cascade and an unlinkable
+  // content-free receipt with explicit backup-policy expiry.
+  replicaerasure: "replica-erasure/run.mjs",
   // Exact-version, multidimensional owner adjudication of a private turn,
   // including encrypted correction exemplars and sealed-audio lineage.
   replicafeedback: "replica-feedback/run.mjs",
