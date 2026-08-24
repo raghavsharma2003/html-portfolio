@@ -236,13 +236,298 @@ export function buildImagePayload(
 }
 
 /**
- * What the thread's transcript says a picture message was, for the memory log.
+ * What the thread's transcript says an attachment message was, for the memory
+ * log — the line she still has months later, when the pictures have long left
+ * the vision window and the document text was never stored anywhere.
  *
- * `[photo]` for one is the exact string the single-photo path has always
- * written, and it stays that way byte for byte: `brain.ts` tests it against
- * that literal when it decides whether a caption is worth repeating.
+ * `[photo]` for one picture is the exact string the single-photo path has always
+ * written, and it stays that way byte for byte: `brain.ts` tests it against that
+ * literal when it decides whether a caption is worth repeating. `docNames`
+ * defaults to empty so every existing call, and every existing stored line,
+ * means exactly what it meant before.
  */
-export function transcriptLine(count: number, caption: string): string {
-  const head = count > 1 ? `[${count} photos]` : "[photo]";
-  return caption ? `${head} ${caption}` : head;
+export function transcriptLine(
+  count: number,
+  caption: string,
+  docNames: readonly string[] = [],
+): string {
+  const parts: string[] = [];
+  if (count > 1) parts.push(`[${count} photos]`);
+  else if (count === 1) parts.push("[photo]");
+  for (const n of docNames) parts.push(`[file ${n}]`);
+  const head = parts.join(" ");
+  if (!caption) return head;
+  return head ? `${head} ${caption}` : caption;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOCUMENTS
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ── the split, stated once so nobody re-opens it ──────────────────────────
+//
+// PICTURES RIDE HISTORY. They are uploaded, stored on the message as
+// `photoUrls`, and reach the model as `image_url` parts that `brain.ts`'s
+// `toTurns` builds out of the thread on every turn. Passing them through the
+// `attachments` parameter as WELL would put the same picture in the prompt
+// twice on the turn it was sent.
+//
+// DOCUMENTS RIDE THE PARAMETER. Nothing uploads them, nothing stores their
+// text, and `toTurns` has no field to rebuild them from — so the ONE turn they
+// are sent on is the only turn their contents can reach her, and the
+// `attachments` parameter is the only route. What survives afterwards is the
+// transcript line above (`[file report.pdf]`) and the `docs` metadata on the
+// message: she remembers that he sent it and what it was called, which is what
+// a person remembers about a document from three months ago.
+//
+// ── AND WHY THE BYTES ARE NEVER PERSISTED ─────────────────────────────────
+//
+// `Message.docs` carries name, mime and size and nothing else. A 2 MB PDF in
+// `AppState` is `saveState`'s whole degradation ladder fired by one attachment,
+// and unlike a stuck photo data: URL there would be no upload that ever
+// replaces it — it would sit in localStorage forever. The text is a thing she
+// was told once, not a file the app keeps.
+
+/** How many documents one message may carry. Mirrors api/_docs.js MAX_DOCS. */
+export const MAX_DOCS = 3;
+
+/**
+ * Largest single document accepted, in raw bytes.
+ *
+ * The server takes 8,000,000 characters of base64 (~5.7 MB raw) per document,
+ * but a serverless request body is capped around 4.5 MB in total and base64
+ * inflates by a third, so the server's own per-document limit is not reachable
+ * through one request anyway. 2 MB raw (~2.7 M characters of base64) is a
+ * generous document and leaves the rest of the body room to exist.
+ */
+export const MAX_DOC_BYTES = 2_000_000;
+
+/** All documents in one send, as they go on the wire. Same body-size argument. */
+export const MAX_DOCS_TOTAL_CHARS = 3_000_000;
+
+/**
+ * Client-extracted text is truncated here before it leaves the device.
+ *
+ * The server keeps 4,000 characters per document and 8,000 across a turn
+ * (api/_docs.js), so this is fifty times the headroom it can currently use —
+ * deliberately, because the cap that decides what she READS belongs on the
+ * server where it is enforced for every client, and this one exists only to
+ * stop a 40 MB log file becoming a 40 MB request.
+ */
+export const DOC_TEXT_SEND_MAX = 200_000;
+
+/** What the file picker offers, and what `packDoc` knows how to handle. */
+export const DOC_ACCEPT = ".pdf,.txt,.md,.markdown,.csv,.json,.log,.rtf,.tsv";
+
+/** Formats whose text the CLIENT can read trivially, with no extractor. */
+const PLAIN_EXT = /\.(txt|md|markdown|csv|tsv|json|log|rtf)$/i;
+const PLAIN_MIME = /^(text\/|application\/(json|xml|csv|x-yaml|yaml|rtf))/i;
+
+/** One document waiting in the compose tray. */
+export interface DocAttachment {
+  id: string;
+  name: string;
+  mime: string;
+  /** raw bytes, for the chip and for the rail */
+  size: number;
+  /** the text, when the client could read it without an extractor */
+  text: string;
+  /** base64 data URL, when only the server can read it (a PDF) */
+  data: string;
+}
+
+/** What one document looks like on the wire (api/_docs.js `normalizeDocs`). */
+export type DocPayload = { name: string; mime: string; text?: string; data?: string };
+
+/** Is this a format the client can read the text out of itself? */
+export const isPlainDoc = (name: string, mime: string) =>
+  PLAIN_MIME.test(mime) || PLAIN_EXT.test(name);
+
+/** `report.pdf` -> `PDF`. The badge on the chip. */
+export function docExt(name: string): string {
+  const m = /\.([A-Za-z0-9]{1,6})$/.exec(name.trim());
+  return m ? m[1].toUpperCase() : "FILE";
+}
+
+/** `1536` -> `1.5 KB`. Chip copy, so it is short before it is precise. */
+export function docSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "";
+  if (bytes < 1000) return `${Math.round(bytes)} B`;
+  if (bytes < 1000 * 1000) return `${(bytes / 1000).toFixed(bytes < 10_000 ? 1 : 0)} KB`;
+  return `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
+
+/** The characters one document contributes to the request body. */
+export const docChars = (d: DocAttachment) => d.text.length + d.data.length;
+
+/** Every document in the tray, as characters on the wire. */
+export const totalDocChars = (docs: readonly DocAttachment[]) =>
+  docs.reduce((n, d) => n + docChars(d), 0);
+
+/**
+ * Read one file into the shape the wire wants.
+ *
+ * TWO SHAPES, ONE FUNCTION, and the branch is about who can read the format
+ * rather than about who should. A `.txt` read on the client costs one call and
+ * sends the words themselves; sending the same file as base64 would be a third
+ * more bytes for the server to decode back into exactly what the client already
+ * had. A PDF is a page-description format and there is no dependency-free
+ * client extractor worth having, so those go up as bytes and `api/_docs.js`
+ * does the work.
+ *
+ * Returns null for a file that is too large or that yields nothing at all. It
+ * never throws: the throw would land on a file-input change handler.
+ */
+export async function packDoc(file: File): Promise<DocAttachment | null> {
+  try {
+    if (!file || file.size > MAX_DOC_BYTES) return null;
+    const name = (file.name || "document").slice(0, 120);
+    const mime = file.type || "";
+    const base = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name, mime, size: file.size };
+    if (isPlainDoc(name, mime)) {
+      const text = (await file.text()).slice(0, DOC_TEXT_SEND_MAX);
+      return text.trim() ? { ...base, text, data: "" } : null;
+    }
+    const data = await new Promise<string>((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result || ""));
+      r.onerror = () => rej();
+      r.readAsDataURL(file);
+    });
+    return data ? { ...base, text: "", data } : null;
+  } catch {
+    return null;
+  }
+}
+
+export interface AddDocResult {
+  next: DocAttachment[];
+  accepted: number;
+  refused: number;
+  reason: RefusalReason | null;
+}
+
+/**
+ * Append documents to the tray, one at a time, stopping at the first rule that
+ * says no — the same partial-accept behaviour `addAttachments` has, for the
+ * same reason: a cap that answers an over-selection by taking nothing argues
+ * with the user instead of guiding them.
+ */
+export function addDocs(
+  current: readonly DocAttachment[],
+  incoming: readonly DocAttachment[],
+): AddDocResult {
+  const next = [...current];
+  let accepted = 0;
+  let reason: RefusalReason | null = null;
+  for (const d of incoming) {
+    if (next.length >= MAX_DOCS) {
+      reason = reason ?? "full";
+      continue;
+    }
+    if (totalDocChars(next) + docChars(d) > MAX_DOCS_TOTAL_CHARS) {
+      reason = reason ?? "heavy";
+      continue;
+    }
+    next.push(d);
+    accepted++;
+  }
+  return { next, accepted, refused: incoming.length - accepted, reason };
+}
+
+/** Drop one document out of the tray. */
+export const removeDoc = (current: readonly DocAttachment[], id: string) =>
+  current.filter((d) => d.id !== id);
+
+/**
+ * The `docs` array as `/api/chat` receives it.
+ *
+ * `text` when the client has it, `data` when it does not, never both: sending
+ * both would mean the server chooses, and a server choosing between two
+ * representations of the same file is a decision nobody wrote down.
+ */
+export function buildDocPayload(docs: readonly DocAttachment[]): DocPayload[] {
+  return docs.slice(0, MAX_DOCS).map((d) =>
+    d.text
+      ? { name: d.name, mime: d.mime, text: d.text }
+      : { name: d.name, mime: d.mime, data: d.data },
+  );
+}
+
+/**
+ * What the compose tray's count line says, given what is staged.
+ *
+ * TWO CAPS, ONE LINE. Pictures and documents are counted separately (five and
+ * three) and the line says whichever is in play. When both are, it stops
+ * counting and names them instead: "3 photos, 1 file" is what a person would
+ * say, and "3 of 5 and 1 of 3" is arithmetic homework. The cap is still
+ * reachable in words the moment either one refuses, which is the only moment it
+ * matters.
+ *
+ * Here rather than in ComposeTray.tsx because it is a rule with cases, and a
+ * rule with cases inside a component is a rule no test can reach.
+ */
+export function trayCount(images: number, docs: number): string {
+  if (images && docs) {
+    return `${images} photo${images === 1 ? "" : "s"}, ${docs} file${docs === 1 ? "" : "s"}`;
+  }
+  if (docs) return `${docs} of ${MAX_DOCS}`;
+  return `${images} of ${MAX_ATTACHMENTS}`;
+}
+
+/** What a sent document leaves behind on the message. Metadata, never bytes. */
+export type DocRef = { name: string; mime: string; size: number };
+
+/** The row a sent document keeps in the thread. */
+export const docRefs = (docs: readonly DocAttachment[]): DocRef[] =>
+  docs.map((d) => ({ name: d.name, mime: d.mime, size: d.size }));
+
+// ── THE TAKE-ONCE BOX ──────────────────────────────────────────────────────
+//
+// Documents reach the model through `think`'s `attachments` parameter, which
+// means exactly one reply pass may carry them and the question "which one" has
+// a wrong answer in both directions.
+//
+// Send them on every pass and a burst that supersedes one pass re-sends the
+// same document, so she is handed the same file two or three times inside one
+// turn and reacts to it that many times. Send them on the first pass and forget
+// them and a superseded pass throws the only copy away — the owner attaches a
+// PDF, types a second line while she is thinking, and she never sees the PDF at
+// all.
+//
+// So: TAKEN before the call, so no concurrent pass can take it too; PUT BACK
+// when that pass turns out to have been superseded, so the pass that actually
+// delivers is the one that carries it; and dropped for good when the epoch
+// changes, because an epoch change is the conversation being torn down and a
+// document belongs to the conversation it was sent to.
+//
+// It is a box rather than three lines in Chat.tsx because "exactly once" is a
+// property that has to be TESTED, and a ref inside a 3,000-line component is
+// reachable only through a browser.
+
+export interface DocHold {
+  current: DocPayload[] | null;
+}
+
+/** Put this send's documents in the box. An empty set clears it. */
+export function holdDocs(hold: DocHold, docs: readonly DocPayload[]): void {
+  hold.current = docs.length ? [...docs] : null;
+}
+
+/** Take them, leaving the box empty. A second take returns null. */
+export function takeDocs(hold: DocHold): DocPayload[] | null {
+  const held = hold.current;
+  hold.current = null;
+  return held;
+}
+
+/**
+ * Put back what a superseded pass took.
+ *
+ * Guarded on the box being empty: if a NEWER send has already filled it while
+ * this pass was in flight, the newer documents are the ones the next pass
+ * should carry, and restoring over them would send the older set instead.
+ */
+export function restoreDocs(hold: DocHold, taken: DocPayload[] | null): void {
+  if (taken && !hold.current) hold.current = taken;
 }

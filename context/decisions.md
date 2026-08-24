@@ -2099,3 +2099,179 @@ trusted to differ on phones.
 **Reverses if:** a needed capability (e.g. in-app camera UI, editing) cannot
 ride the input path — and then the plugin lands WITH the contract bump done
 deliberately, in its own release.
+
+---
+
+## `one-voice-switch` — her voice name gets one writer, not six mirrors and a comment (2026-08-24)
+
+**Decision.** The voice name stays MIRRORED across six lanes — `api/speech.js`,
+both `liveCall.ts` literals, `src/voice/speech.ts`,
+`scripts/prosody-baseline.mjs` and `LiveWatchEngine.java` — and gains a single
+**writer**: `node scripts/verify-voice.mjs --set <Voice>` moves all of them and
+runs the full verification on the result. Cache keys carry the identity, so
+stale audio strands itself.
+
+**Why not one imported constant.** There is no import that spans the lanes: a
+serverless function holding server secrets, a browser module forbidden to import
+anything beyond `./level` and `../engine/diag` (the echosim law — `evals/echosim`
+builds it standalone on that basis), a Java file, and a Node job. Four
+languages. Mirror-and-assert is the house pattern for exactly this shape
+(`OPERATIONAL_CORE_CAP`, `MEERA_AGENT_ID`).
+
+**Why the assertion alone was not enough, which is the actual reason this
+exists.** `api/speech.js`'s header asked the next person to move the lanes
+together; `verify-voice.mjs`'s header answered that a comment asking for
+discipline is not a mechanism. Both were right and both missed that the mirrors
+had no writer. An assertion catches drift *after* someone ships it — but a voice
+switch is made and verified in one session, so the author runs the gate on the
+tree they just edited incompletely and it passes on the four lanes they
+remembered. On 2026-08-21 that is precisely what happened: four of six moved,
+the gate went green, and the owner heard her change voice three days later
+(`cache-outlives-the-voice`). **A mirror set editable only by hand is a mirror
+set that will be edited incompletely.**
+
+**What it deliberately does not do: pick the voice.** `voice-ears` is the entry
+that says numbers cannot; `scripts/voice-samples.mjs` is the blind deck that
+lets ears do it. The writer only moves what the ears chose, and refuses any name
+not on the live-lane-verified list (`live-voice-roster`) — a name the realtime
+model rejects is a call that never connects, not a wrong timbre.
+
+**Verified rather than asserted:** `--set Leda` moved six sites and the gate
+reported one name on all six lanes; `--set Autonoe` returned all five files
+byte-identical to their pre-switch state, the Java included.
+
+**Reverses if:** the lanes ever become importable from one another — a shared
+runtime, or the live lane losing its no-imports constraint — at which point one
+exported constant is strictly better and the writer should be deleted rather
+than kept alongside it.
+
+---
+
+## `voice-despina` — her voice is Despina (2026-08-24)
+
+**Decision.** Chosen by the owner from the blind six-voice deck
+(`scripts/voice-samples.mjs`, labelled A–F in a shuffled order so the list could
+not bias the listen); runner-up Leda. `voice-ears` is the standing rule that
+this is an ear decision — every measured axis once said switch to Azure and the
+ears were right to refuse.
+
+**Executed** with `node scripts/verify-voice.mjs --set Despina` (`one-voice-switch`):
+six lanes in one command, `ALLOWED_VOICES` widened additively so a request or a
+cached clip still naming Autonoe is answered rather than refused.
+
+**The audio floor did not move**, proved rather than assumed: `liveCall.ts` is
+one of the six lanes, so the echosim law applied even for a name-only edit.
+80 simulated calls before and after, **byte-identical, same MD5** — every cell
+of the floor table unchanged.
+
+**No cache purge**, because `cache-outlives-the-voice`'s fix makes one
+unnecessary: identity is in the key, so every Autonoe clip became unreachable
+the moment the constant moved.
+
+**Open, and it needs money rather than a decision:** the drift baseline could
+not be re-anchored — `prosody-baseline.mjs --establish` needs the paid
+OpenRouter lane and the key answers 403 "Key limit exceeded". It was NOT
+redirected to the free Gemini pool; that quota is shared production
+infrastructure (`free-tts-daily`). The baseline therefore still reads **Aoede,
+2026-08-15**, the alarm will fire on the next run, and `verify-voice.mjs` §7b-ii
+prints the stale anchor as a note on every run. One command once a key is funded.
+
+**Reverses if:** the owner's ear says otherwise — `--set <Voice>` is the same
+one command in either direction.
+
+---
+
+## `identity-wins` — a user key no longer overrides her voice (2026-08-24)
+
+**Decision (coordinator).** Her own voice is preferred on the cascade whenever
+it is reachable. Sarvam and ElevenLabs user keys become failover only — below
+her voice, above the device engine — instead of automatic overrides.
+
+**Rationale.** The owner's verbatim complaint is her voice changing between
+modes. A user key used to flip the cascade, the pickup line and the backchannels
+to another vendor while the live lane, the native watch engine and her voice
+notes could not follow, so the fallback — the thing that fires exactly when
+something has already gone wrong mid-call — was also the moment she became a
+different woman. One woman beats better-Hinglish-sometimes.
+
+**Priced honestly:** ElevenLabs is the only engine that can perform an audio
+tag, and losing tag performance on the cascade is the cost. Sarvam cannot
+perform one at all, so nothing is lost on a Sarvam install.
+
+**Found while implementing, and it sharpens the case:** nothing in the tree ever
+WRITES `sarvamKey`, `elevenKey` or `elevenVoiceId` — there is no settings
+screen; they are read by two files and set by none (`dead-writers` with the
+polarity reversed). But `store.ts` hydrates as a shallow spread over defaults,
+so a key written by any earlier build survives every update, invisibly, with no
+UI that could clear it. Unreachable in a fresh install, permanent in an old one,
+and undiscoverable from inside the app — which is a fair description of the
+owner's own year-old install.
+
+**The opt-in UI is a future slice**, named as such rather than implied.
+
+**Reverses if:** the owner explicitly chooses Hinglish quality over voice
+constancy for fallbacks — flip `VOICE_IDENTITY_WINS` and the previous
+preference order returns exactly.
+
+---
+
+## `watch-exit-returns-to-live` — every exit from the native lane tries to come back (2026-08-24)
+
+**Decision.** All three exits from the native watch lane attempt
+`reconnectLiveAfterWatch()`, and `verify-voice.mjs` §7d asserts the property
+rather than the call sites so a fourth exit inherits it.
+
+**What was actually wrong.** Task #96 built the reconnect correctly and wired it
+to `watch_stopped` and `watch_stopped_externally`. Nothing regressed. It missed
+`watch_consent_denied`, because #96 was framed as *"stopping a share must not
+strand the call"* and **a denial is not a stop** — the share never started.
+
+Starting a share claims the native lane BEFORE the consent dialog (deliberately:
+a queued TTS clip would otherwise surface as a second voice), which kills the JS
+live session. Deny, and the call finishes on a different model family in
+exchange for a share that never happened. It is the likeliest of the three to
+fire — declining a permission dialog is ordinary, and the dialog appears on
+every share.
+
+**No lifecycle interaction:** `recordShareEnd` is called only from the two stop
+paths and the web teardown, so the deny path emits no `share_end` fact and
+nothing can double-send.
+
+**Reverses if:** re-adoption proves audibly disruptive in production — the
+handoff goes through `adoptLiveLate`, which defers to a turn boundary, so the
+evidence would be `call.lane_change` records landing mid-utterance.
+
+---
+
+## `model-twins-pinned` — a fallback that differs from the primary is the config nobody observes (2026-08-24)
+
+**Decision.** `LiveWatchEngine.java`'s `DEFAULT_MODEL` is now the same string as
+`api/live-token.js`'s `LIVE_MODEL`, pinned by `verify-voice.mjs` §7c.
+
+It was `gemini-2.5-flash-native-audio-latest` — measured and rejected for this
+lane (`live-model-bake`, 0/24 barge-in) — sitting as the silent fallback on the
+one surface where the triple-swap happens, while the JS twin has no fallback at
+all. The two disagreed about the model AND about whether a fallback should
+exist. A malformed token response now costs a round trip instead of changing
+which model family speaks. Distinct models producing her voice: 3 → 2.
+
+The old §2 declaration is kept as a comment, not deleted: an entry's absence is
+otherwise indistinguishable from having forgotten it.
+
+**Reverses if:** the live model and the watch lane ever need to differ
+deliberately — in which case declare both in §2 and say why in
+`docs/VOICE-LANE.md`, which is what §7c's failure message asks for.
+
+## `despina-by-ear` — her voice is Despina, chosen blind, switched atomically
+
+**Decided 2026-08-24.** Owner: Autonoe read "too rural"; wanted hot, modern,
+urban. Eight-voice blind deck (A–H, shuffled, mapping sealed — the voice-ears
+law), same Hinglish script, same style direction, generated on the fresh
+free-pool day (8 paced calls, zero 429s). Owner picked D = Despina ("smooth");
+runner-up A = Leda. Switched with `verify-voice.mjs --set Despina` — all six
+lanes atomically; echosim before/after byte-identical (MD5 26fc602…); cached
+clips self-invalidate (identity now lives in every cache key). Drift baseline
+NOT re-anchored (OpenRouter key spent) — the alarm fires by design and the
+gate prints the stale anchor until a funded key runs prosody --establish.
+
+**Reverses if:** the owner's ears say so — numbers cannot pick her voice.

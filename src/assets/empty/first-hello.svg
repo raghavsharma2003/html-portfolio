@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" role="img" aria-labelledby="title desc">
+  <title id="title">Two empty terrace chairs at dusk</title>
+  <desc id="desc">Two inviting chairs wait beside a glowing lamp on a quiet indigo terrace.</desc>
+  <defs>
+    <filter id="grain" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="2" seed="11" result="noise"/>
+      <feComponentTransfer in="noise" result="softNoise"><feFuncA type="table" tableValues="0 0.05"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="softNoise" mode="soft-light"/>
+    </filter>
+    <filter id="glow" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur stdDeviation="8"/></filter>
+  </defs>
+  <g filter="url(#grain)">
+    <path d="M25 189h310v29H25z" fill="#011036"/>
+    <path d="M25 190h310" fill="none" stroke="#c23f56" stroke-width="4" stroke-linecap="round"/>
+    <path d="M24 159c28-13 47-13 70 0 25 14 48 12 71-2 28-17 53-18 80-3 30 17 59 17 91-2v38H24z" fill="#011036" opacity=".34"/>
+    <path d="M286 73a30 30 0 0 0-32-28 30 30 0 1 1 32 28z" fill="#f8d08b"/>
+    <circle cx="69" cy="71" r="2.5" fill="#f5f5f7"/><circle cx="118" cy="50" r="2" fill="#f5f5f7"/><circle cx="223" cy="89" r="2.5" fill="#f5f5f7"/>
+    <ellipse cx="180" cy="210" rx="142" ry="11" fill="#26201b" opacity=".18"/>
+    <g fill="#c23f56" stroke="#26201b" stroke-width="3" stroke-linejoin="round">
+      <path d="M58 128h81l-5 58H64z"/>
+      <path d="M221 128h81l-6 58h-70z"/>
+    </g>
+    <g fill="none" stroke="#26201b" stroke-width="4" stroke-linecap="round">
+      <path d="M71 184l-8 28M128 184l8 28M232 184l-8 28M289 184l8 28"/>
+      <path d="M74 146h49M237 146h49" opacity=".5"/>
+    </g>
+    <circle cx="180" cy="124" r="31" fill="#f2b75b" opacity=".18" filter="url(#glow)"/>
+    <path d="M168 106h24l5 26h-34z" fill="#f8d08b" stroke="#26201b" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M180 132v53M168 185h24" fill="none" stroke="#26201b" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="180" cy="116" r="5" fill="#f2b75b"/>
+  </g>
+</svg>

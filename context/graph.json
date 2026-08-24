@@ -1521,6 +1521,84 @@
    "kind": "measurement",
    "at": "2026-08-24",
    "title": "Retry ladder latency table: production 502 shape lands on next lane at +257ms; 4000ms deadline held; no-repeat draw 0/4000 vs ~650 pre-fix"
+  },
+  {
+   "id": "cache-outlives-the-voice",
+   "kind": "rejection",
+   "at": "2026-08-24",
+   "title": "Four voice lanes moved Aoede->Autonoe and the IndexedDB clip caches did not: keys carried text/style/id, never the voice, so the pickup clip (first sound of a call) replayed the old voice next to a live session in the new one"
+  },
+  {
+   "id": "engine-per-phrase",
+   "kind": "rejection",
+   "at": "2026-08-24",
+   "title": "fetchClipFor re-derived the TTS vendor from hasAudioTags(phrase) once per phrase, so one reply could be spoken half by Sarvam and half by ElevenLabs; the gate asserted the identical property one level down and nobody checked the level above"
+  },
+  {
+   "id": "subset-check-is-green-by-construction",
+   "kind": "rejection",
+   "at": "2026-08-24",
+   "title": "The cache-key guard shipped three bugs in twenty lines, all toward passing: inline-only matching, first-binding-in-file resolution, and counting function declarations as call sites; found only by breaking it"
+  },
+  {
+   "id": "one-voice-switch",
+   "kind": "decision",
+   "at": "2026-08-24",
+   "title": "Her voice name gets ONE WRITER across six lanes in four languages: verify-voice.mjs --set <Voice> moves all lanes and verifies in one command; cache keys carry the identity so stale audio strands itself"
+  },
+  {
+   "id": "live-vs-tts-timbre",
+   "kind": "measurement",
+   "at": "2026-08-24",
+   "title": "Autonoe on live vs Autonoe on TTS, n=3/arm: f0 218 vs 222 Hz (-0.32 semitones, NOT a difference); tilt -8.5 vs -13.0 dB, but the 4.4 dB between-arm delta is smaller than the 10.1 dB within-TTS-arm spread"
+  },
+  {
+   "id": "live-voice-roster",
+   "kind": "measurement",
+   "at": "2026-08-24",
+   "title": "All 8 candidate voices plus Autonoe/Aoede accepted by gemini-3.1-flash-live-preview at hi-IN via setup-only handshakes (zero audio); negative-controlled with a 1007 rejection for a bogus name"
+  },
+  {
+   "id": "voice-despina",
+   "kind": "decision",
+   "at": "2026-08-24",
+   "title": "Her voice is Despina, chosen by ear from the blind deck; moved in one command across six lanes, echosim byte-identical (same MD5), no cache purge needed because identity is in the key"
+  },
+  {
+   "id": "identity-wins",
+   "kind": "decision",
+   "at": "2026-08-24",
+   "title": "Sarvam/ElevenLabs user keys demoted from automatic override to failover-only: her own voice is preferred on the cascade whenever reachable; no code in the tree ever writes those keys, but store hydration keeps any an older build wrote"
+  },
+  {
+   "id": "watch-exit-returns-to-live",
+   "kind": "decision",
+   "at": "2026-08-24",
+   "title": "All three native-watch exits reconnect to live; #96 landed the reconnect but missed watch_consent_denied because a denial is not a stop \u2014 the likeliest path, downgrading the call in exchange for a share that never happened"
+  },
+  {
+   "id": "model-twins-pinned",
+   "kind": "decision",
+   "at": "2026-08-24",
+   "title": "LiveWatchEngine.java DEFAULT_MODEL pinned to api/live-token.js LIVE_MODEL; it was the measured-and-rejected 2.5-native-audio model as a silent fallback. Distinct voice models 3 -> 2"
+  },
+  {
+   "id": "ttt-second-class",
+   "kind": "rejection",
+   "at": "2026-08-24",
+   "title": "Four of six chess systems reached ttt in name only; a generic seam needs a gate driving every union member end to end"
+  },
+  {
+   "id": "despina-by-ear",
+   "kind": "decision",
+   "at": "2026-08-24",
+   "title": "Voice switched to Despina via blind 8-deck; atomic six-lane switch; echosim byte-identical; reverses only by ear"
+  },
+  {
+   "id": "ttt-t15-bytes",
+   "kind": "measurement",
+   "at": "2026-08-24",
+   "title": "ttt T15 head 307/420 bytes; fact order is the drop policy on a live ttt board"
   }
  ],
  "edges": [
@@ -2778,6 +2856,86 @@
    "src": "lane-order-azure-first-attachments",
    "rel": "measured_by",
    "dst": "resilience-latency-2026-08-24"
+  },
+  {
+   "src": "cache-outlives-the-voice",
+   "rel": "caused_by",
+   "dst": "one-voice-switch"
+  },
+  {
+   "src": "one-voice-switch",
+   "rel": "measured_by",
+   "dst": "live-voice-roster"
+  },
+  {
+   "src": "engine-per-phrase",
+   "rel": "part_of",
+   "dst": "speech-stack"
+  },
+  {
+   "src": "cache-outlives-the-voice",
+   "rel": "part_of",
+   "dst": "speech-stack"
+  },
+  {
+   "src": "subset-check-is-green-by-construction",
+   "rel": "caused_by",
+   "dst": "cache-outlives-the-voice"
+  },
+  {
+   "src": "live-vs-tts-timbre",
+   "rel": "part_of",
+   "dst": "speech-stack"
+  },
+  {
+   "src": "one-voice-switch",
+   "rel": "supersedes",
+   "dst": "voice-model"
+  },
+  {
+   "src": "voice-despina",
+   "rel": "supersedes",
+   "dst": "voice-ears"
+  },
+  {
+   "src": "voice-despina",
+   "rel": "measured_by",
+   "dst": "live-voice-roster"
+  },
+  {
+   "src": "voice-despina",
+   "rel": "part_of",
+   "dst": "speech-stack"
+  },
+  {
+   "src": "identity-wins",
+   "rel": "caused_by",
+   "dst": "cache-outlives-the-voice"
+  },
+  {
+   "src": "identity-wins",
+   "rel": "part_of",
+   "dst": "speech-stack"
+  },
+  {
+   "src": "watch-exit-returns-to-live",
+   "rel": "part_of",
+   "dst": "speech-stack"
+  },
+  {
+   "src": "model-twins-pinned",
+   "rel": "part_of",
+   "dst": "speech-stack"
+  },
+  {
+   "src": "ttt-second-class",
+   "rel": "measured_by",
+   "dst": "ttt-t15-bytes"
+  },
+  {
+   "src": "ttt-second-class",
+   "rel": "part_of",
+   "dst": "dead-writers"
   }
  ]
 }

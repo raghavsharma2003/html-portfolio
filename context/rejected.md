@@ -2003,3 +2003,146 @@ classified correctly — the assumption survived in the two places nobody
 re-read (`age-tier-never-realtime`'s shape). Replaced by the classified
 ladder in api/_lanes.js; evals/resilience re-runs the pre-fix folding as a
 negative control and asserts it loses the turn at calls=1.
+
+---
+
+## `cache-outlives-the-voice` — four lanes moved, the audio did not (2026-08-24)
+
+The owner reported *"when we shift to different modes her voice is changing"* —
+the same defect `verify-voice.mjs` was built to end — three days after the
+2026-08-21 Aoede → Autonoe switch. The gate was **green and correct**: the four
+lanes it checks did agree.
+
+Her clips are cached permanently in IndexedDB under `bc1:<text>:<style>`,
+`pk1:<text>:<style>` and `vn1:<msgId>`. Text, style and id — **never the
+voice**. So the switch moved every lane that *generates* audio and no key that
+*replays* it, and every install that had made one call before that date kept
+serving **Aoede** pickup lines and backchannels out of the cache. The pickup
+clip is the first sound of a call; the live session then connects a second later
+in Autonoe. That is the owner's sentence, with the "mode shift" being nothing
+more exotic than the call starting.
+
+`liveCall.ts` got this right and always had — its ack cache is
+`${ACK_CACHE_V}:${ACK_VOICE}:${text}`. One lane had the discipline and it was
+never generalised.
+
+**Two more places the same switch missed**, found in the same sweep.
+`scripts/prosody-baseline.mjs` — SPEC §9.5's unconsented-vendor-swap detector,
+the one job whose entire purpose is noticing her voice change — still said
+`TTS_VOICE = "Aoede"`, and its stored baseline was recorded in that voice too,
+so it could not have alarmed in either direction. And `src/voice/speech.ts` will
+speak her through Sarvam (`priya`) or ElevenLabs on the cascade whenever a user
+key exists, while the live lane cannot; on a keyed install every fallback is a
+different woman, and the gate read neither literal.
+
+**Why the discipline failed rather than the mechanism.** `api/speech.js`'s
+header already said *"move it HERE and in the two live speechConfigs together —
+or this comes straight back"*, and `verify-voice.mjs`'s own header answers that
+a comment asking for discipline is not a mechanism. Both were right, and both
+missed that the mirrors had **no writer**. A mirror set that can only be edited
+by hand is a mirror set that will be edited incompletely — the assertion catches
+the drift *after* someone ships it, which for a switch made and verified in one
+session means it catches nothing.
+
+**Fixed** by putting the identity **in the cache key** (`engineTag`,
+`PROXY_VOICE_TAG`), which strands stale audio automatically — no purge step and
+no revision counter to forget — and by giving the mirrors one writer:
+`node scripts/verify-voice.mjs --set <Voice>` moves all six lanes and verifies
+the result in one command. Round-trip tested: `--set Leda` then `--set Autonoe`
+returns all five files byte-identical.
+
+**Guarded** by `verify-voice.mjs` §7: every audible engine must be declared, and
+every persistent clip cache key must name the identity that produced it. Nine
+negative tests, nine failures.
+
+**What breaks generally:** a constant switch is only complete when everything
+DERIVED from the old value is also invalidated, and a cache is derived state
+that outlives the process that made it. The rule: **anything that persists audio,
+text or embeddings across a config change must carry that config in its key** —
+otherwise the switch is green everywhere except where the user actually hears it.
+
+**Reverses if:** nothing measured. This is a correctness fix, not a tradeoff.
+
+---
+
+## `engine-per-phrase` — one reply, two vendors, one sentence apart (2026-08-24)
+
+`fetchClipFor` decided which TTS vendor to use from
+`preferEleven = elevenKey && (hasAudioTags(text) || !sarvamKey)`. `hasAudioTags`
+is a property of the **phrase**, and `speakCall` / `createStreamSpeaker` call
+`fetchClipFor` **once per phrase**. So with both user keys set, a reply whose
+second sentence carried `[laughs]` was fetched from ElevenLabs while its first
+came from Sarvam — two different women inside one answer, boundary at the full
+stop. `usesProxyVoice(phrases[0], opts)` had the identical shape.
+
+**The gate already asserted this exact property one level down and nobody
+noticed the level above.** `verify-voice.mjs` §2 fails the build if the
+cascade's free and paid arms name different models, with the reason spelled out:
+*"they race inside one request and a multi-phrase reply races again per phrase,
+so this would change her voice BETWEEN HER OWN SENTENCES."* One level up, where
+the two candidates are not even the same company, nothing checked at all.
+
+**Fixed** by deciding once per utterance in `pickEngine()` and threading the
+result down. The stream lane latches on its first phrase, because a lane that
+cannot see the reply it is about to speak has no better option and *"decide once
+and hold"* beats *"re-decide whenever new text arrives"*.
+
+**The tradeoff, stated rather than hidden:** a tag appearing only in a later
+phrase no longer pulls that phrase to ElevenLabs, so a flatter sentence is
+traded for never swapping vendor mid-reply. Sarvam cannot perform a tag at all —
+its callers hand it `stripForDevice(...)`, which turns tags into pauses — so on
+a Sarvam install nothing is lost.
+
+**Guarded** by counting `hasAudioTags(` call sites: exactly two (its definition
+and `pickEngine`). A third is a second decision point.
+
+**What breaks generally:** an invariant proved at one layer is not proved at the
+layer above it, and *"the same reasoning obviously applies"* is how the layer
+above goes unchecked. When writing a gate, name the layer it holds at.
+
+---
+
+## `subset-check-is-green-by-construction` — three bugs in one twenty-line guard, all toward passing (2026-08-24)
+
+Filed because it happened while *writing the fix for* `cache-outlives-the-voice`,
+which is the sharpest possible demonstration of the point.
+
+§7b of `verify-voice.mjs` asserts every persistent clip cache key names the voice
+that produced it. It failed three times, each time by examining a subset it did
+not name:
+
+1. It matched only keys written **inline** in the call, reporting *"all 2 keys
+   ok"* while silently ignoring the three built as `const key = …` — including
+   the pickup clip, the one the bug is actually heard through.
+2. Resolving identifiers, it took the **first** `const key = \`…\`` in the file.
+   Two caches there both name their key `key`, so the pickup key could lose its
+   tag entirely and the check still passed. It resolves the **nearest binding
+   above the call site** now.
+3. It counted the two **function declarations** (`cachedClip(key: string)`) as
+   call sites, which turned the gate red on a clean tree.
+
+Only (3) was visible without trying to break it. (1) and (2) both printed a
+confident count and a green tick.
+
+**What breaks generally:** a check that reports a COUNT is making a claim about
+coverage, and nothing verifies that claim. This is `manifest-sourcestatus`
+(a field asserting rather than observing) and `sound-gate-proved-by-silence`
+(an assertion that cannot fail) meeting in one function. The rule this repo
+already has — **guards are tested by breaking them** — is not a nicety for
+important guards; it is the only thing that separates a check from a comment.
+Every one of these three was found by breaking it on purpose, and none would
+ever have been found by reading it.
+
+## `ttt-second-class` — a generic seam is not generic until a gate drives every member through it
+
+Tic tac toe "flowed through" every chess system from day one — ActivityState,
+the poke, the staleness stamp, the lifecycle matrix, the episode writer — so
+nothing ever read as missing. WS-TTT (2026-08-24) found four of six systems
+reached ttt in name only: the urgent poke had a `kind === "chess"` guard (a
+ttt win on a call was silently swallowed), no salience filter (she narrated
+every mark), the T15 block carried no position or threats, and a closed ttt
+board rendered live. The tell is uniform: a kind-agnostic mechanism with a
+kind guard somewhere downstream, or one no test had driven with the second
+kind. Sibling finding `chess-prose-in-a-ttt-hat`: three strings located a
+nine-square board by a chess move number — generalising a mechanism is not
+generalising its WORDING, and the wording is the half the user hears.

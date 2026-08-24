@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Maya default avatar">
+  <circle cx="256" cy="256" r="190" fill="#011036"/>
+  <path d="M324 126c-75 16-116 72-105 134 10 60 66 103 129 88-32 41-91 63-147 35-72-35-97-122-56-191 36-61 112-88 179-66Z" fill="#f8d08b"/>
+  <path d="M194 280c28 32 63 42 101 27" fill="none" stroke="#c23f56" stroke-width="15" stroke-linecap="round"/>
+  <circle cx="218" cy="240" r="9" fill="#c23f56"/><path d="M353 156v50m-25-25h50" stroke="#f2b75b" stroke-width="10" stroke-linecap="round"/>
+</svg>

@@ -838,6 +838,36 @@ export function toTurns(history: Message[], latest: string) {
           : m.kind === "gif"
             ? `[sent a meme gif: ${m.text}]`
             : m.text;
+    // ── DOCUMENTS: the line that outlives the file ────────────────────────
+    //
+    // A document's TEXT reaches her exactly once, in the turn it was attached
+    // to, through `think`'s `attachments` parameter — nothing uploads it and
+    // nothing stores it. So this marker is the whole of the long-term record,
+    // and without it the thread would show a caption with no explanation of
+    // what it was a caption FOR: three months later she would have "haan padh
+    // liya" sitting under a message that appears to be about nothing.
+    //
+    // It is written for EVERY document message including the newest, which is
+    // deliberate and is the same shape the photo path already has: the marker
+    // names the file, the attachment block (server-side, api/_docs.js) carries
+    // what is inside it. The composer's own transcript head is stripped first
+    // for the reason the caption line above states — `transcriptLine` writes
+    // "[file lease.pdf] ye dekh", and handing her that whole string as a
+    // caption would have her reading a marker back as if he had typed it.
+    const docNames = Array.isArray(m.docs)
+      ? m.docs.map((d) => (d && typeof d.name === "string" ? d.name : "")).filter(Boolean)
+      : [];
+    if (docNames.length && m.kind !== "photo") {
+      const said = text.replace(/^(?:\[file [^\]]*\]\s*)+/i, "").trim();
+      const head = `[they sent ${
+        docNames.length > 1 ? `${docNames.length} files` : "a file"
+      }: ${docNames.join(", ")}]`;
+      text = said ? `${head} ${said}` : head;
+    } else if (docNames.length) {
+      // pictures AND files on one message: the photo marker above already
+      // carries the caption, so the files are named after it
+      text += ` [also sent: ${docNames.join(", ")}]`;
+    }
     if (m.replyTo) {
       const who = m.replyTo.from === "her" ? "your message" : "their own message";
       text = `[replying to ${who}: "${m.replyTo.text.slice(0, 60)}"] ${text}`;
@@ -1193,12 +1223,32 @@ export async function think(
   // over the moment it exists, so the [search:] round trip is spent with a
   // message already on screen instead of in silence. Resolve when delivered.
   onHolding?: (r: HeartReply) => Promise<void> | void,
-  // WS-COMPOSER seam: what he attached to THIS message. Up to five images and
-  // one caption, plus documents. Passed straight through to /api/chat, which
-  // validates the count and the byte caps server-side and folds the whole set
-  // into ONE turn — see api/_lanes.js. The legacy single-photo path (a
-  // `photoUrl` on a Message, turned into an image_url part by `toTurns`) is
-  // untouched and still works; this is the shape for a SET.
+  // ── WS-COMPOSER seam: what he attached to THIS message ───────────────────
+  //
+  // Passed straight through to /api/chat, which validates the counts and the
+  // byte caps server-side and folds the whole set into ONE turn (api/_lanes.js,
+  // api/_docs.js).
+  //
+  // THE SPLIT, STATED SO NOBODY RE-OPENS IT:
+  //
+  //   IMAGES DO NOT COME THROUGH HERE. They are uploaded, stored on the message
+  //   as `photoUrls`, and rebuilt into `image_url` parts by `toTurns` out of the
+  //   thread on every turn for the next six messages. Passing them here as well
+  //   would put the same picture in the prompt TWICE on the turn it was sent —
+  //   which reads to her as him having sent it twice. The field exists on the
+  //   type because the server accepts it and a future non-thread caller (a
+  //   share-target intent, a paste) would need it; the chat composer does not
+  //   use it, on purpose.
+  //
+  //   DOCUMENTS DO. Nothing uploads them and nothing stores their text, so
+  //   `toTurns` has no field to rebuild them from and the single turn they are
+  //   sent on is the only turn their contents can ever reach her. What survives
+  //   afterwards is the transcript line ("[file lease.pdf]") and the name/mime/
+  //   size on `Message.docs`.
+  //
+  // The one caller is `replyPass` in src/components/Chat.tsx, which takes them
+  // out of a take-once box so a superseded pass can neither double-send nor
+  // lose them. See components/attachments.ts for that box and its reasoning.
   attachments?: TurnAttachments,
 ): Promise<HeartReply> {
   // when this turn started — the web lookup below spends what is LEFT of a

@@ -566,8 +566,20 @@ function tenseCheck(text) {
   ok("…and every kind still marks its exchange considered",
     (region.match(/pokedPly\.current = (plies|at);/g) || []).length >= 3,
     region.match(/pokedPly\.current = [^;]*;/g)?.join(" | "));
+  // WS-TTT gave ttt its own salience gate, so there are now TWO `quiet_move`
+  // drops in this region and a single `indexOf` compares the chess counter
+  // against the ttt drop — a true property, asserted by an expression that
+  // stopped meaning it. Checked per drop instead: every branch that can pass
+  // on a move must already have marked its exchange considered.
   ok("…and does so before the salience drop, not at the send",
-    region.indexOf("pokedPly.current = plies;") < region.indexOf('dropped: "quiet_move"'));
+    (() => {
+      const quiet = [...region.matchAll(/dropped: "quiet_move"/g)].map((m) => m.index);
+      return (
+        quiet.length >= 2 &&
+        quiet.every((i) => /pokedPly\.current = (plies|at);/.test(region.slice(0, i)))
+      );
+    })(),
+    `${(region.match(/dropped: "quiet_move"/g) || []).length} salience drops`);
 
   const pokeMs = Number(/const MOVE_POKE_MS = (\d+)/.exec(engine)?.[1]);
   ok("(d) the poke waits out the board animation", pokeMs >= MOVE_ANIM_MS, `${pokeMs} vs ${MOVE_ANIM_MS}`);

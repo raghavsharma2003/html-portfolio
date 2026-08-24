@@ -1,5 +1,4 @@
-// THE TRAY — the pictures this message is going to carry, before it carries
-// them.
+// THE TRAY — what this message is going to carry, before it carries it.
 //
 // It sits directly above the composer, inside the same glass, because it is
 // part of the message being written and not a thing that happened to the app.
@@ -15,33 +14,49 @@
 // same line is what the refusal nudges, so the answer to "why did nothing
 // happen" is already on screen and simply moves.
 //
+// TWO CAPS, ONE LINE. Pictures and documents are counted separately (five and
+// three) and the line says whichever is in play. When both are, it stops
+// counting and names them instead: "3 photos, 1 file" is what a person would
+// say, and "3 of 5 and 1 of 3" is arithmetic homework. The cap is still
+// reachable in words the moment either one refuses, which is the only moment it
+// matters.
+//
 // ── THE ADD TILE ───────────────────────────────────────────────────────────
 //
-// The trailing `+` reopens the source sheet, so a second picture can come from
-// the OTHER source than the first. It disappears at the cap rather than going
-// disabled: a control that is present and inert is the dead option rule again,
-// one level down.
+// The trailing `+` reopens the source sheet, so the next thing can come from a
+// different source than the last. It disappears when NOTHING more can be added
+// rather than going disabled: a control that is present and inert is the dead
+// option rule again, one level down.
 
-import type { Attachment } from "./attachments";
-import { MAX_ATTACHMENTS } from "./attachments";
+import type { Attachment, DocAttachment } from "./attachments";
+import { MAX_ATTACHMENTS, MAX_DOCS, docExt, docSize, trayCount } from "./attachments";
 import { CloseIcon } from "./icons";
 
 interface Props {
   items: readonly Attachment[];
-  /** true for one beat after a picture was turned away, to nudge the count */
+  docs: readonly DocAttachment[];
+  /** true for one beat after something was turned away, to nudge the count */
   refused: boolean;
   onRemove: (id: string) => void;
+  onRemoveDoc: (id: string) => void;
   onAddMore: () => void;
 }
 
-export default function ComposeTray({ items, refused, onRemove, onAddMore }: Props) {
-  if (!items.length) return null;
-  const full = items.length >= MAX_ATTACHMENTS;
+export default function ComposeTray({
+  items,
+  docs,
+  refused,
+  onRemove,
+  onRemoveDoc,
+  onAddMore,
+}: Props) {
+  if (!items.length && !docs.length) return null;
+  const full = items.length >= MAX_ATTACHMENTS && docs.length >= MAX_DOCS;
 
   return (
-    <div className="tray" aria-label="Photos on this message">
+    <div className="tray" aria-label="Attached to this message">
       <div className="tray-count" data-tel="compose.count" {...(refused ? { "data-refused": "" } : {})}>
-        {items.length} of {MAX_ATTACHMENTS}
+        {trayCount(items.length, docs.length)}
       </div>
       <div className="tray-scroll">
         {items.map((a, i) => (
@@ -65,12 +80,44 @@ export default function ComposeTray({ items, refused, onRemove, onAddMore }: Pro
             </button>
           </div>
         ))}
+        {/* THE FILE CHIP. Wider than a thumbnail and shaped like a row rather
+            than a tile, because a document has no picture of itself and the
+            only things worth showing are what it is called and how big it is.
+            The extension is a badge rather than part of the name: it is the
+            single most recognisable thing about a file, and a name that is too
+            long to fit would otherwise take the format with it when it
+            ellipsises. */}
+        {docs.map((d, i) => (
+          <div
+            className="tray-doc"
+            key={d.id}
+            style={{ animationDelay: `${Math.min(items.length + i, 4) * 40}ms` }}
+          >
+            <span className="tray-doc-ext" aria-hidden="true">
+              {docExt(d.name)}
+            </span>
+            <span className="tray-doc-text">
+              <span className="tray-doc-name" title={d.name}>
+                {d.name}
+              </span>
+              <span className="tray-doc-size">{docSize(d.size)}</span>
+            </span>
+            <button
+              className="tray-x doc"
+              data-tel="compose.remove_doc"
+              onClick={() => onRemoveDoc(d.id)}
+              aria-label={`Remove ${d.name}`}
+            >
+              <CloseIcon size={12} />
+            </button>
+          </div>
+        ))}
         {!full && (
           <button
             className="tray-add"
             data-tel="compose.add_more"
             onClick={onAddMore}
-            aria-label="Add another photo"
+            aria-label="Attach something else"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden="true">
               <path d="M12 6v12M6 12h12" />

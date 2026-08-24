@@ -25,7 +25,8 @@ import ActivityShell, { type ActivityCall } from "./ActivityShell";
 import TicTacToeBoard from "./TicTacToeBoard";
 import SidePick from "./SidePick";
 import { herTttMove, legalCells, newTttGame, playTtt, winningCells } from "../engine/ttt";
-import { tttThinkMs } from "../state/game";
+import { seriesOf, tttThinkMs } from "../state/game";
+import { HER_NAME } from "../engine/persona";
 import { tap } from "../native/haptics";
 import type { Cell, Game as TttGame, Mark } from "../engine/ttt";
 import { useCallStatus } from "../state/callStatus";
@@ -320,15 +321,56 @@ export default function TicTacToeActivity({
   );
 
   // Whose mark is whose, and the room's fill for the rest of the dead space
-  // (audit #11) — a legend plus a score. `state.game.ttt` carries no
-  // per-sitting series (one session is one game, replaced on "New game"), so
-  // per the brief this falls back to the lifetime tally already written at
-  // close (App.tsx's reconciler) rather than inventing a counter nothing
-  // else reads. `hisSide` is derived once, at the top of this component, and
-  // read here: it used to be computed a second time in this spot, which was
-  // free while it was a constant and is a place for two answers to disagree
-  // now that a person chooses it.
-  const lifetimeRounds = state.tally?.tttGames ?? 0;
+  // (audit #11) — a legend plus a score. `hisSide` is derived once, at the top
+  // of this component, and read here: it used to be computed a second time in
+  // this spot, which was free while it was a constant and is a place for two
+  // answers to disagree now that a person chooses it.
+  //
+  // THE SCORE IS NOW A SCORE. It read "3 rounds played", which is the one
+  // number nobody in a rivalry cares about: chess's room shows a move list, a
+  // capture tray and a verdict, and ttt's showed a count of games whose
+  // outcomes it did not mention. `seriesOf` reads the head-to-head off the
+  // activity ledger — the SAME rows her memory reads, so the number on screen
+  // and the number she can talk about cannot disagree — and falls back to the
+  // lifetime tally when the ledger has not caught up (a fresh device, a
+  // ledger trimmed at twenty).
+  const series = useMemo(() => seriesOf(state.activities, "ttt"), [state.activities]);
+  const lifetimeRounds = Math.max(series.games, state.tally?.tttGames ?? 0);
+
+  // THE RESULT, STATED ON SCREEN. Chess's room carries this and its own
+  // comment says why: the payoff moment of the whole activity is "did I win?",
+  // and the entire on-screen answer here was the subtitle "good game" —
+  // identical for a win, a loss, a draw and a board he put away. ttt was left
+  // behind by that correction exactly as it was left behind by the rest.
+  const verdict = useMemo(() => {
+    if (!g) return null;
+    if (session?.endedEarly && !g.status.over) return "Game ended. No result";
+    if (!g.status.over) return null;
+    if (g.status.result === "draw") return "A draw. The board filled up";
+    return g.status.winner === herSide ? "She won that one" : "You won that one";
+  }, [g, session?.endedEarly, herSide]);
+
+  // "End game" mid-game: he stands up. Chess has had this since its first
+  // wave; ttt had no way out of a board except leaving the room, which closes
+  // the session with no `endedEarly` and therefore no honest record of who
+  // stopped playing. `closedAt` lands NOW with the flag, so the tail says "he
+  // ended the game early, no result" instead of naming a winner nobody was.
+  const showEnd = Boolean(g && !done && g.played.length > 0);
+  const endGame = useCallback(() => {
+    tap();
+    setState((s) =>
+      s.game?.kind === "ttt" && !s.game.closedAt
+        ? {
+            ...s,
+            game: {
+              ...s.game,
+              closedAt: Date.now(),
+              ...(s.game.game.status.over ? {} : { endedEarly: true as const }),
+            },
+          }
+        : s,
+    );
+  }, [setState]);
 
   return (
     <ActivityShell
@@ -338,7 +380,7 @@ export default function TicTacToeActivity({
       note={herLine}
       presence={!foreignLive}
       footer={
-        showPick || showNew ? (
+        showPick || showEnd || showNew ? (
           <>
             {showPick && (
               <SidePick
@@ -351,6 +393,11 @@ export default function TicTacToeActivity({
                 onChange={chooseMark}
                 tel="ttt.mark"
               />
+            )}
+            {showEnd && (
+              <button type="button" className="as-gbtn" data-tel="ttt.end" onClick={endGame}>
+                End game
+              </button>
             )}
             {showNew && (
               <button type="button" className="as-gbtn as-gbtn-primary" data-tel="ttt.new" onClick={newGame_}>
@@ -408,12 +455,32 @@ export default function TicTacToeActivity({
               </b>
               her
             </span>
-            {lifetimeRounds > 0 ? (
+            {series.her || series.his ? (
+              <span className="tt-score">
+                {/* The score reads as a score, tabular and symmetrical. The
+                    long form is for a screen reader only: "You 2 · Her 1" is
+                    the right density on a 9-square board and the wrong thing
+                    to hear read out. */}
+                <span aria-hidden="true">
+                  {`You ${series.his} · Her ${series.her}`}
+                  {series.draws ? ` · ${series.draws} drawn` : ""}
+                </span>
+                <span className="sr-only">
+                  {`You have won ${series.his}, ${HER_NAME} has won ${series.her}`}
+                  {series.draws ? `, ${series.draws} drawn` : ""}.
+                </span>
+              </span>
+            ) : lifetimeRounds > 0 ? (
               <span className="tt-score">
                 {lifetimeRounds} {lifetimeRounds === 1 ? "round" : "rounds"} played
               </span>
             ) : null}
           </div>
+          {verdict ? (
+            <div className="as-result" role="status">
+              {verdict}
+            </div>
+          ) : null}
         </>
       ) : null}
     </ActivityShell>

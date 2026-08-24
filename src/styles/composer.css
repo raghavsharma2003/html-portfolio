@@ -126,6 +126,77 @@
   background: rgba(14, 9, 10, 0.82);
 }
 
+/* ─── THE FILE CHIP ───────────────────────────────────────────────────────
+   A document has no picture of itself, so the chip is a ROW rather than a
+   tile: an extension badge, the name, the size. It is taller than nothing and
+   the same height as a thumbnail, so a tray holding one of each is still one
+   straight line rather than two heights fighting. */
+.tray-doc {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 62px;
+  max-width: 208px;
+  padding: 0 30px 0 10px;
+  border-radius: 13px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+  scroll-snap-align: start;
+  animation: thumb-in var(--d-state) var(--ease-out) backwards;
+}
+/* THE BADGE IS THE RECOGNISABLE PART. It carries the accent because it is the
+   one thing on the chip a person reads at a glance, and it is a fixed width so
+   a row of chips has its names starting on the same line. */
+.tray-doc-ext,
+.docchip-ext {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+}
+.tray-doc-text,
+.docchip-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tray-doc-name,
+.docchip-name {
+  font-size: var(--t-sub);
+  font-weight: 600;
+  color: var(--ink);
+  /* a long name ellipsises; the FORMAT never does, because it is in the badge */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tray-doc-size,
+.docchip-size {
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+}
+/* the remove button on a chip sits on the app's own surface rather than on a
+   photograph, so it takes the app's own colours instead of the fixed dark */
+.tray-x.doc {
+  background: var(--surface-3);
+  color: var(--ink-dim);
+  backdrop-filter: none;
+}
+.tray-x.doc:active {
+  background: var(--hairline-strong);
+}
+
 .tray-add {
   flex: 0 0 auto;
   width: 62px;
@@ -280,6 +351,95 @@
 }
 .pimg-open:active {
   opacity: 0.82;
+}
+
+/* ─── DOCUMENTS IN THE THREAD ─────────────────────────────────────────────
+   The same chip the compose tray shows, so what he staged and what he sent are
+   recognisably the same object. It is NOT a button: see DocChips.tsx for why a
+   tappable chip would be a control that lies.
+
+   INSIDE HIS BUBBLE, which is the rose one, so the badge and the two text
+   lines take the bubble's own inks rather than the app's — `--ink-dim` on rose
+   is the gray-on-coloured anti-pattern the design standards name outright. */
+.docchips {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: -1px 0 2px;
+}
+/* A RECESS, NOT A CARD, and that is a contrast fix rather than a metaphor.
+   This chip was a white 16% veil over the rose bubble, which lifts the ground
+   to rgb(204,94,113) and drops white lettering to 3.90:1 (measured in
+   evals/composer-browser.mjs). A tinted DARK inset moves the ground the other
+   way, so the bubble's own white ink gets crisper rather than muddier, and it
+   is the honest shape anyway: the chip is set INTO the message, not stacked on
+   top of it. Tinted, never pure black, per the anti-pattern list. */
+.docchip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 7px 11px 7px 7px;
+  border-radius: 12px;
+  background: rgba(20, 8, 10, 0.16);
+}
+/* `:not(.photo)` IS LOAD-BEARING, and it was a real bug for one build of this
+   file. His ordinary bubble is the rose one and takes the rose inks; his PHOTO
+   bubble is a white card (`.msg.photo { background: var(--surface) }`) and a
+   `.msg.me` rule reaches both. A message carrying two pictures and a PDF was
+   therefore painting `--bubble-me-ink` (white) onto a white card in the light
+   theme, which is a filename nobody can read. The photo case falls through to
+   the app inks below. */
+/* THE BADGE IS A WHITE PILL WITH ROSE LETTERING on his own bubble, not white
+   on a lighter rose. Eleven-pixel bold type is small text by every measure that
+   matters, so it takes the 4.5:1 floor and not the 3:1 one graphics get, and a
+   translucent-white fill under white letters cannot reach it at any alpha. */
+.msg.me:not(.photo) .docchip .docchip-ext {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--accent-deep);
+}
+.msg.me:not(.photo) .docchip .docchip-name {
+  color: var(--bubble-me-ink);
+}
+.msg.me:not(.photo) .docchip .docchip-size {
+  color: var(--bubble-me-dim);
+}
+/* a bubble carrying only files has no sentence to set its width, so the chips
+   do it; without this the name would ellipsise at whatever the caption was */
+.msg.hasdocs {
+  min-width: 190px;
+}
+/* on HER side, and inside a photo card, the chip sits on an app surface and
+   takes the app's own inks in both themes */
+.msg.her .docchip,
+.msg.photo .docchip {
+  background: var(--surface-2);
+}
+/* `--accent-deep`, not `--accent`: the pair the rest of the app uses for an
+   ICON tile (`.srow .sicon`) measures 4.43:1 here, which clears the 3:1 floor a
+   glyph gets and misses the 4.5:1 one this badge needs, because this badge is
+   TEXT. The deep end of the same accent clears it in both themes. */
+.msg.her .docchip-ext,
+.msg.photo .docchip-ext {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+.msg.her .docchip-name,
+.msg.photo .docchip-name {
+  color: var(--ink);
+}
+.msg.her .docchip-size,
+.msg.photo .docchip-size {
+  color: var(--ink-dim);
+}
+.msg.photo .docchips {
+  margin: 4px 2px 0;
+}
+.docchip-ext {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
 }
 
 /* ─── THE VIEWER ──────────────────────────────────────────────────────────

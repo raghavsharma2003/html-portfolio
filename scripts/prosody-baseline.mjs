@@ -57,7 +57,20 @@ const DECK = [
 
 // paid lane shape from api/speech.js (read-only reuse, not an edit)
 const TTS_MODEL = "google/gemini-3.1-flash-tts-preview";
-const TTS_VOICE = "Aoede";
+// HER VOICE, MIRRORED — asserted equal to api/speech.js's DEFAULT_VOICE by
+// scripts/verify-voice.mjs §1, and moved by `verify-voice.mjs --set <Voice>`
+// along with every other lane.
+//
+// It was `"Aoede"` from the day this file was written until 2026-08-24, and her
+// voice moved to Autonoe on 2026-08-21. So for three days the standing
+// vendor-drift alarm — the one thing in the repo whose whole job is to notice
+// her voice changing under an unchanged model string — was synthesising and
+// comparing a voice the product no longer used. It could not have alarmed on
+// the real one, and it would not have alarmed on this either, because its
+// baseline was recorded in the same wrong voice: a green check about the wrong
+// bytes, which is `gates-that-live-nowhere` wearing a different hat. This site
+// is now inside the one-voice fence for exactly that reason.
+const TTS_VOICE = "Despina";
 const SAMPLE_RATE = 24000;
 
 async function synthesize(key, text) {
@@ -195,7 +208,18 @@ async function main() {
     console.log(`  f0: ${dF0.pct === null ? "n/a" : dF0.pct.toFixed(1) + "%"}  ${dF0.alarm ? `ALARM (>${F0_TOL_PCT}%)` : "within tolerance"}`);
     console.log(`  duration: ${dDur.pct === null ? "n/a" : dDur.pct.toFixed(1) + "%"}  ${dDur.alarm ? `ALARM (>${DUR_TOL_PCT}%)` : "within tolerance"}`);
     if (log.baseline.model !== summary.model) console.log(`  ALARM: model string itself changed (${log.baseline.model} -> ${summary.model}) — this is the "unconsented-vendor-swap" case §9.5 names directly`);
-    log.lastAlarm = dF0.alarm || dDur.alarm || log.baseline.model !== summary.model;
+    // A VOICE CHANGE INVALIDATES THE BASELINE, and silently comparing across
+    // one is worse than not comparing: the two numbers are then measurements of
+    // two different women, and every drift figure printed above is noise
+    // dressed as a trend. The baseline is not auto-rolled — that decision costs
+    // the alarm's whole history and belongs to whoever made the switch.
+    const voiceChanged = (log.baseline.voice ?? null) !== summary.voice;
+    if (voiceChanged) {
+      console.log(
+        `  ALARM: her VOICE changed (${log.baseline.voice ?? "<unrecorded>"} -> ${summary.voice}). Every drift % above compares two different voices and means nothing. Re-run with --establish once the new voice is the intended one.`,
+      );
+    }
+    log.lastAlarm = dF0.alarm || dDur.alarm || log.baseline.model !== summary.model || voiceChanged;
   }
   log.runs = [...(log.runs || []), summary].slice(-90); // ~3 months of nightly runs
   writeFileSync(LOG_PATH, JSON.stringify(log, null, 2) + "\n");

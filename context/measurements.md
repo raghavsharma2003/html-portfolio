@@ -2733,3 +2733,81 @@ the note composition were extracted into pure functions.
   variants reached, not a fixed rotation; pre-fix uniform draw ~650 repeats.
 - composer: 121 + 59 browser assertions on the real preview build; 14
   screenshots light+dark; "capture" in input false on desktop Chromium 141.
+
+---
+
+## `live-vs-tts-timbre` — Autonoe on the live lane vs Autonoe on the TTS lane (2026-08-24)
+
+`docs/VOICE-LANE.md` §9 named this the load-bearing **unmeasured** claim behind
+§6.1's "same name, different model, therefore a different voice", and recorded
+that *"the live lane's f0 has never been measured"*. Measured now.
+
+**Method.** Both arms driven with the shipped setup blocks — the free TTS arm
+exactly as `api/speech.js` sends it (`gemini-3.1-flash-tts-preview`,
+`streamGenerateContent`, `prebuiltVoiceConfig`), the live arm exactly as
+`liveCall.ts` sends it (`gemini-3.1-flash-live-preview`, AUDIO modality,
+`thinkingBudget: 0`, `languageCode: "hi-IN"`) — both naming `Autonoe`, over the
+**same three Hinglish lines**, the live arm under a diagnostic read-aloud
+instruction so the text is identical across arms. f0 by autocorrelation
+(read-only reuse of `scripts/prosody-baseline.mjs`'s analysis); spectral
+centroid and tilt by 1024-pt DFT on voiced high-energy frames.
+**n=3 per arm, 6 pool calls, no 429.**
+
+| | median f0 | p10–p90 f0 | centroid | tilt (2–6k vs <1k) | duration |
+|---|---|---|---|---|---|
+| TTS `gemini-3.1-flash-tts-preview` | 222 Hz | 169–381 | 1358 Hz | −13.0 dB | 3.68 s |
+| live `gemini-3.1-flash-live-preview` | 218 Hz | 161–348 | 1413 Hz | −8.5 dB | 2.44 s |
+| delta | −4 Hz (−0.32 st) | | +55 Hz | +4.4 dB | −1.24 s |
+
+**Pitch is not the difference.** −0.32 semitones sits far inside the TTS arm's
+own per-line spread (186 / 222 / 250 Hz). The hypothesis that the two engines
+render one name at different pitches is **not supported**.
+
+**Brightness is the surviving candidate and is NOT established at this n.** The
+live arm is consistently brighter and tight (tilt −7.6 / −8.5 / −8.7 dB); the
+TTS arm swings (−6.5 / −16.6 / −13.0 dB). The between-arm delta of 4.4 dB is
+**smaller than the within-TTS-arm spread of 10.1 dB** — so the reportable finding
+is that **the cascade lane is not consistent with itself line to line**, and a
+cross-engine timbre claim needs more than n=3.
+
+**Duration is confounded and must not be quoted as production.** The live arm
+read a fixed string under a diagnostic instruction; production live improvises
+under `persona.ts`'s spoken register, and pace is precisely the axis that
+instruction moves.
+
+**What would change this:** n≥20 per arm on matched text, and an ear test —
+`voice-ears` is the standing rule that pitch numbers alone already misled here
+once.
+
+---
+
+## `live-voice-roster` — which prebuilt names the realtime lane actually accepts (2026-08-24)
+
+Ahead of a possible voice switch, all eight candidate names plus the incumbent
+were probed against `models/gemini-3.1-flash-live-preview` at
+`languageCode: "hi-IN"`. **Setup-only handshakes: the socket opens, the setup
+frame goes, the server answers, the socket closes. No turn is ever sent, so
+zero audio is generated.** 11 handshakes total.
+
+**Accepted, all of them:** `Autonoe`, `Aoede`, `Leda`, `Kore`, `Zephyr`,
+`Despina`, `Callirrhoe`, `Laomedeia`, `Sulafat`, `Erinome`.
+
+**Negative-controlled, which is the part that makes it evidence.** A probe that
+says yes to everything measures nothing — `realtime-azure` records a raw
+handshake reporting an endpoint as working when it was not. `NotAVoiceAtAll` is
+refused with a **1007 close carrying `No matching speaker voice found for name:
+NotAVoiceAtAll and language: hi-IN`**, so acceptance here discriminates.
+
+This matters because `api/live-token.js` and `api/speech.js` both record the
+same asymmetry from the last switch: **a TTS model taking a voice name says
+nothing about the realtime one**, and a name the live lane rejects is a call
+that never connects rather than a wrong timbre. The list is now the allow-list
+`verify-voice.mjs --set` checks against; anything outside it must be probed and
+added with its date.
+
+## `ttt-t15-bytes` (2026-08-24, WS-TTT)
+
+- ttt T15 head 307 of 420 ACTIVITY_BUDGET bytes (chess 301): ~113 spare for
+  facts on a live game, 189 finished. Fact-order-is-drop-policy is load-
+  bearing for ttt in a way it is not for chess. Method: byte-count of real
+  compile() output across the parity battery's 5,478 reachable positions.

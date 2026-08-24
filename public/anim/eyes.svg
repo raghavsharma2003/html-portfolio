@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Watching eyes">
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M112 256c35-65 89-65 124 0-35 65-89 65-124 0Zm164 0c35-65 89-65 124 0-35 65-89 65-124 0Z" fill="none" stroke="#f8d08b" stroke-width="14"/>
+    <circle cx="174" cy="256" r="22" fill="#f2b75b"/><circle cx="338" cy="256" r="22" fill="#f2b75b"/>
+    <circle cx="174" cy="256" r="10" fill="#011036"/><circle cx="338" cy="256" r="10" fill="#011036"/>
+    <path d="m110 177 44-17m204 0 44 17" fill="none" stroke="#c23f56" stroke-width="9"/>
+  </g>
+</svg>

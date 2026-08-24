@@ -29,6 +29,7 @@ import { HER_NAME } from "../engine/persona";
 import { fmtTime } from "./fmtTime";
 import PhotoCard from "./PhotoCard";
 import PhotoGrid from "./PhotoGrid";
+import DocChips from "./DocChips";
 import { imagesOf } from "./attachments";
 import BigEmoji, { isSingleEmoji } from "./BigEmoji";
 import VoiceNote from "./VoiceNote";
@@ -196,6 +197,10 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
             </button>
           )
         )}
+        {/* documents ride ABOVE the caption, because the caption is about
+            everything he attached and a line sitting under one thing reads as
+            being about that thing */}
+        {m.docs?.length ? <DocChips docs={m.docs} /> : null}
         {m.text && <div className="cap">{m.text}</div>}
         <span className="t">
           {fmtTime(m.at)}
@@ -210,7 +215,17 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
     );
   }
 
-  const emo = emojiRun(m.text);
+  // A DOCUMENT MESSAGE IS A TEXT MESSAGE WITH FILES ON IT, deliberately.
+  //
+  // The obvious alternative was a new `Message.kind`, and it is the expensive
+  // one: nine readers across six files switch on `kind`, every one of them
+  // would have needed a branch that does nothing, and a kind nobody handles
+  // renders as an empty bubble in whichever one was missed. `docs` is a field,
+  // the caption is `text` exactly as it is for pictures, and every existing
+  // switch keeps working untouched — the same argument `Message.watched` makes
+  // for being a flag rather than a third `channel` value.
+  const docs = m.docs?.length ? m.docs : null;
+  const emo = docs ? 0 : emojiRun(m.text);
   // n=1 keeps the historical predicate exactly, so nothing that rendered as a
   // big animated emoji before renders differently now.
   const big = emo === 1 && isSingleEmoji(m.text);
@@ -218,7 +233,7 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
 
   return (
     <div
-      className={`msg ${m.from}${ramp} ${selected ? "sel" : ""}`}
+      className={`msg ${m.from}${ramp}${docs ? " hasdocs" : ""} ${selected ? "sel" : ""}`}
       onClick={() => api.toggleSelect(m.id)}
       // Quote-reply was tap-only, so on a keyboard it did not exist at
       // all. The thread is a roving-tabindex list now: ONE tab stop for
@@ -230,7 +245,12 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
       data-row={m.id}
       data-tel="chat.bubble"
       tabIndex={tabbable ? 0 : -1}
-      aria-label={`${m.from === "her" ? HER_NAME : "You"} at ${fmtTime(m.at)}: ${m.text}. Reply`}
+      // The files are named in the accessible name, because on a document
+      // message with no caption `m.text` is empty and the label would have
+      // announced the sender, the time and then nothing at all.
+      aria-label={`${m.from === "her" ? HER_NAME : "You"} at ${fmtTime(m.at)}: ${
+        docs ? `sent ${docs.map((d) => d.name).join(", ")}${m.text ? `. ${m.text}` : ""}` : m.text
+      }. Reply`}
       onFocus={() => api.focusRow(m.id)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -307,6 +327,7 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
           )}
         </div>
       )}
+      {docs && <DocChips docs={docs} />}
       {big ? (
         <BigEmoji emoji={m.text} />
       ) : emo >= 2 ? (

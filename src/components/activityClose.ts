@@ -65,11 +65,16 @@ export function settleOccupant(
   const over = boardOver(cur);
   let next: GameSession = cur;
   if (!cur.closedAt) {
-    // Same honest wording the End-game button writes: a chess board abandoned
-    // before a result ended early and named no winner. ttt and wyr have no
-    // early-end fact to carry.
+    // Same honest wording the End-game button writes: a BOARD abandoned before
+    // a result ended early and named no winner. This used to be chess-only and
+    // the comment claimed "ttt has no early-end fact to carry" — it does now
+    // (`TttSession.endedEarly`, and `tttRecord` names the squares nobody
+    // took), and without the stamp a taken-over ttt game was remembered as
+    // having simply "left unfinished" with no one responsible for leaving it.
+    // wyr genuinely has no such state: a round is answered or it does not
+    // exist.
     next =
-      cur.kind === "chess" && !over
+      (cur.kind === "chess" || cur.kind === "ttt") && !over
         ? { ...cur, closedAt: at, endedEarly: true as const }
         : { ...cur, closedAt: at };
   }

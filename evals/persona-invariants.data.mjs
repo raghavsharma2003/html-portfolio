@@ -255,7 +255,7 @@ export function meeraFullChecks(agent, lanes) {
   // two-direction burst; the sceneClause continuity rule - a re-call got a
   // freshly invented activity). Margin kept tight on purpose: the next
   // unplanned growth should trip this again.
-  add("text core under ceiling (46400)", lanes.t.core.length < 46400, `=${lanes.t.core.length}`);
+  add("text core under ceiling (46700)", lanes.t.core.length < 46700, `=${lanes.t.core.length}`);
 
   add("[live] [tone: appears exactly once", (lanes.live.match(/\[tone:/g) || []).length === 1);
   add(
@@ -342,6 +342,16 @@ export function meeraFullChecks(agent, lanes) {
     ["sarvam", lanes.S],
     ["device", lanes.D],
   ]) {
+    // Raised 52000 -> 52200 and core 46400 -> 46700 later on 2026-08-24
+    // (fourth raise, same wave) for the attachment-set shapes: five photos are
+    // one moment not a slideshow, and a captioned file is answered person-
+    // first. Born from the composer/docs slice shipping. ~80 tokens.
+    // Raised 51600 -> 52000 on 2026-08-24 (third deliberate raise) for the
+    // board-talk shapes: ttt reached chess parity (WS-TTT) and handed her real
+    // material — beat-length talk, needling the score, conceding a fork, her
+    // own register for squares, no replays. Trimmed once first (750 -> 560
+    // chars); the residual 237-byte overage is on the live in-app lane only
+    // (+720 native overhead). ~60 tokens, ~$0.0001/session.
     // Raised again 51000 -> 51600 on 2026-08-23 (same day, second deliberate
     // raise) for the live-test correction wave: CALLS GO BOTH WAYS, the
     // two-direction burst rule and the sceneClause continuity rule all ride
@@ -352,8 +362,8 @@ export function meeraFullChecks(agent, lanes) {
     // from measured failures on a real tester's calls. Cost of the growth,
     // computed: ~250 tokens ~= $0.0004 per live session at 2026 list price.
     // Margin kept tight on purpose: the next unplanned growth trips this.
-    add(`[${nm}] assembled < 51600 (web)`, s.length < 51600, String(s.length));
-    add(`[${nm}] assembled < 51600 (in-app +${APP})`, s.length + APP < 51600, String(s.length + APP));
+    add(`[${nm}] assembled < 52200 (web)`, s.length < 52200, String(s.length));
+    add(`[${nm}] assembled < 52200 (in-app +${APP})`, s.length + APP < 52200, String(s.length + APP));
   }
   add("[text] chat system < 50000", lanes.tt.core.length < 50000, String(lanes.tt.core.length));
 

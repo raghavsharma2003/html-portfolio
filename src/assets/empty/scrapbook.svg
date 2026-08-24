@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" role="img" aria-labelledby="title desc">
+  <title id="title">An empty scrapbook beneath fairy lights</title>
+  <desc id="desc">An open warm-paper notebook rests in a quiet indigo night scene, with a string of softly glowing fairy lights above.</desc>
+  <defs>
+    <filter id="grain" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="2" seed="7" result="noise"/>
+      <feColorMatrix in="noise" type="saturate" values="0" result="mono"/>
+      <feComponentTransfer in="mono" result="softNoise"><feFuncA type="table" tableValues="0 0.055"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="softNoise" mode="soft-light"/>
+    </filter>
+    <filter id="glow" x="-300%" y="-300%" width="700%" height="700%">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+  </defs>
+  <g filter="url(#grain)">
+    <path d="M23 47C91 30 169 44 229 33c44-8 79-4 108 7" fill="none" stroke="#26201b" stroke-width="3" stroke-linecap="round"/>
+    <g fill="#f2b75b">
+      <circle cx="55" cy="43" r="10" opacity=".16" filter="url(#glow)"/><circle cx="55" cy="43" r="3.5"/>
+      <circle cx="113" cy="40" r="10" opacity=".16" filter="url(#glow)"/><circle cx="113" cy="40" r="3.5"/>
+      <circle cx="174" cy="43" r="10" opacity=".16" filter="url(#glow)"/><circle cx="174" cy="43" r="3.5"/>
+      <circle cx="239" cy="34" r="10" opacity=".16" filter="url(#glow)"/><circle cx="239" cy="34" r="3.5"/>
+      <circle cx="304" cy="36" r="10" opacity=".16" filter="url(#glow)"/><circle cx="304" cy="36" r="3.5"/>
+    </g>
+    <g stroke="#26201b" stroke-width="2.2" stroke-linecap="round">
+      <path d="M55 41v-8M113 38v-7M174 41v-8M239 32v-7M304 34v-7"/>
+    </g>
+    <ellipse cx="180" cy="209" rx="139" ry="14" fill="#011036" opacity=".18"/>
+    <path d="M44 100c39-11 86-8 133 13l3 94c-47-24-95-26-136-11z" fill="#f5f5f7" stroke="#26201b" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M316 100c-39-11-86-8-133 13l-3 94c47-24 95-26 136-11z" fill="#f8d08b" stroke="#26201b" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M180 115v91" fill="none" stroke="#c23f56" stroke-width="3" stroke-linecap="round"/>
+    <path d="M57 113c33-7 71-3 105 9M58 133c34-6 69-2 99 7M58 154c29-4 61-1 89 6" fill="none" stroke="#f2b75b" stroke-width="3" stroke-linecap="round" opacity=".58"/>
+    <path d="M199 122c28-10 64-13 98-7M201 143c25-7 57-9 87-4M201 164c27-6 57-6 83-1" fill="none" stroke="#f5f5f7" stroke-width="3" stroke-linecap="round" opacity=".66"/>
+    <path d="M139 187c15 2 27 6 38 12" fill="none" stroke="#c23f56" stroke-width="4" stroke-linecap="round"/>
+    <path d="M183 198c13-6 26-9 39-11" fill="none" stroke="#011036" stroke-width="3" stroke-linecap="round" opacity=".45"/>
+  </g>
+</svg>

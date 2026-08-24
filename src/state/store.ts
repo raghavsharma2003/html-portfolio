@@ -77,6 +77,26 @@ export interface Message {
   // caption there, and a second caption field would be two places to look.
   photoUrls?: string[];
   desc?: string; // user photos: one-line vision description (context + memory)
+  // DOCUMENTS HE SENT (WS-COMPOSER, up to 3). METADATA ONLY, and the absence of
+  // the bytes is the whole design rather than an omission.
+  //
+  // A document's TEXT reaches her exactly once, in the turn it was attached to,
+  // through `think`'s `attachments` parameter. Nothing uploads it and nothing
+  // stores it, so this is what the thread keeps: the name, the format and the
+  // size. That is also what a person keeps — you remember someone sent you a
+  // PDF called `rent-agreement`, not its third paragraph.
+  //
+  // WHY NOT THE BYTES. A 2 MB PDF in AppState is `saveState`'s entire
+  // degradation ladder fired by one attachment, and unlike a stuck photo data:
+  // URL there is no upload that would ever come along and replace it, so it
+  // would sit in localStorage for the life of the install. `persistable`'s
+  // stuck-data-URL guard cannot help with a field that is SUPPOSED to hold
+  // bytes; the fix is for the field never to hold them.
+  //
+  // Absent on every message that predates this and on every message with no
+  // attachment, which is the same rule `photoUrls` and `watched` follow: a
+  // stored shape is not rewritten under a running install.
+  docs?: Array<{ name: string; mime: string; size: number }>;
 }
 
 /**

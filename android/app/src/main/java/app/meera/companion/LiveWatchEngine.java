@@ -76,8 +76,26 @@ class LiveWatchEngine {
   private static final String WS_BASE =
       "wss://generativelanguage.googleapis.com/ws/"
           + "google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";
-  // only used if /api/live-token ever answers without a model field
-  private static final String DEFAULT_MODEL = "models/gemini-2.5-flash-native-audio-latest";
+  // ── MIRRORED WITH api/live-token.js's LIVE_MODEL ────────────────────────
+  // Only used if /api/live-token ever answers without a model field, which is
+  // a malformed response rather than a normal path — and that is exactly why
+  // it was wrong for so long without anyone hearing it.
+  //
+  // It was "models/gemini-2.5-flash-native-audio-latest": a model this repo
+  // MEASURED AND REJECTED for the live lane (`live-model-bake`, 0/24 barge-in,
+  // 3-5.5s to first audio), sitting as the silent fallback on the ONE surface
+  // where the triple-swap actually happens. So a malformed token response did
+  // not degrade the watch lane's latency, it changed WHO SHE WAS: a different
+  // model family renders the same voice name as a different woman, which is
+  // the entire class scripts/verify-voice.mjs exists for. The JS twin
+  // (src/voice/liveCall.ts) has no fallback at all — it uses the token's model
+  // or fails — so the two twins did not merely differ, they disagreed about
+  // whether a fallback should exist.
+  //
+  // Reconciled deliberately: the fallback is now the SAME model the token
+  // endpoint serves, so a malformed response costs a round trip and nothing
+  // else. verify-voice.mjs §7c fails the build if the two strings drift apart.
+  private static final String DEFAULT_MODEL = "models/gemini-3.1-flash-live-preview";
 
   private static final int IN_RATE = 16000; // uplink mic PCM16 mono
   private static final int OUT_RATE = 24000; // downlink her voice PCM16 mono
@@ -1222,7 +1240,7 @@ class LiveWatchEngine {
     JSONObject speech = new JSONObject();
     speech.put(
         "voiceConfig",
-        new JSONObject().put("prebuiltVoiceConfig", new JSONObject().put("voiceName", "Autonoe")));
+        new JSONObject().put("prebuiltVoiceConfig", new JSONObject().put("voiceName", "Despina")));
     speech.put("languageCode", "hi-IN");
     gen.put("speechConfig", speech);
 

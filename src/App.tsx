@@ -316,8 +316,15 @@ export default function App() {
               ...next,
               closedAt: Date.now(),
               // an abandoned board ended without a result — same honest
-              // wording as the End-game button, never a fabricated winner
-              ...(curStale && !curOver && cur.kind === "chess" ? { endedEarly: true as const } : {}),
+              // wording as the End-game button, never a fabricated winner.
+              // BOTH boards, not only chess: a ttt session left open past
+              // OPEN_STALE_MS was closed with no `endedEarly`, so its record
+              // said "left unfinished" with nobody named as having left it and
+              // its facts kept a live "it is his move" under a heading saying
+              // the game had just finished.
+              ...(curStale && !curOver && (cur.kind === "chess" || cur.kind === "ttt")
+                ? { endedEarly: true as const }
+                : {}),
             };
           }
           let tally = s.tally;

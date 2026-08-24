@@ -138,6 +138,70 @@ const paths = FIXTURES.map((f) => {
   return p;
 });
 
+// ── document fixtures ─────────────────────────────────────────────────────
+//
+// TWO FORMATS, because the client takes two different routes through them and
+// only a browser can tell which one it actually took. A `.md` is read as text
+// on the device and goes up as `text`; a `.pdf` cannot be, and goes up as
+// `data` for `api/_docs.js` to extract. A battery that only attached a .txt
+// would pass against a build that had lost the PDF branch entirely.
+//
+// The PDF is a REAL one, hand-assembled with correct xref offsets, so it is a
+// file a picker accepts and an extractor can be pointed at rather than a blob
+// with a .pdf name on it.
+function minimalPdf(line) {
+  const enc = (s) => Buffer.from(s, "latin1");
+  const objs = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    null, // the content stream, built below
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  const stream = `BT /F1 12 Tf 20 150 Td (${line.replace(/([()\\])/g, "\\$1")}) Tj ET`;
+  objs[3] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
+  let out = "%PDF-1.4\n";
+  const offsets = [];
+  objs.forEach((body, i) => {
+    offsets.push(out.length);
+    out += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  for (const o of offsets) out += `${String(o).padStart(10, "0")} 00000 n \n`;
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return enc(out);
+}
+
+const DOC_TEXT = "quarterly notes\n\nthe roof leaked in july and the landlord paid for it.";
+const PDF_LINE = "rent agreement clause four";
+const docPaths = {
+  md: join(FIXDIR, "notes.md"),
+  pdf: join(FIXDIR, "rent-agreement.pdf"),
+  csv: join(FIXDIR, "spend.csv"),
+  extra: join(FIXDIR, "extra.txt"),
+};
+writeFileSync(docPaths.md, DOC_TEXT);
+writeFileSync(docPaths.pdf, minimalPdf(PDF_LINE));
+writeFileSync(docPaths.csv, "month,amount\njuly,1200\naugust,1400\n");
+writeFileSync(docPaths.extra, "a fourth file that must not fit");
+
+// The server's own extractor, run over the fixture PDF right here. If this
+// cannot read it, the fixture is the thing that is broken and every assertion
+// downstream about "the PDF went up as data" would be measuring a file nobody
+// could ever have used.
+const { normalizeDocs } = await import(join(ROOT, "api/_docs.js"));
+{
+  const probe = normalizeDocs([
+    { name: "rent-agreement.pdf", mime: "application/pdf", data: minimalPdf(PDF_LINE).toString("base64") },
+  ]);
+  ok(
+    "the fixture PDF is a file the real extractor can read",
+    probe.ok && probe.stats.extracted === 1 && probe.blocks[0].includes("rent agreement"),
+    JSON.stringify(probe.blocks?.[0] ?? probe).slice(0, 200),
+  );
+}
+
 // ── the app ────────────────────────────────────────────────────────────────
 let browser;
 try {
@@ -177,13 +241,22 @@ async function open({ touch = true, theme = "light", uploads = true } = {}) {
   });
   const page = await ctx.newPage();
   const posted = [];
-  await page.route("**/api/chat", (route) =>
-    route.fulfill({
+  // RECORDED, not just stubbed. The document contract is a property of the
+  // request body, so the only place it can be observed is here — the offline
+  // suite can prove `buildDocPayload` returns a shape, and only this can prove
+  // the shape reached the wire.
+  await page.route("**/api/chat", (route) => {
+    try {
+      posted.push({ op: "chat", ...JSON.parse(route.request().postData() || "{}") });
+    } catch {
+      posted.push({ op: "chat", unparseable: true });
+    }
+    return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ text: "arre wah" }),
-    }),
-  );
+    });
+  });
   await page.route("**/api/memory", async (route) => {
     let body = {};
     try {
@@ -261,15 +334,50 @@ async function open({ touch = true, theme = "light", uploads = true } = {}) {
 
 const shot = (page, name) => page.screenshot({ path: join(SHOTS, `${name}.png`) });
 
+// THE TWO INPUTS ARE ADDRESSED BY WHAT THEY ACCEPT, not by "the one with
+// `multiple`" — both of them carry it now, and a selector that matched either
+// would have started driving whichever happened to be first in the DOM.
+const GALLERY_INPUT = 'input[accept="image/*"][multiple]';
+const DOC_INPUT = 'input[accept*=".pdf"]';
+
 /** pick N fixtures through the gallery input, and wait for the tray to grow */
 async function pick(page, n, from = 0) {
   const before = await page.locator(".tray-thumb").count();
   await page.click('[data-tel="chat.attach"]');
   await page.waitForSelector('[data-tel="attach.gallery"]', { timeout: 6000 });
   await page.click('[data-tel="attach.gallery"]');
-  await page.setInputFiles('input[multiple]', paths.slice(from, from + n));
+  await page.setInputFiles(GALLERY_INPUT, paths.slice(from, from + n));
   return before;
 }
+
+/** pick documents through the Document row, exactly as a person would */
+async function pickDocs(page, files) {
+  await page.click('[data-tel="chat.attach"]');
+  await page.waitForSelector('[data-tel="attach.document"]', { timeout: 6000 });
+  await page.click('[data-tel="attach.document"]');
+  await page.setInputFiles(DOC_INPUT, files);
+}
+
+/**
+ * Wait for a request the page has not made yet, and FAIL LOUDLY when it never
+ * comes.
+ *
+ * Documents do not upload, so nothing about a document send is observable until
+ * the reply cycle runs — and that is behind the burst clock, which deliberately
+ * waits to see whether he is still typing. A fixed sleep here would be a test
+ * that passes on a fast machine and reports ALL PASS on a slow one after
+ * observing nothing at all, which is the dead-writers failure with extra steps.
+ */
+async function waitForPosted(posted, pred, ms, why) {
+  const t0 = Date.now();
+  for (;;) {
+    const hit = posted.find(pred);
+    if (hit) return hit;
+    if (Date.now() - t0 > ms) dead(why);
+    await sleep(150);
+  }
+}
+const isDocRequest = (b) => Array.isArray(b?.docs) && b.docs.length > 0;
 
 // ════ 1. THE SOURCE SHEET ══════════════════════════════════════════════════
 {
@@ -433,35 +541,53 @@ async function pick(page, n, from = 0) {
   ok("five are staged", (await page.locator(".tray-thumb").count()) === 5);
   ok("the count reads 5 of 5", (await page.textContent(".tray-count"))?.includes("5 of 5"));
   ok(
-    "the add tile is gone at the cap",
-    (await page.$(".tray-add")) === null,
-    "a present-and-inert control is the dead-option rule one level down",
+    "the add tile SURVIVES the picture cap, because a document still fits",
+    (await page.$(".tray-add")) !== null,
+    "two independent caps: the `+` is inert only when NOTHING more can be " +
+      "added, and hiding it at the picture cap would hide the route to the " +
+      "one thing that is still possible",
   );
 
-  // the sixth, through the sheet, exactly as a person would
+  // THE SIXTH PICTURE, asked for exactly as a person would ask. The refusal is
+  // not a dialog and it is not an error: the two picture rows are simply not
+  // there any more, and the sheet says which cap that is.
   await page.click('[data-tel="chat.attach"]');
-  await sleep(260);
-  const sheetOpen = (await page.$(".source-sheet")) !== null;
-  if (sheetOpen) {
-    await page.click('[data-tel="attach.gallery"]');
-    await page.setInputFiles('input[multiple]', [paths[5]]);
-    await sleep(900);
-  } else {
-    // at the cap the attach button answers with the cue instead of the sheet
-    await sleep(400);
+  try {
+    await page.waitForSelector(".source-sheet", { timeout: 6000 });
+  } catch {
+    dead("the attach button opened nothing at the picture cap");
   }
+  await sleep(450);
   await shot(page, "04-sixth-refused");
+  ok(
+    "at the picture cap there is no Photos row to press",
+    (await page.$('[data-tel="attach.gallery"]')) === null,
+    "a Photos row that opens a picker and then silently drops the file is the " +
+      "dead-option rule broken at the worst possible moment",
+  );
+  ok("…and no Camera row either", (await page.$('[data-tel="attach.camera"]')) === null);
+  ok(
+    "…the sheet says WHICH cap it was",
+    /5 photos/.test((await page.textContent('[data-tel="attach.room"]')) || ""),
+    String(await page.textContent('[data-tel="attach.room"]')),
+  );
+  ok(
+    "…and the Document row is still there, because documents still fit",
+    (await page.$('[data-tel="attach.document"]')) !== null,
+  );
+  ok(
+    "NOTHING MODAL happened",
+    (await page.$("dialog[open]")) === null,
+    "the owner's bar: a refusal is a cue, never a dialog to dismiss",
+  );
+  await page.keyboard.press("Escape");
+  await page.waitForSelector(".source-sheet", { state: "detached", timeout: 4000 });
   ok(
     "still five, never six",
     (await page.locator(".tray-thumb").count()) === 5,
     `${await page.locator(".tray-thumb").count()} thumbs`,
   );
   ok("the count still reads 5 of 5", (await page.textContent(".tray-count"))?.includes("5 of 5"));
-  ok(
-    "NOTHING MODAL happened",
-    (await page.$("dialog[open]")) === null && (await page.$(".sheet-veil")) === null,
-    "the owner's bar: a refusal is a cue, never a dialog to dismiss",
-  );
 
   // the send itself, five up
   await page.fill(".chat-input textarea", "goa dump");
@@ -698,6 +824,503 @@ async function pick(page, n, from = 0) {
   });
   ok("four renders as a 2x2", four.shape === "four" && four.tiles === 4, JSON.stringify(four));
   ok("…with no overflow veil", (await page.$(".pgrid-more")) === null);
+  await ctx.close();
+}
+
+// ════ 8. DOCUMENTS ════════════════════════════════════════════════════════
+//
+// The half of the document slice that only a browser can answer. `packDoc`'s
+// branch (text on the client for a .md, bytes for a .pdf) runs against a REAL
+// FileReader over REAL files here; offline it is asserted against hand-built
+// objects, which cannot tell you that a `.md` picked through a real file input
+// actually arrives as text.
+{
+  console.log("\n── 8. documents ──");
+  const { page, ctx, posted } = await open();
+
+  // the third row exists and is reachable
+  await page.click('[data-tel="chat.attach"]');
+  await page.waitForSelector(".source-sheet", { timeout: 6000 });
+  await sleep(450);
+  await shot(page, "15-source-sheet-with-document");
+  ok("the sheet offers a Document row", (await page.$('[data-tel="attach.document"]')) !== null);
+  ok("…alongside the two picture rows", (await page.locator(".source-sheet .srow").count()) === 3);
+  await page.keyboard.press("Escape");
+  await page.waitForSelector(".source-sheet", { state: "detached", timeout: 4000 });
+
+  // a text file and a PDF, through the real picker
+  await pickDocs(page, [docPaths.md, docPaths.pdf]);
+  try {
+    await page.waitForFunction(() => document.querySelectorAll(".tray-doc").length === 2, null, {
+      timeout: 10_000,
+    });
+  } catch {
+    dead("two picked documents never reached the compose tray");
+  }
+  await sleep(400);
+  await shot(page, "16-tray-two-documents");
+
+  ok("two file chips are staged", (await page.locator(".tray-doc").count()) === 2);
+  ok(
+    "PICKING DID NOT SEND",
+    (await page.locator(".msg.me").count()) === 0,
+    "a staged document is a draft, exactly like a staged picture",
+  );
+  const chips = await page.evaluate(() =>
+    [...document.querySelectorAll(".tray-doc")].map((c) => ({
+      ext: c.querySelector(".tray-doc-ext").textContent,
+      name: c.querySelector(".tray-doc-name").textContent,
+      size: c.querySelector(".tray-doc-size").textContent,
+      hasX: Boolean(c.querySelector(".tray-x")),
+    })),
+  );
+  ok("…each with an extension badge", chips.map((c) => c.ext).join(",") === "MD,PDF", JSON.stringify(chips));
+  ok("…the file's own name", chips[0].name === "notes.md" && chips[1].name === "rent-agreement.pdf");
+  ok("…a size", chips.every((c) => /\d/.test(c.size)), JSON.stringify(chips.map((c) => c.size)));
+  ok("…and a remove button", chips.every((c) => c.hasX));
+  ok(
+    "the count line counts documents against THEIR cap",
+    (await page.textContent(".tray-count"))?.includes("2 of 3"),
+    String(await page.textContent(".tray-count")),
+  );
+  ok(
+    "the box is a caption field for a document too",
+    (await page.getAttribute(".chat-input textarea", "placeholder"))?.startsWith("Add a caption"),
+  );
+  ok(
+    "Send is reachable with only documents staged",
+    (await page.getAttribute(".send-btn", "data-mode")) === "send",
+  );
+
+  // the fourth is refused
+  await pickDocs(page, [docPaths.csv]);
+  await page.waitForFunction(() => document.querySelectorAll(".tray-doc").length === 3, null, {
+    timeout: 8000,
+  });
+  await page.click('[data-tel="chat.attach"]');
+  await sleep(260);
+  if ((await page.$('[data-tel="attach.document"]')) !== null) {
+    await page.click('[data-tel="attach.document"]');
+    await page.setInputFiles(DOC_INPUT, [docPaths.extra]);
+    await sleep(900);
+  } else {
+    // at the cap the Document row is not rendered at all, which IS the answer
+    await sleep(300);
+    await page.keyboard.press("Escape");
+    await sleep(300);
+  }
+  await shot(page, "17-fourth-document-refused");
+  ok(
+    "still three, never four",
+    (await page.locator(".tray-doc").count()) === 3,
+    `${await page.locator(".tray-doc").count()} chips`,
+  );
+  ok("the count still reads 3 of 3", (await page.textContent(".tray-count"))?.includes("3 of 3"));
+  ok("NOTHING MODAL happened", (await page.$("dialog[open]")) === null);
+
+  // one back off, then send with a caption
+  await page.click(".tray-doc:nth-of-type(3) .tray-x");
+  await page.waitForFunction(() => document.querySelectorAll(".tray-doc").length === 2, null, {
+    timeout: 4000,
+  });
+  await page.fill(".chat-input textarea", "ye padh lena");
+  await sleep(150);
+  await page.click('[data-tel="chat.send"]');
+  try {
+    await page.waitForSelector(".msg.me .docchip", { timeout: 10_000 });
+  } catch {
+    dead("a document message never rendered in the thread");
+  }
+  await sleep(800);
+  await shot(page, "18-documents-sent");
+
+  const sent = await page.evaluate(() => {
+    const mine = [...document.querySelectorAll(".chat-scroll .msg.me")];
+    const b = mine[mine.length - 1];
+    const chipsIn = [...b.querySelectorAll(".docchip")];
+    return {
+      mine: mine.length,
+      chips: chipsIn.length,
+      names: chipsIn.map((c) => c.querySelector(".docchip-name").textContent),
+      text: b.textContent,
+      isPhoto: b.classList.contains("photo"),
+      hasTick: Boolean(b.querySelector(".tickicon")),
+      hasTime: Boolean(b.querySelector(".t")),
+      tappable: chipsIn.some((c) => c.tagName === "BUTTON" || c.querySelector("button")),
+    };
+  });
+  ok("ONE message, not two", sent.mine === 1, JSON.stringify(sent));
+  ok("…carrying both file chips", sent.chips === 2 && sent.names.join(",") === "notes.md,rent-agreement.pdf", JSON.stringify(sent.names));
+  ok("…and the caption", sent.text.includes("ye padh lena"));
+  ok("…as a TEXT bubble, not a photo one", !sent.isPhoto);
+  ok("…with the existing tick and timestamp idiom", sent.hasTick && sent.hasTime);
+  ok(
+    "…and the chip is not a button",
+    !sent.tappable,
+    "the bytes were never kept, so a tap has nothing to open; a chip that " +
+      "invited one would be a control that lies (DocChips.tsx)",
+  );
+  ok("the tray is empty again", (await page.locator(".tray-doc").count()) === 0);
+
+  // ── THE WIRE ──
+  //
+  // Behind the burst clock: a document never uploads, so the first observable
+  // moment is the reply pass that carries it. Waited for explicitly, and fatal
+  // if it never comes, because "no doc request was seen" is exactly what a
+  // broken seam looks like AND exactly what an impatient test looks like.
+  const chat = await waitForPosted(
+    posted,
+    isDocRequest,
+    20_000,
+    "no request to /api/chat ever carried `docs`. Either the take-once box was " +
+      "never filled by the send, or replyPass is not passing it into think().",
+  );
+  ok("the docs reached /api/chat", Boolean(chat), JSON.stringify(posted.map((p) => p.op ?? "chat")));
+  ok("…as two entries", chat?.docs?.length === 2, JSON.stringify(chat?.docs?.length));
+  ok("…named", chat?.docs?.[0]?.name === "notes.md" && chat?.docs?.[1]?.name === "rent-agreement.pdf");
+  ok(
+    "…the .md went up as TEXT the client read itself",
+    typeof chat?.docs?.[0]?.text === "string" && chat.docs[0].text.includes("the roof leaked") &&
+      chat.docs[0].data === undefined,
+    JSON.stringify({ text: typeof chat?.docs?.[0]?.text, data: typeof chat?.docs?.[0]?.data }),
+  );
+  ok(
+    "…the .pdf went up as DATA for the server to extract",
+    typeof chat?.docs?.[1]?.data === "string" && chat.docs[1].data.startsWith("data:") &&
+      chat.docs[1].text === undefined,
+    JSON.stringify({ text: typeof chat?.docs?.[1]?.text, data: String(chat?.docs?.[1]?.data).slice(0, 30) }),
+  );
+  // THE CAPTION IS ALREADY IN THE TURN, so it is NOT repeated at the top
+  // level. `/api/chat` accepts a `caption` field and appends it to the last
+  // turn; the caption is also `Message.text`, which `toTurns` has already put
+  // in that same turn. Sending both would put the sentence in the prompt twice
+  // — the identical mistake the images rule exists to prevent, one field over.
+  const lastTurn = JSON.stringify(chat?.messages?.[chat.messages.length - 1] ?? {});
+  ok(
+    "the caption is in the TURN, where toTurns already put it",
+    lastTurn.includes("ye padh lena"),
+    lastTurn.slice(0, 220),
+  );
+  ok(
+    "…and the files are named there too, so she still has them in three months",
+    /they sent 2 files/.test(lastTurn) && lastTurn.includes("notes.md"),
+    lastTurn.slice(0, 260),
+  );
+  ok(
+    "…and it is NOT repeated at the top level",
+    chat?.caption === undefined,
+    "the server appends `caption` to the last turn, which is the same turn " +
+      "toTurns already wrote it into: two copies of one sentence",
+  );
+  ok(
+    "…and NO images were passed through the seam",
+    chat?.images === undefined,
+    "pictures ride the thread; passing them here too doubles them in the prompt",
+  );
+
+  // THE SERVER'S OWN READER, over exactly what the page sent. This is the
+  // join: everything above proves the client produced a shape, and this proves
+  // the shape is the one api/_docs.js accepts and can read.
+  const norm = normalizeDocs(chat?.docs ?? []);
+  ok("the server accepts what was sent", norm.ok === true, JSON.stringify(norm).slice(0, 160));
+  ok("…and extracts BOTH", norm.stats.extracted === 2, JSON.stringify(norm.stats));
+  ok("…the text file's words", norm.blocks[0].includes("the roof leaked"));
+  ok(
+    "…and the PDF's",
+    norm.blocks[1].includes("rent agreement"),
+    norm.blocks[1].slice(0, 140),
+  );
+
+  // ── WHAT SURVIVES ──
+  const stored = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("meera.state.v1") || "{}");
+    return (s.messages || []).filter((m) => m.docs?.length).pop();
+  });
+  ok("the message persisted with its documents", stored?.docs?.length === 2, JSON.stringify(stored?.docs));
+  ok("…name, mime and size", stored?.docs?.every((d) => d.name && typeof d.size === "number"));
+  ok(
+    "…and NOT one byte of the files themselves",
+    JSON.stringify(stored?.docs ?? []).length < 400 &&
+      !JSON.stringify(stored ?? {}).includes("data:application/pdf"),
+    `${JSON.stringify(stored?.docs ?? []).length} chars — a 2 MB PDF in localStorage is ` +
+      `saveState's whole degradation ladder fired by one attachment`,
+  );
+  await ctx.close();
+}
+
+// ════ 9. ONE MESSAGE, PICTURES AND FILES TOGETHER, IN DARK ════════════════
+{
+  console.log("\n── 9. both at once ──");
+  const { page, ctx, posted } = await open({ theme: "dark" });
+  await pick(page, 2);
+  await page.waitForFunction(() => document.querySelectorAll(".tray-thumb").length === 2, null, {
+    timeout: 12_000,
+  });
+  await pickDocs(page, [docPaths.pdf]);
+  await page.waitForFunction(() => document.querySelectorAll(".tray-doc").length === 1, null, {
+    timeout: 10_000,
+  });
+  await sleep(400);
+  await shot(page, "19-tray-mixed-dark");
+  ok(
+    "the count line names both rather than counting one",
+    (await page.textContent(".tray-count"))?.replace(/\s+/g, " ").trim() === "2 photos, 1 file",
+    String(await page.textContent(".tray-count")),
+  );
+  ok("both kinds sit in the same tray", (await page.locator(".tray-thumb").count()) === 2 &&
+    (await page.locator(".tray-doc").count()) === 1);
+
+  await page.fill(".chat-input textarea", "ghar ke papers");
+  await page.click('[data-tel="chat.send"]');
+  try {
+    await page.waitForSelector(".msg.me.photo .docchip", { timeout: 10_000 });
+  } catch {
+    dead("a mixed picture-and-document message never rendered");
+  }
+  await sleep(800);
+  await shot(page, "20-mixed-sent-dark");
+  const mixed = await page.evaluate(() => {
+    const mine = [...document.querySelectorAll(".chat-scroll .msg.me")];
+    const b = mine[mine.length - 1];
+    const g = b.querySelector(".pgrid");
+    const chip = b.querySelector(".docchip");
+    const cap = b.querySelector(".cap");
+    return {
+      mine: mine.length,
+      shape: g?.getAttribute("data-shape"),
+      chips: b.querySelectorAll(".docchip").length,
+      capBelowChip: chip && cap ? cap.getBoundingClientRect().top >= chip.getBoundingClientRect().bottom - 1 : false,
+      cap: cap?.textContent,
+    };
+  });
+  ok("ONE message carries both", mixed.mine === 1 && mixed.shape === "two" && mixed.chips === 1, JSON.stringify(mixed));
+  ok("…the caption sits under everything", mixed.capBelowChip, JSON.stringify(mixed));
+  ok("…and is the sentence typed", mixed.cap === "ghar ke papers");
+
+  // ── THE INK, MEASURED, IN BOTH THEMES ──
+  //
+  // A chip inside a PHOTO bubble is on a white card in the light theme and a
+  // dark one in dark, while a chip in his ordinary bubble is on rose in both.
+  // A `.msg.me` rule reaches all three, and for one build of composer.css it
+  // did: `--bubble-me-ink` (white) painted onto the white card, which is a
+  // filename nobody can read. Ratios rather than eyes, because this is exactly
+  // the failure a screenshot review slides past.
+  const inkOf = async (p) =>
+    p.evaluate(() => {
+      const lum = (c) => {
+        const [r, g, b] = c.match(/\d+(\.\d+)?/g).slice(0, 3).map((n) => {
+          const v = Number(n) / 255;
+          return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      // the chip paints over the bubble, so the real ground is the composite
+      const chip = document.querySelector(".msg.me .docchip");
+      const name = chip.querySelector(".docchip-name");
+      let bgEl = chip;
+      let bg = getComputedStyle(chip).backgroundColor;
+      while (bgEl && /rgba\(0, 0, 0, 0\)|transparent/.test(bg)) {
+        bgEl = bgEl.parentElement;
+        bg = getComputedStyle(bgEl).backgroundColor;
+      }
+      // an alpha fill composites onto its parent; resolve that before measuring
+      const a = Number((bg.match(/rgba?\([^)]*?([\d.]+)\)/) || [])[1] ?? 1);
+      let ground = bg;
+      if (a < 1) {
+        let p = bgEl.parentElement;
+        let under = getComputedStyle(p).backgroundColor;
+        while (p && /rgba\(0, 0, 0, 0\)/.test(under)) {
+          p = p.parentElement;
+          under = getComputedStyle(p).backgroundColor;
+        }
+        const mix = (i) => {
+          const f = Number(bg.match(/\d+(\.\d+)?/g)[i]);
+          const u = Number(under.match(/\d+(\.\d+)?/g)[i]);
+          return f * a + u * (1 - a);
+        };
+        ground = `rgb(${mix(0)}, ${mix(1)}, ${mix(2)})`;
+      }
+      const [hi, lo] = [lum(getComputedStyle(name).color), lum(ground)].sort((x, y) => y - x);
+      return { ratio: (hi + 0.05) / (lo + 0.05), ink: getComputedStyle(name).color, ground };
+    });
+  const darkInk = await inkOf(page);
+  ok(
+    "the filename is readable on a photo bubble in DARK",
+    darkInk.ratio >= 4.5,
+    `${darkInk.ratio.toFixed(2)}:1 — ${darkInk.ink} on ${darkInk.ground}`,
+  );
+
+  const chat = await waitForPosted(
+    posted,
+    isDocRequest,
+    20_000,
+    "a mixed picture-and-document send never put `docs` on the wire",
+  );
+  ok("the file went through the seam", chat?.docs?.length === 1);
+  ok(
+    "…and the pictures did NOT",
+    chat?.images === undefined,
+    "they are already in the thread as image_url parts; sending them here as " +
+      "well is the same picture twice in one prompt",
+  );
+
+  // ── SINGLE CONSUMPTION, END TO END ──
+  //
+  // The browser half of the offline take-once assertions, and the one that
+  // would catch a wiring mistake the pure tests cannot see: a box that is
+  // filled correctly and then never emptied, or emptied by the wrong pass.
+  // He sends a plain text message right after, which starts a whole new reply
+  // cycle on a thread whose history still contains the document message. That
+  // cycle must carry NO docs.
+  const docReqsBefore = posted.filter(isDocRequest).length;
+  const chatReqsBefore = posted.filter((b) => b.op === "chat").length;
+  await page.fill(".chat-input textarea", "aur ek baat");
+  await page.click('[data-tel="chat.send"]');
+  await page.waitForFunction(
+    (n) => document.querySelectorAll(".chat-scroll .msg.me").length > n,
+    mixed.mine,
+    { timeout: 10_000 },
+  );
+  // wait for the NEXT reply pass to actually happen rather than sleeping and
+  // hoping: an assertion that nothing was sent is worthless if nothing ran
+  await waitForPosted(
+    posted,
+    (b, i, arr) => b.op === "chat" && arr.filter((x) => x.op === "chat").length > chatReqsBefore,
+    20_000,
+    "the follow-up text message never produced a reply pass, so the " +
+      "single-consumption assertion below would have been measuring silence",
+  );
+  ok(
+    "A SECOND PASS SENDS NO DOCS",
+    posted.filter(isDocRequest).length === docReqsBefore,
+    `${posted.filter(isDocRequest).length} doc-bearing requests, expected ${docReqsBefore}. ` +
+      `The same file reaching her twice is her reacting to it twice.`,
+  );
+  ok(
+    "…and a pass really did run",
+    posted.filter((b) => b.op === "chat").length > chatReqsBefore,
+    "the assertion above must be about a pass that happened, not about silence",
+  );
+  await ctx.close();
+}
+
+// ════ 10. THE SAME MESSAGE, IN LIGHT ══════════════════════════════════════
+//
+// The theme that had the bug. `.msg.me` reaches the photo bubble too, and the
+// photo bubble is a WHITE card in this theme, so a rule written for the rose
+// bubble painted white on white here and nowhere else.
+{
+  console.log("\n── 10. the same message, in light ──");
+  const { page, ctx } = await open({ theme: "light" });
+  await pick(page, 2);
+  await page.waitForFunction(() => document.querySelectorAll(".tray-thumb").length === 2, null, {
+    timeout: 12_000,
+  });
+  await pickDocs(page, [docPaths.pdf]);
+  await page.waitForFunction(() => document.querySelectorAll(".tray-doc").length === 1, null, {
+    timeout: 10_000,
+  });
+  await page.fill(".chat-input textarea", "ghar ke papers");
+  await page.click('[data-tel="chat.send"]');
+  try {
+    await page.waitForSelector(".msg.me.photo .docchip", { timeout: 10_000 });
+  } catch {
+    dead("the mixed message never rendered in the light theme");
+  }
+  await sleep(800);
+  await shot(page, "21-mixed-sent-light");
+  const light = await page.evaluate(() => {
+    const lum = (c) => {
+      const [r, g, b] = c.match(/\d+(\.\d+)?/g).slice(0, 3).map((n) => {
+        const v = Number(n) / 255;
+        return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const chip = document.querySelector(".msg.me.photo .docchip");
+    const name = chip.querySelector(".docchip-name");
+    const ext = chip.querySelector(".docchip-ext");
+    const ground = getComputedStyle(chip).backgroundColor;
+    const ratio = (a, b) => {
+      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    return {
+      name: ratio(getComputedStyle(name).color, ground),
+      ext: ratio(getComputedStyle(ext).color, getComputedStyle(ext).backgroundColor),
+      ink: getComputedStyle(name).color,
+      ground,
+    };
+  });
+  ok(
+    "the filename is readable on a photo bubble in LIGHT",
+    light.name >= 4.5,
+    `${light.name.toFixed(2)}:1 — ${light.ink} on ${light.ground}. This is the ` +
+      `white-on-white case: a .msg.me rule written for the rose bubble also ` +
+      `reaches the white photo card.`,
+  );
+  ok(
+    "…and so is the format badge",
+    light.ext >= 4.5,
+    `${light.ext.toFixed(2)}:1`,
+  );
+
+  // and a document-ONLY bubble in light, which is the rose one
+  await pickDocs(page, [docPaths.md]);
+  await page.waitForFunction(() => document.querySelectorAll(".tray-doc").length === 1, null, {
+    timeout: 10_000,
+  });
+  await page.click('[data-tel="chat.send"]');
+  await page.waitForSelector(".msg.me:not(.photo) .docchip", { timeout: 10_000 });
+  await sleep(700);
+  await shot(page, "22-document-only-light");
+  const rose = await page.evaluate(() => {
+    const lum = (c) => {
+      const [r, g, b] = c.match(/\d+(\.\d+)?/g).slice(0, 3).map((n) => {
+        const v = Number(n) / 255;
+        return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const b = document.querySelector(".msg.me:not(.photo).hasdocs");
+    const name = b.querySelector(".docchip-name");
+    // the chip fill is a white alpha over the rose bubble: composite it
+    const chip = b.querySelector(".docchip");
+    const f = getComputedStyle(chip).backgroundColor.match(/\d+(\.\d+)?/g).map(Number);
+    const u = getComputedStyle(b).backgroundColor.match(/\d+(\.\d+)?/g).map(Number);
+    const a = f[3] ?? 1;
+    const ground = `rgb(${f[0] * a + u[0] * (1 - a)}, ${f[1] * a + u[1] * (1 - a)}, ${f[2] * a + u[2] * (1 - a)})`;
+    const [hi, lo] = [lum(getComputedStyle(name).color), lum(ground)].sort((x, y) => y - x);
+    // the badge sits on the chip, so ITS ground is the chip's composite plus
+    // its own fill: two alphas deep, and both of them have to be resolved or
+    // the number is about a colour nothing paints
+    const ext = b.querySelector(".docchip-ext");
+    const ef = getComputedStyle(ext).backgroundColor.match(/\d+(\.\d+)?/g).map(Number);
+    const ea = ef[3] ?? 1;
+    const gnums = ground.match(/\d+(\.\d+)?/g).map(Number);
+    const extBg = `rgb(${ef[0] * ea + gnums[0] * (1 - ea)}, ${ef[1] * ea + gnums[1] * (1 - ea)}, ${ef[2] * ea + gnums[2] * (1 - ea)})`;
+    const [ehi, elo] = [lum(getComputedStyle(ext).color), lum(extBg)].sort((x, y) => y - x);
+    return {
+      ratio: (hi + 0.05) / (lo + 0.05),
+      ink: getComputedStyle(name).color,
+      ground,
+      ext: (ehi + 0.05) / (elo + 0.05),
+      extInk: getComputedStyle(ext).color,
+      extBg,
+    };
+  });
+  ok(
+    "a document-only bubble is his ROSE one, and readable on it",
+    rose.ratio >= 4.5,
+    `${rose.ratio.toFixed(2)}:1 — ${rose.ink} on ${rose.ground}`,
+  );
+  ok(
+    "…and its format badge is readable too",
+    rose.ext >= 4.5,
+    `${rose.ext.toFixed(2)}:1 — ${rose.extInk} on ${rose.extBg}. Eleven-pixel ` +
+      `bold type is small TEXT, so it takes the 4.5 floor, not the 3.0 one a ` +
+      `glyph gets.`,
+  );
   await ctx.close();
 }
 

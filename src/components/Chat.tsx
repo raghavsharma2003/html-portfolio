@@ -59,13 +59,25 @@ import ComposeTray from "./ComposeTray";
 import PhotoViewer from "./PhotoViewer";
 import {
   MAX_ATTACHMENTS,
+  MAX_DOCS,
+  DOC_ACCEPT,
   addAttachments,
+  addDocs,
+  buildDocPayload,
   buildImagePayload,
   compressImage,
+  docRefs,
+  holdDocs,
   imagesOf,
+  packDoc,
   removeAttachment,
+  removeDoc,
+  restoreDocs,
+  takeDocs,
   transcriptLine,
   type Attachment,
+  type DocAttachment,
+  type DocHold,
 } from "./attachments";
 import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import {
@@ -1675,6 +1687,27 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       delivering.current = false;
       busy.current = true; // deliver() clears it; this think is still running
     };
+    // ── THE DOCUMENTS THIS PASS OWES HER ────────────────────────────────────
+    //
+    // THE ONE CALLER of `think`'s `attachments` seam, and the reason it is a
+    // take-once box rather than a value read off state:
+    //
+    //   * TAKEN BEFORE THE CALL, so a pass that starts while this one is in
+    //     flight cannot take the same documents and hand her the same PDF
+    //     twice inside one turn.
+    //   * PUT BACK WHEN THIS PASS IS SUPERSEDED, so the pass that actually
+    //     delivers is the one that carries them. Without this, attaching a file
+    //     and then typing a second line before she answers would throw the file
+    //     away: the first pass would consume it and then be discarded unread.
+    //   * DROPPED on an epoch change, because an epoch change is the
+    //     conversation being torn down and a document belongs to the
+    //     conversation it was sent to.
+    //
+    // PICTURES ARE DELIBERATELY NOT HERE. They ride the thread — `toTurns`
+    // rebuilds them out of `photoUrls` on every turn — so passing them again
+    // would put the same picture in the prompt twice. attachments.ts and
+    // brain.ts's seam comment both state the split; this is where it is obeyed.
+    const turnDocs = takeDocs(docHold);
     const reply = await think(
       user,
       brainKeys(),
@@ -1687,6 +1720,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       undefined,
       undefined,
       holdingDeliver,
+      turnDocs ? { docs: turnDocs } : undefined,
     );
     if (ep !== epoch.current) return false; // chat was cleared mid-think
     if (seq !== chatSeq.current) {
@@ -1695,6 +1729,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       // round — through the burst clock, because he may well still be typing.
       // Nothing is released here and nothing needs to be: the flags belong to
       // replyCycle's `finally`.
+      //
+      // The documents go back in the box: this pass never reached him, so they
+      // have not been delivered and the next pass is the one that owes them.
+      // `restoreDocs` refuses to overwrite a NEWER send's documents, which is
+      // the case where he attached something else while she was thinking.
+      restoreDocs(docHold, turnDocs);
       return true;
     }
     mergeLearned(reply.learned);
@@ -1797,18 +1837,29 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     setTyping(false);
     setReplyTo(null);
     setReplySel(null);
-    // The staged pictures go too, and the viewer over them closes.
+    // The staged pictures and documents go too, the viewer over them closes,
+    // and the documents parked for the next reply pass are dropped unsent.
     //
-    // They are DRAFT state and live only in this component (see the tray's own
-    // note by `attachments` above), so evals/teardown.mjs's FATE walker cannot
-    // see them — which is exactly the shape of the reachability gap that file's
-    // §6 exists for. The verdict is the same one every draft gets: a picture
-    // staged for a conversation that no longer exists belongs to that
-    // conversation, and a viewer left open over a wiped thread is the wiped
-    // thread still on screen. Cleared on BOTH doors, because clear-chat's
-    // promise is about her memory of him and never about his own half-written
-    // message.
+    // All four are DRAFT state living only in this component (see the tray's
+    // own note by `attachments` above), so evals/teardown.mjs's FATE walker
+    // cannot see them — which is exactly the shape of the reachability gap that
+    // file's §6 exists for. The verdict is the same one every draft gets, and
+    // it is `clear+forget`: a picture staged for a conversation that no longer
+    // exists belongs to that conversation, and a viewer left open over a wiped
+    // thread is the wiped thread still on screen. Cleared on BOTH doors,
+    // because clear-chat's promise is about her memory of him and never about
+    // his own half-written message.
+    //
+    // `docHold` is the one that would have been missed, and it is the worst of
+    // the four: it holds the TEXT of a document, it is a ref rather than state
+    // so nothing about a re-render disturbs it, and a survivor would be handed
+    // to the very first reply of the conversation that begins by not knowing
+    // him. The epoch bump above already stops the in-flight pass from
+    // delivering, but a parked payload outlives an epoch on its own — nothing
+    // reads the epoch when taking it.
     setAttachments([]);
+    setDocs([]);
+    docHold.current = null;
     setSourceOpen(false);
     setViewer(null);
     // clearedAt is the synced tombstone: other devices honor it instead of
@@ -1971,7 +2022,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     // PICTURES FIRST. When the tray holds anything, this send is that message
     // and the box is its caption — including an empty one, which is the
     // ordinary case of sending a photo with nothing to say about it.
-    if (attachments.length) {
+    if (attachments.length || docs.length) {
       void sendAttachments();
       return;
     }
@@ -2052,7 +2103,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     scheduleReply(text);
   }
 
-  // ══ SENDING HER PICTURES ═══════════════════════════════════════════════
+  // ══ SENDING HER PICTURES AND DOCUMENTS ═════════════════════════════════
   //
   // ── what changed, and why ────────────────────────────────────────────────
   //
@@ -2065,19 +2116,35 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   //
   // So picking no longer sends. A picked picture lands in the TRAY, the
   // composer's own text box becomes its caption field, and ONE send puts up to
-  // five pictures and one caption into one message. The source question is
-  // asked first, as a sheet, because it has two answers.
+  // five pictures, three documents and one caption into one message. The source
+  // question is asked first, as a sheet, because it has three answers.
+  //
+  // ── THE TWO ROUTES, AND WHY THEY ARE DIFFERENT ───────────────────────────
+  //
+  // PICTURES are uploaded, stored on the message, and reach her through the
+  // THREAD: `brain.ts`'s `toTurns` rebuilds them as `image_url` parts out of
+  // `photoUrls` on every turn for the next six messages. DOCUMENTS are never
+  // uploaded and never stored, so `toTurns` has nothing to rebuild and the one
+  // turn they are sent on is their only chance — they go through `think`'s
+  // `attachments` parameter instead.
+  //
+  // Sending pictures through BOTH would put the same picture in the prompt
+  // twice on the turn it was sent. The rule is written out once in
+  // `attachments.ts` and once in `brain.ts`'s seam comment; this is the caller
+  // that has to obey it.
   //
   // ── WHERE THE RULES LIVE ─────────────────────────────────────────────────
   //
-  // Not here. `components/attachments.ts` owns the cap, the byte rail, the
-  // collage arrangement, the wire shape and the compressor, because every one
-  // of those is pure and this file is three thousand lines of React that no
-  // test can reach. This function is the wiring between that module, the DOM
-  // and her reply cycle, and it should stay that thin.
+  // Not here. `components/attachments.ts` owns the caps, the byte rails, the
+  // collage arrangement, the wire shapes, the compressor and the take-once box,
+  // because every one of those is pure and this file is three thousand lines of
+  // React that no test can reach. This function is the wiring between that
+  // module, the DOM and her reply cycle, and it should stay that thin.
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
+  const docRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [docs, setDocs] = useState<DocAttachment[]>([]);
   const [sourceOpen, setSourceOpen] = useState(false);
   // one beat of "that one did not fit", cleared by its own timer
   const [refused, setRefused] = useState(false);
@@ -2086,12 +2153,61 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   const [viewer, setViewer] = useState<{ urls: string[]; start: number; caption: string } | null>(
     null,
   );
+  /**
+   * THE DOCUMENTS THAT ONE REPLY PASS OWES HER.
+   *
+   * A ref rather than state on purpose: this must not cause a render, and more
+   * importantly it must be readable and writable SYNCHRONOUSLY inside the reply
+   * chain, where a state value would be a stale snapshot from whenever the pass
+   * closed over it. See `attachments.ts`'s note on the take-once box for why
+   * "take before the call, put back if superseded" is the shape.
+   */
+  const docHold = useRef<DocHold>({ current: null }).current;
+  /** How many more of each this message can still take. */
+  const roomImages = MAX_ATTACHMENTS - attachments.length;
+  const roomDocs = MAX_DOCS - docs.length;
   useEffect(
     () => () => {
       if (refuseTimer.current) clearTimeout(refuseTimer.current);
     },
     [],
   );
+
+  /** The refusal, felt and seen, never modal. One place, three callers. */
+  function refuse() {
+    // `tap()` is the quietest thing the hardware can do and this is the one
+    // place in the feature where the app says no; the count line above the tray
+    // carries the same answer in words, and nudges so that the eye finds it.
+    tap();
+    setRefused(true);
+    if (refuseTimer.current) clearTimeout(refuseTimer.current);
+    refuseTimer.current = setTimeout(() => setRefused(false), 700);
+  }
+
+  /**
+   * Documents arriving from the file picker.
+   *
+   * `packDoc` decides per file whether the client can read the text itself (a
+   * .txt, a .csv) or whether the bytes have to go up for `api/_docs.js` to
+   * extract (a PDF). Everything past that is the same partial-accept cap the
+   * pictures get.
+   */
+  async function takeDocFiles(files: File[]) {
+    if (!files.length) return;
+    const packed = await Promise.all(files.map((f) => packDoc(f)));
+    const fresh = packed.filter((d): d is DocAttachment => Boolean(d));
+    if (!fresh.length) {
+      showNotice("couldn't read that file. try a pdf, text, csv or json");
+      return;
+    }
+    const res = addDocs(docs, fresh);
+    setDocs(res.next);
+    if (res.accepted) tel("chat.attach_add", { source: "document", n: res.accepted, total: res.next.length });
+    if (res.refused) {
+      refuse();
+      tel("chat.attach_refused", { source: "document", n: res.refused, why: res.reason ?? "" });
+    }
+  }
 
   /**
    * Pictures arriving from either source.
@@ -2119,38 +2235,52 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     setAttachments(res.next);
     if (res.accepted) tel("chat.attach_add", { source, n: res.accepted, total: res.next.length });
     if (res.refused) {
-      // THE CAP, FELT AND SEEN, NEVER MODAL. `tap()` is the quietest thing the
-      // hardware can do and this is the one place in the feature where the app
-      // says no; the count line above the tray carries the same answer in
-      // words, and nudges so that the eye finds it.
-      tap();
-      setRefused(true);
-      if (refuseTimer.current) clearTimeout(refuseTimer.current);
-      refuseTimer.current = setTimeout(() => setRefused(false), 700);
+      refuse();
       tel("chat.attach_refused", { source, n: res.refused, why: res.reason ?? "" });
     }
   }
 
-  /** The tray, sent: one message, its pictures, and the caption under them. */
+  /**
+   * The tray, sent: ONE message carrying its pictures, its documents and the
+   * caption under both.
+   *
+   * The caption belongs to the whole send, not to one half of it. A person who
+   * attaches a photo and a PDF and types one line has said that line about the
+   * pair, and splitting it into two messages would be the app deciding which of
+   * them he meant.
+   */
   async function sendAttachments() {
     const atts = attachments;
-    if (!atts.length) return;
+    const dcs = docs;
+    if (!atts.length && !dcs.length) return;
     const caption = draft.trim();
     const payload = buildImagePayload(atts, caption);
+    const docPayload = buildDocPayload(dcs);
     setAttachments([]);
+    setDocs([]);
     setDraft("");
     // the box is empty again: the composing hold has nothing left to hold on
     draftRef.current = "";
+    const hasImages = payload.images.length > 0;
     const mine: Message = {
       id: uid(),
       from: "me",
-      kind: "photo",
+      // A DOCUMENT DOES NOT GET ITS OWN `kind`. See MessageRow.tsx: nine
+      // readers across six files switch on this field, and a value none of them
+      // handle renders as an empty bubble in whichever one was missed. A send
+      // with pictures is a photo message that happens to carry files; a send
+      // with only files is a text message that does, and `docs` is what both
+      // of them read.
+      kind: hasImages ? "photo" : "text",
       text: caption,
       // instant local render; both swapped for storage URLs once they land.
       // `photoUrl` is written even for a set, because every reader that
       // predates this feature knows only that field (see store.ts).
-      photoUrl: payload.images[0],
+      ...(hasImages ? { photoUrl: payload.images[0] } : {}),
       ...(payload.images.length > 1 ? { photoUrls: payload.images } : {}),
+      // METADATA ONLY. The bytes are on their way to the model and are never
+      // written to disk — store.ts states the whole argument beside the field.
+      ...(dcs.length ? { docs: docRefs(dcs) } : {}),
       at: Date.now(),
       status: "sent",
       ...(replyTo ? { replyTo: { from: replyTo.from, text: replyTo.text } } : {}),
@@ -2164,31 +2294,57 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     if (caption) composer.send(mine.id, caption);
     tel("chat.send", {
       msg_id: mine.id,
-      kind: "photo",
+      kind: mine.kind,
       chars: caption.length,
       n: payload.images.length,
+      docs: docPayload.length,
     });
     tel("chat.media", {
-      kind: "photo",
+      kind: hasImages ? "photo" : "doc",
       msg_id: mine.id,
       from: "me",
       n: payload.images.length,
+      docs: docPayload.length,
       bytes: atts.reduce((sum, a) => sum + a.b64.length, 0),
+      doc_bytes: dcs.reduce((sum, d) => sum + d.size, 0),
     });
-    track(
-      state.deviceId,
-      "photo_shared",
-      { caption: Boolean(caption), n: payload.images.length },
-      state.auth?.userId,
-    );
+    if (hasImages) {
+      track(
+        state.deviceId,
+        "photo_shared",
+        { caption: Boolean(caption), n: payload.images.length },
+        state.auth?.userId,
+      );
+    }
+    if (docPayload.length) {
+      track(
+        state.deviceId,
+        "doc_shared",
+        { caption: Boolean(caption), n: docPayload.length },
+        state.auth?.userId,
+      );
+    }
     setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
+    // WHAT SHE STILL HAS IN THREE MONTHS. The pictures leave the vision window
+    // after six messages and the document text is never stored at all, so this
+    // line is the whole of the long-term record: "[2 photos] [file lease.pdf]
+    // ye dekh". Same shape the single-photo path has always written.
     logTurns(state.deviceId, [
-      { ...mine, text: transcriptLine(payload.images.length, caption) },
+      {
+        ...mine,
+        text: transcriptLine(payload.images.length, caption, dcs.map((d) => d.name)),
+      },
     ]);
+    // THE DOCUMENTS THIS TURN OWES HER, parked for exactly one reply pass.
+    // Set BEFORE `scheduleReply` so the pass that wakes cannot start without
+    // them, and taken there rather than passed down through the burst timer,
+    // which is a clock and has no business carrying a payload.
+    holdDocs(docHold, docPayload);
     // the pictures join the same burst pipeline as text — she sees them (vision
     // reads the local data URLs until the storage upload lands) and can fold
     // them into one reply with whatever else you're sending
     scheduleReply(caption);
+    if (!hasImages) return; // nothing to upload: documents are never stored
     // background: permanent copies in storage (they survive devices) + one
     // factual line per picture for her long-term context, which is what she
     // still has months later when the vision window is long past them
@@ -2899,7 +3055,11 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   // with an empty box — the alternative is a tray full of photos above a
   // microphone, which offers the one thing the composer cannot currently do.
   const sendMode: "send" | "mic" | "off" =
-    draft.trim() || attachments.length ? "send" : sttSupported() ? "mic" : "off";
+    draft.trim() || attachments.length || docs.length
+      ? "send"
+      : sttSupported()
+        ? "mic"
+        : "off";
 
   // THE THREAD'S OWN SKY. Presentation only: it feeds the wallpaper under the
   // thread and the band behind the header, and nothing downstream of it can
@@ -3108,7 +3268,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       )}
       {sourceOpen && (
         <SourceSheet
-          room={MAX_ATTACHMENTS - attachments.length}
+          room={roomImages}
+          docRoom={roomDocs}
           onCamera={() => {
             setSourceOpen(false);
             // after the sheet's own exit beat, or the file dialog opens
@@ -3118,6 +3279,10 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
           onGallery={() => {
             setSourceOpen(false);
             setTimeout(() => galleryRef.current?.click(), 60);
+          }}
+          onDocument={() => {
+            setSourceOpen(false);
+            setTimeout(() => docRef.current?.click(), 60);
           }}
           onClose={() => setSourceOpen(false)}
         />
@@ -3158,9 +3323,14 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
           the thing I am writing". */}
       <ComposeTray
         items={attachments}
+        docs={docs}
         refused={refused}
         onRemove={(id) => {
           setAttachments((cur) => removeAttachment(cur, id));
+          tap();
+        }}
+        onRemoveDoc={(id) => {
+          setDocs((cur) => removeDoc(cur, id));
           tap();
         }}
         onAddMore={() => setSourceOpen(true)}
@@ -3207,17 +3377,16 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
               onClick={() => {
                 // AT THE CAP THE BUTTON STILL WORKS, and says why. Going inert
                 // would be the dead-option rule broken on the one control whose
-                // whole job is to explain what is possible.
-                if (attachments.length >= MAX_ATTACHMENTS) {
-                  tap();
-                  setRefused(true);
-                  if (refuseTimer.current) clearTimeout(refuseTimer.current);
-                  refuseTimer.current = setTimeout(() => setRefused(false), 700);
+                // whole job is to explain what is possible. The sheet opens
+                // while EITHER kind has room and shows only the rows that can
+                // do something; it is refused only when nothing at all fits.
+                if (roomImages <= 0 && roomDocs <= 0) {
+                  refuse();
                   return;
                 }
                 setSourceOpen(true);
               }}
-              aria-label="Send a photo"
+              aria-label="Attach a photo or a file"
             >
               <CameraIcon size={21} />
             </button>
@@ -3259,6 +3428,22 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
                 e.target.value = "";
               }}
             />
+            {/* DOCUMENTS. The `accept` list is the same one `packDoc` knows how
+                to handle, shared from attachments.ts rather than written twice:
+                a picker that offers a format the packer drops is a file dialog
+                that answers with a notice. `multiple` because three are
+                allowed and picking them one at a time is three trips. */}
+            <input
+              ref={docRef}
+              type="file"
+              accept={DOC_ACCEPT}
+              multiple
+              hidden
+              onChange={(e) => {
+                void takeDocFiles(Array.from(e.target.files ?? []));
+                e.target.value = "";
+              }}
+            />
             <textarea
               ref={inputRef}
               rows={1}
@@ -3267,7 +3452,9 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
               // composer into that picture's caption field, and a placeholder
               // still reading "Message Maya" would be describing the control it
               // was a second ago.
-              placeholder={attachments.length ? "Add a caption…" : `Message ${HER_NAME}…`}
+              placeholder={
+                attachments.length || docs.length ? "Add a caption…" : `Message ${HER_NAME}…`
+              }
               value={draft}
               onChange={(e) => {
                 // value only, never the caret: reading selectionStart here

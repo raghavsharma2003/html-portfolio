@@ -74,6 +74,29 @@ const suites = {
   wyr: "wyr.mjs",
   // WS-GAMES: tic-tac-toe — exhaustive legality + bounded imperfection.
   ttt: "ttt.mjs",
+  // WS-TTT. CHESS PARITY for tic-tac-toe, which is a different question from
+  // the one `ttt.mjs` answers: that suite proves she plays the game legally
+  // and imperfectly, and this one proves the REST OF THE PRODUCT reaches it.
+  //
+  //   "tic tac also has so many issues she dont know whats up, dont talk
+  //    clearly and intresting about it, memory issue also, and many other
+  //    which chess also had."
+  //
+  // Chess got a correction ladder over two waves; ttt rode the same generic
+  // seams the whole time and was reached by almost none of them. That is
+  // `dead-writers` in its purest form — every seam "supported" ttt, so nothing
+  // read as missing — which is why this battery asserts against COMPILED
+  // PROMPTS and real played-out games rather than against the adapter: the
+  // board state and its two-in-a-rows reaching a compile, a real game walked
+  // turn by turn through the think table and the staleness seam, the lifecycle
+  // facts saying "tic tac toe" instead of the union key she would read aloud,
+  // the episode writer firing with a ttt-shaped record, the early-end
+  // distinction that was chess-only, and nine negative controls that each
+  // re-run a claim against the input that should break it.
+  //
+  // Hermetic (pinned clock and TZ, no ambient config), offline, deterministic,
+  // $0, ~5s. Re-bundles from the real source on every run.
+  tttparity: "ttt/parity.mjs",
   // WS-MOVEVOICE: her hand and her mouth on ONE timeline. The owner played
   // chess on a call, she moved milliseconds after him, and then her voice said
   // she SHOULD play the move already on the board. Gates the three halves of

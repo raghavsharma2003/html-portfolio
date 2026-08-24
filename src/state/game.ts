@@ -49,6 +49,15 @@ export interface TttSession {
   herSide: Mark;
   startedAt: number;
   closedAt?: number;
+  /**
+   * Set when HE ended the game before it reached a result. Identical field,
+   * identical meaning and identical reason to `ChessSession.endedEarly`: the
+   * two endings are different facts, and conflating them has her gloating over
+   * a game nobody won. It was chess-only, so a tic-tac-toe board put away
+   * mid-game rendered `over: true` above a live `it is his move` — one block
+   * contradicting itself on the lane she speaks from.
+   */
+  endedEarly?: true;
   /** last move/answer commit — the staleness clock for open sessions */
   touchedAt?: number;
   /** lifetime tally written for this session — the reconciler's idempotence */
@@ -151,7 +160,12 @@ export function activityOf(s: GameSession | null | undefined, nowMs?: number): A
       s.kind === "wyr"
         ? wyrActivity(s)
         : s.kind === "ttt"
-          ? tttActivity(s.game, s.herSide, s.closedAt)
+          ? // `endedEarly` reaches BOTH board adapters — it was chess-only, and
+            // the asymmetry was not a decision: a ttt board put away mid-game
+            // kept rendering "it is his move" under a heading saying the game
+            // had just finished, and its permanent record said "left
+            // unfinished" with nobody named as having left it.
+            tttActivity(s.game, s.herSide, s.closedAt, Boolean(s.endedEarly))
           : // `endedEarly` reaches the adapter here and only here: the SESSION
             // owns the difference between "no result yet" and "he stopped
             // playing", and `record`'s ending row is the one place that
@@ -165,12 +179,21 @@ export function activityOf(s: GameSession | null | undefined, nowMs?: number): A
           // state what actually happened — no result, nobody won. HEAD fact,
           // because renderActivity drops from the END and this is the row
           // that stops her inventing a winner.
+          //
+          // CHESS ONLY, and that is now a decision rather than the omission it
+          // was. `chessActivity` does not know the session's `endedEarly` when
+          // it builds `facts` (it takes it for the RECORD alone), so this
+          // rewrite is where the chess block learns about it. `tttActivity`
+          // takes the same flag and emits its own head row from it — with her
+          // mark on the end, so the one row the drop policy cannot take
+          // carries it. Doing both would render the ending twice and eat the
+          // one spare row a finished ttt block has.
           ["he ended the game early, no result", ...a.facts.filter((f) => !/(her|his) move|in check/.test(f))]
         : a.facts;
     return { ...a, facts, over: true, startedAt: s.closedAt };
   }
   if (s.kind === "wyr") return wyrActivity(s);
-  if (s.kind === "ttt") return tttActivity(s.game, s.herSide, s.startedAt);
+  if (s.kind === "ttt") return tttActivity(s.game, s.herSide, s.startedAt, Boolean(s.endedEarly));
   return chessActivity(s.game, s.herSide, s.startedAt, lastAssessment(s));
 }
 
@@ -468,6 +491,87 @@ export const RECENT_END_MS = 2 * 60 * 60 * 1000;
  * because the pickup line must keep working unchanged when the next game
  * lands. Empty string when nothing is going on, which is most of the time.
  */
+// ── THE SERIES: who usually wins ──────────────────────────────────────────
+//
+// The owner's ask was for her to be INTERESTING about tic-tac-toe, and the
+// honest reading of that is structural rather than promptable: she had no
+// material. One game of noughts and crosses is nine squares and forty seconds;
+// the only thing about it worth carrying is how it sits against the last five.
+// "you've beaten me three times running" is a fact, and a fact she can be
+// funny about; "he won that one" on its own is a scoreline.
+//
+// Derived from the LEDGER rather than from a new counter, deliberately:
+// `AppState.tally` is another workstream's type and adding `tttWinsHim` there
+// would be a second store of a fact the ledger already holds, which is
+// `warm-count-unscoped` — a reader and a writer deriving the same record until
+// they disagree, invisibly. The ledger row is the SAME string that was sent to
+// the server (`ActivityRecord.summary`, one rendering, two stores), so this is
+// one store read twice.
+//
+// It parses text this repo writes, which is the hazard `STEM_DATE_RE` names
+// next door in callHistory.ts, and it takes the same precaution: the eval
+// drives a REAL finished game through `tttRecord` → `activityEpisodeSummary`
+// → this function and asserts the round trip, so the pattern is pinned against
+// the writer's actual output and never guessed at.
+
+/** A ttt ending, as `tttRecord` writes it. Anchored on "won it in", which is
+ *  that function's wording and nothing else's. */
+const TTT_WIN_RE = /\b(she|he) won it in \d+ moves?\b/;
+const TTT_DRAW_RE = /\ba draw, the board filled up\b/;
+
+export interface GameSeries {
+  /** finished games with a readable outcome */
+  games: number;
+  her: number;
+  his: number;
+  draws: number;
+}
+
+/** Minimal shape of one ledger row. Structural rather than an import of
+ *  `engine/memory`'s `ActivityRecord`, so this file keeps its one-way
+ *  dependency on the engine and an eval can hand it a literal. */
+export interface SeriesRow {
+  kind: string;
+  summary: string;
+}
+
+/**
+ * The lifetime head-to-head at one activity kind, read off the local ledger.
+ * Pure, total, and cheap: the ledger holds twenty rows at most (`MAX_ACTIVITY
+ * _RECORDS`), so this is twenty regex tests, not a scan of history.
+ */
+export function seriesOf(
+  ledger: readonly SeriesRow[] | undefined,
+  kind: string,
+): GameSeries {
+  const out: GameSeries = { games: 0, her: 0, his: 0, draws: 0 };
+  for (const r of ledger ?? []) {
+    if (!r || r.kind !== kind || typeof r.summary !== "string") continue;
+    const win = TTT_WIN_RE.exec(r.summary);
+    if (win) {
+      out.games++;
+      if (win[1] === "she") out.her++;
+      else out.his++;
+    } else if (TTT_DRAW_RE.test(r.summary)) {
+      out.games++;
+      out.draws++;
+    }
+    // An abandoned game has no outcome and is not part of a head-to-head. It
+    // stays in the ledger and out of the score, which is what a person does.
+  }
+  return out;
+}
+
+// DELIBERATELY NOT WIRED INTO THE PROMPT, and this note is the reason rather
+// than an omission. A `seriesFact` row belongs in the ONE block both lanes
+// read — `formatActivityLedger` (chat) and `formatActivityLedgerForCall`
+// (call) — and those are two functions in two files, one of which renders
+// every activity kind. Adding it to only one is the `age-tier-never-realtime`
+// fork: the lane that was not updated silently loses the row. It is also not
+// the defect: the ledger already carries the last two to three games WITH
+// their winners, which is the material "you've beaten me twice" is made of.
+// See this workstream's report for the exact shape the wiring wants.
+
 export function activityPickupLine(a: ActivityState | null | undefined): string {
   if (!a || !a.facts.length) return "";
   // LABEL is the same table the tail block renders from — one vocabulary for

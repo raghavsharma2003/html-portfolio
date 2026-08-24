@@ -115,7 +115,7 @@ import { activityNote } from "../engine/activity";
 import { chessMoveNote } from "../engine/chessTalk";
 import { wyrPickFact } from "../engine/wyrTalk";
 import { cardById } from "../engine/wyr/deck";
-import { tttMoveNote } from "../engine/tttTalk";
+import { tttMoveNote, tttNoteworthy, tttUrgent } from "../engine/tttTalk";
 import { assessMove } from "../engine/chess";
 import { innerContext, applyInner, wantsForAppraisal } from "../engine/inner";
 import {
@@ -3019,6 +3019,34 @@ export function useCallEngine(
       if (!watchSession.current && voiceOwner.current === "native") {
         claimVoice("cascade", "watch_consent_denied");
         if (alive.current && !mutedRef.current) startListening();
+        // #96 APPLIES HERE TOO, AND THIS IS THE CASE IT MISSED (WS-ONEVOICE,
+        // 2026-08-24). Nothing regressed: #96 landed correctly for both STOP
+        // paths — `stopWatchMode` and the external-stop callback each call
+        // this. It was framed as "stopping a share must not strand the call",
+        // and a DENIAL is not a stop, because the share never started. So the
+        // one path where she is downgraded for the rest of the call in
+        // exchange for NOTHING was the one path left out.
+        //
+        // The sequence: tapping share runs `claimVoice("native",
+        // "watch_started")` BEFORE the Android consent dialog — deliberately,
+        // so a queued TTS clip cannot surface as a second voice behind it —
+        // and that kills the JS live session. The dialog then appears, they
+        // hit Deny, and we land here with no live session and no share. The
+        // call finishes on the cascade, a different model family from the one
+        // it started on (docs/VOICE-LANE.md §6.4 row 8 records the identity
+        // change and nothing was wired to undo it).
+        //
+        // It is also the LIKELIEST of the three to fire: declining a
+        // permission dialog is an ordinary thing to do, and on Android the
+        // dialog appears on every single share.
+        //
+        // No share was recorded on this path — `recordShareEnd` is called only
+        // from the two stop paths and the web teardown — so there is no
+        // `share_end` lifecycle fact in flight here and nothing this can
+        // double-send. The reconnect is the seamless kind: `adoptLiveLate`
+        // connects first and defers the swap to a turn boundary, so she is
+        // never cut mid-word by a share that never happened.
+        void reconnectLiveAfterWatch();
       }
     } finally {
       watchStarting.current = false;
@@ -3957,9 +3985,20 @@ export function useCallEngine(
     const act = activityOf(stateRef.current.game);
     // over AND closed in one update — the ending never got its own poke.
     const finished = Boolean(snap?.over);
+    // A NINE-SQUARE BOARD IS LOCATED BY ITS SQUARES, not by a move number —
+    // see `boardClosedFact`. The count comes off the live session rather than
+    // being derived from the ply here, so a board that is somehow out of step
+    // with its own move list still reports what it actually holds.
+    const cur = stateRef.current.game;
+    const openSquares =
+      cur && cur.kind === "ttt"
+        ? cur.game.board.reduce((n, c) => n + (c === null ? 1 : 0), 0)
+        : prev.kind === "ttt"
+          ? Math.max(0, 9 - prev.ply)
+          : undefined;
     const fact = finished
       ? boardOverFact(prev.kind, act?.facts.join("; ") ?? "")
-      : boardClosedFact(prev.kind, prev.ply);
+      : boardClosedFact(prev.kind, prev.ply, openSquares);
     const note = activityNote(fact);
     if (!note) return;
     diag("call", "lifecycle_note", {
@@ -4116,9 +4155,21 @@ export function useCallEngine(
         // check may cross the rate floor and the breath pause — that is the
         // "something crazy happened in the chess" a person interrupts their
         // own story for. Everything else waits its turn or stays unsaid.
+        //
+        // IT WAS CHESS-ONLY, and that is the whole of the owner's *"she dont
+        // know whats up"* on a call: a tic-tac-toe game could be WON, LOST or
+        // DRAWN while she was on the line and the ending fell straight through
+        // to the rate floor, which adopts the ply silently and says nothing. A
+        // result is the one thing on any board that is always worth a word.
+        // `tttUrgent` is the ttt reading of `inCheck` — the side to move can
+        // end it on this very mark — and it lives in `tttTalk.ts` so an eval
+        // can reach the decision instead of a browser being the only witness.
         const urgent =
-          cur.kind === "chess" &&
-          Boolean(cur.game.status?.over || cur.game.status?.inCheck);
+          cur.kind === "chess"
+            ? Boolean(cur.game.status?.over || cur.game.status?.inCheck)
+            : cur.kind === "ttt"
+              ? tttUrgent(cur.game, cur.herSide)
+              : false;
         // ── the quiet floor ────────────────────────────────────────────
         // Never cut across an exchange that is actually alive. The owner
         // felt exactly this: mid-conversation she "abruptly stopped and
@@ -4175,6 +4226,18 @@ export function useCallEngine(
               : "him"
             : null;
           if (!whoLast) return;
+          // ── salience, the ttt half ──────────────────────────────────────
+          // Chess drops a quiet developing move without a word; ttt narrated
+          // EVERY completed exchange, which over a nine-mark game is her
+          // reading the board out loud one square at a time — the same
+          // robot-commentator failure `chessTalk.ts` opens by refusing, and
+          // part of "dont talk clearly and intresting about it". A ttt move
+          // earns a remark when it ended the game, blocked a line, or left
+          // somebody one square away. An opening mark does not.
+          if (!tttNoteworthy(cur.game, cur.herSide) && !urgent) {
+            diag("call", "activity_poke", { kind: cur.kind, ply: at, dropped: "quiet_move" });
+            return;
+          }
           sendGameNote(cur.kind, at, tttMoveNote(cur.game, cur.herSide, whoLast), redraft);
           return;
         }

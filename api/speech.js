@@ -217,8 +217,8 @@ const FREE_MODEL = "gemini-3.1-flash-tts-preview";
 //
 // To move her voice, move it HERE and in the two live speechConfigs together —
 // liveCall.ts and LiveWatchEngine.java — or this comes straight back.
-const DEFAULT_VOICE = "Autonoe";
-const ALLOWED_VOICES = new Set(["Leda", "Kore", "Aoede", "Zephyr", "Autonoe"]);
+const DEFAULT_VOICE = "Despina";
+const ALLOWED_VOICES = new Set(["Leda", "Kore", "Aoede", "Zephyr", "Autonoe", "Despina"]);
 const SAMPLE_RATE = 24000;
 
 // Bytes of PCM that prove a response is real audio rather than the empty-200

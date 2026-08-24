@@ -57,6 +57,11 @@ import {
 // again), and the window is the seam between the two blocks — if the tail's
 // window moves, this block's start must move with it, in one edit.
 import { CHAT_TAIL_MAX_WORDS, CHAT_TAIL_WINDOW_MS } from "../engine/memory";
+// One vocabulary for what an activity is CALLED — see `boardWord`. Importing
+// the table rather than restating it is the same discipline
+// `activityPickupLine` states: two spellings of one name is how the pickup and
+// the brief end up describing two different games.
+import { LABEL } from "../engine/activity";
 // The running note's HER-side salience rule. Imported rather than restated for
 // `age-tier-never-realtime`'s reason: "what she said she would do" already has
 // exactly one definition in this repo and a second one would diverge by not
@@ -1485,15 +1490,51 @@ const clip = (s: string): string =>
   s.length <= LIFECYCLE_FACT_MAX_CHARS ? s : s.slice(0, LIFECYCLE_FACT_MAX_CHARS - 1).trimEnd() + "…";
 
 /**
- * THE OWNER'S CELL. A board closed by hand, mid-game, while she is on the
- * line. `left unfinished at move N` is the whole point: no result, nobody
- * won, and it stopped somewhere — which is what stops her congratulating
- * herself, asking whose turn it is, or carrying the position for the rest of
- * the call.
+ * THE NAME OF THE GAME, as a person says it out loud.
+ *
+ * Every builder below took `g.kind` and interpolated it raw, which is correct
+ * for exactly one member of the union. "the chess board was just closed" reads
+ * fine; "the ttt just ended" and "a ttt board just opened" do not, and on the
+ * live lane she emits the characters she speaks, so `ttt` is three letters she
+ * says out loud (`ack-bracket-direction`: text in this position is PERFORMED,
+ * it is never inert). A tic-tac-toe game reached the exact cell chess's
+ * correction ladder was built for and got chess's wording with its own key
+ * substituted in.
+ *
+ * `LABEL` is the one vocabulary for what an activity is CALLED ("a game of
+ * tic tac toe"); these facts want the bare noun, so the table is derived from
+ * it by stripping the article rather than written a second time — one table,
+ * two grammatical positions, and they cannot drift apart.
  */
-export function boardClosedFact(kind: string, ply: number): string {
-  const where = ply > 0 ? `left unfinished at move ${ply}` : "left before it really started";
-  return clip(`the ${kind} board was just closed — ${where}, no result, nobody won`);
+export function boardWord(kind: string): string {
+  const label = (LABEL as Record<string, string | undefined>)[kind];
+  if (!label) return kind;
+  return label.replace(/^a (game of |round of )?/, "");
+}
+
+/**
+ * THE OWNER'S CELL. A board closed by hand, mid-game, while she is on the
+ * line. Naming where it stopped is the whole point: no result, nobody won, and
+ * it stopped somewhere — which is what stops her congratulating herself,
+ * asking whose turn it is, or carrying the position for the rest of the call.
+ *
+ * WHERE it stopped is not one sentence for both games. A chess game has an
+ * unbounded move number and that number IS the location — "move 24" places it.
+ * A tic-tac-toe board has nine squares, and "left unfinished at move 5" is
+ * chess prose in a ttt hat: it says nothing a person would say and nothing she
+ * could talk about. The honest ttt location is how much board nobody ever
+ * took, so `openSquares` is passed when the caller has a nine-square board and
+ * omitted when it does not. Optional, so every existing call site renders
+ * exactly the bytes it rendered before.
+ */
+export function boardClosedFact(kind: string, ply: number, openSquares?: number): string {
+  const where =
+    Number.isFinite(openSquares) && (openSquares as number) > 0
+      ? `left unfinished with ${openSquares} square${openSquares === 1 ? "" : "s"} never taken`
+      : ply > 0
+        ? `left unfinished at move ${ply}`
+        : "left before it really started";
+  return clip(`the ${boardWord(kind)} board was just closed — ${where}, no result, nobody won`);
 }
 
 /** A board that finished on its own, mid-call. `result` is already worded by
@@ -1501,12 +1542,12 @@ export function boardClosedFact(kind: string, ply: number): string {
  *  `activityPickupLine` states: one vocabulary or the blocks drift. */
 export function boardOverFact(kind: string, result: string): string {
   const tail = result.trim() ? ` — ${result.trim()}` : "";
-  return clip(`the ${kind} just ended${tail}; the board is done, nothing left to play`);
+  return clip(`the ${boardWord(kind)} just ended${tail}; the board is done, nothing left to play`);
 }
 
 /** A board opened DURING the call. The live prompt froze before it existed. */
 export function boardOpenedFact(kind: string): string {
-  return clip(`a ${kind} board just opened on their screen — you two are playing now`);
+  return clip(`a ${boardWord(kind)} board just opened on their screen — you two are playing now`);
 }
 
 /**
@@ -1524,11 +1565,12 @@ export function boardOpenedFact(kind: string): string {
  */
 export function boardTurnFact(kind: string, ply: number, turn: "hers" | "his" | "over"): string {
   const at = ply > 0 ? ` at move ${ply}` : "";
-  if (turn === "over") return clip(`the ${kind} board${at} is finished — nothing to play`);
+  const what = boardWord(kind);
+  if (turn === "over") return clip(`the ${what} board${at} is finished — nothing to play`);
   return clip(
     turn === "hers"
-      ? `on the ${kind} board${at} it is your move now; your brief may be a move behind`
-      : `on the ${kind} board${at} you have already played, it is their move now; your brief may be a move behind`,
+      ? `on the ${what} board${at} it is your move now; your brief may be a move behind`
+      : `on the ${what} board${at} you have already played, it is their move now; your brief may be a move behind`,
   );
 }
 

@@ -60,6 +60,34 @@ execSync(
 );
 const A = await import(BUNDLE);
 
+// The SERVER's own numbers, imported rather than restated. A client cap that
+// has quietly drifted from the server's is either a refusal the user did not
+// need (client tighter) or a 413 dressed up as a broken app (client looser),
+// and both are invisible until someone hits them.
+const { MAX_DOCS: SERVER_MAX_DOCS, MAX_DOC_CHARS: SERVER_MAX_DOC_CHARS } = await import(
+  join(ROOT, "api/_docs.js")
+);
+
+/**
+ * Just the `const FATE = { … }` object out of evals/teardown.mjs.
+ *
+ * The teardown checks below ask whether this feature added a top-level AppState
+ * key — that is what a FATE row IS. Asking it of the whole file instead conflates
+ * the table with the prose around it, and that file is mostly prose: §6 and §6b
+ * exist precisely to write down verdicts for state the FATE walker cannot see,
+ * so the names of this feature's draft fields are SUPPOSED to appear there. A
+ * whole-file grep turns documenting a verdict into a gate failure, which is the
+ * check punishing the behaviour it was built to require.
+ */
+const fateTable = () => {
+  const t = src("evals/teardown.mjs");
+  const at = t.indexOf("const FATE = {");
+  if (at < 0) throw new Error("teardown.mjs no longer has a FATE table to check");
+  const end = t.indexOf("\n};", at);
+  if (end < 0) throw new Error("teardown.mjs's FATE table has no visible end");
+  return t.slice(at, end);
+};
+
 /** a stand-in attachment of a chosen size; nothing here decodes a real JPEG */
 let seq = 0;
 const att = (bytes = 1000, source = "gallery") => ({
@@ -67,6 +95,16 @@ const att = (bytes = 1000, source = "gallery") => ({
   dataUrl: `data:image/jpeg;base64,${"Q".repeat(bytes)}`,
   b64: "Q".repeat(bytes),
   source,
+});
+
+/** a stand-in document; `packDoc` is what turns a real File into one of these */
+const doc = (chars = 100, name = "notes.md") => ({
+  id: `d${++seq}`,
+  name,
+  mime: "text/markdown",
+  size: chars,
+  text: "x".repeat(chars),
+  data: "",
 });
 
 // ══ 1. THE CAP ════════════════════════════════════════════════════════════
@@ -294,19 +332,19 @@ const att = (bytes = 1000, source = "gallery") => ({
   );
   ok(
     "the composer's placeholder changes job when something is staged",
-    /attachments\.length \? "Add a caption/.test(chat),
+    /attachments\.length \|\| docs\.length \? "Add a caption/.test(chat),
     "a box that has become a caption field while still reading 'Message Maya' " +
       "is describing the control it was a second ago",
   );
   ok(
     "…and Send is reachable with pictures and an empty box",
-    /draft\.trim\(\) \|\| attachments\.length \? "send"/.test(chat),
+    /draft\.trim\(\) \|\| attachments\.length \|\| docs\.length\s*\?\s*"send"/.test(chat),
     "a tray full of photos above a MICROPHONE offers the one thing the " +
       "composer cannot currently do",
   );
   ok(
     "send() routes a staged tray to the picture path",
-    /if \(attachments\.length\) \{[\s\S]{0,120}sendAttachments\(\)/.test(chat),
+    /if \(attachments\.length \|\| docs\.length\) \{[\s\S]{0,120}sendAttachments\(\)/.test(chat),
   );
 }
 
@@ -421,7 +459,7 @@ const att = (bytes = 1000, source = "gallery") => ({
   );
   ok(
     "…and the row is not rendered when it is unavailable",
-    /\{camera && \(/.test(sheet),
+    /\{room > 0 && camera && \(/.test(sheet),
     "a disabled Camera row is the dead-option rule broken one level down",
   );
 
@@ -498,9 +536,26 @@ const att = (bytes = 1000, source = "gallery") => ({
     "a new AppState key needs a row in evals/teardown.mjs's FATE table, and a " +
       "tray of data: URLs in synced state is another device's draft",
   );
+  // SCOPED TO THE TABLE, not grepped over the file. The first version of this
+  // asserted the WORD "attachments" appeared nowhere in evals/teardown.mjs,
+  // which was a proxy that happened to hold only while this feature had not yet
+  // written its verdicts down. It broke the moment §6b was added — the block
+  // that states, in that file, what happens to the draft — so the check was
+  // failing the workstream for doing the documenting the check exists to
+  // encourage. What it always MEANT is narrower and is what it now asks: no new
+  // top-level key entered the FATE object, because a key there is an AppState
+  // field and an AppState field is the thing that syncs and persists.
   ok(
-    "…so evals/teardown.mjs's FATE table is untouched by this feature",
-    !/attachments|photoUrls/.test(src("evals/teardown.mjs")),
+    "…so evals/teardown.mjs's FATE TABLE is untouched by this feature",
+    !/\b(attachments|photoUrls|composeTray|draftPhotos)\b/.test(fateTable()),
+    "a top-level FATE row means a new AppState key — the tray is component " +
+      "state and must stay that way.",
+  );
+  ok(
+    "…and the draft's verdicts are written down where §6 puts them",
+    /COMPOSER_DRAFT_FATE/.test(src("evals/teardown.mjs")),
+    "state the FATE walker cannot see needs its verdict in that file anyway, " +
+      "or a teardown that missed a piece would pass every check in it.",
   );
 
   const msg = store.slice(store.indexOf("export interface Message {"));
@@ -582,6 +637,393 @@ const att = (bytes = 1000, source = "gallery") => ({
     !/story-view|story-img|story-bars/.test(viewerCode),
     "an edit to Instagram's story mechanics must not be able to change what a " +
       "photo he sent does",
+  );
+}
+
+// ══ 10. DOCUMENTS: THE CAP AND THE CHIP ═══════════════════════════════════
+//
+// Three per message, its own cap and its own rail, because a document and a
+// picture are bounded by different things: five pictures are five vision
+// tokens, three documents are 8,000 characters of prompt. Sharing one counter
+// would mean a PDF costing a photograph.
+{
+  console.log("\n── 10. the document cap ──");
+  ok("the document cap is three", A.MAX_DOCS === 3);
+  ok("…and it matches the server's own", A.MAX_DOCS === SERVER_MAX_DOCS, `${A.MAX_DOCS} vs ${SERVER_MAX_DOCS}`);
+
+  const three = A.addDocs([], [doc(), doc(), doc()]);
+  ok("three are accepted", three.next.length === 3 && three.accepted === 3 && three.refused === 0);
+  const fourth = A.addDocs(three.next, [doc()]);
+  ok("the FOURTH is refused", fourth.next.length === 3 && fourth.accepted === 0 && fourth.refused === 1);
+  ok("…and says why", fourth.reason === "full", String(fourth.reason));
+  ok(
+    "…without disturbing the three already there",
+    fourth.next.every((d, i) => d.id === three.next[i].id),
+  );
+  const five = A.addDocs([], [doc(), doc(), doc(), doc(), doc()]);
+  ok(
+    "five at once become three, not zero",
+    five.next.length === 3 && five.accepted === 3 && five.refused === 2,
+    JSON.stringify({ n: five.next.length, a: five.accepted, r: five.refused }),
+  );
+  const gone = A.removeDoc(three.next, three.next[1].id);
+  ok("removing one leaves two", gone.length === 2);
+  ok("…and removes the RIGHT one", !gone.some((d) => d.id === three.next[1].id));
+
+  // the rail, which is about the REQUEST rather than about the count
+  const heavy = Math.floor(A.MAX_DOCS_TOTAL_CHARS / 2) + 1;
+  const two = A.addDocs([], [doc(heavy), doc(heavy)]);
+  ok(
+    "two over-budget documents become one",
+    two.next.length === 1 && two.reason === "heavy",
+    JSON.stringify({ n: two.next.length, reason: two.reason }),
+  );
+  ok(
+    "…and the rail leaves a serverless body room to exist",
+    A.MAX_DOCS_TOTAL_CHARS <= 4_000_000 && A.MAX_DOC_BYTES <= A.MAX_DOCS_TOTAL_CHARS,
+    `${A.MAX_DOC_BYTES} / ${A.MAX_DOCS_TOTAL_CHARS}`,
+  );
+  ok(
+    "…and one document can never exceed what the server accepts",
+    A.MAX_DOC_BYTES * 1.4 < SERVER_MAX_DOC_CHARS,
+    `${A.MAX_DOC_BYTES} raw inflates past the server's ${SERVER_MAX_DOC_CHARS} of base64`,
+  );
+
+  // THE TWO CAPS ARE INDEPENDENT. The case that would be silently wrong if
+  // they shared a counter: a full picture tray must not refuse a document.
+  ok(
+    "a full picture tray still takes documents",
+    A.addDocs([], [doc()]).accepted === 1 && A.addAttachments(
+      [att(), att(), att(), att(), att()], [att()],
+    ).accepted === 0,
+  );
+
+  // ── the chip's own logic ──
+  console.log("\n── 10b. the chip ──");
+  ok("the badge is the extension, uppercased", A.docExt("lease-final.pdf") === "PDF");
+  ok("…from the LAST dot", A.docExt("notes.v2.md") === "MD");
+  ok("…and a name with no extension still says something", A.docExt("README") === "FILE");
+  ok("…a trailing dot is not an extension", A.docExt("weird.") === "FILE");
+  ok("bytes read short before they read precise", A.docSize(940) === "940 B");
+  ok("…kilobytes", A.docSize(1536) === "1.5 KB");
+  ok("…and megabytes", A.docSize(2_400_000) === "2.4 MB");
+  ok("…a nonsense size renders nothing rather than NaN", A.docSize(NaN) === "");
+
+  ok("plain formats are recognised by mime", A.isPlainDoc("x", "text/csv") === true);
+  ok("…and by extension when the mime is missing", A.isPlainDoc("notes.md", "") === true);
+  ok(
+    "…and a PDF is not one of them",
+    A.isPlainDoc("lease.pdf", "application/pdf") === false,
+    "a client-side 'read the text' on a page-description format returns mojibake",
+  );
+  ok(
+    "the picker offers exactly what the packer can handle",
+    A.DOC_ACCEPT.split(",").every((e) => e.startsWith(".")) &&
+      /\.pdf/.test(A.DOC_ACCEPT) &&
+      A.DOC_ACCEPT.split(",")
+        .filter((e) => e !== ".pdf")
+        .every((e) => A.isPlainDoc(`f${e}`, "")),
+    A.DOC_ACCEPT,
+  );
+
+  const tray = src("src/components/ComposeTray.tsx");
+  ok("the tray renders file chips", /className="tray-doc"/.test(tray));
+  ok("…with the badge, the name and the size", /docExt\(d\.name\)/.test(tray) && /docSize\(d\.size\)/.test(tray));
+  ok("…and a remove button per chip", /data-tel="compose\.remove_doc"/.test(tray));
+  ok(
+    "…and the chips share one implementation with the thread's",
+    /docExt/.test(src("src/components/DocChips.tsx")),
+    "two chip renderers is two places for the badge to drift",
+  );
+}
+
+// ══ 11. THE COUNT LINE, WITH TWO CAPS ═════════════════════════════════════
+{
+  console.log("\n── 11. the count line ──");
+  ok("pictures only count against five", A.trayCount(3, 0) === "3 of 5");
+  ok("documents only count against three", A.trayCount(0, 2) === "2 of 3");
+  ok(
+    "both in play stops counting and names them",
+    A.trayCount(3, 1) === "3 photos, 1 file",
+    A.trayCount(3, 1),
+  );
+  ok("…and it is singular when it should be", A.trayCount(1, 1) === "1 photo, 1 file");
+  ok("…plural on the other side too", A.trayCount(2, 2) === "2 photos, 2 files");
+}
+
+// ══ 12. THE DOCS PAYLOAD ══════════════════════════════════════════════════
+//
+// `api/_docs.js`'s `normalizeDocs` is the reader. Its contract: an array of at
+// most MAX_DOCS objects, each with a name, a mime, and EITHER text or data.
+{
+  console.log("\n── 12. the docs payload ──");
+  const plain = { ...doc(50), name: "notes.md", mime: "text/markdown", text: "x".repeat(50), data: "" };
+  const pdf = { ...doc(0), name: "lease.pdf", mime: "application/pdf", text: "", data: "data:application/pdf;base64,QQ==" };
+
+  const p = A.buildDocPayload([plain, pdf]);
+  ok("one entry per document", p.length === 2);
+  ok("…the name rides", p[0].name === "notes.md" && p[1].name === "lease.pdf");
+  ok("…and the mime", p[0].mime === "text/markdown" && p[1].mime === "application/pdf");
+  ok(
+    "a client-readable format sends TEXT",
+    p[0].text === "x".repeat(50) && p[0].data === undefined,
+    "sending a .md as base64 is a third more bytes for the server to decode " +
+      "back into exactly what the client already had",
+  );
+  ok(
+    "a PDF sends DATA",
+    p[1].data === "data:application/pdf;base64,QQ==" && p[1].text === undefined,
+    JSON.stringify(p[1]),
+  );
+  ok(
+    "…never both",
+    p.every((d) => (d.text === undefined) !== (d.data === undefined)),
+    "a server choosing between two representations of the same file is a " +
+      "decision nobody wrote down",
+  );
+  ok(
+    "the builder caps too, so a second producer cannot get past it",
+    A.buildDocPayload([plain, plain, plain, plain, plain]).length === A.MAX_DOCS,
+  );
+  ok("an empty tray builds an empty payload", A.buildDocPayload([]).length === 0);
+
+  // what stays on the message: metadata, never bytes
+  const refs = A.docRefs([plain, pdf]);
+  ok("the message keeps a row per document", refs.length === 2);
+  ok("…with name, mime and size", refs[0].name === "notes.md" && typeof refs[0].size === "number");
+  ok(
+    "…and NOTHING that could hold the file",
+    refs.every((r) => Object.keys(r).sort().join(",") === "mime,name,size"),
+    JSON.stringify(refs[0]) +
+      " — a 2 MB PDF in AppState is saveState's whole degradation ladder fired " +
+      "by one attachment, and no upload ever comes along to replace it",
+  );
+
+  const store = src("src/state/store.ts");
+  const msg = store.slice(store.indexOf("export interface Message {"));
+  const message = msg.slice(0, msg.indexOf("\n}"));
+  ok(
+    "Message.docs is declared as metadata only",
+    /docs\?: Array<\{ name: string; mime: string; size: number \}>/.test(message),
+    "a `data` or `text` field here is the bytes entering the store",
+  );
+}
+
+// ══ 13. THE TRANSCRIPT, WITH FILES ════════════════════════════════════════
+//
+// The line she still has in three months. A document's text is never stored
+// anywhere, so this is the entire long-term record of the fact that it existed.
+{
+  console.log("\n── 13. the transcript ──");
+  ok("the picture lines are BYTE-IDENTICAL to before", A.transcriptLine(1, "") === "[photo]" &&
+    A.transcriptLine(1, "hi") === "[photo] hi" &&
+    A.transcriptLine(3, "") === "[3 photos]" &&
+    A.transcriptLine(5, "goa trip") === "[5 photos] goa trip");
+  ok("one file, no caption", A.transcriptLine(0, "", ["lease.pdf"]) === "[file lease.pdf]");
+  ok("one file with a caption", A.transcriptLine(0, "padh lena", ["lease.pdf"]) === "[file lease.pdf] padh lena");
+  ok(
+    "several files are named, not counted",
+    A.transcriptLine(0, "", ["a.pdf", "b.csv"]) === "[file a.pdf] [file b.csv]",
+    "'2 files' three months later is a fact she cannot use; the NAME is the " +
+      "thing a person actually remembers",
+  );
+  ok(
+    "pictures and files on one message",
+    A.transcriptLine(2, "ye dekh", ["lease.pdf"]) === "[2 photos] [file lease.pdf] ye dekh",
+  );
+  ok("a bare text message is untouched", A.transcriptLine(0, "just words") === "just words");
+  ok("…and an empty everything is empty", A.transcriptLine(0, "") === "");
+
+  // the brain's reader of that line
+  const brain = src("src/engine/brain.ts");
+  ok("toTurns names the files it finds on a message", /they sent \$\{[\s\S]{0,80}files/.test(brain));
+  ok(
+    "…and strips the composer's own head first",
+    /\\\[file \[\^\\\]\]\*\\\]/.test(brain) || /\[file \[\^\\\]\]\*\\\]/.test(brain),
+    "handing her '[file lease.pdf] ye dekh' as a caption has her reading a " +
+      "marker back as if he had typed it",
+  );
+  ok(
+    "…and a message with pictures AND files names both",
+    /also sent: \$\{docNames\.join/.test(brain),
+  );
+}
+
+// ══ 14. EXACTLY ONCE: THE TAKE-ONCE BOX ═══════════════════════════════════
+//
+// THE ASSERTION THE BRIEF ASKED FOR, and the one this whole slice turns on.
+// A document reaches her through `think`'s `attachments` parameter, which means
+// exactly one reply pass may carry it, and both ways of getting that wrong are
+// silent: send it every pass and a burst hands her the same PDF three times
+// inside one turn; send it once and forget it and a superseded pass throws away
+// the only copy there will ever be.
+{
+  console.log("\n── 14. exactly once ──");
+  const payload = [{ name: "a.pdf", mime: "application/pdf", data: "d" }];
+
+  const hold = { current: null };
+  A.holdDocs(hold, payload);
+  ok("holding fills the box", hold.current?.length === 1);
+  const first = A.takeDocs(hold);
+  ok("the first take gets them", first?.length === 1);
+  ok("…and empties the box", hold.current === null);
+  const second = A.takeDocs(hold);
+  ok(
+    "A SECOND PASS SENDS NO DOCS",
+    second === null,
+    "the same document reaching her twice inside one turn is her reacting to " +
+      "it twice, which is the tell",
+  );
+
+  // superseded: put back, and the NEXT pass gets them exactly once
+  A.restoreDocs(hold, first);
+  ok("a superseded pass puts them back", hold.current?.length === 1);
+  ok("…and the next pass gets them", A.takeDocs(hold)?.length === 1);
+  ok("…once", A.takeDocs(hold) === null);
+
+  // a newer send while the old pass was in flight wins
+  A.holdDocs(hold, payload);
+  const taken = A.takeDocs(hold);
+  const newer = [{ name: "b.csv", mime: "text/csv", text: "x" }];
+  A.holdDocs(hold, newer);
+  A.restoreDocs(hold, taken);
+  ok(
+    "restoring never overwrites a NEWER send",
+    hold.current?.[0]?.name === "b.csv",
+    "he attached something else while she was thinking; the older set is not " +
+      "the one the next pass owes him",
+  );
+
+  // holding nothing clears, so a text-only send cannot inherit the last one
+  A.holdDocs(hold, []);
+  ok(
+    "an empty hold CLEARS the box",
+    hold.current === null,
+    "otherwise the next plain text message would carry the last send's files",
+  );
+  ok("restoring null is a no-op", (A.restoreDocs(hold, null), hold.current === null));
+
+  // ── and the wiring, over the source, because the box is only half of it ──
+  const chat = src("src/components/Chat.tsx");
+  // BOUNDED AT THE NEXT DECLARATION, not at a comment further down the file:
+  // an over-wide slice would have swept `sendAttachments` into "replyPass's
+  // body" and every absence-assertion below would have been reporting on the
+  // wrong function.
+  const pass = chat.slice(chat.indexOf("async function replyPass"));
+  const passEnd = Math.min(
+    ...[/\n  (?:async )?function /, /\n  const [A-Za-z]/]
+      .map((re) => {
+        const m = re.exec(pass.slice(40));
+        return m ? m.index + 40 : Infinity;
+      }),
+  );
+  ok("replyPass was isolated", Number.isFinite(passEnd) && passEnd < pass.length, String(passEnd));
+  const body = pass.slice(0, passEnd);
+  ok(
+    "replyPass is the ONE caller of the attachments seam",
+    (chat.match(/turnDocs \? \{ docs: turnDocs \} : undefined/g) || []).length === 1,
+    "a second caller is a second place for the double-send to come back",
+  );
+  ok("…it takes from the box", /const turnDocs = takeDocs\(docHold\)/.test(body));
+  ok(
+    "…BEFORE the think, not after",
+    body.indexOf("takeDocs(docHold)") < body.indexOf("await think("),
+    "taking after the call leaves a window where a concurrent pass takes the " +
+      "same documents",
+  );
+  ok(
+    "…and puts them back when the pass was superseded",
+    /seq !== chatSeq\.current[\s\S]{0,900}restoreDocs\(docHold, turnDocs\)/.test(body),
+    "a superseded pass that keeps them is the owner attaching a PDF, typing " +
+      "one more line, and her never seeing the PDF at all",
+  );
+  ok(
+    "…and the epoch branch does NOT put them back",
+    !/ep !== epoch\.current\) \{?\s*restoreDocs/.test(body),
+    "an epoch change is the conversation being torn down; its documents go " +
+      "with it",
+  );
+  ok(
+    "the send parks them before waking the reply cycle",
+    /holdDocs\(docHold, docPayload\)[\s\S]{0,400}scheduleReply\(caption\)/.test(chat),
+    "a pass that wakes before the box is filled sends the message without its " +
+      "own documents",
+  );
+  ok(
+    "IMAGES ARE NOT PASSED THROUGH THE SEAM",
+    !/images:\s*payload\.images[\s\S]{0,60}\}\s*:\s*undefined/.test(chat) &&
+      !/\{ images:/.test(body),
+    "pictures ride the thread (toTurns rebuilds them from photoUrls); passing " +
+      "them here as well puts the same picture in the prompt twice",
+  );
+  ok(
+    "…and NEITHER IS THE CAPTION",
+    !/\bcaption:/.test(body),
+    "the server appends a top-level `caption` to the last turn, and the caption " +
+      "IS Message.text, which toTurns has already written into that same turn. " +
+      "Sending both is the images mistake one field over.",
+  );
+}
+
+// ══ 15. THE DOC TEARDOWN ══════════════════════════════════════════════════
+//
+// §8 asked what happens to the compose tray. This asks the same of the two
+// things the document slice added, and one of them is the worst piece of state
+// in the feature: a ref holding the TEXT of a document, which nothing about a
+// re-render disturbs and which the epoch bump does not reach, because nothing
+// reads the epoch when taking it.
+{
+  console.log("\n── 15. the doc teardown ──");
+  const chat = src("src/components/Chat.tsx");
+  const at = chat.indexOf("function tearDownLocally");
+  const fn = chat.slice(at, chat.indexOf("\n  function ", at + 10));
+  ok("the staged documents are dropped", /setDocs\(\[\]\)/.test(fn));
+  ok(
+    "…and so is the parked payload",
+    /docHold\.current = null/.test(fn),
+    "a surviving hold is the text of a document handed to the very first reply " +
+      "of the conversation that begins by not knowing him",
+  );
+
+  const store = src("src/state/store.ts");
+  const iface = store.slice(store.indexOf("export interface AppState {"));
+  const appState = iface.slice(0, iface.indexOf("\n}"));
+  // Parsed as FIELD NAMES, the way evals/teardown.mjs's own walker does it,
+  // rather than grepped over the text: this interface is mostly prose, and a
+  // comment citing `docs/MEMORY-FELT.md` is not a field called docs.
+  const appFields = [...appState.matchAll(/^ {2}([A-Za-z0-9_]+)\??:/gm)].map((m) => m[1]);
+  ok("AppState's keys were parsed", appFields.length >= 20, `${appFields.length}`);
+  ok(
+    "no document-shaped key entered AppState",
+    !appFields.some((f) => /^(docs|documents|attachedDocs|pendingDocs|docHold)$/.test(f)),
+    `a new AppState key needs a row in evals/teardown.mjs's FATE table: ${appFields.join(", ")}`,
+  );
+  // Same correction as §8: scoped to the FATE object, not to the file. See the
+  // note there for why the whole-file grep was the wrong question.
+  ok(
+    "…so the FATE TABLE is still untouched by this workstream",
+    !/\b(docs|documents|attachedDocs|pendingDocs|docHold)\b/.test(fateTable()),
+    "a top-level FATE row means a new AppState key; documents are draft state " +
+      "and their bytes are never persisted at all.",
+  );
+  ok(
+    "…and docHold's verdict IS written down, in §6b",
+    /docHold/.test(src("evals/teardown.mjs")),
+    "the parked payload holds document TEXT and the FATE walker cannot see " +
+      "it, so an unwritten verdict is an unchecked one.",
+  );
+  ok(
+    "Message.docs rides `messages`, which BOTH doors wipe",
+    /^\s*messages: "clear\+forget",/m.test(src("evals/teardown.mjs")),
+  );
+
+  // the persistence guard cannot save us here, so the field must not need it
+  const p = store.slice(store.indexOf("function persistable"));
+  const pers = p.slice(0, p.indexOf("\nexport function saveState"));
+  ok(
+    "persistable does not have to strip docs, because docs carry no bytes",
+    !/\bdocs\b/.test(pers),
+    "if this ever needs a strip, the field is holding something it should not",
   );
 }
 
