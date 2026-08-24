@@ -52,6 +52,28 @@ process.env.AZURE_API_KEY = "battery-not-a-real-key-0000000000";
 process.env.AZURE_CHAT_DEPLOYMENT = "battery-chat";
 process.env.AZURE_VISION_DEPLOYMENT = "battery-vision";
 
+// ── and so is EVERY other credential the ladder can see ─────────────────────
+//
+// The 2026-08-24 CI red: this battery passed against the developer's
+// _config.js (nine pool keys, an OpenRouter key, a storage backend) and
+// failed 23 assertions against CI's `write-config.mjs --stub` (none of the
+// above) — the lane roster itself was ambient, so the battery gated the
+// MACHINE, not the code. Now the whole roster is pinned here, before any
+// module import binds it: nine fake pool keys (env-first seam in _gkeys.js;
+// each must clear its >20-char filter), a fake OpenRouter key (chat.js reads
+// env-first at call time), and a fake storage backend (memory.js reads
+// env-first at module load; the storage mock below routes by path, so the
+// host never matters). run.mjs executes each suite in its own subprocess, so
+// none of this leaks into other suites. globalThis.fetch is replaced in every
+// section that dials — no fake value is ever sent anywhere.
+process.env.GOOGLE_KEYS = Array.from(
+  { length: 9 },
+  (_, i) => `battery-pool-key-${i}-000000000000`,
+).join(",");
+process.env.OPENROUTER_API_KEY = "battery-openrouter-not-a-real-key";
+process.env.SUPABASE_URL = "https://resilience-battery-sb.invalid";
+process.env.SUPABASE_KEY = "battery-supabase-not-a-real-key";
+
 const {
   poolAttempt,
   newTransientBudget,
@@ -71,7 +93,7 @@ const {
   BACKOFF_MIN_MS,
   BACKOFF_MAX_MS,
 } = await import(join(ROOT, "api", "_lanes.js"));
-const { walkKeys } = await import(join(ROOT, "api", "_gkeys.js"));
+const { walkKeys, poolSize } = await import(join(ROOT, "api", "_gkeys.js"));
 const { normalizeDocs, extractPdfText } = await import(join(ROOT, "api", "_docs.js"));
 
 let pass = 0;
@@ -88,6 +110,17 @@ function ok(name, cond, detail = "") {
   }
 }
 const section = (s) => console.log(`\n${s}`);
+
+// ── hermeticity guard: the modules must see the pinned roster, not the ──────
+// machine's. If an import ever moves above the pins, or a seam stops reading
+// env-first, this fails FIRST and names the reason, instead of 23 downstream
+// assertions failing in CI only.
+section("── 0. hermeticity: the battery's roster is the one the code sees ──");
+ok("the pool is the battery's nine fake keys", poolSize() === 9, `poolSize=${poolSize()}`);
+ok(
+  "the OpenRouter key the handler will read is the battery's",
+  process.env.OPENROUTER_API_KEY === "battery-openrouter-not-a-real-key",
+);
 
 // ── the harness ───────────────────────────────────────────────────────────
 //

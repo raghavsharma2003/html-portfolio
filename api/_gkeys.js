@@ -27,9 +27,21 @@
 // the whole function down rather than degrade.
 import * as CFG from "./_config.js";
 
-const POOL = (Array.isArray(CFG.GOOGLE_KEYS) && CFG.GOOGLE_KEYS.length
-  ? CFG.GOOGLE_KEYS
-  : [CFG.GOOGLE_KEY])
+// Environment first, mirroring GOOGLE_PAID_KEY below — and for one more
+// reason: the eval batteries pin a FAKE pool here so the same assertions gate
+// the same code on a laptop (real _config.js) and in CI (stubbed one). The
+// 2026-08-24 CI red was exactly this seam missing: the resilience battery
+// passed against the developer's nine real keys and failed against the stub's
+// zero. Comma-separated; each entry still has to pass the length filter below.
+const ENV_POOL = (process.env.GOOGLE_KEYS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const POOL = (ENV_POOL.length
+  ? ENV_POOL
+  : Array.isArray(CFG.GOOGLE_KEYS) && CFG.GOOGLE_KEYS.length
+    ? CFG.GOOGLE_KEYS
+    : [CFG.GOOGLE_KEY])
   .filter((k) => typeof k === "string" && k.length > 20)
   // a key pasted twice would otherwise be tried twice before moving on
   .filter((k, i, a) => a.indexOf(k) === i);
