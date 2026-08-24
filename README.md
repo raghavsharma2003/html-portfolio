@@ -150,6 +150,9 @@ Implemented now:
 - a blinded paired candidate gate that demands target-layer improvement,
   cross-layer noninferiority, zero critical safety failures, bounded false
   memories and exact artifact/dataset/baseline commitments without activation;
+- an owner-facing blind fidelity lab with cryptographically balanced A/B order,
+  envelope-encrypted held-out text, replay-safe exact-layer judgments and no
+  candidate identity or presentation mapping in the browser;
 - a production Neon provenance ledger that rechecks active replica capability
   before each signed PCM segment is released, making revocation a streaming
   delivery fence rather than only a UI state;

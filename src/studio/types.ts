@@ -249,3 +249,24 @@ export interface ReplicaTurnFeedback {
   voice_generation_bound: boolean;
   created_at: string;
 }
+
+export type CandidateEvalDimension = "overall" | "wording" | "behavior" | "relationship" | "memory" | "delivery";
+export type CandidateEvalChoice = "a" | "b" | "tie";
+
+export interface CandidateEvalAssignment {
+  assignment_id: string;
+  assignment_hash: string;
+  sequence: number;
+  context: string;
+  option_a: string;
+  option_b: string;
+}
+
+export interface CandidateEvaluation {
+  available: boolean;
+  replica_id: string;
+  state?: "collecting" | "complete";
+  progress?: { completed: number; total: number };
+  dimensions?: CandidateEvalDimension[];
+  assignment?: CandidateEvalAssignment | null;
+}

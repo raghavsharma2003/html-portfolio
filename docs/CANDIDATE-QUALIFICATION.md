@@ -1,8 +1,9 @@
 # Candidate qualification without self-deception
 
-Status: implemented offline scoring, immutable candidate/qualification schema
-and internal persistence seam on `voice-cloning`, 2026-08-24. Migration 031 is
-not deployed. No candidate model or adapter has been trained or activated.
+Status: implemented offline scoring, immutable candidate/qualification schema,
+internal persistence seam and owner-facing blind text evaluation on
+`voice-cloning`, 2026-08-24. Migrations 031 and 032 are not deployed. No
+candidate model or adapter has been trained or activated.
 
 ## Promotion law
 
@@ -42,6 +43,12 @@ number of dimensions.
 Dialogue/prompt candidates must protect overall, wording, behavior,
 relationship, memory and delivery. Voice candidates protect overall, delivery
 and voice identity. Joint candidates protect all seven.
+
+The owner-facing text path now issues replay-safe, balanced assignments from a
+committed plan and keeps candidate identity and A/B order server-side. Context
+and outputs use per-asset envelope encryption. It deliberately refuses voice
+and joint candidates until sealed audio assets, watermark evidence and
+listen-completion proof exist. See `CANDIDATE-EVALUATION.md`.
 
 ## Statistical gate
 
@@ -90,7 +97,8 @@ source-set commitment. Pass updates only the candidate from `evaluating` to
 
 ## Still required
 
-- a blinded owner-judgment UI with replay-safe assignment issuance;
+- sealed, watermarked blind audio evaluation for voice and joint candidates;
+- a production operator materialization job for committed candidate outputs;
 - an independently operated safety/red-team result ingestion path;
 - signed evaluator identities and calibration checks;
 - semantic near-duplicate audit before materializing test assets;
@@ -103,4 +111,3 @@ Offline gate:
 ```bash
 node evals/run.mjs candidatequal
 ```
-

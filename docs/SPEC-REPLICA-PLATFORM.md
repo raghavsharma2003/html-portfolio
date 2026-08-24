@@ -420,10 +420,14 @@ unsafe or disposable:
 17. A blind paired candidate-qualification gate with statistically supported
     target improvement, cross-layer noninferiority, critical-safety and
     false-memory ceilings, exact artifact lineage and no automatic activation.
+18. A replay-safe owner blind-evaluation lab for dialogue and prompt candidates
+    with balanced committed A/B order, per-asset envelope encryption, neutral
+    browser payloads, exact-layer atomic judgments and internal-only unblinding.
 
 These slices do not touch `liveCall.ts`. Azure Speech and Foundry adapters have
 only mocked protocol coverage; real voice models, independent liveness
-verification and live behavioural dialogue qualification remain gated. Paid
+verification, sealed blind voice evaluation and live behavioural dialogue
+qualification remain gated. Paid
 Speech, voice, liveness, watermark and GPU paths also remain disabled until
 they have native-unit meters under the same application ceiling.
 

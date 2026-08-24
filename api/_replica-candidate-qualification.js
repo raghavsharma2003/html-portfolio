@@ -16,6 +16,11 @@ const KIND_LAYERS = Object.freeze({
   joint_adapter: DIMENSIONS,
 });
 
+export function candidateRequiredLayers(kind) {
+  const layers = KIND_LAYERS[String(kind || "")];
+  return layers ? Object.freeze([...layers]) : null;
+}
+
 function fail(code, status = 409, details) {
   const error = Object.assign(new Error(code), { code, status });
   if (details) error.details = details;

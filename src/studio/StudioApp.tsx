@@ -31,6 +31,7 @@ import PersonModelStudio from "./PersonModelStudio";
 import CalibrationStudio from "./CalibrationStudio";
 import RuntimeGate from "./RuntimeGate";
 import ReplicaDialogueLab from "./ReplicaDialogueLab";
+import CandidateEvaluationLab from "./CandidateEvaluationLab";
 import {
   createSourceUpload,
   deleteSource,
@@ -564,6 +565,14 @@ function ReplicaWorkspace({
             stopped={stopped}
             onAuthError={onReviewAuthError}
             runtimeStatus={runtimeStatus?.replica_id === replica.replica_id ? runtimeStatus : null}
+          />
+
+          <CandidateEvaluationLab
+            key={`candidate-eval-${replica.replica_id}`}
+            token={accessToken}
+            replicaId={replica.replica_id}
+            stopped={stopped}
+            onAuthError={onReviewAuthError}
           />
         </>
       )}

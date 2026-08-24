@@ -130,6 +130,9 @@ const suites = {
   // Blinded paired target-improvement plus cross-layer noninferiority and
   // zero-tolerance safety gates; qualification never activates a candidate.
   candidatequal: "candidate-qualification/run.mjs",
+  // Replay-safe owner A/B evaluation: encrypted private assets, server-held
+  // candidate mapping, balanced assignments and all-layer atomic judgments.
+  candidateeval: "candidate-owner-eval/run.mjs",
   // Second-agent readiness: every shipping insert names agent_id, every
   // relational/natural-key arbiter is composite, and compatibility defaults
   // have explicit strict migrations with a working negative control.
