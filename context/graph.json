@@ -1629,6 +1629,12 @@
    "kind": "rejection",
    "at": "2026-08-24",
    "title": "write-config baked label~key verbatim: 400-abort then pool-0; one entry parser at every seam, keyring gate drives the real bake"
+  },
+  {
+   "id": "personality-is-a-sheet",
+   "kind": "decision",
+   "at": "2026-08-24",
+   "title": "RelationalOS proven: Kabir authored as a 29-field sheet on Maya's core \u2014 412/412 invariants across 2 agents, Maya byte-identical throughout"
   }
  ],
  "edges": [
@@ -2966,6 +2972,11 @@
    "src": "ttt-second-class",
    "rel": "part_of",
    "dst": "dead-writers"
+  },
+  {
+   "src": "personality-is-a-sheet",
+   "rel": "part_of",
+   "dst": "os-first-optimization"
   }
  ]
 }

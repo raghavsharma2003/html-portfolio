@@ -2324,3 +2324,24 @@ not) — then the scheme is wrong, not the requirement.
 **Note (measured 2026-08-24):** the `AQ.Ab8RN6…` key format that 403'd on
 2026-08-13 now validates 200 on countTokens — the earlier rejection was a bad
 individual key, not the format. 48/48 healthy.
+
+## `personality-is-a-sheet` — the RelationalOS existence proof: two people, one core
+
+**Decided and proven 2026-08-24.** The relational layer (persona.ts,
+becoming the Relational Core) owns every interaction nuance; a personality
+is a CharacterSheet (29 typed fields) interpolated into it. Kabir — male,
+29, Old Delhi bookseller, English-dominant, dry, near-emoji-less: maximally
+far from Maya on every axis — was authored as a sheet only, registered, and
+passed the ENTIRE per-module invariant floor on the first run: **412/412
+checks across 2 registered agents**, while Maya stayed byte-identical
+(83/83 fixtures against the frozen oracle) through five extraction batches.
+Extraction is scripted (bytes cut and re-interpolated programmatically) so
+copy errors are structurally impossible. Builders take the sheet as a
+defaulted parameter, so every existing call site is unchanged.
+
+Known v1 gaps, declared: WATCH/SEARCH/FORGET directives still carry a few
+Maya example phrases (reused as-is by kabir's module); slot-heads live in
+sheet fields rather than core; remaining Maya quotes sit inside MIXED core
+bullets. The R3 cross-agent leak guard measures exactly these so further
+extraction is evidence-ordered. **Reverses if** authoring a real third
+personality still requires touching the core — that is the ongoing test.
