@@ -60,6 +60,22 @@ export interface Message {
   // thread, which is what the quote-reply already is.
   reaction?: string;
   photoUrl?: string; // photos the USER sent (public storage url)
+  // MORE THAN ONE PICTURE ON ONE MESSAGE (WS-COMPOSER, owner ask: WhatsApp's
+  // multi-select, capped at 5). Present ONLY when the message carries more than
+  // one, and `photoUrl` always holds the first of them.
+  //
+  // That redundancy is the compatibility story and it is deliberate. Every
+  // existing reader of a picture message — brain.ts's vision window, the
+  // upload swap, an older build on the user's other phone reading the same
+  // synced blob — knows `photoUrl` and nothing else. Writing both means the
+  // worst an old reader can do is show one picture out of five, instead of
+  // showing an empty bubble where a message used to be. `imagesOf()` in
+  // components/attachments.ts is the one reader that prefers the new field, so
+  // the precedence rule lives in exactly one place.
+  //
+  // The caption is `text`, unchanged: a photo message has always kept its
+  // caption there, and a second caption field would be two places to look.
+  photoUrls?: string[];
   desc?: string; // user photos: one-line vision description (context + memory)
 }
 
@@ -562,14 +578,27 @@ export function loadState(): AppState {
 
 // data: URLs (photos whose upload failed) are huge — never let them brick
 // persistence. Strip them from the stored copy; the desc/caption survives.
+//
+// `photoUrls` (WS-COMPOSER) is stripped by the same rule and had to be, or the
+// rung would have got quieter exactly as the blobs got five times bigger: a
+// message that carries five stuck data: URLs is the single largest thing this
+// store can hold, and the guard that exists for precisely that case would have
+// walked straight past it while congratulating itself on the one field it knew.
+const stuck = (u: string | undefined) =>
+  Boolean(u && u.startsWith("data:") && u.length > 60_000);
+
 function persistable(s: AppState, keep: number): string {
   return JSON.stringify({
     ...s,
-    messages: s.messages.slice(-keep).map((m) =>
-      m.photoUrl && m.photoUrl.startsWith("data:") && m.photoUrl.length > 60_000
-        ? { ...m, photoUrl: undefined }
-        : m,
-    ),
+    messages: s.messages.slice(-keep).map((m) => {
+      if (!stuck(m.photoUrl) && !m.photoUrls?.some(stuck)) return m;
+      const kept = m.photoUrls?.filter((u) => !stuck(u));
+      return {
+        ...m,
+        photoUrl: stuck(m.photoUrl) ? undefined : m.photoUrl,
+        photoUrls: kept?.length ? kept : undefined,
+      };
+    }),
   });
 }
 

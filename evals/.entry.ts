@@ -9,6 +9,12 @@ export {
   _resetExplicitSearchBucket,
   EXPLICIT_SEARCH_BUCKET,
   RE_EXPLICIT_SEARCH,
+  // WS-RESILIENCE: the connectivity-line draw and both pools, so
+  // evals/resilience/run.mjs gates the no-repeat rule against the REAL
+  // variants rather than a copy of them.
+  drawNoRepeat,
+  OOPS_CALL,
+  OOPS_CHAT,
 } from "../src/engine/brain";
 export {
   buildSystemPromptParts,

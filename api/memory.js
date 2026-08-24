@@ -21,6 +21,9 @@ import { q } from "./_db.js";
 // the free pool with — a forget must not grow a second, differently-behaved
 // key rotation that nobody notices going stale.
 import { withGeminiKey, isQuota, isTransient, poolSize } from "./_gkeys.js";
+// ONE definition of "five pictures", shared with the chat payload guard so the
+// composer's cap cannot mean one thing at upload and another at send.
+import { MAX_IMAGES } from "./_lanes.js";
 // WS-CONSOLIDATE (M3) deltas to opRemember/opRecall only — see the two
 // functions below for the marked sections. embedOne/toHalfvecLiteral back
 // opRecall's semantic pre-filter (SPEC §0.3: halfvec, person-filtered exact
@@ -3945,14 +3948,37 @@ async function deletePhotoObjects(device, factNames) {
   }
 }
 
-async function opUploadPhoto(device, body) {
-  const b64 = String(body.data || "");
-  if (b64.length > 2_200_000) return { error: "too large" };
-  const mime = /^image\/(jpeg|png|webp)$/.test(String(body.mime)) ? body.mime : "image/jpeg";
-  const buf = Buffer.from(b64, "base64");
-  if (!buf.length) return { error: "empty" };
-  // per-device quota: a public write endpoint with no ceiling is a storage
-  // bill waiting to happen. 500 photos per device is far beyond real use.
+// ── the picture upload, one or five (WS-RESILIENCE ← WS-COMPOSER handoff) ──
+//
+// Per image, on the base64 as sent. This is the number that already shipped on
+// the single-photo path and it stays exactly that number: it is looser than
+// api/_lanes.js's chat-payload cap on purpose, because these are different
+// pipes. The chat cap bounds N images inside ONE model request (vision tokens,
+// real money, a platform body limit); this bounds ONE object going into
+// storage. Tightening it here to "be consistent" would reject photos that
+// upload fine today, which is a regression dressed as tidiness.
+const PHOTO_B64_MAX = 2_200_000;
+// A batch together. Five at the per-image cap would be 11MB in one request
+// body, which is past what a serverless function should be handed; the real
+// composer compresses to a few hundred KB each, so this never binds in practice
+// and binds hard on a client that stops compressing.
+const PHOTO_BATCH_B64_MAX = 6_000_000;
+// 500 photos per device is far beyond real use. A public write endpoint with no
+// ceiling is a storage bill waiting to happen.
+const PHOTO_PER_DEVICE_MAX = 500;
+
+/** `"data:image/jpeg;base64,xxx"` or bare base64 → the base64 payload. The
+ *  legacy path sends bare base64; the composer sends data URLs. */
+function photoB64(raw) {
+  const s = String(raw || "");
+  if (!s.startsWith("data:")) return s;
+  const comma = s.indexOf(",");
+  return comma < 0 ? "" : s.slice(comma + 1);
+}
+
+/** How many objects this device already has. `null` when unknown — the caller
+ *  allows the upload rather than breaking photos over a failed count. */
+async function photoCount(device) {
   try {
     const list = await fetch(`${SB_URL}/storage/v1/object/list/meera-photos`, {
       method: "POST",
@@ -3961,13 +3987,40 @@ async function opUploadPhoto(device, body) {
         Authorization: `Bearer ${SB_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ prefix: `${device}/`, limit: 501 }),
-    }).then((r) => (r.ok ? r.json() : []));
-    if (Array.isArray(list) && list.length > 500) return { error: "photo limit reached" };
+      body: JSON.stringify({ prefix: `${device}/`, limit: PHOTO_PER_DEVICE_MAX + 1 }),
+    }).then((r) => (r.ok ? r.json() : null));
+    return Array.isArray(list) ? list.length : null;
   } catch {
-    /* quota check unavailable — allow the upload rather than break photos */
+    return null;
   }
-  const path = `${device}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+}
+
+/**
+ * ONE object name, in the shape the forget cascade can turn back into a path.
+ *
+ * `photoPathsFromFactNames` matches `/^photo:(\d{6,}-[a-z0-9]{2,12})$/` and
+ * `photoIdFromUrl` matches `/\/([0-9]+-[a-z0-9]+)\.jpe?g$/`. So the name has
+ * exactly ONE dash and a lower-case alphanumeric suffix — an index appended for
+ * batch uniqueness (`…-ab12cd-3.jpg`) would carry TWO dashes, would silently
+ * stop matching both, and the JPEG would outlive the memory row describing it
+ * on an item-scope forget. That is `pk-is-an-arbiter`'s shape: an object name is
+ * also a parser's input, and changing it changes every reader that parses it.
+ * In-batch uniqueness is bought with a longer random suffix (still inside
+ * `{2,12}`) plus an explicit collision check, rather than with a new segment.
+ */
+function photoPath(device, taken) {
+  for (let i = 0; i < 8; i++) {
+    const p = `${device}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.jpg`;
+    if (!taken.has(p)) {
+      taken.add(p);
+      return p;
+    }
+  }
+  return null;
+}
+
+/** Store one buffer. Returns the public URL, or null. */
+async function putPhoto(path, buf, mime) {
   const up = await fetch(`${SB_URL}/storage/v1/object/meera-photos/${path}`, {
     method: "POST",
     headers: {
@@ -3977,9 +4030,79 @@ async function opUploadPhoto(device, body) {
       "x-upsert": "false",
     },
     body: buf,
-  });
-  if (!up.ok) return { error: "upload failed" };
-  return { url: `${SB_URL}/storage/v1/object/public/meera-photos/${path}` };
+  }).catch(() => null);
+  if (!up || !up.ok) return null;
+  return `${SB_URL}/storage/v1/object/public/meera-photos/${path}`;
+}
+
+/**
+ * `{ data, mime } → { url }` (legacy, unchanged) or
+ * `{ images: [dataUrl|base64, …≤5], mime } → { urls: [...] }` (batch).
+ *
+ * The batch exists so the composer stops paying five round trips for one send.
+ * The legacy shape is answered exactly as before, because it is what every
+ * already-installed build still sends and what the describe-then-remember path
+ * uses.
+ *
+ * `caption` is accepted and deliberately IGNORED: the caption is the message's
+ * own text (`Message.text` in store.ts) and this endpoint stores bytes. Two
+ * homes for one caption is two things to keep in sync, and the second reader is
+ * the one that derives it wrongly (`duration-is-seconds`).
+ *
+ * ALL OR NOTHING. If any image in a batch fails, the ones that succeeded are
+ * deleted and the whole call reports failure — so the client's documented
+ * per-image fallback cannot double-write and leave orphan JPEGs. A
+ * half-succeeded batch is precisely the shape that produces files with no row
+ * describing them, which is the one residual the forget cascade cannot reach
+ * (see the `#85` note above).
+ */
+async function opUploadPhoto(device, body) {
+  const mime = /^image\/(jpeg|png|webp)$/.test(String(body.mime)) ? body.mime : "image/jpeg";
+  const batch = Array.isArray(body.images);
+
+  // ── validate ──
+  const raw = batch ? body.images : [body.data];
+  if (batch && raw.length > MAX_IMAGES) return { error: "too many images" };
+  const bufs = [];
+  let total = 0;
+  for (const item of raw) {
+    const b64 = photoB64(item);
+    if (b64.length > PHOTO_B64_MAX) return { error: "too large" };
+    total += b64.length;
+    if (total > PHOTO_BATCH_B64_MAX) return { error: "too large" };
+    const buf = Buffer.from(b64, "base64");
+    // An empty entry fails the WHOLE call rather than being skipped: the
+    // contract is `urls` the same length as `images`, and a silently shorter
+    // array would pair picture 4 with picture 5's URL in the thread.
+    if (!buf.length) return { error: "empty" };
+    bufs.push(buf);
+  }
+  if (!bufs.length) return { error: "empty" };
+
+  // ── quota, once for the whole batch ──
+  const have = await photoCount(device);
+  if (have !== null && have + bufs.length > PHOTO_PER_DEVICE_MAX) {
+    return { error: "photo limit reached" };
+  }
+
+  // ── store ──
+  const taken = new Set();
+  const paths = bufs.map(() => photoPath(device, taken));
+  if (paths.some((p) => !p)) return { error: "upload failed" };
+  const urls = await Promise.all(paths.map((p, i) => putPhoto(p, bufs[i], mime)));
+  if (urls.some((u) => !u)) {
+    const orphans = paths.filter((_, i) => urls[i]);
+    if (orphans.length) {
+      const n = await deleteStorageObjects(orphans).catch(() => 0);
+      if (n < orphans.length) {
+        console.warn(`[upload] ${orphans.length - n} orphan object(s) from a partial batch`);
+      }
+    }
+    return { error: "upload failed" };
+  }
+  // Both keys on both paths, so a client mid-rollout works either way and
+  // neither reader can be broken by the other's shape.
+  return batch ? { urls, url: urls[0] } : { url: urls[0], urls };
 }
 
 // ── WS-PHOTOS: the photo → relational record delta (docs/PHOTOS.md,

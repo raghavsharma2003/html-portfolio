@@ -318,6 +318,59 @@ export async function uploadPhoto(device: string, dataB64: string, mime: string)
   }
 }
 
+/**
+ * The multi-picture send (WS-COMPOSER). One message, up to five pictures, one
+ * caption, and a permanent storage URL for each in the order they were sent.
+ *
+ * ── THE TWO SHAPES, AND WHY BOTH ──────────────────────────────────────────
+ *
+ * `{ images, caption }` is the shape agreed with the server workstream. It is
+ * ONE round trip for a set, which matters on a phone: five sequential uploads
+ * over a bad connection is five chances to half-fail, and a half-failed set is a
+ * message whose pictures partly exist.
+ *
+ * `{ data, mime }` is the shape this app has been sending since the single-photo
+ * path shipped, and it stays the shape for the case it already covers exactly:
+ * one picture, no caption. There is nothing the new body would buy there, and
+ * the old one is proven against production traffic, so the commonest send by far
+ * takes zero new risk.
+ *
+ * ── AND WHY THE FALLBACK IS NOT OPTIONAL ──────────────────────────────────
+ *
+ * The web bundle updates over the air, independently of the serverless
+ * functions. A build that assumed the server already understood `images` would,
+ * for however long the two are out of step, drop every picture past the first
+ * with no error anywhere. So a response that does not carry a URL per image is
+ * treated as a server that has not learned the shape yet, and the set goes up
+ * through the old endpoint one at a time. Slower, and it works.
+ *
+ * Never throws and never rejects: a null in the returned array means that one
+ * picture has no permanent copy, which the caller renders from its local data
+ * URL exactly as it did for the second before any upload finished.
+ */
+export async function uploadPhotos(
+  device: string,
+  images: string[],
+  caption: string,
+): Promise<Array<string | null>> {
+  const b64 = (u: string) => u.split(",")[1] || "";
+  if (!images.length) return [];
+  if (images.length === 1 && !caption) {
+    return [await uploadPhoto(device, b64(images[0]), "image/jpeg")];
+  }
+  try {
+    const r = await post({ op: "upload_photo", device, images, caption, mime: "image/jpeg" });
+    const d = await (r.ok ? r.json() : null);
+    const urls = d?.urls;
+    if (Array.isArray(urls) && urls.length === images.length) {
+      return urls.map((u: unknown) => (typeof u === "string" && u ? u : null));
+    }
+  } catch {
+    /* fall through to the shape that has always worked */
+  }
+  return Promise.all(images.map((u) => uploadPhoto(device, b64(u), "image/jpeg")));
+}
+
 export async function describePhoto(device: string, url: string): Promise<string> {
   try {
     const r = await post({ op: "describe", device, url });

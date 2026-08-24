@@ -28,6 +28,8 @@ import type { Message } from "../state/store";
 import { HER_NAME } from "../engine/persona";
 import { fmtTime } from "./fmtTime";
 import PhotoCard from "./PhotoCard";
+import PhotoGrid from "./PhotoGrid";
+import { imagesOf } from "./attachments";
 import BigEmoji, { isSingleEmoji } from "./BigEmoji";
 import VoiceNote from "./VoiceNote";
 import GifBubble from "./GifBubble";
@@ -58,6 +60,8 @@ export interface RowApi {
   /** tap a quote: go to the message it quotes, loading it in if it is older
    *  than the window */
   jumpToQuoted(m: Message): void;
+  /** tap a picture he sent: open it full-screen, on that one, swipeable */
+  openPhotos(m: Message, index: number): void;
   /** swipe-to-reply / drag-to-peek, bound to this message */
   swipe(m: Message): {
     onTouchStart(e: React.TouchEvent): void;
@@ -165,9 +169,33 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
   }
 
   if (m.kind === "photo") {
+    // What HE sent: one picture, or up to five as a collage. `imagesOf` owns
+    // the precedence between the new field and the legacy one, so this file
+    // never has to know which shape a stored message was written in.
+    const mine = m.from === "me" ? imagesOf(m) : [];
     return m.from === "me" ? (
-      <div className="msg me photo" data-row={m.id} {...sw}>
-        {m.photoUrl && <img className="pimg" src={m.photoUrl} alt="" draggable={false} />}
+      <div className={`msg me photo${mine.length > 1 ? " multi" : ""}`} data-row={m.id} {...sw}>
+        {mine.length > 1 ? (
+          <PhotoGrid urls={mine} onOpen={(i) => api.openPhotos(m, i)} />
+        ) : (
+          mine.length === 1 && (
+            // A BUTTON, not a bare image. Tapping a photo to see it larger is
+            // the one thing every person tries on every messaging app, and
+            // before this it did nothing at all. The keyboard gets it too,
+            // which a click handler on an <img> would not have given anyone.
+            <button
+              className="pimg-open"
+              data-tel="chat.photo_open"
+              onClick={(e) => {
+                e.stopPropagation();
+                api.openPhotos(m, 0);
+              }}
+              aria-label="Open photo"
+            >
+              <img className="pimg" src={mine[0]} alt="" draggable={false} />
+            </button>
+          )
+        )}
         {m.text && <div className="cap">{m.text}</div>}
         <span className="t">
           {fmtTime(m.at)}

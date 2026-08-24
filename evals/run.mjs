@@ -342,6 +342,45 @@ const suites = {
   // failure it prevents is a future edit and no test that runs today's code can
   // see one. Offline, deterministic, $0, ~3s.
   notify: "notify.mjs",
+  // WS-RESILIENCE. The upstream failure ladder. On 2026-08-24 three of the
+  // owner's turns died on a SINGLE Google 502 with `retries:0`, `fallbacks:[]`
+  // and eight healthy keys untried, because api/chat.js folded every non-quota
+  // status into "every key would reject it identically" — true for 4xx, false
+  // for 5xx. The same turns then came back with the SAME canned connectivity
+  // pair three times in ninety minutes, because the draw was uniform with
+  // nothing forbidding a repeat.
+  //
+  // Every other gate here asks "does the code do the right thing when
+  // invoked", and none of them can invoke a 502. This one can: the upstream,
+  // the clock and the randomness are all functions, so the ladder is driven
+  // through 502-then-200, rotation, deterministic abort, pool-exhausted →
+  // grant lane, and everything-dead. Four cases carry an explicit negative
+  // control that re-runs them against the reverted classifier and asserts the
+  // battery FAILS — a green suite that would also be green against the bug is
+  // not a suite.
+  //
+  // It also lints the SOURCE for the folding coming back, which no test that
+  // runs today's code can see. Offline, deterministic, $0, ~4s.
+  resilience: "resilience/run.mjs",
+  // WS-COMPOSER. Sending more than one picture, with something written on it:
+  // the five-cap and its partial-accept behaviour, the total-byte rail, the
+  // collage a count resolves to, the `images` + `caption` wire shape and the
+  // legacy body it deliberately keeps for one uncaptioned picture, the caption
+  // threaded through screen and transcript and reply cycle, the proof that
+  // exactly one JPEG encoder sits on the picture-send path, and the two pieces
+  // of teardown state that evals/teardown.mjs's AppState walker structurally
+  // cannot see (the compose tray, and photoUrls riding inside messages).
+  //
+  // Wired here rather than left standalone because `dead-writers` does not stop
+  // applying to evals: a suite nothing invokes is indistinguishable from a suite
+  // that does not exist. Its BROWSER half (evals/composer-browser.mjs) is
+  // deliberately not in this map, for the by-construction reason the d0/d1 note
+  // above gives: it needs a built app and a server on a port, and a gate that
+  // skips looks exactly like a gate that passed.
+  //
+  // Offline, deterministic, $0, ~2s. Re-bundles from the real source on every
+  // run, like everything else here.
+  composer: "composer/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

@@ -32,9 +32,33 @@ export const GOOGLE_KEY = "";
 // Tried last in the rotation and never cooled.
 export const GOOGLE_PAID_KEY = "";
 
-// Azure OpenAI — memory extraction only, on the startup credits.
+// Azure AI Foundry, on the Microsoft-for-Startups credits — $0 cash.
+//
+// Three jobs now, not one:
+//   1. memory extraction + embeddings (api/memory.js, api/_embed.js,
+//      api/consolidate.js) — the original use.
+//   2. THE LAST-RESORT BRAIN (api/_azure.js, reached from api/chat.js after the
+//      free Google pool and after OpenRouter). On 2026-08-24 the free pool
+//      aborted on one 502 and the OpenRouter balance was spent, and with
+//      nothing underneath them she sent the canned connectivity line three
+//      times in ninety minutes. This lane is what stops that.
+//   3. THE FIRST lane for images and documents, by the owner's directive — see
+//      LANE_ORDER_ATTACHMENT in api/_lanes.js.
+//
+// AZURE_ENDPOINT is the openai/v1-compatible base INCLUDING the /openai/v1
+// suffix and with no trailing slash. Env overrides, mirroring what memory.js
+// and _embed.js already read: AZURE_ENDPOINT and AZURE_API_KEY (note the
+// asymmetry — the config name is AZURE_KEY, the env name is AZURE_API_KEY).
+// Unset means the lane reports itself unconfigured and is skipped; nothing
+// breaks, she just loses her third brain.
 export const AZURE_KEY = "";
 export const AZURE_ENDPOINT = "";
+// Optional deployment names for the brain lane. Both default to
+// `grok-4-20-non-reasoning` — the one deployment on this resource that
+// config/models.json records as gate-passed for the vision lane (vy_gate_run
+// id 35). Env only, no config entry needed:
+//   AZURE_CHAT_DEPLOYMENT     text last resort
+//   AZURE_VISION_DEPLOYMENT   images and documents
 
 // ── the Telegram surface (api/tg.js, PROPOSAL-MULTIPARTY-V1 §6) ───────────
 //

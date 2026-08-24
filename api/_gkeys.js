@@ -119,6 +119,23 @@ export async function withGeminiKey(fn) {
   // caller's streaming path, its frame parsing and its splice protection for
   // free. A separate lane would be a second audio path to keep in sync.
   if (PAID_KEY) keys.push(PAID_KEY);
+  return walkKeys(keys, fn, PAID_KEY);
+}
+
+/**
+ * The rotation itself, over an EXPLICIT key list.
+ *
+ * Split out of `withGeminiKey` so `evals/resilience/run.mjs` can gate the
+ * rotation behaviour — "two keys both 502, the third answers" — against the
+ * REAL walk, with three fake key strings and no secrets anywhere. Every
+ * previous attempt at this in the repo would have needed either nine
+ * production keys in CI or a second copy of this loop, and a second copy of a
+ * loop is `age-tier-never-realtime`: the rule added after the fork lands in one
+ * of them silently. There is exactly one loop, and the gate drives it.
+ *
+ * `paidKey` is the one member of the list that is never cooled.
+ */
+export async function walkKeys(keys, fn, paidKey = PAID_KEY) {
   let lastErr = null;
   for (const key of keys) {
     let r;
@@ -130,7 +147,7 @@ export async function withGeminiKey(fn) {
     }
     if (r?.ok) return { value: r.value, key };
     if (r?.exhausted) {
-      if (key !== PAID_KEY) markExhausted(key); // a billed key is never "spent"
+      if (key !== paidKey) markExhausted(key); // a billed key is never "spent"
       lastErr = "quota";
       continue;
     }

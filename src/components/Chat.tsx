@@ -4,6 +4,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { animate } from "framer-motion";
 import "../styles/thread.css";
+import "../styles/composer.css";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think, formatHerLife } from "../engine/brain";
@@ -22,7 +23,7 @@ import type { Story } from "../engine/storyCatalog";
 import {
   logTurns,
   rememberFrom,
-  uploadPhoto,
+  uploadPhotos,
   describePhoto,
   prefetchRecall,
   forgetMemories,
@@ -53,6 +54,19 @@ import { tap, land } from "../native/haptics";
 // comes and goes is a layer that is armed some of the time.
 import { armSound, feel, play, setCallActive, setSoundEnabled } from "../sound";
 import MoreSheet from "./MoreSheet";
+import SourceSheet from "./SourceSheet";
+import ComposeTray from "./ComposeTray";
+import PhotoViewer from "./PhotoViewer";
+import {
+  MAX_ATTACHMENTS,
+  addAttachments,
+  buildImagePayload,
+  compressImage,
+  imagesOf,
+  removeAttachment,
+  transcriptLine,
+  type Attachment,
+} from "./attachments";
 import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import {
   PhoneIcon,
@@ -296,6 +310,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       voicePlayed: (id) => rowHandlers.current.voicePlayed(id),
       gifResolved: (id, url) => rowHandlers.current.gifResolved(id, url),
       jumpToQuoted: (m) => rowHandlers.current.jumpToQuoted(m),
+      openPhotos: (m, i) => rowHandlers.current.openPhotos(m, i),
       swipe: (m) => rowHandlers.current.swipe(m),
     }),
     [],
@@ -1782,6 +1797,20 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     setTyping(false);
     setReplyTo(null);
     setReplySel(null);
+    // The staged pictures go too, and the viewer over them closes.
+    //
+    // They are DRAFT state and live only in this component (see the tray's own
+    // note by `attachments` above), so evals/teardown.mjs's FATE walker cannot
+    // see them — which is exactly the shape of the reachability gap that file's
+    // §6 exists for. The verdict is the same one every draft gets: a picture
+    // staged for a conversation that no longer exists belongs to that
+    // conversation, and a viewer left open over a wiped thread is the wiped
+    // thread still on screen. Cleared on BOTH doors, because clear-chat's
+    // promise is about her memory of him and never about his own half-written
+    // message.
+    setAttachments([]);
+    setSourceOpen(false);
+    setViewer(null);
     // clearedAt is the synced tombstone: other devices honor it instead of
     // resurrecting the wiped conversation; followup timers from the deleted
     // conversation die with it, and so does her improvised life — a feeling
@@ -1939,6 +1968,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
 
   function send() {
     const text = draft.trim();
+    // PICTURES FIRST. When the tray holds anything, this send is that message
+    // and the box is its caption — including an empty one, which is the
+    // ordinary case of sending a photo with nothing to say about it.
+    if (attachments.length) {
+      void sendAttachments();
+      return;
+    }
     if (!text) return; // sending is NEVER blocked — she adapts, like a person
     setDraft("");
     // the box is empty again: the composing hold has nothing left to hold on
@@ -2016,40 +2052,92 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     scheduleReply(text);
   }
 
-  // ── sending HER a photo (camera or gallery): compress client-side, show
-  // instantly, upload to storage, then she looks at the actual image with
-  // the whole conversation as context ──
-  const fileRef = useRef<HTMLInputElement>(null);
+  // ══ SENDING HER PICTURES ═══════════════════════════════════════════════
+  //
+  // ── what changed, and why ────────────────────────────────────────────────
+  //
+  // This used to be: tap the camera glyph, get a file dialog, and whatever came
+  // back was SENT, immediately, alone. Three things were wrong with that and
+  // the owner named all three. There was no way to say anything with a picture
+  // (his words: in WhatsApp we get an option to write something with it). There
+  // was no camera — the glyph was a camera and the dialog was a file browser.
+  // And one picture was the limit, silently, with nothing on screen to say so.
+  //
+  // So picking no longer sends. A picked picture lands in the TRAY, the
+  // composer's own text box becomes its caption field, and ONE send puts up to
+  // five pictures and one caption into one message. The source question is
+  // asked first, as a sheet, because it has two answers.
+  //
+  // ── WHERE THE RULES LIVE ─────────────────────────────────────────────────
+  //
+  // Not here. `components/attachments.ts` owns the cap, the byte rail, the
+  // collage arrangement, the wire shape and the compressor, because every one
+  // of those is pure and this file is three thousand lines of React that no
+  // test can reach. This function is the wiring between that module, the DOM
+  // and her reply cycle, and it should stay that thin.
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [sourceOpen, setSourceOpen] = useState(false);
+  // one beat of "that one did not fit", cleared by its own timer
+  const [refused, setRefused] = useState(false);
+  const refuseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // the full-screen viewer, opened by tapping a picture in the thread
+  const [viewer, setViewer] = useState<{ urls: string[]; start: number; caption: string } | null>(
+    null,
+  );
+  useEffect(
+    () => () => {
+      if (refuseTimer.current) clearTimeout(refuseTimer.current);
+    },
+    [],
+  );
 
-  async function compressImage(file: File): Promise<{ dataUrl: string; b64: string } | null> {
-    try {
-      const src = URL.createObjectURL(file);
-      const img = new Image();
-      await new Promise<void>((res, rej) => {
-        img.onload = () => res();
-        img.onerror = () => rej();
-        img.src = src;
-      });
-      const scale = Math.min(1, 1024 / Math.max(img.width, img.height));
-      const c = document.createElement("canvas");
-      c.width = Math.max(1, Math.round(img.width * scale));
-      c.height = Math.max(1, Math.round(img.height * scale));
-      c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(src);
-      const dataUrl = c.toDataURL("image/jpeg", 0.82);
-      return { dataUrl, b64: dataUrl.split(",")[1] || "" };
-    } catch {
-      return null;
-    }
-  }
-
-  async function sendPhoto(file: File) {
-    const packed = await compressImage(file);
-    if (!packed || !packed.b64) {
+  /**
+   * Pictures arriving from either source.
+   *
+   * Compressed through the ONE pipeline before anything else looks at them, so
+   * the tray, the byte rail and the wire all deal in the same bytes the model
+   * will see. A file that will not decode is dropped with the notice the
+   * single-photo path already used; a whole selection that will not decode says
+   * so once rather than once per file.
+   */
+  async function takeFiles(files: File[], source: "camera" | "gallery") {
+    if (!files.length) return;
+    const packed = await Promise.all(files.map((f) => compressImage(f)));
+    const fresh: Attachment[] = [];
+    let unreadable = 0;
+    packed.forEach((p, i) => {
+      if (p && p.b64) fresh.push({ id: `${Date.now()}-${i}-${uid()}`, ...p, source });
+      else unreadable++;
+    });
+    if (unreadable && !fresh.length) {
       showNotice("couldn't read that photo. try a different one");
       return;
     }
+    const res = addAttachments(attachments, fresh);
+    setAttachments(res.next);
+    if (res.accepted) tel("chat.attach_add", { source, n: res.accepted, total: res.next.length });
+    if (res.refused) {
+      // THE CAP, FELT AND SEEN, NEVER MODAL. `tap()` is the quietest thing the
+      // hardware can do and this is the one place in the feature where the app
+      // says no; the count line above the tray carries the same answer in
+      // words, and nudges so that the eye finds it.
+      tap();
+      setRefused(true);
+      if (refuseTimer.current) clearTimeout(refuseTimer.current);
+      refuseTimer.current = setTimeout(() => setRefused(false), 700);
+      tel("chat.attach_refused", { source, n: res.refused, why: res.reason ?? "" });
+    }
+  }
+
+  /** The tray, sent: one message, its pictures, and the caption under them. */
+  async function sendAttachments() {
+    const atts = attachments;
+    if (!atts.length) return;
     const caption = draft.trim();
+    const payload = buildImagePayload(atts, caption);
+    setAttachments([]);
     setDraft("");
     // the box is empty again: the composing hold has nothing left to hold on
     draftRef.current = "";
@@ -2058,41 +2146,77 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       from: "me",
       kind: "photo",
       text: caption,
-      photoUrl: packed.dataUrl, // instant local render; swapped after upload
+      // instant local render; both swapped for storage URLs once they land.
+      // `photoUrl` is written even for a set, because every reader that
+      // predates this feature knows only that field (see store.ts).
+      photoUrl: payload.images[0],
+      ...(payload.images.length > 1 ? { photoUrls: payload.images } : {}),
       at: Date.now(),
       status: "sent",
       ...(replyTo ? { replyTo: { from: replyTo.from, text: replyTo.text } } : {}),
     };
     setReplyTo(null);
     if (state.followup) setState((s) => ({ ...s, followup: null }));
+    // the same commit haptic and whoosh a text send gets. Sending five
+    // pictures is at least as deliberate an act as sending "ok".
+    feel("send");
     pushMsg(mine);
     if (caption) composer.send(mine.id, caption);
-    tel("chat.send", { msg_id: mine.id, kind: "photo", chars: caption.length });
-    tel("chat.media", { kind: "photo", msg_id: mine.id, from: "me", bytes: packed.b64.length });
-    track(state.deviceId, "photo_shared", { caption: Boolean(caption) }, state.auth?.userId);
+    tel("chat.send", {
+      msg_id: mine.id,
+      kind: "photo",
+      chars: caption.length,
+      n: payload.images.length,
+    });
+    tel("chat.media", {
+      kind: "photo",
+      msg_id: mine.id,
+      from: "me",
+      n: payload.images.length,
+      bytes: atts.reduce((sum, a) => sum + a.b64.length, 0),
+    });
+    track(
+      state.deviceId,
+      "photo_shared",
+      { caption: Boolean(caption), n: payload.images.length },
+      state.auth?.userId,
+    );
     setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
     logTurns(state.deviceId, [
-      { ...mine, text: caption ? `[photo] ${caption}` : "[photo]" },
+      { ...mine, text: transcriptLine(payload.images.length, caption) },
     ]);
-    // the photo joins the same burst pipeline as text — she sees it (vision
-    // reads the local data URL until the storage upload lands) and can fold
-    // it into one reply with whatever else you're sending
+    // the pictures join the same burst pipeline as text — she sees them (vision
+    // reads the local data URLs until the storage upload lands) and can fold
+    // them into one reply with whatever else you're sending
     scheduleReply(caption);
-    // background: permanent copy in storage (survives devices) + one factual
-    // line about the image for her long-term context
-    uploadPhoto(state.deviceId, packed.b64, "image/jpeg").then((url) => {
-      if (!url) return;
+    // background: permanent copies in storage (they survive devices) + one
+    // factual line per picture for her long-term context, which is what she
+    // still has months later when the vision window is long past them
+    uploadPhotos(state.deviceId, payload.images, caption).then(async (urls) => {
+      if (!urls.some(Boolean)) return; // every upload failed: keep the local copies
+      const landed = urls.map((u, i) => u || payload.images[i]);
       setState((s) => ({
         ...s,
-        messages: s.messages.map((x) => (x.id === mine.id ? { ...x, photoUrl: url } : x)),
+        messages: s.messages.map((x) =>
+          x.id === mine.id
+            ? {
+                ...x,
+                photoUrl: landed[0],
+                ...(landed.length > 1 ? { photoUrls: landed } : {}),
+              }
+            : x,
+        ),
       }));
-      describePhoto(state.deviceId, url).then((desc) => {
-        if (!desc) return;
-        setState((s) => ({
-          ...s,
-          messages: s.messages.map((x) => (x.id === mine.id ? { ...x, desc } : x)),
-        }));
-      });
+      const stored = urls.filter((u): u is string => Boolean(u));
+      const descs = await Promise.all(stored.map((u) => describePhoto(state.deviceId, u)));
+      // Joined rather than kept apart: `desc` is ONE line in her context, and a
+      // set of pictures was one thing he showed her.
+      const desc = descs.filter(Boolean).join(" · ");
+      if (!desc) return;
+      setState((s) => ({
+        ...s,
+        messages: s.messages.map((x) => (x.id === mine.id ? { ...x, desc } : x)),
+      }));
     });
   }
 
@@ -2685,6 +2809,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
         messages: s.messages.map((x) => (x.id === id ? { ...x, gifUrl: url } : x)),
       })),
     jumpToQuoted,
+    openPhotos: (m, index) => {
+      const urls = imagesOf(m);
+      if (!urls.length) return;
+      setViewer({ urls, start: index, caption: m.text || "" });
+      tel("chat.photo_view", { msg_id: m.id, n: urls.length, at: index });
+    },
     swipe: swipeHandlers,
   };
 
@@ -2765,11 +2895,11 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   // The composer's right-hand control has three modes and ONE button (the
   // morph lives in thread.css). "off" is not disabled — it still focuses the
   // field, which is the useful answer to an empty send.
-  const sendMode: "send" | "mic" | "off" = draft.trim()
-    ? "send"
-    : sttSupported()
-      ? "mic"
-      : "off";
+  // A staged picture is a message waiting to go, so the control is Send even
+  // with an empty box — the alternative is a tray full of photos above a
+  // microphone, which offers the one thing the composer cannot currently do.
+  const sendMode: "send" | "mic" | "off" =
+    draft.trim() || attachments.length ? "send" : sttSupported() ? "mic" : "off";
 
   // THE THREAD'S OWN SKY. Presentation only: it feeds the wallpaper under the
   // thread and the band behind the header, and nothing downstream of it can
@@ -2976,6 +3106,30 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
           onForgetEverything={forgetEverything}
         />
       )}
+      {sourceOpen && (
+        <SourceSheet
+          room={MAX_ATTACHMENTS - attachments.length}
+          onCamera={() => {
+            setSourceOpen(false);
+            // after the sheet's own exit beat, or the file dialog opens
+            // underneath a drawer that is still on screen
+            setTimeout(() => cameraRef.current?.click(), 60);
+          }}
+          onGallery={() => {
+            setSourceOpen(false);
+            setTimeout(() => galleryRef.current?.click(), 60);
+          }}
+          onClose={() => setSourceOpen(false)}
+        />
+      )}
+      {viewer && (
+        <PhotoViewer
+          urls={viewer.urls}
+          start={viewer.start}
+          caption={viewer.caption}
+          onClose={() => setViewer(null)}
+        />
+      )}
       {undo && (
         <div className="undo-toast" role="status">
           <span>{undo.label}</span>
@@ -2998,6 +3152,19 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
           </button>
         </div>
       )}
+      {/* The pictures this message is going to carry, above the box that is
+          about to caption them. Same seat and same glass as the reply quote,
+          for the reason composer.css states: both answer "what is attached to
+          the thing I am writing". */}
+      <ComposeTray
+        items={attachments}
+        refused={refused}
+        onRemove={(id) => {
+          setAttachments((cur) => removeAttachment(cur, id));
+          tap();
+        }}
+        onAddMore={() => setSourceOpen(true)}
+      />
       <div className="chat-input-row">
         {recording ? (
           <div className="rec-bar" role="status" aria-label="Recording a voice note">
@@ -3037,19 +3204,58 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
             <button
               className="attach-btn"
               data-tel="chat.attach"
-              onClick={() => fileRef.current?.click()}
+              onClick={() => {
+                // AT THE CAP THE BUTTON STILL WORKS, and says why. Going inert
+                // would be the dead-option rule broken on the one control whose
+                // whole job is to explain what is possible.
+                if (attachments.length >= MAX_ATTACHMENTS) {
+                  tap();
+                  setRefused(true);
+                  if (refuseTimer.current) clearTimeout(refuseTimer.current);
+                  refuseTimer.current = setTimeout(() => setRefused(false), 700);
+                  return;
+                }
+                setSourceOpen(true);
+              }}
               aria-label="Send a photo"
             >
               <CameraIcon size={21} />
             </button>
+            {/* TWO INPUTS, ONE PER SOURCE, and the difference is two
+                attributes. `capture` is what turns a file input into a camera:
+                Capacitor's own BridgeWebChromeClient answers it with a real
+                ACTION_IMAGE_CAPTURE intent and requests the CAMERA permission
+                itself (the manifest already declares it), and a mobile browser
+                answers it with the platform camera. `multiple` is what turns
+                the other one into a gallery multi-select, which the same
+                Capacitor path forwards as EXTRA_ALLOW_MULTIPLE.
+
+                THAT IS WHY NO PLUGIN WAS ADDED. @capacitor/camera would be a
+                second native surface for a job the platform already does, and
+                this APK's OTA contract (android/app/build.gradle's
+                OTA_NATIVE_CONTRACT) counts a new plugin method as a break that
+                forces every installed copy to reinstall. Paying that for a
+                capability we already have would be the worst trade in the
+                feature. */}
             <input
-              ref={fileRef}
+              ref={cameraRef}
               type="file"
               accept="image/*"
+              capture="environment"
               hidden
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) sendPhoto(f);
+                void takeFiles(Array.from(e.target.files ?? []), "camera");
+                e.target.value = "";
+              }}
+            />
+            <input
+              ref={galleryRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                void takeFiles(Array.from(e.target.files ?? []), "gallery");
                 e.target.value = "";
               }}
             />
@@ -3057,7 +3263,11 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
               ref={inputRef}
               rows={1}
               data-tel="chat.composer"
-              placeholder={`Message ${HER_NAME}…`}
+              // THE BOX CHANGES JOB, so it says so. A staged picture turns the
+              // composer into that picture's caption field, and a placeholder
+              // still reading "Message Maya" would be describing the control it
+              // was a second ago.
+              placeholder={attachments.length ? "Add a caption…" : `Message ${HER_NAME}…`}
               value={draft}
               onChange={(e) => {
                 // value only, never the caret: reading selectionStart here
