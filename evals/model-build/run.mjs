@@ -86,6 +86,9 @@ ok("the build input contains only owner-accepted ready-source evidence and its e
   input.evidence.length === 5 && input.artifacts.length === 1 &&
   /s\.state='ready'/.test(inputCalls[0].sql) && /l\.decision='accepted'/.test(inputCalls[0].sql) &&
   inputCalls.every((call) => call.params[1] === OWNER));
+ok("build input excludes evidence and enrollment audio that are not the latest owner-selected candidate",
+  /artifact_latest as/.test(inputCalls[0].sql) && /selected\.decision='selected'/.test(inputCalls[0].sql) &&
+  /vy_replica_processing_artifact_decision/.test(inputCalls[1].sql));
 ok("two independent embeddings and immutable transform lineage produce one canonical source-set hash",
   /^[0-9a-f]{64}$/.test(input.sourceSetHash) && input.artifacts[0].adapter.name === "deepfilternet");
 
@@ -129,6 +132,9 @@ ok("settlement is atomically fenced by the exact lease versions source-set and c
 ok("every accepted evidence and artifact id is rechecked at the mutation boundary and test provenance is denied",
   /unnest\(\$10::uuid\[\]\)/.test(settlement.sql) && /unnest\(\$11::uuid\[\]\)/.test(settlement.sql) &&
   /!~ '\(fake\|fixture\|test\|mock\)'/.test(settlement.sql) && settlement.params[9].length === EVIDENCE.length);
+ok("VoiceGenome settlement rechecks the latest owner candidate selection after the worker lease",
+  /artifact_latest as/.test(settlement.sql) && /selected\.artifact_id=e\.artifact_id and selected\.decision='selected'/.test(settlement.sql) &&
+  /selected\.artifact_id=a\.artifact_id and selected\.decision='selected'/.test(settlement.sql));
 ok("owner decisions and source erasure serialize against settlement before the draft becomes visible",
   /pg_try_advisory_xact_lock/.test(settlement.sql) && /voice_genome_review/.test(settlement.sql) && /locked_sources as materialized/.test(settlement.sql) &&
   /for update of s/.test(settlement.sql) && /cardinality\(\$12::uuid\[\]\)/.test(settlement.sql));

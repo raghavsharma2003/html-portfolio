@@ -22,3 +22,18 @@ export async function queueVoiceGenome(token: string, replicaId: string) {
     body: JSON.stringify({ op: "queue_voice_genome", replica_id: replicaId }),
   });
 }
+
+export async function getArtifactAudition(token: string, input: { replicaId: string; artifactId: string }) {
+  const data = await replicaRequest<{ audition: { artifact_id: string; mime: string; duration_ms: number | null; url: string; expires_at: string } }>(token, "/api/replica-review", {
+    method: "POST",
+    body: JSON.stringify({ op: "audition_artifact", replica_id: input.replicaId, artifact_id: input.artifactId }),
+  });
+  return data.audition;
+}
+
+export async function selectVoiceArtifact(token: string, input: { replicaId: string; artifactId: string }) {
+  await replicaRequest(token, "/api/replica-review", {
+    method: "POST",
+    body: JSON.stringify({ op: "select_artifact", replica_id: input.replicaId, artifact_id: input.artifactId }),
+  });
+}

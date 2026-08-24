@@ -1,7 +1,8 @@
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
-import { ownedReviewStatus, decideOwnedEvidence, queueOwnedVoiceGenome } from "./_replica-review.js";
+import { ownedReviewStatus, decideOwnedEvidence, getOwnedArtifactAudition, queueOwnedVoiceGenome, selectOwnedVoiceArtifact } from "./_replica-review.js";
+import { createSignedReplicaRead } from "./_replica-storage.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -26,6 +27,22 @@ export default async function handler(req, res) {
     if (body.op === "decide") {
       const record = await decideOwnedEvidence(q, user.id, body);
       return record ? res.status(201).json({ decision: record }) : res.status(404).json({ error: "evidence_not_found" });
+    }
+    if (body.op === "audition_artifact") {
+      const artifact = await getOwnedArtifactAudition(q, user.id, body);
+      if (!artifact) return res.status(404).json({ error: "artifact_not_found" });
+      const signed = await createSignedReplicaRead(artifact.object_path, { expiresIn: 60 });
+      return res.status(200).json({ audition: {
+        artifact_id: artifact.artifact_id,
+        mime: artifact.mime,
+        duration_ms: artifact.duration_ms == null ? null : Number(artifact.duration_ms),
+        url: signed.url,
+        expires_at: signed.expires_at,
+      } });
+    }
+    if (body.op === "select_artifact") {
+      const decision = await selectOwnedVoiceArtifact(q, user.id, body);
+      return decision ? res.status(201).json({ decision }) : res.status(404).json({ error: "artifact_not_found" });
     }
     if (body.op === "queue_voice_genome") {
       const build = await queueOwnedVoiceGenome(q, user.id, body.replica_id);

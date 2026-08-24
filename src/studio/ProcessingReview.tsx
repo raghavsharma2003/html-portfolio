@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { decideReplicaEvidence, getReplicaReview, queueVoiceGenome } from "./processingApi";
+import { decideReplicaEvidence, getArtifactAudition, getReplicaReview, queueVoiceGenome, selectVoiceArtifact } from "./processingApi";
 import type { EvidenceDecision, ReplicaReview, ReviewEvidence } from "./types";
 
 const REASONS: Record<EvidenceDecision, Array<[string, string]>> = {
@@ -53,6 +53,7 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [audition, setAudition] = useState<{ artifactId: string; url: string; expiresAt: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -62,6 +63,12 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
   }, [onAuthError, replicaId, token]);
 
   useEffect(() => { void load(); }, [load, sourceCount]);
+  useEffect(() => {
+    if (!audition) return;
+    const remaining = Math.max(0, new Date(audition.expiresAt).getTime() - Date.now());
+    const timer = window.setTimeout(() => setAudition((current) => current?.artifactId === audition.artifactId ? null : current), remaining);
+    return () => window.clearTimeout(timer);
+  }, [audition]);
   const bySource = useMemo(() => review?.sources.map((source) => ({
     source,
     jobs: review.jobs.filter((job) => job.source_id === source.source_id),
@@ -86,6 +93,25 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
     finally { setBusyId(""); }
   }
 
+  async function auditionArtifact(artifactId: string) {
+    setBusyId(`audition:${artifactId}`); setError(""); setNotice(""); setAudition(null);
+    try {
+      const value = await getArtifactAudition(token, { replicaId, artifactId });
+      setAudition({ artifactId: value.artifact_id, url: value.url, expiresAt: value.expires_at });
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Private audition could not be opened"); onAuthError(cause); }
+    finally { setBusyId(""); }
+  }
+
+  async function selectArtifact(artifactId: string) {
+    setBusyId(`select:${artifactId}`); setError(""); setNotice("");
+    try {
+      await selectVoiceArtifact(token, { replicaId, artifactId });
+      setNotice("Voice candidate selected. Existing drafts were retired so the next VoiceGenome can bind this exact audio.");
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Voice candidate could not be selected"); onAuthError(cause); }
+    finally { setBusyId(""); }
+  }
+
   return (
     <section className="processing-review" aria-labelledby="processing-review-title">
       <div className="panel-index">04</div>
@@ -94,7 +120,7 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
           <div><p className="eyebrow">Owner review boundary</p><h2 id="processing-review-title">Inspect processing, then decide</h2></div>
           <button className="review-refresh" type="button" disabled={loading} onClick={() => void load()}>{loading ? "Refreshing" : "Refresh"}</button>
         </div>
-        <p className="review-intro">Only review-safe measurements are shown. Raw transcripts, voice vectors, storage locations, provider references, and private download links never enter this page.</p>
+        <p className="review-intro">Only review-safe measurements are shown. Raw transcripts, voice vectors, storage locations, provider references, and durable download links never enter this page. A private audition link is minted only after you press Listen and expires within 60 seconds.</p>
         {notice && <p className="review-notice" role="status">{notice}</p>}
         {error && <p className="inline-error" role="alert">{error}</p>}
         {loading && !review ? <div className="review-loading" role="status"><span className="spinner" />Loading private processing receipts</div> : null}
@@ -113,7 +139,16 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
                   const attempts = review?.attempts.filter((attempt) => attempt.job_id === job.job_id) || [];
                   return <div className={`pipeline-step pipeline-${job.state}`} key={job.job_id}><strong>{words(job.step)}</strong><span>{words(job.state)} · attempt {job.attempt}</span>{attempts[0] && <small>{attempts[0].provenance.family} / {attempts[0].provenance.name} {attempts[0].provenance.version}</small>}</div>;
                 }) : <p className="muted-copy">No pipeline attempt has been recorded.</p>}</div>
-                {artifacts.length > 0 && <div className="artifact-grid">{artifacts.map((artifact) => <div key={artifact.artifact_id}><strong>{words(artifact.variant_key)}</strong><span>{words(artifact.stage)} · {artifact.transform.name} {artifact.transform.version}</span><small>{artifact.provenance.family} / {artifact.provenance.name} {artifact.provenance.version}</small></div>)}</div>}
+                {artifacts.length > 0 && <div className="artifact-grid">{artifacts.map((artifact) => <div className={artifact.selection_decision === "selected" ? "artifact-selected" : ""} key={artifact.artifact_id}>
+                  <div className="artifact-title"><strong>{words(artifact.variant_key)}</strong>{artifact.selection_decision === "selected" && <span>Selected voice</span>}</div>
+                  <span>{words(artifact.stage)} · {artifact.transform.name} {artifact.transform.version}</span>
+                  <small>{artifact.provenance.family} / {artifact.provenance.name} {artifact.provenance.version}</small>
+                  <div className="artifact-actions">
+                    <button type="button" disabled={busyId === `audition:${artifact.artifact_id}`} onClick={() => void auditionArtifact(artifact.artifact_id)}>{busyId === `audition:${artifact.artifact_id}` ? "Opening" : "Listen privately"}</button>
+                    {artifact.stage === "enhance" && <button className="artifact-select" type="button" disabled={artifact.selection_decision === "selected" || busyId === `select:${artifact.artifact_id}`} onClick={() => void selectArtifact(artifact.artifact_id)}>{busyId === `select:${artifact.artifact_id}` ? "Selecting" : artifact.selection_decision === "selected" ? "Selected" : "Use this voice"}</button>}
+                  </div>
+                  {audition?.artifactId === artifact.artifact_id && <div className="artifact-player"><audio controls preload="metadata" src={audition.url}>Your browser cannot play this private audio.</audio><small>The signed link expires automatically in under one minute.</small></div>}
+                </div>)}</div>}
                 <div className="review-evidence-list">{evidence.length ? evidence.map((item) => <EvidenceRow key={item.evidence_id} evidence={item} busy={busyId === item.evidence_id} onDecide={(decision, reason) => void decide(item, decision, reason)} />) : <p className="muted-copy">No reviewable evidence has been emitted for this source.</p>}</div>
               </div>
             </details>

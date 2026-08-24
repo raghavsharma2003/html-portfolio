@@ -102,6 +102,11 @@ export async function completeVoiceGenomeBuild(db, lease, draft, input) {
          from vy_replica_processing_evidence_decision d
         where d.replica_id=$2 and d.owner_user_id=$3
         order by d.evidence_id,d.created_at desc,d.decision_id desc
+     ), artifact_latest as (
+       select distinct on (d.artifact_id) d.artifact_id,d.decision
+         from vy_replica_processing_artifact_decision d
+        where d.replica_id=$2 and d.owner_user_id=$3
+        order by d.artifact_id,d.created_at desc,d.decision_id desc
      ), target as (
        select b.build_id
          from vy_replica_model_build b
@@ -125,6 +130,10 @@ export async function completeVoiceGenomeBuild(db, lease, draft, input) {
                 where e.evidence_id=required.evidence_id and e.replica_id=$2 and e.owner_user_id=$3
                   and lower(e.adapter_family||' '||e.adapter_name||' '||e.adapter_version)
                     !~ '(fake|fixture|test|mock)'
+                  and (e.artifact_id is null or exists (
+                    select 1 from artifact_latest selected
+                     where selected.artifact_id=e.artifact_id and selected.decision='selected'
+                  ))
              )
           )
           and (
@@ -135,6 +144,10 @@ export async function completeVoiceGenomeBuild(db, lease, draft, input) {
             where e.replica_id=$2 and e.owner_user_id=$3 and e.evidence_type=any($13::text[])
               and lower(e.adapter_family||' '||e.adapter_name||' '||e.adapter_version)
                 !~ '(fake|fixture|test|mock)'
+              and (e.artifact_id is null or exists (
+                select 1 from artifact_latest selected
+                 where selected.artifact_id=e.artifact_id and selected.decision='selected'
+              ))
           )=cardinality($10::uuid[])
           and not exists (
             select 1 from unnest($11::uuid[]) required(artifact_id)
@@ -145,6 +158,10 @@ export async function completeVoiceGenomeBuild(db, lease, draft, input) {
                 where a.artifact_id=required.artifact_id and a.replica_id=$2 and a.owner_user_id=$3
                   and lower(a.adapter_family||' '||a.adapter_name||' '||a.adapter_version)
                     !~ '(fake|fixture|test|mock)'
+                  and (a.stage<>'enhance' or exists (
+                    select 1 from artifact_latest selected
+                     where selected.artifact_id=a.artifact_id and selected.decision='selected'
+                  ))
              )
           )
         for update of b,r

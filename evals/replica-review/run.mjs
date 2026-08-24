@@ -10,6 +10,8 @@ import {
   queueOwnedVoiceGenome,
   safeEvidenceSummary,
   safeFacts,
+  getOwnedArtifactAudition,
+  selectOwnedVoiceArtifact,
 } from "../../api/_replica-review.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
 
@@ -62,7 +64,7 @@ const readyEvidence = [
   evidence("transcript_span", 6, { value: { text: "private transcript" }, reason_code: "segment_verified" }),
 ];
 
-function dbFixture({ owned = true, evidenceRows = readyEvidence } = {}) {
+function dbFixture({ owned = true, evidenceRows = readyEvidence, selectedArtifact = true } = {}) {
   const calls = [];
   const db = async (sql, params) => {
     calls.push({ sql, params });
@@ -78,7 +80,10 @@ function dbFixture({ owned = true, evidenceRows = readyEvidence } = {}) {
       variant_key: "identity", mime: "audio/wav", byte_size: 48000, duration_ms: 1000,
       sha256: "b".repeat(64), input_sha256: HASH, transform_name: "enhance",
       transform_version: "1.0", adapter_family: "real-family", adapter_name: "real-enhancer",
-      adapter_version: "1.0", created_at: "2026-08-24T00:00:00.000Z",
+      adapter_version: "1.0", selection_decision: selectedArtifact ? "selected" : null,
+      selection_reason: selectedArtifact ? "owner_voice_match" : "",
+      selection_reviewed_at: selectedArtifact ? "2026-08-24T00:00:00.000Z" : null,
+      created_at: "2026-08-24T00:00:00.000Z",
     }];
     if (/from vy_replica_model_build b/i.test(sql)) return [];
     if (/from vy_replica_voice_genome g/i.test(sql)) return [];
@@ -123,12 +128,30 @@ ok("decision SQL only admits review-safe evidence types", /e\.evidence_type=any\
 ok("evidence decisions fail fast instead of racing an in-flight immutable build snapshot",
   /pg_try_advisory_xact_lock/.test(decisionCall.sql) && /voice_genome_review/.test(decisionCall.sql));
 
+const auditionCalls = [];
+const audition = await getOwnedArtifactAudition(async (sql, params) => {
+  auditionCalls.push({ sql, params });
+  return [{ artifact_id: ARTIFACT, object_path: `${OWNER}/${RID}/${SOURCE}/derived/pinned/${ARTIFACT}`, mime: "audio/wav", duration_ms: 1000 }];
+}, OWNER, { replica_id: RID, artifact_id: ARTIFACT });
+ok("private audition is owner-scoped and creates a content-free audit row", audition.artifact_id === ARTIFACT && /a\.replica_id=\$1 and a\.owner_user_id=\$2/.test(auditionCalls[0].sql) && /processing\.artifact\.audition/.test(auditionCalls[0].sql));
+
+const selectionCalls = [];
+const selected = await selectOwnedVoiceArtifact(async (sql, params) => {
+  selectionCalls.push({ sql, params });
+  if (/insert into vy_replica_processing_artifact_decision/.test(sql)) return [{ decision_id: "1", artifact_id: ARTIFACT, decision: "selected", reason_code: "owner_voice_match", created_at: "2026-08-24T00:00:00Z" }];
+  return [];
+}, OWNER, { replica_id: RID, artifact_id: ARTIFACT });
+ok("owner selection is append-only, supersedes the prior candidate and retires stale drafts", selected.decision === "selected" && /'superseded','better_candidate'/.test(selectionCalls[0].sql) && /stale_builds as/.test(selectionCalls[0].sql) && /stale_drafts as/.test(selectionCalls[0].sql));
+ok("artifact selection shares the VoiceGenome review arbiter", /pg_try_advisory_xact_lock/.test(selectionCalls[0].sql) && /voice_genome_review/.test(selectionCalls[0].sql));
+
 const fakeRows = readyEvidence.map((row) => ({ ...row, adapter_name: "deterministic-fake" }));
 await assert.rejects(queueOwnedVoiceGenome(dbFixture({ evidenceRows: fakeRows }).db, OWNER, RID), (error) => error?.message === "voice_genome_not_ready" && error?.details?.reviewed_real_evidence === 0);
 ok("fixture or mock evidence can never queue a VoiceGenome", true);
 const thirdPartyRows = readyEvidence.map((row) => ({ ...row, contains_third_parties: true }));
 await assert.rejects(queueOwnedVoiceGenome(dbFixture({ evidenceRows: thirdPartyRows }).db, OWNER, RID), /voice_genome_not_ready/);
 ok("third-party-bearing evidence can never queue a self VoiceGenome", true);
+await assert.rejects(queueOwnedVoiceGenome(dbFixture({ selectedArtifact: false }).db, OWNER, RID), (error) => error?.details?.blockers?.includes("owner_selected_voice_candidate_required"));
+ok("accepted embeddings cannot qualify an unselected audio candidate", true);
 
 const queueHarness = dbFixture();
 const build = await queueOwnedVoiceGenome(queueHarness.db, OWNER, RID);
@@ -148,15 +171,18 @@ const transcriptCall = transcriptHarness.calls.find((call) => /insert into vy_re
 ok("hidden transcript changes cannot alter VoiceGenome lineage", queueCall.params[2] === transcriptCall.params[2]);
 
 const migration = readFileSync(join(ROOT, "db/migrations/020_replica_review_isolation.sql"), "utf8");
+const selectionMigration = readFileSync(join(ROOT, "db/migrations/044_replica_artifact_selection.sql"), "utf8");
 ok("review migration is split-safe", splitSql(migration).length === 10);
 ok("decision schema carries composite evidence ownership", /foreign key \(evidence_id, replica_id, owner_user_id\)[\s\S]*references vy_replica_processing_evidence\(evidence_id, replica_id, owner_user_id\)/i.test(migration));
 ok("database enforces reviewer equals owner", /check \(reviewer_user_id = owner_user_id\)/i.test(migration));
 ok("database makes source-set queueing idempotent", /unique index if not exists vy_replica_model_build_source_set_ix[\s\S]*\(replica_id, build_kind, source_set_hash\)/i.test(migration));
+ok("artifact selection migration is split-safe and composite-owner bound", splitSql(selectionMigration).length === 4 && /unique index if not exists vy_replica_artifact_owner_short_tuple_ix/.test(selectionMigration) && /foreign key \(artifact_id,replica_id,owner_user_id\)[\s\S]*references vy_replica_processing_artifact\(artifact_id,replica_id,owner_user_id\)/i.test(selectionMigration));
 
 const route = readFileSync(join(ROOT, "api/replica-review.js"), "utf8");
 ok("HTTP route derives ownership from bearer authentication", /const user = await requireUser\(req\)/.test(route) && /user\.id/.test(route));
 ok("HTTP route never reads a request owner id", !/body\.(?:owner|owner_user_id|user_id|device)/.test(route));
 const studio = readFileSync(join(ROOT, "src/studio/ProcessingReview.tsx"), "utf8");
-ok("Studio explicitly tells owners what remains withheld", /Raw transcripts, voice vectors, storage locations, provider references/.test(studio));
+ok("Studio explicitly tells owners what remains withheld", /Raw transcripts, voice vectors, storage locations, provider references, and durable download links/.test(studio));
+ok("Studio exposes only a short-lived private audition and explicit voice selection", /Listen privately/.test(studio) && /Use this voice/.test(studio) && /expires automatically in under one minute/.test(studio));
 
 console.log(`\n${checks} replica review checks passed`);
