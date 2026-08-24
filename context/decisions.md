@@ -2345,3 +2345,24 @@ sheet fields rather than core; remaining Maya quotes sit inside MIXED core
 bullets. The R3 cross-agent leak guard measures exactly these so further
 extraction is evidence-ordered. **Reverses if** authoring a real third
 personality still requires touching the core — that is the ongoing test.
+
+## `two-phase-fuse` — slow voice beats no voice
+
+**Decided 2026-08-24, during the speech outage.** api/speech.js keeps the
+fast fuse (FREE_FIRST_FRAME_MS=1400) hunting for a healthy-fast key across
+the walk, but when the walk ends with no winner and the pool is nonempty,
+ONE long-fuse attempt (FREE_LONG_FRAME_MS=15000, slowBudget=1) runs before
+the paid lane. Rationale: the measured failure mode was Google being SLOW
+(9.7–11.3s first frame), not dead — on such a night the old chain returned
+502 with 48 working keys in hand. Verified in production the same night:
+200, free lane, 61KB audio at ~13s where the previous deploy 502'd.
+Companion decision, same commit: FAMILY COOLING — keys are labeled
+`owner-n` with an @domain family; a quota/slow failure cools the whole
+family (COOL_MS=5min quota, SICK_MS slow) and a walk-local deadFamilies
+set skips siblings mid-walk, so a dead 20-key family costs one attempt,
+not twenty. walkKeys gained an additive slowBudget param (default
+unchanged). **Reverses if**: the long pass measurably delays the paid
+fallback on genuinely-dead nights once a funded paid lane exists (today's
+paid lane is dead, so the 15s costs nothing), or Google's preview exits
+degraded mode and the p95 first frame returns under ~2s for a month —
+then the long fuse can shrink, not vanish.

@@ -2187,3 +2187,32 @@ in an isolated tree. The rule: a serialization format that crosses a
 seam must be parsed by the SAME code (or same-tested code) on both
 sides — a second, ignorant parser is a two-faced outage waiting for its
 second face.
+
+## `fixed-fuse-on-a-variable-upstream` — the 1400ms fuse turned a slow night into a silent one
+
+The 2026-08-24 ~22:00 UTC speech outage (production 502 "upstream empty"
+for hours) had three stacked causes, and the fuse was the one that made it
+total. (1) The carbonsettle org family's prepay hit zero — its ~20 keys
+answered 429 "prepayment credits depleted" on TTS generation while chat
+countTokens still 200'd, so pool-health probes said HEALTHY for keys the
+speech lane could not use. (2) MAX_TRIES=3 was written for a 9-key pool
+and could not cross that ~20-key dead block sitting at the ring's head.
+(3) Google's TTS preview itself degraded to a measured 9.7–11.3s FIRST
+FRAME on healthy keys (three keys probed raw, real audio behind each) —
+and the 1400ms fuse, tuned to the healthy-night 615–1051ms, cut every one
+of them. Each fix alone would have failed: raising MAX_TRIES walks 48 slow
+keys and times the function out; raising the fuse alone makes every
+healthy night slow. What shipped: quota 429s no longer consume the slow-
+try budget (a fast bounce costs ~150ms; the budget bounds SLOW upstreams),
+billing families fail together so one hit kills the whole @domain family
+for the walk, and the fuse became two-phase (see `two-phase-fuse`). The
+rule: a fixed timeout tuned to an upstream's healthy tail is a self-DoS
+against its sick tail — pair every fast fuse with a bounded slow path
+before declaring the upstream dead.
+
+Sibling rejection, caught by the battery not by me: the first cut of the
+mid-walk family skip keyed off the GLOBAL cooldown map, which also skipped
+the keys healthyKeys()'s everything-cooled fallback had deliberately
+returned — calls=0, resilience 140/13. The skip must be a walk-local set
+fed only by THIS walk's own failures. A global "known bad" consulted
+mid-walk re-breaks whatever the fallback above it just repaired.

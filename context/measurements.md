@@ -2811,3 +2811,19 @@ added with its date.
   facts on a live game, 189 finished. Fact-order-is-drop-policy is load-
   bearing for ttt in a way it is not for chess. Method: byte-count of real
   compile() output across the parity battery's 5,478 reachable positions.
+
+## `tts-first-frame-degraded` (2026-08-24 ~22:30 UTC)
+
+- Google TTS preview (gemini-2.5-flash-preview-tts) first-frame on HEALTHY
+  free keys: 9.7s, 10.4s, 11.3s (n=3 keys: gaurav-2, arpit-1, rahul-1;
+  method: raw streamGenerateContent curl, wall-clock to first data chunk;
+  real audio followed each). Healthy-night baseline for the same probe:
+  615–1051ms (2026-08-24 morning, n=5). The 1400ms fuse sat between the
+  two modes — hence total outage in degraded mode.
+- carbonsettle org family: TTS generate 429 "prepayment credits depleted"
+  (n=3 keys probed), countTokens still 200 — health probes overstate a
+  family whose prepay is gone. Owner action: top-up at ai.studio.
+- Post-fix production (same night, commit 402c7f4): speech 200, lane
+  free, 61,440 bytes at 13.1s, pool 33/48; local handler 200 with
+  99,840 bytes at 12.9s. Resilience battery 153/153; verify-release
+  13/13 by exit code.
