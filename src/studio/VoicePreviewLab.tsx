@@ -4,6 +4,7 @@ import { ReplicaApiError } from "./replicaApi";
 import type { ReplicaReview } from "./types";
 import {
   generateVoicePreview,
+  issueVoiceTrial,
   saveVoicePreference,
   type VoicePreferenceChoice,
   type VoicePreferenceReason,
@@ -15,13 +16,16 @@ const STYLES = {
   expressive: { label: "Expressive", copy: "More emotional movement and risk" },
 } as const;
 type StyleKey = keyof typeof STYLES;
-type Preview = { url: string; generationId: string; modelCommitment: string; styleKey: StyleKey };
-
-const BLIND_PAIRS: ReadonlyArray<readonly [StyleKey, StyleKey]> = [
-  ["faithful", "balanced"],
-  ["balanced", "expressive"],
-  ["faithful", "expressive"],
-];
+type Preview = { url: string; generationId: string; modelCommitment: string; styleKey?: StyleKey };
+const CONDITION_LABELS: Record<string, string> = {
+  identity_anchor: "Identity anchor",
+  faithful: "Faithful",
+  steady_warm: "Steady warmth",
+  balanced: "Balanced",
+  warm_expressive: "Warm expression",
+  expressive: "Expressive",
+  animated: "Animated",
+};
 
 const PREFERENCE_REASONS: ReadonlyArray<{ value: VoicePreferenceReason; label: string }> = [
   { value: "identity", label: "Voice identity" },
@@ -51,12 +55,12 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
   const [text, setText] = useState<string>(STARTERS.en);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [pair, setPair] = useState<{ left: Preview; right: Preview } | null>(null);
+  const [pair, setPair] = useState<{ trialId: string; progress: { completed: number; covered: number; total: number; converged: boolean }; left: Preview; right: Preview } | null>(null);
   const [pairBusy, setPairBusy] = useState(false);
   const [heard, setHeard] = useState({ left: false, right: false });
   const [preferenceReasons, setPreferenceReasons] = useState<VoicePreferenceReason[]>([]);
   const [preferenceBusy, setPreferenceBusy] = useState(false);
-  const [preferenceSaved, setPreferenceSaved] = useState<{ id: string; choice: VoicePreferenceChoice } | null>(null);
+  const [preferenceSaved, setPreferenceSaved] = useState<{ id: string; choice: VoicePreferenceChoice; leftStyle: string; rightStyle: string } | null>(null);
   const [pairError, setPairError] = useState("");
 
   const draft = useMemo(() => review?.voice_genomes.find((item) => item.status === "draft") ?? null, [review]);
@@ -102,15 +106,18 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
   async function generateBlindPair() {
     if (!draft || pairBusy) return;
     setPairBusy(true); setPairError(""); setPreferenceSaved(null); setPreferenceReasons([]); setHeard({ left: false, right: false }); setPair(null);
-    const random = crypto.getRandomValues(new Uint8Array(2));
-    const selected = BLIND_PAIRS[random[0] % BLIND_PAIRS.length];
-    const order: readonly [StyleKey, StyleKey] = random[1] % 2 ? selected : [selected[1], selected[0]];
     let left: Preview | null = null;
     try {
-      const leftResult = await generateVoicePreview(token, { replicaId, genomeVersion: draft.version, text, languageId: language, styleKey: order[0] });
-      left = { url: URL.createObjectURL(leftResult.audio), generationId: leftResult.generationId, modelCommitment: leftResult.modelCommitment, styleKey: order[0] };
-      const rightResult = await generateVoicePreview(token, { replicaId, genomeVersion: draft.version, text, languageId: language, styleKey: order[1] });
-      setPair({ left, right: { url: URL.createObjectURL(rightResult.audio), generationId: rightResult.generationId, modelCommitment: rightResult.modelCommitment, styleKey: order[1] } });
+      const trial = await issueVoiceTrial(token, { replicaId, genomeVersion: draft.version, text, languageId: language });
+      const leftResult = await generateVoicePreview(token, { replicaId, genomeVersion: draft.version, text, languageId: language, trialId: trial.trial_id, trialSide: "left" });
+      left = { url: URL.createObjectURL(leftResult.audio), generationId: leftResult.generationId, modelCommitment: leftResult.modelCommitment };
+      const rightResult = await generateVoicePreview(token, { replicaId, genomeVersion: draft.version, text, languageId: language, trialId: trial.trial_id, trialSide: "right" });
+      setPair({
+        trialId: trial.trial_id,
+        progress: { completed: trial.progress.completed, covered: trial.progress.covered_conditions, total: trial.progress.total_conditions, converged: trial.progress.converged },
+        left,
+        right: { url: URL.createObjectURL(rightResult.audio), generationId: rightResult.generationId, modelCommitment: rightResult.modelCommitment },
+      });
     } catch (cause) {
       if (left) URL.revokeObjectURL(left.url);
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
@@ -130,10 +137,11 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
         replicaId,
         leftGenerationId: pair.left.generationId,
         rightGenerationId: pair.right.generationId,
+        trialId: pair.trialId,
         choice,
         reasonCodes: preferenceReasons,
       });
-      setPreferenceSaved({ id: saved.preference_id, choice: saved.choice });
+      setPreferenceSaved({ id: saved.preference_id, choice: saved.choice, leftStyle: saved.left_style_key, rightStyle: saved.right_style_key });
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
       setPairError(cause instanceof Error ? cause.message : "The voice preference could not be secured");
@@ -205,11 +213,12 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
       <div className="voice-preference-lab">
         <div className="voice-preference-intro">
           <div><span>Blind preference lab</span><h3>Teach the model with your ears.</h3></div>
-          <p>We render the same words through two hidden delivery conditions. Listen to both before choosing. Your answer is bound to the exact protected generations, not remembered as a loose note.</p>
+          <p>The server chooses the next most informative hidden contrast from a seven-condition search space. The words, identity evidence, model, language, and sampling seed stay fixed.</p>
           <button className="review-refresh" type="button" disabled={!draft || pairBusy || generating || !text.trim()} onClick={() => void generateBlindPair()}>{pairBusy ? "Rendering A, then B" : pair ? "New blind pair" : "Start blind A/B"}</button>
         </div>
         {pair ? (
           <div className="voice-preference-body">
+            <div className="voice-preference-progress"><span>Adaptive comparison {pair.progress.completed + 1}</span><span>{pair.progress.covered}/{pair.progress.total} conditions covered</span><span>{pair.progress.converged ? "Boundary converged" : "Still learning"}</span></div>
             <div className="voice-preference-players">
               {(["left", "right"] as const).map((side, index) => (
                 <article key={side} className={heard[side] ? "heard" : ""}>
@@ -222,7 +231,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
             {preferenceSaved ? (
               <div className="voice-preference-saved" role="status">
                 <strong>Preference secured</strong>
-                <span>{preferenceSaved.choice === "neither" ? "Neither candidate qualified." : preferenceSaved.choice === "tie" ? "The candidates were equivalent." : `${preferenceSaved.choice === "left" ? "A" : "B"} was closer.`} A was {STYLES[pair.left.styleKey].label.toLowerCase()}; B was {STYLES[pair.right.styleKey].label.toLowerCase()}.</span>
+                <span>{preferenceSaved.choice === "neither" ? "Neither candidate qualified." : preferenceSaved.choice === "tie" ? "The candidates were equivalent." : `${preferenceSaved.choice === "left" ? "A" : "B"} was closer.`} A was {(CONDITION_LABELS[preferenceSaved.leftStyle] || "condition A").toLowerCase()}; B was {(CONDITION_LABELS[preferenceSaved.rightStyle] || "condition B").toLowerCase()}.</span>
                 <small>Evidence {preferenceSaved.id.slice(0, 8)} is exact-generation bound.</small>
               </div>
             ) : (

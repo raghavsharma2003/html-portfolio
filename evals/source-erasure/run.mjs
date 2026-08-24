@@ -100,9 +100,10 @@ ok("untraceable derived person voice and calibration definitions are scrubbed ra
 ok("feedback datasets and candidate adapters are retired and their definitions cannot retain source content",
   /update vy_replica_feedback_dataset/.test(completeSql) && /update vy_replica_candidate/.test(completeSql));
 ok("source-derived private previews and their preference labels cannot block biometric erasure",
-  /delete from vy_replica_voice_preference/.test(completeSql) && /delete from vy_replica_generation/.test(completeSql) &&
+  /delete from vy_replica_voice_preference/.test(completeSql) && /delete from vy_replica_generation/.test(completeSql) && /delete from vy_replica_voice_trial/.test(completeSql) &&
   completeSql.indexOf("voice_preferences as") < completeSql.indexOf("preview_generations as") &&
-  completeSql.indexOf("preview_generations as") < completeSql.indexOf("delete from vy_replica_source"));
+  completeSql.indexOf("preview_generations as") < completeSql.indexOf("voice_trials as") &&
+  completeSql.indexOf("voice_trials as") < completeSql.indexOf("delete from vy_replica_source"));
 ok("content-free public generation receipts are not destroyed by private-source erasure",
   !completeSql.includes("vy_replica_generation_receipt") && !completeSql.includes("vy_replica_generation_segment_receipt"));
 

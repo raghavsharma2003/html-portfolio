@@ -205,6 +205,12 @@ export async function completeSourceErasure(db, lease) {
          where g.preview_artifact_id=a.artifact_id and g.replica_id=a.replica_id
            and g.owner_user_id=a.owner_user_id and a.source_id=t.source_id
            and a.replica_id=t.replica_id and a.owner_user_id=t.owner_user_id
+      ), voice_trials as (
+        delete from vy_replica_voice_trial v using target t
+         where v.preview_artifact_id in (
+           select a.artifact_id from vy_replica_processing_artifact a
+            where a.source_id=t.source_id and a.replica_id=t.replica_id and a.owner_user_id=t.owner_user_id
+         ) and v.replica_id=t.replica_id and v.owner_user_id=t.owner_user_id
       ), removed as (
         delete from vy_replica_source s using target t
          where s.source_id=t.source_id and s.replica_id=t.replica_id and s.owner_user_id=t.owner_user_id

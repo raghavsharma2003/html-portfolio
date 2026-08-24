@@ -9,9 +9,12 @@ import { assertSynthesisResult } from "./_voice/contracts.js";
 import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-chatterbox-preview.js";
 import {
   beginOwnedVoicePreview,
+  cleanVoicePreviewText,
   createNeonVoicePreviewLedger,
   markVoicePreviewFailed,
+  voicePreviewTextHash,
 } from "./_replica-voice-preview.js";
+import { resolveOwnedVoiceTrialSide } from "./_replica-voice-curriculum.js";
 
 const LANGUAGES = new Set(["en", "hi"]);
 
@@ -21,21 +24,6 @@ function cors(res) {
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   res.setHeader("Access-Control-Expose-Headers", "X-Vyakti-Generation, X-Vyakti-Disclosure, X-Vyakti-Model-Commitment");
   res.setHeader("Cache-Control", "no-store");
-}
-
-function cleanText(value) {
-  const text = Array.from(String(value || ""))
-    .filter((character) => {
-      const code = character.codePointAt(0);
-      return code === 10 || (code >= 32 && code !== 127);
-    })
-    .join("")
-    .replace(/<\/?(?:system|assistant|developer|tool)[^>]*>/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!text) throw Object.assign(new Error("voice_preview_text_required"), { status: 400 });
-  if (Array.from(text).length > 600) throw Object.assign(new Error("voice_preview_text_too_large"), { status: 413 });
-  return text;
 }
 
 function wavHeader(pcmBytes) {
@@ -65,14 +53,25 @@ export default async function handler(req, res) {
     const body = req.body || {};
     const languageId = String(body.language_id || "en").toLowerCase();
     if (!LANGUAGES.has(languageId)) return res.status(400).json({ error: "voice_preview_language_not_supported" });
-    const text = cleanText(body.text);
+    const text = cleanVoicePreviewText(body.text);
+    const textHash = voicePreviewTextHash(text);
+    const trial = body.trial_id ? await resolveOwnedVoiceTrialSide(q, user.id, {
+      replica_id: body.replica_id,
+      genome_version: body.genome_version,
+      trial_id: body.trial_id,
+      trial_side: body.trial_side,
+      language_id: languageId,
+      text_hash: textHash,
+    }) : null;
     started = await beginOwnedVoicePreview(q, user.id, {
       replica_id: body.replica_id,
       genome_version: body.genome_version,
       trace_id: `preview_${randomUUID().replaceAll("-", "")}`,
       language_id: languageId,
-      text_hash: createHash("sha256").update(text, "utf8").digest("hex"),
-      style_key: body.style_key,
+      text_hash: textHash,
+      style_key: trial?.styleKey || body.style_key,
+      trial_id: trial?.trialId,
+      trial_side: trial?.side,
     });
     const stored = await readPrivateReplicaObject(started.reference.objectPath, {
       maxBytes: 20 * 1024 * 1024,

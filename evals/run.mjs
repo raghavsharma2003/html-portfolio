@@ -110,6 +110,7 @@ const suites = {
   // prompt/identity/model controls, server-owned delivery conditions and an
   // append-only content-free preference ledger for future model updates.
   voicepreference: "voice-preference/run.mjs",
+  voicecurriculum: "voice-curriculum/run.mjs",
   // Deployable scale-to-zero consumer: composite-tenant leasing, real private
   // byte verification, current ClamAV, ffprobe, exact evidence adapters,
   // immutable persistence and one-step DAG settlement.

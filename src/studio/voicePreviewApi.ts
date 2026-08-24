@@ -5,7 +5,9 @@ export interface VoicePreviewInput {
   genomeVersion: number;
   text: string;
   languageId: "en" | "hi";
-  styleKey: "faithful" | "balanced" | "expressive";
+  styleKey?: "faithful" | "balanced" | "expressive";
+  trialId?: string;
+  trialSide?: "left" | "right";
 }
 
 export interface VoicePreviewResult {
@@ -23,6 +25,15 @@ export interface VoicePreferenceResult {
   reason_codes: VoicePreferenceReason[];
   confidence: number;
   created_at: string;
+  left_style_key: string;
+  right_style_key: string;
+}
+
+export interface VoiceTrialResult {
+  trial_id: string;
+  algorithm: string;
+  expires_at: string;
+  progress: { completed: number; covered_conditions: number; total_conditions: number; converged: boolean };
 }
 
 export async function generateVoicePreview(token: string, input: VoicePreviewInput): Promise<VoicePreviewResult> {
@@ -35,6 +46,8 @@ export async function generateVoicePreview(token: string, input: VoicePreviewInp
       text: input.text,
       language_id: input.languageId,
       style_key: input.styleKey,
+      trial_id: input.trialId,
+      trial_side: input.trialSide,
     }),
     signal: AbortSignal.timeout(290_000),
   });
@@ -54,10 +67,36 @@ export async function generateVoicePreview(token: string, input: VoicePreviewInp
   return { audio, generationId, disclosure, modelCommitment };
 }
 
+export async function issueVoiceTrial(token: string, input: {
+  replicaId: string;
+  genomeVersion: number;
+  text: string;
+  languageId: "en" | "hi";
+}): Promise<VoiceTrialResult> {
+  const response = await fetch("/api/replica-voice-trial", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      replica_id: input.replicaId,
+      genome_version: input.genomeVersion,
+      text: input.text,
+      language_id: input.languageId,
+    }),
+    signal: AbortSignal.timeout(25_000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const raw = typeof data?.error === "string" ? data.error : `trial failed (${response.status})`;
+    throw new ReplicaApiError(raw.replaceAll("_", " "), response.status, data);
+  }
+  return data.trial as VoiceTrialResult;
+}
+
 export async function saveVoicePreference(token: string, input: {
   replicaId: string;
   leftGenerationId: string;
   rightGenerationId: string;
+  trialId: string;
   choice: VoicePreferenceChoice;
   reasonCodes: VoicePreferenceReason[];
   confidence?: number;
@@ -69,6 +108,7 @@ export async function saveVoicePreference(token: string, input: {
       replica_id: input.replicaId,
       left_generation_id: input.leftGenerationId,
       right_generation_id: input.rightGenerationId,
+      trial_id: input.trialId,
       choice: input.choice,
       reason_codes: input.reasonCodes,
       confidence: input.confidence ?? 1,

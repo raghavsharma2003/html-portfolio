@@ -7,9 +7,13 @@ const TRACE = /^[A-Za-z0-9_-]{8,96}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const LANGUAGES = new Set(["en", "hi"]);
 const STYLE_PRESETS = Object.freeze({
+  identity_anchor: Object.freeze({ schema: "vyakti.voice-preview-style.v1", key: "identity_anchor", exaggeration: 0.2, cfg_weight: 0.78, temperature: 0.6 }),
   faithful: Object.freeze({ schema: "vyakti.voice-preview-style.v1", key: "faithful", exaggeration: 0.35, cfg_weight: 0.65, temperature: 0.65 }),
+  steady_warm: Object.freeze({ schema: "vyakti.voice-preview-style.v1", key: "steady_warm", exaggeration: 0.44, cfg_weight: 0.58, temperature: 0.72 }),
   balanced: Object.freeze({ schema: "vyakti.voice-preview-style.v1", key: "balanced", exaggeration: 0.5, cfg_weight: 0.5, temperature: 0.8 }),
+  warm_expressive: Object.freeze({ schema: "vyakti.voice-preview-style.v1", key: "warm_expressive", exaggeration: 0.64, cfg_weight: 0.42, temperature: 0.82 }),
   expressive: Object.freeze({ schema: "vyakti.voice-preview-style.v1", key: "expressive", exaggeration: 0.8, cfg_weight: 0.3, temperature: 0.9 }),
+  animated: Object.freeze({ schema: "vyakti.voice-preview-style.v1", key: "animated", exaggeration: 0.96, cfg_weight: 0.22, temperature: 0.98 }),
 });
 
 function fail(code, status = 409) {
@@ -55,6 +59,25 @@ export function voicePreviewStyle(value) {
   return style;
 }
 
+export function cleanVoicePreviewText(value) {
+  const text = Array.from(String(value || ""))
+    .filter((character) => {
+      const code = character.codePointAt(0);
+      return code === 10 || (code >= 32 && code !== 127);
+    })
+    .join("")
+    .replace(/<\/?(?:system|assistant|developer|tool)[^>]*>/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) fail("voice_preview_text_required", 400);
+  if (Array.from(text).length > 600) fail("voice_preview_text_too_large", 413);
+  return text;
+}
+
+export function voicePreviewTextHash(text) {
+  return createHash("sha256").update(cleanVoicePreviewText(text), "utf8").digest("hex");
+}
+
 export function voicePreviewMatchedSeed({ replicaId: rid, genomeVersion, languageId, textHash }) {
   const replica = replicaId(rid);
   const version = Number(genomeVersion);
@@ -76,10 +99,14 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
   const languageId = String(input?.language_id || "").toLowerCase();
   const textHash = String(input?.text_hash || "").toLowerCase();
   const previewStyle = voicePreviewStyle(input?.style_key);
+  const trialId = input?.trial_id ? replicaId(input.trial_id) : null;
+  const trialSide = input?.trial_side == null ? null : String(input.trial_side);
   if (!Number.isInteger(genomeVersion) || genomeVersion < 1) fail("voice_preview_genome_version_invalid", 400);
   if (!TRACE.test(traceId)) fail("voice_preview_trace_id_invalid", 400);
   if (!LANGUAGES.has(languageId)) fail("voice_preview_language_invalid", 400);
   if (!SHA256.test(textHash)) fail("voice_preview_text_hash_invalid", 400);
+  if ((trialId === null) !== (trialSide === null) || (trialSide !== null && !["left", "right"].includes(trialSide)))
+    fail("voice_preview_trial_binding_invalid", 400);
   const previewSeed = voicePreviewMatchedSeed({ replicaId: rid, genomeVersion, languageId, textHash });
   const rows = await db(
     `with inference_consent as materialized (
@@ -121,16 +148,26 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
             and x.owner_user_id=r.owner_user_id and x.scope='training' and x.policy_version=r.policy_version
             and x.revoked_at is null
             and (x.expires_at is null or x.expires_at>now()))
+          and (($13::uuid is null and $14::text is null) or exists (
+            select 1 from vy_replica_voice_trial t where t.trial_id=$13 and t.replica_id=r.replica_id
+              and t.owner_user_id=r.owner_user_id and t.genome_version=vg.version
+              and t.preview_artifact_id=a.artifact_id and t.language_id=$9 and t.text_hash=$10
+              and t.preview_seed=$12 and t.model_commitment=$8 and t.state='issued' and t.expires_at>now()
+              and (($14='left' and t.left_style_key=($11::jsonb->>'key'))
+                or ($14='right' and t.right_style_key=($11::jsonb->>'key')))
+          ))
         order by selected.created_at desc,selected.decision_id desc limit 1
      ), inserted as (
        insert into vy_replica_generation
          (replica_id,owner_user_id,voice_profile_id,genome_version,profile_version,calibration_version,
           dialogue_turn_id,channel,purpose,policy_version,trace_id,state,disclosure_scheme,
           watermark_algorithm,provenance_standard,preview_artifact_id,preview_model,preview_model_commitment,
-          preview_language_id,preview_text_hash,preview_style,preview_seed)
+          preview_language_id,preview_text_hash,preview_style,preview_seed,preview_trial_id,preview_trial_side)
        select replica_id,owner_user_id,null,genome_version,null,null,null,'studio_preview','voice_preview',
-              $4,$5,'authorized','audible-prefix-v1','pending','c2pa-2.4',artifact_id,$6,$8,$9,$10,$11::jsonb,$12
+              $4,$5,'authorized','audible-prefix-v1','pending','c2pa-2.4',artifact_id,$6,$8,$9,$10,$11::jsonb,$12,$13,$14
          from eligible
+       on conflict (preview_trial_id,preview_trial_side)
+         where preview_trial_id is not null and state in ('authorized','streaming','sealed') do nothing
        returning *
      ) select i.*,e.subject_mode,e.lifecycle,e.policy_version replica_policy_version,
               e.age_verified_at,e.identity_verified_at,e.liveness_verified_at,e.identity_expires_at,
@@ -141,7 +178,7 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
          from inserted i join eligible e on e.replica_id=i.replica_id`,
     [rid, ownerUserId, genomeVersion, PROVENANCE_POLICY, traceId,
       "open_chatterbox_multilingual_v3", REPLICA_POLICY_VERSION, OPEN_CHATTERBOX_MODEL_COMMITMENT,
-      languageId, textHash, JSON.stringify(previewStyle), previewSeed],
+      languageId, textHash, JSON.stringify(previewStyle), previewSeed, trialId, trialSide],
   );
   const row = rows[0];
   if (!row) fail("voice_preview_not_authorized");
