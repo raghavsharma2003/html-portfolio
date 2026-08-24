@@ -1,6 +1,6 @@
 # Replica noisy-evidence processing contract
 
-Status: backend contract slice plus one real Azure Speech HTTP adapter. All provider tests are mocked; no live quality claim or spend has occurred.
+Status: deployable private evidence plane. The repository now includes exact-pinned open-model inference, a scale-to-zero Azure worker, private immutable storage, current malware scanning, media probing, Azure Speech, and atomic database settlement. Provider and model boundaries are still tested offline; no live quality claim or Azure spend has occurred.
 
 This slice turns a quarantined self-replica audio/video source into immutable preprocessing candidates and cited evidence. It does **not** claim that denoising, ASR accuracy, diarization, embeddings, speaker selection, voice cloning, or human similarity are solved. Deterministic fake providers remain the default structural fixtures. The Azure adapter is real request/response code, but has only been exercised against mocked HTTP responses.
 
@@ -43,10 +43,16 @@ Only audio and the audio track of video enter this DAG. Text, documents, images,
 - `api/_replica-processing/pipeline.js`: audio DAG, dependency checks, retry classification and backoff.
 - `api/_replica-processing/queue.js`: atomic lease/reclaim and lease-token-bound complete/retry/stop transitions.
 - `api/_replica-processing/worker.js`: one leased stage executor; adapters receive private input references and return normalized results.
-- `api/_replica-processing/repository.js`: create-only, idempotent persistence; a deterministic ID collision with different content is fatal.
+- `api/_replica-processing/repository.js`: create-only persistence plus a production atomic commit that persists every manifest/evidence row, settles the lease, transitions the source and enqueues the next DAG stage in one PostgreSQL statement. Any immutable collision raises and rolls back the whole statement.
+- `api/_replica-processing/runtime.js`: production lease/load/execute/settle loop with composite tenant scoping.
+- `api/_replica-processing/storage.js`: exact private object reads and create-only derived writes with mandatory re-read and SHA-256 verification.
 - `api/_replica-processing/builders.js`: source-set hashing, portable draft builders, approval readiness, and the model-build state machine.
 - `api/_replica-processing/providers/fake.js`: test fixtures only. Its byte payload literally says `FAKE-NOT-AUDIO`.
 - `api/_replica-processing/providers/azure-fast-transcription.js`: direct Azure Speech fast-transcription adapter with private inline upload, Hinglish locale normalization, deadlines and bounded error classification.
+- `api/_replica-processing/providers/azure-voice-evidence.js`: HMAC-authenticated adapter for the private GPU evidence plane; no tenant/person identifier or signed URL crosses the service boundary.
+- `api/_replica-processing/providers/native-media.js`: real private-byte integrity, ClamAV and ffprobe seams.
+- `services/voice-evidence`: non-root CUDA service with exact-pinned SpeechBrain ECAPA, x-vector and SepFormer revisions, exact-digest DeepFilterNet3, and Silero VAD.
+- `services/replica-processing-worker`: non-public Azure Container Apps Job which runs the complete DAG and exits.
 - `db/migrations/017_replica_processing_manifests.sql`: attempt, artifact, evidence/decision and model-build records.
 - `evals/replica-processing/run.mjs`: offline boundary suite, wired as `replicaprocessing` in the root eval runner.
 
@@ -127,6 +133,24 @@ against a live Azure invoice.
 
 No resource, deployment, key, token, quota or live request was created by this implementation. The remaining live prerequisite is an explicitly approved Central India resource endpoint plus a key/Entra identity, private-object resolver wiring, deployed migration 028, verified subscription rate and coverage, an operator reconciliation procedure, and a small consented noisy-Hinglish evaluation corpus with a predeclared spend cap.
 
+## Production evidence models
+
+The GPU image bakes the public model weights into its immutable image digest. Runtime model networking is disabled.
+
+- SpeechBrain ECAPA-TDNN and x-vector are kept as separate embedding families. Agreement must be evaluated across held-out sources; their vectors are never averaged into a misleading universal score.
+- SpeechBrain SepFormer WHAMR returns two speaker outputs. Both survive as immutable artifacts.
+- DeepFilterNet3 returns a capped 12 dB identity-preserving candidate and a full noise-suppression candidate for every separated input.
+- Silero VAD plus ECAPA clustering supplies conservative speech/speaker regions. Because this version has neither verified target-anchor audio nor an overlap detector, it sets every `target_likelihood` to exactly `0.5`, reports overlap as unavailable, and cannot auto-select the subject.
+
+That last limitation is a safety property, not a hidden quality claim. Owner speaker selection and a clean, liveness-bound target anchor are the next required product gate.
+
+Run the two production-plane structural gates with:
+
+```bash
+node evals/run.mjs voiceevidence
+node evals/run.mjs processingworker
+```
+
 ## Worker transaction order
 
 For a leased job:
@@ -138,12 +162,11 @@ For a leased job:
    immediately before network I/O and returns measured usage.
 4. Validate the normalized result. For derived bytes, write create-only objects and verify returned digests.
 5. Settle paid usage before returning a successful worker result.
-6. Persist immutable artifact/evidence rows through `persistProcessingOutput`.
-7. Call `completeProcessingJob`. Its SQL checks every receipt ID exists for the leased job/source/replica/owner.
-8. Enqueue `result.next_steps` only after completion.
-9. On a retryable adapter failure, record `retry`; on integrity/malware failure, record `blocked`; otherwise record `failed`. A provider-visible paid failure is reconciliation-blocked, never automatically retried. Never call completion from a catch/finally path.
+6. Atomically insert/verify every artifact and evidence row, settle the exact live lease and attempt, transition the source, and enqueue `result.next_steps` through `commitProcessingOutput`.
+7. On any immutable collision, the database arithmetic guard raises and rolls the entire statement back. A job can never be marked complete against different bytes.
+8. On a retryable adapter failure, record `retry`; on integrity/malware failure, record `blocked`; otherwise record `failed`. A provider-visible paid failure is reconciliation-blocked, never automatically retried. Never call completion from a catch/finally path.
 
-Steps 4-7 are deliberately idempotent so a serverless stop after storage or record creation can be replayed. Object bytes and DB records may be left as unreferenced candidates during recovery, but raw evidence is never changed and a job cannot falsely complete.
+Derived object creation occurs before the database transaction because storage and PostgreSQL cannot share a transaction. Object paths are deterministic and create-only; an exact-byte retry is accepted, while different bytes at the same path are a terminal collision. No database evidence row or next-stage job can be partially committed.
 
 ## VoiceGenome contents
 
@@ -180,12 +203,13 @@ and evidence from fake/test adapters are ineligible.
 
 ## Production work still required
 
-- Deploy an authenticated internal consumer for the upstream audio processing DAG. The VoiceGenome draft consumer now exists, but it cannot manufacture real diarization, enhancement or speaker evidence that the earlier stages did not produce.
-- Select and validate real streaming integrity, malware, media-probe, diarization, separation/enhancement, alignment and multi-family speaker-analysis adapters; live-validate Azure ASR before treating it as evidence quality.
-- Add real storage and database integration tests, live invoice reconciliation, lease-race tests, cancellation/timeouts, resource limits and observability with content-free logs.
-- Add explicit target-speaker/third-party review, PII policy, candidate audition/selection, deletion of rejected derivatives, and encrypted biometric retention controls.
+- Build both images, deploy the checked-in Bicep with immutable registry digests, apply all replica migrations to a staging database, and run a tiny consented canary under a separately confirmed grant budget. Code being deployable is not evidence that this environment has been deployed.
+- Live-validate ClamAV streaming, ffprobe, Supabase authenticated reads/create-only writes, the private GPU service, Azure ASR billing reconciliation, lease expiry and cancellation under real network failures.
+- Add a liveness-bound clean target-speaker anchor plus explicit owner speaker-cluster and enhancement-candidate audition/selection. Until then target identity cannot be auto-approved.
+- Add an independent overlap detector and evaluate diarization error rate, source-separation leakage, enhancement speaker-similarity regression, ECAPA/x-vector calibration, cross-source consistency, adversarial replay and spoof inputs.
+- Add explicit third-party review, PII policy, deletion of rejected derivatives, and encrypted biometric retention controls.
 - Establish real noisy/accent/code-switch corpora, human calibration protocols, anti-spoof/liveness tests and held-out identity/accent/prosody evaluations. Structural fake-provider tests are not evidence of model quality.
-- Add stage DAGs for non-audio evidence and a transaction/outbox for next-stage enqueueing if the production database transport cannot provide the required atomicity.
+- Add stage DAGs for non-audio evidence. The audio next-stage enqueue is now in the same PostgreSQL statement as completion; retain that invariant if the database transport changes.
 
 Run the bounded gate with:
 

@@ -66,7 +66,7 @@ export async function leaseNextProcessingJob(db, options = {}) {
   return Object.freeze({ job: publicJob(rows[0]), leaseToken: token });
 }
 
-function completionReceipt(result) {
+export function processingCompletionReceipt(result) {
   if (!result || !PROCESSING_STAGES.includes(result.step)) throw new Error("valid completion step required");
   const artifactIds = [...new Set(result.artifact_ids || [])].sort();
   const evidenceIds = [...new Set(result.evidence_ids || [])].sort();
@@ -90,7 +90,7 @@ async function requireSettlement(rows, message) {
 }
 
 export async function completeProcessingJob(db, input) {
-  const receipt = completionReceipt(input.result);
+  const receipt = processingCompletionReceipt(input.result);
   if (!input.adapter || !input.adapter.family || !input.adapter.name || !input.adapter.version) {
     throw new Error("completion adapter provenance required");
   }

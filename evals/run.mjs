@@ -97,6 +97,15 @@ const suites = {
   // C2PA Python sidecar, Azure Key Vault signatures, authenticated transport,
   // exact-byte binding and a content-free public verification endpoint.
   productionprotection: "production-protection/run.mjs",
+  // Real noisy-audio evidence plane: exact-pinned public models, private
+  // authenticated transport, dual speaker embeddings, non-destructive
+  // separation/enhancement candidates and deliberately unknown target
+  // identity until a verified anchor or owner review exists.
+  voiceevidence: "voice-evidence/run.mjs",
+  // Deployable scale-to-zero consumer: composite-tenant leasing, real private
+  // byte verification, current ClamAV, ffprobe, exact evidence adapters,
+  // immutable persistence and one-step DAG settlement.
+  processingworker: "processing-worker/run.mjs",
   // Owner processing review: strict tenant binding, append-only controlled
   // decisions, privacy-safe summaries, real-evidence readiness and an
   // idempotent draft-only VoiceGenome queue.

@@ -1,5 +1,6 @@
 export const REPLICA_STORAGE_BUCKET = process.env.REPLICA_STORAGE_BUCKET || "vyakti-replica-private";
 const MAX_BUCKET_BYTES = 536_870_912;
+const MAX_DERIVED_OBJECT_BYTES = 67_108_864;
 let configPromise;
 
 export class ReplicaStorageError extends Error {
@@ -55,6 +56,125 @@ async function storageRequest(path, { method = "GET", body, headers = {}, fetchI
     throw new ReplicaStorageError("private_storage_failure", response.status >= 500 ? 503 : 409, detail);
   }
   return { response, data };
+}
+
+async function collectStorageBody(body, maxBytes, code) {
+  if (body instanceof ArrayBuffer) body = new Uint8Array(body);
+  if (Buffer.isBuffer(body) || ArrayBuffer.isView(body)) {
+    const bytes = Buffer.isBuffer(body) ? Buffer.from(body) : Buffer.from(body.buffer, body.byteOffset, body.byteLength);
+    if (!bytes.length || bytes.length > maxBytes) throw new ReplicaStorageError(code, 413);
+    return bytes;
+  }
+  if (!body || typeof body[Symbol.asyncIterator] !== "function") throw new ReplicaStorageError(code, 400);
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of body) {
+    const bytes = Buffer.isBuffer(chunk)
+      ? chunk
+      : ArrayBuffer.isView(chunk) ? Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength) : null;
+    if (!bytes) throw new ReplicaStorageError(code, 400);
+    total += bytes.length;
+    if (total > maxBytes) throw new ReplicaStorageError(code, 413);
+    chunks.push(bytes);
+  }
+  if (!total) throw new ReplicaStorageError(code, 400);
+  return Buffer.concat(chunks, total);
+}
+
+function exactObjectPath(objectPath, requireDerived = false) {
+  if (typeof objectPath !== "string" || !objectPath || objectPath.length > 1024 || objectPath.startsWith("/") ||
+      objectPath.includes("://") || objectPath.split("/").some((part) => !part || part === "." || part === "..")) {
+    throw new ReplicaStorageError("replica_object_path_invalid", 400);
+  }
+  if (requireDerived && (!objectPath.includes("/derived/") || objectPath.endsWith("/original"))) {
+    throw new ReplicaStorageError("replica_derived_path_required", 400);
+  }
+  return objectPath;
+}
+
+async function rawStorageFetch(path, options = {}) {
+  const { baseUrl, key } = await storageCredentials();
+  let response;
+  try {
+    response = await (options.fetchImpl || fetch)(`${baseUrl}/storage/v1${path}`, {
+      method: options.method || "GET",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        ...options.headers,
+      },
+      ...(options.body !== undefined ? { body: options.body } : {}),
+      signal: AbortSignal.timeout(options.timeoutMs || 120_000),
+    });
+  } catch (error) {
+    throw new ReplicaStorageError("private_storage_unreachable", 503, error?.message);
+  }
+  return response;
+}
+
+export async function readPrivateReplicaObject(objectPath, options = {}) {
+  const path = exactObjectPath(objectPath);
+  const maxBytes = Number(options.maxBytes || MAX_DERIVED_OBJECT_BYTES);
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_BUCKET_BYTES) {
+    throw new ReplicaStorageError("replica_read_limit_invalid", 500);
+  }
+  const response = await rawStorageFetch(
+    `/object/authenticated/${encodeURIComponent(REPLICA_STORAGE_BUCKET)}/${segments(path)}`,
+    { fetchImpl: options.fetchImpl, timeoutMs: options.timeoutMs },
+  );
+  if (!response.ok) {
+    try { await response.body?.cancel(); } catch { /* do not retain or log provider content */ }
+    throw new ReplicaStorageError("private_storage_read_failed", response.status === 404 ? 404 : 503);
+  }
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && (declared < 1 || declared > maxBytes)) {
+    try { await response.body?.cancel(); } catch { /* bounded cancellation */ }
+    throw new ReplicaStorageError("replica_object_size_invalid", 413);
+  }
+  const bytes = await collectStorageBody(response.body || Buffer.from(await response.arrayBuffer()), maxBytes, "replica_object_size_invalid");
+  const mime = String(response.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
+  if (!mime || !mime.includes("/")) throw new ReplicaStorageError("replica_object_mime_invalid", 409);
+  return Object.freeze({ body: bytes, byteSize: bytes.length, mime });
+}
+
+export async function writeImmutableReplicaArtifact(input, options = {}) {
+  if (input?.bucket !== REPLICA_STORAGE_BUCKET) throw new ReplicaStorageError("replica_artifact_bucket_invalid", 400);
+  const objectPath = exactObjectPath(input.objectPath, true);
+  if (input.ifNoneMatch !== "*") throw new ReplicaStorageError("replica_artifact_create_only_required", 400);
+  const mime = String(input.mime || "").split(";", 1)[0].trim().toLowerCase();
+  if (!mime || !mime.includes("/")) throw new ReplicaStorageError("replica_artifact_mime_invalid", 400);
+  const bytes = await collectStorageBody(input.body, options.maxBytes || MAX_DERIVED_OBJECT_BYTES, "replica_artifact_size_invalid");
+  const { createHash } = await import("node:crypto");
+  const digest = createHash("sha256").update(bytes).digest("hex");
+  if (input.expectedSha256 && String(input.expectedSha256).toLowerCase() !== digest) {
+    throw new ReplicaStorageError("replica_artifact_digest_mismatch", 409);
+  }
+  const upload = await rawStorageFetch(
+    `/object/${encodeURIComponent(REPLICA_STORAGE_BUCKET)}/${segments(objectPath)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": mime, "Cache-Control": "private, max-age=31536000, immutable", "x-upsert": "false" },
+      body: bytes,
+      fetchImpl: options.fetchImpl,
+      timeoutMs: options.timeoutMs,
+    },
+  );
+  if (!upload.ok && upload.status !== 400 && upload.status !== 409) {
+    try { await upload.body?.cancel(); } catch { /* response content is not evidence */ }
+    throw new ReplicaStorageError("private_storage_write_failed", upload.status >= 500 ? 503 : 409);
+  }
+  // Re-read through the authenticated private plane for both successful
+  // uploads and create-only conflicts. Only byte-identical retries succeed.
+  const stored = await readPrivateReplicaObject(objectPath, {
+    fetchImpl: options.fetchImpl,
+    timeoutMs: options.timeoutMs,
+    maxBytes: options.maxBytes || MAX_DERIVED_OBJECT_BYTES,
+  });
+  const storedDigest = createHash("sha256").update(stored.body).digest("hex");
+  if (storedDigest !== digest || stored.byteSize !== bytes.length || stored.mime !== mime) {
+    throw new ReplicaStorageError(upload.ok ? "replica_artifact_verification_failed" : "immutable_artifact_collision", 409);
+  }
+  return Object.freeze({ sha256: digest, byteSize: bytes.length, mime });
 }
 
 export async function ensurePrivateReplicaBucket(fetchImpl = fetch) {
