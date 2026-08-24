@@ -31,4 +31,24 @@ const labels = ["gaurav-3", "team@x.world", "key-2"];
 ok("no label contains 'AQ.' (a label can never reconstruct a secret)", labels.every((l) => !l.includes("AQ.")));
 
 console.log(`\n${pass} passed, ${fail} failed`);
+
+
+// ── paste sanitation: the 2026-08-24 outage class ────────────────────────
+// One malformed pasted entry must shrink the pool by one, never abort it.
+{
+  const { execSync } = await import("node:child_process");
+  const A = "AQ." + "A".repeat(44);
+  const B = "AQ." + "B".repeat(44);
+  const C = "AQ." + "C".repeat(44);
+  const fixture =
+    "GOOGLE_KEYS='alice~" + A + "', bob~" + B + ",\ncarol~" + C + ", dave~AQ.bad key with spaces inside it longer, eve~short";
+  const out = execSync(
+    "node --input-type=module -e \"const g = await import('./api/_gkeys.js'); console.log(g.poolSize(), g.poolHealth());\"",
+    { encoding: "utf8", env: { ...process.env, GOOGLE_KEYS: fixture } },
+  ).trim();
+  const [size, health] = out.split(" ");
+  ok("prefix, quotes, newline and whitespace are sanitised: 3 clean keys survive", size === "3", out);
+  ok("the 2 malformed entries are dropped, not sent upstream, and counted", health.includes("!2"), health);
+}
+
 if (fail) process.exit(1);

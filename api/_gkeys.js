@@ -34,9 +34,28 @@ import * as CFG from "./_config.js";
 // passed against the developer's nine real keys and failed against the stub's
 // zero. Comma-separated; each entry still has to pass the length filter below.
 const ENV_POOL = (process.env.GOOGLE_KEYS || "")
-  .split(",")
+  .split(/[,\n\r]+/)
   .map((s) => s.trim())
+  // A PASTE IS A HOSTILE FORMAT. The 2026-08-24 outage: the owner pasted the
+  // env value into Vercel and entry #1 arrived malformed — Google answered
+  // 400 API_KEY_INVALID, and the pool's own (correct) 400-is-deterministic
+  // rule aborted all 48 keys on the strength of one bad paste, dropping every
+  // production chat onto the Azure fallback and speech to 502. That rule is
+  // written for a malformed REQUEST (identical on every key); a malformed
+  // ENTRY is a per-key defect and must never reach the wire. So the paste is
+  // sanitised here: an accidental `GOOGLE_KEYS=` prefix, wrapping quotes and
+  // stray whitespace are stripped per-entry before the shape check below.
+  .map((s) => s.replace(/^GOOGLE_KEYS=/i, "").replace(/^["']+|["']+$/g, "").trim())
   .filter(Boolean);
+
+// Paste damage is defined by CHARSET, not by Google's prefixes: every real
+// key (AIza…, AQ.…) and every eval fixture key is [A-Za-z0-9._-] only, so an
+// entry carrying a quote, space, equals or anything else is a damaged paste
+// and is dropped at parse — counted in poolHealth() as `!N` so a silent
+// shrink is visible in every speech header. Prefix-based validation was
+// tried first and rejected: it also killed the hermetic batteries' fake
+// keys, collapsing every eval pool to zero.
+const KEY_SHAPE = /^[A-Za-z0-9._-]{21,}$/;
 
 // EACH POOL ENTRY MAY CARRY A LABEL, for RCA. Format: `label~key` (or a bare
 // `key`). The label is the owner/account tag the owner supplies — "gaurav-3",
@@ -60,8 +79,15 @@ const rawEntries = ENV_POOL.length
       }));
 
 const seen = new Set();
+let DROPPED_MALFORMED = 0;
 const KEYRING = rawEntries.filter((e) => {
-  if (typeof e.key !== "string" || e.key.length <= 20) return false;
+  if (typeof e.key !== "string") return false;
+  if (!KEY_SHAPE.test(e.key)) {
+    // paste damage — never send it upstream, where Google's 400 would
+    // (correctly, for real request errors) abort the whole pool
+    DROPPED_MALFORMED++;
+    return false;
+  }
   if (seen.has(e.key)) return false; // a key pasted twice is tried once
   seen.add(e.key);
   return true;
@@ -251,5 +277,6 @@ export const poolSize = () => POOL.length;
 export const poolHealth = () => {
   const now = Date.now();
   const live = POOL.filter((k) => (cooled.get(k) ?? 0) <= now).length;
-  return `${live}/${POOL.length}${PAID_KEY ? "+p" : ""}`;
+  const bad = DROPPED_MALFORMED ? `!${DROPPED_MALFORMED}` : "";
+  return `${live}/${POOL.length}${bad}${PAID_KEY ? "+p" : ""}`;
 };
