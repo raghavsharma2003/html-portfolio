@@ -1617,6 +1617,12 @@
    "kind": "decision",
    "at": "2026-08-24",
    "title": "Owner directive: quality untouchable; optimize at the OS layer by default; Maya-level changes allowed but documented for the next personality agent"
+  },
+  {
+   "id": "labeled-key-pool",
+   "kind": "decision",
+   "at": "2026-08-24",
+   "title": "Owner-tagged key pool: label travels per key for RCA, one-way key->label, zero-latency switch unchanged; 48/48 healthy"
   }
  ],
  "edges": [

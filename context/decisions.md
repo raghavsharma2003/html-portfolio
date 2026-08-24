@@ -2305,3 +2305,22 @@ optimization win:
 
 **Reverses if:** the owner says so. This node is the anchor future agents
 cite when deciding where a change belongs.
+
+## `labeled-key-pool` — owner-tagged keys for RCA, one-way key→label
+
+**Decided 2026-08-24.** Owner supplied ~48 free-tier Gemini keys tagged by
+account. Pool entries carry an owner LABEL (env `label~key`, or _config
+`GOOGLE_KEYRING:[{label,key}]`); the label names whose key, never the key, and
+the map is one-way (key→label) so a leaked label cannot reconstruct a secret.
+chat.js records `pool.served_label` per turn and `_gkeys.poolRca()` counts
+quota/transient by label per instance — the RCA the owner asked for ("which key
+is whose, which one dies"). Switching stays the existing zero-latency in-memory
+walk (COOL_MS/SICK_MS cooldowns, bounded retries, paid key last). Keys live only
+in gitignored files (keyring.json / _config.js / google-keys.env); all 48
+measured healthy on arrival. scripts/keyring.mjs manages rotation; docs/KEYRING.md
+is the guide. **Reverses if:** a label ever needs to reconstruct a key (it must
+not) — then the scheme is wrong, not the requirement.
+
+**Note (measured 2026-08-24):** the `AQ.Ab8RN6…` key format that 403'd on
+2026-08-13 now validates 200 on countTokens — the earlier rejection was a bad
+individual key, not the format. 48/48 healthy.
