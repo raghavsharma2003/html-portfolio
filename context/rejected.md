@@ -2216,3 +2216,21 @@ the keys healthyKeys()'s everything-cooled fallback had deliberately
 returned — calls=0, resilience 140/13. The skip must be a walk-local set
 fed only by THIS walk's own failures. A global "known bad" consulted
 mid-walk re-breaks whatever the fallback above it just repaired.
+
+## `live-clock-in-a-byte-identity-gate` — a 1.7%-odds flake that fired on a context-only commit
+
+CI failed byte-identity (1 of 83, tail+system differing at EQUAL lengths)
+on a commit that touched nothing but context/. Root cause, reproduced
+byte-for-byte: persona.ts's nowContext() stamps her phone clock to the
+minute, and both sides of the comparison call it at their own call time —
+CI started the battery at 22:25:59.23 and the first fixture's compileOld()
+crossed 22:26:00, so "10:25 pm" vs "10:26 pm" at tail byte 115. The race
+existed since the harness was written (~1 second of exposure per minute
+across the first-fixture pair). Fixed in the HARNESS (freeze
+globalThis.Date to one mid-band instant before any compile call), not by
+removing the clock from the prompt — she should know what time it is; the
+gate should not care. The rule: a byte-identity comparison may contain no
+byte the code under test doesn't control — pin every ambient input (clock,
+locale, env) or the gate will eventually fail on an innocent commit, and
+its failure will point away from the cause (the tree it failed on had
+nothing to do with the bytes that differed).

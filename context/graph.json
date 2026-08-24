@@ -1653,6 +1653,12 @@
    "kind": "measurement",
    "at": "2026-08-24",
    "title": "Google TTS first frame 9.7-11.3s on healthy keys (n=3) vs 615-1051ms baseline; carbonsettle prepay 429 on generate while countTokens 200s"
+  },
+  {
+   "id": "live-clock-in-a-byte-identity-gate",
+   "kind": "rejection",
+   "at": "2026-08-24",
+   "title": "byte-identity flaked on a minute tick ('10:25 pm' vs '10:26 pm'): pin every ambient input inside an identity gate; fixed by freezing Date in the harness"
   }
  ],
  "edges": [
@@ -3015,6 +3021,11 @@
    "src": "fixed-fuse-on-a-variable-upstream",
    "rel": "caused_by",
    "dst": "bake-glued-labels"
+  },
+  {
+   "src": "live-clock-in-a-byte-identity-gate",
+   "rel": "constrains",
+   "dst": "personality-is-a-sheet"
   }
  ]
 }
