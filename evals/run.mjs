@@ -137,6 +137,11 @@ const suites = {
   // capture binding, one-way leases and evidence-bound biometric consent.
   livenessverify: "liveness-verification/run.mjs",
   identityproof: "identity-proofing/run.mjs",
+  // Deployable Azure identity broker: exact private-byte binding, pinned
+  // Document Intelligence and Face calls, independently signed authenticity
+  // review, content-free results, tamper/replay fencing, official Face
+  // liveness-with-verify quick links, sealed handles and provider deletion.
+  azureverify: "azure-verifier/run.mjs",
   // Crash-safe biometric deletion: disable-first semantics, one-way leases,
   // idempotent Azure voice+consent deletion, bounded backoff and a scheduled
   // reconciler that keeps working even when new cloning has been disabled.

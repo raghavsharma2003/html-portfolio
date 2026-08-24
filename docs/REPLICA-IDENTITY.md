@@ -1,9 +1,11 @@
 # Replica identity and adult evidence
 
-Status: the owner control plane, private evidence ledger, crash-safe verifier,
-Azure broker boundary, erasure path and Studio workflow are implemented. The
-production Azure composite verifier, document-fraud review path and Azure Face
-liveness client are still release blockers. No deployment may set the approval
+Status: the owner control plane, private evidence ledger, crash-safe worker,
+deployable Azure identity broker, erasure path and Studio workflow are
+implemented. The broker also implements the official Azure Face
+liveness-with-verify create, quick-link, result and delete primitives. The
+independent document-fraud review service and platform/Studio liveness-session
+integration are still release blockers. No deployment may set the approval
 flags merely to bypass those dependencies.
 
 ## Trust sequence
@@ -78,6 +80,11 @@ AZURE_COMPOSITE_IDENTITY_VERSION=<pinned extraction+fraud+review manifest>
 CRON_SECRET=<strong scheduler bearer secret>
 ```
 
+The verifier implementation, adversarial offline tests, container image and
+scale-to-zero Container Apps Bicep live in `services/azure-verifier`. Its
+readiness endpoint means the process is configured and able to accept work; it
+does not waive the independent-review or limited-access deployment gates.
+
 Primary references:
 
 - [Azure Document Intelligence identity-document model](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/prebuilt/id-document?view=doc-intel-4.0.0)
@@ -90,4 +97,5 @@ Offline gate:
 
 ```bash
 node evals/run.mjs identityproof
+node evals/run.mjs azureverify
 ```
