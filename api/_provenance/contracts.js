@@ -11,7 +11,7 @@ export const EMPTY_CHAIN_SHA256 = "0".repeat(64);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256 = /^[0-9a-f]{64}$/;
 const CHANNELS = new Set(["studio_preview", "private_chat", "private_call"]);
-const PURPOSES = new Set(["calibration", "private_conversation"]);
+const PURPOSES = new Set(["voice_preview", "calibration", "private_conversation"]);
 const REQUIRED_QUALIFICATION_SUITES = Object.freeze([
   "identity_fidelity",
   "noisy_robustness",
@@ -64,6 +64,7 @@ function assertHash(value, code) {
 
 export function assertGenerationAuthorization(input, now = new Date()) {
   const request = input?.request;
+  if (request?.purpose === "voice_preview") return assertVoicePreviewAuthorization(input, now);
   const replica = input?.replica;
   const consent = input?.inferenceConsent;
   const voice = input?.voiceProfile;
@@ -127,6 +128,66 @@ export function assertGenerationAuthorization(input, now = new Date()) {
     genomeVersion: genome.version,
     profileVersion: profile.version,
     calibrationVersion: calibration.version,
+    channel: request.channel,
+    purpose: request.purpose,
+    policyVersion: request.policyVersion,
+    traceId: String(request.traceId),
+  };
+}
+
+export function assertVoicePreviewAuthorization(input, now = new Date()) {
+  const request = input?.request;
+  const replica = input?.replica;
+  const consent = input?.inferenceConsent;
+  const genome = input?.voiceGenome;
+  const artifact = input?.previewArtifact;
+  const nowMs = now instanceof Date ? now.getTime() : validDate(now);
+
+  if (!request || !UUID.test(String(request.generationId || ""))) fail("invalid_generation_id");
+  if (!UUID.test(String(request.replicaId || "")) || !UUID.test(String(request.ownerUserId || "")))
+    fail("invalid_generation_owner");
+  if (request.channel !== "studio_preview" || request.purpose !== "voice_preview") fail("preview_channel_required");
+  if (request.policyVersion !== PROVENANCE_POLICY) fail("generation_policy_mismatch");
+  if (!request.traceId || String(request.traceId).length < 8) fail("trace_id_required");
+  if (!Number.isFinite(nowMs)) fail("invalid_authorization_time");
+
+  sameUuid(replica?.replica_id, request.replicaId, "replica_binding_mismatch");
+  sameUuid(replica?.owner_user_id, request.ownerUserId, "owner_binding_mismatch");
+  if (replica?.subject_mode !== "self") fail("self_replica_only");
+  if (!new Set(["enrolling", "calibrating", "ready", "active", "paused"]).has(replica?.lifecycle))
+    fail("replica_not_previewable");
+  if (replica?.policy_version !== REPLICA_POLICY_VERSION) fail("replica_policy_mismatch");
+  if (!validDate(replica?.age_verified_at) || !validDate(replica?.identity_verified_at) || !validDate(replica?.liveness_verified_at))
+    fail("identity_verification_incomplete");
+  const identityExpiry = validDate(replica?.identity_expires_at);
+  if (!identityExpiry || identityExpiry <= nowMs) fail("identity_evidence_expired");
+
+  sameUuid(consent?.replica_id, request.replicaId, "consent_binding_mismatch");
+  sameUuid(consent?.owner_user_id, request.ownerUserId, "consent_owner_mismatch");
+  if (consent?.scope !== "inference" || consent?.revoked_at) fail("inference_consent_inactive");
+  if (consent?.policy_version !== REPLICA_POLICY_VERSION) fail("consent_policy_mismatch");
+  const expiresAt = consent?.expires_at ? validDate(consent.expires_at) : null;
+  if (consent?.expires_at && (!expiresAt || expiresAt <= nowMs)) fail("inference_consent_expired");
+
+  sameUuid(genome?.replica_id, request.replicaId, "genome_binding_mismatch");
+  if (!Number.isInteger(genome?.version) || genome.version < 1 || genome.status !== "draft")
+    fail("draft_voice_genome_required");
+  if (!UUID.test(String(artifact?.artifact_id || ""))) fail("preview_artifact_invalid");
+  sameUuid(artifact?.replica_id, request.replicaId, "preview_artifact_binding_mismatch");
+  sameUuid(artifact?.owner_user_id, request.ownerUserId, "preview_artifact_owner_mismatch");
+  if (artifact?.stage !== "enhance" || artifact?.selection_decision !== "selected" || artifact?.source_state !== "ready" ||
+      artifact?.contains_third_parties === true || !SHA256.test(String(artifact?.sha256 || ""))) {
+    fail("preview_artifact_not_eligible");
+  }
+
+  return {
+    generationId: request.generationId.toLowerCase(),
+    replicaId: request.replicaId.toLowerCase(),
+    ownerUserId: request.ownerUserId.toLowerCase(),
+    voiceProfileId: artifact.artifact_id.toLowerCase(),
+    genomeVersion: genome.version,
+    profileVersion: 0,
+    calibrationVersion: 0,
     channel: request.channel,
     purpose: request.purpose,
     policyVersion: request.policyVersion,

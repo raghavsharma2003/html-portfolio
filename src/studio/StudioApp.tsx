@@ -37,6 +37,7 @@ import ReplicaDialogueLab from "./ReplicaDialogueLab";
 import CandidateEvaluationLab from "./CandidateEvaluationLab";
 import VoiceEnrollmentLab from "./VoiceEnrollmentLab";
 import ModelConsentGate from "./ModelConsentGate";
+import VoicePreviewLab from "./VoicePreviewLab";
 import {
   createSourceUpload,
   deleteSource,
@@ -582,6 +583,13 @@ function ReplicaWorkspace({
             token={accessToken}
             replicaId={replica.replica_id}
             sourceCount={sources.length}
+            onAuthError={onReviewAuthError}
+          />
+
+          <VoicePreviewLab
+            key={`voice-preview-${replica.replica_id}`}
+            token={accessToken}
+            replicaId={replica.replica_id}
             onAuthError={onReviewAuthError}
           />
 

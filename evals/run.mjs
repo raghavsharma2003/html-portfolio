@@ -102,6 +102,10 @@ const suites = {
   // separation/enhancement candidates and deliberately unknown target
   // identity until a verified anchor or owner review exists.
   voiceevidence: "voice-evidence/run.mjs",
+  // Permission-independent zero-shot synthesis: immutable MIT Chatterbox V3,
+  // private HMAC transport, exact disclosure, verified PerTh watermark,
+  // Hindi support and a digest-pinned scale-to-zero Azure GPU deployment.
+  openvoice: "open-voice/run.mjs",
   // Deployable scale-to-zero consumer: composite-tenant leasing, real private
   // byte verification, current ClamAV, ffprobe, exact evidence adapters,
   // immutable persistence and one-step DAG settlement.
