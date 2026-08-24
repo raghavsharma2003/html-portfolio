@@ -5,9 +5,11 @@ import { fileURLToPath } from "node:url";
 import {
   completeReplicaErasure,
   createReplicaErasureReceipt,
+  getReplicaErasureStatus,
   leaseNextReplicaErasure,
   prepareReplicaErasures,
   replicaErasureLeaseTokenHash,
+  replicaErasureRequestHash,
   retryReplicaErasure,
   runReplicaErasureFinalizer,
 } from "../../api/_replica-full-erasure.js";
@@ -30,13 +32,15 @@ function ok(name, condition) {
   console.log(`ok ${++checks} - ${name}`);
 }
 
-const receipt = createReplicaErasureReceipt(RID, OWNER, env, { nonce: "a".repeat(64), nowMs: 0 });
+const receipt = createReplicaErasureReceipt(RID, OWNER, env, {
+  nonce: "a".repeat(64), nowMs: 0, erasureRequestId: JOB,
+});
 ok("deletion receipt carries unlinkable HMAC commitments rather than raw owner or replica ids",
   /^[0-9a-f]{64}$/.test(receipt.replicaIdHash) && /^[0-9a-f]{64}$/.test(receipt.ownerUserHash) &&
   !JSON.stringify(receipt).includes(RID) && !JSON.stringify(receipt).includes(OWNER));
 ok("receipt records every private data class and the configured backup expiry",
   receipt.deletedClasses.includes("provider_voice") && receipt.deletedClasses.includes("agent_relational_memory") &&
-  receipt.backupExpiresAt === "1970-01-31T00:00:00.000Z");
+  receipt.backupExpiresAt === "1970-01-31T00:00:00.000Z" && receipt.erasureRequestHash === replicaErasureRequestHash(JOB));
 assert.throws(() => createReplicaErasureReceipt(RID, OWNER, { ...env, REPLICA_ERASURE_RECEIPT_KEY_B64: "short" }), /receipt key required/);
 assert.throws(() => createReplicaErasureReceipt(RID, OWNER, { ...env, REPLICA_BACKUP_RETENTION_DAYS: "0" }), /retention policy required/);
 ok("full erasure cannot issue an unverifiable receipt or invent backup retention", true);
@@ -101,7 +105,8 @@ ok("public signed generation receipts survive private erasure for authenticity c
   !completeSql.includes("delete from vy_replica_generation_receipt") &&
   !completeSql.includes("delete from vy_replica_generation_segment_receipt"));
 ok("completion writes a content-free receipt before cascading the operational erasure job",
-  completeSql.indexOf("insert into vy_replica_deletion_receipt") < completeSql.indexOf("delete from vy_replica r"));
+  completeSql.indexOf("insert into vy_replica_deletion_receipt") < completeSql.indexOf("delete from vy_replica r") &&
+  completeSql.includes("erasure_request_hash"));
 
 let retrySql = "";
 await retryReplicaErasure(async (sql, params) => {
@@ -111,6 +116,21 @@ await retryReplicaErasure(async (sql, params) => {
 }, lease, { error: { code: "backup_retention_policy_required" } });
 ok("a missing retention policy keeps the purge disabled and retryable rather than issuing a false receipt",
   /state='pending'/.test(retrySql) && /lease_token_hash=''/.test(retrySql));
+
+let statusSql = "";
+const completedStatus = await getReplicaErasureStatus(async (sql, params) => {
+  statusSql = sql;
+  assert.deepEqual(params, [JOB, OWNER, replicaErasureRequestHash(JOB)]);
+  return [{ state: "complete", requested_at: "2026-08-24T00:00:00.000Z", updated_at: "2026-08-24T00:00:00.000Z",
+    completed_at: "2026-08-24T00:00:00.000Z", backup_expires_at: "2026-09-23T00:00:00.000Z", attempts: 0,
+    provider_state: "confirmed", storage_state: "confirmed", deleted_classes: receipt.deletedClasses }];
+}, OWNER, JOB);
+ok("the opaque request capability resolves completion after owner and replica links are gone",
+  completedStatus.state === "complete" && completedStatus.provider === "confirmed" &&
+  /erasure_request_hash=\$3/.test(statusSql));
+ok("owner identity scopes the live job while only the unguessable request capability scopes the blinded receipt",
+  /j\.job_id=\$1 and j\.owner_user_id=\$2/.test(statusSql) &&
+  statusSql.includes("vy_replica_voice_profile") && statusSql.includes("vy_replica_source"));
 
 const work = [lease, { ...lease, jobId: "60000000-0000-4000-8000-000000000006" }];
 const completed = [];
@@ -129,10 +149,12 @@ ok("one failed final purge remains retryable without rolling back another comple
   summary.completed === 1 && summary.retried === 1 && completed.length === 1 && retried[0].code === "erasure_receipt_key_required");
 
 const migration = readFileSync(join(ROOT, "db/migrations/037_replica_full_erasure.sql"), "utf8");
+const statusMigration = readFileSync(join(ROOT, "db/migrations/038_replica_erasure_status.sql"), "utf8");
 const schema = readFileSync(join(ROOT, "db/schema.sql"), "utf8");
 const endpoint = readFileSync(join(ROOT, "api/replica-erasure-sweep.js"), "utf8");
 ok("full-erasure migration is splitter-safe and canonical schema mirrored",
-  splitSql(migration).length >= 10 && schema.includes("vy_replica_deletion_receipt_replica_hash_ix"));
+  splitSql(migration).length >= 10 && splitSql(statusMigration).length >= 3 &&
+  schema.includes("vy_replica_deletion_receipt_replica_hash_ix") && schema.includes("vy_replica_deletion_request_hash_ix"));
 ok("the scheduled endpoint prepares children then erases voice source and replica in dependency order",
   endpoint.lastIndexOf("prepareReplicaErasures") < endpoint.lastIndexOf("runVoiceErasureSweep") &&
   endpoint.lastIndexOf("runVoiceErasureSweep") < endpoint.lastIndexOf("runSourceErasureSweep") &&

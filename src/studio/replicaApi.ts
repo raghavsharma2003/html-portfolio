@@ -1,4 +1,4 @@
-import type { Replica } from "./types";
+import type { Replica, ReplicaErasureStatus } from "./types";
 
 export class ReplicaApiError extends Error {
   status: number;
@@ -57,9 +57,17 @@ export async function createReplica(token: string, displayName: string): Promise
 export async function revokeReplica(
   token: string,
   id: string,
-): Promise<{ replica: Replica; erasure: string }> {
-  return replicaRequest(token, "/api/replica", {
+): Promise<{ replica: Replica; erasure: string; erasure_request_id: string }> {
+  return replicaRequest<{ replica: Replica; erasure: string; erasure_request_id: string }>(token, "/api/replica", {
     method: "POST",
     body: JSON.stringify({ op: "revoke", replica_id: id }),
   });
+}
+
+export async function readErasureStatus(token: string, requestId: string): Promise<ReplicaErasureStatus> {
+  const data = await replicaRequest<{ erasure: ReplicaErasureStatus }>(token, "/api/replica", {
+    method: "POST",
+    body: JSON.stringify({ op: "erasure_status", erasure_request_id: requestId }),
+  });
+  return data.erasure;
 }

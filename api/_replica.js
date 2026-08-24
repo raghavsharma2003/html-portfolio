@@ -106,7 +106,7 @@ export async function getOwnedReplica(db, ownerUserId, id) {
   return clientReplica(rows[0]);
 }
 
-export async function revokeOwnedReplica(db, ownerUserId, id) {
+export async function requestOwnedReplicaErasure(db, ownerUserId, id) {
   const rid = replicaId(id);
   let rows = await db(
     `with revoked as (
@@ -152,17 +152,27 @@ export async function revokeOwnedReplica(db, ownerUserId, id) {
          set updated_at = now(),
              state = case when vy_replica_erasure_job.state = 'complete'
                           then vy_replica_erasure_job.state else 'pending' end
+       returning job_id,replica_id
      )
-     select * from revoked`,
+     select revoked.*,erasure.job_id as erasure_request_id
+       from revoked join erasure on erasure.replica_id=revoked.replica_id`,
     [rid, ownerUserId],
   );
   if (!rows[0]) {
     rows = await db(
-      `select ${RETURNING} from vy_replica
-        where replica_id = $1 and owner_user_id = $2 and lifecycle = 'purging' limit 1`,
+      `select r.replica_id,r.display_name,r.subject_mode,r.lifecycle,r.policy_version,
+              r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,r.created_at,r.updated_at,
+              j.job_id as erasure_request_id from vy_replica r
+        join vy_replica_erasure_job j on j.replica_id=r.replica_id and j.owner_user_id=r.owner_user_id
+        where r.replica_id = $1 and r.owner_user_id = $2 and r.lifecycle = 'purging' limit 1`,
       [rid, ownerUserId],
     );
   }
   if (!rows[0]) return null;
-  return clientReplica(rows[0]);
+  return { replica: clientReplica(rows[0]), erasure_request_id: rows[0].erasure_request_id };
+}
+
+export async function revokeOwnedReplica(db, ownerUserId, id) {
+  const result = await requestOwnedReplicaErasure(db, ownerUserId, id);
+  return result?.replica || null;
 }

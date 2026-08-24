@@ -22,6 +22,18 @@ export interface Replica {
   updated_at: string;
 }
 
+export interface ReplicaErasureStatus {
+  state: "pending" | "complete";
+  requested_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  backup_expires_at: string | null;
+  attempts: number;
+  provider: "pending" | "confirmed";
+  storage: "pending" | "confirmed";
+  deleted_classes: string[];
+}
+
 export interface StudioSession {
   userId: string;
   email?: string;

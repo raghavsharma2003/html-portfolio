@@ -9,6 +9,7 @@ import {
 import {
   createReplica,
   listReplicas,
+  readErasureStatus,
   readReplica,
   ReplicaApiError,
   revokeReplica,
@@ -18,6 +19,7 @@ import type {
   ConsentReceipt,
   LivenessChallenge,
   Replica,
+  ReplicaErasureStatus,
   ReplicaRuntimeStatus,
   ReplicaSource,
   SignedUpload,
@@ -52,6 +54,31 @@ import {
 
 type AuthStep = "email" | "code";
 type LoadState = "booting" | "loading" | "ready" | "error";
+
+const ERASURE_REQUEST_KEY = "vyakti.replica.erasure-request.v1";
+
+function erasureStorageKey(userId: string) {
+  return `${ERASURE_REQUEST_KEY}:${userId}`;
+}
+
+function storedErasureRequest(userId: string) {
+  try {
+    const value = localStorage.getItem(erasureStorageKey(userId)) || "";
+    return /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(value) ? value.toLowerCase() : "";
+  } catch {
+    return "";
+  }
+}
+
+function storeErasureRequest(userId: string, requestId: string | null) {
+  try {
+    const key = erasureStorageKey(userId);
+    if (requestId) localStorage.setItem(key, requestId);
+    else localStorage.removeItem(key);
+  } catch {
+    // Browser storage is a convenience only. The server remains authoritative.
+  }
+}
 
 const STAGES = [
   {
@@ -348,6 +375,7 @@ function ReplicaList({
 
 function ReplicaWorkspace({
   replica,
+  erasureStatus,
   consents,
   sources,
   enrollmentLoading,
@@ -368,6 +396,7 @@ function ReplicaWorkspace({
   onReviewAuthError,
 }: {
   replica: Replica;
+  erasureStatus: ReplicaErasureStatus | null;
   consents: ConsentReceipt[];
   sources: ReplicaSource[];
   enrollmentLoading: boolean;
@@ -403,6 +432,7 @@ function ReplicaWorkspace({
   const [confirmation, setConfirmation] = useState("");
   const [runtimeStatus, setRuntimeStatus] = useState<ReplicaRuntimeStatus | null>(null);
   const stopped = replica.lifecycle === "revoked" || replica.lifecycle === "purging";
+  const erased = erasureStatus?.state === "complete";
   const verificationCount = [replica.age_verified, replica.identity_verified, replica.liveness_verified].filter(Boolean).length;
 
   useEffect(() => {
@@ -433,17 +463,32 @@ function ReplicaWorkspace({
         </div>
         <div className="control-seal">
           <span>{stopped ? "STOPPED" : "OWNER CONTROLLED"}</span>
-          <small>{stopped ? "Erasure queued" : "Private workspace"}</small>
+          <small>{stopped ? (erased ? "Erasure verified" : "Erasure in progress") : "Private workspace"}</small>
         </div>
       </section>
 
       {stopped ? (
         <section className="stopped-panel" role="status">
-          <div className="stop-icon">×</div>
+          <div className={`stop-icon ${erased ? "complete" : ""}`}>{erased ? "✓" : "×"}</div>
           <div>
-            <p className="eyebrow">Future use disabled</p>
-            <h2>This replica has been revoked.</h2>
-            <p>Generation is blocked. Private artifacts and provider copies are queued for verified erasure.</p>
+            <p className="eyebrow">{erased ? "Verified erasure complete" : "Future use disabled"}</p>
+            <h2>{erased ? "This replica has been erased." : "This replica has been revoked."}</h2>
+            <p>
+              {erased
+                ? `Provider copies and private storage were confirmed deleted. Backup expiry: ${dateLabel(erasureStatus.backup_expires_at || "")}.`
+                : "Generation is blocked. Private artifacts and provider copies are being deleted with durable retries."}
+            </p>
+            {erasureStatus && (
+              <div className="erasure-progress" aria-label="Verified erasure progress">
+                <span className={erasureStatus.provider === "confirmed" ? "done" : ""}>
+                  <i /> Provider copy {erasureStatus.provider}
+                </span>
+                <span className={erasureStatus.storage === "confirmed" ? "done" : ""}>
+                  <i /> Private storage {erasureStatus.storage}
+                </span>
+                <small>Last checked {dateLabel(erasureStatus.updated_at)}</small>
+              </div>
+            )}
           </div>
         </section>
       ) : (
@@ -649,15 +694,20 @@ export default function StudioApp() {
   const [enrollmentLoading, setEnrollmentLoading] = useState(false);
   const [challenge, setChallenge] = useState<LivenessChallenge | null>(null);
   const [livenessLoading, setLivenessLoading] = useState(false);
+  const [erasureRequestId, setErasureRequestId] = useState("");
+  const [erasureStatus, setErasureStatus] = useState<ReplicaErasureStatus | null>(null);
 
   const identity = useMemo(() => session?.email || session?.phone || "Signed in account", [session]);
   const selectedId = selected?.replica_id ?? null;
+  const sessionUserId = session?.userId || "";
 
   const signOut = useCallback(() => {
     writeStoredSession(null);
     setSession(null);
     setReplicas([]);
     setSelected(null);
+    setErasureRequestId("");
+    setErasureStatus(null);
     setError("");
   }, []);
 
@@ -715,6 +765,46 @@ export default function StudioApp() {
     });
     return () => { live = false; };
   }, [loadReplicas]);
+
+  useEffect(() => {
+    if (!sessionUserId) return;
+    setErasureRequestId(storedErasureRequest(sessionUserId));
+    setErasureStatus(null);
+  }, [sessionUserId]);
+
+  useEffect(() => {
+    if (!session || !erasureRequestId) return;
+    let live = true;
+    let timer = 0;
+    const poll = async () => {
+      try {
+        const fresh = await refreshForRequest(session);
+        const status = await readErasureStatus(fresh.accessToken, erasureRequestId);
+        if (!live) return;
+        setErasureStatus(status);
+        if (status.state === "complete") {
+          setNotice("Verified erasure complete. Provider copies and private storage are confirmed deleted.");
+          return;
+        }
+        timer = window.setTimeout(() => void poll(), 5_000);
+      } catch (cause) {
+        if (!live) return;
+        if (cause instanceof ReplicaApiError && cause.status === 404) {
+          storeErasureRequest(session.userId, null);
+          setErasureRequestId("");
+          setErasureStatus(null);
+          return;
+        }
+        handleApiError(cause, "Could not verify erasure progress");
+        timer = window.setTimeout(() => void poll(), 10_000);
+      }
+    };
+    void poll();
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+  }, [erasureRequestId, handleApiError, refreshForRequest, session]);
 
   useEffect(() => {
     if (!session || !selectedId) {
@@ -791,6 +881,20 @@ export default function StudioApp() {
     try {
       const fresh = await refreshForRequest(session);
       const result = await revokeReplica(fresh.accessToken, selected.replica_id);
+      const now = new Date().toISOString();
+      storeErasureRequest(fresh.userId, result.erasure_request_id);
+      setErasureRequestId(result.erasure_request_id);
+      setErasureStatus({
+        state: "pending",
+        requested_at: now,
+        updated_at: now,
+        completed_at: null,
+        backup_expires_at: null,
+        attempts: 0,
+        provider: "pending",
+        storage: "pending",
+        deleted_classes: [],
+      });
       setSelected(result.replica);
       setReplicas((items) => items.map((item) => item.replica_id === result.replica.replica_id ? result.replica : item));
       setNotice("Replica revoked. Future use is blocked and verified erasure is pending.");
@@ -1008,6 +1112,7 @@ export default function StudioApp() {
           ) : selected ? (
             <ReplicaWorkspace
               replica={selected}
+              erasureStatus={erasureStatus}
               consents={consents}
               sources={sources}
               enrollmentLoading={enrollmentLoading}

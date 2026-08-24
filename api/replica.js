@@ -3,6 +3,7 @@
 // GET  /api/replica?replica_id=...  -> get mine
 // POST /api/replica {op:create, display_name}
 // POST /api/replica {op:revoke, replica_id}
+// POST /api/replica {op:erasure_status, erasure_request_id}
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
@@ -10,8 +11,9 @@ import {
   createSelfReplica,
   getOwnedReplica,
   listOwnedReplicas,
-  revokeOwnedReplica,
+  requestOwnedReplicaErasure,
 } from "./_replica.js";
+import { getReplicaErasureStatus } from "./_replica-full-erasure.js";
 
 const cors = (res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -43,10 +45,16 @@ export default async function handler(req, res) {
       return res.status(201).json({ replica });
     }
     if (body.op === "revoke") {
-      const replica = await revokeOwnedReplica(q, user.id, body.replica_id);
-      return replica
-        ? res.status(200).json({ replica, erasure: "pending" })
+      const result = await requestOwnedReplicaErasure(q, user.id, body.replica_id);
+      return result
+        ? res.status(200).json({ ...result, erasure: "pending" })
         : res.status(404).json({ error: "replica_not_found" });
+    }
+    if (body.op === "erasure_status") {
+      const status = await getReplicaErasureStatus(q, user.id, body.erasure_request_id);
+      return status
+        ? res.status(200).json({ erasure: status })
+        : res.status(404).json({ error: "erasure_request_not_found" });
     }
     return res.status(400).json({ error: "unknown_op" });
   } catch (error) {

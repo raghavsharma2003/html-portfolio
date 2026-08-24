@@ -29,6 +29,15 @@ The final database purge refuses any agent binding that is not the exact
 `replica-<replica UUID>` agent with `register.selfReplica=true`. This prevents a
 corrupt row from widening one replica deletion into Meera or another agent.
 
+The revoke response returns one opaque `erasure_request_id`. Replica Studio
+stores it in owner-scoped browser storage and polls the authenticated
+`erasure_status` operation. While the replica still exists, the lookup is bound
+to both owner and job ID. After unlinking, only a domain-separated SHA-256 hash
+of the random request capability remains on the content-free receipt. The UI
+then reports provider deletion, private-storage deletion, completion time and
+the configured backup-expiry date without retaining the person's identity or
+replica ID in the receipt.
+
 Required production configuration:
 
 ```text

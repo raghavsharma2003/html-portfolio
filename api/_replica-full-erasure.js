@@ -10,6 +10,14 @@ export function replicaErasureLeaseTokenHash(token) {
   return sha256Hex(`replica-full-erasure-lease:v1:${token}`);
 }
 
+export function replicaErasureRequestHash(value) {
+  const id = String(value || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id)) {
+    throw Object.assign(new Error("valid erasure request id required"), { code: "valid_erasure_request_id_required", status: 400 });
+  }
+  return sha256Hex(`replica-erasure-request:v1:${id}`);
+}
+
 export function createReplicaErasureReceipt(replicaId, ownerUserId, env = process.env, options = {}) {
   let key;
   try { key = Buffer.from(String(env.REPLICA_ERASURE_RECEIPT_KEY_B64 || ""), "base64"); } catch { key = Buffer.alloc(0); }
@@ -26,6 +34,7 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
   return Object.freeze({
     replicaIdHash: digest("replica", replicaId),
     ownerUserHash: digest("owner", ownerUserId),
+    erasureRequestHash: replicaErasureRequestHash(options.erasureRequestId),
     nonce,
     backupExpiresAt: new Date((options.nowMs ?? Date.now()) + retentionDays * 86_400_000).toISOString(),
     deletedClasses: Object.freeze([
@@ -230,8 +239,8 @@ export async function completeReplicaErasure(db, lease, receipt) {
      receipt as (
        insert into vy_replica_deletion_receipt
          (replica_id_hash,owner_user_hash,policy_version,reason,deleted_classes,processor_status,
-          backup_expires_at,receipt_version,receipt_nonce)
-       select $5,$6,$7,'owner_revocation',$8::text[],$9::jsonb,$10::timestamptz,$11,$12 from target
+          backup_expires_at,receipt_version,receipt_nonce,erasure_request_hash)
+       select $5,$6,$7,'owner_revocation',$8::text[],$9::jsonb,$10::timestamptz,$11,$12,$13 from target
        on conflict (replica_id_hash) do nothing returning receipt_id
      ), removed_replica as (
        delete from vy_replica r using target t where r.replica_id=t.replica_id and r.owner_user_id=t.owner_user_id
@@ -242,7 +251,8 @@ export async function completeReplicaErasure(db, lease, receipt) {
      ) select receipt_id from receipt`,
     [lease.jobId, lease.replicaId, lease.ownerUserId, replicaErasureLeaseTokenHash(lease.leaseToken),
       receipt.replicaIdHash, receipt.ownerUserHash, REPLICA_POLICY_VERSION, receipt.deletedClasses,
-      processor, receipt.backupExpiresAt, REPLICA_ERASURE_RECEIPT_VERSION, receipt.nonce],
+      processor, receipt.backupExpiresAt, REPLICA_ERASURE_RECEIPT_VERSION, receipt.nonce,
+      receipt.erasureRequestHash],
   );
   return requireSettlement(rows, "replica_erasure_completion_failed");
 }
@@ -254,7 +264,9 @@ export async function runReplicaErasureFinalizer(options) {
   const complete = options.complete || completeReplicaErasure;
   const retry = options.retry || retryReplicaErasure;
   const receiptFactory = options.receiptFactory || ((claimed) =>
-    createReplicaErasureReceipt(claimed.replicaId, claimed.ownerUserId));
+    createReplicaErasureReceipt(claimed.replicaId, claimed.ownerUserId, process.env, {
+      erasureRequestId: claimed.jobId,
+    }));
   const maxJobs = Math.max(1, Math.min(4, Number(options.maxJobs || 2)));
   const summary = { leased: 0, completed: 0, retried: 0 };
   while (summary.leased < maxJobs) {
@@ -271,4 +283,43 @@ export async function runReplicaErasureFinalizer(options) {
     }
   }
   return Object.freeze(summary);
+}
+
+export async function getReplicaErasureStatus(db, ownerUserId, requestId) {
+  const id = String(requestId || "").trim().toLowerCase();
+  const requestHash = replicaErasureRequestHash(id);
+  const rows = await db(
+    `select 'pending' state,j.requested_at,j.updated_at,null::timestamptz completed_at,
+            null::timestamptz backup_expires_at,j.attempts,
+            case when exists (
+              select 1 from vy_replica_voice_profile v
+               where v.replica_id=j.replica_id and v.owner_user_id=j.owner_user_id
+            ) then 'pending' else 'confirmed' end provider_state,
+            case when exists (
+              select 1 from vy_replica_source s
+               where s.replica_id=j.replica_id and s.owner_user_id=j.owner_user_id
+            ) then 'pending' else 'confirmed' end storage_state,
+            '{}'::text[] deleted_classes
+       from vy_replica_erasure_job j where j.job_id=$1 and j.owner_user_id=$2
+     union all
+     select 'complete' state,r.completed_at requested_at,r.completed_at updated_at,r.completed_at,
+            r.backup_expires_at,0 attempts,'confirmed' provider_state,
+            'confirmed' storage_state,r.deleted_classes
+       from vy_replica_deletion_receipt r where r.erasure_request_hash=$3
+     limit 1`,
+    [id, ownerUserId, requestHash],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return Object.freeze({
+    state: row.state,
+    requested_at: row.requested_at,
+    updated_at: row.updated_at,
+    completed_at: row.completed_at,
+    backup_expires_at: row.backup_expires_at,
+    attempts: Number(row.attempts || 0),
+    provider: row.provider_state === "confirmed" ? "confirmed" : "pending",
+    storage: row.storage_state === "confirmed" ? "confirmed" : "pending",
+    deleted_classes: Array.isArray(row.deleted_classes) ? row.deleted_classes : [],
+  });
 }

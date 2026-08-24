@@ -881,6 +881,43 @@
     font-size: 30px;
   }
 
+  .stop-icon.complete {
+    border-color: rgba(23, 73, 59, 0.24);
+    color: var(--forest);
+    background: rgba(255, 255, 255, 0.42);
+  }
+
+  .erasure-progress {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 18px;
+    margin-top: 18px;
+  }
+
+  .erasure-progress span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--ink-faint);
+    font-size: 9px;
+    font-weight: 750;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .erasure-progress i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--signal);
+    box-shadow: 0 0 0 3px rgba(196, 125, 54, 0.12);
+  }
+
+  .erasure-progress span.done { color: var(--forest); }
+  .erasure-progress span.done i { background: var(--forest); box-shadow: 0 0 0 3px rgba(23, 73, 59, 0.12); }
+  .erasure-progress small { flex-basis: 100%; color: var(--ink-faint); font-size: 9px; }
+
   .empty-card {
     min-height: 520px;
     display: grid;
