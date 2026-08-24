@@ -124,6 +124,10 @@ const suites = {
   // Approval-gated Azure Personal Voice lifecycle: consent, verified private
   // audio, native-unit spend fencing, pinned synthesis, status and deletion.
   personalvoice: "azure-personal-voice/run.mjs",
+  // Azure voice-talent consent is a second, challenge-bound capability: the
+  // exact provider statement, encrypted legal name, private audio artifact,
+  // verified self-only eligibility and a non-generic finalization path.
+  providerconsent: "provider-consent/run.mjs",
   // Exact-version, multidimensional owner adjudication of a private turn,
   // including encrypted correction exemplars and sealed-audio lineage.
   replicafeedback: "replica-feedback/run.mjs",

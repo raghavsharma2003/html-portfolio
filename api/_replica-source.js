@@ -238,6 +238,11 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
      ), voices as (
        update vy_replica_voice_profile set status = 'deleting', updated_at = now()
         where replica_id = $1 and status <> 'deleting' and exists (select 1 from target)
+     ), provider_consents as (
+       update vy_replica_provider_consent set state = 'revoked',
+              revoked_at = coalesce(revoked_at, now()), updated_at = now()
+        where replica_id = $1 and owner_user_id = $2 and source_id = $3
+          and state <> 'revoked' and exists (select 1 from target)
      ), replica as (
        update vy_replica set lifecycle = 'enrolling', updated_at = now()
         where replica_id = $1 and owner_user_id = $2
@@ -260,7 +265,17 @@ export async function completeOwnedSourceDeletion(db, ownerUserId, id, source) {
   const rid = replicaId(id);
   const sid = replicaId(source);
   const rows = await db(
-    `with removed as (
+    `with provider_consent as (
+       update vy_replica_provider_consent
+          set source_id = null, state = 'revoked',
+              revoked_at = coalesce(revoked_at, now()), updated_at = now()
+        where replica_id = $1 and owner_user_id = $2 and source_id = $3
+          and exists (
+            select 1 from vy_replica_source s where s.replica_id = $1
+              and s.owner_user_id = $2 and s.source_id = $3 and s.state = 'deleting'
+          )
+       returning provider_consent_id
+     ), removed as (
        delete from vy_replica_source
         where replica_id = $1 and owner_user_id = $2 and source_id = $3 and state = 'deleting'
        returning source_id
@@ -269,7 +284,9 @@ export async function completeOwnedSourceDeletion(db, ownerUserId, id, source) {
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
        select $1, $2, 'source.delete.complete', 'source', source_id::text,
               (select policy_version from vy_replica where replica_id = $1 and owner_user_id = $2),
-              'allowed', '{}'::jsonb from removed
+              'allowed', jsonb_build_object(
+                'provider_consent_detached', exists(select 1 from provider_consent)
+              ) from removed
      )
      select source_id from removed`,
     [rid, ownerUserId, sid],

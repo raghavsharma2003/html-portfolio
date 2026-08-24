@@ -69,6 +69,9 @@ export default async function handler(req, res) {
       if (pending.capture_mode === "live_challenge") {
         return res.status(409).json({ error: "use_liveness_finalize" });
       }
+      if (pending.capture_mode === "provider_consent") {
+        return res.status(409).json({ error: "use_provider_consent_finalize" });
+      }
       const info = await replicaObjectInfo(pending.object_path);
       const source = await finalizeOwnedSource(q, user.id, body.replica_id, body.source_id, info);
       return source

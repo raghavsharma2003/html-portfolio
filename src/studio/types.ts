@@ -58,7 +58,7 @@ export interface ReplicaSource {
   source_id: string;
   replica_id: string;
   kind: SourceKind;
-  capture_mode: "live_challenge" | "upload" | "import" | "derived";
+  capture_mode: "live_challenge" | "provider_consent" | "upload" | "import" | "derived";
   mime: string;
   byte_size: number;
   state: SourceState;

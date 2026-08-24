@@ -186,6 +186,13 @@ export async function revokeOwnedConsent(db, ownerUserId, id, value) {
         where replica_id = $1 and owner_user_id = $2
           and state <> 'deleting' and exists (select 1 from revoked)
           and ('storage' = any($3::text[]) or 'capture' = any($3::text[]))
+     ), provider_consents as (
+       update vy_replica_provider_consent set state = 'revoked',
+              revoked_at = coalesce(revoked_at, now()), updated_at = now()
+        where replica_id = $1 and owner_user_id = $2 and state <> 'revoked'
+          and exists (select 1 from revoked)
+          and ('storage' = any($3::text[]) or 'capture' = any($3::text[])
+               or 'biometric' = any($3::text[]) or 'training' = any($3::text[]))
      ), claims as (
        update vy_replica_claim set status = 'superseded', updated_at = now()
         where replica_id = $1 and status in ('proposed','approved')
