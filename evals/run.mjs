@@ -97,6 +97,7 @@ const suites = {
   // Hermetic (pinned clock and TZ, no ambient config), offline, deterministic,
   // $0, ~5s. Re-bundles from the real source on every run.
   tttparity: "ttt/parity.mjs",
+  relleak: "relational/leak.mjs",
   // WS-MOVEVOICE: her hand and her mouth on ONE timeline. The owner played
   // chess on a call, she moved milliseconds after him, and then her voice said
   // she SHOULD play the move already on the board. Gates the three halves of
