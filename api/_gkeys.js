@@ -101,6 +101,20 @@ const POOL = KEYRING.map((e) => e.key);
 // its key, so a leaked label can never reconstruct a secret.
 const LABEL_OF = new Map(KEYRING.map((e, i) => [e.key, e.label || `key-${i}`]));
 
+// KEYS IN ONE BILLING FAMILY FAIL TOGETHER. Measured 2026-08-24: the
+// carbonsettle org accounts (one prepay billing) went 429 "prepayment
+// credits depleted" as a family, with their remaining siblings slow-walked
+// past the first-frame fuse — a ~20-key sick block at the head of the ring
+// that a 3-try budget could never cross. So a quota hit cools not just the
+// key but every sibling sharing the label's @domain: the walk leaps a dead
+// family in ONE fast attempt instead of grinding through it. Wrong grouping
+// costs nothing worse than idling siblings for one COOL_MS window.
+const FAMILY_OF = new Map(); // key -> domain (labels with an @), else null
+for (const e of KEYRING) {
+  const at = (e.label || "").indexOf("@");
+  FAMILY_OF.set(e.key, at > 0 ? e.label.slice(at + 1).toLowerCase() : null);
+}
+
 /** The owner/account label for a key, for RCA in the trace. Never the key. */
 export const labelFor = (key) => LABEL_OF.get(key) || "unknown";
 
@@ -142,8 +156,14 @@ export function healthyKeys() {
   return [...ring.slice(start), ...ring.slice(0, start)];
 }
 
+function coolFamily(key, until) {
+  cooled.set(key, until);
+  const fam = FAMILY_OF.get(key);
+  if (fam) for (const [k, f] of FAMILY_OF) if (f === fam) cooled.set(k, until);
+}
+
 export function markExhausted(key) {
-  cooled.set(key, Date.now() + COOL_MS);
+  coolFamily(key, Date.now() + COOL_MS);
 }
 
 // PER-LABEL RCA COUNTERS — process-lifetime, labels only, never a key. This is
@@ -195,8 +215,19 @@ const MAX_TRIES = 3;
 // not cooling it at all invites picking it again on the next request.
 const SICK_MS = 30_000;
 
-export async function withGeminiKey(fn) {
-  const keys = healthyKeys().slice(0, MAX_TRIES);
+// Round-robin start: a static order concentrated every request on the ring's
+// first keys — so when the leading billing family's prepay hit zero on
+// 2026-08-24, every fresh instance burned its whole try budget on the same
+// three depleted keys and speech 502'd with 45 healthy keys behind them.
+// Rotating the start spreads quota across the pool AND decorrelates failures.
+export async function withGeminiKey(fn, slowBudget = MAX_TRIES) {
+  // ALL healthy keys are eligible (healthyKeys already rotates its start) —
+  // the walk below stops early only when the SLOW-failure budget is spent.
+  // A fast 429 costs ~150ms and must never count against the tries that
+  // exist to bound slow, sick upstreams: MAX_TRIES was written for a 9-key
+  // pool where 3 tries usually reached a healthy key; at 48 keys a depleted
+  // leading block of 3 starved the lane.
+  const keys = healthyKeys();
   // The billed key goes LAST, always, and is never cooled: free capacity is
   // still spent first, and the tier below (OpenRouter) is still there if this
   // fails too. Appending it here rather than giving it its own lane is
@@ -204,7 +235,7 @@ export async function withGeminiKey(fn) {
   // caller's streaming path, its frame parsing and its splice protection for
   // free. A separate lane would be a second audio path to keep in sync.
   if (PAID_KEY) keys.push(PAID_KEY);
-  return walkKeys(keys, fn, PAID_KEY);
+  return walkKeys(keys, fn, PAID_KEY, slowBudget);
 }
 
 /**
@@ -220,18 +251,34 @@ export async function withGeminiKey(fn) {
  *
  * `paidKey` is the one member of the list that is never cooled.
  */
-export async function walkKeys(keys, fn, paidKey = PAID_KEY) {
+export async function walkKeys(keys, fn, paidKey = PAID_KEY, slowBudget = MAX_TRIES) {
   let lastErr = null;
+  // The try budget bounds SLOW failures only (a throw, a transient, a
+  // first-frame abort — each costs real wall-clock). A quota 429 is a fast
+  // ~150ms bounce and walks on without spending a try: the budget exists to
+  // stop a sick upstream eating the turn, not to stop the walk finding the
+  // healthy tail of a big pool behind a depleted block.
+  let slowTries = 0;
+  // Families this walk has already seen fail (one billing family fails
+  // together — measured 2026-08-24). Walk-LOCAL on purpose: keys returned by
+  // healthyKeys' everything-cooled fallback must still be walkable, so the
+  // skip may only react to failures seen inside THIS walk.
+  const deadFamilies = new Set();
   for (const key of keys) {
+    if (slowTries >= slowBudget) break;
+    const fam = FAMILY_OF.get(key);
+    if (fam && deadFamilies.has(fam) && key !== paidKey) continue;
     let r;
     try {
       r = await fn(key);
     } catch (e) {
       lastErr = e?.message || "threw";
+      slowTries++;
       continue; // network flake — the next key is a free retry
     }
     if (r?.ok) return { value: r.value, key, label: labelFor(key) };
     if (r?.exhausted) {
+      if (fam) deadFamilies.add(fam);
       if (key !== paidKey) markExhausted(key); // a billed key is never "spent"
       bumpRca(key, "quota");
       lastErr = "quota";
@@ -244,9 +291,15 @@ export async function walkKeys(keys, fn, paidKey = PAID_KEY) {
     // answering in under a second. 9 of 12 production requests were being
     // served by the slower paid lane as a result.
     if (r?.retry) {
-      cooled.set(key, Date.now() + SICK_MS);
+      if (fam) deadFamilies.add(fam);
+      // A slow-walked key's billing family is almost always slow with it
+      // (measured 2026-08-24: the .in trio each burned a try back to back) —
+      // cool the family for the short sick window so the walk leaps it after
+      // ONE slow attempt instead of spending the whole budget inside it.
+      coolFamily(key, Date.now() + SICK_MS);
       bumpRca(key, "transient");
       lastErr = r.error || "transient";
+      slowTries++;
       continue;
     }
     // A genuine request error (a 400 is our fault) fails identically on every
