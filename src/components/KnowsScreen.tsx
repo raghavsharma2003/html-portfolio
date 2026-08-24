@@ -77,6 +77,7 @@ import { ChevronIcon, TrashIcon, HeartIcon } from "./icons";
 import { tap, ImpactStyle } from "../native/haptics";
 import { useCallStatus } from "../state/callStatus";
 import WorldLayer, { useSky, skyVars } from "./WorldLayer";
+import scrapbookArt from "../assets/empty/scrapbook.svg";
 import "../styles/knows.css";
 
 export interface KnowsScreenProps {
@@ -251,6 +252,16 @@ export default function KnowsScreen({ state, onExit, onCorrect, bundle, now }: K
               ? "Nothing much yet. It fills up as you two talk."
               : "Yours to fix. Tell her when something's wrong, or drop it for good."}
           </p>
+          {/* THE EMPTY SCRAPBOOK, drawn once and only when it is true.
+              The screen has two `empty` branches, this line and the closing
+              one at the foot; the picture is on this one alone, because the
+              same illustration twice on one short page reads as a repaint
+              rather than as furniture, and the footer sentence is copy that
+              was never an art site. The text is untouched either way: the
+              picture is added ABOVE it and replaces nothing. */}
+          {empty && (
+            <img className="knows-empty-art" src={scrapbookArt} alt="" width={260} height={173} />
+          )}
         </header>
 
         {/* ═══ 1. THEIR STORY, BY MONTH ══════════════════════════════════

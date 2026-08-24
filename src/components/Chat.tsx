@@ -35,6 +35,7 @@ import { track } from "../engine/account";
 import { tel, telFlush, createComposeTracker } from "../engine/telemetry";
 import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
+import firstHelloArt from "../assets/empty/first-hello.svg";
 import StoryView from "./StoryView";
 import { activeStories, hasUnseenStory, storySrc } from "../engine/storyCatalog";
 import MessageRow, { type RowApi } from "./MessageRow";
@@ -3187,6 +3188,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
             <div className="ce-face">
               <PhotoAvatar size={96} />
             </div>
+            {/* THE ROOM, DRAWN. Two chairs waiting at dusk, above the two
+                lines that were already here and replacing neither of them.
+                The furnished-room note below is what this picture is for:
+                the wait for her first message is the single most likely
+                moment to decide the app is broken. */}
+            <img className="ce-art" src={firstHelloArt} alt="" width={200} height={133} />
             <h2>{user.name ? `${HER_NAME} is writing to you` : `Say hi to ${HER_NAME}`}</h2>
             <p>
               She texts in Hinglish, calls when you want to hear a voice, and remembers what

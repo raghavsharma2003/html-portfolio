@@ -20,6 +20,7 @@ import { useCallStatus } from "../state/callStatus";
 import { tap } from "../native/haptics";
 import { resolveTheme } from "../engine/theme";
 import { replaceOccupant } from "./activityClose";
+import noMovesArt from "../assets/empty/no-moves.svg";
 
 interface Props {
   state: AppState;
@@ -526,7 +527,13 @@ export default function ChessActivity({
                   </div>
                 ))
               ) : (
-                <p className="cx-mv-empty">no moves yet</p>
+                <div className="cx-mv-empty">
+                  {/* The board before anything has happened on it, with the
+                      two ghost arrows the file draws. Above the line, never
+                      instead of it. */}
+                  <img src={noMovesArt} alt="" width={168} height={112} />
+                  <p>no moves yet</p>
+                </div>
               )}
             </div>
           </div>

@@ -53,6 +53,7 @@ import { useState } from "react";
 import { HER_NAME, type UserProfile } from "../engine/persona";
 import { seedDayOneConsolidation, seedCurrencyChips } from "../engine/memory";
 import WorldLayer, { useSky, skyVars } from "./WorldLayer";
+import { AnimGlyph } from "./anim";
 import onboardNight from "../assets/onboard-window-night.jpg";
 import onboardNight600 from "../assets/onboard-window-night-600.jpg";
 import "../styles/onboard.css";
@@ -180,7 +181,12 @@ export default function Onboarding({ onDone, deviceId }: Props) {
         {step === 1 && (
           <div className="onb-ask">
             <h1 className="onb-q">
-              Hi, main {HER_NAME} <span className="onb-bloom">🌸</span>
+              Hi, main {HER_NAME}{" "}
+              {/* Her own bloom, not the platform's. It is 30px because the
+                  glyph it replaces was 30px, and its alt is the word the
+                  emoji announced, so the heading reads the same aloud as it
+                  did. Reduced motion gets the still drawing (./anim.tsx). */}
+              <AnimGlyph name="bloom" size={30} alt="blossom" className="onb-bloom" />
               <br />
               Tumhe kya <em>bulaun</em>?
             </h1>

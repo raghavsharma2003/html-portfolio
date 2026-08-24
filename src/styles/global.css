@@ -993,6 +993,16 @@ button {
   overflow: hidden;
   box-shadow: 0 12px 36px -14px color-mix(in srgb, var(--accent) 60%, transparent);
 }
+/* The drawn room, between her face and the two lines. Bounded by the thread
+   rather than by the file: at 200px it clears the composer on the shortest
+   phone this app supports while still being a picture rather than an icon.
+   No ground of its own, so it carries over every wallpaper and both themes. */
+.chat-empty .ce-art {
+  margin-top: 14px;
+  width: 200px;
+  max-width: 62vw;
+  height: auto;
+}
 .chat-empty h2 {
   margin-top: 18px;
   font-family: var(--font-display);
@@ -2925,6 +2935,11 @@ button {
   font-size: var(--t-ui);
   color: var(--ink-dim);
 }
+/* the clapper, sat on the text's baseline the way the glyph it replaced was */
+.gif-mark {
+  display: inline-block;
+  vertical-align: -0.22em;
+}
 
 /* ─── Account sheet — Apple-grade auth ─── */
 .auth-sheet h3 {
@@ -3071,6 +3086,15 @@ button {
   font-size: 20px;
   font-weight: 700;
   flex-shrink: 0;
+  overflow: hidden;
+}
+/* the no-initial case: our own drawn face, filling the circle rather than
+   sitting inside it as a smaller square */
+.auth-avatar-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
 }
 .auth-who {
   font-weight: 600;
@@ -3361,6 +3385,21 @@ button.avatar-ring {
   font-size: 21px;
   text-align: center;
   font-weight: 600;
+}
+/* The gate's own picture. Warm-on-indigo line art with no ground of its own,
+   so it reads on the blurred dark scrim without a plate under it. Sized to
+   the panel rather than to the file: 200px is the widest it can be and still
+   leave the sentence and both buttons above the fold on a small phone. */
+.story-gate-art {
+  display: block;
+  width: 200px;
+  max-width: 62vw;
+  height: auto;
+}
+/* her eyes, at the height of the line they sit in */
+.story-eyes {
+  display: inline-block;
+  vertical-align: -0.16em;
 }
 .story-skip {
   color: rgba(255, 255, 255, 0.82);
@@ -3841,17 +3880,55 @@ input {
   padding: 5px;
   border-radius: 999px;
   cursor: pointer;
+  /* it holds a 21px picture now rather than a 21px glyph, so the box has to
+     say where the picture sits instead of leaving it to the text baseline */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: transform 140ms var(--ease-out), background 140ms var(--ease-out);
 }
 .react-pick:hover { transform: scale(1.22); }
 .react-pick:active { transform: scale(0.9); }
 .react-pick.on { background: var(--accent-soft); transform: scale(1.12); }
+
+/* ── OUR OWN REACTION ARTWORK ─────────────────────────────────────────────
+ * The picker and the pill both paint `src/components/anim.tsx`'s pair, at the
+ * sizes the emoji occupied before it (21px in the row, 15px on the bubble), so
+ * the hover scale, the press squash and the `react-pop` landing are unchanged
+ * — they act on the BUTTON and the PILL, which is why swapping what is inside
+ * them moved none of it.
+ *
+ * There is no reduced-motion rule here and there cannot be: an animated WebP
+ * ignores `animation: none`. The answer is upstream, in which file gets
+ * requested. See anim.tsx.
+ */
+.react-art {
+  display: block;
+  /* the third fallback renders the emoji in a <span> with this class, so the
+     glyph has to be given the size the image would have had */
+  line-height: 1;
+  font-size: inherit;
+}
+img.react-art {
+  object-fit: contain;
+}
+
 .react-bar .reply-chip {
   font-size: 15px;
   padding: 5px 9px;
   margin-left: 2px;
   border-left: 1px solid var(--hairline);
   border-radius: 0 999px 999px 0;
+}
+/* the inlined reply mark: `currentColor` is the chip's own accent, which is
+   the whole reason it is inline SVG and not an <img> */
+.chip-mark {
+  display: block;
+}
+.chip-mark svg {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 /* the emoji stuck onto a bubble */
@@ -3874,6 +3951,11 @@ input {
   /* a reaction ARRIVING should be felt — it is the one thing in the thread
      that appears without a new bubble */
   animation: react-pop 260ms var(--ease-out) both;
+  /* the artwork inside is a block image; without this the pill keeps the
+     line-box of the emoji it replaced and sits a pixel or two low */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .msg.me .react-pill { left: 8px; }
 .msg.her .react-pill { right: 8px; }

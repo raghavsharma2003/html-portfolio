@@ -1599,6 +1599,18 @@
    "kind": "measurement",
    "at": "2026-08-24",
    "title": "ttt T15 head 307/420 bytes; fact order is the drop policy on a live ttt board"
+  },
+  {
+   "id": "currentcolor-marks-inline-or-mask",
+   "kind": "decision",
+   "at": "2026-08-24",
+   "title": "currentColor SVG marks ship as CSS mask or ?raw inline, never img; anim.tsx is the single asset/reduce seam"
+  },
+  {
+   "id": "glyph-in-a-live-status-line",
+   "kind": "rejection",
+   "at": "2026-08-24",
+   "title": "No animated glyph inside an aria-live status label; eyes removed from CallVoice copy, kept on the story gate"
   }
  ],
  "edges": [

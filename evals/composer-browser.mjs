@@ -868,7 +868,11 @@ const isDocRequest = (b) => Array.isArray(b?.docs) && b.docs.length > 0;
   );
   const chips = await page.evaluate(() =>
     [...document.querySelectorAll(".tray-doc")].map((c) => ({
-      ext: c.querySelector(".tray-doc-ext").textContent,
+      // WS-ASSETWIRE: the badge is a DRAWN mark for the four authored
+      // formats and the letters for everything else, so the format it
+      // resolved to is read off `data-ext` (which both branches carry)
+      // rather than off the text (which only one of them has).
+      ext: c.querySelector(".tray-doc-ext").getAttribute("data-ext"),
       name: c.querySelector(".tray-doc-name").textContent,
       size: c.querySelector(".tray-doc-size").textContent,
       hasX: Boolean(c.querySelector(".tray-x")),

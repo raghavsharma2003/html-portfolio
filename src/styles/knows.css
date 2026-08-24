@@ -242,6 +242,17 @@
   color: var(--k-dim);
   max-width: 30ch;
 }
+/* The picture that only exists when the page is empty. Line art with no
+   ground of its own, so it carries across both themes and every sky without a
+   plate; it is bounded by the card rather than by the file, which is why the
+   width is a max and the height is auto. */
+.knows-empty-art {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+  margin: var(--s4) 0 0;
+}
 
 /* ── sections ─────────────────────────────────────────────────────────────
    A section heading is a small caps-height label, not a headline: the content

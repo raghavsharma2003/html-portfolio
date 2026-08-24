@@ -35,6 +35,8 @@ import BigEmoji, { isSingleEmoji } from "./BigEmoji";
 import VoiceNote from "./VoiceNote";
 import GifBubble from "./GifBubble";
 import { PhoneIcon, TickIcon } from "./icons";
+import { ReactionGlyph } from "./anim";
+import replyMark from "../assets/stats/reply.svg?raw";
 
 /** WhatsApp's six, in WhatsApp's order — muscle memory is the whole point. */
 export const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "🙏", "👍"] as const;
@@ -278,9 +280,13 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
               key={emoji}
               className={`react-pick ${m.reaction === emoji ? "on" : ""}`}
               aria-label={m.reaction === emoji ? `Remove ${emoji} reaction` : `React ${emoji}`}
+              // THE ARGUMENT IS STILL THE CHARACTER. `ReactionGlyph` paints
+              // our own artwork over it, and that is the whole extent of the
+              // change: what is stored, synced, transcribed and read to her is
+              // `emoji`, exactly as before. See ./anim.tsx's header.
               onClick={() => api.react(m, emoji)}
             >
-              {emoji}
+              <ReactionGlyph emoji={emoji} size={21} className="react-art" />
             </button>
           ))}
           <button
@@ -289,7 +295,15 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
             onClick={() => api.replyTo(m)}
             aria-label="Reply to this message"
           >
-            ↩
+            {/* The authored mark, inlined rather than fetched, because it is
+                drawn in `currentColor` and an <img> would resolve that against
+                the file instead of against this chip. Same reason as the site
+                wordmark's mask, one layer down. */}
+            <span
+              className="chip-mark"
+              aria-hidden="true"
+              dangerouslySetInnerHTML={{ __html: replyMark }}
+            />
           </button>
         </div>
       )}
@@ -345,7 +359,7 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
         // Hangs off the bubble's bottom edge, so it reads as stuck ONTO the
         // message rather than sent after it.
         <span className="react-pill" aria-label={`Reacted ${m.reaction}`}>
-          {m.reaction}
+          <ReactionGlyph emoji={m.reaction} size={15} className="react-art" />
         </span>
       )}
       {/* Uncovered by dragging the thread left. aria-hidden because the

@@ -12,6 +12,8 @@ import { type Story, storySrc, storyAge, markStorySeen } from "../engine/storyCa
 import { HER_NAME } from "../engine/persona";
 import PhotoAvatar from "./PhotoAvatar";
 import { CloseIcon, MoreIcon, ArrowUpIcon } from "./icons";
+import { AnimGlyph } from "./anim";
+import gateArt from "../assets/empty/story-gate.svg";
 
 const SEGMENT_MS = 5200;
 
@@ -336,7 +338,13 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
           onTouchEnd={(e) => e.stopPropagation()}
           onMouseUp={(e) => e.stopPropagation()}
         >
-          <p>aur bhi hai 👀</p>
+          {/* The lit window: what is behind the gate, drawn rather than
+              described. It sits ABOVE the line and replaces none of it. */}
+          <img className="story-gate-art" src={gateArt} alt="" width={200} height={133} />
+          <p>
+            aur bhi hai{" "}
+            <AnimGlyph name="eyes" size={22} alt="" className="story-eyes" />
+          </p>
           <button
             className="btn-primary"
             style={{ width: "auto", padding: "13px 30px" }}

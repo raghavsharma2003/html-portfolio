@@ -2146,3 +2146,17 @@ kind guard somewhere downstream, or one no test had driven with the second
 kind. Sibling finding `chess-prose-in-a-ttt-hat`: three strings located a
 nine-square board by a chess move number — generalising a mechanism is not
 generalising its WORDING, and the wording is the half the user hears.
+
+## `glyph-in-a-live-status-line` — the watching eyes stay out of the call state label
+
+Tried: the animated eyes glyph inline in CallVoice's "watching with you"
+state line (per the asset brief). Broke on inspection, not in code: the
+label is a plain string in an aria-live region changing several times a
+minute; carrying a picture means a mixed live node holding a 538KB looping
+WebP — ambient motion in a status line, the exact decoration DESIGN-
+STANDARDS gates. Copy de-glyphed instead; StoryView's gate keeps the eyes
+(rare, first-run, delight budget). Sibling finding `knows-empty-day-0-only`:
+the scrapbook empty state is unreachable after the first beat of any mount
+because Chat improvises her opening message at messages.length===0 (network
+dead included, via the stored fallback) — wiring gated offline, state
+effectively day-0 only.

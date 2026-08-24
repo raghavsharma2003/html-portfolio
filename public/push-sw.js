@@ -64,7 +64,12 @@ self.addEventListener("push", (event) => {
       tag: TAGS[data.kind] || "meera",
       renotify: false,
       icon: "/icon-192.png",
-      badge: "/icon-192.png",
+      // The BADGE is not a small icon — Android and Chrome mask it to a
+      // monochrome silhouette, so a colour launcher icon (which is what this
+      // was) arrives as a white blob in the status bar. `/badge-96.png` is
+      // flat white on transparency at the 96px the spec asks for, the web
+      // half of the same fix `ic_stat_meera` is on the native lane.
+      badge: "/badge-96.png",
       data: { route: typeof data.route === "string" ? data.route : "#chat" },
     }),
   );

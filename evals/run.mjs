@@ -404,6 +404,29 @@ const suites = {
   // Offline, deterministic, $0, ~2s. Re-bundles from the real source on every
   // run, like everything else here.
   composer: "composer/run.mjs",
+  // WS-ASSETWIRE. Fifty-one generated files landed at their final paths
+  // referenced by NOTHING, and this suite is what stops that being true again
+  // in either direction: every path the app can request resolves on disk, and
+  // every file that ships is named by something.
+  //
+  // It is here rather than left standalone for the reason `dead-writers`
+  // gives, and it is a GATE rather than a note because everything it asserts
+  // is silent when it breaks. A wrong asset path renders an empty box that
+  // looks like spacing. An asset path written into `Message.reaction` instead
+  // of the emoji would stop reactions syncing and stop them reaching her while
+  // the thread carried on looking perfect. And the reduced-motion answer for
+  // an animated WebP is a BRANCH IN CODE rather than a stylesheet rule,
+  // because `animation: none` does nothing to a WebP — so it is the kind of
+  // thing a later edit deletes without any test noticing. That last one
+  // carries its own negative control: the reduce assertions are re-run against
+  // a component that ignores the query and MUST fail.
+  //
+  // It renders the real components through react-dom/server rather than
+  // grepping them, re-bundling from source on every run. Offline,
+  // deterministic, $0, ~2s. Its BROWSER half (evals/assetwire-browser.mjs) is
+  // deliberately not in this map, same by-construction reason the composer
+  // note above gives: it needs a built app on a port.
+  assetwire: "assetwire/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

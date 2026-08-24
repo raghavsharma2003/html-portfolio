@@ -184,8 +184,12 @@
   letter-spacing: -0.022em;
   color: var(--world-ink);
 }
+/* The bloom is a picture now, not a glyph (src/components/anim.tsx). Same
+   30px, and the nudge is what an emoji's own line box used to do for free:
+   an <img> sits on the baseline, a glyph sits across it. */
 .onb-bloom {
-  font-size: 30px;
+  display: inline-block;
+  vertical-align: -0.16em;
 }
 
 /* ONE glass field. `--world-glass` is the same top-lit fill the home cards

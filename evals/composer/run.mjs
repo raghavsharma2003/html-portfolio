@@ -728,11 +728,20 @@ const doc = (chars = 100, name = "notes.md") => ({
 
   const tray = src("src/components/ComposeTray.tsx");
   ok("the tray renders file chips", /className="tray-doc"/.test(tray));
-  ok("…with the badge, the name and the size", /docExt\(d\.name\)/.test(tray) && /docSize\(d\.size\)/.test(tray));
+  // WS-ASSETWIRE moved the badge itself into `DocBadge`, which owns the choice
+  // between a drawn mark and the letters; `docExt` is now called inside it
+  // rather than at the two chip sites. The property this line has always been
+  // about is unchanged and is what it still checks: a chip carries a badge, a
+  // name and a size, and there is exactly ONE badge implementation.
+  ok(
+    "…with the badge, the name and the size",
+    /<DocBadge[\s\S]*?name=\{d\.name\}/.test(tray) && /docSize\(d\.size\)/.test(tray),
+  );
   ok("…and a remove button per chip", /data-tel="compose\.remove_doc"/.test(tray));
   ok(
     "…and the chips share one implementation with the thread's",
-    /docExt/.test(src("src/components/DocChips.tsx")),
+    /<DocBadge/.test(src("src/components/DocChips.tsx")) &&
+      /docExt/.test(src("src/components/DocBadge.tsx")),
     "two chip renderers is two places for the badge to drift",
   );
 }

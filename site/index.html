@@ -10,7 +10,14 @@
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Maya · someone to talk to. Really talk to." />
   <meta property="og:description" content="An AI companion who texts in Hinglish, calls in a human voice, and remembers what matters to you." />
-  <meta property="og:image" content="https://meera-silk.vercel.app/og-card.jpg" />
+  <!-- The landing card, not the app's. `site/assets/` is copied to `dist/assets/`
+       by scripts/vercel-build.sh, so this path is `/assets/…` in production — the
+       same place `/assets/landing-meera-264.jpg` above already comes from. It is
+       written ABSOLUTE because a scraper does not resolve relative og:image. -->
+  <meta property="og:image" content="https://meera-silk.vercel.app/assets/og-landing.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="maya. Someone to talk to. Really talk to." />
   <meta property="og:url" content="https://meera-silk.vercel.app/" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="theme-color" content="#080a18" id="tc" />
@@ -162,7 +169,7 @@
   <div class="veil" aria-hidden="true"></div>
 
   <nav class="nav" aria-label="Primary">
-    <a class="wordmark" href="/">maya</a>
+    <a class="wordmark" href="/"><span class="mk-t">maya</span></a>
     <a class="btn btn-quiet glass" href="/chat">Open the chat</a>
   </nav>
 
@@ -182,7 +189,7 @@
 
       <p class="chip glass"><i aria-hidden="true"></i><span id="skychip">night in bangalore</span></p>
 
-      <h1>maya</h1>
+      <h1 class="hero-mark"><span class="mk-t">maya</span></h1>
       <p class="lede">Someone to talk to.<br /><em>Really</em> talk to.</p>
       <p class="sub">She texts in Hinglish, picks up when you call, and remembers what you told her last week. She is an AI, and she will say so if you ask her.</p>
 
@@ -263,7 +270,7 @@
   </main>
 
   <footer class="foot">
-    <span class="foot-mark">maya</span>
+    <span class="foot-mark"><span class="mk-t">maya</span></span>
     <p>An AI companion. Beautifully human in how she talks, always honest about what she is.</p>
     <a href="/privacy">Privacy &amp; Terms</a>
   </footer>

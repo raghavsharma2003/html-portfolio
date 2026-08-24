@@ -164,6 +164,18 @@
   letter-spacing: 0.04em;
   overflow: hidden;
 }
+/* THE DRAWN BADGE (src/components/DocBadge.tsx). Four formats have a mark;
+   everything else keeps the letters above, in the same tile, at the same
+   size. The mark is authored at 38 to this tile's 38, with its own margins
+   inside that, so it is painted at its natural size rather than inset again.
+   `currentColor` is the tile's own ink, which is the whole reason the SVG is
+   inlined instead of fetched. */
+.tray-doc-ext[data-art] svg,
+.docchip-ext[data-art] svg {
+  display: block;
+  width: 38px;
+  height: 38px;
+}
 .tray-doc-text,
 .docchip-text {
   display: flex;

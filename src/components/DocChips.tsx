@@ -21,7 +21,8 @@
 // what he staged and what he sent are recognisably the same thing.
 
 import type { DocRef } from "./attachments";
-import { docExt, docSize } from "./attachments";
+import { docSize } from "./attachments";
+import DocBadge from "./DocBadge";
 
 interface Props {
   docs: readonly DocRef[];
@@ -33,9 +34,7 @@ export default function DocChips({ docs }: Props) {
     <div className="docchips" data-tel="chat.docchips">
       {docs.map((d, i) => (
         <div className="docchip" key={`${i}-${d.name}`}>
-          <span className="docchip-ext" aria-hidden="true">
-            {docExt(d.name)}
-          </span>
+          <DocBadge name={d.name} className="docchip-ext" />
           <span className="docchip-text">
             <span className="docchip-name">{d.name}</span>
             <span className="docchip-size">{docSize(d.size)}</span>

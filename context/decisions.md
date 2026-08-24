@@ -2275,3 +2275,15 @@ NOT re-anchored (OpenRouter key spent) — the alarm fires by design and the
 gate prints the stale anchor until a funded key runs prosody --establish.
 
 **Reverses if:** the owner's ears say so — numbers cannot pick her voice.
+
+## `currentcolor-marks-inline-or-mask` — a currentColor SVG never rides an img tag
+
+**Decided 2026-08-24 (WS-ASSETWIRE).** Marks drawn in currentColor resolve
+against the SVG document inside an img — black on all five skies. So: CSS
+mask + background currentColor for the wordmark (inherits the exact ink the
+contrast gate already proves, @supports-guarded with the text fallback), and
+?raw inlining for every other currentColor mark (stats, reply, or-coin,
+filetypes, ErrorBoundary — the last one deliberately, so the crash card
+needs no fetch at the moment something already failed). src/components/
+anim.tsx is the single seam that knows /anim/ paths and makes the
+reduced-motion decision. **Reverses if** the marks stop being currentColor.

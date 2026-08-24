@@ -29,7 +29,8 @@
 // option rule again, one level down.
 
 import type { Attachment, DocAttachment } from "./attachments";
-import { MAX_ATTACHMENTS, MAX_DOCS, docExt, docSize, trayCount } from "./attachments";
+import { MAX_ATTACHMENTS, MAX_DOCS, docSize, trayCount } from "./attachments";
+import DocBadge from "./DocBadge";
 import { CloseIcon } from "./icons";
 
 interface Props {
@@ -93,9 +94,7 @@ export default function ComposeTray({
             key={d.id}
             style={{ animationDelay: `${Math.min(items.length + i, 4) * 40}ms` }}
           >
-            <span className="tray-doc-ext" aria-hidden="true">
-              {docExt(d.name)}
-            </span>
+            <DocBadge name={d.name} className="tray-doc-ext" />
             <span className="tray-doc-text">
               <span className="tray-doc-name" title={d.name}>
                 {d.name}

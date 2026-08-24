@@ -130,7 +130,16 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
                 : eng.watching && eng.watchPaused
                   ? "you closed the curtain"
                   : eng.watching
-                  ? "watching with you 👀"
+                  // WS-ASSETWIRE judgment: the eyes glyph came OUT of this
+                  // line rather than becoming our own artwork. `stateLabel`
+                  // is a plain string inside an aria-live region that changes
+                  // several times a minute, and the only way to put a picture
+                  // in it is to make the live region a mixed node with a
+                  // 512px animated WebP in it. Ambient motion inside a status
+                  // line is the decoration DESIGN-STANDARDS rejects, and it
+                  // would be the one thing on the call screen that never
+                  // stops. The sentence says it without help.
+                  ? "watching with you"
                   : eng.listening
                     ? "listening…"
                     : eng.mmss;
