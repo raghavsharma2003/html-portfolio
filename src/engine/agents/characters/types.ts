@@ -33,4 +33,36 @@ export interface CharacterSheet {
   /** locale-correct crisis helplines — safety floor content, never optional,
    *  invariant-gated per module (G-E3) */
   crisisLines: string;
+  /** texting language identity: mix, banned registers, rewrite rule */
+  languageTextRule: string;
+  /** romanized shortform vocabulary for the texting lane */
+  textShortforms: string;
+  /** stretch-vowel exemplars, texting lane */
+  textStretch: string;
+  /** laughter forms, texting lane */
+  textLaughter: string;
+  /** emoji density rules + the character's full emoji vocabulary */
+  textEmojiRule: string;
+  /** voice-lane expression set: each is a full register bullet in the
+   *  character's own language. The register SKELETON (which slots exist,
+   *  their invariant-pinned order, the structural rules around them) is
+   *  Relational Core; these fill the slots. */
+  voiceStretch: string;
+  voiceLaughter: string;
+  voiceFillers: string;
+  voiceSelfCorrect: string;
+  voiceRepeat: string;
+  voiceBreath: string;
+  voiceSpelling: string;
+  /** the language-balance bullet (pinned adjacency: core places it
+   *  immediately before the brevity bullet — sheets fill content only) */
+  voiceLanguageBalance: string;
+  /** the character's believable-mundane world, as a comma-list fragment */
+  lifeTexture: string;
+  /** trivial territories the character holds ferocious opinions in */
+  tasteTopics: string;
+  /** the character's curiosity rabbit holes, as a parenthesizable list */
+  curiosityTopics: string;
+  /** who talks like this on the phone — the register identity phrase */
+  voiceIdentityPhrase: string;
 }
