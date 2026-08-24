@@ -1,7 +1,7 @@
 # Fail-closed paid-provider budget
 
-Status: implemented for Azure Foundry token calls and Azure Speech fast
-transcription on `voice-cloning`,
+Status: implemented for Azure Foundry token calls, Azure Speech fast
+transcription and the approval-gated Azure Personal Voice adapter on `voice-cloning`,
 2026-08-24. Migration 028 is not deployed and no live Azure charge has been
 made.
 
@@ -38,6 +38,8 @@ AZURE_REPLICA_APP_BUDGET_USD=1500
 AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS=<current deployed-model rate>
 AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS=<current deployed-model rate>
 AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR=<current resource/SKU rate>
+AZURE_PERSONAL_VOICE_USD_PER_PROFILE=<current approved-resource rate>
+AZURE_PERSONAL_VOICE_SYNTHESIS_USD_PER_MCHARACTERS=<current approved-resource rate>
 ```
 
 The application cap cannot exceed `$2,000`. `$1,500` is the recommended
@@ -63,6 +65,13 @@ one-way in-flight hook immediately before `fetch`. Settlement uses the same
 per-input rounded duration for successfully processed requests. Azure's fast-transcription response
 does not report a billing receipt, so this is a deterministic application
 meter, not a substitute for Azure Cost Management invoice reconciliation.
+
+Personal Voice training reserves one native profile request. Synthesis counts
+UTF-8 bytes as a conservative upper bound on multilingual billable characters.
+Both bind an opaque retry key, immutable input commitment, exact adapter
+version and pinned base model. A completed training reservation may be reused
+only to recover the exact existing provider profile; a completed synthesis is
+never replayed as if it were free.
 
 ## Failure semantics
 
@@ -92,10 +101,13 @@ Covered now:
 - Azure Foundry private replica dialogue;
 - Azure Speech fast transcription, conservatively metered by per-request audio
   seconds represented as milliseconds.
+- Azure Personal Voice profile creation and synthesis, with configured
+  request/character rates and Limited Access approval required by the adapter.
 
 Not yet covered:
 
-- Personal Voice enrollment/training and synthesis;
+- the owner-facing Personal Voice consent/enrollment orchestrator and live
+  provider qualification;
 - liveness/identity vendors;
 - watermark, signing and C2PA infrastructure;
 - GPU and batch-evaluation jobs.

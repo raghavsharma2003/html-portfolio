@@ -81,9 +81,11 @@ controlled GPU evaluation. See [the provider budget contract](PROVIDER-BUDGET.md
 6. Apply now for Personal Voice Limited Access, GPT-5.6 quota and A10 capacity.
    Lack of approval is a planned branch, not a reason to bypass consent or use
    an uncovered provider.
-7. Keep Personal Voice, liveness, watermarking and GPU jobs off
-   until each has a native-unit meter under the same atomic ceiling. Portal
-   alerts remain an independent backstop, not the application control.
+7. Personal Voice now has native profile-request and conservative character
+   meters under the same atomic ceiling, but stays off until Limited Access,
+   provider consent, enrollment, quality and erasure gates pass. Liveness,
+   watermarking and GPU jobs remain off until they have equivalent meters.
+   Portal alerts remain an independent backstop, not the application control.
 8. Keep Azure Speech live traffic off until migration 028 is deployed, the
    effective resource/SKU hourly rate is configured, the subscription confirms
    grant coverage, and the operator reconciliation drill passes.

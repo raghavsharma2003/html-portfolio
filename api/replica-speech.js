@@ -10,7 +10,7 @@ import { createReplicaSpeechHandler } from "./_replica-speech.js";
 const serve = createReplicaSpeechHandler({
   db: q,
   requireUser,
-  resolveVoiceProvider: async (profile) => createVoiceProvider(profile.provider),
+  resolveVoiceProvider: async (profile) => createVoiceProvider(profile.provider, { db: q }),
   resolveProtectionAdapters: async () => createProductionProtectionAdapters(),
 });
 

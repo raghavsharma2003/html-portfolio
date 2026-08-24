@@ -423,6 +423,10 @@ unsafe or disposable:
 18. A replay-safe owner blind-evaluation lab for dialogue and prompt candidates
     with balanced committed A/B order, per-asset envelope encryption, neutral
     browser payloads, exact-layer atomic judgments and internal-only unblinding.
+19. A production-shaped Azure Personal Voice adapter behind the provider-neutral
+    voice contract, gated on explicit Limited Access approval, separate verbal
+    consent, private-audio hash verification, pinned model versions, native-unit
+    spend fencing, opaque references and idempotent provider deletion.
 
 These slices do not touch `liveCall.ts`. Azure Speech and Foundry adapters have
 only mocked protocol coverage; real voice models, independent liveness

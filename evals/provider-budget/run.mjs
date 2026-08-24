@@ -7,14 +7,19 @@ import {
   audioReservationMicrousd,
   azureSpeechBillableAudioMs,
   conservativeTokenEstimate,
+  conservativeCharacterUnits,
   foundryBudgetConfig,
   markFoundrySpendUncertain,
   releaseFoundrySpendBeforeCall,
   reserveAzureSpeechSpend,
+  reserveAzurePersonalVoiceSpend,
   reserveFoundrySpend,
   settleFoundrySpend,
   settleAzureSpeechSpend,
+  settleAzurePersonalVoiceSpend,
   speechBudgetConfig,
+  personalVoiceBudgetConfig,
+  personalVoiceReservationMicrousd,
   tokenReservationMicrousd,
 } from "../../api/_provider-budget.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
@@ -50,6 +55,19 @@ ok("Azure Speech rounds every separately submitted input up to its billable seco
   azureSpeechBillableAudioMs([{ duration_ms: 10_001 }, { duration_ms: 1 }]) === 12_000);
 assert.throws(() => speechBudgetConfig({ ...env }), /provider_audio_rate_required/);
 ok("missing Azure Speech rate fails closed", true);
+
+const voiceEnv = {
+  ...env,
+  AZURE_PERSONAL_VOICE_USD_PER_PROFILE: "0.25",
+  AZURE_PERSONAL_VOICE_SYNTHESIS_USD_PER_MCHARACTERS: "16",
+};
+const voiceConfig = personalVoiceBudgetConfig(voiceEnv);
+ok("Personal Voice profile billing converts a configured native request rate to microusd",
+  personalVoiceReservationMicrousd("voice_training", 1, voiceConfig) === 250_000);
+ok("Personal Voice synthesis reserves UTF-8 bytes as a conservative multilingual character bound",
+  conservativeCharacterUnits("hello à¤¨à¤®à¤¸à¥à¤¤à¥‡") === Buffer.byteLength("hello à¤¨à¤®à¤¸à¥à¤¤à¥‡", "utf8"));
+assert.throws(() => personalVoiceBudgetConfig({ ...env }), /provider_voice_profile_rate_required/);
+ok("missing Personal Voice native rates fail closed", true);
 
 const adapter = {
   family: "dialogue",
@@ -121,6 +139,73 @@ await settleAzureSpeechSpend(async (sql, params) => {
 ok("Azure Speech settlement charges measured audio and releases the whole reservation atomically", /unit_kind='audio_ms'/.test(audioSettleCalls[0].sql) && /reserved_microusd=greatest/.test(audioSettleCalls[0].sql));
 await assert.rejects(settleAzureSpeechSpend(async () => [], audioReservation, { audio_ms: 10_001 }), /provider_usage_missing/);
 ok("audio usage cannot exceed the input duration reserved before upload", true);
+
+const voiceAdapter = {
+  family: "azure_speech",
+  name: "azure_personal_voice",
+  version: "azure-personal-voice/2026-01-01",
+  model: "PhoenixV2Neural",
+  billing: {
+    voice_training: { meter: "azure_personal_voice_profiles" },
+    synthesis: { meter: "azure_personal_voice_characters" },
+  },
+};
+const voiceSpendCalls = [];
+const voiceReservation = await reserveAzurePersonalVoiceSpend(async (sql, params) => {
+  voiceSpendCalls.push({ sql, params });
+  return [{ reservation_id: RESERVATION, budget_id: params[0], request_hash: params[7], state: "reserved", reserved_microusd: params[10] }];
+}, {
+  operation: "voice_training",
+  requestKey: "opaque-voice-build",
+  inputCommitment: "e".repeat(64),
+  adapter: voiceAdapter,
+  env: voiceEnv,
+});
+ok("Personal Voice training reserves one native profile request under the shared ceiling",
+  voiceReservation.reserved_units === 1 && voiceReservation.unit_kind === "requests" && voiceReservation.reserved_microusd === 250_000);
+const settledVoiceReservation = await reserveAzurePersonalVoiceSpend(async (_sql, params) => [{
+  reservation_id: RESERVATION,
+  budget_id: params[0],
+  request_hash: params[7],
+  state: "settled",
+  reserved_microusd: params[10],
+}], {
+  operation: "voice_training",
+  requestKey: "opaque-voice-build",
+  inputCommitment: "e".repeat(64),
+  adapter: voiceAdapter,
+  env: voiceEnv,
+});
+ok("a settled Personal Voice build returns reusable authority without allocating again",
+  settledVoiceReservation.state === "settled" && settledVoiceReservation.reserved_units === 1);
+const synthesisReservation = await reserveAzurePersonalVoiceSpend(async (_sql, params) => [{
+  reservation_id: RESERVATION,
+  budget_id: params[0],
+  request_hash: params[7],
+  state: "reserved",
+  reserved_microusd: params[10],
+}], {
+  operation: "synthesis",
+  requestKey: "opaque-generation",
+  inputCommitment: "f".repeat(64),
+  adapter: voiceAdapter,
+  text: "à¤¨à¤®à¤¸à¥à¤¤à¥‡",
+  env: voiceEnv,
+});
+ok("Personal Voice synthesis reserves conservative multilingual characters without storing text",
+  synthesisReservation.unit_kind === "characters" && synthesisReservation.reserved_units === Buffer.byteLength("à¤¨à¤®à¤¸à¥à¤¤à¥‡", "utf8") &&
+  !voiceSpendCalls[0].params.includes("opaque-voice-build"));
+const voiceSettleCalls = [];
+await settleAzurePersonalVoiceSpend(async (sql, params) => {
+  voiceSettleCalls.push({ sql, params });
+  return [{ budget_id: voiceReservation.budget_id, spent_microusd: params[4], reserved_microusd: 0, limit_microusd: voiceConfig.limit_microusd, state: "active" }];
+}, voiceReservation, { units: 1 });
+ok("Personal Voice settlement releases reserve using the exact native unit kind",
+  /unit_kind=\$6/.test(voiceSettleCalls[0].sql) && voiceSettleCalls[0].params[5] === "requests");
+await assert.rejects(settleAzurePersonalVoiceSpend(async () => [], synthesisReservation, {
+  units: synthesisReservation.reserved_units + 1,
+}), /provider_usage_missing/);
+ok("Personal Voice usage cannot exceed its conservative reservation", true);
 
 const migration = readFileSync(join(ROOT, "db/migrations/028_provider_budget.sql"), "utf8");
 ok("budget migration remains one-statement-runner safe", splitSql(migration).length === 4);

@@ -43,6 +43,24 @@ export function speechBudgetConfig(env = process.env) {
   return Object.freeze({ budget_id: budgetId, limit_microusd: Math.floor(limitUsd * 1_000_000), usd_per_hour: usdPerHour });
 }
 
+export function personalVoiceBudgetConfig(env = process.env) {
+  const budgetId = String(env.AZURE_REPLICA_BUDGET_ID || "azure-replica-grant-v1").trim();
+  if (!BUDGET_ID.test(budgetId)) fail("provider_budget_id_invalid");
+  const limitUsd = positive(env.AZURE_REPLICA_APP_BUDGET_USD, "provider_budget_limit_required", 2_000);
+  const profileUsd = positive(env.AZURE_PERSONAL_VOICE_USD_PER_PROFILE, "provider_voice_profile_rate_required", 10_000);
+  const synthesisUsdPerMillion = positive(
+    env.AZURE_PERSONAL_VOICE_SYNTHESIS_USD_PER_MCHARACTERS,
+    "provider_voice_synthesis_rate_required",
+    10_000,
+  );
+  return Object.freeze({
+    budget_id: budgetId,
+    limit_microusd: Math.floor(limitUsd * 1_000_000),
+    profile_usd: profileUsd,
+    synthesis_usd_per_million: synthesisUsdPerMillion,
+  });
+}
+
 export function conservativeTokenEstimate(messages) {
   const bytes = Buffer.byteLength(JSON.stringify(Array.isArray(messages) ? messages : []), "utf8");
   // One token per UTF-8 byte is intentionally conservative for the supported
@@ -76,6 +94,27 @@ export function azureSpeechBillableAudioMs(inputs) {
   }, 0);
   if (!Number.isSafeInteger(billable) || billable <= 0) fail("provider_audio_units_invalid");
   return billable;
+}
+
+export function conservativeCharacterUnits(text) {
+  const value = String(text || "");
+  if (!value) fail("provider_character_units_invalid");
+  // Azure bills text to speech by character. UTF-8 bytes are an intentional
+  // upper bound for Indic and other multibyte scripts, while code points keep
+  // the bound meaningful for ASCII.
+  return Math.max(Array.from(value).length, Buffer.byteLength(value, "utf8"));
+}
+
+export function personalVoiceReservationMicrousd(operation, units, config) {
+  const count = integer(units, "provider_voice_units_invalid");
+  if (count <= 0) fail("provider_voice_units_invalid");
+  const amount = operation === "voice_training"
+    ? Math.ceil(config.profile_usd * 1_000_000 * count)
+    : operation === "synthesis"
+      ? Math.ceil(count * config.synthesis_usd_per_million)
+      : 0;
+  if (!Number.isSafeInteger(amount) || amount <= 0) fail("provider_reservation_invalid");
+  return amount;
 }
 
 export async function reserveFoundrySpend(db, { operation, requestKey, adapter, messages, env = process.env }) {
@@ -218,6 +257,83 @@ export async function reserveAzureSpeechSpend(db, { requestKey, adapter, inputs,
   });
 }
 
+export async function reserveAzurePersonalVoiceSpend(
+  db,
+  { operation, requestKey, inputCommitment, adapter, text = "", env = process.env },
+) {
+  if (typeof db !== "function") fail("provider_budget_db_required");
+  if (!new Set(["voice_training", "synthesis"]).has(operation)) fail("provider_budget_operation_invalid");
+  const expectedMeter = operation === "voice_training"
+    ? "azure_personal_voice_profiles"
+    : "azure_personal_voice_characters";
+  if (adapter?.billing?.[operation]?.meter !== expectedMeter) return null;
+  const commitment = String(inputCommitment || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(commitment)) fail("provider_voice_input_commitment_invalid");
+  const config = personalVoiceBudgetConfig(env);
+  const units = operation === "voice_training" ? 1 : conservativeCharacterUnits(text);
+  const reservedMicrousd = personalVoiceReservationMicrousd(operation, units, config);
+  const unitKind = operation === "voice_training" ? "requests" : "characters";
+  const requestHash = sha256Hex(canonicalJson({
+    operation,
+    request_key: String(requestKey || ""),
+    input_commitment: commitment,
+    provider_family: adapter.family,
+    provider_name: adapter.name,
+    provider_version: adapter.version,
+    model: adapter.model,
+    meter: expectedMeter,
+  }));
+  const rows = await db(
+    `with budget as (
+       insert into vy_provider_budget (budget_id,limit_microusd,state)
+       values ($1,$2,'active')
+       on conflict (budget_id) do update set updated_at=vy_provider_budget.updated_at
+         where vy_provider_budget.limit_microusd=excluded.limit_microusd
+       returning budget_id,limit_microusd,reserved_microusd,spent_microusd,state
+     ), candidate as (
+       insert into vy_provider_spend
+         (budget_id,operation,provider_family,provider_name,provider_version,model,request_hash,unit_kind,
+          reserved_input_units,reserved_output_units,reserved_microusd,state)
+       select budget_id,$3,$4,$5,$6,$7,$8,$9,$10,0,$11,'pending' from budget
+       on conflict (budget_id,operation,request_hash) do nothing returning *
+     ), allocated as (
+       update vy_provider_budget b set reserved_microusd=b.reserved_microusd+$11,updated_at=now()
+         from candidate c where b.budget_id=c.budget_id and b.state='active'
+          and b.spent_microusd+b.reserved_microusd+$11<=b.limit_microusd
+       returning b.budget_id
+     ), finalized as (
+       update vy_provider_spend s set state='reserved',updated_at=now() from candidate c,allocated a
+        where s.reservation_id=c.reservation_id and s.budget_id=a.budget_id returning s.*
+     ), rejected as (
+       delete from vy_provider_spend s using candidate c where s.reservation_id=c.reservation_id
+         and not exists(select 1 from allocated) returning s.reservation_id
+     ), existing as (
+       select s.* from vy_provider_spend s where s.budget_id=$1 and s.operation=$3
+         and s.request_hash=$8 and s.state<>'pending'
+     ) select * from finalized union all select * from existing limit 1`,
+    [config.budget_id, config.limit_microusd, operation, adapter.family, adapter.name, adapter.version,
+      adapter.model, requestHash, unitKind, units, reservedMicrousd],
+  );
+  const reservation = rows[0];
+  if (!reservation) fail("provider_budget_reservation_denied", 402);
+  if (reservation.state === "in_flight" || reservation.state === "reconcile_required")
+    fail("provider_spend_reconciliation_required", 409);
+  if (reservation.state === "settled" && operation !== "voice_training")
+    fail("provider_spend_already_settled", 409);
+  if (!new Set(["reserved", "settled"]).has(reservation.state)) fail("provider_budget_reservation_invalid");
+  return Object.freeze({
+    reservation_id: reservation.reservation_id,
+    budget_id: reservation.budget_id,
+    request_hash: reservation.request_hash,
+    state: reservation.state,
+    operation,
+    unit_kind: unitKind,
+    reserved_units: units,
+    reserved_microusd: Number(reservation.reserved_microusd),
+    config,
+  });
+}
+
 export async function beginFoundrySpend(db, reservation) {
   if (!reservation) return null;
   const rows = await db(
@@ -303,6 +419,34 @@ export async function settleAzureSpeechSpend(db, reservation, usage) {
        returning b.budget_id,b.spent_microusd,b.reserved_microusd,b.limit_microusd,b.state
      ) select * from charged`,
     [reservation.reservation_id, reservation.budget_id, reservation.request_hash, audioMs, actualMicrousd],
+  );
+  if (!rows[0]) fail("provider_budget_settlement_failed");
+  return rows[0];
+}
+
+export async function settleAzurePersonalVoiceSpend(db, reservation, usage) {
+  if (!reservation) return null;
+  const units = integer(usage?.units, "provider_usage_missing");
+  if (units <= 0 || units > reservation.reserved_units) fail("provider_usage_missing");
+  const actualMicrousd = personalVoiceReservationMicrousd(reservation.operation, units, reservation.config);
+  if (actualMicrousd > reservation.reserved_microusd) fail("provider_reservation_underestimated");
+  const rows = await db(
+    `with settled as (
+       update vy_provider_spend set state='settled',actual_input_units=$4,actual_output_units=0,
+              actual_microusd=$5,failure_code='',settled_at=now(),updated_at=now()
+        where reservation_id=$1 and budget_id=$2 and request_hash=$3
+          and state in ('in_flight','reconcile_required') and unit_kind=$6
+       returning budget_id,reserved_microusd,actual_microusd
+     ), charged as (
+       update vy_provider_budget b
+          set reserved_microusd=greatest(0,b.reserved_microusd-s.reserved_microusd),
+              spent_microusd=b.spent_microusd+s.actual_microusd,
+              state=case when b.spent_microusd+s.actual_microusd>=b.limit_microusd then 'exhausted' else b.state end,
+              updated_at=now()
+         from settled s where b.budget_id=s.budget_id
+       returning b.budget_id,b.spent_microusd,b.reserved_microusd,b.limit_microusd,b.state
+     ) select * from charged`,
+    [reservation.reservation_id, reservation.budget_id, reservation.request_hash, units, actualMicrousd, reservation.unit_kind],
   );
   if (!rows[0]) fail("provider_budget_settlement_failed");
   return rows[0];

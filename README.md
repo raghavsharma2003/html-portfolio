@@ -161,10 +161,14 @@ Implemented now:
 - an atomic, content-free paid-provider ledger that reserves conservative
   Azure Foundry token cost or per-request-rounded Azure Speech duration before network
   I/O, settles measured usage, and locks ambiguous outcomes for reconciliation
-  instead of risking double spend.
+  instead of risking double spend;
+- an approval-gated Azure Personal Voice adapter that verifies private audio
+  hashes, keeps provider consent separate from liveness, pins the synthesis
+  model, emits the existing 24 kHz PCM contract, deletes provider copies, and
+  meters profile creation plus multilingual synthesis under the same ceiling.
 
-Biometric consent, identity/age verification, anti-replay, real voice training
-and synthesis, production watermark/C2PA/signing adapters, and live runtime
+Biometric consent, identity/age verification, anti-replay, live Personal Voice
+approval/enrollment, production watermark/C2PA/signing adapters, and live runtime
 activation remain closed until their explicit live gates pass. The full architecture is in
 [`docs/SPEC-REPLICA-PLATFORM.md`](docs/SPEC-REPLICA-PLATFORM.md), frontier
 research in [`docs/research/REPLICA-FRONTIER-2026.md`](docs/research/REPLICA-FRONTIER-2026.md),

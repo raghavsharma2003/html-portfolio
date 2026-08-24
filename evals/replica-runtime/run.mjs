@@ -236,12 +236,14 @@ const handlerDb = async (sql, params) => {
   throw new Error(`unexpected speech SQL ${sql.slice(0, 80)}`);
 };
 const protection = createFakeProtectionAdapters();
+let providerRequestKey = "";
 const handler = createReplicaSpeechHandler({
   db: handlerDb,
   requireUser: async () => ({ id: OWNER }),
   resolveVoiceProvider: async () => ({
     name: "offline-voice",
-    async synthesizeStream() {
+    async synthesizeStream(input) {
+      providerRequestKey = input.requestKey;
       return { format: VOICE_PCM_FORMAT, stream: (async function* () { yield Uint8Array.from([1, 2, 3, 4]); })() };
     },
   }),
@@ -260,6 +262,7 @@ const response = {
 };
 await handler({ body: { replica_id: RID, dialogue_turn_id: DIALOGUE, stream: true, trace_id: "trace_speech_001" }, on() {} }, response);
 ok("protected cascade streams only after disclosure and watermark pipeline", response.statusCode === 200 && Buffer.concat(response.chunks).byteLength === 964 && protection.events.sealed.length === 1);
+ok("paid synthesis receives the immutable server generation id as its retry key", providerRequestKey === GENERATION);
 ok("cascade exposes only content-free generation attribution", response.headers["X-Vyakti-Generation"] === GENERATION && !JSON.stringify(response.headers).includes(RID));
 
 const migration = readFileSync(join(ROOT, "db/migrations/023_replica_runtime.sql"), "utf8");

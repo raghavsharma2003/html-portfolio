@@ -92,6 +92,7 @@ export function createReplicaSpeechHandler({ db, requireUser, resolveVoiceProvid
         text,
         style,
         signal: aborter.signal,
+        requestKey: generation.generation_id,
       }));
       const protectedAudio = await protectReplicaStream({
         authorization: started.authorizationInput,
