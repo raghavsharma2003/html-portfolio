@@ -196,7 +196,12 @@ console.log("\n── 1. THE CONTROL: what the shipped blocks did with this ─�
   const before = E.compile(liveInput(E.callMemories(E.callGraphBlocks("", "", shared, ""), tail)));
   ok(
     "PRE-FIX: the live prompt cannot answer the question he actually asked",
-    !before.system.includes("dashboard") && !before.system.includes("spike"),
+    // Probe with fixture-specific PHRASES, not single words: the single-word
+    // "spike" probe false-failed on 2026-08-24 when a persona register bullet
+    // legitimately used the word ("excitement is a spike, not a setting").
+    // The check's subject is share CONTENT leaking, so the probe must be a
+    // string only the share lines could carry.
+    !before.system.includes("dashboard") && !before.system.includes("dusra spike"),
     `he asked "${THE_QUESTION}"`,
   );
 }

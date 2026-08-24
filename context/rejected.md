@@ -1952,6 +1952,15 @@ now boots home; its sends timed out outside the release gate) - the
 only instrument for this class was unable to reach the composer, so
 two waves shipped unmeasured.
 
+RECURRENCE 2026-08-24, by the coordinator itself: verify-release piped
+into `tail -2` inside an `&&` chain - the pipe's exit code is tail's, so a
+"1 of 13 FAILED - not shippable" tree was committed AND pushed before the
+red was seen. The deploy gate caught it (production never promoted), and
+the red was a fixture-word collision fixed in the next commit, but the
+mechanism was exactly this entry. Rule sharpened: a gate's verdict is its
+EXIT CODE, captured explicitly (`cmd > log; E=$?`) - never read off the
+tail of a pipe.
+
 **The generalisable rules:** a default is a policy, not an absence -
 audit what the system does when every signal is silent; and a battery
 outside the release gate needs its own liveness check (it must FAIL
