@@ -1623,6 +1623,12 @@
    "kind": "decision",
    "at": "2026-08-24",
    "title": "Owner-tagged key pool: label travels per key for RCA, one-way key->label, zero-latency switch unchanged; 48/48 healthy"
+  },
+  {
+   "id": "bake-glued-labels",
+   "kind": "rejection",
+   "at": "2026-08-24",
+   "title": "write-config baked label~key verbatim: 400-abort then pool-0; one entry parser at every seam, keyring gate drives the real bake"
   }
  ],
  "edges": [

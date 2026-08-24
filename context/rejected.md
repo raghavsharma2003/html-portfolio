@@ -2169,3 +2169,21 @@ the scrapbook empty state is unreachable after the first beat of any mount
 because Chat improvises her opening message at messages.length===0 (network
 dead included, via the stored fallback) — wiring gated offline, state
 effectively day-0 only.
+
+## `bake-glued-labels` — one entry format, parsed at every seam, or the outage has two faces
+
+The 48-key pool's launch night (2026-08-24): write-config.mjs had never
+been taught `label~key`, so CI baked the labels INTO the keys. Face one:
+Google answered 400 API_KEY_INVALID for the glued label and the pool's
+(correct, for malformed requests) 400-abort rule killed all 48 keys —
+chat silently survived on the Azure grant lane, speech 502'd. Face two:
+after the paste sanitiser landed, the same glued entries were charset-
+dropped and the baked pool went to ZERO. The runtime env path was absent
+at the function, so the bake was the live source the whole time. Fixed by
+parsing the entry format identically at all three seams (env string,
+baked array, write-config) with the bake now emitting GOOGLE_KEYRING so
+RCA labels survive it; 6 new keyring-gate assertions drive the real bake
+in an isolated tree. The rule: a serialization format that crosses a
+seam must be parsed by the SAME code (or same-tested code) on both
+sides — a second, ignorant parser is a two-faced outage waiting for its
+second face.
