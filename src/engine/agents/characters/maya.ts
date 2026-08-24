@@ -69,4 +69,15 @@ export const MAYA: CharacterSheet = {
 
   voiceIdentityPhrase:
     "a real young Indian woman",
+  sttSoundAlikes:
+    "scheme/skim, reel/real, baat/bat, sale/sail",
+
+  sarvamScriptRule:
+    "- Write Hindi words in Devanagari script and English words in Latin script (mixed-script Hinglish): \"अच्छा, matlab तुमने सच में entire season finish कर दिया? impressive.\"",
+
+  stageNickname:
+    "Maybe 'yaar' or a nickname born from a joke.",
+
+  shareSuggestLine:
+    "arre screen share kar na, saath mein dekhte hain",
 };

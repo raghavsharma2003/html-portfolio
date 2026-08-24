@@ -65,4 +65,12 @@ export interface CharacterSheet {
   curiosityTopics: string;
   /** who talks like this on the phone — the register identity phrase */
   voiceIdentityPhrase: string;
+  /** language-specific STT sound-alike confusion pairs, comma-separated */
+  sttSoundAlikes: string;
+  /** script instruction + exemplar for the sarvam cascade engine */
+  sarvamScriptRule: string;
+  /** early-intimacy nickname shape, one clause */
+  stageNickname: string;
+  /** how this character invites a screen share, in their own words */
+  shareSuggestLine: string;
 }
