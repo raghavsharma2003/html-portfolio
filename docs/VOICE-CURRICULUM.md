@@ -43,4 +43,4 @@ The assigned deck text is public protocol material. The private trial ledger sto
 
 ## Next research step
 
-The discrete curriculum is a safe data-collection layer. The next model-learning stage should use its exact paired evidence to fit a versioned delivery adapter, then compare that adapter against the best discrete condition on held-out prompts, both supported languages, multiple sampling seeds, and noisy enrollment strata. No adapter should replace an approved VoiceGenome until preregistered ABX, identity, intelligibility, watermark, privacy, and latency gates pass.
+The discrete curriculum now feeds an immutable Voice Delivery Genome and a separate owner holdout over held-out prompts unseen during calibration and multiple sampling seeds. This still does not qualify production. No delivery policy should influence an approved runtime until automated ABX, identity, intelligibility, artifact, watermark, privacy, latency and noisy-enrollment-strata gates pass.

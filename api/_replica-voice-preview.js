@@ -107,7 +107,11 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
   if (!SHA256.test(textHash)) fail("voice_preview_text_hash_invalid", 400);
   if ((trialId === null) !== (trialSide === null) || (trialSide !== null && !["left", "right"].includes(trialSide)))
     fail("voice_preview_trial_binding_invalid", 400);
-  const previewSeed = voicePreviewMatchedSeed({ replicaId: rid, genomeVersion, languageId, textHash });
+  const previewSeed = input?.preview_seed == null
+    ? voicePreviewMatchedSeed({ replicaId: rid, genomeVersion, languageId, textHash })
+    : Number(input.preview_seed);
+  if (!Number.isInteger(previewSeed) || previewSeed < 1 || previewSeed > 0x7fffffff)
+    fail("voice_preview_seed_invalid", 400);
   const rows = await db(
     `with inference_consent as materialized (
        select c.* from vy_replica_consent c

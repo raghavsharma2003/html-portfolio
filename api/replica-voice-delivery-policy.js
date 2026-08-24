@@ -3,6 +3,8 @@ import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import {
   buildOwnedVoiceDeliveryPolicy,
+  finalizeOwnedVoiceDeliveryHoldout,
+  issueOwnedVoiceDeliveryHoldout,
   ownedVoiceDeliveryPolicyStatus,
 } from "./_replica-voice-delivery-policy.js";
 
@@ -26,9 +28,19 @@ export default async function handler(req, res) {
       const status = await ownedVoiceDeliveryPolicyStatus(q, user.id, input);
       return res.status(200).json({ voice_delivery: status });
     }
-    if (input.op !== "build") return res.status(400).json({ error: "unknown_operation" });
-    const policy = await buildOwnedVoiceDeliveryPolicy(q, user.id, input);
-    return res.status(201).json({ policy });
+    if (input.op === "build") {
+      const policy = await buildOwnedVoiceDeliveryPolicy(q, user.id, input);
+      return res.status(201).json({ policy });
+    }
+    if (input.op === "issue_holdout") {
+      const trial = await issueOwnedVoiceDeliveryHoldout(q, user.id, input);
+      return res.status(201).json({ trial });
+    }
+    if (input.op === "finalize_holdout") {
+      const qualification = await finalizeOwnedVoiceDeliveryHoldout(q, user.id, input);
+      return res.status(201).json({ qualification });
+    }
+    return res.status(400).json({ error: "unknown_operation" });
   } catch (error) {
     if (error instanceof AuthError) return res.status(error.status).json({ error: error.code });
     const status = Number.isInteger(error?.status) ? error.status : 500;

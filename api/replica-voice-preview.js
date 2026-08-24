@@ -70,6 +70,7 @@ export default async function handler(req, res) {
       language_id: languageId,
       text_hash: textHash,
       style_key: trial?.styleKey || body.style_key,
+      preview_seed: trial?.previewSeed,
       trial_id: trial?.trialId,
       trial_side: trial?.side,
     });

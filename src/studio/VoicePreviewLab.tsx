@@ -4,9 +4,11 @@ import { ReplicaApiError } from "./replicaApi";
 import type { ReplicaReview } from "./types";
 import {
   buildVoiceDeliveryPolicy,
+  finalizeVoiceDeliveryHoldout,
   generateVoicePreview,
   getVoiceDeliveryStatus,
   issueVoiceTrial,
+  issueVoiceDeliveryHoldout,
   saveVoicePreference,
   type VoiceDeliveryStatus,
   type VoicePreferenceChoice,
@@ -67,6 +69,10 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
   const [pairError, setPairError] = useState("");
   const [delivery, setDelivery] = useState<VoiceDeliveryStatus | null>(null);
   const [deliveryBusy, setDeliveryBusy] = useState(false);
+  const [holdoutPair, setHoldoutPair] = useState<{ policyId: string; trialId: string; prompt: { domain: string; text: string }; left: Preview; right: Preview } | null>(null);
+  const [holdoutBusy, setHoldoutBusy] = useState(false);
+  const [holdoutHeard, setHoldoutHeard] = useState({ left: false, right: false });
+  const [holdoutSaved, setHoldoutSaved] = useState(false);
 
   const draft = useMemo(() => review?.voice_genomes.find((item) => item.status === "draft") ?? null, [review]);
 
@@ -84,6 +90,9 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
   useEffect(() => () => {
     if (pair) { URL.revokeObjectURL(pair.left.url); URL.revokeObjectURL(pair.right.url); }
   }, [pair]);
+  useEffect(() => () => {
+    if (holdoutPair) { URL.revokeObjectURL(holdoutPair.left.url); URL.revokeObjectURL(holdoutPair.right.url); }
+  }, [holdoutPair]);
 
   const loadDelivery = useCallback(async () => {
     if (!draft) { setDelivery(null); return; }
@@ -177,6 +186,52 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
       setPairError(cause instanceof Error ? cause.message : "The Voice Delivery Genome could not be frozen");
     } finally { setDeliveryBusy(false); }
+  }
+
+  async function generateHoldoutPair() {
+    const policy = delivery?.policies[0];
+    if (!draft || !policy || holdoutBusy || policy.holdout.completed >= policy.holdout.required) return;
+    setHoldoutBusy(true); setPairError(""); setHoldoutSaved(false); setHoldoutHeard({ left: false, right: false }); setHoldoutPair(null);
+    let left: Preview | null = null;
+    try {
+      const trial = await issueVoiceDeliveryHoldout(token, { replicaId, genomeVersion: draft.version, languageId: language, policyId: policy.policy_id });
+      const leftResult = await generateVoicePreview(token, { replicaId, genomeVersion: draft.version, text: trial.prompt.text, languageId: language, trialId: trial.trial_id, trialSide: "left" });
+      left = { url: URL.createObjectURL(leftResult.audio), generationId: leftResult.generationId, modelCommitment: leftResult.modelCommitment };
+      const rightResult = await generateVoicePreview(token, { replicaId, genomeVersion: draft.version, text: trial.prompt.text, languageId: language, trialId: trial.trial_id, trialSide: "right" });
+      setHoldoutPair({ policyId: policy.policy_id, trialId: trial.trial_id, prompt: { domain: trial.prompt.domain, text: trial.prompt.text }, left,
+        right: { url: URL.createObjectURL(rightResult.audio), generationId: rightResult.generationId, modelCommitment: rightResult.modelCommitment } });
+    } catch (cause) {
+      if (left) URL.revokeObjectURL(left.url);
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+      setPairError(cause instanceof Error ? cause.message : "The held-out comparison could not be generated");
+    } finally { setHoldoutBusy(false); }
+  }
+
+  async function saveHoldoutPreference(choice: VoicePreferenceChoice) {
+    if (!holdoutPair || holdoutBusy || !holdoutHeard.left || !holdoutHeard.right) return;
+    setHoldoutBusy(true); setPairError("");
+    try {
+      await saveVoicePreference(token, { replicaId, leftGenerationId: holdoutPair.left.generationId,
+        rightGenerationId: holdoutPair.right.generationId, trialId: holdoutPair.trialId, choice, reasonCodes: [] });
+      setHoldoutSaved(true);
+      await loadDelivery();
+    } catch (cause) {
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+      setPairError(cause instanceof Error ? cause.message : "The held-out judgment could not be secured");
+    } finally { setHoldoutBusy(false); }
+  }
+
+  async function finalizeHoldout() {
+    const policy = delivery?.policies[0];
+    if (!draft || !policy || holdoutBusy || policy.holdout.completed !== policy.holdout.required) return;
+    setHoldoutBusy(true); setPairError("");
+    try {
+      await finalizeVoiceDeliveryHoldout(token, { replicaId, genomeVersion: draft.version, languageId: language, policyId: policy.policy_id });
+      await loadDelivery();
+    } catch (cause) {
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+      setPairError(cause instanceof Error ? cause.message : "The held-out result could not be finalized");
+    } finally { setHoldoutBusy(false); }
   }
 
   return (
@@ -298,6 +353,34 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
             </div>
             <button className="button primary-button" type="button" disabled={!delivery.readiness.ready || deliveryBusy} onClick={() => void freezeDeliveryPolicy()}>{deliveryBusy ? "Freezing evidence" : delivery.policies[0] ? "Freeze updated version" : "Freeze delivery candidate"}</button>
             {!delivery.readiness.ready ? <small>More blind evidence is required. Repeating one familiar sentence cannot unlock this gate.</small> : <small>Freezing does not activate the voice. A separate held-out ABX gate is next.</small>}
+          </div>
+        ) : null}
+        {delivery?.policies[0] ? (
+          <div className="voice-holdout-lab">
+            <div className="voice-holdout-heading">
+              <div><span>Unseen speech gate</span><h4>Does the frozen delivery generalize?</h4><p>Six prompts excluded from calibration, each tested with two deterministic seeds. The candidate stays hidden against its strongest runner-up.</p></div>
+              <div><strong>{delivery.policies[0].holdout.completed}/{delivery.policies[0].holdout.required}</strong><small>held-out judgments</small></div>
+            </div>
+            {holdoutPair ? <>
+              <div className="voice-preference-prompt"><span>{holdoutPair.prompt.domain.replaceAll("_", " ")} holdout</span><p>{holdoutPair.prompt.text}</p></div>
+              <div className="voice-preference-players">
+                {(["left", "right"] as const).map((side, index) => <article key={side} className={holdoutHeard[side] ? "heard" : ""}>
+                  <span>{index === 0 ? "A" : "B"}</span><div><strong>Held-out candidate {index === 0 ? "A" : "B"}</strong><small>{holdoutHeard[side] ? "Completed" : "Listen fully"}</small></div>
+                  <audio controls preload="metadata" src={holdoutPair[side].url} onEnded={() => setHoldoutHeard((current) => ({ ...current, [side]: true }))}>Protected held-out voice candidate.</audio>
+                </article>)}
+              </div>
+              {holdoutSaved ? <div className="voice-preference-saved"><strong>Held-out judgment secured</strong><span>Start the next unseen cell when you are ready.</span></div> : <div className="voice-preference-choice" aria-label="Choose the closer held-out voice">
+                <button type="button" disabled={!holdoutHeard.left || !holdoutHeard.right || holdoutBusy} onClick={() => void saveHoldoutPreference("left")}>A is closer</button>
+                <button type="button" disabled={!holdoutHeard.left || !holdoutHeard.right || holdoutBusy} onClick={() => void saveHoldoutPreference("right")}>B is closer</button>
+                <button type="button" disabled={!holdoutHeard.left || !holdoutHeard.right || holdoutBusy} onClick={() => void saveHoldoutPreference("tie")}>Both</button>
+                <button type="button" disabled={!holdoutHeard.left || !holdoutHeard.right || holdoutBusy} onClick={() => void saveHoldoutPreference("neither")}>Neither</button>
+              </div>}
+            </> : null}
+            <div className="voice-holdout-actions">
+              {delivery.policies[0].holdout.verdict ? <p><strong>{delivery.policies[0].holdout.verdict === "owner_pass" ? "Owner holdout passed" : "Owner holdout failed"}</strong><span>This is not production qualification. Automated identity, intelligibility, artifact, watermark, privacy, and latency gates remain locked.</span></p> : null}
+              <button className="button primary-button" type="button" disabled={holdoutBusy || delivery.policies[0].holdout.completed >= delivery.policies[0].holdout.required} onClick={() => void generateHoldoutPair()}>{holdoutBusy ? "Securing trial" : holdoutPair ? "Next unseen pair" : "Start held-out A/B"}</button>
+              <button className="review-refresh" type="button" disabled={holdoutBusy || delivery.policies[0].holdout.completed !== delivery.policies[0].holdout.required || delivery.policies[0].holdout.verdict !== null} onClick={() => void finalizeHoldout()}>Finalize owner gate</button>
+            </div>
           </div>
         ) : null}
       </div>

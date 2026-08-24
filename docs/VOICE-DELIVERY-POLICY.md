@@ -35,11 +35,12 @@ preference snapshot before the candidate is inserted.
 ## No automatic promotion
 
 Builds start as `draft`. New evidence creates a new version and retires older
-drafts, but never promotes a candidate. The next protocol must preregister
-held-out prompts and compare this policy against the strongest discrete
-baseline over multiple seeds. Qualification needs owner ABX plus automated
-speaker identity, intelligibility, artifact, latency, watermark and privacy
-gates. Until then the candidate is research evidence, not a production voice.
+drafts, but never promotes a candidate. The owner holdout protocol in
+`VOICE-DELIVERY-HOLDOUT.md` preregisters held-out prompts unseen during calibration and compares this policy
+against the strongest discrete baseline over multiple seeds. Even an owner pass
+is only the owner ABX gate; it still needs automated speaker identity, intelligibility, artifact, latency,
+watermark and privacy gates. Until those pass, the candidate is research
+evidence, not a production voice.
 
 ## Erasure
 

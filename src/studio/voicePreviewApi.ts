@@ -56,6 +56,27 @@ export interface VoiceDeliveryPolicy {
   latent_margin: number;
   source_set_hash: string;
   created_at: string;
+  holdout: { completed: number; required: number; prompt_families: number; required_prompt_families: number; verdict: "owner_pass" | "owner_fail" | null; wilson_lower: number | null };
+}
+
+export interface VoiceDeliveryHoldoutTrial {
+  trial_id: string;
+  protocol: string;
+  expires_at: string;
+  prompt: { key: string; domain: string; text: string };
+  progress: { completed: number; required: number; prompt_families: number; required_prompt_families: number };
+}
+
+export interface VoiceDeliveryQualification {
+  qualification_id: string;
+  policy_id: string;
+  verdict: "owner_pass" | "owner_fail";
+  observation_count: number;
+  prompt_families: number;
+  candidate_rate: number;
+  wilson_lower: number;
+  source_set_hash: string;
+  production_qualified: false;
 }
 
 export interface VoiceDeliveryStatus {
@@ -204,4 +225,46 @@ export async function buildVoiceDeliveryPolicy(token: string, input: {
     throw new ReplicaApiError(raw.replaceAll("_", " "), response.status, data);
   }
   return data.policy as VoiceDeliveryPolicy;
+}
+
+async function deliveryPolicyOperation(token: string, input: {
+  op: "issue_holdout" | "finalize_holdout";
+  replicaId: string;
+  genomeVersion: number;
+  languageId: "en" | "hi";
+  policyId: string;
+}) {
+  const response = await fetch("/api/replica-voice-delivery-policy", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ op: input.op, replica_id: input.replicaId, genome_version: input.genomeVersion,
+      language_id: input.languageId, policy_id: input.policyId }),
+    signal: AbortSignal.timeout(25_000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const raw = typeof data?.error === "string" ? data.error : `delivery qualification failed (${response.status})`;
+    throw new ReplicaApiError(raw.replaceAll("_", " "), response.status, data);
+  }
+  return data;
+}
+
+export async function issueVoiceDeliveryHoldout(token: string, input: Omit<Parameters<typeof deliveryPolicyOperation>[1], "op">): Promise<VoiceDeliveryHoldoutTrial> {
+  const data = await deliveryPolicyOperation(token, { ...input, op: "issue_holdout" });
+  const trial = data?.trial as VoiceDeliveryHoldoutTrial | undefined;
+  const promptLength = Array.from(String(trial?.prompt?.text || "")).length;
+  if (!trial || trial.protocol !== "voice-delivery-owner-holdout/v1" ||
+      !/^[0-9a-f-]{36}$/i.test(String(trial.trial_id || "")) ||
+      !/^[a-z0-9_.:-]{3,96}$/.test(String(trial.prompt?.key || "")) ||
+      promptLength < 1 || promptLength > 600) throw new Error("Held-out voice assignment was invalid");
+  return trial;
+}
+
+export async function finalizeVoiceDeliveryHoldout(token: string, input: Omit<Parameters<typeof deliveryPolicyOperation>[1], "op">): Promise<VoiceDeliveryQualification> {
+  const data = await deliveryPolicyOperation(token, { ...input, op: "finalize_holdout" });
+  const qualification = data?.qualification as VoiceDeliveryQualification | undefined;
+  if (!qualification || !new Set(["owner_pass", "owner_fail"]).has(qualification.verdict) ||
+      qualification.production_qualified !== false || qualification.observation_count !== 12 ||
+      qualification.prompt_families !== 6) throw new Error("Held-out voice result was invalid");
+  return qualification;
 }

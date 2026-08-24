@@ -341,7 +341,7 @@ export async function resolveOwnedVoiceTrialSide(db, ownerUserId, input) {
   if (!Number.isInteger(genomeVersion) || genomeVersion < 1 || !LANGUAGES.has(languageId) || !SHA256.test(textHash))
     fail("voice_trial_binding_invalid");
   const rows = await db(
-    `select trial_id,case when $7='left' then left_style_key else right_style_key end style_key
+    `select trial_id,preview_seed,case when $7='left' then left_style_key else right_style_key end style_key
        from vy_replica_voice_trial
       where trial_id=$1 and replica_id=$2 and owner_user_id=$3 and genome_version=$4
         and language_id=$5 and text_hash=$6 and state='issued' and expires_at>now()
@@ -350,5 +350,5 @@ export async function resolveOwnedVoiceTrialSide(db, ownerUserId, input) {
   );
   if (!rows[0]) fail("voice_trial_not_active", 409);
   voicePreviewStyle(rows[0].style_key);
-  return Object.freeze({ trialId, side, styleKey: rows[0].style_key });
+  return Object.freeze({ trialId, side, styleKey: rows[0].style_key, previewSeed: Number(rows[0].preview_seed) });
 }
