@@ -2287,3 +2287,16 @@ paid_turn. The meera_turn funnel (api/_trace.js, its own writer) was never
 affected. Lesson: an observability path is not live until ONE ROW HAS BEEN
 READ BACK from the store — the write-side green run proves nothing,
 because the whole design goal of such a path is to fail silently.
+
+## `corpus-manifest-stale` — the frozen index no longer describes the tree (2026-08-25)
+
+evals/candidate/corpus/corpus.jsonl (frozen 2026-08-15) fails its own
+sha256 check on 0/2,304 rows against today's compiler — persona.ts and
+compiler.ts have both changed since. Regeneration is still fully
+deterministic (2,304/2,304 agreement across rebuilds in-process), so this
+is staleness, not corruption. NOT refreshed here on purpose: task #58
+(incumbent arm) may be mid-arc against the frozen index, and re-freezing
+under it would invalidate a pre-registration. Whoever closes #58 refreshes
+the manifest. Lesson: a frozen corpus index needs the persona/compiler
+version stamped beside it, so staleness reads as "expected drift" and not
+corruption.

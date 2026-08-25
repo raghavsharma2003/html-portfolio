@@ -1749,6 +1749,12 @@
    "kind": "decision",
    "at": "2026-08-25",
    "title": "owner-committed scale direction: self-hosted resident-KV serving, gated on swap-test pass + GPU saturation; grants as funding"
+  },
+  {
+   "id": "corpus-manifest-stale",
+   "kind": "rejection",
+   "at": "2026-08-25",
+   "title": "frozen corpus index fails sha256 on all rows after persona/compiler drift; refresh belongs to #58's closer; stamp versions beside frozen indexes"
   }
  ],
  "edges": [
@@ -3196,6 +3202,11 @@
    "src": "resident-gpu-at-scale",
    "rel": "constrains",
    "dst": "paid-lane-off-by-default"
+  },
+  {
+   "src": "corpus-manifest-stale",
+   "rel": "constrains",
+   "dst": "paid-flip-gate"
   }
  ]
 }

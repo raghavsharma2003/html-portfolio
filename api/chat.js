@@ -86,7 +86,9 @@ const ALLOWED_MODEL = /^[a-z0-9-]+\/[a-z0-9.:-]+$/i;
 // prevent. scripts/check-prompt-budget.mjs asserts this literal value
 // equals compiler.ts's OPERATIONAL_CORE_CAP on every run, so guard and
 // guarded cannot drift even without a runtime import.
-const SYSTEM_MAX = 64_000;
+// Raised 64k -> 72k 2026-08-25: measured heavy-dyad cores reached 62,026 B
+// (3.1% headroom) in a 2,304-row corpus scan. See compiler.ts's cap comment.
+const SYSTEM_MAX = 72_000;
 // Google's OpenAI-compatible surface: same request shape, same SSE stream.
 const GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 // Google's NATIVE surface. The ONLY one that has `cachedContents` — the compat
