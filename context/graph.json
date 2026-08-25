@@ -1689,6 +1689,12 @@
    "kind": "decision",
    "at": "2026-08-25",
    "title": "launch-wave close: Play Store deferred by owner; model stack recorded verbatim (gemini-3.6-flash chat / 3.1-tts / 3.1-live, openrouter+azure-grok fallbacks, gpt-4o in NO lane, terra=judge only)"
+  },
+  {
+   "id": "ws-gamefeel",
+   "kind": "decision",
+   "at": "2026-08-25",
+   "title": "tester defect wave: her-side loop fence, game-idea substrate, board-derived terminal claims, opening variety, adaptive strength — layer-tagged OS vs engine"
   }
  ],
  "edges": [
@@ -3079,6 +3085,11 @@
   },
   {
    "src": "session-2026-08-25-close",
+   "rel": "part_of",
+   "dst": "os-first-optimization"
+  },
+  {
+   "src": "ws-gamefeel",
    "rel": "part_of",
    "dst": "os-first-optimization"
   }

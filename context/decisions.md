@@ -2438,3 +2438,40 @@ is qualified as a RESEARCH JUDGE only (#57), not a serving lane: swapping
 a serving model changes the felt personality (the terra swap-test
 program, #51-58, exists to measure exactly that before any such move),
 and terra costs real cash per turn against a $0 grant lane.
+
+## `ws-gamefeel` — tester defect wave (friend, 2026-08-25) + the layer split
+
+Reported by the owner's friend after real chess + call sessions. Charter
+recorded pre-fix so the wave survives compaction. LAYER TAG on each item
+per the owner's standing rule (OS = carries to every persona; APP =
+Maya's app/engine surface only):
+
+1. [OS+ENGINE] "kya idea hai" repeated for a whole game + same-question
+   loops on calls generally: she has no self-repetition guard. Fix: a
+   her-side loop fence — runtime detector on the cascade/call turn path
+   (never inside liveCall.ts) that catches a near-duplicate of her own
+   previous turn and forces variation, plus an OS core shape (a repeated
+   line is a stall, not a style).
+2. [ENGINE] "mai bhul gayi" when asked about her own play: she genuinely
+   has no material — the activity note carries board truth but not HER
+   INTENT. Fix: the activity note gains a one-line idea for her current
+   plan (opening name + what she's trying), refreshed as the game moves,
+   so game talk has a real substrate. [OS] shape: her play always has a
+   sayable idea; "bhul gayi" is never the answer about the game on the
+   board.
+3. [ENGINE, gating] False checkmate mid-game + last-game bleed: terminal
+   claims must be board-derived only — she may not say checkmate/stalemate
+   /win/loss unless the engine state says ended (a structural fence like
+   the honesty gates, not a hint). Previous games reach her only as
+   memories, never as the present board.
+4. [ENGINE] Deterministic openings — same exact moves every game: her
+   move choice needs book variety (seeded randomization among sound
+   moves) so two games don't teach her pattern.
+5. [ENGINE+OS-memory] Adaptive strength: start friendly, scale with the
+   user's demonstrated strength — within a chess game (engine level up on
+   strong play) and across games (a per-user strength estimate stored in
+   memory, read at game start). The estimate is OS memory (any persona's
+   games use it); the scaling is engine.
+6. [DIAGNOSE] General call hallucination/forgetting: ride #115's
+   instrumentation; the loop fence (1) and idea substrate (2) are the
+   structural halves already known.
