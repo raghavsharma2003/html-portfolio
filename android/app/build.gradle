@@ -7,8 +7,8 @@ android {
         applicationId "app.meera.companion"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 26
+        versionName "26.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // OTA native contract. Web and Java used to ship together, so a web
         // bundle could always assume the Java beside it; OTA breaks that
@@ -32,10 +32,31 @@ android {
     buildFeatures {
         buildConfig true
     }
+    // Release signing for Play. The keystore NEVER enters the repo: CI decodes
+    // it from the ANDROID_KEYSTORE_BASE64 secret to android/upload.keystore
+    // (see build-apk.yml) and passes credentials via env. When the env is
+    // absent (local dev, PR builds) the release config is simply unsigned and
+    // assembleDebug keeps working exactly as before — the presence check
+    // below is what keeps this additive.
+    def ksFile = file('../upload.keystore')
+    def ksPass = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+    signingConfigs {
+        if (ksFile.exists() && ksPass != null) {
+            release {
+                storeFile ksFile
+                storePassword ksPass
+                keyAlias System.getenv('ANDROID_KEY_ALIAS') ?: 'maya-upload'
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD') ?: ksPass
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (ksFile.exists() && ksPass != null) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

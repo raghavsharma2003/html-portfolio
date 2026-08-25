@@ -19,7 +19,34 @@ import {
 } from "./_lanes.js";
 import { normalizeDocs } from "./_docs.js";
 import { azureChat, azureConfigured, AZURE_CHAT_DEPLOYMENT, AZURE_VISION_DEPLOYMENT } from "./_azure.js";
+// WS-COST B2: the paid lane's token counts go to the server ops stream, which
+// is counts-and-labels only. obsBestEffort never throws and never blocks the
+// reply path — see api/_obs.js's contract.
+import { obsBestEffort } from "./_obs.js";
+// WS-COST C: explicit `cachedContents` over the byte-stable core, and the
+// OpenAI⇄native bridge that surface requires. Both are reachable ONLY from
+// inside `runGeminiPaid` below — no free-lane path imports or calls either.
+import {
+  getCache,
+  refreshCache,
+  dropCache,
+  coreHash,
+  cacheableCore,
+  cacheId,
+  isCacheMissStatus,
+} from "./_gcache.js";
+import {
+  toNativeContents,
+  buildNativeBody,
+  nativeJsonToOpenAI,
+  nativeSseToOpenAiStream,
+} from "./_gnative.js";
 
+// WS-COST. Namespace import, not named: `GEMINI_PAID_KEY` and `PAID_LANE` are
+// both OPTIONAL, and a named import of something a deploy's _config.js does not
+// export is a module-load crash that takes the whole chat endpoint with it —
+// the same reason api/_gkeys.js imports its config this way.
+import * as CFG from "./_config.js";
 import { OPENROUTER_KEY } from "./_config.js";
 
 // SPEC §7.3 chat-lane call-site adoption: the router decision now happens
@@ -59,9 +86,50 @@ const ALLOWED_MODEL = /^[a-z0-9-]+\/[a-z0-9.:-]+$/i;
 // prevent. scripts/check-prompt-budget.mjs asserts this literal value
 // equals compiler.ts's OPERATIONAL_CORE_CAP on every run, so guard and
 // guarded cannot drift even without a runtime import.
-const SYSTEM_MAX = 64_000;
+// Raised 64k -> 72k 2026-08-25: measured heavy-dyad cores reached 62,026 B
+// (3.1% headroom) in a 2,304-row corpus scan. See compiler.ts's cap comment.
+const SYSTEM_MAX = 72_000;
 // Google's OpenAI-compatible surface: same request shape, same SSE stream.
 const GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+// Google's NATIVE surface. The ONLY one that has `cachedContents` — the compat
+// endpoint above simply has no field for it. Used by the paid lane's cached
+// path and by nothing else in this file.
+const GEMINI_NATIVE_BASE = "https://generativelanguage.googleapis.com/v1beta";
+
+// ── WS-COST: the paid Google lane ────────────────────────────────────────
+//
+// OFF BY DEFAULT AND OFF UNLESS SAID TWICE. The lane runs only when the flag
+// is explicitly enabled AND a paid key exists; either one missing and
+// `laneOrder` is handed `paidLane: false`, which returns the exact frozen
+// array it returned before this lane existed. There is no third way in.
+//
+// The flag is read from the environment FIRST so it can be flipped in Vercel
+// without a redeploy of the gitignored config, mirroring how every other key
+// in this repo resolves. Only the literal strings "1" and "true" enable it: a
+// flag that turns on for "0" or "false" is a flag that turns on by accident.
+const PAID_LANE_ON = (() => {
+  const raw = process.env.PAID_LANE ?? CFG.PAID_LANE ?? "";
+  return raw === true || String(raw).toLowerCase() === "1" || String(raw).toLowerCase() === "true";
+})();
+const PAID_KEY = process.env.GEMINI_PAID_KEY || CFG.GEMINI_PAID_KEY || "";
+/** Is the billed Google lane both permitted and reachable on this deploy? */
+function paidLaneReady() {
+  return Boolean(PAID_LANE_ON && PAID_KEY);
+}
+// WS-COST C: explicit caching is ON inside the paid lane, and is the whole
+// reason the lane is worth turning on (−79.2% per turn vs −45.7% for the
+// implicit cache Google gives away free — measurements.md#cache-plateau). It
+// is nonetheless a SEPARATE, OPT-OUT switch, because it is the only thing here
+// that speaks a different upstream surface: if the native path ever misbehaves
+// in production the fix must be a flag flip, not a deploy. Note the polarity is
+// the opposite of PAID_LANE and deliberately so — this flag cannot cause spend
+// (the paid lane gates that), it can only change WHICH shape the spend takes,
+// so its safe default is on.
+const PAID_CACHE_ON = (() => {
+  const raw = process.env.PAID_CACHE ?? CFG.PAID_CACHE ?? "";
+  const s = String(raw).toLowerCase();
+  return !(s === "0" || s === "false" || s === "off");
+})();
 
 // voice calls stream tokens so she can start speaking on the first sentence
 export const config = { supportsResponseStreaming: true };
@@ -133,10 +201,16 @@ export default async function handler(req, res) {
     trace.turn_id = /^[A-Za-z0-9_-]{8,64}$/.test(String(turn_id || "")) ? String(turn_id) : null;
     trace.lane = typeof lane === "string" ? lane.slice(0, 24) : null;
     // Prompt caching: the client sends the byte-stable persona core as
-    // `system` and the per-turn volatile part as `system_tail`. A
-    // cache_control breakpoint after the core makes Google serve it from
-    // cache — measured ~85% input-cost reduction (5473/5477 tokens cached,
-    // $0.0085 → ~$0.0012 per call in testing).
+    // `system` and the per-turn volatile part as `system_tail`. The
+    // cache_control breakpoint is honoured by the OPENROUTER lane (Anthropic-
+    // style, where the ~85% figure below was measured) and is a measured
+    // NO-OP on Google's endpoint (WS-COST 2026-08-25, n=4: identical cached
+    // tokens with and without it). Google caches implicitly regardless, and
+    // plateaus at ~61% of input tokens (8,165 of 13,400) no matter what the
+    // request says; the deterministic path past that is explicit
+    // cachedContents. See context/measurements.md#cache-plateau.
+    //   (historic, OpenRouter lane: ~85% input-cost reduction, 5473/5477
+    //   tokens cached, $0.0085 → ~$0.0012 per call.)
     // The cap is a payload guard, NOT a budget. It sat at 20000 while the
     // text core grew to ~29800, so for an unknown stretch every chat message
     // silently lost its last ~9800 characters — which is where the crisis
@@ -156,10 +230,16 @@ export default async function handler(req, res) {
       // never silent again — a prompt that outgrows the cap must be visible
       console.warn(`[chat] system prompt truncated: ${sys.length} > ${SYSTEM_MAX}`);
     }
+    // THE CORE AS SENT — after the cap, before anything else. WS-COST C keys
+    // the explicit cache on the SHA-256 of exactly these bytes, so the hash has
+    // to be taken from the same string the upstream sees; hashing `sys` before
+    // the slice would mean a truncated prompt and a cache built from it
+    // disagreeing about what is in the cache.
+    const coreSent = sys.slice(0, SYSTEM_MAX);
     const systemContent = [
       {
         type: "text",
-        text: sys.slice(0, SYSTEM_MAX),
+        text: coreSent,
         cache_control: { type: "ephemeral" },
       },
     ];
@@ -193,11 +273,13 @@ export default async function handler(req, res) {
     const TAIL_MAX = 24_000;
     trace.tail_bytes_sent = typeof system_tail === "string" ? system_tail.length : 0;
     trace.tail_truncated = trace.tail_bytes_sent > TAIL_MAX;
+    let tailSent = "";
     if (typeof system_tail === "string" && system_tail) {
       if (system_tail.length > TAIL_MAX) {
         console.warn(`[chat] system_tail truncated: ${system_tail.length} > ${TAIL_MAX}`);
       }
-      systemContent.push({ type: "text", text: system_tail.slice(0, TAIL_MAX) });
+      tailSent = system_tail.slice(0, TAIL_MAX);
+      systemContent.push({ type: "text", text: tailSent });
     }
     // payload cap: recent user photos legitimately ride as data URLs when a
     // storage upload failed, but the total request must stay bounded —
@@ -313,9 +395,25 @@ export default async function handler(req, res) {
     // attachments, because "Azure first for images and documents" is the
     // owner's preference and a preference written as an if-statement three
     // files deep is a preference nobody can find or reverse.
-    const order = laneOrder({ hasAttachments });
+    //
+    // WS-COST: `paidLane` is the ONLY thing that puts a billed Google key in
+    // the ladder, and it is false unless the flag is set AND a key exists. The
+    // model gate is the same one the free pool uses (`freeModel`): Google's own
+    // endpoint takes bare model names, so a request asking for something that
+    // is not a `google/...` slug skips this lane rather than being silently
+    // rewritten into a model nobody asked for — and, here, rather than being
+    // billed for one.
+    const paidLane = paidLaneReady() && Boolean(freeModel);
+    const order = laneOrder({ hasAttachments, paidLane });
     trace.lane_order = order.join(">");
     trace.azure = { configured: azureConfigured(), used: false };
+    // Flag state as a BOOLEAN, never the key and never a prefix of it. This is
+    // the field that answers "was that turn billed on purpose or by accident".
+    // `cache` starts at "none" and is upgraded by the path that actually
+    // served: "explicit" is set by the cachedContents path below, "implicit" is
+    // inferred at emit time from the token counts Google returns. Three states,
+    // one field, so a dashboard can price a turn without joining anything.
+    trace.paid = { enabled: PAID_LANE_ON, eligible: paidLane, used: false, cache: "none" };
 
     /** Free Google pool, with the bounded transient ladder. */
     const runGeminiFree = async () => {
@@ -346,18 +444,9 @@ export default async function handler(req, res) {
           // Streaming cannot be inspected without buffering (that would cost
           // her first-word latency, which is not for sale), so this guards the
           // non-streaming lane and the stream keeps its measured tier.
-          if (r.ok && !wantStream) {
-            const text = await r.clone().text();
-            let empty = false;
-            try {
-              empty = !(JSON.parse(text)?.choices?.[0]?.message?.content || "").trim();
-            } catch {
-              empty = true;
-            }
-            if (empty) {
-              trace.empty_guard_fired = (trace.empty_guard_fired || 0) + 1;
-              return { ok: false, status: r.status, empty: true };
-            }
+          if (await emptyOn200(r, wantStream)) {
+            trace.empty_guard_fired = (trace.empty_guard_fired || 0) + 1;
+            return { ok: false, status: r.status, empty: true };
           }
           return { ok: r.ok, status: r.status, value: r };
         },
@@ -412,6 +501,190 @@ export default async function handler(req, res) {
       return null;
     };
 
+    /** WS-COST — the BILLED Google key, same host, same body, same SSE.
+     *
+     *  Deliberately NOT a second implementation of anything. It is
+     *  `runGeminiFree`'s fetch with one key instead of a pool walk: same
+     *  `GEMINI_OPENAI_URL`, same `{...body, model: freeModel, reasoning_effort}`
+     *  (the tiers are INVERTED between chat and call and any fixed value is
+     *  catastrophic on one of them — see the table above), same empty-200
+     *  guard, and the streaming/usage handling below is the shared code every
+     *  lane already returns into. There is no pool ladder here because there is
+     *  no second key to walk to: one key, one attempt, fall through on failure.
+     *
+     *  It carries no retry of its own on purpose. A retry on a billed key is a
+     *  second charge for the same turn, and OpenRouter and Azure are both still
+     *  underneath it. */
+    /** WS-COST C — the same billed key, with the CORE in an explicit
+     *  `cachedContents` object and only the tail + turns billed at full rate.
+     *
+     *  MEASURED, not reasoned (measurements.md#cache-plateau, 2026-08-25): the
+     *  core is 48,730 B ≈ 12,097 tokens = 90.0% of the input, it is byte-stable
+     *  across a session, an explicit cache over it hit 12,097 tokens 4/4
+     *  deterministically, and the per-turn bill including storage falls 79.2%.
+     *  Google's free implicit cache plateaus at 60.7% no matter what the
+     *  request says, which is where the other −33 points are.
+     *
+     *  THIS PATH CAN ONLY LOSE A TURN'S COST, NEVER A TURN. Every failure —
+     *  create, PATCH, a name Google no longer knows, an unmappable message
+     *  shape, an empty 200 — returns null, and `runGeminiPaid` below then makes
+     *  the ordinary compat-surface paid call it has always made, inside the
+     *  same turn. Under that sits the rest of the ladder, unchanged.
+     *
+     *  Returns a real `Response` (streaming or not) in OpenAI shape, so every
+     *  line downstream of the ladder is untouched and the client cannot tell
+     *  which surface answered. */
+    const runGeminiPaidCached = async () => {
+      if (!paidLane || !PAID_CACHE_ON) return null;
+      // Pictures stay on the compat surface: native wants bytes inline or a
+      // Files API URI and the ordinary photo flow sends https URLs. Attachment
+      // turns go to Azure first anyway (the owner's directive).
+      if (hasAttachments) return null;
+      if (!cacheableCore(coreSent)) return null;
+      const contents = toNativeContents(turns.slice(-120));
+      if (!contents) return null;
+
+      const hash = coreHash(coreSent);
+      let entry = null;
+      try {
+        entry = await getCache({
+          key: PAID_KEY,
+          model: freeModel,
+          core: coreSent,
+          hash,
+          signal: aborter.signal,
+        });
+      } catch {
+        entry = null;
+      }
+      if (!entry) {
+        trace.fallbacks.push({ from: "gemini-paid-cached", to: "gemini-paid", why: "cache_unavailable" });
+        return null;
+      }
+
+      const url =
+        `${GEMINI_NATIVE_BASE}/models/${freeModel}:` +
+        (wantStream ? "streamGenerateContent?alt=sse" : "generateContent");
+      // At most two attempts, and the second one exists for exactly ONE reason:
+      // a name this instance believes in that Google has already collected. It
+      // is not a retry of a billed generation — a not-found generates nothing
+      // and bills nothing, so the law "no retry on a billed key" (see
+      // `runGeminiPaid`) is not in tension with it. Anything else fails to the
+      // plain paid call rather than being tried twice.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (entry.reused) {
+          // Extend only what a turn is actually reusing, and start the PATCH
+          // BEFORE the generate so it resolves inside it — see refreshCache's
+          // note on frozen serverless promises.
+          refreshCache({ key: PAID_KEY, model: freeModel, hash, name: entry.name }).catch(() => {});
+        }
+        let r;
+        try {
+          r = await fetch(url, {
+            method: "POST",
+            headers: { "x-goog-api-key": PAID_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify(
+              buildNativeBody({
+                cacheName: entry.name,
+                tail: tailSent,
+                contents,
+                maxTokens: body.max_tokens,
+                // the SAME tier the compat lanes send. The tiers are inverted
+                // between chat and calls and any fixed value is catastrophic on
+                // one of them — see the table above `runGeminiFree`.
+                effort,
+              }),
+            ),
+            signal: aborter.signal,
+          });
+        } catch {
+          trace.fallbacks.push({ from: "gemini-paid-cached", to: "gemini-paid", why: "network" });
+          return null;
+        }
+        if (!r.ok) {
+          const detail = await r.text().catch(() => "");
+          const miss = isCacheMissStatus(r.status, detail);
+          trace.fallbacks.push({
+            from: "gemini-paid-cached",
+            to: miss && attempt === 0 ? "cache-recreate" : "gemini-paid",
+            why: miss ? "cache_missing" : `http_${r.status}`,
+          });
+          if (!miss || attempt > 0) return null;
+          // The name is gone (expired, or made by an instance that has since
+          // died). Forget it, build a new one, and try this turn once more.
+          dropCache(freeModel, hash);
+          try {
+            entry = await getCache({
+              key: PAID_KEY,
+              model: freeModel,
+              core: coreSent,
+              hash,
+              signal: aborter.signal,
+            });
+          } catch {
+            entry = null;
+          }
+          if (!entry) return null;
+          continue;
+        }
+        // ── the bridge back to OpenAI shape ──────────────────────────────
+        let out;
+        try {
+          out = wantStream
+            ? new Response(nativeSseToOpenAiStream(r.body, body.model), {
+                status: 200,
+                headers: { "Content-Type": "text/event-stream; charset=utf-8" },
+              })
+            : new Response(JSON.stringify(nativeJsonToOpenAI(await r.json(), body.model)), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              });
+        } catch {
+          trace.fallbacks.push({ from: "gemini-paid-cached", to: "gemini-paid", why: "bridge" });
+          return null;
+        }
+        if (await emptyOn200(out, wantStream)) {
+          trace.empty_guard_fired = (trace.empty_guard_fired || 0) + 1;
+          trace.fallbacks.push({ from: "gemini-paid-cached", to: "gemini-paid", why: "empty_200" });
+          return null;
+        }
+        // Counts, labels and one id. The cache NAME is a label — it says which
+        // cache, and carries none of the text inside it (api/_obs.js's law).
+        trace.paid.cache = "explicit";
+        trace.paid.cache_id = cacheId(entry.name);
+        trace.paid.cache_created = !entry.reused;
+        trace.paid.cache_tokens = entry.tokens ?? null;
+        trace.paid.cache_recreated = attempt > 0;
+        return out;
+      }
+      return null;
+    };
+
+    const runGeminiPaid = async () => {
+      if (!paidLane) return null;
+      // The cached path first, and it returns null on every failure it can
+      // have, so this is a fallback ladder inside one lane rather than a branch.
+      const cached = await runGeminiPaidCached();
+      if (cached) return cached;
+      try {
+        const r = await fetch(GEMINI_OPENAI_URL, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${PAID_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ ...body, model: freeModel, reasoning_effort: effort }),
+          signal: aborter.signal,
+        });
+        if (await emptyOn200(r, wantStream)) {
+          trace.empty_guard_fired = (trace.empty_guard_fired || 0) + 1;
+          trace.fallbacks.push({ from: "gemini-paid", to: "next-lane", why: "empty_200" });
+          return null;
+        }
+        return r;
+      } catch {
+        trace.fallbacks.push({ from: "gemini-paid", to: "next-lane", why: "network" });
+        return null;
+      }
+    };
+
     /** Paid OpenRouter. Unchanged request shape. */
     const runOpenRouter = async () => {
       if (!key) return null;
@@ -458,7 +731,12 @@ export default async function handler(req, res) {
       return r;
     };
 
-    const runners = { "gemini-free": runGeminiFree, openrouter: runOpenRouter, azure: runAzure };
+    const runners = {
+      "gemini-free": runGeminiFree,
+      "gemini-paid": runGeminiPaid,
+      openrouter: runOpenRouter,
+      azure: runAzure,
+    };
     for (const name of order) {
       const r = await runners[name]();
       if (!r) continue;
@@ -485,6 +763,7 @@ export default async function handler(req, res) {
     }
     trace.served_by = servedBy;
     trace.upstream_status = upstream.status;
+    if (servedBy === "gemini-paid") trace.paid.used = true;
     // Belt and braces: the ladder above only ever assigns an `ok` response, so
     // this cannot fire today. It is kept because "the loop always assigns an ok
     // response" is a property of the loop, and the next edit to the loop is the
@@ -524,6 +803,7 @@ export default async function handler(req, res) {
         reader.cancel().catch(() => {}); // stop upstream generation billing
       }
       readUsage(tail, trace);
+      emitPaidTurn(servedBy, trace, tStart);
       trace.stream_bytes = bytes;
       // One extra SSE frame, AFTER the stream the client was reading. Its
       // payload has no `choices`, so every SSE consumer in this repo skips it:
@@ -541,12 +821,87 @@ export default async function handler(req, res) {
     clearTimeout(kill);
     const text = data?.choices?.[0]?.message?.content ?? "";
     readUsageObject(data?.usage, trace);
+    emitPaidTurn(servedBy, trace, tStart);
     trace.finish_reason = String(data?.choices?.[0]?.finish_reason ?? "").slice(0, 24) || null;
     trace.out_chars = text.length;
     trace.empty_reply = !text.trim();
     return res.status(200).json({ text, trace: seal(trace, tStart) });
   } catch (e) {
     return res.status(500).json({ error: "proxy failure" });
+  }
+}
+
+/** WS-COST B2 — one ops row per BILLED turn: `paid_turn {cached, input,
+ *  output}`.
+ *
+ *  It exists because the cache-hit rate is the whole cost story and it is the
+ *  one number that cannot be reasoned about from here. Measured 2026-08-25 on
+ *  the paid key, n=31 calls: an implicit-cache hit caches 8,165 of ~13,400
+ *  input tokens (60.7%) and 16 of 19 follow-up calls hit — but both of those
+ *  are Google's numbers, not ours, and they can move under us without any
+ *  deploy on our side. A dashboard that reads these rows is how we would find
+ *  out; arithmetic in a report is not.
+ *
+ *  COUNTS ONLY. No prompt text, no reply text, no key, no key prefix — the
+ *  same law api/_obs.js states and api/diag.js states one layer up. `null`
+ *  when the upstream sent no usage frame, which is itself the signal that the
+ *  counts are missing rather than zero.
+ *
+ *  Fire-and-forget: `obsBestEffort` per _obs.js's own contract for callers on
+ *  a response path — "a lost ops row is priced in; a slowed reply is not." */
+function emitPaidTurn(servedBy, trace, tStart) {
+  if (servedBy !== "gemini-paid") return;
+  // WS-COST C: WHICH cache paid for this turn, as a label, next to the counts
+  // that price it. The three states are not interchangeable and the difference
+  // between them is the whole workstream: "explicit" is the deterministic
+  // 12,097-token hit this path builds, "implicit" is Google's free 60.7%
+  // plateau, "none" is full rate. Realized savings is then arithmetic on rows
+  // — `cached/input` per label — rather than a claim in a report.
+  const cache = paidCacheLabel(trace);
+  if (trace.paid) trace.paid.cache = cache;
+  obsBestEffort(
+    "paid_turn",
+    {
+      cache,
+      // the cache's NAME id, never its contents — it says which cache, and a
+      // dashboard needs it to tell one user's cache from another's
+      cache_id: trace.paid?.cache_id ?? null,
+      cached: trace.tokens_cached,
+      input: trace.tokens_in,
+      output: trace.tokens_out,
+      model: trace.model,
+      lane: trace.lane,
+      stream: trace.stream,
+    },
+    Date.now() - tStart,
+  );
+}
+
+/** "explicit" only if the cachedContents path actually served this turn;
+ *  otherwise whatever Google's implicit cache did, read off the counts. A turn
+ *  with no usage frame reports "none" and `cached: null` — the null is the
+ *  signal that the counts are missing rather than zero. */
+export function paidCacheLabel(trace) {
+  if (trace?.paid?.cache === "explicit") return "explicit";
+  return Number(trace?.tokens_cached) > 0 ? "implicit" : "none";
+}
+
+/** A 200 carrying an EMPTY reply is the worst outcome available: she simply
+ *  says nothing, and every status code says it worked. It is what a mismatched
+ *  reasoning tier produces. Streaming cannot be inspected without buffering
+ *  (that would cost her first-word latency, which is not for sale), so this
+ *  answers `false` for a stream and the stream keeps its measured tier.
+ *
+ *  Extracted from `runGeminiFree` rather than copied into the paid lane: the
+ *  two lanes speak to the same endpoint with the same body, so a guard that
+ *  existed in only one of them would be a guard that silently stops covering
+ *  half the traffic the first time the flag is turned on. */
+async function emptyOn200(r, wantStream) {
+  if (!r.ok || wantStream) return false;
+  try {
+    return !(JSON.parse(await r.clone().text())?.choices?.[0]?.message?.content || "").trim();
+  } catch {
+    return true;
   }
 }
 

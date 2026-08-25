@@ -174,10 +174,24 @@ ok(
     gate.indexOf("greetOnce(") < gate.indexOf("guardReply("),
 );
 ok("text lane only — a spoken hello is a different act", /mode !== "call"[\s\S]{0,1600}greetOnce\(/.test(gate));
-ok("every parseBubbles result goes through gate()", (brain.match(/gate\(parseBubbles\(/g) || []).length === 2);
-// one declaration plus exactly the two gated call sites: a third would be a
-// bubble reaching the UI around the gate, which is an absent gate.
-ok("no parseBubbles call sites outside gate()", (brain.match(/parseBubbles\(/g) || []).length === 3);
+// STRUCTURAL, NOT A COUNT. This used to assert the two literal numbers 2 and 3
+// — "exactly two gated sites, exactly three mentions including the
+// declaration" — and it caught the right thing for the wrong reason: the
+// property being protected is that NO parse escapes the gate, and a magic
+// number also fails when a new site is added correctly. WS-INTERNALS-FENCE
+// added a third, properly gated site (the fence's re-draft), which is exactly
+// the case the old form could not tell from a leak.
+//
+// So the invariant is stated as the invariant: every `parseBubbles(` in this
+// file is either the declaration or immediately wrapped in `gate(`. A bubble
+// reaching the UI around the gate is an absent gate (`gate0-structural`), and
+// that is now decidable rather than counted.
+const parses = (brain.match(/parseBubbles\(/g) || []).length;
+const gated = (brain.match(/gate\(parseBubbles\(/g) || []).length;
+const declared = (brain.match(/export function parseBubbles\(/g) || []).length;
+ok("parseBubbles is declared exactly once", declared === 1);
+ok("every parseBubbles result goes through gate()", gated >= 2 && gated === parses - declared);
+ok("no parseBubbles call sites outside gate()", parses - declared - gated === 0);
 
 console.log(fail ? `${fail} FAILURES of ${n}` : `ALL ${n} PASS`);
 process.exit(fail ? 1 : 0);

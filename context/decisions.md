@@ -2380,3 +2380,288 @@ in check-contrast.mjs at the 4.5 body floor. Fallback var() keeps the
 theme rose off-sky. **Reverses if** a future sky state cannot host any
 recognisable rose at the floor — then that state's hero drops the accent
 entirely rather than shipping an unreadable one.
+
+## `residues-zero` — the Relational Core carries no character
+
+**Reached 2026-08-25.** Three extraction batches in one session took the
+leak guard's measured Maya-isms in Kabir's lanes from 95 -> 64 -> 27 -> 0,
+with Maya byte-identical (83/83) after every batch. 32 example-fragment
+fields now live in the CharacterSheet contract; WATCH_MODE_NOTE became
+buildWatchModeNote(C) (constant = builder(MAYA), so all call sites kept
+their bytes), closing kabir.ts's declared v1 gap. The ratchet is pinned at
+0 forever: character prose in the core is now a build failure, not a
+backlog. **Reverses if** never — this is the definition of the OS/character
+boundary from here on; a legitimate need for character text in core means
+a new sheet field, not a ratchet bump.
+
+## `never-internals-floor` — the sixth floor category
+
+**Decided 2026-08-25**, from a live incident: asked "which ai you are
+gemini or chatgpt?", she answered "openai ka gpt-4o hu" (screenshot in
+session log). Root causes both real: (a) the resilience ladder legally
+serves non-Gemini lanes (OpenRouter/Azure) when the free pool is down —
+accepted so she never goes silent — and (b) models hallucinate identity
+claims regardless of what actually serves. Neither may ever surface: a
+vendor/model claim breaks the one-identity law on every lane at once and
+cannot be untold, which is the floor-category admission test. The block
+lives in the never-truncated core beside AI-honesty and Crisis, pure OS
+(no character content), framed as "you genuinely have nothing there", with
+playful in-register deflection and the jailbreak costumes named. Gated
+per-registered-module on 4 lanes. **Reverses if** never for the rule; the
+DEFLECTION SHAPE may be tuned per measured felt-quality. Follow-up filed:
+a behavioral jailbreak battery (model-in-loop, needs budget) to measure
+hold-rate under real attack phrasings; the structural floor ships first.
+
+## `session-2026-08-25-close` — launch wave state at compaction
+
+Owner decisions this close: Play Store requisites DEFERRED (their words:
+"we don't have user-level logins and all, so much to do there" — the
+submission pack, signed-.aab CI, deletion page and screenshots all sit
+ready in docs/playstore/ + delivered files for whenever they resume).
+Everything shipped this session and its evidence lives in the entries
+above: residues-zero, never-internals-floor, accent-joins-the-sky, the
+three pin-ambient-inputs gate fixes, WS-OBS, keyring 51, openrouter
+per-key-limit correction, PR #3 merged to main, PR #4 open+green.
+
+THE MODEL STACK, recorded verbatim for the next session (from code, this
+commit): chat text = gemini-3.6-flash (free pool, 51 labeled keys, $0);
+chat fallback order gemini-free -> openrouter (same gemini via OpenRouter,
+~$14 credit, ~$0.0015/turn at 52KB) -> azure grant deployment
+grok-4-20-non-reasoning ($0 cash, $2k grant; also FIRST for attachments).
+Speech TTS = gemini-3.1-flash-tts-preview free pool ($0, ~4-5 clips/key/
+day), paid fallback google/gemini-3.1-flash-tts-preview via OpenRouter.
+Live calls = gemini-3.1-flash-live-preview (free pool mint, no same-kind
+fallback — degrades to the cascade). Consolidation audit =
+google/gemini-3.6-flash via OpenRouter. NOTE: gpt-4o is in NO lane —
+the incident was a hallucinated self-claim, now floored. gpt-5.6-terra
+is qualified as a RESEARCH JUDGE only (#57), not a serving lane: swapping
+a serving model changes the felt personality (the terra swap-test
+program, #51-58, exists to measure exactly that before any such move),
+and terra costs real cash per turn against a $0 grant lane.
+
+## `ws-gamefeel` — tester defect wave (friend, 2026-08-25) + the layer split
+
+Reported by the owner's friend after real chess + call sessions. Charter
+recorded pre-fix so the wave survives compaction. LAYER TAG on each item
+per the owner's standing rule (OS = carries to every persona; APP =
+Maya's app/engine surface only):
+
+1. [OS+ENGINE] "kya idea hai" repeated for a whole game + same-question
+   loops on calls generally: she has no self-repetition guard. Fix: a
+   her-side loop fence — runtime detector on the cascade/call turn path
+   (never inside liveCall.ts) that catches a near-duplicate of her own
+   previous turn and forces variation, plus an OS core shape (a repeated
+   line is a stall, not a style).
+2. [ENGINE] "mai bhul gayi" when asked about her own play: she genuinely
+   has no material — the activity note carries board truth but not HER
+   INTENT. Fix: the activity note gains a one-line idea for her current
+   plan (opening name + what she's trying), refreshed as the game moves,
+   so game talk has a real substrate. [OS] shape: her play always has a
+   sayable idea; "bhul gayi" is never the answer about the game on the
+   board.
+3. [ENGINE, gating] False checkmate mid-game + last-game bleed: terminal
+   claims must be board-derived only — she may not say checkmate/stalemate
+   /win/loss unless the engine state says ended (a structural fence like
+   the honesty gates, not a hint). Previous games reach her only as
+   memories, never as the present board.
+4. [ENGINE] Deterministic openings — same exact moves every game: her
+   move choice needs book variety (seeded randomization among sound
+   moves) so two games don't teach her pattern.
+5. [ENGINE+OS-memory] Adaptive strength: start friendly, scale with the
+   user's demonstrated strength — within a chess game (engine level up on
+   strong play) and across games (a per-user strength estimate stored in
+   memory, read at game start). The estimate is OS memory (any persona's
+   games use it); the scaling is engine.
+6. [DIAGNOSE] General call hallucination/forgetting: ride #115's
+   instrumentation; the loop fence (1) and idea substrate (2) are the
+   structural halves already known.
+
+## `ws-gamefeel-shipped` — the wave closed same-day, with two learnings
+
+**2026-08-25.** Both halves shipped (OS commit + engine commit), all six
+charter items structural: STATE_LAW fence (terminal claims are the state
+line's alone; past games are memory), her sayable idea line, flavour-
+weighted opening variety, adaptive strength (friendly start, one-way
+in-game climb, EMA estimate on the finished-activity ledger), and the
+her-side loop fence (detect on completed reply, arm next turn unstreamed,
+one retry). Learnings worth keeping: (1) a UNIFORM draw among near-best
+moves produced legal-but-alien openings (Na3 Rg1 Rh1) — variety must be
+weighted by the flavour score the engine already computes, or "varied"
+reads as "not a person"; (2) a streamed line cannot be un-said, so
+repetition fences on streaming lanes pay their cost on the turn AFTER the
+offence, never the turn of it. Known edges, accepted: Jaccard 0.8 misses
+paraphrased loops (one constant to lower if felt), skill estimate is
+device-local (reinstall opens friendly — the right failure), idea line is
+chess-only (ttt has no plan worth a line). Reverses per item if the felt
+tests say the boundary moved.
+
+## `paid-lane-off-by-default` — billed spend is opt-in, twice (2026-08-25)
+
+The paid Gemini key rides a flag-gated lane: PAID_LANE must be explicitly
+"1"/"true" AND the key must exist; either missing and laneOrder returns
+the pre-existing frozen arrays by identity. Order when on: free pool >
+paid > OpenRouter > Azure. Rationale: the free pool is $0 cash and
+serves current volume; the paid lane exists to be measured and to absorb
+scale deliberately, never by accident. Chosen cost path: explicit
+cachedContents on the per-user core (−79 to −80% measured incl. storage)
+— implicit caching alone tops out at −46% EV (see cache-plateau).
+Reverses if: free-pool exhaustion becomes a daily user-facing event
+(flip the flag), or Google's implicit plateau moves above 90% (explicit
+cache machinery becomes dead weight).
+
+## `cost-frontier-map` — where each 10x lives, decided before it is needed (2026-08-25)
+
+Owner asked what gets Rs 21/100 msgs to Rs 1-2 without quality loss. The
+measured map, logged so the scale conversation starts here instead of
+re-deriving: (1) API-rental floor is ~Rs 10-12/100 — core toward the 40k
+SPEC target (gated on the n>=300 equivalence run), tail tightening,
+volume rates; Google's published rates double 2027-01-01. (2) The 10x is
+architectural: resident relational state — self-hosted serving with
+per-user prefix KV cache (vLLM/SGLang class), so a turn pays only the
+~1.3k-token tail + output; ~Rs 0.01-0.03/msg at saturated GPUs. Two hard
+gates: an open model must pass the swap-test battery first (unproven
+today), and it only wins above roughly a few hundred thousand msgs/day —
+below that the GPU idles and API rental is cheaper. LoRA-per-persona
+(personality in weights, state + safety gates staying in the auditable
+prompt) is the further step, with the recitation/position laws re-tested.
+Not scheduled — a decision map, not a workstream. Reverses if: a hosted
+provider ships per-user persistent KV at API prices, or the swap-test
+shows no open model within quality floor by the time volume arrives.
+
+## `paid-flip-gate` — what must happen before PAID_LANE turns on (2026-08-25)
+
+The explicit-cache path ships OFF (PAID_LANE off; PAID_CACHE within it
+defaults on because it cannot cause spend, only shape it). One wire
+difference is unmeasured for persona quality: Google's native surface has
+no system_tail field, so the volatile tail rides as a LEADING USER-ROLE
+content instead of a system block (order preserved, no fake model turn).
+The flip gate is a paired dual-judge equivalence run (same bar SPEC §0.3
+sets for persona cuts) comparing compat-surface vs native-surface serving
+on byte-identical compiled contexts. Until that run passes, the paid lane
+may be flipped in an emergency (free pool dead) — a served turn beats a
+perfect one — but not as a cost optimisation. Reverses if: Google adds a
+system-role tail slot to cachedContents generate calls, or the
+equivalence run shows no measurable difference.
+
+## `resident-gpu-at-scale` — the committed direction for scale cost (2026-08-25)
+
+Owner directive: the self-hosted resident-KV path ("stop re-sending the
+relationship, make it resident") WILL be done when scale justifies it —
+target ₹0.01–0.03/message vs the API floor of ~₹0.10–0.12. Funding
+candidates: AWS $1k grant, Azure grant headroom. Two pre-registered
+gates stand unchanged: an open-weight model must PASS the swap-test
+battery as Maya (unproven today), and traffic must saturate the GPU
+(below ~a few lakh messages/day the API is cheaper). Google's Jan 2027
+price doubling strengthens the case. Reverses if: frontier API pricing
+collapses below saturated-GPU economics, or no open model passes the
+battery by the time scale arrives.
+
+## `judge-bar-vs-ceiling` — OPEN: every available judge family now fails 0.80 (2026-08-25)
+
+State after the opus-5 re-run: all 8 judge families tested, none clears
+the SPEC §10-Q5 0.80 bar; qualified_panel stays []. opus-5's CI
+[59.1, 77.8] CONTAINS the measured ground-truth ceiling (~77.1%) — a
+clear fail against the committed bar while statistically
+indistinguishable from the best any judge has scored on this bench.
+ground-truth-ceiling pre-registered that the bar "should be restated
+relative to measured ceiling"; that restatement is deliberately NOT made
+today, because it would be made minutes after seeing the number it
+unblocks, by the party that wants the run. If the bar changes, it changes
+PROSPECTIVELY: re-registered before a fresh backtest on fresh ground-truth
+units, ideally owner-blessed. Meanwhile three judge-free/judge-new paths
+stand: (1) deploy an untested family (gpt-5.6-sol / Llama-4-Maverick, one
+Foundry click, credits-billed backtest); (2) owner blind-judges a 30-40
+pair sample (the felt product's ground truth IS the owner); (3)
+deterministic differential on the 150 pairs (markers, lengths, lexicons,
+behavioral graders on both arms) — catches gross degradation without any
+judge, insufficient alone for "reads like the same person".
+Reverses when: a judge clears whatever bar is then in force, on a
+pre-registered run.
+
+## `owned-product-first` — strategy reweight after owner pushback (2026-08-25)
+
+Owner's read, adopted: tech-first platforms (AstroTalk-class) will default
+to building in-house in the AI age — selling tech integration to the
+tech-enabled is the weakest lane, and B2B sales cycles are the wrong
+spend for a solo founder. Strategy reweighted to OWNED products:
+(1) NRI elder companion — the one use case where heavy calling is
+cost-justified at today's API prices (payer earns USD, pays ₹1,499–2,499
+vs ₹400–600/mo COGS for daily calls; memory IS the product; ad channels
+open because it's elder-care, not "companion"); (2) global diaspora
+pricing (Maya at $10–20/mo abroad; Hinglish is a moat outside India —
+35M diaspora, no incumbent) + spoken-English partner (category exports:
+Stimuler is 40% LatAm); (3) B2B only opportunistically to NON-tech
+businesses; (4) India mass ₹600 waits for resident-GPU. Reverses if: an
+inbound B2B deal prices above the owned-product opportunity cost, or the
+elder wrapper's felt-quality bar proves harder than Maya's (elderly
+users, Hindi-first, higher safety sensitivity — needs its own testing
+wave before launch).
+
+## `memory-asks-first` — consent is a product feature, DPDP is the deadline (2026-08-25)
+
+Memory now begins with her asking ("Should she remember you?"), a real
+decline path that closes the write gate while she keeps talking, an
+append-only server consent record (migration 016, owner applies), and
+withdrawal folded into the existing forget flow as one concept. Rationale
+beyond compliance (DPDP full effect 2027-05-14): trust is the elder-
+wrapper strategy's core sell, and consent done warmly is a differentiator
+not a wall. Layer: SURFACE (the gate chokepoint lives in engine/memory.ts;
+the persona is untouched — a future personality inherits the screen by
+being on the same surface). Reverses if: decline rates in tracking show
+the step costs onboarding completion materially (then soften placement,
+never the consent itself).
+
+## `session-2026-08-25b-close` — the second session of 2026-08-25, logged
+
+**Shipped and verified (all by exit code, all pushed, all CI-green):**
+1. WS-GAMEFEEL both halves — STATE_LAW board-truth fence + her idea line
+   (OS), engine substrate (state/idea fields, weighted opening variety,
+   adaptive strength, loop fence). Same-day close of the tester wave.
+2. WS-COST complete — cache-plateau measured (implicit 61% ceiling,
+   cache_control no-op on Google), flag-gated paid lane (off-is-identity),
+   explicit cachedContents live-verified −77%/−79%, paid_turn telemetry.
+   Flip gated (paid-flip-gate) and the judge-free differential then
+   VALIDATED the gate: hindi-register −6pp in the user-role arm + two n=1
+   crisis-adjacent flags. −90/95 unreachable by caching; −80 is the API
+   ceiling; resident-gpu-at-scale is the committed 10x.
+3. obs stream resurrected (seven-args bug — every ops row since ship had
+   been silently rejected) and immediately used to diagnose a live CI
+   probe timeout as a free-pool cooling wave, not a regression.
+4. Judge saga — opus-5's 17/17 exposed as parse-survivor bias (37.3pp);
+   honest 69.2% FAIL; all 8 families now fail 0.80; bar-vs-ceiling left
+   OPEN for prospective re-registration (judge-bar-vs-ceiling).
+5. WS-BEHAVE — 208-attack behavioral battery (deterministic graders,
+   severity tiers); persona hardening collapsed severe internals leaks
+   5-10 -> 1+1; internalsFence.ts then closed the severe class
+   mechanically (2/2 caught, 0 false positives on 205 non-severe).
+6. DPDP memory-consent shipped (memory-asks-first); migration 016 awaits
+   owner.
+7. Operational core cap 64k -> 72k after the corpus scan found heavy-dyad
+   cores 3.1% under the guard.
+8. Strategy: market sweep (docs/research/) then owner reweight to
+   owned-product-first — NRI elder companion wedge, global diaspora
+   pricing, B2B opportunistic only. Artifact "Where Memory Sells" v2.
+
+**Incidents:** free-pool keyring + paid key each printed once into
+session-local transcripts (agent redaction fumbles + a quote of mine) —
+ROTATION OF BOTH RECOMMENDED, owner's action. Subagent spend-refusal
+doctrine held twice; resolution: the main loop, holding the owner's
+direct authorization, runs billed measurements itself.
+
+**Spend:** ~₹560 of the ₹3000 paid key across all measurements.
+
+**Open (owner):** judge unblock (Foundry deploy sol/Maverick OR 30 blind
+pairs), migration 016, felt test of the game wave, key rotations.
+**Open (filed):** #115 call-glitch repro, corpus manifest refresh (#58's
+closer), protected obs dashboard, register-echo grader tier usage.
+
+**For the NEXT product (owner: "entirely different product, similar
+domain"):** what transfers is exactly what RelationalOS was factored for —
+the engine (compiler, memory graph, honesty gates, safety floor, fences,
+battery harnesses, cost machinery) is character-agnostic and
+surface-agnostic; a new personality is a CharacterSheet (Kabir precedent:
+zero engine changes, 412/412), a new surface is an adapter
+(vy_surface_identity), and the app-vs-OS split is layer-tagged through
+this file so the next build reads which pieces are Maya's and which are
+the layer's. Multi-agent tenancy (migration 009) and per-agent isolation
+already exist server-side.

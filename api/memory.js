@@ -2340,6 +2340,26 @@ export const PERSON_TABLES = [
   // conversation." Absent from the manifest for the same invisible reason
   // meera_state was.
   { table: "meera_events",      key: "device_id", lane: "legacy" },
+  // ── the memory-consent ledger (task #148, migration 016) ─────────────────
+  //
+  // Lane "relational" rather than "legacy": the manifest loop deletes lane
+  // "relational" with no further code, and there is no scoped rewrite to write
+  // for this table — a day-forget has nothing to prune out of a consent row,
+  // so the only verdict it needs is the whole-wipe one.
+  //
+  // AND THE WHOLE WIPE TAKES IT. The argument is written out at length in the
+  // migration; the short form is that a device-id-keyed record of a person
+  // surviving the one request whose promise is that nothing about them remains
+  // would break that promise to keep evidence of a permission that no longer
+  // applies to anything. The absence of a granted row IS the absence of
+  // consent, and the refusal that actually stops the writes is the copy on the
+  // device (src/engine/memory.ts's gate), which a server delete never touches.
+  //
+  // It is in a DSAR export for the reason meera_turn is: the rows are about
+  // that person, contain no conversation content (a boolean, two integers and
+  // two timestamps), and an export that omitted the record of what they had
+  // agreed to would be the wrong answer rather than a kind one.
+  { table: "meera_consent",     key: "device_id", lane: "relational" },
   { table: "vy_episode",          key: "person_id", lane: "relational", agent: true,
     // room episodes carry person_id NULL (008a), so `key` already selects only
     // the exclusive 1:1 rows; the shared spec is what handles the rest
@@ -2454,7 +2474,10 @@ export async function multipartyApplied(t = (name) => name) {
  *  drift about which tables exist. */
 export async function activePersonTables() {
   const on = await multipartyApplied();
-  return PERSON_TABLES.filter((t) => !MP_TABLES.has(t.table) || on).map((t) =>
+  const consent = await tableApplied("meera_consent");
+  return PERSON_TABLES.filter(
+    (t) => (!MP_TABLES.has(t.table) || on) && (t.table !== "meera_consent" || consent),
+  ).map((t) =>
     // `keys` and `wipeWhere` both name COLUMNS 008 adds (speaker_person_id,
     // group_id), so on a pre-008 database they are dropped along with the
     // tables. Lossless for the same reason: with no rooms there are no shared
@@ -2462,6 +2485,32 @@ export async function activePersonTables() {
     // find, so the wipe takes exactly what it takes today.
     on ? t : { ...t, keys: undefined, wipeWhere: undefined },
   );
+}
+
+// ── the same guard, generalised for ONE table (task #148, migration 016) ────
+//
+// meera_consent is in the manifest the day the code is written and in the
+// database the day the owner applies 016, and those are not the same day. The
+// manifest loop's delete is not wrapped in a catch, so a manifest naming a
+// table that does not exist yet turns "make her forget you" into a 500 — the
+// one operation that must never fail for a deploy-ordering reason. Migration
+// 008 already has this exact shape of problem and this exact shape of answer
+// (`multipartyApplied` above); this is that answer for a single table, which
+// is all 016 needs, and the skipped work is provably empty for the same reason
+// theirs is: a table that does not exist holds no rows to delete or export.
+//
+// Probed once per process and cached per name; a fresh serverless invocation
+// re-probes, so the guard self-clears the moment the migration lands, with no
+// deploy.
+const _applied = new Map();
+export async function tableApplied(name) {
+  if (_applied.has(name)) return _applied.get(name);
+  const r = await q(`select to_regclass($1) is not null as present`, [`public.${name}`]).catch(
+    () => [],
+  );
+  const present = r[0]?.present === true;
+  _applied.set(name, present);
+  return present;
 }
 
 // tables and columns that migration 008 introduces

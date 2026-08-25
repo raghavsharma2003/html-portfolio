@@ -767,7 +767,15 @@ export const SYSTEM_MAX = 64_000;
 // SPEC §0.3 "Persona factoring charm risk"). check-prompt-budget.mjs asserts
 // these two numbers match the literal constants in api/chat.js, so guard and
 // guarded cannot drift even though they aren't (yet) the SPEC's target caps.
-export const OPERATIONAL_CORE_CAP = 64_000;
+// Raised 64_000 -> 72_000 on 2026-08-25: a 2,304-row corpus scan through
+// the real engine measured heavy-dyad cores at max 62,026 B — 3.1% under the
+// old guard, inside the silent-truncation cliff that once cost the crisis
+// helplines. The guard is a payload bound, not a budget (the whole core is
+// prompt-cached, so headroom costs nothing until text exists), and the END of
+// the core is where the newest safety text sits — the first thing truncation
+// eats. Mirrored in api/chat.js SYSTEM_MAX; check-prompt-budget.mjs asserts
+// the two never drift.
+export const OPERATIONAL_CORE_CAP = 72_000;
 export const OPERATIONAL_TAIL_CAP = 24_000;
 
 export const CORE_MANIFEST: readonly CoreBlock[] = [

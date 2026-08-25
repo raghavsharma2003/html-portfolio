@@ -2263,3 +2263,56 @@ the argmax date and raised CALL_TAIL_CAP to 30,250 (60-byte tripwire
 margin, zero content growth). The sharpened lesson: an unpinned clock in
 a size gate doesn't just flap — it can HIDE a cap that is already
 exceeded, because every green run silently measured a smaller day.
+
+## `cache-control-on-google` — the breakpoint that wasn't (2026-08-25)
+
+api/chat.js sent cache_control{type:"ephemeral"} on the system block and a
+comment credited it with "~85% input-cost reduction" on Google. Measured:
+it is a NO-OP on Google's endpoint (n=4, identical cached-token counts
+with and without). The 85% was the OpenRouter lane's Anthropic-style
+behaviour bleeding into a comment about the wrong lane. Google caches
+implicitly regardless and plateaus at ~61% of input; only explicit
+cachedContents goes higher. Lesson: a caching claim is per-PROVIDER, and
+a comment stating a measurement must name the lane it was measured on.
+
+## `obs-stream-dead-on-arrival` — green code, zero rows (2026-08-25)
+
+WS-OBS shipped obs() calling q(query, ...sevenValues) against
+q(query, params, timeoutMs) — params got the string "server", every insert
+was rejected by Neon, and obs()'s own catch (there so observability can
+never become the outage) swallowed the rejection. Every server-ops row
+(key_cooled, speech, live_token) since ship was lost; the stream looked
+healthy because silence was its failure mode. Found by WS-COST wiring
+paid_turn. The meera_turn funnel (api/_trace.js, its own writer) was never
+affected. Lesson: an observability path is not live until ONE ROW HAS BEEN
+READ BACK from the store — the write-side green run proves nothing,
+because the whole design goal of such a path is to fail silently.
+
+## `corpus-manifest-stale` — the frozen index no longer describes the tree (2026-08-25)
+
+evals/candidate/corpus/corpus.jsonl (frozen 2026-08-15) fails its own
+sha256 check on 0/2,304 rows against today's compiler — persona.ts and
+compiler.ts have both changed since. Regeneration is still fully
+deterministic (2,304/2,304 agreement across rebuilds in-process), so this
+is staleness, not corruption. NOT refreshed here on purpose: task #58
+(incumbent arm) may be mid-arc against the frozen index, and re-freezing
+under it would invalidate a pre-registration. Whoever closes #58 refreshes
+the manifest. Lesson: a frozen corpus index needs the persona/compiler
+version stamped beside it, so staleness reads as "expected drift" and not
+corruption.
+
+## `parse-survivor-bias` — the 17/17 that was really 63/91 (2026-08-25)
+
+The recorded hope that claude-opus-5 was "the qualified judge the battery
+waits on" rested on 17/17 agreement from a run where 125/192 replies came
+back empty (a 120-token cap ate the reasoning). Fixed-config re-run
+(maxTokens 2000, only change; parse misses 65%→2.6%): pooled agreement
+63/91 = 69.2% [59.1, 77.8] — FAIL against the 0.80 bar, and not
+underpowered (CI upper bound below the bar). On the 16 overlapping units
+the capped run had scored: still 16/16 — the judge is stable; the sample
+was biased. On the 75 units the cap had silenced: 62.7%. Measured
+selection bias: 37.3pp. Lesson, general: units that survive a truncation
+failure are the EASY units — an INVALID-RUN agreement number is not a
+lower bound or a hint, it is upward-biased by the bench's difficulty
+gradient, and must never be quoted as evidence. Slot-A 46.0% (best on the
+bench — no position bias; accuracy, not bias, is what failed).
