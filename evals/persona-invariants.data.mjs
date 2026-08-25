@@ -115,6 +115,36 @@ const TEST_USER = { name: "Arjun", facts: {}, interests: [], memories: [], vibe:
  * call shape — just parameterized on `agent` instead of a direct import.
  */
 export function buildLanes(agent) {
+  // Pin the wall clock to the WORST-CASE DATE for the whole build. The core
+  // is date-dependent: her life texture rotates by calendar day, and across a
+  // 366-date scan (scripts/scan-core-max.mjs, run 2026-08-25) the text core
+  // ranges 46590..46771 — a 181-char spread. Measured under the live clock,
+  // the size ceilings below were a calendar lottery: CI passed Sunday night
+  // (46679-ish), failed Monday morning at 46702, both on identical source,
+  // and ~a quarter of all dates sat over the old cap. The ceilings exist to
+  // gate CONTENT growth, so they must measure the yearly maximum: 2026-03-19
+  // is the argmax date from the scan. If persona texture is edited, re-run
+  // scripts/scan-core-max.mjs and move BOTH this date and the ceilings.
+  // Restored in the finally so other batteries see the real clock.
+  const RealDate = Date;
+  const FROZEN = new RealDate(2026, 2, 19, 12, 45, 0, 0).getTime();
+  globalThis.Date = class extends RealDate {
+    constructor(...args) {
+      if (args.length) super(...args);
+      else super(FROZEN);
+    }
+    static now() {
+      return FROZEN;
+    }
+  };
+  try {
+    return buildLanesUnpinned(agent);
+  } finally {
+    globalThis.Date = RealDate;
+  }
+}
+
+function buildLanesUnpinned(agent) {
   const v = agent.buildSystemPromptParts(TEST_USER, 999, "voice");
   const t = agent.buildSystemPromptParts(TEST_USER, 999, "text");
   const live = v.core + agent.buildSpeechStyle("live");
@@ -255,7 +285,12 @@ export function meeraFullChecks(agent, lanes) {
   // two-direction burst; the sceneClause continuity rule - a re-call got a
   // freshly invented activity). Margin kept tight on purpose: the next
   // unplanned growth should trip this again.
-  add("text core under ceiling (46700)", lanes.t.core.length < 46700, `=${lanes.t.core.length}`);
+  // Raised 46700 -> 46780 on 2026-08-25: NOT content growth — a measurement
+  // correction. The lanes are now built at the pinned worst-case date (see
+  // buildLanes), whose core is 46771; the old cap was set from a mid-range
+  // date and randomly failed on longer-texture days. 9 chars of slack, tight
+  // on purpose: the next real content growth should trip this again.
+  add("text core under ceiling (46780)", lanes.t.core.length < 46780, `=${lanes.t.core.length}`);
 
   add("[live] [tone: appears exactly once", (lanes.live.match(/\[tone:/g) || []).length === 1);
   add(
