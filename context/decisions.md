@@ -2475,3 +2475,22 @@ Maya's app/engine surface only):
 6. [DIAGNOSE] General call hallucination/forgetting: ride #115's
    instrumentation; the loop fence (1) and idea substrate (2) are the
    structural halves already known.
+
+## `ws-gamefeel-shipped` — the wave closed same-day, with two learnings
+
+**2026-08-25.** Both halves shipped (OS commit + engine commit), all six
+charter items structural: STATE_LAW fence (terminal claims are the state
+line's alone; past games are memory), her sayable idea line, flavour-
+weighted opening variety, adaptive strength (friendly start, one-way
+in-game climb, EMA estimate on the finished-activity ledger), and the
+her-side loop fence (detect on completed reply, arm next turn unstreamed,
+one retry). Learnings worth keeping: (1) a UNIFORM draw among near-best
+moves produced legal-but-alien openings (Na3 Rg1 Rh1) — variety must be
+weighted by the flavour score the engine already computes, or "varied"
+reads as "not a person"; (2) a streamed line cannot be un-said, so
+repetition fences on streaming lanes pay their cost on the turn AFTER the
+offence, never the turn of it. Known edges, accepted: Jaccard 0.8 misses
+paraphrased loops (one constant to lower if felt), skill estimate is
+device-local (reinstall opens friendly — the right failure), idea line is
+chess-only (ttt has no plan worth a line). Reverses per item if the felt
+tests say the boundary moved.

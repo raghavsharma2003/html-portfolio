@@ -1695,6 +1695,12 @@
    "kind": "decision",
    "at": "2026-08-25",
    "title": "tester defect wave: her-side loop fence, game-idea substrate, board-derived terminal claims, opening variety, adaptive strength — layer-tagged OS vs engine"
+  },
+  {
+   "id": "ws-gamefeel-shipped",
+   "kind": "decision",
+   "at": "2026-08-25",
+   "title": "defect wave shipped same-day: state-law fence, idea line, weighted variety, adaptive strength, loop fence — uniform-draw and streamed-line learnings logged"
   }
  ],
  "edges": [
@@ -3092,6 +3098,11 @@
    "src": "ws-gamefeel",
    "rel": "part_of",
    "dst": "os-first-optimization"
+  },
+  {
+   "src": "ws-gamefeel-shipped",
+   "rel": "part_of",
+   "dst": "ws-gamefeel"
   }
  ]
 }
