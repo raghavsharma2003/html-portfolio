@@ -2842,3 +2842,11 @@ added with its date.
   = ~$20.77 available; 1-token generation probe 200 OK. Revives paid
   speech fallback + openrouter chat overflow once the OPENROUTER_KEY
   Actions secret is updated.
+- CORRECTION (2026-08-25 ~05:40 UTC): the OpenRouter "re-fund" needed no
+  deploy — both keys sit on ONE account ($55 credits / $34.23 used); the
+  production-baked (old) key had a $6 per-key limit with $6.03 spent, which
+  is what made culture distil fail fast. Owner raised that key's limit to
+  $20 (~$13.97 headroom); production culture refresh returned 200 with 10
+  items (distil 3.9s) immediately after, on the unchanged deploy. Lane
+  RCA lesson: a per-KEY limit and an account balance fail differently —
+  the fast 108ms distil failure was the limit, not the balance.
