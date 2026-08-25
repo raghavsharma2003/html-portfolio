@@ -545,6 +545,20 @@ section("── (d)+(e) the whole ladder, through the real handler ──");
     );
     ok("(d) no key or key prefix appears anywhere in the trace",
       !/AIza|sk-or-|api[-_]?key["']?\s*[:=]/i.test(JSON.stringify(json?.trace ?? {})));
+    // WS-COST C, stated where it can be seen rather than in a comment: with the
+    // paid lane off — the default this process runs under — the cost path is
+    // not merely unused, it is UNREACHABLE. No cache object, no native surface,
+    // no second wire format. This is the byte-identical guarantee as an
+    // assertion on the URLs actually dialled.
+    ok(
+      "(d) paid lane off → no cachedContents object is created",
+      !s.some((x) => /cachedContents/.test(x.url)),
+    );
+    ok(
+      "(d) paid lane off → the native generate surface is never dialled",
+      !s.some((x) => /:generateContent|:streamGenerateContent/.test(x.url)),
+      s.map((x) => x.url.replace(/^https:\/\//, "").slice(0, 48)).join(" "),
+    );
   }
 
   // The headline case: ONE 502, everything else healthy. This is the exact
@@ -940,6 +954,41 @@ section("── the source itself: no caller may fold 5xx again ──");
     offenders.length === 0,
     offenders.length ? `folds 5xx into deterministic: ${offenders.join(", ")}` : "chat.js, live-token.js, speech.js, memory.js",
   );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+section("── WS-COST C: the explicit-cache path, in its own process ──");
+{
+  // api/chat.js resolves PAID_LANE, GEMINI_PAID_KEY and PAID_CACHE at MODULE
+  // LOAD, which is what makes "off by default" a property of the deploy rather
+  // than a branch. THIS process has the lane off and every assertion above
+  // gates that default; the sub-battery gets its own process with the lane on,
+  // and gates the ladder inside it. Two processes because one cannot hold both
+  // truths — not because the code has two modes.
+  for (const [label, argv] of [
+    ["paid lane ON", []],
+    ["PAID_CACHE opt-out", ["--cache-off"]],
+  ]) {
+    try {
+      const out = execSync(
+        `node ${JSON.stringify(join(HERE, "paid-cache.mjs"))}${argv.length ? ` ${argv.join(" ")}` : ""}`,
+        { cwd: ROOT, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 },
+      );
+      process.stdout.write(out.replace(/^RESULT.*$/m, "").trimEnd() + "\n");
+      const m = /RESULT (\d+) passed, (\d+) failed/.exec(out);
+      if (!m) {
+        ok(`${label}: the sub-battery reported a result`, false, "no RESULT line");
+      } else {
+        pass += Number(m[1]);
+        fail += Number(m[2]);
+        if (Number(m[2])) failures.push(`${label}: ${m[2]} sub-battery assertions`);
+        ok(`${label}: ${m[1]} assertions ran in a process with the flag set at load`, Number(m[2]) === 0);
+      }
+    } catch (e) {
+      process.stdout.write(`${e.stdout ?? ""}${e.stderr ?? ""}`);
+      ok(`${label}: the sub-battery ran`, false, String(e.message).slice(0, 120));
+    }
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

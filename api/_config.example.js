@@ -61,8 +61,24 @@ export const GOOGLE_PAID_KEY = "";
 // needs no request field — the `cache_control` marker api/chat.js sends is an
 // Anthropic-shaped hint that Google ignores, measured identical with and
 // without it.
+//
+// WS-COST C added the measured cost path on top of that lane: an explicit
+// Google `cachedContents` object over the byte-stable CORE (12,097 of ~13,400
+// input tokens), so a follow-up turn bills the cached rate on 90% of its input
+// instead of the implicit cache's 60.7% plateau — ~$0.0101 → ~$0.0021 per turn
+// including cache storage, −79.2% (measurements.md#cache-plateau). It runs
+// INSIDE the paid lane only and on Google's native surface (the compat
+// endpoint has no field for a cache), and every failure in it falls back to
+// the plain paid call within the same turn.
+//
+// PAID_CACHE is its opt-out and the polarity is deliberately the opposite of
+// PAID_LANE: it cannot cause spend, only change the shape of spend the paid
+// lane already authorised, so it is ON unless it is "0", "false" or "off".
+// Set it off to put the paid lane back on the plain compat call without a
+// deploy.
 export const GEMINI_PAID_KEY = "";
 export const PAID_LANE = "";
+export const PAID_CACHE = "";
 
 // Azure AI Foundry, on the Microsoft-for-Startups credits — $0 cash.
 //
