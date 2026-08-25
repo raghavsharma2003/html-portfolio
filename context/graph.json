@@ -1862,6 +1862,12 @@
       "kind": "decision",
       "title": "the third product composes the two branches on claude/gurukul-platform",
       "at": "2026-08-25"
+    },
+    {
+      "id": "gurukul-no-production-glob",
+      "kind": "decision",
+      "title": "gurukul pushes must not production-deploy meera-silk; vite entry pinned to index",
+      "at": "2026-08-25"
     }
   ],
   "edges": [
@@ -3414,6 +3420,11 @@
       "src": "gurukul-founding",
       "rel": "caused_by",
       "dst": "beyond-meera"
+    },
+    {
+      "src": "gurukul-no-production-glob",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
     }
   ]
 }

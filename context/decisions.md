@@ -2775,3 +2775,19 @@ Reverses if: the union starts costing more than it saves — concretely, if
 Meera's byte-identity/fixture gates block teacher-side work in two or more
 workstreams in a session, split the product into its own repo per
 `docs/TRANSFER.md` instead of loosening any gate.
+
+## `gurukul-no-production-glob` — feature branches of another product must not deploy Meera (2026-08-25)
+
+Incident: the first push of `claude/gurukul-platform` matched deploy-web.yml's
+`claude/**` push glob and PRODUCTION-deployed meera-silk with the union tree.
+No outage — the tree was all-gates-green and live /chat was verified serving
+the freshly built bundle — but the deploy check went red because the studio's
+multi-entry vite config had renamed the app chunk `app-*.js`, and
+`verify-deploy.mjs` correctly asserts /chat serves `assets/index-<hash>.js`.
+
+Decided, both layers: (1) the vite entry key is pinned to `index` (comment in
+vite.config.ts carries the why), (2) on the gurukul branch the deploy
+workflow's push trigger is narrowed to `[main, claude/ai-companion-app-rkt1lv]`
+so gurukul pushes stop overwriting the live companion. Reverses if: the owner
+designates gurukul (or its successor) a production surface — then it gets its
+own deploy workflow and probe contract rather than inheriting Meera's alias.
