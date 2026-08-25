@@ -2850,3 +2850,7 @@ added with its date.
   items (distil 3.9s) immediately after, on the unchanged deploy. Lane
   RCA lesson: a per-KEY limit and an account balance fail differently —
   the fast 108ms distil failure was the limit, not the balance.
+- Pool 51 CONFIRMED LIVE in production (2026-08-25 ~06:00 UTC, deploy
+  d9d10b0 after owner updated GOOGLE_KEYS in Vercel + GitHub): speech 200
+  free-lane with pool header 35/51, chat 200. Full stack now: 51 free
+  keys + funded OpenRouter overflow (~$14) + Azure grant lane.
