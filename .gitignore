@@ -60,3 +60,6 @@ evals/.sound/
 # key pool + RCA labels (secrets — never commit)
 api/keyring.json
 api/google-keys.env
+
+# Claude Code agent worktrees (harness-managed, never source)
+.claude/worktrees/
