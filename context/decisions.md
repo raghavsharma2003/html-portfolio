@@ -2542,3 +2542,16 @@ may be flipped in an emergency (free pool dead) — a served turn beats a
 perfect one — but not as a cost optimisation. Reverses if: Google adds a
 system-role tail slot to cachedContents generate calls, or the
 equivalence run shows no measurable difference.
+
+## `resident-gpu-at-scale` — the committed direction for scale cost (2026-08-25)
+
+Owner directive: the self-hosted resident-KV path ("stop re-sending the
+relationship, make it resident") WILL be done when scale justifies it —
+target ₹0.01–0.03/message vs the API floor of ~₹0.10–0.12. Funding
+candidates: AWS $1k grant, Azure grant headroom. Two pre-registered
+gates stand unchanged: an open-weight model must PASS the swap-test
+battery as Maya (unproven today), and traffic must saturate the GPU
+(below ~a few lakh messages/day the API is cheaper). Google's Jan 2027
+price doubling strengthens the case. Reverses if: frontier API pricing
+collapses below saturated-GPU economics, or no open model passes the
+battery by the time scale arrives.

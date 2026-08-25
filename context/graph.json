@@ -1743,6 +1743,12 @@
    "kind": "decision",
    "at": "2026-08-25",
    "title": "PAID_LANE flips on only after dual-judge equivalence run on the native surface's user-role tail (emergency exception: free pool dead)"
+  },
+  {
+   "id": "resident-gpu-at-scale",
+   "kind": "decision",
+   "at": "2026-08-25",
+   "title": "owner-committed scale direction: self-hosted resident-KV serving, gated on swap-test pass + GPU saturation; grants as funding"
   }
  ],
  "edges": [
@@ -3183,6 +3189,11 @@
   },
   {
    "src": "paid-flip-gate",
+   "rel": "constrains",
+   "dst": "paid-lane-off-by-default"
+  },
+  {
+   "src": "resident-gpu-at-scale",
    "rel": "constrains",
    "dst": "paid-lane-off-by-default"
   }
