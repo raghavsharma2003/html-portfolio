@@ -551,7 +551,7 @@ export default function LivenessCapture({
                 {busy && (
                   <div className="upload-status" role="status">
                     <div><strong>{stage === "hashing" ? "Computing fingerprint" : stage === "authorizing" ? "Authorizing private upload" : stage === "uploading" ? "Uploading live evidence" : "Verifying stored evidence"}</strong><span>{stage === "hashing" || stage === "uploading" ? `${progress}%` : "Please keep this page open"}</span></div>
-                    <div className={`upload-track ${stage === "authorizing" || stage === "finalizing" ? "indeterminate" : ""}`}><span style={{ width: `${progress}%` }} /></div>
+                    <div className={`upload-track ${stage === "authorizing" || stage === "finalizing" ? "indeterminate" : ""}`}><span style={{ transform: `scaleX(${progress / 100})` }} /></div>
                   </div>
                 )}
                 <button className="button primary-button liveness-upload" type="button" disabled={busy || remaining <= 0} onClick={() => void upload()}>

@@ -519,7 +519,7 @@ function ReplicaWorkspace({
               <p className="eyebrow">Activation readiness</p>
               <strong>{verificationCount}/3</strong>
               <span>identity checks complete</span>
-              <div className="progress-track"><span style={{ width: `${verificationCount * 33.333}%` }} /></div>
+              <div className="progress-track"><span style={{ transform: `scaleX(${verificationCount * 0.33333})` }} /></div>
             </article>
             <article className="readiness-card">
               <span className="metric-label">Sources</span>

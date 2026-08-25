@@ -3500,7 +3500,7 @@ export function parseForgetHook(text, allowedIds) {
 }
 
 /** The candidate rows: what the existing predicate found, then recency. */
-async function forgetCandidates(device, name, rx) {
+async function forgetCandidates(device, name, rx, agentId = MEERA_AGENT_ID) {
   const seen = new Map();
   const add = (rows) => {
     for (const r of rows) {
@@ -3516,17 +3516,20 @@ async function forgetCandidates(device, name, rx) {
   };
   add(
     await q(
-      `select id, name, summary from meera_nodes
+      `select id, name, summary from meera_nodes n
         where device_id = $1 and (name = $2 or name ~* $3 or summary ~* $3)
+        ${agentScopePredicate("n", { agentId: "$4" })}
         order by updated_at desc limit ${FORGET_HOOK_LEX_CAP}`,
-      [device, name, rx],
+      [device, name, rx, agentId],
     ).catch(() => []),
   );
   add(
     await q(
-      `select id, name, summary from meera_nodes
-        where device_id = $1 order by updated_at desc limit ${FORGET_HOOK_RECENT}`,
-      [device],
+      `select id, name, summary from meera_nodes n
+        where device_id = $1
+        ${agentScopePredicate("n", { agentId: "$2" })}
+        order by updated_at desc limit ${FORGET_HOOK_RECENT}`,
+      [device, agentId],
     ).catch(() => []),
   );
   return [...seen.values()];
@@ -3688,7 +3691,7 @@ async function opForget(device, body) {
     // `nohook` is the SPOKEN lane opting out (src/engine/memory.ts). It takes
     // the fallback path deliberately rather than being a second, quieter
     // implementation of it — one code path, one receipt vocabulary.
-    const candidates = body.nohook ? [] : await forgetCandidates(device, name, rx);
+    const candidates = body.nohook ? [] : await forgetCandidates(device, name, rx, agentId);
     const resolved = body.nohook
       ? { failed: true }
       : await askForgetHook(name, candidates).catch(() => ({ failed: true }));

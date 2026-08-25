@@ -138,7 +138,7 @@ export default function CalibrationStudio({ token, replicaId, onAuthError }: { t
       ) : status && current ? (
         <>
           <div className="calibration-progress" aria-label={`${status.readiness.reviewed} of ${scenarios.length} contrasts reviewed`}>
-            <span style={{ width: `${Math.round((status.readiness.reviewed / scenarios.length) * 100)}%` }} />
+            <span style={{ transform: `scaleX(${scenarios.length ? status.readiness.reviewed / scenarios.length : 0})` }} />
           </div>
           <div className="calibration-nav">
             <div><strong>{status.readiness.reviewed}/{scenarios.length}</strong><span>contrasts reviewed</span></div>

@@ -742,7 +742,7 @@
   .readiness-primary > span { color: rgba(255, 255, 255, 0.64) !important; }
 
   .progress-track { height: 3px; margin-top: 19px; overflow: hidden; border-radius: 99px; background: rgba(255, 255, 255, 0.18); }
-  .progress-track span { display: block; height: 100%; background: #e0ad82; transition: width 500ms ease; }
+  .progress-track span { display: block; height: 100%; width: 100%; background: #e0ad82; transform-origin: left; transition: transform 240ms ease; }
   .trust-card { background: var(--forest-soft); }
   .trust-card strong { color: var(--forest); }
 
@@ -1410,7 +1410,7 @@
   .upload-status strong { font-size: 10px; }
   .upload-status span { color: var(--ink-faint); font-size: 8px; }
   .upload-track { height: 4px; margin-top: 10px; overflow: hidden; border-radius: 99px; background: var(--paper-deep); }
-  .upload-track span { display: block; height: 100%; border-radius: inherit; background: var(--forest); transition: width 180ms ease; }
+  .upload-track span { display: block; height: 100%; width: 100%; border-radius: inherit; background: var(--forest); transform-origin: left; transition: transform 180ms ease; }
   .upload-track.indeterminate span { width: 38% !important; animation: upload-indeterminate 1.1s ease-in-out infinite; }
   @keyframes upload-indeterminate { from { transform: translateX(-110%); } to { transform: translateX(285%); } }
   .upload-button { margin-top: 17px; }
@@ -1828,7 +1828,7 @@
   .calibration-version strong { color: #79562f; font-family: var(--serif); font-size: 27px; font-weight: 500; }
   .calibration-version span { margin-top: 2px; color: #88755e; font-size: 11px; }
   .calibration-progress { height: 4px; margin-top: 25px; overflow: hidden; border-radius: 99px; background: rgba(92, 77, 59, 0.1); }
-  .calibration-progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #bd844a, #34715d); transition: width 260ms ease; }
+  .calibration-progress span { display: block; height: 100%; width: 100%; border-radius: inherit; background: linear-gradient(90deg, #bd844a, #34715d); transform-origin: left; transition: transform 260ms ease; }
   .calibration-nav { display: flex; justify-content: space-between; gap: 18px; align-items: center; margin-top: 14px; }
   .calibration-nav > div:first-child { display: flex; gap: 6px; align-items: baseline; color: #81786c; font-size: 11px; }
   .calibration-nav strong { color: #584a3a; font-size: 14px; }
