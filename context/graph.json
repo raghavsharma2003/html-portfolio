@@ -3046,8 +3046,8 @@
   },
   {
    "src": "accent-joins-the-sky",
-   "rel": "caused_by",
-   "dst": "calendar-lottery-ceiling"
+   "rel": "part_of",
+   "dst": "sky-is-the-clock"
   }
  ]
 }
