@@ -13,7 +13,65 @@
 // could recite (context/rejected.md `recited-prompt`); fragments carry no
 // trailing/leading whitespace beyond what the core's template expects; a
 // sheet is a LEAF module — it may import nothing but this file.
-export interface CharacterSheet {
+
+/**
+ * The ARC-OVERRIDE seam (SPEC-GURUKUL.md §2, "Inherited with parameterization":
+ * *"Stage paragraphs / rituals / currency: the mechanisms stay; the content
+ * becomes sheet-suppliable optional overrides (absent → today's bytes,
+ * preserving the 83-fixture byte-identity gate for Maya)."*)
+ *
+ * Every field here is OPTIONAL and every one of them is read in persona.ts as
+ * `${C.field ?? DEFAULT}` (or `?? ""` for the two additive ones). A sheet that
+ * supplies none of them compiles to the byte the incumbent compiles today —
+ * that is the gate, not a hope: `scripts/check-prompt-budget.mjs` runs the
+ * 83-fixture byte-identity battery and Maya supplies none of these.
+ *
+ * WHY THE SEAM EXISTS AT ALL, stated so it is not widened by accident: the
+ * incumbent's relationship arc is a ROMANTIC-COMPANION arc — it escalates
+ * intimacy with message count and its boundary paragraph carries a live
+ * "warmth can deepen naturally" clause. A teacher clone whose users are
+ * mostly minors may not inherit that content (docs/gurukul/
+ * safety-floor-teacher.md §3.1: the clause is *deleted from the content*, not
+ * merely gated, because `GATE_CONFIG.unverified` can be misconfigured and two
+ * independent layers is the house rule). So these are not styling knobs. The
+ * three stage fields and `boundaryParagraph` are the four a teacher module
+ * MUST supply, and `teacherTypes.ts` re-declares all of them as required.
+ *
+ * Authoring law is unchanged and applies with extra force here, because these
+ * are the longest fragments a sheet can carry: `persona.ts`'s own core prose is
+ * instructional English and is exempt from the content-row lints
+ * (`shapelint.ts:10-18`), so a REPLACEMENT for a paragraph of it may be prose
+ * too — but every example inside it is a shape, a token list or an arrow
+ * diagram, never a clause the character could say (`context/rejected.md`
+ * `recited-prompt`, measured twice: 4/5 turns recited, and taste-as-sentences
+ * read out verbatim eight turns apart).
+ */
+export interface ArcOverrides {
+  /** replaces the stage-1 paragraph (msgCount < 30, dims new/warming) */
+  stageEarly?: string;
+  /** replaces the stage-2 paragraph (30 ≤ msgCount < 150, dims settled) */
+  stageGettingClose?: string;
+  /** replaces the stage-3 paragraph (msgCount ≥ 150, dims close/deep) */
+  stageEstablished?: string;
+  /** replaces the ROMANCE BOUNDARY paragraph wholesale — the one override
+   *  that is a safety delta rather than a character delta */
+  boundaryParagraph?: string;
+  /** the parenthesised SHAPES of a pattern worth christening, inside the
+   *  ritual bullet — the mechanism (india.ts `dueRituals`, 20h spacing,
+   *  cold_last exclusion) is untouched; only the examples are sheet content */
+  ritualPatternShapes?: string;
+  /** APPENDED to the never-name-what-they-have bullet (`?? ""`): the
+   *  ability-label ban, which a teaching relationship needs and a companion
+   *  one does not (docs/gurukul/teacher-arc.md §2.2 — handing a 16-year-old a
+   *  category for their own capability is a diagnosis, and a stickier one) */
+  abilityLabelBan?: string;
+  /** APPENDED to the specifics-not-volume win bullet (`?? ""`): praise the
+   *  METHOD, never the ability (teacher-arc.md §3.2 — the category of praise
+   *  changes what the student attempts next) */
+  winMethodRule?: string;
+}
+
+export interface CharacterSheet extends ArcOverrides {
   /** matches vy_agent.slug */
   slug: string;
   /** display name — every UI surface hangs off this (maya-rename-display-only) */
