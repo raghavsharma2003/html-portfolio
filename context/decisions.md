@@ -2577,3 +2577,22 @@ behavioral graders on both arms) — catches gross degradation without any
 judge, insufficient alone for "reads like the same person".
 Reverses when: a judge clears whatever bar is then in force, on a
 pre-registered run.
+
+## `owned-product-first` — strategy reweight after owner pushback (2026-08-25)
+
+Owner's read, adopted: tech-first platforms (AstroTalk-class) will default
+to building in-house in the AI age — selling tech integration to the
+tech-enabled is the weakest lane, and B2B sales cycles are the wrong
+spend for a solo founder. Strategy reweighted to OWNED products:
+(1) NRI elder companion — the one use case where heavy calling is
+cost-justified at today's API prices (payer earns USD, pays ₹1,499–2,499
+vs ₹400–600/mo COGS for daily calls; memory IS the product; ad channels
+open because it's elder-care, not "companion"); (2) global diaspora
+pricing (Maya at $10–20/mo abroad; Hinglish is a moat outside India —
+35M diaspora, no incumbent) + spoken-English partner (category exports:
+Stimuler is 40% LatAm); (3) B2B only opportunistically to NON-tech
+businesses; (4) India mass ₹600 waits for resident-GPU. Reverses if: an
+inbound B2B deal prices above the owned-product opportunity cost, or the
+elder wrapper's felt-quality bar proves harder than Maya's (elderly
+users, Hindi-first, higher safety sensitivity — needs its own testing
+wave before launch).

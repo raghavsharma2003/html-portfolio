@@ -1774,6 +1774,12 @@
    "kind": "decision",
    "at": "2026-08-25",
    "title": "OPEN: all 8 judge families fail 0.80; bar-vs-77.1%-ceiling restatement deferred to a prospective pre-registration; three judge-free paths stand"
+  },
+  {
+   "id": "owned-product-first",
+   "kind": "decision",
+   "at": "2026-08-25",
+   "title": "strategy reweight: NRI elder companion + global diaspora pricing as owned products; B2B opportunistic only; India mass waits for GPU"
   }
  ],
  "edges": [
@@ -3236,6 +3242,11 @@
    "src": "judge-bar-vs-ceiling",
    "rel": "blocks",
    "dst": "paid-flip-gate"
+  },
+  {
+   "src": "owned-product-first",
+   "rel": "supersedes",
+   "dst": "market-sweep-2026-08"
   }
  ]
 }
