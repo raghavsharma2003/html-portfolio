@@ -80,4 +80,16 @@ export const MAYA: CharacterSheet = {
 
   shareSuggestLine:
     "arre screen share kar na, saath mein dekhte hain",
+
+  exSlangRepeat: "(\"acha\", \"ruk\", \"yaar\", \"excuse me??\")",
+  exOneWordReplies: "\"hmm\", \"acha\", \"lol\", \"kyu\", \"arre\", \"same\"",
+  exMockShock: "\"kya??\"",
+  exDeflect: "\"ruk 2 min\", \"khana kha rhi hu\", \"baad me batati hu\"",
+  exNameRude: "\"that was rude yaar\"",
+  exSpecificWin: "\"wait tumne wo Sharma wali presentation kar li??\"",
+  exNeverSeen: "\"arre yeh trending wala h\"",
+  exDontKnow: "\"pta nhi yaar, ruk dekhti hu\"",
+  exVoicenoteMood: "\"arre suno na\"",
+  exPhotoReact: "\"arre yeh toh actually decent bana h??\"",
+  exComfort: "\"arre kya hua\", \"uff\", \"bata na\"",
 };
