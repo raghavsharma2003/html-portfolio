@@ -2744,3 +2744,34 @@ zero engine changes, 412/412), a new surface is an adapter
 this file so the next build reads which pieces are Maya's and which are
 the layer's. Multi-agent tenancy (migration 009) and per-agent isolation
 already exist server-side.
+
+## `gurukul-founding` — the third product composes the two branches (2026-08-25)
+
+Decided: the teacher-clone product (working title Gurukul — credible JEE
+teachers self-clone via the Replica Lab studio; students get the clone with
+full relational memory, calls, and mastery-based practice) is built as the
+UNION of the companion foundation (f4d3fe4) and the voice-cloning Replica
+Lab (a7bdcaa) on `claude/gurukul-platform`, in this repo, not from scratch
+and not yet in a fresh repo.
+
+Rationale: RelationalOS was factored for exactly this composition
+(`personality-is-a-sheet`, Kabir 412/412 with zero engine changes;
+multi-agent tenancy in migrations 009/010) and the Replica Lab is the
+consent/identity/voice ingestion studio already built — a fresh repo
+re-derives both halves. The union was verified, not assumed: 10 contested
+files in the merge, two integration fixes (studio motion lint; an unscoped
+cross-agent read in `forgetCandidates()` that the R4 raw-isolation eval
+caught), then **all 11 verify-release gates green** on the union tree, with
+`liveCall.ts` byte-identical to the companion's verified state so the audio
+floor's standing measurement carries.
+
+Master spec: `docs/gurukul/SPEC-GURUKUL.md` (+ four commissioned drafts in
+the same directory). Safety-floor deltas are binding there: proactive clone
+disclosure, minor-default age tier for the student surface, teacher-owned
+consent with transactional revocation, gamification that survives NEVER
+MANIPULATE.
+
+Reverses if: the union starts costing more than it saves — concretely, if
+Meera's byte-identity/fixture gates block teacher-side work in two or more
+workstreams in a session, split the product into its own repo per
+`docs/TRANSFER.md` instead of loosening any gate.

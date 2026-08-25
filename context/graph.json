@@ -1856,6 +1856,12 @@
       "kind": "decision",
       "at": "2026-08-24",
       "title": "The $2,000 Azure credit funds owned evaluation and bounded inference, not foundation pretraining"
+    },
+    {
+      "id": "gurukul-founding",
+      "kind": "decision",
+      "title": "the third product composes the two branches on claude/gurukul-platform",
+      "at": "2026-08-25"
     }
   ],
   "edges": [
@@ -3403,6 +3409,11 @@
       "src": "replica-azure-credit-is-an-eval-budget",
       "rel": "constrains",
       "dst": "replica-provider-portable"
+    },
+    {
+      "src": "gurukul-founding",
+      "rel": "caused_by",
+      "dst": "beyond-meera"
     }
   ]
 }
