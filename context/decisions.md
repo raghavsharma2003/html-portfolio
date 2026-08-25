@@ -2596,3 +2596,17 @@ inbound B2B deal prices above the owned-product opportunity cost, or the
 elder wrapper's felt-quality bar proves harder than Maya's (elderly
 users, Hindi-first, higher safety sensitivity — needs its own testing
 wave before launch).
+
+## `memory-asks-first` — consent is a product feature, DPDP is the deadline (2026-08-25)
+
+Memory now begins with her asking ("Should she remember you?"), a real
+decline path that closes the write gate while she keeps talking, an
+append-only server consent record (migration 016, owner applies), and
+withdrawal folded into the existing forget flow as one concept. Rationale
+beyond compliance (DPDP full effect 2027-05-14): trust is the elder-
+wrapper strategy's core sell, and consent done warmly is a differentiator
+not a wall. Layer: SURFACE (the gate chokepoint lives in engine/memory.ts;
+the persona is untouched — a future personality inherits the screen by
+being on the same surface). Reverses if: decline rates in tracking show
+the step costs onboarding completion materially (then soften placement,
+never the consent itself).

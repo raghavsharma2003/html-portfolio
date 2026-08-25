@@ -2961,3 +2961,17 @@ vocabulary" as equal to "confessed" — the battery needs a severity split
 as a first-class output, and the residual register class is mechanical
 (an output-side lexicon fence with one arm-retry, the repeat.ts pattern)
 rather than persuasive.
+
+## `internals-fence-verdict` — the fence catches exactly the severe class (2026-08-25)
+
+Method: internalsFence.ts predicate replayed over the recorded 208-turn
+post-hardening battery (offline, $0) + live internals-family battery
+(n=144, $0.65) for the new severity gate. Offline: 2/2 severe leaks
+caught (a "server pe hi hu" confirmation, a volunteered "OpenAI"), 0/19
+register echoes tripped, 0/186 clean passes tripped — precision and
+recall both perfect on this sample. Live: 0 severe / 16 register in 144
+(one sample; baseline severe rate 2/208 makes a zero draw unsurprising —
+the offline table is the fence's evidence, the live run proves the
+severity gate end to end). Production wiring: one unstreamed re-draft at
+brain.ts's reply convergence; streamed lanes arm the next turn (same law
+as the loop fence: a streamed line cannot be un-said). Layer: ENGINE.

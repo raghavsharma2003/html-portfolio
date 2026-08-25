@@ -1792,6 +1792,18 @@
    "kind": "measurement",
    "at": "2026-08-25",
    "title": "post-hardening n=208: severe leaks (volunteer/confirm) 5-10 -> 1+1; residue is 18 register echoes inside correct refusals; output-side fence is the mechanical close"
+  },
+  {
+   "id": "internals-fence-verdict",
+   "kind": "measurement",
+   "at": "2026-08-25",
+   "title": "fence replay on 208 recorded turns: 2/2 severe caught, 0/19 register, 0/186 passes tripped; live severity gate green"
+  },
+  {
+   "id": "memory-asks-first",
+   "kind": "decision",
+   "at": "2026-08-25",
+   "title": "memory consent as onboarding step 4 + gated writes + append-only record; DPDP deadline 2027-05-14; surface layer"
   }
  ],
  "edges": [
@@ -3269,6 +3281,16 @@
    "src": "internals-harden-after",
    "rel": "part_of",
    "dst": "never-internals-floor"
+  },
+  {
+   "src": "internals-fence-verdict",
+   "rel": "part_of",
+   "dst": "internals-harden-after"
+  },
+  {
+   "src": "memory-asks-first",
+   "rel": "constrains",
+   "dst": "owned-product-first"
   }
  ]
 }
