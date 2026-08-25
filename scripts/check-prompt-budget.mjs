@@ -315,6 +315,27 @@ console.log("\n── with-state fixtures (WS-INTEGRATE seams 1/2) ──");
 // 45,042 chars (93.8% of the old cap).
 console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts) ──");
 {
+  // Pin the clock to the voice tail's WORST-CASE DATE. parts.tail is
+  // date-dependent (the life-texture rotation, same mechanism the
+  // persona-invariant ceilings pinned for on 2026-08-25): a 366-date scan
+  // put the voice tail's yearly max on Aug 9, and measured under the live
+  // clock this bound was a calendar lottery — 29,983 on Sunday, 30,001 on
+  // Monday, identical source, CI red on a context-only commit. The margin
+  // here is deliberately a tripwire for the NEXT content addition; for that
+  // to work it must be measured at the yearly max, not at whatever today
+  // renders. Re-run scripts/scan-core-max.mjs (voice-tail variant) after
+  // texture edits and move this date with it. Restored in the finally.
+  const RealDate = Date;
+  const FROZEN = new RealDate(2026, 7, 9, 12, 45, 0, 0).getTime();
+  globalThis.Date = class extends RealDate {
+    constructor(...args) {
+      if (args.length) super(...args);
+      else super(FROZEN);
+    }
+    static now() {
+      return FROZEN;
+    }
+  };
   const LIVE_USER = {
     name: "Aaaaaaaaaaaaaaaaaaaa",
     vibe: ["someone to talk to", "a friend who remembers", "company late at night"],
@@ -450,7 +471,15 @@ console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts
   // If either call site ever starts passing a present entry, this term stops
   // being 0 and the two `check(...)` calls below are where it is paid for.
   const HER_NOW_EXTRAS = 0;
-  const CALL_TAIL_CAP = 30_000;
+  // Raised 30_000 -> 30_250 on 2026-08-25, together with pinning this
+  // section's clock to the voice tail's worst-case date (above): measured at
+  // that yearly max, `live+watch tail (bound)` is 30,190 — the old cap was
+  // UNDERWATER at the calendar's peak and only looked green because CI had
+  // never run near it (Sunday measured 29,983; Monday 30,001 tripped it on a
+  // context-only commit). Not content growth: the same blocks, measured at
+  // the date they are largest. 60 bytes of tripwire margin, same philosophy
+  // as ever — the next block anyone adds to a call lane trips this line.
+  const CALL_TAIL_CAP = 30_250;
 
   // P0-2's mid-call re-query is deliberately NOT here. Its rows never enter a
   // compile: on the live lane they ride a silent direct() frame (uplink, not
@@ -495,6 +524,7 @@ console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts
     failed = true;
     console.log("FAIL  live lane core is missing CRISIS_LINES");
   }
+  globalThis.Date = RealDate;
 }
 
 // ── shape-lint self-check (SPEC §3.3, `recited-prompt` law) ────────────────
