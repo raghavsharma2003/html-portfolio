@@ -2411,3 +2411,30 @@ per-registered-module on 4 lanes. **Reverses if** never for the rule; the
 DEFLECTION SHAPE may be tuned per measured felt-quality. Follow-up filed:
 a behavioral jailbreak battery (model-in-loop, needs budget) to measure
 hold-rate under real attack phrasings; the structural floor ships first.
+
+## `session-2026-08-25-close` — launch wave state at compaction
+
+Owner decisions this close: Play Store requisites DEFERRED (their words:
+"we don't have user-level logins and all, so much to do there" — the
+submission pack, signed-.aab CI, deletion page and screenshots all sit
+ready in docs/playstore/ + delivered files for whenever they resume).
+Everything shipped this session and its evidence lives in the entries
+above: residues-zero, never-internals-floor, accent-joins-the-sky, the
+three pin-ambient-inputs gate fixes, WS-OBS, keyring 51, openrouter
+per-key-limit correction, PR #3 merged to main, PR #4 open+green.
+
+THE MODEL STACK, recorded verbatim for the next session (from code, this
+commit): chat text = gemini-3.6-flash (free pool, 51 labeled keys, $0);
+chat fallback order gemini-free -> openrouter (same gemini via OpenRouter,
+~$14 credit, ~$0.0015/turn at 52KB) -> azure grant deployment
+grok-4-20-non-reasoning ($0 cash, $2k grant; also FIRST for attachments).
+Speech TTS = gemini-3.1-flash-tts-preview free pool ($0, ~4-5 clips/key/
+day), paid fallback google/gemini-3.1-flash-tts-preview via OpenRouter.
+Live calls = gemini-3.1-flash-live-preview (free pool mint, no same-kind
+fallback — degrades to the cascade). Consolidation audit =
+google/gemini-3.6-flash via OpenRouter. NOTE: gpt-4o is in NO lane —
+the incident was a hallucinated self-claim, now floored. gpt-5.6-terra
+is qualified as a RESEARCH JUDGE only (#57), not a serving lane: swapping
+a serving model changes the felt personality (the terra swap-test
+program, #51-58, exists to measure exactly that before any such move),
+and terra costs real cash per turn against a $0 grant lane.
