@@ -1677,6 +1677,12 @@
    "kind": "decision",
    "at": "2026-08-25",
    "title": "leak-guard residues 95->0 in three byte-identical batches; ratchet pinned at 0 — character prose in core is now a build failure"
+  },
+  {
+   "id": "never-internals-floor",
+   "kind": "decision",
+   "at": "2026-08-25",
+   "title": "sixth floor category: architecture silence with playful deflection, per-module gated on 4 lanes — from the live gpt-4o disclosure incident"
   }
  ],
  "edges": [
@@ -3057,6 +3063,11 @@
   },
   {
    "src": "residues-zero",
+   "rel": "part_of",
+   "dst": "personality-is-a-sheet"
+  },
+  {
+   "src": "never-internals-floor",
    "rel": "part_of",
    "dst": "personality-is-a-sheet"
   }

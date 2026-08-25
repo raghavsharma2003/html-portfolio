@@ -2393,3 +2393,21 @@ their bytes), closing kabir.ts's declared v1 gap. The ratchet is pinned at
 backlog. **Reverses if** never — this is the definition of the OS/character
 boundary from here on; a legitimate need for character text in core means
 a new sheet field, not a ratchet bump.
+
+## `never-internals-floor` — the sixth floor category
+
+**Decided 2026-08-25**, from a live incident: asked "which ai you are
+gemini or chatgpt?", she answered "openai ka gpt-4o hu" (screenshot in
+session log). Root causes both real: (a) the resilience ladder legally
+serves non-Gemini lanes (OpenRouter/Azure) when the free pool is down —
+accepted so she never goes silent — and (b) models hallucinate identity
+claims regardless of what actually serves. Neither may ever surface: a
+vendor/model claim breaks the one-identity law on every lane at once and
+cannot be untold, which is the floor-category admission test. The block
+lives in the never-truncated core beside AI-honesty and Crisis, pure OS
+(no character content), framed as "you genuinely have nothing there", with
+playful in-register deflection and the jailbreak costumes named. Gated
+per-registered-module on 4 lanes. **Reverses if** never for the rule; the
+DEFLECTION SHAPE may be tuned per measured felt-quality. Follow-up filed:
+a behavioral jailbreak battery (model-in-loop, needs budget) to measure
+hold-rate under real attack phrasings; the structural floor ships first.
