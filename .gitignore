@@ -47,3 +47,4 @@ evals/candidate/out/
 # must never reach a commit by way of `git add -A`.
 *-shots/
 evals/feltmem/out/
+.vercel
