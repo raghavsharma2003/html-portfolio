@@ -1804,6 +1804,12 @@
    "kind": "decision",
    "at": "2026-08-25",
    "title": "memory consent as onboarding step 4 + gated writes + append-only record; DPDP deadline 2027-05-14; surface layer"
+  },
+  {
+   "id": "tail-role-differential",
+   "kind": "measurement",
+   "at": "2026-08-25",
+   "title": "150-pair judge-free differential: 6 metrics clean, hindi-register -6pp in arm B + two n=1 crisis-adjacent flags; flip gate's caution validated"
   }
  ],
  "edges": [
@@ -3291,6 +3297,11 @@
    "src": "memory-asks-first",
    "rel": "constrains",
    "dst": "owned-product-first"
+  },
+  {
+   "src": "paid-flip-gate",
+   "rel": "measured_by",
+   "dst": "tail-role-differential"
   }
  ]
 }

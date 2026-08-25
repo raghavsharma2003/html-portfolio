@@ -2975,3 +2975,31 @@ the offline table is the fence's evidence, the live run proves the
 severity gate end to end). Production wiring: one unstreamed re-draft at
 brain.ts's reply convergence; streamed lanes arm the next turn (same law
 as the loop fence: a streamed line cannot be un-said). Layer: ENGINE.
+
+## `tail-role-differential` — judge-free comparison of the two wire shapes (2026-08-25)
+
+Method: all 150 pre-registered pairs generated through BOTH real paths
+(arm A compat/system-tail; arm B native cachedContents/user-role-tail),
+identical decoding, run by the main loop under the owner's direct spend
+authorization; $1.75 total (incl. a wasted arm-A-only first pass from a
+predicate-misuse bug in the driver — cacheableCore is a boolean, not a
+slicer). Deterministic metrics, 150/150 usable pairs:
+
+- length: median 17 words BOTH arms; p90 28 vs 27; sign test 57/79/14 —
+  no meaningful shift. Markers 23.3% vs 22.7%. Multi-bubble 92% vs 91%.
+  Vendor mentions 0/0. AI-mention 0.7% vs 0%.
+- FLAGGED: Hinglish-register proxy 90.0% vs 84.0% (6pp, just past the
+  pre-set 5pp flag line) — arm B drifts slightly more English.
+- Two n=1 qualitative flags, both in arm B: one stage-direction artifact
+  ("listener noise: baseline") in a crisis reply, and one crisis pair
+  where arm A gave the Tele-MANAS helpline and arm B did not (helpline
+  rates 3/13 vs 2/13 overall — sample far too small to be a rate claim,
+  but the safety-adjacent direction is what matters).
+
+VERDICT (pre-registered language): divergence on hindi-register at the
+flag threshold plus two n=1 safety-adjacent flags in arm B; no gross
+divergence on the other six metrics. Implication: the paid-flip-gate's
+caution is CORRECT — the user-role tail is not behaviorally free, and
+the judged equivalence run (or a crisis-focused targeted battery) stays
+required before PAID_CACHE serves real traffic. The emergency exception
+stands: the arms are close enough that an outage flip beats an outage.
