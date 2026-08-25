@@ -2,8 +2,10 @@
 // agents and Maya's sheet so the guard scans the REAL tree, not a copy.
 export { meeraAgent } from "../../src/engine/agents/meera";
 export { kabirAgent } from "../../src/engine/agents/kabir";
+export { demoTeacherAgent } from "../../src/engine/agents/teacher";
 export { MAYA } from "../../src/engine/agents/characters/maya";
 export { KABIR } from "../../src/engine/agents/characters/kabir";
+export { DEMO_TEACHER } from "../../src/engine/agents/characters/demoTeacher";
 // R3 tail: the call/watch directives are OS constants every agent's call
 // lane ships verbatim — so they are lanes the leak guard must scan too.
 export {
