@@ -4,10 +4,16 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/chat", "destination": "/chat.html" },
+    { "source": "/studio", "destination": "/studio.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/delete-account", "destination": "/delete-account.html" }
   ],
   "crons": [
-    { "path": "/api/consolidate-sweep", "schedule": "0 * * * *" }
+    { "path": "/api/consolidate-sweep", "schedule": "0 * * * *" },
+    { "path": "/api/replica-erasure-sweep", "schedule": "*/10 * * * *" },
+    { "path": "/api/replica-liveness-sweep", "schedule": "*/5 * * * *" },
+    { "path": "/api/replica-identity-sweep", "schedule": "*/5 * * * *" },
+    { "path": "/api/replica-face-session-sweep", "schedule": "*/5 * * * *" },
+    { "path": "/api/replica-model-build-sweep", "schedule": "*/5 * * * *" }
   ]
 }

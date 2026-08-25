@@ -38,8 +38,8 @@ export async function makeFixturePerson() {
  *  a content marker — see teardown()/assertZeroResidue(). */
 export async function insertLogRow(deviceId, { content, at, role = "me" }) {
   const [{ id }] = await q(
-    `insert into meera_log (device_id, role, channel, kind, content, at) values ($1,$2,'chat','text',$3,$4) returning id`,
-    [deviceId, role, content, at.toISOString()],
+    `insert into meera_log (device_id, role, channel, kind, content, at, agent_id) values ($1,$2,'chat','text',$3,$4,($5)::uuid) returning id`,
+    [deviceId, role, content, at.toISOString(), MEERA_AGENT_ID],
   );
   return id;
 }
@@ -55,7 +55,7 @@ export async function insertEpisode(personId, deviceId, { logFrom, logTo, starte
      returning id`,
     [personId, deviceId, startedAt.toISOString(), logFrom, logTo, `${MARKER}: ${summary}`, JSON.stringify(affect), importance, MEERA_AGENT_ID],
   );
-  await q(`update meera_log set episode_id = $1 where device_id = $2 and id between $3 and $4`, [id, deviceId, logFrom, logTo]);
+  await q(`update meera_log set episode_id = $1 where device_id = $2 and id between $3 and $4 and agent_id = ($5)::uuid`, [id, deviceId, logFrom, logTo, MEERA_AGENT_ID]);
   return id;
 }
 

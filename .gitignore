@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+__pycache__/
+*.py[cod]
 
 # Editor directories and files
 .vscode/*
@@ -45,6 +47,7 @@ evals/candidate/out/
 # must never reach a commit by way of `git add -A`.
 *-shots/
 evals/feltmem/out/
+.vercel
 
 # WS-SOUND's build directory. evals/sound.mjs re-bundles src/sound/ from the
 # REAL source on every run (same discipline as evals/run.mjs: a frozen bundle

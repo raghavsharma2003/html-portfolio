@@ -10,9 +10,9 @@
 // column and nothing for recall to filter, because a memory that is still in
 // the table is still a memory — the row is gone. The single exception is
 // meera_forget, which stores the WORD and nothing else, for the one reason
-// documented at noteForgotten(). Every statement in here is scoped by
-// device_id: the device is the identity, so a device can only ever delete
-// its own rows.
+// documented at noteForgotten(). Migration 018 makes the raw relationship
+// substrate `(agent_id, device_id)` scoped: a device identifies the human and
+// agent_id identifies which relationship may read or mutate the row.
 
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
@@ -139,14 +139,14 @@ export const LOG_CHANNELS = new Set(["chat", "call", "watch"]);
  *  that pins the two together. */
 export const RECALL_T5_BUDGET = 6_000;
 
-async function opLog(device, body) {
+async function opLog(device, body, agentId = MEERA_AGENT_ID) {
   const turns = (Array.isArray(body.turns) ? body.turns : []).slice(0, 30);
   if (!turns.length) return { ok: true };
   const values = [];
   const params = [];
   let p = 1;
   for (const t of turns) {
-    values.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
+    values.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},${agentValue(`$${p++}`)})`);
     params.push(
       device,
       t.role === "her" ? "her" : "me",
@@ -170,6 +170,7 @@ async function opLog(device, body) {
       typeof t.kind === "string" ? t.kind.slice(0, 20) : "text",
       String(t.content || "").slice(0, 4000),
       Number.isFinite(t.at) ? new Date(t.at).toISOString() : new Date().toISOString(),
+      agentId,
     );
   }
   // WS-TRACE: `returning id` makes the trace's link to CONTENT a reference
@@ -183,7 +184,7 @@ async function opLog(device, body) {
   // rather than a standard guarantee, which is why `role` and `at` ride along:
   // a caller that needs certainty can match on those instead of on position.
   const inserted = await q(
-    `insert into meera_log (device_id, role, channel, kind, content, at) values ${values.join(",")}
+    `insert into meera_log (device_id, role, channel, kind, content, at, agent_id) values ${values.join(",")}
      returning id, role, at`,
     params,
   );
@@ -737,7 +738,8 @@ async function opRecall(device, body) {
   const fetches = [
     q(
       `with scored as (
-         select ${COLS}, salience, ${RANK} as r from meera_nodes where device_id = $1
+         select ${COLS}, salience, ${RANK} as r from meera_nodes n where device_id = $1
+           ${agentScopePredicate("n", { agentId: "$2" })}
        ),
        ranked as (select *, 0 as slot from scored order by r desc, updated_at desc limit 5),
        reserved as (
@@ -747,13 +749,13 @@ async function opRecall(device, body) {
           order by s.created_at asc limit 1
        )
        select * from ranked union all select * from reserved`,
-      [device],
+      [device, agentId],
     ),
   ];
   if (words.length) {
     const clauses = [];
-    const params = [device];
-    let p = 2;
+    const params = [device, agentId];
+    let p = 3;
     for (const w of words) {
       // word-boundary match, not substring: `ilike '%rate%'` hits "corporate"
       // and hands her a memory the message never referred to
@@ -763,7 +765,9 @@ async function opRecall(device, body) {
     }
     fetches.push(
       q(
-        `select ${COLS} from meera_nodes where device_id = $1 and (${clauses.join(" or ")})
+        `select ${COLS} from meera_nodes n where device_id = $1
+           ${agentScopePredicate("n", { agentId: "$2" })}
+           and (${clauses.join(" or ")})
          order by ${RANK} desc, updated_at desc limit 8`,
         params,
       ).catch(() => []),
@@ -1169,8 +1173,10 @@ async function opRecall(device, body) {
 
   const idArr = [...seen.keys()];
   const edges = await q(
-    `select * from meera_edges where device_id = $1 and (src = any($2) or dst = any($2)) limit 30`,
-    [device, idArr],
+    `select * from meera_edges e where device_id = $1
+      ${agentScopePredicate("e", { agentId: "$3" })}
+      and (src = any($2) or dst = any($2)) limit 30`,
+    [device, idArr, agentId],
   ).catch(() => []);
 
   // resolve neighbor names outside the recalled set
@@ -1182,8 +1188,10 @@ async function opRecall(device, body) {
   const names = new Map([...seen].map(([id, n]) => [id, n.name]));
   if (missing.size) {
     const extra = await q(
-      `select id, name from meera_nodes where device_id = $1 and id = any($2)`,
-      [device, [...missing]],
+      `select id, name from meera_nodes n where device_id = $1
+        ${agentScopePredicate("n", { agentId: "$3" })}
+        and id = any($2)`,
+      [device, [...missing], agentId],
     ).catch(() => []);
     for (const n of Array.isArray(extra) ? extra : []) names.set(n.id, n.name);
   }
@@ -1389,10 +1397,12 @@ async function opRecall(device, body) {
   }
 
   // touch recall time (awaited — serverless kills post-response work)
-  await q(`update meera_nodes set last_recalled = now() where device_id = $1 and id = any($2)`, [
-    device,
-    idArr,
-  ]).catch(() => {});
+  await q(
+    `update meera_nodes n set last_recalled = now() where device_id = $1
+      ${agentScopePredicate("n", { agentId: "$3" })}
+      and id = any($2)`,
+    [device, idArr, agentId],
+  ).catch(() => {});
 
   // ── T5's byte ceiling, enforced HERE, by dropping whole blocks ──────────
   //
@@ -1650,6 +1660,7 @@ export function nonLaunderedNodes(nodes, recent) {
 }
 
 async function opRemember(device, body) {
+  const agentId = MEERA_AGENT_ID;
   const recent = (Array.isArray(body.recent) ? body.recent : []).slice(-16);
   if (recent.length < 2) return { ok: true, extracted: 0 };
   // LOAD-BEARING INVARIANT — DO NOT "IMPROVE" THIS MAP.
@@ -1797,8 +1808,10 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
   // Checked against name AND summary, because a term filtered out of the
   // name walks straight back in through the summary.
   const forgotten = await q(
-    `select term from meera_forget where device_id = $1 order by at desc limit ${FORGET_TERMS_CAP}`,
-    [device],
+    `select term from meera_forget f where device_id = $1
+      ${agentScopePredicate("f", { agentId: "$2" })}
+      order by at desc limit ${FORGET_TERMS_CAP}`,
+    [device, agentId],
   ).catch(() => []);
   const suppressed = (Array.isArray(forgotten) ? forgotten : []).map((r) => termRe(String(r.term)));
   const kept = suppressed.length
@@ -1808,8 +1821,10 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
 
   // split into existing (bump) vs new (insert)
   const existing = await q(
-    `select id, name, mentions, salience, feel from meera_nodes where device_id = $1 and name = any($2)`,
-    [device, kept.map((n) => n.name)],
+    `select id, name, mentions, salience, feel from meera_nodes n where device_id = $1
+      ${agentScopePredicate("n", { agentId: "$3" })}
+      and name = any($2)`,
+    [device, kept.map((n) => n.name), agentId],
   ).catch(() => []);
   const byName = new Map((Array.isArray(existing) ? existing : []).map((n) => [n.name, n]));
 
@@ -1819,7 +1834,8 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
     if (ex) {
       idOf.set(n.name, ex.id);
       await q(
-        `update meera_nodes set summary = $1, mentions = $2, salience = $3, feel = $4, updated_at = now() where id = $5`,
+        `update meera_nodes n set summary = $1, mentions = $2, salience = $3, feel = $4, updated_at = now()
+          where id = $5 ${agentScopePredicate("n", { agentId: "$6" })}`,
         [
           n.summary,
           (ex.mentions || 1) + 1,
@@ -1829,6 +1845,7 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
           Math.min(10, (ex.salience || 1) + (n.feel ? 1.0 : 0.6)),
           n.feel || ex.feel || "",
           ex.id,
+          agentId,
         ],
       ).catch(() => {});
     }
@@ -1836,8 +1853,9 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
   const fresh = kept.filter((n) => !byName.has(n.name));
   for (const n of fresh) {
     const ins = await q(
-      `insert into meera_nodes (device_id, kind, name, summary, feel, salience) values ($1,$2,$3,$4,$5,$6) returning id, name`,
-      [device, n.kind, n.name, n.summary, n.feel, n.feel ? 1.6 : 1.0],
+      `insert into meera_nodes (device_id, kind, name, summary, feel, salience, agent_id)
+       values ($1,$2,$3,$4,$5,$6,${agentValue("$7")}) returning id, name`,
+      [device, n.kind, n.name, n.summary, n.feel, n.feel ? 1.6 : 1.0, agentId],
     ).catch(() => []);
     if (ins[0]) idOf.set(ins[0].name, ins[0].id);
   }
@@ -1852,12 +1870,13 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
     }));
   for (const e of edges) {
     await q(
-      `insert into meera_edges (device_id, src, dst, relation)
-       select $1, $2, $3, $4
+      `insert into meera_edges (device_id, src, dst, relation, agent_id)
+       select $1, $2, $3, $4, ${agentValue("$5")}
        where not exists (
-         select 1 from meera_edges where device_id = $1 and src = $2 and dst = $3 and relation = $4
+         select 1 from meera_edges x where device_id = $1 and src = $2 and dst = $3 and relation = $4
+           ${agentScopePredicate("x", { agentId: "$5" })}
        )`,
-      [device, e.src, e.dst, e.relation],
+      [device, e.src, e.dst, e.relation, agentId],
     ).catch(() => {});
   }
 
@@ -1871,18 +1890,19 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
   // state on purpose: rel-state events and patterns are NEVER written from
   // 16-turn context — only episodes and facts are.
   try {
-    const agentId = MEERA_AGENT_ID;
     const person = await personIdFor(device);
     // meera_log is ground truth for the channel; the client contract this
     // op was built against (src/engine/memory.ts, frozen elsewhere) never
     // sent one, so the true value is read off the row that was just logged
     // rather than guessed.
     const latestLog = await q(
-      `select channel from meera_log where device_id = $1 order by id desc limit 1`,
-      [device],
+      `select channel from meera_log l where device_id = $1
+        ${agentScopePredicate("l", { agentId: "$2" })}
+        order by id desc limit 1`,
+      [device, agentId],
     ).catch(() => []);
     const channel = latestLog[0]?.channel === "call" ? "call" : "chat";
-    const ep = await openOrExtendEpisode(person, device, channel);
+    const ep = await openOrExtendEpisode(person, device, channel, { agentId });
     if (ep) {
       const bits = [...kept.slice(0, 3).map((n) => n.name), ...self.slice(0, 2).map((s) => s.slice(0, 30))];
       const summary = (bits.length ? bits.join(", ") : "chat stretch").slice(0, 110);
@@ -2063,8 +2083,10 @@ async function opActivity(device, body) {
     // "bhool ja wo chess wali baat" would be undone by the next reconciler
     // pass on any device. A forget has to survive the thing that produced it.
     const forgotten = await q(
-      `select term from meera_forget where device_id = $1 order by at desc limit ${FORGET_TERMS_CAP}`,
-      [device],
+      `select term from meera_forget f where device_id = $1
+        ${agentScopePredicate("f", { agentId: "$2" })}
+        order by at desc limit ${FORGET_TERMS_CAP}`,
+      [device, agentId],
     ).catch(() => []);
     const suppressed = (Array.isArray(forgotten) ? forgotten : []).map((r) => termRe(String(r.term)));
     if (suppressed.some((rx) => rx.test(summary) || rx.test(kind))) {
@@ -2166,22 +2188,27 @@ const FORGET_TERMS_CAP = 200;
 // recall, never joined into a prompt, and its only consumer is the filter in
 // opRemember. Scope "all" deletes it too, since a list of things they wanted
 // gone is itself a record of them.
-async function noteForgotten(device, terms) {
+async function noteForgotten(device, terms, agentId = MEERA_AGENT_ID) {
   const clean = [
     ...new Set(terms.map((t) => String(t || "").trim().toLowerCase()).filter((t) => t.length >= 3)),
   ].slice(0, 12);
   for (const t of clean) {
     await q(
-      `insert into meera_forget (device_id, term) values ($1,$2)
-       on conflict (device_id, lower(term)) do nothing`,
-      [device, t.slice(0, 60)],
+      `insert into meera_forget (device_id, term, agent_id)
+       values ($1,$2,${agentValue("$3")})
+       on conflict (agent_id, device_id, lower(term)) do nothing`,
+      [device, t.slice(0, 60), agentId],
     ).catch(() => {});
   }
   if (!clean.length) return;
   await q(
-    `delete from meera_forget where device_id = $1 and id not in (
-       select id from meera_forget where device_id = $1 order by at desc limit ${FORGET_TERMS_CAP})`,
-    [device],
+    `delete from meera_forget f where device_id = $1
+       ${agentScopePredicate("f", { agentId: "$2" })}
+       and id not in (
+         select id from meera_forget k where device_id = $1
+           ${agentScopePredicate("k", { agentId: "$2" })}
+         order by at desc limit ${FORGET_TERMS_CAP})`,
+    [device, agentId],
   ).catch(() => {});
 }
 
@@ -2248,11 +2275,10 @@ async function noteForgotten(device, terms) {
 //
 // ── the agent layer (SPEC-AGENT-LAYER §2, §6) — one additive field ─────────
 //
-//   `agent`      — true on every table migration 009 gave an agent_id, i.e.
-//                  every table that holds THE RELATIONSHIP rather than the
-//                  person. It is a MARKER, not a filter: nothing in the wipe
-//                  loop reads it, and it deliberately changes nothing about
-//                  full-wipe behaviour.
+//   `agent`      — true on every relationship table migrations 009/018 gave
+//                  an agent_id. It is a MARKER, not a filter: nothing in the
+//                  whole-person wipe loop reads it, and it deliberately
+//                  changes nothing about full-wipe behaviour.
 //
 // That last sentence is the whole design. A full wipe of a person deletes
 // their rows across ALL agents — it is their data, not the agent's — so the
@@ -2275,11 +2301,11 @@ async function noteForgotten(device, terms) {
 // takes its scope from the episode it points at, so an agent_id on it would be
 // a second, forgeable copy of a fact the join already carries.
 export const PERSON_TABLES = [
-  { table: "meera_log",         key: "device_id", lane: "legacy",
+  { table: "meera_log",         key: "device_id", lane: "legacy", agent: true,
     keys: ["device_id", "speaker_person_id"] },
-  { table: "meera_nodes",       key: "device_id", lane: "legacy" },
-  { table: "meera_edges",       key: "device_id", lane: "legacy" },
-  { table: "meera_forget",      key: "device_id", lane: "legacy" },
+  { table: "meera_nodes",       key: "device_id", lane: "legacy", agent: true },
+  { table: "meera_edges",       key: "device_id", lane: "legacy", agent: true },
+  { table: "meera_forget",      key: "device_id", lane: "legacy", agent: true },
   { table: "meera_tel",         key: "device_id", lane: "legacy" },
   { table: "meera_tel_session", key: "device_id", lane: "legacy" },
   // The call-path audit trail. meera_tel's own schema note says telemetry "is
@@ -3055,11 +3081,13 @@ async function rebuildRelState(person, agentId = MEERA_AGENT_ID) {
 
 // an orphaned edge is a relation between two things that no longer exist —
 // it survives every node-level delete unless it is chased explicitly
-async function dropEdgesFor(device, ids) {
+async function dropEdgesFor(device, ids, agentId = MEERA_AGENT_ID) {
   if (!ids.length) return 0;
   const gone = await q(
-    `delete from meera_edges where device_id = $1 and (src = any($2) or dst = any($2)) returning id`,
-    [device, ids],
+    `delete from meera_edges e where device_id = $1
+      ${agentScopePredicate("e", { agentId: "$3" })}
+      and (src = any($2) or dst = any($2)) returning id`,
+    [device, ids, agentId],
   ).catch(() => []);
   return gone.length;
 }
@@ -3602,6 +3630,10 @@ export async function askForgetHook(marker, candidates) {
 //   day     — one calendar day in their timezone.
 //   all     — every row this device has, including the suppression list.
 async function opForget(device, body) {
+  // The public legacy endpoint is Meera-only. A replica runtime must enter
+  // through an authenticated server-side binding before this becomes a
+  // parameter; request JSON is never an authority for an agent id.
+  const agentId = MEERA_AGENT_ID;
   const scope = ["item", "session", "day", "all"].includes(body.scope) ? body.scope : "";
   if (!scope) return { error: "unknown scope" };
 
@@ -3631,7 +3663,8 @@ async function opForget(device, body) {
   const person = await personIdFor(device);
   const LOG = (await activePersonTables()).find((t) => t.table === "meera_log");
   const logOwner = keysOf(LOG).map((k, i) => `${k} = $${i + 1}`).join(" or ");
-  const logOwnerVals = wipeParams(LOG, { device, person });
+  const logOwnerVals = [...wipeParams(LOG, { device, person }), agentId];
+  const logAgentP = `$${logOwnerVals.length}`;
   const logP = (n) => `$${logOwnerVals.length + n}`; // 1-based extra params
 
   if (scope === "item") {
@@ -3689,14 +3722,16 @@ async function opForget(device, body) {
     // this law, so the hook may only ever ADD to what the lexical predicate
     // already found. A hook that picks nothing degrades exactly to today.
     nodeRows = await q(
-      `delete from meera_nodes where device_id = $1
-         and ((name = $2 or name ~* $3 or summary ~* $3) or id::text = any($4))
+      `delete from meera_nodes n where device_id = $1
+       ${agentScopePredicate("n", { agentId: "$5" })}
+       and ((name = $2 or name ~* $3 or summary ~* $3) or id::text = any($4))
        returning id, name`,
-      [device, name, rx, hookIds],
+      [device, name, rx, hookIds, agentId],
     );
-    edges = await dropEdgesFor(device, nodeRows.map((n) => n.id));
+    edges = await dropEdgesFor(device, nodeRows.map((n) => n.id), agentId);
     logRows = await q(
-      `delete from meera_log where (${logOwner}) and content ~* ${logP(1)} returning id`,
+      `delete from meera_log where (${logOwner}) and agent_id = (${logAgentP})::uuid
+       and content ~* ${logP(1)} returning id`,
       [...logOwnerVals, rxWide],
     );
     telemetry = await purgeTelemetry(device, { rx: rxWide });
@@ -3730,7 +3765,8 @@ async function opForget(device, body) {
     const b = new Date(to).toISOString();
     const chan = body.channel === "call" ? "call" : body.channel === "chat" ? "chat" : null;
     logRows = await q(
-      `delete from meera_log where (${logOwner}) and at >= ${logP(1)} and at < ${logP(2)}${chan ? ` and channel = ${logP(3)}` : ""}
+      `delete from meera_log where (${logOwner}) and agent_id = (${logAgentP})::uuid
+       and at >= ${logP(1)} and at < ${logP(2)}${chan ? ` and channel = ${logP(3)}` : ""}
        returning id`,
       chan ? [...logOwnerVals, a, b, chan] : [...logOwnerVals, a, b],
     );
@@ -3740,14 +3776,18 @@ async function opForget(device, body) {
     // it. Taking too much here is the safe direction; leaving the stretch
     // standing in summary form is not.
     nodeRows = await q(
-      `delete from meera_nodes where device_id = $1 and updated_at >= $2 and updated_at < $3
+      `delete from meera_nodes n where device_id = $1
+       ${agentScopePredicate("n", { agentId: "$4" })}
+       and updated_at >= $2 and updated_at < $3
        returning id, name`,
-      [device, a, b],
+      [device, a, b, agentId],
     );
-    edges = await dropEdgesFor(device, nodeRows.map((n) => n.id));
+    edges = await dropEdgesFor(device, nodeRows.map((n) => n.id), agentId);
     const inWindow = await q(
-      `delete from meera_edges where device_id = $1 and created_at >= $2 and created_at < $3 returning id`,
-      [device, a, b],
+      `delete from meera_edges e where device_id = $1
+       ${agentScopePredicate("e", { agentId: "$4" })}
+       and created_at >= $2 and created_at < $3 returning id`,
+      [device, a, b, agentId],
     ).catch(() => []);
     edges += inWindow.length;
     // The whole window goes, not just the events whose area matches `channel`.
@@ -3779,13 +3819,28 @@ async function opForget(device, body) {
     // sweep already took returns nothing and adds nothing.
     photos += await deletePhotoObjects(device, relational?.photoNames);
   } else {
-    logRows = await q(`delete from meera_log where ${logOwner} returning id`, logOwnerVals);
-    nodeRows = await q(`delete from meera_nodes where device_id = $1 returning id, name`, [device]);
-    const e = await q(`delete from meera_edges where device_id = $1 returning id`, [device]).catch(
+    logRows = await q(
+      `delete from meera_log where (${logOwner}) and agent_id = (${logAgentP})::uuid returning id`,
+      logOwnerVals,
+    );
+    nodeRows = await q(
+      `delete from meera_nodes n where device_id = $1
+       ${agentScopePredicate("n", { agentId: "$2" })} returning id, name`,
+      [device, agentId],
+    );
+    const e = await q(
+      `delete from meera_edges e where device_id = $1
+       ${agentScopePredicate("e", { agentId: "$2" })} returning id`,
+      [device, agentId],
+    ).catch(
       () => [],
     );
     edges = e.length;
-    await q(`delete from meera_forget where device_id = $1`, [device]).catch(() => {});
+    await q(
+      `delete from meera_forget f where device_id = $1
+       ${agentScopePredicate("f", { agentId: "$2" })}`,
+      [device, agentId],
+    ).catch(() => {});
     // a wipe takes telemetry outright, rollup included — rule 3
     telemetry = await purgeTelemetry(device, { all: true });
     // P2-1: and the whole synced row. This is the one that made "forget
@@ -3808,7 +3863,7 @@ async function opForget(device, body) {
     // phrases and currency topics join the list, so neither the extractor
     // nor the M3 consolidator can re-derive what the cascade just took
     if (relational?.terms?.length) terms.push(...relational.terms);
-    await noteForgotten(device, terms);
+    await noteForgotten(device, terms, agentId);
   }
 
   if (relational) delete relational.terms; // suppression list never leaves the server

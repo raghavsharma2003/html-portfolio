@@ -247,9 +247,9 @@ try {
   // HER turns, so `deriveTexture` has something real to count.
   for (const [i, text] of SELF_HER_TURNS.entries()) {
     await q(
-      `insert into meera_log (device_id, role, channel, kind, content, at)
-       values (($1)::uuid, 'her', 'chat', 'text', $2, $3::timestamptz)`,
-      [SELF_D1, text, daysAgo(30 - i * 0.5)],
+      `insert into meera_log (device_id, role, channel, kind, content, at, agent_id)
+       values (($1)::uuid, 'her', 'chat', 'text', $2, $3::timestamptz, ($4)::uuid)`,
+      [SELF_D1, text, daysAgo(30 - i * 0.5), SELF_AGENT],
     );
   }
   // THE REAL DERIVER AND THE REAL WRITER. Not an insert: an inserted texture

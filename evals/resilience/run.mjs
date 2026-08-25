@@ -35,7 +35,7 @@
 
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -92,9 +92,9 @@ const {
   SAME_KEY_RETRIES,
   BACKOFF_MIN_MS,
   BACKOFF_MAX_MS,
-} = await import(join(ROOT, "api", "_lanes.js"));
-const { walkKeys, poolSize } = await import(join(ROOT, "api", "_gkeys.js"));
-const { normalizeDocs, extractPdfText } = await import(join(ROOT, "api", "_docs.js"));
+} = await import(pathToFileURL(join(ROOT, "api", "_lanes.js")).href);
+const { walkKeys, poolSize } = await import(pathToFileURL(join(ROOT, "api", "_gkeys.js")).href);
+const { normalizeDocs, extractPdfText } = await import(pathToFileURL(join(ROOT, "api", "_docs.js")).href);
 
 let pass = 0;
 let fail = 0;
@@ -466,7 +466,7 @@ section("── (d)+(e) the whole ladder, through the real handler ──");
   // The real api/chat.js handler, with `globalThis.fetch` replaced. Nothing
   // here touches the network: an unmatched URL is a hard failure, so a lane
   // reaching an unexpected host cannot pass quietly.
-  const chat = await import(join(ROOT, "api", "chat.js"));
+  const chat = await import(pathToFileURL(join(ROOT, "api", "chat.js")).href);
   const handler = chat.default;
 
   const realFetch = globalThis.fetch;
@@ -686,7 +686,7 @@ section("── (e) the canned pair never repeats ──");
       `--outfile=${bundle} --log-level=error --alias:@capacitor/core=${join(ROOT, "evals/stubs/capacitor.mjs")}`,
     { stdio: "inherit", cwd: ROOT },
   );
-  const B = await import(bundle);
+  const B = await import(pathToFileURL(bundle).href);
 
   for (const [modeName, pool] of [["chat", B.OOPS_CHAT], ["call", B.OOPS_CALL]]) {
     ok(`${modeName}: more than three variants exist to draw from`, pool.length >= 5, `${pool.length} variants`);
@@ -746,7 +746,7 @@ section("── the batch upload (WS-COMPOSER handoff) ──");
   // storage API mocked. Five pictures used to cost five round trips because the
   // batch shape had no `data` and fell into `{error:"empty"}`; the client's
   // fallback made that WORK, which is why nothing failed and nothing was fast.
-  const mem = await import(join(ROOT, "api", "memory.js"));
+  const mem = await import(pathToFileURL(join(ROOT, "api", "memory.js")).href);
   const realFetch2 = globalThis.fetch;
   let puts = [];
   let deletes = [];
@@ -854,7 +854,7 @@ section("── the history path: five pictures must still be five pictures ─�
       `--outfile=${b2} --log-level=error --alias:@capacitor/core=${join(ROOT, "evals/stubs/capacitor.mjs")}`,
     { stdio: "inherit", cwd: ROOT },
   );
-  const T = await import(b2);
+  const T = await import(pathToFileURL(b2).href);
   const imgs5 = ["u1", "u2", "u3", "u4", "u5"];
   const countParts = (turns, type) =>
     turns.reduce(

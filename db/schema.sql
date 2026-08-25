@@ -1065,3 +1065,953 @@ create unique index if not exists vy_currency_person_compat_ix on vy_currency (p
 alter table vy_india_profile drop constraint if exists vy_india_profile_pkey;
 alter table vy_india_profile add constraint vy_india_profile_pkey primary key (agent_id, person_id);
 create unique index if not exists vy_india_profile_person_compat_ix on vy_india_profile (person_id);
+
+-- Migration 018 -- hard agent ownership for the raw RelationalOS substrate.
+-- Existing rows belong to Meera. Defaults preserve rolling-deploy compatibility
+-- for historical utilities; production writers name agent_id explicitly.
+
+alter table meera_log add column if not exists agent_id uuid;
+alter table meera_log alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update meera_log set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table meera_log alter column agent_id set not null;
+create index if not exists meera_log_agent_device_ix on meera_log (agent_id, device_id, id);
+create index if not exists meera_log_agent_pending_ix on meera_log (agent_id, device_id, id) where episode_id is null;
+
+alter table meera_nodes add column if not exists agent_id uuid;
+alter table meera_nodes alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update meera_nodes set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table meera_nodes alter column agent_id set not null;
+create index if not exists meera_nodes_agent_device_name_ix on meera_nodes (agent_id, device_id, name);
+create index if not exists meera_nodes_agent_device_salience_ix on meera_nodes (agent_id, device_id, salience desc, updated_at desc);
+
+alter table meera_edges add column if not exists agent_id uuid;
+alter table meera_edges alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update meera_edges set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table meera_edges alter column agent_id set not null;
+create index if not exists meera_edges_agent_device_ix on meera_edges (agent_id, device_id, src, dst);
+
+alter table meera_forget add column if not exists agent_id uuid;
+alter table meera_forget alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update meera_forget set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table meera_forget alter column agent_id set not null;
+drop index if exists meera_forget_device_term;
+create unique index if not exists meera_forget_agent_device_term_ix on meera_forget (agent_id, device_id, lower(term));
+create index if not exists meera_forget_agent_device_at_ix on meera_forget (agent_id, device_id, at desc);
+
+create table if not exists meera_consolidate_lease (
+  agent_id  uuid not null default 'a0000000-0000-4000-8000-000000000001'::uuid,
+  person_id uuid not null,
+  leased_at timestamptz not null default now(),
+  leased_by text not null default '',
+  run_id    text,
+  primary key (agent_id, person_id)
+);
+alter table meera_consolidate_lease add column if not exists agent_id uuid;
+alter table meera_consolidate_lease alter column agent_id set default 'a0000000-0000-4000-8000-000000000001'::uuid;
+update meera_consolidate_lease set agent_id = 'a0000000-0000-4000-8000-000000000001'::uuid where agent_id is null;
+alter table meera_consolidate_lease alter column agent_id set not null;
+alter table meera_consolidate_lease drop constraint if exists meera_consolidate_lease_pkey;
+alter table meera_consolidate_lease add constraint meera_consolidate_lease_pkey primary key (agent_id, person_id);
+create index if not exists meera_consolidate_lease_expiry_ix on meera_consolidate_lease (leased_at);
+
+-- Migration 033 - provider-specific voice-talent consent evidence.
+alter table vy_replica_source
+  drop constraint if exists vy_replica_source_capture_mode_check,
+  add constraint vy_replica_source_capture_mode_check
+    check (capture_mode in ('live_challenge','provider_consent','upload','import','derived'));
+
+create table if not exists vy_replica_provider_consent (
+  provider_consent_id uuid primary key,
+  replica_id          uuid not null,
+  owner_user_id       uuid not null,
+  provider            text not null check (provider = 'azure_personal_voice'),
+  policy_version      text not null,
+  provider_policy_version text not null,
+  template_version    text not null,
+  locale              text not null check (locale = 'en-US'),
+  statement_sha256    text not null check (statement_sha256 ~ '^[0-9a-f]{64}$'),
+  state               text not null default 'issued'
+                      check (state in ('issued','uploaded','accepted','revoked','expired','failed')),
+  source_id           uuid,
+  attempt             integer not null check (attempt between 1 and 5),
+  algorithm           text not null check (algorithm = 'AES-256-GCM'),
+  key_id              text not null,
+  nonce               bytea not null,
+  ciphertext          bytea not null,
+  auth_tag             bytea not null,
+  wrapped_dek         bytea not null,
+  wrap_nonce          bytea not null,
+  wrap_auth_tag       bytea not null,
+  aad_sha256          text not null check (aad_sha256 ~ '^[0-9a-f]{64}$'),
+  failure_code        text not null default '',
+  issued_at           timestamptz not null default now(),
+  expires_at          timestamptz not null,
+  uploaded_at         timestamptz,
+  accepted_at         timestamptz,
+  revoked_at          timestamptz,
+  updated_at          timestamptz not null default now(),
+  constraint vy_replica_provider_consent_crypto_shape check (
+    octet_length(nonce) = 12 and octet_length(auth_tag) = 16 and octet_length(ciphertext) > 0
+    and octet_length(wrapped_dek) = 32 and octet_length(wrap_nonce) = 12
+    and octet_length(wrap_auth_tag) = 16
+  ),
+  constraint vy_replica_provider_consent_owner_identity
+    unique (provider_consent_id, replica_id, owner_user_id),
+  constraint vy_replica_provider_consent_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_provider_consent_source_fk
+    foreign key (source_id, replica_id, owner_user_id)
+    references vy_replica_source(source_id, replica_id, owner_user_id) on delete restrict
+);
+
+create index if not exists vy_replica_provider_consent_owner_ix
+  on vy_replica_provider_consent (owner_user_id, replica_id, issued_at desc);
+
+create unique index if not exists vy_replica_provider_consent_live_ix
+  on vy_replica_provider_consent (replica_id, provider)
+  where state in ('issued','uploaded');
+
+-- Migration 034 - tenant-bound, commitment-bound provider voice enrollment.
+alter table vy_replica_voice_profile add column if not exists owner_user_id uuid;
+update vy_replica_voice_profile vp set owner_user_id = r.owner_user_id
+  from vy_replica r where r.replica_id = vp.replica_id and vp.owner_user_id is null;
+alter table vy_replica_voice_profile alter column owner_user_id set not null;
+alter table vy_replica_voice_profile add column if not exists provider_consent_id uuid;
+alter table vy_replica_voice_profile add column if not exists enrollment_commitment text not null default '';
+
+do $replica_voice_profile_owner_fk$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'vy_replica_voice_profile_owner_fk'
+    and conrelid = 'vy_replica_voice_profile'::regclass) then
+    alter table vy_replica_voice_profile add constraint vy_replica_voice_profile_owner_fk
+      foreign key (replica_id, owner_user_id)
+      references vy_replica(replica_id, owner_user_id) on delete cascade;
+  end if;
+end;
+$replica_voice_profile_owner_fk$;
+
+do $replica_voice_profile_genome_fk$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'vy_replica_voice_profile_genome_fk'
+    and conrelid = 'vy_replica_voice_profile'::regclass) then
+    alter table vy_replica_voice_profile add constraint vy_replica_voice_profile_genome_fk
+      foreign key (replica_id, genome_version)
+      references vy_replica_voice_genome(replica_id, version) on delete restrict;
+  end if;
+end;
+$replica_voice_profile_genome_fk$;
+
+do $replica_voice_profile_consent_fk$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'vy_replica_voice_profile_consent_fk'
+    and conrelid = 'vy_replica_voice_profile'::regclass) then
+    alter table vy_replica_voice_profile add constraint vy_replica_voice_profile_consent_fk
+      foreign key (provider_consent_id, replica_id, owner_user_id)
+      references vy_replica_provider_consent(provider_consent_id, replica_id, owner_user_id)
+      on delete restrict;
+  end if;
+end;
+$replica_voice_profile_consent_fk$;
+
+do $replica_voice_profile_commitment_check$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'vy_replica_voice_profile_commitment_check'
+    and conrelid = 'vy_replica_voice_profile'::regclass) then
+    alter table vy_replica_voice_profile add constraint vy_replica_voice_profile_commitment_check
+      check (enrollment_commitment = '' or enrollment_commitment ~ '^[0-9a-f]{64}$');
+  end if;
+end;
+$replica_voice_profile_commitment_check$;
+
+create unique index if not exists vy_replica_voice_profile_owner_tuple_ix
+  on vy_replica_voice_profile (voice_profile_id, replica_id, owner_user_id);
+create unique index if not exists vy_replica_voice_enrollment_commitment_ix
+  on vy_replica_voice_profile (replica_id, provider, enrollment_commitment)
+  where enrollment_commitment <> '';
+create unique index if not exists vy_replica_voice_one_live_ix
+  on vy_replica_voice_profile (replica_id, genome_version, provider)
+  where status in ('creating','ready');
+
+-- Migration 035 - crash-safe, retryable provider voice erasure.
+alter table vy_replica_voice_profile
+  add column if not exists erasure_attempts integer not null default 0;
+alter table vy_replica_voice_profile
+  add column if not exists erasure_next_attempt_at timestamptz not null default now();
+alter table vy_replica_voice_profile
+  add column if not exists erasure_lease_token_hash text not null default '';
+alter table vy_replica_voice_profile
+  add column if not exists erasure_leased_at timestamptz;
+alter table vy_replica_voice_profile
+  add column if not exists erasure_lease_expires_at timestamptz;
+alter table vy_replica_voice_profile
+  add column if not exists erasure_last_error_code text not null default '';
+
+do $replica_voice_erasure_attempts_check$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'vy_replica_voice_erasure_attempts_check'
+      and conrelid = 'vy_replica_voice_profile'::regclass
+  ) then
+    alter table vy_replica_voice_profile add constraint vy_replica_voice_erasure_attempts_check
+      check (erasure_attempts >= 0);
+  end if;
+end;
+$replica_voice_erasure_attempts_check$;
+
+do $replica_voice_erasure_lease_hash_check$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'vy_replica_voice_erasure_lease_hash_check'
+      and conrelid = 'vy_replica_voice_profile'::regclass
+  ) then
+    alter table vy_replica_voice_profile add constraint vy_replica_voice_erasure_lease_hash_check
+      check (erasure_lease_token_hash = '' or erasure_lease_token_hash ~ '^[0-9a-f]{64}$');
+  end if;
+end;
+$replica_voice_erasure_lease_hash_check$;
+
+create index if not exists vy_replica_voice_erasure_ready_ix
+  on vy_replica_voice_profile (erasure_next_attempt_at, updated_at)
+  where status = 'deleting';
+
+create table if not exists vy_replica_voice_erasure_attempt (
+  voice_profile_id uuid not null,
+  replica_id       uuid not null,
+  owner_user_id    uuid not null,
+  attempt          integer not null check (attempt > 0),
+  outcome          text not null check (outcome in ('running','retry','complete')),
+  failure_code     text not null default '',
+  started_at       timestamptz not null default now(),
+  finished_at      timestamptz,
+  primary key (voice_profile_id, attempt),
+  constraint vy_replica_voice_erasure_attempt_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade
+);
+
+create index if not exists vy_replica_voice_erasure_attempt_owner_ix
+  on vy_replica_voice_erasure_attempt (owner_user_id, replica_id, started_at desc);
+
+-- Migration 036 - crash-safe raw and derived source erasure.
+alter table vy_replica_source
+  add column if not exists erasure_attempts integer not null default 0;
+alter table vy_replica_source
+  add column if not exists erasure_next_attempt_at timestamptz not null default now();
+alter table vy_replica_source
+  add column if not exists erasure_lease_token_hash text not null default '';
+alter table vy_replica_source
+  add column if not exists erasure_leased_at timestamptz;
+alter table vy_replica_source
+  add column if not exists erasure_lease_expires_at timestamptz;
+alter table vy_replica_source
+  add column if not exists erasure_last_error_code text not null default '';
+
+do $replica_source_erasure_constraints$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_source_erasure_attempts_check'
+      and conrelid='vy_replica_source'::regclass
+  ) then
+    alter table vy_replica_source add constraint vy_replica_source_erasure_attempts_check
+      check (erasure_attempts >= 0);
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_source_erasure_lease_hash_check'
+      and conrelid='vy_replica_source'::regclass
+  ) then
+    alter table vy_replica_source add constraint vy_replica_source_erasure_lease_hash_check
+      check (erasure_lease_token_hash='' or erasure_lease_token_hash ~ '^[0-9a-f]{64}$');
+  end if;
+end;
+$replica_source_erasure_constraints$;
+
+create index if not exists vy_replica_source_erasure_ready_ix
+  on vy_replica_source (erasure_next_attempt_at,updated_at)
+  where state='deleting';
+
+create table if not exists vy_replica_source_erasure_attempt (
+  source_id       uuid not null,
+  replica_id      uuid not null,
+  owner_user_id   uuid not null,
+  attempt         integer not null check (attempt > 0),
+  object_count    integer not null check (object_count > 0),
+  outcome         text not null check (outcome in ('running','retry','complete')),
+  failure_code    text not null default '',
+  started_at      timestamptz not null default now(),
+  finished_at     timestamptz,
+  primary key (source_id,attempt),
+  constraint vy_replica_source_erasure_attempt_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade
+);
+
+create index if not exists vy_replica_source_erasure_attempt_owner_ix
+  on vy_replica_source_erasure_attempt (owner_user_id,replica_id,started_at desc);
+
+-- Migration 037 - crash-safe full replica purge and unlinkable receipt.
+alter table vy_replica_erasure_job
+  add column if not exists next_attempt_at timestamptz not null default now();
+alter table vy_replica_erasure_job
+  add column if not exists lease_token_hash text not null default '';
+alter table vy_replica_erasure_job
+  add column if not exists leased_at timestamptz;
+alter table vy_replica_erasure_job
+  add column if not exists lease_expires_at timestamptz;
+
+do $replica_full_erasure_lease_check$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_full_erasure_lease_hash_check'
+      and conrelid='vy_replica_erasure_job'::regclass
+  ) then
+    alter table vy_replica_erasure_job add constraint vy_replica_full_erasure_lease_hash_check
+      check (lease_token_hash='' or lease_token_hash ~ '^[0-9a-f]{64}$');
+  end if;
+end;
+$replica_full_erasure_lease_check$;
+
+drop index if exists vy_replica_erasure_pending_ix;
+create index if not exists vy_replica_erasure_pending_ix
+  on vy_replica_erasure_job (next_attempt_at,requested_at)
+  where state in ('pending','running','blocked');
+
+create table if not exists vy_replica_erasure_attempt (
+  job_id        uuid not null references vy_replica_erasure_job(job_id) on delete cascade,
+  attempt       integer not null check (attempt > 0),
+  outcome       text not null check (outcome in ('running','retry','complete')),
+  failure_code  text not null default '',
+  started_at    timestamptz not null default now(),
+  finished_at   timestamptz,
+  primary key (job_id,attempt)
+);
+
+alter table vy_replica_deletion_receipt
+  add column if not exists receipt_version text not null default 'replica-erasure-receipt/v1';
+alter table vy_replica_deletion_receipt
+  add column if not exists receipt_nonce text not null default '';
+
+do $replica_deletion_receipt_nonce_check$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_deletion_receipt_nonce_check'
+      and conrelid='vy_replica_deletion_receipt'::regclass
+  ) then
+    alter table vy_replica_deletion_receipt add constraint vy_replica_deletion_receipt_nonce_check
+      check (receipt_nonce='' or receipt_nonce ~ '^[0-9a-f]{64}$');
+  end if;
+end;
+$replica_deletion_receipt_nonce_check$;
+
+create unique index if not exists vy_replica_deletion_receipt_replica_hash_ix
+  on vy_replica_deletion_receipt (replica_id_hash);
+
+-- Migration 038 - capability-based owner erasure status after unlinking.
+alter table vy_replica_deletion_receipt
+  add column if not exists erasure_request_hash text not null default '';
+
+do $replica_deletion_request_hash_check$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_deletion_request_hash_check'
+      and conrelid='vy_replica_deletion_receipt'::regclass
+  ) then
+    alter table vy_replica_deletion_receipt add constraint vy_replica_deletion_request_hash_check
+      check (erasure_request_hash='' or erasure_request_hash ~ '^[0-9a-f]{64}$');
+  end if;
+end;
+$replica_deletion_request_hash_check$;
+
+create unique index if not exists vy_replica_deletion_request_hash_ix
+  on vy_replica_deletion_receipt (erasure_request_hash)
+  where erasure_request_hash<>'';
+
+-- Migration 039 - crash-safe, content-free liveness verification ledger.
+alter table vy_replica_liveness_challenge add column if not exists verification_attempt integer not null default 0;
+alter table vy_replica_liveness_challenge add column if not exists verification_next_attempt_at timestamptz not null default now();
+alter table vy_replica_liveness_challenge add column if not exists verification_lease_token_hash text not null default '';
+alter table vy_replica_liveness_challenge add column if not exists verification_leased_at timestamptz;
+alter table vy_replica_liveness_challenge add column if not exists verification_lease_expires_at timestamptz;
+
+do $replica_liveness_verification_checks$
+begin
+  if not exists (select 1 from pg_constraint where conname='vy_replica_liveness_verification_attempt_check'
+    and conrelid='vy_replica_liveness_challenge'::regclass) then
+    alter table vy_replica_liveness_challenge add constraint vy_replica_liveness_verification_attempt_check
+      check (verification_attempt >= 0);
+  end if;
+  if not exists (select 1 from pg_constraint where conname='vy_replica_liveness_verification_lease_check'
+    and conrelid='vy_replica_liveness_challenge'::regclass) then
+    alter table vy_replica_liveness_challenge add constraint vy_replica_liveness_verification_lease_check
+      check (verification_lease_token_hash='' or verification_lease_token_hash ~ '^[0-9a-f]{64}$');
+  end if;
+end;
+$replica_liveness_verification_checks$;
+
+create unique index if not exists vy_replica_liveness_owner_tuple_ix
+  on vy_replica_liveness_challenge (challenge_id,replica_id,owner_user_id);
+create index if not exists vy_replica_liveness_verification_ready_ix
+  on vy_replica_liveness_challenge (verification_next_attempt_at,updated_at)
+  where state in ('uploaded','verifying');
+
+create table if not exists vy_replica_liveness_verification_attempt (
+  challenge_id uuid not null,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  attempt integer not null check (attempt > 0),
+  verifier text not null,
+  verifier_version text not null,
+  outcome text not null check (outcome in ('running','retry','passed','failed')),
+  failure_code text not null default '',
+  result jsonb not null default '{}'::jsonb,
+  started_at timestamptz not null default now(),
+  finished_at timestamptz,
+  primary key (challenge_id,attempt),
+  constraint vy_replica_liveness_attempt_owner_fk foreign key (challenge_id,replica_id,owner_user_id)
+    references vy_replica_liveness_challenge(challenge_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_liveness_attempt_result_check check (jsonb_typeof(result)='object')
+);
+create index if not exists vy_replica_liveness_attempt_owner_ix
+  on vy_replica_liveness_verification_attempt (owner_user_id,replica_id,started_at desc);
+
+-- Migration 040: consented identity evidence and liveness binding.
+alter table vy_replica add column if not exists identity_expires_at timestamptz;
+alter table vy_replica_source
+  drop constraint if exists vy_replica_source_capture_mode_check,
+  add constraint vy_replica_source_capture_mode_check
+    check (capture_mode in ('live_challenge','provider_consent','identity_document','upload','import','derived'));
+create table if not exists vy_replica_identity_case (
+  identity_case_id uuid primary key default gen_random_uuid(),
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  source_id uuid,
+  policy_version text not null,
+  consent_receipt_hash text not null check (consent_receipt_hash ~ '^[0-9a-f]{64}$'),
+  state text not null default 'submitted'
+    check (state in ('submitted','verifying','evidence_ready','verified','expired','failed','revoked')),
+  attempt integer not null default 0 check (attempt >= 0),
+  next_attempt_at timestamptz not null default now(),
+  lease_token_hash text not null default '' check (lease_token_hash='' or lease_token_hash ~ '^[0-9a-f]{64}$'),
+  leased_at timestamptz,
+  lease_expires_at timestamptz,
+  verifier text not null default '',
+  verifier_version text not null default '',
+  source_sha256 text not null check (source_sha256 ~ '^[0-9a-f]{64}$'),
+  adult_evidence boolean not null default false,
+  document_authentic boolean not null default false,
+  document_current boolean not null default false,
+  face_reference_ready boolean not null default false,
+  credential_expires_at timestamptz,
+  evidence_digest text not null default '' check (evidence_digest='' or evidence_digest ~ '^[0-9a-f]{64}$'),
+  result jsonb not null default '{}'::jsonb check (jsonb_typeof(result)='object'),
+  failure_code text not null default '',
+  consented_at timestamptz not null,
+  verified_at timestamptz,
+  revoked_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (identity_case_id,replica_id,owner_user_id),
+  foreign key (replica_id,owner_user_id) references vy_replica(replica_id,owner_user_id) on delete cascade,
+  foreign key (source_id,replica_id,owner_user_id)
+    references vy_replica_source(source_id,replica_id,owner_user_id) on delete restrict
+);
+create index if not exists vy_replica_identity_case_owner_ix
+  on vy_replica_identity_case (owner_user_id,replica_id,created_at desc);
+create unique index if not exists vy_replica_identity_case_live_ix
+  on vy_replica_identity_case (replica_id) where state in ('submitted','verifying','evidence_ready','verified');
+create index if not exists vy_replica_identity_case_ready_ix
+  on vy_replica_identity_case (next_attempt_at,updated_at) where state in ('submitted','verifying');
+
+create table if not exists vy_replica_identity_verification_attempt (
+  identity_case_id uuid not null,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  attempt integer not null check (attempt > 0),
+  verifier text not null,
+  verifier_version text not null,
+  outcome text not null check (outcome in ('running','retry','evidence_ready','failed')),
+  failure_code text not null default '',
+  result jsonb not null default '{}'::jsonb check (jsonb_typeof(result)='object'),
+  started_at timestamptz not null default now(),
+  finished_at timestamptz,
+  primary key (identity_case_id,attempt),
+  foreign key (identity_case_id,replica_id,owner_user_id)
+    references vy_replica_identity_case(identity_case_id,replica_id,owner_user_id) on delete cascade
+);
+create index if not exists vy_replica_identity_attempt_owner_ix
+  on vy_replica_identity_verification_attempt (owner_user_id,replica_id,started_at desc);
+
+alter table vy_replica_liveness_challenge add column if not exists identity_case_id uuid;
+do $replica_liveness_identity_fk$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_liveness_identity_case_fk'
+      and conrelid='vy_replica_liveness_challenge'::regclass
+  ) then
+    alter table vy_replica_liveness_challenge add constraint vy_replica_liveness_identity_case_fk
+      foreign key (identity_case_id,replica_id,owner_user_id)
+      references vy_replica_identity_case(identity_case_id,replica_id,owner_user_id) on delete cascade;
+  end if;
+end;
+$replica_liveness_identity_fk$;
+
+-- Migration 041 - purpose-limited biometric verification consent and official
+-- Azure Face liveness-with-verify session lifecycle. Provider session handles
+-- are AES-GCM sealed by the broker; one-time quick links are never durably persisted.
+
+create table if not exists vy_replica_biometric_verification_grant (
+  grant_id          uuid primary key default gen_random_uuid(),
+  challenge_id      uuid not null,
+  replica_id         uuid not null,
+  owner_user_id      uuid not null,
+  statement_set      text not null,
+  receipt_hash       text not null check (receipt_hash ~ '^[0-9a-f]{64}$'),
+  receipt_payload    jsonb not null check (jsonb_typeof(receipt_payload)='object'),
+  state              text not null default 'active'
+                     check (state in ('active','consumed','revoked','expired')),
+  granted_at         timestamptz not null default now(),
+  expires_at         timestamptz not null,
+  consumed_at        timestamptz,
+  revoked_at         timestamptz,
+  created_at         timestamptz not null default now(),
+  constraint vy_replica_biometric_grant_challenge_unique unique (challenge_id),
+  constraint vy_replica_biometric_grant_owner_fk
+    foreign key (challenge_id,replica_id,owner_user_id)
+    references vy_replica_liveness_challenge(challenge_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_biometric_grant_time_check check (expires_at>granted_at)
+);
+
+alter table vy_replica_biometric_verification_grant
+  add column if not exists receipt_payload jsonb not null default '{}'::jsonb;
+update vy_replica_biometric_verification_grant
+   set state='revoked',revoked_at=coalesce(revoked_at,now())
+ where receipt_payload='{}'::jsonb and state='active';
+alter table vy_replica_biometric_verification_grant
+  alter column receipt_payload drop default;
+
+create index if not exists vy_replica_biometric_grant_active_ix
+  on vy_replica_biometric_verification_grant (owner_user_id,replica_id,expires_at)
+  where state='active';
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_state text not null default 'not_started';
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_attempt integer not null default 0;
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_handle text not null default '';
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_handle_hash text not null default '';
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_reference_sha256 text not null default '';
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_model_version text not null default '';
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_result jsonb not null default '{}'::jsonb;
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_expires_at timestamptz;
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_issued_at timestamptz;
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_terminal_at timestamptz;
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_provider_deleted_at timestamptz;
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_lease_token_hash text not null default '';
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_leased_at timestamptz;
+
+alter table vy_replica_liveness_challenge
+  add column if not exists face_session_lease_expires_at timestamptz;
+
+do $replica_face_session_checks$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_biometric_grant_receipt_payload_check'
+      and conrelid='vy_replica_biometric_verification_grant'::regclass
+  ) then
+    alter table vy_replica_biometric_verification_grant
+      add constraint vy_replica_biometric_grant_receipt_payload_check
+      check (jsonb_typeof(receipt_payload)='object' and (receipt_payload<>'{}'::jsonb or state='revoked'));
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_face_session_state_check'
+      and conrelid='vy_replica_liveness_challenge'::regclass
+  ) then
+    alter table vy_replica_liveness_challenge add constraint vy_replica_face_session_state_check
+      check (face_session_state in (
+        'not_started','issuing','ready','polling',
+        'passed_deleting','failed_deleting','expired_deleting',
+        'passed_deleted','failed_deleted','expired_deleted'
+      ));
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_face_session_attempt_check'
+      and conrelid='vy_replica_liveness_challenge'::regclass
+  ) then
+    alter table vy_replica_liveness_challenge add constraint vy_replica_face_session_attempt_check
+      check (face_session_attempt>=0);
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_face_session_hash_check'
+      and conrelid='vy_replica_liveness_challenge'::regclass
+  ) then
+    alter table vy_replica_liveness_challenge add constraint vy_replica_face_session_hash_check
+      check (
+        (face_session_handle_hash='' or face_session_handle_hash ~ '^[0-9a-f]{64}$') and
+        (face_session_reference_sha256='' or face_session_reference_sha256 ~ '^[0-9a-f]{64}$') and
+        (face_session_lease_token_hash='' or face_session_lease_token_hash ~ '^[0-9a-f]{64}$')
+      );
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_face_session_result_check'
+      and conrelid='vy_replica_liveness_challenge'::regclass
+  ) then
+    alter table vy_replica_liveness_challenge add constraint vy_replica_face_session_result_check
+      check (jsonb_typeof(face_session_result)='object');
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_face_session_handle_lifecycle_check'
+      and conrelid='vy_replica_liveness_challenge'::regclass
+  ) then
+    alter table vy_replica_liveness_challenge add constraint vy_replica_face_session_handle_lifecycle_check
+      check (
+        (face_session_state in ('not_started','issuing') and face_session_handle='') or
+        (face_session_state in ('ready','polling','passed_deleting','failed_deleting','expired_deleting')
+          and face_session_handle<>'' and face_session_handle_hash~'^[0-9a-f]{64}$'
+          and face_session_reference_sha256~'^[0-9a-f]{64}$' and face_session_model_version<>''
+          and face_session_expires_at is not null and face_session_provider_deleted_at is null) or
+        (face_session_state in ('passed_deleted','failed_deleted','expired_deleted')
+          and face_session_handle='' and face_session_provider_deleted_at is not null)
+      );
+  end if;
+end;
+$replica_face_session_checks$;
+
+create index if not exists vy_replica_face_session_cleanup_ix
+  on vy_replica_liveness_challenge (face_session_lease_expires_at,updated_at)
+  where face_session_state in (
+    'issuing','ready','polling','passed_deleting','failed_deleting','expired_deleting'
+  );
+
+create index if not exists vy_replica_liveness_identity_case_ix
+  on vy_replica_liveness_challenge (identity_case_id) where identity_case_id is not null;
+
+-- Migration 042 - crash-recoverable VoiceGenome build leases.
+alter table vy_replica_model_build
+  add column if not exists lease_token_hash text not null default '';
+alter table vy_replica_model_build
+  add column if not exists leased_at timestamptz;
+alter table vy_replica_model_build
+  add column if not exists lease_expires_at timestamptz;
+alter table vy_replica_model_build
+  add column if not exists built_at timestamptz;
+
+update vy_replica_model_build
+   set state = 'retry', failure_code = 'migration_recovered_unleased_build',
+       next_attempt_at = now(), updated_at = now()
+ where state in ('leased','building') and lease_expires_at is null;
+
+do $replica_model_build_lease_shape$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'vy_replica_model_build_lease_shape'
+       and conrelid = 'vy_replica_model_build'::regclass
+  ) then
+    alter table vy_replica_model_build
+      add constraint vy_replica_model_build_lease_shape check (
+        (lease_token_hash = '' and leased_at is null and lease_expires_at is null)
+        or
+        (lease_token_hash ~ '^[0-9a-f]{64}$' and leased_at is not null and lease_expires_at > leased_at)
+      );
+  end if;
+end;
+$replica_model_build_lease_shape$;
+
+create index if not exists vy_replica_model_build_lease_ix
+  on vy_replica_model_build (lease_expires_at)
+  where state in ('leased','building');
+
+-- Migration 043 - content-free external C2PA sidecars.
+create table if not exists vy_replica_c2pa_manifest (
+  generation_id    uuid primary key,
+  standard         text not null check (standard = 'c2pa-2.4'),
+  manifest_sha256  text not null check (manifest_sha256 ~ '^[0-9a-f]{64}$'),
+  manifest_bytes   bytea not null,
+  signer_key_id    text not null,
+  created_at       timestamptz not null default now(),
+  constraint vy_replica_c2pa_manifest_size check (
+    octet_length(manifest_bytes) between 64 and 1048576
+  )
+);
+create index if not exists vy_replica_c2pa_manifest_created_ix
+  on vy_replica_c2pa_manifest (created_at desc);
+
+create table if not exists vy_replica_generation_receipt_envelope (
+  generation_id      uuid primary key,
+  envelope_sha256    text not null check (envelope_sha256 ~ '^[0-9a-f]{64}$'),
+  envelope_canonical bytea not null,
+  created_at         timestamptz not null default now(),
+  constraint vy_replica_receipt_envelope_size check (
+    octet_length(envelope_canonical) between 128 and 16384
+  )
+);
+create index if not exists vy_replica_receipt_envelope_created_ix
+  on vy_replica_generation_receipt_envelope (created_at desc);
+
+-- Migration 044 - append-only owner selection of private voice candidates.
+create unique index if not exists vy_replica_artifact_owner_short_tuple_ix
+  on vy_replica_processing_artifact (artifact_id,replica_id,owner_user_id);
+create table if not exists vy_replica_processing_artifact_decision (
+  decision_id       bigint generated always as identity primary key,
+  artifact_id       uuid not null,
+  replica_id        uuid not null,
+  owner_user_id     uuid not null,
+  decision          text not null check (decision in ('selected','rejected','superseded')),
+  reason_code       text not null check (reason_code in (
+                      'owner_voice_match','wrong_speaker','identity_changed','noisy_or_distorted','better_candidate'
+                    )),
+  reviewer_user_id  uuid not null,
+  created_at        timestamptz not null default now(),
+  constraint vy_replica_artifact_decision_owner_check check (reviewer_user_id=owner_user_id),
+  constraint vy_replica_artifact_decision_artifact_owner_fk
+    foreign key (artifact_id,replica_id,owner_user_id)
+    references vy_replica_processing_artifact(artifact_id,replica_id,owner_user_id) on delete cascade
+);
+create index if not exists vy_replica_artifact_decision_latest_ix
+  on vy_replica_processing_artifact_decision (artifact_id,created_at desc,decision_id desc);
+create index if not exists vy_replica_artifact_decision_owner_ix
+  on vy_replica_processing_artifact_decision (owner_user_id,replica_id,created_at desc);
+
+-- Migration 045 - protected owner-only VoiceGenome preview corridor.
+alter table vy_replica_generation alter column voice_profile_id drop not null;
+alter table vy_replica_generation alter column profile_version drop not null;
+alter table vy_replica_generation alter column calibration_version drop not null;
+alter table vy_replica_generation add column if not exists preview_artifact_id uuid;
+alter table vy_replica_generation add column if not exists preview_model text not null default '';
+alter table vy_replica_generation add column if not exists preview_model_commitment text not null default '';
+
+alter table vy_replica_generation drop constraint if exists vy_replica_generation_purpose_check;
+alter table vy_replica_generation add constraint vy_replica_generation_purpose_check
+  check (purpose in ('voice_preview','calibration','private_conversation'));
+
+do $replica_voice_preview_constraints$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_generation_preview_artifact_fk'
+      and conrelid='vy_replica_generation'::regclass
+  ) then
+    alter table vy_replica_generation add constraint vy_replica_generation_preview_artifact_fk
+      foreign key (preview_artifact_id,replica_id,owner_user_id)
+      references vy_replica_processing_artifact(artifact_id,replica_id,owner_user_id) on delete restrict;
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname='vy_replica_generation_preview_shape'
+      and conrelid='vy_replica_generation'::regclass
+  ) then
+    alter table vy_replica_generation add constraint vy_replica_generation_preview_shape check (
+      (
+        purpose='voice_preview' and channel='studio_preview' and dialogue_turn_id is null
+        and voice_profile_id is null and profile_version is null and calibration_version is null
+        and preview_artifact_id is not null and preview_model<>''
+        and preview_model_commitment~'^[0-9a-f]{64}$'
+      ) or (
+        purpose in ('calibration','private_conversation')
+        and voice_profile_id is not null and profile_version is not null and calibration_version is not null
+        and preview_artifact_id is null and preview_model='' and preview_model_commitment=''
+      )
+    );
+  end if;
+end;
+$replica_voice_preview_constraints$;
+
+create index if not exists vy_replica_generation_preview_open_ix
+  on vy_replica_generation (owner_user_id,replica_id,authorized_at)
+  where purpose='voice_preview' and state in ('authorized','streaming');
+
+-- Migration 046 - content-free, exact-generation owner voice preferences.
+alter table vy_replica_generation add column if not exists preview_language_id text not null default '';
+alter table vy_replica_generation add column if not exists preview_text_hash text not null default '';
+alter table vy_replica_generation add column if not exists preview_style jsonb not null default '{}'::jsonb;
+alter table vy_replica_generation add column if not exists preview_seed integer not null default 0;
+
+do $replica_voice_preference_generation_constraints$
+begin
+  if not exists (select 1 from pg_constraint where conname='vy_replica_generation_preview_language_check') then
+    alter table vy_replica_generation add constraint vy_replica_generation_preview_language_check check (preview_language_id in ('','en','hi'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname='vy_replica_generation_preview_text_hash_check') then
+    alter table vy_replica_generation add constraint vy_replica_generation_preview_text_hash_check check (preview_text_hash='' or preview_text_hash~'^[0-9a-f]{64}$');
+  end if;
+  if not exists (select 1 from pg_constraint where conname='vy_replica_generation_preview_style_check') then
+    alter table vy_replica_generation add constraint vy_replica_generation_preview_style_check check (jsonb_typeof(preview_style)='object' and octet_length(preview_style::text)<=512);
+  end if;
+  if not exists (select 1 from pg_constraint where conname='vy_replica_generation_preview_seed_check') then
+    alter table vy_replica_generation add constraint vy_replica_generation_preview_seed_check check (preview_seed between 0 and 2147483647);
+  end if;
+end;
+$replica_voice_preference_generation_constraints$;
+
+create table if not exists vy_replica_voice_preference (
+  preference_id uuid primary key,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  genome_version integer not null check (genome_version>0),
+  preview_artifact_id uuid not null,
+  left_generation_id uuid not null,
+  right_generation_id uuid not null,
+  pair_hash text not null,
+  choice text not null check (choice in ('left','right','tie','neither')),
+  reason_codes text[] not null default '{}',
+  confidence numeric(4,3) not null default 1.000 check (confidence between 0 and 1),
+  policy_version text not null,
+  created_at timestamptz not null default now(),
+  constraint vy_replica_voice_preference_distinct check (left_generation_id<>right_generation_id),
+  constraint vy_replica_voice_preference_pair_hash check (pair_hash~'^[0-9a-f]{64}$'),
+  constraint vy_replica_voice_preference_reasons check (cardinality(reason_codes)<=6 and reason_codes <@ array['identity','accent','rhythm','emotion','naturalness','pronunciation','noise_or_artifact']::text[]),
+  constraint vy_replica_voice_preference_owner_identity unique (preference_id,replica_id,owner_user_id),
+  constraint vy_replica_voice_preference_pair unique (replica_id,owner_user_id,pair_hash),
+  constraint vy_replica_voice_preference_owner_fk foreign key (replica_id,owner_user_id) references vy_replica(replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_voice_preference_artifact_fk foreign key (preview_artifact_id,replica_id,owner_user_id) references vy_replica_processing_artifact(artifact_id,replica_id,owner_user_id) on delete restrict,
+  constraint vy_replica_voice_preference_left_fk foreign key (left_generation_id,replica_id,owner_user_id) references vy_replica_generation(generation_id,replica_id,owner_user_id) on delete restrict,
+  constraint vy_replica_voice_preference_right_fk foreign key (right_generation_id,replica_id,owner_user_id) references vy_replica_generation(generation_id,replica_id,owner_user_id) on delete restrict
+);
+create index if not exists vy_replica_voice_preference_owner_ix on vy_replica_voice_preference(owner_user_id,replica_id,created_at desc);
+
+-- Migration 047 - server-assigned adaptive voice calibration trials.
+create table if not exists vy_replica_voice_trial (
+  trial_id uuid primary key,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  genome_version integer not null check (genome_version>0),
+  preview_artifact_id uuid not null,
+  language_id text not null check (language_id in ('en','hi')),
+  prompt_key text not null default 'legacy.owner_custom.v1',
+  prompt_deck_version text not null default 'legacy.owner-custom/v1',
+  text_hash text not null check (text_hash~'^[0-9a-f]{64}$'),
+  preview_seed integer not null check (preview_seed between 1 and 2147483647),
+  model_commitment text not null check (model_commitment~'^[0-9a-f]{64}$'),
+  left_style_key text not null,
+  right_style_key text not null,
+  pair_hash text not null check (pair_hash~'^[0-9a-f]{64}$'),
+  algorithm text not null check (algorithm in ('voice-curriculum/bt-active-v1','voice-curriculum/bt-active-v2','voice-delivery-owner-holdout/v1')),
+  phase text not null default 'calibration',
+  delivery_policy_id uuid,
+  candidate_side text,
+  holdout_seed_index integer,
+  state text not null default 'issued' check (state in ('issued','completed','expired','cancelled')),
+  expires_at timestamptz not null,
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  constraint vy_replica_voice_trial_distinct check (left_style_key<>right_style_key),
+  constraint vy_replica_voice_trial_prompt_key_check check (prompt_key~'^[a-z0-9_.:-]{3,96}$'),
+  constraint vy_replica_voice_trial_prompt_deck_check check (prompt_deck_version in ('legacy.owner-custom/v1','voice-calibration-deck/v1','voice-delivery-holdout-deck/v1')),
+  constraint vy_replica_voice_trial_phase_shape check ((phase='calibration' and delivery_policy_id is null and candidate_side is null and holdout_seed_index is null) or (phase='holdout' and delivery_policy_id is not null and candidate_side in ('left','right') and holdout_seed_index between 0 and 1 and algorithm='voice-delivery-owner-holdout/v1' and prompt_deck_version='voice-delivery-holdout-deck/v1')),
+  constraint vy_replica_voice_trial_left_style check (left_style_key in ('identity_anchor','faithful','steady_warm','balanced','warm_expressive','expressive','animated')),
+  constraint vy_replica_voice_trial_right_style check (right_style_key in ('identity_anchor','faithful','steady_warm','balanced','warm_expressive','expressive','animated')),
+  constraint vy_replica_voice_trial_time check (expires_at>created_at),
+  constraint vy_replica_voice_trial_completion check ((state='completed' and completed_at is not null) or (state<>'completed' and completed_at is null)),
+  constraint vy_replica_voice_trial_owner_identity unique (trial_id,replica_id,owner_user_id),
+  constraint vy_replica_voice_trial_owner_fk foreign key (replica_id,owner_user_id) references vy_replica(replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_voice_trial_genome_fk foreign key (replica_id,genome_version) references vy_replica_voice_genome(replica_id,version) on delete restrict,
+  constraint vy_replica_voice_trial_artifact_fk foreign key (preview_artifact_id,replica_id,owner_user_id) references vy_replica_processing_artifact(artifact_id,replica_id,owner_user_id) on delete restrict
+);
+create index if not exists vy_replica_voice_trial_owner_ix on vy_replica_voice_trial(owner_user_id,replica_id,created_at desc);
+create index if not exists vy_replica_voice_trial_expiry_ix on vy_replica_voice_trial(expires_at) where state='issued';
+create index if not exists vy_replica_voice_trial_prompt_coverage_ix on vy_replica_voice_trial(owner_user_id,replica_id,genome_version,language_id,prompt_key) where state='completed';
+
+alter table vy_replica_generation add column if not exists preview_trial_id uuid;
+alter table vy_replica_generation add column if not exists preview_trial_side text;
+alter table vy_replica_voice_preference add column if not exists trial_id uuid;
+do $replica_voice_trial_constraints$
+begin
+  if not exists (select 1 from pg_constraint where conname='vy_replica_generation_trial_shape') then
+    alter table vy_replica_generation add constraint vy_replica_generation_trial_shape check ((preview_trial_id is null and preview_trial_side is null) or (purpose='voice_preview' and preview_trial_id is not null and preview_trial_side in ('left','right')));
+  end if;
+  if not exists (select 1 from pg_constraint where conname='vy_replica_generation_trial_fk') then
+    alter table vy_replica_generation add constraint vy_replica_generation_trial_fk foreign key (preview_trial_id,replica_id,owner_user_id) references vy_replica_voice_trial(trial_id,replica_id,owner_user_id) on delete cascade;
+  end if;
+  if not exists (select 1 from pg_constraint where conname='vy_replica_voice_preference_trial_fk') then
+    alter table vy_replica_voice_preference add constraint vy_replica_voice_preference_trial_fk foreign key (trial_id,replica_id,owner_user_id) references vy_replica_voice_trial(trial_id,replica_id,owner_user_id) on delete cascade;
+  end if;
+end;
+$replica_voice_trial_constraints$;
+create unique index if not exists vy_replica_generation_active_trial_side on vy_replica_generation(preview_trial_id,preview_trial_side) where preview_trial_id is not null and state in ('authorized','streaming','sealed');
+
+-- Migration 049 - immutable Voice Delivery Genome candidates.
+create table if not exists vy_replica_voice_delivery_policy (
+  policy_id uuid primary key,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  genome_version integer not null check (genome_version>0),
+  preview_artifact_id uuid not null,
+  language_id text not null check (language_id in ('en','hi')),
+  version integer not null check (version>0),
+  algorithm text not null check (algorithm='voice-delivery-policy/bt-map-v1'),
+  curriculum_algorithm text not null check (curriculum_algorithm='voice-curriculum/bt-active-v2'),
+  prompt_deck_version text not null check (prompt_deck_version='voice-calibration-deck/v1'),
+  model_commitment text not null check (model_commitment~'^[0-9a-f]{64}$'),
+  source_set_hash text not null check (source_set_hash~'^[0-9a-f]{64}$'),
+  definition jsonb not null,
+  evidence_count integer not null check (evidence_count>=18),
+  unique_prompt_count integer not null check (unique_prompt_count>=6),
+  latent_margin numeric(10,6) not null check (latent_margin>=0),
+  status text not null default 'draft' check (status in ('draft','qualifying','qualified','approved','rejected','retired')),
+  retired_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint vy_replica_voice_delivery_definition check (jsonb_typeof(definition)='object' and octet_length(definition::text)<=65536),
+  constraint vy_replica_voice_delivery_retired_shape check ((status='retired' and retired_at is not null) or (status<>'retired' and retired_at is null)),
+  constraint vy_replica_voice_delivery_owner_identity unique (policy_id,replica_id,owner_user_id),
+  constraint vy_replica_voice_delivery_version unique (replica_id,genome_version,language_id,version),
+  constraint vy_replica_voice_delivery_source unique (replica_id,owner_user_id,genome_version,preview_artifact_id,language_id,model_commitment,source_set_hash),
+  constraint vy_replica_voice_delivery_owner_fk foreign key (replica_id,owner_user_id) references vy_replica(replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_voice_delivery_genome_fk foreign key (replica_id,genome_version) references vy_replica_voice_genome(replica_id,version) on delete restrict,
+  constraint vy_replica_voice_delivery_artifact_fk foreign key (preview_artifact_id,replica_id,owner_user_id) references vy_replica_processing_artifact(artifact_id,replica_id,owner_user_id) on delete restrict
+);
+create index if not exists vy_replica_voice_delivery_owner_ix on vy_replica_voice_delivery_policy(owner_user_id,replica_id,language_id,version desc);
+create index if not exists vy_replica_voice_delivery_status_ix on vy_replica_voice_delivery_policy(status,updated_at);
+
+do $replica_voice_trial_delivery_policy_fk$
+begin
+  if not exists (select 1 from pg_constraint where conname='vy_replica_voice_trial_delivery_policy_fk') then
+    alter table vy_replica_voice_trial add constraint vy_replica_voice_trial_delivery_policy_fk foreign key (delivery_policy_id,replica_id,owner_user_id) references vy_replica_voice_delivery_policy(policy_id,replica_id,owner_user_id) on delete cascade;
+  end if;
+end;
+$replica_voice_trial_delivery_policy_fk$;
+create unique index if not exists vy_replica_voice_delivery_holdout_cell_ix on vy_replica_voice_trial(delivery_policy_id,prompt_key,holdout_seed_index) where phase='holdout' and state in ('issued','completed');
+
+-- Migration 050 - owner held-out qualification, not production qualification.
+create table if not exists vy_replica_voice_delivery_qualification (
+  qualification_id uuid primary key,
+  policy_id uuid not null,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  protocol_version text not null check (protocol_version='voice-delivery-owner-holdout/v1'),
+  prompt_deck_version text not null check (prompt_deck_version='voice-delivery-holdout-deck/v1'),
+  source_set_hash text not null check (source_set_hash~'^[0-9a-f]{64}$'),
+  observation_count integer not null check (observation_count=12),
+  prompt_family_count integer not null check (prompt_family_count=6),
+  candidate_score numeric(8,3) not null check (candidate_score between 0 and 12),
+  candidate_rate numeric(8,6) not null check (candidate_rate between 0 and 1),
+  wilson_lower numeric(8,6) not null check (wilson_lower between 0 and 1),
+  neither_count integer not null check (neither_count between 0 and 12),
+  verdict text not null check (verdict in ('owner_pass','owner_fail')),
+  created_at timestamptz not null default now(),
+  constraint vy_replica_voice_delivery_qualification_owner_identity unique (qualification_id,policy_id,replica_id,owner_user_id),
+  constraint vy_replica_voice_delivery_qualification_source unique (policy_id,protocol_version,source_set_hash),
+  constraint vy_replica_voice_delivery_qualification_policy_fk foreign key (policy_id,replica_id,owner_user_id) references vy_replica_voice_delivery_policy(policy_id,replica_id,owner_user_id) on delete cascade
+);
+create index if not exists vy_replica_voice_delivery_qualification_owner_ix on vy_replica_voice_delivery_qualification(owner_user_id,replica_id,created_at desc);

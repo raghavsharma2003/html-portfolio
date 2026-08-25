@@ -18,6 +18,10 @@ export const NEON_URL = "";
 // Auth + photo storage only.
 export const SUPABASE_URL = "";
 export const SUPABASE_KEY = "";
+// Required only for the private replica bucket. It is deliberately distinct
+// from SUPABASE_KEY: biometric storage never guesses that a general app key is
+// privileged. Replica enrollment fails closed when this is absent.
+export const SUPABASE_SERVICE_ROLE_KEY = "";
 
 // FREE-TIER Google AI Studio keys. The pool is spent before any paid provider
 // — see api/_gkeys.js. Measured 2026-08-11: this is a DAILY budget, and a real

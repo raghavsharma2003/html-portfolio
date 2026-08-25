@@ -121,6 +121,133 @@ const suites = {
   // CLASS CHECK: every optional AppState field is either wiped by the
   // teardown or exempted in writing. Offline, $0, ~2s.
   teardown: "teardown.mjs",
+  // Human-replica control plane: consent capability, verified self-only live
+  // challenge, versioned eval verdicts, lifecycle, private object paths and
+  // content-free audit. Offline and provider-free.
+  replica: "replica/run.mjs",
+  // Owner enrollment: account consent cannot mint biometric/inference rights;
+  // evidence is MIME/size/hash bounded, stored under opaque owner paths and
+  // uploaded only through a short-lived capability into a verified private
+  // bucket. Offline, deterministic, no DB or storage call.
+  replicaenrollment: "replica-enrollment/run.mjs",
+  // Noisy-evidence processing: immutable derivatives, composite ownership,
+  // retry-safe leases, provenance-carrying ASR/diarization/analysis evidence
+  // and draft-only VoiceGenome builds. Fake adapters prove contracts only;
+  // there is no network, model call or quality claim in this gate.
+  replicaprocessing: "replica-processing/run.mjs",
+  // Replica delivery safety: active verified self-only capability, approved
+  // version bindings, audible disclosure before playback, streaming watermark,
+  // C2PA asset binding and a signed content-free public receipt. Production
+  // refuses the deterministic adapters used by this offline gate.
+  replicaprovenance: "replica-provenance/run.mjs",
+  // Deployable protection plane: official AudioSeal streaming watermark,
+  // C2PA Python sidecar, Azure Key Vault signatures, authenticated transport,
+  // exact-byte binding and a content-free public verification endpoint.
+  productionprotection: "production-protection/run.mjs",
+  // Real noisy-audio evidence plane: exact-pinned public models, private
+  // authenticated transport, dual speaker embeddings, non-destructive
+  // separation/enhancement candidates and deliberately unknown target
+  // identity until a verified anchor or owner review exists.
+  voiceevidence: "voice-evidence/run.mjs",
+  // Permission-independent zero-shot synthesis: immutable MIT Chatterbox V3,
+  // private HMAC transport, exact disclosure, verified PerTh watermark,
+  // Hindi support and a digest-pinned scale-to-zero Azure GPU deployment.
+  openvoice: "open-voice/run.mjs",
+  // Blinded owner A/B calibration: exact protected generations, constant
+  // prompt/identity/model controls, server-owned delivery conditions and an
+  // append-only content-free preference ledger for future model updates.
+  voicepreference: "voice-preference/run.mjs",
+  voicecurriculum: "voice-curriculum/run.mjs",
+  voicedeliverypolicy: "voice-delivery-policy/run.mjs",
+  voicedeliveryholdout: "voice-delivery-holdout/run.mjs",
+  // Deployable scale-to-zero consumer: composite-tenant leasing, real private
+  // byte verification, current ClamAV, ffprobe, exact evidence adapters,
+  // immutable persistence and one-step DAG settlement.
+  processingworker: "processing-worker/run.mjs",
+  // Owner processing review: strict tenant binding, append-only controlled
+  // decisions, privacy-safe summaries, real-evidence readiness and an
+  // idempotent draft-only VoiceGenome queue.
+  replicareview: "replica-review/run.mjs",
+  // Crash-recoverable, consent-fenced VoiceGenome materialization: one exact
+  // owner-accepted evidence set becomes a draft only, never an active voice.
+  modelbuild: "model-build/run.mjs",
+  // Private replica runtime: immutable qualified version bindings, owner-only
+  // agent/person resolution, RelationalOS isolation, protected cascade speech
+  // and revocation fencing at the signed segment boundary.
+  replicaruntime: "replica-runtime/run.mjs",
+  // Evidence-backed personality: append-only owner claim decisions,
+  // contradiction-preserving typed Person Models, deterministic source-set
+  // builds and explicit exact-version approval.
+  personmodel: "person-model/run.mjs",
+  // Typed owner calibration: server-owned behavioral contrast pairs,
+  // append-only revisions, deterministic calibration policies and exact
+  // Person Model/runtime version binding without free-text prompt accretion.
+  replicacalibration: "replica-calibration/run.mjs",
+  // Privacy-bounded claim extraction: reviewed target-speaker spans only,
+  // character-preserving direct-identifier redaction, strict Azure Foundry
+  // structured output, exact quote citations and proposal-only persistence.
+  replicaextract: "replica-claim-extraction/run.mjs",
+  // Version-frozen private dialogue: typed Person Model + calibration,
+  // agent/person-scoped relationship context, erasable raw logs, strict
+  // structured output and server-bound protected speech.
+  replicadialogue: "replica-dialogue/run.mjs",
+  // Atomic finite-grant control: conservative reservation before paid network
+  // calls, measured settlement, crash/unknown reconciliation and content-free
+  // accounting under one hard Azure application ceiling.
+  providerbudget: "provider-budget/run.mjs",
+  // Approval-gated Azure Personal Voice lifecycle: consent, verified private
+  // audio, native-unit spend fencing, pinned synthesis, status and deletion.
+  personalvoice: "azure-personal-voice/run.mjs",
+  // Azure voice-talent consent is a second, challenge-bound capability: the
+  // exact provider statement, encrypted legal name, private audio artifact,
+  // verified self-only eligibility and a non-generic finalization path.
+  providerconsent: "provider-consent/run.mjs",
+  // The exact approved VoiceGenome and provider-consent artifact become one
+  // deterministic metered profile through short-lived private reads. Status,
+  // tenant binding and deletion remain server-only and provider-neutral.
+  voiceenrollment: "voice-enrollment/run.mjs",
+  // Replay-resistant self-verification: exact randomized phrase, face
+  // liveness+identity, single-speaker continuity, synthetic-media risk,
+  // capture binding, one-way leases and evidence-bound biometric consent.
+  livenessverify: "liveness-verification/run.mjs",
+  identityproof: "identity-proofing/run.mjs",
+  // Deployable Azure identity broker: exact private-byte binding, pinned
+  // Document Intelligence and Face calls, independently signed authenticity
+  // review, content-free results, tamper/replay fencing, official Face
+  // liveness-with-verify quick links, sealed handles and provider deletion.
+  azureverify: "azure-verifier/run.mjs",
+  // Owner-only consumption of the official Face session contract: narrow
+  // pre-processing consent, pseudonymous device binding, sealed handles,
+  // crash-safe issue/poll/delete states and provider deletion before pass.
+  facesession: "face-session/run.mjs",
+  // Crash-safe biometric deletion: disable-first semantics, one-way leases,
+  // idempotent Azure voice+consent deletion, bounded backoff and a scheduled
+  // reconciler that keeps working even when new cloning has been disabled.
+  voiceerasure: "voice-erasure/run.mjs",
+  // Raw-source deletion is a complete lineage operation: exact private
+  // original+derivative removal, external-voice fencing, claim deletion and
+  // conservative scrubbing/retirement of models that cannot prove exclusion.
+  sourceerasure: "source-erasure/run.mjs",
+  // Full replica deletion: child provider/storage fencing, exact synthetic
+  // agent memory purge, encrypted private-row cascade and an unlinkable
+  // content-free receipt with explicit backup-policy expiry.
+  replicaerasure: "replica-erasure/run.mjs",
+  // Exact-version, multidimensional owner adjudication of a private turn,
+  // including encrypted correction exemplars and sealed-audio lineage.
+  replicafeedback: "replica-feedback/run.mjs",
+  // Content-free, conversation-locked feedback datasets with immutable split
+  // assignments, depth/coverage gates and exact latest-revision rechecks.
+  feedbackdataset: "feedback-dataset/run.mjs",
+  // Blinded paired target-improvement plus cross-layer noninferiority and
+  // zero-tolerance safety gates; qualification never activates a candidate.
+  candidatequal: "candidate-qualification/run.mjs",
+  // Replay-safe owner A/B evaluation: encrypted private assets, server-held
+  // candidate mapping, balanced assignments and all-layer atomic judgments.
+  candidateeval: "candidate-owner-eval/run.mjs",
+  // Second-agent readiness: every shipping insert names agent_id, every
+  // relational/natural-key arbiter is composite, and compatibility defaults
+  // have explicit strict migrations with a working negative control.
+  agentstrict: "agent/strict-readiness.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),
@@ -261,6 +388,10 @@ const suites = {
   // and it is the only thing standing between a flipped flag and a fabricated
   // fact about somebody's mother.
   consolidation: "consolidation/run.mjs",
+  // Migration 018 and the raw RelationalOS boundary: schema parity, explicit
+  // writers, pre-rank readers, per-agent consolidation cursors/leases and
+  // cross-agent negative controls. Offline, deterministic, no DB/network.
+  rawisolation: "agent/raw-isolation.mjs",
   // WS-RECALL. The retrieval cluster (the Hinglish tokenizer's 19-query
   // battery and its precision negatives, the two dead stores' new readers,
   // RRF fusion, the co-citation hop, and the structural proof that spaced
