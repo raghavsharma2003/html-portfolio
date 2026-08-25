@@ -1659,6 +1659,12 @@
    "kind": "rejection",
    "at": "2026-08-24",
    "title": "byte-identity flaked on a minute tick ('10:25 pm' vs '10:26 pm'): pin every ambient input inside an identity gate; fixed by freezing Date in the harness"
+  },
+  {
+   "id": "calendar-lottery-ceiling",
+   "kind": "rejection",
+   "at": "2026-08-25",
+   "title": "size ceilings measured under the live clock on date-varying core (46590..46771): ~25% of dates failed on identical source; pinned to argmax date, ceiling set from yearly max"
   }
  ],
  "edges": [
@@ -3026,6 +3032,11 @@
    "src": "live-clock-in-a-byte-identity-gate",
    "rel": "constrains",
    "dst": "personality-is-a-sheet"
+  },
+  {
+   "src": "calendar-lottery-ceiling",
+   "rel": "part_of",
+   "dst": "live-clock-in-a-byte-identity-gate"
   }
  ]
 }

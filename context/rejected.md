@@ -2234,3 +2234,21 @@ byte the code under test doesn't control — pin every ambient input (clock,
 locale, env) or the gate will eventually fail on an innocent commit, and
 its failure will point away from the cause (the tree it failed on had
 nothing to do with the bytes that differed).
+
+## `calendar-lottery-ceiling` — the second ambient-input gate failure in one night
+
+Hours after `live-clock-in-a-byte-identity-gate`, the SAME rule fired in a
+second gate: the persona size ceilings build their lanes under the live
+clock, and the compiled core is DATE-dependent (her life texture rotates
+by calendar day). A 366-date scan (scripts/scan-core-max.mjs) measured the
+text core at 46590..46771 across the year — the 46700 ceiling sat in the
+middle, so ~a quarter of all dates failed on identical source. It passed
+Sunday night, failed Monday morning (46702), and the flap blocked the
+owner's production secrets rollout. Fixed by pinning buildLanes to the
+argmax date (2026-03-19) and setting the ceiling from the measured yearly
+max (46780 = 46771 + 9 slack), with the scan checked in for re-derivation
+after texture edits. The generalized rule stands: any gate that measures
+compiled output must pin EVERY ambient input (clock, date, locale, env) —
+and a ceiling set from a single live measurement of date-varying content
+is a lottery ticket, not a bound. The dead giveaway in both incidents:
+CI failing on a commit that could not have caused the diff.
