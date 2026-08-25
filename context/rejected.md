@@ -2300,3 +2300,19 @@ under it would invalidate a pre-registration. Whoever closes #58 refreshes
 the manifest. Lesson: a frozen corpus index needs the persona/compiler
 version stamped beside it, so staleness reads as "expected drift" and not
 corruption.
+
+## `parse-survivor-bias` — the 17/17 that was really 63/91 (2026-08-25)
+
+The recorded hope that claude-opus-5 was "the qualified judge the battery
+waits on" rested on 17/17 agreement from a run where 125/192 replies came
+back empty (a 120-token cap ate the reasoning). Fixed-config re-run
+(maxTokens 2000, only change; parse misses 65%→2.6%): pooled agreement
+63/91 = 69.2% [59.1, 77.8] — FAIL against the 0.80 bar, and not
+underpowered (CI upper bound below the bar). On the 16 overlapping units
+the capped run had scored: still 16/16 — the judge is stable; the sample
+was biased. On the 75 units the cap had silenced: 62.7%. Measured
+selection bias: 37.3pp. Lesson, general: units that survive a truncation
+failure are the EASY units — an INVALID-RUN agreement number is not a
+lower bound or a hint, it is upward-biased by the bench's difficulty
+gradient, and must never be quoted as evidence. Slot-A 46.0% (best on the
+bench — no position bias; accuracy, not bias, is what failed).

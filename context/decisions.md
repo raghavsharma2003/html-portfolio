@@ -2555,3 +2555,25 @@ battery as Maya (unproven today), and traffic must saturate the GPU
 price doubling strengthens the case. Reverses if: frontier API pricing
 collapses below saturated-GPU economics, or no open model passes the
 battery by the time scale arrives.
+
+## `judge-bar-vs-ceiling` — OPEN: every available judge family now fails 0.80 (2026-08-25)
+
+State after the opus-5 re-run: all 8 judge families tested, none clears
+the SPEC §10-Q5 0.80 bar; qualified_panel stays []. opus-5's CI
+[59.1, 77.8] CONTAINS the measured ground-truth ceiling (~77.1%) — a
+clear fail against the committed bar while statistically
+indistinguishable from the best any judge has scored on this bench.
+ground-truth-ceiling pre-registered that the bar "should be restated
+relative to measured ceiling"; that restatement is deliberately NOT made
+today, because it would be made minutes after seeing the number it
+unblocks, by the party that wants the run. If the bar changes, it changes
+PROSPECTIVELY: re-registered before a fresh backtest on fresh ground-truth
+units, ideally owner-blessed. Meanwhile three judge-free/judge-new paths
+stand: (1) deploy an untested family (gpt-5.6-sol / Llama-4-Maverick, one
+Foundry click, credits-billed backtest); (2) owner blind-judges a 30-40
+pair sample (the felt product's ground truth IS the owner); (3)
+deterministic differential on the 150 pairs (markers, lengths, lexicons,
+behavioral graders on both arms) — catches gross degradation without any
+judge, insufficient alone for "reads like the same person".
+Reverses when: a judge clears whatever bar is then in force, on a
+pre-registered run.

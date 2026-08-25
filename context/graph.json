@@ -1762,6 +1762,18 @@
    "at": "2026-08-25",
    "title": "sourced GTM sweep: AstroTalk Rs1,182Cr proves per-minute WTP; elder-care Rs799-5,000/mo NRI-paid; companion paid ad channels closed; TRAI/DPDP constraints live",
    "doc": "docs/research/market-sweep-2026-08-25.md"
+  },
+  {
+   "id": "parse-survivor-bias",
+   "kind": "rejection",
+   "at": "2026-08-25",
+   "title": "opus-5's 17/17 was survivor selection (37.3pp bias); honest sample 69.2% FAIL; truncation-surviving units are the easy units"
+  },
+  {
+   "id": "judge-bar-vs-ceiling",
+   "kind": "decision",
+   "at": "2026-08-25",
+   "title": "OPEN: all 8 judge families fail 0.80; bar-vs-77.1%-ceiling restatement deferred to a prospective pre-registration; three judge-free paths stand"
   }
  ],
  "edges": [
@@ -3213,6 +3225,16 @@
   {
    "src": "corpus-manifest-stale",
    "rel": "constrains",
+   "dst": "paid-flip-gate"
+  },
+  {
+   "src": "parse-survivor-bias",
+   "rel": "supersedes",
+   "dst": "ground-truth-ceiling"
+  },
+  {
+   "src": "judge-bar-vs-ceiling",
+   "rel": "blocks",
    "dst": "paid-flip-gate"
   }
  ]
