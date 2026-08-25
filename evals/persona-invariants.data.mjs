@@ -315,7 +315,13 @@ export function meeraFullChecks(agent, lanes) {
   // AI-honesty and crisis floors after a live incident where she answered
   // "openai ka gpt-4o hu" to "which ai are you". ~1,250 chars, measured at
   // the pinned worst-case date; margin stays tight on purpose.
-  add("text core under ceiling (48050)", lanes.t.core.length < 48050, `=${lanes.t.core.length}`);
+  // Raised 48050 -> 48800 on 2026-08-25 (ws-gamefeel): two deliberate core
+  // shapes from the tester defect wave — the game-idea answer (her play has
+  // a sayable idea, "bhul gayi" about the live board is a lie; terminal
+  // claims belong to the note's state line) and the anti-stall law (a line
+  // she already said this sitting is spent). ~710 chars at the pinned
+  // worst-case date; margin tight on purpose.
+  add("text core under ceiling (48800)", lanes.t.core.length < 48800, `=${lanes.t.core.length}`);
 
   add("[live] [tone: appears exactly once", (lanes.live.match(/\[tone:/g) || []).length === 1);
   add(
@@ -422,8 +428,8 @@ export function meeraFullChecks(agent, lanes) {
     // from measured failures on a real tester's calls. Cost of the growth,
     // computed: ~250 tokens ~= $0.0004 per live session at 2026 list price.
     // Margin kept tight on purpose: the next unplanned growth trips this.
-    add(`[${nm}] assembled < 53470 (web)`, s.length < 53470, String(s.length));
-    add(`[${nm}] assembled < 53470 (in-app +${APP})`, s.length + APP < 53470, String(s.length + APP));
+    add(`[${nm}] assembled < 54250 (web)`, s.length < 54250, String(s.length));
+    add(`[${nm}] assembled < 54250 (in-app +${APP})`, s.length + APP < 54250, String(s.length + APP));
   }
   add("[text] chat system < 50000", lanes.tt.core.length < 50000, String(lanes.tt.core.length));
 
