@@ -2508,3 +2508,22 @@ cachedContents on the per-user core (−79 to −80% measured incl. storage)
 Reverses if: free-pool exhaustion becomes a daily user-facing event
 (flip the flag), or Google's implicit plateau moves above 90% (explicit
 cache machinery becomes dead weight).
+
+## `cost-frontier-map` — where each 10x lives, decided before it is needed (2026-08-25)
+
+Owner asked what gets Rs 21/100 msgs to Rs 1-2 without quality loss. The
+measured map, logged so the scale conversation starts here instead of
+re-deriving: (1) API-rental floor is ~Rs 10-12/100 — core toward the 40k
+SPEC target (gated on the n>=300 equivalence run), tail tightening,
+volume rates; Google's published rates double 2027-01-01. (2) The 10x is
+architectural: resident relational state — self-hosted serving with
+per-user prefix KV cache (vLLM/SGLang class), so a turn pays only the
+~1.3k-token tail + output; ~Rs 0.01-0.03/msg at saturated GPUs. Two hard
+gates: an open model must pass the swap-test battery first (unproven
+today), and it only wins above roughly a few hundred thousand msgs/day —
+below that the GPU idles and API rental is cheaper. LoRA-per-persona
+(personality in weights, state + safety gates staying in the auditable
+prompt) is the further step, with the recitation/position laws re-tested.
+Not scheduled — a decision map, not a workstream. Reverses if: a hosted
+provider ships per-user persistent KV at API prices, or the swap-test
+shows no open model within quality floor by the time volume arrives.

@@ -1725,6 +1725,12 @@
    "kind": "decision",
    "at": "2026-08-25",
    "title": "flag-gated paid lane, off-is-identity; chosen path explicit cachedContents on per-user core (-79/80%)"
+  },
+  {
+   "id": "cost-frontier-map",
+   "kind": "decision",
+   "at": "2026-08-25",
+   "title": "Rs21->Rs10 is API-side; Rs1-2 needs resident per-user KV on self-hosted serving, gated on swap-test + volume"
   }
  ],
  "edges": [
@@ -3145,6 +3151,11 @@
   },
   {
    "src": "obs-stream-dead-on-arrival",
+   "rel": "constrains",
+   "dst": "paid-lane-off-by-default"
+  },
+  {
+   "src": "cost-frontier-map",
    "rel": "constrains",
    "dst": "paid-lane-off-by-default"
   }
