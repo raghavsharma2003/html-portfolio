@@ -223,7 +223,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
             <p className="auth-fine">
               New here? The code creates your account automatically. By signing
               in you agree to the{" "}
-              <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+              <a href="https://meera-silk.vercel.app/privacy" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
                 privacy policy & terms
               </a>
               .

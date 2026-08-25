@@ -471,7 +471,7 @@ export default function MoreSheet({
 
             <div className="sheet-foot">
               <span>{HER_NAME} is an AI. She'll tell you so if you ask.</span>
-              <a href="/privacy" target="_blank" rel="noreferrer">
+              <a href="https://meera-silk.vercel.app/privacy" target="_blank" rel="noreferrer">
                 Privacy
               </a>
             </div>

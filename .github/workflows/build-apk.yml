@@ -8,6 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # secrets aren't readable inside step `if:`s; hoist presence to a plain
+      # env flag once. Empty secret -> "false" -> release steps skip.
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -76,3 +80,28 @@ jobs:
         with:
           name: meera-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+      # ── Play Store release: signed .aab + release APK ────────────────────
+      # Runs only when the signing secrets exist, so forks and PRs without
+      # them still get the debug APK above unchanged. The keystore lives ONLY
+      # in the ANDROID_KEYSTORE_BASE64 secret; it is decoded to a path the
+      # gradle signing config probes for and never touches the repo.
+      - name: Decode upload keystore
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/upload.keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      - name: Build signed release bundle
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        run: cd android && ./gradlew bundleRelease assembleRelease --no-daemon
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Upload release artifacts
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: maya-release
+          path: |
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/apk/release/app-release.apk
