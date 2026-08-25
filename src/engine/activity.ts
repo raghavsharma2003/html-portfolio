@@ -96,6 +96,43 @@ export interface ActivityState {
    * omits it and every byte downstream is what it was.
    */
   record?: readonly string[];
+  /**
+   * BOARD TRUTH, MACHINE-DERIVED. One line, read straight off the adapter's
+   * own engine evaluation of the position — never off prose, never off a fact
+   * row, never off anything a model wrote.
+   *
+   * Two shapes only: `in progress, move N` and `<how it ended>`. The renderer
+   * lifts it out of `facts` and into the UNDROPPABLE part of the block,
+   * beside `STATE_LAW`, because the whole point of it is that it survives the
+   * drop policy — a fence whose subject can fall off the end of the block is
+   * not a fence.
+   *
+   * Why it exists (tester report, 2026-08-25): she declared checkmate in the
+   * middle of a live game. The block she was holding said whose move it was
+   * and what had just been played, and nothing in it said, as a fact she
+   * could not talk past, THIS IS NOT OVER. `facts` could not be that thing:
+   * every row in it is droppable by construction, and "it is his move" is a
+   * fact about a turn rather than about the game's status.
+   *
+   * Optional. An adapter that does not set it renders exactly what it
+   * rendered before this field existed, `STATE_LAW` included — the law is
+   * about the line, so with no line there is nothing to state.
+   */
+  state?: string;
+  /**
+   * HER PLAN, in one telegraphic clause — "the italian game, quick
+   * development toward their king".
+   *
+   * Derived by the adapter from her OWN moves, never from prose and never
+   * from a model. The tester asked her what her idea behind the opening was
+   * and got "mai bhul gayi", because the block carried the board and not one
+   * byte about what she was trying to do with it. A gate can refuse an
+   * invented plan; only a substrate supplies a real one.
+   *
+   * Same three shape laws as `facts`: telegraphic, ≤14 words, never a line
+   * she could say. Optional, and absent renders nothing.
+   */
+  idea?: string;
   /** true when it is HER turn to act. Drives nothing on its own; she decides. */
   waitingOnHer?: boolean;
   /**
@@ -109,8 +146,67 @@ export interface ActivityState {
   over?: boolean;
 }
 
-/** The tail block. "" when nothing is going on, which is most of the time. */
+/**
+ * The tail block's DROPPABLE half — the head plus the fact rows. "" when
+ * nothing is going on, which is most of the time.
+ *
+ * DELIBERATELY UNCHANGED at 420 through WS-GAMEFEEL, and that is the decision
+ * rather than an oversight. `ttt-t15-bytes` measured the head at 307 (ttt) /
+ * 301 (chess), so a live board has ~113 bytes of fact room, and the row ORDER
+ * in both adapters is written against that number — `tttActivity`'s comment
+ * calls it "nearly the whole design". Folding the undroppable block below into
+ * this cap would have paid for the fence out of the rows (the drop policy
+ * takes them from the END, which is where the threat row and the opening name
+ * sit); raising it would have let MORE rows through than either adapter's row
+ * order was designed for, which is the commentator failure `chessTalk.ts`
+ * opens by refusing. So the cap on this half is the cap it always was, the
+ * rows that survive are the rows that survived, and the fence is paid for on
+ * top of it.
+ */
 export const ACTIVITY_BUDGET = 420;
+
+/**
+ * And the ceiling on the UNDROPPABLE half — `state`, `idea` and `STATE_LAW`.
+ *
+ * `STATE_LAW` is a fixed string and the two adapter lines are telegraphic and
+ * word-capped, so this is slack rather than a squeeze. It exists because a
+ * cap that is only ever satisfied by convention is `dead-writers` waiting to
+ * happen: a future adapter emitting a paragraph as its `idea` would push the
+ * whole block past what anyone has measured, silently. Over it, the IDEA goes
+ * — it is the one line here that is nice to have rather than load bearing.
+ * `state` and the law are never dropped and never sliced; that is the entire
+ * property they exist for.
+ */
+export const ACTIVITY_TRUTH_MAX = 480;
+
+/** What the whole block can be, at most. One number for the callers (and the
+ *  evals) that need to bound the thing that actually reaches the prompt. 900
+ *  of the compiler's 24,000-byte tail cap. */
+export const ACTIVITY_BLOCK_MAX = ACTIVITY_BUDGET + ACTIVITY_TRUTH_MAX;
+
+/**
+ * THE TERMINAL FENCE. Structural, not a hint — the same shape as the honesty
+ * gates, and here for the same measured reason (`gate0-structural`: a prompt
+ * instruction leaked 57–98%, a predicate leaked 0 of 31,122). This is the
+ * prompt half; what makes it work is that the thing it points AT is a machine
+ * number rather than another sentence.
+ *
+ * Two claims, both from the 2026-08-25 tester wave:
+ *
+ *  1. FALSE CHECKMATE. She announced the game over in the middle of it. The
+ *     only thing that may decide that question is the engine's own reading of
+ *     the board, and the `state:` line above is that reading verbatim.
+ *  2. CROSS-GAME BLEED. She replayed the previous game's content as though it
+ *     were the position in front of them. An earlier game is a MEMORY and has
+ *     its own place in the prompt (the activity ledger); it is never the
+ *     board, and the board is only ever the one this line describes.
+ *
+ * Not a line she could say: it is addressed to her about her own limits,
+ * carries no Hinglish, and names no move. Exported so the eval asserts the
+ * shipping string rather than a hand-written twin of it.
+ */
+export const STATE_LAW =
+  "`state:` is read off the board by the engine and is the only thing that says whether this is finished — unless it says the game ended, you may not claim checkmate, stalemate, a win or a loss, and if it names no winner there is none. Any earlier game between you is MEMORY, never the board in front of you now.";
 
 export const LABEL: Record<ActivityKind, string> = {
   chess: "a game of chess",
@@ -154,7 +250,31 @@ export function renderActivity(a: ActivityState | null | undefined, nowMs?: numb
     rows.pop();
     text = `${head}\n${rows.join("\n")}`;
   }
-  return text;
+  // THE UNDROPPABLE BLOCK, added AFTER the drop loop and never inside it.
+  //
+  // `state`, `idea` and `STATE_LAW` sit between the head and the rows and are
+  // never popped — that is the entire reason they are not `facts`. A fence the
+  // budget can delete is a fence that is absent exactly when the block is
+  // busiest, which is exactly when a false terminal claim is most likely
+  // (tester, 2026-08-25: checkmate declared mid-game).
+  //
+  // Outside the loop, so which rows survive is decided by the SAME arithmetic
+  // it always was and this seam cannot cost a fact row. See ACTIVITY_BUDGET.
+  return `${head}${truthBlock(a)}\n${rows.join("\n")}`;
+}
+
+/**
+ * The undroppable lines, or "". Bounded by `ACTIVITY_TRUTH_MAX`, and over it
+ * the IDEA is what goes — whole, never sliced ("a sliced block is a lie", and
+ * it does not stop applying because the block is small).
+ */
+function truthBlock(a: ActivityState): string {
+  const state = a.state?.trim();
+  const idea = a.idea?.trim();
+  if (!state) return idea ? `\nher idea: ${idea}` : "";
+  const full = `\nstate: ${state}${idea ? `\nher idea: ${idea}` : ""}\n${STATE_LAW}`;
+  if (full.length <= ACTIVITY_TRUTH_MAX) return full;
+  return `\nstate: ${state}\n${STATE_LAW}`;
 }
 
 /**
@@ -170,14 +290,42 @@ export function renderActivity(a: ActivityState | null | undefined, nowMs?: numb
  * One event, one note. Never a digest of the last five — she reacts to what
  * just happened or she says nothing, exactly as the screen-share wake does.
  */
-export function activityNote(fact: string): string {
+/**
+ * The board truth that rides a single note. Same two fields as
+ * `ActivityState`, passed separately because the note is one EVENT and not a
+ * state block — the caller has the live session in hand and derives both from
+ * it at the instant the note is drafted, which is what makes them true of the
+ * position the note describes rather than of the one it was queued against.
+ */
+export interface NoteTruth {
+  state?: string;
+  idea?: string;
+}
+
+export function activityNote(fact: string, truth?: NoteTruth): string {
   const f = fact.trim();
   if (!f) return "";
+  // THE FENCE TRAVELS WITH THE POKE, not only with the frozen brief.
+  //
+  // The live prompt is assembled once at connect and never again (G-C4,
+  // `liveAssemblies === 1`), so a game that starts, moves and ends inside one
+  // call reaches her ONLY through these notes. A terminal fence that lived in
+  // the tail block alone would therefore be absent for the entire window in
+  // which the false-checkmate defect actually happens. Same string, both
+  // paths — `STATE_LAW` is one constant for the reason `warm-count-unscoped`
+  // gives: two renderings of one rule drift, invisibly.
+  const state = truth?.state?.trim();
+  const idea = truth?.idea?.trim();
+  const rider = state
+    ? ` state: ${state}.${idea ? ` her idea: ${idea}.` : ""} ${STATE_LAW}`
+    : idea
+      ? ` her idea: ${idea}.`
+      : "";
   // "fold it into whatever you two were talking about" is the fix for a felt
   // defect: mid-conversation, she would abruptly drop the thread and recite a
   // move comment with no interest in it — because the old wording framed the
   // note as a thing to REACT TO rather than a thing that happened in the room.
   // A person mid-story who sees a move plays the move into the story, finishes
   // the sentence first, or says nothing.
-  return `<context: ${f}. this happened in the room, not in the conversation — fold it into whatever you two were talking about, finish your thought first, or let it pass. only remark if it genuinely grabs you, short, your own words. never reference this note>`;
+  return `<context: ${f}.${rider} this happened in the room, not in the conversation — fold it into whatever you two were talking about, finish your thought first, or let it pass. only remark if it genuinely grabs you, short, your own words. never reference this note>`;
 }

@@ -1295,7 +1295,17 @@ console.log("\n── 8. the wiring (source assertions — the set of call sites
   );
   ok(
     "…and every cascade think() reads it rather than the bare ring ref",
-    (src.match(/callExtraMemories\(\),/g) || []).length === 3 &&
+    // COUNTED AGAINST THE SOURCE'S OWN think() SITES rather than against a
+    // frozen 3. WS-GAMEFEEL's loop fence added re-drafting think() calls on
+    // this same lane (one on the reply path, one on the silence nudge), and a
+    // hand-written total turns "every think() reads the accessor" into "there
+    // are exactly three think()s" — which is a claim about a headcount, not
+    // about the invariant, and it fails on the next honest addition while
+    // passing on a dishonest one. The greet is the single deliberate
+    // exception: it is drafted before the ring lands and carries no mid-call
+    // rows by design.
+    (src.match(/callExtraMemories\(\),/g) || []).length ===
+      (src.match(/\n\s*(?:const \w+|let \w+|\w+(?:\.\w+)*) = (?:await )?think\(/g) || []).length - 1 &&
       // the one remaining bare read is the WATCH compile's `memories`, which
       // must NOT carry mid-call rows: that site is a compile and its size is
       // what scripts/check-prompt-budget.mjs bounds

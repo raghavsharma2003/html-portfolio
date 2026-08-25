@@ -24,11 +24,13 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { LABEL } from "./engine/activity";
 import {
   episodeDateLabel,
+  latestSkill,
   logFinishedActivity,
   publishActivityLedger,
   withActivityRecord,
   type ActivityRecord,
 } from "./engine/memory";
+import { nextSkill } from "./engine/chess";
 import { dyadRecord, momentRecord, recordCounts } from "./engine/milestones";
 import { useMoments } from "./components/useMoments";
 import Celebration from "./components/Celebration";
@@ -401,6 +403,20 @@ export default function App() {
         record: a.record,
         startedAt: g.startedAt,
         closedAt: g.closedAt,
+        // WS-GAMEFEEL: the per-user strength estimate, carried on the SAME
+        // record as the episode because it is derived from the same event —
+        // a second store of one fact is `warm-count-unscoped`. Chess only:
+        // `nextSkill` is a chess model and there is nothing dishonest about
+        // ttt not having one, since nothing reads it for ttt.
+        //
+        // `latestSkill` is the reader, so this is an EMA over the whole
+        // history rather than a fresh opinion per game: it seeds from the
+        // last stored value and moves a fraction of the way toward what this
+        // game showed. A game too short to teach anything returns the
+        // previous value unchanged (undefined included).
+        ...(g.kind === "chess"
+          ? { skill: nextSkill(latestSkill(state.activities, "chess"), g.game, g.herSide) }
+          : {}),
       },
       // one vocabulary for what an activity is CALLED — the same table the
       // tail block and the pickup line render from
@@ -411,7 +427,11 @@ export default function App() {
     // does not cover activities; this write is synchronous, works signed out,
     // and is what she actually reads from. Both halves carry the SAME string.
     if (rec) setState((s) => ({ ...s, activities: withActivityRecord(s.activities, rec) }));
-  }, [state.game, state.deviceId, setState]);
+    // `state.activities` joined the deps with WS-GAMEFEEL's skill estimate,
+    // which seeds from the last stored one: reading it without depending on it
+    // is a stale read waiting for the first close that follows a sync. The
+    // re-run this causes is a no-op — `emittedActivity` has the key by then.
+  }, [state.game, state.activities, state.deviceId, setState]);
 
   // The ledger, published for the lanes that cannot reach `AppState`. Same
   // holder idiom as `callSelfBundle` and for the same reason: the cascade call

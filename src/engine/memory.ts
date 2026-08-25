@@ -849,6 +849,9 @@ export interface FinishedActivity {
   /** the session's OWN start — the idempotence key, never the close time */
   startedAt: number;
   closedAt: number;
+  /** `ActivityRecord.skill` — see that field. Optional; absent leaves the
+   *  record exactly as it was before this field existed. */
+  skill?: number;
 }
 
 /**
@@ -978,7 +981,16 @@ export function logFinishedActivity(
   // ledger. `device` is no longer required to reach that half — a signed-out
   // person with a dead network still gets the memory, which is the entire
   // point of the ledger existing. See `formatActivityLedger`.
-  const rec: ActivityRecord = { kind: a.kind, startedAt: a.startedAt, closedAt: a.closedAt, summary };
+  const rec: ActivityRecord = {
+    kind: a.kind,
+    startedAt: a.startedAt,
+    closedAt: a.closedAt,
+    summary,
+    // The local half only — see `ActivityRecord.skill`. The POST below is
+    // deliberately unchanged, so the server contract and `evals/gamemem.mjs`'s
+    // writer/reader agreement are untouched by this field existing.
+    ...(Number.isFinite(a.skill) ? { skill: a.skill } : {}),
+  };
   if (!device) return rec;
   try {
     post({
@@ -1029,6 +1041,36 @@ export interface ActivityRecord {
   closedAt: number;
   /** exactly the string sent to the server — one rendering, two stores */
   summary: string;
+  /**
+   * HOW WELL THEY PLAY, on the 1..5 scale the chess opponent's own levels use.
+   * Written at close by `chess/adapt.ts`'s `nextSkill`, read at the START of
+   * the next game so she opens at the level this person has actually earned.
+   *
+   * It rides the ledger rather than getting a field of its own in `AppState`,
+   * and that is the decision rather than the shortcut. The ledger is already
+   * the record of finished games: it is written by the one reconciler that
+   * observes a close, it dedupes on `kind:startedAt`, it is bounded, it merges
+   * across devices, and it works signed out. A parallel `AppState.skill` would
+   * be a second store of a fact derived from the same event — `warm-count-
+   * unscoped`, a reader and a writer of one record drifting invisibly — and it
+   * would need its own sync rule, its own merge rule and its own FATE verdict
+   * for a single number.
+   *
+   * NOT rendered into any prompt, ever, and this is load bearing. It is a
+   * number about the person, and a number about the person in front of her is
+   * exactly the thing `chess-facts-as-a-scoresheet` refuses: she would read it
+   * out. `formatActivityLedger` renders `summary` and nothing else.
+   *
+   * SERVER-BLIND on purpose: `logFinishedActivity` does not POST it, so the
+   * server copy is unchanged and `api/memory.js` needs no migration. The cost
+   * is stated plainly — a reinstall loses the estimate and the next game opens
+   * friendly, which is the correct failure for a number whose whole job is to
+   * be a guess that improves.
+   *
+   * Optional. Absent means "no history", which is what every record written
+   * before this field existed means and what `startingLevel` reads it as.
+   */
+  skill?: number;
 }
 
 /** How many finished activities the device keeps. Twenty is months of real
@@ -1168,6 +1210,26 @@ function agoDaysLabel(atMs: number, nowMs: number): string {
 // array before the first publish renders nothing, which is the same
 // render-nothing default an empty ledger has.
 let ledgerHolder: readonly ActivityRecord[] = [];
+
+/**
+ * The most recent stored skill estimate for one activity kind, or undefined.
+ *
+ * Newest-first by `closedAt` rather than by array order, because the ledger is
+ * a UNION across devices (`mergeStates`) and array order after a merge is the
+ * merge's, not the clock's. Undefined for a person with no history, which is
+ * every new person, and which the reader turns into the friendly default.
+ */
+export function latestSkill(
+  ledger: readonly ActivityRecord[] | undefined,
+  kind: string,
+): number | undefined {
+  let best: ActivityRecord | null = null;
+  for (const r of ledger ?? []) {
+    if (!r || r.kind !== kind || !Number.isFinite(r.skill)) continue;
+    if (!best || (r.closedAt || 0) > (best.closedAt || 0)) best = r;
+  }
+  return best?.skill;
+}
 
 export function publishActivityLedger(ledger: readonly ActivityRecord[] | undefined): void {
   ledgerHolder = Array.isArray(ledger) ? ledger : [];
