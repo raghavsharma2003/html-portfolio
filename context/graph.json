@@ -1665,6 +1665,12 @@
    "kind": "rejection",
    "at": "2026-08-25",
    "title": "size ceilings measured under the live clock on date-varying core (46590..46771): ~25% of dates failed on identical source; pinned to argmax date, ceiling set from yearly max"
+  },
+  {
+   "id": "accent-joins-the-sky",
+   "kind": "decision",
+   "at": "2026-08-25",
+   "title": "sky states carry a sky-solved accent (>=4.75:1 over veiled stops, gated); the theme rose measured 2.26:1 on morning blue — owner-felt, now structural"
   }
  ],
  "edges": [
@@ -3037,6 +3043,11 @@
    "src": "calendar-lottery-ceiling",
    "rel": "part_of",
    "dst": "live-clock-in-a-byte-identity-gate"
+  },
+  {
+   "src": "accent-joins-the-sky",
+   "rel": "caused_by",
+   "dst": "calendar-lottery-ceiling"
   }
  ]
 }

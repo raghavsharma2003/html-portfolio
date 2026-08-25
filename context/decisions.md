@@ -2366,3 +2366,17 @@ fallback on genuinely-dead nights once a funded paid lane exists (today's
 paid lane is dead, so the 15s costs nothing), or Google's preview exits
 degraded mode and the p95 first frame returns under ~2s for a month —
 then the long fuse can shrink, not vanish.
+
+## `accent-joins-the-sky` — every color on the sky is the sky's to solve
+
+**Decided 2026-08-25** (owner report: hero rose unreadable at morning, web
++ APK). The theme's --accent belongs to surfaces the theme controls;
+anything painted ON the sky takes tokens the SKY solves per state — ink
+already worked this way, and the accent was the last borrower (2.26:1 on
+morning's blue top stop). Each sky state now carries `accent`: the brand
+rose hue at the lightness nearest brand clearing >= 4.75:1 against all
+four scrim-composited stops, emitted as --world-accent, gated per state
+in check-contrast.mjs at the 4.5 body floor. Fallback var() keeps the
+theme rose off-sky. **Reverses if** a future sky state cannot host any
+recognisable rose at the floor — then that state's hero drops the accent
+entirely rather than shipping an unreadable one.
