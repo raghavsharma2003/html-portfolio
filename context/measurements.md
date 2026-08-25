@@ -2854,3 +2854,31 @@ added with its date.
   d9d10b0 after owner updated GOOGLE_KEYS in Vercel + GitHub): speech 200
   free-lane with pool header 35/51, chat 200. Full stack now: 51 free
   keys + funded OpenRouter overflow (~$14) + Azure grant lane.
+
+## `cache-plateau` — what Google's caches actually pay (2026-08-25)
+
+Method: real compiled prompt (core 48,730 B + tail 5,511 B = 13,311–13,464
+tokens), gemini-3.6-flash on the paid key, direct Google API, sequential
+requests ~1.2 s apart. Pricing cited from ai.google.dev 2026-08-25 (input
+$0.75/1M, cached $0.075/1M, output $3.75/1M, explicit-cache storage
+$0.50/1M tok/hr; all rates double 2027-01-01). Total spend $0.22 of a $2 cap.
+
+- Prefix stability (compile() harness, fixed instant): same-session
+  consecutive turns byte-identical through the ENTIRE system prompt;
+  +10 min differs only at the her-now minute line (94% in); cross-user
+  diverges at byte 68 (the name). Clock sweep n=121: mean stable prefix
+  94.78%, every first-diff in the RIGHT NOW block (106/106 non-identical).
+- Implicit cache: plateaus at 8,165/13,400 tokens (60.7%) on EVERY hit,
+  n=20 production-shape (hit rate 16/19 follow-ups = 84.2%), unchanged by
+  cache_control{ephemeral} (n=4 — measured NO-OP on Google), unchanged by
+  the +10-min prompt (variance sits past the cached boundary).
+- Explicit cachedContents: full system 13,449/13,464 (99.9%, 4/4);
+  core-only 12,097 (90.0%, 4/4). Deterministic, no plateau.
+- Per-turn arithmetic at measured 26-token output: uncached $0.010148;
+  implicit EV −45.7%; explicit core-only incl. storage (ttl 10 min,
+  8 turns) −79.2%. −90–95% NOT reachable by caching alone.
+- reasoning_effort "low" bills zero hidden thinking tokens (4/4); the
+  native surface without it billed ~190/call (~7× the output bill).
+- Voice lanes (list-price sizing, no calls): live 10-min call ≈ $0.13,
+  cacheable share ~8% (noise); cascade 10-min call ≈ $0.39, ~69%
+  cacheable text — caching is a real lever on cascade only.

@@ -2263,3 +2263,27 @@ the argmax date and raised CALL_TAIL_CAP to 30,250 (60-byte tripwire
 margin, zero content growth). The sharpened lesson: an unpinned clock in
 a size gate doesn't just flap — it can HIDE a cap that is already
 exceeded, because every green run silently measured a smaller day.
+
+## `cache-control-on-google` — the breakpoint that wasn't (2026-08-25)
+
+api/chat.js sent cache_control{type:"ephemeral"} on the system block and a
+comment credited it with "~85% input-cost reduction" on Google. Measured:
+it is a NO-OP on Google's endpoint (n=4, identical cached-token counts
+with and without). The 85% was the OpenRouter lane's Anthropic-style
+behaviour bleeding into a comment about the wrong lane. Google caches
+implicitly regardless and plateaus at ~61% of input; only explicit
+cachedContents goes higher. Lesson: a caching claim is per-PROVIDER, and
+a comment stating a measurement must name the lane it was measured on.
+
+## `obs-stream-dead-on-arrival` — green code, zero rows (2026-08-25)
+
+WS-OBS shipped obs() calling q(query, ...sevenValues) against
+q(query, params, timeoutMs) — params got the string "server", every insert
+was rejected by Neon, and obs()'s own catch (there so observability can
+never become the outage) swallowed the rejection. Every server-ops row
+(key_cooled, speech, live_token) since ship was lost; the stream looked
+healthy because silence was its failure mode. Found by WS-COST wiring
+paid_turn. The meera_turn funnel (api/_trace.js, its own writer) was never
+affected. Lesson: an observability path is not live until ONE ROW HAS BEEN
+READ BACK from the store — the write-side green run proves nothing,
+because the whole design goal of such a path is to fail silently.

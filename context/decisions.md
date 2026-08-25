@@ -2494,3 +2494,17 @@ paraphrased loops (one constant to lower if felt), skill estimate is
 device-local (reinstall opens friendly — the right failure), idea line is
 chess-only (ttt has no plan worth a line). Reverses per item if the felt
 tests say the boundary moved.
+
+## `paid-lane-off-by-default` — billed spend is opt-in, twice (2026-08-25)
+
+The paid Gemini key rides a flag-gated lane: PAID_LANE must be explicitly
+"1"/"true" AND the key must exist; either missing and laneOrder returns
+the pre-existing frozen arrays by identity. Order when on: free pool >
+paid > OpenRouter > Azure. Rationale: the free pool is $0 cash and
+serves current volume; the paid lane exists to be measured and to absorb
+scale deliberately, never by accident. Chosen cost path: explicit
+cachedContents on the per-user core (−79 to −80% measured incl. storage)
+— implicit caching alone tops out at −46% EV (see cache-plateau).
+Reverses if: free-pool exhaustion becomes a daily user-facing event
+(flip the flag), or Google's implicit plateau moves above 90% (explicit
+cache machinery becomes dead weight).

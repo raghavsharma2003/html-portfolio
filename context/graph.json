@@ -1701,6 +1701,30 @@
    "kind": "decision",
    "at": "2026-08-25",
    "title": "defect wave shipped same-day: state-law fence, idea line, weighted variety, adaptive strength, loop fence — uniform-draw and streamed-line learnings logged"
+  },
+  {
+   "id": "cache-plateau",
+   "kind": "measurement",
+   "at": "2026-08-25",
+   "title": "implicit cache plateaus at 61% of input regardless of request; explicit core-only 90% deterministic; -90/95 unreachable by caching alone"
+  },
+  {
+   "id": "cache-control-on-google",
+   "kind": "rejection",
+   "at": "2026-08-25",
+   "title": "cache_control{ephemeral} measured NO-OP on Google endpoint; the 85% comment was the OpenRouter lane's behaviour"
+  },
+  {
+   "id": "obs-stream-dead-on-arrival",
+   "kind": "rejection",
+   "at": "2026-08-25",
+   "title": "obs() spread params, Neon rejected every ops row, own catch swallowed it; observability is not live until one row is read back"
+  },
+  {
+   "id": "paid-lane-off-by-default",
+   "kind": "decision",
+   "at": "2026-08-25",
+   "title": "flag-gated paid lane, off-is-identity; chosen path explicit cachedContents on per-user core (-79/80%)"
   }
  ],
  "edges": [
@@ -3103,6 +3127,26 @@
    "src": "ws-gamefeel-shipped",
    "rel": "part_of",
    "dst": "ws-gamefeel"
+  },
+  {
+   "src": "cache-plateau",
+   "rel": "supersedes",
+   "dst": "cache-9x"
+  },
+  {
+   "src": "cache-control-on-google",
+   "rel": "constrains",
+   "dst": "paid-lane-off-by-default"
+  },
+  {
+   "src": "cache-plateau",
+   "rel": "constrains",
+   "dst": "paid-lane-off-by-default"
+  },
+  {
+   "src": "obs-stream-dead-on-arrival",
+   "rel": "constrains",
+   "dst": "paid-lane-off-by-default"
   }
  ]
 }
