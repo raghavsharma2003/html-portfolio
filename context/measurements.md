@@ -2882,3 +2882,24 @@ $0.50/1M tok/hr; all rates double 2027-01-01). Total spend $0.22 of a $2 cap.
 - Voice lanes (list-price sizing, no calls): live 10-min call ≈ $0.13,
   cacheable share ~8% (noise); cascade 10-min call ≈ $0.39, ~69%
   cacheable text — caching is a real lever on cascade only.
+
+## `explicit-cache-live` — the deterministic path, verified on the wire (2026-08-25)
+
+Method: n=9 billed turns on the real paid key through the shipped
+runGeminiPaidCached path (real compiler core 48,768 B / tail 9,055 B),
+plus a 6-arm thinking-config probe (1 call each). Spend ~$0.11 of $0.50.
+
+- Cache hit 9/9, cachedContentTokenCount 12,105 (prior measurement 12,097;
+  +8 tokens = the core grew 38 B between runs). Hidden thinking 0/9.
+- Per-turn saving 76.5-77.0% on this fixture (tail 9,055 B -> 86.2% of
+  input cached). The pre-registered mix (13,400 in / 12,097 cached / 26
+  out) reproduces -79.2% through the same arithmetic — the model holds;
+  the delta is prompt mix, not mechanism.
+- thinkingBudget:0 is REJECTED (400) by gemini-3.6-flash. Probe:
+  thinkingLevel minimal/low -> 0 thoughts; medium/high -> 188; off/none ->
+  400; NO config -> 193. The effort tier must pass through as
+  thinkingLevel; a fixed budget field is a full-lane outage.
+- Fallback proven live: injected bad cache name -> Google 403 "CachedContent
+  not found" -> classified miss -> re-created and served same turn.
+- Telemetry read back: 12 paid_turn rows out of meera_diag (the
+  obs-stream-dead-on-arrival fix holding in production).

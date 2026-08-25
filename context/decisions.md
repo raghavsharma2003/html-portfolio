@@ -2527,3 +2527,18 @@ prompt) is the further step, with the recitation/position laws re-tested.
 Not scheduled — a decision map, not a workstream. Reverses if: a hosted
 provider ships per-user persistent KV at API prices, or the swap-test
 shows no open model within quality floor by the time volume arrives.
+
+## `paid-flip-gate` — what must happen before PAID_LANE turns on (2026-08-25)
+
+The explicit-cache path ships OFF (PAID_LANE off; PAID_CACHE within it
+defaults on because it cannot cause spend, only shape it). One wire
+difference is unmeasured for persona quality: Google's native surface has
+no system_tail field, so the volatile tail rides as a LEADING USER-ROLE
+content instead of a system block (order preserved, no fake model turn).
+The flip gate is a paired dual-judge equivalence run (same bar SPEC §0.3
+sets for persona cuts) comparing compat-surface vs native-surface serving
+on byte-identical compiled contexts. Until that run passes, the paid lane
+may be flipped in an emergency (free pool dead) — a served turn beats a
+perfect one — but not as a cost optimisation. Reverses if: Google adds a
+system-role tail slot to cachedContents generate calls, or the
+equivalence run shows no measurable difference.

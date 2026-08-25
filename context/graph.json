@@ -1731,6 +1731,18 @@
    "kind": "decision",
    "at": "2026-08-25",
    "title": "Rs21->Rs10 is API-side; Rs1-2 needs resident per-user KV on self-hosted serving, gated on swap-test + volume"
+  },
+  {
+   "id": "explicit-cache-live",
+   "kind": "measurement",
+   "at": "2026-08-25",
+   "title": "9/9 cache hits, -77% realized (-79.2% at registered mix); thinkingBudget:0 rejected, thinkingLevel low -> 0 thoughts; fallback + telemetry proven live"
+  },
+  {
+   "id": "paid-flip-gate",
+   "kind": "decision",
+   "at": "2026-08-25",
+   "title": "PAID_LANE flips on only after dual-judge equivalence run on the native surface's user-role tail (emergency exception: free pool dead)"
   }
  ],
  "edges": [
@@ -3156,6 +3168,21 @@
   },
   {
    "src": "cost-frontier-map",
+   "rel": "constrains",
+   "dst": "paid-lane-off-by-default"
+  },
+  {
+   "src": "paid-flip-gate",
+   "rel": "measured_by",
+   "dst": "explicit-cache-live"
+  },
+  {
+   "src": "explicit-cache-live",
+   "rel": "part_of",
+   "dst": "cache-plateau"
+  },
+  {
+   "src": "paid-flip-gate",
    "rel": "constrains",
    "dst": "paid-lane-off-by-default"
   }
