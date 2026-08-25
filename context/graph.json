@@ -1671,6 +1671,12 @@
    "kind": "decision",
    "at": "2026-08-25",
    "title": "sky states carry a sky-solved accent (>=4.75:1 over veiled stops, gated); the theme rose measured 2.26:1 on morning blue — owner-felt, now structural"
+  },
+  {
+   "id": "residues-zero",
+   "kind": "decision",
+   "at": "2026-08-25",
+   "title": "leak-guard residues 95->0 in three byte-identical batches; ratchet pinned at 0 — character prose in core is now a build failure"
   }
  ],
  "edges": [
@@ -3048,6 +3054,11 @@
    "src": "accent-joins-the-sky",
    "rel": "part_of",
    "dst": "sky-is-the-clock"
+  },
+  {
+   "src": "residues-zero",
+   "rel": "part_of",
+   "dst": "personality-is-a-sheet"
   }
  ]
 }

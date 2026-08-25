@@ -2380,3 +2380,16 @@ in check-contrast.mjs at the 4.5 body floor. Fallback var() keeps the
 theme rose off-sky. **Reverses if** a future sky state cannot host any
 recognisable rose at the floor — then that state's hero drops the accent
 entirely rather than shipping an unreadable one.
+
+## `residues-zero` — the Relational Core carries no character
+
+**Reached 2026-08-25.** Three extraction batches in one session took the
+leak guard's measured Maya-isms in Kabir's lanes from 95 -> 64 -> 27 -> 0,
+with Maya byte-identical (83/83) after every batch. 32 example-fragment
+fields now live in the CharacterSheet contract; WATCH_MODE_NOTE became
+buildWatchModeNote(C) (constant = builder(MAYA), so all call sites kept
+their bytes), closing kabir.ts's declared v1 gap. The ratchet is pinned at
+0 forever: character prose in the core is now a build failure, not a
+backlog. **Reverses if** never — this is the definition of the OS/character
+boundary from here on; a legitimate need for character text in core means
+a new sheet field, not a ratchet bump.
