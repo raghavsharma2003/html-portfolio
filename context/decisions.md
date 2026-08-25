@@ -2610,3 +2610,58 @@ the persona is untouched — a future personality inherits the screen by
 being on the same surface). Reverses if: decline rates in tracking show
 the step costs onboarding completion materially (then soften placement,
 never the consent itself).
+
+## `session-2026-08-25b-close` — the second session of 2026-08-25, logged
+
+**Shipped and verified (all by exit code, all pushed, all CI-green):**
+1. WS-GAMEFEEL both halves — STATE_LAW board-truth fence + her idea line
+   (OS), engine substrate (state/idea fields, weighted opening variety,
+   adaptive strength, loop fence). Same-day close of the tester wave.
+2. WS-COST complete — cache-plateau measured (implicit 61% ceiling,
+   cache_control no-op on Google), flag-gated paid lane (off-is-identity),
+   explicit cachedContents live-verified −77%/−79%, paid_turn telemetry.
+   Flip gated (paid-flip-gate) and the judge-free differential then
+   VALIDATED the gate: hindi-register −6pp in the user-role arm + two n=1
+   crisis-adjacent flags. −90/95 unreachable by caching; −80 is the API
+   ceiling; resident-gpu-at-scale is the committed 10x.
+3. obs stream resurrected (seven-args bug — every ops row since ship had
+   been silently rejected) and immediately used to diagnose a live CI
+   probe timeout as a free-pool cooling wave, not a regression.
+4. Judge saga — opus-5's 17/17 exposed as parse-survivor bias (37.3pp);
+   honest 69.2% FAIL; all 8 families now fail 0.80; bar-vs-ceiling left
+   OPEN for prospective re-registration (judge-bar-vs-ceiling).
+5. WS-BEHAVE — 208-attack behavioral battery (deterministic graders,
+   severity tiers); persona hardening collapsed severe internals leaks
+   5-10 -> 1+1; internalsFence.ts then closed the severe class
+   mechanically (2/2 caught, 0 false positives on 205 non-severe).
+6. DPDP memory-consent shipped (memory-asks-first); migration 016 awaits
+   owner.
+7. Operational core cap 64k -> 72k after the corpus scan found heavy-dyad
+   cores 3.1% under the guard.
+8. Strategy: market sweep (docs/research/) then owner reweight to
+   owned-product-first — NRI elder companion wedge, global diaspora
+   pricing, B2B opportunistic only. Artifact "Where Memory Sells" v2.
+
+**Incidents:** free-pool keyring + paid key each printed once into
+session-local transcripts (agent redaction fumbles + a quote of mine) —
+ROTATION OF BOTH RECOMMENDED, owner's action. Subagent spend-refusal
+doctrine held twice; resolution: the main loop, holding the owner's
+direct authorization, runs billed measurements itself.
+
+**Spend:** ~₹560 of the ₹3000 paid key across all measurements.
+
+**Open (owner):** judge unblock (Foundry deploy sol/Maverick OR 30 blind
+pairs), migration 016, felt test of the game wave, key rotations.
+**Open (filed):** #115 call-glitch repro, corpus manifest refresh (#58's
+closer), protected obs dashboard, register-echo grader tier usage.
+
+**For the NEXT product (owner: "entirely different product, similar
+domain"):** what transfers is exactly what RelationalOS was factored for —
+the engine (compiler, memory graph, honesty gates, safety floor, fences,
+battery harnesses, cost machinery) is character-agnostic and
+surface-agnostic; a new personality is a CharacterSheet (Kabir precedent:
+zero engine changes, 412/412), a new surface is an adapter
+(vy_surface_identity), and the app-vs-OS split is layer-tagged through
+this file so the next build reads which pieces are Maya's and which are
+the layer's. Multi-agent tenancy (migration 009) and per-agent isolation
+already exist server-side.

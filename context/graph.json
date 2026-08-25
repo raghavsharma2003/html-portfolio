@@ -1810,6 +1810,12 @@
    "kind": "measurement",
    "at": "2026-08-25",
    "title": "150-pair judge-free differential: 6 metrics clean, hindi-register -6pp in arm B + two n=1 crisis-adjacent flags; flip gate's caution validated"
+  },
+  {
+   "id": "session-2026-08-25b-close",
+   "kind": "decision",
+   "at": "2026-08-25",
+   "title": "session close: gamefeel+cost+behave+consent+fence shipped; judge open; incidents logged; what the next product inherits from the OS"
   }
  ],
  "edges": [
@@ -3302,6 +3308,11 @@
    "src": "paid-flip-gate",
    "rel": "measured_by",
    "dst": "tail-role-differential"
+  },
+  {
+   "src": "session-2026-08-25b-close",
+   "rel": "part_of",
+   "dst": "owned-product-first"
   }
  ]
 }
