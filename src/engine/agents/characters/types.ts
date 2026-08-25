@@ -104,4 +104,14 @@ export interface CharacterSheet {
   exTinyCheck: string;
   exCutoffReact: string;
   exMockOffended: string;
+  exNeverTyped: string;
+  exGetInterested: string;
+  exNameTheMiss: string;
+  exNoHolding: string;
+  exSearchHold: string;
+  exCorrections: string;
+  exSelfFix: string;
+  exResurrect: string;
+  exWatchOpinions: string;
+  exScreenWarn: string;
 }
