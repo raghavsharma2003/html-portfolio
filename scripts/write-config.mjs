@@ -53,6 +53,19 @@ const STRINGS = [
   "FCM_PRIVATE_KEY",
 ];
 
+// WS-G (docs/gurukul/ENV-MANIFEST.md) checked, deliberately, whether
+// CRON_SECRET belongs on this list too, since it authenticates every replica
+// cron sweep and its absence is what silently 401s all five of them. It does
+// NOT belong here: every consumer (api/consolidate-sweep.js and all five
+// api/replica-*-sweep.js) reads `process.env.CRON_SECRET` directly at
+// request time — none of them import api/_config.js — so Vercel's own
+// Project → Environment Variables is the one place it needs to be set. Baking
+// it into this gitignored, deploy-time-generated file would freeze a value
+// into the deployed bundle instead of letting Vercel's per-environment secret
+// rotate independently. The other ~55+ replica/voice env vars are not on this
+// list for the same reason — none of their consumers import api/_config.js
+// either. Full inventory, file:line verified, at docs/gurukul/ENV-MANIFEST.md.
+
 // Refusing to overwrite a real local config is not politeness — running this
 // by hand in a checkout that HAS the keys would destroy them, and they are not
 // recoverable from the repo.
