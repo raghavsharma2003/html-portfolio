@@ -38,6 +38,32 @@ export const GOOGLE_KEYRING = [];
 // Tried last in the rotation and never cooled.
 export const GOOGLE_PAID_KEY = "";
 
+// ── WS-COST: the billed Google CHAT lane ─────────────────────────────────
+//
+// GEMINI_PAID_KEY is a prepaid Google AI Studio key. GOOGLE_PAID_KEY above is
+// the VOICE lane's billed key and is a separate slot on purpose: the two lanes
+// have different failure modes and different budgets, and one key doing two
+// jobs is `one-key-two-jobs`.
+//
+// PAID_LANE is the switch, and it is OFF unless it is the string "1" or
+// "true" (env `PAID_LANE` wins over this file, so it can be flipped in Vercel
+// without redeploying the gitignored config). With it off, api/chat.js's
+// ladder is the exact frozen array it was before this lane existed —
+// gemini-free > openrouter > azure — and no request can reach a billed Google
+// key by accident. With it on, and only if a key is present, the order becomes
+// gemini-free > gemini-paid > openrouter > azure (see LANE_ORDER_TEXT_PAID in
+// api/_lanes.js).
+//
+// What it costs, measured 2026-08-25 on gemini-3.6-flash at Google list
+// ($0.75/1M in, $0.075/1M cached-in, $3.75/1M out): ~$0.0101 per chat turn
+// uncached, ~$0.0046 on an implicit-cache hit (8,165 of ~13,400 input tokens,
+// 60.7%, hit on 16 of 19 follow-up calls). Implicit caching is automatic and
+// needs no request field — the `cache_control` marker api/chat.js sends is an
+// Anthropic-shaped hint that Google ignores, measured identical with and
+// without it.
+export const GEMINI_PAID_KEY = "";
+export const PAID_LANE = "";
+
 // Azure AI Foundry, on the Microsoft-for-Startups credits — $0 cash.
 //
 // Three jobs now, not one:

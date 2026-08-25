@@ -23,16 +23,25 @@ import { q } from "./_db.js";
 
 export async function obs(event, detail = {}, tMs = 0) {
   try {
+    // The params go as ONE ARRAY. `q(query, params, timeoutMs)` — this call
+    // used to spread the seven values as seven arguments, which handed
+    // `params` the string "server" and `timeoutMs` the empty string, so every
+    // ops row this module has ever written was rejected by Neon and swallowed
+    // by the catch below. The stream reported nothing and looked healthy,
+    // which is `startup-failure-is-invisible` inside the very file built to
+    // make failures visible. Found by WS-COST while wiring `paid_turn`.
     await q(
       `insert into meera_diag (device_id, session_id, scope, event, t_ms, detail, at)
        values ($1, $2, $3, $4, $5, $6, $7)`,
-      "server",
-      "",
-      "ops",
-      String(event).slice(0, 48),
-      Math.round(tMs) || 0,
-      JSON.stringify(detail).slice(0, 4000),
-      new Date().toISOString(),
+      [
+        "server",
+        "",
+        "ops",
+        String(event).slice(0, 48),
+        Math.round(tMs) || 0,
+        JSON.stringify(detail).slice(0, 4000),
+        new Date().toISOString(),
+      ],
     );
   } catch {
     /* observability must never become the outage */

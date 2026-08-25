@@ -354,6 +354,32 @@ ok(
   "every lane appears in both orders — an order is a permutation, not a subset",
   [...LANE_ORDER_TEXT].sort().join() === [...LANE_ORDER_ATTACHMENT].sort().join(),
 );
+// WS-COST. The paid Google lane's whole safety property is "off by default",
+// and the only way to state that as a fact rather than a hope is IDENTITY: with
+// the flag unset `laneOrder` must hand back the very same array object it
+// handed back before the lane existed, not an equal copy. A filtered copy would
+// pass a deep-equality check today and start differing the first time someone
+// edits the filter.
+ok(
+  "paid lane OFF by default — laneOrder returns the ORIGINAL constant, by identity",
+  laneOrder({ hasAttachments: false }) === LANE_ORDER_TEXT &&
+    laneOrder({ hasAttachments: true }) === LANE_ORDER_ATTACHMENT,
+);
+ok(
+  "explicit paidLane:false is the same as omitting it",
+  laneOrder({ hasAttachments: false, paidLane: false }) === LANE_ORDER_TEXT,
+);
+ok(
+  "paid lane ON sits BELOW the free pool and ABOVE openrouter",
+  laneOrder({ hasAttachments: false, paidLane: true }).join(">") ===
+    "gemini-free>gemini-paid>openrouter>azure",
+  laneOrder({ hasAttachments: false, paidLane: true }).join(">"),
+);
+ok(
+  "paid lane ON keeps azure FIRST for attachments (the owner's directive is not a casualty of a cost flag)",
+  laneOrder({ hasAttachments: true, paidLane: true })[0] === "azure",
+  laneOrder({ hasAttachments: true, paidLane: true }).join(">"),
+);
 
 // ══════════════════════════════════════════════════════════════════════════
 section("── (f) the payload contract ──");

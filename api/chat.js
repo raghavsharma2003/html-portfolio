@@ -19,7 +19,16 @@ import {
 } from "./_lanes.js";
 import { normalizeDocs } from "./_docs.js";
 import { azureChat, azureConfigured, AZURE_CHAT_DEPLOYMENT, AZURE_VISION_DEPLOYMENT } from "./_azure.js";
+// WS-COST B2: the paid lane's token counts go to the server ops stream, which
+// is counts-and-labels only. obsBestEffort never throws and never blocks the
+// reply path — see api/_obs.js's contract.
+import { obsBestEffort } from "./_obs.js";
 
+// WS-COST. Namespace import, not named: `GEMINI_PAID_KEY` and `PAID_LANE` are
+// both OPTIONAL, and a named import of something a deploy's _config.js does not
+// export is a module-load crash that takes the whole chat endpoint with it —
+// the same reason api/_gkeys.js imports its config this way.
+import * as CFG from "./_config.js";
 import { OPENROUTER_KEY } from "./_config.js";
 
 // SPEC §7.3 chat-lane call-site adoption: the router decision now happens
@@ -62,6 +71,27 @@ const ALLOWED_MODEL = /^[a-z0-9-]+\/[a-z0-9.:-]+$/i;
 const SYSTEM_MAX = 64_000;
 // Google's OpenAI-compatible surface: same request shape, same SSE stream.
 const GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+
+// ── WS-COST: the paid Google lane ────────────────────────────────────────
+//
+// OFF BY DEFAULT AND OFF UNLESS SAID TWICE. The lane runs only when the flag
+// is explicitly enabled AND a paid key exists; either one missing and
+// `laneOrder` is handed `paidLane: false`, which returns the exact frozen
+// array it returned before this lane existed. There is no third way in.
+//
+// The flag is read from the environment FIRST so it can be flipped in Vercel
+// without a redeploy of the gitignored config, mirroring how every other key
+// in this repo resolves. Only the literal strings "1" and "true" enable it: a
+// flag that turns on for "0" or "false" is a flag that turns on by accident.
+const PAID_LANE_ON = (() => {
+  const raw = process.env.PAID_LANE ?? CFG.PAID_LANE ?? "";
+  return raw === true || String(raw).toLowerCase() === "1" || String(raw).toLowerCase() === "true";
+})();
+const PAID_KEY = process.env.GEMINI_PAID_KEY || CFG.GEMINI_PAID_KEY || "";
+/** Is the billed Google lane both permitted and reachable on this deploy? */
+function paidLaneReady() {
+  return Boolean(PAID_LANE_ON && PAID_KEY);
+}
 
 // voice calls stream tokens so she can start speaking on the first sentence
 export const config = { supportsResponseStreaming: true };
@@ -133,10 +163,16 @@ export default async function handler(req, res) {
     trace.turn_id = /^[A-Za-z0-9_-]{8,64}$/.test(String(turn_id || "")) ? String(turn_id) : null;
     trace.lane = typeof lane === "string" ? lane.slice(0, 24) : null;
     // Prompt caching: the client sends the byte-stable persona core as
-    // `system` and the per-turn volatile part as `system_tail`. A
-    // cache_control breakpoint after the core makes Google serve it from
-    // cache — measured ~85% input-cost reduction (5473/5477 tokens cached,
-    // $0.0085 → ~$0.0012 per call in testing).
+    // `system` and the per-turn volatile part as `system_tail`. The
+    // cache_control breakpoint is honoured by the OPENROUTER lane (Anthropic-
+    // style, where the ~85% figure below was measured) and is a measured
+    // NO-OP on Google's endpoint (WS-COST 2026-08-25, n=4: identical cached
+    // tokens with and without it). Google caches implicitly regardless, and
+    // plateaus at ~61% of input tokens (8,165 of 13,400) no matter what the
+    // request says; the deterministic path past that is explicit
+    // cachedContents. See context/measurements.md#cache-plateau.
+    //   (historic, OpenRouter lane: ~85% input-cost reduction, 5473/5477
+    //   tokens cached, $0.0085 → ~$0.0012 per call.)
     // The cap is a payload guard, NOT a budget. It sat at 20000 while the
     // text core grew to ~29800, so for an unknown stretch every chat message
     // silently lost its last ~9800 characters — which is where the crisis
@@ -313,9 +349,21 @@ export default async function handler(req, res) {
     // attachments, because "Azure first for images and documents" is the
     // owner's preference and a preference written as an if-statement three
     // files deep is a preference nobody can find or reverse.
-    const order = laneOrder({ hasAttachments });
+    //
+    // WS-COST: `paidLane` is the ONLY thing that puts a billed Google key in
+    // the ladder, and it is false unless the flag is set AND a key exists. The
+    // model gate is the same one the free pool uses (`freeModel`): Google's own
+    // endpoint takes bare model names, so a request asking for something that
+    // is not a `google/...` slug skips this lane rather than being silently
+    // rewritten into a model nobody asked for — and, here, rather than being
+    // billed for one.
+    const paidLane = paidLaneReady() && Boolean(freeModel);
+    const order = laneOrder({ hasAttachments, paidLane });
     trace.lane_order = order.join(">");
     trace.azure = { configured: azureConfigured(), used: false };
+    // Flag state as a BOOLEAN, never the key and never a prefix of it. This is
+    // the field that answers "was that turn billed on purpose or by accident".
+    trace.paid = { enabled: PAID_LANE_ON, eligible: paidLane, used: false };
 
     /** Free Google pool, with the bounded transient ladder. */
     const runGeminiFree = async () => {
@@ -346,18 +394,9 @@ export default async function handler(req, res) {
           // Streaming cannot be inspected without buffering (that would cost
           // her first-word latency, which is not for sale), so this guards the
           // non-streaming lane and the stream keeps its measured tier.
-          if (r.ok && !wantStream) {
-            const text = await r.clone().text();
-            let empty = false;
-            try {
-              empty = !(JSON.parse(text)?.choices?.[0]?.message?.content || "").trim();
-            } catch {
-              empty = true;
-            }
-            if (empty) {
-              trace.empty_guard_fired = (trace.empty_guard_fired || 0) + 1;
-              return { ok: false, status: r.status, empty: true };
-            }
+          if (await emptyOn200(r, wantStream)) {
+            trace.empty_guard_fired = (trace.empty_guard_fired || 0) + 1;
+            return { ok: false, status: r.status, empty: true };
           }
           return { ok: r.ok, status: r.status, value: r };
         },
@@ -412,6 +451,41 @@ export default async function handler(req, res) {
       return null;
     };
 
+    /** WS-COST — the BILLED Google key, same host, same body, same SSE.
+     *
+     *  Deliberately NOT a second implementation of anything. It is
+     *  `runGeminiFree`'s fetch with one key instead of a pool walk: same
+     *  `GEMINI_OPENAI_URL`, same `{...body, model: freeModel, reasoning_effort}`
+     *  (the tiers are INVERTED between chat and call and any fixed value is
+     *  catastrophic on one of them — see the table above), same empty-200
+     *  guard, and the streaming/usage handling below is the shared code every
+     *  lane already returns into. There is no pool ladder here because there is
+     *  no second key to walk to: one key, one attempt, fall through on failure.
+     *
+     *  It carries no retry of its own on purpose. A retry on a billed key is a
+     *  second charge for the same turn, and OpenRouter and Azure are both still
+     *  underneath it. */
+    const runGeminiPaid = async () => {
+      if (!paidLane) return null;
+      try {
+        const r = await fetch(GEMINI_OPENAI_URL, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${PAID_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ ...body, model: freeModel, reasoning_effort: effort }),
+          signal: aborter.signal,
+        });
+        if (await emptyOn200(r, wantStream)) {
+          trace.empty_guard_fired = (trace.empty_guard_fired || 0) + 1;
+          trace.fallbacks.push({ from: "gemini-paid", to: "next-lane", why: "empty_200" });
+          return null;
+        }
+        return r;
+      } catch {
+        trace.fallbacks.push({ from: "gemini-paid", to: "next-lane", why: "network" });
+        return null;
+      }
+    };
+
     /** Paid OpenRouter. Unchanged request shape. */
     const runOpenRouter = async () => {
       if (!key) return null;
@@ -458,7 +532,12 @@ export default async function handler(req, res) {
       return r;
     };
 
-    const runners = { "gemini-free": runGeminiFree, openrouter: runOpenRouter, azure: runAzure };
+    const runners = {
+      "gemini-free": runGeminiFree,
+      "gemini-paid": runGeminiPaid,
+      openrouter: runOpenRouter,
+      azure: runAzure,
+    };
     for (const name of order) {
       const r = await runners[name]();
       if (!r) continue;
@@ -485,6 +564,7 @@ export default async function handler(req, res) {
     }
     trace.served_by = servedBy;
     trace.upstream_status = upstream.status;
+    if (servedBy === "gemini-paid") trace.paid.used = true;
     // Belt and braces: the ladder above only ever assigns an `ok` response, so
     // this cannot fire today. It is kept because "the loop always assigns an ok
     // response" is a property of the loop, and the next edit to the loop is the
@@ -524,6 +604,7 @@ export default async function handler(req, res) {
         reader.cancel().catch(() => {}); // stop upstream generation billing
       }
       readUsage(tail, trace);
+      emitPaidTurn(servedBy, trace, tStart);
       trace.stream_bytes = bytes;
       // One extra SSE frame, AFTER the stream the client was reading. Its
       // payload has no `choices`, so every SSE consumer in this repo skips it:
@@ -541,12 +622,66 @@ export default async function handler(req, res) {
     clearTimeout(kill);
     const text = data?.choices?.[0]?.message?.content ?? "";
     readUsageObject(data?.usage, trace);
+    emitPaidTurn(servedBy, trace, tStart);
     trace.finish_reason = String(data?.choices?.[0]?.finish_reason ?? "").slice(0, 24) || null;
     trace.out_chars = text.length;
     trace.empty_reply = !text.trim();
     return res.status(200).json({ text, trace: seal(trace, tStart) });
   } catch (e) {
     return res.status(500).json({ error: "proxy failure" });
+  }
+}
+
+/** WS-COST B2 — one ops row per BILLED turn: `paid_turn {cached, input,
+ *  output}`.
+ *
+ *  It exists because the cache-hit rate is the whole cost story and it is the
+ *  one number that cannot be reasoned about from here. Measured 2026-08-25 on
+ *  the paid key, n=31 calls: an implicit-cache hit caches 8,165 of ~13,400
+ *  input tokens (60.7%) and 16 of 19 follow-up calls hit — but both of those
+ *  are Google's numbers, not ours, and they can move under us without any
+ *  deploy on our side. A dashboard that reads these rows is how we would find
+ *  out; arithmetic in a report is not.
+ *
+ *  COUNTS ONLY. No prompt text, no reply text, no key, no key prefix — the
+ *  same law api/_obs.js states and api/diag.js states one layer up. `null`
+ *  when the upstream sent no usage frame, which is itself the signal that the
+ *  counts are missing rather than zero.
+ *
+ *  Fire-and-forget: `obsBestEffort` per _obs.js's own contract for callers on
+ *  a response path — "a lost ops row is priced in; a slowed reply is not." */
+function emitPaidTurn(servedBy, trace, tStart) {
+  if (servedBy !== "gemini-paid") return;
+  obsBestEffort(
+    "paid_turn",
+    {
+      cached: trace.tokens_cached,
+      input: trace.tokens_in,
+      output: trace.tokens_out,
+      model: trace.model,
+      lane: trace.lane,
+      stream: trace.stream,
+    },
+    Date.now() - tStart,
+  );
+}
+
+/** A 200 carrying an EMPTY reply is the worst outcome available: she simply
+ *  says nothing, and every status code says it worked. It is what a mismatched
+ *  reasoning tier produces. Streaming cannot be inspected without buffering
+ *  (that would cost her first-word latency, which is not for sale), so this
+ *  answers `false` for a stream and the stream keeps its measured tier.
+ *
+ *  Extracted from `runGeminiFree` rather than copied into the paid lane: the
+ *  two lanes speak to the same endpoint with the same body, so a guard that
+ *  existed in only one of them would be a guard that silently stops covering
+ *  half the traffic the first time the flag is turned on. */
+async function emptyOn200(r, wantStream) {
+  if (!r.ok || wantStream) return false;
+  try {
+    return !(JSON.parse(await r.clone().text())?.choices?.[0]?.message?.content || "").trim();
+  } catch {
+    return true;
   }
 }
 
