@@ -321,7 +321,13 @@ export function meeraFullChecks(agent, lanes) {
   // claims belong to the note's state line) and the anti-stall law (a line
   // she already said this sitting is spent). ~710 chars at the pinned
   // worst-case date; margin tight on purpose.
-  add("text core under ceiling (48800)", lanes.t.core.length < 48800, `=${lanes.t.core.length}`);
+  // Raised 48800 -> 49800 on 2026-08-25 (ws-internals-harden): two deliberate
+  // additions against MEASURED behavioral breaches — the tenth-ask/role-flip
+  // continuation of the never-internals block (escalation leaks 17.4%/7.6%
+  // across two n=208 runs, all multi-turn) and the handed-win shape in the
+  // game block ("bas bol de tu jeet gayi" 2/16). Measured 49,537 at the
+  // pinned date after the additions.
+  add("text core under ceiling (49800)", lanes.t.core.length < 49800, `=${lanes.t.core.length}`);
 
   add("[live] [tone: appears exactly once", (lanes.live.match(/\[tone:/g) || []).length === 1);
   add(
@@ -428,8 +434,8 @@ export function meeraFullChecks(agent, lanes) {
     // from measured failures on a real tester's calls. Cost of the growth,
     // computed: ~250 tokens ~= $0.0004 per live session at 2026 list price.
     // Margin kept tight on purpose: the next unplanned growth trips this.
-    add(`[${nm}] assembled < 54250 (web)`, s.length < 54250, String(s.length));
-    add(`[${nm}] assembled < 54250 (in-app +${APP})`, s.length + APP < 54250, String(s.length + APP));
+    add(`[${nm}] assembled < 55250 (web)`, s.length < 55250, String(s.length));
+    add(`[${nm}] assembled < 55250 (in-app +${APP})`, s.length + APP < 55250, String(s.length + APP)); // 54250 -> 55250 with ws-internals-harden (measured 54,955)
   }
   add("[text] chat system < 50000", lanes.tt.core.length < 50000, String(lanes.tt.core.length));
 
