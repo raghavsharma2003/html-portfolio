@@ -13,6 +13,8 @@
 //                                          the row, "clear" empties the
 //                                          conversation's own fields (P2-1)
 //   track        { device, event, props?, user_id? } → { ok }
+//   consent      { device, granted, at, version, user_id? } → { ok } — the
+//                                          DPDP memory-consent ledger (#148)
 
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
@@ -231,6 +233,72 @@ export default async function handler(req, res) {
         [user.id],
       ).catch(() => []);
       return res.status(200).json({ ok: true, mode, rows: rows.length });
+    }
+    // ── THE MEMORY-CONSENT LEDGER (task #148, DPDP) ────────────────────────
+    //
+    // India's DPDP Act reaches full effect 2027-05-14. Storing cross-session
+    // personal and emotional memory needs its own specific, informed,
+    // unbundled consent, and a fiduciary has to be able to SHOW it was given.
+    // An answer that lives only in the localStorage of the phone that gave it
+    // is not evidence: the user can edit it, a reinstall erases it, and a
+    // second device never sees it.
+    //
+    // APPEND-ONLY, and that is the whole design. Every grant and every
+    // withdrawal is its own row, so the table answers "was consent in force on
+    // the 3rd of March" rather than only "what is it now" — which is the
+    // question a regulator asks and the one an updateable single row cannot
+    // answer. The client reads nothing back; there is no get op, because the
+    // binding copy of the answer is the one on the device (src/engine/
+    // memory.ts's gate).
+    //
+    // UNAUTHENTICATED, exactly like `track` below and for its reason: most of
+    // this product's users are anonymous device ids, and requiring a login to
+    // record a refusal would mean the refusals we could not prove are the ones
+    // from people who never signed up. `user_id` rides along when there is
+    // one. Possession of the device uuid is the whole auth posture, which is
+    // the same posture api/memory.js's forget path runs on.
+    //
+    // FOUR COLUMNS AND NO CONTENT. There is no text field in this table and
+    // there must never be one: a consent ledger that accumulated conversation
+    // would be a second copy of the thing being consented to, in the one place
+    // a refusal must never make larger. Same content law migration 012 states.
+    if (op === "consent") {
+      if (!UUID.test(String(b.device || ""))) return res.status(400).json({ error: "device required" });
+      if (typeof b.granted !== "boolean") return res.status(400).json({ error: "granted required" });
+      // the version of the ASK this answers. Small integer, clamped rather
+      // than trusted: a consent row filed under a version that never existed
+      // is a row nobody can map back to the words a person actually read.
+      const version = Number.isInteger(b.version) && b.version > 0 && b.version < 1000 ? b.version : 1;
+      // the client's clock names the moment the person tapped; the column
+      // default names the moment we heard about it. Both are kept, because a
+      // device that was offline for an hour makes them differ and the honest
+      // record of when consent was GIVEN is the first one.
+      const at = typeof b.at === "string" && !Number.isNaN(Date.parse(b.at)) ? b.at : new Date().toISOString();
+      // awaited for `track`'s reason one op down: a serverless function
+      // freezes the instant the response is sent, so a fire-and-forget insert
+      // dies mid-flight most of the time — and this is the one row in this
+      // file whose absence is a compliance gap rather than a lost metric.
+      try {
+        await q(
+          `insert into meera_consent (device_id, user_id, kind, granted, version, at)
+           values ($1,$2,$3,$4,$5,$6)`,
+          [
+            b.device,
+            UUID.test(String(b.user_id || "")) ? b.user_id : null,
+            "memory",
+            b.granted,
+            version,
+            at,
+          ],
+        );
+        return res.status(200).json({ ok: true });
+      } catch {
+        // The device has already stopped writing memory by the time this
+        // request is made, so a failed ledger insert costs the RECORD of the
+        // decision and never the decision itself. 502 rather than 200 so the
+        // client's own retry logic (and any future one) can tell the two apart.
+        return res.status(502).json({ ok: false });
+      }
     }
     if (op === "track") {
       // analytics rows are unauthenticated by design — cap them hard so the

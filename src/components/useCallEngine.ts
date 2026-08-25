@@ -66,6 +66,7 @@ import {
   callMemories,
   formatChatTail,
   CHAT_TAIL_WINDOW_MS,
+  memoryWritesPermitted,
   type RememberResult,
 } from "../engine/memory";
 import { asksToHangUp } from "../engine/hangup";
@@ -117,6 +118,7 @@ import { chessMoveNote } from "../engine/chessTalk";
 // detector is `engine/repeat.ts`'s, so the decision lives where an eval can
 // reach it and this file owns only the socket and the one retry.
 import { LOOP_LOOKBACK, LOOP_MAX_RETRIES, LOOP_NUDGE, isLoopingLine } from "../engine/repeat";
+import { FENCE_USER_LOOKBACK, internalsBreach } from "../engine/internalsFence";
 import { wyrPickFact } from "../engine/wyrTalk";
 import { cardById } from "../engine/wyr/deck";
 import { tttMoveNote, tttNoteworthy, tttUrgent } from "../engine/tttTalk";
@@ -156,6 +158,13 @@ export type CallPhase = "connecting" | "live" | "ended";
 const EPISODES_BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
 function postEpisodeCallEnd(device: string) {
   if (!device) return;
+  // task #148 (DPDP): an episode row is durable cross-session memory of a
+  // conversation, so it is one of the two writers outside src/engine/memory.ts
+  // that the memory-consent gate has to reach by hand. The predicate is the
+  // same module-level answer `post()` consults, so there is one source of
+  // truth about whether this person said yes. See the gate note in memory.ts
+  // for the full list of what is and is not gated.
+  if (!memoryWritesPermitted()) return;
   try {
     void fetch(`${EPISODES_BASE}/api/episodes`, {
       method: "POST",
@@ -257,6 +266,12 @@ export function consumeMomentWindow(
  *  screen — matching the fabrication-guard reasoning above. */
 function postWatchMoment(device: string, reaction: string) {
   if (!device || !reaction.trim()) return;
+  // task #148 (DPDP), the second of the two out-of-file writers: what she said
+  // while watching their screen is a durable shared moment. Same predicate,
+  // same single source of truth. The device-local `shares` mirror in AppState
+  // is deliberately NOT gated: it never leaves the phone, it expires in 45
+  // minutes by its own reader, and both teardown doors already take it.
+  if (!memoryWritesPermitted()) return;
   try {
     void fetch(`${EPISODES_BASE}/api/episodes`, {
       method: "POST",
@@ -683,6 +698,42 @@ export function useCallEngine(
    */
   const loopArmed = useRef(false);
   const loopRetries = useRef(0);
+
+  // ── THE INTERNALS FENCE, call-lane half ─────────────────────────────────
+  //
+  // The re-draft itself lives in `think()` (brain.ts), at the one point every
+  // reply path converges on, and it runs only when NOTHING HAS STREAMED. That
+  // covers this lane's unstreamed turns outright: the silence re-engage, the
+  // fenced turn below, every non-streaming fallback.
+  //
+  // What it cannot cover is the ordinary streamed turn, where she is already
+  // speaking by the time the reply is complete. A leak there cannot be un-said,
+  // and pretending otherwise would be the same lie `loopArmed` refuses to tell.
+  // So this does exactly what the loop fence does with the same problem: detect
+  // on the completed line, and arm the NEXT turn to run unstreamed — where
+  // brain.ts's fence gets a real candidate in hand and a real re-draft.
+  //
+  // The two arms are kept SEPARATE rather than folded into one flag because
+  // they carry different instructions: `LOOP_NUDGE` tells her she repeated
+  // herself, which is false and confusing on a turn that leaked instead. What
+  // they share is the unstreamed lane, and that is all they share.
+  const internalsArmed = useRef(false);
+
+  /** HIS recent lines on this call, newest first — the "did he say it first?"
+   *  lookup the fence needs. Read off the transcript for `herRecentCallLines`'s
+   *  reason: `log()` already writes every turn, and a second record would need
+   *  a writer of its own. */
+  function hisRecentCallLines(n: number = FENCE_USER_LOOKBACK): string[] {
+    const out: string[] = [];
+    const msgs = stateRef.current.messages;
+    for (let i = msgs.length - 1; i >= 0 && out.length < n; i--) {
+      const m = msgs[i];
+      if (m.from !== "me" || m.channel !== "call") continue;
+      const t = (m.text || "").trim();
+      if (t) out.push(t);
+    }
+    return out;
+  }
 
   function noteHerLine(text: string, lane: string, msgId: string) {
     tel("call.turn", { who: "her", words: wordsIn(text), lane, call_id: callId.current });
@@ -3360,10 +3411,20 @@ export function useCallEngine(
     // was generated without it, and does not stream — so the candidate can be
     // checked and, once, re-drafted before anything is said out loud.
     const herBefore = herRecentCallLines();
-    const fenced = loopArmed.current;
+    // TWO ARMS, ONE UNSTREAMED LANE. `loopArmed` carries LOOP_NUDGE into the
+    // prompt; `internalsArmed` carries nothing into the prompt at all — its
+    // whole ask is that the turn not stream, so that think()'s own fence has a
+    // candidate in hand before a syllable is spoken and can re-draft it with
+    // INTERNALS_NUDGE. Handing a leaked turn LOOP_NUDGE ("you already said
+    // that") would be a false instruction on a true defect.
+    const loopFenced = loopArmed.current;
+    const internalsFenced = internalsArmed.current;
+    const fenced = loopFenced || internalsFenced;
     loopArmed.current = false;
+    internalsArmed.current = false;
     loopRetries.current = 0;
-    const nudge = (m: Message): Message => ({ ...m, text: `${m.text}\n${LOOP_NUDGE}` });
+    const loopTail = loopFenced ? `\n${LOOP_NUDGE}` : "";
+    const nudge = (m: Message): Message => ({ ...m, text: `${m.text}${loopTail}` });
 
     // ── streaming speech: the [tone: …] marker is buffered off the head of
     // the token stream, then she starts SPEAKING at the first sentence
@@ -3435,16 +3496,19 @@ export function useCallEngine(
 
     let reply;
     if (fenced) {
-      // UNSTREAMED, on purpose — see `loopArmed`. `onDelta` is omitted, so no
-      // speaker is ever created and the whole reply is in hand before a word
-      // of it is spoken. The tail of this function then takes the `sayAloud`
-      // branch it already has for non-streaming fallbacks; nothing else in the
-      // turn changes.
+      // UNSTREAMED, on purpose — see `loopArmed` and `internalsArmed`.
+      // `onDelta` is omitted, so no speaker is ever created and the whole reply
+      // is in hand before a word of it is spoken. That is also what hands
+      // think()'s internals fence a real candidate: its re-draft is gated on
+      // `!onDelta`, so this branch is the only way it can fire on a call at
+      // all. The tail of this function then takes the `sayAloud` branch it
+      // already has for non-streaming fallbacks; nothing else in the turn
+      // changes.
       reply = await think(
         stateRef.current.user,
         brainKeys(),
         [...stateRef.current.messages, nudge(brainMine)],
-        `${text}\n${LOOP_NUDGE}`,
+        `${text}${loopTail}`,
         "call",
         engine,
         false,
@@ -3465,7 +3529,7 @@ export function useCallEngine(
           stateRef.current.user,
           brainKeys(),
           [...stateRef.current.messages, nudge(brainMine)],
-          `${text}\n${LOOP_NUDGE}`,
+          `${text}${loopTail}`,
           "call",
           engine,
           false,
@@ -3528,6 +3592,25 @@ export function useCallEngine(
     if (isLoopingLine(herLine, herBefore)) {
       loopArmed.current = true;
       diag("call", "loop_fence", { action: "armed", words: wordsIn(herLine) });
+    }
+    // ── the internals fence's detector, same seam and same limit ───────────
+    // On the UNSTREAMED branch this has already been re-drafted inside think()
+    // and a breach surviving here is the twice-tripped case it deliberately
+    // sends anyway; re-arming on it is harmless and honest — the next turn goes
+    // unstreamed and gets the re-draft this one could not have.
+    //
+    // On the STREAMED branch the words are already out of her mouth. Nothing
+    // can take them back, and this makes no claim to: what it buys is that the
+    // NEXT turn runs unstreamed, where think()'s fence can actually act. `text`
+    // is his line on this turn and leads the lookup, newest first.
+    {
+      const breach = internalsBreach(herLine, [text, ...hisRecentCallLines()]);
+      if (breach) {
+        internalsArmed.current = true;
+        // Class only. diag.ts never logs what she said, and the term is the
+        // one thing on this path that must not travel.
+        diag("call", "internals_fence", { action: "armed", cls: breach.cls });
+      }
     }
     log({
       id: herId,

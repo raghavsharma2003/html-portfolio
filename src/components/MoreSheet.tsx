@@ -30,6 +30,12 @@ import {
   TrashIcon,
 } from "./icons";
 import { THEMES, THEME_LABEL } from "../engine/theme";
+// task #148 (DPDP). The words are imported rather than restated: three
+// surfaces ask this question and three copies of a consent text is how two of
+// them end up describing something the third does not do.
+import { MEMORY_COPY, MemoryConsentBody } from "./MemoryConsent";
+import { MEMORY_CONSENT_VERSION, memoryWritesAllowed } from "../state/store";
+import { recordConsent } from "../engine/account";
 import type { SkyState } from "../engine/sky";
 import { useSky, skyVars } from "./WorldLayer";
 // WS-SOUND. `setSoundEnabled` is published from Chat on every change to
@@ -136,7 +142,7 @@ const VIBES = [
   "just curious",
 ];
 
-type View = "menu" | "profile" | "clear" | "forget";
+type View = "menu" | "profile" | "clear" | "forget" | "memory";
 
 interface Props {
   state: AppState;
@@ -160,6 +166,13 @@ export default function MoreSheet({
   messageCount,
 }: Props) {
   const [view, setView] = useState<View>("menu");
+  // task #148: whether the forget confirmation currently on screen is ALSO a
+  // consent withdrawal. It is set by the Memory screen's own door and never by
+  // the "Make her forget you" row, and the difference between the two is the
+  // whole reason it exists: forgetting is a reset somebody may want to do
+  // twice a year with memory still on, while withdrawal is a standing
+  // instruction about the future. One flow, one wipe, two intents.
+  const [withdrawing, setWithdrawing] = useState(false);
   const [name, setName] = useState(state.user.name || "");
   const [vibe, setVibe] = useState<string[]>(state.user.vibe || []);
   const sheet = useRef<HTMLDivElement>(null);
@@ -188,7 +201,13 @@ export default function MoreSheet({
       if (e.key === "Escape") {
         e.stopPropagation();
         if (view === "menu") onClose();
-        else setView("menu");
+        else {
+          // task #148: escaping out of a withdrawal confirmation drops the
+          // withdrawal intent with it, or the next visit to "Make her forget
+          // you" would silently be a consent withdrawal too.
+          setWithdrawing(false);
+          setView("menu");
+        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -213,6 +232,62 @@ export default function MoreSheet({
 
   const signedIn = Boolean(state.auth?.accessToken);
 
+  // ── THE MEMORY CONSENT, FROM THE OTHER SIDE (task #148, DPDP) ────────────
+  //
+  // Consent that cannot be withdrawn as easily as it was given is not consent,
+  // and this sheet is where "as easily" is settled. `remembering` is the same
+  // predicate the network gate reads (src/state/store.ts), so this screen can
+  // never describe a state the writers are not actually in.
+  const remembering = memoryWritesAllowed(state);
+
+  /** Give consent from here — the way back for anyone who said "not now",
+   *  which is what keeps that answer a choice rather than a trapdoor. */
+  const grantMemory = () => {
+    const at = new Date().toISOString();
+    setState((s) => ({
+      ...s,
+      memoryConsent: { granted: true, at, version: MEMORY_CONSENT_VERSION },
+    }));
+    recordConsent(state.deviceId, true, at, MEMORY_CONSENT_VERSION, state.auth?.userId);
+    setView("menu");
+  };
+
+  /**
+   * Withdraw it — and WITHDRAWAL RIDES THE FORGET DOOR, which is the one
+   * design decision in this file worth arguing for.
+   *
+   * The alternative was a switch: flip memory off, leave everything she
+   * already knows exactly where it is. That is two concepts for the user
+   * ("stop remembering" and "delete what you remember") and it is the one
+   * where the copy has to explain that turning memory off does not delete your
+   * memories, which is a sentence nobody believes and nobody should have to
+   * read. It is also the weaker answer legally: withdrawal under DPDP is
+   * supposed to stop the processing, not freeze it in place.
+   *
+   * So turning memory off IS making her forget you: the same wipe, the same
+   * ten-second undo, the same receipt, plus a standing instruction that
+   * nothing new is written afterwards. One concept, one screen, one button.
+   *
+   * The consent flag is written BEFORE `onForgetEverything()` and outside its
+   * updater on purpose. Before, because the gate must already be closed when
+   * the teardown fires (a wipe followed by a re-sync of the state that was
+   * mid-flight is the one race that could resurrect what was just deleted).
+   * Outside, because `tearDownLocally`'s updater is walked by
+   * evals/teardown.mjs to prove which fields each door takes, and
+   * memoryConsent is exempt there in writing: a teardown that wiped it would
+   * switch memory back on for the person who just switched it off.
+   */
+  const withdrawMemory = () => {
+    const at = new Date().toISOString();
+    setState((s) => ({
+      ...s,
+      memoryConsent: { granted: false, at, version: MEMORY_CONSENT_VERSION },
+    }));
+    recordConsent(state.deviceId, false, at, MEMORY_CONSENT_VERSION, state.auth?.userId);
+    onForgetEverything();
+    onClose();
+  };
+
   // PRESENTATION ONLY. The "Sky" segment does not describe the sky mode in
   // words, it SHOWS the sky that mode is following right now — the swatch is
   // the live four-stop gradient from the same table the world layer paints
@@ -234,10 +309,14 @@ export default function MoreSheet({
           view === "clear"
             ? "Clear this chat?"
             : view === "forget"
-              ? "Make her forget you?"
-              : view === "profile"
-                ? "You"
-                : "Settings"
+              ? withdrawing
+                ? "Stop remembering you?"
+                : "Make her forget you?"
+              : view === "memory"
+                ? MEMORY_COPY.title
+                : view === "profile"
+                  ? "You"
+                  : "Settings"
         }
       >
         <div className="grab" />
@@ -437,6 +516,35 @@ export default function MoreSheet({
                 happen to be red. The group is an inset, tinted, outlined
                 container now, with a label that names what the two of them
                 have in common. Nothing about either handler moved. */}
+            {/* ── MEMORY (task #148, DPDP) ────────────────────────────────
+                The row the consent card promises exists. "You can make her
+                forget all of it, any time, from the menu" is a clause a person
+                agreed to on the strength of, so it has to be findable without
+                asking, in the ordinary group rather than behind the danger
+                break: the state of her memory is a normal thing to look at,
+                and only turning it OFF is destructive. The sub-line reports
+                the live state rather than naming the control, because "on" and
+                "off" are the two things somebody opening this row wants to
+                know before they tap anything. */}
+            <div className="sheet-rows">
+              <button className="srow" data-tel="more.memory" onClick={() => setView("memory")}>
+                <span className="sicon">
+                  <MemoryIcon />
+                </span>
+                <span className="stext">
+                  <span className="stitle">Memory</span>
+                  <span className="ssub">
+                    {remembering
+                      ? `${HER_NAME} remembers you between conversations`
+                      : "She is not keeping anything new"}
+                  </span>
+                </span>
+                <span className="schev">
+                  <ChevronIcon />
+                </span>
+              </button>
+            </div>
+
             <label className="danger-label">Permanent</label>
             <div className="sheet-rows danger">
               <button className="srow destructive" data-tel="more.clear_chat" onClick={() => setView("clear")}>
@@ -458,7 +566,16 @@ export default function MoreSheet({
                   and leaves what she knows; this takes what she knows. A
                   product built on her remembering you is only honest if the
                   undo for that is somewhere you can find without asking. */}
-              <button className="srow destructive" data-tel="more.forget_all" onClick={() => setView("forget")}>
+              <button
+                className="srow destructive"
+                data-tel="more.forget_all"
+                onClick={() => {
+                  // this door is a reset, never a withdrawal — see
+                  // `withdrawing` at the top of the file for the distinction
+                  setWithdrawing(false);
+                  setView("forget");
+                }}
+              >
                 <span className="sicon">
                   <MemoryIcon />
                 </span>
@@ -581,9 +698,65 @@ export default function MoreSheet({
           </>
         )}
 
+        {/* ── THE MEMORY SCREEN (task #148, DPDP) ─────────────────────────
+            The same words the consent card shows, because it is the same
+            question and a person is entitled to re-read what they agreed to.
+            What changes is the action, and only one is ever offered: the state
+            she is in has exactly one door out of it, so there is nothing to
+            read twice and nothing to mis-tap.
+
+            "Stop remembering" is styled as the destructive act it is and goes
+            to the forget confirmation rather than doing anything itself,
+            because it IS a forget and every forget in this product is named in
+            words before it happens. */}
+        {view === "memory" && (
+          <>
+            <h3>{MEMORY_COPY.title}</h3>
+            <div className="mc-body">
+              <MemoryConsentBody />
+            </div>
+            {remembering ? (
+              <div className="confirm-actions">
+                <button
+                  className="btn-danger"
+                  data-tel="more.memory_withdraw"
+                  onClick={() => {
+                    setWithdrawing(true);
+                    setView("forget");
+                  }}
+                >
+                  <MemoryIcon size={18} />
+                  <span style={{ marginLeft: 8 }}>Stop remembering</span>
+                </button>
+                <button className="btn-ghost" style={{ width: "100%" }} onClick={() => setView("menu")}>
+                  Keep it on
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="confirm-actions">
+                  <button className="btn-primary" data-tel="more.memory_grant" onClick={grantMemory}>
+                    {MEMORY_COPY.yes}
+                  </button>
+                  <button className="btn-ghost" style={{ width: "100%" }} onClick={() => setView("menu")}>
+                    Leave it off
+                  </button>
+                </div>
+                <p className="auth-fine" style={{ marginTop: 16 }}>
+                  {MEMORY_COPY.noMeans}
+                </p>
+              </>
+            )}
+            {/* no `auth-back` row, unlike the profile screen: this is a
+                confirmation shape, and the quiet second button above IS the
+                way back. Two ways out of one screen is the choice looking like
+                three options when it is two. */}
+          </>
+        )}
+
         {view === "forget" && (
           <>
-            <h3>Make her forget you?</h3>
+            <h3>{withdrawing ? "Stop remembering you?" : "Make her forget you?"}</h3>
             {/* APPLE-TERSE, WITH A FLOOR. This is a privacy-charter surface,
                 so compression is allowed to take the ENUMERATION ("the people,
                 the places, the plans, the running jokes") and is not allowed
@@ -599,6 +772,15 @@ export default function MoreSheet({
             <p className="confirm-body">
               {HER_NAME} deletes <b>everything she knows about your life</b>, and{" "}
               <b>every message and call</b> you two have had.
+              {/* task #148: the one clause withdrawal adds, and it is the only
+                  difference between the two intents. Everything above is
+                  identical because everything above HAPPENS identically. */}
+              {withdrawing ? (
+                <>
+                  {" "}
+                  From then on she keeps <b>nothing new</b>, until you turn memory back on.
+                </>
+              ) : null}
               <br />
               <br />
               This cannot be undone.
@@ -606,15 +788,26 @@ export default function MoreSheet({
             <div className="confirm-actions">
               <button
                 className="btn-danger"
+                data-tel={withdrawing ? "more.withdraw_confirm" : "more.forget_confirm"}
                 onClick={() => {
+                  if (withdrawing) return withdrawMemory();
                   onForgetEverything();
                   onClose();
                 }}
               >
                 <TrashIcon size={18} />
-                <span style={{ marginLeft: 8 }}>Forget everything</span>
+                <span style={{ marginLeft: 8 }}>
+                  {withdrawing ? "Stop and forget" : "Forget everything"}
+                </span>
               </button>
-              <button className="btn-ghost" style={{ width: "100%" }} onClick={() => setView("menu")}>
+              <button
+                className="btn-ghost"
+                style={{ width: "100%" }}
+                onClick={() => {
+                  setWithdrawing(false);
+                  setView(withdrawing ? "memory" : "menu");
+                }}
+              >
                 Keep it
               </button>
             </div>

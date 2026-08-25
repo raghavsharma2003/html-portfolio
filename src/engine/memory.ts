@@ -11,7 +11,100 @@ import { traceServer, traceTurnId, tracePatch, type TraceChannel } from "./trace
 
 const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
 
+// ── THE MEMORY CONSENT GATE (task #148, DPDP) ──────────────────────────────
+//
+// India's DPDP Act reaches full effect on 2027-05-14 and storing cross-session
+// personal or emotional memory needs its own specific, informed, unbundled
+// consent. The ASK is src/components/MemoryConsent.tsx; the ANSWER lives in
+// AppState.memoryConsent; this is the place the answer actually binds, because
+// a consent screen whose "no" changes no network behaviour is a lie with a
+// button on it.
+//
+// ONE SEAM, NOT TWENTY CALL SITES. Every write this file makes goes through
+// `post()` below, so the gate is here rather than repeated at each writer:
+// a gate spread across twenty call sites is a gate the twenty-first forgets.
+//
+// ── WHAT IS GATED, EXACTLY ────────────────────────────────────────────────
+//
+// Blocked when consent is explicitly refused, by op:
+//
+//   log            the conversation itself, into meera_log
+//   remember       graph extraction: people, plans, facts about their life
+//   seed_currency  the day-one topic chips from onboarding
+//   activity       the finished-game episode ("we played chess on the 22nd")
+//   upload_photo   pictures they sent, to durable storage
+//   describe       the vision description that becomes durable memory of one
+//
+// Also gated, OUTSIDE this file, at their own call sites:
+//
+//   api/account.js save_state  the whole synced conversation blob (App.tsx's
+//                              push effect; it is the single largest
+//                              cross-session record this product holds)
+//   api/episodes.js call_end   (useCallEngine.ts)
+//   api/episodes.js watch_moment (useCallEngine.ts)
+//
+// NOT gated, deliberately, and each for a stated reason:
+//
+//   op:"recall"       a READ. It returns only what an earlier consent allowed
+//                     to be written; a refusal stops new memory, it does not
+//                     need to blind her to a graph that a refusal path has
+//                     usually left empty anyway. The withdrawal door in More
+//                     DELETES rather than hides, which is the stronger answer.
+//   op:"forget"       the wipe. Gating the delete on consent would be exactly
+//                     backwards.
+//   api/account.js track / api/diag / api/telemetry
+//                     product analytics and the call audit trail: no
+//                     conversation content, and they are what tells us the
+//                     refusal path works at all.
+//   api/clock.js      the session clock (when the app was open), not memory
+//                     of a person's life.
+//   localStorage      NOT touched by a refusal, and the card says so in
+//                     words ("Your chat stays on this phone until you clear
+//                     it"). Silently deleting someone's own thread off their
+//                     own phone because they declined a SERVER-side memory is
+//                     a second, larger thing done in the name of the first.
+//
+// DEFAULT OPEN, and see `memoryWritesAllowed` in state/store.ts for why: an
+// install that predates the question was never asked, and the answer to
+// never-asked is to ask, not to switch memory off underneath a relationship.
+// App.tsx publishes the real answer into this module on every change.
+const GATED_OPS = new Set([
+  "log",
+  "remember",
+  "seed_currency",
+  "activity",
+  "upload_photo",
+  "describe",
+]);
+
+let writesAllowed = true;
+
+/** Publish the current answer. Called by App.tsx from a state effect, which is
+ *  the one place AppState.memoryConsent is authoritative. */
+export function setMemoryWritesAllowed(allowed: boolean) {
+  writesAllowed = allowed;
+}
+
+/** For the two writers that live outside this file (useCallEngine.ts). */
+export function memoryWritesPermitted(): boolean {
+  return writesAllowed;
+}
+
+/** A refusal, shaped like the network answer every caller in this file already
+ *  handles. `ok` is false, so each one takes the path it takes when the server
+ *  is unreachable — which is a path every one of them already has, because
+ *  they are all fire-and-forget or null-tolerant. Returning a rejected promise
+ *  instead would surface a refusal as an error somewhere, and the whole point
+ *  is that declining memory is a normal state rather than a fault. */
+const refused = () =>
+  Promise.resolve(new Response(JSON.stringify({ error: "memory consent not granted" }), {
+    status: 451,
+    headers: { "Content-Type": "application/json" },
+  }));
+
 function post(body: unknown): Promise<Response> {
+  const op = (body as { op?: string } | null)?.op;
+  if (!writesAllowed && op && GATED_OPS.has(op)) return refused();
   return fetch(`${BASE}/api/memory`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -789,6 +882,12 @@ export async function recallForCall(
 // cron remains the backstop regardless of whether this call lands.
 export function seedDayOneConsolidation(device: string) {
   if (!device) return;
+  // task #148: this is the one writer in this file that does NOT go through
+  // `post()` (it calls api/consolidate directly), so the consent gate is
+  // repeated here rather than assumed. Onboarding also refuses to call it on
+  // the declined path — belt and braces, because a derivation run kicked off
+  // for someone who just said no is the exact write the question was about.
+  if (!writesAllowed) return;
   try {
     void fetch(`${BASE}/api/consolidate`, {
       method: "POST",
