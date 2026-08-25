@@ -300,6 +300,13 @@ const FATE = {
   messages: "clear+forget",
   followup: "clear+forget", // an armed "back in 20 min" belongs to a chat that no longer exists
   herLife: "clear+forget", // her improvised life was improvised AT him
+  // WS-HERNOW, and `activity-forgot-the-teardown` for the fourth time: her
+  // present moment is one row with a started-at in it, and a survivor would
+  // open the conversation that begins by not knowing him with "twenty minutes
+  // into a book" — a duration she started living in a relationship that has
+  // just been deleted. It is deterministic (engine/herNow.ts), so wiping it
+  // costs nothing: the next read rebuilds one from the clock.
+  herNow: "clear+forget",
   inner: "clear+forget", // a feeling whose cause was deleted is a causeless mood
   clearedAt: "clear+forget", // written, not cleared: the synced tombstone IS the teardown
   game: "clear+forget", // `activity-forgot-the-teardown`: resuming a match you were forgotten over
@@ -313,6 +320,13 @@ const FATE = {
   tally: "clear+forget", // "12 games, she's ahead 7-5" over a record that starts today
   momentsFired: "clear+forget", // a dead ledger means a new relationship can never fire its first game
   recentMoment: "clear+forget", // her first sentences to a stranger, about their hundred days
+  declinedRing: "clear+forget", // the moment a her-ring was declined; a moment, not memory, but a fresh one must not survive either door and re-fire a line at a stranger
+  // WS-SHARENOW's local share mirror. Same rule, fifth instance: "you were
+  // watching their screen together till 3 min ago, and here is what you said
+  // about it" is a shared minute recited to somebody she has just been told she
+  // has never met — and it is the block that sits FIRST in the brief, ahead of
+  // everything else, so a surviving mirror would be the first thing she says.
+  shares: "clear+forget",
 
   // ── relational memory, forget only ──
   // C1, the final audit's one ship-blocker. Clear-chat leaves the profile
@@ -341,6 +355,25 @@ const FATE = {
     "exempt: a device preference and nothing else (decisions: theme does not " +
     "even sync between a person's own devices). Wiping it would flash a " +
     "dark-mode user white as a side effect of forgetting.",
+  soundOn:
+    "exempt: a device preference and nothing else, exactly like `theme` " +
+    "above and for the same reason. Wiping it would turn the sound layer " +
+    "back ON for someone who had switched it off, as an invisible side " +
+    "effect of asking her to forget them, in whatever room they happened to " +
+    "be standing in. A forget is about what she knows, never about what the " +
+    "phone does.",
+  notifyPrefs:
+    "exempt: the OS permission's memory, not the relationship — and the " +
+    "exemption is the PROMISE rather than a convenience. The sheet that asks " +
+    "for notifications says 'We will not ask again', and `declined` is the " +
+    "only thing that makes that true; a teardown that wiped it would re-arm " +
+    "the ask, so 'make her forget you' would be answered by the app asking " +
+    "him for something. `asked` is worse to lose: Android 13+ grants exactly " +
+    "one runtime prompt per install, so a wiped record is a product that " +
+    "believes it still has an ask it has already spent. THE TOKEN IS NOT " +
+    "HERE — reachability is torn down by src/notify/index.ts's " +
+    "clearReachability, asserted in the REACHABILITY block below, because a " +
+    "push token in synced AppState would be another device's reachability.",
   lastSeen:
     "exempt: HER presence clock, restamped on every mount and rendered as " +
     "'last seen 2m ago'. A fact about this app session, not a memory of him.",
@@ -537,6 +570,272 @@ const FATE = {
     if (key === "messages") continue;
     ok(`account switch also resets '${key}'`, new RegExp(`\\b${key}:`).test(reset), key);
   }
+}
+
+// ══ #6 — REACHABILITY: the state the FATE table structurally cannot see ═══
+//
+// The FATE walker above enumerates `AppState`'s keys, so it is exactly as wide
+// as `AppState` — which is the rewrite note's own rule ("a coverage check is
+// only as wide as the thing it ENUMERATES") pointed at itself. A push token and
+// a pending notification are relationship state that deliberately does NOT live
+// in `AppState`:
+//
+//   * a token is per-device and `AppState` merges across devices, so a token in
+//     it would arrive on the OTHER phone and the wrong device would be the one
+//     told to stop being reachable;
+//   * a pending notification lives in the OS, which `AppState` cannot describe
+//     at all. A field mirroring it would read as coverage and be checked by
+//     nothing (`manifest-sourcestatus`).
+//
+// So they get their own verdicts here, in the same written-decision form, and
+// the checks below are what make those verdicts binding. WHY THEY MATTER: a
+// notification still on a lock screen quoting a conversation he has just
+// erased is that conversation surviving its own deletion in the most visible
+// place it could, and a push token that outlives "make her forget you" is her
+// able to contact someone she has been told she never met.
+const REACHABILITY_FATE = {
+  "local notifications (pending + delivered)":
+    "clear+forget: `cancelAll()` in src/notify/index.ts's clearReachability. " +
+    "Both doors, clear-chat included — a lock screen quoting a chat he just " +
+    "erased is the erased chat, still on screen.",
+  "push token (server row)":
+    "clear+forget: `revokePushToken` DELETES the row, never flags it. A " +
+    "flagged-inactive token is still a token.",
+  "push token (browser subscription)":
+    "clear+forget: the local unsubscribe runs even when the server call " +
+    "fails, because a browser with no subscription cannot receive a push no " +
+    "matter what row survives.",
+  "the permission's memory (AppState.notifyPrefs)":
+    "exempt: see the FATE table. Wiping it would break the 'we will not ask " +
+    "again' promise and burn an Android 13+ prompt the app has already spent.",
+};
+{
+  const notify = src("src/notify/index.ts");
+  const app = src("src/App.tsx");
+  const store = src("src/state/store.ts");
+
+  ok(
+    "every reachability artefact has a written verdict",
+    Object.keys(REACHABILITY_FATE).length === 4,
+    Object.keys(REACHABILITY_FATE).join(", "),
+  );
+
+  // ── the hand exists, and takes both halves ──
+  ok("clearReachability exists", /export async function clearReachability/.test(notify));
+  const fn = notify.slice(notify.indexOf("export async function clearReachability"));
+  ok("…and cancels every local notification", /cancelAll\(\)/.test(fn));
+  ok("…and revokes the push token", /revokePushToken\(/.test(fn));
+  const push = src("src/notify/push.ts");
+  const revoke = push.slice(push.indexOf("export async function revokePushToken"));
+  ok("the revoke DELETES the server row", /revoke: true/.test(revoke));
+  ok("…and unsubscribes locally even if that call fails", /unsubscribe\(\)/.test(revoke));
+  ok(
+    "…with the local unsubscribe OUTSIDE the network try",
+    revoke.indexOf("unsubscribe()") > revoke.indexOf("the half that always works"),
+    "a network failure must not be able to leave a live subscription behind.",
+  );
+
+  // ── and it is CALLED on every door ──
+  //
+  // Both doors stamp `clearedAt` (Chat.tsx's tearDownLocally), so one observer
+  // in App.tsx covers clear-chat and forget-me without this workstream
+  // becoming a second writer for another's state.
+  ok(
+    "App.tsx tears down reachability when the teardown stamp advances",
+    /clearedSeen/.test(app) && /clearReachability\(NOTIFY_API_BASE, state\.deviceId\)/.test(app),
+    "neither door clears reachability; a lock screen outlives the wipe.",
+  );
+  const clearedEffect = app.slice(app.indexOf("const clearedSeen"));
+  ok(
+    "…on the ADVANCE, not on every render",
+    /at <= clearedSeen\.current/.test(clearedEffect.slice(0, 800)),
+  );
+  ok(
+    "account switch tears down reachability too",
+    /state\.lastAccountId !== fresh\.userId[\s\S]{0,200}clearReachability/.test(app),
+    "the sibling boundary above says everything relational resets on a switch; " +
+      "reachability is relational and a token is per-device.",
+  );
+  ok(
+    "…and does it OUTSIDE the setState updater",
+    app.indexOf("clearReachability(NOTIFY_API_BASE, state.deviceId);\n      }\n      setState") > 0 ||
+      /if \(state\.lastAccountId && state\.lastAccountId !== fresh\.userId\) \{\s*void clearReachability[^}]*\}\s*setState/.test(app),
+    "an updater must stay pure (React may call one twice); a second revoke is " +
+      "a second network call for a token that is already gone.",
+  );
+  ok(
+    "sign-out revokes BEFORE the device id rotates",
+    app.indexOf("clearReachability(NOTIFY_API_BASE, state.deviceId)") <
+      app.indexOf("deviceId: rotateDeviceId()"),
+    "a rotation first orphans this device's registration under the old id — a " +
+      "live token nothing can ever revoke again.",
+  );
+
+  // ── the token must NEVER become AppState ──
+  const iface = store.slice(store.indexOf("export interface AppState {"));
+  const body = iface.slice(0, iface.indexOf("\n}"));
+  ok(
+    "no token-shaped field entered AppState",
+    !/\b(pushToken|fcmToken|notifyToken|pushSubscription)\b/.test(body),
+    "AppState merges across devices. A token in it is the other phone's " +
+      "reachability, and the wrong device would be the one revoked.",
+  );
+  ok(
+    "notifyPrefs does not sync",
+    !/notifyPrefs/.test(src("src/state/merge.ts")),
+    "a permission is a property of a phone; 'he said no on the laptop' " +
+      "arriving on a phone that never asked is the app answering for him.",
+  );
+}
+
+// ══ #6b — THE COMPOSER'S DRAFT: state the FATE table cannot see either ════
+//
+// Same reachability gap as the block above, arrived at from the other side.
+// WS-COMPOSER's four pieces of attachment state live in `Chat.tsx` as component
+// state and one ref — deliberately, because a half-written message is not
+// something to sync to another device and a 2 MB PDF is not something to put in
+// `saveState`'s ladder (see `Message.docs` in store.ts for that argument). The
+// cost of keeping them out of `AppState` is that the walker at §5 enumerates
+// `AppState` and therefore cannot see any of them, so a teardown that missed
+// one would pass every check in this file.
+//
+// It is the same class the rewrite note describes: a coverage check is only as
+// wide as the thing it ENUMERATES. So the four get written verdicts here, and
+// the assertions below are what make the verdicts binding.
+//
+// WHY EACH ONE MATTERS, since "a draft is only a draft" is the reasoning that
+// would skip this:
+//
+//   * `docHold` is the worst of the four and the reason the block exists. It
+//     holds the TEXT of a document, it is a ref so no re-render disturbs it,
+//     and nothing reads the epoch when taking it — so a survivor would be
+//     handed to the very first reply of the conversation that begins by not
+//     knowing him. The epoch bump stops the in-flight PASS; it does not empty
+//     the box.
+//   * staged pictures and documents are attached to a conversation. Surviving
+//     into the next one means the first thing he sees after erasing everything
+//     is the photo he had picked to send to the person who is gone.
+//   * the viewer is a full-screen surface over the thread. Left open across a
+//     wipe it is the wiped thread, still on screen, which is exactly what §6
+//     says about a notification.
+//
+// BOTH DOORS, and the asymmetry at §5 does not apply here. Clear-chat's promise
+// is narrow and specific — "her memory of you is not touched" — and it is about
+// what SHE knows. It says nothing about his own half-written message, and there
+// is no reading of it under which a draft is her memory. So the verdict is
+// `clear+forget` for all four, with no `forget-only` among them.
+//
+// NOT RESTORED BY UNDO, and that is the deliberate half. `tearDownLocally`
+// returns a Snapshot the undo toast puts back, and the four are absent from it
+// — like `replyTo` and `replySel`, which are the draft state that was already
+// there and already worked this way. Undo restores the CONVERSATION; it does
+// not reconstruct what he happened to be composing at the moment he erased it.
+// A dropped `docHold` cannot be restored anyway (the bytes are gone), and an
+// undo that put back three of four pieces would be worse than one that puts
+// back none.
+const COMPOSER_DRAFT_FATE = {
+  "staged photos (attachments)":
+    "clear+forget: a picture staged for a conversation belongs to that " +
+    "conversation. Both doors, because clear-chat's promise is about her " +
+    "memory of him and never about his own draft.",
+  "staged documents (docs)":
+    "clear+forget: same rule, and the tray is the only thing holding them — " +
+    "nothing has uploaded them, so a wipe is the whole of their disposal.",
+  "parked document payload (docHold)":
+    "clear+forget: holds document TEXT for the next reply pass. A survivor " +
+    "is handed to the first reply of the conversation that has just been told " +
+    "it never met him. The epoch bump stops the in-flight pass, not the box.",
+  "the open photo viewer":
+    "clear+forget: a full-screen surface over the thread. Left open across a " +
+    "wipe it is the wiped thread, still on screen.",
+};
+{
+  const chat = src("src/components/Chat.tsx");
+
+  ok(
+    "every composer draft artefact has a written verdict",
+    Object.keys(COMPOSER_DRAFT_FATE).length === 4,
+    Object.keys(COMPOSER_DRAFT_FATE).join(", "),
+  );
+  ok(
+    "…and all four are clear+forget (a draft is never relational memory)",
+    Object.values(COMPOSER_DRAFT_FATE).every((v) => v.startsWith("clear+forget:")),
+  );
+
+  // ── the teardown is ONE function and both doors go through it ──
+  ok("tearDownLocally exists", /function tearDownLocally\(/.test(chat));
+  const td = chat.slice(chat.indexOf("function tearDownLocally("));
+  const bodyEnd = td.indexOf("\n  }\n");
+  const teardown = td.slice(0, bodyEnd > 0 ? bodyEnd : 6000);
+
+  // ── each of the four is actually wiped, in that function ──
+  ok(
+    "teardown clears the staged photos",
+    /setAttachments\(\[\]\)/.test(teardown),
+    "a photo picked for a deleted conversation survives into the next one.",
+  );
+  ok(
+    "teardown clears the staged documents",
+    /setDocs\(\[\]\)/.test(teardown),
+    "nothing else holds them; the tray is their whole existence.",
+  );
+  ok(
+    "teardown empties the parked document payload",
+    /docHold\.current = null/.test(teardown),
+    "THE ONE THAT CARRIES TEXT. A survivor reaches the first reply of the " +
+      "conversation that begins by not knowing him.",
+  );
+  ok(
+    "teardown closes the photo viewer",
+    /setViewer\(null\)/.test(teardown),
+    "a full-screen surface over a thread that no longer exists.",
+  );
+  ok(
+    "teardown closes the source sheet",
+    /setSourceOpen\(false\)/.test(teardown),
+    "a sheet asking where to attach something, over a wiped conversation.",
+  );
+
+  // ── both doors, not just one ──
+  ok(
+    "clear-chat goes through tearDownLocally",
+    /park\("Chat cleared", tearDownLocally\(\)\)/.test(chat),
+  );
+  ok(
+    "forget-everything goes through the same function",
+    /tearDownLocally\("forget"\)/.test(chat),
+    "a second teardown path is a second place for a field to be missed — the " +
+      "exact shape of every finding at §5.",
+  );
+
+  // ── and the draft is NOT in the Snapshot undo restores ──
+  const snap = teardown.slice(teardown.indexOf("const snapshot = {"));
+  const snapBody = snap.slice(0, snap.indexOf("\n    };"));
+  ok(
+    "the undo Snapshot carries no composer draft",
+    !/attachments|docHold|\bdocs\b|viewer/.test(snapBody),
+    "undo restores the conversation, not what he was composing. Half a " +
+      "restored draft (the bytes in docHold are gone) is worse than none.",
+  );
+
+  // ── the bytes must NEVER become AppState ──
+  const iface2 = src("src/state/store.ts").slice(
+    src("src/state/store.ts").indexOf("export interface AppState {"),
+  );
+  ok(
+    "no attachment-shaped field entered AppState",
+    !/\b(attachments|docHold|stagedDocs|draftPhotos)\b/.test(
+      iface2.slice(0, iface2.indexOf("\n}")),
+    ),
+    "AppState syncs and persists. A staged 2 MB PDF in it is saveState's " +
+      "degradation ladder fired by one attachment, with no upload to replace it.",
+  );
+  ok(
+    "Message.docs is metadata only, never bytes",
+    !/docs\?: Array<\{[^}]*\b(data|text|b64|dataUrl)\b/.test(src("src/state/store.ts")),
+    "the stored row is name/mime/size. Bytes there would sit in localStorage " +
+      "for the life of the install.",
+  );
 }
 
 console.log(fail ? `\n${fail} FAILURES` : "\nALL PASS");

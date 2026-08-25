@@ -320,7 +320,15 @@ const ok = (name, cond, extra = "") => {
   const rec = C.tttRecord(g, "x");
   ok("the record exists", rec.length > 0, JSON.stringify(rec));
   ok("it says which mark she had, in the PAST", rec.includes("she was x"), JSON.stringify(rec));
-  ok("it says who won and in how many", rec.some((f) => /^(she|he) won it in 5 moves$/.test(f)), JSON.stringify(rec));
+  ok("it says who won and in how many", rec.some((f) => /^(she|he) won it in 5 moves\b/.test(f)), JSON.stringify(rec));
+  // WS-TTT added the SHAPE. "won it in 5 moves" is a scoreline; "won it on the
+  // middle column" is what a person actually carries out of a game of noughts
+  // and crosses, and it was the one durable fact this adapter had no word for.
+  ok("…and on which line", rec.some((f) => /won it in 5 moves, on the (top|middle|bottom) row|won it in 5 moves, on the (left|middle|right) column|won it in 5 moves, on the( other)? diagonal/.test(f)), JSON.stringify(rec));
+  // and where the marks ended up, which is what lets her answer "where did I
+  // go?" a week later instead of inventing a square
+  ok("…and where her marks were", rec.some((f) => /^she had /.test(f)), JSON.stringify(rec));
+  ok("…and where his were", rec.some((f) => /^he had /.test(f)), JSON.stringify(rec));
   ok("and where it opened — the one move anyone recalls", rec.some((f) => /^(she|he) opened in centre$/.test(f)), JSON.stringify(rec));
   for (const f of rec) {
     ok(`record row <=14 words: "${f}"`, f.trim().split(/\s+/).length <= 14);
@@ -335,9 +343,17 @@ const ok = (name, cond, extra = "") => {
   let open2 = C.newTttGame();
   open2 = C.playTtt(open2, 0);
   const openRec = C.tttRecord(open2, "o");
-  ok("an unfinished board is remembered as unfinished", openRec.some((f) => /^left unfinished after 1 move$/.test(f)), JSON.stringify(openRec));
-  ok("…in English, not '1 moves'", !openRec.some((f) => /\b1 moves\b/.test(f)), JSON.stringify(openRec));
+  // WS-TTT: A TTT FACT NAMES THE GRID. This row used to read "left unfinished
+  // after 1 move", which is chess prose in a ttt hat — a chess game has an
+  // unbounded move number and that number IS the location, while a ttt board
+  // has nine squares and the honest location is how many nobody ever took.
+  ok("an unfinished board is remembered as unfinished", openRec.some((f) => /^left unfinished, 8 squares never taken$/.test(f)), JSON.stringify(openRec));
+  ok("…in English, not '1 squares'", !openRec.some((f) => /\b1 squares\b/.test(f)), JSON.stringify(openRec));
   ok("…and names no winner", !openRec.some((f) => /won/.test(f)), JSON.stringify(openRec));
+  // and `endedEarly` — which was chess-only — names WHO left it
+  const earlyRec = C.tttRecord(open2, "o", true);
+  ok("an ABANDONED board names who abandoned it", earlyRec.some((f) => /^he left it unfinished, 8 squares never taken$/.test(f)), JSON.stringify(earlyRec));
+  ok("…and still names no winner", !earlyRec.some((f) => /won/.test(f)), JSON.stringify(earlyRec));
   ok("an untouched board says nothing was played", C.tttRecord(C.newTttGame(), "x").some((f) => /before a move was played/.test(f)));
 }
 

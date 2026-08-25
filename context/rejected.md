@@ -1791,3 +1791,475 @@ whole past the tombstone; the cap bounds only what a REMOTE copy may add.
 **The generalisable rule:** a bound applied to a merge result is a
 delete operator wearing a cap's name; bound the incoming side, never
 the union.
+
+---
+
+## `typing-tick` — the sound the typing indicator does not get (2026-08-23)
+
+**Tried (WS-SOUND, decided before building):** a very quiet tick when her
+"typing…" indicator appears, which is what the brief asked to be judged and
+what every messaging app with a sound layer does.
+
+**What breaks, and any one of the three is enough.** (1) The indicator is a
+STATE, not an event, and `native/haptics.ts`'s standing rule — a haptic is for
+an event, never for a state — binds the ear harder than the hand, because a
+state that ticks is a state that nags. (2) It is not one appearance:
+`Chat.tsx`'s delivery loop puts the indicator up and takes it down once PER
+BUBBLE, so a three-bubble reply is three ticks before a single word arrives and
+the arrival cue that actually matters lands fourth. (3) Nothing he did is in
+front of it — it is a sound the app makes while he is not looking, which is the
+definition of a ping and the exact failure `docs/PRODUCT-SUPERIORITY.md` #1
+pre-registered as fails-if (e).
+
+**Now:** the refusal is a row in `REFUSED` in `src/sound/vocabulary.ts` with
+that argument next to it, and `evals/sound.mjs` asserts it has not become a
+cue. Five more are refused there on the same terms, including a call-connect
+tone (physics, not taste) and an error buzz (a sound attached to a bad outcome
+teaches dread).
+
+**The generalisable rule:** in a sensory layer, an absence with no reason
+attached is indistinguishable from an oversight and will be "fixed" by the next
+agent. `dead-writers` has a mirror image — write the refusals down as data, not
+as an empty file.
+
+---
+
+## `receive-per-bubble` — one arrival cue per BUBBLE (2026-08-23)
+
+**Tried (WS-SOUND):** the obvious wiring — sound the `receive` cue wherever
+her message enters the thread, i.e. at every `pushMsg` inside `deliver()`.
+
+**What breaks:** the same arithmetic that made `haptics.ts` refuse her messages
+a haptic outright. A three-bubble reply is three arrivals inside four seconds,
+and three of anything in four seconds is an alarm rather than an arrival. Sound
+is allowed ONE where touch was allowed none, because it decays and points and
+so can be heard from across a desk without being felt in a pocket — but only
+one.
+
+**Now:** `deliver()` routes every one of her messages through a local `landed`
+helper that sounds on the FIRST to arrive and then never again for that
+delivery. Per-delivery and not per-turn on purpose: a follow-up cycle after a
+held `[search:]` lookup is genuinely a second time she came back and gets its
+own arrival.
+
+**Measured, in a real browser** (`evals/sound-browser.mjs`, chromium, the
+AudioContext patched before any app script): a scripted three-bubble reply
+produces exactly 2 cues — his send and one arrival. The naive wiring produces
+4.
+
+**The generalisable rule:** a rule derived for one sensory channel usually has
+a version in the next one, and it is almost never the same rule. Re-derive it
+from the same arithmetic instead of copying the verdict.
+
+---
+
+## `sound-gate-proved-by-silence` — the assertion that could not fail (2026-08-23)
+
+**Tried (WS-SOUND, caught while writing the gate):** proving the call gate by
+publishing a live call, calling `play()`, and asserting nothing was scheduled.
+
+**What breaks:** it passes identically when the gate works, when the audio
+graph is broken, when the module failed to import, and when the feature was
+deleted. An assertion whose evidence is silence has no negative arm at all, and
+this is the entire class `measured-but-not-felt` names — a gate that cannot be
+seen failing is not a gate.
+
+**Now:** `evals/sound.mjs` takes the REAL bundle, deletes the in-call clause
+from it, re-imports the broken copy, and asserts that the same fixture which
+was silent above now DOES leak a cue. The silence assertions above it are only
+evidence because that one is loud. Same in-run negative-control shape the felt
+gate uses. Also: `blockedBy()` returns WHICH gate stopped a cue rather than a
+boolean, so every gate is driven and named on its own instead of being inferred
+from a shared silence.
+
+**The generalisable rule:** if a test's pass condition is "nothing happened",
+it needs an arm in the same run where something must happen, built by breaking
+the mechanism under test rather than by mocking around it.
+
+---
+
+## `pre-line-before-the-move` — the deliberating line that cannot arrive first (2026-08-23)
+
+**Tried (WS-MOVEVOICE, refused at design time and worth writing down because it
+is the obvious design):** the full human choreography — she says a short "hmm,
+ek second" in a deliberating register, THEN the piece lands, THEN she comments
+on it. Three beats, exactly like a person across a board.
+
+**What breaks:** the live lane has no way to guarantee the order. `direct()`
+writes a note to the socket; the model then has to generate and begin speaking,
+which is seconds, and it waits up to 1.2s for her to stop talking first. Her
+think window is 0.8–2.2s in the opening. So the pre-line lands AFTER the piece
+on most openings — which is not a degraded version of the feature, it is the
+exact defect the workstream exists to fix, delivered by the mechanism meant to
+fix it. Worse, it is intermittent, so it would read as her being confused
+rather than as a timing bug.
+
+**Now:** no pre-line at all. Think delay → move lands → post-line in done
+tense. A silent move followed by a past-tense line is always coherent; a move
+followed by a future-tense line never is. If the speech lane ever gets a
+latency guarantee (a local TTS path, a pre-warmed turn), the pre-line becomes
+buildable and this entry is the spec for it.
+
+**The generalisable rule:** an ordering you cannot enforce is not a feature you
+can ship, however small the window looks. Where the two orders read very
+differently to a person, ship the one that is always right rather than the one
+that is usually better.
+
+---
+
+## `past-tense-is-not-enough` — the note that was already correct and still wrong (2026-08-23)
+
+**Tried:** nothing — this is the diagnosis, and it is the part of the owner's
+report that nearly got mis-fixed. The obvious reading of "her voice said she
+should make the move she had already made" is that the note was in the wrong
+tense.
+
+**What was actually true:** `moveFact` and `exchangeFact` were ALREADY strictly
+past tense ("he played Qh5; she answered Nf6") when the defect was heard. Had
+the fix stopped at "check the tense", it would have changed nothing and the
+suite would have passed.
+
+The missing half is that a past-tense fact does not say the choice is CLOSED.
+Her frozen prompt says "it is her move" if the call connected during her turn,
+the activity block is compiled once at connect and never again, and a model
+handed a true past-tense fact alongside a stale "it is her move" will
+deliberate. The note has to state, in so many words, that there is nothing
+pending.
+
+**Now:** `settledClause` / `tttSettledClause`, composed into every game note by
+`chessMoveNote` / `tttMoveNote`. The eval's tense checker asserts BOTH halves —
+no deliberative verb, and the choice explicitly stated closed — and carries the
+pre-fix note shape as a negative control that must be rejected. Without that
+control the whole suite would have passed on the broken build.
+
+**The generalisable rule:** when a lane's context is frozen and the note is
+incremental, the note must carry enough state to CONTRADICT the frozen half,
+not merely to add to it. Correct-and-incomplete reads exactly like wrong.
+
+---
+
+## `evidence-only-patience` — the wait that could not cover the ordinary case
+
+**Found (WS-BREATH post-mortem, third recurrence of the burst complaint):**
+every shipped patience signal (continuation cues, typing hold, learned
+rhythm) required EVIDENCE of a follow-up; a complete-looking sentence
+with idle hands carries none, so "U can call me" got the 1300ms default
+and she fired before his hand reached the keyboard. A polarity error:
+grace must be the default and evidence should shorten it, not create
+it. Compounding cause: the felt-timing browser battery had been
+silently dead since the home-surface wave (navigated to /chat, which
+now boots home; its sends timed out outside the release gate) - the
+only instrument for this class was unable to reach the composer, so
+two waves shipped unmeasured.
+
+RECURRENCE 2026-08-24, by the coordinator itself: verify-release piped
+into `tail -2` inside an `&&` chain - the pipe's exit code is tail's, so a
+"1 of 13 FAILED - not shippable" tree was committed AND pushed before the
+red was seen. The deploy gate caught it (production never promoted), and
+the red was a fixture-word collision fixed in the next commit, but the
+mechanism was exactly this entry. Rule sharpened: a gate's verdict is its
+EXIT CODE, captured explicitly (`cmd > log; E=$?`) - never read off the
+tail of a pipe.
+
+**The generalisable rules:** a default is a policy, not an absence -
+audit what the system does when every signal is silent; and a battery
+outside the release gate needs its own liveness check (it must FAIL
+loudly when it cannot drive the app, never time out quietly).
+
+## `past-tense-is-not-enough` + `spent-before-delivered` (movevoice/watchperf)
+
+Two summarized: a past-tense game fact does not CLOSE a choice for a
+frozen prompt (the model deliberates about a move it was told she
+made - the note must state the choice closed); and the native frame
+pipeline spent cadence/still-debt/moved flags at hand-off before the
+socket accepted, so one refused frame silently degraded the whole
+share (spend budgets on DELIVERY, never on attempt). Full entries in
+the wave reports; july's timeline.ts day-shape fix for the fairy-
+lights class sat gated-but-unwired the whole time (dead-writers,
+fourth instance: wire-or-retire is now a lifecycle-slice item).
+
+## `t14-render-layer-retired` — a second answerer of "right now", dead since birth
+
+timeline.ts's T14 render layer (`renderHerDay`/`renderHisClock`/
+`renderTimeFrame`/`timeFrame` + headers) was written in July for the
+fairy-lights class, gated by `evals/time/` (982 lines), and NEVER WIRED:
+no `time.frame` row was ever added to compiler.ts's MANIFEST, so it had
+zero callers outside its own eval for its whole life — the fifth
+dead-writers instance. Retired 2026-08-23 with a dated tombstone rather
+than wired, because wiring it now would make it a SECOND renderer of the
+exact question `herNow.ts` exists to make unanswerable twice, in the same
+slot (T7). The live half (`istParts`, `herNow()` on HomeScreen) stays.
+Enforced by a zero-importer gate, not deletion — `evals/time/` still
+guards the live half with a source-mutating negative control; deleting is
+a WS-TIME task. Honest residual: `hisClock` (his dated facts moving
+behind him) is covered by nothing shipping — T9 carries clock/gap facts
+only. **Returns only as** a real compiler slot with a MANIFEST row and a
+lane-parity column, never as a render function waiting for a caller.
+
+## `isquota-only-folding` — "every key rejects it identically" folded 5xx into 4xx
+
+api/chat.js's pool walk (and api/live-token.js's, independently) classified
+upstream failures as quota-or-deterministic: quota rotated keys, everything
+else aborted the pool after ONE call under the comment "every key would
+reject it identically, so stop rather than burning the pool". True for
+400/401/403/404; false for 5xx. Production paid for it 2026-08-24
+02:30-04:30Z: single Google 502s ({ms:6693}, {ms:9869}) aborted a NINE-key
+pool with retries:0 and shipped the canned connectivity pair — three times
+in 90 minutes, and during a ring it meant she never picked up. The twist
+that makes this a rejection and not just a bug: `_gkeys.js` already
+exported `isTransient` and two other callers (speech.js, memory.js) already
+classified correctly — the assumption survived in the two places nobody
+re-read (`age-tier-never-realtime`'s shape). Replaced by the classified
+ladder in api/_lanes.js; evals/resilience re-runs the pre-fix folding as a
+negative control and asserts it loses the turn at calls=1.
+
+---
+
+## `cache-outlives-the-voice` — four lanes moved, the audio did not (2026-08-24)
+
+The owner reported *"when we shift to different modes her voice is changing"* —
+the same defect `verify-voice.mjs` was built to end — three days after the
+2026-08-21 Aoede → Autonoe switch. The gate was **green and correct**: the four
+lanes it checks did agree.
+
+Her clips are cached permanently in IndexedDB under `bc1:<text>:<style>`,
+`pk1:<text>:<style>` and `vn1:<msgId>`. Text, style and id — **never the
+voice**. So the switch moved every lane that *generates* audio and no key that
+*replays* it, and every install that had made one call before that date kept
+serving **Aoede** pickup lines and backchannels out of the cache. The pickup
+clip is the first sound of a call; the live session then connects a second later
+in Autonoe. That is the owner's sentence, with the "mode shift" being nothing
+more exotic than the call starting.
+
+`liveCall.ts` got this right and always had — its ack cache is
+`${ACK_CACHE_V}:${ACK_VOICE}:${text}`. One lane had the discipline and it was
+never generalised.
+
+**Two more places the same switch missed**, found in the same sweep.
+`scripts/prosody-baseline.mjs` — SPEC §9.5's unconsented-vendor-swap detector,
+the one job whose entire purpose is noticing her voice change — still said
+`TTS_VOICE = "Aoede"`, and its stored baseline was recorded in that voice too,
+so it could not have alarmed in either direction. And `src/voice/speech.ts` will
+speak her through Sarvam (`priya`) or ElevenLabs on the cascade whenever a user
+key exists, while the live lane cannot; on a keyed install every fallback is a
+different woman, and the gate read neither literal.
+
+**Why the discipline failed rather than the mechanism.** `api/speech.js`'s
+header already said *"move it HERE and in the two live speechConfigs together —
+or this comes straight back"*, and `verify-voice.mjs`'s own header answers that
+a comment asking for discipline is not a mechanism. Both were right, and both
+missed that the mirrors had **no writer**. A mirror set that can only be edited
+by hand is a mirror set that will be edited incompletely — the assertion catches
+the drift *after* someone ships it, which for a switch made and verified in one
+session means it catches nothing.
+
+**Fixed** by putting the identity **in the cache key** (`engineTag`,
+`PROXY_VOICE_TAG`), which strands stale audio automatically — no purge step and
+no revision counter to forget — and by giving the mirrors one writer:
+`node scripts/verify-voice.mjs --set <Voice>` moves all six lanes and verifies
+the result in one command. Round-trip tested: `--set Leda` then `--set Autonoe`
+returns all five files byte-identical.
+
+**Guarded** by `verify-voice.mjs` §7: every audible engine must be declared, and
+every persistent clip cache key must name the identity that produced it. Nine
+negative tests, nine failures.
+
+**What breaks generally:** a constant switch is only complete when everything
+DERIVED from the old value is also invalidated, and a cache is derived state
+that outlives the process that made it. The rule: **anything that persists audio,
+text or embeddings across a config change must carry that config in its key** —
+otherwise the switch is green everywhere except where the user actually hears it.
+
+**Reverses if:** nothing measured. This is a correctness fix, not a tradeoff.
+
+---
+
+## `engine-per-phrase` — one reply, two vendors, one sentence apart (2026-08-24)
+
+`fetchClipFor` decided which TTS vendor to use from
+`preferEleven = elevenKey && (hasAudioTags(text) || !sarvamKey)`. `hasAudioTags`
+is a property of the **phrase**, and `speakCall` / `createStreamSpeaker` call
+`fetchClipFor` **once per phrase**. So with both user keys set, a reply whose
+second sentence carried `[laughs]` was fetched from ElevenLabs while its first
+came from Sarvam — two different women inside one answer, boundary at the full
+stop. `usesProxyVoice(phrases[0], opts)` had the identical shape.
+
+**The gate already asserted this exact property one level down and nobody
+noticed the level above.** `verify-voice.mjs` §2 fails the build if the
+cascade's free and paid arms name different models, with the reason spelled out:
+*"they race inside one request and a multi-phrase reply races again per phrase,
+so this would change her voice BETWEEN HER OWN SENTENCES."* One level up, where
+the two candidates are not even the same company, nothing checked at all.
+
+**Fixed** by deciding once per utterance in `pickEngine()` and threading the
+result down. The stream lane latches on its first phrase, because a lane that
+cannot see the reply it is about to speak has no better option and *"decide once
+and hold"* beats *"re-decide whenever new text arrives"*.
+
+**The tradeoff, stated rather than hidden:** a tag appearing only in a later
+phrase no longer pulls that phrase to ElevenLabs, so a flatter sentence is
+traded for never swapping vendor mid-reply. Sarvam cannot perform a tag at all —
+its callers hand it `stripForDevice(...)`, which turns tags into pauses — so on
+a Sarvam install nothing is lost.
+
+**Guarded** by counting `hasAudioTags(` call sites: exactly two (its definition
+and `pickEngine`). A third is a second decision point.
+
+**What breaks generally:** an invariant proved at one layer is not proved at the
+layer above it, and *"the same reasoning obviously applies"* is how the layer
+above goes unchecked. When writing a gate, name the layer it holds at.
+
+---
+
+## `subset-check-is-green-by-construction` — three bugs in one twenty-line guard, all toward passing (2026-08-24)
+
+Filed because it happened while *writing the fix for* `cache-outlives-the-voice`,
+which is the sharpest possible demonstration of the point.
+
+§7b of `verify-voice.mjs` asserts every persistent clip cache key names the voice
+that produced it. It failed three times, each time by examining a subset it did
+not name:
+
+1. It matched only keys written **inline** in the call, reporting *"all 2 keys
+   ok"* while silently ignoring the three built as `const key = …` — including
+   the pickup clip, the one the bug is actually heard through.
+2. Resolving identifiers, it took the **first** `const key = \`…\`` in the file.
+   Two caches there both name their key `key`, so the pickup key could lose its
+   tag entirely and the check still passed. It resolves the **nearest binding
+   above the call site** now.
+3. It counted the two **function declarations** (`cachedClip(key: string)`) as
+   call sites, which turned the gate red on a clean tree.
+
+Only (3) was visible without trying to break it. (1) and (2) both printed a
+confident count and a green tick.
+
+**What breaks generally:** a check that reports a COUNT is making a claim about
+coverage, and nothing verifies that claim. This is `manifest-sourcestatus`
+(a field asserting rather than observing) and `sound-gate-proved-by-silence`
+(an assertion that cannot fail) meeting in one function. The rule this repo
+already has — **guards are tested by breaking them** — is not a nicety for
+important guards; it is the only thing that separates a check from a comment.
+Every one of these three was found by breaking it on purpose, and none would
+ever have been found by reading it.
+
+## `ttt-second-class` — a generic seam is not generic until a gate drives every member through it
+
+Tic tac toe "flowed through" every chess system from day one — ActivityState,
+the poke, the staleness stamp, the lifecycle matrix, the episode writer — so
+nothing ever read as missing. WS-TTT (2026-08-24) found four of six systems
+reached ttt in name only: the urgent poke had a `kind === "chess"` guard (a
+ttt win on a call was silently swallowed), no salience filter (she narrated
+every mark), the T15 block carried no position or threats, and a closed ttt
+board rendered live. The tell is uniform: a kind-agnostic mechanism with a
+kind guard somewhere downstream, or one no test had driven with the second
+kind. Sibling finding `chess-prose-in-a-ttt-hat`: three strings located a
+nine-square board by a chess move number — generalising a mechanism is not
+generalising its WORDING, and the wording is the half the user hears.
+
+## `glyph-in-a-live-status-line` — the watching eyes stay out of the call state label
+
+Tried: the animated eyes glyph inline in CallVoice's "watching with you"
+state line (per the asset brief). Broke on inspection, not in code: the
+label is a plain string in an aria-live region changing several times a
+minute; carrying a picture means a mixed live node holding a 538KB looping
+WebP — ambient motion in a status line, the exact decoration DESIGN-
+STANDARDS gates. Copy de-glyphed instead; StoryView's gate keeps the eyes
+(rare, first-run, delight budget). Sibling finding `knows-empty-day-0-only`:
+the scrapbook empty state is unreachable after the first beat of any mount
+because Chat improvises her opening message at messages.length===0 (network
+dead included, via the stored fallback) — wiring gated offline, state
+effectively day-0 only.
+
+## `bake-glued-labels` — one entry format, parsed at every seam, or the outage has two faces
+
+The 48-key pool's launch night (2026-08-24): write-config.mjs had never
+been taught `label~key`, so CI baked the labels INTO the keys. Face one:
+Google answered 400 API_KEY_INVALID for the glued label and the pool's
+(correct, for malformed requests) 400-abort rule killed all 48 keys —
+chat silently survived on the Azure grant lane, speech 502'd. Face two:
+after the paste sanitiser landed, the same glued entries were charset-
+dropped and the baked pool went to ZERO. The runtime env path was absent
+at the function, so the bake was the live source the whole time. Fixed by
+parsing the entry format identically at all three seams (env string,
+baked array, write-config) with the bake now emitting GOOGLE_KEYRING so
+RCA labels survive it; 6 new keyring-gate assertions drive the real bake
+in an isolated tree. The rule: a serialization format that crosses a
+seam must be parsed by the SAME code (or same-tested code) on both
+sides — a second, ignorant parser is a two-faced outage waiting for its
+second face.
+
+## `fixed-fuse-on-a-variable-upstream` — the 1400ms fuse turned a slow night into a silent one
+
+The 2026-08-24 ~22:00 UTC speech outage (production 502 "upstream empty"
+for hours) had three stacked causes, and the fuse was the one that made it
+total. (1) The carbonsettle org family's prepay hit zero — its ~20 keys
+answered 429 "prepayment credits depleted" on TTS generation while chat
+countTokens still 200'd, so pool-health probes said HEALTHY for keys the
+speech lane could not use. (2) MAX_TRIES=3 was written for a 9-key pool
+and could not cross that ~20-key dead block sitting at the ring's head.
+(3) Google's TTS preview itself degraded to a measured 9.7–11.3s FIRST
+FRAME on healthy keys (three keys probed raw, real audio behind each) —
+and the 1400ms fuse, tuned to the healthy-night 615–1051ms, cut every one
+of them. Each fix alone would have failed: raising MAX_TRIES walks 48 slow
+keys and times the function out; raising the fuse alone makes every
+healthy night slow. What shipped: quota 429s no longer consume the slow-
+try budget (a fast bounce costs ~150ms; the budget bounds SLOW upstreams),
+billing families fail together so one hit kills the whole @domain family
+for the walk, and the fuse became two-phase (see `two-phase-fuse`). The
+rule: a fixed timeout tuned to an upstream's healthy tail is a self-DoS
+against its sick tail — pair every fast fuse with a bounded slow path
+before declaring the upstream dead.
+
+Sibling rejection, caught by the battery not by me: the first cut of the
+mid-walk family skip keyed off the GLOBAL cooldown map, which also skipped
+the keys healthyKeys()'s everything-cooled fallback had deliberately
+returned — calls=0, resilience 140/13. The skip must be a walk-local set
+fed only by THIS walk's own failures. A global "known bad" consulted
+mid-walk re-breaks whatever the fallback above it just repaired.
+
+## `live-clock-in-a-byte-identity-gate` — a 1.7%-odds flake that fired on a context-only commit
+
+CI failed byte-identity (1 of 83, tail+system differing at EQUAL lengths)
+on a commit that touched nothing but context/. Root cause, reproduced
+byte-for-byte: persona.ts's nowContext() stamps her phone clock to the
+minute, and both sides of the comparison call it at their own call time —
+CI started the battery at 22:25:59.23 and the first fixture's compileOld()
+crossed 22:26:00, so "10:25 pm" vs "10:26 pm" at tail byte 115. The race
+existed since the harness was written (~1 second of exposure per minute
+across the first-fixture pair). Fixed in the HARNESS (freeze
+globalThis.Date to one mid-band instant before any compile call), not by
+removing the clock from the prompt — she should know what time it is; the
+gate should not care. The rule: a byte-identity comparison may contain no
+byte the code under test doesn't control — pin every ambient input (clock,
+locale, env) or the gate will eventually fail on an innocent commit, and
+its failure will point away from the cause (the tree it failed on had
+nothing to do with the bytes that differed).
+
+## `calendar-lottery-ceiling` — the second ambient-input gate failure in one night
+
+Hours after `live-clock-in-a-byte-identity-gate`, the SAME rule fired in a
+second gate: the persona size ceilings build their lanes under the live
+clock, and the compiled core is DATE-dependent (her life texture rotates
+by calendar day). A 366-date scan (scripts/scan-core-max.mjs) measured the
+text core at 46590..46771 across the year — the 46700 ceiling sat in the
+middle, so ~a quarter of all dates failed on identical source. It passed
+Sunday night, failed Monday morning (46702), and the flap blocked the
+owner's production secrets rollout. Fixed by pinning buildLanes to the
+argmax date (2026-03-19) and setting the ceiling from the measured yearly
+max (46780 = 46771 + 9 slack), with the scan checked in for re-derivation
+after texture edits. The generalized rule stands: any gate that measures
+compiled output must pin EVERY ambient input (clock, date, locale, env) —
+and a ceiling set from a single live measurement of date-varying content
+is a lottery ticket, not a bound. The dead giveaway in both incidents:
+CI failing on a commit that could not have caused the diff.
+
+THIRD strike, same night (2026-08-25 06:01): the live-lane call-tail
+bound in check-prompt-budget.mjs — 29,983 Sunday, 30,001 Monday, one
+byte over on a context-only commit. Scanned at the voice tail's yearly
+argmax (Aug 9) the true worst case is 30,190: the 30,000 cap was
+UNDERWATER at the calendar's peak the whole time and only looked green
+because CI had never run near those dates. Pinned the section's clock to
+the argmax date and raised CALL_TAIL_CAP to 30,250 (60-byte tripwire
+margin, zero content growth). The sharpened lesson: an unpinned clock in
+a size gate doesn't just flap — it can HIDE a cap that is already
+exceeded, because every green run silently measured a smaller day.

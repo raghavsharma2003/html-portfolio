@@ -67,9 +67,16 @@ const lastAt = h[h.length - 1].at;
 //  cascade src/engine/brain.ts via think()   — chat's inputs, voice medium
 //  live    useCallEngine.ts (connect)        — frozen at pickup, no cultureNote
 //  watch   useCallEngine.ts (watch start)    — the tightest lane in the repo
-const chatMemories = `${E.formatActivityLedger(F.ledger, NOW)}\n\n${F.graphRecall}`;
+// WS-SHARENOW's block, resolved ONCE and handed to both compositions — the
+// same function on every lane, because two derivations of "what they just did"
+// is how one of them drifts (`age-tier-never-realtime`'s law).
+const justBlock = E.formatJustHappened(F.shares, F.ledger, h, NOW);
+const chatMemories = [justBlock, E.formatActivityLedger(F.ledger, NOW), F.graphRecall]
+  .filter(Boolean)
+  .join("\n\n");
 const callMemories = E.callMemories(
   E.callGraphBlocks(
+    justBlock,
     E.formatActivityLedgerForCall(F.ledger, NOW),
     E.formatSharedHistory(h, NOW),
     F.graphRecall,
@@ -77,12 +84,29 @@ const callMemories = E.callMemories(
   E.formatChatTail(h, NOW),
 );
 
+// WS-HERNOW. T7 is one compiler slot carrying TWO blocks: the told ledger
+// (what she has SAID, fixed between them) and her present minute (what she is
+// doing, never told, expires by its own span). The two RE-COMPILING lanes
+// pass the second; the two FROZEN-AT-CONNECT lanes deliberately do not — an
+// elapsed baked into a prompt that never recompiles is a duration that
+// becomes false as the call runs. See the herNow sub-block table.
+const present = F.presentEntry(E);
+const herLifeWithNow = E.formatHerLife(
+  [{ text: F.herLifeText, at: NOW - 3 * 3600_000, kind: "fact" }],
+  NOW,
+  present,
+);
+const herLifeToldOnly = E.formatHerLife(
+  [{ text: F.herLifeText, at: NOW - 3 * 3600_000, kind: "fact" }],
+  NOW,
+);
+
 const base = {
   user: F.user,
   messageCount: h.length,
   isDirective: false,
   watching: false,
-  herLife: F.herLifeText,
+  herLife: herLifeWithNow,
   relBundle: F.relBundle,
   selfBundle: F.selfBundle,
   gapSinceLastMs: Math.max(0, NOW - lastAt),
@@ -111,6 +135,8 @@ const lanes = {
   },
   live: {
     ...base, medium: "voice", mode: "call", voiceEngine: "live",
+    // the told ledger only — frozen at connect; see the herNow sub-block table
+    herLife: herLifeToldOnly,
     innerThread: innerFor("pickup").thread, innerWants: innerFor("pickup").wants,
     cultureNoteText: "",
     memories: callMemories, latestUserText: F.latestUserText, nowMs: NOW,
@@ -118,6 +144,8 @@ const lanes = {
   },
   watch: {
     ...base, medium: "voice", mode: "call", voiceEngine: "live",
+    // the told ledger only — the herNow sub-block table below states why
+    herLife: herLifeToldOnly,
     innerThread: innerFor("watch").thread, innerWants: innerFor("watch").wants,
     cultureNoteText: "",
     memories: callMemories, latestUserText: "", nowMs: NOW,
@@ -239,6 +267,116 @@ for (const row of BLOCKS) {
   // never a second rendering of it
   ok("the call ledger row comes from the same summary the chat one does",
     E.formatActivityLedgerForCall(F.ledger, NOW).includes("a game of chess together"));
+
+  // ── THE FOURTH SUB-BLOCK: what they JUST did (WS-SHARENOW) ─────────────
+  // The owner screen-shared, hung up, called back one minute later and asked
+  // what they had watched — and nothing in the brief could say. This block is
+  // the answer, and it is the SAME defect class the table above exists for, so
+  // it is asserted the same way: present on every lane that claims it, with a
+  // budget pin, and with an exemption nowhere. There is no lane on which "what
+  // the two of you did eighteen minutes ago" is not the present moment.
+  ok("the just-happened block has something to carry", justBlock.length > 0, String(justBlock.length));
+  for (const [name, str] of [["chat lanes", chatMemories], ["call lanes", callMemories]]) {
+    ok(`T5 carries the just-happened block on the ${name}`, str.includes("JUST NOW"), str.slice(0, 120));
+    ok(
+      `…including her own lines over the screen, on the ${name}`,
+      F.shares[0].said.every((l) => str.includes(l)),
+    );
+    ok(
+      `…ahead of every other memory block on the ${name} (truncation cuts the END)`,
+      str.indexOf("JUST NOW") <
+        Math.min(
+          ...[E.ACTIVITY_BLOCK_SENTINEL, "BEFORE TODAY", "RELEVANT TO WHAT THEY JUST SAID"]
+            .map((k) => str.indexOf(k))
+            .filter((i) => i >= 0),
+        ),
+      str.slice(0, 200),
+    );
+  }
+
+// ── THE SUB-BLOCKS INSIDE T7 (WS-HERNOW) ──────────────────────────────────
+//
+// T7 is the second slot in this table that carries more than one thing, and
+// it arrived that way for T5's reason: the block is assembled by the CALLER
+// (`brain.ts:formatHerLife`), so "T7 rendered" says nothing about whether her
+// PRESENT MINUTE is in it. The told ledger and the present moment are
+// different claims — one is what she has said and is fixed between them, the
+// other is where she is and expires — and a lane can carry either without the
+// other. Both get a verdict, per lane, like everything else here.
+{
+  const NOW_ROWS = [
+    { id: "herNow.told", what: "T7 told ledger", chat: P, cascade: P, live: P, watch: P,
+      probe: (text) => text.includes(F.herLifeText) },
+    { id: "herNow.present", what: "T7 present minute",
+      chat: P, cascade: P,
+      live: "THIS PROMPT IS FROZEN AT CONNECT (liveAssemblies reads 1 for the whole call) and " +
+        "the block carries an ELAPSED: \"going on: about 20 min\" baked in at pickup is false " +
+        "forty minutes later, and a duration she cannot recompute is exactly what herNow.ts " +
+        "exists to make impossible. Her present reaches this lane through direct() instead — " +
+        "CALL_OPEN_DIRECTIVE's `scene`, worded from the SAME ledger row at the instant it is " +
+        "true. Asserted below rather than assumed.",
+      watch: "the same frozen-prompt reason as `live`, plus two of its own: the watch compile " +
+        "happens when the SHARE starts, which is always mid-call, so the pickup that opened " +
+        "the call already carried her present moment; and a share IS app truth, which outranks " +
+        "the ledger by the scene fence and renders no present-minute block at all.",
+      probe: (text) => text.includes(E.HER_NOW_HEADER) },
+  ];
+  const t7 = (lane) => lanes[lane].herLife;
+  for (const row of NOW_ROWS) {
+    for (const l of LANES) {
+      const hit = row.probe(t7(l));
+      if (row[l] === P) {
+        ok(`${row.id} (${row.what}) renders on ${l}`, hit,
+          "DARK — the lane claims this half of T7 and does not carry it");
+      } else {
+        ok(`${row.id} is exempt on ${l} and stays absent`, !hit,
+          `present while the table says: ${row[l]}`);
+        ok(`${row.id} exemption on ${l} states a reason`,
+          typeof row[l] === "string" && row[l].length > 40);
+      }
+    }
+  }
+  // …and T7 itself is non-empty on every lane, so the exemption above is a
+  // statement about ONE HALF and never a lane quietly losing the whole slot
+  for (const l of LANES) ok(`T7 is non-empty on ${l}`, sec(l, "T7") > 0, String(sec(l, "T7")));
+
+  // ONE LEDGER, not three renderings of it. The pickup directive's scene and
+  // the prompt block are two views of the SAME entry, and the thing that
+  // makes the one-minute re-call safe is that neither view can re-draw it.
+  const scene = E.herNowScene(present, NOW);
+  ok("the pickup scene names the same activity the re-compiling lanes' block does",
+    scene.includes(present.activity) && t7("cascade").includes(present.activity), scene);
+  ok("the scene is never empty for a lane with no board on screen", scene.length > 0,
+    "an empty scene is what fell through to the directive's improv clause");
+  // THE LIVE LANE'S EXEMPTION IS NOT A HOLE. Its present moment travels by
+  // direct(), and the string that travels names the same activity — so the
+  // exemption above costs the lane nothing, which is the thing an exemption
+  // has to be able to show rather than claim.
+  ok("the live lane still receives her present moment, through the directive",
+    scene.includes(present.activity) && scene.length > 0);
+}
+
+  // The chat tail is the ONE thing in front of it on the call lanes, and that
+  // is `callMemories`' own rule rather than an accident: the pre-call stretch
+  // is what he typed seconds ago, and this block is what they did minutes ago.
+  ok(
+    "on the call lanes only the pre-call chat tail precedes it",
+    callMemories.indexOf("JUST NOW") <= E.formatChatTail(h, NOW).length + 4,
+    `at ${callMemories.indexOf("JUST NOW")}, tail is ${E.formatChatTail(h, NOW).length}B`,
+  );
+  // …and in the COMPILED prompt of every one of the four lanes, which is the
+  // only thing that proves a lane really carries it.
+  for (const l of LANES) {
+    ok(`${l} lane's compiled prompt carries the just-happened block`,
+      out[l].tail.includes("JUST NOW"),
+      "DARK — the lane claims this block and rendered none of it");
+    ok(`${l} lane carries her actual words from the share`,
+      out[l].tail.includes(F.shares[0].said[0]));
+    ok(`${l} lane never carries a claim about what was ON the screen`,
+      !/what was on their screen|on his screen there|the screen showed/i.test(out[l].tail));
+  }
+  ok(`the block is within JUST_HAPPENED_BUDGET (${justBlock.length} <= ${E.JUST_HAPPENED_BUDGET})`,
+    justBlock.length <= E.JUST_HAPPENED_BUDGET);
 }
 
 // ── THE PER-LANE BUDGET PIN ───────────────────────────────────────────────
@@ -325,7 +463,7 @@ for (const row of BLOCKS) {
 {
   const fx = readFileSync(join(HERE, "fixtures.mjs"), "utf8");
   const code = fx.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-  for (const name of ["meera", "silk"]) {
+  for (const name of ["maya", "meera", "silk"]) {
     ok(`the parity fixtures never name the agent ("${name}")`, !code.toLowerCase().includes(name));
   }
   ok("the parity fixtures pass no agent module (the default is the point)",

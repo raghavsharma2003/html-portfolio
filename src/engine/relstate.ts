@@ -1104,7 +1104,16 @@ export function renderWeCallbacks(
     // "us din jo baat hui thi" had no day attached to it. Telegraphic and
     // bracketed — a rendered sentence here is a line she recites (L4).
     ...validEpisodes.map((e) => `we: ${e.summary}${weDay(e.at)}`),
-    ...validPhrases.map((p) => `phrase: "${p.phrase}" — ${p.gloss}`),
+    // The gloss is OPTIONAL and, for every phrase the pipeline actually
+    // writes, absent: `api/consolidate.js`'s deterministic capture stores the
+    // n-gram and nothing else, because a gloss is an interpretation of what
+    // the phrase MEANS to them and nothing in a frequency scan has read that
+    // anywhere — inventing one would be the fabrication this file's citation
+    // law exists to prevent. Every fixture in the tree happens to carry one,
+    // so this rendered `phrase: "chai pe scene set" — ` in production and
+    // nowhere else: a dangling em-dash in the one block she speaks back from
+    // (T6). Byte-identical whenever a gloss is present.
+    ...validPhrases.map((p) => (p.gloss?.trim() ? `phrase: "${p.phrase}" — ${p.gloss}` : `phrase: "${p.phrase}"`)),
   ];
   const header = pulled
     ? "SHARED HISTORY — ACTIVE (they just referenced this; context only, still never announce that you remember):"

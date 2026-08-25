@@ -1653,13 +1653,114 @@ EPISODES (numbered, dated, affect-tagged where known):
 ${batchText}`;
 }
 
-/** One person's trust/rupture/repair pass: extract, validate citations
- *  against the numbered batch, apply the mirrored state machine, write AT
- *  MOST one rupture/repair event and one trust event per run (the state
+// ── THE SAME EVIDENCE MAY NOT MOVE TRUST TWICE (WS-JUDGEWORK, 2026-08-23) ──
+//
+// This writer was designed against a NIGHTLY cadence. The only mechanism that
+// actually runs it today is the HOURLY sweep (docs/CONSOLIDATION.md: "the only
+// live mechanism"), and `fetchFreshEpisodesForPerson` looks back 30 hours — so
+// the same person's same finalized episodes are handed to the same prompt
+// repeatedly, and a model that read a real trust move off them once reads it
+// again every time. `clampTrustDelta` bounds the VALUE (±0.05/day) but not the
+// ROW COUNT: the arithmetic stayed honest while `vy_rel_event` filled with
+// near-zero-delta trust rows all citing the identical episodes.
+//
+// The rule is this file's own citation law applied to re-derivation: a trust
+// move must cite at least one episode that did not already move trust. Not a
+// timestamp cooldown — a cooldown says "too soon", which is a guess about
+// cadence; this says "nothing new happened", which is a statement about
+// evidence and is the only version that stays true if the cadence changes
+// again. Pure and exported so the precision fixtures drive the shipping rule.
+export function trustEvidenceIsNew(priorCitations, citations) {
+  const have = new Set((priorCitations ?? []).map(Number));
+  return (citations ?? []).some((c) => !have.has(Number(c)));
+}
+
+/** ── THE TRUST/REPAIR ACCEPTANCE LAYER, EXTRACTED PURE ─────────────────────
+ *
+ *  Everything between "the model answered" and "a row is written" — the
+ *  state-machine move, the writer-window citation mapping, the note choice,
+ *  the rate limiter and the new-evidence rule — with no database, no clock
+ *  the caller cannot set, and no LLM. Same reasoning `phraseCandidates`
+ *  states for itself: the precision fixtures must drive the SHIPPING logic
+ *  rather than a restatement of it, and before this extraction the only
+ *  testable pieces were the two mirrored primitives, never their composition.
+ *
+ *  `state` is `{ trust, ruptureOpen, repairState }` as read from
+ *  `vy_rel_state` (absent row = the schema defaults, matching relstate.ts's
+ *  `initialRelState()`). Returns the rows to write plus a REASON for every
+ *  refusal — a signal dropped silently is indistinguishable from one that was
+ *  never proposed, which is how a writer that produces nothing looks healthy.
+ */
+export function acceptTrustRepair(parsed, episodes, state = {}, opts = {}) {
+  const { lastTrustMoveAt = null, priorTrustCitations = [], stanceLapsed = false, now = new Date() } = opts;
+  const out = { ruptureRepair: null, trust: null, rejected: [] };
+  const ruptureOpen = Boolean(state.ruptureOpen);
+  const repairState = state.repairState ?? "none";
+  const currentTrust = Number.isFinite(Number(state.trust)) ? Number(state.trust) : 0.3;
+
+  // ── rupture/repair: one state-machine move at most, mirrored exactly ──
+  const conflictSignal = Boolean(parsed?.rupture?.present);
+  const repairSignal = Boolean(parsed?.repair_signal?.present);
+  if (conflictSignal || repairSignal) {
+    const move = ruptureRepairShift({ ruptureOpen, repairState }, conflictSignal, repairSignal, stanceLapsed);
+    if (!move) {
+      out.rejected.push({ dim: "rupture/repair", reason: "state machine proposes no move from this state" });
+    } else {
+      const citeSource =
+        move.dim === "rupture" || move.direction === "regress" ? parsed?.rupture?.citations : parsed?.repair_signal?.citations;
+      const citations = mapEpisodeCitations(citeSource, episodes);
+      if (!citations.length) {
+        out.rejected.push({ dim: move.dim, reason: "no proposed citation survives the writer window" });
+      } else {
+        const note = move.dim === "rupture" ? parsed?.rupture?.note : parsed?.repair_signal?.note ?? parsed?.rupture?.note;
+        out.ruptureRepair = {
+          dim: move.dim,
+          fromV: move.dim === "rupture" ? (ruptureOpen ? "open" : "closed") : repairState,
+          toV: move.dim === "rupture" ? "open" : move.repairState,
+          direction: move.direction,
+          note: telegraphic(note || move.note, 160),
+          citations,
+          ruptureOpen: move.ruptureOpen,
+          repairState: move.repairState,
+        };
+      }
+    }
+  }
+
+  // ── trust: independent scalar dim, rate-limited by clampTrustDelta ──
+  if (parsed?.trust_move?.present) {
+    const citations = mapEpisodeCitations(parsed.trust_move.citations, episodes);
+    if (!citations.length) {
+      out.rejected.push({ dim: "trust", reason: "no proposed citation survives the writer window" });
+    } else if (!trustEvidenceIsNew(priorTrustCitations, citations)) {
+      out.rejected.push({ dim: "trust", reason: "every cited episode already moved trust — the evidence is not new" });
+    } else {
+      const sign = parsed.trust_move.direction === "decrease" ? -1 : 1;
+      const move = moveTrust(currentTrust, sign * TRUST_STEP, lastTrustMoveAt, now);
+      if (move.delta === 0) {
+        out.rejected.push({ dim: "trust", reason: "rate limit or 0..1 ceiling leaves no movement" });
+      } else {
+        out.trust = {
+          fromV: currentTrust.toFixed(3),
+          toV: move.next.toFixed(3),
+          direction: move.direction,
+          note: telegraphic(parsed.trust_move.note, 160),
+          citations,
+          next: move.next,
+        };
+      }
+    }
+  }
+  return out;
+}
+
+/** One person's trust/rupture/repair pass: extract, hand the model's answer
+ *  to `acceptTrustRepair` (the whole decision, pure), write what it accepts.
+ *  AT MOST one rupture/repair event and one trust event per run (the state
  *  machine itself only ever proposes one rupture/repair move at a time).
  *  Returns a per-person report for the run summary. */
 async function deriveTrustRepairForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
-  const rep = { person, episodes_scanned: 0, trust_moved: false, rupture_or_repair_moved: false };
+  const rep = { person, episodes_scanned: 0, trust_moved: false, rupture_or_repair_moved: false, rejected: [] };
   const episodes = await fetchFreshEpisodesForPerson(person, TRUST_REPAIR_MAX_EPISODES, agentId);
   rep.episodes_scanned = episodes.length;
   if (!episodes.length) return rep;
@@ -1681,76 +1782,73 @@ async function deriveTrustRepairForPerson(person, { dryRun = false, agentId = ME
   const inputTo = Math.max(...episodes.map((e) => e.log_to ?? -Infinity).filter(Number.isFinite));
   let wrote = [];
 
-  // ── rupture/repair: one state-machine move at most, mirrored exactly ──
-  const conflictSignal = Boolean(parsed?.rupture?.present);
-  const repairSignal = Boolean(parsed?.repair_signal?.present);
-  if (conflictSignal || repairSignal) {
-    // record-vs-stance split (rejected.md `rupture-never-closes`): lets a
-    // fresh conflict re-open a rupture whose repair_state got stuck at
-    // "open" forever (no repair signal ever arrived) once the STANCE has
-    // already lapsed by time/warm-interaction — see ruptureRepairShift's
-    // own comment on the branch this feeds.
-    const stanceLapsed = conflictSignal
-      ? await ruptureStanceLapsedFor(person, agentId, ruptureOpen, repairState, episodes[0].started_at)
-      : false;
-    const move = ruptureRepairShift({ ruptureOpen, repairState }, conflictSignal, repairSignal, stanceLapsed);
-    if (move) {
-      const citeSource = move.dim === "rupture" || move.direction === "regress" ? parsed?.rupture?.citations : parsed?.repair_signal?.citations;
-      const citations = mapEpisodeCitations(citeSource, episodes);
-      if (citations.length) {
-        rep.rupture_or_repair_moved = true;
-        if (!dryRun) {
-          const fromV = move.dim === "rupture" ? (ruptureOpen ? "open" : "closed") : repairState;
-          const toV = move.dim === "rupture" ? "open" : move.repairState;
-          const note = move.dim === "rupture" ? parsed?.rupture?.note : parsed?.repair_signal?.note ?? parsed?.rupture?.note;
-          await q(
-            `insert into vy_rel_event (agent_id, person_id, dim, from_v, to_v, direction, note, citations)
-             values (${agentValue("$8")},$1,$2,$3,$4,$5,$6,$7)`,
-            [person, move.dim, fromV, toV, move.direction, telegraphic(note || move.note, 160), citations, agentId],
-          ).catch(() => {});
-          // MIGRATED ARBITER (010 precondition)
-          await q(
-            `insert into vy_rel_state (agent_id, person_id, rupture_open, repair_state)
-             values (${agentValue("$4")},$1,$2,$3)
-             on conflict (agent_id, person_id) do update set rupture_open = $2, repair_state = $3`,
-            [person, move.ruptureOpen, move.repairState, agentId],
-          ).catch(() => {});
-          wrote.push({ table: "vy_rel_event", dim: move.dim });
-        }
-      }
-    }
-  }
-
-  // ── trust: independent scalar dim, rate-limited by clampTrustDelta ──
-  if (parsed?.trust_move?.present) {
-    const citations = mapEpisodeCitations(parsed.trust_move.citations, episodes);
-    if (citations.length) {
-      const lastTrustRows = await q(
-        `select e.at from vy_rel_event e where e.person_id = $1 and e.dim = 'trust'
+  // record-vs-stance split (rejected.md `rupture-never-closes`): lets a fresh
+  // conflict re-open a rupture whose repair_state got stuck at "open" forever
+  // (no repair signal ever arrived) once the STANCE has already lapsed by
+  // time/warm-interaction — see ruptureRepairShift's own comment on the
+  // branch this feeds. Queried only when a conflict was actually proposed.
+  const stanceLapsed = parsed?.rupture?.present
+    ? await ruptureStanceLapsedFor(person, agentId, ruptureOpen, repairState, episodes[0].started_at)
+    : false;
+  // The last trust event's TIMESTAMP feeds the rate limiter; its CITATIONS
+  // feed the new-evidence rule above. One row, both jobs, one query.
+  const lastTrustRows = parsed?.trust_move?.present
+    ? await q(
+        `select e.at, e.citations from vy_rel_event e where e.person_id = $1 and e.dim = 'trust'
           ${agentScopePredicate("e", { agentId: "$2" })}
           order by e.at desc limit 1`,
         [person, agentId],
-      ).catch(() => []);
-      const lastMoveAt = lastTrustRows[0]?.at ?? null;
-      const sign = parsed.trust_move.direction === "decrease" ? -1 : 1;
-      const move = moveTrust(currentTrust, sign * TRUST_STEP, lastMoveAt);
-      if (move.delta !== 0) {
-        rep.trust_moved = true;
-        if (!dryRun) {
-          await q(
-            `insert into vy_rel_event (agent_id, person_id, dim, from_v, to_v, direction, note, citations)
-             values (${agentValue("$7")},$1,'trust',$2,$3,$4,$5,$6)`,
-            [person, currentTrust.toFixed(3), move.next.toFixed(3), move.direction, telegraphic(parsed.trust_move.note, 160), citations, agentId],
-          ).catch(() => {});
-          // MIGRATED ARBITER (010 precondition)
-          await q(
-            `insert into vy_rel_state (agent_id, person_id, trust) values (${agentValue("$3")},$1,$2)
-             on conflict (agent_id, person_id) do update set trust = $2`,
-            [person, move.next, agentId],
-          ).catch(() => {});
-          wrote.push({ table: "vy_rel_event", dim: "trust" });
-        }
-      }
+      ).catch(() => [])
+    : [];
+
+  const decision = acceptTrustRepair(
+    parsed,
+    episodes,
+    { trust: currentTrust, ruptureOpen, repairState },
+    {
+      lastTrustMoveAt: lastTrustRows[0]?.at ?? null,
+      priorTrustCitations: lastTrustRows[0]?.citations ?? [],
+      stanceLapsed,
+    },
+  );
+  rep.rejected = decision.rejected;
+
+  if (decision.ruptureRepair) {
+    const m = decision.ruptureRepair;
+    rep.rupture_or_repair_moved = true;
+    if (!dryRun) {
+      await q(
+        `insert into vy_rel_event (agent_id, person_id, dim, from_v, to_v, direction, note, citations)
+         values (${agentValue("$8")},$1,$2,$3,$4,$5,$6,$7)`,
+        [person, m.dim, m.fromV, m.toV, m.direction, m.note, m.citations, agentId],
+      ).catch(() => {});
+      // MIGRATED ARBITER (010 precondition)
+      await q(
+        `insert into vy_rel_state (agent_id, person_id, rupture_open, repair_state)
+         values (${agentValue("$4")},$1,$2,$3)
+         on conflict (agent_id, person_id) do update set rupture_open = $2, repair_state = $3`,
+        [person, m.ruptureOpen, m.repairState, agentId],
+      ).catch(() => {});
+      wrote.push({ table: "vy_rel_event", dim: m.dim });
+    }
+  }
+
+  if (decision.trust) {
+    const t = decision.trust;
+    rep.trust_moved = true;
+    if (!dryRun) {
+      await q(
+        `insert into vy_rel_event (agent_id, person_id, dim, from_v, to_v, direction, note, citations)
+         values (${agentValue("$7")},$1,'trust',$2,$3,$4,$5,$6)`,
+        [person, t.fromV, t.toV, t.direction, t.note, t.citations, agentId],
+      ).catch(() => {});
+      // MIGRATED ARBITER (010 precondition)
+      await q(
+        `insert into vy_rel_state (agent_id, person_id, trust) values (${agentValue("$3")},$1,$2)
+         on conflict (agent_id, person_id) do update set trust = $2`,
+        [person, t.next, agentId],
+      ).catch(() => {});
+      wrote.push({ table: "vy_rel_event", dim: "trust" });
     }
   }
 
@@ -1777,6 +1875,11 @@ export async function runTrustRepairDerivation({ limit = DEFAULT_PERSON_LIMIT, d
     persons_processed: reports.length,
     trust_events_written: reports.filter((r) => r.trust_moved).length,
     rupture_repair_events_written: reports.filter((r) => r.rupture_or_repair_moved).length,
+    // A refusal is reported, never silent: a run that wrote nothing because
+    // the model proposed nothing and a run that wrote nothing because every
+    // proposal failed the citation law look identical without this line, and
+    // only one of them is the pipeline working.
+    signals_refused: reports.reduce((s, r) => s + (r.rejected?.length ?? 0), 0),
     ms: Date.now() - t0,
     reports,
   };
@@ -1799,31 +1902,112 @@ EPISODES (numbered, dated):
 ${batchText}`;
 }
 
-/** One person's pattern-extraction pass. Dedupes against this person's own
- *  existing active patterns (same moment + same normalized if_shape) so a
- *  regularity already on record is not re-proposed nightly. */
-async function extractPatternsForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
-  const rep = { person, episodes_scanned: 0, proposed: 0, written: 0, rejected: 0, deduped: 0 };
-  const episodes = await fetchHistoryEpisodesForPerson(person, { agentId });
-  rep.episodes_scanned = episodes.length;
-  if (episodes.length < PATTERN_MIN_EPISODES_TO_TRY) return rep;
+// ── PATTERN TEXT IS PROMPT TEXT (WS-JUDGEWORK, 2026-08-23) ────────────────
+//
+// `if_shape` and `then_note` are rendered VERBATIM into T4 by
+// relstate.ts's `renderDyadicActive` (`${p.if_shape} -> ${p.then_note}`).
+// That makes them the exact thing CLAUDE.md's first law is about: "anything
+// sentence-shaped in a prompt gets recited". The prompt above asks for
+// "<=14 words, no terminal punctuation, never her own first-person voice"
+// and, before this, NOTHING enforced any of it — `telegraphic()` caps
+// CHARACTERS (120) and strips terminal punctuation, which lets a 25-word
+// piece of prose through intact.
+//
+// Write time is the only gate that exists for this string. `renderDyadicActive`
+// runs `lintBlock` over its output, but `finish()` REPORTS violations and
+// emits the lines anyway — an over-long pattern note reaches the model either
+// way. So a failing string is refused here rather than truncated: a truncated
+// regularity is a corrupted claim, and the cost of refusing is one night.
+//
+// Mirrors src/engine/shapelint.ts's `lintLine` (MAX_WORDS,
+// FIRST_PERSON_LINE_INITIAL_RE) — same mirror-don't-import resolution, and
+// the same reason, as clampTrustDelta/moveTrust above: this script runs bare
+// under Node with no bundler. The eval drives the REAL `lintLine` against the
+// same strings, so a drift between the two is a failing gate rather than a
+// discovery months later.
+const PATTERN_MAX_WORDS = 14;
+const PATTERN_FIRST_PERSON_RE = /^(i\b|i'm\b|i've\b|main\b|mai\b|mujhe\b|meri\b|mera\b|maine\b)/i;
+export function patternTextRejection(s) {
+  const t = String(s || "").trim();
+  if (!t) return "empty";
+  const n = wordCount(t);
+  if (n > PATTERN_MAX_WORDS) return `too long: ${n} words (cap ${PATTERN_MAX_WORDS})`;
+  if (PATTERN_FIRST_PERSON_RE.test(t)) return "first-person voice, line-initial — a line she would recite";
+  return "";
+}
 
-  // The dedupe read is a RETRIEVAL that decides a write: unscoped, another
-  // agent's pattern would silently suppress this agent's identical finding,
-  // which is a cross-agent read wearing a write's clothes.
-  const existing = await q(
-    `select p.moment, p.if_shape from vy_pattern p where p.person_id = $1 and p.t_invalid is null
-      ${agentScopePredicate("p", { agentId: "$2" })}`,
-    [person, agentId],
-  ).catch(() => []);
+// ── SUPPORT IS COUNTED FROM EPISODES, NOT ASSUMED (WS-JUDGEWORK, 2026-08-23) ──
+//
+// THE DEFECT THIS CLOSES, and it made every pattern this file has ever written
+// unreachable: `vy_pattern.prompt_eligible` is a Postgres GENERATED column,
+// `support_count >= 3 and distinct_days >= 2` (db/schema.sql:434). Both
+// counters default to 0. This writer set neither, and `reinforcePattern`
+// (relstate.ts) has no caller anywhere in api/ — so every row it inserted sat
+// at support 0 / days 0 forever. `api/memory.js`'s rel-bundle query filters
+// `prompt_eligible = true`, and `renderDyadicActive` filters it again. T4
+// `dyadic.active` therefore rendered ZERO BYTES for every user on every lane,
+// no matter how many patterns the nightly pass wrote — `spine-that-ran-one-
+// step-of-six` in miniature: the writer ran, the run report counted rows, and
+// the render was empty by construction.
+//
+// The lane-parity gate could not see this: its fixture supplies
+// `prompt_eligible: true` directly, so it proves the LANE carries T4 and says
+// nothing about whether the WRITER can ever produce a row the lane accepts.
+//
+// Support is derived, never asserted: one unit per CITED EPISODE THAT EXISTS
+// IN THE NUMBERED BATCH, and `distinct_days` from those same episodes' own
+// `started_at`. Every unit traces to one source row — the same discipline the
+// citation law puts on the claim itself, applied to its weight.
+export function patternSupport(citations, episodes) {
+  const byId = new Map(episodes.map((e) => [Number(e.id), e]));
+  const days = new Set();
+  let support = 0;
+  for (const c of citations ?? []) {
+    const e = byId.get(Number(c));
+    if (!e) continue; // an episode outside the batch cannot support anything
+    support++;
+    const d = new Date(e.started_at);
+    if (Number.isFinite(d.getTime())) days.add(d.toISOString().slice(0, 10));
+  }
+  return { support_count: support, distinct_days: days.size };
+}
+
+/** A re-proposal of a regularity already on record. Before this it was
+ *  counted as `deduped` and dropped — which is why the ladder
+ *  `src/engine/observation.ts`'s header describes ("day 1 write + day-2 +
+ *  day-3 recurrence is the earliest prompt_eligible can go true") could never
+ *  actually be climbed: the only step that raises support was never taken.
+ *
+ *  A re-proposal only counts when it cites an episode the stored row does
+ *  NOT already cite. Same rule as `trustEvidenceIsNew` and for the same
+ *  reason: under an HOURLY sweep the identical batch is re-scanned within the
+ *  lookback window, and a bump on repeated evidence would let one evening's
+ *  conversation promote a pattern to prompt-eligible by itself. */
+export function patternReinforcement(existingRow, proposedCitations) {
+  const have = new Set((existingRow?.citations ?? []).map(Number));
+  const fresh = [...new Set((proposedCitations ?? []).map(Number))].filter((c) => !have.has(c));
+  const merged = [...have, ...fresh].sort((a, b) => a - b);
+  // No counts are returned. `support_count` is incremented by `fresh.length`
+  // and `distinct_days` is RECOMPUTED by Postgres over `merged` straight from
+  // vy_episode — the stored citations may point at episodes outside this
+  // run's 60-day batch, so a JS count computed here would be an undercount
+  // wearing an authoritative name.
+  return { patternId: existingRow?.id ?? null, fresh, merged };
+}
+
+/** ── THE PATTERN ACCEPTANCE LAYER, EXTRACTED PURE ──────────────────────────
+ *
+ *  Model answer + numbered batch + this person's existing patterns -> the
+ *  exact set of inserts and reinforcements, with a reason attached to every
+ *  refusal. No database, no LLM. Same reasoning as `acceptTrustRepair` and
+ *  `phraseCandidates`: the precision fixtures drive the shipping decision.
+ */
+export function acceptPatternProposals(parsed, episodes, existingRows = []) {
   const dedupeKey = (m, s) => `${m}::${String(s).toLowerCase().trim()}`;
-  const seen = new Set(existing.map((p) => dedupeKey(p.moment, p.if_shape)));
-
-  const raw = await llm([{ role: "user", content: patternPrompt(renderEpisodeBatch(episodes)) }], 700);
-  if (!raw) return rep;
-  const parsed = parseJsonLoose(raw);
+  const byKey = new Map(existingRows.map((p) => [dedupeKey(p.moment, p.if_shape), p]));
+  const out = { writes: [], reinforcements: [], rejected: [], deduped: 0 };
   const proposals = Array.isArray(parsed?.patterns) ? parsed.patterns.slice(0, PATTERN_CAP_PER_NIGHT) : [];
-  rep.proposed = proposals.length;
+  out.proposed = proposals.length;
 
   for (const p of proposals) {
     const moment = PATTERN_MOMENTS.includes(p?.moment) ? p.moment : null;
@@ -1831,26 +2015,125 @@ async function extractPatternsForPerson(person, { dryRun = false, agentId = MEER
     const thenNote = telegraphic(p?.then_note, 120);
     const selfInRelation = telegraphic(p?.self_in_relation, 120);
     const citations = mapEpisodeCitations(p?.citations, episodes);
-    if (!moment || !ifShape || !thenNote || citations.length < 2) {
-      rep.rejected++;
+    if (!moment) {
+      out.rejected.push({ reason: `moment outside the closed set: ${JSON.stringify(p?.moment)}` });
       continue;
     }
-    if (seen.has(dedupeKey(moment, ifShape))) {
-      rep.deduped++;
+    if (!ifShape || !thenNote) {
+      out.rejected.push({ moment, reason: "if_shape or then_note is empty" });
       continue;
     }
+    if (citations.length < 2) {
+      out.rejected.push({ moment, reason: `one instance is an anecdote: ${citations.length} citation(s) survived the writer window` });
+      continue;
+    }
+    // Every string that reaches T4 verbatim, linted before it is stored.
+    const shape = [
+      ["if_shape", ifShape],
+      ["then_note", thenNote],
+      ["self_in_relation", selfInRelation],
+    ]
+      .filter(([, v]) => v) // self_in_relation is optional (schema default '')
+      .map(([k, v]) => [k, patternTextRejection(v)])
+      .find(([, why]) => why);
+    if (shape) {
+      out.rejected.push({ moment, reason: `${shape[0]}: ${shape[1]}` });
+      continue;
+    }
+
+    const key = dedupeKey(moment, ifShape);
+    const prior = byKey.get(key);
+    if (prior) {
+      const r = patternReinforcement(prior, citations);
+      if (!r.fresh.length) {
+        out.deduped++;
+        continue;
+      }
+      out.reinforcements.push({ moment, if_shape: ifShape, ...r });
+      // the merged set is now on record for any later proposal in this batch
+      byKey.set(key, { ...prior, citations: r.merged });
+      continue;
+    }
+    const support = patternSupport(citations, episodes);
+    out.writes.push({ moment, if_shape: ifShape, then_note: thenNote, self_in_relation: selfInRelation, citations, ...support });
+    byKey.set(key, { id: null, moment, if_shape: ifShape, citations });
+  }
+  return out;
+}
+
+/** One person's pattern-extraction pass. New regularities are inserted with
+ *  their support counted from the cited episodes; a regularity already on
+ *  record is REINFORCED when it recurs in an episode it does not already
+ *  cite, which is the only path to `prompt_eligible` and therefore to T4. */
+async function extractPatternsForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
+  const rep = { person, episodes_scanned: 0, proposed: 0, written: 0, reinforced: 0, rejected: 0, deduped: 0, reasons: [] };
+  const episodes = await fetchHistoryEpisodesForPerson(person, { agentId });
+  rep.episodes_scanned = episodes.length;
+  if (episodes.length < PATTERN_MIN_EPISODES_TO_TRY) return rep;
+
+  // The dedupe read is a RETRIEVAL that decides a write: unscoped, another
+  // agent's pattern would silently suppress this agent's identical finding,
+  // which is a cross-agent read wearing a write's clothes. `id` and
+  // `citations` are selected because a re-proposal is now a REINFORCEMENT,
+  // and both are needed to decide whether it carries new evidence.
+  const existing = await q(
+    `select p.id, p.moment, p.if_shape, p.citations from vy_pattern p
+      where p.person_id = $1 and p.t_invalid is null
+      ${agentScopePredicate("p", { agentId: "$2" })}`,
+    [person, agentId],
+  ).catch(() => []);
+
+  const raw = await llm([{ role: "user", content: patternPrompt(renderEpisodeBatch(episodes)) }], 700);
+  if (!raw) return rep;
+  const parsed = parseJsonLoose(raw);
+  const decision = acceptPatternProposals(parsed, episodes, existing);
+  rep.proposed = decision.proposed;
+  rep.rejected = decision.rejected.length;
+  rep.deduped = decision.deduped;
+  rep.reasons = decision.rejected.map((r) => r.reason);
+
+  for (const w of decision.writes) {
     if (dryRun) {
       rep.written++;
       continue;
     }
     try {
       await q(
-        `insert into vy_pattern (agent_id, person_id, moment, if_shape, then_note, self_in_relation, citations)
-         values (${agentValue("$7")},$1,$2,$3,$4,$5,$6)`,
-        [person, moment, ifShape, thenNote, selfInRelation, citations, agentId],
+        `insert into vy_pattern (agent_id, person_id, moment, if_shape, then_note, self_in_relation,
+                                 citations, support_count, distinct_days)
+         values (${agentValue("$9")},$1,$2,$3,$4,$5,$6,$7,$8)`,
+        [person, w.moment, w.if_shape, w.then_note, w.self_in_relation, w.citations, w.support_count, w.distinct_days, agentId],
       );
       rep.written++;
-      seen.add(dedupeKey(moment, ifShape));
+    } catch {
+      rep.rejected++;
+    }
+  }
+
+  for (const r of decision.reinforcements) {
+    if (dryRun) {
+      rep.reinforced++;
+      continue;
+    }
+    try {
+      // `distinct_days` is recomputed by Postgres over the MERGED citation
+      // set, straight from vy_episode — never incremented, so a re-run that
+      // somehow repeated a citation cannot inflate it. `prompt_eligible` is
+      // the generated column and is never assigned here (relstate.ts's
+      // reinforcePattern says the same about itself, and is mirrored rather
+      // than imported for this file's usual bundler reason).
+      await q(
+        `update vy_pattern p
+            set citations = $2::bigint[],
+                support_count = p.support_count + $3,
+                distinct_days = (select count(distinct date_trunc('day', e.started_at))::int
+                                   from vy_episode e where e.id = any($2::bigint[])),
+                last_used = now()
+          where p.id = $1 and p.person_id = $4
+          ${agentScopePredicate("p", { agentId: "$5" })}`,
+        [r.patternId, r.merged, r.fresh.length, person, agentId],
+      );
+      rep.reinforced++;
     } catch {
       rep.rejected++;
     }
@@ -1867,7 +2150,11 @@ export async function runPatternExtraction({ limit = DEFAULT_PERSON_LIMIT, dryRu
     ok: true,
     persons_processed: reports.length,
     patterns_written: reports.reduce((s, r) => s + r.written, 0),
+    // the number that decides whether T4 ever renders: an insert alone can
+    // never reach support_count >= 3
+    patterns_reinforced: reports.reduce((s, r) => s + r.reinforced, 0),
     patterns_deduped: reports.reduce((s, r) => s + r.deduped, 0),
+    patterns_refused: reports.reduce((s, r) => s + r.rejected, 0),
     ms: Date.now() - t0,
     reports,
   };

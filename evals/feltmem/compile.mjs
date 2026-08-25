@@ -175,6 +175,10 @@ function dyadContext(E, d, now, arm) {
   const memoriesChat = [E.formatActivityLedger(ledger, now), memories].filter(Boolean).join("\n\n");
   const memoriesCall = E.callMemories(
     E.callGraphBlocks(
+      // WS-SHARENOW: no share/game/call inside the just-happened window on any
+      // felt-memory dyad — these are long-horizon fixtures, and the block's
+      // render-nothing default is what keeps them byte-identical.
+      "",
       E.formatActivityLedgerForCall(ledger, now),
       E.formatSharedHistory(history, now),
       memories,

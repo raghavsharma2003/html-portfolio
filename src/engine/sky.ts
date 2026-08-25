@@ -168,6 +168,18 @@ export interface SkyTokens {
   ink: string;
   inkDim: string;
   /**
+   * The brand rose, re-solved per sky state — for ACCENT TEXT that sits
+   * directly on the sky (the hero <em>, and nothing else yet). The theme's
+   * `--accent` (#c23f56) belongs to surfaces the theme controls; on the sky
+   * it was a calendar-and-clock lottery, measured at 2.26:1 against
+   * morning's blue top stop (2026-08-25, the owner's "text invisible on the
+   * light morning sky" report). Each value below is the rose hue at the
+   * lightness nearest the brand that clears >= 4.75:1 against ALL FOUR of
+   * this state's scrim-composited stops — same ground the gate measures ink
+   * on. check-contrast.mjs holds every state to the 4.5 floor.
+   */
+  accent: string;
+  /**
    * A floating control's fill (glass over sky) and its own alpha.
    *
    * IT GOES THE SAME WAY THE SKY DOES: dark glass on a dark sky, light glass
@@ -427,6 +439,7 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     scrimAlphaPainted: 0.34,
     ink: "#f6f2ee",
     inkDim: "#c8c2d4",
+    accent: "#d27182",
     control: "#070a1a",
     controlAlpha: 0.55,
     edge: "#ffffff",
@@ -462,6 +475,7 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     scrimAlphaPainted: 0.36,
     ink: "#f7f3ef",
     inkDim: "#ded9e4",
+    accent: "#efced4",
     control: "#0b0e1e",
     controlAlpha: 0.55,
     edge: "#ffffff",
@@ -501,6 +515,7 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     scrimAlphaPainted: 0.54,
     ink: "#1c1714",
     inkDim: "#4b423d",
+    accent: "#8d2d3e",
     control: "#fffaf4",
     controlAlpha: 0.62,
     edge: "#1c1714",
@@ -536,6 +551,7 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     scrimAlphaPainted: 0.53,
     ink: "#20160f",
     inkDim: "#4c3b2d",
+    accent: "#742533",
     control: "#fffaf4",
     controlAlpha: 0.62,
     edge: "#20160f",
@@ -572,6 +588,7 @@ const TOKENS: Record<SkyState, SkyTokens> = Object.freeze({
     scrimAlphaPainted: 0.44,
     ink: "#f8f1ee",
     inkDim: "#e0d5db",
+    accent: "#efccd2",
     control: "#150f22",
     controlAlpha: 0.55,
     edge: "#ffffff",

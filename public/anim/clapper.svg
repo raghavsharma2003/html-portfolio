@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Film clapper">
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M120 210h272v190H120Z" fill="#f8d08b" fill-opacity=".12" stroke="#c23f56" stroke-width="16"/>
+    <path d="m104 145 273-54 17 85-273 54Z" fill="#f2b75b" fill-opacity=".18" stroke="#f2b75b" stroke-width="16"/>
+    <path d="m164 133 49 78m45-96 49 78m-186 74h271" fill="none" stroke="#011036" stroke-width="14"/>
+    <path d="M178 306h156m-156 45h101" fill="none" stroke="#c23f56" stroke-width="12"/>
+  </g>
+</svg>

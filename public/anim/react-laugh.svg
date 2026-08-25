@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Laugh reaction">
+  <circle cx="256" cy="252" r="140" fill="#f8d08b" fill-opacity=".13" stroke="#f8d08b" stroke-width="16"/>
+  <g fill="none" stroke="#c23f56" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m168 230 20-19 24 18M300 229l24-19 23 19M174 284c17 28 45 44 82 44s67-16 84-46"/>
+  </g>
+  <path d="M201 319c17 12 36 19 55 19s37-6 54-19M126 190l-23-12M386 190l24-12" fill="none" stroke="#f2b75b" stroke-width="10" stroke-linecap="round"/>
+</svg>

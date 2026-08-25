@@ -993,6 +993,16 @@ button {
   overflow: hidden;
   box-shadow: 0 12px 36px -14px color-mix(in srgb, var(--accent) 60%, transparent);
 }
+/* The drawn room, between her face and the two lines. Bounded by the thread
+   rather than by the file: at 200px it clears the composer on the shortest
+   phone this app supports while still being a picture rather than an icon.
+   No ground of its own, so it carries over every wallpaper and both themes. */
+.chat-empty .ce-art {
+  margin-top: 14px;
+  width: 200px;
+  max-width: 62vw;
+  height: auto;
+}
 .chat-empty h2 {
   margin-top: 18px;
   font-family: var(--font-display);
@@ -2586,6 +2596,86 @@ button {
   color: var(--ink-faint);
   flex-shrink: 0;
 }
+/* ── THE SOUND SWITCH (WS-SOUND) ──────────────────────────────────────────
+   The sheet's one control that changes something instead of going somewhere,
+   so it wears a track rather than a chevron. It reuses `.srow` wholesale --
+   same height, same icon tile, same two lines of text -- because a switch that
+   invented its own row shape would be the only object in this sheet that did.
+
+   THE TRACK IS THE GLASS FAMILY. `--glass-chip` on `--glass-edge` is the same
+   pair the day separator, the call chip and the composer pill wear, which is
+   what makes an off switch read as a quiet piece of the sheet rather than as a
+   disabled control. ON is the accent, filled, because the accent is what this
+   app uses for "this is live right now" everywhere else.
+
+   The row sits outside `.sheet-rows` on purpose: that container groups things
+   you navigate to, and putting a switch inside it would make the group mean
+   two things. The negative top margin closes the gap the hint above leaves. */
+.sheet .sound-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 8px;
+  margin: -6px -8px 0;
+  border-radius: 14px;
+  text-align: left;
+  color: var(--ink);
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.sheet .sound-row:active {
+  background: var(--surface-2);
+  transform: scale(0.985);
+}
+.sound-row .sswitch {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--glass-chip);
+  border: 1px solid var(--glass-edge-strong);
+  transition: background var(--d-tap) ease, border-color var(--d-tap) ease;
+}
+.sound-row .sknob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  /* `translate` and not `left`: `left` is a layout property and the motion
+     lint auto-blocks animating one, correctly -- it costs a layout pass on
+     every frame of a control someone flicks. */
+  transition: transform var(--d-tap) var(--ease-out), background var(--d-tap) ease;
+}
+.sound-row[aria-checked="true"] .sswitch {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.sound-row[aria-checked="true"] .sknob {
+  background: #fff;
+  transform: translateX(18px);
+}
+.sound-row[aria-checked="true"] .sicon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+/* OFF is drawn as off, not merely as "not on": the tile goes quiet with the
+   track, so the row reads at a glance from three feet away rather than
+   requiring the eye to find a 46px switch and decide which end it is at. */
+.sound-row[aria-checked="false"] .sicon {
+  background: var(--surface-2);
+  color: var(--ink-faint);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sound-row .sknob,
+  .sound-row .sswitch {
+    transition: none;
+  }
+}
 /* ── THE DANGER ZONE (Phase 3.2) ──────────────────────────────────────────
    These two rows erase a relationship. They used to be marked as such by a
    0.5px rule and the colour of their own text, which is a distinction you can
@@ -2845,6 +2935,11 @@ button {
   font-size: var(--t-ui);
   color: var(--ink-dim);
 }
+/* the clapper, sat on the text's baseline the way the glyph it replaced was */
+.gif-mark {
+  display: inline-block;
+  vertical-align: -0.22em;
+}
 
 /* ─── Account sheet — Apple-grade auth ─── */
 .auth-sheet h3 {
@@ -2991,6 +3086,15 @@ button {
   font-size: 20px;
   font-weight: 700;
   flex-shrink: 0;
+  overflow: hidden;
+}
+/* the no-initial case: our own drawn face, filling the circle rather than
+   sitting inside it as a smaller square */
+.auth-avatar-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
 }
 .auth-who {
   font-weight: 600;
@@ -3282,6 +3386,21 @@ button.avatar-ring {
   text-align: center;
   font-weight: 600;
 }
+/* The gate's own picture. Warm-on-indigo line art with no ground of its own,
+   so it reads on the blurred dark scrim without a plate under it. Sized to
+   the panel rather than to the file: 200px is the widest it can be and still
+   leave the sentence and both buttons above the fold on a small phone. */
+.story-gate-art {
+  display: block;
+  width: 200px;
+  max-width: 62vw;
+  height: auto;
+}
+/* her eyes, at the height of the line they sit in */
+.story-eyes {
+  display: inline-block;
+  vertical-align: -0.16em;
+}
 .story-skip {
   color: rgba(255, 255, 255, 0.82);
   font-size: var(--t-ui);
@@ -3369,6 +3488,56 @@ button.avatar-ring {
 }
 .watch-chip .wb-btn:active {
   transform: scale(0.95);
+}
+
+/* WS-WATCHPERF — "let her hear it": device audio into the call.
+
+   Deliberately SMALLER and quieter than the watch chip above it. That chip is
+   a privacy control and is exempt from the chrome dimming for it; this one is
+   a comfort, and a comfort that competes with the look-away for attention is
+   a comfort that makes the look-away harder to find. So: half the width, one
+   line, no sub-label, and it takes the same dimming as the rest of the
+   chrome.
+
+   The ON state is stated in colour AND in words ("she can hear it"), because
+   a chip whose only signal is a tint is a chip someone reads wrong in the one
+   direction that matters — thinking the sound is off when it is on. */
+.hear-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: center;
+  margin-top: 10px;
+  min-height: 34px;
+  padding: 0 var(--s4);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: rgba(246, 241, 238, 0.82);
+  font-size: 12.5px;
+  font-weight: 550;
+  letter-spacing: -0.004em;
+  animation: msg-in var(--d-state) var(--ease-out);
+  transition: background var(--d-tap) ease, border-color var(--d-tap) ease,
+    color var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.hear-chip .hc-icon {
+  display: flex;
+  flex-shrink: 0;
+  color: rgba(246, 241, 238, 0.55);
+  transition: color var(--d-tap) ease;
+}
+.hear-chip:active {
+  transform: scale(0.96);
+}
+.hear-chip.on {
+  background: rgba(214, 154, 106, 0.24);
+  border-color: rgba(230, 178, 132, 0.4);
+  color: #f6f1ee;
+}
+.hear-chip.on .hc-icon {
+  color: var(--accent-warm);
 }
 
 /* curtain closed. Three signals at once, because someone who THINKS they
@@ -3711,17 +3880,55 @@ input {
   padding: 5px;
   border-radius: 999px;
   cursor: pointer;
+  /* it holds a 21px picture now rather than a 21px glyph, so the box has to
+     say where the picture sits instead of leaving it to the text baseline */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: transform 140ms var(--ease-out), background 140ms var(--ease-out);
 }
 .react-pick:hover { transform: scale(1.22); }
 .react-pick:active { transform: scale(0.9); }
 .react-pick.on { background: var(--accent-soft); transform: scale(1.12); }
+
+/* ── OUR OWN REACTION ARTWORK ─────────────────────────────────────────────
+ * The picker and the pill both paint `src/components/anim.tsx`'s pair, at the
+ * sizes the emoji occupied before it (21px in the row, 15px on the bubble), so
+ * the hover scale, the press squash and the `react-pop` landing are unchanged
+ * — they act on the BUTTON and the PILL, which is why swapping what is inside
+ * them moved none of it.
+ *
+ * There is no reduced-motion rule here and there cannot be: an animated WebP
+ * ignores `animation: none`. The answer is upstream, in which file gets
+ * requested. See anim.tsx.
+ */
+.react-art {
+  display: block;
+  /* the third fallback renders the emoji in a <span> with this class, so the
+     glyph has to be given the size the image would have had */
+  line-height: 1;
+  font-size: inherit;
+}
+img.react-art {
+  object-fit: contain;
+}
+
 .react-bar .reply-chip {
   font-size: 15px;
   padding: 5px 9px;
   margin-left: 2px;
   border-left: 1px solid var(--hairline);
   border-radius: 0 999px 999px 0;
+}
+/* the inlined reply mark: `currentColor` is the chip's own accent, which is
+   the whole reason it is inline SVG and not an <img> */
+.chip-mark {
+  display: block;
+}
+.chip-mark svg {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 /* the emoji stuck onto a bubble */
@@ -3744,6 +3951,11 @@ input {
   /* a reaction ARRIVING should be felt — it is the one thing in the thread
      that appears without a new bubble */
   animation: react-pop 260ms var(--ease-out) both;
+  /* the artwork inside is a block image; without this the pill keeps the
+     line-box of the emoji it replaced and sits a pixel or two low */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .msg.me .react-pill { left: 8px; }
 .msg.her .react-pill { right: 8px; }

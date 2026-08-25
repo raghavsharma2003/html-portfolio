@@ -50,19 +50,34 @@ check("app shell serves THE BUNDLE JUST BUILT", async () => {
 // The API routes are the half that a stale deploy hides best: the static site
 // can be current while the functions are old, because they ship separately.
 check("speech proxy streams PCM", async () => {
-  const r = await get("/api/speech", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: "theek hai", stream: true }),
-  });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  const ct = r.headers.get("content-type") || "";
-  if (!/audio\/l16/i.test(ct)) throw new Error(`content-type ${ct} — not the streaming lane`);
-  const lane = r.headers.get("x-meera-lane") || "?";
-  const pool = r.headers.get("x-meera-pool") || "?";
-  // drain so the connection closes cleanly rather than being reset
-  await r.arrayBuffer();
-  return `lane=${lane} pool=${pool}`;
+  // Retry a TRANSIENT upstream, matching the brain check below and the app's
+  // own retry ladder. A single 502/503 from a thinning free pool late in the
+  // quota day is not a broken deploy — production serves it on the next key,
+  // and failing the whole deploy on one blip is a false red (measured twice on
+  // 2026-08-24, pool at 4-5/9 by evening). A 4xx still fails at once (our
+  // fault, identical on every retry); a transient that persists across three
+  // tries is a real speech outage and still fails.
+  let lastStatus = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = await get("/api/speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "theek hai", stream: true }),
+    });
+    if (r.ok) {
+      const ct = r.headers.get("content-type") || "";
+      if (!/audio\/l16/i.test(ct)) throw new Error(`content-type ${ct} — not the streaming lane`);
+      const lane = r.headers.get("x-meera-lane") || "?";
+      const pool = r.headers.get("x-meera-pool") || "?";
+      await r.arrayBuffer(); // drain so the connection closes cleanly
+      return `lane=${lane} pool=${pool}${attempt ? ` (after ${attempt} transient)` : ""}`;
+    }
+    lastStatus = r.status;
+    await r.arrayBuffer().catch(() => {});
+    if (r.status < 500) throw new Error(`HTTP ${r.status}`); // 4xx: our fault, no retry
+    await new Promise((res) => setTimeout(res, 400 + attempt * 400));
+  }
+  throw new Error(`HTTP ${lastStatus} after 3 tries — a real speech outage, not a blip`);
 });
 
 check("brain answers", async () => {

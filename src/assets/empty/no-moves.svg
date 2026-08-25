@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" role="img" aria-labelledby="title desc">
+  <title id="title">A quiet chessboard before the first move</title>
+  <desc id="desc">The corner of a warm, indigo chessboard holds two faint ghost arrows suggesting an opening move.</desc>
+  <defs>
+    <filter id="grain" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.76" numOctaves="2" seed="29" result="noise"/>
+      <feComponentTransfer in="noise" result="softNoise"><feFuncA type="table" tableValues="0 0.05"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="softNoise" mode="soft-light"/>
+    </filter>
+    <marker id="arrow-gold" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0l10 5-10 5z" fill="#f2b75b"/></marker>
+    <marker id="arrow-rose" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0l10 5-10 5z" fill="#c23f56"/></marker>
+  </defs>
+  <g filter="url(#grain)">
+    <path d="M69 42h231v166H69z" fill="#f8d08b" stroke="#26201b" stroke-width="4" stroke-linejoin="round"/>
+    <g fill="#011036" opacity=".9">
+      <path d="M69 42h58v42H69zM185 42h58v42h-58zM127 84h58v41h-58zM243 84h57v41h-57zM69 125h58v42H69zM185 125h58v42h-58zM127 167h58v41h-58zM243 167h57v41h-57z"/>
+    </g>
+    <path d="M98 187c15-24 33-46 57-65" fill="none" stroke="#f2b75b" stroke-width="8" stroke-linecap="round" stroke-dasharray="7 10" marker-end="url(#arrow-gold)" opacity=".63"/>
+    <path d="M265 187c-12-24-27-43-48-58" fill="none" stroke="#c23f56" stroke-width="8" stroke-linecap="round" stroke-dasharray="7 10" marker-end="url(#arrow-rose)" opacity=".55"/>
+    <circle cx="98" cy="187" r="8" fill="#f5f5f7" stroke="#26201b" stroke-width="3"/>
+    <circle cx="265" cy="187" r="8" fill="#f5f5f7" stroke="#26201b" stroke-width="3"/>
+    <path d="M56 219h258" fill="none" stroke="#26201b" stroke-width="5" stroke-linecap="round" opacity=".35"/>
+  </g>
+</svg>

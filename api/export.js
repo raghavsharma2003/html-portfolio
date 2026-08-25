@@ -111,7 +111,9 @@ export default async function handler(req, res) {
   try {
     const person = await personIdFor(device);
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="meera-export-${device}.json"`);
+    // WS-MAYA: the filename a person sees in their downloads folder is display
+    // copy, not an identifier — nothing in this repo or the client parses it.
+    res.setHeader("Content-Disposition", `attachment; filename="maya-export-${device}.json"`);
     res.statusCode = 200;
 
     res.write(

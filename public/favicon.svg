@@ -16,7 +16,7 @@
      construction world.css uses for the procedural moon and opens the same
      way (lit on the right, bite on the left). No filters, no gradients, no
      text: it has to survive being drawn 16 pixels wide. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Meera">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Maya">
   <defs>
     <mask id="crescent">
       <rect width="64" height="64" fill="#000" />

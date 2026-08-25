@@ -130,7 +130,16 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
                 : eng.watching && eng.watchPaused
                   ? "you closed the curtain"
                   : eng.watching
-                  ? "watching with you 👀"
+                  // WS-ASSETWIRE judgment: the eyes glyph came OUT of this
+                  // line rather than becoming our own artwork. `stateLabel`
+                  // is a plain string inside an aria-live region that changes
+                  // several times a minute, and the only way to put a picture
+                  // in it is to make the live region a mixed node with a
+                  // 512px animated WebP in it. Ambient motion inside a status
+                  // line is the decoration DESIGN-STANDARDS rejects, and it
+                  // would be the one thing on the call screen that never
+                  // stops. The sentence says it without help.
+                  ? "watching with you"
                   : eng.listening
                     ? "listening…"
                     : eng.mmss;
@@ -305,6 +314,57 @@ export default function CallVoice({ state, setState, onEnd, sheCalled }: Props) 
               {eng.watchPaused ? "Let her see" : "Look away"}
             </button>
           </div>
+        )}
+
+        {/* WS-WATCHPERF — "LET HER HEAR IT".
+            The phone's own audio into the call, alongside the microphone,
+            so a reel she is watching arrives as the sound it actually is
+            instead of whatever survived the speaker→room→mic round trip.
+
+            OFF until it is tapped, every single share. Device audio is
+            consented to exactly like the picture is, and the one thing this
+            control may never do is remember a yes — so there is no setting
+            screen for it and no stored preference, only this chip, only
+            while a share is live. It hides itself entirely when the look-away
+            is on: a curtain that stopped the picture and kept the sound would
+            be the same betrayal in the other direction.
+
+            Native only — the web lane's getDisplayMedia asks for audio:false
+            and keeps doing so, because tab audio is a different consent with
+            different browser UI. Where it cannot work, it is not drawn. */}
+        {eng.watching && eng.watchHearsAvailable && !eng.watchPaused && (
+          <button
+            className={`hear-chip ${eng.watchHears ? "on" : ""}`}
+            data-tel="call.media_audio"
+            onClick={() => {
+              tap(ImpactStyle.Light);
+              eng.onToggleHears();
+            }}
+            aria-pressed={eng.watchHears}
+            aria-label={
+              eng.watchHears
+                ? "Stop sending your phone's audio to her"
+                : "Let her hear what your phone is playing"
+            }
+          >
+            <span className="hc-icon" aria-hidden="true">
+              {eng.watchHears ? (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 9v6h4l5 4V5L8 9H4Z" />
+                  <path d="M16.5 8.5a5 5 0 0 1 0 7" />
+                  <path d="M19.5 5.5a9 9 0 0 1 0 13" />
+                </svg>
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 9v6h4l5 4V5L8 9H4Z" />
+                  <path d="m17 9.5 4 5M21 9.5l-4 5" />
+                </svg>
+              )}
+            </span>
+            <span className="hc-text">
+              {eng.watchHears ? "she can hear it" : "let her hear it"}
+            </span>
+          </button>
         )}
 
         {(!eng.sttSupported || showKb) && eng.phase === "live" && (

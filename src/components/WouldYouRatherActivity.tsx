@@ -40,6 +40,11 @@ import { tap, ImpactStyle } from "../native/haptics";
 import PhotoAvatar from "./PhotoAvatar";
 import { replaceOccupant } from "./activityClose";
 import "../styles/wyr.css";
+// The coin between the two options. The word "or" is engraved in the artwork
+// itself, so this replaces the text rather than decorating it; inlined for
+// `currentColor`, which is what keeps the coin the divider's own ink instead
+// of black on the world.
+import orCoin from "../assets/stats/or-coin.svg?raw";
 
 interface Props {
   state: AppState;
@@ -301,9 +306,11 @@ export default function WouldYouRatherActivity({
             >
               {card.a}
             </button>
-            <div className="wyr-or" aria-hidden="true">
-              or
-            </div>
+            <div
+              className="wyr-or"
+              aria-hidden="true"
+              dangerouslySetInnerHTML={{ __html: orCoin }}
+            />
             <button
               type="button"
               className="wyr-opt"

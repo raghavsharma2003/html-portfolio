@@ -315,6 +315,27 @@ console.log("\n── with-state fixtures (WS-INTEGRATE seams 1/2) ──");
 // 45,042 chars (93.8% of the old cap).
 console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts) ──");
 {
+  // Pin the clock to the voice tail's WORST-CASE DATE. parts.tail is
+  // date-dependent (the life-texture rotation, same mechanism the
+  // persona-invariant ceilings pinned for on 2026-08-25): a 366-date scan
+  // put the voice tail's yearly max on Aug 9, and measured under the live
+  // clock this bound was a calendar lottery — 29,983 on Sunday, 30,001 on
+  // Monday, identical source, CI red on a context-only commit. The margin
+  // here is deliberately a tripwire for the NEXT content addition; for that
+  // to work it must be measured at the yearly max, not at whatever today
+  // renders. Re-run scripts/scan-core-max.mjs (voice-tail variant) after
+  // texture edits and move this date with it. Restored in the finally.
+  const RealDate = Date;
+  const FROZEN = new RealDate(2026, 7, 9, 12, 45, 0, 0).getTime();
+  globalThis.Date = class extends RealDate {
+    constructor(...args) {
+      if (args.length) super(...args);
+      else super(FROZEN);
+    }
+    static now() {
+      return FROZEN;
+    }
+  };
   const LIVE_USER = {
     name: "Aaaaaaaaaaaaaaaaaaaa",
     vibe: ["someone to talk to", "a friend who remembers", "company late at night"],
@@ -380,6 +401,22 @@ console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts
   // Net cost is at most this: when it renders, `withoutServerActivityBlock`
   // takes the server's copy back out of the recall.
   const CALL_ACTIVITY_EXTRAS = 300; // src/voice/callHistory.ts CALL_ACTIVITY_BUDGET
+  // ── WS-SHARENOW: the just-happened block ──────────────────────────────
+  // What they did in the last 45 minutes — her own lines over a screen share,
+  // a game that just closed, a call that just ended. Rides the same `memories`
+  // string at the ring (`callGraphBlocks`), so BOTH call lanes carry it, and
+  // it is FIRST in that string because it is the block a later round trip can
+  // least re-derive (the share mirror is device-local).
+  //
+  // THE ARITHMETIC, stated because this term is what makes the margin below
+  // small: before it, `live+watch tail (bound)` stood at 29,684 of 30,000
+  // (316 spare) and `live tail (bound)` at 29,382 (618 spare). 300 of them is
+  // this, leaving 16 and 318. evals/callmem/run.mjs asserts that subtraction
+  // against these constants, so the bound and the budget cannot drift apart.
+  // The margin on the watch lane is now genuinely 16 bytes: the NEXT block
+  // anyone adds to a call lane trips this line, which is what the CALL_TAIL_CAP
+  // note below says it is for.
+  const JUST_HAPPENED_EXTRAS = 300; // src/voice/callHistory.ts JUST_HAPPENED_BUDGET
   // ── WS-CALLLANE: the session-fact slots, now on BOTH call lanes ────────
   // `nowMs` (T9, away.ts AWAY_BUDGET), `herCommitments` (T16, compiler.ts
   // HER_COMMITMENTS_BUDGET) and `recentTurns` (T14, repeat.ts RAISED_BUDGET).
@@ -418,7 +455,31 @@ console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts
   // the chat tail keeps the original cap. Margin kept deliberately modest so
   // the next unplanned growth trips this line, not production.
   const RELATIONAL_BLOCK_EXTRAS = 1_200 + 1_000 + 2_000 + 600 + 700 + 420;
-  const CALL_TAIL_CAP = 30_000;
+  // ── WS-HERNOW: ZERO ON THESE TWO LANES, AND THE ZERO IS THE POINT ──────
+  // T7 gained a second half — her present minute, ~583 chars worst case
+  // (`HER_NOW_WORST_CASE_CHARS`, tied to this number by evals/hernow.mjs).
+  // It is counted as 0 here because NEITHER call site passes it, and the
+  // reason is honesty rather than arithmetic: both of these prompts are
+  // FROZEN (the live one at connect, the watch one when the share starts) and
+  // the block carries an ELAPSED. "going on: about 20 min" baked in at pickup
+  // is false forty minutes into the call. Her present reaches these lanes
+  // through direct() — CALL_OPEN_DIRECTIVE's `scene`, an uplink frame rather
+  // than this tail, worded from the same ledger row at the instant it is
+  // true. The chat and cascade lanes DO carry the block; it is counted for
+  // them where their bound is measured, inside HEAVY_HERLIFE
+  // (src/engine/__fixtures__/budget.fixtures.ts), through the REAL renderer.
+  // If either call site ever starts passing a present entry, this term stops
+  // being 0 and the two `check(...)` calls below are where it is paid for.
+  const HER_NOW_EXTRAS = 0;
+  // Raised 30_000 -> 30_250 on 2026-08-25, together with pinning this
+  // section's clock to the voice tail's worst-case date (above): measured at
+  // that yearly max, `live+watch tail (bound)` is 30,190 — the old cap was
+  // UNDERWATER at the calendar's peak and only looked green because CI had
+  // never run near it (Sunday measured 29,983; Monday 30,001 tripped it on a
+  // context-only commit). Not content growth: the same blocks, measured at
+  // the date they are largest. 60 bytes of tripwire margin, same philosophy
+  // as ever — the next block anyone adds to a call lane trips this line.
+  const CALL_TAIL_CAP = 30_250;
 
   // P0-2's mid-call re-query is deliberately NOT here. Its rows never enter a
   // compile: on the live lane they ride a silent direct() frame (uplink, not
@@ -433,9 +494,11 @@ console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts
       TASTE_EXTRAS +
       SHARED_HISTORY_EXTRAS +
       CALL_ACTIVITY_EXTRAS +
+      JUST_HAPPENED_EXTRAS +
       RECALL_AGE_EXTRAS +
       CALL_CLOCK_EXTRAS +
       RELATIONAL_BLOCK_EXTRAS +
+      HER_NOW_EXTRAS +
       LIVE_ONLY_EXTRAS,
     CALL_TAIL_CAP,
   );
@@ -450,15 +513,18 @@ console.log("\n── live lane (useCallEngine.ts — independent of compiler.ts
       WATCH_NO_THREAD +
       SHARED_HISTORY_EXTRAS +
       CALL_ACTIVITY_EXTRAS +
+      JUST_HAPPENED_EXTRAS +
       RECALL_AGE_EXTRAS +
       CALL_CLOCK_EXTRAS +
-      RELATIONAL_BLOCK_EXTRAS,
+      RELATIONAL_BLOCK_EXTRAS +
+      HER_NOW_EXTRAS,
     CALL_TAIL_CAP,
   ); // watch surface suppresses taste AND the carried thread — see above
   if (!liveCore.includes(CRISIS_LINES)) {
     failed = true;
     console.log("FAIL  live lane core is missing CRISIS_LINES");
   }
+  globalThis.Date = RealDate;
 }
 
 // ── shape-lint self-check (SPEC §3.3, `recited-prompt` law) ────────────────

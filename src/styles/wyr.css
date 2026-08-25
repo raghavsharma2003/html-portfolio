@@ -70,10 +70,22 @@
      one small word carried over a picture. */
   background: var(--ga-well);
   backdrop-filter: var(--ga-blur);
-  border: 0.5px solid var(--ga-line);
+  /* WS-ASSETWIRE: THE COIN BRINGS ITS OWN EDGE. `or` is engraved in
+     src/assets/stats/or-coin.svg now, and the artwork's outer ring is a
+     `currentColor` stroke — the divider's own `--ga-dim` text ink, which is a
+     stronger boundary than the 0.5px `--ga-line` that used to be here, drawn
+     2.8px inside it. Keeping both was a ring inside a ring, which is
+     `impeccable`'s cards-inside-cards one scale down. The glass fill and its
+     blur stay: those are the legibility carrier over the painting, and they
+     are the half the ring cannot do. */
   /* pulls the two panels visually together without eating layout space */
   margin-block: calc(-1 * var(--s3));
   z-index: 1;
+}
+.wyr-or svg {
+  display: block;
+  width: 34px;
+  height: 34px;
 }
 
 .wyr-opt {

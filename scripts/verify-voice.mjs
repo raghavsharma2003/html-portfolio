@@ -48,11 +48,14 @@
 // than a surprise. See docs/VOICE-LANE.md for the reasoning and the open
 // measurement.
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
-const read = (p) => readFileSync(ROOT + p, "utf8");
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const at = (p) => join(ROOT, p);
+const read = (p) => readFileSync(at(p), "utf8");
 
 let fail = 0;
 const FAIL = (line, ...rest) => {
@@ -82,6 +85,17 @@ const SITES = [
     re: /prebuiltVoiceConfig:\s*\{\s*voiceName:\s*"([A-Za-z]+)"\s*\}/,
     governs: "the Gemini Live session itself — the lane a call starts ON",
   },
+  {
+    file: "src/voice/speech.ts",
+    re: /const MEERA_VOICE = "([A-Za-z]+)"/,
+    governs:
+      "the CACHE NAMESPACE for every clip this client stores — pickup lines, backchannels, voice notes",
+  },
+  {
+    file: "scripts/prosody-baseline.mjs",
+    re: /const TTS_VOICE = "([A-Za-z]+)"/,
+    governs: "the nightly vendor-drift alarm — the job whose only purpose is noticing her voice change",
+  },
 ];
 
 /** The native watch engine is Java and is not always present in a checkout
@@ -92,6 +106,98 @@ const NATIVE = {
   re: /voiceName"?\s*[,:]\s*"([A-Za-z]+)"/,
   governs: "the native live watch engine",
 };
+
+/* ── THE SWITCH ───────────────────────────────────────────────────────────
+ *
+ *   node scripts/verify-voice.mjs --set Leda
+ *
+ * Moves her voice in EVERY lane at once and then verifies the result with the
+ * same checks a normal run makes, so the switch and its proof are one command.
+ *
+ * WHY THIS EXISTS RATHER THAN A CONSTANT EVERYONE IMPORTS. The lanes cannot
+ * share one: `api/speech.js` is a serverless function holding server secrets,
+ * `src/voice/liveCall.ts` is a browser module forbidden to import anything
+ * beyond `./level` and `../engine/diag` (the echosim law — `evals/echosim/`
+ * builds it standalone on that basis), `LiveWatchEngine.java` is Java, and
+ * `scripts/prosody-baseline.mjs` is a Node job. Six sites, four languages, no
+ * import that spans them. So the house pattern applies: MIRROR, then assert the
+ * mirrors agree on every run — and give the mirrors ONE WRITER, because a
+ * mirror set that can only be edited by hand is a mirror set that will be
+ * edited incompletely.
+ *
+ * That is not a worry, it is the incident. `api/speech.js`'s header already
+ * asked the next person to "move it HERE and in the two live speechConfigs
+ * together — or this comes straight back", and it came straight back: the
+ * 2026-08-21 Aoede → Autonoe switch moved the four lanes it named and left the
+ * drift alarm on Aoede and every cached clip in Aoede. A comment asking for
+ * discipline is not a mechanism, and neither is a checklist. A writer is.
+ *
+ * WHAT IT DELIBERATELY DOES NOT DO: pick the voice. `voice-ears` is the entry
+ * that says numbers cannot, and `scripts/voice-samples.mjs` is the blind deck
+ * that lets ears do it. This only moves what the ears chose. */
+const setIdx = process.argv.indexOf("--set");
+if (setIdx >= 0) {
+  const next = process.argv[setIdx + 1];
+  if (!next || !/^[A-Za-z]+$/.test(next)) {
+    console.log("  --set needs a prebuilt voice name, e.g. --set Leda");
+    process.exit(2);
+  }
+  // Verified against the live bidi lane on 2026-08-24 with setup-only
+  // handshakes — no audio generated — and negative-controlled: a bogus name is
+  // refused with 1007 "No matching speaker voice found for name: X and
+  // language: hi-IN", so acceptance here is real rather than a probe that says
+  // yes to everything. `api/live-token.js` makes the same point in reverse: a
+  // TTS model taking a name says nothing about the realtime one, and a name the
+  // live lane rejects is a broken call, not a wrong timbre.
+  const LIVE_ACCEPTED = new Set([
+    "Autonoe", "Aoede", "Leda", "Kore", "Zephyr",
+    "Despina", "Callirrhoe", "Laomedeia", "Sulafat", "Erinome",
+  ]);
+  if (!LIVE_ACCEPTED.has(next)) {
+    console.log(`  ${next} is not in the set of names VERIFIED to be accepted by the live bidi lane.`);
+    console.log(`  Verified: ${[...LIVE_ACCEPTED].join(", ")}`);
+    console.log("  A name the live lane refuses is a call that never connects, not a different timbre.");
+    console.log("  Probe it first (setup-only handshake, no audio) and add it here with the date.");
+    process.exit(2);
+  }
+
+  const targets = [...SITES, ...(existsSync(at(NATIVE.file)) ? [NATIVE] : [])];
+  const changed = [];
+  for (const site of targets) {
+    const src = read(site.file);
+    const m = src.match(site.re);
+    if (!m) {
+      console.log(`  FAIL  ${site.file}: no voice literal matched — refusing to switch a lane I cannot find`);
+      process.exit(1);
+    }
+    if (m[1] === next) continue;
+    // Rewrite the CAPTURED name inside the matched region only, so a file that
+    // mentions the old name in prose (every one of them does — these headers are
+    // incident reports) keeps its history.
+    const patched = m[0].replace(`"${m[1]}"`, `"${next}"`);
+    writeFileSync(at(site.file), src.slice(0, m.index) + patched + src.slice(m.index + m[0].length));
+    changed.push(`${site.file}: ${m[1]} → ${next}`);
+  }
+  // The allow-list has to admit her own voice or /api/speech refuses a request
+  // that names it. Additive on purpose: the old name stays legal so a clip
+  // cached or a request in flight under it is answered rather than 400'd.
+  const sp = read("api/speech.js");
+  const al = sp.match(/const ALLOWED_VOICES = new Set\(\[([^\]]*)\]\)/);
+  if (al && !al[1].includes(`"${next}"`)) {
+    const widened = al[0].replace("]", `, "${next}"]`);
+    writeFileSync(at("api/speech.js"), sp.replace(al[0], widened));
+    changed.push(`api/speech.js: ALLOWED_VOICES += ${next}`);
+  }
+  console.log(changed.length ? `── switched her voice to ${next} ──` : `── already ${next} everywhere ──`);
+  for (const c of changed) console.log(`  set   ${c}`);
+  console.log("\n  Every cached clip is namespaced by the voice name (src/voice/speech.ts");
+  console.log("  `engineTag`), so the old audio is stranded rather than replayed. Nothing to");
+  console.log("  purge and no revision counter to bump.");
+  console.log("\n  STILL YOURS TO DO: re-establish the drift baseline against the new voice —");
+  console.log("  `node scripts/prosody-baseline.mjs --establish` — or every drift figure it prints");
+  console.log("  compares two different women. It alarms rather than doing this silently.\n");
+  console.log("── verifying the switch ──\n");
+}
 
 console.log("── 1. her voice NAME ──");
 const found = [];
@@ -106,7 +212,7 @@ for (const site of SITES) {
   found.push({ ...site, voice: m[1] });
 }
 
-const nativePresent = existsSync(ROOT + NATIVE.file);
+const nativePresent = existsSync(at(NATIVE.file));
 if (nativePresent) {
   const m = read(NATIVE.file).match(NATIVE.re);
   if (m) found.push({ ...NATIVE, voice: m[1] });
@@ -160,10 +266,17 @@ const DECLARED = {
     lanes: "the cascade TTS, free arm (direct) and paid arm (via OpenRouter)",
     why: "text-to-speech; the only arm that can stream, and the lane a call falls back TO",
   },
-  "gemini-2.5-flash-native-audio-latest": {
-    lanes: "the native watch engine's LAST-RESORT default, if /api/live-token ever answers without a model",
-    why: "MEASURED AND REJECTED for the live lane (0/24 barge-in, `live-model-bake`). Declared so it is visible, not so it is endorsed — api/live-token.js always sends a model, so this fires only on a malformed response. Removing it needs an android/ change and is not this file's to make.",
-  },
+  // `gemini-2.5-flash-native-audio-latest` USED TO BE DECLARED HERE, as the
+  // native watch engine's last-resort default. Declaring it was the right move
+  // at the time — it made a rejected model visible instead of secret — but a
+  // declaration is a description, and what this one described was a defect:
+  // a malformed /api/live-token response silently moved the watch lane onto a
+  // model measured at 0/24 barge-in and 3-5.5s to first audio, which is a
+  // change of WHO SHE IS on the one surface where the triple-swap happens.
+  // The fallback is now the live model itself (§7c pins the two strings), so
+  // there is nothing left to declare. Kept as a comment rather than deleted
+  // because the entry's absence is otherwise indistinguishable from having
+  // forgotten it.
 };
 
 /** Every place a model that produces her VOICE is named. */
@@ -285,7 +398,7 @@ else if (tsRegion[0] !== jsRegion[0]) {
 // battery carries the negative controls that matter: a hyphenated word and a
 // crisis helpline number that must survive an over-eager dash rule.
 try {
-  execFileSync("node", [ROOT + "evals/voice/spoken.mjs"], { cwd: ROOT, stdio: "inherit" });
+  execFileSync("node", [at("evals/voice/spoken.mjs")], { cwd: ROOT, stdio: "inherit" });
 } catch {
   FAIL("evals/voice/spoken.mjs failed — the sanitiser's own case battery is red (see above)");
 }
@@ -394,6 +507,7 @@ const cascade = read("src/voice/speech.ts");
 // a new host — fails this run until somebody declares it and the harness in
 // evals/voice/device.mjs proves its text is sanitised.
 const DECLARED_DOORS = {
+  "REPLICA_SPEECH_URL": "the authenticated replica voice, exact-version and consent gated",
   "api.elevenlabs.io": "ElevenLabs v3, user key — the one door that KEEPS audio tags (it performs them)",
   "api.sarvam.ai": "Sarvam bulbul, user key",
   "PROXY_SPEECH_URL": "the hosted voice — /api/speech, sanitised server-side as well",
@@ -403,6 +517,7 @@ const DECLARED_DOORS = {
 const doors = new Set();
 for (const m of cascade.matchAll(/fetch\(\s*(?:`|")(https?:\/\/([a-z0-9.-]+))/gi)) doors.add(m[2]);
 for (const m of cascade.matchAll(/fetch\(\s*(PROXY_SPEECH_URL)/g)) doors.add(m[1]);
+for (const m of cascade.matchAll(/url:\s*(PROXY_SPEECH_URL|REPLICA_SPEECH_URL)/g)) doors.add(m[1]);
 if (/TextToSpeech\.speak\(/.test(cascade)) doors.add("TextToSpeech.speak");
 if (/new SpeechSynthesisUtterance\(/.test(cascade)) doors.add("SpeechSynthesisUtterance");
 
@@ -433,7 +548,7 @@ if (!undeclared.length && !missing.length)
 // hyphens must SURVIVE, and her own words must not be deleted — over-stripping
 // is the silent failure of any sanitiser.
 try {
-  execFileSync("node", [ROOT + "evals/voice/device.mjs"], { cwd: ROOT, stdio: "inherit" });
+  execFileSync("node", [at("evals/voice/device.mjs")], { cwd: ROOT, stdio: "inherit" });
 } catch {
   FAIL(
     "evals/voice/device.mjs failed — a path from her text to audio is unsanitised (see above)",
@@ -646,6 +761,350 @@ if (!java) {
   );
 }
 /* ── end WS-ANDROID-SWAP added section ───────────────────────────────────── */
+
+/* ══ 7. EVERY ENGINE THAT CAN BE HEARD, AND EVERY CACHE THAT REPLAYS ONE ══
+ *
+ * §1 checks the lanes that name a GEMINI PREBUILT VOICE. That is four of the
+ * places she speaks from, and it is not all of them — which is why §1 could be
+ * green on the day the owner reported, again, that "when we shift to different
+ * modes her voice is changing".
+ *
+ * Two whole families sit outside §1's regexes:
+ *
+ *   OTHER VENDORS. `src/voice/speech.ts` will speak her through Sarvam
+ *   (`speaker: "priya"`, bulbul:v3) or ElevenLabs (a voice id, eleven_v3) the
+ *   moment a user key exists in Settings — on the call cascade, the pickup line
+ *   and the backchannels. The live call, the native watch engine and her chat
+ *   voice notes have no such option and stay on the Gemini voice. So on a
+ *   keyed install every mode shift is a guaranteed change of woman, and not one
+ *   character of it is visible to a check that reads prebuilt voice names.
+ *
+ *   CACHES. A clip is fetched once and replayed forever out of IndexedDB. A key
+ *   that does not name the identity that produced it serves the OLD voice after
+ *   a switch, indefinitely, with every lane and every gate agreeing on the new
+ *   one. That is the exact shape of the recurrence: on 2026-08-21 four lanes
+ *   moved Aoede → Autonoe, this file went green, and the pickup clip — the
+ *   FIRST sound of every call — kept coming out of the cache in Aoede.
+ *
+ * So this section asserts two things §1 cannot:
+ *   7a  every engine identity in the product is DECLARED, with what it governs
+ *       and whether it is her.
+ *   7b  every persistent clip cache key carries that identity.
+ *
+ * 7b is the one that makes the CLASS impossible rather than this instance of
+ * it: with the identity in the key, changing the voice strands the stale audio
+ * automatically and there is no purge step to forget. */
+console.log("\n── 7. every engine that can be HEARD ──");
+{
+  const sp = read("src/voice/speech.ts");
+
+  /** Identities that produce audible speech and are NOT the Gemini prebuilt
+   *  voice §1 governs. Declared, not endorsed — the same contract §2 uses for
+   *  models. An undeclared one fails the run. */
+  const DECLARED_ENGINES = [
+    {
+      id: "sarvam",
+      re: /const SARVAM_SPEAKER = "([a-z]+)"/,
+      her: false,
+      governs:
+        "FAILOVER ONLY since IDENTITY WINS (2026-08-24) — reached on the cascade after her own voice returns no audio",
+      why:
+        "a different vendor and a different speaker. The live lane cannot use it, so an install with this key used to hear one woman on a live call and another the instant it fell back. It is no longer preferred over her voice; it survives below it because a different voice beats silence.",
+    },
+    {
+      id: "eleven",
+      re: /const ELEVEN_DEFAULT_VOICE = "([A-Za-z0-9]+)"/,
+      her: false,
+      governs: "FAILOVER ONLY, below her voice and below Sarvam",
+      why:
+        "a different vendor again, and the only one that can perform an audio tag. Losing tag performance is the priced cost of IDENTITY WINS.",
+    },
+    {
+      id: "device",
+      re: /(TextToSpeech)\.speak\(/,
+      her: false,
+      governs:
+        "the last resort inside speak(), reached when EVERY cloud attempt for an utterance returned nothing",
+      why:
+        "the platform's own engine, with no voice of hers in it at all — the largest identity change in the product (docs/VOICE-LANE.md §6.4 row 10). It is audible MID-CALL: speakCall and createStreamSpeaker both fall through to speak() when no clip ever became audible. Kept because the alternative is silence, which is worse; named here so nobody mistakes its absence from §1 for its absence from the product.",
+    },
+  ];
+
+  for (const e of DECLARED_ENGINES) {
+    const m = sp.match(e.re);
+    if (!m) {
+      FAIL(
+        `src/voice/speech.ts: the ${e.id} engine literal no longer matches`,
+        "Either it was removed — in which case delete it from DECLARED_ENGINES and",
+        "say so in docs/VOICE-LANE.md — or it moved, and this guard has stopped",
+        "guarding an engine that can still be heard.",
+      );
+      continue;
+    }
+    console.log(`  ok    ${e.id.padEnd(7)} ${String(m[1]).padEnd(22)} ${e.her ? "HER VOICE" : "NOT her voice"} — ${e.governs}`);
+  }
+
+  // The engine must be chosen ONCE PER UTTERANCE. It used to be re-derived
+  // inside fetchClipFor from `hasAudioTags(text)` — a property of the PHRASE —
+  // so a reply whose second sentence carried a tag was fetched half from Sarvam
+  // and half from ElevenLabs. §2 already asserts the identical property one
+  // level down, for the cascade's two arms, "because a multi-phrase reply races
+  // again per phrase". This is that assertion one level up, where the two
+  // candidates are not even the same company.
+  const derivations = (sp.match(/hasAudioTags\(/g) ?? []).length;
+  if (derivations !== 2) {
+    FAIL(
+      `src/voice/speech.ts calls hasAudioTags() ${derivations} times, expected exactly 2 (its definition and pickEngine)`,
+      "A third call site means the engine is being decided somewhere other than",
+      "pickEngine — and every extra decision point is a place one reply can be",
+      "split across two vendors mid-sentence.",
+    );
+  } else console.log("  ok    the engine is decided in ONE place (pickEngine) — one reply cannot be split across two vendors");
+
+  // 7b — every persistent clip cache key carries the identity that made it.
+  // Enumerated from the literals rather than from a list someone maintains, so
+  // a NEW cache added tomorrow is caught by the same rule.
+  const CACHE_SITES = [
+    { file: "src/voice/speech.ts", src: sp },
+    { file: "src/components/VoiceNote.tsx", src: read("src/components/VoiceNote.tsx") },
+    { file: "src/voice/liveCall.ts", src: liveTs },
+  ];
+  const TAGGED = /\$\{(?:engineTag\([^)]*\)|tag|PROXY_VOICE_TAG|ACK_VOICE|clipVoiceTag\([^)]*\))\}/;
+  let cacheKeys = 0;
+  for (const site of CACHE_SITES) {
+    // A cache key reaches cachedClip/saveClip either as a template literal
+    // written in the call, or as an identifier bound to one a few lines above.
+    // The first version of this check only saw the inline form and reported
+    // "all 2 keys ok" while three of the five — including the pickup clip, the
+    // one the bug was actually heard through — were bound to `const key` and
+    // never looked at. A check that silently examines a subset is the shape
+    // `sound-gate-proved-by-silence` names: it cannot fail, so it is not a
+    // check. Both forms are resolved now, and the count is printed so a future
+    // drop from five to two is visible rather than reassuring.
+    const keys = [];
+    for (const m of site.src.matchAll(/(?:cachedClip|saveClip)\(\s*(`[^`]*`|[A-Za-z_$][\w$]*)/g)) {
+      // `cachedClip(key: string)` is where the function is DECLARED, not a
+      // place a key is used, and a declaration has no literal to resolve. Both
+      // declarations sit above every call site in the file, so counting them
+      // turned this check red on a clean tree the moment the resolver got
+      // strict enough to notice it could not read them.
+      if (/function\s+$/.test(site.src.slice(Math.max(0, m.index - 20), m.index))) continue;
+      const arg = m[1];
+      if (arg.startsWith("`")) {
+        keys.push(arg.slice(1, -1));
+        continue;
+      }
+      // An identifier — resolve it to the template literal it was bound to.
+      // NEAREST BINDING ABOVE THE CALL, not the first in the file. Two caches
+      // here both name their key `key`, so a whole-file match resolved both to
+      // the first one: the pickup cache could lose its tag entirely and this
+      // check still reported "all 8 ok", because it was reading the backchannel
+      // key twice. Found by breaking it on purpose, which is the only way that
+      // failure is visible — a resolver that silently answers the wrong
+      // question is green by construction.
+      const bindRe = new RegExp(
+        "(?:const|let|var)\\s+" + arg.replace(/\$/g, "\\$") + "\\s*=\\s*`([^`]*)`",
+        "g",
+      );
+      let bind = null;
+      for (const b of site.src.matchAll(bindRe)) {
+        if (b.index < m.index) bind = b;
+        else break;
+      }
+      if (bind) keys.push(bind[1]);
+      else
+        FAIL(
+          `${site.file}: cache key \`${arg}\` handed to a clip cache could not be resolved to a literal`,
+          "7b can only check keys it can read. An unresolvable one is an unchecked",
+          "one, so it fails rather than passing quietly.",
+        );
+    }
+    for (const key of keys) {
+      cacheKeys++;
+      if (!TAGGED.test(key)) {
+        FAIL(
+          `${site.file}: clip cache key \`${key}\` does not name the voice that produced it`,
+          "This cache is permanent (IndexedDB), so the clip under this key outlives",
+          "any voice change and gets replayed next to lanes that have moved on. That",
+          "is how the fixed bug came back: on 2026-08-21 four lanes moved Aoede →",
+          "Autonoe, this file passed, and the PICKUP CLIP — the first sound of every",
+          "call — kept playing out of the cache in Aoede.",
+          "Put the identity in the key (engineTag / PROXY_VOICE_TAG / ACK_VOICE).",
+        );
+      }
+    }
+  }
+  if (cacheKeys === 0)
+    FAIL(
+      "no clip cache keys matched at all — the pattern moved and 7b is guarding nothing",
+      "This check is only worth having if it can see the caches; a zero count is a",
+      "silent pass, which is the failure this whole file exists to stop.",
+    );
+  else console.log(`  ok    all ${cacheKeys} persistent clip cache keys name the identity that produced them`);
+
+  // ── 7b-i. THE PICKUP CLIP, BY NAME ──
+  // 7b proves every cache key carries SOME identity token. This proves the one
+  // that actually detonated carries THIS voice, by walking the chain rather
+  // than trusting any single link:
+  //
+  //   pk1 key → engineTag(...) → `gm-${MEERA_VOICE}` → §1 says MEERA_VOICE
+  //   equals api/speech.js's DEFAULT_VOICE.
+  //
+  // Named separately because the pickup clip is the FIRST SOUND OF A CALL and
+  // the one the owner actually heard in the wrong voice: it is served from
+  // IndexedDB with zero network, so it is the single clip most able to outlive
+  // a voice switch, and the one whose staleness is heard soonest. A generic
+  // "all keys are tagged" pass would still be true if this specific chain were
+  // broken by a tag that interpolated something other than the voice.
+  const pickupKey = sp.match(/const key = `pk1:[^`]*`/);
+  const tagFn = sp.match(/function engineTag\([^)]*\)[^{]*\{[\s\S]*?\n\}/);
+  if (!pickupKey) {
+    FAIL("src/voice/speech.ts: the pk1 pickup cache key literal is gone — 7b-i cannot follow the chain");
+  } else if (!/\$\{engineTag\(/.test(pickupKey[0])) {
+    FAIL(
+      `src/voice/speech.ts: the pickup key ${pickupKey[0]} does not go through engineTag()`,
+      "This is the first sound of every call and it is served from IndexedDB with",
+      "no network. Keyed on anything but the identity, it survives a voice switch",
+      "and opens the call in the previous voice — which is the reported bug.",
+    );
+  } else if (!tagFn) {
+    FAIL("src/voice/speech.ts: engineTag() not found — the pickup key points at nothing checkable");
+  } else if (!/`gm-\$\{MEERA_VOICE\}`/.test(tagFn[0])) {
+    FAIL(
+      "src/voice/speech.ts: engineTag()'s hosted-voice branch no longer interpolates MEERA_VOICE",
+      "The pickup key would then be namespaced by something that does not move when",
+      "her voice moves, so switching the voice would leave the old clip reachable.",
+    );
+  } else {
+    console.log(`  ok    pickup clip self-invalidates: pk1 → engineTag → gm-\${MEERA_VOICE} (${voices[0] ?? "?"})`);
+  }
+
+  // ── 7b-ii. IS THE DRIFT ALARM ANCHORED ON THE VOICE SHE ACTUALLY HAS? ──
+  // A NOTE, NOT AN ASSERTION, and the distinction is the whole design. The
+  // baseline can only be re-established by synthesising through the PAID
+  // OpenRouter lane (prosody-baseline.mjs refuses the free pool on purpose —
+  // `free-tts-daily`: that quota is shared product infrastructure). So a
+  // failure here would block every build behind someone topping up a key,
+  // which is a worse failure than the one it reports.
+  //
+  // It is printed rather than left silent because a stale anchor is exactly
+  // the D4 defect: the drift alarm comparing two different women and calling
+  // the difference drift. The alarm itself now refuses to do that quietly —
+  // it says so and sets lastAlarm — and this line makes the same fact visible
+  // without having to run the paid job to learn it.
+  try {
+    const log = JSON.parse(read("evals/dbattery/prosody-baseline-log.json"));
+    const anchored = log?.baseline?.voice ?? null;
+    if (anchored && voices.length === 1 && anchored !== voices[0]) {
+      console.log(
+        `  note  the drift baseline is anchored on ${anchored}, she is now ${voices[0]} — ` +
+          `every drift figure compares two voices until \`node scripts/prosody-baseline.mjs --establish\` runs (needs a funded OpenRouter key)`,
+      );
+    } else if (anchored) {
+      console.log(`  ok    the drift baseline is anchored on her current voice (${anchored})`);
+    }
+  } catch {
+    console.log("  note  no prosody baseline recorded yet — the drift alarm has nothing to compare against");
+  }
+
+  // ── 7c. THE MODEL TWINS ──
+  // `api/live-token.js` decides the live model; `LiveWatchEngine.java` carries a
+  // fallback for a token response that arrives without one. §2 checks that both
+  // are DECLARED. It cannot check that they are the SAME, and for two years
+  // they were not: the Java fallback named a model this repo measured and
+  // rejected, so a malformed response changed her voice rather than merely
+  // costing latency. The JS twin has no fallback at all, which is the third
+  // position — so the two twins disagreed about the model AND about whether a
+  // fallback should exist.
+  //
+  // A fallback that differs from the primary is a second configuration reached
+  // only when something has already gone wrong, i.e. the configuration nobody
+  // ever observes. Pinning them makes the failure mode "one extra round trip"
+  // instead of "a different woman".
+  const tokenModel = read("api/live-token.js").match(/export const LIVE_MODEL = "([^"]+)"/);
+  const javaFallback = nativePresent
+    ? read(NATIVE.file).match(/DEFAULT_MODEL\s*=\s*"([^"]+)"/)
+    : null;
+  if (!tokenModel) {
+    FAIL("api/live-token.js: LIVE_MODEL literal not found — 7c cannot pin the twins");
+  } else if (!nativePresent) {
+    console.log(`  note  ${NATIVE.file} not in this checkout — the model-twin pin is skipped`);
+  } else if (!javaFallback) {
+    FAIL(`${NATIVE.file}: DEFAULT_MODEL literal not found — 7c cannot pin the twins`);
+  } else if (javaFallback[1] !== tokenModel[1]) {
+    FAIL(
+      `the live model and the native fallback disagree: ${tokenModel[1]} vs ${javaFallback[1]}`,
+      "LiveWatchEngine.java falls back to its DEFAULT_MODEL when /api/live-token",
+      "answers without a model. If that is a DIFFERENT model, a malformed response",
+      "does not cost latency — it changes which model family speaks, and the same",
+      "voice name on a different family is a different woman. Keep them equal, or",
+      "declare the difference in DECLARED above and say why in docs/VOICE-LANE.md.",
+    );
+  } else {
+    console.log(`  ok    live model and native fallback are the same string (${tokenModel[1]})`);
+  }
+
+  // ── 7d. EVERY WATCH-LANE EXIT TRIES TO GO BACK TO LIVE ──
+  // Starting a screen share hands the whole audio path to the native engine
+  // and KILLS the JS live session on the way in, before the consent dialog.
+  // So every exit from the native lane lands on the cascade with no live
+  // session left — a model-family change, and one nothing chose. #96 built
+  // `reconnectLiveAfterWatch()` to undo it and wired it to the two paths its
+  // framing covered ("stopping a share"), leaving the DENIAL path — where she
+  // is downgraded in exchange for a share that never happened — unwired for
+  // as long as it existed.
+  //
+  // This asserts the property rather than the three call sites, so a FOURTH
+  // exit added tomorrow is caught by the same rule instead of inheriting the
+  // same omission. `useCallEngine.ts` is checked but not owned here; the
+  // failure message says what to add rather than assuming who adds it.
+  // COMMENTS ARE STRIPPED BEFORE SCANNING, and that is not tidiness. The
+  // second version of this check took "the next claimVoice(" as its boundary
+  // and still failed a branch that HAD the reconnect — because the comment
+  // explaining the branch MENTIONS `claimVoice("native", "watch_started")`,
+  // and a text scan cannot tell code from prose about code. In a file whose
+  // comments are incident reports quoting the calls they describe, every
+  // proximity rule is a rule about the prose unless the prose is removed
+  // first. Third attempt, and the first one measuring the code.
+  const stripComments = (s) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+  const uce2 = stripComments(read("src/components/useCallEngine.ts"));
+  const exits = [...uce2.matchAll(/claimVoice\("cascade",\s*"(watch_[a-z_]+)"\)/g)];
+  if (!exits.length) {
+    FAIL(
+      "no claimVoice(\"cascade\", \"watch_*\") sites found — 7d is guarding nothing",
+      "Either the watch lane stopped exiting to the cascade (in which case delete",
+      "this check and say so) or the pattern moved and the guard is now blind.",
+    );
+  } else {
+    for (const ex of exits) {
+      // THE WINDOW IS STRUCTURAL, NOT A CHARACTER COUNT. The first version of
+      // this check looked 1400 chars ahead, and it failed on a branch that
+      // HAD the reconnect: the comment explaining why the reconnect was there
+      // pushed the call itself past the window. A guard whose verdict depends
+      // on how much prose sits next to the code is measuring the prose.
+      // Each exit is followed by its own handling and then the next exit, so
+      // "before the next claimVoice, or end of file" is the real boundary.
+      const rest = uce2.slice(ex.index + ex[0].length);
+      const nextExit = rest.search(/claimVoice\("cascade",\s*"watch_/);
+      const after = nextExit === -1 ? rest : rest.slice(0, nextExit);
+      if (!/reconnectLiveAfterWatch\(\)/.test(after)) {
+        FAIL(
+          `useCallEngine.ts: claimVoice("cascade", "${ex[1]}") never tries to return to the live lane`,
+          "Starting a share killed the JS live session before the consent dialog, so",
+          "this exit strands the call on a DIFFERENT MODEL FAMILY for the rest of its",
+          "life — the same voice name rendered by a different model is a different",
+          "woman (docs/VOICE-LANE.md §6.4).",
+          "Add `void reconnectLiveAfterWatch();` to this branch. It is safe to call:",
+          "it no-ops when nothing was compiled, when the owner is not cascade, and it",
+          "hands off through adoptLiveLate so she is never cut mid-word.",
+        );
+      } else {
+        console.log(`  ok    ${ex[1].padEnd(26)} returns to the live lane`);
+      }
+    }
+  }
+}
 
 console.log(
   fail

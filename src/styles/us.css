@@ -442,6 +442,24 @@
   font-weight: 500;
   letter-spacing: -0.005em;
   color: var(--u-ink);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+/* The row's mark, quieter than the phrase beside it, because the three steps
+   of hierarchy this section is built on are number, phrase, colour, and a
+   mark inked the same as the phrase would make a fourth one competing with
+   the second. `--u-dim` is the aside's ink, which is the step it belongs to.
+   19px so it sits inside the phrase's line box rather than pushing it. */
+.us-glyph {
+  flex: 0 0 auto;
+  display: block;
+  color: var(--u-dim);
+}
+.us-glyph svg {
+  display: block;
+  width: 19px;
+  height: 19px;
 }
 
 .us-aside {

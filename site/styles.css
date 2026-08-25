@@ -452,6 +452,71 @@ body.reading .glass {
   text-shadow: 0 1px 18px var(--scrim-mid);
 }
 
+/* ══ THE WORDMARK, AS ARTWORK ══════════════════════════════════════════════
+   Three places say "maya" in the serif: the nav, the hero, the footer. They
+   are now painted from /assets/wordmark.svg instead of set as text, and the
+   mechanism is a MASK rather than an <img> for one reason that decides it:
+   the file's own fill is `currentColor`, and an <img> resolves currentColor
+   against the SVG document rather than against this page, so the mark would
+   arrive black on every one of the five skies. A mask takes its ink from
+   `background`, which is `currentColor` HERE, so the mark is painted in the
+   exact `--ink` / `--ground-ink` the contrast gate already proves over every
+   painting. Nothing new to measure and nothing new that can be off-palette.
+
+   THE TEXT STAYS IN THE DOM. `<span class="mk-t">maya</span>` is the real
+   word: it is what a search engine reads, what a screen reader announces, and
+   what a browser paints if it has no masks. It is hidden only INSIDE the
+   @supports block, so the failure mode of an unsupported mask is the page
+   exactly as it shipped last week rather than an empty box.
+
+   SIZING IS IN `em`, so the mark keeps tracking the type scale it replaced,
+   including the hero's `clamp()`. The ratio is measured off the file: its ink
+   spans 97.9 of 150 user units from x-height to the y descender, which is
+   ~0.69em of this face, so one em is ~142 units and the full 150-unit box is
+   1.056em tall. The box is 368.8/150 = 2.459 as wide as it is tall, hence
+   2.596em. Both numbers are the artwork's, not a taste. */
+@supports (mask-image: url("/assets/wordmark.svg")) or
+  (-webkit-mask-image: url("/assets/wordmark.svg")) {
+  .wordmark,
+  .hero h1.hero-mark,
+  .foot .foot-mark {
+    display: block;
+    width: 2.596em;
+    height: 1.056em;
+    background: currentColor;
+    -webkit-mask: url("/assets/wordmark.svg") no-repeat center / contain;
+    mask: url("/assets/wordmark.svg") no-repeat center / contain;
+  }
+  .hero h1.hero-mark {
+    margin-inline: auto;
+  }
+  /* the glow the text carried, in the one form a masked box can carry it:
+     `text-shadow` paints nothing when there is no text left to paint */
+  .wordmark {
+    text-shadow: none;
+    filter: drop-shadow(0 1px 18px var(--scrim-mid));
+  }
+  .hero h1.hero-mark {
+    text-shadow: none;
+    filter: drop-shadow(0 2px 26px var(--scrim-mid));
+  }
+  body.reading .wordmark {
+    filter: none;
+  }
+  /* the word itself: still there, still read, no longer painted */
+  .mk-t {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
 /* ── glass ────────────────────────────────────────────────────────────────
    Only ever over the sky, never over the ground: a glass panel on a surface
    that is already 94% opaque is a rectangle pretending to be a window. The

@@ -970,7 +970,7 @@ const ACK_STYLE = "quiet, brief, barely-there listener sound, low energy";
 // field, so today these clips come back in the WRONG VOICE. Honouring `voice`
 // there (it is already validated against ALLOWED_VOICES, which contains Aoede)
 // is what makes this feature correct rather than merely working.
-const ACK_VOICE = "Autonoe";
+const ACK_VOICE = "Despina";
 const ACK_CACHE_V = "ack2"; // bump to invalidate every cached clip
 
 interface AckClip {
@@ -3070,7 +3070,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
               //     result), and unpinning it gives up the hi-IN phoneme
               //     handling her Hinglish depends on. Keep it pinned.
               speechConfig: {
-                voiceConfig: { prebuiltVoiceConfig: { voiceName: "Autonoe" } },
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: "Despina" } },
                 languageCode: "hi-IN",
               },
             },

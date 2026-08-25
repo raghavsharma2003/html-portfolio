@@ -441,6 +441,13 @@ const FATE = {
   // comment already claimed existed.
   meera_turn: "clear+forget",
   meera_turn_leg: "clear+forget",
+  // Reachability: a push token is the ability to reach this phone. The
+  // WIPE takes it (relational lane, manifest loop) and the client half
+  // clears on both doors (teardown.mjs #6 REACHABILITY) — but a SCOPED
+  // "forget priya" must NOT unsubscribe his notifications: a token has no
+  // term to match and deleting it on an item-forget would break a promise
+  // he never made. Hence forget-only here.
+  vy_push_token: "forget-only",
   // The suppression list itself. A list of the things somebody asked to have
   // deleted is a record of them, so a whole wipe takes it — and a SCOPED
   // forget must not, because the scoped forget is the thing that WRITES it.
@@ -547,7 +554,14 @@ ok("…and both are reachable by a window too",
 // (e) meera_state: purged on a wipe, REWRITTEN on a scope
 ok("a whole wipe deletes the synced state row",
   /purgeSyncedState\(device, \{ all: true \}\)/.test(OP_FORGET));
-ok("an item forget rewrites it by term", /purgeSyncedState\(device, \{ rx \}\)/.test(OP_FORGET));
+// A1 (survey §Q5) widened the term an item forget carries: the referring
+// expression is resolved to nodes at mutation time and their NAMES join the
+// predicate, so the argument is now `rxWide` rather than `rx`. The property
+// this line has always asserted — an item forget reaches the synced blob BY
+// TERM and not only by window — is unchanged and strictly stronger, so the
+// pattern accepts either spelling rather than pinning one variable name.
+ok("an item forget rewrites it by term",
+  /purgeSyncedState\(device, \{ rx(: rxWide)? \}\)/.test(OP_FORGET));
 ok("a window forget rewrites it by window", /purgeSyncedState\(device, \{ from, to \}\)/.test(OP_FORGET));
 ok("the rewrite never leaves a NULL where the client expects an array",
   /coalesce\(\(select jsonb_agg/.test(MEMORY_SRC));

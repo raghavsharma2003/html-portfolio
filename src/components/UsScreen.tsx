@@ -58,6 +58,15 @@ import { tap, ImpactStyle } from "../native/haptics";
 import { useCallStatus } from "../state/callStatus";
 import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import "../styles/us.css";
+// The six marks, one per row of the record. Inlined rather than fetched
+// because each is drawn in `currentColor` and has to take this page's own ink
+// in both themes and under all five skies; an <img> would paint it black.
+import callsMark from "../assets/stats/calls.svg?raw";
+import chessMark from "../assets/stats/chess.svg?raw";
+import messagesMark from "../assets/stats/messages.svg?raw";
+import picturesMark from "../assets/stats/pictures.svg?raw";
+import tttMark from "../assets/stats/ttt.svg?raw";
+import wyrMark from "../assets/stats/wyr.svg?raw";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -181,17 +190,28 @@ function Line({
   aside,
   i,
   run,
+  mark,
 }: {
   n: number;
   what: string;
   aside?: string | null;
   i: number;
   run: boolean;
+  /** the row's own mark, as SVG markup. See the imports at the top. */
+  mark: string;
 }) {
   return (
     <div className="us-line" style={{ ["--i" as string]: i }}>
       <Counted value={n} run={run} />
-      <span className="us-what">{what}</span>
+      {/* The mark sits with the PHRASE, not with the number: it says what
+          kind of thing was counted, which is what the phrase says. It is
+          aria-hidden because the phrase already says it in words, and a row
+          that announced "chess, games of chess" would be reading a picture
+          out loud. */}
+      <span className="us-what">
+        <span className="us-glyph" aria-hidden="true" dangerouslySetInnerHTML={{ __html: mark }} />
+        {what}
+      </span>
       {aside ? <span className="us-aside">{aside}</span> : null}
     </div>
   );
@@ -465,6 +485,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
           <Line
             i={0}
             run={run}
+            mark={messagesMark}
             n={r.chatCount}
             what={r.chatCount === 1 ? "message between you" : "messages between you"}
             aside={
@@ -478,6 +499,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
             <Line
               i={1}
               run={run}
+              mark={callsMark}
               n={r.callCount}
               what={r.callCount === 1 ? "voice call" : "voice calls"}
               aside={r.callSecs > 0 ? `${span(r.callSecs)} on the phone.` : null}
@@ -488,6 +510,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
             <Line
               i={2}
               run={run}
+              mark={picturesMark}
               n={r.photos}
               what={r.photos === 1 ? "picture shared" : "pictures shared"}
             />
@@ -497,6 +520,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
             <Line
               i={3}
               run={run}
+              mark={chessMark}
               n={r.chessGames}
               what={r.chessGames === 1 ? "game of chess" : "games of chess"}
               aside={chessAside}
@@ -507,6 +531,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
             <Line
               i={4}
               run={run}
+              mark={tttMark}
               n={r.tttGames}
               what={r.tttGames === 1 ? "round of tic-tac-toe" : "rounds of tic-tac-toe"}
             />
@@ -516,6 +541,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
             <Line
               i={5}
               run={run}
+              mark={wyrMark}
               n={r.wyrCards}
               what={r.wyrCards === 1 ? "would-you-rather answered" : "would-you-rathers answered"}
             />

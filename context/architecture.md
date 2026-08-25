@@ -78,3 +78,55 @@ overlays, video-vs-page and FLAG_SECURE blackouts.
 Neon Postgres over SQL-over-HTTP (`api/_db.js`), schema in `db/schema.sql`.
 Supabase for auth and photo storage only. `meera_diag` is the audit trail —
 fail-soft by design, which is why `verify-release.mjs` probes it deliberately.
+
+### `sound` — `src/sound/` (vocabulary + synth + one gated engine)
+The app's second audio subsystem, and it is deliberately unable to reach the
+first. `vocabulary.ts` is pure data: the closed cue set, each cue's haptic
+level, mix and span, plus a `REFUSED` table of sounds decided against with the
+argument next to each. `synth.ts` builds every cue from oscillators and shaped
+noise (zero assets) and decides nothing. `index.ts` owns the single
+`AudioContext` (built inside the first user gesture, `latencyHint:
+"interactive"`), the master bus, and the only call into the synth in the
+codebase — downstream of four gates: gesture, the `soundOn` toggle, the call
+(read from BOTH `state/callStatus.ts` and a flag `Chat.tsx` publishes from
+`inCall`), and page visibility. `feel(cue)` fires the cue and its haptic level
+together so no call site picks an intensity.
+
+Call sites: `Chat.tsx` (send, and ONE arrival per delivery), `ChessBoard.tsx`
+and `TicTacToeBoard.tsx` (his move against his finger, hers when it lands),
+`Celebration.tsx` (the moment), `MoreSheet.tsx` (the switch previews itself).
+It imports nothing from `src/voice/` and the call's ringback is untouched:
+anything emitted during a call would land in the echo coefficient
+`evals/echosim/` measures the audio floor against. Gated by `evals/sound.mjs`
+(in `run.mjs`, with its own negative control) and proved in a real browser by
+`evals/sound-browser.mjs`.
+
+### `movevoice` — one being, one timeline (the board's clock and her voice)
+The hand and the mouth were separate agents; this is the seam that joins them.
+
+`src/state/game.ts` owns the CLOCK. `THINK_BANDS` + `chessThinkMs`/`tttThinkMs`
+are the held beat before her move lands — pure, deterministic on (position,
+session seed), bounded [`THINK_FLOOR_MS`, `THINK_CEIL_MS`] = [300ms, 7s], with
+bands for book/opening/middlegame/endgame/forced and modifiers for check,
+recapture and position width. `turnPhase` is the choreography state; `gamePly`
+is the staleness stamp; `noteVerdict` is the send seam's whole decision
+(`send` / `stale` / `hold`). All of it pure, so `evals/movevoice.mjs` reaches
+every branch without a browser.
+
+`src/engine/chessTalk.ts` + `tttTalk.ts` own the TENSE. `settledClause` /
+`tttSettledClause` state the CHOICE as closed; `chessMoveNote` / `tttMoveNote`
+compose the move facts with it, so no call site can send one without the other.
+
+`src/components/ChessActivity.tsx` and `TicTacToeActivity.tsx` hold her move for
+the table's beat before committing it. The presence row already reads "thinking"
+for exactly that window off `her.phase` — an existing idiom, not new UI.
+
+`src/components/useCallEngine.ts`'s poke is the only consumer on the live lane:
+it drafts a note, stamps it with the ply, and routes it through `sendGameNote`,
+which asks `noteVerdict` at the last instant this file controls. `pokedPly`
+advances only on a committed send, so a held note stays owed.
+
+Gated by `evals/movevoice.mjs` (in `run.mjs`; offline, $0, carries the owner's
+case as a fixture and its own negative control) and measured in a real browser
+by `evals/movevoice-browser.mjs`, which times every one of her turns in a full
+game against the same table the component reads.

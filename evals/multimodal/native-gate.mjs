@@ -340,6 +340,18 @@ const dispatch = body(svc, "private void dispatch(");
 const emitBody = body(svc, "private void emitShowWake(");
 const liveNudge = body(liveSrc, "boolean nudge(int wake)");
 const cascadeNudge = body(cascadeSrc, "boolean nudge(int wake)");
+// WS-LIFECYCLE, 2026-08-23. The dispatch-side grounding gate — "a SHOW rides a
+// picture of the HELD screen, ambient rides any delivered frame" — was written
+// inline in dispatch() and has since moved into WatchPacer.fresh(show, now).
+// The PROPERTY did not change (the parity battery in §1 still passes); only
+// its address did. The two assertions below used to look for the ternary in
+// dispatch(), found nothing, and failed — a gate reporting a defect that does
+// not exist, which is how a suite stops being read and then stops being run.
+// So the gate now follows the refactor: dispatch must still ASK, and the
+// method it asks must still be the ternary against FRAME_FRESH_MS. Splitting
+// it in two is the point — either half moving alone is a real failure.
+const pacerSrc = readFileSync(join(AND, "WatchPacer.java"), "utf8");
+const pacerFresh = body(pacerSrc, "boolean fresh(boolean show, long now)");
 
 ok("WatchCaptureService.dispatch() found", dispatch.length > 0);
 ok("WatchCaptureService.emitShowWake() found", emitBody.length > 0);
@@ -365,8 +377,9 @@ for (const [what, needle, where, src] of [
   ["look-away re-checked at the report", "if (privateMode) return;", "emitShowWake", emitBody],
   ["FLAG_SECURE blackout refused by name", "if (blank) return;", "emitShowWake", emitBody],
   ["ambient classes are never reported", "if (!SceneReader.isShow(wake)) return;", "emitShowWake", emitBody],
-  ["a held frame backs a SHOW, a delivered one backs ambient", "SceneReader.isShow(wake) ? lastStillFrameAt : lastSentAt", "dispatch", dispatch],
-  ["stale-frame gate", "FRAME_FRESH_MS", "dispatch", dispatch],
+  ["dispatch asks the pacer before any nudge", "pacer.fresh(show, now)", "dispatch", dispatch],
+  ["a held frame backs a SHOW, a delivered one backs ambient", "show ? lastStillFrameAt : lastSentAt", "WatchPacer.fresh", pacerFresh],
+  ["stale-frame gate", "FRAME_FRESH_MS", "WatchPacer.fresh", pacerFresh],
   ["her own voice", "if (speaking) return false;", "LiveWatchEngine.nudge", liveNudge],
   ["stale-frame gate", "FRAME_FRESH_MS", "LiveWatchEngine.nudge", liveNudge],
   ["quiet floor after their voice", "lastVoiceAt", "LiveWatchEngine.nudge", liveNudge],

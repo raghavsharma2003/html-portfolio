@@ -147,6 +147,11 @@ export function syncableState(s: AppState) {
     // teardown rule in Chat.tsx). `theme` is deliberately absent: a phone on
     // dark and a laptop on light is a feature, not a conflict. Keys never sync.
     herLife: s.herLife,
+    // Her present moment. It syncs for the same reason `game` does: her
+    // evening must be the same evening on both devices, and a phone that
+    // says "reading" while the laptop says "fairy lights" is the reported
+    // bug arriving over the wire instead of over a re-roll.
+    herNow: s.herNow,
     inner: s.inner,
     game: s.game,
     // The finished-games ledger. It is the relationship's record of what they

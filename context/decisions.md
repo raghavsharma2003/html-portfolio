@@ -1910,3 +1910,552 @@ provider router and whole-replica evals; replaceable models compete behind it.
 show a specific foundation-training experiment is the cheapest remaining path
 to a named failing gate, with separate funding. A model demo or unused credit
 is not a reversal condition.
+## `brain-stays-36-flash-reaffirmed` (2026-08-23, owner)
+
+A 75% OpenRouter sale on gemini-3.7-flash prompted the question; the
+answer is no switch, for the standing reasons: production pays $0 (free
+AI Studio pool — an OpenRouter discount is a discount on a lane we do
+not buy), and the brain is a MEASURED choice (the Luna battery), so any
+future swap goes through the swap-test harness arm-vs-arm, never
+through a price page. Owner confirmed: "keep at 3.6 only."
+
+**Reversed if:** a pre-registered personality battery prefers another
+model within the same cost envelope, or the free tier stops serving 3.6.
+
+---
+
+## `sound-vocabulary-closed` (2026-08-23, WS-SOUND)
+
+The sound layer ships as a CLOSED vocabulary in `src/sound/vocabulary.ts` —
+five cues (`send`, `receive`, `place`, `take`, `moment`), each declaring the
+haptic level it rides with, its peak gain relative to one master, and its full
+scheduled span — and `feel(cue)` fires sound and haptic from one call so a
+component can never pick an intensity. Every sound is synthesised from
+oscillators and shaped noise at play time: zero assets, nothing to license,
+nothing to fetch, and the palette is edited by changing a frequency rather than
+by commissioning a wav.
+
+Why a table rather than a `playTone(freq, ms)`: this is the same argument
+`native/haptics.ts` makes for having exactly three levels. A sensory channel
+with no fixed vocabulary is one where nine components each invent a beep, and
+the failure mode is not "too loud", it is that the set loses its ranking and
+the ear stops attending to any of it. The table is also what the gate can
+enforce — a closed set that nothing closes is just a set.
+
+Sound gets MORE cues than haptics and the SAME three levels, because the ear
+can tell a piece of wood set on a board from a message leaving your hand and
+the hand genuinely cannot.
+
+**Reversed if:** a measured preference test shows people cannot tell two cues
+apart (then merge them), or the palette needs a sixth distinct event that is
+genuinely a user action and not an announcement.
+
+---
+
+## `sound-default-on-quiet` (2026-08-23, WS-SOUND)
+
+One switch in Settings (`AppState.soundOn`), default ON, where `false` is the
+only value that means off — absent means on, so an install that predates the
+field changes nothing until someone touches it (`age-tier-never-realtime`).
+No volume slider: the mix is decided once, low (master 0.34; the loudest cue
+peaks at 0.255 of full scale on a transient tens of milliseconds long), and the
+only thing a person needs from that screen is a way to make it stop. A volume
+control in a companion app is a thing nobody moves and everybody asks about.
+
+Turning it ON previews itself with the `receive` cue, because hearing HER
+arrival is the honest answer to "what will this sound like".
+
+**Reversed if:** the owner or a tester reports the level wrong on real hardware
+in a real room — in which case the fix is the one master constant, not a
+slider.
+
+---
+
+## `sound-gates-four-and-two-sources` (2026-08-23, WS-SOUND)
+
+Nothing sounds unless all four pass: a user gesture has happened (no
+AudioContext exists before it), the toggle is on, no call is live/connecting/
+sharing a screen, and the app is visible. The call gate reads TWO independent
+sources — `state/callStatus.ts`, published by the call engine, and a flag
+`Chat.tsx` publishes from its own `inCall` prop — because the window in which a
+call exists is wider than the window in which the engine is mounted, and a gate
+with one source is a gate with one way to be stale.
+
+The call gate is not a taste rule. Anything emitted during a call leaves the
+speaker, enters the mic, and lands in the echo coefficient the entire audio
+floor at `evals/echosim/` is measured against; a defect in the sound layer
+would be diagnosed in the voice lane. `src/sound/` therefore imports nothing
+from `src/voice/`, asserted on the source, and the existing ringback is
+untouched.
+
+**Reversed if:** a native plugin makes OS silent mode readable (add it at the
+`registerSilenceProbe` seam — the gate exists and is tested, and is wired to
+nothing today), or the echo work makes in-call cues provably free, which would
+need an echosim table and not an argument.
+
+---
+
+## `story-notification-scheduled-exception` (2026-08-23, coordinator ruling)
+
+PRODUCT-SUPERIORITY §5(a) says no notification may be scheduled. The
+story notification is a ruled exception: the event is not manufactured
+by the timer (the story pool changes at those minutes whether or not
+the code exists), the time is hers and identical for every user with
+zero input from him, the copy is what she posted, one per occurrence.
+The §5(c) lint still stands: postAt cannot express a delay or interval,
+and the eval scans for repeats/setInterval shapes.
+
+**Reversed if:** any notification fires whose triggering event would
+not have occurred without the scheduler, or story notifications are
+measured to feel like marketing rather than her (a felt-failure log).
+
+## `forget-receipt-hedges-on-fallback` (2026-08-23, coordinator ruling)
+
+When the mutation-time forget hook fails, the lexical fallback runs and
+the receipt is HEDGED, never "done": agreeing to a delete and then not
+deleting is the worst failure, but refusing the whole receipt on a
+transient model error would make forgetting flaky. done / hedged / none
+are computed server-side from summed row counts.
+
+**Reversed if:** hedged receipts are measured to confuse users more
+than honest refusal would (a felt-failure log names the fixture).
+
+## `pin-58-to-frozen-snapshot` (2026-08-23, coordinator ruling)
+
+The swap test compares MODELS under identical contexts; both arms stay
+on the 2026-08-15 frozen corpus (853 banked incumbent rows + the terra
+arm preserved). Snapshot age is a documented limitation, not a flaw;
+regenerating both arms would double quota for no scientific gain. The
+drift guard hard-refuses any live run that would mix snapshots.
+
+**Reversed if:** the compiled-context distribution shifts enough that
+reviewers judge the frozen corpus unrepresentative (then both arms
+regenerate together, never one).
+
+---
+
+## `move-voice-one-timeline` — her hand and her mouth are one being
+
+**Decided 2026-08-23**, from the owner playing chess on a live call: she made
+her move milliseconds after his, and then two to three seconds later her voice
+said she SHOULD make the move that was already on the board.
+
+That is two agents on two clocks, and the fix is three separate things because
+the defect was three separate things wearing one coat.
+
+**1. The hold is a table, not a formula at a call site.** `her-chess-pace`
+already held her move for 0.8–2.2s / 1.8–6s off the ply count. That covered
+chess only (ttt had an unrelated 0.8–2.5s constant), was blind to the position
+beyond the ply count — a forced recapture and a wide-open middlegame decision
+took her the same three seconds — and lived inside a component effect where no
+eval could reach it. `state/game.ts` now owns `chessThinkMs`/`tttThinkMs`:
+pure, seeded on (position, session) so a replay agrees with the run it
+replays, bounded to [300ms, 7s] for every input including nonsense, with bands
+for book / opening / middlegame / endgame / forced and multiplicative
+modifiers for check, recapture and the width of the position.
+
+**2. There is no pre-line, and that is deliberate.** A short deliberating line
+before the piece lands would be lovely and is unshippable on the live lane:
+`direct()` hands text to a model that takes seconds to generate and start
+speaking, so a pre-line drafted during a 0.8s opening think arrives AFTER the
+move — the defect in a nicer hat. A silent move followed by a past-tense line
+is always coherent; a move followed by a future-tense line never is.
+
+**3. Past tense was necessary and not sufficient.** `moveFact` and
+`exchangeFact` were ALREADY past tense when the owner heard the defect. What
+the note did not say is that nothing is PENDING — and a model whose frozen
+prompt said "it is her move" at connect will happily deliberate about a move it
+was just told she made. `settledClause` / `tttSettledClause` state the choice
+as closed ("her move is already on the board, his turn now"), and
+`chessMoveNote` / `tttMoveNote` compose fact + clause so a call site cannot
+send one without the other.
+
+**Reverses if:** the held beat starts reading as lag rather than thought — the
+owner saying she is slow rather than that she is thinking. The fix would then
+be the middlegame band's ceiling (6s), not the floor, and not the determinism.
+
+## `game-notes-ride-a-send-seam` — a note may not outlive its position
+
+**Decided 2026-08-23**, same report. A game note is drafted against a board and
+then waits: for the conversation floor, for the breath pause, for the rate
+floor, and finally inside `direct()`, which holds it up to 1.2s while she
+finishes speaking. Her engine answers within a couple of seconds. So a note
+written at ply N could enter the socket at ply N+2.
+
+`noteVerdict(draftedAtPly, session, herVoiceIsLive)` is now the decision, in
+`state/game.ts` and therefore reachable from an eval rather than only from a
+running browser with a live socket — which is to say, only from the owner's
+ears, which is how this was found. Three outcomes: `stale` (the board moved →
+DROP, never send late), `hold` (she is mid-sentence → re-draft against the
+board as it is then, rather than hand a note into `direct()`'s wait), `send`.
+Staleness outranks holding: holding a stale note only makes it staler.
+
+The stamp is internal and never appears in the note's text — bracket-shaped
+metadata on this lane gets SPOKEN (`ack-bracket-direction`). What survives the
+seam is safe to land a beat late because of the settled clause above; a late
+note about a settled position is a small redundancy, a late note about an open
+one is the defect.
+
+`pokedPly` now advances only on a committed send, so a held note stays owed
+instead of being silently marked narrated.
+
+**Reverses if:** she goes quiet through games because too many notes are held
+and then dropped. The bounded re-draft (5 attempts at 600ms) is the number to
+raise first; dropping the staleness check is not on the table, because a
+comment on a position two moves gone cannot be un-said.
+
+## `maya-rename-display-only` — she is Maya where humans read, meera where machines do
+
+**Decided 2026-08-23.** The rename rides ONE seam — `HER_NAME` in
+`persona.ts` (75 references across 16 files follow it, verified zero stray
+display literals) — plus twelve static files (manifests, Android strings,
+native notification text, landing/privacy copy, titles/og). Internal
+identifiers never change: `meera_*` tables, `MEERA_AGENT_ID`, storage keys,
+the `meera:knows` event, the `meera-messages` channel, `app.meera.companion`
+(install-over-update — a changed applicationId is a second app, not an
+update), the domain, wire headers, log tags, asset filenames. Group
+wake-names became a SUPERSET (maya + meera + Devanagari forms): rooms that
+have addressed her as Meera for months must not go unanswered. The
+Telegram/Discord/WhatsApp fallback usernames stay "Meera" because they
+double as @-mention matchers for accounts registered under that name.
+`public/og-card.jpg` still paints "meera" — owner asset, flagged.
+
+**Reverses if:** an internal identifier rename ships WITH a migration and an
+install-over-update proof (never as a find-replace); the bot fallbacks flip
+only after the registered accounts are renamed and env vars set.
+
+## `lifecycle-matrix-as-code` — every transition names its carrier or the build fails
+
+**Decided 2026-08-23.** `LIFECYCLE_MATRIX` (`src/voice/callHistory.ts`):
+10 events x 5 contexts = 50 cells, each cell a carrier
+(assembly/direct/state/silent/na) plus a mandatory written `why` (>=40
+chars, gated). `evals/lifecycle/run.mjs` (378 checks, inside verify-release)
+walks all 50: a `direct` cell must have a live sender in `useCallEngine.ts`
+SOURCE — declared-and-dead fails the build, which is the structural answer
+to the dead-writers class. Four cells were dark and got built (game_closed
+and game_start mid-call, share_end mid-call, board-settle on pickup during
+her think — sent silent so she corrects her stale brief without narrating
+her prompt). `IncomingCall` gained `reason: callback|wants` so "call cut at
+3:12" renders only when there was a drop to cite. The owner's standing
+instruction — "I need not to tell you every time" — is this matrix: a new
+overlap defect means a wrong cell, not a missing enumeration.
+
+**Reverses if:** a sixth context or eleventh event arrives that the grid
+cannot express — then the matrix GROWS a row, it does not get bypassed; any
+transition handled outside it is the defect returning.
+
+## `lane-order-azure-first-attachments` — who answers, in what order
+
+**Decided 2026-08-24.** Brain lanes are a named constant (api/_lanes.js):
+text goes gemini-free -> openrouter -> azure; turns carrying attachments go
+AZURE-FIRST (owner directive: the grant should carry images/docs; OpenRouter
+is cash-dead). `hasAttachments` is true for request-borne images/docs OR an
+assembled prompt already carrying image_url parts — without the second half,
+Azure-first would fire for a fresh data-URL send and never for the ordinary
+upload-then-history flow, which is most picture turns. The Azure lane
+defaults to the one deployment this repo has evidence for (vy_gate_run 35;
+realtime-azure 5/5 at real frame fidelity; non-reasoning per extract-model's
+81% deficit on emotionally heavy beats) and skips cleanly when unconfigured.
+Wired and gated, NOT yet measured live — served_by:"azure" has never
+appeared in a real trace.
+
+**Reverses if:** a paired incumbent-vs-Azure run at the app's real image
+shape shows free-Gemini vision is not worse (then attachments rejoin the
+text order); or the grant expires (then Azure drops to last everywhere).
+
+## `no-capacitor-camera-plugin` — the WebView already owns the camera
+
+**Decided 2026-08-24, WS-COMPOSER, ratified.** The camera option rides
+`<input capture>`: Capacitor's BridgeWebChromeClient answers it with a real
+ACTION_IMAGE_CAPTURE intent and forwards `multiple`. Adding @capacitor/camera
+would be a second native surface for a capability we have, and
+android/app/build.gradle's own contract says a new plugin method bumps
+OTA_NATIVE_CONTRACT — forcing every installed copy to reinstall. Camera
+detection asks the pointer (coarse + maxTouchPoints>0), measured because
+`"capture" in input` reads false on desktop Chromium 141 and cannot be
+trusted to differ on phones.
+
+**Reverses if:** a needed capability (e.g. in-app camera UI, editing) cannot
+ride the input path — and then the plugin lands WITH the contract bump done
+deliberately, in its own release.
+
+---
+
+## `one-voice-switch` — her voice name gets one writer, not six mirrors and a comment (2026-08-24)
+
+**Decision.** The voice name stays MIRRORED across six lanes — `api/speech.js`,
+both `liveCall.ts` literals, `src/voice/speech.ts`,
+`scripts/prosody-baseline.mjs` and `LiveWatchEngine.java` — and gains a single
+**writer**: `node scripts/verify-voice.mjs --set <Voice>` moves all of them and
+runs the full verification on the result. Cache keys carry the identity, so
+stale audio strands itself.
+
+**Why not one imported constant.** There is no import that spans the lanes: a
+serverless function holding server secrets, a browser module forbidden to import
+anything beyond `./level` and `../engine/diag` (the echosim law — `evals/echosim`
+builds it standalone on that basis), a Java file, and a Node job. Four
+languages. Mirror-and-assert is the house pattern for exactly this shape
+(`OPERATIONAL_CORE_CAP`, `MEERA_AGENT_ID`).
+
+**Why the assertion alone was not enough, which is the actual reason this
+exists.** `api/speech.js`'s header asked the next person to move the lanes
+together; `verify-voice.mjs`'s header answered that a comment asking for
+discipline is not a mechanism. Both were right and both missed that the mirrors
+had no writer. An assertion catches drift *after* someone ships it — but a voice
+switch is made and verified in one session, so the author runs the gate on the
+tree they just edited incompletely and it passes on the four lanes they
+remembered. On 2026-08-21 that is precisely what happened: four of six moved,
+the gate went green, and the owner heard her change voice three days later
+(`cache-outlives-the-voice`). **A mirror set editable only by hand is a mirror
+set that will be edited incompletely.**
+
+**What it deliberately does not do: pick the voice.** `voice-ears` is the entry
+that says numbers cannot; `scripts/voice-samples.mjs` is the blind deck that
+lets ears do it. The writer only moves what the ears chose, and refuses any name
+not on the live-lane-verified list (`live-voice-roster`) — a name the realtime
+model rejects is a call that never connects, not a wrong timbre.
+
+**Verified rather than asserted:** `--set Leda` moved six sites and the gate
+reported one name on all six lanes; `--set Autonoe` returned all five files
+byte-identical to their pre-switch state, the Java included.
+
+**Reverses if:** the lanes ever become importable from one another — a shared
+runtime, or the live lane losing its no-imports constraint — at which point one
+exported constant is strictly better and the writer should be deleted rather
+than kept alongside it.
+
+---
+
+## `voice-despina` — her voice is Despina (2026-08-24)
+
+**Decision.** Chosen by the owner from the blind six-voice deck
+(`scripts/voice-samples.mjs`, labelled A–F in a shuffled order so the list could
+not bias the listen); runner-up Leda. `voice-ears` is the standing rule that
+this is an ear decision — every measured axis once said switch to Azure and the
+ears were right to refuse.
+
+**Executed** with `node scripts/verify-voice.mjs --set Despina` (`one-voice-switch`):
+six lanes in one command, `ALLOWED_VOICES` widened additively so a request or a
+cached clip still naming Autonoe is answered rather than refused.
+
+**The audio floor did not move**, proved rather than assumed: `liveCall.ts` is
+one of the six lanes, so the echosim law applied even for a name-only edit.
+80 simulated calls before and after, **byte-identical, same MD5** — every cell
+of the floor table unchanged.
+
+**No cache purge**, because `cache-outlives-the-voice`'s fix makes one
+unnecessary: identity is in the key, so every Autonoe clip became unreachable
+the moment the constant moved.
+
+**Open, and it needs money rather than a decision:** the drift baseline could
+not be re-anchored — `prosody-baseline.mjs --establish` needs the paid
+OpenRouter lane and the key answers 403 "Key limit exceeded". It was NOT
+redirected to the free Gemini pool; that quota is shared production
+infrastructure (`free-tts-daily`). The baseline therefore still reads **Aoede,
+2026-08-15**, the alarm will fire on the next run, and `verify-voice.mjs` §7b-ii
+prints the stale anchor as a note on every run. One command once a key is funded.
+
+**Reverses if:** the owner's ear says otherwise — `--set <Voice>` is the same
+one command in either direction.
+
+---
+
+## `identity-wins` — a user key no longer overrides her voice (2026-08-24)
+
+**Decision (coordinator).** Her own voice is preferred on the cascade whenever
+it is reachable. Sarvam and ElevenLabs user keys become failover only — below
+her voice, above the device engine — instead of automatic overrides.
+
+**Rationale.** The owner's verbatim complaint is her voice changing between
+modes. A user key used to flip the cascade, the pickup line and the backchannels
+to another vendor while the live lane, the native watch engine and her voice
+notes could not follow, so the fallback — the thing that fires exactly when
+something has already gone wrong mid-call — was also the moment she became a
+different woman. One woman beats better-Hinglish-sometimes.
+
+**Priced honestly:** ElevenLabs is the only engine that can perform an audio
+tag, and losing tag performance on the cascade is the cost. Sarvam cannot
+perform one at all, so nothing is lost on a Sarvam install.
+
+**Found while implementing, and it sharpens the case:** nothing in the tree ever
+WRITES `sarvamKey`, `elevenKey` or `elevenVoiceId` — there is no settings
+screen; they are read by two files and set by none (`dead-writers` with the
+polarity reversed). But `store.ts` hydrates as a shallow spread over defaults,
+so a key written by any earlier build survives every update, invisibly, with no
+UI that could clear it. Unreachable in a fresh install, permanent in an old one,
+and undiscoverable from inside the app — which is a fair description of the
+owner's own year-old install.
+
+**The opt-in UI is a future slice**, named as such rather than implied.
+
+**Reverses if:** the owner explicitly chooses Hinglish quality over voice
+constancy for fallbacks — flip `VOICE_IDENTITY_WINS` and the previous
+preference order returns exactly.
+
+---
+
+## `watch-exit-returns-to-live` — every exit from the native lane tries to come back (2026-08-24)
+
+**Decision.** All three exits from the native watch lane attempt
+`reconnectLiveAfterWatch()`, and `verify-voice.mjs` §7d asserts the property
+rather than the call sites so a fourth exit inherits it.
+
+**What was actually wrong.** Task #96 built the reconnect correctly and wired it
+to `watch_stopped` and `watch_stopped_externally`. Nothing regressed. It missed
+`watch_consent_denied`, because #96 was framed as *"stopping a share must not
+strand the call"* and **a denial is not a stop** — the share never started.
+
+Starting a share claims the native lane BEFORE the consent dialog (deliberately:
+a queued TTS clip would otherwise surface as a second voice), which kills the JS
+live session. Deny, and the call finishes on a different model family in
+exchange for a share that never happened. It is the likeliest of the three to
+fire — declining a permission dialog is ordinary, and the dialog appears on
+every share.
+
+**No lifecycle interaction:** `recordShareEnd` is called only from the two stop
+paths and the web teardown, so the deny path emits no `share_end` fact and
+nothing can double-send.
+
+**Reverses if:** re-adoption proves audibly disruptive in production — the
+handoff goes through `adoptLiveLate`, which defers to a turn boundary, so the
+evidence would be `call.lane_change` records landing mid-utterance.
+
+---
+
+## `model-twins-pinned` — a fallback that differs from the primary is the config nobody observes (2026-08-24)
+
+**Decision.** `LiveWatchEngine.java`'s `DEFAULT_MODEL` is now the same string as
+`api/live-token.js`'s `LIVE_MODEL`, pinned by `verify-voice.mjs` §7c.
+
+It was `gemini-2.5-flash-native-audio-latest` — measured and rejected for this
+lane (`live-model-bake`, 0/24 barge-in) — sitting as the silent fallback on the
+one surface where the triple-swap happens, while the JS twin has no fallback at
+all. The two disagreed about the model AND about whether a fallback should
+exist. A malformed token response now costs a round trip instead of changing
+which model family speaks. Distinct models producing her voice: 3 → 2.
+
+The old §2 declaration is kept as a comment, not deleted: an entry's absence is
+otherwise indistinguishable from having forgotten it.
+
+**Reverses if:** the live model and the watch lane ever need to differ
+deliberately — in which case declare both in §2 and say why in
+`docs/VOICE-LANE.md`, which is what §7c's failure message asks for.
+
+## `despina-by-ear` — her voice is Despina, chosen blind, switched atomically
+
+**Decided 2026-08-24.** Owner: Autonoe read "too rural"; wanted hot, modern,
+urban. Eight-voice blind deck (A–H, shuffled, mapping sealed — the voice-ears
+law), same Hinglish script, same style direction, generated on the fresh
+free-pool day (8 paced calls, zero 429s). Owner picked D = Despina ("smooth");
+runner-up A = Leda. Switched with `verify-voice.mjs --set Despina` — all six
+lanes atomically; echosim before/after byte-identical (MD5 26fc602…); cached
+clips self-invalidate (identity now lives in every cache key). Drift baseline
+NOT re-anchored (OpenRouter key spent) — the alarm fires by design and the
+gate prints the stale anchor until a funded key runs prosody --establish.
+
+**Reverses if:** the owner's ears say so — numbers cannot pick her voice.
+
+## `currentcolor-marks-inline-or-mask` — a currentColor SVG never rides an img tag
+
+**Decided 2026-08-24 (WS-ASSETWIRE).** Marks drawn in currentColor resolve
+against the SVG document inside an img — black on all five skies. So: CSS
+mask + background currentColor for the wordmark (inherits the exact ink the
+contrast gate already proves, @supports-guarded with the text fallback), and
+?raw inlining for every other currentColor mark (stats, reply, or-coin,
+filetypes, ErrorBoundary — the last one deliberately, so the crash card
+needs no fetch at the moment something already failed). src/components/
+anim.tsx is the single seam that knows /anim/ paths and makes the
+reduced-motion decision. **Reverses if** the marks stop being currentColor.
+
+## `os-first-optimization` — owner directive (2026-08-24), standing law for all optimization work
+
+Three rules the owner set when cost/scale work began, ranking above any
+optimization win:
+1. **Quality is never compromised.** The goal is human-to-human interaction;
+   an optimization that moves felt quality by even 1% is rejected regardless
+   of savings. (Consistent with the standing speed/quality directive.)
+2. **Changes land at the OS layer by default** — so when the personality
+   changes (Maya to anyone else), the work carries over. The OS gets better
+   permanently; per-persona rework is the failure mode.
+3. **Maya-level changes are allowed where truly persona-specific**, but must
+   be logged and documented well enough that the next personality-building
+   agent can read what is Maya's and what is the OS's. persona.ts's coming
+   core/character split is the structural form of this rule.
+
+**Reverses if:** the owner says so. This node is the anchor future agents
+cite when deciding where a change belongs.
+
+## `labeled-key-pool` — owner-tagged keys for RCA, one-way key→label
+
+**Decided 2026-08-24.** Owner supplied ~48 free-tier Gemini keys tagged by
+account. Pool entries carry an owner LABEL (env `label~key`, or _config
+`GOOGLE_KEYRING:[{label,key}]`); the label names whose key, never the key, and
+the map is one-way (key→label) so a leaked label cannot reconstruct a secret.
+chat.js records `pool.served_label` per turn and `_gkeys.poolRca()` counts
+quota/transient by label per instance — the RCA the owner asked for ("which key
+is whose, which one dies"). Switching stays the existing zero-latency in-memory
+walk (COOL_MS/SICK_MS cooldowns, bounded retries, paid key last). Keys live only
+in gitignored files (keyring.json / _config.js / google-keys.env); all 48
+measured healthy on arrival. scripts/keyring.mjs manages rotation; docs/KEYRING.md
+is the guide. **Reverses if:** a label ever needs to reconstruct a key (it must
+not) — then the scheme is wrong, not the requirement.
+
+**Note (measured 2026-08-24):** the `AQ.Ab8RN6…` key format that 403'd on
+2026-08-13 now validates 200 on countTokens — the earlier rejection was a bad
+individual key, not the format. 48/48 healthy.
+
+## `personality-is-a-sheet` — the RelationalOS existence proof: two people, one core
+
+**Decided and proven 2026-08-24.** The relational layer (persona.ts,
+becoming the Relational Core) owns every interaction nuance; a personality
+is a CharacterSheet (29 typed fields) interpolated into it. Kabir — male,
+29, Old Delhi bookseller, English-dominant, dry, near-emoji-less: maximally
+far from Maya on every axis — was authored as a sheet only, registered, and
+passed the ENTIRE per-module invariant floor on the first run: **412/412
+checks across 2 registered agents**, while Maya stayed byte-identical
+(83/83 fixtures against the frozen oracle) through five extraction batches.
+Extraction is scripted (bytes cut and re-interpolated programmatically) so
+copy errors are structurally impossible. Builders take the sheet as a
+defaulted parameter, so every existing call site is unchanged.
+
+Known v1 gaps, declared: WATCH/SEARCH/FORGET directives still carry a few
+Maya example phrases (reused as-is by kabir's module); slot-heads live in
+sheet fields rather than core; remaining Maya quotes sit inside MIXED core
+bullets. The R3 cross-agent leak guard measures exactly these so further
+extraction is evidence-ordered. **Reverses if** authoring a real third
+personality still requires touching the core — that is the ongoing test.
+
+## `two-phase-fuse` — slow voice beats no voice
+
+**Decided 2026-08-24, during the speech outage.** api/speech.js keeps the
+fast fuse (FREE_FIRST_FRAME_MS=1400) hunting for a healthy-fast key across
+the walk, but when the walk ends with no winner and the pool is nonempty,
+ONE long-fuse attempt (FREE_LONG_FRAME_MS=15000, slowBudget=1) runs before
+the paid lane. Rationale: the measured failure mode was Google being SLOW
+(9.7–11.3s first frame), not dead — on such a night the old chain returned
+502 with 48 working keys in hand. Verified in production the same night:
+200, free lane, 61KB audio at ~13s where the previous deploy 502'd.
+Companion decision, same commit: FAMILY COOLING — keys are labeled
+`owner-n` with an @domain family; a quota/slow failure cools the whole
+family (COOL_MS=5min quota, SICK_MS slow) and a walk-local deadFamilies
+set skips siblings mid-walk, so a dead 20-key family costs one attempt,
+not twenty. walkKeys gained an additive slowBudget param (default
+unchanged). **Reverses if**: the long pass measurably delays the paid
+fallback on genuinely-dead nights once a funded paid lane exists (today's
+paid lane is dead, so the 15s costs nothing), or Google's preview exits
+degraded mode and the p95 first frame returns under ~2s for a month —
+then the long fuse can shrink, not vanish.
+
+## `accent-joins-the-sky` — every color on the sky is the sky's to solve
+
+**Decided 2026-08-25** (owner report: hero rose unreadable at morning, web
++ APK). The theme's --accent belongs to surfaces the theme controls;
+anything painted ON the sky takes tokens the SKY solves per state — ink
+already worked this way, and the accent was the last borrower (2.26:1 on
+morning's blue top stop). Each sky state now carries `accent`: the brand
+rose hue at the lightness nearest brand clearing >= 4.75:1 against all
+four scrim-composited stops, emitted as --world-accent, gated per state
+in check-contrast.mjs at the 4.5 body floor. Fallback var() keeps the
+theme rose off-sky. **Reverses if** a future sky state cannot host any
+recognisable rose at the floor — then that state's hero drops the accent
+entirely rather than shipping an unreadable one.

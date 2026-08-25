@@ -450,7 +450,7 @@ const paintingOf = (page, sel) =>
   // touch: it is the product's standing promise about what she is.
   ok(
     "settings: the AI-disclosure footer is verbatim",
-    settings.foot === "Meera is an AI. She'll tell you so if you ask.",
+    settings.foot === "Maya is an AI. She'll tell you so if you ask.",
     settings.foot,
   );
 

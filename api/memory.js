@@ -16,6 +16,14 @@
 
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
+// A1 (docs/research/MEMORY-FIELD-SURVEY.md §Q5): the mutation-time forget
+// matcher's one model call. Deliberately the SAME helper api/chat.js reaches
+// the free pool with — a forget must not grow a second, differently-behaved
+// key rotation that nobody notices going stale.
+import { withGeminiKey, isQuota, isTransient, poolSize } from "./_gkeys.js";
+// ONE definition of "five pictures", shared with the chat payload guard so the
+// composer's cap cannot mean one thing at upload and another at send.
+import { MAX_IMAGES } from "./_lanes.js";
 // WS-CONSOLIDATE (M3) deltas to opRemember/opRecall only — see the two
 // functions below for the marked sections. embedOne/toHalfvecLiteral back
 // opRecall's semantic pre-filter (SPEC §0.3: halfvec, person-filtered exact
@@ -2427,6 +2435,7 @@ export const PERSON_TABLES = [
   // required for scripts/relcheck.mjs's manifest-coverage check, which fails
   // any person-keyed vy_* table that is absent from this list.
   { table: "vy_surface_identity", key: "person_id", lane: "relational" },
+  { table: "vy_push_token", key: "device_id", lane: "relational", agent: true },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];
@@ -3272,6 +3281,297 @@ function dayWindow(body) {
   return [start, start + 86_400_000];
 }
 
+// ── A1 — THE MUTATION-TIME FORGET-MATCHING HOOK ───────────────────────────
+//
+// docs/research/MEMORY-FIELD-SURVEY.md §Q5 / adopt-list A1. The problem it
+// solves, in one line: our forget PROPAGATION is the strongest thing in this
+// repo and it only ever fires on what the MATCHER selects, and the matcher is
+// `lower(term)` — while the product is Hinglish, where one referent inside one
+// relationship is "woh ladki", "us waali", "my ex" and her actual name, in one
+// sentence, across two scripts. Measured on our own battery (evals/forget/):
+// the lexical matcher takes 5.9% of the rows an adversarial ask means.
+//
+// WHY MUTATION TIME AND NOWHERE ELSE. Three placements exist and two are
+// forbidden here:
+//   * recall time — a filtered row is a row recall can still see. L2 is not a
+//     preference and this is not a soft delete.
+//   * inscribe time — puts a model in the per-turn extraction path, costs
+//     every turn, and scores 0% on intent-aware deletion in the source paper.
+//   * MUTATION time — the only regime compatible with a hard delete, and the
+//     one that measures best. It also runs a few times a DAY across all users
+//     rather than a few times a minute, which is what makes it affordable.
+//
+// WHAT IT DOES AND DOES NOT DO. It resolves a REFERENT to node ids, and the
+// names of the nodes it picks become additional lexical terms for everything
+// downstream — logs, telemetry, the synced blob, events, photos, the
+// suppression list. Not one line of the §9.1 cascade changes. The hook widens
+// the SELECTION and nothing else.
+//
+// THE CLOSURE THAT MAKES IT SAFE. The model is shown a numbered list of rows
+// and may return only numbers from that list; `parseForgetHook` drops anything
+// else. It therefore CANNOT name a row it was not shown, cannot invent a
+// person, and cannot widen the delete beyond this device's own candidates.
+// That is the anti-fabrication property, and it is structural rather than
+// prompted — the prompt asking nicely would not be evidence of anything.
+//
+// UNION, NOT REPLACE. The delete takes lexical ∪ hook. Under-deleting is the
+// wrong direction for this law (§Q5: "falling back to the deterministic terms
+// means under-deleting, which is the wrong direction"), so a hook that
+// under-selects can only ever be as bad as today, never worse. It also makes
+// the fallback trivial: the fallback IS one side of the union.
+//
+// L4 EXPOSURE: none. Row text goes UP to the resolver and ids come back; no
+// model-authored sentence is stored, and `meera_forget` — which gains the
+// resolved names — is never read by recall and never enters a prompt
+// (noteForgotten()'s own header).
+
+/** The chat lane's own free-pool model, reached through the same helper
+ *  api/chat.js uses. Chosen by measurement, not by taste — see
+ *  evals/forget/a1.mjs, which runs this exact prompt against the candidate
+ *  models and prints the recall of each. */
+// ── WHICH LANE, AND WHY THAT ORDER (measured, 2026-08-23) ─────────────────
+// The plan for this hook was the free Gemini pool, through the same helper
+// api/chat.js uses. The battery said otherwise, and said it twice in one hour:
+//
+//   * the free pool run came back 35.3% adversarial recall with **18 of 27
+//     calls 429'd** — all nine keys exhausted together. That is a number about
+//     quota, not about matching.
+//   * the check for a clean read of the same MODEL through OpenRouter got 403
+//     "Key limit exceeded" on the very first call. Both free lanes were dead
+//     within the same hour, which is `free-pool-capacity` (~75 calls/day,
+//     shared with production) arriving exactly as it was measured to.
+//   * the Azure credits lane answered 27 of 27, p50 2.19 s, **76.5%**.
+//
+// So the order is credits FIRST, free pool second — which is also the order
+// this very file already uses for extraction, for the reason stated there: a
+// bad Azure minute must cost a slower answer, never a lost memory. Reversing
+// it would put an UNMEASURED model on the primary path of a delete promise to
+// save a fraction of a cent on an operation that runs a few times a day.
+//
+// REVERSES IF: the free pool stops being saturated (owner credits, a bigger
+// pool) AND a clean free-lane run of evals/forget/a1.mjs matches the credits
+// lane's recall. Then free-first is strictly better and this comment is why.
+const FORGET_HOOK_AZ_MODEL = "grok-4-1-fast-reasoning";
+const FORGET_HOOK_MODEL = "gemini-3.6-flash";
+const GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+/** The fuse. A forget is one of the few places a user is genuinely waiting on
+ *  a promise being kept, and "haan hata diya" is sent only after commit — so
+ *  the hook is allowed to add seconds, but a bounded number of them. Measured
+ *  p50 2.19 s / max 7.88 s on the credits lane, so this cuts the tail and
+ *  keeps the median. Past it the lexical matcher answers and the receipt is
+ *  marked hedged. */
+const FORGET_HOOK_FUSE_MS = 5_000;
+/** HARD per-op call cap, counted across BOTH lanes. `withGeminiKey` will
+ *  happily walk three keys plus the billed one; a forget is not worth four
+ *  round trips of a user staring at a screen, and the free pool is a DAILY
+ *  budget shared with production (`free-pool-capacity`, ~75 calls/day). Two
+ *  upstream requests, then the deterministic answer and an honest hedge. */
+const FORGET_HOOK_MAX_CALLS = 2;
+/** How many rows the resolver may see. Two sources, in this order: the rows
+ *  the EXISTING lexical predicate already found (they are the likeliest
+ *  answer and they cost nothing extra), then a recency window, because a
+ *  referring expression — "woh ladki", "wo wali baat" — is almost always
+ *  about something recent, and it is the case where the lexical predicate
+ *  returns nothing at all. */
+const FORGET_HOOK_LEX_CAP = 40;
+const FORGET_HOOK_RECENT = 30;
+/** One row of context per candidate, capped. A node summary is a sentence or
+ *  two; a runaway one must not be able to push the rest of the list out. */
+const FORGET_HOOK_ROW_CHARS = 220;
+
+/**
+ * The resolver prompt. STRUCTURAL AND SCHEMA-FORCED, with no persona in it at
+ * all: this is a matching primitive, not Meera, and giving it a voice would
+ * make it a second place her character lives and a second thing to keep in
+ * sync. Written as rules and a schema rather than as examples, for the same
+ * reason `persona.ts` carries no example quotes — anything sentence-shaped in
+ * a prompt gets recited, and here that would mean a phrase bank of referents.
+ *
+ * Exported so `evals/forget/a1.mjs` measures THE SHIPPED PROMPT rather than a
+ * copy of it. A frozen copy that drifts is how a suite reports a pass on a
+ * tree it never saw (`gates-that-live-nowhere`).
+ */
+export function forgetHookPrompt(marker, rows) {
+  const list = rows
+    .map((r) => `[${r.id}] ${String(r.text || "").replace(/\s+/g, " ").trim().slice(0, FORGET_HOOK_ROW_CHARS)}`)
+    .join("\n");
+  return [
+    {
+      role: "system",
+      content:
+        "You resolve a deletion request against a numbered list of stored rows and return the ids to delete. " +
+        "You return JSON and nothing else.",
+    },
+    {
+      role: "user",
+      content:
+        `REQUEST (verbatim, may be Hinglish, Devanagari, romanised, or English):\n<<<${marker}>>>\n\n` +
+        `ROWS:\n${list}\n\n` +
+        `Return exactly: {"ids":[...]}\n` +
+        `RULES\n` +
+        `1. Every id you return MUST appear in brackets above. A number that does not is invalid.\n` +
+        `2. Return a row when the REQUEST is about the same person, thing or episode that row is about — across language, script, spelling, transliteration, inflection and word order.\n` +
+        `3. Return EVERY row about that same referent, not just the clearest one.\n` +
+        `4. Do NOT return a row that merely shares a word with the request but is about a different person or thing.\n` +
+        `5. If the request refers to something you cannot locate among these rows, return {"ids":[]}. An empty answer is a correct answer.\n` +
+        `Output JSON only.`,
+    },
+  ];
+}
+
+/**
+ * Parse the resolver's reply into ids, CLOSED over the ids it was shown.
+ *
+ * Returns null when the reply is unusable (that is a hook failure and gets the
+ * fallback), and an array — possibly empty — when it is usable. The empty
+ * array is a real answer, not a failure: it is what produces the honest ask
+ * instead of a false receipt.
+ */
+export function parseForgetHook(text, allowedIds) {
+  if (typeof text !== "string") return null;
+  // models fence JSON about half the time; take the first object either way
+  const m = /\{[\s\S]*\}/.exec(text);
+  if (!m) return null;
+  let j;
+  try {
+    j = JSON.parse(m[0]);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(j?.ids)) return null;
+  const allow = new Set(allowedIds.map(String));
+  const out = [];
+  for (const raw of j.ids) {
+    const id = String(raw);
+    // THE CLOSURE. An id that was not on the list does not exist as far as this
+    // function is concerned — no fuzzy match, no coercion, no "close enough".
+    if (allow.has(id) && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+/** The candidate rows: what the existing predicate found, then recency. */
+async function forgetCandidates(device, name, rx) {
+  const seen = new Map();
+  const add = (rows) => {
+    for (const r of rows) {
+      if (seen.size >= FORGET_HOOK_LEX_CAP + FORGET_HOOK_RECENT) return;
+      if (!seen.has(String(r.id))) {
+        seen.set(String(r.id), {
+          id: String(r.id),
+          name: r.name,
+          text: [r.name, r.summary].filter(Boolean).join(" — "),
+        });
+      }
+    }
+  };
+  add(
+    await q(
+      `select id, name, summary from meera_nodes
+        where device_id = $1 and (name = $2 or name ~* $3 or summary ~* $3)
+        order by updated_at desc limit ${FORGET_HOOK_LEX_CAP}`,
+      [device, name, rx],
+    ).catch(() => []),
+  );
+  add(
+    await q(
+      `select id, name, summary from meera_nodes
+        where device_id = $1 order by updated_at desc limit ${FORGET_HOOK_RECENT}`,
+      [device],
+    ).catch(() => []),
+  );
+  return [...seen.values()];
+}
+
+/**
+ * Ask the resolver. Returns `{ ids }` on success or `{ failed: true }`, which
+ * is the caller's cue to keep the lexical answer and hedge the receipt.
+ *
+ * Two lanes, credits then free pool, hard-capped at FORGET_HOOK_MAX_CALLS
+ * upstream requests TOTAL across both — see the lane note above for why that
+ * order and not the other one. The free half goes through `withGeminiKey`, the
+ * same helper api/chat.js uses, so a spent key and a sick key are already
+ * handled correctly instead of by a second, quietly-different rotation.
+ *
+ * There is deliberately no third lane. OpenRouter is what `extractChat` falls
+ * to, and on the day this was built its key was over its limit — a third
+ * round trip for a third chance at a 403 is dead air, and the lexical matcher
+ * plus an honest hedge is a better product than a user watching a spinner.
+ *
+ * Exported for the same reason `recordPhotoMemory` and `personIdFor` are: the
+ * lane plumbing is the half of this that a prompt-and-parser test cannot see,
+ * and evals/forget/a1.mjs's `--live` smoke check drives THIS function rather
+ * than a transport of its own. It takes plain arguments and touches no
+ * database, so exporting it buys the coverage and exposes nothing.
+ */
+export async function askForgetHook(marker, candidates) {
+  if (!candidates.length) return { failed: true };
+  const messages = forgetHookPrompt(marker, candidates);
+  const allowed = candidates.map((c) => c.id);
+  let calls = 0;
+  const budget = () => calls < FORGET_HOOK_MAX_CALLS;
+
+  // ── lane 1: credits ──────────────────────────────────────────────────────
+  if (AZ_ENDPOINT && AZ_KEY && budget()) {
+    calls++;
+    try {
+      const r = await fetch(`${AZ_ENDPOINT}/chat/completions`, {
+        method: "POST",
+        headers: { "api-key": AZ_KEY, "Content-Type": "application/json" },
+        // temperature 0: a delete is not a place for sampling variety. The
+        // provider may ignore it on a reasoning model — measured run-to-run
+        // drift of one row on one case out of 27 says it partly does — but
+        // asking for determinism costs nothing and not asking is a choice.
+        body: JSON.stringify({
+          model: FORGET_HOOK_AZ_MODEL,
+          max_tokens: 2000,
+          temperature: 0,
+          messages,
+        }),
+        signal: AbortSignal.timeout(FORGET_HOOK_FUSE_MS),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        const ids = parseForgetHook(j?.choices?.[0]?.message?.content, allowed);
+        if (ids) return { ids };
+      }
+    } catch {
+      /* fall through to the free pool — a bad Azure minute is not a failed
+         forget, it is a slower one */
+    }
+  }
+
+  // ── lane 2: the free pool ────────────────────────────────────────────────
+  if (poolSize() === 0 || !budget()) return { failed: true };
+  const got = await withGeminiKey(async (gkey) => {
+    // the cap is enforced HERE rather than by trusting the helper's own
+    // MAX_TRIES, which is tuned for a user waiting on speech and may be
+    // raised again by someone who is not thinking about this call site
+    if (!budget()) return { ok: false, error: "hook call cap" };
+    calls++;
+    const r = await fetch(GEMINI_OPENAI_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${gkey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: FORGET_HOOK_MODEL,
+        max_tokens: 300,
+        temperature: 0,
+        messages,
+      }),
+      signal: AbortSignal.timeout(FORGET_HOOK_FUSE_MS),
+    });
+    if (isQuota(r.status)) return { ok: false, exhausted: true };
+    if (isTransient(r.status)) return { ok: false, retry: true, error: `hook ${r.status}` };
+    if (!r.ok) return { ok: false, error: `hook ${r.status}` };
+    const j = await r.json().catch(() => null);
+    const ids = parseForgetHook(j?.choices?.[0]?.message?.content, allowed);
+    // an unparseable 200 is the same failure as a 500 for our purposes
+    if (!ids) return { ok: false, retry: true, error: "hook unparseable" };
+    return { ok: true, value: ids };
+  });
+  return got.value ? { ids: got.value } : { failed: true };
+}
+
 // Scopes, and what each one actually means in rows:
 //   item    — one remembered thing by name: its node, its edges, and the raw
 //             turns that say the word. Deleting the node but keeping the
@@ -3300,6 +3600,9 @@ async function opForget(device, body) {
   let synced = { rows: 0, rewritten: 0 };
   let events = 0;
   let traces = 0;
+  // A1: how the item scope's row selection was actually decided, and whether
+  // she is entitled to say "hata diya". See the receipt block at the bottom.
+  let hook = null;
 
   // meera_log's owning columns, from the manifest (§3.3 `keys`). A room turn
   // is written under the room's synthetic device uuid, which is in nobody's
@@ -3321,36 +3624,85 @@ async function opForget(device, body) {
     // precise about what it takes, not merely enthusiastic
     if (name.length < 3) return { error: "nothing named" };
     const rx = `\\m${reEsc(name)}\\M`;
+    // ── A1: resolve the REFERENT before anything is deleted ───────────────
+    // It has to run first for a mechanical reason as well as a logical one:
+    // the candidates it reads are the rows the delete is about to take, so a
+    // hook that ran afterwards would be shown an empty table.
+    //
+    // What it is shown as the REQUEST is `name` — the marker the model already
+    // emits ([forget: X], FORGET_DECISION), not the user's raw sentence. Two
+    // reasons: the marker is the referring expression itself ("woh ladki"), so
+    // the raw turn adds mostly noise; and it keeps the request side of the
+    // contract unchanged, which is what makes evals/forget/'s pre-registered
+    // baseline a like-for-like comparison instead of a different experiment.
+    //
+    // `nohook` is the SPOKEN lane opting out (src/engine/memory.ts). It takes
+    // the fallback path deliberately rather than being a second, quieter
+    // implementation of it — one code path, one receipt vocabulary.
+    const candidates = body.nohook ? [] : await forgetCandidates(device, name, rx);
+    const resolved = body.nohook
+      ? { failed: true }
+      : await askForgetHook(name, candidates).catch(() => ({ failed: true }));
+    const hookIds = resolved.ids ?? [];
+    hook = {
+      // `used` is whether the hook ANSWERED, not whether it was attempted —
+      // the difference is the whole of the fallback story
+      used: !resolved.failed,
+      candidates: candidates.length,
+      chosen: hookIds.length,
+    };
+    // The widened predicate: the asked-for word, plus the NAME of every node
+    // the resolver picked out. This is the join between the two halves — the
+    // model resolves "woh ladki" to a node, and that node's name is what the
+    // log/telemetry/blob/event sweeps below then match on, exactly as if the
+    // user had typed the name themselves. Downstream code is untouched.
+    const hookNames = candidates
+      .filter((c) => hookIds.includes(c.id))
+      .map((c) => String(c.name || "").trim().toLowerCase());
+    const terms = [
+      ...new Set([name, ...hookNames].filter((t) => t.length >= 3).map(reEsc)),
+    ].slice(0, 12);
+    // Same word-boundary shape as `rx`, over an alternation. The >= 3 filter
+    // above is the same refusal the scope guard makes at the top: a two-letter
+    // term word-matches half the log, and a forget must be precise about what
+    // it takes rather than merely enthusiastic.
+    const rxWide = terms.length > 1 ? `\\m(${terms.join("|")})\\M` : rx;
     // summary as well as name: "priya" lives on inside a node called
-    // "wedding" whose one line is about her, and that node is the same fact
+    // "wedding" whose one line is about her, and that node is the same fact.
+    // UNION with the resolver's ids: under-deleting is the wrong direction for
+    // this law, so the hook may only ever ADD to what the lexical predicate
+    // already found. A hook that picks nothing degrades exactly to today.
     nodeRows = await q(
       `delete from meera_nodes n where device_id = $1
-       ${agentScopePredicate("n", { agentId: "$4" })}
-       and (name = $2 or name ~* $3 or summary ~* $3)
+       ${agentScopePredicate("n", { agentId: "$5" })}
+       and ((name = $2 or name ~* $3 or summary ~* $3) or id::text = any($4))
        returning id, name`,
-      [device, name, rx, agentId],
+      [device, name, rx, hookIds, agentId],
     );
     edges = await dropEdgesFor(device, nodeRows.map((n) => n.id), agentId);
     logRows = await q(
       `delete from meera_log where (${logOwner}) and agent_id = (${logAgentP})::uuid
        and content ~* ${logP(1)} returning id`,
-      [...logOwnerVals, rx],
+      [...logOwnerVals, rxWide],
     );
-    telemetry = await purgeTelemetry(device, { rx });
+    telemetry = await purgeTelemetry(device, { rx: rxWide });
     // P2-1: the same word, in the server's copy of the conversation and in the
     // analytics rows. Before the relational cascade, so that if the cascade
     // throws the receipt is never sent while the blob is still standing.
-    synced = await purgeSyncedState(device, { rx });
-    events = await purgeEvents(device, { rx });
+    synced = await purgeSyncedState(device, { rx: rxWide });
+    events = await purgeEvents(device, { rx: rxWide });
     // the turn trace holds no words, so an item scope has nothing to match on
     // — called anyway, and returning 0, so the receipt's shape is the same on
     // every scope and a future rx-able column cannot land unwired
-    traces = await purgeTurnTrace(device, { rx });
+    traces = await purgeTurnTrace(device, { rx: rxWide });
     // derived state: episodes citing the deleted rows, then everything citing
-    // those episodes, lineage chased, snapshot replayed (§9.1 steps 2–6)
+    // those episodes, lineage chased, snapshot replayed (§9.1 steps 2–6).
+    // rxWide, not rx: the cascade is the half of forget that is actually good,
+    // and handing it the un-widened term would be resolving the referent and
+    // then throwing the answer away one line before the part that uses it.
     relational = await purgeRelational(device, scope, {
       logIds: logRows.map((r) => r.id),
-      rx,
+      rx: rxWide,
     });
     // #85: and the FILES those rows described. An item forget has no window,
     // so deletePhotos() (which needs one) never ran for this scope and the
@@ -3470,9 +3822,48 @@ async function opForget(device, body) {
   // how many pictures went, never which ones
   if (relational) delete relational.photoNames;
 
+  // ── A1: THE RECEIPT, AND WHAT SHE IS ENTITLED TO SAY ──────────────────────
+  //
+  // The worst failure available on this whole path is agreeing to forget and
+  // then not deleting: "a person who claims to have forgotten you while
+  // remembering your unfinished match is not forgetting, she is lying about
+  // forgetting" (`activity-forgot-the-teardown`). Until now an item forget
+  // that matched NOTHING returned ok:true with every count at zero and the
+  // client showed a receipt anyway — a false receipt, on the strongest promise
+  // in the product, and the more Hinglish the ask the more often it fired.
+  //
+  // Three outcomes, and only the first entitles her to the past tense:
+  //   "done"   — rows went. Say so.
+  //   "hedged" — the resolver did not answer; the deterministic matcher did,
+  //              and it is the matcher we already know takes 5.9% of what an
+  //              adversarial ask means. Rows DID go, so nothing she says is
+  //              false, but the system records that the delete may be partial
+  //              rather than pretending the two cases are the same.
+  //   "none"   — nothing matched under either path. There is no receipt to
+  //              give; the client asks which one they meant.
+  //
+  // Window scopes are not gated: "forget today" is its own referent and
+  // deletes exactly the window it names, whether or not the window had
+  // anything in it. There is no referent to resolve and so nothing to hedge.
+  // Every counter in the receipt, summed. Read off the object rather than
+  // listed by name on purpose: purgeRelational's return grows a key every time
+  // a table joins the manifest, and a hand-written list here would go stale
+  // silently and start reporting "nothing matched" for a delete that worked.
+  const took =
+    logRows.length + nodeRows.length + edges + photos + telemetry + events + traces +
+    synced.rows + synced.rewritten +
+    Object.values(relational ?? {}).reduce((a, v) => a + (typeof v === "number" ? v : 0), 0);
+  const receipt =
+    scope !== "item" ? "done" : took > 0 ? (hook?.used ? "done" : "hedged") : "none";
+
   return {
     ok: true,
     scope,
+    // the receipt carries the OUTCOME and never the words: no term, no row
+    // text, no candidate — a field naming the thing would outlive the memory
+    // it deleted, which is the rule the diag call on this path already follows
+    receipt,
+    hook,
     deleted: {
       log: logRows.length,
       nodes: nodeRows.length,
@@ -3612,14 +4003,37 @@ async function deletePhotoObjects(device, factNames) {
   }
 }
 
-async function opUploadPhoto(device, body) {
-  const b64 = String(body.data || "");
-  if (b64.length > 2_200_000) return { error: "too large" };
-  const mime = /^image\/(jpeg|png|webp)$/.test(String(body.mime)) ? body.mime : "image/jpeg";
-  const buf = Buffer.from(b64, "base64");
-  if (!buf.length) return { error: "empty" };
-  // per-device quota: a public write endpoint with no ceiling is a storage
-  // bill waiting to happen. 500 photos per device is far beyond real use.
+// ── the picture upload, one or five (WS-RESILIENCE ← WS-COMPOSER handoff) ──
+//
+// Per image, on the base64 as sent. This is the number that already shipped on
+// the single-photo path and it stays exactly that number: it is looser than
+// api/_lanes.js's chat-payload cap on purpose, because these are different
+// pipes. The chat cap bounds N images inside ONE model request (vision tokens,
+// real money, a platform body limit); this bounds ONE object going into
+// storage. Tightening it here to "be consistent" would reject photos that
+// upload fine today, which is a regression dressed as tidiness.
+const PHOTO_B64_MAX = 2_200_000;
+// A batch together. Five at the per-image cap would be 11MB in one request
+// body, which is past what a serverless function should be handed; the real
+// composer compresses to a few hundred KB each, so this never binds in practice
+// and binds hard on a client that stops compressing.
+const PHOTO_BATCH_B64_MAX = 6_000_000;
+// 500 photos per device is far beyond real use. A public write endpoint with no
+// ceiling is a storage bill waiting to happen.
+const PHOTO_PER_DEVICE_MAX = 500;
+
+/** `"data:image/jpeg;base64,xxx"` or bare base64 → the base64 payload. The
+ *  legacy path sends bare base64; the composer sends data URLs. */
+function photoB64(raw) {
+  const s = String(raw || "");
+  if (!s.startsWith("data:")) return s;
+  const comma = s.indexOf(",");
+  return comma < 0 ? "" : s.slice(comma + 1);
+}
+
+/** How many objects this device already has. `null` when unknown — the caller
+ *  allows the upload rather than breaking photos over a failed count. */
+async function photoCount(device) {
   try {
     const list = await fetch(`${SB_URL}/storage/v1/object/list/meera-photos`, {
       method: "POST",
@@ -3628,13 +4042,40 @@ async function opUploadPhoto(device, body) {
         Authorization: `Bearer ${SB_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ prefix: `${device}/`, limit: 501 }),
-    }).then((r) => (r.ok ? r.json() : []));
-    if (Array.isArray(list) && list.length > 500) return { error: "photo limit reached" };
+      body: JSON.stringify({ prefix: `${device}/`, limit: PHOTO_PER_DEVICE_MAX + 1 }),
+    }).then((r) => (r.ok ? r.json() : null));
+    return Array.isArray(list) ? list.length : null;
   } catch {
-    /* quota check unavailable — allow the upload rather than break photos */
+    return null;
   }
-  const path = `${device}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+}
+
+/**
+ * ONE object name, in the shape the forget cascade can turn back into a path.
+ *
+ * `photoPathsFromFactNames` matches `/^photo:(\d{6,}-[a-z0-9]{2,12})$/` and
+ * `photoIdFromUrl` matches `/\/([0-9]+-[a-z0-9]+)\.jpe?g$/`. So the name has
+ * exactly ONE dash and a lower-case alphanumeric suffix — an index appended for
+ * batch uniqueness (`…-ab12cd-3.jpg`) would carry TWO dashes, would silently
+ * stop matching both, and the JPEG would outlive the memory row describing it
+ * on an item-scope forget. That is `pk-is-an-arbiter`'s shape: an object name is
+ * also a parser's input, and changing it changes every reader that parses it.
+ * In-batch uniqueness is bought with a longer random suffix (still inside
+ * `{2,12}`) plus an explicit collision check, rather than with a new segment.
+ */
+function photoPath(device, taken) {
+  for (let i = 0; i < 8; i++) {
+    const p = `${device}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.jpg`;
+    if (!taken.has(p)) {
+      taken.add(p);
+      return p;
+    }
+  }
+  return null;
+}
+
+/** Store one buffer. Returns the public URL, or null. */
+async function putPhoto(path, buf, mime) {
   const up = await fetch(`${SB_URL}/storage/v1/object/meera-photos/${path}`, {
     method: "POST",
     headers: {
@@ -3644,9 +4085,79 @@ async function opUploadPhoto(device, body) {
       "x-upsert": "false",
     },
     body: buf,
-  });
-  if (!up.ok) return { error: "upload failed" };
-  return { url: `${SB_URL}/storage/v1/object/public/meera-photos/${path}` };
+  }).catch(() => null);
+  if (!up || !up.ok) return null;
+  return `${SB_URL}/storage/v1/object/public/meera-photos/${path}`;
+}
+
+/**
+ * `{ data, mime } → { url }` (legacy, unchanged) or
+ * `{ images: [dataUrl|base64, …≤5], mime } → { urls: [...] }` (batch).
+ *
+ * The batch exists so the composer stops paying five round trips for one send.
+ * The legacy shape is answered exactly as before, because it is what every
+ * already-installed build still sends and what the describe-then-remember path
+ * uses.
+ *
+ * `caption` is accepted and deliberately IGNORED: the caption is the message's
+ * own text (`Message.text` in store.ts) and this endpoint stores bytes. Two
+ * homes for one caption is two things to keep in sync, and the second reader is
+ * the one that derives it wrongly (`duration-is-seconds`).
+ *
+ * ALL OR NOTHING. If any image in a batch fails, the ones that succeeded are
+ * deleted and the whole call reports failure — so the client's documented
+ * per-image fallback cannot double-write and leave orphan JPEGs. A
+ * half-succeeded batch is precisely the shape that produces files with no row
+ * describing them, which is the one residual the forget cascade cannot reach
+ * (see the `#85` note above).
+ */
+async function opUploadPhoto(device, body) {
+  const mime = /^image\/(jpeg|png|webp)$/.test(String(body.mime)) ? body.mime : "image/jpeg";
+  const batch = Array.isArray(body.images);
+
+  // ── validate ──
+  const raw = batch ? body.images : [body.data];
+  if (batch && raw.length > MAX_IMAGES) return { error: "too many images" };
+  const bufs = [];
+  let total = 0;
+  for (const item of raw) {
+    const b64 = photoB64(item);
+    if (b64.length > PHOTO_B64_MAX) return { error: "too large" };
+    total += b64.length;
+    if (total > PHOTO_BATCH_B64_MAX) return { error: "too large" };
+    const buf = Buffer.from(b64, "base64");
+    // An empty entry fails the WHOLE call rather than being skipped: the
+    // contract is `urls` the same length as `images`, and a silently shorter
+    // array would pair picture 4 with picture 5's URL in the thread.
+    if (!buf.length) return { error: "empty" };
+    bufs.push(buf);
+  }
+  if (!bufs.length) return { error: "empty" };
+
+  // ── quota, once for the whole batch ──
+  const have = await photoCount(device);
+  if (have !== null && have + bufs.length > PHOTO_PER_DEVICE_MAX) {
+    return { error: "photo limit reached" };
+  }
+
+  // ── store ──
+  const taken = new Set();
+  const paths = bufs.map(() => photoPath(device, taken));
+  if (paths.some((p) => !p)) return { error: "upload failed" };
+  const urls = await Promise.all(paths.map((p, i) => putPhoto(p, bufs[i], mime)));
+  if (urls.some((u) => !u)) {
+    const orphans = paths.filter((_, i) => urls[i]);
+    if (orphans.length) {
+      const n = await deleteStorageObjects(orphans).catch(() => 0);
+      if (n < orphans.length) {
+        console.warn(`[upload] ${orphans.length - n} orphan object(s) from a partial batch`);
+      }
+    }
+    return { error: "upload failed" };
+  }
+  // Both keys on both paths, so a client mid-rollout works either way and
+  // neither reader can be broken by the other's shape.
+  return batch ? { urls, url: urls[0] } : { url: urls[0], urls };
 }
 
 // ── WS-PHOTOS: the photo → relational record delta (docs/PHOTOS.md,

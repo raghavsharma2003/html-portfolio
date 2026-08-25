@@ -9,8 +9,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import type { AppState, Message } from "../state/store";
-import { uid } from "../state/store";
+import type { AppState, Message, ShareRecord } from "../state/store";
+import { uid, withShareRecord } from "../state/store";
 import { think, formatHerLife } from "../engine/brain";
 import {
   speakCall,
@@ -81,30 +81,46 @@ import {
   callGraphBlocks,
   callRecentTurns,
   formatActivityLedgerForCall,
+  formatJustHappened,
   formatMemoryNote,
   formatRunningNote,
   formatSharedHistory,
   preCallUserText,
+  publishShareLedger,
   readsAsMemoryCue,
+  shareLedger,
   withRecallAge,
   RECALL_CACHE_MAX_AGE_MS,
+  // WS-LIFECYCLE: the overlap matrix and its facts. Every `direct` cell in
+  // LIFECYCLE_MATRIX has its sender in this file, and evals/lifecycle/run.mjs
+  // reads these names back out of this source to prove it.
+  boardClosedFact,
+  boardOpenedFact,
+  boardOverFact,
+  boardTurnFact,
+  shareEndedFact,
+  lifecycleStateNote,
 } from "../voice/callHistory";
 import { readsAsFarewell } from "../voice/farewell";
 // T16 her.commitments. TYPE-FREE pure transcript walk (honesty.ts imports
 // nothing at all), and the compiler slot has existed and rendered zero bytes
 // on this lane since it shipped — the caller is what was missing.
 import { herCommitments } from "../engine/honesty";
-import { activityOf, activityPickupLine, lastAssessment } from "../state/game";
+import { activityOf, activityPickupLine, lastAssessment, noteVerdict } from "../state/game";
+// WS-HERNOW. Her present moment as a LEDGER with one row rather than a fresh
+// improvisation at every pickup — see src/engine/herNow.ts.
+import { herNowAt, herNowScene, type HerNowEntry, type HerNowRead } from "../engine/herNow";
 import { clearCallStatus, publishCallStatus } from "../state/callStatus";
 import { activityNote } from "../engine/activity";
-import { exchangeFact, moveFact } from "../engine/chessTalk";
+import { chessMoveNote } from "../engine/chessTalk";
 import { wyrPickFact } from "../engine/wyrTalk";
 import { cardById } from "../engine/wyr/deck";
-import { tttMoveFact } from "../engine/tttTalk";
+import { tttMoveNote, tttNoteworthy, tttUrgent } from "../engine/tttTalk";
 import { assessMove } from "../engine/chess";
 import { innerContext, applyInner, wantsForAppraisal } from "../engine/inner";
 import {
   ensureOverlay,
+  setWatchMediaAudio,
   setWatchPrivate,
   startWatch,
   stopStrayWatch,
@@ -283,6 +299,11 @@ const MOVE_POKE_MS = 700;
 // moment. The poke waits out the pause (re-arms) unless the note is urgent.
 const POKE_FLOOR_MS = 25_000;
 const HER_BREATH_MS = 3_000;
+// How long to wait before re-drafting a note the send seam held because she was
+// mid-sentence. Short: the note is being REBUILT from the live board, not
+// queued, so this is a poll for a gap in her speech rather than a delay on a
+// decision that has already been made.
+const SEAM_REDRAFT_MS = 600;
 
 // ── P1-4: THE RING THAT MISSED ITS DEADLINE ───────────────────────────────
 //
@@ -421,6 +442,13 @@ export function useCallEngine(
   // she would go mysteriously blind for reasons she could not explain.
   const [watchPaused, setWatchPaused] = useState(false);
   const watchPrivate = useRef(false);
+  // ── WS-WATCHPERF: "let her hear it" ──────────────────────────────────
+  // Whether the phone's own audio is riding the uplink alongside the mic.
+  // DEFAULT OFF, per share, never persisted: device audio is consented to
+  // exactly like the picture, and a remembered preference is a consent nobody
+  // gave for the next share. The native side resets it at teardown too, so
+  // this state and that flag agree even if this WebView is killed mid-share.
+  const [watchHears, setWatchHears] = useState(false);
   const [heard, setHeard] = useState("");
   const [sttSupported, setSttSupported] = useState(true);
   const [elapsed, setElapsed] = useState(0);
@@ -475,6 +503,11 @@ export function useCallEngine(
   // beside it and for the same reason — the diag record reports its bytes
   // without re-deriving them.
   const activityBlockRef = useRef("");
+  // WS-SHARENOW's block, kept beside them and for the same reason: the diag
+  // record reports its BYTES without re-deriving it. `just_happened: 0` on a
+  // call placed a minute after a share is the exact signal the owner's report
+  // had no way to produce.
+  const justHappenedRef = useRef("");
   // G-C4, as an assertion rather than a promise: the number of times a LIVE
   // system prompt has been built on this call. It must be 1. A mid-call
   // reassembly is a different person mid-sentence, and the failure is
@@ -639,6 +672,89 @@ export function useCallEngine(
     pendingShowWake.current = null;
     if (moment && !watchPrivate.current) postWatchMoment(stateRef.current.deviceId, text);
   }
+
+  // ── WS-SHARENOW: THE LOCAL MIRROR, WRITTEN AT SHARE END ────────────────
+  //
+  // The owner shared his screen, hung up, called back sixty seconds later and
+  // asked what they had watched. Nothing could answer him. `postWatchMoment`
+  // above writes the server's copy, and every property that makes it the right
+  // shape for a durable record makes it the wrong shape for THIS question:
+  // it is fire-and-forget, it is gated to the first line she speaks inside a
+  // 12-second SHOW-wake window (so two of three commentary lines are never
+  // sent), and reading it back costs a round trip that has to beat
+  // `RING_FETCH_DEADLINE_MS` on the next ring. A memory that has to win a race
+  // to exist is a memory that is sometimes absent, and "sometimes" on the one
+  // thing he actually asked about is the whole defect.
+  //
+  // So the device keeps its own copy, written SYNCHRONOUSLY here, off
+  // `stateRef.current.messages`, which is already in memory. Same argument as
+  // the shared-history block at the ring and the same argument as
+  // `AppState.activities`: local-first, no round trip, no embedding, correct
+  // signed out. The server row is still written — this is a mirror, not a
+  // replacement — and `said` is EXACTLY the text `postWatchMoment` sends
+  // rather than a second derivation of it (`warm-count-unscoped`).
+  //
+  // WHAT IT MAY CONTAIN, and this is the contract rather than a detail: HER
+  // OWN LINES. Not a word about what was on the screen. `Message.watched`'s
+  // rule is that screen-derived talk is conversation and never durable memory
+  // about his life; her reactions are the half that survives that rule,
+  // because she said them and they are true regardless of whether the reading
+  // behind them was — which is exactly why `vy_shared_moment.assertion_id` is
+  // nullable. Nothing here re-derives the screen.
+  //
+  // Called from EVERY end-of-share path — the web lane's `cleanup()` (which
+  // the browser's own "stop sharing" also lands in), the native lane's
+  // external-stop callback, and `stopWatchMode` — and those paths overlap on
+  // purpose (`endCall` → `stopWatchMode` → `cleanup`). `withShareRecord`
+  // dedupes on `startedAt`, so being called three times for one share is safe
+  // and is cheaper than a fourth flag to keep in sync.
+  function recordShareEnd(lane: ShareRecord["lane"], startedAt: number) {
+    if (!Number.isFinite(startedAt) || startedAt <= 0) return;
+    const endedAt = Date.now();
+    const said = stateRef.current.messages
+      .filter(
+        (m) =>
+          m.watched === true &&
+          m.from === "her" &&
+          m.kind === "text" &&
+          Boolean(m.text?.trim()) &&
+          Number.isFinite(m.at) &&
+          m.at >= startedAt &&
+          m.at <= endedAt,
+      )
+      .map((m) => m.text);
+    const rec: ShareRecord = { startedAt, endedAt, lane, said };
+    // The holder is published from the ref-derived value so a compile site can
+    // read it in THIS tick; the store gets the functional update, which is the
+    // copy that persists and the one the next ring prefers. One store, one
+    // pointer at it — never two answers.
+    publishShareLedger(withShareRecord(stateRef.current.shares, rec));
+    setState((s) => ({ ...s, shares: withShareRecord(s.shares, rec) }));
+    tel("watch.recorded", { lane, said: said.length, duration_ms: endedAt - startedAt });
+    // ── WS-LIFECYCLE: share_end × call_live ────────────────────────────
+    //
+    // The mirror above is for the NEXT call. This is for THIS one: the
+    // pictures simply stop arriving, and until now nothing told her that.
+    // She had been woken by WATCH_START_DIRECTIVE and left in the register of
+    // someone watching a screen, with no event anywhere that could end it —
+    // the exact mirror image of the start, which has had a note since it
+    // shipped.
+    //
+    // `liveSession.current` is the gate and it is doing real work rather than
+    // being defensive: `endCall` nulls the session BEFORE it calls
+    // stopWatchMode, so a hangup that ends a share sends nothing into a line
+    // that is already gone. A share the USER stopped mid-call still has a
+    // session here, which is exactly the case that needs the note.
+    const live = liveSession.current;
+    if (live) {
+      const note = activityNote(shareEndedFact(Math.round((endedAt - startedAt) / 1000)));
+      if (note) {
+        diag("call", "lifecycle_note", { cell: "share_end", lane });
+        live.direct(note);
+      }
+    }
+  }
+
   const callId = useRef("");
 
   const voiceOpts = {
@@ -655,6 +771,39 @@ export function useCallEngine(
       ? "eleven"
       : "gemini";
 
+  // ── HER PRESENT MOMENT (WS-HERNOW) ────────────────────────────────────
+  //
+  // THE ONE READ every lane on this file goes through: the frozen live
+  // prompt, the cascade's per-turn compile, and the pickup directive's scene.
+  // One row, so those three cannot name three activities.
+  //
+  // Precedence is the scene fence, in order:
+  //   1. APP TRUTH — a board mid-game, a game that just finished. He can SEE
+  //      it, so it outranks anything she would otherwise be doing, and the
+  //      line is passed through EXACTLY as `activityPickupLine` worded it.
+  //      One vocabulary for what an activity is called, or the pickup and the
+  //      tail block drift apart (state/game.ts's own note).
+  //   2. THE STORED LEDGER, for as long as its natural span runs. This is the
+  //      whole fix: a second pickup one minute later gets the SAME entry, so
+  //      the second answer is the first answer with the clock moved on.
+  //   3. the deterministic derivation, which is also what gets committed.
+  //
+  // The commit is idempotent and keyed, so the three calls a single pickup
+  // makes write at most once, and only when the ledger genuinely moved.
+  const presentNow = (now: number = Date.now()): HerNowRead => {
+    const act = activityOf(stateRef.current.game, now);
+    const read = herNowAt({
+      now,
+      stored: stateRef.current.herNow,
+      appTruth: act ? { line: activityPickupLine(act), startedAt: act.startedAt } : null,
+    });
+    if (read.commit) {
+      const row: HerNowEntry = read.commit;
+      setState((s) => (s.herNow?.key === row.key ? s : { ...s, herNow: row }));
+    }
+    return read;
+  };
+
   const brainKeys = () => ({
     openrouterKey: stateRef.current.openrouterKey,
     openrouterModel: stateRef.current.openrouterModel,
@@ -663,7 +812,10 @@ export function useCallEngine(
     // what she has already told them about her own life — the same ledger the
     // chat uses. Without it she'd have one flatmate in chat and another on the
     // phone, which is the self-contradiction this whole fix exists to kill
-    herLife: formatHerLife(stateRef.current.herLife),
+    // T7 carries her told-ledger AND, appended, her present minute — the same
+    // one row the pickup scene below is worded from, so the cascade lane and
+    // the directive can never name two different activities.
+    herLife: formatHerLife(stateRef.current.herLife, Date.now(), presentNow().entry),
     // and where her own day left her. brain.ts decides whether it reaches the
     // prompt at all: only when the last message is >45 min old, which on a
     // call means pickup and never a mid-call turn or a goodbye.
@@ -928,6 +1080,17 @@ export function useCallEngine(
       // at connect, so it is the only chance this call gets. See
       // `callMemories` in memory.ts for why the tail beats a flush here.
       memories: callMemories(recallRef.current, chatTail),
+      // THE TOLD LEDGER ONLY — no present-minute block, and the reason is
+      // honesty rather than budget. THIS PROMPT IS FROZEN AT CONNECT
+      // (`liveAssemblies` is asserted to read 1 for the whole call), and the
+      // present-moment block carries an ELAPSED. "going on: about 20 min"
+      // frozen at pickup is simply false forty minutes into the call, and a
+      // duration she cannot recompute is the one thing herNow.ts exists to
+      // make impossible. Her present reaches this lane the way every other
+      // piece of moving state does: through `direct()` — CALL_OPEN_DIRECTIVE's
+      // `scene` at pickup, worded from the SAME ledger row by `presentNow()`
+      // below, at the instant it is true. See the herNow rows in
+      // evals/lanes/run.mjs for the same verdict written down per lane.
       herLife: formatHerLife(stateRef.current.herLife),
       // chat-only by construction inside compile(); passed empty for clarity
       cultureNoteText: "",
@@ -1052,6 +1215,11 @@ export function useCallEngine(
       // signal that the LOCAL ledger never reached this lane — which is the
       // defect this block closes, arriving from the other direction.
       activity_block: activityBlockRef.current.length,
+      // WS-SHARENOW, and it is the field the owner's report could not produce:
+      // `just_happened: 0` on a call placed minutes after a share is the
+      // defect itself, visible at connect instead of visible as "she didn't
+      // know what we watched" weeks later. Bytes, never content.
+      just_happened: justHappenedRef.current.length,
       // ROWS, not bytes: `herCommitments` returns records, and a field named
       // for one unit carrying the other is how a number starts lying quietly.
       her_commitments_n: herOpen.length,
@@ -1222,6 +1390,11 @@ export function useCallEngine(
       s.direct(
         `<context: you are mid-call; the line just cleared up. What was said so far:\n${said}\nContinue the SAME conversation from exactly where it is. Do NOT greet again, do NOT restart, do NOT mention the line or anything technical. If it isn't your turn to speak, just a tiny natural acknowledgement or near-silence>`,
       );
+      // WS-LIFECYCLE. This session runs on `liveSystemRef` — the prompt
+      // compiled at CONNECT, which is older here than on any other path: a
+      // late upgrade or a post-share reconnect can be many moves after it was
+      // written. Same close, same reason.
+      settleBoardAfterPickup(s);
       track(stateRef.current.deviceId, "live_call_upgraded", { ...liveTiming.current });
     };
     attempt();
@@ -1440,10 +1613,33 @@ export function useCallEngine(
     // `readRecallCache` never restores a bundle from storage, so what can be
     // served here is bounded by the app session. A cache older than
     // RECALL_CACHE_MAX_AGE_MS is not served at all.
+    // ── WS-SHARENOW: what they JUST did, from the LOCAL mirror ────────────
+    // The owner's report: shared his screen, hung up, called back ONE MINUTE
+    // later, asked what they had watched — and nothing in the brief could
+    // answer him. The shared-history block above carries share commentary, but
+    // as the LAST three turns before the callmark (so the small talk after the
+    // share evicts it) and under a heading that opens "BEFORE TODAY" and says
+    // it is not news and never gets read back. See `formatJustHappened` for
+    // the full path.
+    //
+    // Written SYNCHRONOUSLY here, from state already in memory, for exactly
+    // the reason the shared-history block above is: a block derived from local
+    // state must never be made to wait on a round trip, or a rejected ring
+    // fetch takes the local half down with it. `state.shares` first and the
+    // published holder second, the same one-store-one-pointer rule the ledger
+    // line above follows.
+    const justBlock = formatJustHappened(
+      state.shares ?? shareLedger(),
+      state.activities ?? activityLedger(),
+      state.messages,
+      tRing,
+    );
+    justHappenedRef.current = justBlock;
     const cached = readRecallCache();
     const cacheUsable =
       cached && tRing - cached.at > 0 && tRing - cached.at <= RECALL_CACHE_MAX_AGE_MS;
     recallRef.current = callGraphBlocks(
+      justBlock,
       ledgerBlock,
       shared,
       cacheUsable ? withRecallAge(cached.block, cached.at, tRing) : "",
@@ -1464,7 +1660,7 @@ export function useCallEngine(
         // session's instruction; it upgrades what the NEXT compile site sees.
         // An empty result must not wipe a usable cache, so the floor stands.
         if (memories) {
-          recallRef.current = callGraphBlocks(ledgerBlock, shared, memories);
+          recallRef.current = callGraphBlocks(justBlock, ledgerBlock, shared, memories);
           recallFromCache.current = false;
           writeRecallCache(memories, relBundle, Date.now());
         }
@@ -1649,6 +1845,7 @@ export function useCallEngine(
         // rule mid-brief loses to the directive appended last
         // (`prompt-position`), so the directive itself must carry the scene.
         winner.direct(CALL_OPEN_DIRECTIVE(pickupOpts())); // she picks up, spoken live
+        settleBoardAfterPickup(winner); // WS-LIFECYCLE: close the frozen "her move"
         track(stateRef.current.deviceId, "live_call_started", { ...liveTiming.current });
         return; // realtime session owns the call from here
       }
@@ -1658,6 +1855,7 @@ export function useCallEngine(
         const s2 = liveSession.current;
         if (!mutedRef.current) s2.setMuted(false);
         s2.direct(CALL_OPEN_DIRECTIVE(pickupOpts()));
+        settleBoardAfterPickup(s2); // WS-LIFECYCLE: same close on the by-a-hair path
         track(stateRef.current.deviceId, "live_call_started", { ...liveTiming.current });
         return;
       }
@@ -2227,6 +2425,15 @@ export function useCallEngine(
     };
     let started = false;
     let frameN = 0;
+    // ── WS-WATCHPERF: the frame lifecycle, correlated ────────────────────
+    // `frameN` counts encodes and is sampled 1-in-10 for volume; `frameSeq`
+    // is the id of the last frame that ACTUALLY reached the socket, and it is
+    // what a wake and her reaction are stamped with. Two different questions:
+    // how much work the loop did, and which picture she answered about.
+    let frameSeq = 0;
+    let wakeAt = 0;
+    let wakeSeq = 0;
+    let sawSpeaking = false;
     let lastBlank = false;
     let holdSince = 0;
     let lastSentAt = 0;
@@ -2297,7 +2504,16 @@ export function useCallEngine(
         class: cls,
         frame_age_ms: frameAge,
         suppressed_by: "none",
+        // WS-WATCHPERF: which frame she is being asked to look at. Without a
+        // seq the trace can say a wake fired and a frame was sent and cannot
+        // say whether they were the same picture, which is the whole
+        // question behind "she commented on the wrong thing".
+        seq: frameSeq,
+        still_age_ms: lastStillFrameAt ? now - lastStillFrameAt : -1,
       });
+      // the start of her reaction leg — closed by the speaking edge in pump()
+      wakeAt = now;
+      wakeSeq = frameSeq;
       wakes[wakeIdx] = now;
       wakeAmbient[wakeIdx] = !show;
       wakeIdx = (wakeIdx + 1) % WAKE_CEILING;
@@ -2321,8 +2537,10 @@ export function useCallEngine(
       // heuristic ever engages this.
       if (watchPrivate.current) return false;
       if (at - lastGrabAt < CHANGE_SEND_MS) return false;
+      const t0 = performance.now();
       const url = grab(FRAME_SIDE, FRAME_Q);
       if (!url) return false;
+      const encodeMs = Math.round(performance.now() - t0);
       // SAMPLED, deliberately: frames go out up to twice a second for the
       // length of a film, and one telemetry record per frame would be a
       // bigger stream than the thing it describes.
@@ -2336,7 +2554,11 @@ export function useCallEngine(
         track(stateRef.current.deviceId, "watch_frame_first", { web: true });
       }
       const sent = liveSession.current?.sendFrame(url.split(",")[1] ?? "") ?? false;
-      if (sample)
+      if (sent) frameSeq++;
+      // SAMPLED for volume, but a REFUSAL is never sampled away: a frame that
+      // did not reach her is the entire reason this record exists, and the
+      // 1-in-10 rule used to throw away exactly the interesting ones.
+      if (sample || !sent)
         tel("watch.frame", {
           watch_id: watchId.current,
           age_ms: lastSentAt ? at - lastSentAt : -1,
@@ -2347,6 +2569,8 @@ export function useCallEngine(
           held,
           sent,
           n: frameN,
+          seq: frameSeq,
+          encode_ms: encodeMs,
         });
       // only a frame that REACHED her spends the cadence slot: a frame the
       // socket refused must be retried on the next tick, not treated as
@@ -2428,6 +2652,25 @@ export function useCallEngine(
         } else if (s.wake) {
           wake(s.wake);
         }
+
+        // ── WS-WATCHPERF: the leg the owner actually complained about ──
+        // wake sent -> her voice starts. Read off the speaking edge rather
+        // than off a callback inside liveCall.ts, deliberately: that file is
+        // under the echosim law and this is a measurement, not a mechanism.
+        // The cost is DETECT_MS of quantisation on a number whose typical
+        // value is 700-1700ms (`her-reaction-736`), which is well inside the
+        // precision any decision here would need.
+        const nowSpeaking = speakingRef.current;
+        if (nowSpeaking && !sawSpeaking && wakeAt) {
+          tel("watch.reaction", {
+            watch_id: watchId.current,
+            ms: at - wakeAt,
+            seq: wakeSeq,
+            lane: "web",
+          });
+          wakeAt = 0;
+        }
+        sawSpeaking = nowSpeaking;
       }
       timer = setTimeout(pump, DETECT_MS);
     };
@@ -2438,6 +2681,13 @@ export function useCallEngine(
     let stopped = false;
     const cleanup = (reason = "user") => {
       if (timer) clearTimeout(timer);
+      // WS-SHARENOW: FIRST, and synchronously — before the tracks are stopped,
+      // before the session ref is nulled, before anything else in this
+      // teardown can throw. What she said over this screen is the thing a call
+      // sixty seconds from now will be asked about, and it is derived from
+      // state already in memory, so nothing about ending a share may be
+      // allowed to lose it.
+      recordShareEnd("web", watchStartedAt);
       stream.getTracks().forEach((tr) => tr.stop());
       frameRef.current = null;
       watchSession.current = null;
@@ -2664,6 +2914,10 @@ export function useCallEngine(
         () => {
           // capture ended outside our UI (notification, system revoke)
           if (!watchSession.current) return; // already torn down here
+          // WS-SHARENOW: an external stop is still a share ending, and the
+          // mirror is written on every path that ends one — same rule the web
+          // lane's cleanup() applies, and this is the native lane's cleanup.
+          recordShareEnd("native", nativeWatchAt.current);
           watchSession.current = null;
           frameRef.current = null;
           // a wake from this share must never outlive it — same rule the web
@@ -2679,6 +2933,8 @@ export function useCallEngine(
             lane: "native",
           });
           nativeWatchAt.current = 0;
+          watchHearsRef.current = false; // per share, same as the picture
+          setWatchHears(false);
           // same hardware-release beat as stopWatchMode before re-arming
           claimVoice("cascade", "watch_stopped_externally");
           setTimeout(() => {
@@ -2713,6 +2969,25 @@ export function useCallEngine(
             Date.now(),
           );
         },
+        (detail) => {
+          // WS-WATCHPERF: the native frame lifecycle, into the ONE diag
+          // stream — which is what makes `scripts/pull-trace.mjs` able to
+          // answer "why was she slow" for a NATIVE share at all. Before this,
+          // the capture service emitted no telemetry of any kind: the lane
+          // the owner actually uses was the one lane with no record.
+          //
+          // Pass-through, deliberately. The record is shaped natively (it is
+          // the only place that knows encode time, socket refusals and the
+          // wake→her-voice gap) and re-deriving any of it here would be a
+          // second opinion that can disagree with the thing it describes.
+          // The event name is the native `ev` field so the trace reads as
+          // watch.frame / watch.wake / watch.reaction alongside the web
+          // lane's own records, and an unknown name still lands — a leg
+          // nobody allowlisted is the one an incident turns out to be about.
+          if (!watchSession.current) return; // a record outliving its share
+          const ev = typeof detail.ev === "string" ? detail.ev : "diag";
+          diag("watch", ev, { ...detail, watch_id: watchId.current, lane: "native" });
+        },
       );
       setWatching(true);
       lastCommentAt.current = Date.now();
@@ -2744,6 +3019,34 @@ export function useCallEngine(
       if (!watchSession.current && voiceOwner.current === "native") {
         claimVoice("cascade", "watch_consent_denied");
         if (alive.current && !mutedRef.current) startListening();
+        // #96 APPLIES HERE TOO, AND THIS IS THE CASE IT MISSED (WS-ONEVOICE,
+        // 2026-08-24). Nothing regressed: #96 landed correctly for both STOP
+        // paths — `stopWatchMode` and the external-stop callback each call
+        // this. It was framed as "stopping a share must not strand the call",
+        // and a DENIAL is not a stop, because the share never started. So the
+        // one path where she is downgraded for the rest of the call in
+        // exchange for NOTHING was the one path left out.
+        //
+        // The sequence: tapping share runs `claimVoice("native",
+        // "watch_started")` BEFORE the Android consent dialog — deliberately,
+        // so a queued TTS clip cannot surface as a second voice behind it —
+        // and that kills the JS live session. The dialog then appears, they
+        // hit Deny, and we land here with no live session and no share. The
+        // call finishes on the cascade, a different model family from the one
+        // it started on (docs/VOICE-LANE.md §6.4 row 8 records the identity
+        // change and nothing was wired to undo it).
+        //
+        // It is also the LIKELIEST of the three to fire: declining a
+        // permission dialog is an ordinary thing to do, and on Android the
+        // dialog appears on every single share.
+        //
+        // No share was recorded on this path — `recordShareEnd` is called only
+        // from the two stop paths and the web teardown — so there is no
+        // `share_end` lifecycle fact in flight here and nothing this can
+        // double-send. The reconnect is the seamless kind: `adoptLiveLate`
+        // connects first and defers the swap to a turn boundary, so she is
+        // never cut mid-word by a share that never happened.
+        void reconnectLiveAfterWatch();
       }
     } finally {
       watchStarting.current = false;
@@ -2752,11 +3055,24 @@ export function useCallEngine(
 
   function stopWatchMode() {
     const s = watchSession.current;
+    // WS-SHARENOW: the NATIVE lane has no teardown hook of its own — the web
+    // lane reports its own stop from inside its `cleanup()`, one place and one
+    // record, and `s?.stop()` below reaches it synchronously — so the native
+    // mirror is written here, on the same "one watch.stop, one place" rule the
+    // telemetry below already follows. `endCall` funnels through this
+    // function, so a hangup that ends a share records it BEFORE
+    // postEpisodeCallEnd fires and before the screen goes away.
+    if (s && nativeWatchAt.current) recordShareEnd("native", nativeWatchAt.current);
     watchSession.current = null;
     frameRef.current = null;
     pendingShowWake.current = null; // defense-in-depth; web's own cleanup() also clears this
     setWatching(false);
     setSentAt(0);
+    // "let her hear it" is per share, exactly as the picture is — the native
+    // teardown clears its own flag too, and both must agree even if one of
+    // them is the thing that failed
+    watchHearsRef.current = false;
+    setWatchHears(false);
     // the web lane reports its own stop from inside its teardown (one place,
     // one record); the native lane has no such hook, so it is reported here
     if (s && nativeWatchAt.current) {
@@ -2847,6 +3163,35 @@ export function useCallEngine(
       // nor a pending reaction window from behind the closed curtain
       pendingShowWake.current = null;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * "LET HER HEAR IT" — device audio into the uplink, alongside the mic.
+   *
+   * Same shape as the look-away for the same reason: one stable toggle that
+   * reads the ref and flips it, so CallStatus's equality check holds and no
+   * caller has to know the current value.
+   *
+   * Native only. The web lane's getDisplayMedia asks for `audio: false` and
+   * keeps doing so — tab audio there is a different consent with different
+   * browser UI, and the owner's report is about the phone.
+   */
+  const watchHearsRef = useRef(false);
+  const onToggleHears = useCallback(() => {
+    const on = !watchHearsRef.current;
+    watchHearsRef.current = on;
+    setWatchHears(on);
+    tel("watch.media_audio", { watch_id: watchId.current, on });
+    void setWatchMediaAudio(on).then((actual) => {
+      // an older shell, or a device that cannot do playback capture, answers
+      // false — the chip must say what is true, not what was asked for
+      if (actual !== on) {
+        watchHearsRef.current = actual;
+        setWatchHears(actual);
+        tel("watch.media_audio", { watch_id: watchId.current, on: actual, why: "unavailable" });
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3531,27 +3876,236 @@ export function useCallEngine(
   //    her unprompted moves are reason-contingent, and a move he made while
   //    she is not looking is not a reason.
   // Everything the pickup directive needs to be TRUE, computed at use time:
-  // the live activity, how long since the last call ended (people who hung
+  // her present moment, how long since the last call ended (people who hung
   // up two minutes ago do not re-greet each other), and who dialled.
+  //
+  // `scene` used to be the app truth ALONE — `activityPickupLine(activityOf(
+  // …))` — which is "" on the overwhelming majority of calls, and an empty
+  // scene fell through to the directive's improv clause. That clause is what
+  // re-rolled her present moment at every pickup. It is now never empty: with
+  // no board on screen the scene is her own ledgered activity WITH ITS
+  // ELAPSED in it, which is the thing a re-call has to be able to repeat.
   const pickupOpts = () => {
     let lastCallMinAgo: number | null = null;
     const ms = stateRef.current.messages;
+    const now = Date.now();
     for (let i = ms.length - 1; i >= 0; i--) {
       const m = ms[i];
       if (m.kind === "callmark" && m.at) {
-        lastCallMinAgo = Math.max(0, Math.round((Date.now() - m.at) / 60_000));
+        lastCallMinAgo = Math.max(0, Math.round((now - m.at) / 60_000));
         break;
       }
     }
     return {
-      scene: activityPickupLine(activityOf(stateRef.current.game)) || undefined,
+      scene: herNowScene(presentNow(now).entry, now) || undefined,
       lastCallMinAgo,
       sheCalled,
     };
   };
 
+  // ── WS-LIFECYCLE: THE OVERLAP MATRIX, WIRED ───────────────────────────
+  //
+  // `callHistory.ts`'s LIFECYCLE_MATRIX says, for every (event × concurrent
+  // context) pair, HOW the fact reaches her. This block is every cell in it
+  // whose carrier is `direct` and whose owner is this workstream. The cells
+  // carried by `assembly` need no code here — that is what makes them
+  // `assembly` — and the cells marked `state` are asserted as properties of
+  // AppState by the gate rather than implemented as anything.
+  //
+  // WHY THIS IS ONE EFFECT AND NOT THREE. The board's three endings (opened,
+  // finished, closed by hand) are ONE transition read off ONE snapshot, and
+  // splitting them is how `game_end` and `game_closed` would eventually
+  // disagree about what a closed-with-status board is. The poke effect below
+  // deliberately does NOT do this job: it is about MOVES, its whole design is
+  // salience and rate-limiting, and its `ply === null` branch — a board that
+  // vanished — returns silently by construction. That silent return is the
+  // owner's reported case and the reason this effect exists.
+  type GameSnap = { key: string; kind: string; ply: number; open: boolean; over: boolean };
+  const snapOf = (g: typeof state.game): GameSnap | null => {
+    if (!g) return null;
+    const ply = g.kind === "wyr" ? g.rounds.length : g.game.played.length;
+    const over = g.kind === "wyr" ? false : Boolean(g.game.status?.over);
+    return { key: `${g.kind}:${g.startedAt}`, kind: g.kind, ply, open: !g.closedAt, over };
+  };
+  const lastGameSnap = useRef<GameSnap | null>(null);
+  // The first run of the effect ADOPTS whatever is on screen without saying a
+  // word — a board that was already open when the call connected is the
+  // `call_start × game_open` cell, which the frozen compile already carried as
+  // T15 and as the pickup scene. Narrating it here would be telling her twice.
+  const lifecycleAdopted = useRef(false);
+
+  useEffect(() => {
+    const snap = snapOf(state.game);
+    const prev = lastGameSnap.current;
+    lastGameSnap.current = snap;
+    if (!lifecycleAdopted.current) {
+      lifecycleAdopted.current = true;
+      return;
+    }
+    const s = liveSession.current;
+    // Not on the frozen lane: chat and cascade both recompile with
+    // `activityOf(game)` on every turn, so a note here would be a second copy
+    // of T15. That is the matrix's `assembly` carrier, and it is why these
+    // cells have no code.
+    if (!s) return;
+    // ── game_start × call_live ──────────────────────────────────────────
+    if (snap?.open && (!prev || prev.key !== snap.key)) {
+      const note = activityNote(boardOpenedFact(snap.kind));
+      if (note) {
+        diag("call", "lifecycle_note", { cell: "game_start", kind: snap.kind });
+        s.direct(note);
+      }
+      return;
+    }
+    // ── game_end / game_closed × call_live ──────────────────────────────
+    // The board is gone, or the same board stopped being open. Which of the
+    // two endings it was decides the whole content: a finished game has a
+    // result and an abandoned one explicitly does not, and the second is the
+    // owner's case ("the board was just closed, left unfinished at move N").
+    const ended = prev?.open && (!snap || (snap.key === prev.key && !snap.open));
+    if (!ended || !prev) return;
+    // `activityOf` is the SINGLE derivation both lanes read (state/game.ts's
+    // own note) and it has already rewritten an ended-early board's facts to
+    // "no result". Read it rather than re-deriving the ending here, or the
+    // note and T15 start describing two different games.
+    // ── WHO ALREADY SAID IT ──────────────────────────────────────────
+    // A checkmate does NOT set `closedAt` — the finished board sits on his
+    // screen until he closes it — and the move poke below has already
+    // narrated that ending through its `urgent` branch (status.over crosses
+    // the rate floor and the breath pause, which is the whole reason that
+    // branch exists). So a board that was ALREADY over when he closed it is
+    // not news, and a note here would be her announcing the same ending
+    // twice, minutes apart. Recorded as suppressed rather than dropped
+    // silently: "she said nothing" and "nothing asked her to" are opposite
+    // bugs (the watch lane's own rule).
+    if (prev.over) {
+      diag("call", "lifecycle_note", { cell: "game_end", kind: prev.kind, dropped: "poke_already_said" });
+      return;
+    }
+    const act = activityOf(stateRef.current.game);
+    // over AND closed in one update — the ending never got its own poke.
+    const finished = Boolean(snap?.over);
+    // A NINE-SQUARE BOARD IS LOCATED BY ITS SQUARES, not by a move number —
+    // see `boardClosedFact`. The count comes off the live session rather than
+    // being derived from the ply here, so a board that is somehow out of step
+    // with its own move list still reports what it actually holds.
+    const cur = stateRef.current.game;
+    const openSquares =
+      cur && cur.kind === "ttt"
+        ? cur.game.board.reduce((n, c) => n + (c === null ? 1 : 0), 0)
+        : prev.kind === "ttt"
+          ? Math.max(0, 9 - prev.ply)
+          : undefined;
+    const fact = finished
+      ? boardOverFact(prev.kind, act?.facts.join("; ") ?? "")
+      : boardClosedFact(prev.kind, prev.ply, openSquares);
+    const note = activityNote(fact);
+    if (!note) return;
+    diag("call", "lifecycle_note", {
+      cell: finished ? "game_end" : "game_closed",
+      kind: prev.kind,
+      ply: prev.ply,
+    });
+    s.direct(note);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.game]);
+
+  // ── THE MOVEVOICE RESIDUAL: a pickup that landed inside her own think ──
+  //
+  // The live prompt is frozen at connect. If the connect happens while it is
+  // HER move — she is mid-think, her engine answers in 1-6s — then the T15
+  // block she will hold for the whole call says "her move", and it is false
+  // three seconds later. That single stale sentence is what had her
+  // deliberating out loud about a move her hand had already made.
+  //
+  // The compile cannot be made to read the live ply: there is exactly one
+  // compile and it happens BEFORE the move lands (G-C4, `liveAssemblies`
+  // reads 1). So the close is a note, sent once, immediately after the pickup
+  // directive, stating the position as it is at that instant.
+  //
+  // SILENT, deliberately. Nothing happened in the room — a sentence in her own
+  // brief went out of date — and a spoken reaction to that is her narrating
+  // her prompt. Same channel the running note and the mid-call re-query use.
+  const settleBoardAfterPickup = (s: LiveSession) => {
+    const g = stateRef.current.game;
+    if (!g || g.closedAt) return; // no open board: nothing in the brief to correct
+    const ply = g.kind === "wyr" ? g.rounds.length : g.game.played.length;
+    const turn: "hers" | "his" | "over" =
+      g.kind === "wyr"
+        ? "his"
+        : g.game.status.over
+          ? "over"
+          : // `status.turn` rather than the FEN: ttt has no FEN and chess's
+            // status carries the same fact, so one expression covers both
+            // boards and a third game does not have to add a branch here.
+            g.game.status.turn === g.herSide
+            ? "hers"
+            : "his";
+    const note = lifecycleStateNote(boardTurnFact(g.kind, ply, turn));
+    if (!note) return;
+    diag("call", "lifecycle_note", { cell: "board_turn", kind: g.kind, ply, turn });
+    s.direct(note, { silent: true });
+  };
+
   const pokedPly = useRef<number | null>(null);
   const pokeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── THE SEND SEAM: a note may not outlive the position it describes ────
+  //
+  // The owner's report is two failures wearing one coat. The first was pacing
+  // and lives in the board components (`state/game.ts`'s think table). The
+  // second is this one, and it is the reason her VOICE deliberated about a move
+  // her hand had already made: a note is drafted against a board, and then it
+  // waits — for the breath pause, for the rate floor, and then inside
+  // `direct()`, which holds it up to 1.2s while she finishes speaking. Her
+  // engine answers his move within a couple of seconds. So a note written at
+  // ply N could enter the socket at ply N+2, describing a position two moves
+  // gone, and what she then says about it cannot be un-said.
+  //
+  // Two mechanisms, and BOTH are needed:
+  //
+  //  1. THE STAMP. Every note carries the ply it was drafted at, checked again
+  //     at the last instant this file controls. Advanced → dropped, not sent
+  //     late (`state/game.ts`'s `noteIsStale`, the stale-reply-discard idiom).
+  //     The stamp is internal and never appears in the note's text: bracket-
+  //     shaped metadata on this lane gets SPOKEN (`ack-bracket-direction`).
+  //
+  //  2. THE CONTENT. The stamp cannot reach inside `direct()`'s own wait, which
+  //     this workstream does not own. So a note that survives the seam must
+  //     also be one that CANNOT cause deliberation if it lands a beat late: it
+  //     states her move as already on the board and the choice as closed
+  //     (`settledClause`). A late note about a settled position is a small
+  //     redundancy. A late note about an open one is the defect.
+  //
+  // Rather than hand a note into `direct()`'s wait while she is mid-sentence —
+  // the widest stale window there is — the poke re-arms and drafts a fresh one
+  // when she stops. Bounded, because a reaction delivered late is worse than
+  // none: the same judgment the breath pause and the conversation floor make.
+  // The three-way decision itself is `state/game.ts`'s `noteVerdict` — a pure
+  // function, so every branch of the seam is reachable from an eval instead of
+  // living where only a running browser can see it. This wrapper is the socket
+  // and the retry, and nothing else.
+  const sendGameNote = (
+    kind: string,
+    draftedAtPly: number,
+    fact: string,
+    retry: () => void,
+  ): boolean => {
+    if (!liveSession.current) return false;
+    const verdict = noteVerdict(draftedAtPly, stateRef.current.game, speakingRef.current);
+    if (verdict !== "send") {
+      diag("call", "activity_poke", { kind, ply: draftedAtPly, dropped: verdict });
+      if (verdict === "hold") retry();
+      return false;
+    }
+    const note = activityNote(fact);
+    if (!note) return false;
+    lastPokeAt.current = Date.now();
+    diag("call", "activity_poke", { kind, ply: draftedAtPly });
+    liveSession.current.direct(note);
+    return true;
+  };
+
   useEffect(() => {
     const g = state.game;
     // ONE progress counter for every activity kind: chess counts plies, wyr
@@ -3601,9 +4155,21 @@ export function useCallEngine(
         // check may cross the rate floor and the breath pause — that is the
         // "something crazy happened in the chess" a person interrupts their
         // own story for. Everything else waits its turn or stays unsaid.
+        //
+        // IT WAS CHESS-ONLY, and that is the whole of the owner's *"she dont
+        // know whats up"* on a call: a tic-tac-toe game could be WON, LOST or
+        // DRAWN while she was on the line and the ending fell straight through
+        // to the rate floor, which adopts the ply silently and says nothing. A
+        // result is the one thing on any board that is always worth a word.
+        // `tttUrgent` is the ttt reading of `inCheck` — the side to move can
+        // end it on this very mark — and it lives in `tttTalk.ts` so an eval
+        // can reach the decision instead of a browser being the only witness.
         const urgent =
-          cur.kind === "chess" &&
-          Boolean(cur.game.status?.over || cur.game.status?.inCheck);
+          cur.kind === "chess"
+            ? Boolean(cur.game.status?.over || cur.game.status?.inCheck)
+            : cur.kind === "ttt"
+              ? tttUrgent(cur.game, cur.herSide)
+              : false;
         // ── the quiet floor ────────────────────────────────────────────
         // Never cut across an exchange that is actually alive. The owner
         // felt exactly this: mid-conversation she "abruptly stopped and
@@ -3636,31 +4202,56 @@ export function useCallEngine(
           else pokedPly.current = cur.rounds.length;
           return;
         }
+        // Re-draft rather than queue: `sendGameNote`'s "hold" verdict calls
+        // this when she is mid-sentence, so the next attempt reads the board
+        // as it is THEN. Bounded, because a reaction delivered late is worse
+        // than none — the same judgment the two floors above make.
+        const redraft = () => {
+          if (attempt < 5) armPoke(SEAM_REDRAFT_MS, attempt + 1);
+          else diag("call", "activity_poke", { kind: cur.kind, dropped: "her_voice_held_seam" });
+        };
         if (cur.kind === "ttt") {
-          pokedPly.current = cur.game.played.length;
-          const whoLast = cur.game.played.length
-            ? cur.game.played[cur.game.played.length - 1].by === cur.herSide
+          const at = cur.game.played.length;
+          // `pokedPly` marks this exchange CONSIDERED, here and not at the
+          // send, and the difference matters: it is what makes decision 2 in
+          // this block's header ("never replays") true. The seam's re-draft
+          // re-arms the timer directly and reads the live board when it fires,
+          // so it never consults this counter — advancing it early costs the
+          // retry nothing and leaving it behind would have an unrelated state
+          // write walk her back through an exchange she already saw.
+          pokedPly.current = at;
+          const whoLast = at
+            ? cur.game.played[at - 1].by === cur.herSide
               ? "her"
               : "him"
             : null;
           if (!whoLast) return;
-          const note = activityNote(tttMoveFact(cur.game, whoLast));
-          if (!note) return;
-          lastPokeAt.current = Date.now();
-          diag("call", "activity_poke", { kind: cur.kind, ply: cur.game.played.length });
-          liveSession.current.direct(note);
+          // ── salience, the ttt half ──────────────────────────────────────
+          // Chess drops a quiet developing move without a word; ttt narrated
+          // EVERY completed exchange, which over a nine-mark game is her
+          // reading the board out loud one square at a time — the same
+          // robot-commentator failure `chessTalk.ts` opens by refusing, and
+          // part of "dont talk clearly and intresting about it". A ttt move
+          // earns a remark when it ended the game, blocked a line, or left
+          // somebody one square away. An opening mark does not.
+          if (!tttNoteworthy(cur.game, cur.herSide) && !urgent) {
+            diag("call", "activity_poke", { kind: cur.kind, ply: at, dropped: "quiet_move" });
+            return;
+          }
+          sendGameNote(cur.kind, at, tttMoveNote(cur.game, cur.herSide, whoLast), redraft);
           return;
         }
         if (cur.kind === "wyr") {
           const round = cur.rounds[cur.rounds.length - 1];
-          pokedPly.current = cur.rounds.length;
+          const at = cur.rounds.length;
+          pokedPly.current = at;
           const card = round ? cardById(round.cardId) : undefined;
           if (!round || !card) return;
-          const note = activityNote(wyrPickFact(card, round.his, round.her));
-          if (!note) return;
-          lastPokeAt.current = Date.now();
-          diag("call", "activity_poke", { kind: cur.kind, round: cur.rounds.length });
-          liveSession.current.direct(note);
+          // wyr has no board and no move of hers to be open about — a round is
+          // answered or it does not exist — so there is nothing to settle. It
+          // rides the same seam only for the STAMP: an answer drafted for round
+          // N must not arrive after round N+1, same as a move.
+          sendGameNote(cur.kind, at, wyrPickFact(card, round.his, round.her), redraft);
           return;
         }
         const plies = cur.game.played.length;
@@ -3691,28 +4282,24 @@ export function useCallEngine(
         // HE did — that is the move she is responding to and where the
         // salience lives — and what she did about it.
         const lastMover = hers.fenBefore.split(" ")[1] === cur.herSide ? "her" : "him";
-        let fact: string;
-        let earned: boolean;
-        if (lastMover === "her" && cur.game.played.length >= 2) {
-          const hisPly = cur.game.played[cur.game.played.length - 2];
-          const his = assessMove(hisPly.fenBefore, hisPly, hisPly.fenAfter);
-          fact = exchangeFact(his, hers, cur.herSide);
-          earned = noteworthy(his) || noteworthy(hers);
-        } else {
-          fact = moveFact(hers, cur.herSide, lastMover);
-          earned = noteworthy(hers);
-        }
+        const hisPly =
+          lastMover === "her" && cur.game.played.length >= 2
+            ? cur.game.played[cur.game.played.length - 2]
+            : null;
+        const his = hisPly ? assessMove(hisPly.fenBefore, hisPly, hisPly.fenAfter) : null;
+        const earned = his ? noteworthy(his) || noteworthy(hers) : noteworthy(hers);
         if (!earned && !urgent) {
           // a quiet exchange passes without a word — the position is in the
           // tail, so she can still bring it up herself if it fits the talk
           diag("call", "activity_poke", { kind: cur.kind, ply: plies, dropped: "quiet_move" });
           return;
         }
-        const note = activityNote(fact);
-        if (!note) return;
-        lastPokeAt.current = Date.now();
-        diag("call", "activity_poke", { kind: cur.kind, ply: plies, exchange: lastMover === "her" });
-        liveSession.current.direct(note);
+        // TENSE IS LAW, and it is not this file's to get right by hand.
+        // `chessMoveNote` composes the move facts (already past tense) with the
+        // clause that says the CHOICE IS CLOSED — the half whose absence is the
+        // whole defect. Built from `cur`, the live position at the seam, so it
+        // can only ever describe now. See chessTalk.ts.
+        sendGameNote(cur.kind, plies, chessMoveNote(cur.game, cur.herSide, his, hers, lastMover), redraft);
       }, delayMs);
     };
     // ── the lag fix ────────────────────────────────────────────────────
@@ -3810,6 +4397,14 @@ export function useCallEngine(
     // the look-away, for whoever draws the control next to the watch chip
     watchPaused,
     onLookAway,
+    // WS-WATCHPERF: "let her hear it" — device audio into the uplink. Native
+    // only, default OFF, per share. `watchHearsAvailable` is deliberately not
+    // the same thing as `watching`: on the web lane there is nothing to turn
+    // on, so the chip must not be drawn there at all rather than drawn and
+    // silently doing nothing.
+    watchHears,
+    watchHearsAvailable: watchAvailable(),
+    onToggleHears,
     // NATIVE-WATCH MUTE HONESTY: true while the Android watch service owns
     // the mic, so the mute control can disable itself and the copy can say
     // why instead of reporting a state nothing makes true.

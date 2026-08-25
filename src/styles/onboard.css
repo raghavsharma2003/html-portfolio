@@ -141,7 +141,12 @@
 .onb-lede em,
 .onb-q em {
   font-style: normal;
-  color: var(--accent);
+  /* Sky-solved accent, not the theme's: this <em> sits straight on the sky,
+     and the theme rose measured 2.26:1 on morning's blue top stop (owner
+     report, 2026-08-25). --world-accent is re-solved per sky state at
+     >= 4.75:1 over the veiled stops (sky.ts `accent`, gated in
+     check-contrast.mjs); the theme accent stays as the no-sky fallback. */
+  color: var(--world-accent, var(--accent));
 }
 
 .onb-sub {
@@ -184,8 +189,12 @@
   letter-spacing: -0.022em;
   color: var(--world-ink);
 }
+/* The bloom is a picture now, not a glyph (src/components/anim.tsx). Same
+   30px, and the nudge is what an emoji's own line box used to do for free:
+   an <img> sits on the baseline, a glyph sits across it. */
 .onb-bloom {
-  font-size: 30px;
+  display: inline-block;
+  vertical-align: -0.16em;
 }
 
 /* ONE glass field. `--world-glass` is the same top-lit fill the home cards

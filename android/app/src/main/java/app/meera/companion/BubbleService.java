@@ -396,7 +396,7 @@ public class BubbleService extends Service {
         } catch (Exception ignored) {}
       }
     }));
-    m.addView(menuItem("💬  Open Meera", new Runnable() {
+    m.addView(menuItem("💬  Open Maya", new Runnable() {
       @Override
       public void run() {
         hideMenu();

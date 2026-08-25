@@ -159,6 +159,22 @@ export const ledger = [{
   summary: "a game of chess together on 22 aug — she won, by checkmate; the opening was the italian",
 }];
 
+/** A screen share that ended INSIDE the just-happened window (WS-SHARENOW),
+ *  so the fourth sub-block of T5 has a store on every lane.
+ *
+ *  Eighteen minutes ago and four minutes long — the shape the owner's report
+ *  had, one call earlier. `said` is her own lines and nothing else: the
+ *  watch-content contract is that her reactions are hers to remember and the
+ *  screen's contents beyond them are never re-derived, so a fixture that put a
+ *  claim about the screen in here would be asserting the wrong thing is
+ *  possible. */
+export const shares = [{
+  startedAt: NOW - 40 * 60_000,
+  endedAt: NOW - 18 * 60_000,
+  lane: "web",
+  said: ["arre wo popup band karo pehle", "haha uska naam hi galat likha hai"],
+}];
+
 /** What op:"recall" hands back — the graph half of T5. */
 export const graphRecall =
   "RELEVANT TO WHAT THEY JUST SAID:\n- a friend (person, last came up 3 weeks ago): the one who referred him";
@@ -175,6 +191,12 @@ export const inner = {
 };
 
 export const herLifeText = "she works at a design studio, her day ran long";
+
+// WS-HERNOW. T7's string carries TWO halves — the told ledger above and, when
+// a lane passes one, her present minute. `NOW` is 2026-08-23 14:00 UTC =
+// 19:30 IST, so the derivation lands in the golden slot with a real elapsed;
+// nothing here hardcodes the wording, which comes from the REAL herNow.ts.
+export const presentEntry = (E) => E.herNowAt({ now: NOW, stored: null }).entry;
 export const cultureNoteText = "a festival weekend is coming up in her city";
 
 /** The live turn. Stress-shaped through the REAL momentGate ("stress",

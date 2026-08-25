@@ -45,7 +45,7 @@
 // this one starts where CHAT_TAIL_WINDOW_MS ends — so a line can never be
 // paid for twice in a budget that has under 2,000 bytes of headroom.
 
-import type { Message } from "../state/store";
+import type { Message, ShareRecord } from "../state/store";
 import {
   ACTIVITY_BLOCK_SENTINEL,
   withoutServerActivityBlock,
@@ -57,6 +57,11 @@ import {
 // again), and the window is the seam between the two blocks — if the tail's
 // window moves, this block's start must move with it, in one edit.
 import { CHAT_TAIL_MAX_WORDS, CHAT_TAIL_WINDOW_MS } from "../engine/memory";
+// One vocabulary for what an activity is CALLED — see `boardWord`. Importing
+// the table rather than restating it is the same discipline
+// `activityPickupLine` states: two spellings of one name is how the pickup and
+// the brief end up describing two different games.
+import { LABEL } from "../engine/activity";
 // The running note's HER-side salience rule. Imported rather than restated for
 // `age-tier-never-realtime`'s reason: "what she said she would do" already has
 // exactly one definition in this repo and a second one would diverge by not
@@ -126,7 +131,8 @@ export function agoLabel(atMs: number, nowMs: number): string {
   return `${days} days ago`;
 }
 
-/** A row is also capped in CHARACTERS, not only in words.
+/** The default per-row character cap. Rows are also capped in CHARACTERS, not
+ *  only in words.
  *
  *  A word cap alone bounds how much a row can be RECITED; it does not bound
  *  how many bytes it can take, and one pathological turn (a pasted URL, a
@@ -159,7 +165,12 @@ const WATCH_ROW_MARK = " (screen share)";
  *  read as a line written for her or crowd out every other row. Clipping is
  *  at a word boundary with a visible ellipsis — a clipped row says so rather
  *  than passing a half-sentence off as whole. */
-function row(who: "them" | "you", text: string, watched = false): string {
+function row(
+  who: "them" | "you",
+  text: string,
+  watched = false,
+  maxChars = SHARED_HISTORY_MAX_CHARS,
+): string {
   const flat = text.replace(/\s+/g, " ").trim();
   const cap = who === "them" ? SHARED_HISTORY_MAX_WORDS_THEM : CHAT_TAIL_MAX_WORDS;
   // the two tokens of "- who:", plus the two the screen-share marker adds —
@@ -168,18 +179,18 @@ function row(who: "them" | "you", text: string, watched = false): string {
   const words = flat.split(" ");
   const clippedWords = words.length > body;
   let out = clippedWords ? words.slice(0, body - 1).join(" ") : flat;
-  if (out.length > SHARED_HISTORY_MAX_CHARS) {
+  if (out.length > maxChars) {
     // word boundary first; a single unbroken token that is already too long
     // has no boundary to find, so it is cut where it is — a row that says it
     // was clipped is honest either way.
     const kept: string[] = [];
     let n = 0;
     for (const w of out.split(" ")) {
-      if (n + w.length + (kept.length ? 1 : 0) > SHARED_HISTORY_MAX_CHARS - 2) break;
+      if (n + w.length + (kept.length ? 1 : 0) > maxChars - 2) break;
       n += w.length + (kept.length ? 1 : 0);
       kept.push(w);
     }
-    out = kept.length ? kept.join(" ") : out.slice(0, SHARED_HISTORY_MAX_CHARS - 2);
+    out = kept.length ? kept.join(" ") : out.slice(0, maxChars - 2);
     return `- ${who}${watched ? WATCH_ROW_MARK : ""}: ${out} …`;
   }
   const mark = watched ? WATCH_ROW_MARK : "";
@@ -298,6 +309,247 @@ export function formatSharedHistory(msgs: readonly Message[], nowMs: number): st
   }
   if (!kept.some((l) => l.startsWith("- "))) return "";
   return `${HEAD}\n${kept.join("\n")}`;
+}
+
+// ── THE JUST-HAPPENED BLOCK (WS-SHARENOW) ─────────────────────────────────
+//
+// The owner's report, and it is the sharpest one this file has had: he shared
+// his screen with her, hung up, called back ONE MINUTE later and asked what
+// they had just watched. She did not know, and (his words) probably made
+// something up.
+//
+// ── WHY THE BLOCK ABOVE DOES NOT ANSWER IT ───────────────────────────────
+//
+// `formatSharedHistory` DOES carry share commentary, marked, and its eval
+// proves it (section 5e). It still cannot answer this question, for three
+// reasons that stack:
+//
+//   1. IT IS A HOW-IT-WAS-LEFT WINDOW, NOT A WHAT-WE-DID RECORD. Group 1 takes
+//      the LAST `SHARED_HISTORY_CALL_ROWS` (3) turns before the callmark. In
+//      the owner's shape the share ends, they talk for another minute, and
+//      then he hangs up — so those three rows are spent on the small talk
+//      AFTER the share and two of her three commentary lines are simply not in
+//      the prompt. Measured on the fixture in `evals/callmem` §5f: three
+//      commentary lines in, one out.
+//   2. ITS HEADING TELLS HER NOT TO USE IT. `HEAD` opens "BEFORE TODAY" — for
+//      something sixty seconds old — and then says, correctly for its own
+//      purpose, "it is not news, it never gets read back to them, and being
+//      listed here is not a reason to raise it." That is exactly the wrong
+//      instruction in front of a direct question about it.
+//   3. NOTHING ELSE LOCAL CARRIES IT AT ALL. `formatChatTail` excludes call
+//      turns by design, so it renders "" here; the graph route needs the
+//      server (`vy_shared_moment` via `api/episodes.js`), which is written
+//      fire-and-forget, gated to the first line she speaks inside a 12-second
+//      SHOW-wake window, and read back by a leg that matches her reaction text
+//      against words taken from the last four things HE typed — and then only
+//      if the ring fetch beats `RING_FETCH_DEADLINE_MS`.
+//
+// So the freshest, most vivid thing that ever happens between them was the one
+// thing the brief could not say. This block is the answer, and it is the same
+// species of fix as everything above it: a block that exists on one lane and
+// is missing on the one that took the call.
+//
+// ── WHAT IT IS ───────────────────────────────────────────────────────────
+//
+// A compact "you two JUST did this" row, ABOVE the shared history, rendering
+// only inside `JUST_HAPPENED_WINDOW_MS`. For a share it carries HER OWN LINES
+// and the fact that they were watching his screen together until N minutes
+// ago. It never carries a word about what was ON the screen.
+//
+// That last sentence is the watch-content contract and it is not a nicety:
+// `Message.watched`'s rule is that screen-derived talk is conversation and
+// never durable memory about his life, because one glance at a thread and
+// "Rohit na?" becomes a permanent, confidently wrong claim. Her reactions are
+// hers to remember — she said them, they are true regardless of whether the
+// reading behind them was, and this is precisely why `vy_shared_moment` stores
+// a reaction with a NULLABLE assertion_id. The screen's contents beyond what
+// she said are not re-derived here or anywhere.
+//
+// ── AND THE HONEST HALF ──────────────────────────────────────────────────
+//
+// A share where she said nothing produces an EMPTY record, and an empty record
+// is a real answer rather than a gap to fill. The block says so in words, so
+// the honest line ("haan dekha, par maine kuch bola nahi tha") is the one the
+// brief actually supports and the invented one has nothing behind it. This is
+// `formatActivityLedgerForCall`'s fence argument on a lane where it matters
+// more: `honesty.ts`'s family-6 gate cannot run on the live lane at all, so
+// the prompt fence is the only protection there is.
+
+/** How fresh "just" is. Forty-five minutes, and it is not a taste number: it
+ *  is `api/episodes.js`'s own `GAP_MS`, the boundary the server segments
+ *  episodes on. Past it the server has closed the episode and the thing has
+ *  stopped being the present moment for both halves of the product at once, so
+ *  the two agree by construction instead of by coincidence. */
+export const JUST_HAPPENED_WINDOW_MS = 45 * 60_000;
+
+/** Hard ceiling on the rendered block, heading included.
+ *
+ *  THE ARITHMETIC, measured 2026-08-23 against the real guard rather than
+ *  claimed: `scripts/check-prompt-budget.mjs` puts the tightest lane in the
+ *  repo — `live+watch tail (bound)` — at 29,684 of a `CALL_TAIL_CAP` of
+ *  30,000, i.e. 316 bytes spare, and `live tail (bound)` at 29,382, i.e. 618.
+ *  300 of them is this, leaving 16 and 318. `evals/callmem/run.mjs` asserts
+ *  that subtraction against the guard's own constants, so the bound and its
+ *  budget cannot drift apart — which is how the crisis helplines were lost
+ *  once.
+ *
+ *  It is deliberately the tightest block on the lane. Everything it must
+ *  carry is three short sentences somebody actually said; anything that needs
+ *  more room than that is not "what just happened", it is history, and the
+ *  700-byte block below is what holds history. */
+export const JUST_HAPPENED_BUDGET = 300;
+
+/** Rows of her own commentary the block ever carries. Three is a person
+ *  remembering a shared minute; more is a transcript of one, and a transcript
+ *  in a system prompt is a script (`SHARED_HISTORY_ROWS`' reasoning). */
+export const JUST_HAPPENED_ROWS = 3;
+
+/** Per-row character cap, tighter than `SHARED_HISTORY_MAX_CHARS` because this
+ *  block has less than half the budget. Sized so that two MAXIMAL rows still
+ *  fit under `JUST_HAPPENED_BUDGET` alongside both headings (78 + 1 + 78 + 1 +
+ *  74 + 73 = 305 at 66… see the eval, which measures the real worst case
+ *  rather than trusting this line) and real commentary — which runs 30-50
+ *  characters — fits three times over. */
+export const JUST_HAPPENED_MAX_CHARS = 66;
+
+/** "just now" / "3 min ago" — MINUTES, unlike `agoLabel`, and the difference
+ *  is the point of the block. `agoLabel` is coarse because the age is the
+ *  whole signal for something a day old ("kal kya baat kiya" is a question
+ *  about a day); here the age is the CLAIM — "we were watching this together
+ *  three minutes ago" is a different sentence from "we were watching this
+ *  together", and the number is what makes it one. Still no seconds and no
+ *  timestamp: there is nothing here she could quote back as a clock. */
+export function minsAgoLabel(atMs: number, nowMs: number): string {
+  if (!atMs || !Number.isFinite(atMs) || !Number.isFinite(nowMs) || nowMs < atMs) return "";
+  const mins = Math.floor((nowMs - atMs) / 60_000);
+  return mins < 1 ? "just now" : `${mins} min ago`;
+}
+
+// Lower-case after the opening token and terminated with a colon, for
+// `HEAD`'s reason: shapelint's SENTENCE_SHAPED_RE needs a capital start AND
+// terminal `.?!`, so a line ending in ":" can never match, and there is
+// nothing in it she could say. "add nothing to it" is the watch-content fence,
+// stated once here rather than per row.
+const JUST_HEAD =
+  "JUST NOW — this just happened and they may ask straight out; add nothing to it:";
+
+/** The share line, in both of its forms. The second one is the honest half and
+ *  it is a POSITIVE statement, not an absence: a share she was quiet through
+ *  is a thing she knows about itself, and saying so is what makes "haan dekha,
+ *  par maine kuch bola nahi tha" the supported answer instead of the invented
+ *  one. */
+const shareLine = (label: string, said: boolean) =>
+  said
+    ? `you were watching their screen together till ${label}; you said this about it:`
+    : `you were watching their screen together till ${label}; you said nothing about it, and what was on it is not yours to describe`;
+
+interface JustEvent {
+  head: string;
+  rows: string[];
+}
+
+/**
+ * What the two of them JUST did, as a call-sized block, or "" when nothing has
+ * happened inside the window — which is `memories`' render-nothing default, so
+ * a person whose last share was yesterday gets byte-identically the prompt they
+ * get today.
+ *
+ * Pure; the clock is an input, the same contract as everything else in this
+ * file and for the same byte-identity reason.
+ *
+ * Three sources, in a fixed PRIORITY order rather than in recency order, and
+ * the difference matters: the callmark is written at hangup and is therefore
+ * always the newest event, so recency ordering would spend the budget on "you
+ * were on a call" and drop the share rows that are the entire reason the block
+ * exists.
+ *
+ *   1. THE SHARE, from the local mirror (`AppState.shares`) — her own lines.
+ *   2. THE GAME, from the local activity ledger — a POINTER, not a second
+ *      rendering. `warm-count-unscoped`: two derivations of one record
+ *      eventually disagree, invisibly, so the game's detail stays in the one
+ *      block that owns it and this only says it was minutes ago.
+ *   3. THE CALL that just ended, from the newest callmark — and only when
+ *      there is no share line, which would already have said it better.
+ */
+export function formatJustHappened(
+  shares: readonly ShareRecord[] | undefined,
+  activities: readonly ActivityRecord[] | undefined,
+  msgs: readonly Message[],
+  nowMs: number,
+): string {
+  const since = nowMs - JUST_HAPPENED_WINDOW_MS;
+  const fresh = (at: number | undefined) =>
+    Number.isFinite(at) && (at as number) > since && (at as number) <= nowMs;
+
+  const events: JustEvent[] = [];
+
+  // 1 — the newest ENDED share
+  const share = [...(shares ?? [])]
+    .filter((s) => s && fresh(s.endedAt))
+    .sort((a, b) => b.endedAt - a.endedAt)[0];
+  if (share) {
+    const said = (Array.isArray(share.said) ? share.said : [])
+      .filter((t) => typeof t === "string" && t.trim())
+      .slice(-JUST_HAPPENED_ROWS);
+    events.push({
+      head: shareLine(minsAgoLabel(share.endedAt, nowMs), said.length > 0),
+      rows: said.map((t) => row("you", t, false, JUST_HAPPENED_MAX_CHARS)),
+    });
+  }
+
+  // 2 — the newest finished game, as a pointer at the record that holds it
+  const game = [...(activities ?? [])]
+    .filter((r) => r && r.summary && fresh(r.closedAt))
+    .sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0))[0];
+  if (game) {
+    events.push({
+      head: `you finished a game together ${minsAgoLabel(game.closedAt, nowMs)} — the record below is all of it`,
+      rows: [],
+    });
+  }
+
+  // 3 — the call that just ended, when the share line has not already said it
+  if (!share) {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i];
+      if (m?.kind !== "callmark" || !m.at) continue;
+      if (fresh(m.at)) {
+        events.push({ head: `you were on a call together till ${minsAgoLabel(m.at, nowMs)}`, rows: [] });
+      }
+      break;
+    }
+  }
+
+  if (!events.length) return "";
+
+  const render = (evs: readonly JustEvent[]) => evs.flatMap((e) => [e.head, ...e.rows]);
+  const size = (ls: readonly string[]) => JUST_HEAD.length + 1 + ls.join("\n").length;
+
+  // Over budget, WHOLE lines go — never a slice (`activity-block-sliced-mid-word`,
+  // and "a sliced block is a lie" does not stop applying inside a block).
+  // Trailing EVENTS go first: they are the lower-priority ones by construction,
+  // and each is a self-contained sentence, so losing one costs a fact rather
+  // than leaving a heading pointing at nothing.
+  const kept = events.slice();
+  while (kept.length > 1 && size(render(kept)) > JUST_HAPPENED_BUDGET) kept.pop();
+  // Then her OLDEST commentary rows, keeping the newest — the last thing she
+  // said about a screen is the thing "kya dekha humne" most often means.
+  while (size(render(kept)) > JUST_HAPPENED_BUDGET) {
+    const withRows = kept.find((e) => e.rows.length);
+    if (!withRows) break;
+    withRows.rows.shift();
+    // a head that promised rows and now has none would be a dangling claim;
+    // re-state it in its no-record form, which is true either way
+    if (!withRows.rows.length && withRows.head.endsWith("; you said this about it:")) {
+      withRows.head = withRows.head.replace(
+        "; you said this about it:",
+        "; nothing you said about it fits here, so add none of it",
+      );
+    }
+  }
+  const lines = render(kept);
+  if (!lines.length || size(lines) > JUST_HAPPENED_BUDGET) return "";
+  return `${JUST_HEAD}\n${lines.join("\n")}`;
 }
 
 // ── WHAT THE FROZEN COMPILE SITES ARE HANDED (P1-7 / P1-9) ────────────────
@@ -474,7 +726,11 @@ const QUESTION_RE =
  *  never a thing to look up or a fact to contradict. */
 const CAP_TOKEN = /\b([A-Z][a-z]{2,})\b/g;
 const NOT_A_NAME = new Set([
-  "Meera", "Haan", "Nahi", "Acha", "Accha", "Achha", "Theek", "Arre", "Arey",
+  // WS-MAYA: her own name is in this set because she is never a thing to look
+  // up. Both spellings stay — stored transcripts predating the rename still
+  // carry the old one, and dropping it would make those turns score as naming
+  // a person.
+  "Maya", "Meera", "Haan", "Nahi", "Acha", "Accha", "Achha", "Theek", "Arre", "Arey",
   "Yaar", "Bhai", "Okay", "Yeah", "Hello", "Hmm", "Sorry", "Please", "Thanks",
   "Good", "Morning", "Night", "Bhi", "Kya", "Toh", "Abhi", "Aaj", "Kal",
   "Mera", "Meri", "Mere", "Tera", "Teri", "Tumhara", "Main", "Hum", "Woh",
@@ -889,12 +1145,44 @@ export function formatActivityLedgerForCall(
  * function rather than a second copy of the rule.
  */
 export function callGraphBlocks(
+  justHappened: string,
   activityLedgerBlock: string,
   sharedHistory: string,
   graphRecall: string,
 ): string {
   const graph = activityLedgerBlock ? withoutServerActivityBlock(graphRecall) : graphRecall;
-  return withSharedHistory(activityLedgerBlock, withSharedHistory(sharedHistory, graph));
+  // WS-SHARENOW: the just-happened block goes in FRONT of all three, and the
+  // reason is the same truncation argument the ledger's position rests on —
+  // `api/chat.js` and the live setup frame both keep the FIRST n characters.
+  // Of everything here it is the block that a later round trip can least
+  // re-derive (the share mirror is device-local and 45 minutes wide) and the
+  // one most likely to be the actual subject of the first question on the
+  // call, so it is the last thing that may be lost rather than the first.
+  return withSharedHistory(
+    justHappened,
+    withSharedHistory(activityLedgerBlock, withSharedHistory(sharedHistory, graph)),
+  );
+}
+
+// ── the share mirror's holder, so BOTH lanes read one ledger ──────────────
+//
+// `publishActivityLedger`'s idiom, for its stated reason and one more of this
+// block's own: the call lane's compile sites do not share a frame with the
+// component that holds `AppState`, AND the write here happens at share end
+// while the read happens at the NEXT call's ring — two different renders, with
+// a React state update and possibly a whole component unmount between them.
+// The ring reads `state.shares` first and this second, exactly as it does for
+// the activity ledger: one store, one pointer at it, never two sources of
+// truth. A reader that gets an empty array before the first publish renders
+// nothing, which is the same render-nothing default an empty mirror has.
+let shareHolder: readonly ShareRecord[] = [];
+
+export function publishShareLedger(shares: readonly ShareRecord[] | undefined): void {
+  shareHolder = Array.isArray(shares) ? shares : [];
+}
+
+export function shareLedger(): readonly ShareRecord[] {
+  return shareHolder;
 }
 
 /**
@@ -914,4 +1202,415 @@ export function callGraphBlocks(
 export function withSharedHistory(sharedHistory: string, memories: string): string {
   if (!sharedHistory) return memories;
   return memories ? `${sharedHistory}\n\n${memories}` : sharedHistory;
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// THE OVERLAP MATRIX (WS-LIFECYCLE)
+// ═════════════════════════════════════════════════════════════════════════
+//
+// ── THE OWNER'S ASK, WHICH IS STRUCTURAL AND NOT A BUG REPORT ────────────
+//
+//   "In the game I started a call, then it got cut and the game started and
+//    the call is still going on — that should also be handled perfectly."
+//
+// Every previous wave answered ONE overlap: a game open at pickup (the
+// activity block), a move played mid-call (the poke), a share started
+// mid-call (the watch wake), a call that dropped mid-sentence (the callback).
+// Each was found by the owner living with the product and each cost a round
+// trip. The number of pairs is finite and small; enumerating them by hand,
+// one felt defect at a time, is the thing that has to stop.
+//
+// So this is a TABLE, in the shape `evals/lanes/run.mjs` already proved out
+// for context blocks: one row per EVENT, one column per concurrent CONTEXT,
+// and a verdict in every cell that says HOW the fact reaches her and WHY that
+// carrier and not another. `evals/lifecycle/run.mjs` walks all of it. Two
+// ways to fail, and the second is what makes it a gate rather than a diagram:
+//
+//   a cell claims `direct` and the source has no sender  → the propagation is
+//                                                          DECLARED and dead.
+//   a cell claims `silent` and something can reach her   → the table is lying.
+//
+// ── WHY THE CARRIER IS PART OF THE CELL ─────────────────────────────────
+//
+// Because on this product it is the whole difference between a fact that
+// arrives and a fact that does not. THE LIVE PROMPT IS FROZEN AT CONNECT
+// (`liveAssemblies` is asserted to read 1 for the whole call), so anything
+// that changes after the pickup CANNOT ride an assembly on that lane and must
+// travel by `direct()`. The cascade lane recompiles every turn, so for it the
+// same event is carried by the assembly and a note would be a second copy.
+// One event, two lanes, two correct answers — which is exactly why "handle
+// the overlap" cannot be a single instruction and has to be a table.
+//
+// ── THE FOUR CARRIERS ───────────────────────────────────────────────────
+//
+//   assembly  the next prompt compile carries it (chat/cascade per turn, or
+//             the frozen live compile when the event PRECEDES the connect).
+//   direct    a `<context: …>` note through `direct()`, mid-call, on the live
+//             lane. Angle brackets, never square (`ack-bracket-direction`).
+//   state     nothing is said and nothing needs to be: the fact lives in
+//             AppState and the next read of it is already correct. This is a
+//             REQUIREMENT, not an absence — it asserts the state SURVIVES.
+//   silent    nothing may reach her at all. Asserted by the absence of any
+//             sender, the way `evals/notify.mjs` asserts a lock screen can
+//             carry no generic line: by there being no constructor for one.
+//
+// `na` is the fifth and is not a carrier: the pair cannot occur.
+//
+// ── recited-prompt ──────────────────────────────────────────────────────
+//
+// The FACT builders below emit telegraphic shapes, never sentences she could
+// say. They are wrapped by `engine/activity.ts`'s `activityNote()` at the
+// call site — one wrapper, already measured, rather than a second note
+// vocabulary invented here.
+
+/** Every transition this product can make. */
+export type LifecycleEvent =
+  | "game_start"
+  | "game_end"
+  | "game_closed"
+  | "call_start"
+  | "call_end"
+  | "call_drop"
+  | "callback_reconnect"
+  | "share_start"
+  | "share_end"
+  | "story_post";
+
+/** What is already going on when it makes it. */
+export type LifecycleContext = "none" | "call_live" | "call_cascade" | "game_open" | "share_on";
+
+export const LIFECYCLE_EVENTS: readonly LifecycleEvent[] = Object.freeze([
+  "game_start",
+  "game_end",
+  "game_closed",
+  "call_start",
+  "call_end",
+  "call_drop",
+  "callback_reconnect",
+  "share_start",
+  "share_end",
+  "story_post",
+]);
+
+export const LIFECYCLE_CONTEXTS: readonly LifecycleContext[] = Object.freeze([
+  "none",
+  "call_live",
+  "call_cascade",
+  "game_open",
+  "share_on",
+]);
+
+export type LifecycleCarrier = "assembly" | "direct" | "state" | "silent" | "na";
+
+/**
+ * The note kinds. A closed set on purpose: a `direct` cell may only name one
+ * of these, and every one of them must have a builder below AND a sender in
+ * `useCallEngine.ts`. That closure is what makes a declared propagation
+ * impossible to leave unbuilt — the `dead-writers` test, applied to a table
+ * instead of to a module.
+ */
+export type LifecycleNote =
+  | "board_closed"
+  | "board_over"
+  | "board_opened"
+  | "board_turn"
+  | "share_started"
+  | "share_ended"
+  | "line_cleared";
+
+export interface LifecycleCell {
+  readonly via: LifecycleCarrier;
+  /** required exactly when `via` is "direct" */
+  readonly note?: LifecycleNote;
+  /** mandatory, in writing. An asymmetry may exist; it may not be silent. */
+  readonly why: string;
+}
+
+const cell = (via: LifecycleCarrier, why: string, note?: LifecycleNote): LifecycleCell =>
+  Object.freeze(note ? { via, note, why } : { via, why });
+
+/**
+ * THE TABLE. 10 events x 5 contexts. Read a row as "when X happens and Y is
+ * already going on, this is how she comes to know".
+ */
+export const LIFECYCLE_MATRIX: Readonly<
+  Record<LifecycleEvent, Readonly<Record<LifecycleContext, LifecycleCell>>>
+> = Object.freeze({
+  // ── A BOARD OPENS ─────────────────────────────────────────────────────
+  game_start: Object.freeze({
+    none: cell("assembly", "no call up: the chat lane recompiles every turn and T15 carries the board."),
+    call_live: cell(
+      "direct",
+      "the live prompt froze before this board existed. The invite/open is the one game event she must not miss, or she plays a game she was never told started.",
+      "board_opened",
+    ),
+    call_cascade: cell("assembly", "cascade recompiles per turn with activityOf(game) — a note would be a second copy of T15."),
+    game_open: cell("na", "one board at a time: state/game.ts holds a single session, so starting one REPLACES the open one rather than overlapping it, and the replacement is the game_start transition itself."),
+    share_on: cell(
+      "direct",
+      "a share is a second surface, not a second lane: whichever call is under it still needs the note, and the frozen live prompt cannot have carried a board that did not exist. THE ONE HONEST GAP, recorded rather than hidden: on the ANDROID NATIVE share the JS live session is gone (the service owns the audio path) and its config was compiled at share start, so a board opened after that reaches her only when the share ends and reconnectLiveAfterWatch restores the lane.",
+      "board_opened",
+    ),
+  }),
+  // ── A BOARD FINISHES ON ITS OWN ───────────────────────────────────────
+  game_end: Object.freeze({
+    none: cell("assembly", "activityOf keeps a finished game as the present moment for RECENT_END_MS, so the next chat turn already carries the result."),
+    call_live: cell(
+      "direct",
+      "she is ON the call when it ends, and the frozen block still says whose move it is. THE MOVE POKE\'s `urgent` branch owns the ordinary case: a checkmate does not set closedAt, the finished board sits there, and the ending crosses the rate floor and the breath pause as the one board event worth interrupting for. This note owns the case the poke cannot see — over AND closed in a single update, where the ending never got its own poke — and the sender suppresses itself, in the trace, when the poke already said it.",
+      "board_over",
+    ),
+    call_cascade: cell("assembly", "per-turn recompile, and activityOf marks it over with the winner in it."),
+    game_open: cell("na", "the ending IS the transition out of game_open, so it cannot also be the concurrent context it happens inside — there is no pair here to handle."),
+    share_on: cell("direct", "a share does not change who is on the line: the live lane still needs the note, and the share lane has no compile of its own after it starts. The native-share gap recorded on game_start x share_on applies here too.", "board_over"),
+  }),
+  // ── A BOARD IS CLOSED BY HAND, MID-WAY ────────────────────────────────
+  // THE OWNER'S CASE. A game abandoned is not a game finished, and the
+  // difference is the whole content of the note: no result, nobody won, and
+  // it stopped somewhere.
+  game_closed: Object.freeze({
+    none: cell("assembly", "activityOf rewrites the facts to `he ended the game early, no result` and the chat lane's next compile carries it."),
+    call_live: cell(
+      "direct",
+      "THE REPORTED CASE. The board vanishes from his screen while she is mid-call holding a frozen prompt that says it is her move. Nothing sent it before this workstream: the poke effect saw ply===null and returned silently.",
+      "board_closed",
+    ),
+    call_cascade: cell("assembly", "per-turn recompile; activityOf's `no result` rewrite is the same one the chat lane reads."),
+    game_open: cell("na", "closing IS the exit from game_open, the same reason game_end has no cell here: a transition cannot be concurrent with itself."),
+    share_on: cell("direct", "same as call_live: the screen share is orthogonal to the board and carries no board state of its own. The native-share gap recorded on game_start x share_on applies here too.", "board_closed"),
+  }),
+  // ── A CALL OPENS ──────────────────────────────────────────────────────
+  call_start: Object.freeze({
+    none: cell("assembly", "the frozen compile at connect, plus CALL_OPEN_DIRECTIVE's scene from the herNow ledger."),
+    call_live: cell("na", "a call cannot start while a call is live."),
+    call_cascade: cell("na", "same call, different lane — a lane change is not a call start."),
+    game_open: cell(
+      "direct",
+      "BOTH, and the note is the half that is easy to miss. compile({ activity }) lights T15 and presentNow() makes the board the app-truth the pickup scene is worded from — one board, one vocabulary, both halves at connect. But that compile is FROZEN, and if the connect lands inside her own think it freezes `her move`, which is false three seconds later and stays false for the whole call. The note restates the position once, right after the pickup, and closes it.",
+      "board_turn",
+    ),
+    share_on: cell("na", "a share only exists inside a call, so it cannot precede one."),
+  }),
+  // ── A CALL ENDS CLEANLY ───────────────────────────────────────────────
+  call_end: Object.freeze({
+    none: cell("assembly", "the callmark lands in the store and the next chat compile reads it through formatSharedHistory."),
+    call_live: cell("assembly", "endCall logs the callmark and runs the absorption pass; nothing is spoken because the line is gone."),
+    call_cascade: cell("assembly", "identical: endCall is lane-blind, logs the same callmark and runs the same absorption pass whichever lane held the call."),
+    game_open: cell(
+      "state",
+      "THE BOARD OUTLIVES THE CALL. Nothing in endCall touches state.game, so the session, its plies and its clock survive; the next read of activityOf is already correct. The requirement is that it SURVIVES, which is why this cell is `state` and not blank.",
+    ),
+    share_on: cell("state", "endCall calls stopWatchMode, which records the share to the local mirror BEFORE the screen goes away — that record is what the next ring's just-happened block reads."),
+  }),
+  // ── A CALL DROPS ──────────────────────────────────────────────────────
+  call_drop: Object.freeze({
+    none: cell("assembly", "the drop arms the callback; the next assembly is the callback's own."),
+    call_live: cell(
+      "direct",
+      "the lane falls to cascade and cascade recompiles, so the CALL is not lost. What is lost is her thread: a live session adopted afterwards runs on the prompt frozen at connect and has never heard the turns the cascade took. The recovery hands her those turns and tells her not to greet again, which is a `direct` note and not a compile.",
+      "line_cleared",
+    ),
+    call_cascade: cell("assembly", "already the fallback lane; there is nowhere further to fall and nothing to say."),
+    game_open: cell(
+      "state",
+      "THE OWNER'S SENTENCE, SECOND HALF. The board persists across the drop and herNow's app-truth stays the game, so the callback picks up mid-game rather than into a blank. Asserted as a property of state, because a note about it would be a note about the network.",
+    ),
+    share_on: cell("state", "the share dies with the session and recordShareEnd writes the mirror first — the same ordering endCall relies on."),
+  }),
+  // ── SHE CALLS BACK ────────────────────────────────────────────────────
+  callback_reconnect: Object.freeze({
+    none: cell(
+      "assembly",
+      "CALL_OPEN_DIRECTIVE with sheCalled:true (she is the caller, with a reason) and lastCallMinAgo from the callmark, which is minutes old — so the follow-up register, never a fresh greeting.",
+    ),
+    call_live: cell("na", "a callback only exists because there is no call."),
+    call_cascade: cell("na", "same: a callback is placed only when no call is up, so no lane can be holding one."),
+    game_open: cell(
+      "assembly",
+      "THE OWNER'S SENTENCE, THIRD HALF. The ring assembly carries the board as T15 AND as the pickup scene's app-truth (current position, whose move), and lastCallMinAgo<=15 swaps the greeting rule for `you two are already mid-thread`. Both halves come off ONE herNow read, so the brief and the directive cannot name two positions.",
+    ),
+    share_on: cell("na", "a share cannot outlive the call it was inside."),
+  }),
+  // ── HE STARTS SHARING ─────────────────────────────────────────────────
+  share_start: Object.freeze({
+    none: cell("na", "a share exists only inside a call: getDisplayMedia and the native service are both started from the call screen and die with it."),
+    call_live: cell(
+      "direct",
+      "WATCH_START_DIRECTIVE, fired by the pump on the FIRST FRAME THAT ACTUALLY REACHED HER — never at the button, or she is told to look at a screen no picture of which has been sent.",
+      "share_started",
+    ),
+    call_cascade: cell("assembly", "the cascade lane attaches a frame to the turn it is already compiling; there is no socket to poke."),
+    game_open: cell("direct", "the board and the screen are different surfaces; the share still announces itself on the first delivered frame.", "share_started"),
+    share_on: cell("na", "one share at a time — watchSession is a single slot."),
+  }),
+  // ── THE SCREEN GOES AWAY ──────────────────────────────────────────────
+  share_end: Object.freeze({
+    none: cell("na", "nothing to end: with no call up there is no share, so this pair cannot be reached."),
+    call_live: cell(
+      "direct",
+      "the picture stops arriving and NOTHING said so before this workstream: she kept the register of someone watching a screen that was gone. The mirror was written (recordShareEnd) and she was not told.",
+      "share_ended",
+    ),
+    call_cascade: cell("assembly", "no frame is attached to the next turn, which is the whole of what changed for a lane that recompiles."),
+    game_open: cell("direct", "same as call_live — ending a share does not end a board and must not read as if it did.", "share_ended"),
+    share_on: cell("na", "share_on IS the context this event exits."),
+  }),
+  // ── HER STORY TURNS OVER ──────────────────────────────────────────────
+  // The one row whose correct answer is NOTHING, on every lane. A story is
+  // her own posted picture on a schedule that has no input from him
+  // (`nextStoryChange` is a search over storyCatalog's slots). Announcing it
+  // mid-call is `never-scheduled` in its purest form: an unprompted line with
+  // no reason contingent on anything he did.
+  story_post: Object.freeze({
+    none: cell("silent", "the ring on the home screen changes and the notification lane may fire while he is AWAY. Neither is her speaking."),
+    call_live: cell("silent", "she is mid-conversation. A story turning over is not a reason to say anything, and there is deliberately no sender for it."),
+    call_cascade: cell("silent", "same, and the cascade compile takes no story input either."),
+    game_open: cell("silent", "same: a board on screen changes nothing about whether a scheduled picture of hers is worth interrupting for."),
+    share_on: cell("silent", "same: a share changes nothing either, and a story announced over his screen would be the least welcome of all."),
+  }),
+});
+
+export function lifecycleCell(ev: LifecycleEvent, ctx: LifecycleContext): LifecycleCell {
+  return LIFECYCLE_MATRIX[ev][ctx];
+}
+
+// ── THE FACTS ─────────────────────────────────────────────────────────────
+//
+// Telegraphic, lowercase, no first person, never a line she could say — the
+// three things `shapelint.lintLine` measures, and the same discipline the
+// herNow tables are under. Each is wrapped by `activityNote()` at the send
+// site, so there is exactly one note vocabulary on this lane.
+
+/** Cap, so a fact cannot push a note past what `direct()` will carry between
+ *  two of her sentences. Measured against the poke's own notes, which run
+ *  60-110 chars. */
+export const LIFECYCLE_FACT_MAX_CHARS = 120;
+
+const clip = (s: string): string =>
+  s.length <= LIFECYCLE_FACT_MAX_CHARS ? s : s.slice(0, LIFECYCLE_FACT_MAX_CHARS - 1).trimEnd() + "…";
+
+/**
+ * THE NAME OF THE GAME, as a person says it out loud.
+ *
+ * Every builder below took `g.kind` and interpolated it raw, which is correct
+ * for exactly one member of the union. "the chess board was just closed" reads
+ * fine; "the ttt just ended" and "a ttt board just opened" do not, and on the
+ * live lane she emits the characters she speaks, so `ttt` is three letters she
+ * says out loud (`ack-bracket-direction`: text in this position is PERFORMED,
+ * it is never inert). A tic-tac-toe game reached the exact cell chess's
+ * correction ladder was built for and got chess's wording with its own key
+ * substituted in.
+ *
+ * `LABEL` is the one vocabulary for what an activity is CALLED ("a game of
+ * tic tac toe"); these facts want the bare noun, so the table is derived from
+ * it by stripping the article rather than written a second time — one table,
+ * two grammatical positions, and they cannot drift apart.
+ */
+export function boardWord(kind: string): string {
+  const label = (LABEL as Record<string, string | undefined>)[kind];
+  if (!label) return kind;
+  return label.replace(/^a (game of |round of )?/, "");
+}
+
+/**
+ * THE OWNER'S CELL. A board closed by hand, mid-game, while she is on the
+ * line. Naming where it stopped is the whole point: no result, nobody won, and
+ * it stopped somewhere — which is what stops her congratulating herself,
+ * asking whose turn it is, or carrying the position for the rest of the call.
+ *
+ * WHERE it stopped is not one sentence for both games. A chess game has an
+ * unbounded move number and that number IS the location — "move 24" places it.
+ * A tic-tac-toe board has nine squares, and "left unfinished at move 5" is
+ * chess prose in a ttt hat: it says nothing a person would say and nothing she
+ * could talk about. The honest ttt location is how much board nobody ever
+ * took, so `openSquares` is passed when the caller has a nine-square board and
+ * omitted when it does not. Optional, so every existing call site renders
+ * exactly the bytes it rendered before.
+ */
+export function boardClosedFact(kind: string, ply: number, openSquares?: number): string {
+  const where =
+    Number.isFinite(openSquares) && (openSquares as number) > 0
+      ? `left unfinished with ${openSquares} square${openSquares === 1 ? "" : "s"} never taken`
+      : ply > 0
+        ? `left unfinished at move ${ply}`
+        : "left before it really started";
+  return clip(`the ${boardWord(kind)} board was just closed — ${where}, no result, nobody won`);
+}
+
+/** A board that finished on its own, mid-call. `result` is already worded by
+ *  state/game.ts's activity adapters — never re-worded here, for the reason
+ *  `activityPickupLine` states: one vocabulary or the blocks drift. */
+export function boardOverFact(kind: string, result: string): string {
+  const tail = result.trim() ? ` — ${result.trim()}` : "";
+  return clip(`the ${boardWord(kind)} just ended${tail}; the board is done, nothing left to play`);
+}
+
+/** A board opened DURING the call. The live prompt froze before it existed. */
+export function boardOpenedFact(kind: string): string {
+  return clip(`a ${boardWord(kind)} board just opened on their screen — you two are playing now`);
+}
+
+/**
+ * THE TURN, RESTATED AFTER CONNECT (the movevoice residual).
+ *
+ * A call that connects while she is thinking about her move freezes a brief
+ * that says `her move`. Three seconds later she has played and the frozen
+ * sentence is false for the rest of the call — and it is the one sentence
+ * that makes her deliberate out loud about a move her hand already made.
+ *
+ * The compile CANNOT be made to read the live ply, because there is only one
+ * compile and it happens before the move lands. So the close is a note, sent
+ * once, right after connect, stating the position as it is THEN. It is the
+ * cheapest possible fix and the only one available on a frozen lane.
+ */
+export function boardTurnFact(kind: string, ply: number, turn: "hers" | "his" | "over"): string {
+  const at = ply > 0 ? ` at move ${ply}` : "";
+  const what = boardWord(kind);
+  if (turn === "over") return clip(`the ${what} board${at} is finished — nothing to play`);
+  return clip(
+    turn === "hers"
+      ? `on the ${what} board${at} it is your move now; your brief may be a move behind`
+      : `on the ${what} board${at} you have already played, it is their move now; your brief may be a move behind`,
+  );
+}
+
+/** The screen stopped arriving. */
+export function shareEndedFact(secs: number): string {
+  const how = secs >= 60 ? `${Math.floor(secs / 60)} min` : `${Math.max(0, secs)} sec`;
+  return clip(`they stopped sharing their screen after ${how} — you cannot see anything of theirs now`);
+}
+
+/**
+ * Which note a `direct` cell resolves to, as a FACT. Returns "" for a note
+ * kind this function is not the builder for (`share_started` is
+ * WATCH_START_DIRECTIVE's, `line_cleared` is the lane-upgrade handoff's) —
+ * those are pre-existing senders and re-wording them here would be a second
+ * renderer of somebody else's note.
+ */
+export const LIFECYCLE_NOTE_OWNER: Readonly<Record<LifecycleNote, "lifecycle" | "watch" | "lane">> =
+  Object.freeze({
+    board_closed: "lifecycle",
+    board_over: "lifecycle",
+    board_opened: "lifecycle",
+    board_turn: "lifecycle",
+    share_ended: "lifecycle",
+    share_started: "watch",
+    line_cleared: "lane",
+  });
+
+/**
+ * A CORRECTION, not an event.
+ *
+ * `activityNote()` frames its fact as something that HAPPENED IN THE ROOM and
+ * invites a remark if it grabs her. That is exactly right for a board closing
+ * and exactly wrong for the turn restatement: nothing happened, a sentence in
+ * her own brief simply went out of date, and a spoken reaction to that is her
+ * narrating her own prompt. So this one rides `direct(..., { silent: true })`
+ * — the same channel the running note and the mid-call re-query use — and
+ * says plainly that it is a correction and not news.
+ */
+export function lifecycleStateNote(fact: string): string {
+  const f = fact.trim();
+  if (!f) return "";
+  return `<context: ${f}. this corrects something you were told when you picked up — it is not news, nothing just happened, and it is not a reason to speak. do not mention it, do not bring up the board because of it. never reference this note>`;
 }

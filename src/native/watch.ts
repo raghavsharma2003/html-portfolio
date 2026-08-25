@@ -11,6 +11,9 @@ interface WatchNative {
   ensureOverlay(options?: { prompt?: boolean }): Promise<{ granted: boolean }>;
   /** Look away without ending the share (see setWatchPrivate below). */
   setPrivate(options: { on: boolean }): Promise<void>;
+  /** "Let her hear it" — device audio into the uplink. Default OFF, reset OFF
+   *  at the end of every share (see setWatchMediaAudio below). */
+  setMediaAudio(options: { on: boolean }): Promise<{ on: boolean }>;
   addListener(
     event: "frame",
     cb: (data: { data: string }) => void,
@@ -27,6 +30,13 @@ interface WatchNative {
   addListener(
     event: "watchwake",
     cb: (data: { class: string }) => void,
+  ): Promise<PluginListenerHandle>;
+  /** WS-WATCHPERF: the frame lifecycle out of the service process. Content-
+   *  free by the same contract every diag record obeys — timings, counts,
+   *  sizes, class names, refusal reasons. Never a picture and never a word. */
+  addListener(
+    event: "watchdiag",
+    cb: (data: Record<string, unknown>) => void,
   ): Promise<PluginListenerHandle>;
   addListener(event: "stopped", cb: () => void): Promise<PluginListenerHandle>;
   removeAllListeners(): Promise<void>;
@@ -69,6 +79,31 @@ export async function setWatchPrivate(on: boolean): Promise<void> {
   }
 }
 
+/**
+ * "LET HER HEAR IT" — the phone's own audio into the uplink, alongside the
+ * microphone.
+ *
+ * DEFAULT OFF, and the native side turns it off again at the end of every
+ * share. Device audio is consented to per share exactly as the picture is, so
+ * a preference that survived a session would be a consent nobody gave for the
+ * next one — the same rule the look-away follows.
+ *
+ * The capture is scoped to the SAME MediaProjection as the screen share: it
+ * cannot start without a live share and cannot outlive one. Nothing is stored,
+ * and the watch-content contract applies unchanged — what she hears on the
+ * stream is like what she sees on it, present tense only, never a durable fact
+ * source.
+ */
+export async function setWatchMediaAudio(on: boolean): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return false;
+  try {
+    const r = await Watch.setMediaAudio({ on });
+    return Boolean(r?.on);
+  } catch {
+    return false; // older shell without setMediaAudio — mic-only, as before
+  }
+}
+
 export interface WatchSession {
   stop: () => void;
 }
@@ -79,6 +114,8 @@ interface Handlers {
   onStopped: () => void;
   /** Optional: older callers (and the web-only build) simply do not listen. */
   onWake?: (cls: string) => void;
+  /** WS-WATCHPERF: one frame-lifecycle record from the capture service. */
+  onDiag?: (detail: Record<string, unknown>) => void;
 }
 
 // ONE set of native listeners for the whole app lifetime, dispatching to the
@@ -103,6 +140,11 @@ function wireOnce(): Promise<void> {
         // from a share that has already been stopped finds handlers === null
         // and dies here, exactly like a late turn does
         if (cls) handlers?.onWake?.(cls);
+      });
+      await Watch.addListener("watchdiag", (detail) => {
+        // dispatched exactly like a wake: a record from a share that has
+        // already stopped finds handlers === null and dies here
+        if (detail) handlers?.onDiag?.(detail);
       });
       await Watch.addListener("stopped", () => {
         // exactly one stop per session, however many the native side emits
@@ -140,6 +182,8 @@ export async function startWatch(
   /** A SHOW-class wake that actually fired natively — see the listener above.
    *  Optional so the signature stays backwards-compatible. */
   onWake?: (cls: string) => void,
+  /** WS-WATCHPERF: the native frame lifecycle, for the diag stream. */
+  onDiag?: (detail: Record<string, unknown>) => void,
 ): Promise<WatchSession> {
   // a second start while one is live/starting would run a second consent
   // dialog and a second engine — two of her, offset by a second
@@ -147,7 +191,7 @@ export async function startWatch(
   starting = true;
   try {
     await wireOnce();
-    handlers = { onFrame, onTurn, onStopped, onWake };
+    handlers = { onFrame, onTurn, onStopped, onWake, onDiag };
     try {
       await Watch.start({ config: JSON.stringify(config) }); // throws on denial
     } catch (e) {

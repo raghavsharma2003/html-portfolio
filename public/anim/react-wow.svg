@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Wow reaction">
+  <circle cx="256" cy="252" r="140" fill="#f8d08b" fill-opacity=".13" stroke="#f8d08b" stroke-width="16"/>
+  <circle cx="193" cy="223" r="18" fill="#c23f56"/><circle cx="319" cy="223" r="18" fill="#c23f56"/>
+  <ellipse cx="256" cy="305" rx="43" ry="41" fill="#c23f56" fill-opacity=".1" stroke="#c23f56" stroke-width="16"/>
+  <g fill="none" stroke-linecap="round"><path d="M386 125v60M356 155h60" stroke="#c23f56" stroke-width="10"/><path d="m366 135 40 40m0-40-40 40" stroke="#f8d08b" stroke-width="6"/></g>
+</svg>

@@ -62,7 +62,18 @@ ok(
   !chat.includes("burstWaitMs("),
   "burstWaitMs belongs to burst.ts; the surface calls burstDecide",
 );
-for (const k of ["COMPOSE_ACTIVE_MS", "COMPOSE_ABANDON_MS", "BURST_INTERJECT_MS", "CONTINUATION_WEAK_MS"]) {
+for (const k of [
+  "COMPOSE_ACTIVE_MS",
+  "COMPOSE_ABANDON_MS",
+  "BURST_INTERJECT_MS",
+  "CONTINUATION_WEAK_MS",
+  // WS-BREATH's four. The focus/keyboard hold is the newest place a surface
+  // could grow half a policy, so it is the first place to look for one.
+  "BURST_GRACE_FLOOR_MS",
+  "BURST_HANDOFF_MS",
+  "FOCUS_HOLD_MS",
+  "SETTLE_MS",
+]) {
   ok(`no ${k} constant leaked into the surface`, !chat.includes(k));
 }
 ok("burst.ts imports only ./greeting", (burst.match(/^import .*$/gm) || []).every((l) => l.includes('"./greeting"')));
@@ -78,6 +89,36 @@ ok(
   !chat.includes("useState(\"\");\n  const draftRef"),
   "draftRef must be a ref",
 );
+
+// ── 2b. WS-BREATH: the signals the shipped fix did not have ────────────────
+//
+// The recurrence was not a tuning miss. It was three signals that existed in
+// the browser and reached nothing: whether the composer is focused, whether the
+// keyboard is up, and how often HE doubles. Each is asserted wired here, and
+// each cost a measured second of the owner's patience when it was not.
+ok("the composer's FOCUS reaches the policy", /composerFocused\.current = true;/.test(chat));
+ok("and blur clears it", /composerFocused\.current = false;/.test(chat));
+ok("the soft keyboard is sensed from the visual viewport", /keyboardOpen\.current = open;/.test(chat));
+ok("all three are handed to burstDecide", /composerFocused: composerFocused\.current,[\s\S]{0,200}keyboardOpen: keyboardOpen\.current,/.test(chat));
+ok("his doubling rate is computed from the thread, not guessed", /followUpRate: followUpRate\(turns\)/.test(chat));
+ok("the engagement clock is a ref, so presence costs no render", /const lastEngagedAt = useRef\(0\)/.test(chat));
+ok("presence costs no render either", /const composerFocused = useRef\(false\)/.test(chat) && /const keyboardOpen = useRef\(false\)/.test(chat));
+// The mirror bug, structurally: blur must NOT stamp the engagement clock, or
+// the blur that every send produces would arm a hold under every message.
+{
+  // comments stripped: the reason this must NOT be here is written right here,
+  // and a grep that cannot tell a rule from its rationale fails on its own docs
+  const blur = chat
+    .slice(chat.indexOf("onBlur={() => {"), chat.indexOf("onBlur={() => {") + 600)
+    .replace(/\/\/.*$/gm, "");
+  ok("blur does not stamp the engagement clock — the send's own blur would arm a hold", !/engaged\(\)/.test(blur), blur.slice(0, 200));
+}
+// …and neither may keyboard CLOSE, for exactly the same reason.
+{
+  const kb = chat.slice(chat.indexOf("keyboardOpen.current = open;"), chat.indexOf("keyboardOpen.current = open;") + 400);
+  ok("only keyboard OPEN is an act", /if \(open\) engaged\(\);/.test(kb), kb.slice(0, 200));
+}
+ok("the burst telemetry says what shortened the breath", /done: d\.completion\.reason/.test(chat));
 
 // ── 3. the flags: taken once, released once, never in the pass ─────────────
 const cycle = bodyOf(chat, "replyCycle");

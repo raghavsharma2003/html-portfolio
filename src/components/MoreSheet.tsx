@@ -12,6 +12,8 @@
 // named in words before it happens, and — for the chat — is undoable for
 // ten seconds after.
 
+import NotifyRow from "../notify/NotifyRow";
+import toBody from "./bodyPortal";
 import { useEffect, useRef, useState } from "react";
 import type { AppState } from "../state/store";
 import { HER_NAME } from "../engine/persona";
@@ -30,6 +32,11 @@ import {
 import { THEMES, THEME_LABEL } from "../engine/theme";
 import type { SkyState } from "../engine/sky";
 import { useSky, skyVars } from "./WorldLayer";
+// WS-SOUND. `setSoundEnabled` is published from Chat on every change to
+// `state.soundOn`; it is called HERE as well, at the instant of the tap, so
+// that switching sound on can be confirmed BY a sound. A preview that waited
+// for the next render would be a preview of the setting he just left.
+import { play, setSoundEnabled } from "../sound";
 
 // GAP 4 (WS-FELT) — closeness card copy. App chrome, never a line she says
 // (same discipline ClockCard.tsx's own header states for its strings), and
@@ -38,6 +45,40 @@ import { useSky, skyVars } from "./WorldLayer";
 // from bands relstate.ts already computes for the model itself
 // (bandTrust/bandPacing) plus the honorific enum, so the UI can never say
 // something the model's own view of the relationship disagrees with.
+/**
+ * The one icon this sheet draws itself.
+ *
+ * It lives here rather than in `icons.tsx` because it is the only icon in the
+ * app with two STATES, and the two states are the whole point of the control:
+ * a speaker with air coming off it, or a speaker with a line through it. An
+ * icon that looked the same either way would put the entire burden of the
+ * switch on the track beside it, which is exactly what the Appearance segments
+ * above were doing before they got swatches.
+ */
+const SoundIcon = ({ on, size = 19 }: { on: boolean; size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M11 5.5 6.6 9H3.8v6h2.8L11 18.5V5.5Z" />
+    {on ? (
+      <>
+        <path d="M14.8 9.4a3.6 3.6 0 0 1 0 5.2" />
+        <path d="M17.4 6.9a7.2 7.2 0 0 1 0 10.2" />
+      </>
+    ) : (
+      <path d="M15.2 9.8 20 14.6M20 9.8l-4.8 4.8" />
+    )}
+  </svg>
+);
+
 const HONORIFIC_LABEL: Record<string, string> = {
   tu: "She's easy and informal with you",
   tum: "You're warming up to each other",
@@ -180,7 +221,7 @@ export default function MoreSheet({
   // sunset. It cannot reach any handler: `skyVars` writes CSS variables.
   const sky = useSky();
 
-  return (
+  return toBody(
     <>
       <div className="sheet-veil" onClick={onClose} />
       <div
@@ -299,6 +340,55 @@ export default function MoreSheet({
                 : `Sky follows the sky over ${HER_NAME}'s city. Auto follows your phone.`}
             </p>
 
+            {/* SOUNDS.
+                One switch, and it sits under Appearance rather than in a
+                submenu for the same reason the theme picker does: it is a
+                setting someone reaches for in a physical situation ("I am in
+                a meeting"), and a setting you reach for in that state should
+                be one tap away.
+
+                It is a `switch` and not a row that navigates, so it carries a
+                real track instead of a chevron: a chevron promises a place you
+                go. The subtitle is the one place in this sheet that can say
+                what the sound layer IS, and it says the two cues that account
+                for almost all of it. Nothing about volume, because there is no
+                volume to set.
+
+                TURNING IT ON PREVIEWS ITSELF. `setSoundEnabled` is published
+                before the state write so the cue below is not swallowed by the
+                gate it is about to open, and the cue is `receive` because
+                hearing HER arrival is the honest answer to "what will this
+                sound like". Turning it off previews nothing, obviously. */}
+            <button
+              type="button"
+              className="srow sound-row"
+              role="switch"
+              aria-checked={state.soundOn !== false}
+              data-tel="more.sound"
+              onClick={() => {
+                const next = state.soundOn === false;
+                setSoundEnabled(next);
+                setState((cur) => ({ ...cur, soundOn: next }));
+                if (next) play("receive");
+              }}
+            >
+              <span className="sicon" aria-hidden="true">
+                <SoundIcon on={state.soundOn !== false} />
+              </span>
+              <span className="stext">
+                <span className="stitle">Sounds</span>
+                <span className="ssub">
+                  {state.soundOn !== false
+                    ? "A quiet tap when you send, and when she answers"
+                    : "Off. Nothing but calls."}
+                </span>
+              </span>
+              <span className="sswitch" aria-hidden="true">
+                <span className="sknob" />
+              </span>
+            </button>
+            <NotifyRow state={state} setState={setState} />
+
             <div className="sheet-rows">
               <button className="srow" data-tel="more.profile" onClick={() => setView("profile")}>
                 <span className="sicon">
@@ -396,6 +486,27 @@ export default function MoreSheet({
                 keeps the only fact the fields do not state themselves: when
                 the change lands. */}
             <p className="hint">She picks up changes from your next message on.</p>
+            <div className="sheet-rows">
+              <button
+                className="srow"
+                data-tel="more.knows"
+                onClick={() => {
+                  onClose();
+                  window.dispatchEvent(new CustomEvent("meera:knows"));
+                }}
+              >
+                <span className="sicon">
+                  <MemoryIcon />
+                </span>
+                <span className="stext">
+                  <span className="stitle">What she remembers</span>
+                  <span className="ssub">Read it, fix it, drop anything</span>
+                </span>
+                <span className="schev">
+                  <ChevronIcon />
+                </span>
+              </button>
+            </div>
             <label htmlFor="ms-name">Your name</label>
             <input
               id="ms-name"
@@ -513,6 +624,6 @@ export default function MoreSheet({
           </>
         )}
       </div>
-    </>
+    </>,
   );
 }

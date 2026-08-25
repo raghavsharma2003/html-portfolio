@@ -153,12 +153,12 @@
     {
       "id": "persona",
       "kind": "component",
-      "title": "persona.ts \u2014 where her personality lives"
+      "title": "persona.ts — where her personality lives"
     },
     {
       "id": "inner",
       "kind": "component",
-      "title": "inner.ts \u2014 carried feeling, wants, taste, mood arc"
+      "title": "inner.ts — carried feeling, wants, taste, mood arc"
     },
     {
       "id": "memory-graph",
@@ -511,19 +511,19 @@
     {
       "id": "free-pool-capacity",
       "kind": "measurement",
-      "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) \u2014 axis recalibration flagged",
+      "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) — axis recalibration flagged",
       "at": "2026-08-15"
     },
     {
       "id": "deepseek-pro-judge",
       "kind": "measurement",
-      "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash \u2014 family out at any size",
+      "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash — family out at any size",
       "at": "2026-08-15"
     },
     {
       "id": "mistral-judge",
       "kind": "measurement",
-      "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A \u2014 most extreme position bias measured",
+      "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A — most extreme position bias measured",
       "at": "2026-08-15"
     },
     {
@@ -559,13 +559,13 @@
     {
       "id": "relstate-zero-rows",
       "kind": "measurement",
-      "title": "vy_rel_state: 0 rows for 40 persons \u2014 UPDATE-writers with no INSERT owner; whole relational surface silently invisible",
+      "title": "vy_rel_state: 0 rows for 40 persons — UPDATE-writers with no INSERT owner; whole relational surface silently invisible",
       "at": "2026-08-15"
     },
     {
       "id": "felt-wiring-landed",
       "kind": "measurement",
-      "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card \u2014 deployed 4/4",
+      "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card — deployed 4/4",
       "at": "2026-08-15"
     },
     {
@@ -577,7 +577,7 @@
     {
       "id": "r4-english-control",
       "kind": "measurement",
-      "title": "English translation does not rescue judges (recovery within noise floor) \u2014 failure is deeper than code-switching",
+      "title": "English translation does not rescue judges (recovery within noise floor) — failure is deeper than code-switching",
       "at": "2026-08-18"
     },
     {
@@ -595,7 +595,7 @@
     {
       "id": "ground-truth-ceiling",
       "kind": "measurement",
-      "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] \u2014 the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
+      "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] — the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
       "at": "2026-08-18"
     },
     {
@@ -613,7 +613,7 @@
     {
       "id": "r2-axis-decomposition",
       "kind": "measurement",
-      "title": "Per-axis judge failure partially concentrates: brevity a clustered-CI outlier (55.2%), humour indistinguishable from specificity/personhood \u2014 three tiers, not the predicted binary; every axis still fails 80% bar",
+      "title": "Per-axis judge failure partially concentrates: brevity a clustered-CI outlier (55.2%), humour indistinguishable from specificity/personhood — three tiers, not the predicted binary; every axis still fails 80% bar",
       "at": "2026-08-18"
     },
     {
@@ -643,7 +643,7 @@
     {
       "id": "age-tier-never-realtime",
       "kind": "rejection",
-      "title": "The second assembler dropped FORGET_DECISION and AGE_TIER_SAFETY_OVERRIDE \u2014 a safety rule never reached the realtime lane",
+      "title": "The second assembler dropped FORGET_DECISION and AGE_TIER_SAFETY_OVERRIDE — a safety rule never reached the realtime lane",
       "at": "2026-08-20"
     },
     {
@@ -655,7 +655,7 @@
     {
       "id": "startup-failure-is-invisible",
       "kind": "rejection",
-      "title": "secrets in a job-level if: makes the whole workflow invalid \u2014 15 red runs, 0 jobs, 9 days with no auto-deploy",
+      "title": "secrets in a job-level if: makes the whole workflow invalid — 15 red runs, 0 jobs, 9 days with no auto-deploy",
       "at": "2026-08-20"
     },
     {
@@ -757,7 +757,7 @@
     {
       "id": "logged-but-unindexed",
       "kind": "rejection",
-      "title": "16 entries written up with no graph row \u2014 --check validated one direction only",
+      "title": "16 entries written up with no graph row — --check validated one direction only",
       "at": "2026-08-20"
     },
     {
@@ -793,7 +793,7 @@
     {
       "id": "manifest-sourcestatus",
       "kind": "rejection",
-      "title": "sourceStatus reports wired against a compile that rendered 0 of 3 blocks \u2014 an anti-signal, not a weak one",
+      "title": "sourceStatus reports wired against a compile that rendered 0 of 3 blocks — an anti-signal, not a weak one",
       "at": "2026-08-20"
     },
     {
@@ -907,7 +907,7 @@
     {
       "id": "nine-dark-tail-slots",
       "kind": "measurement",
-      "title": "Production: 9 declared tail slots render 0 bytes; only T5/T7/T10/T11 render \u2014 three investigations in one queryable row",
+      "title": "Production: 9 declared tail slots render 0 bytes; only T5/T7/T10/T11 render — three investigations in one queryable row",
       "at": "2026-08-20"
     },
     {
@@ -919,19 +919,19 @@
     {
       "id": "engine-bundle-check-uncalled",
       "kind": "rejection",
-      "title": "build-engine-bundle --check works, caught real drift, and is invoked by nothing \u2014 dead-writers in the guard",
+      "title": "build-engine-bundle --check works, caught real drift, and is invoked by nothing — dead-writers in the guard",
       "at": "2026-08-20"
     },
     {
       "id": "busy-held-across-recursion",
       "kind": "rejection",
-      "title": "the burst branch recursed while still holding `busy`, so the one path written for bursts was the only one that could not reply \u2014 and the chat stayed dead",
+      "title": "the burst branch recursed while still holding `busy`, so the one path written for bursts was the only one that could not reply — and the chat stayed dead",
       "at": "2026-08-21"
     },
     {
       "id": "surface-bypasses-parse",
       "kind": "rejection",
-      "title": "api/_surface.js returns the model's raw string and never calls parseBubbles, so no engine guarantee \u2014 honesty, dash, protocol extraction \u2014 reaches Telegram",
+      "title": "api/_surface.js returns the model's raw string and never calls parseBubbles, so no engine guarantee — honesty, dash, protocol extraction — reaches Telegram",
       "at": "2026-08-21"
     },
     {
@@ -961,7 +961,7 @@
     {
       "id": "proactive-reason-contingent",
       "kind": "decision",
-      "title": "she may text first because something HAPPENED, never because he went quiet \u2014 the test is on the trigger, not the frequency",
+      "title": "she may text first because something HAPPENED, never because he went quiet — the test is on the trigger, not the frequency",
       "at": "2026-08-21"
     },
     {
@@ -1009,7 +1009,7 @@
     {
       "id": "theme-choosable",
       "kind": "decision",
-      "title": "light, dark or follow the phone \u2014 and 'system' stamps no attribute so the media query keeps deciding",
+      "title": "light, dark or follow the phone — and 'system' stamps no attribute so the media query keeps deciding",
       "at": "2026-08-21"
     },
     {
@@ -1021,7 +1021,7 @@
     {
       "id": "gates-that-live-nowhere-2",
       "kind": "rejection",
-      "title": "the eval suite had never run in CI, and could not have \u2014 a gitignored import killed it first",
+      "title": "the eval suite had never run in CI, and could not have — a gitignored import killed it first",
       "at": "2026-08-21"
     },
     {
@@ -1189,7 +1189,7 @@
     {
       "id": "prosody-reads-hearing-not-feeling",
       "kind": "decision",
-      "title": "Usage signals may inform hearing, never feeling; content-vs-usage test in the charter with the \u00a7H reversal",
+      "title": "Usage signals may inform hearing, never feeling; content-vs-usage test in the charter with the §H reversal",
       "at": "2026-08-22"
     },
     {
@@ -1219,7 +1219,7 @@
     {
       "id": "minifier-eats-runtime-tokens",
       "kind": "rejection",
-      "title": "Runtime token reads get the minifier value; entrance never ran; settle truncated \u2014 frame-sampling found all three",
+      "title": "Runtime token reads get the minifier value; entrance never ran; settle truncated — frame-sampling found all three",
       "at": "2026-08-22"
     },
     {
@@ -1341,6 +1341,336 @@
       "kind": "measurement",
       "at": "2026-08-23",
       "title": "Felt-memory battery rehearsal: machinery proven, n=130 underpowered, retold +0.89 and time +0.84 directional, blocked on OpenRouter key limit"
+    },
+    {
+      "id": "judge-qualification-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "All zero-cash judges fail the 80% bar (27-52%, heavy position bias); powered feltmem waits on eval keys"
+    },
+    {
+      "id": "brain-stays-36-flash-reaffirmed",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "No brain swap on a price sale; swaps go through the measured battery only"
+    },
+    {
+      "id": "sound-vocabulary-closed",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "The sound layer is a closed five-cue vocabulary, synthesised, paired to the haptic levels"
+    },
+    {
+      "id": "sound-default-on-quiet",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "One switch, default on, no volume slider; the mix is one constant"
+    },
+    {
+      "id": "sound-gates-four-and-two-sources",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "Four gates, and the call gate reads two independent sources"
+    },
+    {
+      "id": "sound-layer",
+      "kind": "component",
+      "at": "2026-08-23",
+      "title": "src/sound/ — vocabulary, synth, and the one gated path to the speaker"
+    },
+    {
+      "id": "sound-browser-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "0 contexts before a gesture; 1 cue per send; 2 cues for a three-bubble reply; 0 when off"
+    },
+    {
+      "id": "typing-tick",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "A tick on the typing indicator: a state, fired per bubble, with no gesture in front of it"
+    },
+    {
+      "id": "receive-per-bubble",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "One arrival cue per bubble: three sounds in four seconds is an alarm"
+    },
+    {
+      "id": "sound-gate-proved-by-silence",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "A call-gate assertion whose only evidence was silence, and so could not fail"
+    },
+    {
+      "id": "story-notification-scheduled-exception",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "Story notification is a ruled exception to never-schedule; the event exists without the timer"
+    },
+    {
+      "id": "forget-receipt-hedges-on-fallback",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "Hook failure falls back lexical with a hedged receipt; done/hedged/none computed from row counts"
+    },
+    {
+      "id": "pin-58-to-frozen-snapshot",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "Both swap-test arms stay on the frozen 08-15 corpus; drift guard refuses mixed snapshots"
+    },
+    {
+      "id": "improvement-wave-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "Six-slice wave: forget 5.9 to 76.5, patterns unreachable fixed, sound/notify/knows shipped, 13/13 twice"
+    },
+    {
+      "id": "move-voice-one-timeline",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "Seeded think-time table + no pre-line + a clause stating the choice closed; her hand and her voice on one clock"
+    },
+    {
+      "id": "game-notes-ride-a-send-seam",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "noteVerdict(ply, session, speaking) -> send/stale/hold; a note may not outlive the position it describes"
+    },
+    {
+      "id": "pre-line-before-the-move",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "The deliberating pre-line cannot be ordered before the piece on the live lane; silent move + past-tense line instead"
+    },
+    {
+      "id": "past-tense-is-not-enough",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "The note was already past tense when the defect shipped; what was missing was stating the choice CLOSED"
+    },
+    {
+      "id": "movevoice-timing-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "Browser: 25 of her turns timed per game, floor held, spread ~6.3s, 245/265 ordering pairs track the table"
+    },
+    {
+      "id": "movevoice",
+      "kind": "component",
+      "at": "2026-08-23",
+      "title": "The board's clock and her voice: think table, settled clause, send seam"
+    },
+    {
+      "id": "evidence-only-patience",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "Every patience signal required evidence; the ordinary evidence-free message got 1300ms - grace must be the default; dead battery compounded it"
+    },
+    {
+      "id": "timeline-wave-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "Live-test wave: herNow sticky state, just-happened block, share lag 3.1 to 1.1s + phone audio, movevoice choreography, she-calls 377 checks, burst grace floor 2600ms on 484 cells"
+    },
+    {
+      "id": "maya-rename-display-only",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "Rename rides the HER_NAME seam + 12 static files; internal identifiers never change; wake-names superset; bot fallbacks wait for account renames"
+    },
+    {
+      "id": "lifecycle-matrix-as-code",
+      "kind": "decision",
+      "at": "2026-08-23",
+      "title": "LIFECYCLE_MATRIX: 50 cells each with carrier + mandatory why; direct cells must have a live sender in source or the build fails"
+    },
+    {
+      "id": "t14-render-layer-retired",
+      "kind": "rejection",
+      "at": "2026-08-23",
+      "title": "T14 render layer retired: never in MANIFEST, zero callers, would be a second renderer of herNow's question; returns only as a compiler slot with lane parity"
+    },
+    {
+      "id": "maya-lifecycle-wave-2026-08-23",
+      "kind": "measurement",
+      "at": "2026-08-23",
+      "title": "Rename: 75 refs/16 files via one seam, 0 stray literals, browser-verified; lifecycle 378 checks/50 cells/7 controls; verify-release 13/13 x4"
+    },
+    {
+      "id": "isquota-only-folding",
+      "kind": "rejection",
+      "at": "2026-08-24",
+      "title": "Quota-or-abort classification folded transient 5xx into deterministic 4xx: one Google 502 aborted a nine-key pool; isTransient already existed and two callers already used it"
+    },
+    {
+      "id": "lane-order-azure-first-attachments",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "Named lane order: text free->openrouter->azure, attachments azure-first; azure wired+gated, not yet measured live"
+    },
+    {
+      "id": "no-capacitor-camera-plugin",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "Camera rides <input capture> via the WebView; a plugin would force an OTA_NATIVE_CONTRACT reinstall for a capability we have"
+    },
+    {
+      "id": "resilience-latency-2026-08-24",
+      "kind": "measurement",
+      "at": "2026-08-24",
+      "title": "Retry ladder latency table: production 502 shape lands on next lane at +257ms; 4000ms deadline held; no-repeat draw 0/4000 vs ~650 pre-fix"
+    },
+    {
+      "id": "cache-outlives-the-voice",
+      "kind": "rejection",
+      "at": "2026-08-24",
+      "title": "Four voice lanes moved Aoede->Autonoe and the IndexedDB clip caches did not: keys carried text/style/id, never the voice, so the pickup clip (first sound of a call) replayed the old voice next to a live session in the new one"
+    },
+    {
+      "id": "engine-per-phrase",
+      "kind": "rejection",
+      "at": "2026-08-24",
+      "title": "fetchClipFor re-derived the TTS vendor from hasAudioTags(phrase) once per phrase, so one reply could be spoken half by Sarvam and half by ElevenLabs; the gate asserted the identical property one level down and nobody checked the level above"
+    },
+    {
+      "id": "subset-check-is-green-by-construction",
+      "kind": "rejection",
+      "at": "2026-08-24",
+      "title": "The cache-key guard shipped three bugs in twenty lines, all toward passing: inline-only matching, first-binding-in-file resolution, and counting function declarations as call sites; found only by breaking it"
+    },
+    {
+      "id": "one-voice-switch",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "Her voice name gets ONE WRITER across six lanes in four languages: verify-voice.mjs --set <Voice> moves all lanes and verifies in one command; cache keys carry the identity so stale audio strands itself"
+    },
+    {
+      "id": "live-vs-tts-timbre",
+      "kind": "measurement",
+      "at": "2026-08-24",
+      "title": "Autonoe on live vs Autonoe on TTS, n=3/arm: f0 218 vs 222 Hz (-0.32 semitones, NOT a difference); tilt -8.5 vs -13.0 dB, but the 4.4 dB between-arm delta is smaller than the 10.1 dB within-TTS-arm spread"
+    },
+    {
+      "id": "live-voice-roster",
+      "kind": "measurement",
+      "at": "2026-08-24",
+      "title": "All 8 candidate voices plus Autonoe/Aoede accepted by gemini-3.1-flash-live-preview at hi-IN via setup-only handshakes (zero audio); negative-controlled with a 1007 rejection for a bogus name"
+    },
+    {
+      "id": "voice-despina",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "Her voice is Despina, chosen by ear from the blind deck; moved in one command across six lanes, echosim byte-identical (same MD5), no cache purge needed because identity is in the key"
+    },
+    {
+      "id": "identity-wins",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "Sarvam/ElevenLabs user keys demoted from automatic override to failover-only: her own voice is preferred on the cascade whenever reachable; no code in the tree ever writes those keys, but store hydration keeps any an older build wrote"
+    },
+    {
+      "id": "watch-exit-returns-to-live",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "All three native-watch exits reconnect to live; #96 landed the reconnect but missed watch_consent_denied because a denial is not a stop — the likeliest path, downgrading the call in exchange for a share that never happened"
+    },
+    {
+      "id": "model-twins-pinned",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "LiveWatchEngine.java DEFAULT_MODEL pinned to api/live-token.js LIVE_MODEL; it was the measured-and-rejected 2.5-native-audio model as a silent fallback. Distinct voice models 3 -> 2"
+    },
+    {
+      "id": "ttt-second-class",
+      "kind": "rejection",
+      "at": "2026-08-24",
+      "title": "Four of six chess systems reached ttt in name only; a generic seam needs a gate driving every union member end to end"
+    },
+    {
+      "id": "despina-by-ear",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "Voice switched to Despina via blind 8-deck; atomic six-lane switch; echosim byte-identical; reverses only by ear"
+    },
+    {
+      "id": "ttt-t15-bytes",
+      "kind": "measurement",
+      "at": "2026-08-24",
+      "title": "ttt T15 head 307/420 bytes; fact order is the drop policy on a live ttt board"
+    },
+    {
+      "id": "currentcolor-marks-inline-or-mask",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "currentColor SVG marks ship as CSS mask or ?raw inline, never img; anim.tsx is the single asset/reduce seam"
+    },
+    {
+      "id": "glyph-in-a-live-status-line",
+      "kind": "rejection",
+      "at": "2026-08-24",
+      "title": "No animated glyph inside an aria-live status label; eyes removed from CallVoice copy, kept on the story gate"
+    },
+    {
+      "id": "os-first-optimization",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "Owner directive: quality untouchable; optimize at the OS layer by default; Maya-level changes allowed but documented for the next personality agent"
+    },
+    {
+      "id": "labeled-key-pool",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "Owner-tagged key pool: label travels per key for RCA, one-way key->label, zero-latency switch unchanged; 48/48 healthy"
+    },
+    {
+      "id": "bake-glued-labels",
+      "kind": "rejection",
+      "at": "2026-08-24",
+      "title": "write-config baked label~key verbatim: 400-abort then pool-0; one entry parser at every seam, keyring gate drives the real bake"
+    },
+    {
+      "id": "personality-is-a-sheet",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "RelationalOS proven: Kabir authored as a 29-field sheet on Maya's core — 412/412 invariants across 2 agents, Maya byte-identical throughout"
+    },
+    {
+      "id": "fixed-fuse-on-a-variable-upstream",
+      "kind": "rejection",
+      "at": "2026-08-24",
+      "title": "1400ms fuse tuned to healthy tail cut every key when Google TTS degraded to ~10s first frames; global cooled-map mid-walk skip re-broke the all-cooled fallback"
+    },
+    {
+      "id": "two-phase-fuse",
+      "kind": "decision",
+      "at": "2026-08-24",
+      "title": "speech keeps the 1400ms hunt, then ONE 15s long-fuse attempt before paid; family cooling makes a dead 20-key family cost one attempt"
+    },
+    {
+      "id": "tts-first-frame-degraded",
+      "kind": "measurement",
+      "at": "2026-08-24",
+      "title": "Google TTS first frame 9.7-11.3s on healthy keys (n=3) vs 615-1051ms baseline; carbonsettle prepay 429 on generate while countTokens 200s"
+    },
+    {
+      "id": "live-clock-in-a-byte-identity-gate",
+      "kind": "rejection",
+      "at": "2026-08-24",
+      "title": "byte-identity flaked on a minute tick ('10:25 pm' vs '10:26 pm'): pin every ambient input inside an identity gate; fixed by freezing Date in the harness"
+    },
+    {
+      "id": "calendar-lottery-ceiling",
+      "kind": "rejection",
+      "at": "2026-08-25",
+      "title": "size ceilings measured under the live clock on date-varying core (46590..46771): ~25% of dates failed on identical source; pinned to argmax date, ceiling set from yearly max"
+    },
+    {
+      "id": "accent-joins-the-sky",
+      "kind": "decision",
+      "at": "2026-08-25",
+      "title": "sky states carry a sky-solved accent (>=4.75:1 over veiled stops, gated); the theme rose measured 2.26:1 on morning blue — owner-felt, now structural"
     },
     {
       "id": "replica-control-plane",
@@ -2498,6 +2828,266 @@
       "src": "feltmem-rehearsal-2026-08-23",
       "rel": "measured_by",
       "dst": "memory-wave-2026-08-23"
+    },
+    {
+      "src": "judge-qualification-2026-08-23",
+      "rel": "constrains",
+      "dst": "feltmem-rehearsal-2026-08-23"
+    },
+    {
+      "src": "brain-stays-36-flash-reaffirmed",
+      "rel": "constrains",
+      "dst": "brain-model"
+    },
+    {
+      "src": "sound-vocabulary-closed",
+      "rel": "part_of",
+      "dst": "sound-layer"
+    },
+    {
+      "src": "sound-default-on-quiet",
+      "rel": "part_of",
+      "dst": "sound-layer"
+    },
+    {
+      "src": "sound-gates-four-and-two-sources",
+      "rel": "part_of",
+      "dst": "sound-layer"
+    },
+    {
+      "src": "sound-browser-2026-08-23",
+      "rel": "part_of",
+      "dst": "sound-layer"
+    },
+    {
+      "src": "sound-vocabulary-closed",
+      "rel": "measured_by",
+      "dst": "sound-browser-2026-08-23"
+    },
+    {
+      "src": "typing-tick",
+      "rel": "constrains",
+      "dst": "sound-vocabulary-closed"
+    },
+    {
+      "src": "receive-per-bubble",
+      "rel": "constrains",
+      "dst": "sound-vocabulary-closed"
+    },
+    {
+      "src": "sound-gate-proved-by-silence",
+      "rel": "constrains",
+      "dst": "sound-gates-four-and-two-sources"
+    },
+    {
+      "src": "story-notification-scheduled-exception",
+      "rel": "constrains",
+      "dst": "never-scheduled"
+    },
+    {
+      "src": "forget-receipt-hedges-on-fallback",
+      "rel": "constrains",
+      "dst": "tester-wave-1"
+    },
+    {
+      "src": "pin-58-to-frozen-snapshot",
+      "rel": "constrains",
+      "dst": "judge-qualification-2026-08-23"
+    },
+    {
+      "src": "improvement-wave-2026-08-23",
+      "rel": "measured_by",
+      "dst": "memory-wave-2026-08-23"
+    },
+    {
+      "src": "move-voice-one-timeline",
+      "rel": "measured_by",
+      "dst": "movevoice-timing-2026-08-23"
+    },
+    {
+      "src": "move-voice-one-timeline",
+      "rel": "caused_by",
+      "dst": "pre-line-before-the-move"
+    },
+    {
+      "src": "game-notes-ride-a-send-seam",
+      "rel": "caused_by",
+      "dst": "past-tense-is-not-enough"
+    },
+    {
+      "src": "past-tense-is-not-enough",
+      "rel": "constrains",
+      "dst": "move-voice-one-timeline"
+    },
+    {
+      "src": "move-voice-one-timeline",
+      "rel": "part_of",
+      "dst": "movevoice"
+    },
+    {
+      "src": "game-notes-ride-a-send-seam",
+      "rel": "part_of",
+      "dst": "movevoice"
+    },
+    {
+      "src": "evidence-only-patience",
+      "rel": "caused_by",
+      "dst": "timeline-wave-2026-08-23"
+    },
+    {
+      "src": "past-tense-is-not-enough",
+      "rel": "caused_by",
+      "dst": "timeline-wave-2026-08-23"
+    },
+    {
+      "src": "maya-rename-display-only",
+      "rel": "measured_by",
+      "dst": "maya-lifecycle-wave-2026-08-23"
+    },
+    {
+      "src": "lifecycle-matrix-as-code",
+      "rel": "measured_by",
+      "dst": "maya-lifecycle-wave-2026-08-23"
+    },
+    {
+      "src": "t14-render-layer-retired",
+      "rel": "caused_by",
+      "dst": "maya-lifecycle-wave-2026-08-23"
+    },
+    {
+      "src": "t14-render-layer-retired",
+      "rel": "part_of",
+      "dst": "dead-writers"
+    },
+    {
+      "src": "isquota-only-folding",
+      "rel": "caused_by",
+      "dst": "resilience-latency-2026-08-24"
+    },
+    {
+      "src": "lane-order-azure-first-attachments",
+      "rel": "measured_by",
+      "dst": "resilience-latency-2026-08-24"
+    },
+    {
+      "src": "cache-outlives-the-voice",
+      "rel": "caused_by",
+      "dst": "one-voice-switch"
+    },
+    {
+      "src": "one-voice-switch",
+      "rel": "measured_by",
+      "dst": "live-voice-roster"
+    },
+    {
+      "src": "engine-per-phrase",
+      "rel": "part_of",
+      "dst": "speech-stack"
+    },
+    {
+      "src": "cache-outlives-the-voice",
+      "rel": "part_of",
+      "dst": "speech-stack"
+    },
+    {
+      "src": "subset-check-is-green-by-construction",
+      "rel": "caused_by",
+      "dst": "cache-outlives-the-voice"
+    },
+    {
+      "src": "live-vs-tts-timbre",
+      "rel": "part_of",
+      "dst": "speech-stack"
+    },
+    {
+      "src": "one-voice-switch",
+      "rel": "supersedes",
+      "dst": "voice-model"
+    },
+    {
+      "src": "voice-despina",
+      "rel": "supersedes",
+      "dst": "voice-ears"
+    },
+    {
+      "src": "voice-despina",
+      "rel": "measured_by",
+      "dst": "live-voice-roster"
+    },
+    {
+      "src": "voice-despina",
+      "rel": "part_of",
+      "dst": "speech-stack"
+    },
+    {
+      "src": "identity-wins",
+      "rel": "caused_by",
+      "dst": "cache-outlives-the-voice"
+    },
+    {
+      "src": "identity-wins",
+      "rel": "part_of",
+      "dst": "speech-stack"
+    },
+    {
+      "src": "watch-exit-returns-to-live",
+      "rel": "part_of",
+      "dst": "speech-stack"
+    },
+    {
+      "src": "model-twins-pinned",
+      "rel": "part_of",
+      "dst": "speech-stack"
+    },
+    {
+      "src": "ttt-second-class",
+      "rel": "measured_by",
+      "dst": "ttt-t15-bytes"
+    },
+    {
+      "src": "ttt-second-class",
+      "rel": "part_of",
+      "dst": "dead-writers"
+    },
+    {
+      "src": "personality-is-a-sheet",
+      "rel": "part_of",
+      "dst": "os-first-optimization"
+    },
+    {
+      "src": "two-phase-fuse",
+      "rel": "supersedes",
+      "dst": "fixed-fuse-on-a-variable-upstream"
+    },
+    {
+      "src": "two-phase-fuse",
+      "rel": "measured_by",
+      "dst": "tts-first-frame-degraded"
+    },
+    {
+      "src": "fixed-fuse-on-a-variable-upstream",
+      "rel": "measured_by",
+      "dst": "tts-first-frame-degraded"
+    },
+    {
+      "src": "fixed-fuse-on-a-variable-upstream",
+      "rel": "caused_by",
+      "dst": "bake-glued-labels"
+    },
+    {
+      "src": "live-clock-in-a-byte-identity-gate",
+      "rel": "constrains",
+      "dst": "personality-is-a-sheet"
+    },
+    {
+      "src": "calendar-lottery-ceiling",
+      "rel": "part_of",
+      "dst": "live-clock-in-a-byte-identity-gate"
+    },
+    {
+      "src": "accent-joins-the-sky",
+      "rel": "part_of",
+      "dst": "sky-is-the-clock"
     },
     {
       "src": "replica-control-plane",

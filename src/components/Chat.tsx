@@ -4,32 +4,38 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { animate } from "framer-motion";
 import "../styles/thread.css";
+import "../styles/composer.css";
 import type { AppState, Message } from "../state/store";
 import { uid } from "../state/store";
 import { think, formatHerLife } from "../engine/brain";
-import { activityOf } from "../state/game";
+import { activityOf, activityPickupLine } from "../state/game";
+// WS-HERNOW. Her present moment is a ledger with one row, not a fresh
+// improvisation per turn — see src/engine/herNow.ts.
+import { herNowAt } from "../engine/herNow";
 import {
   HER_NAME,
   OPEN_DIRECTIVE,
   FOLLOWUP_DIRECTIVE,
   AFTERCALL_DIRECTIVE,
+  DECLINED_CALL_DIRECTIVE,
 } from "../engine/persona";
 import type { Story } from "../engine/storyCatalog";
 import {
   logTurns,
   rememberFrom,
-  uploadPhoto,
+  uploadPhotos,
   describePhoto,
   prefetchRecall,
   forgetMemories,
   messagesAfterForget,
 } from "../engine/memory";
 import { applyInner, wantsForAppraisal } from "../engine/inner";
-import { burstDecide, recentUserGaps, unansweredTail, type BurstTurn } from "../engine/burst";
+import { burstDecide, followUpRate, recentUserGaps, unansweredTail, type BurstTurn } from "../engine/burst";
 import { track } from "../engine/account";
 import { tel, telFlush, createComposeTracker } from "../engine/telemetry";
 import type { HeartReply } from "../engine/localHeart";
 import PhotoAvatar from "./PhotoAvatar";
+import firstHelloArt from "../assets/empty/first-hello.svg";
 import StoryView from "./StoryView";
 import { activeStories, hasUnseenStory, storySrc } from "../engine/storyCatalog";
 import MessageRow, { type RowApi } from "./MessageRow";
@@ -37,9 +43,43 @@ import { fmtTime } from "./fmtTime";
 import { registerLocalClip } from "./VoiceNote";
 import { ChessIcon, ForkIcon, GridIcon } from "./GamesHub";
 import { detectGameInvite, type GameKind } from "../engine/gameInvite";
+// WS-SHECALLS. His ask, read off the thread — she rings him through the
+// callback seam App already owns. See the block by `callInvite` below.
+import { detectCallInvite, ringAt, type CallTurn } from "../engine/callInvite";
 import { listen, sttSupported } from "../voice/speech";
 import { tap, land } from "../native/haptics";
+// WS-SOUND. The thread is where the two most-heard cues in the product live.
+// `armSound` installs the first-gesture unlock (it builds no AudioContext by
+// itself — see src/sound/index.ts gate 1), and this component is where it is
+// installed because App never unmounts it: a layer armed inside something that
+// comes and goes is a layer that is armed some of the time.
+import { armSound, feel, play, setCallActive, setSoundEnabled } from "../sound";
 import MoreSheet from "./MoreSheet";
+import SourceSheet from "./SourceSheet";
+import ComposeTray from "./ComposeTray";
+import PhotoViewer from "./PhotoViewer";
+import {
+  MAX_ATTACHMENTS,
+  MAX_DOCS,
+  DOC_ACCEPT,
+  addAttachments,
+  addDocs,
+  buildDocPayload,
+  buildImagePayload,
+  compressImage,
+  docRefs,
+  holdDocs,
+  imagesOf,
+  packDoc,
+  removeAttachment,
+  removeDoc,
+  restoreDocs,
+  takeDocs,
+  transcriptLine,
+  type Attachment,
+  type DocAttachment,
+  type DocHold,
+} from "./attachments";
 import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import {
   PhoneIcon,
@@ -86,6 +126,11 @@ interface Props {
    *  travels as a signal instead of the sheet being forked (final audit H2:
    *  Settings was unreachable from the app's own landing surface) */
   openSettingsSignal?: number;
+  /** WS-KNOWS. A correction started on the "what she remembers" surface, handed
+   *  over as a DRAFT rather than sent: she relearns from a normal turn, in his
+   *  words, which is the one path already proven to reach a compiled prompt.
+   *  Same signal idiom as `openSettingsSignal` and for the same reason. */
+  composePrefill?: { text: string; n: number };
 }
 
 function lastSeenLabel(t: number): string {
@@ -129,7 +174,7 @@ const typeDelay = (bubble: string) => {
   return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
 };
 
-export default function Chat({ state, setState, onVoiceCall, onProfile, onGames, onOpenActivity, onUs, inCall, activityOpen, openSettingsSignal }: Props) {
+export default function Chat({ state, setState, onVoiceCall, onProfile, onGames, onOpenActivity, onUs, inCall, activityOpen, openSettingsSignal, composePrefill }: Props) {
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   // the indicator holds for one exit beat while the bubble enters underneath
@@ -155,8 +200,17 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     if ((openSettingsSignal ?? 0) > lastSettingsSignal.current) setMoreOpen(true);
     lastSettingsSignal.current = openSettingsSignal ?? 0;
   }, [openSettingsSignal]);
+
+  // the correction lands in the composer, never in the thread: he still gets
+  // to say it in his own words, and to change his mind before he does.
+  const lastPrefill = useRef(composePrefill?.n ?? 0);
+  useEffect(() => {
+    const n = composePrefill?.n ?? 0;
+    if (n > lastPrefill.current && composePrefill?.text) setDraft(composePrefill.text);
+    lastPrefill.current = n;
+  }, [composePrefill]);
   // clearing parks the conversation for ten seconds instead of destroying it
-  type Snapshot = Pick<AppState, "messages" | "herLife" | "inner" | "clearedAt" | "game" | "activities" | "callback" | "tally" | "momentsFired" | "recentMoment" | "followup"> &
+  type Snapshot = Pick<AppState, "messages" | "herLife" | "herNow" | "inner" | "clearedAt" | "game" | "activities" | "shares" | "callback" | "tally" | "momentsFired" | "recentMoment" | "followup" | "declinedRing"> &
     // present ONLY on the forget path: clear-chat keeps her memory of HIM by
     // its own copy's promise; forget-everything must take user too, or "she
     // starts over not knowing you" ships with "lives in: pune" still in the
@@ -269,6 +323,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       voicePlayed: (id) => rowHandlers.current.voicePlayed(id),
       gifResolved: (id, url) => rowHandlers.current.gifResolved(id, url),
       jumpToQuoted: (m) => rowHandlers.current.jumpToQuoted(m),
+      openPhotos: (m, i) => rowHandlers.current.openPhotos(m, i),
       swipe: (m) => rowHandlers.current.swipe(m),
     }),
     [],
@@ -299,30 +354,78 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   // the tracker note above), and this rides the handlers that exist.
   const draftRef = useRef("");
   const lastKeyAt = useRef(0);
+  // ── and the two signals that were missing, which is WHY it recurred ──
+  //
+  // A keystroke is only the LAST thing a person does before sending. Before it
+  // they reach for the box and the keyboard comes up, and for the second or two
+  // that takes there is a draft of zero characters and no key has been pressed —
+  // which the shipped policy could not tell apart from a phone face-down on a
+  // table. That gap is where "she won't let me type one, two messages" lives:
+  // measured at 2.13s to her reply with the composer focused, the keyboard up
+  // and his hand on it.
+  //
+  // `engagedAt` is the union clock — focus, keyboard, keystroke — and it never
+  // advances while he is idle, which is what keeps `burstDecide`'s holds bounded
+  // without a second timer. Refs for the same reason as the two above: presence
+  // must not cost a render.
+  const composerFocused = useRef(false);
+  const keyboardOpen = useRef(false);
+  const lastEngagedAt = useRef(0);
+  const engaged = () => {
+    lastEngagedAt.current = Date.now();
+  };
   // the same clock as burstTimer, but owned by a chain that is already mid-turn
   const chainTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { messages, user, apiKey, openrouterKey } = state;
 
-  const brainKeys = () => ({
-    openrouterKey,
-    openrouterModel: state.openrouterModel,
-    apiKey,
-    deviceId: state.deviceId,
-    herLife: formatHerLife(state.herLife),
-    // where she actually is: one carried feeling and what she wants. Read
-    // only — brain.ts decides whether it reaches the prompt at all.
-    inner: state.inner,
-    // WHAT THEY ARE DOING. Same derivation the call lane reads, from the same
-    // field — that is the point of `activityOf` living in state/game.ts rather
-    // than in either lane. A game paused to type a message is still a game, so
-    // she can be mid-board in chat and pick the call up already knowing where
-    // it stands. Null when nothing is going on, which renders zero bytes and
-    // leaves every byte-identity fixture untouched.
-    activity: activityOf(state.game),
-    // #117 — the milestone that just crossed, if any; brain.ts owns freshness
-    moment: state.recentMoment ?? null,
-  });
+  // WS-HERNOW. What she is doing THIS MINUTE, read from the one ledger every
+  // lane reads. App truth outranks it, so a board on screen is still what she
+  // is in the middle of; otherwise the stored row wins for as long as its
+  // natural span runs, which is what stops a second question five minutes
+  // later getting a different answer. `commit` is non-null only when the
+  // ledger genuinely moved on, so this writes at a transition and never per
+  // turn. ONE Date.now() for the whole bag: the elapsed she may claim and the
+  // row it is computed from have to come from the same instant.
+  const presentNow = (now: number) => {
+    const act = activityOf(state.game, now);
+    return herNowAt({
+      now,
+      stored: state.herNow,
+      appTruth: act ? { line: activityPickupLine(act), startedAt: act.startedAt } : null,
+    });
+  };
+
+  const brainKeys = () => {
+    const now = Date.now();
+    const present = presentNow(now);
+    if (present.commit) {
+      const row = present.commit;
+      setState((s) => (s.herNow?.key === row.key ? s : { ...s, herNow: row }));
+    }
+    return {
+      openrouterKey,
+      openrouterModel: state.openrouterModel,
+      apiKey,
+      deviceId: state.deviceId,
+      // T7 carries BOTH halves of her own life: the told ledger (fixed between
+      // them, never expires) and — appended — her present minute (never told,
+      // expires by its own span). formatHerLife's header states the seam.
+      herLife: formatHerLife(state.herLife, now, present.entry),
+      // where she actually is: one carried feeling and what she wants. Read
+      // only — brain.ts decides whether it reaches the prompt at all.
+      inner: state.inner,
+      // WHAT THEY ARE DOING. Same derivation the call lane reads, from the same
+      // field — that is the point of `activityOf` living in state/game.ts rather
+      // than in either lane. A game paused to type a message is still a game, so
+      // she can be mid-board in chat and pick the call up already knowing where
+      // it stands. Null when nothing is going on, which renders zero bytes and
+      // leaves every byte-identity fixture untouched.
+      activity: activityOf(state.game),
+      // #117 — the milestone that just crossed, if any; brain.ts owns freshness
+      moment: state.recentMoment ?? null,
+    };
+  };
   const sendCount = useRef(0);
   // ── reply pacing ──
   // She reads while the model thinks. `lastUserAt` is when they actually hit
@@ -334,6 +437,25 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
 
   const pushMsg = (m: Message) =>
     setState((s) => ({ ...s, messages: [...s.messages, m] }));
+
+  // ── the sound layer's three wires ───────────────────────────────────────
+  //
+  // All three live here rather than in App because App belongs to another
+  // workstream and because this component is the one that is always mounted
+  // (App renders it behind every surface and never unmounts it, deliberately:
+  // it holds an in-flight reply cycle). Nothing below creates an AudioContext.
+  //
+  //   arm      installs the first-gesture listener. The context is built
+  //            inside that gesture and not one instruction earlier.
+  //   toggle   mirrors `state.soundOn` into the module. `undefined` is ON,
+  //            which is what every install that predates the field carries.
+  //   call     the wider half of the call gate: `inCall` is true from the
+  //            moment App decides a call is happening, which is earlier than
+  //            the call engine mounts and starts publishing callStatus. The
+  //            module checks BOTH and needs neither to be the only one right.
+  useEffect(() => armSound(), []);
+  useEffect(() => setSoundEnabled(state.soundOn !== false), [state.soundOn]);
+  useEffect(() => setCallActive(Boolean(inCall)), [inCall]);
 
   // tick progression on my messages: sent → delivered → read
   const upgradeMyStatus = (to: "delivered" | "read") =>
@@ -917,6 +1039,42 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
 
+  // WS-SHECALLS residual (coordinator): she rang, he declined. One small
+  // unhurt line, once, a beat later - the AFTERCALL idiom with a different
+  // event. Local moment, cleared on consumption; any his-message first wins.
+  const declinedDone = useRef(0);
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const at = state.declinedRing;
+      if (!at || busy.current || delivering.current) return;
+      if (declinedDone.current === at) return;
+      const agoMs = Date.now() - at;
+      if (agoMs < 25_000 || agoMs > 10 * 60_000) {
+        if (agoMs > 10 * 60_000) setState((s) => ({ ...s, declinedRing: null }));
+        return;
+      }
+      // he spoke after declining: the thread is alive, no line needed
+      if (state.messages.some((m) => m.from === "me" && m.at > at)) {
+        declinedDone.current = at;
+        setState((s) => ({ ...s, declinedRing: null }));
+        return;
+      }
+      declinedDone.current = at;
+      setState((s) => ({ ...s, declinedRing: null }));
+      busy.current = true;
+      think(user, brainKeys(), state.messages, DECLINED_CALL_DIRECTIVE(Math.round(agoMs / 60_000)), "chat", "device", true).then(async (reply) => {
+        if (reply.bubbles.length) {
+          delivering.current = true;
+          await deliver(reply);
+          delivering.current = false;
+        } else busy.current = false;
+        if (dirty.current) armBurst(chatSeq.current);
+      });
+    }, 20_000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.declinedRing, state.messages.length]);
+
   // her self-scheduled follow-up: "back in 20 min" → when the clock hits,
   // she texts first (survives reloads — the timestamp is persisted)
   useEffect(() => {
@@ -1043,6 +1201,33 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       const recentHer = messages.filter((m) => m.from === "her").slice(-6);
       if (recentHer.some((m) => m.kind === "gif")) reply.gif = undefined;
     }
+    // ── SHE ANSWERED, once ──────────────────────────────────────────────
+    //
+    // WS-SOUND. Every one of her messages in this delivery goes through
+    // `landed` instead of `pushMsg`, and the FIRST one to arrive sounds the
+    // `receive` cue. Not each one.
+    //
+    // The arithmetic is the same one haptics.ts uses to refuse her messages a
+    // haptic at all: a three-bubble reply is three arrivals inside four
+    // seconds, and three of anything in four seconds is an alarm rather than
+    // an arrival. What is different about sound is that it decays and points,
+    // so ONE of them is worth hearing where none were worth feeling. The
+    // second and third bubbles are already carried by the thing they were
+    // always carried by, which is the bubble entrance itself.
+    //
+    // Deliberately per-DELIVERY and not per-turn: a follow-up cycle after a
+    // held [search:] lookup is genuinely a second time she came back, and it
+    // gets its own arrival. A held delivery that keeps typing does not.
+    let sounded = false;
+    const landed = (m: Message) => {
+      if (!sounded) {
+        sounded = true;
+        // `play`, not `feel`: the vocabulary gives `receive` no haptic, and
+        // the reason is written next to it in src/sound/vocabulary.ts.
+        play("receive");
+      }
+      pushMsg(m);
+    };
     // if the user clears the chat while she's mid-reply, this delivery is
     // from a conversation that no longer exists — it must vanish with it
     const ep = epoch.current;
@@ -1109,7 +1294,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       };
       await handoffTyping(photo.id, lastMedia === "photo");
       if (stale()) return true;
-      pushMsg(photo);
+      landed(photo);
       // `chosen` is the catalog seed, which is code, not conversation
       tel("chat.media", { kind: "photo", msg_id: photo.id, chosen: photoOf.seed, from: "her" });
       return false;
@@ -1148,7 +1333,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       await handoffTyping(msg.id, !lastMedia && bi === reply.bubbles.length - 1);
       if (stale()) return;
       delivered.push(msg);
-      pushMsg(msg);
+      landed(msg);
       await sleep(280 + Math.random() * 420);
       if (stale()) return;
     }
@@ -1186,7 +1371,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
         await handoffTyping(msg.id, lastMedia === "voice");
         if (stale()) return;
         delivered.push(msg);
-        pushMsg(msg);
+        landed(msg);
         tel("chat.media", { kind: "voicenote", msg_id: msg.id, secs: msg.dur, from: "her" });
       }
     }
@@ -1205,7 +1390,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       await handoffTyping(msg.id, lastMedia === "gif");
       if (stale()) return;
       delivered.push(msg);
-      pushMsg(msg);
+      landed(msg);
       tel("chat.media", { kind: "gif", msg_id: msg.id, from: "her" });
     }
     if (reply.followup) {
@@ -1241,6 +1426,51 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   // NEVER-SCHEDULED, still true. `firstUnansweredAt` is 0 when nothing of his
   // is waiting, and both waiters stop dead on that. She is never on a bare
   // timer; the trigger is always a message of his that has not been answered.
+  // ── the soft keyboard, as a presence signal ──────────────────────────────
+  //
+  // There is no keyboard API. What every platform DOES do is shrink the visual
+  // viewport, and this app already watches that (`main.tsx` writes --vvh from
+  // it, and the effect above keeps the thread pinned through it) — the signal
+  // was already arriving and nothing downstream of it knew what it meant.
+  //
+  // Sensed against the TALLEST viewport seen in this orientation rather than
+  // `innerHeight`: Chromium resizes the layout viewport via the
+  // interactive-widget meta and iOS Safari does not, so `innerHeight` means two
+  // different things on the two platforms and the high-water mark means the
+  // same thing on both. A rotation invalidates the mark, so it is reset there.
+  //
+  // 140px, and it is a DEVICE threshold rather than a policy constant — no
+  // soft keyboard on any phone is shorter than that, and no browser chrome
+  // collapse is taller. The policy that reads it lives in burst.ts, which is
+  // the line burstwiring.mjs holds this file to.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let tallest = vv.height;
+    const onResize = () => {
+      tallest = Math.max(tallest, vv.height);
+      const open = tallest - vv.height > 140;
+      if (open !== keyboardOpen.current) {
+        keyboardOpen.current = open;
+        // OPENING is the act — he reached for the box. Closing is not: it is
+        // the state every sent message leaves behind, and stamping the clock on
+        // it would put a hold under every message. `burstDecide` only counts
+        // engagement that postdates his last message; see its own note.
+        if (open) engaged();
+      }
+    };
+    const onRotate = () => {
+      tallest = window.visualViewport?.height ?? tallest;
+      keyboardOpen.current = false;
+    };
+    vv.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onRotate);
+    return () => {
+      vv.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onRotate);
+    };
+  }, []);
+
   function burstNow(): { fire: boolean; recheckMs: number; log: () => void } | null {
     const turns = messagesRef.current as unknown as BurstTurn[];
     const tail = unansweredTail(turns);
@@ -1263,6 +1493,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       herLast: tail.herLast,
       draftLength: draftRef.current.trim().length,
       lastKeyAt: lastKeyAt.current,
+      // how often HE doubles, from the whole persisted thread — the wait's
+      // breadth, where `gaps` is only its depth
+      followUpRate: followUpRate(turns),
+      composerFocused: composerFocused.current,
+      keyboardOpen: keyboardOpen.current,
+      lastEngagedAt: lastEngagedAt.current,
     });
     return {
       fire: d.fire,
@@ -1277,6 +1513,11 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
           wait_ms: d.waitMs,
           msgs: tail.count,
           cont: d.continuation.reason,
+          // the two fields that would have found this recurrence from the
+          // telemetry alone: what shortened the breath, and whether she could
+          // see him at the keyboard at all when she took the floor.
+          done: d.completion.reason,
+          eng: (composerFocused.current ? "f" : "") + (keyboardOpen.current ? "k" : "") || "-",
         }),
     };
   }
@@ -1447,6 +1688,27 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       delivering.current = false;
       busy.current = true; // deliver() clears it; this think is still running
     };
+    // ── THE DOCUMENTS THIS PASS OWES HER ────────────────────────────────────
+    //
+    // THE ONE CALLER of `think`'s `attachments` seam, and the reason it is a
+    // take-once box rather than a value read off state:
+    //
+    //   * TAKEN BEFORE THE CALL, so a pass that starts while this one is in
+    //     flight cannot take the same documents and hand her the same PDF
+    //     twice inside one turn.
+    //   * PUT BACK WHEN THIS PASS IS SUPERSEDED, so the pass that actually
+    //     delivers is the one that carries them. Without this, attaching a file
+    //     and then typing a second line before she answers would throw the file
+    //     away: the first pass would consume it and then be discarded unread.
+    //   * DROPPED on an epoch change, because an epoch change is the
+    //     conversation being torn down and a document belongs to the
+    //     conversation it was sent to.
+    //
+    // PICTURES ARE DELIBERATELY NOT HERE. They ride the thread — `toTurns`
+    // rebuilds them out of `photoUrls` on every turn — so passing them again
+    // would put the same picture in the prompt twice. attachments.ts and
+    // brain.ts's seam comment both state the split; this is where it is obeyed.
+    const turnDocs = takeDocs(docHold);
     const reply = await think(
       user,
       brainKeys(),
@@ -1459,6 +1721,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       undefined,
       undefined,
       holdingDeliver,
+      turnDocs ? { docs: turnDocs } : undefined,
     );
     if (ep !== epoch.current) return false; // chat was cleared mid-think
     if (seq !== chatSeq.current) {
@@ -1467,6 +1730,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       // round — through the burst clock, because he may well still be typing.
       // Nothing is released here and nothing needs to be: the flags belong to
       // replyCycle's `finally`.
+      //
+      // The documents go back in the box: this pass never reached him, so they
+      // have not been delivered and the next pass is the one that owes them.
+      // `restoreDocs` refuses to overwrite a NEWER send's documents, which is
+      // the case where he attached something else while she was thinking.
+      restoreDocs(docHold, turnDocs);
       return true;
     }
     mergeLearned(reply.learned);
@@ -1537,6 +1806,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       ...(mode === "forget" ? { user: state.user } : {}),
       messages: state.messages,
       herLife: state.herLife,
+      herNow: state.herNow,
       inner: state.inner,
       clearedAt: state.clearedAt,
       game: state.game,
@@ -1545,6 +1815,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       tally: state.tally,
       momentsFired: state.momentsFired,
       recentMoment: state.recentMoment,
+      declinedRing: state.declinedRing ?? null,
+      shares: state.shares,
       // wiped below like the rest, and so it has to come back like the rest:
       // an undone clear that silently drops her armed "back in 20 min" is a
       // promise she made and then didn't keep, which is the one kind of
@@ -1566,6 +1838,31 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     setTyping(false);
     setReplyTo(null);
     setReplySel(null);
+    // The staged pictures and documents go too, the viewer over them closes,
+    // and the documents parked for the next reply pass are dropped unsent.
+    //
+    // All four are DRAFT state living only in this component (see the tray's
+    // own note by `attachments` above), so evals/teardown.mjs's FATE walker
+    // cannot see them — which is exactly the shape of the reachability gap that
+    // file's §6 exists for. The verdict is the same one every draft gets, and
+    // it is `clear+forget`: a picture staged for a conversation that no longer
+    // exists belongs to that conversation, and a viewer left open over a wiped
+    // thread is the wiped thread still on screen. Cleared on BOTH doors,
+    // because clear-chat's promise is about her memory of him and never about
+    // his own half-written message.
+    //
+    // `docHold` is the one that would have been missed, and it is the worst of
+    // the four: it holds the TEXT of a document, it is a ref rather than state
+    // so nothing about a re-render disturbs it, and a survivor would be handed
+    // to the very first reply of the conversation that begins by not knowing
+    // him. The epoch bump above already stops the in-flight pass from
+    // delivering, but a parked payload outlives an epoch on its own — nothing
+    // reads the epoch when taking it.
+    setAttachments([]);
+    setDocs([]);
+    docHold.current = null;
+    setSourceOpen(false);
+    setViewer(null);
     // clearedAt is the synced tombstone: other devices honor it instead of
     // resurrecting the wiped conversation; followup timers from the deleted
     // conversation die with it, and so does her improvised life — a feeling
@@ -1576,6 +1873,14 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       messages: [],
       followup: null,
       herLife: [],
+      // Her present moment goes with the conversation. It is a small row and
+      // it would have been a loud survival: the first thing she says to
+      // someone she has just been told she has never met would be twenty
+      // minutes into a book she was reading FOR HIM — `activity-forgot-the-
+      // teardown`, a fourth time. It is deterministic, so the next read
+      // rebuilds one; what must not survive is the started-at she shared
+      // with the relationship that has just been deleted.
+      herNow: null,
       inner: undefined,
       clearedAt: Date.now(),
       // The game and any armed callback die with the conversation. The owner
@@ -1619,6 +1924,14 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       // class mechanically: every optional AppState field is either wiped here
       // or exempted in writing, so the fourth field cannot slip quietly.
       recentMoment: null,
+      declinedRing: null,
+      // The FIFTH field under the same rule (WS-SHARENOW), and it is the class
+      // the rule was written for: "you were watching their screen together
+      // till 3 min ago, and here is what you said about it" is a shared minute
+      // recited to someone she has just been told she has never met. Wiped by
+      // BOTH doors like the ledger above it — the mirror is the conversation's
+      // own state, not a device fact.
+      shares: [],
     }));
     return snapshot;
   }
@@ -1676,6 +1989,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       ...s,
       messages: snap.messages,
       herLife: snap.herLife,
+      herNow: snap.herNow,
       inner: snap.inner,
       clearedAt: snap.clearedAt,
       game: snap.game,
@@ -1684,6 +1998,8 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
       tally: snap.tally,
       momentsFired: snap.momentsFired,
       recentMoment: snap.recentMoment,
+      declinedRing: snap.declinedRing ?? null,
+      shares: snap.shares,
       followup: snap.followup,
       // the profile comes back only if the teardown took it (forget path)
       ...(snap.user ? { user: snap.user } : {}),
@@ -1704,6 +2020,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
 
   function send() {
     const text = draft.trim();
+    // PICTURES FIRST. When the tray holds anything, this send is that message
+    // and the box is its caption — including an empty one, which is the
+    // ordinary case of sending a photo with nothing to say about it.
+    if (attachments.length || docs.length) {
+      void sendAttachments();
+      return;
+    }
     if (!text) return; // sending is NEVER blocked — she adapts, like a person
     setDraft("");
     // the box is empty again: the composing hold has nothing left to hold on
@@ -1724,7 +2047,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     // and the app felt it. Fired HERE, in the same handler that commits the
     // message, because a haptic that arrives after a timeout has already
     // drifted away from the picture it belongs to.
-    tap();
+    //
+    // WS-SOUND: `feel("send")` is that same tap() plus the whoosh, from one
+    // call, on the same frame as the composer recoil below. It was `tap()`.
+    // The cue's haptic level is read out of the sound vocabulary's table
+    // rather than named here, so the two channels cannot be changed apart.
+    feel("send");
     // the composer recoils as the message leaves it, and the bubble it left
     // is picked up by the layout effect that owns arrivals
     launchId.current = mine.id;
@@ -1776,83 +2104,276 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     scheduleReply(text);
   }
 
-  // ── sending HER a photo (camera or gallery): compress client-side, show
-  // instantly, upload to storage, then she looks at the actual image with
-  // the whole conversation as context ──
-  const fileRef = useRef<HTMLInputElement>(null);
+  // ══ SENDING HER PICTURES AND DOCUMENTS ═════════════════════════════════
+  //
+  // ── what changed, and why ────────────────────────────────────────────────
+  //
+  // This used to be: tap the camera glyph, get a file dialog, and whatever came
+  // back was SENT, immediately, alone. Three things were wrong with that and
+  // the owner named all three. There was no way to say anything with a picture
+  // (his words: in WhatsApp we get an option to write something with it). There
+  // was no camera — the glyph was a camera and the dialog was a file browser.
+  // And one picture was the limit, silently, with nothing on screen to say so.
+  //
+  // So picking no longer sends. A picked picture lands in the TRAY, the
+  // composer's own text box becomes its caption field, and ONE send puts up to
+  // five pictures, three documents and one caption into one message. The source
+  // question is asked first, as a sheet, because it has three answers.
+  //
+  // ── THE TWO ROUTES, AND WHY THEY ARE DIFFERENT ───────────────────────────
+  //
+  // PICTURES are uploaded, stored on the message, and reach her through the
+  // THREAD: `brain.ts`'s `toTurns` rebuilds them as `image_url` parts out of
+  // `photoUrls` on every turn for the next six messages. DOCUMENTS are never
+  // uploaded and never stored, so `toTurns` has nothing to rebuild and the one
+  // turn they are sent on is their only chance — they go through `think`'s
+  // `attachments` parameter instead.
+  //
+  // Sending pictures through BOTH would put the same picture in the prompt
+  // twice on the turn it was sent. The rule is written out once in
+  // `attachments.ts` and once in `brain.ts`'s seam comment; this is the caller
+  // that has to obey it.
+  //
+  // ── WHERE THE RULES LIVE ─────────────────────────────────────────────────
+  //
+  // Not here. `components/attachments.ts` owns the caps, the byte rails, the
+  // collage arrangement, the wire shapes, the compressor and the take-once box,
+  // because every one of those is pure and this file is three thousand lines of
+  // React that no test can reach. This function is the wiring between that
+  // module, the DOM and her reply cycle, and it should stay that thin.
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const docRef = useRef<HTMLInputElement>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [docs, setDocs] = useState<DocAttachment[]>([]);
+  const [sourceOpen, setSourceOpen] = useState(false);
+  // one beat of "that one did not fit", cleared by its own timer
+  const [refused, setRefused] = useState(false);
+  const refuseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // the full-screen viewer, opened by tapping a picture in the thread
+  const [viewer, setViewer] = useState<{ urls: string[]; start: number; caption: string } | null>(
+    null,
+  );
+  /**
+   * THE DOCUMENTS THAT ONE REPLY PASS OWES HER.
+   *
+   * A ref rather than state on purpose: this must not cause a render, and more
+   * importantly it must be readable and writable SYNCHRONOUSLY inside the reply
+   * chain, where a state value would be a stale snapshot from whenever the pass
+   * closed over it. See `attachments.ts`'s note on the take-once box for why
+   * "take before the call, put back if superseded" is the shape.
+   */
+  const docHold = useRef<DocHold>({ current: null }).current;
+  /** How many more of each this message can still take. */
+  const roomImages = MAX_ATTACHMENTS - attachments.length;
+  const roomDocs = MAX_DOCS - docs.length;
+  useEffect(
+    () => () => {
+      if (refuseTimer.current) clearTimeout(refuseTimer.current);
+    },
+    [],
+  );
 
-  async function compressImage(file: File): Promise<{ dataUrl: string; b64: string } | null> {
-    try {
-      const src = URL.createObjectURL(file);
-      const img = new Image();
-      await new Promise<void>((res, rej) => {
-        img.onload = () => res();
-        img.onerror = () => rej();
-        img.src = src;
-      });
-      const scale = Math.min(1, 1024 / Math.max(img.width, img.height));
-      const c = document.createElement("canvas");
-      c.width = Math.max(1, Math.round(img.width * scale));
-      c.height = Math.max(1, Math.round(img.height * scale));
-      c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(src);
-      const dataUrl = c.toDataURL("image/jpeg", 0.82);
-      return { dataUrl, b64: dataUrl.split(",")[1] || "" };
-    } catch {
-      return null;
+  /** The refusal, felt and seen, never modal. One place, three callers. */
+  function refuse() {
+    // `tap()` is the quietest thing the hardware can do and this is the one
+    // place in the feature where the app says no; the count line above the tray
+    // carries the same answer in words, and nudges so that the eye finds it.
+    tap();
+    setRefused(true);
+    if (refuseTimer.current) clearTimeout(refuseTimer.current);
+    refuseTimer.current = setTimeout(() => setRefused(false), 700);
+  }
+
+  /**
+   * Documents arriving from the file picker.
+   *
+   * `packDoc` decides per file whether the client can read the text itself (a
+   * .txt, a .csv) or whether the bytes have to go up for `api/_docs.js` to
+   * extract (a PDF). Everything past that is the same partial-accept cap the
+   * pictures get.
+   */
+  async function takeDocFiles(files: File[]) {
+    if (!files.length) return;
+    const packed = await Promise.all(files.map((f) => packDoc(f)));
+    const fresh = packed.filter((d): d is DocAttachment => Boolean(d));
+    if (!fresh.length) {
+      showNotice("couldn't read that file. try a pdf, text, csv or json");
+      return;
+    }
+    const res = addDocs(docs, fresh);
+    setDocs(res.next);
+    if (res.accepted) tel("chat.attach_add", { source: "document", n: res.accepted, total: res.next.length });
+    if (res.refused) {
+      refuse();
+      tel("chat.attach_refused", { source: "document", n: res.refused, why: res.reason ?? "" });
     }
   }
 
-  async function sendPhoto(file: File) {
-    const packed = await compressImage(file);
-    if (!packed || !packed.b64) {
+  /**
+   * Pictures arriving from either source.
+   *
+   * Compressed through the ONE pipeline before anything else looks at them, so
+   * the tray, the byte rail and the wire all deal in the same bytes the model
+   * will see. A file that will not decode is dropped with the notice the
+   * single-photo path already used; a whole selection that will not decode says
+   * so once rather than once per file.
+   */
+  async function takeFiles(files: File[], source: "camera" | "gallery") {
+    if (!files.length) return;
+    const packed = await Promise.all(files.map((f) => compressImage(f)));
+    const fresh: Attachment[] = [];
+    let unreadable = 0;
+    packed.forEach((p, i) => {
+      if (p && p.b64) fresh.push({ id: `${Date.now()}-${i}-${uid()}`, ...p, source });
+      else unreadable++;
+    });
+    if (unreadable && !fresh.length) {
       showNotice("couldn't read that photo. try a different one");
       return;
     }
+    const res = addAttachments(attachments, fresh);
+    setAttachments(res.next);
+    if (res.accepted) tel("chat.attach_add", { source, n: res.accepted, total: res.next.length });
+    if (res.refused) {
+      refuse();
+      tel("chat.attach_refused", { source, n: res.refused, why: res.reason ?? "" });
+    }
+  }
+
+  /**
+   * The tray, sent: ONE message carrying its pictures, its documents and the
+   * caption under both.
+   *
+   * The caption belongs to the whole send, not to one half of it. A person who
+   * attaches a photo and a PDF and types one line has said that line about the
+   * pair, and splitting it into two messages would be the app deciding which of
+   * them he meant.
+   */
+  async function sendAttachments() {
+    const atts = attachments;
+    const dcs = docs;
+    if (!atts.length && !dcs.length) return;
     const caption = draft.trim();
+    const payload = buildImagePayload(atts, caption);
+    const docPayload = buildDocPayload(dcs);
+    setAttachments([]);
+    setDocs([]);
     setDraft("");
     // the box is empty again: the composing hold has nothing left to hold on
     draftRef.current = "";
+    const hasImages = payload.images.length > 0;
     const mine: Message = {
       id: uid(),
       from: "me",
-      kind: "photo",
+      // A DOCUMENT DOES NOT GET ITS OWN `kind`. See MessageRow.tsx: nine
+      // readers across six files switch on this field, and a value none of them
+      // handle renders as an empty bubble in whichever one was missed. A send
+      // with pictures is a photo message that happens to carry files; a send
+      // with only files is a text message that does, and `docs` is what both
+      // of them read.
+      kind: hasImages ? "photo" : "text",
       text: caption,
-      photoUrl: packed.dataUrl, // instant local render; swapped after upload
+      // instant local render; both swapped for storage URLs once they land.
+      // `photoUrl` is written even for a set, because every reader that
+      // predates this feature knows only that field (see store.ts).
+      ...(hasImages ? { photoUrl: payload.images[0] } : {}),
+      ...(payload.images.length > 1 ? { photoUrls: payload.images } : {}),
+      // METADATA ONLY. The bytes are on their way to the model and are never
+      // written to disk — store.ts states the whole argument beside the field.
+      ...(dcs.length ? { docs: docRefs(dcs) } : {}),
       at: Date.now(),
       status: "sent",
       ...(replyTo ? { replyTo: { from: replyTo.from, text: replyTo.text } } : {}),
     };
     setReplyTo(null);
     if (state.followup) setState((s) => ({ ...s, followup: null }));
+    // the same commit haptic and whoosh a text send gets. Sending five
+    // pictures is at least as deliberate an act as sending "ok".
+    feel("send");
     pushMsg(mine);
     if (caption) composer.send(mine.id, caption);
-    tel("chat.send", { msg_id: mine.id, kind: "photo", chars: caption.length });
-    tel("chat.media", { kind: "photo", msg_id: mine.id, from: "me", bytes: packed.b64.length });
-    track(state.deviceId, "photo_shared", { caption: Boolean(caption) }, state.auth?.userId);
+    tel("chat.send", {
+      msg_id: mine.id,
+      kind: mine.kind,
+      chars: caption.length,
+      n: payload.images.length,
+      docs: docPayload.length,
+    });
+    tel("chat.media", {
+      kind: hasImages ? "photo" : "doc",
+      msg_id: mine.id,
+      from: "me",
+      n: payload.images.length,
+      docs: docPayload.length,
+      bytes: atts.reduce((sum, a) => sum + a.b64.length, 0),
+      doc_bytes: dcs.reduce((sum, d) => sum + d.size, 0),
+    });
+    if (hasImages) {
+      track(
+        state.deviceId,
+        "photo_shared",
+        { caption: Boolean(caption), n: payload.images.length },
+        state.auth?.userId,
+      );
+    }
+    if (docPayload.length) {
+      track(
+        state.deviceId,
+        "doc_shared",
+        { caption: Boolean(caption), n: docPayload.length },
+        state.auth?.userId,
+      );
+    }
     setTimeout(() => upgradeMyStatus("delivered"), 500 + Math.random() * 700);
+    // WHAT SHE STILL HAS IN THREE MONTHS. The pictures leave the vision window
+    // after six messages and the document text is never stored at all, so this
+    // line is the whole of the long-term record: "[2 photos] [file lease.pdf]
+    // ye dekh". Same shape the single-photo path has always written.
     logTurns(state.deviceId, [
-      { ...mine, text: caption ? `[photo] ${caption}` : "[photo]" },
+      {
+        ...mine,
+        text: transcriptLine(payload.images.length, caption, dcs.map((d) => d.name)),
+      },
     ]);
-    // the photo joins the same burst pipeline as text — she sees it (vision
-    // reads the local data URL until the storage upload lands) and can fold
-    // it into one reply with whatever else you're sending
+    // THE DOCUMENTS THIS TURN OWES HER, parked for exactly one reply pass.
+    // Set BEFORE `scheduleReply` so the pass that wakes cannot start without
+    // them, and taken there rather than passed down through the burst timer,
+    // which is a clock and has no business carrying a payload.
+    holdDocs(docHold, docPayload);
+    // the pictures join the same burst pipeline as text — she sees them (vision
+    // reads the local data URLs until the storage upload lands) and can fold
+    // them into one reply with whatever else you're sending
     scheduleReply(caption);
-    // background: permanent copy in storage (survives devices) + one factual
-    // line about the image for her long-term context
-    uploadPhoto(state.deviceId, packed.b64, "image/jpeg").then((url) => {
-      if (!url) return;
+    if (!hasImages) return; // nothing to upload: documents are never stored
+    // background: permanent copies in storage (they survive devices) + one
+    // factual line per picture for her long-term context, which is what she
+    // still has months later when the vision window is long past them
+    uploadPhotos(state.deviceId, payload.images, caption).then(async (urls) => {
+      if (!urls.some(Boolean)) return; // every upload failed: keep the local copies
+      const landed = urls.map((u, i) => u || payload.images[i]);
       setState((s) => ({
         ...s,
-        messages: s.messages.map((x) => (x.id === mine.id ? { ...x, photoUrl: url } : x)),
+        messages: s.messages.map((x) =>
+          x.id === mine.id
+            ? {
+                ...x,
+                photoUrl: landed[0],
+                ...(landed.length > 1 ? { photoUrls: landed } : {}),
+              }
+            : x,
+        ),
       }));
-      describePhoto(state.deviceId, url).then((desc) => {
-        if (!desc) return;
-        setState((s) => ({
-          ...s,
-          messages: s.messages.map((x) => (x.id === mine.id ? { ...x, desc } : x)),
-        }));
-      });
+      const stored = urls.filter((u): u is string => Boolean(u));
+      const descs = await Promise.all(stored.map((u) => describePhoto(state.deviceId, u)));
+      // Joined rather than kept apart: `desc` is ONE line in her context, and a
+      // set of pictures was one thing he showed her.
+      const desc = descs.filter(Boolean).join(" · ");
+      if (!desc) return;
+      setState((s) => ({
+        ...s,
+        messages: s.messages.map((x) => (x.id === mine.id ? { ...x, desc } : x)),
+      }));
     });
   }
 
@@ -2240,6 +2761,90 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
     tel("chat.game_invite", { kind: pendingInvite.kind, via: pendingInvite.via });
   }, [pendingInvite]);
 
+  // ── SHE CALLS HIM ────────────────────────────────────────────────────────
+  //
+  // The owner's screenshot, in two lines:
+  //
+  //     him: "U can call me"
+  //     her: "call button click kar na, main thodi kar sakti hu"
+  //
+  // She has been able to ring him since #107 — a dropped call arms
+  // `AppState.callback`, App paints `IncomingCall`, and accepting mounts the
+  // live call with `sheCalled=true` so she opens as the CALLER. What was
+  // stale was her belief, and she spent it declining a thing she can do.
+  //
+  // THE RING GOES THROUGH THAT SAME SEAM, and building a second one was the
+  // main thing this change had to not do. `AppState.callback` is the single
+  // fact in this product that means "she is phoning him": App owns the due
+  // time, the 10-minute plausibility TTL, the accept path that sets
+  // `callFrom="her"`, and the decline path that clears it and does not
+  // reschedule. A parallel path would be a second answer to "does she know
+  // she called", and two answers to that question is exactly the drift
+  // `useCallEngine`'s own comment warns about where it threads `sheCalled`.
+  // It also inherits the notify lane for free: App's missed-call effect is
+  // armed by `state.callback` itself, so a ring that lands while the app is
+  // backgrounded already reaches the lock screen on web and on Android.
+  //
+  // ANCHORED ON HER REPLY, WHICH IS THE SEQUENCING. `detectCallInvite`
+  // returns nothing until she has answered his ask in words, so the ring can
+  // only ever follow her line — and `ringAt` puts it 2-6s behind it. Nothing
+  // here touches the reply cycle, the burst clock or `deliver()`; the whole
+  // decision is a pure function of the messages already on screen.
+  //
+  // THIS IS INVITATION-TRIGGERED, NOT PROACTIVE. Its only input is a sentence
+  // he typed. `decisions.md#proactive-reason-contingent` is untouched: there
+  // is no timer here, no predicate on his silence, and nothing that can ring
+  // a thread he has not asked in.
+  const callInvite = useMemo(
+    () => detectCallInvite(visible as unknown as CallTurn[], Date.now()),
+    [visible],
+  );
+  // ONE PENDING SHE-CALL, ACROSS RELOADS. `state.callback` alone makes a
+  // repeat ask non-stacking while the ring is up, and a ref makes it
+  // non-stacking within this mount — but neither survives a reload, and the
+  // ask is still sitting in the thread afterwards. Without this, declining
+  // her call and reopening the app inside the freshness window rang him
+  // again, which is `IncomingCall.tsx`'s own law broken ("a declined call
+  // that comes back is a product nobody wants"). Device-local, like the
+  // callback it guards, and capped so it cannot grow.
+  const CALL_TAKEN_KEY = "meera.shecall.taken";
+  const callTaken = (askId: string): boolean => {
+    try {
+      return (JSON.parse(localStorage.getItem(CALL_TAKEN_KEY) || "[]") as string[]).includes(askId);
+    } catch {
+      return false;
+    }
+  };
+  const markCallTaken = (askId: string) => {
+    try {
+      const prev = JSON.parse(localStorage.getItem(CALL_TAKEN_KEY) || "[]") as string[];
+      localStorage.setItem(CALL_TAKEN_KEY, JSON.stringify([...prev, askId].slice(-20)));
+    } catch {
+      /* private mode, quota, no storage — the ref and state.callback still hold */
+    }
+  };
+  const sheCallArmed = useRef("");
+  useEffect(() => {
+    if (!callInvite) return;
+    if (inCall) return; // they are already talking
+    if (state.callback) return; // a ring is already pending: asks do not stack
+    if (sheCallArmed.current === callInvite.askId) return;
+    if (callTaken(callInvite.askId)) return;
+    // A call that already happened ANSWERS the ask. Without this, hanging up
+    // and saying anything else re-derived the same invite off the same ask.
+    const askAt = visible.find((m) => m.id === callInvite.askId)?.at ?? 0;
+    if (visible.some((m) => m.kind === "callmark" && (m.at || 0) > askAt)) return;
+    sheCallArmed.current = callInvite.askId;
+    markCallTaken(callInvite.askId);
+    const at = ringAt(Date.now());
+    // `secs: 0` — the subtitle's "call cut at m:ss" is a fact about a dropped
+    // call and there was no dropped call here, so it renders nothing rather
+    // than a number that would be a small lie on the biggest screen in the
+    // product.
+    setState((s) => (s.callback ? s : { ...s, callback: { at, secs: 0 } }));
+    tel("chat.she_calls", { via: callInvite.via, in_ms: at - Date.now() });
+  }, [callInvite, inCall, state.callback, visible, setState]);
+
   // ── windowing ────────────────────────────────────────────────────────────
   //
   // Only the tail of the thread is rendered. A memoised bubble stops a
@@ -2361,6 +2966,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
         messages: s.messages.map((x) => (x.id === id ? { ...x, gifUrl: url } : x)),
       })),
     jumpToQuoted,
+    openPhotos: (m, index) => {
+      const urls = imagesOf(m);
+      if (!urls.length) return;
+      setViewer({ urls, start: index, caption: m.text || "" });
+      tel("chat.photo_view", { msg_id: m.id, n: urls.length, at: index });
+    },
     swipe: swipeHandlers,
   };
 
@@ -2441,11 +3052,15 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
   // The composer's right-hand control has three modes and ONE button (the
   // morph lives in thread.css). "off" is not disabled — it still focuses the
   // field, which is the useful answer to an empty send.
-  const sendMode: "send" | "mic" | "off" = draft.trim()
-    ? "send"
-    : sttSupported()
-      ? "mic"
-      : "off";
+  // A staged picture is a message waiting to go, so the control is Send even
+  // with an empty box — the alternative is a tray full of photos above a
+  // microphone, which offers the one thing the composer cannot currently do.
+  const sendMode: "send" | "mic" | "off" =
+    draft.trim() || attachments.length || docs.length
+      ? "send"
+      : sttSupported()
+        ? "mic"
+        : "off";
 
   // THE THREAD'S OWN SKY. Presentation only: it feeds the wallpaper under the
   // thread and the band behind the header, and nothing downstream of it can
@@ -2573,6 +3188,12 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
             <div className="ce-face">
               <PhotoAvatar size={96} />
             </div>
+            {/* THE ROOM, DRAWN. Two chairs waiting at dusk, above the two
+                lines that were already here and replacing neither of them.
+                The furnished-room note below is what this picture is for:
+                the wait for her first message is the single most likely
+                moment to decide the app is broken. */}
+            <img className="ce-art" src={firstHelloArt} alt="" width={200} height={133} />
             <h2>{user.name ? `${HER_NAME} is writing to you` : `Say hi to ${HER_NAME}`}</h2>
             <p>
               She texts in Hinglish, calls when you want to hear a voice, and remembers what
@@ -2652,6 +3273,35 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
           onForgetEverything={forgetEverything}
         />
       )}
+      {sourceOpen && (
+        <SourceSheet
+          room={roomImages}
+          docRoom={roomDocs}
+          onCamera={() => {
+            setSourceOpen(false);
+            // after the sheet's own exit beat, or the file dialog opens
+            // underneath a drawer that is still on screen
+            setTimeout(() => cameraRef.current?.click(), 60);
+          }}
+          onGallery={() => {
+            setSourceOpen(false);
+            setTimeout(() => galleryRef.current?.click(), 60);
+          }}
+          onDocument={() => {
+            setSourceOpen(false);
+            setTimeout(() => docRef.current?.click(), 60);
+          }}
+          onClose={() => setSourceOpen(false)}
+        />
+      )}
+      {viewer && (
+        <PhotoViewer
+          urls={viewer.urls}
+          start={viewer.start}
+          caption={viewer.caption}
+          onClose={() => setViewer(null)}
+        />
+      )}
       {undo && (
         <div className="undo-toast" role="status">
           <span>{undo.label}</span>
@@ -2674,6 +3324,24 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
           </button>
         </div>
       )}
+      {/* The pictures this message is going to carry, above the box that is
+          about to caption them. Same seat and same glass as the reply quote,
+          for the reason composer.css states: both answer "what is attached to
+          the thing I am writing". */}
+      <ComposeTray
+        items={attachments}
+        docs={docs}
+        refused={refused}
+        onRemove={(id) => {
+          setAttachments((cur) => removeAttachment(cur, id));
+          tap();
+        }}
+        onRemoveDoc={(id) => {
+          setDocs((cur) => removeDoc(cur, id));
+          tap();
+        }}
+        onAddMore={() => setSourceOpen(true)}
+      />
       <div className="chat-input-row">
         {recording ? (
           <div className="rec-bar" role="status" aria-label="Recording a voice note">
@@ -2713,19 +3381,73 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
             <button
               className="attach-btn"
               data-tel="chat.attach"
-              onClick={() => fileRef.current?.click()}
-              aria-label="Send a photo"
+              onClick={() => {
+                // AT THE CAP THE BUTTON STILL WORKS, and says why. Going inert
+                // would be the dead-option rule broken on the one control whose
+                // whole job is to explain what is possible. The sheet opens
+                // while EITHER kind has room and shows only the rows that can
+                // do something; it is refused only when nothing at all fits.
+                if (roomImages <= 0 && roomDocs <= 0) {
+                  refuse();
+                  return;
+                }
+                setSourceOpen(true);
+              }}
+              aria-label="Attach a photo or a file"
             >
               <CameraIcon size={21} />
             </button>
+            {/* TWO INPUTS, ONE PER SOURCE, and the difference is two
+                attributes. `capture` is what turns a file input into a camera:
+                Capacitor's own BridgeWebChromeClient answers it with a real
+                ACTION_IMAGE_CAPTURE intent and requests the CAMERA permission
+                itself (the manifest already declares it), and a mobile browser
+                answers it with the platform camera. `multiple` is what turns
+                the other one into a gallery multi-select, which the same
+                Capacitor path forwards as EXTRA_ALLOW_MULTIPLE.
+
+                THAT IS WHY NO PLUGIN WAS ADDED. @capacitor/camera would be a
+                second native surface for a job the platform already does, and
+                this APK's OTA contract (android/app/build.gradle's
+                OTA_NATIVE_CONTRACT) counts a new plugin method as a break that
+                forces every installed copy to reinstall. Paying that for a
+                capability we already have would be the worst trade in the
+                feature. */}
             <input
-              ref={fileRef}
+              ref={cameraRef}
               type="file"
               accept="image/*"
+              capture="environment"
               hidden
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) sendPhoto(f);
+                void takeFiles(Array.from(e.target.files ?? []), "camera");
+                e.target.value = "";
+              }}
+            />
+            <input
+              ref={galleryRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                void takeFiles(Array.from(e.target.files ?? []), "gallery");
+                e.target.value = "";
+              }}
+            />
+            {/* DOCUMENTS. The `accept` list is the same one `packDoc` knows how
+                to handle, shared from attachments.ts rather than written twice:
+                a picker that offers a format the packer drops is a file dialog
+                that answers with a notice. `multiple` because three are
+                allowed and picking them one at a time is three trips. */}
+            <input
+              ref={docRef}
+              type="file"
+              accept={DOC_ACCEPT}
+              multiple
+              hidden
+              onChange={(e) => {
+                void takeDocFiles(Array.from(e.target.files ?? []));
                 e.target.value = "";
               }}
             />
@@ -2733,7 +3455,13 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
               ref={inputRef}
               rows={1}
               data-tel="chat.composer"
-              placeholder={`Message ${HER_NAME}…`}
+              // THE BOX CHANGES JOB, so it says so. A staged picture turns the
+              // composer into that picture's caption field, and a placeholder
+              // still reading "Message Maya" would be describing the control it
+              // was a second ago.
+              placeholder={
+                attachments.length || docs.length ? "Add a caption…" : `Message ${HER_NAME}…`
+              }
               value={draft}
               onChange={(e) => {
                 // value only, never the caret: reading selectionStart here
@@ -2747,13 +3475,26 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
                 // composition all count as him still working on the message.
                 draftRef.current = e.target.value;
                 lastKeyAt.current = Date.now();
+                engaged();
                 setDraft(e.target.value);
                 e.target.style.height = "auto";
                 e.target.style.height = Math.min(110, e.target.scrollHeight) + "px";
               }}
-              onFocus={() =>
-                composer.focus(messagesRef.current[messagesRef.current.length - 1]?.at ?? 0)
-              }
+              onFocus={() => {
+                composer.focus(messagesRef.current[messagesRef.current.length - 1]?.at ?? 0);
+                // he is at the keyboard. On every other messaging product that
+                // is visible to the other person as the box lighting up, and it
+                // is the whole of the think-pause before the first letter.
+                composerFocused.current = true;
+                engaged();
+              }}
+              onBlur={() => {
+                // Not an `engaged()`: letting go of the box is not reaching for
+                // it, and stamping the clock here would arm a hold on the blur
+                // that sending itself produces. The settle beat he gets is the
+                // one his LAST real act already bought.
+                composerFocused.current = false;
+              }}
               onPaste={(e) => composer.paste(e.clipboardData?.getData("text")?.length ?? 0)}
               onCompositionStart={() => composer.imeStart()}
               onCompositionEnd={() => composer.imeEnd()}
@@ -2766,6 +3507,7 @@ export default function Chat({ state, setState, onVoiceCall, onProfile, onGames,
                 // a held backspace emits keydown without changing the value,
                 // and it is still him working on the message
                 lastKeyAt.current = Date.now();
+                engaged();
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   send();

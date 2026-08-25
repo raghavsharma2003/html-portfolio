@@ -28,6 +28,26 @@ execSync(
 
 const { compile, compileOld, FIXTURES, checkCoreByteStable } = await import(BUNDLE);
 
+// Freeze the wall clock for the whole comparison. Both sides stamp her phone
+// clock to the MINUTE (persona.ts nowContext()) at their own call time, so a
+// minute boundary landing between compile() and compileOld() fails byte-
+// identity with equal lengths and different bytes ("10:25 pm" vs "10:26 pm"
+// at tail byte 115 — CI, 2026-08-24 22:25:59→22:26:00, ~1.7% odds per run).
+// This gate proves EXTRACTION identity, not clock identity; pin the clock so
+// the only thing that can differ is the thing under test. 14:30 local sits
+// mid-band, far from every timeOfDay() boundary (5/12/17/22).
+const RealDate = Date;
+const FROZEN = new RealDate(2026, 0, 15, 14, 30, 0, 0).getTime();
+globalThis.Date = class extends RealDate {
+  constructor(...args) {
+    if (args.length) super(...args);
+    else super(FROZEN);
+  }
+  static now() {
+    return FROZEN;
+  }
+};
+
 let failed = 0;
 let checked = 0;
 

@@ -48,6 +48,18 @@ import {
   FIXTURE_B,
   FIXTURE_C,
   FIXTURE_D,
+  FIXTURE_E,
+  FIXTURE_E_EXISTING,
+  TR_GROUNDED,
+  TR_FRIEND_BETRAYAL,
+  TR_FABRICATED_CITES,
+  TR_REPAIR_ONLY,
+  TR_SILENT,
+  PAT_GROUNDED,
+  PAT_RECURRENCE,
+  PAT_NO_NEW_EVIDENCE,
+  PAT_PROSE,
+  PAT_JUNK,
   WATCH_FABRICATABLE,
   DRIFT_CONTENTS,
   DRIFT_EPISODE_IDS,
@@ -556,6 +568,297 @@ console.log("\n── G7  enablement + rails (P0-1) ──");
     C.LOG_BATCH_CAP === 220 && SRC_SWEEP.includes("LOG_BATCH_CAP,"),
     "G7.10 LOG_BATCH_CAP is exported and imported, not duplicated",
   );
+}
+
+console.log("\n── G8  the judgment writers: trust/repair and patterns on realistic episodes ──");
+{
+  // WS-JUDGEWORK (#63). Everything above drives predicates over LOG ROWS.
+  // These two writers read FINALIZED EPISODES, and until now the only pieces
+  // of them anything drove were the two mirrored primitives — never the
+  // composition that decides whether a row is written. `acceptTrustRepair`
+  // and `acceptPatternProposals` are that composition, extracted pure for the
+  // same reason `phraseCandidates` was: the fixtures must drive the SHIPPING
+  // decision rather than a restatement of it.
+  const E8 = FIXTURE_E.episodes;
+
+  // ── 8a  trust/repair: the grounded arc, driven end to end ───────────────
+  const d1 = C.acceptTrustRepair(TR_GROUNDED, E8, { trust: 0.3, ruptureOpen: false, repairState: "none" });
+  assert(d1.ruptureRepair?.dim === "rupture" && d1.ruptureRepair.toV === "open",
+    "G8.1 a cited conflict opens a rupture", JSON.stringify(d1.ruptureRepair));
+  assert(
+    JSON.stringify(d1.ruptureRepair?.citations) === JSON.stringify([FIXTURE_E.idAt(4)]),
+    "G8.2 GROUNDING: the rupture cites the episode it was read off, by id",
+    JSON.stringify(d1.ruptureRepair?.citations),
+  );
+  assert(d1.trust && d1.trust.direction === "advance", "G8.3 a cited trust signal moves trust");
+  assert(
+    Number(d1.trust.toV) - Number(d1.trust.fromV) <= 0.0500001,
+    `G8.4 the first move spends the daily allowance and no more (${d1.trust.fromV} -> ${d1.trust.toV})`,
+  );
+  assert(d1.rejected.length === 0, "G8.5 nothing grounded is refused", JSON.stringify(d1.rejected));
+
+  // …and the arc CONTINUES: repair begins, then closes. Five state-machine
+  // branches exist and no fixture in this tree had ever walked past the first.
+  const d2 = C.acceptTrustRepair(TR_GROUNDED, E8, { trust: 0.35, ruptureOpen: true, repairState: "open" }, {
+    lastTrustMoveAt: E8[6].started_at,
+    priorTrustCitations: [FIXTURE_E.idAt(6)],
+  });
+  assert(d2.ruptureRepair?.dim === "repair" && d2.ruptureRepair.toV === "repairing",
+    "G8.6 his own explicit signal begins repair", JSON.stringify(d2.ruptureRepair));
+  assert(
+    JSON.stringify(d2.ruptureRepair?.citations) === JSON.stringify([FIXTURE_E.idAt(6)]),
+    "G8.7 GROUNDING: the repair move cites HIS apology episode, not the fight",
+  );
+  const d3 = C.acceptTrustRepair(TR_REPAIR_ONLY, E8, { trust: 0.35, ruptureOpen: true, repairState: "repairing" });
+  assert(d3.ruptureRepair?.repairState === "repaired" && d3.ruptureRepair.ruptureOpen === false,
+    "G8.8 a sustained signal closes the rupture — the arc completes, it does not stick open",
+    JSON.stringify(d3.ruptureRepair));
+  // …and the priority order that made a separate fixture necessary: a fresh
+  // conflict arriving mid-repair is never shadowed by the repair signal.
+  const dRe = C.acceptTrustRepair(TR_GROUNDED, E8, { trust: 0.35, ruptureOpen: true, repairState: "repairing" }, {
+    priorTrustCitations: [FIXTURE_E.idAt(6)],
+  });
+  assert(
+    dRe.ruptureRepair?.direction === "regress" && dRe.ruptureRepair.toV === "open",
+    "G8.8b a re-rupture during repair regresses FIRST — the repair signal in the same answer cannot shadow it",
+    JSON.stringify(dRe.ruptureRepair),
+  );
+  assert(
+    JSON.stringify(dRe.ruptureRepair?.citations) === JSON.stringify([FIXTURE_E.idAt(4)]),
+    "G8.8c …and a regress cites the CONFLICT, not the apology it overrode",
+  );
+
+  // ── 8b  the same evidence may not move trust twice ──────────────────────
+  // The live cadence is HOURLY, the episode lookback is 30 hours, so the same
+  // batch reaches the same prompt repeatedly. clampTrustDelta bounds the
+  // VALUE; nothing bounded the ROW COUNT.
+  assert(
+    d2.trust === null && d2.rejected.some((r) => /not new/.test(r.reason)),
+    "G8.9 a re-derivation over already-counted episodes writes NO trust event",
+    JSON.stringify(d2.rejected),
+  );
+  assert(
+    C.trustEvidenceIsNew([9001, 9003], [9003, 9008]) === true &&
+      C.trustEvidenceIsNew([9001, 9003], [9003]) === false &&
+      C.trustEvidenceIsNew([], [9003]) === true,
+    "G8.10 the rule is about EVIDENCE, not elapsed time — one new episode is enough, zero is not",
+  );
+
+  // ── 8c  the conservatism trap, and the writer window ────────────────────
+  const dFriend = C.acceptTrustRepair(TR_FRIEND_BETRAYAL, E8, { trust: 0.3, ruptureOpen: false, repairState: "none" });
+  assert(dFriend.trust === null, "G8.11 a hurt that is not about her moves no trust");
+  assert(
+    JSON.stringify(dFriend.ruptureRepair?.citations) === JSON.stringify([FIXTURE_E.idAt(3)]),
+    "G8.12 …and whatever it does write is auditable to the one episode it came from",
+  );
+
+  const dFab = C.acceptTrustRepair(TR_FABRICATED_CITES, E8, { trust: 0.3, ruptureOpen: false, repairState: "none" });
+  assert(
+    dFab.ruptureRepair === null && dFab.trust === null,
+    "G8.13 GROUNDING: every signal whose citations are invented is DROPPED, none written",
+    JSON.stringify(dFab),
+  );
+  assert(
+    dFab.rejected.length === 2 && dFab.rejected.every((r) => /writer window/.test(r.reason)),
+    "G8.14 …and each refusal states its reason — a silent drop reads exactly like a quiet night",
+    JSON.stringify(dFab.rejected),
+  );
+
+  const dSilent = C.acceptTrustRepair(TR_SILENT, E8, { trust: 0.3, ruptureOpen: false, repairState: "none" });
+  assert(
+    dSilent.ruptureRepair === null && dSilent.trust === null && dSilent.rejected.length === 0,
+    "G8.15 the ordinary night: nothing proposed, nothing written, nothing refused",
+  );
+
+  // ── 8d  THE T4 DEFECT: a written pattern that can never be read ─────────
+  // `vy_pattern.prompt_eligible` is GENERATED (support_count >= 3 and
+  // distinct_days >= 2). The writer set neither counter and `reinforcePattern`
+  // has no caller in api/, so every pattern ever written sat at 0/0 and T4
+  // rendered zero bytes for everyone. The lane-parity gate cannot see this:
+  // its fixture hands T4 an already-eligible row.
+  const pg = C.acceptPatternProposals(PAT_GROUNDED, E8, []);
+  assert(pg.writes.length === 1 && pg.rejected.length === 0, "G8.16 the real regularity is accepted", JSON.stringify(pg.rejected));
+  const w = pg.writes[0];
+  assert(
+    JSON.stringify(w.citations) === JSON.stringify([FIXTURE_E.idAt(0), FIXTURE_E.idAt(2), FIXTURE_E.idAt(7)]),
+    "G8.17 GROUNDING: the pattern cites the three episodes it was read off, by id",
+  );
+  assert(
+    w.support_count === 3 && w.distinct_days === 3,
+    `G8.18 support is COUNTED from the cited episodes, not left at the schema default (got ${w.support_count}/${w.distinct_days})`,
+  );
+  // The pre-fix row, for contrast — this is what production has been storing.
+  const asRow = (o, extra = {}) => ({
+    id: 1, person_id: PERSON, moment: o.moment, if_shape: o.if_shape, then_note: o.then_note,
+    self_in_relation: o.self_in_relation ?? "", citations: o.citations,
+    support_count: o.support_count ?? 0, distinct_days: o.distinct_days ?? 0,
+    prompt_eligible: (o.support_count ?? 0) >= 3 && (o.distinct_days ?? 0) >= 2,
+    times_contradicted: 0, t_invalid: null, last_used: null, ...extra,
+  });
+  const t4Live = E.renderDyadicActive([asRow(w)], "stress");
+  assert(t4Live.text.length > 0, "G8.19 …and a row written that way RENDERS in T4 — the writer's output reaches a lane");
+  assert(
+    t4Live.text.includes(`${w.if_shape} -> ${w.then_note}`),
+    "G8.20 T4 carries the derived strings verbatim — which is why they are linted at write time",
+  );
+  const t4Pre = E.renderDyadicActive([asRow({ ...w, support_count: 0, distinct_days: 0 })], "stress");
+  assert(
+    t4Pre.text.length === 0,
+    "G8.21 NEGATIVE CONTROL: the pre-fix row (support 0 / days 0) renders ZERO bytes — the defect this gate closes is visible",
+  );
+  assert(t4Live.lint.clean, "G8.22 the accepted pattern is shape-lint clean at the render that ships it");
+
+  // ── 8e  reinforcement is the ONLY path up the ladder ────────────────────
+  const twoCite = C.patternSupport([FIXTURE_E.idAt(0), FIXTURE_E.idAt(2)], E8);
+  assert(
+    twoCite.support_count === 2 && twoCite.distinct_days === 2,
+    "G8.23 the ordinary two-citation write is NOT promotable on its own (support 2 < 3)",
+  );
+  assert(
+    E.renderDyadicActive([asRow({ ...w, ...twoCite })], "stress").text.length === 0,
+    "G8.24 …confirmed at the render: it takes a later pass finding it again",
+  );
+  const pr = C.acceptPatternProposals(PAT_RECURRENCE, E8, FIXTURE_E_EXISTING);
+  assert(
+    pr.writes.length === 0 && pr.reinforcements.length === 1,
+    "G8.25 a recurrence is a REINFORCEMENT, never a duplicate row",
+    JSON.stringify(pr),
+  );
+  assert(
+    JSON.stringify(pr.reinforcements[0].fresh) === JSON.stringify([FIXTURE_E.idAt(7)]),
+    "G8.26 GROUNDING: exactly one unit of support, traced to the one episode not already cited",
+    JSON.stringify(pr.reinforcements[0]),
+  );
+  assert(
+    JSON.stringify(pr.reinforcements[0].merged) === JSON.stringify([9001, 9003, 9008]),
+    "G8.27 the merged citation set is the union, sorted — support 3 / days 3, i.e. eligible",
+  );
+  assert(pr.deduped === 0, "G8.28 …and it is not counted as a dedupe, which is how it used to be lost");
+  // Case-insensitive dedupe still holds: PAT_RECURRENCE's if_shape is
+  // capitalised and must still match the stored row.
+  assert(
+    pr.reinforcements[0].if_shape.toLowerCase() === FIXTURE_E_EXISTING[0].if_shape.toLowerCase(),
+    "G8.29 dedupe is normalized — a capitalised restatement is the same regularity",
+  );
+
+  const pn = C.acceptPatternProposals(PAT_NO_NEW_EVIDENCE, E8, FIXTURE_E_EXISTING);
+  assert(
+    pn.reinforcements.length === 0 && pn.writes.length === 0 && pn.deduped === 1,
+    "G8.30 the same regularity on the SAME evidence bumps nothing — an hourly re-scan cannot promote a pattern by itself",
+    JSON.stringify(pn),
+  );
+  assert(
+    JSON.stringify(C.patternReinforcement({ id: 1, citations: [9001, 9003] }, [9003, 9008]).fresh) === JSON.stringify([9008]),
+    "G8.31 the reinforcement predicate itself, driven directly",
+  );
+
+  // ── 8f  pattern text is prompt text ─────────────────────────────────────
+  const pp = C.acceptPatternProposals(PAT_PROSE, E8, []);
+  assert(
+    pp.writes.length === 0 && pp.rejected.length === 1,
+    "G8.32 prose is REFUSED, not truncated — a truncated regularity is a corrupted claim",
+    JSON.stringify(pp),
+  );
+  assert(
+    /too long|first-person/.test(pp.rejected[0].reason),
+    "G8.33 …and the refusal names which rule and which field",
+    JSON.stringify(pp.rejected),
+  );
+  // THE MIRROR CHECK. patternTextRejection mirrors shapelint.ts's lintLine.
+  // Drive both over the same strings: a mirror nothing compares is a copy
+  // waiting to drift (this file's own G4.12 rule, applied one layer down).
+  {
+    const probes = [
+      "goes quiet, wants distraction not questions",
+      "steady, undemanding, no follow-up questions",
+      "Whenever he has had a genuinely difficult day at the office and the deadlines have piled up",
+      "I should probably just send him something silly instead of asking",
+      "main usse baat karti hoon",
+      "work pressure builds",
+    ];
+    const drift = probes.filter((p) => {
+      const mine = C.patternTextRejection(p) !== "";
+      const real = E.lintLine(p).reasons.length > 0;
+      return mine !== real;
+    });
+    assert(
+      drift.length === 0,
+      "G8.34 patternTextRejection agrees with the REAL shapelint.lintLine on every probe",
+      drift.join(" | "),
+    );
+    assert(
+      probes.some((p) => C.patternTextRejection(p) !== "") && probes.some((p) => C.patternTextRejection(p) === ""),
+      "G8.35 …and the probe set contains both verdicts, so agreement is not vacuous",
+    );
+  }
+
+  const pj = C.acceptPatternProposals(PAT_JUNK, E8, []);
+  assert(
+    pj.writes.length === 0 && pj.rejected.length === 2,
+    "G8.36 a moment outside the closed set and a one-instance anecdote are both refused",
+    JSON.stringify(pj),
+  );
+  assert(
+    pj.rejected.some((r) => /closed set/.test(r.reason)) && pj.rejected.some((r) => /anecdote/.test(r.reason)),
+    "G8.37 …each with its own reason",
+    JSON.stringify(pj.rejected),
+  );
+  assert(
+    C.acceptPatternProposals({ patterns: Array.from({ length: 6 }, () => PAT_GROUNDED.patterns[0]) }, E8, []).proposed === 2,
+    "G8.38 the nightly cap holds however many the model volunteers — accumulation stays geological",
+  );
+
+  // ── 8g  the captured phrase's own render ────────────────────────────────
+  // Deterministic capture stores the n-gram and no gloss (inventing one would
+  // be fabrication), so EVERY phrase this pipeline writes rendered with a
+  // dangling em-dash in the one block she speaks back from.
+  const t6 = E.renderWeCallbacks([], [{ phrase: "chai pe scene set", gloss: "" }], false);
+  assert(t6.text.includes('phrase: "chai pe scene set"'), "G8.39 a glossless captured phrase still renders");
+  assert(
+    !/—\s*$/m.test(t6.text) && !t6.text.includes('" — '),
+    "G8.40 …without a dangling em-dash where the gloss would have been",
+    JSON.stringify(t6.text),
+  );
+  const t6g = E.renderWeCallbacks([], [{ phrase: "monday face", gloss: "their word for sunday dread" }], false);
+  assert(
+    t6g.text.includes('phrase: "monday face" — their word for sunday dread'),
+    "G8.41 BYTE-IDENTICAL when a gloss IS present — this is a fix for the absent case only",
+  );
+
+  // ── 8h  why the rel-event note is not linted, stated rather than assumed ─
+  // The trust/rupture note is model free text. It is safe unlinted for one
+  // reason only: nothing renders it. That is a property of OTHER files, so it
+  // is asserted here rather than believed.
+  {
+    const SRC_MEMORY = readFileSync(join(ROOT, "api/memory.js"), "utf8");
+    const SRC_RELSTATE = readFileSync(join(ROOT, "src/engine/relstate.ts"), "utf8");
+    // Every SELECT against vy_rel_event, and what it projects.
+    const selects = [...SRC_MEMORY.matchAll(/select\s+([\s\S]{0,200}?)\s+from vy_rel_event/g)].map((m) => m[1]);
+    assert(
+      selects.length >= 2 && selects.every((s) => !/\bnote\b/.test(s)),
+      `G8.42 no vy_rel_event read in api/memory.js projects \`note\` (${selects.length} reads checked)`,
+      selects.join(" | "),
+    );
+    // The one place it IS read is the forget cascade's delete predicate —
+    // which is the right direction: an unlinted note is still reachable BY
+    // A FORGET, it is just never reachable by the prompt.
+    assert(
+      /delete from vy_rel_event[\s\S]{0,200}note ~\* /.test(SRC_MEMORY),
+      "G8.43 …and forget still scans the note, so audit text is erasable even though it is unrenderable",
+    );
+    // And nothing in relstate.ts's render half touches it: RelState, which is
+    // what T2 renders from, has no note field at all.
+    // Comments stripped first — G1.8's lesson one layer down: a scanner that
+    // cannot tell prose from code produces a failure nobody can act on.
+    const renderHalf = SRC_RELSTATE.slice(SRC_RELSTATE.indexOf("RENDER FUNCTIONS"))
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/then_note/g, "");
+    assert(
+      !/\bnote\b/.test(renderHalf),
+      "G8.44 …and no render function in relstate.ts reads a rel-event note — hence write-time lint is not the gate it is for a pattern",
+    );
+  }
 }
 
 console.log("\n── G7b  NEGATIVE CONTROL — the checkers detect a break ──");

@@ -853,10 +853,25 @@
 .cx-mv-n {
   color: var(--ga-faint);
 }
+/* The quiet board, above the line that was already here. Small: this sits
+   inside a move list, not on a screen of its own, so it is scaled to the
+   panel rather than to the artwork. */
 .cx-mv-empty {
   padding: 10px var(--s3);
   font-size: var(--t-sub);
   color: var(--ga-faint);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.cx-mv-empty img {
+  width: 168px;
+  max-width: 70%;
+  height: auto;
+}
+.cx-mv-empty p {
+  margin: 0;
 }
 
 /* ── reduced motion ─────────────────────────────────────────────────────

@@ -2,7 +2,8 @@
 // the client can open its realtime WebSocket WITHOUT ever seeing the real
 // Google key. The token expires in 30 minutes and admits one session.
 import { GOOGLE_KEY } from "./_config.js";
-import { withGeminiKey, isQuota } from "./_gkeys.js";
+import { withGeminiKey } from "./_gkeys.js";
+import { classifyUpstream, QUOTA, TRANSIENT } from "./_lanes.js";
 import { allow, ipOf } from "./_ratelimit.js";
 
 // The model IS the latency. Measured end-to-end on real audio — wall clock
@@ -74,10 +75,25 @@ export default async function handler(req, res) {
       const r = await mint(envKey);
       if (r.ok) data = await r.json();
     } else {
+      // WS-RESILIENCE audit: this call site had api/chat.js's exact folding —
+      // `isQuota` alone, everything else "stop, every key rejects it
+      // identically". That sentence is true for 400/401/404 and FALSE for 5xx,
+      // and here the consequence is that one transient Google 502 during the
+      // ring means she never picks up at all. Classification now comes from the
+      // one shared classifier; the same-key retry is deliberately NOT taken
+      // here — the ring has slack for a rotation, not for a backoff sleep in
+      // front of a call connecting.
       const got = await withGeminiKey(async (k) => {
-        const r = await mint(k);
+        let r;
+        try {
+          r = await mint(k);
+        } catch {
+          return { ok: false, retry: true, error: "network" };
+        }
         if (r.ok) return { ok: true, value: await r.json() };
-        if (isQuota(r.status)) return { ok: false, exhausted: true };
+        const cls = classifyUpstream(r.status);
+        if (cls === QUOTA) return { ok: false, exhausted: true };
+        if (cls === TRANSIENT) return { ok: false, retry: true, error: `mint ${r.status}` };
         return { ok: false, error: `mint ${r.status}` };
       });
       data = got.value ?? null;

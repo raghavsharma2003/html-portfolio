@@ -314,10 +314,16 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
     let minText = Infinity;
     let minPanel = Infinity;
     let minEdge = Infinity;
+    let minAccent = Infinity;
     let whereText = "";
     let wherePanel = "";
     for (let i = 0; i < t.stops.length; i++) {
       const ground = over(scrim, hex(t.stops[i]), t.scrimAlpha);
+      // 0. ACCENT text floating directly on the world (the hero <em>). The
+      //    theme's --accent measured 2.26:1 on morning's blue top stop
+      //    (2026-08-25); each state now carries a sky-solved `accent` and
+      //    this holds it to the same body floor as ink, on the same ground.
+      minAccent = Math.min(minAccent, ratio(hex(t.accent), ground));
       const panel = over(control, ground, t.controlAlpha);
 
       // 1. text floating directly on the world: her name, her presence line,
@@ -340,6 +346,11 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
     worstPanel = Math.min(worstPanel, minPanel);
     worstEdge = Math.min(worstEdge, minEdge);
 
+    check(
+      `world/${state}: accent over scrimmed sky >= ${TEXT_FLOOR}`,
+      minAccent >= TEXT_FLOOR,
+      `min ${minAccent.toFixed(2)}`,
+    );
     check(
       `world/${state}: text over scrimmed sky >= ${TEXT_FLOOR}`,
       minText >= TEXT_FLOOR,
@@ -1755,6 +1766,78 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
       );
     }
   }
+}
+
+// ── WS-KNOWS: the memory surface is a CALL SITE, never a new material ──────
+//
+// src/styles/knows.css paints nothing of its own. Every colour on it resolves
+// to an app token, so the floors that already cover this exact situation — ink
+// and the glass family over the wallpapered sky, measured in five skies and
+// two themes by the world block above — cover it too, with no second set of
+// numbers to keep in step.
+//
+// That is a claim about the FILE, and a claim about a file is what this script
+// exists to make enforceable. Three things can quietly break it: a hard-coded
+// colour ("just this one row"), a `data-theme` block (a second palette, which
+// drifts the moment either copy is touched, and which is the failure the two
+// board files carry byte-identical dark blocks to avoid), and a control drawn
+// with a LABEL's edge instead of a CONTROL's. The last one is a real contrast
+// bug rather than a stylistic one: global.css gates `--glass-edge-strong` to
+// >= 3:1 because a control has to be findable, and `--glass-edge` is a whisper
+// designed for a day separator.
+{
+  const k = read("src/styles/knows.css");
+
+  check(
+    "knows: no second palette (no data-theme block, no media palette)",
+    !/\[data-theme/.test(k) && !/prefers-color-scheme/.test(k),
+  );
+
+  // every --k-* token derives, with the two stated exceptions: the ground is
+  // deliberately `transparent` (the world is a real element behind it, so a
+  // ground painted here would hide the painting while every ratio went on
+  // passing), and the blur is a filter, not a colour.
+  const decls = [...k.matchAll(/(--k-[\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]);
+  check("knows: the derived token set is still there", decls.length >= 8, `${decls.length} tokens`);
+  const literal = decls.filter(
+    ([name, value]) =>
+      name !== "--k-ground" && name !== "--k-blur" && !/var\(--/.test(value),
+  );
+  check(
+    "knows: every colour derives from an app token",
+    literal.length === 0,
+    literal.map(([n, v]) => `${n}: ${v}`).join(", "),
+  );
+  check(
+    "knows: the ground is the world's, not a colour of its own",
+    /--k-ground:\s*transparent/.test(k),
+  );
+
+  // the fact card is the measured glass, and the two controls on it wear the
+  // gated CONTROL edge rather than the label one
+  const block = (sel) => {
+    const i = k.indexOf(`\n${sel} {`);
+    return i < 0 ? "" : k.slice(i, k.indexOf("\n}", i));
+  };
+  check(
+    "knows: the fact card is --glass-chip over the sky, the measured material",
+    /background:\s*var\(--k-card\)/.test(block(".knows-fact")) &&
+      decls.some(([n, v]) => n === "--k-card" && v.includes("--glass-chip")),
+  );
+  check(
+    "knows: the correction control takes the gated control edge (>= 3:1)",
+    /border:[^;]*var\(--k-line-strong\)/.test(block(".knows-fix")),
+    block(".knows-fix").split("\n").find((l) => /border:/.test(l)) ?? "(no border decl)",
+  );
+  check(
+    "knows: the timeline thread takes the control edge, not the label one",
+    /border-left:[^;]*var\(--k-line-strong\)/.test(block(".knows-time")),
+  );
+  // and the tokens those two names point at are the gated pair themselves
+  check(
+    "knows: --k-line-strong IS --glass-edge-strong",
+    decls.some(([n, v]) => n === "--k-line-strong" && v.includes("--glass-edge-strong")),
+  );
 }
 
 console.log(failed ? `\n${failed} contrast/legibility checks FAILED` : "\nboard legibility ok");

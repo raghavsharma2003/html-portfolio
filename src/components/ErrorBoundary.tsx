@@ -27,6 +27,23 @@
 // contains a class.
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { tel } from "../engine/telemetry";
+// THE PICTURE IS INLINED AS BYTES, not imported as a URL, and that is the same
+// decision as the inline styles below. A plain `import art from "…svg"` yields
+// a path the browser has to go and fetch, which is a second thing that can
+// fail at the exact moment something already has; `?raw` puts the markup in
+// this chunk, so the card either renders whole or does not render at all.
+// The file itself stays the single source: nothing here is transcribed.
+import toppledPawn from "../assets/empty/board-wont-open.svg?raw";
+
+// The file carries a `viewBox` and no dimensions, which is right for an asset
+// and wrong for an element: an <svg> with neither leans on the container's
+// stylesheet to get a size, and this card has decided it has no stylesheet.
+// One attribute, added once at module scope, in the same inline-style form
+// every other rule in the card takes.
+const PAWN = toppledPawn.replace(
+  "<svg ",
+  '<svg style="display:block;width:100%;height:auto" ',
+);
 
 interface Props {
   children: ReactNode;
@@ -98,6 +115,16 @@ export default class ErrorBoundary extends Component<Props, State> {
             fontFamily: "var(--font-ui, system-ui, sans-serif)",
           }}
         >
+          {/* The toppled pawn, above the sentence and instead of none of it.
+              `aria-hidden`: the dialog's own label already says what happened,
+              and the drawing's title would announce a second, softer version
+              of it straight after. The width is inline for the same reason
+              every other rule in this card is. */}
+          <div
+            aria-hidden="true"
+            style={{ width: "100%", maxWidth: "13rem", margin: "0 auto 12px" }}
+            dangerouslySetInnerHTML={{ __html: PAWN }}
+          />
           {/* App chrome, never a line she says — same discipline as the rest
               of the UI copy. She did not break; a board did. */}
           <p style={{ margin: "0 0 6px", fontWeight: 600 }}>This board won't open</p>

@@ -318,6 +318,59 @@ export async function uploadPhoto(device: string, dataB64: string, mime: string)
   }
 }
 
+/**
+ * The multi-picture send (WS-COMPOSER). One message, up to five pictures, one
+ * caption, and a permanent storage URL for each in the order they were sent.
+ *
+ * ── THE TWO SHAPES, AND WHY BOTH ──────────────────────────────────────────
+ *
+ * `{ images, caption }` is the shape agreed with the server workstream. It is
+ * ONE round trip for a set, which matters on a phone: five sequential uploads
+ * over a bad connection is five chances to half-fail, and a half-failed set is a
+ * message whose pictures partly exist.
+ *
+ * `{ data, mime }` is the shape this app has been sending since the single-photo
+ * path shipped, and it stays the shape for the case it already covers exactly:
+ * one picture, no caption. There is nothing the new body would buy there, and
+ * the old one is proven against production traffic, so the commonest send by far
+ * takes zero new risk.
+ *
+ * ── AND WHY THE FALLBACK IS NOT OPTIONAL ──────────────────────────────────
+ *
+ * The web bundle updates over the air, independently of the serverless
+ * functions. A build that assumed the server already understood `images` would,
+ * for however long the two are out of step, drop every picture past the first
+ * with no error anywhere. So a response that does not carry a URL per image is
+ * treated as a server that has not learned the shape yet, and the set goes up
+ * through the old endpoint one at a time. Slower, and it works.
+ *
+ * Never throws and never rejects: a null in the returned array means that one
+ * picture has no permanent copy, which the caller renders from its local data
+ * URL exactly as it did for the second before any upload finished.
+ */
+export async function uploadPhotos(
+  device: string,
+  images: string[],
+  caption: string,
+): Promise<Array<string | null>> {
+  const b64 = (u: string) => u.split(",")[1] || "";
+  if (!images.length) return [];
+  if (images.length === 1 && !caption) {
+    return [await uploadPhoto(device, b64(images[0]), "image/jpeg")];
+  }
+  try {
+    const r = await post({ op: "upload_photo", device, images, caption, mime: "image/jpeg" });
+    const d = await (r.ok ? r.json() : null);
+    const urls = d?.urls;
+    if (Array.isArray(urls) && urls.length === images.length) {
+      return urls.map((u: unknown) => (typeof u === "string" && u ? u : null));
+    }
+  } catch {
+    /* fall through to the shape that has always worked */
+  }
+  return Promise.all(images.map((u) => uploadPhoto(device, b64(u), "image/jpeg")));
+}
+
 export async function describePhoto(device: string, url: string): Promise<string> {
   try {
     const r = await post({ op: "describe", device, url });
@@ -341,8 +394,28 @@ export type ForgetTarget =
   | { scope: "day"; day: string; tzMin: number }
   | { scope: "all" };
 
+/**
+ * A1 (docs/research/MEMORY-FIELD-SURVEY.md §Q5): what she is ENTITLED TO SAY,
+ * decided on the server where the row counts are, not inferred here.
+ *
+ *   done   — rows went; the past tense is true.
+ *   hedged — the mutation-time matcher did not answer and the deterministic
+ *            one did. Rows went, so nothing she says is false, but the delete
+ *            may be partial and the system says so rather than flattening the
+ *            two cases into one.
+ *   none   — nothing matched. There is no receipt to give, and giving one
+ *            anyway is the single worst failure this feature has
+ *            (`activity-forgot-the-teardown`: agreeing and not deleting).
+ *
+ * Older servers do not send the field; it defaults to "done", which is exactly
+ * the behaviour that shipped before, so a stale deploy degrades to the status
+ * quo rather than to silence.
+ */
+export type ForgetReceipt = "done" | "hedged" | "none";
+
 export interface ForgetResult {
   scope: ForgetTarget["scope"];
+  receipt: ForgetReceipt;
   deleted: { log: number; nodes: number; edges: number };
 }
 
@@ -386,6 +459,13 @@ export async function forgetMemories(
   device: string,
   target: ForgetTarget,
   accessToken?: string,
+  /** A1: set on a SPOKEN turn. The mutation-time matcher is worth seconds in
+   *  chat and is not worth them out loud — the survey's own constraint is
+   *  that it "must not run on the live-call lane", and a call turn that goes
+   *  quiet for five seconds is a worse product than a narrower delete plus an
+   *  honest receipt. Skipping it yields `receipt: "hedged"`, which is the
+   *  truth: the deterministic matcher answered. */
+  opts?: { nohook?: boolean },
 ): Promise<ForgetResult | null> {
   if (!device) return null;
   const done = diagTimer("chat", "forget", { scope: target.scope });
@@ -395,7 +475,12 @@ export async function forgetMemories(
   // over a second endpoint is how two copies of one rule start to disagree.
   if (target.scope === "all") void wipeServerState(accessToken, "forget");
   try {
-    const r = await post({ op: "forget", device, ...target });
+    const r = await post({
+      op: "forget",
+      device,
+      ...target,
+      ...(opts?.nohook ? { nohook: true } : {}),
+    });
     const d = r.ok ? await r.json() : null;
     if (!d?.ok) {
       done({ ok: false });
@@ -406,10 +491,12 @@ export async function forgetMemories(
       nodes: Number(d.deleted?.nodes) || 0,
       edges: Number(d.deleted?.edges) || 0,
     };
+    const receipt: ForgetReceipt =
+      d.receipt === "none" || d.receipt === "hedged" ? d.receipt : "done";
     // the SCOPE is telemetry; the name of the thing they asked her to drop
     // never is — a diag row naming it would outlive the memory it deleted
-    done({ ok: true, ...deleted });
-    return { scope: d.scope, deleted };
+    done({ ok: true, receipt, ...deleted });
+    return { scope: d.scope, receipt, deleted };
   } catch {
     done({ ok: false });
     return null;

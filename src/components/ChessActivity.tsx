@@ -15,10 +15,12 @@ import SidePick from "./SidePick";
 import { HER_NAME } from "../engine/persona";
 import { chooseMoveAsync, legalMoves, newGame, openingName, play } from "../engine/chess";
 import type { Side } from "../engine/chess";
+import { chessThinkMs } from "../state/game";
 import { useCallStatus } from "../state/callStatus";
 import { tap } from "../native/haptics";
 import { resolveTheme } from "../engine/theme";
 import { replaceOccupant } from "./activityClose";
+import noMovesArt from "../assets/empty/no-moves.svg";
 
 interface Props {
   state: AppState;
@@ -149,19 +151,42 @@ export default function ChessActivity({
   // sometimes, takes a worse line for flavour more often — beatable, which
   // for a companion is the point. The engine default stays 3; this is the
   // surface choosing, which is where a per-person difficulty would live.
+  //
+  // WS-MOVEVOICE extended the hold from a two-band inline formula to the shared
+  // table in `state/game.ts`, for three reasons the inline version could not
+  // serve. It covered only chess (ttt had its own unrelated constant). It was
+  // blind to the position beyond the ply count, so a forced recapture and a
+  // wide-open middlegame decision took her the same three seconds — the tell
+  // being not that she is slow but that she is UNIFORM. And it was unreachable
+  // from any eval, so "her move never lands instantly" was a claim about a
+  // closure rather than an asserted bound. `chessThinkMs` is pure, seeded on
+  // (fen, session) so replays agree, and bounded for every input.
+  //
+  // THE HOLD IS ALSO THE CHOREOGRAPHY'S FIRST BEAT. Nothing may speak about
+  // this move until it lands — see state/game.ts's choreography block for why
+  // there is no pre-line — and the presence row reads "thinking" for exactly
+  // this window, off `hers`, which is the existing idiom and not a new one.
   useEffect(() => {
     if (!hers || !g) return;
     let liveEffect = true;
     let hold: ReturnType<typeof setTimeout> | null = null;
     void chooseMoveAsync(g, { strength: 2 }).then((hm) => {
       if (!liveEffect || !hm) return;
-      // seed from the fen so the pace is a property of the moment, replayable
-      let h = 0;
-      for (let i = 0; i < g.fen.length; i++) h = (h * 31 + g.fen.charCodeAt(i)) | 0;
-      const u = (Math.abs(h) % 1000) / 1000;
       const ply = g.played.length;
-      const [lo, hi] = ply < 8 ? [800, 2200] : ply < 30 ? [1800, 6000] : [1200, 4000];
-      const thinkMs = Math.round(lo + u * (hi - lo));
+      const lastPlayed = ply ? g.played[ply - 1] : null;
+      const thinkMs = chessThinkMs({
+        fen: g.fen,
+        ply,
+        legalMoveCount: g.status.legalMoveCount,
+        inCheck: g.status.inCheck,
+        // Taking back on the square he just took on. Read off the record, so it
+        // is a fact about the two moves rather than a flag anybody has to set.
+        recapture: Boolean(lastPlayed?.captured && lastPlayed.to === hm.move.to),
+        book: openingName(g.played.map((m) => m.san)) !== null,
+        // The session's own start time: one game's pacing is its own, and the
+        // same position reached in a different sitting is not a metronome.
+        seed: session?.startedAt ?? 0,
+      });
       hold = setTimeout(() => {
         if (!liveEffect) return;
         setState((s) => {
@@ -177,7 +202,7 @@ export default function ChessActivity({
       liveEffect = false;
       if (hold) clearTimeout(hold);
     };
-  }, [hers, g, setState]);
+  }, [hers, g, setState, session?.startedAt]);
 
   const captured = useMemo(() => {
     const white: Role[] = [];
@@ -502,7 +527,13 @@ export default function ChessActivity({
                   </div>
                 ))
               ) : (
-                <p className="cx-mv-empty">no moves yet</p>
+                <div className="cx-mv-empty">
+                  {/* The board before anything has happened on it, with the
+                      two ghost arrows the file draws. Above the line, never
+                      instead of it. */}
+                  <img src={noMovesArt} alt="" width={168} height={112} />
+                  <p>no moves yet</p>
+                </div>
               )}
             </div>
           </div>
