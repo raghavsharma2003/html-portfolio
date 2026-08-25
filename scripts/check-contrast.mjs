@@ -314,10 +314,16 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
     let minText = Infinity;
     let minPanel = Infinity;
     let minEdge = Infinity;
+    let minAccent = Infinity;
     let whereText = "";
     let wherePanel = "";
     for (let i = 0; i < t.stops.length; i++) {
       const ground = over(scrim, hex(t.stops[i]), t.scrimAlpha);
+      // 0. ACCENT text floating directly on the world (the hero <em>). The
+      //    theme's --accent measured 2.26:1 on morning's blue top stop
+      //    (2026-08-25); each state now carries a sky-solved `accent` and
+      //    this holds it to the same body floor as ink, on the same ground.
+      minAccent = Math.min(minAccent, ratio(hex(t.accent), ground));
       const panel = over(control, ground, t.controlAlpha);
 
       // 1. text floating directly on the world: her name, her presence line,
@@ -340,6 +346,11 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
     worstPanel = Math.min(worstPanel, minPanel);
     worstEdge = Math.min(worstEdge, minEdge);
 
+    check(
+      `world/${state}: accent over scrimmed sky >= ${TEXT_FLOOR}`,
+      minAccent >= TEXT_FLOOR,
+      `min ${minAccent.toFixed(2)}`,
+    );
     check(
       `world/${state}: text over scrimmed sky >= ${TEXT_FLOOR}`,
       minText >= TEXT_FLOOR,

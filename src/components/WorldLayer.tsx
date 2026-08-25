@@ -240,6 +240,7 @@ export function skyVars(frame: SkyFrame): React.CSSProperties {
     // and putting it there would fog stage 1 to pay for stage 2's problem.
     "--world-scrim-a-painted": String(t.scrimAlphaPainted),
     "--world-ink": t.ink,
+    "--world-accent": t.accent,
     "--world-ink-rgb": rgbOf(t.ink),
     "--world-ink-dim": t.inkDim,
     "--world-control": t.control,

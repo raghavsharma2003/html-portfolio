@@ -141,7 +141,12 @@
 .onb-lede em,
 .onb-q em {
   font-style: normal;
-  color: var(--accent);
+  /* Sky-solved accent, not the theme's: this <em> sits straight on the sky,
+     and the theme rose measured 2.26:1 on morning's blue top stop (owner
+     report, 2026-08-25). --world-accent is re-solved per sky state at
+     >= 4.75:1 over the veiled stops (sky.ts `accent`, gated in
+     check-contrast.mjs); the theme accent stays as the no-sky fallback. */
+  color: var(--world-accent, var(--accent));
 }
 
 .onb-sub {
