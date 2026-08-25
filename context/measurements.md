@@ -2827,3 +2827,18 @@ added with its date.
   free, 61,440 bytes at 13.1s, pool 33/48; local handler 200 with
   99,840 bytes at 12.9s. Resilience battery 153/153; verify-release
   13/13 by exit code.
+- CORRECTION (2026-08-25 re-probe): the prepay-depleted 429 is ONE account,
+  not the family — compliance@carbonsettle.com has prepaid billing enabled
+  on its AI Studio project and 429s "prepayment credits depleted", while
+  aryan@carbonsettle.com (same domain) generates TTS 200 OK, as do the
+  other free-tier keys (n=3). The outage-night family-wide 429s were this
+  one prepay account PLUS ordinary free-tier daily TTS quota exhaustion on
+  its siblings. Family cooling still behaves correctly (5-min soft cool,
+  not a kill). Owner action shrinks to: switch compliance@'s AI Studio
+  project back to free tier, or ignore — 1 key of 51.
+- Pool grown 48→51 (2026-08-25): 10 keys supplied, 1 self-duplicate, 6
+  already in ring, 3 new (batch2-1..3); 51/51 healthy on countTokens.
+- OpenRouter lane re-funded (2026-08-25): balance $55 total / $34.23 used
+  = ~$20.77 available; 1-token generation probe 200 OK. Revives paid
+  speech fallback + openrouter chat overflow once the OPENROUTER_KEY
+  Actions secret is updated.
