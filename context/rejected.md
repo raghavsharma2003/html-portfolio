@@ -2252,3 +2252,14 @@ compiled output must pin EVERY ambient input (clock, date, locale, env) —
 and a ceiling set from a single live measurement of date-varying content
 is a lottery ticket, not a bound. The dead giveaway in both incidents:
 CI failing on a commit that could not have caused the diff.
+
+THIRD strike, same night (2026-08-25 06:01): the live-lane call-tail
+bound in check-prompt-budget.mjs — 29,983 Sunday, 30,001 Monday, one
+byte over on a context-only commit. Scanned at the voice tail's yearly
+argmax (Aug 9) the true worst case is 30,190: the 30,000 cap was
+UNDERWATER at the calendar's peak the whole time and only looked green
+because CI had never run near those dates. Pinned the section's clock to
+the argmax date and raised CALL_TAIL_CAP to 30,250 (60-byte tripwire
+margin, zero content growth). The sharpened lesson: an unpinned clock in
+a size gate doesn't just flap — it can HIDE a cap that is already
+exceeded, because every green run silently measured a smaller day.
