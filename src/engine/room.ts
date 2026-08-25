@@ -277,7 +277,13 @@ export interface ParticipationDecision {
  *  silence. */
 export const UNADDRESSED_COOLDOWN_MS = 10 * 60_000;
 
-const NAME_DEFAULT = ["meera", "मीरा", "मीरा जी", "meeru"];
+// WS-MAYA: her display name changed, so the names she ANSWERS to had to move
+// with it or the rename would be cosmetic on group surfaces — she would stop
+// responding to the only name the group knows her by. The old spellings are
+// KEPT rather than replaced: a room that has been addressing her as "meera"
+// for months must not go silent on the day of a rename, and a stale name in
+// an address matcher costs nothing but a missed-address false positive.
+const NAME_DEFAULT = ["maya", "माया", "माया जी", "mayu", "meera", "मीरा", "मीरा जी", "meeru"];
 
 /** Stage 0's hard gate: EXPLICIT address only. Name mention, @bot, or a
  *  reply to one of her messages. **Implicit-addressee inference is not built

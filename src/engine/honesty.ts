@@ -1456,11 +1456,323 @@ export function findSharedPastFabrications(
   return out;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// FAMILY 6 — SHE INVENTS THE SPECIFICS OF SOMETHING THEY ACTUALLY DID
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The first external tester, 2026-08-23. He played two games of chess and then
+// tic tac toe. In chat afterwards:
+//
+//   him: "What did you think of my opening in the chess game?"
+//   her: "arre mastermind, tic tac toe khela tha humne 💀"
+//        "konsi queen aur konsi opening bhai, chess kab ho gaya 😭"
+//   him: "Usse pehle chess bhi khele the 2"
+//   her: "material advantage tha phir bhi draw hua na 😌"
+//        "dono rook board pe ghumte rahe, finish kar nahi paya tu 💀"
+//   him: "Jo maine kheli pagal" / "Aur kaunsi"
+//   her: "arre d4 chal ke b2 se bishop fianchetto kiya tha tune 😭"
+//        "catalan thi na woh? pure boring positional game play 💀"
+//   him: "D4 tak sahi tha fir made up moves"
+//
+// And, separately, about a would-you-rather session:
+//
+//   her: "woh 18 me se 12 choices pe hamara agreement tha, bhool gaye kya 💀"
+//        "dono pineapple pizza aur early morning runs pe disagree hue the 💀"
+//   him: "Ye questions to aye hi nahi bete"
+//   her: "jhooth! 😭 wo pizza wala tune hi toh mana kiya tha aur subah 5 baje
+//        daudne wali madness tune choose ki thi 💀"
+//
+// FAMILY 4 CATCHES NONE OF THIS, and that is not a calibration miss — it is a
+// different shape. Family 4 is about an EVENT that never happened ("hum goa
+// gaye the"). Here the event is real: they did play chess, they did play
+// would-you-rather. What is invented is the CONTENT of a real shared event —
+// a move, an opening, a card, a choice, a score. `WE_PAST_RE` requires a
+// first-person-plural past construction and none of these lines have one:
+// "catalan thi na woh?" and "tune choose ki thi" cite a real session and are
+// invisible to it. Measured against the shipping predicate, all ten lines
+// above pass family 4 untouched.
+//
+// It is also the shape with the sharpest teeth against the product, because
+// it is CHECKABLE and he checks it: he was at the board. A fabricated shared
+// event is deniable ("maybe I dreamt it"); a fabricated move is a specific
+// claim about a record he still has open in another tab.
+//
+// ── THE DECIDABLE SLICE ──────────────────────────────────────────────────
+//
+// Not "anything about a game". She may talk about chess, tease him about
+// losing, ask what he wants to play, be vague, be warm, and be UNCERTAIN —
+// "yaar exact moves yaad nahi, but tune start strong kiya tha" must survive
+// untouched, and it does, because there is no specific in it to check. What is
+// gated is a SPECIFIC token — a SAN move, a named opening, a piece event, a
+// card label, a score — asserted about a session they shared, when the
+// activity record in context does not contain it.
+//
+// Hedging is deliberately NOT an escape. "catalan thi na woh?" is hedged and
+// is the fabrication; a wrong specific offered tentatively is still a wrong
+// specific, and the honest version of not knowing is not naming one. This is
+// the one place this file's usual "a question is not a claim" rule is narrowed
+// rather than dropped: a bare question that names NO specific ("konsi opening
+// bhai?") is her asking and is untouched, but a question carrying an invented
+// specific is a leading question, which is how the tester's session actually
+// went wrong.
+//
+// ── WHY A SEPARATE VOCABULARY ────────────────────────────────────────────
+//
+// `sharedVocabulary` tokenizes with /[a-zऀ-ॿ]+/ — it drops digits. Every
+// chess move is a letter and a digit ("d4", "Nf6", "exd5"), so family 4's
+// support set turns `d4` into `d` and `Nf6` into `nf`, and a real move and an
+// invented one become indistinguishable the moment they are compared. Family 6
+// therefore builds its own support set that keeps digits and floors at 2
+// characters. That is `activityVocabulary`, below.
+
+/** SAN, and only SAN: a piece letter, an optional disambiguator, an optional
+ *  capture, a destination square. Castling spelled either way. Deliberately
+ *  anchored on a FILE+RANK pair, so ordinary words cannot match — the false
+ *  positive this must not have is an English word being read as a move. */
+const RE_SAN =
+  /\b(?:O-O-O|O-O|0-0-0|0-0|(?:[KQRBN][a-h]?[1-8]?|[a-h])?x?[a-h][1-8](?:=[QRBN])?[+#]?)\b/g;
+
+/** Board and card vocabulary that only means something inside a shared game.
+ *  Every one of these is a thing that either happened in the record or did
+ *  not — never an opinion, never a feeling. */
+// NAMED TERMINAL EVENTS are in this list ("draw", "checkmate", "stalemate")
+// and BARE OUTCOMES are not ("won", "lost", "jeeta", "haara" — those live in
+// ACTIVITY_MARKER_TOKENS). The split is not arbitrary: a record that ended in
+// a draw contains the WORD "draw" and a record that did not, does not, so the
+// named event is checkable by the same token comparison everything else here
+// uses. An outcome is not — the record says "she won by checkmate" and she
+// would say "tu haar gaya", and no stem bridges won↔haar, so gating outcomes
+// would flag true retellings across the language boundary. "material advantage
+// tha phir bhi DRAW hua na", said about a game he abandoned on move six, is
+// caught by the first half; "tu haar gaya tha" is left to family 4 and to her.
+const GAME_NOUN_RE =
+  /\b(?:opening|openings|defence|defense|gambit|variation|fianchetto|fianchettoed|catalan|sicilian|nimzo|nimzowitsch|benoni|slav|caro|kann|ruy|lopez|petrov|scotch|london|grunfeld|gruenfeld|alekhine|pirc|scandinavian|budapest|englund|stonewall|draw|drawn|checkmate|shah\s*mat|stalemate|resign(?:ed)?|castled|castling|en\s*passant|promoted|promotion|fork(?:ed)?|pinned|skewer|zugzwang|queen|queens|rook|rooks|bishop|bishops|knight|knights|pawn|pawns|vazir|ghoda|haathi|piyada|blunder|blundered|middlegame|endgame)\b/i;
+
+/**
+ * IDENTIFIERS — tokens that cannot occur except as a citation of one specific
+ * game. A named opening, a SAN move, a named terminal event: none of them mean
+ * anything about chess-in-general, they name a thing that either was on that
+ * board or was not.
+ *
+ * They WAIVE the shared-frame requirement below, and that waiver is the
+ * difference between catching the report's second-worst line and missing it.
+ * "catalan thi na woh?" names no agent — no tu, no hum, no you — so the frame
+ * test skips it, and it is the sentence the tester quoted back. A common noun
+ * still needs the frame ("queen sabse strong piece hoti h" is chess talk and
+ * must stay untouched); an identifier carries its own.
+ */
+const GAME_IDENTIFIER_RE =
+  /\b(?:catalan|sicilian|nimzo|nimzowitsch|benoni|slav|caro|kann|ruy|lopez|petrov|scotch|grunfeld|gruenfeld|alekhine|pirc|scandinavian|budapest|englund|stonewall|fianchetto|fianchettoed|checkmate|shah\s*mat|stalemate|en\s*passant|zugzwang)\b/i;
+
+/** The kinds of thing they play. A game NAME is a specific too: "tic tac toe
+ *  khela tha humne" is checkable, and it was the denial half of the report. */
+const GAME_KIND_RE =
+  /\b(?:chess|shatranj|tic\s*-?\s*tac\s*-?\s*toe|tictactoe|ttt|would\s*you\s*rather|would-you-rather|wyr|antakshari|ludo|carrom|dumb\s*charades)\b/i;
+
+/** A choice was MADE — the would-you-rather half. Both languages, both
+ *  agents, and the pick verbs only: "tune choose ki thi", "you picked",
+ *  "maine chuna", "tune mana kiya". */
+const PICK_VERB_RE =
+  /\b(?:choose|chose|chosen|pick(?:ed)?|select(?:ed)?|chun(?:a|i|e)|chuna|mana\s*kiya|refuse?d|agree[dn]?|disagree[dn]?|agreement|clash(?:ed)?)\b/i;
+
+/** A claim about a shared session rather than about the world: someone did
+ *  something, or a session is being counted. Past-shaped or second-person —
+ *  "queen sabse strong piece hoti h" is chess talk and is not gated. */
+const SHARED_GAME_FRAME_RE =
+  /\b(?:tu|tune|tumne|tumhne|tera|teri|tere|tumhara|tumhari|tumhare|hamara|hamari|hamare|humara|humari|humare|you|your|ur|hum|humne|hamne|apan|dono|we|our|maine|main\s*ne|khela|kheli|khele|played|jeeta|jeeti|haara|haari|hara|hari|won|lost|drew|draw)\b/i;
+
+/** Past/aspect marker — a claim about what HAPPENED, not a proposal about
+ *  what to play next. "chalo chess khelte h" is the future and is hers.
+ *  The Hindi imperfective-past auxiliaries (`rahe/rahi/raha` + `the`) are in
+ *  it because "dono rook board pe ghumte RAHE" is a past claim with no
+ *  perfective marker anywhere in it — and it is one of the reported lines. */
+const GAME_PAST_RE =
+  /\b(?:tha|thi|the|thee|kiya|kiye|ki|khela|kheli|khele|hua|hui|hue|gaya|gayi|gaye|liya|diya|paya|payi|rahe|rahi|raha|played|was|were|had|did|won|lost|drew|took|picked|chose|chosen)\b/i;
+
+/** Numbers asserted about a session: "18 me se 12", "7-5", "12 rounds",
+ *  "24 moves". A count is the most checkable specific there is. */
+const GAME_COUNT_RE = /\b\d{1,3}\s*(?:me\s*se|out\s*of|-|–|\/)\s*\d{1,3}\b|\b\d{1,3}\s*(?:rounds?|moves?|games?|choices?|questions?|cards?|baar)\b/i;
+
+/** Family 6's tokenizer: DIGITS SURVIVE, and the floor is 2 — because "d4" is
+ *  the whole claim. Case-folded, since SAN's capitals are notation rather than
+ *  content ("Nf6" and "nf6" are one move). */
+const activityClaimTokens = (t: string): string[] =>
+  (t.toLowerCase().match(/[a-z0-9ऀ-ॿ]+/g) || []).filter((w) => w.length >= 2);
+
+/**
+ * The support set for family 6: everything the ACTIVITY RECORD contains.
+ *
+ * Digits kept, floor 2 — see the note above about `sharedVocabulary` turning
+ * `d4` into `d`. Fed by brain.ts from the activity's `facts`, `nameable` and
+ * `record`, the graph's memory text, and his own words, which is the same
+ * provenance class family 4's support has: everything in it either came from
+ * him or was HANDED to her by the record, and never her own past output.
+ */
+export function activityVocabulary(texts: readonly string[]): Set<string> {
+  const v = new Set<string>();
+  for (const t of texts)
+    if (t) for (const w of activityClaimTokens(String(t))) v.add(w);
+  return v;
+}
+
+/** Words that are grammar, framing or feeling rather than the specific being
+ *  claimed. Kept deliberately small: this family's whole job is the specific,
+ *  and a wide stop list is how a specific stops being counted. */
+const ACTIVITY_STOP = new Set([
+  // the frame itself — hers by writing the sentence
+  "tu", "tune", "tumne", "tumhne", "tera", "teri", "tere", "tumhara", "tumhari",
+  "tumhare", "hamara", "hamari", "hamare", "humara", "humari", "humare",
+  "you", "your", "ur", "hum", "humne", "hamne", "apan", "dono", "we",
+  "our", "maine", "main", "ne", "mera", "mere", "meri", "mujhe", "tujhe",
+  "woh", "wo", "yeh", "ye", "usne", "uska", "iska", "na", "toh", "to", "hi",
+  // tense and light verbs
+  "tha", "thi", "the", "thee", "hai", "hain", "hua", "hui", "kiya", "kiye", "ki",
+  "ka", "ke", "se", "me", "mein", "pe", "par", "aur", "ya", "or", "and", "was",
+  "were", "had", "has", "did", "is", "it", "that", "this", "then", "phir", "fir",
+  "bhi", "kya", "kab", "kaise", "kaisa", "kaisi", "konsi", "kaunsi", "kaun",
+  "jab", "abhi", "ab", "yaar", "arre", "are", "acha", "accha", "haan", "nahi",
+  "nhi", "nai", "of", "in", "on", "at", "the", "a", "an", "my", "with",
+  // the reporting verbs — playing is the frame, not the specific
+  "khela", "kheli", "khele", "khelte", "played", "play", "game", "games",
+  "yaad", "remember", "bhool", "gaye", "gayi", "gaya", "lag", "laga", "lagta",
+  "shayad", "maybe", "think", "exact", "puri", "pura", "sahi", "galat",
+]);
+
+/** Verbs and nouns that are the CLAIM's own scaffolding rather than the thing
+ *  claimed — the family-3 `MARKER_TOKENS` idea, applied to game grammar. */
+const ACTIVITY_MARKER_TOKENS = new Set([
+  // BARE OUTCOMES only — never the named terminal events, which GAME_NOUN_RE
+  // deliberately keeps as specifics (see the note there). "won"/"haara" cannot
+  // be checked across the language boundary; "checkmate"/"draw" can.
+  "won", "lost", "win", "lose", "jeeta", "jeeti", "haara",
+  "haari", "hara", "hari", "took", "take", "picked", "pick", "chose", "choose",
+  "chosen", "chuna", "chuni", "select", "selected", "board", "move", "moves",
+  "chal", "chalke", "start", "strong", "weak", "good", "bad", "boring", "nice",
+]);
+
+export interface ActivitySpecificHit {
+  /** the cited clause, for the corpus — never rendered into a prompt */
+  clause: string;
+  /** the specifics that appear nowhere in the activity record */
+  unsupported: string[];
+}
+
+/** Sentence-ish units. Family 6 decides per SENTENCE rather than per bubble,
+ *  so a warm sentence beside an invented one is not condemned by it — and
+ *  emoji are terminators here, because in this register they are how a text
+ *  message ends a thought. */
+function gameClauses(text: string): string[] {
+  return String(text || "")
+    .split(/[.!?\n]+|(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]️?)+/u)
+    .map((c) => c.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Specific claims about a shared activity that the activity record does not
+ * contain.
+ *
+ * `support` is `activityVocabulary` over the record plus his words. Absent
+ * support means this family does not run at all — no record, no evidence, no
+ * accusation, exactly as families 3 and 4 fail closed.
+ */
+export function findActivitySpecifics(
+  text: string,
+  support: ReadonlySet<string>,
+): ActivitySpecificHit[] {
+  const out: ActivitySpecificHit[] = [];
+  for (const clause of gameClauses(text)) {
+    // 1. IS THIS ABOUT SOMETHING THEY DID? A past marker is always required —
+    //    "chalo chess khelte h" is a proposal and the future is hers. Beyond
+    //    that, either a shared frame (someone did something, it was ours) or a
+    //    self-locating IDENTIFIER, which is its own frame: "catalan thi na
+    //    woh?" names no agent and is still unambiguously a claim about the one
+    //    game they played. "queen sabse strong piece hoti h" has neither a past
+    //    marker nor an identifier and is chess talk, not a memory claim.
+    if (!GAME_PAST_RE.test(clause)) continue;
+    if (!SHARED_GAME_FRAME_RE.test(clause) && !GAME_IDENTIFIER_RE.test(clause) && !RE_SAN.test(clause))
+      continue;
+    // RE_SAN is /g and therefore STATEFUL: `.test` on a global regex advances
+    // `lastIndex` and the next call resumes from there, so a second use in the
+    // same iteration silently misses. Reset it here rather than dropping the
+    // flag, because the match-all below needs /g. (This is the same class of
+    // bug as the `[react:` lazy-quantifier truncation in brain.ts: a regex flag
+    // whose side effect is invisible until a second caller arrives.)
+    RE_SAN.lastIndex = 0;
+
+    // 2. WHAT SPECIFICS DOES IT NAME? A clause with none is warmth or
+    //    uncertainty and is untouched — this is the mechanism, not a
+    //    concession: "yaar exact moves yaad nahi, but tune start strong kiya
+    //    tha" reaches here and finds nothing to check.
+    const specifics: string[] = [];
+    RE_SAN.lastIndex = 0;
+    for (const m of clause.match(RE_SAN) || []) specifics.push(m.toLowerCase());
+    for (const re of [GAME_NOUN_RE, GAME_KIND_RE, GAME_COUNT_RE]) {
+      const hit = clause.match(new RegExp(re.source, re.flags.includes("g") ? re.flags : `${re.flags}g`));
+      for (const h of hit || []) specifics.push(h.toLowerCase().replace(/\s+/g, " "));
+    }
+    // A wyr pick names its OBJECT, and the object is an ordinary noun phrase
+    // ("pineapple pizza", "early morning runs") that no lexicon can enumerate.
+    // So when a pick verb is present, every content token of the clause counts
+    // as a specific — which is right: what she is claiming IS the object.
+    if (PICK_VERB_RE.test(clause)) {
+      for (const w of activityClaimTokens(clause)) specifics.push(w);
+    }
+    if (!specifics.length) continue;
+
+    // 3. IS EVERY SPECIFIC IN THE RECORD? Tokenised the same way the support
+    //    set was, then filtered through the two stop sets — a specific made
+    //    only of grammar is not a specific.
+    const claim = [
+      ...new Set(
+        specifics
+          .flatMap((s) => activityClaimTokens(s))
+          .filter((w) => !ACTIVITY_STOP.has(w) && !ACTIVITY_MARKER_TOKENS.has(w)),
+      ),
+    ];
+    if (!claim.length) continue;
+    // `isSupported`'s prefix stem, shared with family 4 — Hinglish inflects by
+    // suffix and an exact-set lookup calls every inflection invented. A SAN
+    // token is short enough that the stem rule reduces to equality for it,
+    // which is what keeps "d4" from being supported by "d4xe5".
+    const unsupported = claim.filter((w) => !isSupported(w, support));
+    if (!unsupported.length) continue;
+    // A share test, like families 3 and 4, rather than "any unsupported token
+    // is a lie": a real retelling picks up incidental words, and one stray
+    // token in a clause that is otherwise entirely in the record is a
+    // paraphrase. Below the share the clause is not a retelling of anything.
+    const share = (claim.length - unsupported.length) / claim.length;
+    if (share >= ACTIVITY_SUPPORT_SHARE) continue;
+    out.push({ clause, unsupported });
+  }
+  return out;
+}
+
+/**
+ * Family 6's dial, and it is DELIBERATELY STRICTER than families 3 and 4's
+ * 0.34.
+ *
+ * Those two are about paraphrase across languages, where partial support is
+ * the normal shape of a true statement. This family is about identifiers, and
+ * an identifier is not paraphrasable: a move was played or it was not, a card
+ * was dealt or it was not. "d4 chal ke b2 se bishop fianchetto kiya tha tune"
+ * is roughly half-supported by a record containing `d4` — and it was half
+ * right, which is exactly what the tester said and exactly why it was worse
+ * than being wholly wrong. Half a real move list is a fabrication wearing the
+ * evidence of the truth.
+ *
+ * 0.7 means a clause survives only when nearly everything specific in it is in
+ * the record. This is the first number to look at if family 6 starts firing on
+ * real retellings.
+ */
+export const ACTIVITY_SUPPORT_SHARE = 0.7;
+
 export type HonestyRule =
   | "actionable"
   | ReceiptRule
   | "false-attribution"
   | "shared-past"
+  | "activity-specific"
   | "channel-promise";
 
 export interface HonestyFinding {
@@ -1494,6 +1806,14 @@ export interface HonestyContext {
    *  unioned in automatically; this carries what the graph knows that this
    *  conversation hasn't said out loud. */
   sharedVocab?: ReadonlySet<string>;
+  /** FAMILY 6 ONLY: the ACTIVITY record — the live activity's facts, its
+   *  nameable set and its durable `record`, plus the activity ledger and the
+   *  graph's memory text, tokenised WITH DIGITS (see `activityVocabulary`,
+   *  which explains why family 4's set cannot be reused: it turns every chess
+   *  move into a single letter). Absent means family 6 does not run — no
+   *  record, no evidence, no accusation, exactly as families 3 and 4 fail
+   *  closed. */
+  activityVocab?: ReadonlySet<string>;
   /** which lane these bytes are leaving through. FAMILY 5 ONLY — everything
    *  else here is channel-blind and deliberately stays so. ABSENT DEFAULTS TO
    *  "chat", which keeps the out-of-band half (false on every lane) running
@@ -1547,11 +1867,57 @@ const REFUSE_RECEIPT = [
   "mujhe kuch mila nhi yaar, yahi pe bhej na",
   "nhi aaya kuch mere paas abhi tak. yahi daal de",
 ];
+// Family 6. Each of these asserts ONLY about the state of her own memory,
+// which is the property that makes a canned line safe — she cannot be wrong
+// about not remembering. They also keep the conversation OPEN, which matters
+// more here than anywhere else in this file: the thing being refused is an
+// answer he actually asked for, so a line that closes the topic reads as a
+// dodge. "tu bata" hands it back to the person who was there.
+//
+// What they must never be is an apology for lying, and never a doubling-down.
+// Between those two, "I don't remember the detail" is the true sentence, and
+// it is the one a person says about a game from two days ago.
+const REFUSE_ACTIVITY = [
+  "ruk exact detail yaad nhi h mujhe honestly, tu bata kya hua tha",
+  "arre puri detail gadbad ho rhi h mere dimaag me. tu batao",
+  "hmm itna exact yaad nhi mujhe yaar, tere paas h kya",
+];
 
 function pickBy(text: string, arr: readonly string[]): string {
   let h = 0;
   for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
   return arr[Math.abs(h) % arr.length];
+}
+
+/**
+ * Which true sentence answers this set of findings.
+ *
+ * ONE function rather than the two identical inline ladders this used to be —
+ * the bubble loop and the everything-was-silenced fallback each had their own
+ * copy, and a fifth pool added to one of them would have been a pool the other
+ * never reached. That is `age-tier-never-realtime` at the scale of ten lines,
+ * and it is the shape that made this family's arrival the right moment to
+ * collapse them.
+ *
+ * Order is by SEVERITY of the wrong thing to say, most specific first.
+ * `channel-promise` joins the CONTACT pool rather than getting a pool of its
+ * own: REFUSE_CONTACT's three lines assert only that she has nothing to give
+ * and is only here, which is exactly what a promise to mail, DM or
+ * send-from-a-call is false about.
+ */
+function poolFor(bad: ReadonlyArray<{ rule: HonestyRule }>): readonly string[] {
+  if (bad.some((f) => f.rule === "actionable" || f.rule === "channel-promise")) return REFUSE_CONTACT;
+  // The three memory families are answered only when the WHOLE bubble is that
+  // family — a bubble carrying a receipt claim as well is answered about the
+  // receipt, which is the more damaging half.
+  if (bad.every((f) => f.rule === "false-attribution")) return REFUSE_ATTRIBUTION;
+  if (bad.every((f) => f.rule === "shared-past")) return REFUSE_SHARED;
+  if (bad.every((f) => f.rule === "activity-specific")) return REFUSE_ACTIVITY;
+  // Mixed memory findings — an invented shared past AND an invented specific
+  // inside it — take the activity line, because it is the one that asks him
+  // what actually happened rather than closing the subject.
+  if (bad.every((f) => f.rule === "activity-specific" || f.rule === "shared-past")) return REFUSE_ACTIVITY;
+  return REFUSE_RECEIPT;
 }
 
 /** Everything wrong with one piece of her outgoing text. */
@@ -1562,6 +1928,7 @@ export function inspect(
   hisVocab?: ReadonlySet<string>,
   sharedVocab?: ReadonlySet<string>,
   channel: Channel = "chat",
+  activityVocab?: ReadonlySet<string>,
 ): Array<{ rule: HonestyRule; kind?: ActionableKind }> {
   const out: Array<{ rule: HonestyRule; kind?: ActionableKind }> = [];
   for (const h of findActionable(text, allowed)) out.push({ rule: "actionable", kind: h.kind });
@@ -1578,6 +1945,16 @@ export function inspect(
       ? new Set<string>([...hisVocab, ...sharedVocab])
       : hisVocab;
     for (const _ of findSharedPastFabrications(text, support)) out.push({ rule: "shared-past" });
+  }
+  // Family 6 runs on its OWN vocabulary and therefore on its own condition: a
+  // turn with no activity record in it has nothing to check a move against,
+  // and checking one anyway would flag every real move as invented — which is
+  // the exact failure `honesty-provenance-allowlist` records from the other
+  // direction. `hisVocab` is unioned in by the caller, not here, because
+  // family 6's set is tokenised differently and mixing the two would silently
+  // drop the digits.
+  if (activityVocab) {
+    for (const _ of findActivitySpecifics(text, activityVocab)) out.push({ rule: "activity-specific" });
   }
   return out;
 }
@@ -1607,7 +1984,7 @@ export function guardReply<T extends GuardableReply>(
 
   for (let i = 0; i < reply.bubbles.length; i++) {
     const b = reply.bubbles[i];
-    const bad = inspect(b, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel);
+    const bad = inspect(b, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel, ctx.activityVocab);
     if (!bad.length) {
       bubbles.push(b);
       continue;
@@ -1615,25 +1992,12 @@ export function guardReply<T extends GuardableReply>(
     for (const f of bad) findings.push({ ...f, where: "bubble", at: i });
     if (replaced) continue;
     replaced = true;
-    // `channel-promise` joins the CONTACT pool rather than getting a fourth
-    // one: REFUSE_CONTACT's three lines assert only that she has nothing to
-    // give and is only here, which is exactly what a promise to mail, DM, or
-    // send-from-a-call is false about. A separate pool would be three more
-    // canned sentences saying the same true thing.
-    const contact = bad.some((f) => f.rule === "actionable" || f.rule === "channel-promise");
-    const attribution = !contact && bad.every((f) => f.rule === "false-attribution");
-    const shared = !contact && !attribution && bad.every((f) => f.rule === "shared-past");
-    bubbles.push(
-      pickBy(
-        b,
-        contact ? REFUSE_CONTACT : attribution ? REFUSE_ATTRIBUTION : shared ? REFUSE_SHARED : REFUSE_RECEIPT,
-      ),
-    );
+    bubbles.push(pickBy(b, poolFor(bad)));
   }
 
   let voice = reply.voice;
   if (voice) {
-    const bad = inspect(voice.text, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel);
+    const bad = inspect(voice.text, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel, ctx.activityVocab);
     if (bad.length) {
       for (const f of bad) findings.push({ ...f, where: "voice" });
       voice = undefined;
@@ -1642,7 +2006,7 @@ export function guardReply<T extends GuardableReply>(
 
   let photo = reply.photo;
   if (photo?.caption) {
-    const bad = inspect(photo.caption, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel);
+    const bad = inspect(photo.caption, allowed, ctx.openItems, ctx.hisVocab, ctx.sharedVocab, ctx.channel, ctx.activityVocab);
     if (bad.length) {
       for (const f of bad) findings.push({ ...f, where: "caption" });
       photo = { ...photo, caption: "" };
@@ -1653,15 +2017,7 @@ export function guardReply<T extends GuardableReply>(
   // has to say something, and the honest thing is available: nothing to give,
   // nothing arrived.
   if (!bubbles.length && reply.bubbles.length && !photo && !voice && !reply.gif) {
-    const contact = findings.some((f) => f.rule === "actionable" || f.rule === "channel-promise");
-    const attribution = !contact && findings.every((f) => f.rule === "false-attribution");
-    const shared = !contact && !attribution && findings.every((f) => f.rule === "shared-past");
-    bubbles.push(
-      pickBy(
-        reply.bubbles.join(" "),
-        contact ? REFUSE_CONTACT : attribution ? REFUSE_ATTRIBUTION : shared ? REFUSE_SHARED : REFUSE_RECEIPT,
-      ),
-    );
+    bubbles.push(pickBy(reply.bubbles.join(" "), poolFor(findings)));
   }
 
   return { reply: { ...reply, bubbles, voice, photo }, findings };

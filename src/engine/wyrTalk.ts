@@ -30,6 +30,49 @@ export function wyrPickFact(card: WyrCard, his: "a" | "b", her: "a" | "b"): stri
   return bits.join(", ");
 }
 
+// ── the DURABLE half: which questions came up, and who chose what ──────────
+//
+// `wyrActivity`'s `facts` carry the card on screen and a running tally, which
+// is exactly right for the present moment and is ALL that reached her memory.
+// So a finished session was remembered as "6 rounds so far; 4 agreed, 2
+// clashed so far" — counts with nothing under them. Asked afterwards which
+// choices they had disagreed on, she had a number and no questions, and she
+// filled the gap: "dono pineapple pizza aur early morning runs pe disagree hue
+// the" — neither card existed in the deck she dealt him (2026-08-23 tester
+// report: "Ye questions to aye hi nahi. Made up questions").
+//
+// A tally is not a memory of a game. The rounds are.
+
+/** How many answered rounds enter the record, newest last. Six is a real
+ *  sitting; beyond that it stops being "what we picked" and becomes a
+ *  transcript, which is what `EPISODE_SUMMARY_MAX` would drop anyway. */
+export const RECORD_ROUNDS = 6;
+
+/** One durable row per answered round: the question as the two SHORT labels
+ *  she was already allowed to name, and both picks. Never the card's full
+ *  `a`/`b` sentence — `recited-prompt`, and it is the rule this file opens
+ *  with. */
+export function wyrRecord(session: WyrSession): string[] {
+  const rows: string[] = [];
+  const { agreed, clashed } = tally(session);
+  // The tally goes FIRST because the drop policy drops from the end: if only
+  // one row survives the budget it must be the one that is true of the whole
+  // session rather than of one card.
+  if (session.rounds.length)
+    rows.push(`${session.rounds.length} rounds, ${agreed} agreed, ${clashed} clashed`);
+  for (const r of session.rounds.slice(-RECORD_ROUNDS)) {
+    const c = cardById(r.cardId);
+    if (!c) continue;
+    const label = (p: "a" | "b") => (p === "a" ? c.aShort : c.bShort);
+    rows.push(
+      r.his === r.her
+        ? `on ${c.aShort} or ${c.bShort}, both picked ${label(r.his)}`
+        : `on ${c.aShort} or ${c.bShort}, he picked ${label(r.his)}, she picked ${label(r.her)}`,
+    );
+  }
+  return rows;
+}
+
 /**
  * The whole activity, for the tail block at connect (and for the chat lane's
  * `keys.activity`, once `state/game.ts`'s `activityOf` is wired to call this —
@@ -79,5 +122,6 @@ export function wyrActivity(session: WyrSession): ActivityState {
     startedAt: session.startedAt,
     facts,
     nameable: Array.from(new Set(nameable)),
+    record: wyrRecord(session),
   };
 }

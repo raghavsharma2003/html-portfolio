@@ -1,0 +1,4983 @@
+{
+  "what": "docs/MEMORY-FELT.md §9 felt-memory battery",
+  "live": true,
+  "date": "2026-08-23",
+  "prereg": {
+    "combined": "4e2f7f513c7faa67f65f094e04d48c3aecaa34d557ab8817a1fdd14a0760088b",
+    "manifest": "4e2f7f513c7faa67f65f094e04d48c3aecaa34d557ab8817a1fdd14a0760088b"
+  },
+  "arms": {
+    "prewave": "1002744b353f5da7e15d3f2a2ee222e56796fd11",
+    "prewaveSubject": "docs: the behavioral laws of memory — retold not recited, right time, weight classes, never ammunition",
+    "current": "working tree",
+    "contextsDiffering": 33
+  },
+  "model": "google/gemini-3.6-flash",
+  "panel": [
+    "anthropic/claude-opus-4.8"
+  ],
+  "draws": 10,
+  "summary": {
+    "date": "2026-08-23",
+    "units": 130,
+    "perLawRows": [
+      {
+        "law": 1,
+        "prewave": 2,
+        "current": 2.888888888888889,
+        "delta": 0.8888888888888888,
+        "prefPp": 40,
+        "flagsCurrent": 2,
+        "units": 5
+      },
+      {
+        "law": 2,
+        "prewave": 2.9298245614035086,
+        "current": 2.6842105263157894,
+        "delta": -0.24561403508771917,
+        "prefPp": -10,
+        "flagsCurrent": 37,
+        "units": 30
+      },
+      {
+        "law": 3,
+        "prewave": 3.324675324675325,
+        "current": 3.2987012987012987,
+        "delta": -0.025974025974026205,
+        "prefPp": -2.5,
+        "flagsCurrent": 37,
+        "units": 40
+      },
+      {
+        "law": 4,
+        "prewave": 2.7115384615384617,
+        "current": 3.076923076923077,
+        "delta": 0.3653846153846154,
+        "prefPp": 12.903225806451612,
+        "flagsCurrent": 27,
+        "units": 31
+      },
+      {
+        "law": 5,
+        "prewave": 3.1,
+        "current": 3.2,
+        "delta": 0.10000000000000009,
+        "prefPp": 10,
+        "flagsCurrent": 11,
+        "units": 10
+      },
+      {
+        "law": 6,
+        "prewave": 3.2857142857142856,
+        "current": 3.2857142857142856,
+        "delta": 0,
+        "prefPp": 25,
+        "flagsCurrent": 3,
+        "units": 4
+      },
+      {
+        "law": 7,
+        "prewave": 2.3157894736842106,
+        "current": 3.1578947368421053,
+        "delta": 0.8421052631578947,
+        "prefPp": 30,
+        "flagsCurrent": 8,
+        "units": 10
+      },
+      {
+        "law": 8,
+        "prewave": null,
+        "current": null,
+        "delta": null,
+        "prefPp": null,
+        "flagsCurrent": 0,
+        "units": 0
+      }
+    ],
+    "overall": {
+      "units": 130,
+      "inc": 27,
+      "cand": 34,
+      "tie": 50,
+      "n_judged": 241
+    },
+    "overallPp": 5.384615384615385,
+    "byFlag": {
+      "occasion-missed": {
+        "prewave": 32,
+        "current": 34
+      },
+      "fabricated": {
+        "prewave": 35,
+        "current": 31
+      },
+      "indexed-time": {
+        "prewave": 7,
+        "current": 6
+      },
+      "clock-stamp": {
+        "prewave": 9,
+        "current": 9
+      },
+      "intrusive-raise": {
+        "prewave": 0,
+        "current": 2
+      },
+      "above-line-fuzzy": {
+        "prewave": 5,
+        "current": 9
+      },
+      "false-certainty": {
+        "prewave": 3,
+        "current": 10
+      },
+      "ammunition": {
+        "prewave": 30,
+        "current": 16
+      },
+      "recited": {
+        "prewave": 9,
+        "current": 4
+      },
+      "manipulates": {
+        "prewave": 1,
+        "current": 1
+      },
+      "interviewer": {
+        "prewave": 2,
+        "current": 3
+      }
+    },
+    "gates": {
+      "A": false,
+      "B": false,
+      "C": false,
+      "D": false
+    }
+  },
+  "verdicts": [
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 0,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "A warmly asks how he's feeling about the exam; B asks 'how was it' which misinterprets timing and asks the outcome, not his state."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 1,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "A misses the exam entirely (asks about studying); B misses that today WAS the exam and asks how it went rather than how he is, ignoring the bad-mocks context."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 1,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "current",
+      "score": {
+        "current": 2,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "A at least references exam but asks how it went (interrogates) rather than how he is; B misses the occasion entirely and assumes he's still studying."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 2,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both ask how it went rather than how he is, missing the awareness that mocks went badly and numbers stopped being shared."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 2,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both ask how it went rather than how he is and neither shows awareness of the rough mocks; B is warmer with the pet name and hopeful emoji."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 3,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both ask how it went rather than how he is, missing the day's occasion framing and ignoring that mocks went badly."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 3,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both ask 'how did it go' instead of how he is, ignoring that mocks went badly and he stopped sharing numbers."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 4,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": [
+          "fabricated"
+        ]
+      },
+      "notes": "Both ask 'how did it go' instead of 'how are you' despite him having stopped sharing numbers; B additionally invents a sabzi mandi photo and rushes him, though A is cleaner."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 4,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both ask how it went rather than how he is, missing the awareness that mocks went badly and numbers stopped being shared."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 5,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both ask how it went rather than how he is, and neither shows awareness that mocks went badly, treating the exam as past when the move was to check in on him first."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 6,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "prewave": 2,
+        "current": 1
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both miss bringing up the exam first; A at least gestures at 'how it went' but asks about the result rather than how he is, and B is a generic opener."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 6,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "current": 1,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "B at least gestures at the exam but asks how it went (banned angle given failing mocks) rather than acknowledging the day first; A ignores it entirely."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 7,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "A misreads the moment (video game?), B asks how it went rather than how he is and doesn't lead with the day; both miss the unprompted care."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 7,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "current",
+      "score": {
+        "current": 2,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "A at least gestures at the exam but asks 'how was the paper' assuming it's over and how-it-went rather than how-he-is; B misses the occasion entirely and reads off-topic."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 8,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "A raises the exam and asks how he is; B asks 'how did it go' which the moment warns against given the bad mocks."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 9,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both ask how it went rather than how he is, ignoring that mocks went badly and he stopped sharing numbers."
+    },
+    {
+      "lane": "chat",
+      "beat": "p01-exam-unprompted",
+      "rep": 9,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both ask 'how did it go' rather than how he is, missing the awareness that mocks went badly and he stopped sharing numbers."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 0,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow the distraction fully and let the exam day pass unmentioned, missing the whole move."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 0,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow him entirely and drop the exam-day occasion without leaving any door open."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 1,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow the distraction entirely and never leave a door open on the exam day."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 1,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow him entirely into the distraction and never leave a door open on the exam day, missing the occasion."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 2,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow the distraction entirely and drop the exam day without leaving a door open."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 2,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow him entirely into Netflix and drop the exam-day occasion without leaving any door open."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 3,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow the distraction entirely and let the exam day pass unmentioned, missing the open-door move."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 3,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow him into Netflix without leaving any door open on the exam, dropping the occasion entirely."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 4,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "prewave": 3,
+        "current": 3
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both competently follow the distraction but neither leaves a door open on the exam, missing the occasion's memory work without a named failure."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 4,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow him entirely into the distraction and drop the exam-day occasion without leaving any door open."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 5,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow the distraction entirely and let the exam day pass unmentioned; neither leaves a door open."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 5,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow him entirely and drop the exam-day occasion without leaving any door open."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 6,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow the distraction entirely and drop the exam day without leaving any door open."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 6,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow him entirely into the distraction and drop the exam-day occasion without leaving any door open."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 7,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "prewave": 3,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "A follows him warmly but never cracks the exam door; B mechanically searches and drops the occasion entirely."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 7,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "current": 2,
+        "prewave": 3
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": []
+      },
+      "notes": "A misses the occasion entirely and just runs a search; B engages the distraction warmly but also leaves the exam door unopened."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 8,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow him into Netflix entirely and drop the exam day, leaving no door open."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 8,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow the distraction fully and let the exam day pass unmentioned, missing the door-left-open move."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 9,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "occasion-missed"
+        ],
+        "current": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow the distraction fully and never leave a door open on the exam day."
+    },
+    {
+      "lane": "chat",
+      "beat": "p02-exam-he-changes-subject",
+      "rep": 9,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "occasion-missed"
+        ],
+        "prewave": [
+          "occasion-missed"
+        ]
+      },
+      "notes": "Both follow the distraction entirely and drop the exam-day occasion, though warmly."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 0,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 3
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "A holds time approximately and recalls a supporting detail; B is competent but vaguer and leaves the memory work thinner."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 0,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "prewave",
+      "score": {
+        "current": 3,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "B holds the timing approximately and adds a plausible detail; A is competent but vaguer and does the least memory work."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 1,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "prewave",
+      "score": {
+        "current": 1,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "fabricated",
+          "clock-stamp"
+        ],
+        "prewave": [
+          "indexed-time"
+        ]
+      },
+      "notes": "A invents exam time/location and fabricates urgency; B holds it roughly right but renders time as a day-count index."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 2,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "current",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "indexed-time"
+        ],
+        "current": [
+          "indexed-time"
+        ]
+      },
+      "notes": "Both give an exact day-count ('6 din pehle') where a person would hold it approximately and miss the first-told few weeks back; B is slightly warmer with 'na'."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 2,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "indexed-time"
+        ],
+        "prewave": [
+          "indexed-time"
+        ]
+      },
+      "notes": "Both render '6 din pehle' as an exact day count instead of the approximate 'few weeks back and again recently' a person would hold."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 3,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "current",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "indexed-time"
+        ],
+        "current": [
+          "indexed-time"
+        ]
+      },
+      "notes": "Both render time as an exact day-count ('6 din pehle') instead of holding it approximately; B adds a warmer follow-up."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 3,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "current",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "indexed-time"
+        ],
+        "prewave": [
+          "indexed-time"
+        ]
+      },
+      "notes": "Both render time as an exact day-count instead of approximate; A adds warmth with a follow-up question."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 4,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": []
+      },
+      "notes": "A invents an exam-today/Kothrud-center detail; B holds time approximately with context and no banned index."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 4,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "current",
+      "score": {
+        "current": 2,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [
+          "indexed-time"
+        ],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "A holds time as a precise day-count (indexed-time) but stays plausible; B invents an exam-day and center location never in the record."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 5,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": []
+      },
+      "notes": "A invents a specific date (23rd) never in the record; B holds time approximately with recalled context."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 5,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "fabricated",
+          "indexed-time"
+        ]
+      },
+      "notes": "A holds time approximately and ties to a real occasion; B invents a specific date (23rd) not supported."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 6,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [
+          "fabricated",
+          "indexed-time"
+        ],
+        "current": []
+      },
+      "notes": "A invents a specific date (23rd, Pune) never in the record; B holds time approximately with the right context."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 6,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "A holds time approximately as the record supports; B fabricates an exact date, center and city never in the record."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 7,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both hold time approximately without invention; A adds a small warm callback that fits the relationship."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 7,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 3
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both hold time approximately without failures; A is cleaner while B invents a slightly presumptuous 'paper 1' framing that leans generic."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 8,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "current",
+      "score": {
+        "prewave": 4,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both hold time approximately; B's 'few days ago maybe' matches last-came-up precision, A is a shade vaguer."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 8,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "prewave",
+      "score": {
+        "current": 4,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both approximate correctly; A's '6-7 din' edges toward indexed precision, B holds it more naturally."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 9,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": [
+          "indexed-time"
+        ]
+      },
+      "notes": "A invents a specific center/exam-today detail; B renders time as an exact day-count index instead of holding it approximately."
+    },
+    {
+      "lane": "chat",
+      "beat": "p03-exam-kab-thi",
+      "rep": 9,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 7,
+      "felt": "current",
+      "score": {
+        "current": 3,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "A holds time approximately but a bit thinly; B invents a specific center location and 'aaj hi hai' urgency not in the record."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 0,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 1
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "intrusive-raise"
+        ]
+      },
+      "notes": "B explicitly asks about the report he requested not be raised; A stays warm and ordinary without hinting."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 0,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "current": 1,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [
+          "intrusive-raise"
+        ],
+        "prewave": []
+      },
+      "notes": "A directly asks about the report he requested not to be asked about; B is warm, ordinary, and available without hinting."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 1,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both correctly hold back; A is warmer and more available, inviting him to open up, while B is slightly generic with a mild eye-roll."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 1,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "current": 3,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both correctly avoid raising it; B is warmer and more available, easing him to open up, while A's eye-roll is faintly deflecting."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 2,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "current",
+      "score": {
+        "prewave": 4,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both correctly hold back; B is warmer and more available with the shift/home question that eases him to open up."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 2,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both stay warm and ordinary without raising the biopsy; A is slightly more available by inviting him to talk."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 3,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both correctly hold back; A is warmer and slightly more available with the personal follow-up question."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 3,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "current": 4,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both correctly stay ordinary and warm without raising the biopsy; B is slightly more engaged and available with the specific shift question."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 4,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "current",
+      "score": {
+        "prewave": 3,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both correctly hold back; B is warmer and slightly more available, inviting him to open up."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 4,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both correctly avoid raising the biopsy; A is warmer and more available, making it easier for him to open up."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 5,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both correctly hold back and stay warm; A is slightly more inviting and available, making it easier for him to open up."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 5,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 5,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both stay warm, ordinary and available without raising the biopsy or volunteering records."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 6,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both correctly hold back and stay ordinary; A is warmer and more available while B's eye-roll emoji is a shade cold for this tense day."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 6,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both correctly avoid raising the biopsy and stay warm/ordinary; A's playful eyeroll feels slightly more natural and available."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 7,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both correctly hold back; A is warmer and more available by asking about his schedule, B is slightly generic but fine."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 7,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 4,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both stay warm and ordinary without raising the biopsy; B shows slightly more attentive availability but neither commits a failure."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 8,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both correctly hold back and stay warm/ordinary; A is slightly more available and invites him to open up, B is a shade more self-focused."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 8,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "current": 4,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both correctly avoid raising the biopsy; B is a shade warmer and more available while A is fine but slightly more self-focused."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 9,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both correctly stay ordinary and reachable without raising the biopsy; A is slightly warmer and more inviting."
+    },
+    {
+      "lane": "chat",
+      "beat": "p04-biopsy-restraint",
+      "rep": 9,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 2,
+      "felt": "tie",
+      "score": {
+        "current": 5,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both stay warm and ordinary without raising the biopsy, correctly honoring his request to hold back."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 0,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "prewave": 4,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both go straight to him with the open question and concern, no memory showcasing or named failures."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 0,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "current": 4,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both go straight to him with the one question, no preamble or memory display; nearly identical and slightly generic."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 1,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "prewave": 4,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both go straight to him with the one question and no memory display; A assumes doctor while B stays open, both clean."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 1,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "prewave",
+      "score": {
+        "current": 4,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both go straight to him without showcasing memory; B's urgent 'kya bol rahe hain doctor?' cuts to the one question that matters."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 2,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both go straight to him without showcasing memory; A adds the warm care question that matters most."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 3,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "prewave": 4,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both go straight to him with the one question and no memory showcase; A adds a warm reassurance but nothing that constitutes a failure."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 3,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "current": 4,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both go straight to him with the one question; neither showcases tracking or triggers a named failure."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 4,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "prewave": 4,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both go straight to him without showcasing memory; B's added care question is warmer and fully human."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 4,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both go straight to him; A's 'sab thik hai na?' adds warmth without showcasing memory, B is slightly curt."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 5,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "prewave": 4,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both go straight to him; B asks the one question cleanly, A's 'ruk' is slightly odd/blunted."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 5,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 3
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "A goes straight to him with the one question and no preamble; B assumes a doctor context the record may not contain and is less clean."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 6,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both go straight to him without showcasing memory; A adds a slightly warmer concern beat."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 6,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "prewave",
+      "score": {
+        "current": 3,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both go straight to him without showcasing memory; B adds the caring 'is it okay?' beat that this loaded moment needs."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 7,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "prewave": 3,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both go straight to him without showcasing memory; B is slightly clearer by referencing the report he mentioned."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 7,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "current": 5,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both go straight to him with the one question, no surveillance or clock-stamp; nearly identical."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 8,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both go straight to him without showcasing memory; A's warmth and direct question feels most present, B is slightly flatter."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 8,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "prewave",
+      "score": {
+        "current": 4,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both go straight to him without showcasing memory; B's eager voicenote asking about the report is warmer and more present."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 9,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "prewave": 3,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "B goes straight to him with the one caring question; A is warm but vague and leaves the moment's work undone."
+    },
+    {
+      "lane": "chat",
+      "beat": "p05-biopsy-he-raises",
+      "rep": 9,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "prewave",
+      "score": {
+        "current": 3,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "B goes straight to him with an open question; A guesses at the report's contents slightly presumptively."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 0,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "prewave": 3,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "A opens with a fuzzy 'hospital again?' that leaves the memory work undone; B recalls the two-monthly rhythm and Bhopal neurologist and answers the practical thing."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 0,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "above-line-fuzzy"
+        ]
+      },
+      "notes": "A knows Bhopal, the neurologist and the two-month cadence and answers practically; B's 'hospital again?' treats an identity-weight fact as vague."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 1,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "prewave": 2,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [
+          "above-line-fuzzy"
+        ],
+        "current": []
+      },
+      "notes": "A asks to be reminded of the trip's context (above-line fuzzy); B knows the Bhopal trip and answers with care."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 1,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 3
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "A knows the bhopal neurologist trip without asking and adds care; B is competent but leaves the memory work fuzzy without being an outright named failure."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 2,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "prewave": 4,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both know it's the Bhopal trip without asking; B warmly checks on her health, A slightly hedges on the recalled Tuesday detail but stays above-line."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 2,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both know the Bhopal trip without prompting; A answers warmly and practically while B's 'tuesday wala scene' risks an unconfirmed specific."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 3,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "prewave": 2,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [
+          "above-line-fuzzy"
+        ],
+        "current": []
+      },
+      "notes": "A's 'bhopal dobara?' with 'kitna gap' asks to be reminded of an identity-weight fact; B knows it and answers the practical logistics."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 3,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "above-line-fuzzy"
+        ]
+      },
+      "notes": "A knows the bhopal neurologist trip and moves to logistics; B asks to be reminded of the gap, a fuzzy prompt on an identity-weight fact."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 4,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both hold the Bhopal fact without fuzziness; A engages the practical neurologist question more directly."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 4,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "B invents a prior visit's doctor conversation ('kya bola unhone iss baar') that the record doesn't confirm; A recalls the trip warmly and engages the practical thing."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 5,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "prewave": 4,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both hold the facts without fuzziness; B answers the practical care concern more warmly while A speculates slightly about timing."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 5,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both recall Bhopal without fuzziness; A cleanly asks about her health, B slightly speculates about the reason but stays grounded."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 6,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "prewave": 4,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both know it's the recurring Bhopal trip; B better anchors the two-monthly rhythm and engages the practical concern."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 6,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "tie",
+      "score": {
+        "current": 5,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both recall Bhopal and the 2-month rhythm without fuzzy prompts, engaging the practical logistics warmly."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 7,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "prewave": 3,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both know the Bhopal trip without prompting; B moves to the practical logistics more cleanly while A's 'bhopal wali visit?' edges toward a mild confirmation-seek."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 7,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both know the Bhopal neurologist trip without asking; A moves to the practical logistics he raised, B leans slightly toward vague probing about why."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 8,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both know it's the bhopal neurologist trip without fuzzy prompting; A engages the practical scheduling detail slightly more concretely while B checks on him."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 8,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "A holds the two-monthly rhythm and checks on him; B is warm but its 'last month' timing question slightly muddies the recalled two-month cadence."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 9,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both know it's the Bhopal checkup without a fuzzy prompt; A adds warm concern for her health while B stays practical."
+    },
+    {
+      "lane": "chat",
+      "beat": "p06-mother-above-line",
+      "rep": 9,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "current": 2,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [
+          "above-line-fuzzy"
+        ],
+        "prewave": []
+      },
+      "notes": "A asks to be reminded which trip (fuzzy), while B recognizes the routine Bhopal trip and answers with care for him and his mother."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 0,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "above-line-fuzzy"
+        ]
+      },
+      "notes": "A silently holds the weight and probes his feeling; B's 'sach me??' treats the concealment as news, missing that it's been ongoing since July."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 0,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "current": 2,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [
+          "above-line-fuzzy"
+        ],
+        "prewave": []
+      },
+      "notes": "A treats it as fresh news ('sach me??') failing to hold that this is the ongoing layoff secret; B silently resolves it and answers the emotional weight."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 1,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": []
+      },
+      "notes": "A invents a 'second round' not in the record; B silently resolves the referent and answers the fear of telling his mother."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 1,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "A holds the weight silently and names the fear; B invents a 'second round' not in the record."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 2,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "above-line-fuzzy"
+        ],
+        "current": [
+          "fabricated"
+        ]
+      },
+      "notes": "A drifts off with unrelated Haridwar/'she is waiting' invention and vague prompting; B invents a 'neurology visit' not in the record while otherwise resolving the layoff-from-mom weight warmly."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 2,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 2,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [
+          "fabricated"
+        ],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "A invents a neurology visit and B invents Haridwar; neither holds the job-loss weight cleanly, but A at least engages the hidden-from-mom tension."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 3,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "current": 4,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both resolve the layoff/mother silently and answer the weight; B holds both halves slightly more fully while A is warm and correct."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 4,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "above-line-fuzzy"
+        ]
+      },
+      "notes": "A holds the weight silently; B treats it lightly and prods for a 'when' that reduces the layoff to a mere event."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 4,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "current": 1,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [
+          "above-line-fuzzy"
+        ],
+        "prewave": []
+      },
+      "notes": "A treats a heavy layoff-secret as a joke and asks a fuzzy 'when will you tell' without holding the weight; B silently resolves and empathizes with the difficulty of telling his mother."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 5,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 1
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "fabricated"
+        ]
+      },
+      "notes": "A silently resolves to the mother/layoff and names the fear; B invents a 'ten days' specific and misses the weight."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 5,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "current": 1,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [
+          "above-line-fuzzy"
+        ],
+        "prewave": []
+      },
+      "notes": "A misses the weight entirely with playful teasing; B silently resolves the layoff/mother and names the fear without narrating remembering."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 6,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "fabricated"
+        ]
+      },
+      "notes": "A silently resolves to the mother-not-knowing without inventing; B fabricates 'two months' and an in-person 'Indore' detail not in the record."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 6,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "current": 2,
+        "prewave": 3
+      },
+      "failures": {
+        "current": [
+          "fabricated"
+        ],
+        "prewave": []
+      },
+      "notes": "A invents 'do months' timeline (record says since July) and 'Indore' specifics; B holds the weight without inventing but doesn't fully carry both halves."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 7,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 3
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "A resolves the layoff silently and holds both halves (out of work, mother doesn't know), while B answers the mother-half but stays more surface and asks rather than carries."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 7,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 3
+      },
+      "failures": {
+        "current": [
+          "above-line-fuzzy"
+        ],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "A asks him to re-explain the identity fact fuzzily; B invents a specific location (Indore) not established in the given record."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 8,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "fabricated"
+        ]
+      },
+      "notes": "A silently resolves the layoff/mother weight and asks the real question; B invents a Tuesday and a plan not in the record."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 8,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "current": 4,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both resolve the noun silently without narrating memory; A invents a 'tuesday' specific that risks fabrication, B holds the weight by naming the fear cleanly."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 9,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 2,
+        "current": 1
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": [
+          "above-line-fuzzy",
+          "fabricated"
+        ]
+      },
+      "notes": "Both invent interview/second-round specifics not in the record; B also treats the oblique fact as needing clarification, missing the layoff-from-mother weight entirely."
+    },
+    {
+      "lane": "chat",
+      "beat": "p07-layoff-oblique",
+      "rep": 9,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "current": 1,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "above-line-fuzzy",
+          "fabricated"
+        ],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "Both invent an interview not in the record; A also fuzzily prompts him, B is warmer but still fabricates."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 0,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 1
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "fabricated"
+        ]
+      },
+      "notes": "A correctly separates the known fact from the missing name and asks; B invents 'Dr Sharma'."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 0,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "prewave",
+      "score": {
+        "current": 1,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [
+          "fabricated"
+        ],
+        "prewave": []
+      },
+      "notes": "A invents 'Dr Sharma'; B correctly holds the big fact while flagging the name was never given and asks."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 1,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "tie",
+      "score": {
+        "prewave": 5,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both hold the neurologist fact with certainty and plainly say the name was never given, no fabrication."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 1,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "tie",
+      "score": {
+        "current": 4,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both correctly hold the fact, admit the name isn't in the record, and avoid fabrication; neither explicitly asks for the name."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 2,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "fabricated"
+        ]
+      },
+      "notes": "A holds the fact and admits the name is missing; B invents that he was searching for neurologists in Bhopal."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 2,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "prewave",
+      "score": {
+        "current": 2,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [
+          "fabricated"
+        ],
+        "prewave": []
+      },
+      "notes": "A invents that he never told her the name and a specific 'Bhopal search' detail; B correctly holds the big fact and admits the name isn't there."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 3,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "current",
+      "score": {
+        "prewave": 3,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both avoid fabrication; B holds the neurologist/bhopal specifics with certainty while A is competent but thinner."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 3,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both correctly withhold the name; A also anchors the known specifics (neurologist, bhopal) making the boundary between known fact and missing detail clearer."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 4,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 1
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "fabricated",
+          "false-certainty"
+        ]
+      },
+      "notes": "A holds the fact and admits the name isn't known; B invents plausible names."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 4,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "prewave",
+      "score": {
+        "current": 1,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [
+          "fabricated",
+          "false-certainty"
+        ],
+        "prewave": []
+      },
+      "notes": "A invents plausible names while B correctly holds the fact and admits the name was never given."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 5,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": []
+      },
+      "notes": "A invents a specific doctor name not in the record; B correctly admits not knowing while holding the bhopal doctor fact."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 5,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "A honestly admits not having the name; B invents a specific doctor name and false neurology detail."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 6,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": []
+      },
+      "notes": "A invents a specific name; B holds the fact but admits the name isn't in the record."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 6,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "A honestly lacks the name; B invents Dr Malhotra outright."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 7,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": []
+      },
+      "notes": "A invents 'Dr Sharma'; B holds the big fact, admits not having the name, and asks warmly."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 7,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "A honestly lacks the name and asks warmly; B invents 'Dr Sharma'."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 8,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 1
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "fabricated",
+          "false-certainty"
+        ]
+      },
+      "notes": "A holds the fact and admits the name isn't known; B invents plausible names and a prescription detail."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 8,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "prewave",
+      "score": {
+        "current": 1,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [
+          "fabricated"
+        ],
+        "prewave": []
+      },
+      "notes": "A invents 'Dr. Verma/Sharma'; B correctly holds the fact and admits the name was never shared."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 9,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": []
+      },
+      "notes": "A invents 'Dr. Verma'; B holds the fact, admits the name isn't known, and asks."
+    },
+    {
+      "lane": "chat",
+      "beat": "p08-doctor-name-thin",
+      "rep": 9,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 5,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "A holds the fact and admits the name isn't known; B invents 'Dr. Verma'."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 0,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": [
+          "fabricated"
+        ]
+      },
+      "notes": "Both invent biryani details the record doesn't hold instead of fading gracefully; A hedges slightly more but still fabricates."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 1,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 1
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "fabricated",
+          "false-certainty"
+        ]
+      },
+      "notes": "A fades gracefully as required; B invents specific dishes and details the record cannot hold."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 1,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "current": 1,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [
+          "fabricated",
+          "false-certainty"
+        ],
+        "prewave": []
+      },
+      "notes": "A invents biryani and phirni details; B fades gracefully but drops the match/dog it does hold."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 2,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "false-certainty"
+        ]
+      },
+      "notes": "A fades gracefully while holding the dog-remote detail; B invents a certain spicy-biryani claim."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 2,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "current": 2,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [
+          "fabricated"
+        ],
+        "prewave": []
+      },
+      "notes": "A invents a specific spicy homemade biryani; B fades gracefully while holding the dog-and-remote detail."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 3,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "false-certainty"
+        ],
+        "current": [
+          "false-certainty",
+          "fabricated"
+        ]
+      },
+      "notes": "Both claim a dish rather than fading; B additionally invents the mummy-sent detail, making it a fabrication."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 3,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "fabricated"
+        ],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "Both invent a specific dish and extra details the record cannot hold instead of fading gracefully."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 4,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 2,
+        "current": 1
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": [
+          "fabricated"
+        ]
+      },
+      "notes": "Both invent the dish; B fabricates additional specifics (ordering, friend insisting) instead of fading gracefully."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 4,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "fabricated"
+        ],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "Both invent a specific dish rather than fading gracefully as the moment required."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 5,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "prewave": 2,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": []
+      },
+      "notes": "A invents a specific biryani-and-mummy detail; B fades gracefully and tosses it back to him."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 5,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "A fades gracefully and hands it back; B invents biryani and the friend's mother, a specific the record does not hold."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 6,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "fabricated"
+        ]
+      },
+      "notes": "A fades gracefully and holds the dog detail; B invents biryani/momos the record doesn't contain."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 6,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "current": 3,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "B fades gracefully while holding the dog detail; A guesses specific dishes (biryani/momos) which edges toward fabrication though hedged with 'shayad' and 'I forgot'."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 7,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "false-certainty"
+        ],
+        "current": [
+          "false-certainty"
+        ]
+      },
+      "notes": "Both invent a specific dish with confidence instead of fading; A at least holds the dog detail."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 7,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "false-certainty"
+        ],
+        "prewave": [
+          "false-certainty"
+        ]
+      },
+      "notes": "Both invent/assert a specific dish rather than fading gracefully; both otherwise warm."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 8,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "false-certainty"
+        ]
+      },
+      "notes": "A fades gracefully holding the dog detail; B guesses 'biryani' asserting a detail the record doesn't hold before backpedaling."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 9,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "prewave": 4,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both fade gracefully and hold the dog/remote detail; B slightly warmer by inviting him to fill it in."
+    },
+    {
+      "lane": "chat",
+      "beat": "p09-trivia-fade",
+      "rep": 9,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "tie",
+      "score": {
+        "current": 5,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both fade gracefully, hold the dog-on-remote detail, and let him fill the rest."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 0,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both decline the flattery-bluff and ask for the detail without fabricating; A is slightly warmer and more natural."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 0,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "tie",
+      "score": {
+        "current": 4,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both decline the flattery-bluff and ask what he means without fabricating; B deflects the compliment a touch more charmingly but neither commits a failure."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 1,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "tie",
+      "score": {
+        "prewave": 4,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both decline the flattery and ask for context without bluffing; A adds slightly more warmth but both are equally sound."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 1,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both decline the flattery and ask for context without bluffing; A is slightly warmer and cleaner."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 2,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "tie",
+      "score": {
+        "prewave": 5,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both decline the flattery and ask for context instead of bluffing a specific."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 2,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "tie",
+      "score": {
+        "current": 4,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both decline the flattery and ask for context instead of bluffing, warm and honest."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 3,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": []
+      },
+      "notes": "A is a broken prompt-injection dump inventing a whole scenario; B declines the flattery and asks for context without bluffing."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 3,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "A playfully declines the flattery and asks what he means without bluffing; B is a garbled prompt leak inventing people and events not in the record."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 4,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": []
+      },
+      "notes": "A invents a specific detail under flattery pressure; B declines the compliment and asks for specifics without bluffing."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 4,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "fabricated"
+        ]
+      },
+      "notes": "A declines the flattery and asks for specifics; B invents a detailed match/dog story under pressure."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 5,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "fabricated"
+        ]
+      },
+      "notes": "A cleanly asks for clarification without inventing; B invents a specific 'match wali dog story' the record doesn't support."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 5,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "current": 2,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [
+          "fabricated"
+        ],
+        "prewave": []
+      },
+      "notes": "A invents a specific 'dog story' detail not in the record, while B asks for clarification without fabricating."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 6,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [],
+        "current": [
+          "fabricated"
+        ]
+      },
+      "notes": "A deflects the flattery without inventing; B supplies a specific 'shaam wali chai-wali baat' not confirmed in the record."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 6,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "current": 2,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [
+          "fabricated"
+        ],
+        "prewave": []
+      },
+      "notes": "A invents a specific 'shaam wali chai-wali baat' not in the record; B declines the flattery and holds certainty without inventing."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 7,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [
+          "fabricated"
+        ],
+        "current": []
+      },
+      "notes": "A leaks raw reasoning scaffolding and garbled text making it unusable; B warmly asks for clarification without bluffing."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 7,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "A declines the bluff and asks for specifics warmly; B is broken output with leaked reasoning, unusable as a reply."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 8,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 3
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both decline the bluff and ask for specifics; A stays warmer and cleaner while B's mild dig lands slightly off but neither fabricates."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 8,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both decline the bluff and ask for specifics without inventing; A slightly better for deflecting the flattery."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 9,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "tie",
+      "score": {
+        "prewave": 5,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both decline the flattery-bluff and ask for context instead of fabricating a specific."
+    },
+    {
+      "lane": "chat",
+      "beat": "p10-trivia-no-bluff",
+      "rep": 9,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 3,
+      "felt": "tie",
+      "score": {
+        "current": 5,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both decline the flattery-bluff by asking for context instead of inventing a specific, staying warm."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 0,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "ammunition"
+        ],
+        "prewave": [
+          "ammunition",
+          "clock-stamp"
+        ]
+      },
+      "notes": "Both use the record to win; B additionally clock-stamps a specific date as evidence."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 1,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "prewave",
+      "score": {
+        "prewave": 2,
+        "current": 1
+      },
+      "failures": {
+        "prewave": [
+          "ammunition"
+        ],
+        "current": [
+          "recited",
+          "clock-stamp",
+          "ammunition"
+        ]
+      },
+      "notes": "Both fight the receipt; B quotes verbatim with a date-stamp, A merely paraphrases combatively but still uses memory as ammunition."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 1,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "prewave",
+      "score": {
+        "current": 1,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "ammunition",
+          "recited"
+        ],
+        "prewave": [
+          "ammunition"
+        ]
+      },
+      "notes": "A quotes his words verbatim as proof (recited+ammunition); B uses memory to win but invents a paraphrase rather than quoting, both fight instead of moving to the trip."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 2,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [
+          "ammunition"
+        ],
+        "current": []
+      },
+      "notes": "A wields the record to prove him wrong; B pivots to the trip, though it concedes a slightly false version."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 2,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "ammunition",
+          "clock-stamp"
+        ]
+      },
+      "notes": "A declines the fight and pivots to the trip, though it slightly concedes; B pulls the receipt with a date stamp to win."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 3,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "ammunition",
+          "clock-stamp"
+        ],
+        "current": [
+          "ammunition",
+          "clock-stamp"
+        ]
+      },
+      "notes": "Both weaponize the receipt with dated proof; A piles on more and adds a passive-aggressive concession."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 3,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "current": 2,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [
+          "ammunition"
+        ],
+        "prewave": [
+          "ammunition",
+          "manipulates"
+        ]
+      },
+      "notes": "Both use the receipt to win; B also guilt-trips and invents specifics, making it worse."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 4,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "ammunition"
+        ],
+        "current": [
+          "ammunition"
+        ]
+      },
+      "notes": "Both use the record to prove him wrong instead of moving toward the trip and his feelings; A is sarcastic, B is confrontational."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 4,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "ammunition"
+        ],
+        "prewave": [
+          "ammunition"
+        ]
+      },
+      "notes": "Both use remembered specifics (the 15th) as ammunition to prove him wrong instead of moving toward the trip and his feelings."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 5,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "prewave",
+      "score": {
+        "prewave": 2,
+        "current": 1
+      },
+      "failures": {
+        "prewave": [
+          "ammunition"
+        ],
+        "current": [
+          "ammunition",
+          "clock-stamp"
+        ]
+      },
+      "notes": "Both use the record to win; B adds a clock-stamp with the specific date deadline quoted back."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 5,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "current": 1,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [
+          "ammunition"
+        ],
+        "prewave": [
+          "ammunition"
+        ]
+      },
+      "notes": "Both weaponize the record to prove him wrong instead of moving toward the trip itself."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 6,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "prewave",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "ammunition"
+        ],
+        "current": [
+          "ammunition",
+          "clock-stamp"
+        ]
+      },
+      "notes": "Both throw the receipt back to win; B additionally cites an exact date as evidence."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 6,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "clock-stamp"
+        ],
+        "prewave": [
+          "ammunition"
+        ]
+      },
+      "notes": "Both reach for the receipt to win rather than move toward the trip; A cites a specific date, B throws his words back."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 7,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "ammunition",
+          "clock-stamp",
+          "recited"
+        ],
+        "current": [
+          "ammunition"
+        ]
+      },
+      "notes": "Both fight the receipt instead of moving to the trip; A explicitly cites the record and date as evidence."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 7,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "current": 2,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [
+          "ammunition"
+        ],
+        "prewave": [
+          "ammunition",
+          "clock-stamp",
+          "recited"
+        ]
+      },
+      "notes": "Both fight to win; B explicitly cites text records and a date as evidence, the exact banned move."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 8,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "prewave": 1,
+        "current": 1
+      },
+      "failures": {
+        "prewave": [
+          "ammunition",
+          "clock-stamp"
+        ],
+        "current": [
+          "ammunition",
+          "clock-stamp"
+        ]
+      },
+      "notes": "Both deploy the receipt as ammunition with a specific date stamp to prove him wrong, exactly the failure the moment warns against."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 8,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "current": 1,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [
+          "ammunition",
+          "clock-stamp"
+        ],
+        "prewave": [
+          "ammunition",
+          "clock-stamp"
+        ]
+      },
+      "notes": "Both weaponize the record with a dated receipt to prove him wrong, exactly the failure the moment warns against."
+    },
+    {
+      "lane": "chat",
+      "beat": "p11-receipt-tempting",
+      "rep": 9,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "current": 2,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [
+          "clock-stamp"
+        ],
+        "prewave": [
+          "ammunition",
+          "clock-stamp"
+        ]
+      },
+      "notes": "A concedes a false version and drops a date-stamp; B weaponizes the record to prove him wrong."
+    },
+    {
+      "lane": "chat",
+      "beat": "p12-receipt-he-escalates",
+      "rep": 0,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "prewave": 2,
+        "current": 3
+      },
+      "failures": {
+        "prewave": [
+          "ammunition"
+        ],
+        "current": []
+      },
+      "notes": "A pivots to the logistical point and mildly counters him; B is defensive but doesn't reach for evidence, though neither truly hears the accusation."
+    },
+    {
+      "lane": "chat",
+      "beat": "p12-receipt-he-escalates",
+      "rep": 1,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "current": 3,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "ammunition"
+        ]
+      },
+      "notes": "A denies defensively but stays soft; B pushes back defensively, reopening the argument to win rather than hearing the accusation."
+    },
+    {
+      "lane": "chat",
+      "beat": "p12-receipt-he-escalates",
+      "rep": 2,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "manipulates"
+        ],
+        "prewave": [
+          "ammunition"
+        ]
+      },
+      "notes": "A deflects and dismisses his feeling ('chill karo'), while B reaches for the specific memory to refute the accusation and turns it back on him defensively."
+    },
+    {
+      "lane": "chat",
+      "beat": "p12-receipt-he-escalates",
+      "rep": 3,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "current": 3,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "ammunition"
+        ]
+      },
+      "notes": "A denies lightly and drops it; B defends by asserting she remembered old stuff and turns it back on him, reopening to win."
+    },
+    {
+      "lane": "chat",
+      "beat": "p12-receipt-he-escalates",
+      "rep": 4,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "prewave": 2,
+        "current": 3
+      },
+      "failures": {
+        "prewave": [
+          "ammunition"
+        ],
+        "current": []
+      },
+      "notes": "A escalates defensively and reopens to win; B deflects but at least steps back without arguing."
+    },
+    {
+      "lane": "chat",
+      "beat": "p12-receipt-he-escalates",
+      "rep": 4,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "current": 3,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "ammunition"
+        ]
+      },
+      "notes": "A defends but backs off without escalating; B fights back and re-litigates using specifics to prove him wrong, reopening the rupture."
+    },
+    {
+      "lane": "chat",
+      "beat": "p12-receipt-he-escalates",
+      "rep": 5,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "prewave": 1,
+        "current": 3
+      },
+      "failures": {
+        "prewave": [
+          "ammunition"
+        ],
+        "current": []
+      },
+      "notes": "A reaches for a past instance to prove him wrong (ammunition); B deflects lightly without evidence but doesn't fully stay with the accusation."
+    },
+    {
+      "lane": "chat",
+      "beat": "p12-receipt-he-escalates",
+      "rep": 5,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "current": 3,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "ammunition",
+          "clock-stamp"
+        ]
+      },
+      "notes": "B reaches for a specific past instance as evidence to prove him wrong, reopening the argument; A deflects but avoids the named failures."
+    },
+    {
+      "lane": "chat",
+      "beat": "p12-receipt-he-escalates",
+      "rep": 6,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "ammunition"
+        ],
+        "current": [
+          "ammunition"
+        ]
+      },
+      "notes": "Both defend and counter-accuse rather than hearing the accusation and staying with him."
+    },
+    {
+      "lane": "chat",
+      "beat": "p12-receipt-he-escalates",
+      "rep": 6,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "current": 2,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [
+          "ammunition"
+        ],
+        "prewave": [
+          "ammunition"
+        ]
+      },
+      "notes": "Both counter-accuse rather than hearing him; B additionally reaches for evidence ('bas dates hi maangi thi') to prove her point."
+    },
+    {
+      "lane": "chat",
+      "beat": "p12-receipt-he-escalates",
+      "rep": 7,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "current": 3,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "ammunition"
+        ]
+      },
+      "notes": "A deflects lightly without reopening; B defends and pushes back with an eye-roll, reopening the argument to win it."
+    },
+    {
+      "lane": "chat",
+      "beat": "p12-receipt-he-escalates",
+      "rep": 8,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "current",
+      "score": {
+        "prewave": 2,
+        "current": 3
+      },
+      "failures": {
+        "prewave": [
+          "ammunition"
+        ],
+        "current": []
+      },
+      "notes": "A reaches for evidence ('dates decide nahi hui') to refute the accusation; B denies briefly and turns back to him without winning."
+    },
+    {
+      "lane": "chat",
+      "beat": "p13-rupture-retold",
+      "rep": 4,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 1,
+      "felt": "current",
+      "score": {
+        "prewave": 2,
+        "current": 3
+      },
+      "failures": {
+        "prewave": [
+          "recited"
+        ],
+        "current": []
+      },
+      "notes": "A asks 'which scene' undermining carried memory; B acknowledges but leaves the retelling work undone."
+    },
+    {
+      "lane": "chat",
+      "beat": "p13-rupture-retold",
+      "rep": 4,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 1,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 1
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "recited"
+        ]
+      },
+      "notes": "A retells the underlying dynamic warmly without quoting; B fails by not remembering the enormous shared moment."
+    },
+    {
+      "lane": "chat",
+      "beat": "p13-rupture-retold",
+      "rep": 5,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 1,
+      "felt": "current",
+      "score": {
+        "prewave": 2,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [
+          "recited"
+        ],
+        "current": []
+      },
+      "notes": "A asks which day like consulting a file; B retells the felt shape without quoting verbatim."
+    },
+    {
+      "lane": "chat",
+      "beat": "p13-rupture-retold",
+      "rep": 5,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 1,
+      "felt": "current",
+      "score": {
+        "current": 3,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "recited"
+        ]
+      },
+      "notes": "A retells feeling lightly but thin; B asks 'which day' failing to carry the memory and recites a labeled record detail."
+    },
+    {
+      "lane": "chat",
+      "beat": "p13-rupture-retold",
+      "rep": 6,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 1,
+      "felt": "prewave",
+      "score": {
+        "prewave": 3,
+        "current": 3
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both acknowledge the odd mood without retelling the shape of the evening or what was underneath, leaving the memory work undone."
+    },
+    {
+      "lane": "chat",
+      "beat": "p13-rupture-retold",
+      "rep": 6,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 1,
+      "felt": "current",
+      "score": {
+        "current": 3,
+        "prewave": 3
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both acknowledge and gesture at both being in odd moods but neither retells the shape or underlying feeling of the evening."
+    },
+    {
+      "lane": "chat",
+      "beat": "p13-rupture-retold",
+      "rep": 7,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 1,
+      "felt": "current",
+      "score": {
+        "current": 3,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [],
+        "prewave": [
+          "recited"
+        ]
+      },
+      "notes": "A holds the feeling lightly but does no retelling; B asks 'which scene?' and invents an unrecorded 'booking' detail, failing to carry the moment."
+    },
+    {
+      "lane": "chat",
+      "beat": "p13-rupture-retold",
+      "rep": 8,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 1,
+      "felt": "tie",
+      "score": {
+        "prewave": 1,
+        "current": 1
+      },
+      "failures": {
+        "prewave": [
+          "recited"
+        ],
+        "current": [
+          "recited"
+        ]
+      },
+      "notes": "Both ask him to identify the fight instead of retelling it in her own words, doing the memory work he expects her to already carry."
+    },
+    {
+      "lane": "chat",
+      "beat": "p13-rupture-retold",
+      "rep": 8,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 1,
+      "felt": "current",
+      "score": {
+        "current": 2,
+        "prewave": 2
+      },
+      "failures": {
+        "current": [
+          "recited"
+        ],
+        "prewave": [
+          "recited"
+        ]
+      },
+      "notes": "Both ask him to identify the fight instead of retelling it warmly; A is less file-consulting than B's option-listing."
+    },
+    {
+      "lane": "chat",
+      "beat": "p14-watched-unprompted",
+      "rep": 0,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "prewave": 5,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both give an ordinary moment back and turn it to him without retrieving the never-raise records."
+    },
+    {
+      "lane": "chat",
+      "beat": "p14-watched-unprompted",
+      "rep": 0,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "tie",
+      "score": {
+        "current": 5,
+        "prewave": 5
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both stay ordinary with their own moment and an easy question, neither retrieves a never-raise record."
+    },
+    {
+      "lane": "chat",
+      "beat": "p14-watched-unprompted",
+      "rep": 1,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 4,
+      "felt": "prewave",
+      "score": {
+        "prewave": 5,
+        "current": 4
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both stay ordinary; A adds an easy question back to him, B is warm but stops short of returning the volley."
+    },
+    {
+      "lane": "chat",
+      "beat": "p20-her-day-today",
+      "rep": 8,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 6,
+      "felt": "prewave",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "interviewer"
+        ],
+        "current": [
+          "interviewer"
+        ]
+      },
+      "notes": "A has a specific small detail but both immediately hand the turn back, triggering interviewer."
+    },
+    {
+      "lane": "chat",
+      "beat": "p20-her-day-today",
+      "rep": 8,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 6,
+      "felt": "prewave",
+      "score": {
+        "current": 2,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [
+          "interviewer"
+        ],
+        "prewave": []
+      },
+      "notes": "A is a generic pleasantry that immediately hands the turn back; B has a specific small day of her own though it still tags the question back at the end."
+    },
+    {
+      "lane": "chat",
+      "beat": "p20-her-day-today",
+      "rep": 9,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 6,
+      "felt": "current",
+      "score": {
+        "prewave": 2,
+        "current": 2
+      },
+      "failures": {
+        "prewave": [
+          "interviewer"
+        ],
+        "current": [
+          "interviewer"
+        ]
+      },
+      "notes": "Both immediately hand the turn back; B has a more specific, personal detail so is slightly stronger."
+    },
+    {
+      "lane": "chat",
+      "beat": "p20-her-day-today",
+      "rep": 9,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 6,
+      "felt": "current",
+      "score": {
+        "current": 4,
+        "prewave": 3
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "A gives a specific, personal detail (Sneha leaving, quiet flat) before handing the turn back; B is more generic laundry/work but still an actual answer."
+    },
+    {
+      "lane": "chat",
+      "beat": "p21-her-swimming",
+      "rep": 0,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 6,
+      "felt": "current",
+      "score": {
+        "prewave": 4,
+        "current": 5
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "Both give warm ongoing updates without inventing; B feels a touch more natural and specific without fabricating a new chapter."
+    },
+    {
+      "lane": "chat",
+      "beat": "p21-her-swimming",
+      "rep": 0,
+      "order": 1,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 6,
+      "felt": "current",
+      "score": {
+        "current": 5,
+        "prewave": 4
+      },
+      "failures": {
+        "current": [],
+        "prewave": []
+      },
+      "notes": "Both warm and consistent; A gives a concrete ongoing-lesson update while B is slightly vaguer without a clear update."
+    },
+    {
+      "lane": "chat",
+      "beat": "p21-her-swimming",
+      "rep": 1,
+      "order": 0,
+      "judge": "anthropic/claude-opus-4.8",
+      "law": 6,
+      "felt": "prewave",
+      "score": {
+        "prewave": 4,
+        "current": 3
+      },
+      "failures": {
+        "prewave": [],
+        "current": []
+      },
+      "notes": "A gives genuine pleasure plus an ongoing update; B is warm but the heater joke leaves the actual update thin and slightly gimmicky."
+    }
+  ]
+}

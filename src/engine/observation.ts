@@ -12,7 +12,7 @@
 //   decay      contradiction count                  unrefreshed -> fades
 //
 // A pattern GENERALIZES; measured through the actual gates its own minimum
-// latency is three calendar days and three nightly passes (support_count>=3
+// latency is one write plus one later pass finding it in a new episode (support counted from evidence at insert; see consolidation G8.23/G8.24) (support_count>=3
 // AND distinct_days>=2 is a Postgres GENERATED column, db/schema.sql:434-435
 // — the bump only happens in the nightly pass, so day 1 write + day-2 + day-3
 // recurrence is the earliest `prompt_eligible` can ever go true). An

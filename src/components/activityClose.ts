@@ -34,7 +34,7 @@ import type { AppState } from "../state/store";
 import type { GameSession } from "../state/game";
 import { activityOf } from "../state/game";
 import { LABEL } from "../engine/activity";
-import { logFinishedActivity } from "../engine/memory";
+import { logFinishedActivity, withActivityRecord, type ActivityRecord } from "../engine/memory";
 
 /** A board that reached a natural end. wyr has no such state. */
 function boardOver(g: GameSession): boolean {
@@ -65,11 +65,16 @@ export function settleOccupant(
   const over = boardOver(cur);
   let next: GameSession = cur;
   if (!cur.closedAt) {
-    // Same honest wording the End-game button writes: a chess board abandoned
-    // before a result ended early and named no winner. ttt and wyr have no
-    // early-end fact to carry.
+    // Same honest wording the End-game button writes: a BOARD abandoned before
+    // a result ended early and named no winner. This used to be chess-only and
+    // the comment claimed "ttt has no early-end fact to carry" — it does now
+    // (`TttSession.endedEarly`, and `tttRecord` names the squares nobody
+    // took), and without the stamp a taken-over ttt game was remembered as
+    // having simply "left unfinished" with no one responsible for leaving it.
+    // wyr genuinely has no such state: a round is answered or it does not
+    // exist.
     next =
-      cur.kind === "chess" && !over
+      (cur.kind === "chess" || cur.kind === "ttt") && !over
         ? { ...cur, closedAt: at, endedEarly: true as const }
         : { ...cur, closedAt: at };
   }
@@ -112,13 +117,28 @@ export function settleOccupant(
  * fire-and-forget contract. Nothing is awaited and nothing can throw back into
  * game state.
  */
-export function emitClosedActivity(deviceId: string | undefined, g: GameSession | null): void {
-  if (!g?.closedAt || !deviceId) return;
+export function emitClosedActivity(
+  deviceId: string | undefined,
+  g: GameSession | null,
+): ActivityRecord | null {
+  if (!g?.closedAt) return null;
   const a = activityOf(g, g.closedAt + 1);
-  if (!a || !a.facts.length) return;
-  logFinishedActivity(
-    deviceId,
-    { kind: a.kind, facts: a.facts, startedAt: g.startedAt, closedAt: g.closedAt },
+  if (!a || !a.facts.length) return null;
+  // `deviceId` is no longer the gate. It gates the SERVER write (and
+  // `logFinishedActivity` still skips the POST without one), but the local
+  // ledger is what she actually reads from and it needs no identity at all —
+  // which is the whole reason it exists. A person with no device row must
+  // still remember the game they just played.
+  return logFinishedActivity(
+    deviceId || "",
+    {
+      kind: a.kind,
+      facts: a.facts,
+      // the durable half — see activity.ts's `record`
+      record: a.record,
+      startedAt: g.startedAt,
+      closedAt: g.closedAt,
+    },
     LABEL[a.kind],
   );
 }
@@ -153,6 +173,18 @@ export function replaceOccupant(
   if (!when(state)) return;
   const at = Date.now();
   const closed = settleOccupant(state, at).closed;
-  setState((s) => (when(s) ? { ...settleOccupant(s, at).state, game: next } : s));
-  emitClosedActivity(state.deviceId, closed);
+  // The episode is built BEFORE the slot is handed over, from the copy that
+  // is about to lose it — after the swap there is nothing left to derive it
+  // from. Its local half rides the same updater as the swap, so a takeover
+  // cannot leave the game recorded on the server and absent on the device.
+  const rec = emitClosedActivity(state.deviceId, closed);
+  setState((s) =>
+    when(s)
+      ? {
+          ...settleOccupant(s, at).state,
+          game: next,
+          ...(rec ? { activities: withActivityRecord(s.activities, rec) } : {}),
+        }
+      : s,
+  );
 }

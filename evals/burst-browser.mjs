@@ -54,7 +54,16 @@ async function open(script, { delayMs = 250, state = {} } = {}) {
   for (const p of ["**/api/memory", "**/api/telemetry", "**/api/consolidate", "**/api/account", "**/api/clock", "**/api/life", "**/api/search", "**/api/trace", "**/api/route"]) {
     await page.route(p, (r) => r.fulfill({ status: 200, contentType: "application/json", body: "{}" }));
   }
-  await page.goto(`${B}/chat`, { waitUntil: "domcontentloaded" });
+  // `#chat`, NOT `/chat`. THE SUITE WAS DEAD AND SAID NOTHING. App.tsx picks
+  // its surface from `location.hash + location.search` only, so after the
+  // home-surface wave landed this file navigated to a page whose thread is
+  // rendered but `inert` behind the home screen — every `send()` timed out on
+  // `home.chat` intercepting the click, and because this battery is
+  // deliberately outside verify-release, nothing anywhere went red. That is
+  // most of the answer to "why does it keep happening": the only instrument in
+  // the repo that measures FELT burst timing had stopped being able to reach
+  // the composer, so the third recurrence shipped unmeasured.
+  await page.goto(`${B}/#chat`, { waitUntil: "domcontentloaded" });
   await page.evaluate((s) => localStorage.setItem("meera.state.v1", JSON.stringify(s)), { ...BASE_STATE, ...state });
   await page.reload({ waitUntil: "domcontentloaded" });
   await sleep(900);
@@ -185,8 +194,17 @@ const lastUserTurn = (call) => {
   await page.waitForSelector(".msg.her", { timeout: 20_000 });
   await sleep(1200);
   const before = (await hers(page)).length;
+  const callsBefore = calls.length;
   await send(page, "kal ka plan cancel ho gaya");
-  await sleep(2200); // she is mid-generation
+  // WAIT FOR THE GENERATION TO ACTUALLY BE IN FLIGHT, rather than sleeping a
+  // number chosen against whatever the burst wait happened to be. This used to
+  // be `sleep(2200)`, and when WS-BREATH raised the breath past it the test
+  // stopped exercising supersede at all: both messages merged into one burst,
+  // the "stale" answer became the legitimate first answer, and the row went red
+  // for a reason that had nothing to do with the property it names. The stub
+  // records every request, so the honest trigger is the request itself.
+  for (let i = 0; i < 200 && calls.length === callsBefore; i++) await sleep(100);
+  ok("supersede: her generation is genuinely in flight before he interrupts", calls.length > callsBefore);
   await send(page, "ab kya karein");
   await sleep(9000);
   const after = await hers(page);

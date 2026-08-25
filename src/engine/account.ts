@@ -98,6 +98,35 @@ export async function ensureFresh(s: AuthSession): Promise<AuthSession> {
   return refreshSession(s);
 }
 
+/**
+ * How many messages ride the wire. It is a PAYLOAD number, not a memory
+ * number, and the distinction is the whole justification:
+ *
+ * - The real reader is the 90-turn window `toTurns` sends (plus the chat tail
+ *   and shared-history blocks, all far shorter). 400 is 4.4x that horizon, so
+ *   raising it to `mergeStates`' 500 buys nothing any lane can render. The
+ *   memory-horizon audit is what makes this checkable rather than an opinion.
+ * - What it does buy is bytes, and they are measured, on the REAL function
+ *   with a realistic message mix (quote-replies, callmarks, voice notes,
+ *   photos with vision descs, reactions, call turns), 2026-08-23:
+ *       400 messages          63.5 KB body   (99.8 KB with an 80-ply chess game)
+ *       +100 messages         +14.1 KB       (144 B/message)
+ *   That body goes up on every 4s debounce AND comes back down on every pull
+ *   (see App.tsx's pull effect), so the cap is now paid twice per exchange.
+ *
+ * The 400/500 mismatch with `mergeStates` used to be a real asymmetry, but it
+ * was never this number's fault: the merge cap was a scythe over the LOCAL
+ * half (a 2,000-message device merging down to 500). That is fixed where it
+ * lives — `MERGE_MESSAGE_CAP` is a floor now — which leaves this free to be
+ * chosen on payload alone.
+ *
+ * **Reverses if:** a reader appears that wants more than 90 turns (a real
+ * long-window recall, a local search over the whole history), or the measured
+ * body stops being the binding cost — then raise it to 500 to match the merge
+ * floor and re-measure, in that order.
+ */
+export const SYNC_MESSAGE_CAP = 400;
+
 // which slices of AppState are worth syncing (keys stay on-device only).
 // data: photo URLs are stripped — a failed upload must never turn each 4s
 // sync into a multi-MB POST (the desc/caption keeps the memory).
@@ -106,7 +135,7 @@ export function syncableState(s: AppState) {
     onboarded: s.onboarded,
     deviceId: s.deviceId,
     user: s.user,
-    messages: s.messages.slice(-400).map((m) =>
+    messages: s.messages.slice(-SYNC_MESSAGE_CAP).map((m) =>
       m.photoUrl && m.photoUrl.startsWith("data:") ? { ...m, photoUrl: undefined } : m,
     ),
     lastSeen: s.lastSeen,
@@ -118,8 +147,17 @@ export function syncableState(s: AppState) {
     // teardown rule in Chat.tsx). `theme` is deliberately absent: a phone on
     // dark and a laptop on light is a feature, not a conflict. Keys never sync.
     herLife: s.herLife,
+    // Her present moment. It syncs for the same reason `game` does: her
+    // evening must be the same evening on both devices, and a phone that
+    // says "reading" while the laptop says "fairy lights" is the reported
+    // bug arriving over the wire instead of over a re-roll.
+    herNow: s.herNow,
     inner: s.inner,
     game: s.game,
+    // The finished-games ledger. It is the relationship's record of what they
+    // have actually done together, so it syncs with the rest of it — a game
+    // played on the phone must not be a game the laptop denies.
+    activities: s.activities,
     tally: s.tally,
     momentsFired: s.momentsFired,
     followup: s.followup,

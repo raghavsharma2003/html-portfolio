@@ -1,0 +1,595 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SENDING PICTURES — the tray, the collage, and the viewer.
+
+   Three surfaces, one file, because they are one feature and splitting them
+   across global.css would put 300 lines of picture-sending between the reply
+   bar and the send button. Everything here is built out of tokens already
+   declared in global.css: there is not one raw colour, radius, duration or
+   curve below that this app did not already own, which is the only way a
+   feature added later can look like it was always there.
+
+   MOTION BUDGET (docs/DESIGN-STANDARDS.md §animate). Every interaction here is
+   OCCASIONAL — a person sends pictures a few times a day, not a hundred — so
+   the standard tier applies and nothing needs to be imperceptible. Nothing here
+   bounces: no gesture in this feature carries momentum into a settle, and
+   bounce is earned by momentum rather than applied as decoration.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── THE COMPOSE TRAY ────────────────────────────────────────────────────
+   Sits above the input, inside the composer's own glass. It takes
+   `.reply-bar`'s seat and its material deliberately: both answer the same
+   question, which is "what is attached to the thing I am about to send". */
+.tray {
+  padding: 8px calc(var(--safe-right) + 14px) 0 calc(var(--safe-left) + 14px);
+  background: var(--chrome);
+  backdrop-filter: blur(28px) saturate(1.9);
+}
+@starting-style {
+  .tray {
+    opacity: 0;
+  }
+}
+
+/* THE CAP, STATED BEFORE IT IS HIT. See ComposeTray.tsx's header. */
+.tray-count {
+  font-size: var(--t-meta);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+  padding: 0 2px 6px;
+}
+/* The refusal. A nudge rather than a shake: a shake is an error, and being
+   told five is five is not an error. The count is what moves because the
+   count is the answer. */
+.tray-count[data-refused] {
+  color: var(--accent);
+  animation: tray-nudge 220ms var(--ease-out);
+}
+@keyframes tray-nudge {
+  0% { transform: translateX(0); }
+  35% { transform: translateX(5px); }
+  70% { transform: translateX(-2px); }
+  100% { transform: translateX(0); }
+}
+
+.tray-scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 8px;
+  /* the thumbs are a row you flick through, so it snaps like one */
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.tray-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.tray-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 62px;
+  height: 62px;
+  border-radius: 13px;
+  overflow: hidden;
+  scroll-snap-align: start;
+  /* a hairline INSIDE the box, so a pale photo still has an edge and the
+     thumb's own size never changes to draw one */
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+  animation: thumb-in var(--d-state) var(--ease-out) backwards;
+}
+@keyframes thumb-in {
+  from {
+    opacity: 0;
+    /* 0.94, never 0: a thing that grows from nothing has no size to grow FROM */
+    transform: scale(0.94) translateY(6px);
+  }
+}
+.tray-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.tray-x {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* fixed dark, not a token: this button lives ON a photograph, and a fill
+     that followed the theme would vanish onto half the pictures anyone sends */
+  background: rgba(14, 9, 10, 0.62);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease;
+}
+.tray-x::after {
+  /* the glyph is 20px and a finger is not: the hit target is the full 44 */
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--hit);
+  height: var(--hit);
+  transform: translate(-50%, -50%);
+}
+.tray-x:active {
+  transform: scale(0.88);
+  background: rgba(14, 9, 10, 0.82);
+}
+
+/* ─── THE FILE CHIP ───────────────────────────────────────────────────────
+   A document has no picture of itself, so the chip is a ROW rather than a
+   tile: an extension badge, the name, the size. It is taller than nothing and
+   the same height as a thumbnail, so a tray holding one of each is still one
+   straight line rather than two heights fighting. */
+.tray-doc {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 62px;
+  max-width: 208px;
+  padding: 0 30px 0 10px;
+  border-radius: 13px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+  scroll-snap-align: start;
+  animation: thumb-in var(--d-state) var(--ease-out) backwards;
+}
+/* THE BADGE IS THE RECOGNISABLE PART. It carries the accent because it is the
+   one thing on the chip a person reads at a glance, and it is a fixed width so
+   a row of chips has its names starting on the same line. */
+.tray-doc-ext,
+.docchip-ext {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+}
+/* THE DRAWN BADGE (src/components/DocBadge.tsx). Four formats have a mark;
+   everything else keeps the letters above, in the same tile, at the same
+   size. The mark is authored at 38 to this tile's 38, with its own margins
+   inside that, so it is painted at its natural size rather than inset again.
+   `currentColor` is the tile's own ink, which is the whole reason the SVG is
+   inlined instead of fetched. */
+.tray-doc-ext[data-art] svg,
+.docchip-ext[data-art] svg {
+  display: block;
+  width: 38px;
+  height: 38px;
+}
+.tray-doc-text,
+.docchip-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tray-doc-name,
+.docchip-name {
+  font-size: var(--t-sub);
+  font-weight: 600;
+  color: var(--ink);
+  /* a long name ellipsises; the FORMAT never does, because it is in the badge */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tray-doc-size,
+.docchip-size {
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+}
+/* the remove button on a chip sits on the app's own surface rather than on a
+   photograph, so it takes the app's own colours instead of the fixed dark */
+.tray-x.doc {
+  background: var(--surface-3);
+  color: var(--ink-dim);
+  backdrop-filter: none;
+}
+.tray-x.doc:active {
+  background: var(--hairline-strong);
+}
+
+.tray-add {
+  flex: 0 0 auto;
+  width: 62px;
+  height: 62px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  color: var(--ink-dim);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  transition: transform var(--d-press) var(--ease-out), color var(--d-tap) ease,
+    background var(--d-tap) ease;
+}
+.tray-add:active {
+  transform: scale(0.94);
+  background: var(--surface-3);
+  color: var(--accent);
+}
+
+/* ─── THE SOURCE SHEET ────────────────────────────────────────────────────
+   Everything about it is `.sheet` (see SourceSheet.tsx). The only thing it
+   adds is that it is SHORT: the settings sheet scrolls and this one holds two
+   rows, so the scroll shadows that make sense there would draw a permanent
+   gradient across a sheet with nothing below the fold. */
+.source-sheet {
+  max-height: none;
+  overflow: visible;
+  background: var(--sheet-glass);
+  /* --s6, not --s5: the settings sheet earns its tighter foot by SCROLLING, so
+     its last row is never the last thing on screen. This one ends here, and a
+     row that stops 24px from the bottom of a phone reads as clipped. */
+  padding-bottom: calc(var(--safe-bottom) + var(--s6));
+}
+.source-sheet .hint {
+  margin-bottom: 4px;
+}
+
+/* ─── THE COLLAGE ─────────────────────────────────────────────────────────
+   `data-shape` is the word `collageFor()` resolved to. The count never
+   appears in this file: the arrangement is decided in TypeScript and gated by
+   an eval, and a stylesheet that re-derived it from `:nth-child` counts would
+   be a second, untested copy of the same rule. */
+.pgrid {
+  display: grid;
+  gap: 3px;
+  border-radius: 14px;
+  overflow: hidden;
+  /* one blank frame at the width the pictures will fill, so a decode does not
+     shove the thread under the reader's thumb */
+  background: var(--surface-2);
+}
+.pgrid-tile {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--surface-3);
+  transition: opacity var(--d-press) ease;
+}
+.pgrid-tile:active {
+  opacity: 0.82;
+}
+.pgrid-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ONE picture is the message. It keeps its own aspect ratio, because cropping
+   the only thing that was sent is destroying it. */
+.pgrid[data-shape="one"] {
+  grid-template-columns: 1fr;
+}
+.pgrid[data-shape="one"] .pgrid-tile img {
+  height: auto;
+  object-fit: contain;
+}
+
+.pgrid[data-shape="two"] {
+  grid-template-columns: 1fr 1fr;
+  aspect-ratio: 2 / 1;
+}
+
+/* one tall on the left, two stacked on the right */
+.pgrid[data-shape="three"] {
+  grid-template-columns: 1.55fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  aspect-ratio: 4 / 3;
+}
+.pgrid[data-shape="three"] .pgrid-tile:first-child {
+  grid-row: span 2;
+}
+
+.pgrid[data-shape="four"] {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  aspect-ratio: 1;
+}
+
+/* the veil on the last tile of a five. Fixed dark for the same reason
+   `.tray-x` is: it sits on a photograph, not on the app. */
+.pgrid-more {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(14, 9, 10, 0.52);
+  backdrop-filter: blur(2px);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* the collage lives in the same card the single photo does, so the caption
+   underneath and the ticks below that are the bubble's, unchanged */
+.msg.photo .pgrid {
+  width: 100%;
+}
+/* `.msg.photo img` in global.css rounds every picture in a bubble to 14px,
+   which is right for the one that IS the bubble and wrong for four tiles
+   inside a frame that is already rounded. The grid clips them. */
+.msg.photo .pgrid img {
+  border-radius: 0;
+}
+/* A collage is a set, so it earns more of the row than a single picture does.
+   `width`, NOT just `max-width`, and that is a bug fix rather than a
+   preference. A photo bubble is a fit-content flex item, so a lone picture
+   sizes itself from its own intrinsic width (always ~1024px from the
+   compressor, hence always capped at the max) — but a GRID of cover-fitted
+   tiles has no intrinsic width of its own, so it collapsed to whatever the
+   source images happened to be. Measured in the browser battery with 40px
+   fixtures: a five-up collage rendered 90px wide. A stated width makes the
+   collage the same size whatever is in it, which is what a set should be. */
+.msg.me.photo.multi {
+  width: 78%;
+  max-width: 78%;
+}
+
+/* the single picture is a button now (MessageRow.tsx). It must not introduce a
+   box of its own: the bubble's 5px padding and the image's own 14px radius are
+   exactly what they were. */
+.pimg-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border-radius: 14px;
+  transition: opacity var(--d-press) ease;
+}
+.pimg-open:active {
+  opacity: 0.82;
+}
+
+/* ─── DOCUMENTS IN THE THREAD ─────────────────────────────────────────────
+   The same chip the compose tray shows, so what he staged and what he sent are
+   recognisably the same object. It is NOT a button: see DocChips.tsx for why a
+   tappable chip would be a control that lies.
+
+   INSIDE HIS BUBBLE, which is the rose one, so the badge and the two text
+   lines take the bubble's own inks rather than the app's — `--ink-dim` on rose
+   is the gray-on-coloured anti-pattern the design standards name outright. */
+.docchips {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: -1px 0 2px;
+}
+/* A RECESS, NOT A CARD, and that is a contrast fix rather than a metaphor.
+   This chip was a white 16% veil over the rose bubble, which lifts the ground
+   to rgb(204,94,113) and drops white lettering to 3.90:1 (measured in
+   evals/composer-browser.mjs). A tinted DARK inset moves the ground the other
+   way, so the bubble's own white ink gets crisper rather than muddier, and it
+   is the honest shape anyway: the chip is set INTO the message, not stacked on
+   top of it. Tinted, never pure black, per the anti-pattern list. */
+.docchip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 7px 11px 7px 7px;
+  border-radius: 12px;
+  background: rgba(20, 8, 10, 0.16);
+}
+/* `:not(.photo)` IS LOAD-BEARING, and it was a real bug for one build of this
+   file. His ordinary bubble is the rose one and takes the rose inks; his PHOTO
+   bubble is a white card (`.msg.photo { background: var(--surface) }`) and a
+   `.msg.me` rule reaches both. A message carrying two pictures and a PDF was
+   therefore painting `--bubble-me-ink` (white) onto a white card in the light
+   theme, which is a filename nobody can read. The photo case falls through to
+   the app inks below. */
+/* THE BADGE IS A WHITE PILL WITH ROSE LETTERING on his own bubble, not white
+   on a lighter rose. Eleven-pixel bold type is small text by every measure that
+   matters, so it takes the 4.5:1 floor and not the 3:1 one graphics get, and a
+   translucent-white fill under white letters cannot reach it at any alpha. */
+.msg.me:not(.photo) .docchip .docchip-ext {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--accent-deep);
+}
+.msg.me:not(.photo) .docchip .docchip-name {
+  color: var(--bubble-me-ink);
+}
+.msg.me:not(.photo) .docchip .docchip-size {
+  color: var(--bubble-me-dim);
+}
+/* a bubble carrying only files has no sentence to set its width, so the chips
+   do it; without this the name would ellipsise at whatever the caption was */
+.msg.hasdocs {
+  min-width: 190px;
+}
+/* on HER side, and inside a photo card, the chip sits on an app surface and
+   takes the app's own inks in both themes */
+.msg.her .docchip,
+.msg.photo .docchip {
+  background: var(--surface-2);
+}
+/* `--accent-deep`, not `--accent`: the pair the rest of the app uses for an
+   ICON tile (`.srow .sicon`) measures 4.43:1 here, which clears the 3:1 floor a
+   glyph gets and misses the 4.5:1 one this badge needs, because this badge is
+   TEXT. The deep end of the same accent clears it in both themes. */
+.msg.her .docchip-ext,
+.msg.photo .docchip-ext {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+.msg.her .docchip-name,
+.msg.photo .docchip-name {
+  color: var(--ink);
+}
+.msg.her .docchip-size,
+.msg.photo .docchip-size {
+  color: var(--ink-dim);
+}
+.msg.photo .docchips {
+  margin: 4px 2px 0;
+}
+.docchip-ext {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+
+/* ─── THE VIEWER ──────────────────────────────────────────────────────────
+   Same warm near-black StoryView uses, and written out for that file's stated
+   reason: this is the same room in both themes, so a token that flips would
+   put a photograph on warm paper. */
+.pview {
+  position: fixed;
+  inset: 0;
+  z-index: 62;
+  background: #150f10;
+  overflow: hidden;
+  touch-action: none;
+  animation: pview-in var(--d-state) var(--ease-out);
+}
+@keyframes pview-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.pview-track {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+}
+.pview-page {
+  flex: 0 0 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--safe-top) + 56px) var(--s4) calc(var(--safe-bottom) + 64px);
+}
+.pview-page img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+  border-radius: 6px;
+}
+
+.pview-x {
+  position: absolute;
+  top: calc(var(--safe-top) + var(--s3));
+  right: calc(var(--safe-right) + var(--s4));
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(244, 238, 236, 0.14);
+  backdrop-filter: blur(10px);
+  color: #f4eeec;
+  transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease;
+}
+.pview-x:active {
+  transform: scale(0.92);
+  background: rgba(244, 238, 236, 0.24);
+}
+.pview-count {
+  position: absolute;
+  top: calc(var(--safe-top) + var(--s3));
+  left: 0;
+  right: 0;
+  z-index: 1;
+  text-align: center;
+  font-size: var(--t-sub);
+  font-weight: 600;
+  /* 8.4:1 on #150f10 */
+  color: rgba(244, 238, 236, 0.86);
+  pointer-events: none;
+}
+.pview-cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  padding: 34px calc(var(--safe-right) + var(--s5)) calc(var(--safe-bottom) + 30px)
+    calc(var(--safe-left) + var(--s5));
+  font-size: var(--t-ui);
+  line-height: 1.45;
+  color: #f4eeec;
+  /* a gradient, not a bar: a caption over a dark photo needs no plate, and a
+     photo that ends light needs the words to stay readable anyway */
+  background: linear-gradient(transparent, rgba(10, 6, 7, 0.72) 62%);
+  pointer-events: none;
+}
+.pview-dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--safe-bottom) + 12px);
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.pview-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(244, 238, 236, 0.34);
+  transition: background var(--d-tap) ease, transform var(--d-tap) var(--ease-out);
+}
+.pview-dots i[data-on] {
+  background: #f4eeec;
+  transform: scale(1.15);
+}
+
+/* ─── REDUCED MOTION ──────────────────────────────────────────────────────
+   Gentler, never absent (docs/DESIGN-STANDARDS.md). The thumbs still arrive
+   and the viewer still opens; what goes is the travel. The refusal nudge keeps
+   its colour change, which is the part that carries the meaning, and loses the
+   movement, which is the part that is only emphasis. */
+@media (prefers-reduced-motion: reduce) {
+  .tray-count[data-refused] {
+    animation: none;
+  }
+  .tray-thumb {
+    animation-name: thumb-in-quiet;
+  }
+  @keyframes thumb-in-quiet {
+    from { opacity: 0; }
+  }
+  .pview {
+    animation-name: pview-in-quiet;
+  }
+  @keyframes pview-in-quiet {
+    from { opacity: 0; }
+  }
+  .pview-dots i[data-on] {
+    transform: none;
+  }
+}

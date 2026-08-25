@@ -97,6 +97,40 @@ export function applyTheme(choice: ThemeChoice | undefined, nowMs: number = skyC
   // exists because that sync is exactly what rots.
   else if (choice === "sky") root.setAttribute("data-theme", skyMode(nowMs));
   else root.removeAttribute("data-theme");
+
+  // ── SKY GETS PRESENCE, NOT A PALETTE (WS-SKYFELT, owner defect) ──────────
+  //
+  // The owner's report was one sentence: "I selected Sky and no change." He
+  // was right, and the cause is the paragraph directly above. At 11:27 IST the
+  // sky is `morning`, `morning.mode` is "light", so choosing Sky wrote
+  // `data-theme="light"` — the SAME attribute explicit Light writes — and
+  // every selector in the app then painted the identical screen. Sky and Light
+  // are pixel-identical from 06:10 until 18:10, which is most of the waking
+  // day, and a mode you can select and then not see reads as a broken button
+  // rather than as a subtle one.
+  //
+  // So the choice leaves a trace of ITSELF, separately from what it resolved
+  // to. `data-sky-choice` says "the person picked the sky", `data-theme` says
+  // "and right now the sky is light" — two different facts that were being
+  // carried by one attribute, which is why one of them was invisible.
+  //
+  // IT IS NOT A THIRD PALETTE and it must never become one. Nothing keys a
+  // COLOUR off this attribute: the two dark blocks, the ink, the surfaces and
+  // every ratio in global.css go on reading `data-theme` alone, and the theme
+  // eval's "both dark blocks agree on every value" invariant is untouched. The
+  // only thing that reads it is the thread's wallpaper veil in world.css,
+  // which swaps to the thinner, colourless `wallAlpha*Sky` family so the
+  // painting is actually present (see the long note in sky.ts). A veil is not
+  // a palette — it is how much of a picture you can see through.
+  //
+  // Order matters and is load-bearing: `data-theme` is written FIRST, so any
+  // frame in which `data-sky-choice` exists is a frame in which `data-theme`
+  // is already correct. world.css leans on exactly that — its sky-choice
+  // blocks are `[data-sky-choice][data-theme="light"|"dark"]`, which is why
+  // they need no `prefers-color-scheme` twin the way the plain veil does.
+  if (choice === "sky") root.setAttribute("data-sky-choice", "on");
+  else root.removeAttribute("data-sky-choice");
+
   // NOTE what is deliberately absent: nothing here turns the WORLD off. The
   // direction's "data-theme beats the sky" is about the PALETTE — the chat,
   // the sheets, the surfaces someone picked Light or Dark for. The world

@@ -1,0 +1,398 @@
+/* ─── ONBOARDING, IN THE WORLD ─────────────────────────────────────────────
+   docs/DESIGN-WORLD.md §Phase 3.3. The first minute, moved off a white card
+   and onto the painted sky the rest of the app lives on.
+
+   ── THE ONE RULE THIS FILE IS BUILT ON ────────────────────────────────────
+   EVERY COLOUR HERE IS A WORLD TOKEN, and that is not a style choice, it is
+   how this surface inherits its contrast floors for free. `--world-ink`,
+   `--world-ink-dim`, `--world-glass` and `--world-edge` are already gated by
+   `scripts/check-contrast.mjs` at 4.5:1 (text, on the sky AND inside a glass
+   panel) and 3:1 (a panel's edge) against the decoded pixels of all five
+   shipped paintings. A surface painted in those tokens cannot be illegible at
+   noon without the gate failing first — which is exactly the "glass follows
+   the sky" rule the home cards already obey, and the reason this file adds no
+   new floors of its own.
+
+   The one exception is the primary button, which is `--accent-solid` carrying
+   `--on-solid`: an opaque fill, measured at 5.07:1 in the day palette and
+   5.09:1 at night, independent of whatever sky is behind it.
+
+   ── MOTION ────────────────────────────────────────────────────────────────
+   Entrances only, on the shared scale, `--ease-out` (entrances take ease-out;
+   nothing here invents a curve). The step change is `@starting-style` on a
+   keyed subtree rather than a library. The reduced-motion block at the bottom
+   removes TRAVEL and keeps the fade, which is the same trade the old
+   framer-motion version made and the one the direction doc asks for: gentler,
+   never absent. */
+
+.onb {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: calc(var(--safe-top) + 20px) calc(var(--safe-right) + 26px)
+    calc(var(--safe-bottom) + 18px) calc(var(--safe-left) + 26px);
+  /* the world is the ground; no --surface, no paper */
+  background: var(--sky-1);
+  isolation: isolate;
+}
+.onb > .world {
+  position: fixed;
+  z-index: -1;
+}
+
+.onb-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+}
+
+/* ── the step entrance ─────────────────────────────────────────────────────
+   `@starting-style` on a keyed subtree: React swaps the element, the browser
+   runs the transition from the starting state, and there is no library on the
+   first-run path. 220ms is --d-state; the travel is 14px, which is under the
+   "arrives" threshold and nowhere near a slide. */
+.onb-step {
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--d-state) var(--ease-out),
+    transform var(--d-state) var(--ease-out);
+}
+@starting-style {
+  .onb-step {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* ── step one: the meeting ─────────────────────────────────────────────────
+   One photograph, large. The frame is a hairline and a shadow and nothing
+   else — a heavy border turns a person into an illustration of a person. */
+.onb-meet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.onb-photo {
+  width: min(300px, 78%);
+  aspect-ratio: 4 / 5;
+  border-radius: 22px;
+  overflow: hidden;
+  /* the ring is the world's own ink at a whisper, NOT --world-edge: that
+     token is tuned to make a panel findable at 3:1 and would put a hard hoop
+     around a photograph. Same distinction home draws for her story ring. */
+  box-shadow:
+    0 0 0 1px rgba(var(--world-ink-rgb), 0.16),
+    0 26px 60px -22px rgba(0, 0, 0, 0.62);
+  /* it arrives on its own beat, a hair after the step — the only staggered
+     entrance in the flow, and it is the thing the screen is about */
+  animation: onb-photo-in var(--d-sheet) var(--ease-out) both;
+}
+.onb-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* her face sits about a third of the way down the frame; centring the crop
+     would put the top of the window where she should be */
+  object-position: 50% 28%;
+}
+/* Resting state is the visible one (the world layer's rule, applied here):
+   the keyframe travels TO the element's own style, so the reduced-motion
+   block below can drop it without leaving an invisible photograph. */
+@keyframes onb-photo-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.onb-name {
+  margin: 20px 0 0;
+  font-size: 42px;
+  line-height: 1;
+  color: var(--world-ink);
+  /* the name is the largest text in the flow and takes the tightest track —
+     tracking is size-specific (apple-design). `.name-serif` (world.css)
+     carries the face, the lowercase and the tracking. */
+  text-shadow: 0 1px 20px rgba(var(--world-scrim-rgb), 0.55);
+}
+
+.onb-lede {
+  margin: 12px 0 0;
+  max-width: 17ch;
+  font-family: var(--font-display);
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--world-ink);
+}
+.onb-lede em,
+.onb-q em {
+  font-style: normal;
+  /* Sky-solved accent, not the theme's: this <em> sits straight on the sky,
+     and the theme rose measured 2.26:1 on morning's blue top stop (owner
+     report, 2026-08-25). --world-accent is re-solved per sky state at
+     >= 4.75:1 over the veiled stops (sky.ts `accent`, gated in
+     check-contrast.mjs); the theme accent stays as the no-sky fallback. */
+  color: var(--world-accent, var(--accent));
+}
+
+.onb-sub {
+  margin: 10px 0 0;
+  max-width: 30ch;
+  font-size: var(--t-ui);
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  color: var(--world-ink-dim);
+}
+.onb-sub-tight {
+  margin-top: 18px;
+  font-size: var(--t-sub);
+}
+.onb-opt {
+  opacity: 0.66;
+}
+
+.onb-honest {
+  margin: 16px 0 0;
+  max-width: 36ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--world-ink-dim);
+}
+
+/* ── steps two and three: the two light touches ────────────────────────────
+   Left-aligned rather than centred: a question you answer is not a poster. */
+.onb-ask {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.onb-q {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--t-display);
+  line-height: 1.12;
+  letter-spacing: -0.022em;
+  color: var(--world-ink);
+}
+/* The bloom is a picture now, not a glyph (src/components/anim.tsx). Same
+   30px, and the nudge is what an emoji's own line box used to do for free:
+   an <img> sits on the baseline, a glyph sits across it. */
+.onb-bloom {
+  display: inline-block;
+  vertical-align: -0.16em;
+}
+
+/* ONE glass field. `--world-glass` is the same top-lit fill the home cards
+   use, so the gate's "text INSIDE a glass panel >= 4.5" row covers what is
+   typed here; `--world-edge` is the gated 3:1 boundary that makes it findable
+   against a noon sky. */
+.onb-field {
+  width: 100%;
+  min-height: 56px;
+  margin-top: 24px;
+  padding: 17px 20px;
+  border-radius: 16px;
+  border: 1px solid var(--world-edge);
+  background: var(--world-glass);
+  backdrop-filter: blur(16px) saturate(1.5);
+  color: var(--world-ink);
+  /* 16px is the floor, not the size: anything smaller and iOS Safari zooms
+     the page on focus. The sheets state the same rule at the same number. */
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  outline: none;
+  transition: border-color var(--d-tap) ease, box-shadow var(--d-tap) ease;
+}
+.onb-field::placeholder {
+  color: var(--world-ink-dim);
+}
+.onb-field:focus,
+.onb-field:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.onb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 20px;
+}
+.onb-chip {
+  min-height: var(--hit);
+  padding: 10px 17px;
+  border-radius: 999px;
+  border: 1px solid var(--world-edge);
+  background: var(--world-glass);
+  backdrop-filter: blur(14px) saturate(1.5);
+  color: var(--world-ink);
+  font-size: var(--t-ui);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: background var(--d-tap) ease, border-color var(--d-tap) ease,
+    color var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.onb-chip:active {
+  transform: scale(0.97);
+}
+/* the chosen state is the ACCENT, opaque, so a picked chip is unambiguous
+   against any of the five skies rather than "slightly different glass" */
+.onb-chip.on {
+  background: var(--accent-solid);
+  border-color: var(--accent-solid);
+  color: var(--on-solid);
+}
+
+/* ── the one primary action ────────────────────────────────────────────────
+   An opaque accent fill carrying --on-solid: measured at 5.07:1 in the day
+   palette and 5.09:1 at night, and independent of the sky behind it, which is
+   why this is the one control in the file that is not glass. */
+.onb-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  width: 100%;
+  min-height: 54px;
+  margin-top: 28px;
+  padding: var(--s4) var(--s5);
+  border-radius: 999px;
+  background: var(--accent-solid);
+  color: var(--on-solid);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  box-shadow: 0 14px 34px -14px rgba(0, 0, 0, 0.7);
+  transition: transform var(--d-press) var(--ease-out), background var(--d-tap) ease,
+    opacity var(--d-tap) ease;
+}
+.onb-cta:active {
+  transform: scale(0.97);
+  background: var(--accent-solid-press);
+}
+.onb-cta:disabled {
+  /* a disabled primary must still read as text, not as a ghost — the same
+     lesson global.css's .btn-primary:disabled records. Glass rather than a
+     grey fill, because the ground here is a picture. */
+  background: var(--world-glass);
+  border: 1px solid var(--world-edge);
+  color: var(--world-ink-dim);
+  box-shadow: none;
+  cursor: default;
+}
+
+/* ── the footer ────────────────────────────────────────────────────────────
+   Carried over intact — it is the way back, and the reason it exists is in
+   Onboarding.tsx. Re-inked for the world. */
+.onb-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-top: 20px;
+  flex-shrink: 0;
+}
+.onb-back {
+  width: 72px;
+  min-height: var(--hit);
+  text-align: left;
+  font-size: var(--t-sub);
+  color: var(--world-ink);
+  transition: opacity var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.onb-back:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+.onb-dots {
+  display: flex;
+  gap: 7px;
+  justify-content: center;
+}
+.onb-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(var(--world-ink-rgb), 0.34);
+  /* width costs layout — tolerated on a 7px first-run dot, never repeated.
+     motion-lint: allow a 7px dot seen once at first run; transform cannot
+     widen a pill from a circle without distorting the ends */
+  transition: width var(--d-state) var(--ease-out), background var(--d-state) ease;
+}
+.onb-dots i.on {
+  width: 22px;
+  border-radius: 4px;
+  background: var(--world-ink);
+}
+
+/* ── SHORT VIEWPORTS ───────────────────────────────────────────────────────
+   The name step autofocuses its field, so the keyboard is up within a beat of
+   arriving and the viewport is ~380px. The photo step is the tall one and is
+   never on screen with a keyboard, but a 320x568 phone in landscape is real.
+   The photo gives up height first, because it is the only element here that
+   can lose some and still be the thing it is. */
+@media (max-height: 620px) {
+  .onb-photo {
+    width: min(210px, 52%);
+  }
+  .onb-name {
+    margin-top: 14px;
+    font-size: 34px;
+  }
+  .onb-lede {
+    font-size: 21px;
+  }
+  .onb-honest {
+    margin-top: 12px;
+  }
+}
+
+/* ── REDUCED MOTION ────────────────────────────────────────────────────────
+   Travel goes, the fade stays. Spatial travel is the part of this some people
+   cannot tolerate; the crossfade carries the same meaning and is kept, which
+   is the same trade the framer-motion version made and what "gentler, never
+   absent" means. The photo keyframe is REPLACED rather than removed, because
+   `animation: none` on a keyframe that starts at opacity 0 with `both` would
+   leave an invisible photograph — the exact failure world.css's own
+   reduced-motion block is written to avoid. */
+@media (prefers-reduced-motion: reduce) {
+  .onb .onb-step {
+    transition: opacity var(--d-tap) var(--ease-out);
+  }
+  @starting-style {
+    .onb .onb-step {
+      opacity: 0;
+      transform: none;
+    }
+  }
+  .onb .onb-photo {
+    animation: onb-photo-fade var(--d-state) var(--ease-out) both;
+  }
+  @keyframes onb-photo-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .onb .onb-dots i {
+    transition: background var(--d-state) ease;
+  }
+}

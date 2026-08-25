@@ -97,7 +97,11 @@ const DEFAULT_PERSON_LIMIT = 25;
 // Cost/latency ceiling per person per run — a chatty person's whole history
 // is never pulled in one call; the remainder waits for the next run
 // (§12 failure mode 7: "a missed pass is late, never lost").
-const LOG_BATCH_CAP = 220;
+// EXPORTED (docs/CONSOLIDATION.md "minimal export", raised there as a proposal
+// and taken here): api/consolidate-sweep.js and scripts/backfill-consolidate.mjs
+// both hardcoded `220` with a comment pointing at this line, which is a
+// duplicate that goes stale silently rather than loudly. One number, one place.
+export const LOG_BATCH_CAP = 220;
 const AUDIT_SAMPLE_RATE = 0.05;
 const AUDIT_REFUTATION_HALT = 0.02;
 const AUDIT_MIN_N = 5;
@@ -127,10 +131,52 @@ async function loadDecayConfig() {
   }
 }
 
-const cost = { azure_calls: 0, azure_tokens_in: 0, azure_tokens_out: 0, fallback_calls: 0, audit_calls: 0, embed: null };
+// WS-SPINE: `attempts` exists because the two `calls` counters below only ever
+// counted SUCCESSES, and the one real measured run of this pipeline
+// (`strict-exposed-13`'s correction: "0 episodes and 0 model calls") reported
+// zero spend for a person whose extraction had in fact been ATTEMPTED and had
+// failed. A ceiling enforced on a success counter is a ceiling a failing
+// provider can walk straight through — an infinite retry loop costs real money
+// and reports `azure_calls: 0`. `azure_attempts`/`fallback_attempts` count the
+// request, not the outcome, and the sweep's per-invocation ceiling reads THOSE.
+//
+// Fallback token usage was also never recorded (only Azure's `usage` block was
+// read), so every token spent on an OpenRouter fallback was invisible to the
+// only arithmetic that could have caught a runaway. Recorded now.
+const cost = {
+  azure_calls: 0,
+  azure_attempts: 0,
+  azure_tokens_in: 0,
+  azure_tokens_out: 0,
+  fallback_calls: 0,
+  fallback_attempts: 0,
+  fallback_tokens_in: 0,
+  fallback_tokens_out: 0,
+  audit_calls: 0,
+  embed: null,
+};
+
+/** A copy of the running cost counters. The object itself is module-level and
+ *  therefore SHARED across every invocation a warm serverless container serves
+ *  — a caller that wants "what did THIS run spend" must diff two snapshots
+ *  (see `costDelta`), never read the raw object and call it a run total. */
+export function costSnapshot() {
+  return { ...cost };
+}
+export function costDelta(before, after = costSnapshot()) {
+  const out = {};
+  for (const k of Object.keys(after)) {
+    if (typeof after[k] === "number") out[k] = after[k] - (Number(before?.[k]) || 0);
+  }
+  out.llm_calls = out.azure_attempts + out.fallback_attempts + out.audit_calls;
+  out.tokens_in = out.azure_tokens_in + out.fallback_tokens_in;
+  out.tokens_out = out.azure_tokens_out + out.fallback_tokens_out;
+  return out;
+}
 
 async function llm(messages, maxTokens, { model = null } = {}) {
   if (AZ_ENDPOINT && AZ_KEY) {
+    cost.azure_attempts++;
     try {
       const r = await fetch(`${AZ_ENDPOINT}/chat/completions`, {
         method: "POST",
@@ -152,6 +198,7 @@ async function llm(messages, maxTokens, { model = null } = {}) {
       /* fall through — a bad Azure minute costs a slower call, never a lost memory */
     }
   }
+  cost.fallback_attempts++;
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${OR_KEY}`, "Content-Type": "application/json", "X-Title": "Meera" },
@@ -161,6 +208,8 @@ async function llm(messages, maxTokens, { model = null } = {}) {
   if (!res.ok) return null;
   const j = await res.json();
   cost.fallback_calls++;
+  cost.fallback_tokens_in += Number(j?.usage?.prompt_tokens) || 0;
+  cost.fallback_tokens_out += Number(j?.usage?.completion_tokens) || 0;
   return j?.choices?.[0]?.message?.content ?? null;
 }
 
@@ -209,6 +258,56 @@ function wordCount(s) {
 const WE_TOKEN_RE = /\b(dono|dono[nm]e|saath|sath|we|together|hum(dono)?|humne)\b/i;
 const WE_TOKEN_SQL = `\\m(dono|dono[nm]e|saath|sath|we|together|hum(dono)?|humne)\\M`;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// THE WATCH CONTRACT (WS-SPINE P0-3, three-way with WS-CALLLANE and WS-RECALL)
+//
+// Watch-derived turns reach `meera_log` with `channel = 'watch'`: WS-CALLLANE
+// sends them, WS-RECALL accepts them. Their content is NOT something he said.
+// It is what a vision model read off HIS SCREEN — a headline, a chat window
+// belonging to someone else, a form, a video's subtitles, an OCR misread. A
+// derivation that treats that text as testimony mints a durable, cited,
+// entailment-audited "fact about his life" out of a machine's guess about
+// pixels, and every downstream reader (T5 recall, T2 rel-state, T3 india, the
+// self layer) then treats it as something he told her.
+//
+// THIS SIDE'S RULE, stated once and enforced everywhere below:
+//   A `channel = 'watch'` log row is NEVER a source of a durable fact, a kin
+//   row, a ritual, an address-term reading, a code-switch ratio sample, or a
+//   captured phrase. It does not enter any prompt this file builds.
+//
+// SCOPE: total exclusion, deliberately — not "excluded from facts but allowed
+// to inform an episode summary". A summary is prompt text she reads back, so
+// letting screen-derived content in there is the same fabrication one hop
+// further from the audit. Her genuine shared-moment record already exists as
+// its own object (`vy_shared_moment`, api/episodes.js, written from a REAL
+// reaction of hers, not from OCR); that is the safe use, it is already built,
+// and it needs nothing from this file. The brief's "when in doubt exclude
+// entirely and say so" — said.
+//
+// ENFORCED IN TWO LAYERS, the same belt-and-braces convention WE_TOKEN_RE /
+// WE_TOKEN_SQL and the honorific writer's pre-DB citation check already use in
+// this file:
+//   1. SQL — every meera_log read below carries WATCH_EXCLUDE_SQL in its WHERE,
+//      before any limit, so a watch row is never fetched in the first place.
+//   2. JS  — `stripWatchRows` re-checks the fetched rows. Redundant when the
+//      SQL is right, which is the point: it is what makes the eval able to
+//      prove the rule against a fake driver, and what catches a future query
+//      that forgets clause 1.
+// `is distinct from` rather than `<>` so a NULL channel (impossible under
+// today's `not null default 'chat'`, but a schema is not a promise) keeps the
+// row rather than silently dropping every legacy row a migration ever leaves
+// null. Failing OPEN on an unknown channel is right here: the closed set is
+// "watch", not "chat and call".
+export const WATCH_CHANNEL = "watch";
+export const watchExcludeSql = (alias) => `and ${alias}.channel is distinct from '${WATCH_CHANNEL}'`;
+export const WATCH_EXCLUDE_SQL = watchExcludeSql("l");
+
+/** Layer 2 of the watch contract. Pure, exported, and driven directly by
+ *  evals/consolidation/watch-exclusion.mjs against fabricatable fixture rows. */
+export function stripWatchRows(rows) {
+  return (Array.isArray(rows) ? rows : []).filter((r) => r?.channel !== WATCH_CHANNEL);
+}
+
 async function suppressionRegexes(person) {
   const rows = await q(
     `select term from meera_forget where device_id = $1 order by at desc limit 200`,
@@ -221,12 +320,26 @@ function suppressed(text, rxs) {
   return rxs.some((rx) => rx.test(text));
 }
 
-/** People with quiet-enough provisional episodes waiting to finalize. */
+/** People with quiet-enough provisional episodes waiting to finalize.
+ *
+ *  WS-SPINE P2-2 — `e.channel <> 'watch'`: a watch episode is opened by
+ *  api/episodes.js with `summary = ''` and NULL log_from/log_to (that file's
+ *  own header: "watch has no meera_log rows at all... a watch episode's
+ *  log_from/log_to stay null"). Nothing in `finalizePerson` can ever finalize
+ *  such a row — its supersede query requires `log_from is not null and log_to
+ *  is not null` and a channel match against a span derived from meera_log — so
+ *  the row stays `provisional = true` FOREVER and this query returns its
+ *  person on every single sweep, for the rest of time. With a per-invocation
+ *  person budget that is not merely wasteful, it is STARVATION: the same
+ *  people are selected every hour and everyone behind them in the cursor never
+ *  runs. Watch episodes are finalized on their own deterministic path instead
+ *  (`finalizeWatchEpisodes`, below) and excluded from the pin here. */
 async function findEligiblePersons(limit, agentId = MEERA_AGENT_ID) {
   const rows = await q(
     `select distinct e.person_id from vy_episode e
       where e.provisional = true and e.superseded_by is null
         and e.group_id is null -- state inertness: explicit, not just NULL-person_id accident (multiparty-v1-design)
+        and e.channel is distinct from '${WATCH_CHANNEL}' -- P2-2: never pinned by an unfinalizable watch row
         and e.ended_at < now() - ($1 || ' milliseconds')::interval
         ${agentScopePredicate("e", { agentId: "$3" })}
       order by e.person_id
@@ -236,21 +349,28 @@ async function findEligiblePersons(limit, agentId = MEERA_AGENT_ID) {
   return rows.map((r) => r.person_id);
 }
 
-/** Build the numbered batch this person's finalize run may cite from. */
-async function fetchLogBatch(person) {
+/** Build the numbered batch this person's finalize run may cite from.
+ *  WATCH CONTRACT, layer 1 + layer 2 (see the section header above): screen-
+ *  derived rows are filtered in the SQL and re-filtered in JS, so nothing that
+ *  reaches `renderBatch` — and therefore nothing that reaches the extraction
+ *  prompt, an episode span, a fact, a kin row or a citation — can have come
+ *  from a watch turn. */
+export async function fetchLogBatch(person, { queryFn = q } = {}) {
   // meera_log is device-keyed; a person may (eventually) span devices —
   // vy_person_device is the mapping both ways.
-  const devices = await q(`select device_id from vy_person_device where person_id = $1`, [person]);
+  const devices = await queryFn(`select device_id from vy_person_device where person_id = $1`, [person]);
   const deviceIds = devices.length ? devices.map((d) => d.device_id) : [person]; // person_id := device_id cast
-  return q(
-    `select id, device_id, role, channel, kind, content, at from meera_log
-      where device_id = any($1::uuid[]) and episode_id is null
-      order by id asc limit $2`,
+  const rows = await queryFn(
+    `select l.id, l.device_id, l.role, l.channel, l.kind, l.content, l.at from meera_log l
+      where l.device_id = any($1::uuid[]) and l.episode_id is null
+        ${WATCH_EXCLUDE_SQL}
+      order by l.id asc limit $2`,
     [deviceIds, LOG_BATCH_CAP],
   );
+  return stripWatchRows(rows);
 }
 
-function renderBatch(rows) {
+export function renderBatch(rows) {
   let lastAt = null;
   return rows
     .map((r, i) => {
@@ -263,12 +383,113 @@ function renderBatch(rows) {
     .join("\n");
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WS-SPINE P1-2 — THE INDIA LAYER'S WRITE SIDE (vy_kin, vy_ritual)
+//
+// src/engine/india.ts has had `writeKin` and `recordRitualOccurrence` since
+// M4 and NOTHING HAS EVER CALLED THEM (`never-scheduled`: vy_kin 0 rows,
+// vy_ritual 0 rows). `dead-writers` in its purest form. This section is the
+// caller, and it is built precision-first for one reason stated plainly:
+//
+//   A WRONG MOTHER'S NAME IS WORSE THAN NO MOTHER'S NAME.
+//
+// A fact she gets wrong is a fact; a KIN row she gets wrong is a person she
+// will address by name, in the wrong relation, for months, and the correction
+// costs the user more than the memory was ever worth. So the bar here is
+// deliberately higher than the bar for `facts` above, and it is enforced in
+// FOUR independent layers, none of which is the model's own confidence:
+//
+//   1. WRITER WINDOW (same as facts): segments must index the numbered batch.
+//   2. VERBATIM EVIDENCE: the model must return the exact source substring it
+//      read the relation off. `evidenceInBatch` checks it really is a
+//      substring of the cited rows' own text. A model that paraphrases its
+//      evidence has, by definition, not got one.
+//   3. EXPLICIT RELATIONAL ANCHORING: the evidence must carry a FIRST-PERSON
+//      possessive bound to a kin word (`meri maa`, `my mother`, `apni behen`).
+//      A bare "maa ka phone aaya" is not enough — whose maa?
+//   4. THIRD-PARTY VETO: the evidence must NOT carry someone else's
+//      possessive (`uski maa`, `Rohit ki maa`, `his mother`, `dost ki`). This
+//      is the trap case the eval fixture drives: a friend's mother mentioned
+//      by name in his own words must never become HIS kin. The veto runs
+//      AFTER the anchor check and overrides it, because "meri dost ki maa"
+//      satisfies both and is a third party.
+//
+// Everything that survives all four is still written `provisional = true`
+// (migration 014). Provisional means: derived, never confirmed by him. The T3
+// reader renders it hedged, and a later contradiction supersedes it without a
+// user ever having been told a wrong thing as a certainty.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Closed vocabulary. A relation the model invents is a relation nobody can
+ *  render, and role-labelling is the whole point of vy_kin (`chachi != mausi
+ *  != bua` — that column's own schema comment). */
+export const KIN_RELATIONS = [
+  "maa", "papa", "bhai", "behen", "beta", "beti", "patni", "pati",
+  "nani", "nana", "dadi", "dada", "chacha", "chachi", "mama", "mami",
+  "mausi", "mausa", "bua", "fufa", "bhabhi", "jija", "saas", "sasur",
+  "cousin", "in-law",
+];
+
+/** vy_ritual.key's own closed set (migration 004's column comment). */
+export const RITUAL_KEYS = ["khana_khaya", "good_morning", "match_checkin"];
+
+// Layer 3. First-person possessive bound to a kin word, within a short window
+// so "meri behen ne kaha ki uske dost ki maa" does not let the leading "meri"
+// license the trailing "maa". Devanagari and Latin, since meera_log carries
+// both (CORPUS_COMMON_PHRASES above is half Devanagari for the same reason).
+const KIN_WORD_RE =
+  "(maa|maa?n|mummy|mom|mother|papa|dad|father|pita|bhai|brother|behen|behn|sister|beta|beti|nani|nana|dadi|dada|chacha|chachi|mama|mami|mausi|mausa|bua|fufa|bhabhi|jija|saas|sasur|wife|husband|patni|pati|माँ|मां|पापा|भाई|बहन|नानी|दादी|चाचा|चाची|मौसी|बुआ)";
+const FIRST_PERSON_POSSESSIVE_RE = new RegExp(
+  `\\b(meri|mera|mere|apni|apna|apne|my|hamari|hamara|मेरी|मेरा|मेरे|अपनी|अपने)\\b(\\W+\\w+){0,2}\\W+${KIN_WORD_RE}\\b`,
+  "i",
+);
+// Layer 4. Any of these anywhere in the evidence vetoes the row outright.
+// `\w+ (ki|ka|ke) <kinword>` catches "Rohit ki maa" — a NAMED third party,
+// which is the single most likely shape of the trap.
+const THIRD_PARTY_POSSESSIVE_RE = new RegExp(
+  `(\\b(uski|uska|uske|unki|unka|unke|his|her|their|उसकी|उसका|उसके|उनकी|उनके)\\b` +
+    `|\\b(dost|friend|colleague|boss|neighbour|neighbor|padosi|bhabhi ke|sir|ma'?am|दोस्त)\\b\\W+(ki|ka|ke|'s|की|का|के)\\b` +
+    `|\\b\\w+\\b\\s+(ki|ka|ke|की|का|के)\\s+${KIN_WORD_RE}\\b\\s*(ki|ka|ke|की|का|के)?)`,
+  "i",
+);
+
+function normalizeForEvidence(s) {
+  return String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** Layer 2. True only when `evidence` really is a contiguous substring of the
+ *  cited rows' own content — the anti-fabrication check that makes layers 3
+ *  and 4 mean anything (they lint the EVIDENCE, so a made-up evidence string
+ *  could otherwise be written to pass them). */
+export function evidenceInBatch(evidence, rows) {
+  const e = normalizeForEvidence(evidence);
+  if (e.length < 6) return false; // "maa" alone is not evidence of anything
+  return (Array.isArray(rows) ? rows : []).some((r) => normalizeForEvidence(r?.content).includes(e));
+}
+
+/** Layers 3 + 4, pure and exported so the kin-precision eval (including the
+ *  friend's-mother trap) drives the REAL predicate rather than a restatement
+ *  of it. Returns the reason it failed, or "" when the evidence is admissible. */
+export function kinAnchorFailure(evidence) {
+  const e = String(evidence || "");
+  if (THIRD_PARTY_POSSESSIVE_RE.test(e)) return "third-party possessive: this kin belongs to someone else";
+  if (!FIRST_PERSON_POSSESSIVE_RE.test(e)) return "no first-person relational anchor in the source text";
+  return "";
+}
+
 function extractionPrompt(batchText, lastIndex) {
   return `You are segmenting a real conversation log into episodes and deriving cited facts, for a companion app's long-term memory. Reply with ONLY JSON:
 {"episodes":[{"from":0,"to":4,"channel":"chat|call","reason":"gap|channel|topic|affect|goal|session","summary":"telegraphic note, <=18 words, no terminal punctuation, third person","affect":[{"tag":"warm|stressed|excited|sad|teasing|bored|anxious|content","intensity":0.0}],"importance":"low|medium|high"}],
-"facts":[{"kind":"user|world|self_in_relation|relationship|india|meera","name":"short lowercase label","body":"telegraphic note, <=18 words, third person, no terminal punctuation","feel":"their own words for how it felt, or empty string","segments":[0]}]}
+"facts":[{"kind":"user|world|self_in_relation|relationship|india|meera","name":"short lowercase label","body":"telegraphic note, <=18 words, third person, no terminal punctuation","feel":"their own words for how it felt, or empty string","segments":[0]}],
+"kin":[{"name":"the person's name as written","relation":"${KIN_RELATIONS.join("|")}","address_term":"what HE calls them, or empty string","fictive":false,"segments":[0],"evidence":"the EXACT words from the log that say this person is HIS relative, copied character for character"}],
+"rituals":[{"key":"${RITUAL_KEYS.join("|")}","segments":[0],"evidence":"the EXACT words from the log showing this recurring exchange happened, copied character for character"}]}
 
 RULES, hard:
+- "kin" and "rituals" are almost always EMPTY ARRAYS. That is the correct answer. Propose one only when the log says it outright.
+- "kin": ONLY people who are THIS user's own relatives, stated by him in his own words ("meri maa", "my sister", "apni nani"). A relative of somebody ELSE — his friend's mother, a colleague's brother, someone in a story he is retelling — is NEVER kin. If you cannot tell whose relative it is, leave it out.
+- "evidence" must be COPIED VERBATIM from a numbered line below. Do not paraphrase it, do not clean it up, do not translate it. An evidence string that is not literally in the log is discarded and so is everything attached to it.
+- "rituals": only the recurring exchanges named in the key list — khana_khaya (asking whether the other has eaten), good_morning (a daily first-message greeting), match_checkin (checking in about a cricket match). Never invent a key.
+- "from"/"to" in "episodes" and every number in "segments" MUST be indices into the numbered log below — never invent a number outside [0, ${lastIndex}].
 - "from"/"to" in "episodes" and every number in "segments" MUST be indices into the numbered log below — never invent a number outside [0, ${lastIndex}].
 - Every fact's "segments" must be non-empty and point only at episode indices you actually proposed (by their position in the "episodes" array, 0-based).
 - "importance": compare the episode's WEIGHT to these anchors, pick the closest —
@@ -283,6 +504,109 @@ RULES, hard:
 
 LOG (numbered, [gap Nm] marks a real time gap):
 ${batchText}`;
+}
+
+/**
+ * The four precision layers, applied. PURE and exported: the kin-precision
+ * eval (evals/consolidation/kin-precision.mjs, including the friend's-mother
+ * trap) drives THIS function, not a restatement of it.
+ *
+ * @param parsed          the model's whole JSON reply
+ * @param batch           the numbered log batch it was given (watch-free)
+ * @param episodeIdByIdx  proposal index -> real episode id, from the episode
+ *                        writer window; a kin row citing a REJECTED episode
+ *                        has no anchor and is dropped, exactly as a fact is
+ * @param rxs             meera_forget suppression regexes
+ * @param spanByIdx       proposal index -> {logFrom, logTo}; narrows the text
+ *                        an evidence string may have been copied from to the
+ *                        rows the proposal actually cited
+ */
+export function acceptKinProposals(parsed, batch, episodeIdByIdx, rxs = [], spanByIdx = new Map()) {
+  const kin = [];
+  const rituals = [];
+  const rejected = [];
+
+  const cited = (segments) => {
+    const idxs = Array.isArray(segments) ? segments.filter((n) => Number.isInteger(n)) : [];
+    return [...new Set(idxs.map((i) => episodeIdByIdx.get(i)).filter((v) => v != null))];
+  };
+  // The rows a proposal's own citations point at — the ONLY text its evidence
+  // may have come from. Checking the evidence against the whole batch would
+  // let a model cite episode 0 and quote episode 4.
+  const rowsFor = (segments) => {
+    const idxs = Array.isArray(segments) ? segments.filter((n) => Number.isInteger(n)) : [];
+    const out = [];
+    for (const i of idxs) {
+      const span = spanByIdx.get(i);
+      if (span) out.push(...batch.filter((r) => r.id >= span.logFrom && r.id <= span.logTo));
+    }
+    // No span mapping supplied (a caller that only has ids): fall back to the
+    // whole batch, which is still a real watch-free source-text check — never
+    // to "accept it anyway".
+    return out.length ? out : batch;
+  };
+
+  for (const k of Array.isArray(parsed?.kin) ? parsed.kin.slice(0, 4) : []) {
+    const citations = cited(k?.segments);
+    const name = String(k?.name || "").trim().slice(0, 60);
+    const relation = String(k?.relation || "").trim().toLowerCase();
+    const evidence = String(k?.evidence || "");
+    if (!citations.length) { rejected.push({ kind: "kin", name, why: "no accepted episode cited" }); continue; }
+    if (!name || name.length < 2) { rejected.push({ kind: "kin", name, why: "no name" }); continue; }
+    if (!KIN_RELATIONS.includes(relation)) { rejected.push({ kind: "kin", name, why: `relation "${relation}" outside the closed set` }); continue; }
+    if (!evidenceInBatch(evidence, rowsFor(k?.segments))) {
+      rejected.push({ kind: "kin", name, why: "evidence is not verbatim in the cited source" });
+      continue;
+    }
+    const anchorWhy = kinAnchorFailure(evidence);
+    if (anchorWhy) { rejected.push({ kind: "kin", name, why: anchorWhy }); continue; }
+    // The NAME must appear in the source too, not only the relation. A model
+    // that read "meri maa" correctly and then supplied a name from nowhere is
+    // this section's exact failure mode, and layers 2-4 alone do not catch it:
+    // they lint the evidence string, and the evidence string can be perfectly
+    // genuine while the `name` field beside it is invented.
+    //
+    // Two ways to satisfy it, because `evidenceInBatch` has a >=6-character
+    // floor (a 3-letter "maa" is not evidence of anything) and real names are
+    // often shorter than that: either the name is long enough to be looked up
+    // in the source rows directly, or it appears inside the evidence string —
+    // which was itself already proven verbatim in those same rows, so the
+    // grounding is equally real either way.
+    const nameInSource =
+      evidenceInBatch(name, rowsFor(k?.segments)) ||
+      normalizeForEvidence(evidence).includes(normalizeForEvidence(name));
+    if (!nameInSource) {
+      rejected.push({ kind: "kin", name, why: "name does not appear in the cited source" });
+      continue;
+    }
+    if (suppressed(name, rxs) || suppressed(evidence, rxs)) {
+      rejected.push({ kind: "kin", name, why: "suppressed by meera_forget" });
+      continue;
+    }
+    kin.push({
+      name,
+      relation,
+      fictive: k?.fictive === true,
+      address_term: String(k?.address_term || "").trim().slice(0, 40),
+      citations,
+      evidence,
+    });
+  }
+
+  for (const r of Array.isArray(parsed?.rituals) ? parsed.rituals.slice(0, 3) : []) {
+    const citations = cited(r?.segments);
+    const key = String(r?.key || "").trim().toLowerCase();
+    const evidence = String(r?.evidence || "");
+    if (!citations.length) { rejected.push({ kind: "ritual", name: key, why: "no accepted episode cited" }); continue; }
+    if (!RITUAL_KEYS.includes(key)) { rejected.push({ kind: "ritual", name: key, why: "key outside the closed set" }); continue; }
+    if (!evidenceInBatch(evidence, rowsFor(r?.segments))) {
+      rejected.push({ kind: "ritual", name: key, why: "evidence is not verbatim in the cited source" });
+      continue;
+    }
+    rituals.push({ key, citations, evidence });
+  }
+
+  return { kin, rituals, rejected };
 }
 
 async function auditJudge(factBody, episodeSummaries, sourceLines) {
@@ -302,9 +626,20 @@ ${sourceLines.join("\n")}`;
 /** Finalize one person: the whole nightly pass, scoped to their stale
  *  provisional window. Returns a per-person report for the run summary. */
 async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
-  const rep = { person, log_rows: 0, episodes: 0, facts: 0, rejected_episodes: 0, rejected_facts: 0, audited: 0, refuted: 0, superseded_episodes: 0, superseded_facts: 0 };
+  const rep = { person, log_rows: 0, episodes: 0, facts: 0, rejected_episodes: 0, rejected_facts: 0, audited: 0, refuted: 0, superseded_episodes: 0, superseded_facts: 0, kin: 0, kin_rejected: 0, rituals: 0, rituals_rejected: 0, kin_errors: [] };
   const batch = await fetchLogBatch(person);
   if (!batch.length) return rep;
+  // Layer 2 of the watch contract, asserted rather than assumed at the ONE
+  // place it would matter: everything below — the prompt, the spans, the
+  // citations — is built out of `batch`. `fetchLogBatch` already strips these
+  // rows in both SQL and JS; if a third path ever produces one, this is where
+  // the run stops instead of minting a screen-derived fact.
+  const smuggled = batch.filter((r) => r.channel === WATCH_CHANNEL).length;
+  if (smuggled) {
+    rep.watch_rows_smuggled = smuggled;
+    console.error(`[consolidate] ${smuggled} watch rows reached the batch for ${person} — refusing to derive`);
+    return rep;
+  }
   rep.log_rows = batch.length;
   const inputFrom = batch[0].id;
   const inputTo = batch[batch.length - 1].id;
@@ -519,6 +854,75 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
     }
   }
 
+  // ── P1-2: the india layer's write side (vy_kin / vy_ritual) ──
+  // Runs for dry runs too, up to the acceptance boundary: the WHOLE value of
+  // a dry run over a first-ever backlog is seeing what the precision layers
+  // would have accepted before anything durable exists.
+  {
+    const spanByIdx = new Map([...acceptedEpIdx.entries()].map(([idx, e]) => [idx, { logFrom: e.logFrom, logTo: e.logTo }]));
+    const { kin, rituals, rejected } = acceptKinProposals(parsed, batch, episodeIdByIdx, rxs, spanByIdx);
+    rep.kin_rejected = rejected.filter((r) => r.kind === "kin").length;
+    rep.rituals_rejected = rejected.filter((r) => r.kind === "ritual").length;
+    rep.kin_reasons = rejected.slice(0, 6);
+    if (dryRun) {
+      rep.kin = kin.length;
+      rep.rituals = rituals.length;
+    } else if (kin.length || rituals.length) {
+      // india.ts is CLIENT-BUNDLED TypeScript and this is a plain-JS
+      // serverless function under the zero-imports-from-src rule, so the
+      // writers arrive through api/_engine.gen.js — the same seam the self
+      // layer already uses, and for the same stated reason: hand-porting
+      // writeKin's upsert into JS would be a second definition of what a kin
+      // row IS, and it would drift on the first edit to either copy.
+      const engine = await loadSelfEngine();
+      if (!engine?.writeKin) {
+        rep.kin_errors.push("engine bundle missing writeKin — india layer skipped, not approximated");
+      } else {
+        for (const k of kin) {
+          try {
+            await engine.writeKin(
+              q,
+              {
+                person_id: person,
+                name: k.name,
+                relation: k.relation,
+                fictive: k.fictive,
+                address_term: k.address_term,
+                citations: k.citations,
+                // migration 014. Derived, never confirmed by him — the T3
+                // reader hedges it and a contradiction supersedes it without
+                // anyone ever having been told a wrong thing as a certainty.
+                provisional: true,
+              },
+              agentId,
+            );
+            rep.kin++;
+          } catch (e) {
+            // NOT a .catch(() => {}) swallow. `relstate-zero-rows` is this
+            // repo's most expensive recurring bug and every instance of it
+            // was a writer failing quietly; a kin write that cannot land must
+            // say so in the run report where a first-run operator will read it.
+            rep.kin_errors.push(`kin ${k.name}: ${String(e?.message || e).slice(0, 140)}`);
+          }
+        }
+        for (const r of rituals) {
+          try {
+            // last_at = now() (recordRitualOccurrence's own shape) rather than
+            // the occurrence's real timestamp: consolidation runs within the
+            // hour, and the error direction is SAFE — a ritual stamped later
+            // than it happened is due later, i.e. she asks less often, never
+            // more. Noted rather than worked around; changing that signature
+            // is india.ts's owner's call, not a consolidation-side patch.
+            await engine.recordRitualOccurrence(q, person, r.key, r.citations[0], false, agentId);
+            rep.rituals++;
+          } catch (e) {
+            rep.kin_errors.push(`ritual ${r.key}: ${String(e?.message || e).slice(0, 140)}`);
+          }
+        }
+      }
+    }
+  }
+
   // ── entailment audit ──
   if (!dryRun && auditPool.length) {
     const epSummaryByIdx = new Map([...acceptedEpIdx.entries()].map(([idx, e]) => [idx, e.summary]));
@@ -577,6 +981,71 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
   }
 
   return rep;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WS-SPINE P2-2 — WATCH EPISODES FINALIZE DETERMINISTICALLY, OR NOT AT ALL
+//
+// api/episodes.js opens a watch episode with `summary = ''` and NULL
+// log_from/log_to (its own header explains why: meera_log carried no watch
+// rows). `finalizePerson` cannot touch such a row — every path it has runs off
+// a meera_log span — so before this function existed a watch episode stayed
+// `provisional = true` forever and re-pinned its person in
+// `findEligiblePersons` on every sweep, permanently. That is not a cost bug,
+// it is a STARVATION bug: with a bounded per-invocation person budget the same
+// pinned people are selected every hour and the queue behind them never runs.
+//
+// WHAT IT WRITES: nothing derived from content. A watch episode's summary is
+// built from COUNTED rows in vy_shared_moment — objects api/episodes.js wrote
+// from a real reaction of hers, never from OCR — and the count is all that
+// reaches the string. No LLM, no claim about what was on screen, nothing that
+// could be recited. The episode becomes final so it stops pinning, carries no
+// facts, and is excluded from every derivation batch below.
+//
+// QUIET WINDOW: WATCH_FINALIZE_QUIET_MS deliberately EXCEEDS api/episodes.js's
+// GAP_MS (45m). Finalizing at the 30-minute FINALIZE_QUIET_MS would race the
+// live lane: `openOrExtendEpisode` looks for a PROVISIONAL row within 45
+// minutes, so finalizing at 30 would fragment a session that was still going
+// into two episodes for no reason.
+const WATCH_FINALIZE_QUIET_MS = 60 * 60_000; // > api/episodes.js GAP_MS (45m)
+
+export function watchEpisodeSummary(momentCount) {
+  const n = Math.max(0, Number(momentCount) || 0);
+  return n > 0 ? `watched together, ${n} shared moment${n === 1 ? "" : "s"}` : "watched together";
+}
+
+/** Finalize (or exclude) this person's quiet watch episodes. Agent-scoped on
+ *  every statement — vy_episode is (agent x person) state and a second agent's
+ *  watch session is not this agent's to close. */
+export async function finalizeWatchEpisodes(person, { dryRun = false, agentId = MEERA_AGENT_ID, queryFn = q } = {}) {
+  const rows = await queryFn(
+    `select e.id from vy_episode e
+      where e.person_id = $1 and e.provisional = true and e.superseded_by is null
+        and e.group_id is null and e.channel = '${WATCH_CHANNEL}'
+        and e.ended_at < now() - ($2 || ' milliseconds')::interval
+        ${agentScopePredicate("e", { agentId: "$3" })}
+      order by e.id asc limit 50`,
+    [person, String(WATCH_FINALIZE_QUIET_MS), agentId],
+  ).catch(() => []);
+  if (!rows.length || dryRun) return rows.length;
+  let done = 0;
+  for (const r of rows) {
+    const moments = await queryFn(
+      `select count(*)::int as n from vy_shared_moment m
+        where m.episode_id = $1 and m.person_id = $2
+        ${agentScopePredicate("m", { agentId: "$3" })}`,
+      [r.id, person, agentId],
+    ).catch(() => []);
+    const upd = await queryFn(
+      `update vy_episode e set provisional = false, summary = $2
+        where e.id = $1 and e.provisional = true
+        ${agentScopePredicate("e", { agentId: "$3" })}
+        returning e.id`,
+      [r.id, watchEpisodeSummary(moments[0]?.n ?? 0), agentId],
+    ).catch(() => []);
+    done += upd.length;
+  }
+  return done;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -649,7 +1118,7 @@ const padT = (s) =>
 const TU_MARKERS = [" tu ", " tera ", " teri ", " tere ", " tujhe ", " tujhko "];
 const AAP_MARKERS = [" aap ", " aapka ", " aapki ", " aapke ", " aapko ", " aapse "];
 const TUM_MARKERS = [" tum ", " tumhe ", " tumhara ", " tumhari ", " tumhare ", " tumko "];
-function detectAddressTerm(text) {
+export function detectAddressTerm(text) {
   const hay = padT(String(text || ""));
   const candidates = [
     [AAP_MARKERS, "aap"],
@@ -679,7 +1148,7 @@ const HONORIFIC_ORDER = { aap: 0, tum: 1, tu: 2 };
 const HONORIFIC_MIN_EPISODES = 3;
 const HONORIFIC_MIN_SPAN_DAYS = 7;
 const MS_PER_DAY = 86_400_000;
-function honorificShift(current, evidence, ruptureOpen, now = new Date()) {
+export function honorificShift(current, evidence, ruptureOpen, now = new Date()) {
   if (ruptureOpen && HONORIFIC_ORDER[current] > HONORIFIC_ORDER.aap) {
     const next = current === "tu" ? "tum" : "aap";
     return { next, direction: "regress", citations: [], note: `rupture: regress ${current}->${next}` };
@@ -730,10 +1199,16 @@ async function refreshDerivedDims(person, agentId = MEERA_AGENT_ID) {
   const pattern = HINDI_MARKER_WORDS.map((w) => `\\m${w}\\M`).join("|");
   const [csRows, ritualRows, pacingRows] = await Promise.all([
     q(
+      // WATCH CONTRACT: a code-switch ratio sampled over screen-derived text
+      // measures the language of whatever he was READING, not the register he
+      // writes to her in — and cs_ratio is exactly the dial that decides how
+      // much Hindi she answers in. An English-heavy work screen would quietly
+      // switch her out of Hinglish.
       `with recent as (
          select l.content from meera_log l
          join vy_person_device d on d.device_id = l.device_id
          where d.person_id = $1 and l.role = 'me'
+           ${WATCH_EXCLUDE_SQL}
          order by l.at desc limit 200
        )
        select count(*)::int as total, count(*) filter (where content ~* $2)::int as hindi_hits
@@ -797,8 +1272,14 @@ const RELDERIVE_LOOKBACK_H = 30;
 
 async function findPersonsWithFreshEpisodes(limit, agentId = MEERA_AGENT_ID) {
   const rows = await q(
+    // WATCH CONTRACT: a finalized watch episode (P2-2) carries a counted,
+    // content-free summary and no facts. It is not evidence of anything a
+    // derivation below reads, and admitting it here would put "watched
+    // together, 3 shared moments" into the trust and pattern prompts as if it
+    // were something that was said.
     `select distinct e.person_id from vy_episode e
       where e.provisional = false and e.group_id is null
+        and e.channel is distinct from '${WATCH_CHANNEL}'
         and e.created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
         ${agentScopePredicate("e", { agentId: "$2" })}
       order by e.person_id limit $1`,
@@ -816,6 +1297,7 @@ async function deriveRelEventsForPerson(person, { dryRun = false, agentId = MEER
   const episodes = await q(
     `select e.id, e.log_from, e.log_to, e.started_at from vy_episode e
       where e.person_id = $1 and e.provisional = false and e.group_id is null
+        and e.channel is distinct from '${WATCH_CHANNEL}' -- WATCH CONTRACT
         and e.created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
         and e.log_from is not null and e.log_to is not null
         ${agentScopePredicate("e", { agentId: "$2" })}
@@ -867,13 +1349,21 @@ async function deriveRelEventsForPerson(person, { dryRun = false, agentId = MEER
       // bug" note above was simply never true. The stale claim is removed;
       // this query and refreshDerivedDims's `l.role = 'me'` filter are both
       // already correct as written — no SQL changed.
-      `select content, at from meera_log
-        where device_id in (select device_id from vy_person_device where person_id = $1
+      // WATCH CONTRACT: an "aap" read off a form on his screen is not him
+      // choosing how to address her. The honorific is the single most
+      // relationship-defining value this file writes and it moves on
+      // accumulated evidence, so a stretch of screen text in the wrong
+      // register could advance or regress it with nobody having said a word.
+      // `l.channel` is projected only so layer 2 can see it — a strip that
+      // cannot read the column it filters on is a strip that always passes.
+      `select l.content, l.at, l.channel from meera_log l
+        where l.device_id in (select device_id from vy_person_device where person_id = $1
                              union select $1::uuid)
-          and role = 'me' and id between $2 and $3`,
+          and l.role = 'me' and l.id between $2 and $3
+          ${WATCH_EXCLUDE_SQL}`,
       [person, ep.log_from, ep.log_to],
     ).catch(() => []);
-    for (const r of rows) {
+    for (const r of stripWatchRows(rows)) {
       const term = detectAddressTerm(r.content);
       if (term) evidence.push({ term, episodeId: ep.id, at: r.at });
     }
@@ -1096,6 +1586,7 @@ async function fetchFreshEpisodesForPerson(person, limitN = TRUST_REPAIR_MAX_EPI
   return q(
     `select e.id, e.log_from, e.log_to, e.started_at, e.summary, e.affect_tags, e.importance from vy_episode e
       where e.person_id = $1 and e.provisional = false and e.group_id is null
+        and e.channel is distinct from '${WATCH_CHANNEL}' -- WATCH CONTRACT
         and e.created_at > now() - interval '${RELDERIVE_LOOKBACK_H} hours'
         ${agentScopePredicate("e", { agentId: "$3" })}
       order by e.started_at asc limit $2`,
@@ -1111,6 +1602,7 @@ async function fetchHistoryEpisodesForPerson(person, { days = PATTERN_LOOKBACK_D
   return q(
     `select e.id, e.log_from, e.log_to, e.started_at, e.summary, e.affect_tags, e.importance from vy_episode e
       where e.person_id = $1 and e.provisional = false and e.group_id is null and e.superseded_by is null
+        and e.channel is distinct from '${WATCH_CHANNEL}' -- WATCH CONTRACT
         and e.started_at > now() - interval '${days} days'
         ${agentScopePredicate("e", { agentId: "$3" })}
       order by e.started_at asc limit $2`,
@@ -1154,13 +1646,114 @@ EPISODES (numbered, dated, affect-tagged where known):
 ${batchText}`;
 }
 
-/** One person's trust/rupture/repair pass: extract, validate citations
- *  against the numbered batch, apply the mirrored state machine, write AT
- *  MOST one rupture/repair event and one trust event per run (the state
+// ── THE SAME EVIDENCE MAY NOT MOVE TRUST TWICE (WS-JUDGEWORK, 2026-08-23) ──
+//
+// This writer was designed against a NIGHTLY cadence. The only mechanism that
+// actually runs it today is the HOURLY sweep (docs/CONSOLIDATION.md: "the only
+// live mechanism"), and `fetchFreshEpisodesForPerson` looks back 30 hours — so
+// the same person's same finalized episodes are handed to the same prompt
+// repeatedly, and a model that read a real trust move off them once reads it
+// again every time. `clampTrustDelta` bounds the VALUE (±0.05/day) but not the
+// ROW COUNT: the arithmetic stayed honest while `vy_rel_event` filled with
+// near-zero-delta trust rows all citing the identical episodes.
+//
+// The rule is this file's own citation law applied to re-derivation: a trust
+// move must cite at least one episode that did not already move trust. Not a
+// timestamp cooldown — a cooldown says "too soon", which is a guess about
+// cadence; this says "nothing new happened", which is a statement about
+// evidence and is the only version that stays true if the cadence changes
+// again. Pure and exported so the precision fixtures drive the shipping rule.
+export function trustEvidenceIsNew(priorCitations, citations) {
+  const have = new Set((priorCitations ?? []).map(Number));
+  return (citations ?? []).some((c) => !have.has(Number(c)));
+}
+
+/** ── THE TRUST/REPAIR ACCEPTANCE LAYER, EXTRACTED PURE ─────────────────────
+ *
+ *  Everything between "the model answered" and "a row is written" — the
+ *  state-machine move, the writer-window citation mapping, the note choice,
+ *  the rate limiter and the new-evidence rule — with no database, no clock
+ *  the caller cannot set, and no LLM. Same reasoning `phraseCandidates`
+ *  states for itself: the precision fixtures must drive the SHIPPING logic
+ *  rather than a restatement of it, and before this extraction the only
+ *  testable pieces were the two mirrored primitives, never their composition.
+ *
+ *  `state` is `{ trust, ruptureOpen, repairState }` as read from
+ *  `vy_rel_state` (absent row = the schema defaults, matching relstate.ts's
+ *  `initialRelState()`). Returns the rows to write plus a REASON for every
+ *  refusal — a signal dropped silently is indistinguishable from one that was
+ *  never proposed, which is how a writer that produces nothing looks healthy.
+ */
+export function acceptTrustRepair(parsed, episodes, state = {}, opts = {}) {
+  const { lastTrustMoveAt = null, priorTrustCitations = [], stanceLapsed = false, now = new Date() } = opts;
+  const out = { ruptureRepair: null, trust: null, rejected: [] };
+  const ruptureOpen = Boolean(state.ruptureOpen);
+  const repairState = state.repairState ?? "none";
+  const currentTrust = Number.isFinite(Number(state.trust)) ? Number(state.trust) : 0.3;
+
+  // ── rupture/repair: one state-machine move at most, mirrored exactly ──
+  const conflictSignal = Boolean(parsed?.rupture?.present);
+  const repairSignal = Boolean(parsed?.repair_signal?.present);
+  if (conflictSignal || repairSignal) {
+    const move = ruptureRepairShift({ ruptureOpen, repairState }, conflictSignal, repairSignal, stanceLapsed);
+    if (!move) {
+      out.rejected.push({ dim: "rupture/repair", reason: "state machine proposes no move from this state" });
+    } else {
+      const citeSource =
+        move.dim === "rupture" || move.direction === "regress" ? parsed?.rupture?.citations : parsed?.repair_signal?.citations;
+      const citations = mapEpisodeCitations(citeSource, episodes);
+      if (!citations.length) {
+        out.rejected.push({ dim: move.dim, reason: "no proposed citation survives the writer window" });
+      } else {
+        const note = move.dim === "rupture" ? parsed?.rupture?.note : parsed?.repair_signal?.note ?? parsed?.rupture?.note;
+        out.ruptureRepair = {
+          dim: move.dim,
+          fromV: move.dim === "rupture" ? (ruptureOpen ? "open" : "closed") : repairState,
+          toV: move.dim === "rupture" ? "open" : move.repairState,
+          direction: move.direction,
+          note: telegraphic(note || move.note, 160),
+          citations,
+          ruptureOpen: move.ruptureOpen,
+          repairState: move.repairState,
+        };
+      }
+    }
+  }
+
+  // ── trust: independent scalar dim, rate-limited by clampTrustDelta ──
+  if (parsed?.trust_move?.present) {
+    const citations = mapEpisodeCitations(parsed.trust_move.citations, episodes);
+    if (!citations.length) {
+      out.rejected.push({ dim: "trust", reason: "no proposed citation survives the writer window" });
+    } else if (!trustEvidenceIsNew(priorTrustCitations, citations)) {
+      out.rejected.push({ dim: "trust", reason: "every cited episode already moved trust — the evidence is not new" });
+    } else {
+      const sign = parsed.trust_move.direction === "decrease" ? -1 : 1;
+      const move = moveTrust(currentTrust, sign * TRUST_STEP, lastTrustMoveAt, now);
+      if (move.delta === 0) {
+        out.rejected.push({ dim: "trust", reason: "rate limit or 0..1 ceiling leaves no movement" });
+      } else {
+        out.trust = {
+          fromV: currentTrust.toFixed(3),
+          toV: move.next.toFixed(3),
+          direction: move.direction,
+          note: telegraphic(parsed.trust_move.note, 160),
+          citations,
+          next: move.next,
+        };
+      }
+    }
+  }
+  return out;
+}
+
+/** One person's trust/rupture/repair pass: extract, hand the model's answer
+ *  to `acceptTrustRepair` (the whole decision, pure), write what it accepts.
+ *  AT MOST one rupture/repair event and one trust event per run (the state
  *  machine itself only ever proposes one rupture/repair move at a time).
  *  Returns a per-person report for the run summary. */
 async function deriveTrustRepairForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
-  const rep = { person, episodes_scanned: 0, trust_moved: false, rupture_or_repair_moved: false };
+  const rep = { person, episodes_scanned: 0, trust_moved: false, rupture_or_repair_moved: false, rejected: [] };
   const episodes = await fetchFreshEpisodesForPerson(person, TRUST_REPAIR_MAX_EPISODES, agentId);
   rep.episodes_scanned = episodes.length;
   if (!episodes.length) return rep;
@@ -1182,76 +1775,73 @@ async function deriveTrustRepairForPerson(person, { dryRun = false, agentId = ME
   const inputTo = Math.max(...episodes.map((e) => e.log_to ?? -Infinity).filter(Number.isFinite));
   let wrote = [];
 
-  // ── rupture/repair: one state-machine move at most, mirrored exactly ──
-  const conflictSignal = Boolean(parsed?.rupture?.present);
-  const repairSignal = Boolean(parsed?.repair_signal?.present);
-  if (conflictSignal || repairSignal) {
-    // record-vs-stance split (rejected.md `rupture-never-closes`): lets a
-    // fresh conflict re-open a rupture whose repair_state got stuck at
-    // "open" forever (no repair signal ever arrived) once the STANCE has
-    // already lapsed by time/warm-interaction — see ruptureRepairShift's
-    // own comment on the branch this feeds.
-    const stanceLapsed = conflictSignal
-      ? await ruptureStanceLapsedFor(person, agentId, ruptureOpen, repairState, episodes[0].started_at)
-      : false;
-    const move = ruptureRepairShift({ ruptureOpen, repairState }, conflictSignal, repairSignal, stanceLapsed);
-    if (move) {
-      const citeSource = move.dim === "rupture" || move.direction === "regress" ? parsed?.rupture?.citations : parsed?.repair_signal?.citations;
-      const citations = mapEpisodeCitations(citeSource, episodes);
-      if (citations.length) {
-        rep.rupture_or_repair_moved = true;
-        if (!dryRun) {
-          const fromV = move.dim === "rupture" ? (ruptureOpen ? "open" : "closed") : repairState;
-          const toV = move.dim === "rupture" ? "open" : move.repairState;
-          const note = move.dim === "rupture" ? parsed?.rupture?.note : parsed?.repair_signal?.note ?? parsed?.rupture?.note;
-          await q(
-            `insert into vy_rel_event (agent_id, person_id, dim, from_v, to_v, direction, note, citations)
-             values (${agentValue("$8")},$1,$2,$3,$4,$5,$6,$7)`,
-            [person, move.dim, fromV, toV, move.direction, telegraphic(note || move.note, 160), citations, agentId],
-          ).catch(() => {});
-          // MIGRATED ARBITER (010 precondition)
-          await q(
-            `insert into vy_rel_state (agent_id, person_id, rupture_open, repair_state)
-             values (${agentValue("$4")},$1,$2,$3)
-             on conflict (agent_id, person_id) do update set rupture_open = $2, repair_state = $3`,
-            [person, move.ruptureOpen, move.repairState, agentId],
-          ).catch(() => {});
-          wrote.push({ table: "vy_rel_event", dim: move.dim });
-        }
-      }
-    }
-  }
-
-  // ── trust: independent scalar dim, rate-limited by clampTrustDelta ──
-  if (parsed?.trust_move?.present) {
-    const citations = mapEpisodeCitations(parsed.trust_move.citations, episodes);
-    if (citations.length) {
-      const lastTrustRows = await q(
-        `select e.at from vy_rel_event e where e.person_id = $1 and e.dim = 'trust'
+  // record-vs-stance split (rejected.md `rupture-never-closes`): lets a fresh
+  // conflict re-open a rupture whose repair_state got stuck at "open" forever
+  // (no repair signal ever arrived) once the STANCE has already lapsed by
+  // time/warm-interaction — see ruptureRepairShift's own comment on the
+  // branch this feeds. Queried only when a conflict was actually proposed.
+  const stanceLapsed = parsed?.rupture?.present
+    ? await ruptureStanceLapsedFor(person, agentId, ruptureOpen, repairState, episodes[0].started_at)
+    : false;
+  // The last trust event's TIMESTAMP feeds the rate limiter; its CITATIONS
+  // feed the new-evidence rule above. One row, both jobs, one query.
+  const lastTrustRows = parsed?.trust_move?.present
+    ? await q(
+        `select e.at, e.citations from vy_rel_event e where e.person_id = $1 and e.dim = 'trust'
           ${agentScopePredicate("e", { agentId: "$2" })}
           order by e.at desc limit 1`,
         [person, agentId],
-      ).catch(() => []);
-      const lastMoveAt = lastTrustRows[0]?.at ?? null;
-      const sign = parsed.trust_move.direction === "decrease" ? -1 : 1;
-      const move = moveTrust(currentTrust, sign * TRUST_STEP, lastMoveAt);
-      if (move.delta !== 0) {
-        rep.trust_moved = true;
-        if (!dryRun) {
-          await q(
-            `insert into vy_rel_event (agent_id, person_id, dim, from_v, to_v, direction, note, citations)
-             values (${agentValue("$7")},$1,'trust',$2,$3,$4,$5,$6)`,
-            [person, currentTrust.toFixed(3), move.next.toFixed(3), move.direction, telegraphic(parsed.trust_move.note, 160), citations, agentId],
-          ).catch(() => {});
-          // MIGRATED ARBITER (010 precondition)
-          await q(
-            `insert into vy_rel_state (agent_id, person_id, trust) values (${agentValue("$3")},$1,$2)
-             on conflict (agent_id, person_id) do update set trust = $2`,
-            [person, move.next, agentId],
-          ).catch(() => {});
-          wrote.push({ table: "vy_rel_event", dim: "trust" });
-        }
-      }
+      ).catch(() => [])
+    : [];
+
+  const decision = acceptTrustRepair(
+    parsed,
+    episodes,
+    { trust: currentTrust, ruptureOpen, repairState },
+    {
+      lastTrustMoveAt: lastTrustRows[0]?.at ?? null,
+      priorTrustCitations: lastTrustRows[0]?.citations ?? [],
+      stanceLapsed,
+    },
+  );
+  rep.rejected = decision.rejected;
+
+  if (decision.ruptureRepair) {
+    const m = decision.ruptureRepair;
+    rep.rupture_or_repair_moved = true;
+    if (!dryRun) {
+      await q(
+        `insert into vy_rel_event (agent_id, person_id, dim, from_v, to_v, direction, note, citations)
+         values (${agentValue("$8")},$1,$2,$3,$4,$5,$6,$7)`,
+        [person, m.dim, m.fromV, m.toV, m.direction, m.note, m.citations, agentId],
+      ).catch(() => {});
+      // MIGRATED ARBITER (010 precondition)
+      await q(
+        `insert into vy_rel_state (agent_id, person_id, rupture_open, repair_state)
+         values (${agentValue("$4")},$1,$2,$3)
+         on conflict (agent_id, person_id) do update set rupture_open = $2, repair_state = $3`,
+        [person, m.ruptureOpen, m.repairState, agentId],
+      ).catch(() => {});
+      wrote.push({ table: "vy_rel_event", dim: m.dim });
+    }
+  }
+
+  if (decision.trust) {
+    const t = decision.trust;
+    rep.trust_moved = true;
+    if (!dryRun) {
+      await q(
+        `insert into vy_rel_event (agent_id, person_id, dim, from_v, to_v, direction, note, citations)
+         values (${agentValue("$7")},$1,'trust',$2,$3,$4,$5,$6)`,
+        [person, t.fromV, t.toV, t.direction, t.note, t.citations, agentId],
+      ).catch(() => {});
+      // MIGRATED ARBITER (010 precondition)
+      await q(
+        `insert into vy_rel_state (agent_id, person_id, trust) values (${agentValue("$3")},$1,$2)
+         on conflict (agent_id, person_id) do update set trust = $2`,
+        [person, t.next, agentId],
+      ).catch(() => {});
+      wrote.push({ table: "vy_rel_event", dim: "trust" });
     }
   }
 
@@ -1278,6 +1868,11 @@ export async function runTrustRepairDerivation({ limit = DEFAULT_PERSON_LIMIT, d
     persons_processed: reports.length,
     trust_events_written: reports.filter((r) => r.trust_moved).length,
     rupture_repair_events_written: reports.filter((r) => r.rupture_or_repair_moved).length,
+    // A refusal is reported, never silent: a run that wrote nothing because
+    // the model proposed nothing and a run that wrote nothing because every
+    // proposal failed the citation law look identical without this line, and
+    // only one of them is the pipeline working.
+    signals_refused: reports.reduce((s, r) => s + (r.rejected?.length ?? 0), 0),
     ms: Date.now() - t0,
     reports,
   };
@@ -1300,31 +1895,112 @@ EPISODES (numbered, dated):
 ${batchText}`;
 }
 
-/** One person's pattern-extraction pass. Dedupes against this person's own
- *  existing active patterns (same moment + same normalized if_shape) so a
- *  regularity already on record is not re-proposed nightly. */
-async function extractPatternsForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
-  const rep = { person, episodes_scanned: 0, proposed: 0, written: 0, rejected: 0, deduped: 0 };
-  const episodes = await fetchHistoryEpisodesForPerson(person, { agentId });
-  rep.episodes_scanned = episodes.length;
-  if (episodes.length < PATTERN_MIN_EPISODES_TO_TRY) return rep;
+// ── PATTERN TEXT IS PROMPT TEXT (WS-JUDGEWORK, 2026-08-23) ────────────────
+//
+// `if_shape` and `then_note` are rendered VERBATIM into T4 by
+// relstate.ts's `renderDyadicActive` (`${p.if_shape} -> ${p.then_note}`).
+// That makes them the exact thing CLAUDE.md's first law is about: "anything
+// sentence-shaped in a prompt gets recited". The prompt above asks for
+// "<=14 words, no terminal punctuation, never her own first-person voice"
+// and, before this, NOTHING enforced any of it — `telegraphic()` caps
+// CHARACTERS (120) and strips terminal punctuation, which lets a 25-word
+// piece of prose through intact.
+//
+// Write time is the only gate that exists for this string. `renderDyadicActive`
+// runs `lintBlock` over its output, but `finish()` REPORTS violations and
+// emits the lines anyway — an over-long pattern note reaches the model either
+// way. So a failing string is refused here rather than truncated: a truncated
+// regularity is a corrupted claim, and the cost of refusing is one night.
+//
+// Mirrors src/engine/shapelint.ts's `lintLine` (MAX_WORDS,
+// FIRST_PERSON_LINE_INITIAL_RE) — same mirror-don't-import resolution, and
+// the same reason, as clampTrustDelta/moveTrust above: this script runs bare
+// under Node with no bundler. The eval drives the REAL `lintLine` against the
+// same strings, so a drift between the two is a failing gate rather than a
+// discovery months later.
+const PATTERN_MAX_WORDS = 14;
+const PATTERN_FIRST_PERSON_RE = /^(i\b|i'm\b|i've\b|main\b|mai\b|mujhe\b|meri\b|mera\b|maine\b)/i;
+export function patternTextRejection(s) {
+  const t = String(s || "").trim();
+  if (!t) return "empty";
+  const n = wordCount(t);
+  if (n > PATTERN_MAX_WORDS) return `too long: ${n} words (cap ${PATTERN_MAX_WORDS})`;
+  if (PATTERN_FIRST_PERSON_RE.test(t)) return "first-person voice, line-initial — a line she would recite";
+  return "";
+}
 
-  // The dedupe read is a RETRIEVAL that decides a write: unscoped, another
-  // agent's pattern would silently suppress this agent's identical finding,
-  // which is a cross-agent read wearing a write's clothes.
-  const existing = await q(
-    `select p.moment, p.if_shape from vy_pattern p where p.person_id = $1 and p.t_invalid is null
-      ${agentScopePredicate("p", { agentId: "$2" })}`,
-    [person, agentId],
-  ).catch(() => []);
+// ── SUPPORT IS COUNTED FROM EPISODES, NOT ASSUMED (WS-JUDGEWORK, 2026-08-23) ──
+//
+// THE DEFECT THIS CLOSES, and it made every pattern this file has ever written
+// unreachable: `vy_pattern.prompt_eligible` is a Postgres GENERATED column,
+// `support_count >= 3 and distinct_days >= 2` (db/schema.sql:434). Both
+// counters default to 0. This writer set neither, and `reinforcePattern`
+// (relstate.ts) has no caller anywhere in api/ — so every row it inserted sat
+// at support 0 / days 0 forever. `api/memory.js`'s rel-bundle query filters
+// `prompt_eligible = true`, and `renderDyadicActive` filters it again. T4
+// `dyadic.active` therefore rendered ZERO BYTES for every user on every lane,
+// no matter how many patterns the nightly pass wrote — `spine-that-ran-one-
+// step-of-six` in miniature: the writer ran, the run report counted rows, and
+// the render was empty by construction.
+//
+// The lane-parity gate could not see this: its fixture supplies
+// `prompt_eligible: true` directly, so it proves the LANE carries T4 and says
+// nothing about whether the WRITER can ever produce a row the lane accepts.
+//
+// Support is derived, never asserted: one unit per CITED EPISODE THAT EXISTS
+// IN THE NUMBERED BATCH, and `distinct_days` from those same episodes' own
+// `started_at`. Every unit traces to one source row — the same discipline the
+// citation law puts on the claim itself, applied to its weight.
+export function patternSupport(citations, episodes) {
+  const byId = new Map(episodes.map((e) => [Number(e.id), e]));
+  const days = new Set();
+  let support = 0;
+  for (const c of citations ?? []) {
+    const e = byId.get(Number(c));
+    if (!e) continue; // an episode outside the batch cannot support anything
+    support++;
+    const d = new Date(e.started_at);
+    if (Number.isFinite(d.getTime())) days.add(d.toISOString().slice(0, 10));
+  }
+  return { support_count: support, distinct_days: days.size };
+}
+
+/** A re-proposal of a regularity already on record. Before this it was
+ *  counted as `deduped` and dropped — which is why the ladder
+ *  `src/engine/observation.ts`'s header describes ("day 1 write + day-2 +
+ *  day-3 recurrence is the earliest prompt_eligible can go true") could never
+ *  actually be climbed: the only step that raises support was never taken.
+ *
+ *  A re-proposal only counts when it cites an episode the stored row does
+ *  NOT already cite. Same rule as `trustEvidenceIsNew` and for the same
+ *  reason: under an HOURLY sweep the identical batch is re-scanned within the
+ *  lookback window, and a bump on repeated evidence would let one evening's
+ *  conversation promote a pattern to prompt-eligible by itself. */
+export function patternReinforcement(existingRow, proposedCitations) {
+  const have = new Set((existingRow?.citations ?? []).map(Number));
+  const fresh = [...new Set((proposedCitations ?? []).map(Number))].filter((c) => !have.has(c));
+  const merged = [...have, ...fresh].sort((a, b) => a - b);
+  // No counts are returned. `support_count` is incremented by `fresh.length`
+  // and `distinct_days` is RECOMPUTED by Postgres over `merged` straight from
+  // vy_episode — the stored citations may point at episodes outside this
+  // run's 60-day batch, so a JS count computed here would be an undercount
+  // wearing an authoritative name.
+  return { patternId: existingRow?.id ?? null, fresh, merged };
+}
+
+/** ── THE PATTERN ACCEPTANCE LAYER, EXTRACTED PURE ──────────────────────────
+ *
+ *  Model answer + numbered batch + this person's existing patterns -> the
+ *  exact set of inserts and reinforcements, with a reason attached to every
+ *  refusal. No database, no LLM. Same reasoning as `acceptTrustRepair` and
+ *  `phraseCandidates`: the precision fixtures drive the shipping decision.
+ */
+export function acceptPatternProposals(parsed, episodes, existingRows = []) {
   const dedupeKey = (m, s) => `${m}::${String(s).toLowerCase().trim()}`;
-  const seen = new Set(existing.map((p) => dedupeKey(p.moment, p.if_shape)));
-
-  const raw = await llm([{ role: "user", content: patternPrompt(renderEpisodeBatch(episodes)) }], 700);
-  if (!raw) return rep;
-  const parsed = parseJsonLoose(raw);
+  const byKey = new Map(existingRows.map((p) => [dedupeKey(p.moment, p.if_shape), p]));
+  const out = { writes: [], reinforcements: [], rejected: [], deduped: 0 };
   const proposals = Array.isArray(parsed?.patterns) ? parsed.patterns.slice(0, PATTERN_CAP_PER_NIGHT) : [];
-  rep.proposed = proposals.length;
+  out.proposed = proposals.length;
 
   for (const p of proposals) {
     const moment = PATTERN_MOMENTS.includes(p?.moment) ? p.moment : null;
@@ -1332,26 +2008,125 @@ async function extractPatternsForPerson(person, { dryRun = false, agentId = MEER
     const thenNote = telegraphic(p?.then_note, 120);
     const selfInRelation = telegraphic(p?.self_in_relation, 120);
     const citations = mapEpisodeCitations(p?.citations, episodes);
-    if (!moment || !ifShape || !thenNote || citations.length < 2) {
-      rep.rejected++;
+    if (!moment) {
+      out.rejected.push({ reason: `moment outside the closed set: ${JSON.stringify(p?.moment)}` });
       continue;
     }
-    if (seen.has(dedupeKey(moment, ifShape))) {
-      rep.deduped++;
+    if (!ifShape || !thenNote) {
+      out.rejected.push({ moment, reason: "if_shape or then_note is empty" });
       continue;
     }
+    if (citations.length < 2) {
+      out.rejected.push({ moment, reason: `one instance is an anecdote: ${citations.length} citation(s) survived the writer window` });
+      continue;
+    }
+    // Every string that reaches T4 verbatim, linted before it is stored.
+    const shape = [
+      ["if_shape", ifShape],
+      ["then_note", thenNote],
+      ["self_in_relation", selfInRelation],
+    ]
+      .filter(([, v]) => v) // self_in_relation is optional (schema default '')
+      .map(([k, v]) => [k, patternTextRejection(v)])
+      .find(([, why]) => why);
+    if (shape) {
+      out.rejected.push({ moment, reason: `${shape[0]}: ${shape[1]}` });
+      continue;
+    }
+
+    const key = dedupeKey(moment, ifShape);
+    const prior = byKey.get(key);
+    if (prior) {
+      const r = patternReinforcement(prior, citations);
+      if (!r.fresh.length) {
+        out.deduped++;
+        continue;
+      }
+      out.reinforcements.push({ moment, if_shape: ifShape, ...r });
+      // the merged set is now on record for any later proposal in this batch
+      byKey.set(key, { ...prior, citations: r.merged });
+      continue;
+    }
+    const support = patternSupport(citations, episodes);
+    out.writes.push({ moment, if_shape: ifShape, then_note: thenNote, self_in_relation: selfInRelation, citations, ...support });
+    byKey.set(key, { id: null, moment, if_shape: ifShape, citations });
+  }
+  return out;
+}
+
+/** One person's pattern-extraction pass. New regularities are inserted with
+ *  their support counted from the cited episodes; a regularity already on
+ *  record is REINFORCED when it recurs in an episode it does not already
+ *  cite, which is the only path to `prompt_eligible` and therefore to T4. */
+async function extractPatternsForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
+  const rep = { person, episodes_scanned: 0, proposed: 0, written: 0, reinforced: 0, rejected: 0, deduped: 0, reasons: [] };
+  const episodes = await fetchHistoryEpisodesForPerson(person, { agentId });
+  rep.episodes_scanned = episodes.length;
+  if (episodes.length < PATTERN_MIN_EPISODES_TO_TRY) return rep;
+
+  // The dedupe read is a RETRIEVAL that decides a write: unscoped, another
+  // agent's pattern would silently suppress this agent's identical finding,
+  // which is a cross-agent read wearing a write's clothes. `id` and
+  // `citations` are selected because a re-proposal is now a REINFORCEMENT,
+  // and both are needed to decide whether it carries new evidence.
+  const existing = await q(
+    `select p.id, p.moment, p.if_shape, p.citations from vy_pattern p
+      where p.person_id = $1 and p.t_invalid is null
+      ${agentScopePredicate("p", { agentId: "$2" })}`,
+    [person, agentId],
+  ).catch(() => []);
+
+  const raw = await llm([{ role: "user", content: patternPrompt(renderEpisodeBatch(episodes)) }], 700);
+  if (!raw) return rep;
+  const parsed = parseJsonLoose(raw);
+  const decision = acceptPatternProposals(parsed, episodes, existing);
+  rep.proposed = decision.proposed;
+  rep.rejected = decision.rejected.length;
+  rep.deduped = decision.deduped;
+  rep.reasons = decision.rejected.map((r) => r.reason);
+
+  for (const w of decision.writes) {
     if (dryRun) {
       rep.written++;
       continue;
     }
     try {
       await q(
-        `insert into vy_pattern (agent_id, person_id, moment, if_shape, then_note, self_in_relation, citations)
-         values (${agentValue("$7")},$1,$2,$3,$4,$5,$6)`,
-        [person, moment, ifShape, thenNote, selfInRelation, citations, agentId],
+        `insert into vy_pattern (agent_id, person_id, moment, if_shape, then_note, self_in_relation,
+                                 citations, support_count, distinct_days)
+         values (${agentValue("$9")},$1,$2,$3,$4,$5,$6,$7,$8)`,
+        [person, w.moment, w.if_shape, w.then_note, w.self_in_relation, w.citations, w.support_count, w.distinct_days, agentId],
       );
       rep.written++;
-      seen.add(dedupeKey(moment, ifShape));
+    } catch {
+      rep.rejected++;
+    }
+  }
+
+  for (const r of decision.reinforcements) {
+    if (dryRun) {
+      rep.reinforced++;
+      continue;
+    }
+    try {
+      // `distinct_days` is recomputed by Postgres over the MERGED citation
+      // set, straight from vy_episode — never incremented, so a re-run that
+      // somehow repeated a citation cannot inflate it. `prompt_eligible` is
+      // the generated column and is never assigned here (relstate.ts's
+      // reinforcePattern says the same about itself, and is mirrored rather
+      // than imported for this file's usual bundler reason).
+      await q(
+        `update vy_pattern p
+            set citations = $2::bigint[],
+                support_count = p.support_count + $3,
+                distinct_days = (select count(distinct date_trunc('day', e.started_at))::int
+                                   from vy_episode e where e.id = any($2::bigint[])),
+                last_used = now()
+          where p.id = $1 and p.person_id = $4
+          ${agentScopePredicate("p", { agentId: "$5" })}`,
+        [r.patternId, r.merged, r.fresh.length, person, agentId],
+      );
+      rep.reinforced++;
     } catch {
       rep.rejected++;
     }
@@ -1368,7 +2143,11 @@ export async function runPatternExtraction({ limit = DEFAULT_PERSON_LIMIT, dryRu
     ok: true,
     persons_processed: reports.length,
     patterns_written: reports.reduce((s, r) => s + r.written, 0),
+    // the number that decides whether T4 ever renders: an insert alone can
+    // never reach support_count >= 3
+    patterns_reinforced: reports.reduce((s, r) => s + r.reinforced, 0),
     patterns_deduped: reports.reduce((s, r) => s + r.deduped, 0),
+    patterns_refused: reports.reduce((s, r) => s + r.rejected, 0),
     ms: Date.now() - t0,
     reports,
   };
@@ -1423,46 +2202,90 @@ export function tokenizePhrase(s) {
     .filter(Boolean);
 }
 
-/** One person's deterministic phrase-capture pass: scan their own turns,
- *  count 2-5 word n-grams by distinct day, filter the stoplists, and write
- *  AT MOST ONE new phrase — the most-recurring surviving candidate — citing
- *  the episode it was FIRST said in (vy_phrase.origin_episode is a single
- *  bigint by schema design, "the coining episode", not a citations array;
- *  the >=3-distinct-day recurrence requirement is the evidence bar, this is
- *  which one anchor episode gets stored per that column's own shape). */
-async function capturePhrasesForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
-  const rep = { person, rows_scanned: 0, candidates: 0, written: 0 };
-  const devices = await q(`select device_id from vy_person_device where person_id = $1`, [person]).catch(() => []);
-  const deviceIds = devices.length ? devices.map((d) => d.device_id) : [person];
-  const rows = await q(
-    `select content, at, episode_id from meera_log
-      where device_id = any($1::uuid[]) and role = 'me' and group_id is null and episode_id is not null
-      order by at desc limit $2`,
-    [deviceIds, PHRASE_SCAN_LIMIT],
-  ).catch(() => []);
-  rep.rows_scanned = rows.length;
-  if (!rows.length) return rep;
+// ── PHRASE DISTINCTIVENESS (WS-SPINE, 2026-08-23) ────────────────────────
+//
+// WHY THIS EXISTS, and it is a live coordination story rather than a
+// hypothetical: WS-RECALL changed `RECALL_STOP` — half of this scan's
+// stoplist — REMOVING `kaam` and `baat` because they are content-bearing.
+// That is unarguably right for RECALL, whose job is to MATCH on what someone
+// said. It is wrong for PHRASE CAPTURE, whose job is the opposite: to find
+// the one string nobody else would say. Two callers, one list, opposite
+// definitions of "worth keeping" — so this file needs its own.
+//
+// The exposure was real and wider than the two words. `RECALL_STOP` and
+// `HINDI_MARKER_WORDS` between them contain NEITHER the bare postpositions
+// (`ka ki ke ko se na to hi`) NOR everyday content nouns, and the old rule
+// skipped a gram only when EVERY token was a stopword. So "kaam ka",
+// "baat hi", "ghar se", "office ka kaam" all survived, and any of them said
+// on three different days became a COINED PHRASE — a thing she then says back
+// as something they made up together. That is `recited-prompt`'s worst case
+// with a database behind it: not a line she was handed, a line she claims to
+// remember them inventing.
+//
+// THE RULE: a coined phrase must contain at least ONE token that is not a
+// stopword, not a Hindi function marker, and not everyday vocabulary. Not
+// "not all of them" — AT LEAST ONE, which is the difference between "kaam ka
+// pressure" (nothing distinctive; everyone says this) and "chai pe scene set"
+// (`scene`, `set` — nobody else phrases it that way).
+//
+// Authored and dated, same convention as CORPUS_COMMON_PHRASES and
+// HINDI_MARKER_WORDS. Deliberately NOT derived at runtime: a frequency cut
+// computed from the live corpus would shrink as the corpus grows and would
+// re-measure this person's own phrase back at itself on a slow day.
+export const PHRASE_PLAIN_VOCAB = new Set([
+  // bare postpositions and particles — in neither existing list
+  "ka", "ki", "ke", "ko", "se", "me", "mein", "pe", "par", "tak", "hi", "to",
+  "na", "ye", "yeh", "wo", "woh", "is", "us", "kuch", "sab", "phir", "ab",
+  "aur", "ya", "agar", "lekin", "par", "toh",
+  // everyday content nouns that recur in EVERY dyad — content-bearing for
+  // recall (which is why WS-RECALL took two of them out of RECALL_STOP) and
+  // useless as evidence that a phrase is theirs
+  "kaam", "baat", "ghar", "khana", "khaana", "office", "time", "din", "raat",
+  "subah", "shaam", "phone", "paisa", "paise", "log", "saal", "mahina",
+  "hafta", "aaj", "kal", "parso", "pani", "sona", "soya", "utha", "gaya",
+  "bahut", "thoda", "thodi", "zyada", "jaldi", "der", "achha", "acha",
+  "problem", "pressure", "meeting", "call", "message", "reply",
+  "khatam", "shuru", "start", "band", "busy", "free", "late", "ready",
+]);
+// COVERAGE IS DELIBERATELY NOT EXHAUSTIVE, and pretending otherwise would be
+// the failure this note prevents. It is a small reviewed table, matched
+// deterministically — the same posture FESTIVAL_CALENDAR states for itself
+// ("a two-person team cannot author every regional calendar in one pass;
+// extend by adding rows, never by inferring one at runtime"). A plain phrase
+// this list misses becomes a captured phrase, which is why capture is ALSO
+// capped at one per person per night and gated on >=3 distinct days: the
+// list is the precision layer, not the only one. When a bad capture is found
+// in production, the repair is a row here plus the phrase deleted — not a
+// runtime frequency cut, which would shrink as the corpus grows.
 
-  const existing = await q(
-    `select lower(v.phrase) as p from vy_phrase v where v.person_id = $1
-      ${agentScopePredicate("v", { agentId: "$2" })}`,
-    [person, agentId],
-  ).catch(() => []);
-  const existingPhrases = new Set(existing.map((r) => r.p));
-  // Substring-aware, not just exact-match: a night AFTER "chai pe scene set
-  // karo" is captured must not then capture "chai pe scene set" or "pe
-  // scene set karo aaj" the following night — those are near-duplicate
-  // variants of the SAME already-stored utterance (found live in this
-  // workstream's own fixture test: the exact-match-only version kept
-  // capturing one-word-shorter substrings of what it had just written,
-  // night after night).
+/** True when the gram carries at least one token nobody else's dyad would
+ *  supply. Pure and exported — the quality eval drives THIS, not a copy. */
+export function phraseIsDistinctive(gram) {
+  return tokenizePhrase(gram).some(
+    (t) => !RECALL_STOP.has(t) && !HINDI_MARKER_WORDS.includes(t) && !PHRASE_PLAIN_VOCAB.has(t),
+  );
+}
+
+/**
+ * The n-gram scan itself, extracted PURE so the precision fixtures drive the
+ * shipping logic rather than a restatement of it. Rows are `{content, at,
+ * episode_id}`, newest-first or not — order does not matter, only distinct
+ * days do.
+ *
+ * `existingPhrases` is matched SUBSTRING-AWARE, not by equality: the night
+ * after "chai pe scene set karo" is captured must not then capture "chai pe
+ * scene set" or "pe scene set karo aaj" — near-duplicate variants of the SAME
+ * stored utterance. (Found live in WS-DEPTH's own fixture test: the
+ * exact-match version kept capturing one-word-shorter substrings of what it
+ * had just written, night after night.)
+ */
+export function phraseCandidates(rows, existingPhrases = new Set()) {
   const overlapsExisting = (gram) => {
     for (const ep of existingPhrases) {
       if (gram.includes(ep) || ep.includes(gram)) return true;
     }
     return false;
   };
-
   const ngrams = new Map(); // gram -> { days: Set<string>, episodeAt: Map<episodeId, Date> }
   for (const r of rows) {
     const toks = tokenizePhrase(r.content);
@@ -1474,6 +2297,10 @@ async function capturePhrasesForPerson(person, { dryRun = false, agentId = MEERA
         if (CORPUS_COMMON_PHRASES.has(gram)) continue;
         if (overlapsExisting(gram)) continue;
         if (slice.every((t) => RECALL_STOP.has(t) || HINDI_MARKER_WORDS.includes(t))) continue;
+        // THE DISTINCTIVENESS BAR. Frequency alone is not evidence that a
+        // phrase is theirs — everyday vocabulary is frequent BY DEFINITION,
+        // so a days-threshold on its own selects FOR it.
+        if (!phraseIsDistinctive(gram)) continue;
         let e = ngrams.get(gram);
         if (!e) {
           e = { days: new Set(), episodeAt: new Map() };
@@ -1485,10 +2312,50 @@ async function capturePhrasesForPerson(person, { dryRun = false, agentId = MEERA
       }
     }
   }
-
-  const candidates = [...ngrams.entries()]
+  return [...ngrams.entries()]
     .filter(([, e]) => e.days.size >= PHRASE_MIN_DISTINCT_DAYS)
     .sort((a, b) => b[1].days.size - a[1].days.size || b[0].length - a[0].length);
+}
+
+/** One person's deterministic phrase-capture pass: scan their own turns,
+ *  count 2-5 word n-grams by distinct day, filter the stoplists, and write
+ *  AT MOST ONE new phrase — the most-recurring surviving candidate — citing
+ *  the episode it was FIRST said in (vy_phrase.origin_episode is a single
+ *  bigint by schema design, "the coining episode", not a citations array;
+ *  the >=3-distinct-day recurrence requirement is the evidence bar, this is
+ *  which one anchor episode gets stored per that column's own shape). */
+async function capturePhrasesForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
+  const rep = { person, rows_scanned: 0, candidates: 0, written: 0 };
+  const devices = await q(`select device_id from vy_person_device where person_id = $1`, [person]).catch(() => []);
+  const deviceIds = devices.length ? devices.map((d) => d.device_id) : [person];
+  // WATCH CONTRACT: a captured phrase is the highest-consequence row in this
+  // file — she SAYS it back (T6 renderWeCallbacks). A recurring string of OCR
+  // text ("continue watching", a UI label, a channel name) would recur across
+  // days exactly the way a real shared phrase does, pass every stoplist, and
+  // come out of her mouth as something they supposedly coined together. This
+  // is the one place a watch row could do the most damage and the one place
+  // the >=3-distinct-days bar makes screen furniture MORE likely to qualify,
+  // not less.
+  const rows = stripWatchRows(
+    await q(
+      `select l.content, l.at, l.episode_id, l.channel from meera_log l
+      where l.device_id = any($1::uuid[]) and l.role = 'me' and l.group_id is null
+        and l.episode_id is not null
+        ${WATCH_EXCLUDE_SQL}
+      order by l.at desc limit $2`,
+      [deviceIds, PHRASE_SCAN_LIMIT],
+    ).catch(() => []),
+  );
+  rep.rows_scanned = rows.length;
+  if (!rows.length) return rep;
+
+  const existing = await q(
+    `select lower(v.phrase) as p from vy_phrase v where v.person_id = $1
+      ${agentScopePredicate("v", { agentId: "$2" })}`,
+    [person, agentId],
+  ).catch(() => []);
+  const existingPhrases = new Set(existing.map((r) => r.p));
+  const candidates = phraseCandidates(rows, existingPhrases);
   rep.candidates = candidates.length;
   if (!candidates.length) return rep;
 
@@ -1681,6 +2548,139 @@ export async function runSelfLayer({ limit = DEFAULT_PERSON_LIMIT, dryRun = fals
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WS-SPINE P1-3 — THE markTold CALL SITE
+//
+// WHY THIS IS SERVER-SIDE, AND NOT A JUDGEMENT CALL: `markTold` requires the
+// FINAL episode she told them in (life.ts: "told is an outcome, never an
+// intent" — the INSERT's FROM clause is the episode, and it requires
+// `provisional = false`). A final episode does not exist at the moment she
+// speaks; this file mints it, up to a day later. So there is no client-side
+// seam that COULD call markTold with a legal argument — the client would have
+// to invent an episode id, which is precisely the intent-shaped write the
+// function was built to make impossible. The seam is here or nowhere.
+//
+// PRECISION POSTURE: a false told-row is permanent and silent — she simply
+// never tells them that beat, and nobody ever learns why. So the bar is two
+// independent gates, cheapest first:
+//   1. DETERMINISTIC PRE-GATE: at least LIFE_TOLD_MIN_TOKENS distinctive
+//      tokens shared between the beat and one of HER OWN turns inside the
+//      episode. No overlap, no LLM call, no cost — which is also what keeps
+//      this affordable: on a normal night this pass makes ZERO model calls.
+//   2. LLM CONFIRMATION, one YES/NO per surviving pair, capped per person.
+// A beat that fails either gate stays untold, which is the recoverable
+// direction: she tells it tomorrow.
+const LIFE_TOLD_MIN_TOKENS = 2;
+const LIFE_TOLD_MAX_CHECKS = 2; // model calls per person per run
+
+/** Distinctive tokens of a beat: content words a shared-token overlap can
+ *  actually mean something about. Reuses the two stoplists this file already
+ *  has rather than authoring a third. Pure and exported for the eval. */
+export function distinctiveTokens(text) {
+  return [
+    ...new Set(
+      tokenizePhrase(text).filter(
+        (t) => t.length >= 4 && !RECALL_STOP.has(t) && !HINDI_MARKER_WORDS.includes(t),
+      ),
+    ),
+  ];
+}
+
+/** Gate 1, pure and exported. Returns the shared distinctive tokens. */
+export function lifeToldOverlap(beat, herLines) {
+  const want = new Set(distinctiveTokens(beat));
+  if (want.size < LIFE_TOLD_MIN_TOKENS) return [];
+  const hit = new Set();
+  for (const line of herLines) {
+    for (const t of tokenizePhrase(line)) if (want.has(t)) hit.add(t);
+  }
+  return [...hit];
+}
+
+async function deriveLifeToldForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
+  const rep = { person, beats_untold: 0, pairs_checked: 0, told: 0, errors: [] };
+  const engine = await loadSelfEngine();
+  if (!engine?.untoldFor || !engine?.markTold) {
+    rep.errors.push("engine bundle missing untoldFor/markTold — life-told pass skipped, not approximated");
+    return rep;
+  }
+  const beats = await engine.untoldFor(q, person, agentId, 20).catch(() => []);
+  rep.beats_untold = beats.length;
+  if (!beats.length) return rep;
+
+  const episodes = await fetchFreshEpisodesForPerson(person, TRUST_REPAIR_MAX_EPISODES, agentId);
+  if (!episodes.length) return rep;
+
+  let checks = 0;
+  for (const ep of episodes) {
+    if (ep.log_from == null || ep.log_to == null) continue;
+    // HER turns only: the beat is hers to tell, so evidence of the telling is
+    // in her own lines, never in his. Watch-excluded like every other read.
+    const herRows = stripWatchRows(
+      await q(
+        `select l.content, l.channel from meera_log l
+          where l.device_id in (select device_id from vy_person_device where person_id = $1
+                                union select $1::uuid)
+            and l.role = 'her' and l.id between $2 and $3
+            ${WATCH_EXCLUDE_SQL}`,
+        [person, ep.log_from, ep.log_to],
+      ).catch(() => []),
+    );
+    if (!herRows.length) continue;
+    const herLines = herRows.map((r) => String(r.content || ""));
+    for (const beat of beats) {
+      if (checks >= LIFE_TOLD_MAX_CHECKS) break;
+      const shared = lifeToldOverlap(beat.beat, herLines);
+      if (shared.length < LIFE_TOLD_MIN_TOKENS) continue;
+      checks++;
+      rep.pairs_checked++;
+      const verdict = await llm(
+        [
+          {
+            role: "user",
+            content: `Did the speaker actually TELL the listener this piece of her own news, in these lines? Reply with ONLY YES or NO. Say NO if the lines merely touch the same topic without her telling them the news itself.
+
+HER NEWS: ${beat.beat}
+
+HER LINES:
+${herLines.slice(0, 30).join("\n")}`,
+          },
+        ],
+        4,
+      );
+      if (!String(verdict || "").trim().toUpperCase().startsWith("YES")) continue;
+      if (dryRun) {
+        rep.told++;
+        continue;
+      }
+      try {
+        const out = await engine.markTold(q, agentId, beat.id, person, ep.id);
+        if (out?.recorded && !out.already) rep.told++;
+        else if (!out?.recorded) rep.errors.push(`beat ${beat.id}: ${out?.reason || "not recorded"}`);
+      } catch (e) {
+        rep.errors.push(`beat ${beat.id}: ${String(e?.message || e).slice(0, 140)}`);
+      }
+    }
+    if (checks >= LIFE_TOLD_MAX_CHECKS) break;
+  }
+  return rep;
+}
+
+export async function runLifeTold({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null, agentId = MEERA_AGENT_ID } = {}) {
+  const t0 = Date.now();
+  const persons = onlyPerson ? [onlyPerson] : await findPersonsWithFreshEpisodes(limit, agentId);
+  const reports = [];
+  for (const person of persons) reports.push(await deriveLifeToldForPerson(person, { dryRun, agentId }));
+  return {
+    ok: true,
+    persons_processed: reports.length,
+    told_written: reports.reduce((s, r) => s + r.told, 0),
+    pairs_checked: reports.reduce((s, r) => s + r.pairs_checked, 0),
+    ms: Date.now() - t0,
+    reports,
+  };
+}
+
 export async function runConsolidation({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null, agentId = MEERA_AGENT_ID } = {}) {
   const t0 = Date.now();
   const weBackfilled = await backfillWeParticipation({ dryRun, onlyPerson, agentId });
@@ -1690,7 +2690,11 @@ export async function runConsolidation({ limit = DEFAULT_PERSON_LIMIT, dryRun = 
   let totalRefuted = 0;
   let halted = false;
 
+  let watchFinalized = 0;
   for (const person of persons) {
+    // P2-2 first: cheap, deterministic, no model call, and it is what stops
+    // this person re-pinning `findEligiblePersons` for the rest of time.
+    watchFinalized += await finalizeWatchEpisodes(person, { dryRun, agentId });
     const rep = await finalizePerson(person, { dryRun, agentId });
     reports.push(rep);
     totalAudited += rep.audited;
@@ -1715,6 +2719,11 @@ export async function runConsolidation({ limit = DEFAULT_PERSON_LIMIT, dryRun = 
     facts_rejected: reports.reduce((s, r) => s + r.rejected_facts, 0),
     episodes_superseded: reports.reduce((s, r) => s + r.superseded_episodes, 0),
     facts_superseded: reports.reduce((s, r) => s + r.superseded_facts, 0),
+    watch_episodes_finalized: watchFinalized,
+    kin_written: reports.reduce((s, r) => s + (r.kin || 0), 0),
+    kin_rejected: reports.reduce((s, r) => s + (r.kin_rejected || 0), 0),
+    rituals_written: reports.reduce((s, r) => s + (r.rituals || 0), 0),
+    kin_errors: reports.flatMap((r) => r.kin_errors || []),
     audited: totalAudited,
     refuted: totalRefuted,
     refutation_rate: totalAudited ? totalRefuted / totalAudited : 0,
@@ -1722,6 +2731,66 @@ export async function runConsolidation({ limit = DEFAULT_PERSON_LIMIT, dryRun = 
     ms: Date.now() - t0,
     reports,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WS-SPINE — THE WHOLE CHAIN, IN ORDER, FOR ONE PERSON.
+//
+// THE SECOND HALF OF THE FINDING, and it is worth stating flatly because it
+// is not what the ticket said: the hourly cron being dry-run was only ONE of
+// the two reasons the derived layer is empty. The other is that
+// `api/consolidate-sweep.js` called `runConsolidation` AND NOTHING ELSE.
+// `.github/workflows/consolidate.yml` chains six steps (finalize,
+// --derive-rel-events, --derive-trust-repair, --extract-patterns,
+// --capture-phrases, --derive-self) and that workflow has never run. So even
+// with the flag flipped, the sweep would have written episodes and facts and
+// left vy_rel_state, vy_pattern, vy_phrase, vy_rel_texture and vy_self_arc
+// exactly as empty as they are now — T2/T3/T4/T6/T11/T12 would still render
+// 0 bytes, and the flip would have LOOKED like it worked (episodes appear,
+// cost appears, nothing renders). This function is the chain the workflow
+// encodes, callable in-process, so the one live scheduler runs the same six
+// steps the dead one does.
+//
+// ORDER IS LOAD-BEARING and matches consolidate.yml exactly: every step reads
+// rows an earlier step wrote. Running phrase capture before finalize does not
+// fail — it silently derives from yesterday, which is the worse failure.
+//
+// FAIL-SOFT, per step: only finalize's entailment refutation may halt (the
+// citation law's one alarm). Every later step is wrapped, so a bad night for
+// pattern extraction costs pattern extraction and nothing else.
+//
+// AGENT-SCOPED THROUGHOUT: `agentId` threads into every call and each of them
+// carries the predicate in its own WHERE. There is no agent-conditional
+// branch anywhere in this file — a second agent runs this identical chain by
+// passing its own id, which is the whole point of Law E1.
+export async function runFullChainForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
+  const t0 = Date.now();
+  const out = { person, ms: 0, halted: false, steps: {} };
+  const step = async (name, fn) => {
+    try {
+      out.steps[name] = await fn();
+    } catch (e) {
+      out.steps[name] = { error: String(e?.message || e).slice(0, 200) };
+    }
+  };
+
+  const finalize = await runConsolidation({ onlyPerson: person, limit: 1, dryRun, agentId });
+  out.steps.finalize = finalize;
+  if (finalize.halted) {
+    out.halted = true;
+    out.ms = Date.now() - t0;
+    return out; // never override the layer-3 halt
+  }
+
+  await step("rel_events", () => runRelEventDerivation({ onlyPerson: person, limit: 1, dryRun, agentId }));
+  await step("trust_repair", () => runTrustRepairDerivation({ onlyPerson: person, limit: 1, dryRun, agentId }));
+  await step("patterns", () => runPatternExtraction({ onlyPerson: person, limit: 1, dryRun, agentId }));
+  await step("phrases", () => runPhraseCapture({ onlyPerson: person, limit: 1, dryRun, agentId }));
+  await step("life_told", () => runLifeTold({ onlyPerson: person, limit: 1, dryRun, agentId }));
+  await step("self_layer", () => runSelfLayer({ onlyPerson: person, limit: 1, dryRun, agentId }));
+
+  out.ms = Date.now() - t0;
+  return out;
 }
 
 const DEVICE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1764,7 +2833,15 @@ export default async function handler(req, res) {
       const relOut = await runRelEventDerivation({ limit: 1, dryRun: false, onlyPerson: person }).catch(
         () => null,
       );
-      return res.status(out.halted ? 500 : 200).json({ ...out, rel_event_derivation: relOut });
+      // WS-SPINE: the self layer costs ZERO model calls — `deriveTexture` is
+      // pure counting over meera_log and `deriveSelfArc` is pure arithmetic
+      // over vy_fact — so there is no cost argument for leaving T11 and T12
+      // dark until the first sweep an hour later. The two paid derivations
+      // (trust/repair, patterns) stay OUT of the day-1 seed deliberately:
+      // both need history a day-1 person does not have, so they would spend
+      // real money to derive nothing.
+      const selfOut = await runSelfLayer({ limit: 1, dryRun: false, onlyPerson: person }).catch(() => null);
+      return res.status(out.halted ? 500 : 200).json({ ...out, rel_event_derivation: relOut, self_layer: selfOut });
     }
 
     // Unrestricted admin/cron/smoke-test path, unchanged — the nightly
@@ -1826,6 +2903,22 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const out = await runPhraseCapture({ limit: limitArg, dryRun, onlyPerson: personArg });
     console.log(JSON.stringify(out, null, 2));
     process.exit(0);
+  }
+  if (args.includes("--life-told")) {
+    const out = await runLifeTold({ limit: limitArg, dryRun, onlyPerson: personArg });
+    console.log(JSON.stringify(out, null, 2));
+    process.exit(0);
+  }
+  // The whole chain for ONE person, in consolidate.yml's own order — the same
+  // entry point api/consolidate-sweep.js drives.
+  if (args.includes("--full-chain")) {
+    if (!personArg) {
+      console.error("--full-chain requires --person <uuid>");
+      process.exit(2);
+    }
+    const out = await runFullChainForPerson(personArg, { dryRun });
+    console.log(JSON.stringify(out, null, 2));
+    process.exit(out.halted ? 1 : 0);
   }
   const out = await runConsolidation({ limit: limitArg, dryRun, onlyPerson: personArg });
   console.log(JSON.stringify(out, null, 2));

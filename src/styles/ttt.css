@@ -15,11 +15,38 @@
 
 .tt {
   /* the grid */
-  --tt-cell: var(--surface);
+  /* WS-SWEEP: A TINTED PAPER, NOT `--surface`. `--surface` is `#ffffff`, and
+     nine of them at 100px square is 60% of this screen — so on the world the
+     board was a pure-white slab cut out of a painted sky, which is both the
+     one colour DESIGN-STANDARDS' anti-pattern list forbids outright and the
+     one that cannot belong to a warm room. The chess board next door was
+     retuned off lichess-brown for exactly this reason and landed on
+     `--cb-light: #f0e3d1`; this is that decision applied to the other board,
+     a shade lighter because these cells carry INK marks rather than pieces
+     with their own rim.
+     It is a literal rather than a token because there is nothing in the
+     palette that is this: `--surface` is the white it replaces and
+     `--surface-2` is her bubble. `scripts/check-contrast.mjs` reads THIS
+     declaration now — it used to resolve `--surface` out of global.css and
+     model a value the board had stopped using, which is a floor held over
+     the wrong colour. */
+  --tt-cell: #f6efe5;
   --tt-cell-press: var(--surface-3);
   --tt-line: var(--hairline);
   --tt-line-strong: var(--hairline-strong);
-  --tt-frame-bg: var(--surface-2);
+  /* WS-SWEEP: THE FRAME IS GLASS, THE CELLS ARE NOT, and the split is exactly
+     where the gate's measurements are. `--tt-cell` and `--tt-grid-line` carry
+     the marks and are held at 2.2:1 against each other by
+     `scripts/check-contrast.mjs`, so they stay opaque and untouched — a board
+     you play ON is a solid object.
+     The FRAME is chrome around that object, and on `--surface-2` over the
+     world it made the whole assembly a bright paper slab punched through a
+     painted sky. `--glass-chip` is the room's own material and, unlike the
+     value it replaces, it is THEME-DERIVED: the two byte-identical dark blocks
+     below each carried a hand-written `rgba(0, 0, 0, 0.42)` copy of this, and
+     both are gone rather than edited — one fewer duplicated pair to drift, and
+     one less pure black in a codebase whose standard forbids them. */
+  --tt-frame-bg: var(--glass-chip);
   --tt-frame-shadow: var(--shadow-card);
   /* The gaps BETWEEN cells — the lines that make it a tic-tac-toe board.
      `.tt-grid` paints this behind the cells, so the gaps take it while the
@@ -60,7 +87,6 @@
   --tt-cell-press: #2f1c20;
   --tt-line: rgba(255, 240, 235, 0.1);
   --tt-line-strong: rgba(255, 240, 235, 0.2);
-  --tt-frame-bg: rgba(0, 0, 0, 0.42);
   --tt-frame-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.8);
   --tt-grid-line: #5f4d51;
 
@@ -77,7 +103,6 @@
   --tt-cell-press: #2f1c20;
   --tt-line: rgba(255, 240, 235, 0.1);
   --tt-line-strong: rgba(255, 240, 235, 0.2);
-  --tt-frame-bg: rgba(0, 0, 0, 0.42);
   --tt-frame-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.8);
   --tt-grid-line: #5f4d51;
 
@@ -97,6 +122,7 @@
   padding: 7px;
   border-radius: var(--r-md);
   background: var(--tt-frame-bg);
+  backdrop-filter: var(--ga-blur);
   box-shadow: var(--tt-frame-shadow);
 }
 

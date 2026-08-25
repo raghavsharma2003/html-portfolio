@@ -16,6 +16,14 @@
 
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
+// A1 (docs/research/MEMORY-FIELD-SURVEY.md §Q5): the mutation-time forget
+// matcher's one model call. Deliberately the SAME helper api/chat.js reaches
+// the free pool with — a forget must not grow a second, differently-behaved
+// key rotation that nobody notices going stale.
+import { withGeminiKey, isQuota, isTransient, poolSize } from "./_gkeys.js";
+// ONE definition of "five pictures", shared with the chat payload guard so the
+// composer's cap cannot mean one thing at upload and another at send.
+import { MAX_IMAGES } from "./_lanes.js";
 // WS-CONSOLIDATE (M3) deltas to opRemember/opRecall only — see the two
 // functions below for the marked sections. embedOne/toHalfvecLiteral back
 // opRecall's semantic pre-filter (SPEC §0.3: halfvec, person-filtered exact
@@ -119,6 +127,18 @@ function sb(path, params, opts = {}) {
   });
 }
 
+/** The channels a logged turn may claim. Mirrors vy_episode.channel's CHECK
+ *  constraint minus 'voicenote', which has no meera_log producer today —
+ *  add it here the day one exists, rather than pre-approving a value nothing
+ *  writes. */
+export const LOG_CHANNELS = new Set(["chat", "call", "watch"]);
+
+/** HAND-KEPT MIRROR of src/engine/compiler.ts's TAIL manifest row T5
+ *  (`budget: 6_000`). See the drop loop at the end of opRecall for why this
+ *  side needs the number at all, and evals/recall/run.mjs for the assertion
+ *  that pins the two together. */
+export const RECALL_T5_BUDGET = 6_000;
+
 async function opLog(device, body) {
   const turns = (Array.isArray(body.turns) ? body.turns : []).slice(0, 30);
   if (!turns.length) return { ok: true };
@@ -130,7 +150,23 @@ async function opLog(device, body) {
     params.push(
       device,
       t.role === "her" ? "her" : "me",
-      t.channel === "call" ? "call" : "chat",
+      // ── THE opLog CHANNEL CONTRACT ────────────────────────────────────────
+      // 'watch' is a real channel everywhere else in this system —
+      // vy_episode.channel's CHECK is ('chat','call','watch','voicenote') and
+      // api/episodes.js opens watch episodes — but this validator collapsed
+      // everything that was not 'call' to 'chat'. So a turn spoken while they
+      // were watching a screen together was logged as an ordinary chat turn,
+      // and every downstream consumer that reads the channel off meera_log
+      // (the consolidator's episode segmentation, the forget lane's
+      // `and channel = 'call'` window, openOrExtendEpisode's log-span bounds)
+      // was reading a value that had been silently rewritten.
+      //
+      // WS-CALLLANE sends 'watch'; WS-SPINE excludes it in consolidation.
+      // meera_log.channel carries no CHECK constraint (db/schema.sql:43 — a
+      // plain `text not null default 'chat'`), so this is an enum addition in
+      // the validator and nowhere else. Anything still unrecognised falls to
+      // 'chat', exactly as before: a hostile client cannot invent a channel.
+      LOG_CHANNELS.has(t.channel) ? t.channel : "chat",
       typeof t.kind === "string" ? t.kind.slice(0, 20) : "text",
       String(t.content || "").slice(0, 4000),
       Number.isFinite(t.at) ? new Date(t.at).toISOString() : new Date().toISOString(),
@@ -165,6 +201,23 @@ async function opLog(device, body) {
 // corpus-measured n-gram list — see that file) rather than duplicating it,
 // since both files already live server-side under api/ with no bundler
 // boundary between them (unlike relstate.ts's client-bundle constraint).
+// ── P1-10, half one: what came OUT of this list ────────────────────────────
+//
+// `kaam` and `baat` were in here and they are the two most content-bearing
+// nouns in the whole Hinglish register — work, and the thing that was said.
+// "kaam kaisa chal raha hai" is the single most common way this product's
+// users ask about a job, and with `kaam` stopped it tokenized to NOTHING: the
+// keyword leg did not run at all and the turn was answered by standing
+// background plus whatever the embedding happened to reach. They were filed as
+// stopwords because they are frequent, and frequency is the wrong test — a
+// stopword is a word that carries no RETRIEVAL signal, not a word that occurs a
+// lot. `kaam` names the thing being retrieved.
+//
+// What went IN instead is pure noise: laughter, acknowledgement tokens and
+// discourse particles. These carry no signal in either direction and, unlike
+// the two above, nothing in the store is ever NAMED one of them. They also do
+// double duty as the negative control for the bigram fallback below — a grunt
+// must reach it with zero candidates, or "hmm" starts recalling memories.
 export const RECALL_STOP = new Set([
   "that", "this", "then", "than", "when", "what", "have", "having", "been", "with", "your", "yours",
   "just", "like", "know", "knew", "about", "they", "them", "their", "there", "here", "from", "some",
@@ -176,8 +229,147 @@ export const RECALL_STOP = new Set([
   "matlab", "kuch", "bhi", "raha", "rahi", "rahe", "karta", "karti", "karte", "karna", "kiya",
   "kaise", "kaisa", "kaisi", "tumhara", "tumhari", "tumhe", "mera", "meri", "mere", "main", "mujhe",
   "abhi", "phir", "bata", "batao", "waise", "acha", "achha", "theek", "thik", "chal", "koi", "sab",
-  "hai", "hain", "tha", "thi", "the", "hoga", "hogi", "kyun", "kyu", "kaam", "baat", "bolo", "bola",
+  "hai", "hain", "tha", "thi", "the", "hoga", "hogi", "kyun", "kyu", "bolo", "bola",
+  // pure noise (added with P1-10; see the note above)
+  "haha", "hahaha", "hehe", "lol", "lmao", "hmm", "hmmm", "arre", "arey", "bas", "aise", "aisa",
+  "chalo", "accha", "achcha", "acchha", "hanji", "hnji",
 ]);
+
+// ── P1-10, half two: the 3-character floor ─────────────────────────────────
+//
+// The tokenizer's latin floor was FOUR characters, which is a reasonable
+// default for English and wrong for this product: `job`, `gym`, `maa`, `din`
+// and `kal` are three characters and each of them names a whole region of
+// somebody's life. "job kaisi chal rahi hai" tokenized to nothing for no
+// reason except arithmetic.
+//
+// The floor drops to three for THIS LIST ONLY rather than globally. A global
+// three-character floor readmits `kya`, `kar`, `woh`, `iss`, `tha` and the
+// entire Hinglish function-word inventory into the keyword leg, where every one
+// of them `~*` word-matches against half the store — which is the exact failure
+// RECALL_STOP was written to stop, arriving through a different door. A
+// whitelist is the version of this change that cannot do that.
+//
+// Devanagari already had a three-character floor and is unaffected: three
+// devanagari characters is a whole word, not a fragment.
+export const RECALL_SHORT = new Set([
+  "job", "gym", "maa", "dad", "mom", "son", "kid", "bro", "sis", "bua",
+  "din", "kal", "aaj", "car", "cat", "dog", "pet",
+  "ipl", "mba", "phd", "ias", "ips", "ssc", "gre", "cet",
+  "emi", "tax", "gst", "pan", "ceo", "hod", "flu", "mri", "icu",
+]);
+
+// The words that are frequent AND uninformative but are not stopwords — used
+// only to ORDER the bigram fallback below, never to filter. A word in here can
+// still be picked; it is simply picked last.
+const RECALL_UBIQUITOUS = new Set([
+  "kya", "kar", "karo", "kare", "hua", "hui", "hue", "tum", "aap", "hum", "mai",
+  "kab", "kaun", "kahan", "kis", "kisi", "jab", "tab", "yeh", "woh", "uss", "iss",
+  "hun", "hoon", "nai", "naa", "toh", "aur", "par", "sirf", "wala", "wali",
+]);
+
+/**
+ * The recall tokenizer. EXPORTED because it was previously inline in opRecall
+ * and the only way to test it was to regex the list back out of this file's
+ * source (`evals/recall/tokens.mjs`'s ancestor did exactly that) — a test that
+ * reads a copy of the thing under test is a test of the copy.
+ *
+ * Three passes, in order:
+ *   1. content words — latin >= 4 chars, or >= 3 if whitelisted, or
+ *      devanagari >= 3 — minus the stoplist. This is the old behaviour plus
+ *      the whitelist.
+ *   2. if that yields NOTHING, the BIGRAM FALLBACK: the two rarest raw words
+ *      that are not stopwords. Rarity is a static ubiquity list, then length,
+ *      then alphabetical — deterministic end to end, no corpus, no model.
+ *   3. if fewer than two candidates survive, return nothing. This is the part
+ *      that keeps the fallback honest: it is a BIGRAM fallback, so a query
+ *      that cannot even produce two words is a grunt, and a grunt must recall
+ *      nothing. "hmm", "acha", "theek hai yaar" and "arre bas" all land here.
+ */
+export function recallTokens(query) {
+  const text = String(query || "").toLowerCase();
+  const raw = [...new Set(text.match(/[a-z]{3,}|[ऀ-ॿ]{3,}/g) || [])];
+  const primary = raw
+    .filter((w) => !RECALL_STOP.has(w))
+    .filter((w) => !/^[a-z]{3}$/.test(w) || RECALL_SHORT.has(w))
+    .slice(0, 6);
+  if (primary.length) return primary;
+  const candidates = raw.filter((w) => !RECALL_STOP.has(w));
+  if (candidates.length < 2) return [];
+  return candidates
+    .map((w) => ({ w, rare: RECALL_UBIQUITOUS.has(w) ? 0 : 1 }))
+    .sort((a, b) => b.rare - a.rare || b.w.length - a.w.length || (a.w < b.w ? -1 : 1))
+    .slice(0, 2)
+    .map((x) => x.w);
+}
+
+// ── RECIPROCAL RANK FUSION (world-class #2) ────────────────────────────────
+//
+// EXPORTED and pure so `evals/recall/run.mjs` proves THIS function rather than
+// a re-implementation of it (`gates-that-live-nowhere`: a predicate tested
+// through a copy is a copy that was tested).
+//
+// k = 60 is the standard RRF constant. It is not tuned and should not be: at
+// list lengths of 4–8 the ordering is insensitive to it across any plausible
+// value, so a tuned k would be a number with a decimal place and no defence.
+//
+// The ROW IDENTITY is `${kindOf}:${name}` rather than the primary key, because
+// the whole point of fusing is that agreement between legs is evidence — and
+// two legs reading two different TABLES (meera_nodes and vy_fact) express the
+// same memory under the same name, never under the same id. Falling back to
+// `${origin}:${id}` when a row has no name keeps a nameless row a distinct
+// candidate instead of silently merging every nameless row into one.
+//
+// Deterministic end to end: equal scores break on the identity string, so the
+// same input always produces the same output, which is what makes the eval a
+// gate rather than a weather report.
+export const RRF_K = 60;
+export const RRF_SLOTS = 8;
+
+export function rrfFuse(legs, { k = RRF_K, slots = RRF_SLOTS } = {}) {
+  const score = new Map();
+  const row = new Map();
+  for (const leg of Array.isArray(legs) ? legs : []) {
+    (Array.isArray(leg?.rows) ? leg.rows : []).forEach((r, i) => {
+      const named = String(r?.name || "").toLowerCase();
+      const id = named ? `${leg.kindOf}:${named}` : `${leg.origin}:${r?.id}`;
+      score.set(id, (score.get(id) || 0) + 1 / (k + i + 1));
+      if (!row.has(id)) row.set(id, { ...r, __origin: leg.origin });
+    });
+  }
+  return [...score.entries()]
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
+    .slice(0, slots)
+    .map(([id]) => row.get(id));
+}
+
+// ── P1-6: "kab bataya tha maine?" ──────────────────────────────────────────
+//
+// A node line carried ONE date, `updated_at`, rendered as "last came up N".
+// So the single most common memory question this product gets — when did I
+// first tell you this — had no answer in the prompt, and the honest reply to
+// it is a date she was never given. `created_at` was sitting in the row and
+// was not even selected.
+//
+// Both dates render only when they are meaningfully different. "first told
+// today, last came up today" is two facts where there is one, and it is the
+// shape that teaches a model the phrase is decorative. FIRST_TOLD_MIN_GAP_DAYS
+// is the threshold: below it the line reads exactly as it did before, which
+// also keeps the byte-identity frame for every fresh relationship.
+export const FIRST_TOLD_MIN_GAP_DAYS = 6;
+
+export function provenanceAge(n) {
+  const last = ageLabel(n.updated_at);
+  const createdMs = new Date(n.created_at ?? n.updated_at).getTime();
+  const updatedMs = new Date(n.updated_at).getTime();
+  const gapDays = (updatedMs - createdMs) / 86_400_000;
+  if (!Number.isFinite(gapDays) || gapDays < FIRST_TOLD_MIN_GAP_DAYS) return `last came up ${last}`;
+  // mentions travels with the pair or the sentence is missing its unit: "first
+  // told three weeks ago, last came up yesterday" reads very differently at 2
+  // mentions and at 30, and she has no other way to tell which she is holding.
+  const times = Number(n.mentions) > 1 ? `, ${Number(n.mentions)} times in all` : "";
+  return `first told ${ageLabel(n.created_at)}, last came up ${last}${times}`;
+}
 
 function ageLabel(at) {
   const ms = Date.now() - new Date(at).getTime();
@@ -220,7 +412,7 @@ async function fetchRelBundle(person, agentId = MEERA_AGENT_ID) {
   ).catch(() => []);
   if (!stateRows.length) return null;
   const s = stateRows[0];
-  const [honorificRow, ruptureMoveRow, patterns, rituals, currency, profile, weEpisodes, phrases] = await Promise.all([
+  const [honorificRow, ruptureMoveRow, patterns, rituals, currency, profile, weEpisodes, phrases, kin] = await Promise.all([
     q(
       `select e.at from vy_rel_event e where e.person_id = $1 and e.dim = 'honorific'
         ${agentScopePredicate("e", { agentId: "$2" })}
@@ -281,6 +473,15 @@ async function fetchRelBundle(person, agentId = MEERA_AGENT_ID) {
         order by p.last_used desc nulls last, p.coined_at desc limit 20`,
       [person, agentId],
     ).catch(() => []),
+      // WS-SPINE ticket: the kin READER (writer lives in the consolidation
+    // chain). Provisional rows render hedged in T3; a failed read costs the
+    // block, never the bundle.
+    q(
+      `select k.id, k.name, k.relation, k.fictive, k.address_term, k.citations, k.provisional
+         from vy_kin k where k.person_id = $1 ${agentScopePredicate("k", { agentId: "$2" })}
+        order by k.updated_at desc limit 6`,
+      [person, agentId],
+    ).catch(() => []),
   ]);
 
   const lastRuptureMoveAt = ruptureMoveRow[0]?.at ?? null;
@@ -322,6 +523,15 @@ async function fetchRelBundle(person, agentId = MEERA_AGENT_ID) {
     lastHonorificMoveAt: honorificRow[0]?.at ?? null,
     lastRuptureMoveAt,
     warmEpisodesSinceRupture,
+    kin: kin.map((k) => ({
+      id: Number(k.id),
+      name: k.name,
+      relation: k.relation,
+      fictive: Boolean(k.fictive),
+      address_term: k.address_term || "",
+      citations: k.citations || [],
+      provisional: k.provisional !== false,
+    })),
     patterns: patterns.map((p) => ({
       id: Number(p.id),
       person_id: p.person_id,
@@ -453,11 +663,19 @@ async function opRecall(device, body) {
   // `memories_bytes` below is that number.
   const traceT0 = Date.now();
   const query = String(body.query || "").toLowerCase();
-  const words = [...new Set(query.match(/[a-z]{4,}|[ऀ-ॿ]{3,}/g) || [])]
-    .filter((w) => !RECALL_STOP.has(w))
-    .slice(0, 6);
+  // P1-10: the tokenizer is a named, exported, tested function now — see
+  // recallTokens(). 6 of 19 real Hinglish queries used to reach this line with
+  // zero tokens, which meant the keyword leg silently did not run.
+  const words = recallTokens(query);
 
-  const COLS = "id, name, kind, summary, feel, updated_at";
+  // P1-6: `created_at` and `mentions` join the projection. Neither was
+  // selected, so the two things a person actually asks about a memory —
+  // "kab bataya tha maine" (when did I first tell you) and "how often has
+  // this come up" — were unanswerable from a row this function had already
+  // fetched. `last_recalled` is selected for the same reason it is written:
+  // so the spaced-resurfacing modifier below is inspectable from the row
+  // rather than only from the ORDER BY.
+  const COLS = "id, name, kind, summary, feel, updated_at, created_at, mentions, last_recalled";
   // STANDING BACKGROUND is what she carries without being asked, so it must be
   // the big durable things — not last week's loudest topic. Identity kinds
   // (who they are, where they are, what they like) hold their weight; episodic
@@ -467,12 +685,68 @@ async function opRecall(device, body) {
   // coined is the least perishable thing in the whole store — a callback that
   // survived three weeks is worth ten inside the same chat, and it is exactly
   // what the 90-message context window cannot hold on its own.
-  const RANK = `salience * case when kind in ('person','place','preference','fact','phrase') then 1.0
+  // ── SPACED RESURFACING (world-class #3) — A RANK MODIFIER, AND ONLY THAT ──
+  //
+  // The expanding-interval idea from the spacing literature, reduced to the
+  // one form that does not break L3. Two effects, both multiplicative on an
+  // ORDER BY and nothing else:
+  //
+  //   suppression — a row that was in yesterday's prompt is worth less today.
+  //                 Not because it stopped being true, but because six slots
+  //                 spent on the same six rows every day is a person who says
+  //                 the same six things every day.
+  //   resurfacing — a row untouched for three weeks gets a small lift, so the
+  //                 store's long tail is reachable at all.
+  //
+  // WHAT IT IS NOT, and this is the part that matters: it is NEVER a trigger.
+  // Nothing anywhere reads "this row is due" and decides to SAY it. Due-ness
+  // moves a row up an ORDER BY; whether any of this reaches a reply is still
+  // decided entirely by whether the person pulled on it (L3, `moment.ts:23-27`,
+  // 0/60 unprompted-raises). The whole mechanism lives inside this one SQL
+  // string, which is what makes that assertion checkable rather than promised
+  // — evals/recall/run.mjs greps for exactly that.
+  const SPACED = `case
+      when last_recalled is null then 1.0
+      when now() - last_recalled < interval '20 hours' then 0.6
+      when now() - last_recalled > interval '21 days' then 1.25
+      else 1.0 end`;
+  // Identity kinds hold their weight; episodic kinds fade with age, the way a
+  // person's do. 'phrase' sits with the identity kinds on purpose (see above).
+  const RECENCY = `case when kind in ('person','place','preference','fact','phrase') then 1.0
                  else greatest(0.25, 1.0 - extract(epoch from (now() - updated_at)) / (86400.0 * 60)) end`;
+  // P1-6: mention_count enters the rank. BOUNDED, and the bound is the point:
+  // salience already absorbs +0.6 per mention at write time, so an unbounded
+  // mentions term would count the same evidence twice and hand the standing
+  // background to whatever topic was loudest last week — which is the exact
+  // thing STANDING BACKGROUND is not for. `ln` plus a 0.35 coefficient makes
+  // it a tie-breaker between comparably-salient rows, which is what a mention
+  // count honestly is.
+  const RANK = `salience * ${RECENCY} * (1.0 + 0.35 * ln(1.0 + mentions)) * ${SPACED}`;
+  // ── the standing-background leg: 5 ranked + 1 RESERVED (P1-6) ────────────
+  //
+  // It was `limit 4`, ranked, full stop — so the four most salient recent
+  // things were the whole of what she carried, and a big old fact (the job he
+  // told her about in March, the brother he mentioned twice a year ago) could
+  // never be reached by ANY ranking, because rank is the thing age is
+  // subtracted from. The reserved slot is the fix and it is deliberately a
+  // RESERVATION rather than a weight: a weight big enough to lift an old row
+  // past four fresh ones would also lift it past everything else, and then it
+  // is not background any more. One slot, always, for the oldest row that was
+  // salient enough to matter — and if there is no such row the slot simply
+  // does not exist, so a new relationship's prompt is byte-identical.
   const fetches = [
     q(
-      `select ${COLS} from meera_nodes where device_id = $1
-       order by ${RANK} desc, updated_at desc limit 4`,
+      `with scored as (
+         select ${COLS}, salience, ${RANK} as r from meera_nodes where device_id = $1
+       ),
+       ranked as (select *, 0 as slot from scored order by r desc, updated_at desc limit 5),
+       reserved as (
+         select s.*, 1 as slot from scored s
+          where s.salience >= 2.0
+            and not exists (select 1 from ranked k where k.id = s.id)
+          order by s.created_at asc limit 1
+       )
+       select * from ranked union all select * from reserved`,
       [device],
     ),
   ];
@@ -550,6 +824,146 @@ async function opRecall(device, body) {
       2_500,
     ).catch(() => []);
   })();
+  // ── THE ACTIVITY LEG (2026-08-23) ──────────────────────────────────────
+  //
+  // WHAT WAS BROKEN. `opActivity` writes a finished game to `vy_episode` +
+  // `vy_fact`. Every keyword read in this function is over `meera_nodes`,
+  // which activities are never written to. `fetchRelBundle`'s `weEpisodes`
+  // reads `vy_episode` but returns null unless a `vy_rel_state` row exists,
+  // and that row is written by the nightly consolidator. So for a person with
+  // no consolidation yet — every person on their first day — the ONLY route
+  // from a finished game back into a prompt was the semantic leg above, which
+  // requires an `embedOne` call to have succeeded at write time AND the query
+  // to embed close enough at read time. `api/_embed.js` says in its own doc
+  // that "an embedding is an enhancement, never the only path to a memory".
+  // For this one class of memory it was the only path, and the failure mode is
+  // the worst one this product has: the first external tester played two games
+  // of chess, asked about them, and she said they had not happened.
+  //
+  // This is the missing keyword leg, and it is deliberately scoped to activity
+  // rows rather than opened over `vy_fact` generally: conversational facts
+  // already reach a prompt through `meera_nodes` (opRemember writes both), so
+  // a general read would change what every existing turn recalls in order to
+  // fix a class that has no route at all. `name like 'activity:%'` is the same
+  // key `activityFactName` composes, which is what keeps the reader and the
+  // writer naming one thing.
+  //
+  // Runs CONCURRENTLY with everything else — one more batched round trip, not
+  // a serial one — and degrades to [] on any failure, exactly like the
+  // semantic leg it sits beside.
+  const activityFetch = (async () => {
+    const person = await personPromise;
+    if (!person) return [];
+    // With query words: word-boundary match, same `~*` predicate and the same
+    // `\m…\M` anchoring the `meera_nodes` leg uses (an `ilike '%…%'` would
+    // match "chess" inside "chessboard-shaped" and hand her a memory the
+    // message never referred to). WITHOUT them: the most recent few, because
+    // "kya khela tha humne" tokenises to nothing this leg can match on and is
+    // precisely the question that must be answerable.
+    const clauses = words.map((_, i) => `f.body ~* $${i + 3}`);
+    return q(
+      `select f.id, f.kind, f.name, f.body, f.feel, f.created_at
+         from vy_fact f
+        where f.person_id = $1 and f.name like 'activity:%'
+          and f.t_invalid is null and f.retracted_at is null
+          ${agentScopePredicate("f", { agentId: "$2" })}
+          ${clauses.length ? `and (${clauses.join(" or ")})` : ""}
+        order by f.created_at desc
+        limit 4`,
+      [person, agentId, ...words.map((w) => `\\m${w}\\M`)],
+      2_500,
+    ).catch(() => []);
+  })();
+
+  // ── THE WATCHED-TOGETHER LEG (P1-1) ────────────────────────────────────
+  //
+  // `vy_shared_moment` and `vy_visual_assertion` are the two DEAD STORES this
+  // wave was called to open. Both have live writers and had no reader anywhere
+  // in the product:
+  //
+  //   vy_shared_moment    — the ONLY record anywhere that a screen share
+  //                         happened at all. `reaction` is the line she
+  //                         actually said while they were both looking at it.
+  //                         Written by api/episodes.js `watch_moment`, from
+  //                         useCallEngine's noteHerLine(), on both the web and
+  //                         the native Android watch lanes.
+  //   vy_visual_assertion — what was ON the screen or in the photo, as a
+  //                         claim with an extractor model and a confidence
+  //                         attached. Written by the same op and by
+  //                         recordPhotoMemory below.
+  //
+  // Nothing read either one. So "us din jo video dekhi thi" and "wo plant wali
+  // photo" — the two things a person is most likely to reach for after a watch
+  // session, because they are the most VIVID things that happened — were
+  // answerable only by whatever the semantic leg happened to reach, and the
+  // moment rows carry no embedding at all, so for shared moments the answer was
+  // structurally nothing. Same shape as the activity leg above and discovered
+  // the same way: a store with a writer, a reader nobody wrote, and a failure
+  // mode of confidently denying something that happened.
+  //
+  // WHY IT IS ITS OWN LEG rather than folded into the semantic one. A visual
+  // claim is the LEAST trustworthy row in this database — `PHOTO_VISION_
+  // CONFIDENCE` is 0.35 for a reason (see the block at recordPhotoMemory) —
+  // and its confidence has to travel with it all the way to the render, or she
+  // states a model's guess about a photograph as a thing she saw. A separate
+  // leg is what makes that possible; merging it into ALSO RELEVANT would strip
+  // the provenance the row exists to carry.
+  //
+  // TWO STATEMENTS, ONE LEG, run concurrently with everything else:
+  //   (a) moments, joined to their assertion and their episode
+  //   (b) assertions with NO moment — every photo, since recordPhotoMemory has
+  //       no reaction to anchor one on
+  // With query words both sides match on their own text; without them both
+  // fall back to the most recent few inside a 45-day window, because a
+  // watch session from four months ago is not context, it is an ambush.
+  const WATCH_LOOKBACK_DAYS = 45;
+  const watchFetch = (async () => {
+    const person = await personPromise;
+    if (!person) return { moments: [], photos: [] };
+    const like = words.map((w) => `\\m${w}\\M`);
+    const momentWhere = like.length
+      ? `and (${like.map((_, i) => `m.reaction ~* $${i + 3} or a.claim ~* $${i + 3}`).join(" or ")})`
+      : `and m.at > now() - interval '${WATCH_LOOKBACK_DAYS} days'`;
+    const photoWhere = like.length
+      ? `and (${like.map((_, i) => `a.claim ~* $${i + 3}`).join(" or ")})`
+      : `and a.created_at > now() - interval '${WATCH_LOOKBACK_DAYS} days'`;
+    const params = [person, agentId, ...like];
+    const [moments, photos] = await Promise.all([
+      q(
+        `select m.id, m.reaction, m.at, m.assertion_id,
+                a.claim, a.confidence, a.declared_illegible, e.channel
+           from vy_shared_moment m
+           left join vy_visual_assertion a
+             on a.id = m.assertion_id and a.person_id = m.person_id
+           join vy_episode e on e.id = m.episode_id
+          where m.person_id = $1
+            ${agentScopePredicate("m", { agentId: "$2" })}
+            ${momentWhere}
+          order by m.at desc
+          limit 4`,
+        params,
+        2_500,
+      ).catch(() => []),
+      q(
+        `select a.id, a.claim, a.confidence, a.declared_illegible, a.created_at, e.channel
+           from vy_visual_assertion a
+           join vy_episode e on e.id = a.episode_id
+          where a.person_id = $1 and a.declared_illegible = false
+            and not exists (select 1 from vy_shared_moment m where m.assertion_id = a.id)
+            ${agentScopePredicate("a", { agentId: "$2" })}
+            ${photoWhere}
+          order by a.created_at desc
+          limit 4`,
+        params,
+        2_500,
+      ).catch(() => []),
+    ]);
+    return {
+      moments: Array.isArray(moments) ? moments : [],
+      photos: Array.isArray(photos) ? photos : [],
+    };
+  })();
+
   // WS-INTEGRATE seam 1: run concurrently with everything else in this
   // function — one extra batched round trip, never a serial one (SPEC §3.3
   // retrieval-budget discipline). Any failure degrades to `relstate: null`,
@@ -561,17 +975,122 @@ async function opRecall(device, body) {
   // person a third time, and it degrades to `self: null` on any failure.
   const selfBundleFetch = personPromise.then((person) => fetchSelfBundle(person, agentId)).catch(() => null);
 
-  const [[bgRaw, matchedRaw = []], semanticRaw, relBundle, selfBundle] = await Promise.all([
-    Promise.all(fetches),
-    semanticFetch,
-    relBundleFetch,
-    selfBundleFetch,
-  ]);
-  const background = Array.isArray(bgRaw) ? bgRaw : [];
+  const [[bgRaw, matchedRaw = []], semanticRaw, activityRaw, watchRaw, relBundle, selfBundle] =
+    await Promise.all([
+      Promise.all(fetches),
+      semanticFetch,
+      activityFetch,
+      watchFetch,
+      relBundleFetch,
+      selfBundleFetch,
+    ]);
+  // slot 0 = the five ranked rows, slot 1 = the reserved oldest-high-salience
+  // row. `union all` does not promise an order, so the reservation is put back
+  // where it belongs here rather than trusted to arrive there.
+  const background = (Array.isArray(bgRaw) ? bgRaw : [])
+    .slice()
+    .sort((a, b) => Number(a.slot ?? 0) - Number(b.slot ?? 0) || Number(b.r ?? 0) - Number(a.r ?? 0));
   const matched = Array.isArray(matchedRaw) ? matchedRaw : [];
-  const semantic = (Array.isArray(semanticRaw) ? semanticRaw : []).slice(0, 4);
+  const semanticAll = Array.isArray(semanticRaw) ? semanticRaw : [];
+  const activities = (Array.isArray(activityRaw) ? activityRaw : []).slice(0, 4);
+  const watched = watchRaw && typeof watchRaw === "object" ? watchRaw : { moments: [], photos: [] };
+
+  // ── ONE CO-CITATION HOP over vy_fact.citations (world-class #2) ──────────
+  //
+  // docs/research/MEMORY-FIELD-SURVEY.md §Q3: "We have a bipartite
+  // fact↔episode graph with a GIN index and we never walk it. HippoRAG 2's
+  // transferable insight is not PPR; it is that connecting two things through a
+  // shared intermediate finds what similarity cannot. One co-citation hop is
+  // the whole of that idea at our scale."
+  //
+  // The intermediate is an EPISODE. Two facts derived from the same stretch of
+  // conversation are about the same afternoon whether or not they share a word
+  // or an embedding neighbourhood — the fact that he changed jobs and the fact
+  // that Rohit referred him were extracted from one exchange, and asking about
+  // one is asking about the other. Neither the keyword leg nor the vector leg
+  // can see that, because it is not a property of the text.
+  //
+  // ONE HOP, and the seeds are the rows the other legs already earned. Two
+  // hops is a community summary with extra steps and it dilutes fast; the
+  // survey rejects the machinery above it (PPR, the LLM recognition filter)
+  // for latency and for L3.
+  //
+  // SERIAL, because it has to be: the hop needs the citations of rows we do
+  // not have until the concurrent block resolves. It is one indexed statement
+  // over a GIN index against a 10^0–10^3-row per-dyad corpus (`recall-v2`: p50
+  // 40 ms for the harder exact-scan case), bounded at 1.5s, degrading to [].
+  // The agent predicate is on the hop's own side of the join as well as the
+  // seeds' — a scope clause on one side only would let another agent's rows
+  // decide which of Meera's survive.
+  const seedFacts = [...semanticAll, ...activities];
+  const seedCites = [...new Set(seedFacts.flatMap((f) => (Array.isArray(f?.citations) ? f.citations : [])).map(Number).filter(Number.isFinite))];
+  const seedFactIds = seedFacts.map((f) => Number(f.id)).filter(Number.isFinite);
+  const cocited = seedCites.length
+    ? await q(
+        `select f.id, f.kind, f.name, f.body, f.feel, f.created_at,
+                cardinality(array(select unnest(f.citations) intersect select unnest($2::bigint[]))) as shared
+           from vy_fact f
+          where f.person_id = $1
+            and f.citations && $2::bigint[]
+            and not (f.id = any($3::bigint[]))
+            and f.t_invalid is null and f.retracted_at is null
+            and f.name not like 'activity:%'
+            ${agentScopePredicate("f", { agentId: "$4" })}
+          order by shared desc, f.created_at desc
+          limit 4`,
+        [await personPromise.catch(() => null), seedCites, seedFactIds, agentId],
+        1_500,
+      ).catch(() => [])
+    : [];
+  const coCited = Array.isArray(cocited) ? cocited : [];
+
+  // ── RRF FUSION (world-class #2) ─────────────────────────────────────────
+  //
+  // Same survey section: "Today the T5 budget is spent by arrival order per
+  // path, so a weak keyword hit can displace a strong semantic one. Graphiti's
+  // answer (RRF over concurrent methods, then truncate) is deterministic,
+  // LLM-free, and preserves the labels: fuse to decide WHICH ROWS SURVIVE,
+  // keep the blocks to decide HOW THEY ARE FRAMED."
+  //
+  // That is exactly the split implemented here. Fusion decides survival;
+  // rendering is untouched and every surviving row is still framed by the
+  // block that earned it, because a semantic hit and an exact word hit are
+  // differently-earned signals and a diag trace has to stay able to say which
+  // store answered.
+  //
+  // Reciprocal rank fusion, k = 60 (the standard constant; the ranking is
+  // insensitive to it at our list lengths and a tuned k would be a number
+  // nobody could defend). A row appearing in two legs earns both terms, which
+  // is the entire mechanism: agreement between differently-earned signals is
+  // the only evidence available here that a row is actually relevant.
+  //
+  // WHAT IS NOT FUSED, deliberately:
+  //   background  — it is continuity, not an answer to this turn. Ranking it
+  //                 against query-relevant rows would let a quiet day evict
+  //                 the standing facts, which is what background is FOR.
+  //   activities  — the record of what the two of them did is verifiable by
+  //                 the person reading the reply (he was at the board), and
+  //                 its block is positioned first precisely so it is never the
+  //                 casualty of a truncation. Fusing it puts it back in the
+  //                 line of fire.
+  //   watched     — same reason, plus its rows carry a confidence that must
+  //                 not be silently ranked against rows that carry none.
+  //
+  // G-E2 byte-identity holds: with empty fixtures every list is empty, the
+  // fusion produces nothing, and the blocks below render exactly as today.
+  const fused = rrfFuse([
+    { origin: "matched", kindOf: "node", rows: matched },
+    { origin: "semantic", kindOf: "fact", rows: semanticAll },
+    { origin: "cocite", kindOf: "fact", rows: coCited },
+  ]);
+  const survived = new Set(fused.map((r) => `${r.__origin}:${r.id}`));
+  const keepFused = (rows, origin) => rows.filter((r) => survived.has(`${origin}:${r.id}`));
+  const matchedFused = keepFused(matched, "matched");
+  const semantic = keepFused(semanticAll, "semantic").slice(0, 4);
+  const coCitedFused = keepFused(coCited, "cocite").slice(0, 3);
+
   const seen = new Map();
-  for (const n of [...matched, ...background]) seen.set(n.id, n);
+  for (const n of [...matchedFused, ...background]) seen.set(n.id, n);
 
   // ── WS-TRACE: the retrieval leg, built once and returned on both paths ───
   // IDS AND COUNTS ONLY. "why did she say that" becomes
@@ -591,8 +1110,25 @@ async function opRecall(device, body) {
       q_chars: query.length,
       q_words_n: words.length,
       ms_total: Date.now() - traceT0,
-      keyword: { matched_ids: traceIds(matched), background_ids: traceIds(background) },
-      semantic: { ...traceSem, fact_ids: traceIds(semantic) },
+      keyword: {
+        matched_ids: traceIds(matchedFused),
+        background_ids: traceIds(background),
+        // fusion is only diagnosable if what it DROPPED is countable — a
+        // reordering nobody can see is a reordering nobody can debug
+        matched_pre_fusion_n: matched.length,
+      },
+      semantic: { ...traceSem, fact_ids: traceIds(semantic), pre_fusion_n: semanticAll.length },
+      // the co-citation hop, as ids and as its seed count. `dead-writers` in
+      // the reader direction: a hop that finds nothing for a month is
+      // invisible unless something records how many seeds it had to walk from.
+      cocite: { fact_ids: traceIds(coCitedFused), seeds_n: seedCites.length, n: coCitedFused.length },
+      // the two stores this wave opened, counted separately so "the watch
+      // reader read zero rows for a month" is a question the trace can answer
+      watched: { moments_n: watched.moments.length, photos_n: watched.photos.length },
+      // the activity leg, as ids — `realtime-recall-never` is the reason every
+      // retrieval leg is countable: a leg reading zero rows for months is
+      // invisible unless something records how many it read.
+      activity: { fact_ids: traceIds(activities), n: activities.length },
       observations: { ids: obsIds || [], n: (obsIds || []).length },
       relbundle: relBundleShape(relBundle),
       selfbundle: selfBundleShape(selfBundle),
@@ -612,7 +1148,23 @@ async function opRecall(device, body) {
   // and rides both paths too: her arc and her untold life exist whether or not
   // this particular query matched a node, and the empty-memories path is
   // exactly the early-relationship case where texture is most of what she has.
-  if (!seen.size && !semantic.length)
+  // The activity leg rides this condition too. It has to: a person whose only
+  // memory is a game they just played has an empty `seen` and no semantic hit
+  // (no embedding may have been written), and the early return above would
+  // send back "" — which is the exact state the 2026-08-23 report describes.
+  // P1-1 and world-class #2 ride this condition for exactly the reason the
+  // activity leg does: a person whose only memory is a screen they shared
+  // yesterday, or a fact reachable only through a co-citation, has an empty
+  // `seen` and no semantic hit — and this early return would send back "",
+  // which is the state that made both stores dead in the first place.
+  if (
+    !seen.size &&
+    !semantic.length &&
+    !activities.length &&
+    !coCitedFused.length &&
+    !watched.moments.length &&
+    !watched.photos.length
+  )
     return { memories: "", relstate: relBundle, self: selfBundle, trace: buildTrace("", [], []) };
 
   const idArr = [...seen.keys()];
@@ -663,14 +1215,87 @@ async function opRecall(device, body) {
     // The feeling travels with it too — but ONLY as the words they used, so she
     // can never tell them how they felt about something they never told her.
     const felt = n.feel ? ` — their own words for it: "${n.feel}"` : "";
-    return `- ${n.name} (${n.kind}, last came up ${ageLabel(n.updated_at)}): ${n.summary}${felt}${rel ? ` [${rel}]` : ""}${staleNote(n)}`;
+    return `- ${n.name} (${n.kind}, ${provenanceAge(n)}): ${n.summary}${felt}${rel ? ` [${rel}]` : ""}${staleNote(n)}`;
   };
 
   // matched-vs-background stays labelled: background is continuity, not a
   // prompt to bring six unrelated facts into a reply about something else
-  const matchedIds = new Set(matched.map((n) => n.id));
+  const matchedIds = new Set(matchedFused.map((n) => n.id));
   const blocks = [];
-  if (matched.length) blocks.push(`RELEVANT TO WHAT THEY JUST SAID:\n${matched.map(line).join("\n")}`);
+  // THE ACTIVITY BLOCK GOES FIRST, and the position is the drop policy rather
+  // than an opinion about importance: `api/chat.js` keeps the FIRST n
+  // characters of what it is handed and cuts the END, so of everything here
+  // the record of what the two of them actually DID is the one thing that must
+  // not be the casualty. It is also the only block whose contents are
+  // verifiable by the person reading her reply — he was at the board.
+  //
+  // The heading carries the fence, for the same reason the client-side ledger
+  // block does: this is the class of memory where supplying a missing detail
+  // is indistinguishable from remembering it, and the boundary can only be
+  // stated where the record is.
+  //
+  // ONE HEADING, TWO PRODUCERS. `src/engine/memory.ts` exports
+  // ACTIVITY_BLOCK_SENTINEL and its own ledger block opens with the same
+  // words, so a client that holds a local ledger can recognise this block and
+  // drop it rather than rendering both — see `withoutServerActivityBlock`.
+  // This block is what reaches the surfaces that have no AppState at all: the
+  // realtime call lane, and every bot surface in api/route.js. The sentinel is
+  // a hand-kept mirror and `evals/gamemem.mjs` pins the two together.
+  if (activities.length)
+    blocks.push(
+      `GAMES AND THINGS YOU TWO ACTUALLY DID, newest first. This is the whole record of them: never add a move, an opening, a question or a score that is not written here — if they ask for one it does not carry, say you do not remember it rather than filling it in:\n${activities
+        .map((f) => `- ${f.body} (${ageLabel(f.created_at)})`)
+        .join("\n")}`,
+    );
+  // ── THE WATCHED-TOGETHER BLOCK (P1-1) ───────────────────────────────────
+  //
+  // Second, right behind the activity block and for the same drop-policy
+  // reason: api/chat.js keeps the FIRST n characters, and a screen the two of
+  // them watched together is the other class of memory whose absence reads as
+  // a denial that it happened.
+  //
+  // THE FENCE IS DIFFERENT FROM THE ACTIVITY BLOCK'S, and the difference is
+  // the whole point. A game record is verifiable — he was at the board. A
+  // visual claim is a model's guess about pixels, measured at 10.2%/11.2%
+  // fabrication for a STRONGER model with more frames and a tuned directive
+  // (`visiongate-powered`), and PHOTO_VISION_CONFIDENCE is 0.35 for that
+  // reason. So the confidence travels into the render as WORDS rather than as
+  // a number she would have to interpret, and the heading says out loud which
+  // half is the record and which half is a guess: HER OWN REACTION is a thing
+  // she said and can be relied on; WHAT WAS ON THE SCREEN is not.
+  //
+  // "never raise these unprompted" is in the heading because L3 is not relaxed
+  // to make a feature feel impressive. The block is what makes "us din jo
+  // video dekhi thi" answerable when he asks; it is not a licence to bring up
+  // a photo he sent three weeks ago out of nowhere.
+  const watchLines = [
+    ...watched.moments.map((m) => {
+      const saw = m.claim
+        ? `on screen (a model's read of it, can be wrong): "${m.claim}"`
+        : "on screen: no reliable record of what it was";
+      return `- ${ageLabel(m.at)}, ${m.channel === "watch" ? "watching together" : "on a call"} — ${saw}; you said: "${m.reaction}"`;
+    }),
+    ...watched.photos.map(
+      (p) =>
+        `- ${ageLabel(p.created_at)} — a picture they sent; a model read it as "${p.claim}", which is a guess about a photograph and not something you saw`,
+    ),
+  ];
+  // byte cap, whole lines only — the compiler never slices, so neither does
+  // this: a half-rendered visual claim is a claim with its hedge cut off.
+  const WATCH_BLOCK_BUDGET = 700;
+  const watchKept = [];
+  let watchBytes = 0;
+  for (const l of watchLines) {
+    if (watchBytes + l.length + 1 > WATCH_BLOCK_BUDGET) break;
+    watchKept.push(l);
+    watchBytes += l.length + 1;
+  }
+  if (watchKept.length)
+    blocks.push(
+      `THINGS YOU TWO LOOKED AT TOGETHER (context only, never raise these unprompted). Your own reaction is a thing you actually said; what was on the screen is a machine's guess at an image and may be wrong — if they ask for a detail that is not written here, say you do not remember it rather than filling it in:\n${watchKept.join("\n")}`,
+    );
+  if (matchedFused.length)
+    blocks.push(`RELEVANT TO WHAT THEY JUST SAID:\n${matchedFused.map(line).join("\n")}`);
   const bgOnly = background.filter((n) => !matchedIds.has(n.id));
   if (bgOnly.length)
     blocks.push(
@@ -684,19 +1309,44 @@ async function opRecall(device, body) {
   // signal than an exact word hit and the two must stay distinguishable to
   // anyone reading a diag trace later. Deduped against anything the keyword
   // path already surfaced by name.
-  const namesShown = new Set([...matched, ...background].map((n) => String(n.name || "").toLowerCase()));
+  // The activity leg and the semantic leg both read `vy_fact`, so an activity
+  // whose embedding DID land can come back on both — deduped by the same fact
+  // name they share, or she is told about one game twice under two headings.
+  const namesShown = new Set(
+    [...matchedFused, ...background, ...activities].map((n) => String(n.name || "").toLowerCase()),
+  );
+  const factLine = (f) => {
+    const felt = f.feel ? ` — their own words for it: "${f.feel}"` : "";
+    return `- ${f.name} (${f.kind}, first told ${ageLabel(f.created_at)}): ${f.body}${felt}`;
+  };
   const semanticOnly = semantic.filter((f) => f && !namesShown.has(String(f.name || "").toLowerCase()));
   if (semanticOnly.length) {
-    const factLine = (f) => {
-      const felt = f.feel ? ` — their own words for it: "${f.feel}"` : "";
-      return `- ${f.name} (${f.kind}, last came up ${ageLabel(f.created_at)}): ${f.body}${felt}`;
-    };
     blocks.push(
       `ALSO RELEVANT (no shared words with what they said, but the same thing):\n${semanticOnly
         .map(factLine)
         .join("\n")}`,
     );
   }
+  for (const f of semanticOnly) namesShown.add(String(f.name || "").toLowerCase());
+
+  // ── the co-citation hop's own block (world-class #2) ────────────────────
+  //
+  // Labelled separately for the same reason ALSO RELEVANT is: a row that
+  // arrived here shares no words AND no embedding neighbourhood with the
+  // query — it arrived because it came out of the same conversation as
+  // something that did. That is a real and useful signal and it is a WEAKER
+  // one than either of the other two, so it says so. Merging it upward would
+  // make a diag trace unable to name which store answered, which is the
+  // property the labelled-blocks design exists to keep.
+  const coCitedOnly = coCitedFused.filter(
+    (f) => f && !namesShown.has(String(f.name || "").toLowerCase()),
+  );
+  if (coCitedOnly.length)
+    blocks.push(
+      `FROM THE SAME CONVERSATION (they came up in the same stretch as the things above — related by when, not by what):\n${coCitedOnly
+        .map(factLine)
+        .join("\n")}`,
+    );
 
   // ── vy_observation — noticing, at ONE citation (SPEC-SELF-LAYER §7) ──────
   //
@@ -744,11 +1394,54 @@ async function opRecall(device, body) {
     idArr,
   ]).catch(() => {});
 
-  const memories = blocks.join("\n");
+  // ── T5's byte ceiling, enforced HERE, by dropping whole blocks ──────────
+  //
+  // This wave added two blocks to T5 (watched-together, from-the-same-
+  // conversation) and grew a third (standing background, 4 rows -> 6), and
+  // there was no ceiling on this string at all — the only thing downstream of
+  // it that bounds anything is api/chat.js, which keeps the FIRST n characters
+  // and cuts the END. That is `silent-truncation`, the failure that has
+  // already cost this product its crisis helplines once, and the reason
+  // scripts/check-prompt-budget.mjs exists.
+  //
+  // So the producer bounds itself, and it does it the way SPEC §3.2 requires
+  // ("The compiler NEVER slices — it drops whole blocks"): blocks are already
+  // in drop-policy order, most load-bearing first, and the ones that do not
+  // fit are removed ENTIRELY rather than cut in half. A half-block is the
+  // worst of the three outcomes here: a watched-together entry cut mid-line
+  // loses its hedge and keeps its claim.
+  //
+  // HAND-KEPT MIRROR of compiler.ts's TAIL manifest, T5, `budget: 6_000`.
+  // The same treatment ACTIVITY_SUMMARY_MAX gets and for the same reason —
+  // the two live on opposite sides of a bundler boundary — and
+  // evals/recall/run.mjs pins the two numbers together, because a reader that
+  // bounds at 6,000 against a manifest that moved to 4,000 does not fail, it
+  // silently hands over a block the compiler will drop whole.
+  const fitted = [];
+  let usedBytes = 0;
+  const dropped = [];
+  for (const b of blocks) {
+    const cost = b.length + (fitted.length ? 1 : 0);
+    if (usedBytes + cost > RECALL_T5_BUDGET) {
+      dropped.push(b.slice(0, b.indexOf(":") + 1 || 24).slice(0, 40));
+      continue;
+    }
+    fitted.push(b);
+    usedBytes += cost;
+  }
+  if (dropped.length) {
+    // said out loud rather than absorbed: a block that never reached a prompt
+    // is indistinguishable from a store that had nothing in it, which is the
+    // whole class `realtime-recall-never` belongs to
+    console.warn(`[recall] T5 over budget — dropped whole block(s): ${dropped.join(" | ")}`);
+  }
+  const memories = fitted.join("\n");
   // WS-TRACE: block LABELS (the heading before the colon), never the lines
   // under them. Which store answered is the diagnosable fact; what it answered
   // with is in the rows the ids above point at.
-  const blockLabels = blocks.map((b) => b.slice(0, b.indexOf(":") + 1 || 24).slice(0, 40));
+  // the blocks that ACTUALLY went, not the ones that were built — a trace
+  // naming a block the budget dropped is a trace that lies about what she saw
+  const blockLabels = fitted.map((b) => b.slice(0, b.indexOf(":") + 1 || 24).slice(0, 40));
   return {
     memories,
     relstate: relBundle,
@@ -1311,6 +2004,24 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
 const ACTIVITY_KIND_RE = /^[a-z][a-z0-9_]{1,15}$/;
 
 /**
+ * HAND-KEPT MIRROR of `src/engine/memory.ts`'s `EPISODE_SUMMARY_MAX`.
+ *
+ * It was 200 here against a client cap of 180 — comfortable, and therefore
+ * invisible when the client cap moved to 420 to make room for the durable rows
+ * (the opening, the colours, the ending, the captures). A writer that composes
+ * 420 characters and a reader that stores 200 does not fail: it silently
+ * stores the FIRST 200 and drops the end, which is where the drop policy
+ * deliberately put the least important rows — so the disagreement would have
+ * eaten exactly the half nobody would notice missing until someone asked about
+ * a game. `warm-count-unscoped` is the same shape and the same file pair.
+ *
+ * `evals/gamemem.mjs` asserts the two numbers agree, over the REAL modules.
+ * A slice still exists because this value crosses a trust boundary — but it is
+ * now a bound on a hostile client, not a second opinion about the record.
+ */
+export const ACTIVITY_SUMMARY_MAX = 420;
+
+/**
  * THE IDEMPOTENCE KEY. The session's own `startedAt`, never the close time:
  * two synced devices agree on when a session began (it is a synced field),
  * they do not agree on the millisecond either of them noticed it close, and
@@ -1326,7 +2037,7 @@ async function opActivity(device, body) {
   const kind = String(body.kind || "");
   const startedAt = Number(body.startedAt);
   const closedAt = Number(body.closedAt);
-  const summary = String(body.summary || "").trim().replace(/\s+/g, " ").slice(0, 200);
+  const summary = String(body.summary || "").trim().replace(/\s+/g, " ").slice(0, ACTIVITY_SUMMARY_MAX);
   if (!ACTIVITY_KIND_RE.test(kind)) return { ok: false, error: "bad kind" };
   if (!Number.isFinite(startedAt) || startedAt <= 0) return { ok: false, error: "bad session" };
   if (!Number.isFinite(closedAt) || closedAt < startedAt) return { ok: false, error: "bad session" };
@@ -1400,7 +2111,12 @@ async function opActivity(device, body) {
          (agent_id, person_id, kind, name, body, provenance, confidence, citations, provisional)
        values (${agentValue("$5")},$1,'user',$2,$3,'extracted',0.95,$4::bigint[],false)
        returning id`,
-      [person, name, summary.slice(0, 160), [episodeId], agentId],
+      // the fact BODY carries the whole summary, not a 160-char head of it.
+      // The fact is what the semantic and keyword legs return, so a body
+      // truncated below the summary is a memory that is complete in the
+      // episode table and amputated everywhere it is actually read from —
+      // and the amputation lands on the record rows, which sit at the end.
+      [person, name, summary, [episodeId], agentId],
     ).catch(() => []);
 
     // Semantic recall, same as opRemember's provisional tier: embedding is an
@@ -1566,6 +2282,14 @@ export const PERSON_TABLES = [
   { table: "meera_forget",      key: "device_id", lane: "legacy" },
   { table: "meera_tel",         key: "device_id", lane: "legacy" },
   { table: "meera_tel_session", key: "device_id", lane: "legacy" },
+  // The call-path audit trail. meera_tel's own schema note says telemetry "is
+  // still the delete key — api/memory.js opForget purges this table on the
+  // same terms it purges meera_log, which is what keeps `forget` from being a
+  // lie (rule 3)"; meera_diag is the same species of table, holds a `detail`
+  // jsonb that can carry turn-shaped content, and was never purged by
+  // anything. Found by the widened coverage query below rather than by
+  // reading — which is the argument for the widening.
+  { table: "meera_diag",        key: "device_id", lane: "legacy" },
   // ── the turn trace (migration 012, docs/TRACE.md §2.4) ───────────────────
   // Filed exactly where meera_tel sits, and for the same two reasons. FORGET:
   // a person's whole wipe must take their trace with it, and meera_turn_leg
@@ -1577,6 +2301,45 @@ export const PERSON_TABLES = [
   // them would be the wrong answer rather than a kind one.
   { table: "meera_turn",        key: "device_id", lane: "legacy" },
   { table: "meera_turn_leg",    key: "device_id", lane: "legacy" },
+  // ── P2-1: THE SERVER COPY OF THE CONVERSATION ITSELF ─────────────────────
+  //
+  // meera_state holds `syncableState(s)` — the transcript (last 400 messages),
+  // `user` (his name, his city, every fact she extracted about him), herLife,
+  // inner, activities, tally, momentsFired, followup. It is a second copy of
+  // almost everything the graph holds plus the raw words, and it was in NO
+  // manifest, NO forget path and NO export.
+  //
+  // How that survived review: it is not a `vy_%` table, and scripts/
+  // relcheck.mjs's manifest-coverage check enumerated `table_name like
+  // 'vy\_%'`. The one guard whose entire job is "a table nobody listed must
+  // fail loudly" could not see this table by construction. That is the same
+  // class as `engine-bundle-check-uncalled` — a guard producing false
+  // confidence — and it is why the coverage query is widened in the same
+  // change that adds this row (see relcheck.mjs).
+  //
+  // The failure it made possible is not subtle. Ask her to forget everything;
+  // every row in this list is deleted and the receipt is honest about them;
+  // then the signed-in client's next `load_state`, or any second device that
+  // has not synced since, returns the whole conversation and `user`, and the
+  // merge puts it back. The forget was true about the database and false
+  // about the product.
+  //
+  // Keyed on device_id (the column account.js writes on every save — always
+  // present, always UUID-validated) rather than on user_id, because this file
+  // never sees an access token. That leaves one hole this key cannot close —
+  // a row whose last writer was a DIFFERENT device of the same signed-in
+  // person — and that hole is what api/account.js's `wipe_state` op exists
+  // for. Filed lane "legacy" because the manifest loop only deletes lane
+  // "relational"; the legacy lane is deleted by the explicit scope code in
+  // opForget, which is where a scoped rewrite has to live anyway (a day-forget
+  // must prune messages from the blob, not delete the whole account row).
+  { table: "meera_state",       key: "device_id", lane: "legacy" },
+  // Analytics rows carrying a device_id and a props document, on exactly the
+  // terms docs/TELEMETRY.md rule 3 states for meera_tel one row above: "a
+  // timeline of a conversation that no longer exists is still a record of that
+  // conversation." Absent from the manifest for the same invisible reason
+  // meera_state was.
+  { table: "meera_events",      key: "device_id", lane: "legacy" },
   { table: "vy_episode",          key: "person_id", lane: "relational", agent: true,
     // room episodes carry person_id NULL (008a), so `key` already selects only
     // the exclusive 1:1 rows; the shared spec is what handles the rest
@@ -1646,6 +2409,7 @@ export const PERSON_TABLES = [
   // required for scripts/relcheck.mjs's manifest-coverage check, which fails
   // any person-keyed vy_* table that is absent from this list.
   { table: "vy_surface_identity", key: "person_id", lane: "relational" },
+  { table: "vy_push_token", key: "device_id", lane: "relational", agent: true },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];
@@ -1910,6 +2674,7 @@ async function purgeRelational(device, scope, { logIds = [], rx = null, from = N
   const out = {
     episodes: 0, facts: 0, rel_events: 0, patterns: 0, kin: 0, currency: 0,
     rituals: 0, phrases: 0, embeddings: 0, derivations: 0, sessions: 0,
+    shared_moments: 0, visual_assertions: 0,
     person_rows: 0, state_rebuilt: false, terms: [],
   };
 
@@ -2072,6 +2837,44 @@ async function purgeRelational(device, scope, { logIds = [], rx = null, from = N
     [person, epIds],
   );
   out.rituals = ritGone.length;
+
+  // ── P2-1: the watch stores, reachable by their OWN text ─────────────────
+  //
+  // vy_shared_moment and vy_visual_assertion died only one way: `on delete
+  // cascade` from the episode. So they were reachable by a forget ONLY when
+  // the whole episode died — which happens on a log-range intersection, on an
+  // episode-summary term match, or on a time window. A watch episode carries
+  // NO log span at all (api/episodes.js's own header: "watch has no meera_log
+  // rows"), and its summary is the empty string until a nightly pass gives it
+  // one, so for a watch session neither of the first two mechanisms can fire.
+  // The practical shape of that: "bhool ja wo video jo humne dekhi thi" was
+  // an item forget, item forgets have no window, and the moment survived.
+  //
+  // Worse, these are the two rows in the entire store with the most exposed
+  // content: the reaction is a sentence she SAID, and the claim is a
+  // description of a picture of somebody's actual life. §0.2.4 says term and
+  // window matches are an ADDITIONAL net and never the primary mechanism —
+  // that stands, and this is that additional net, laid over the one class of
+  // row where the primary mechanism structurally cannot reach.
+  //
+  // Rows whose episode already died are gone by cascade before this runs, so
+  // these statements only ever see survivors. Not .catch()-swallowed, like
+  // everything else in this cascade: the receipt may not be sent until the
+  // delete actually happened.
+  if (rx || win) {
+    const momGone = await q(
+      `delete from vy_shared_moment where person_id = $1
+        and (${rx ? "reaction ~* $2" : "at >= $2::timestamptz and at < $3::timestamptz"}) returning id`,
+      rx ? [person, rx] : [person, new Date(from).toISOString(), new Date(to).toISOString()],
+    );
+    out.shared_moments = momGone.length;
+    const visGone = await q(
+      `delete from vy_visual_assertion where person_id = $1
+        and (${rx ? "claim ~* $2" : "created_at >= $2::timestamptz and created_at < $3::timestamptz"}) returning id`,
+      rx ? [person, rx] : [person, new Date(from).toISOString(), new Date(to).toISOString()],
+    );
+    out.visual_assertions = visGone.length;
+  }
 
   // phrases: THEIR coined words. One dies when its coining episode dies,
   // when the word itself is what is being forgotten (rx), or when it was
@@ -2236,11 +3039,175 @@ async function dropEdgesFor(device, ids) {
 // row that outlives its events would list a session with nothing in it, which
 // during an RCA reads as data loss rather than as a forget doing its job.
 // Repair is best-effort — a stale count must never fail a delete that worked.
+// ── P2-1: the server copy of AppState ──────────────────────────────────────
+//
+// See the manifest entry for meera_state above for what the row holds and how
+// it stayed invisible. This is the delete half, and it has THREE shapes rather
+// than one, because a forget's scope has to mean the same thing to the synced
+// blob as it means to the database:
+//
+//   all     — the row goes. Every field in it belongs to a relationship that
+//             no longer exists, `user` included (evals/teardown.mjs's C1: "she
+//             started over 'not knowing you' with lives in: pune still in her
+//             prompt" — that was the LOCAL copy of the same defect).
+//   item    — the messages that say the word go, and the finished-activity
+//             ledger rows that say it go. Nothing else: forgetting one fact
+//             does not shred the transcript, which is the same rule
+//             src/engine/memory.ts's messagesAfterForget already applies on
+//             the device.
+//   window  — the messages and activities inside the window go, matching the
+//             client-side prune exactly.
+//
+// A REWRITE, NOT A DELETE, for the scoped cases: deleting the whole row to
+// honour "forget yesterday" would sign the user out of their own history.
+// jsonb_agg over jsonb_array_elements is one statement per array, which is
+// what L6 (SQL-HTTP, no transactions) allows, and each statement leaves a
+// consistent document on its own.
+//
+// `coalesce(..., '[]'::jsonb)`: jsonb_agg over an empty set returns NULL, and
+// a NULL where the client expects an array is `messages.slice` on undefined —
+// a forget that bricks the app on the next load is not a forget.
+//
+// Not .catch()-swallowed for the same reason nothing else in this cascade is.
+async function purgeSyncedState(device, { rx, from, to, all }) {
+  if (all) {
+    const gone = await q(`delete from meera_state where device_id = $1 returning user_id`, [device]);
+    return { rows: gone.length, rewritten: 0 };
+  }
+  const prune = async (field, whereKept, params) => {
+    const rows = await q(
+      `update meera_state
+          set state = jsonb_set(state, '{${field}}',
+                coalesce((select jsonb_agg(e) from jsonb_array_elements(state->'${field}') e
+                           where ${whereKept}), '[]'::jsonb)),
+              updated_at = now()
+        where device_id = $1 and jsonb_typeof(state->'${field}') = 'array'
+        returning user_id`,
+      params,
+    );
+    return rows.length;
+  };
+  let rewritten = 0;
+  if (rx) {
+    // the message text, and the caption a photo message carries — both are
+    // things they said, and a term that lives in one lives in the other
+    rewritten += await prune(
+      "messages",
+      `not (coalesce(e->>'text','') ~* $2 or coalesce(e->>'desc','') ~* $2)`,
+      [device, rx],
+    );
+    // activityEpisodeSummary's own text: "chess, 22 aug, you left it on move 6"
+    rewritten += await prune("activities", `not (coalesce(e->>'summary','') ~* $2)`, [device, rx]);
+  } else if (Number.isFinite(from) && Number.isFinite(to)) {
+    // `at` is epoch ms in AppState (src/engine/memory.ts's Message), and the
+    // ->> extraction is text — the cast is what makes the comparison numeric
+    // rather than lexicographic, and a lexicographic comparison of epoch
+    // milliseconds is wrong in a way that looks right for a decade.
+    rewritten += await prune(
+      "messages",
+      `not (coalesce((e->>'at')::bigint, 0) >= $2::bigint and coalesce((e->>'at')::bigint, 0) < $3::bigint)`,
+      [device, String(Math.floor(from)), String(Math.floor(to))],
+    );
+    rewritten += await prune(
+      "activities",
+      `not (coalesce((e->>'startedAt')::bigint, 0) >= $2::bigint and coalesce((e->>'startedAt')::bigint, 0) < $3::bigint)`,
+      [device, String(Math.floor(from)), String(Math.floor(to))],
+    );
+  }
+  return { rows: 0, rewritten };
+}
+
+// ── the turn trace, which nothing was deleting ─────────────────────────────
+//
+// FOUND BY THE FATE WALK (evals/recall/run.mjs §8), not by reading. The
+// manifest entry for meera_turn says, in writing: "a person's whole wipe must
+// take their trace with it, and meera_turn_leg carries a device_id for no
+// other purpose than being reachable by this clause." It was not reachable by
+// any clause. Both tables are lane "legacy", the manifest wipe loop deletes
+// only lane "relational", and the explicit legacy code in opForget names
+// meera_log, meera_nodes, meera_edges, meera_forget and (through
+// purgeTelemetry) meera_tel — never these two. The only thing that ever
+// removed a trace row was api/_trace.js's 90-day retention horizon.
+//
+// That is the same species of defect as meera_state one function up and it was
+// hiding behind a comment that asserted the opposite, which is worse: a stale
+// comment claiming coverage is how a reader stops looking. Both rows are
+// counts, byte lengths, hashes, timings and row ids — no conversation content
+// — so this is not an exposure. It is a promise that was not kept, and the
+// receipt was saying it had been.
+//
+// NO `rx` BRANCH, and that is a decision rather than an omission: an item
+// forget matches a WORD, and there are no words in these tables to match. A
+// trace row is deleted when the person is wiped, or when the stretch it timed
+// is wiped. Saying that here beats a branch that silently matches nothing.
+async function purgeTurnTrace(device, { from, to, all }) {
+  const del = async (sql, params) => (await q(sql, params).catch(() => [])).length;
+  if (all) {
+    // legs first: the detail table's rows are reachable only through their
+    // turn, so taking the spine first would strand them (no FK, house law)
+    const legs = await del(`delete from meera_turn_leg where device_id = $1 returning id`, [device]);
+    const turns = await del(`delete from meera_turn where device_id = $1 returning turn_id`, [device]);
+    return legs + turns;
+  }
+  if (Number.isFinite(from) && Number.isFinite(to)) {
+    const a = new Date(from).toISOString();
+    const b = new Date(to).toISOString();
+    const legs = await del(
+      `delete from meera_turn_leg where device_id = $1 and at >= $2 and at < $3 returning id`,
+      [device, a, b],
+    );
+    const turns = await del(
+      `delete from meera_turn where device_id = $1 and started_at >= $2 and started_at < $3 returning turn_id`,
+      [device, a, b],
+    );
+    return legs + turns;
+  }
+  return 0;
+}
+
+/** Analytics rows, on the same terms as meera_tel (docs/TELEMETRY.md rule 3).
+ *  Its own function rather than a branch inside purgeTelemetry because
+ *  meera_events has no session rollup to repair and no `props::text` draft
+ *  exception to reason about — it is one table and one predicate. */
+async function purgeEvents(device, { rx, from, to, all }) {
+  if (all) {
+    const gone = await q(`delete from meera_events where device_id = $1 returning id`, [device]).catch(
+      () => [],
+    );
+    return gone.length;
+  }
+  if (rx) {
+    const gone = await q(
+      `delete from meera_events where device_id = $1 and props::text ~* $2 returning id`,
+      [device, rx],
+    ).catch(() => []);
+    return gone.length;
+  }
+  if (Number.isFinite(from) && Number.isFinite(to)) {
+    const gone = await q(
+      `delete from meera_events where device_id = $1 and at >= $2 and at < $3 returning id`,
+      [device, new Date(from).toISOString(), new Date(to).toISOString()],
+    ).catch(() => []);
+    return gone.length;
+  }
+  return 0;
+}
+
 async function purgeTelemetry(device, { rx, from, to, all }) {
   let gone = [];
+  // meera_diag rides every branch of this function on exactly rule 3's terms.
+  // It is the call-path audit trail, its `detail` jsonb can carry turn-shaped
+  // content, and nothing deleted it — the same shape as meera_state one table
+  // over, found the same way (the widened coverage query in relcheck.mjs), and
+  // fixed here rather than filed, because a known hole left open is a worse
+  // artefact than an unknown one. `.catch`-tolerant: this table is an audit
+  // trail, and a diag row that outlives a delete must not block the delete.
+  const diag = async (where, params) =>
+    (await q(`delete from meera_diag where ${where} returning id`, params).catch(() => [])).length;
   if (all) {
     gone = await q(`delete from meera_tel where device_id = $1 returning id`, [device]);
     await q(`delete from meera_tel_session where device_id = $1`, [device]).catch(() => {});
+    await diag(`device_id = $1`, [device]);
     return gone.length;
   }
   if (rx) {
@@ -2248,11 +3215,17 @@ async function purgeTelemetry(device, { rx, from, to, all }) {
       device,
       rx,
     ]);
+    await diag(`device_id = $1 and detail::text ~* $2`, [device, rx]);
   } else if (Number.isFinite(from) && Number.isFinite(to)) {
     gone = await q(
       `delete from meera_tel where device_id = $1 and at >= $2 and at < $3 returning id`,
       [device, new Date(from).toISOString(), new Date(to).toISOString()],
     );
+    await diag(`device_id = $1 and at >= $2 and at < $3`, [
+      device,
+      new Date(from).toISOString(),
+      new Date(to).toISOString(),
+    ]);
   }
   if (!gone.length) return 0;
   await q(
@@ -2280,6 +3253,297 @@ function dayWindow(body) {
   return [start, start + 86_400_000];
 }
 
+// ── A1 — THE MUTATION-TIME FORGET-MATCHING HOOK ───────────────────────────
+//
+// docs/research/MEMORY-FIELD-SURVEY.md §Q5 / adopt-list A1. The problem it
+// solves, in one line: our forget PROPAGATION is the strongest thing in this
+// repo and it only ever fires on what the MATCHER selects, and the matcher is
+// `lower(term)` — while the product is Hinglish, where one referent inside one
+// relationship is "woh ladki", "us waali", "my ex" and her actual name, in one
+// sentence, across two scripts. Measured on our own battery (evals/forget/):
+// the lexical matcher takes 5.9% of the rows an adversarial ask means.
+//
+// WHY MUTATION TIME AND NOWHERE ELSE. Three placements exist and two are
+// forbidden here:
+//   * recall time — a filtered row is a row recall can still see. L2 is not a
+//     preference and this is not a soft delete.
+//   * inscribe time — puts a model in the per-turn extraction path, costs
+//     every turn, and scores 0% on intent-aware deletion in the source paper.
+//   * MUTATION time — the only regime compatible with a hard delete, and the
+//     one that measures best. It also runs a few times a DAY across all users
+//     rather than a few times a minute, which is what makes it affordable.
+//
+// WHAT IT DOES AND DOES NOT DO. It resolves a REFERENT to node ids, and the
+// names of the nodes it picks become additional lexical terms for everything
+// downstream — logs, telemetry, the synced blob, events, photos, the
+// suppression list. Not one line of the §9.1 cascade changes. The hook widens
+// the SELECTION and nothing else.
+//
+// THE CLOSURE THAT MAKES IT SAFE. The model is shown a numbered list of rows
+// and may return only numbers from that list; `parseForgetHook` drops anything
+// else. It therefore CANNOT name a row it was not shown, cannot invent a
+// person, and cannot widen the delete beyond this device's own candidates.
+// That is the anti-fabrication property, and it is structural rather than
+// prompted — the prompt asking nicely would not be evidence of anything.
+//
+// UNION, NOT REPLACE. The delete takes lexical ∪ hook. Under-deleting is the
+// wrong direction for this law (§Q5: "falling back to the deterministic terms
+// means under-deleting, which is the wrong direction"), so a hook that
+// under-selects can only ever be as bad as today, never worse. It also makes
+// the fallback trivial: the fallback IS one side of the union.
+//
+// L4 EXPOSURE: none. Row text goes UP to the resolver and ids come back; no
+// model-authored sentence is stored, and `meera_forget` — which gains the
+// resolved names — is never read by recall and never enters a prompt
+// (noteForgotten()'s own header).
+
+/** The chat lane's own free-pool model, reached through the same helper
+ *  api/chat.js uses. Chosen by measurement, not by taste — see
+ *  evals/forget/a1.mjs, which runs this exact prompt against the candidate
+ *  models and prints the recall of each. */
+// ── WHICH LANE, AND WHY THAT ORDER (measured, 2026-08-23) ─────────────────
+// The plan for this hook was the free Gemini pool, through the same helper
+// api/chat.js uses. The battery said otherwise, and said it twice in one hour:
+//
+//   * the free pool run came back 35.3% adversarial recall with **18 of 27
+//     calls 429'd** — all nine keys exhausted together. That is a number about
+//     quota, not about matching.
+//   * the check for a clean read of the same MODEL through OpenRouter got 403
+//     "Key limit exceeded" on the very first call. Both free lanes were dead
+//     within the same hour, which is `free-pool-capacity` (~75 calls/day,
+//     shared with production) arriving exactly as it was measured to.
+//   * the Azure credits lane answered 27 of 27, p50 2.19 s, **76.5%**.
+//
+// So the order is credits FIRST, free pool second — which is also the order
+// this very file already uses for extraction, for the reason stated there: a
+// bad Azure minute must cost a slower answer, never a lost memory. Reversing
+// it would put an UNMEASURED model on the primary path of a delete promise to
+// save a fraction of a cent on an operation that runs a few times a day.
+//
+// REVERSES IF: the free pool stops being saturated (owner credits, a bigger
+// pool) AND a clean free-lane run of evals/forget/a1.mjs matches the credits
+// lane's recall. Then free-first is strictly better and this comment is why.
+const FORGET_HOOK_AZ_MODEL = "grok-4-1-fast-reasoning";
+const FORGET_HOOK_MODEL = "gemini-3.6-flash";
+const GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+/** The fuse. A forget is one of the few places a user is genuinely waiting on
+ *  a promise being kept, and "haan hata diya" is sent only after commit — so
+ *  the hook is allowed to add seconds, but a bounded number of them. Measured
+ *  p50 2.19 s / max 7.88 s on the credits lane, so this cuts the tail and
+ *  keeps the median. Past it the lexical matcher answers and the receipt is
+ *  marked hedged. */
+const FORGET_HOOK_FUSE_MS = 5_000;
+/** HARD per-op call cap, counted across BOTH lanes. `withGeminiKey` will
+ *  happily walk three keys plus the billed one; a forget is not worth four
+ *  round trips of a user staring at a screen, and the free pool is a DAILY
+ *  budget shared with production (`free-pool-capacity`, ~75 calls/day). Two
+ *  upstream requests, then the deterministic answer and an honest hedge. */
+const FORGET_HOOK_MAX_CALLS = 2;
+/** How many rows the resolver may see. Two sources, in this order: the rows
+ *  the EXISTING lexical predicate already found (they are the likeliest
+ *  answer and they cost nothing extra), then a recency window, because a
+ *  referring expression — "woh ladki", "wo wali baat" — is almost always
+ *  about something recent, and it is the case where the lexical predicate
+ *  returns nothing at all. */
+const FORGET_HOOK_LEX_CAP = 40;
+const FORGET_HOOK_RECENT = 30;
+/** One row of context per candidate, capped. A node summary is a sentence or
+ *  two; a runaway one must not be able to push the rest of the list out. */
+const FORGET_HOOK_ROW_CHARS = 220;
+
+/**
+ * The resolver prompt. STRUCTURAL AND SCHEMA-FORCED, with no persona in it at
+ * all: this is a matching primitive, not Meera, and giving it a voice would
+ * make it a second place her character lives and a second thing to keep in
+ * sync. Written as rules and a schema rather than as examples, for the same
+ * reason `persona.ts` carries no example quotes — anything sentence-shaped in
+ * a prompt gets recited, and here that would mean a phrase bank of referents.
+ *
+ * Exported so `evals/forget/a1.mjs` measures THE SHIPPED PROMPT rather than a
+ * copy of it. A frozen copy that drifts is how a suite reports a pass on a
+ * tree it never saw (`gates-that-live-nowhere`).
+ */
+export function forgetHookPrompt(marker, rows) {
+  const list = rows
+    .map((r) => `[${r.id}] ${String(r.text || "").replace(/\s+/g, " ").trim().slice(0, FORGET_HOOK_ROW_CHARS)}`)
+    .join("\n");
+  return [
+    {
+      role: "system",
+      content:
+        "You resolve a deletion request against a numbered list of stored rows and return the ids to delete. " +
+        "You return JSON and nothing else.",
+    },
+    {
+      role: "user",
+      content:
+        `REQUEST (verbatim, may be Hinglish, Devanagari, romanised, or English):\n<<<${marker}>>>\n\n` +
+        `ROWS:\n${list}\n\n` +
+        `Return exactly: {"ids":[...]}\n` +
+        `RULES\n` +
+        `1. Every id you return MUST appear in brackets above. A number that does not is invalid.\n` +
+        `2. Return a row when the REQUEST is about the same person, thing or episode that row is about — across language, script, spelling, transliteration, inflection and word order.\n` +
+        `3. Return EVERY row about that same referent, not just the clearest one.\n` +
+        `4. Do NOT return a row that merely shares a word with the request but is about a different person or thing.\n` +
+        `5. If the request refers to something you cannot locate among these rows, return {"ids":[]}. An empty answer is a correct answer.\n` +
+        `Output JSON only.`,
+    },
+  ];
+}
+
+/**
+ * Parse the resolver's reply into ids, CLOSED over the ids it was shown.
+ *
+ * Returns null when the reply is unusable (that is a hook failure and gets the
+ * fallback), and an array — possibly empty — when it is usable. The empty
+ * array is a real answer, not a failure: it is what produces the honest ask
+ * instead of a false receipt.
+ */
+export function parseForgetHook(text, allowedIds) {
+  if (typeof text !== "string") return null;
+  // models fence JSON about half the time; take the first object either way
+  const m = /\{[\s\S]*\}/.exec(text);
+  if (!m) return null;
+  let j;
+  try {
+    j = JSON.parse(m[0]);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(j?.ids)) return null;
+  const allow = new Set(allowedIds.map(String));
+  const out = [];
+  for (const raw of j.ids) {
+    const id = String(raw);
+    // THE CLOSURE. An id that was not on the list does not exist as far as this
+    // function is concerned — no fuzzy match, no coercion, no "close enough".
+    if (allow.has(id) && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+/** The candidate rows: what the existing predicate found, then recency. */
+async function forgetCandidates(device, name, rx) {
+  const seen = new Map();
+  const add = (rows) => {
+    for (const r of rows) {
+      if (seen.size >= FORGET_HOOK_LEX_CAP + FORGET_HOOK_RECENT) return;
+      if (!seen.has(String(r.id))) {
+        seen.set(String(r.id), {
+          id: String(r.id),
+          name: r.name,
+          text: [r.name, r.summary].filter(Boolean).join(" — "),
+        });
+      }
+    }
+  };
+  add(
+    await q(
+      `select id, name, summary from meera_nodes
+        where device_id = $1 and (name = $2 or name ~* $3 or summary ~* $3)
+        order by updated_at desc limit ${FORGET_HOOK_LEX_CAP}`,
+      [device, name, rx],
+    ).catch(() => []),
+  );
+  add(
+    await q(
+      `select id, name, summary from meera_nodes
+        where device_id = $1 order by updated_at desc limit ${FORGET_HOOK_RECENT}`,
+      [device],
+    ).catch(() => []),
+  );
+  return [...seen.values()];
+}
+
+/**
+ * Ask the resolver. Returns `{ ids }` on success or `{ failed: true }`, which
+ * is the caller's cue to keep the lexical answer and hedge the receipt.
+ *
+ * Two lanes, credits then free pool, hard-capped at FORGET_HOOK_MAX_CALLS
+ * upstream requests TOTAL across both — see the lane note above for why that
+ * order and not the other one. The free half goes through `withGeminiKey`, the
+ * same helper api/chat.js uses, so a spent key and a sick key are already
+ * handled correctly instead of by a second, quietly-different rotation.
+ *
+ * There is deliberately no third lane. OpenRouter is what `extractChat` falls
+ * to, and on the day this was built its key was over its limit — a third
+ * round trip for a third chance at a 403 is dead air, and the lexical matcher
+ * plus an honest hedge is a better product than a user watching a spinner.
+ *
+ * Exported for the same reason `recordPhotoMemory` and `personIdFor` are: the
+ * lane plumbing is the half of this that a prompt-and-parser test cannot see,
+ * and evals/forget/a1.mjs's `--live` smoke check drives THIS function rather
+ * than a transport of its own. It takes plain arguments and touches no
+ * database, so exporting it buys the coverage and exposes nothing.
+ */
+export async function askForgetHook(marker, candidates) {
+  if (!candidates.length) return { failed: true };
+  const messages = forgetHookPrompt(marker, candidates);
+  const allowed = candidates.map((c) => c.id);
+  let calls = 0;
+  const budget = () => calls < FORGET_HOOK_MAX_CALLS;
+
+  // ── lane 1: credits ──────────────────────────────────────────────────────
+  if (AZ_ENDPOINT && AZ_KEY && budget()) {
+    calls++;
+    try {
+      const r = await fetch(`${AZ_ENDPOINT}/chat/completions`, {
+        method: "POST",
+        headers: { "api-key": AZ_KEY, "Content-Type": "application/json" },
+        // temperature 0: a delete is not a place for sampling variety. The
+        // provider may ignore it on a reasoning model — measured run-to-run
+        // drift of one row on one case out of 27 says it partly does — but
+        // asking for determinism costs nothing and not asking is a choice.
+        body: JSON.stringify({
+          model: FORGET_HOOK_AZ_MODEL,
+          max_tokens: 2000,
+          temperature: 0,
+          messages,
+        }),
+        signal: AbortSignal.timeout(FORGET_HOOK_FUSE_MS),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        const ids = parseForgetHook(j?.choices?.[0]?.message?.content, allowed);
+        if (ids) return { ids };
+      }
+    } catch {
+      /* fall through to the free pool — a bad Azure minute is not a failed
+         forget, it is a slower one */
+    }
+  }
+
+  // ── lane 2: the free pool ────────────────────────────────────────────────
+  if (poolSize() === 0 || !budget()) return { failed: true };
+  const got = await withGeminiKey(async (gkey) => {
+    // the cap is enforced HERE rather than by trusting the helper's own
+    // MAX_TRIES, which is tuned for a user waiting on speech and may be
+    // raised again by someone who is not thinking about this call site
+    if (!budget()) return { ok: false, error: "hook call cap" };
+    calls++;
+    const r = await fetch(GEMINI_OPENAI_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${gkey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: FORGET_HOOK_MODEL,
+        max_tokens: 300,
+        temperature: 0,
+        messages,
+      }),
+      signal: AbortSignal.timeout(FORGET_HOOK_FUSE_MS),
+    });
+    if (isQuota(r.status)) return { ok: false, exhausted: true };
+    if (isTransient(r.status)) return { ok: false, retry: true, error: `hook ${r.status}` };
+    if (!r.ok) return { ok: false, error: `hook ${r.status}` };
+    const j = await r.json().catch(() => null);
+    const ids = parseForgetHook(j?.choices?.[0]?.message?.content, allowed);
+    // an unparseable 200 is the same failure as a 500 for our purposes
+    if (!ids) return { ok: false, retry: true, error: "hook unparseable" };
+    return { ok: true, value: ids };
+  });
+  return got.value ? { ids: got.value } : { failed: true };
+}
+
 // Scopes, and what each one actually means in rows:
 //   item    — one remembered thing by name: its node, its edges, and the raw
 //             turns that say the word. Deleting the node but keeping the
@@ -2298,6 +3562,15 @@ async function opForget(device, body) {
   let photos = 0;
   let telemetry = 0;
   let relational = null; // the §9.1 v2 cascade over the vy_ store
+  // P2-1: the synced blob and the analytics rows. Counted in the receipt like
+  // everything else — a delete nobody can see the size of is a delete nobody
+  // can tell happened.
+  let synced = { rows: 0, rewritten: 0 };
+  let events = 0;
+  let traces = 0;
+  // A1: how the item scope's row selection was actually decided, and whether
+  // she is entitled to say "hata diya". See the receipt block at the bottom.
+  let hook = null;
 
   // meera_log's owning columns, from the manifest (§3.3 `keys`). A room turn
   // is written under the room's synthetic device uuid, which is in nobody's
@@ -2318,24 +3591,83 @@ async function opForget(device, body) {
     // precise about what it takes, not merely enthusiastic
     if (name.length < 3) return { error: "nothing named" };
     const rx = `\\m${reEsc(name)}\\M`;
+    // ── A1: resolve the REFERENT before anything is deleted ───────────────
+    // It has to run first for a mechanical reason as well as a logical one:
+    // the candidates it reads are the rows the delete is about to take, so a
+    // hook that ran afterwards would be shown an empty table.
+    //
+    // What it is shown as the REQUEST is `name` — the marker the model already
+    // emits ([forget: X], FORGET_DECISION), not the user's raw sentence. Two
+    // reasons: the marker is the referring expression itself ("woh ladki"), so
+    // the raw turn adds mostly noise; and it keeps the request side of the
+    // contract unchanged, which is what makes evals/forget/'s pre-registered
+    // baseline a like-for-like comparison instead of a different experiment.
+    //
+    // `nohook` is the SPOKEN lane opting out (src/engine/memory.ts). It takes
+    // the fallback path deliberately rather than being a second, quieter
+    // implementation of it — one code path, one receipt vocabulary.
+    const candidates = body.nohook ? [] : await forgetCandidates(device, name, rx);
+    const resolved = body.nohook
+      ? { failed: true }
+      : await askForgetHook(name, candidates).catch(() => ({ failed: true }));
+    const hookIds = resolved.ids ?? [];
+    hook = {
+      // `used` is whether the hook ANSWERED, not whether it was attempted —
+      // the difference is the whole of the fallback story
+      used: !resolved.failed,
+      candidates: candidates.length,
+      chosen: hookIds.length,
+    };
+    // The widened predicate: the asked-for word, plus the NAME of every node
+    // the resolver picked out. This is the join between the two halves — the
+    // model resolves "woh ladki" to a node, and that node's name is what the
+    // log/telemetry/blob/event sweeps below then match on, exactly as if the
+    // user had typed the name themselves. Downstream code is untouched.
+    const hookNames = candidates
+      .filter((c) => hookIds.includes(c.id))
+      .map((c) => String(c.name || "").trim().toLowerCase());
+    const terms = [
+      ...new Set([name, ...hookNames].filter((t) => t.length >= 3).map(reEsc)),
+    ].slice(0, 12);
+    // Same word-boundary shape as `rx`, over an alternation. The >= 3 filter
+    // above is the same refusal the scope guard makes at the top: a two-letter
+    // term word-matches half the log, and a forget must be precise about what
+    // it takes rather than merely enthusiastic.
+    const rxWide = terms.length > 1 ? `\\m(${terms.join("|")})\\M` : rx;
     // summary as well as name: "priya" lives on inside a node called
-    // "wedding" whose one line is about her, and that node is the same fact
+    // "wedding" whose one line is about her, and that node is the same fact.
+    // UNION with the resolver's ids: under-deleting is the wrong direction for
+    // this law, so the hook may only ever ADD to what the lexical predicate
+    // already found. A hook that picks nothing degrades exactly to today.
     nodeRows = await q(
-      `delete from meera_nodes where device_id = $1 and (name = $2 or name ~* $3 or summary ~* $3)
+      `delete from meera_nodes where device_id = $1
+         and ((name = $2 or name ~* $3 or summary ~* $3) or id::text = any($4))
        returning id, name`,
-      [device, name, rx],
+      [device, name, rx, hookIds],
     );
     edges = await dropEdgesFor(device, nodeRows.map((n) => n.id));
     logRows = await q(
       `delete from meera_log where (${logOwner}) and content ~* ${logP(1)} returning id`,
-      [...logOwnerVals, rx],
+      [...logOwnerVals, rxWide],
     );
-    telemetry = await purgeTelemetry(device, { rx });
+    telemetry = await purgeTelemetry(device, { rx: rxWide });
+    // P2-1: the same word, in the server's copy of the conversation and in the
+    // analytics rows. Before the relational cascade, so that if the cascade
+    // throws the receipt is never sent while the blob is still standing.
+    synced = await purgeSyncedState(device, { rx: rxWide });
+    events = await purgeEvents(device, { rx: rxWide });
+    // the turn trace holds no words, so an item scope has nothing to match on
+    // — called anyway, and returning 0, so the receipt's shape is the same on
+    // every scope and a future rx-able column cannot land unwired
+    traces = await purgeTurnTrace(device, { rx: rxWide });
     // derived state: episodes citing the deleted rows, then everything citing
-    // those episodes, lineage chased, snapshot replayed (§9.1 steps 2–6)
+    // those episodes, lineage chased, snapshot replayed (§9.1 steps 2–6).
+    // rxWide, not rx: the cascade is the half of forget that is actually good,
+    // and handing it the un-widened term would be resolving the referent and
+    // then throwing the answer away one line before the part that uses it.
     relational = await purgeRelational(device, scope, {
       logIds: logRows.map((r) => r.id),
-      rx,
+      rx: rxWide,
     });
     // #85: and the FILES those rows described. An item forget has no window,
     // so deletePhotos() (which needs one) never ran for this scope and the
@@ -2374,6 +3706,13 @@ async function opForget(device, body) {
     // part of the same stretch, and the node delete directly above already
     // takes the window unfiltered for the same reason.
     telemetry = await purgeTelemetry(device, { from, to });
+    // P2-1: the same window, pruned out of the synced blob. This is the exact
+    // arithmetic src/engine/memory.ts's `messagesAfterForget` runs on the
+    // device — the two must agree, or the next sync merges the window back in
+    // from whichever side kept it.
+    synced = await purgeSyncedState(device, { from, to });
+    events = await purgeEvents(device, { from, to });
+    traces = await purgeTurnTrace(device, { from, to });
     // the pictures they sent during that stretch go with it
     photos = await deletePhotos(device, from, to).catch(() => 0);
     relational = await purgeRelational(device, scope, {
@@ -2400,6 +3739,12 @@ async function opForget(device, body) {
     await q(`delete from meera_forget where device_id = $1`, [device]).catch(() => {});
     // a wipe takes telemetry outright, rollup included — rule 3
     telemetry = await purgeTelemetry(device, { all: true });
+    // P2-1: and the whole synced row. This is the one that made "forget
+    // everything" a lie for every signed-in user: the graph went, the blob
+    // stayed, and the next load_state handed the conversation back.
+    synced = await purgeSyncedState(device, { all: true });
+    events = await purgeEvents(device, { all: true });
+    traces = await purgeTurnTrace(device, { all: true });
     // a full wipe takes every picture, including any whose filename carries no
     // parseable timestamp — this is the one path that is allowed to be total
     photos = await deletePhotos(device).catch(() => 0);
@@ -2422,10 +3767,62 @@ async function opForget(device, body) {
   // how many pictures went, never which ones
   if (relational) delete relational.photoNames;
 
+  // ── A1: THE RECEIPT, AND WHAT SHE IS ENTITLED TO SAY ──────────────────────
+  //
+  // The worst failure available on this whole path is agreeing to forget and
+  // then not deleting: "a person who claims to have forgotten you while
+  // remembering your unfinished match is not forgetting, she is lying about
+  // forgetting" (`activity-forgot-the-teardown`). Until now an item forget
+  // that matched NOTHING returned ok:true with every count at zero and the
+  // client showed a receipt anyway — a false receipt, on the strongest promise
+  // in the product, and the more Hinglish the ask the more often it fired.
+  //
+  // Three outcomes, and only the first entitles her to the past tense:
+  //   "done"   — rows went. Say so.
+  //   "hedged" — the resolver did not answer; the deterministic matcher did,
+  //              and it is the matcher we already know takes 5.9% of what an
+  //              adversarial ask means. Rows DID go, so nothing she says is
+  //              false, but the system records that the delete may be partial
+  //              rather than pretending the two cases are the same.
+  //   "none"   — nothing matched under either path. There is no receipt to
+  //              give; the client asks which one they meant.
+  //
+  // Window scopes are not gated: "forget today" is its own referent and
+  // deletes exactly the window it names, whether or not the window had
+  // anything in it. There is no referent to resolve and so nothing to hedge.
+  // Every counter in the receipt, summed. Read off the object rather than
+  // listed by name on purpose: purgeRelational's return grows a key every time
+  // a table joins the manifest, and a hand-written list here would go stale
+  // silently and start reporting "nothing matched" for a delete that worked.
+  const took =
+    logRows.length + nodeRows.length + edges + photos + telemetry + events + traces +
+    synced.rows + synced.rewritten +
+    Object.values(relational ?? {}).reduce((a, v) => a + (typeof v === "number" ? v : 0), 0);
+  const receipt =
+    scope !== "item" ? "done" : took > 0 ? (hook?.used ? "done" : "hedged") : "none";
+
   return {
     ok: true,
     scope,
-    deleted: { log: logRows.length, nodes: nodeRows.length, edges, photos, telemetry, relational },
+    // the receipt carries the OUTCOME and never the words: no term, no row
+    // text, no candidate — a field naming the thing would outlive the memory
+    // it deleted, which is the rule the diag call on this path already follows
+    receipt,
+    hook,
+    deleted: {
+      log: logRows.length,
+      nodes: nodeRows.length,
+      edges,
+      photos,
+      telemetry,
+      events,
+      traces,
+      // `synced_state` reports the row delete and the rewrite separately: a
+      // scoped forget that rewrote nothing and a scoped forget that had no row
+      // to rewrite are different outcomes, and a single number cannot say which
+      synced_state: synced,
+      relational,
+    },
   };
 }
 
@@ -2551,14 +3948,37 @@ async function deletePhotoObjects(device, factNames) {
   }
 }
 
-async function opUploadPhoto(device, body) {
-  const b64 = String(body.data || "");
-  if (b64.length > 2_200_000) return { error: "too large" };
-  const mime = /^image\/(jpeg|png|webp)$/.test(String(body.mime)) ? body.mime : "image/jpeg";
-  const buf = Buffer.from(b64, "base64");
-  if (!buf.length) return { error: "empty" };
-  // per-device quota: a public write endpoint with no ceiling is a storage
-  // bill waiting to happen. 500 photos per device is far beyond real use.
+// ── the picture upload, one or five (WS-RESILIENCE ← WS-COMPOSER handoff) ──
+//
+// Per image, on the base64 as sent. This is the number that already shipped on
+// the single-photo path and it stays exactly that number: it is looser than
+// api/_lanes.js's chat-payload cap on purpose, because these are different
+// pipes. The chat cap bounds N images inside ONE model request (vision tokens,
+// real money, a platform body limit); this bounds ONE object going into
+// storage. Tightening it here to "be consistent" would reject photos that
+// upload fine today, which is a regression dressed as tidiness.
+const PHOTO_B64_MAX = 2_200_000;
+// A batch together. Five at the per-image cap would be 11MB in one request
+// body, which is past what a serverless function should be handed; the real
+// composer compresses to a few hundred KB each, so this never binds in practice
+// and binds hard on a client that stops compressing.
+const PHOTO_BATCH_B64_MAX = 6_000_000;
+// 500 photos per device is far beyond real use. A public write endpoint with no
+// ceiling is a storage bill waiting to happen.
+const PHOTO_PER_DEVICE_MAX = 500;
+
+/** `"data:image/jpeg;base64,xxx"` or bare base64 → the base64 payload. The
+ *  legacy path sends bare base64; the composer sends data URLs. */
+function photoB64(raw) {
+  const s = String(raw || "");
+  if (!s.startsWith("data:")) return s;
+  const comma = s.indexOf(",");
+  return comma < 0 ? "" : s.slice(comma + 1);
+}
+
+/** How many objects this device already has. `null` when unknown — the caller
+ *  allows the upload rather than breaking photos over a failed count. */
+async function photoCount(device) {
   try {
     const list = await fetch(`${SB_URL}/storage/v1/object/list/meera-photos`, {
       method: "POST",
@@ -2567,13 +3987,40 @@ async function opUploadPhoto(device, body) {
         Authorization: `Bearer ${SB_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ prefix: `${device}/`, limit: 501 }),
-    }).then((r) => (r.ok ? r.json() : []));
-    if (Array.isArray(list) && list.length > 500) return { error: "photo limit reached" };
+      body: JSON.stringify({ prefix: `${device}/`, limit: PHOTO_PER_DEVICE_MAX + 1 }),
+    }).then((r) => (r.ok ? r.json() : null));
+    return Array.isArray(list) ? list.length : null;
   } catch {
-    /* quota check unavailable — allow the upload rather than break photos */
+    return null;
   }
-  const path = `${device}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+}
+
+/**
+ * ONE object name, in the shape the forget cascade can turn back into a path.
+ *
+ * `photoPathsFromFactNames` matches `/^photo:(\d{6,}-[a-z0-9]{2,12})$/` and
+ * `photoIdFromUrl` matches `/\/([0-9]+-[a-z0-9]+)\.jpe?g$/`. So the name has
+ * exactly ONE dash and a lower-case alphanumeric suffix — an index appended for
+ * batch uniqueness (`…-ab12cd-3.jpg`) would carry TWO dashes, would silently
+ * stop matching both, and the JPEG would outlive the memory row describing it
+ * on an item-scope forget. That is `pk-is-an-arbiter`'s shape: an object name is
+ * also a parser's input, and changing it changes every reader that parses it.
+ * In-batch uniqueness is bought with a longer random suffix (still inside
+ * `{2,12}`) plus an explicit collision check, rather than with a new segment.
+ */
+function photoPath(device, taken) {
+  for (let i = 0; i < 8; i++) {
+    const p = `${device}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.jpg`;
+    if (!taken.has(p)) {
+      taken.add(p);
+      return p;
+    }
+  }
+  return null;
+}
+
+/** Store one buffer. Returns the public URL, or null. */
+async function putPhoto(path, buf, mime) {
   const up = await fetch(`${SB_URL}/storage/v1/object/meera-photos/${path}`, {
     method: "POST",
     headers: {
@@ -2583,9 +4030,79 @@ async function opUploadPhoto(device, body) {
       "x-upsert": "false",
     },
     body: buf,
-  });
-  if (!up.ok) return { error: "upload failed" };
-  return { url: `${SB_URL}/storage/v1/object/public/meera-photos/${path}` };
+  }).catch(() => null);
+  if (!up || !up.ok) return null;
+  return `${SB_URL}/storage/v1/object/public/meera-photos/${path}`;
+}
+
+/**
+ * `{ data, mime } → { url }` (legacy, unchanged) or
+ * `{ images: [dataUrl|base64, …≤5], mime } → { urls: [...] }` (batch).
+ *
+ * The batch exists so the composer stops paying five round trips for one send.
+ * The legacy shape is answered exactly as before, because it is what every
+ * already-installed build still sends and what the describe-then-remember path
+ * uses.
+ *
+ * `caption` is accepted and deliberately IGNORED: the caption is the message's
+ * own text (`Message.text` in store.ts) and this endpoint stores bytes. Two
+ * homes for one caption is two things to keep in sync, and the second reader is
+ * the one that derives it wrongly (`duration-is-seconds`).
+ *
+ * ALL OR NOTHING. If any image in a batch fails, the ones that succeeded are
+ * deleted and the whole call reports failure — so the client's documented
+ * per-image fallback cannot double-write and leave orphan JPEGs. A
+ * half-succeeded batch is precisely the shape that produces files with no row
+ * describing them, which is the one residual the forget cascade cannot reach
+ * (see the `#85` note above).
+ */
+async function opUploadPhoto(device, body) {
+  const mime = /^image\/(jpeg|png|webp)$/.test(String(body.mime)) ? body.mime : "image/jpeg";
+  const batch = Array.isArray(body.images);
+
+  // ── validate ──
+  const raw = batch ? body.images : [body.data];
+  if (batch && raw.length > MAX_IMAGES) return { error: "too many images" };
+  const bufs = [];
+  let total = 0;
+  for (const item of raw) {
+    const b64 = photoB64(item);
+    if (b64.length > PHOTO_B64_MAX) return { error: "too large" };
+    total += b64.length;
+    if (total > PHOTO_BATCH_B64_MAX) return { error: "too large" };
+    const buf = Buffer.from(b64, "base64");
+    // An empty entry fails the WHOLE call rather than being skipped: the
+    // contract is `urls` the same length as `images`, and a silently shorter
+    // array would pair picture 4 with picture 5's URL in the thread.
+    if (!buf.length) return { error: "empty" };
+    bufs.push(buf);
+  }
+  if (!bufs.length) return { error: "empty" };
+
+  // ── quota, once for the whole batch ──
+  const have = await photoCount(device);
+  if (have !== null && have + bufs.length > PHOTO_PER_DEVICE_MAX) {
+    return { error: "photo limit reached" };
+  }
+
+  // ── store ──
+  const taken = new Set();
+  const paths = bufs.map(() => photoPath(device, taken));
+  if (paths.some((p) => !p)) return { error: "upload failed" };
+  const urls = await Promise.all(paths.map((p, i) => putPhoto(p, bufs[i], mime)));
+  if (urls.some((u) => !u)) {
+    const orphans = paths.filter((_, i) => urls[i]);
+    if (orphans.length) {
+      const n = await deleteStorageObjects(orphans).catch(() => 0);
+      if (n < orphans.length) {
+        console.warn(`[upload] ${orphans.length - n} orphan object(s) from a partial batch`);
+      }
+    }
+    return { error: "upload failed" };
+  }
+  // Both keys on both paths, so a client mid-rollout works either way and
+  // neither reader can be broken by the other's shape.
+  return batch ? { urls, url: urls[0] } : { url: urls[0], urls };
 }
 
 // ── WS-PHOTOS: the photo → relational record delta (docs/PHOTOS.md,
@@ -2625,17 +4142,30 @@ async function opUploadPhoto(device, body) {
 //      files), so writing to vy_shared_moment here would mean inventing a
 //      "reaction" — exactly the confident-placeholder failure this repo's
 //      `error-marked-done` law already names. Left unused for photos.
-//   3. The ONE thing this path writes to vy_fact: that a photo was shared.
-//      Nothing about its content. True regardless of whether the model read
-//      it correctly — the brief's own framing, applied. And unlike a normal
-//      provisional text fact, there is no second pass that could ever
-//      correct a photo-content claim: api/consolidate.js's nightly pass
-//      re-derives facts FROM meera_log, and meera_log only ever carries the
-//      `[photo] caption` marker (src/components/Chat.tsx logTurns), never the
-//      vision description — so the safety net that makes provisional TEXT
-//      facts acceptable (a stronger model reviews them with more context by
-//      morning) does not exist for photo content. That absence is why the
-//      claim stays in vy_visual_assertion and never crosses into vy_fact.
+//   3. A vy_fact carrying the description, hedged in its own body, at
+//      PHOTO_VISION_CONFIDENCE — because vy_fact is the only table either
+//      retrieval leg reads, so a photo that is not in it is a photo she does
+//      not have.
+//
+//      SUPERSEDED RULING, kept because the reasoning still binds the shape.
+//      This point used to read "the ONE thing this path writes to vy_fact:
+//      that a photo was shared. Nothing about its content." — reasoning that a
+//      photo-content claim has no correcting pass (true: consolidate.js
+//      re-derives from meera_log, and meera_log carries only the `[photo]`
+//      marker, never the vision description), so the claim must stay in
+//      vy_visual_assertion. The conclusion was wrong in a way that took a
+//      field survey to see: the content stayed out of vy_fact and NOTHING
+//      READ vy_visual_assertion, so the result was not a conservative memory,
+//      it was no memory — every photo produced the identical row "shared a
+//      photo" and "wo plant wali photo" could not be answered by any path.
+//      Refusing to store a thing is not the same as storing it carefully.
+//
+//      What the old reasoning correctly establishes is that the claim can
+//      never be treated as verified, and that constraint is now carried by
+//      the ROW instead of by its absence: 0.35 confidence, `sensitive`, and
+//      the hedge inside the body text where no reader can drop it. The claim
+//      also still goes to vy_visual_assertion, which remains the correctable
+//      object and is now read by opRecall's watched-together leg (P1-1).
 //
 // A failed, empty, or refused description writes NOTHING — no episode touch,
 // no assertion, no fact — per lintPhotoDesc() below.
@@ -2699,7 +4229,35 @@ export async function recordPhotoMemory(device, url, rawDesc) {
     // that value rather than overloading either of the other two.
     const ep = await openOrExtendEpisode(person, device, "chat", { agentId });
     if (!ep) return { ok: false, wrote: false };
-    await touchEpisode(ep.id, { summary: `photo: ${desc}`.slice(0, 110) });
+    // ── P2-3: THIS USED TO CLOBBER THE OPEN EPISODE'S SUMMARY ──────────────
+    //
+    // `touchEpisode(ep.id, { summary })` is an unconditional `summary = $n`.
+    // openOrExtendEpisode EXTENDS the open chat episode rather than opening a
+    // new one (that is its whole job — a photo sent mid-conversation is the
+    // same stretch of conversation), so this overwrote whatever opRemember had
+    // just derived from the actual exchange with `photo: a plate of pasta`.
+    // Send four photos in an afternoon and the episode summary for that
+    // afternoon is the fourth photo — and since consolidate.js's WE_TOKEN_RE
+    // classification and the rel bundle's `weEpisodes` both read that summary,
+    // a whole afternoon of conversation was represented downstream by a
+    // caption. A write that silently replaces a better-derived value is the
+    // `silent-truncation` shape one table over.
+    //
+    // The fix is one statement and it does both jobs: bump `ended_at` (the
+    // episode is still live — that is what touchEpisode is for) and set the
+    // summary ONLY if nothing has derived one yet. A fresh provisional episode
+    // has `summary = ''` (episodes.js's insert), so a photo that genuinely
+    // opens a stretch still names it; a photo landing inside a stretch that
+    // already means something leaves that meaning alone. Written inline rather
+    // than as a touchEpisode option because touchEpisode is a writer owned by
+    // api/episodes.js and this workstream holds only its readers.
+    await q(
+      `update vy_episode
+          set ended_at = now(),
+              summary = case when coalesce(summary, '') = '' then $2 else summary end
+        where id = $1`,
+      [ep.id, `photo: ${desc}`.slice(0, 110)],
+    ).catch(() => {});
 
     // THE CLAIM — kept out of vy_fact. See the block comment above.
     await writeVisualAssertion(
@@ -2721,12 +4279,66 @@ export async function recordPhotoMemory(device, url, rawDesc) {
       [person, factName, agentId],
     ).catch(() => []);
     if (already.length) return { ok: true, wrote: false, episodeId: ep.id };
-    await q(
+    // ── P1-1: THE PHOTO FACT WAS A DEAD WRITE ─────────────────────────────
+    //
+    // The body was the literal string "shared a photo", with no embedding.
+    // Read it back through either retrieval leg and that is all it says: every
+    // photo anybody ever sent produced the identical row, so the keyword leg
+    // could only ever match the word "photo" and the semantic leg had no
+    // vector at all. "wo plant wali photo" was unanswerable, and a store that
+    // holds one indistinguishable row per event holds no memory of any of them.
+    //
+    // WHAT CHANGED, AND WHAT DID NOT. The body now carries the description, so
+    // the row is reachable. Everything that made the old design conservative
+    // is kept and is now doing its job at the point where it matters:
+    //
+    //   - the CLAIM still lives in vy_visual_assertion, written above. That is
+    //     still the correctable, inspectable object carrying the extractor
+    //     model and the confidence, and it is still what the watch lane's law
+    //     ("claims and reactions are SEPARATE OBJECTS") is about.
+    //   - `confidence` on the fact is PHOTO_VISION_CONFIDENCE (0.35), not the
+    //     0.9 it used to claim for "shared a photo". The old number was honest
+    //     about the old body — that a photo was shared is certain — and would
+    //     have been a lie about this one.
+    //   - the HEDGE IS IN THE BODY, not in a prompt rule. `looked like:` rides
+    //     the row into every reader — keyword, semantic, co-citation, export,
+    //     a future consumer nobody has written — because docs/RELATIONALOS.md
+    //     measured an instruction leaking 57–98% of the time against a
+    //     predicate leaking 0 in 31,122, and a hedge that lives in the render
+    //     is an instruction. It cannot be separated from the claim it hedges.
+    //   - `sensitive` stays true: a photo may hold a face, a document, an
+    //     address or a medical detail that text never would.
+    //
+    // The residual the old comment named is real and unchanged: consolidate.js
+    // derives from meera_log, meera_log holds only the `[photo]` marker, so no
+    // nightly pass will ever correct a photo-content claim. That is precisely
+    // why the confidence and the hedge are attached to the row itself rather
+    // than left to a reviewer who is never coming.
+    const body = `photo they sent — looked like: ${desc}`.slice(0, 160);
+    const ins = await q(
       `insert into vy_fact
          (agent_id, person_id, kind, name, body, provenance, confidence, citations, sensitive, provisional)
-       values (${agentValue("$5")},$1,'user',$2,$3,'extracted',0.9,$4::bigint[],true,true)`,
-      [person, factName, "shared a photo", [ep.id], agentId],
+       values (${agentValue("$5")},$1,'user',$2,$3,'extracted',${PHOTO_VISION_CONFIDENCE},$4::bigint[],true,true)
+       returning id`,
+      [person, factName, body, [ep.id], agentId],
     );
+    // An embedding, for the reason api/_embed.js states and this path was the
+    // counter-example to: "an embedding is an enhancement, never the only path
+    // to a memory" — here it was neither, because there was no path at all.
+    // Same posture as every other embed in this file: batched into nothing,
+    // best-effort, and structurally unable to cost the row it decorates.
+    const factId = ins?.[0]?.id;
+    if (factId) {
+      const vec = await embedOne(body).catch(() => null);
+      if (vec) {
+        await q(
+          `insert into vy_embedding (agent_id, owner_kind, owner_id, person_id, v)
+           values (${agentValue("$4")}, 'fact', $1, $2, $3::halfvec)
+           on conflict (owner_kind, owner_id) do update set v = excluded.v, at = now()`,
+          [factId, person, toHalfvecLiteral(vec), agentId],
+        ).catch(() => {});
+      }
+    }
     return { ok: true, wrote: true, episodeId: ep.id };
   } catch {
     return { ok: false, wrote: false };

@@ -9,6 +9,9 @@
 //   refresh      { refresh_token }       → fresh session
 //   save_state   { access_token, state, device } → { ok }
 //   load_state   { access_token }        → { state } | { state: null }
+//   wipe_state   { access_token, mode }  → { ok, rows } — mode "forget" deletes
+//                                          the row, "clear" empties the
+//                                          conversation's own fields (P2-1)
 //   track        { device, event, props?, user_id? } → { ok }
 
 import { allow, ipOf } from "./_ratelimit.js";
@@ -158,6 +161,76 @@ export default async function handler(req, res) {
       ).catch(() => []);
       const row = rows[0] ?? null;
       return res.status(200).json({ state: row?.state ?? null, updated_at: row?.updated_at ?? null });
+    }
+    // ── P2-1: the authenticated door onto meera_state ──────────────────────
+    //
+    // api/memory.js's opForget already purges and rewrites this row, keyed on
+    // `device_id` — the column save_state writes on every push. That covers
+    // every anonymous user and every signed-in user forgetting from the device
+    // that last synced, which is nearly all of them, and it needs no client
+    // change, which is why it is the primary mechanism.
+    //
+    // It cannot cover one case: meera_state's real key is `user_id`, and its
+    // `device_id` names only the LAST device to save. A person signed in on a
+    // phone and a laptop has one row; if the laptop saved last and they forget
+    // on the phone, the device-keyed delete misses, and the laptop's next
+    // load_state hands the conversation back. Closing that needs the identity
+    // the row is actually keyed on, and the only thing that proves it is an
+    // access token — which api/memory.js never sees and should not start
+    // seeing (possession of the device uuid is its whole auth posture).
+    //
+    // Hence this op, here, where a token is already verified for save_state
+    // and load_state. Two modes, matching the two doors in the product and the
+    // verdicts in evals/teardown.mjs's FATE table:
+    //
+    //   forget — the row goes. The relationship is over; `user` goes with it.
+    //   clear  — the CONVERSATION's own fields are emptied and `user` is kept,
+    //            because clear-chat's own dialog promises "her memory of you is
+    //            not touched" and a server-side wipe of the profile would make
+    //            that copy a lie from the other side.
+    //
+    // The clear list is not a second opinion about what belongs to a
+    // conversation: it is exactly the "clear+forget" verdicts in that FATE
+    // table, and evals/recall/fate.mjs asserts the two agree, so a field added
+    // to AppState cannot be wiped on the device and left standing on the
+    // server.
+    if (op === "wipe_state") {
+      const user = await userFromToken(b.access_token);
+      if (!user) return res.status(401).json({ error: "invalid session" });
+      const mode = b.mode === "forget" ? "forget" : "clear";
+      if (mode === "forget") {
+        const gone = await q(`delete from meera_state where user_id = $1 returning user_id`, [
+          user.id,
+        ]).catch(() => []);
+        return res.status(200).json({ ok: true, mode, rows: gone.length });
+      }
+      // CLEARED_FIELDS, and the shape each is reset to. An empty ARRAY and a
+      // JSON null are different things to mergeStates, so each field is reset
+      // to the shape its own type declares rather than all of them to null.
+      const CLEARED = {
+        messages: "[]",
+        herLife: "[]",
+        activities: "[]",
+        momentsFired: "[]",
+        inner: "null",
+        game: "null",
+        callback: "null",
+        tally: "null",
+        followup: "null",
+        recentMoment: "null",
+      };
+      // one statement (L6: no cross-call transactions, so a rewrite that took
+      // ten statements would have nine states in which the server copy is
+      // half-cleared and a concurrent load_state could read one of them)
+      const sets = Object.entries(CLEARED)
+        .map(([k, v]) => `'{${k}}', '${v}'::jsonb`)
+        .reduce((acc, pair) => `jsonb_set(${acc}, ${pair})`, "state");
+      const rows = await q(
+        `update meera_state set state = ${sets}, updated_at = now()
+          where user_id = $1 returning user_id`,
+        [user.id],
+      ).catch(() => []);
+      return res.status(200).json({ ok: true, mode, rows: rows.length });
     }
     if (op === "track") {
       // analytics rows are unauthenticated by design — cap them hard so the

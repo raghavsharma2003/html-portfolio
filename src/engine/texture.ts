@@ -79,10 +79,22 @@
 // USAGE (when/how often — excluded): reply latency, gap length, session
 // length, time of day, app opens, messages per day, relationship age,
 // streaks. NONE of these are read. The guarantee is structural, not a
-// filter: `TEXTURE_SCAN_SQL` projects exactly one column, `l.content`, and
+// filter: `TEXTURE_SCAN_SQL` projects `l.content` and `l.episode_id` and
 // names no time column anywhere — not even in its ORDER BY, which sorts by
 // `l.id` (monotonic identity) precisely so no timestamp is touched at any
 // point in the derivation. There is no `Date` in this file.
+//
+// `l.episode_id` was added by WS-SPINE for `deriveDrift`'s citations, and it
+// is worth being explicit about why it does not weaken the guarantee above,
+// since this paragraph used to say "exactly one column" and a reader is
+// entitled to ask what changed. An episode id is an EDGE, not a clock: it
+// says which conversation a turn belonged to, never when, never how long
+// after the last one, never how many there were per day. It survives the same
+// test every content property here passes — shuffle the rows, delete every
+// timestamp in the database, and the value is unchanged. It is also never
+// counted: `textureCounts` takes an array of strings and cannot see it. Its
+// single use is to put a checkable citation behind a drift claim, which is
+// the opposite of a usage signal — it is what lets a human audit one.
 //
 // THE ONE AMBIGUOUS METRIC, named rather than argued away: `n_turns` is a
 // message count, and message counts are on G1's usage list by name. It is
@@ -138,6 +150,13 @@ export interface TextureRow {
   avoid_cites: number[];
   /** SAMPLE-SIZE GATE ONLY. Never rendered. See the G1 note in the header */
   n_turns: number;
+  /** migration 014 — HOW THIS RAPPORT HAS CHANGED, not what it is now.
+   *  Telegraphic, derived, never a model's sentence. "" when nothing moved,
+   *  which is the ordinary answer. See `deriveDrift`. */
+  drift?: string;
+  /** episode ids evidencing the drift. `renderTexture` refuses to render an
+   *  UNCITED drift line, same fail-closed rule as `avoid`/`avoid_cites`. */
+  drift_cites?: number[];
 }
 
 /** The floor, §6: "texture is not rendered below a floor (≥40 of her
@@ -394,7 +413,18 @@ export function textureCounts(contents: readonly string[]): TextureCounts {
  * interface ticket rather than papered over with a filter that would silently
  * match nothing.
  */
-export const TEXTURE_SCAN_SQL = `select l.content
+// `l.episode_id` is projected for ONE purpose: `deriveDrift` cites the
+// episodes its two halves were counted from, and an uncited drift line does
+// not render (fail-closed, same as `avoid`). It is not read by `textureCounts`
+// and does not enter any count.
+//
+// `l.channel = 'chat'` already satisfies api/consolidate.js's WATCH CONTRACT
+// by construction — a `channel = 'watch'` row can never match an equality
+// against 'chat' — so this query needs no exclusion clause of its own. Stated
+// rather than left to be re-derived by whoever widens this filter next: the
+// day someone adds `or l.channel = 'call'` here, the watch predicate has to
+// come with it.
+export const TEXTURE_SCAN_SQL = `select l.content, l.episode_id
        from meera_log l
       where l.role = 'her'
         and l.channel = 'chat'
@@ -404,6 +434,127 @@ export const TEXTURE_SCAN_SQL = `select l.content
               union select $1::uuid)
       order by l.id desc
       limit $2`;
+
+// ─────────────────────────────────────────────────────────────────────────
+// CHANGE OVER TIME (WS-SPINE, owner directive 2026-08-23) — "how the
+// relationship changed", not another snapshot of how it is.
+//
+// THE GAP THIS CLOSES. Every other derived store in this schema can already
+// answer "what changed": `vy_rel_event` records from_v -> to_v per dim, so
+// rel-state history is queryable by construction; `vy_self_arc` records
+// from_note -> note with a >=42-day span floor and supersedes rather than
+// overwrites. `vy_rel_texture` alone is upserted in place — it holds today's
+// rapport and no memory of any other, so the one thing it could never say is
+// the only interesting thing about a rapport: that it moved.
+//
+// THE MECHANISM, deliberately the cheapest one that could work. No history
+// table, no second query, no model call. `deriveTexture` already reads a
+// trailing window of her turns; this splits THAT SAME ARRAY into an older
+// half and a newer half, counts both with the existing `textureCounts`, and
+// emits a note only when a RENDERED band (rule 4's three: teasing, humour,
+// swearing) moved a full bucket. Bands are already coarse specifically so
+// ordinary drift does not flip one — which makes them exactly the right
+// tripwire for a claim this heavy.
+//
+// WHY IT IS ALLOWED TO SAY THIS AT ALL, given the file header's rule 4
+// (texture varies rapport, never her register): a drift line describes what
+// ALREADY happened to her own output. It carries no target, no instruction
+// and no number. The feedback-loop risk the header names is real and gets the
+// same three dampers as everything else here — a full-bucket move, a bounded
+// window, and a header that frames description rather than direction.
+//
+// IT FAILS CLOSED IN FOUR WAYS, because "you've gone quiet lately" is the
+// single most wrong-able thing in this whole tail: both halves must clear
+// their own sample floor, the move must be a whole band, the note must carry
+// episode citations to render at all, and no-movement returns "" — which is
+// the answer on almost every pass, and is supposed to be.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Minimum turns in EACH half before a comparison is allowed. Half of the
+ *  render floor: two windows of 20 are the smallest split of a 40-turn
+ *  relationship that is not just noise being compared to noise. */
+export const DRIFT_MIN_PER_HALF = 20;
+
+/** Ordered coarsest-first, so "moved a band" is a comparison of positions in
+ *  a list rather than of two floating-point rates that differ in the sixth
+ *  decimal. */
+const TEASING_ORDER = ["rare", "light", "regular", "constant"];
+const HUMOUR_ORDER = ["quiet", "easy", "loud", "nonstop"];
+
+export interface DriftInput {
+  /** her turns, NEWEST FIRST — the order TEXTURE_SCAN_SQL returns */
+  contents: readonly string[];
+  /** episode id per turn, same index and same order; null where unknown */
+  episodeIds: readonly (number | null)[];
+}
+
+export interface DriftResult {
+  drift: string;
+  drift_cites: number[];
+  /** why nothing was written, when nothing was — never a silent empty */
+  reason: string;
+}
+
+/**
+ * Pure. Newest-first in, telegraphic note out (or "" plus a reason).
+ *
+ * The phrasing is a SHAPE, not a sentence she could say: "teasing: light ->
+ * regular (recently)" reads as a k:v state note like every other line in this
+ * block, and there is no way to lift it into dialogue. `recited-prompt` is
+ * the law being obeyed here — a drift line written as "you two have gotten
+ * closer lately" is a line she WILL say back, and it is the kind of thing a
+ * person notices being said to them.
+ */
+export function deriveDrift(input: DriftInput): DriftResult {
+  const contents = input.contents ?? [];
+  const episodeIds = input.episodeIds ?? [];
+  const half = Math.floor(contents.length / 2);
+  if (half < DRIFT_MIN_PER_HALF) {
+    return { drift: "", drift_cites: [], reason: `fewer than ${DRIFT_MIN_PER_HALF} turns per half` };
+  }
+  // contents is newest-first: the FIRST half is recent, the SECOND is earlier.
+  const recent = contents.slice(0, half);
+  const earlier = contents.slice(half, half * 2);
+  const r = textureCounts(recent);
+  const e = textureCounts(earlier);
+
+  const moved: string[] = [];
+  const bandMove = (label: string, order: readonly string[], fromBand: string, toBand: string) => {
+    const fi = order.indexOf(fromBand);
+    const ti = order.indexOf(toBand);
+    if (fi < 0 || ti < 0 || fi === ti) return;
+    moved.push(`${label}: ${fromBand} -> ${toBand} (lately)`);
+  };
+  bandMove("teasing", TEASING_ORDER, bandTeasing(e.teasing), bandTeasing(r.teasing));
+  bandMove("humour", HUMOUR_ORDER, bandHumour(e.humour), bandHumour(r.humour));
+  // Swearing uses its own render rule (bandProfanity returns "" at zero), so a
+  // move INTO or OUT OF silence is expressed as "none" rather than dropped —
+  // "swearing: none -> easy" is a real change and the empty string is not a
+  // band you can put in a sentence.
+  const eSwear = bandProfanity(e.profanity) || "none";
+  const rSwear = bandProfanity(r.profanity) || "none";
+  if (eSwear !== rSwear) moved.push(`swearing: ${eSwear} -> ${rSwear} (lately)`);
+
+  if (!moved.length) return { drift: "", drift_cites: [], reason: "no band moved" };
+
+  // Citations: the newest episode from each half. Two ids, one per side of the
+  // comparison — which is the minimum that lets a reader check the claim by
+  // reading both ends of it, and the maximum this derivation actually knows.
+  const firstEp = (from: number, to: number) => {
+    for (let i = from; i < to && i < episodeIds.length; i++) {
+      const v = Number(episodeIds[i]);
+      if (Number.isFinite(v) && v > 0) return v;
+    }
+    return null;
+  };
+  const cites = [firstEp(0, half), firstEp(half, half * 2)].filter((v): v is number => v !== null);
+  if (!cites.length) {
+    return { drift: "", drift_cites: [], reason: "no cited episode on either side — uncited drift never renders" };
+  }
+  // At most two moves in one line: three is a paragraph about someone's
+  // personality, which is not what a k:v note is for.
+  return { drift: moved.slice(0, 2).join("; "), drift_cites: [...new Set(cites)].sort((a, b) => a - b), reason: "" };
+}
 
 /**
  * `deriveTexture(q, personId, agentId)` — one query, pure counting, no LLM.
@@ -464,6 +615,14 @@ export async function deriveTexture(
   const rows = await q(TEXTURE_SCAN_SQL, [personId, TEXTURE_SCAN_LIMIT]);
   const contents = (rows ?? []).map((r: any) => String(r?.content ?? ""));
   const counts = textureCounts(contents);
+  // Same rows, counted twice instead of once — no second query, no model call.
+  const drift = deriveDrift({
+    contents,
+    episodeIds: (rows ?? []).map((r: any) => {
+      const v = Number(r?.episode_id);
+      return Number.isFinite(v) && v > 0 ? v : null;
+    }),
+  });
   return {
     agent_id: agentId,
     person_id: personId,
@@ -471,6 +630,8 @@ export async function deriveTexture(
     nickname: "",
     avoid: [],
     avoid_cites: [],
+    drift: drift.drift,
+    drift_cites: drift.drift_cites,
   };
 }
 
@@ -484,15 +645,24 @@ export async function deriveTexture(
  */
 export async function upsertTexture(q: QueryFn, row: TextureRow): Promise<void> {
   await q(
+    // `drift`/`drift_cites` ARE named in the update set list, unlike
+    // nickname/avoid — and the difference is ownership, the same test that
+    // decided those. nickname and avoid are CURATED (a human's, an owner's);
+    // this deriver must not be able to clobber them with its own empties.
+    // drift is DERIVED, by this function, from this window: it is exactly the
+    // column this writer owns, and a stale drift line surviving a pass that
+    // found no movement would be the worse bug — a claim that she has gone
+    // quiet lately, still on the row weeks after she stopped being quiet.
     `insert into vy_rel_texture
        (agent_id, person_id, teasing, humour, media_rate, words_median,
-        emoji_rate, profanity, n_turns, updated_at)
-     values (($1)::uuid,($2)::uuid,$3,$4,$5,$6,$7,$8,$9, now())
+        emoji_rate, profanity, n_turns, drift, drift_cites, updated_at)
+     values (($1)::uuid,($2)::uuid,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())
      on conflict (agent_id, person_id) do update set
        teasing = excluded.teasing, humour = excluded.humour,
        media_rate = excluded.media_rate, words_median = excluded.words_median,
        emoji_rate = excluded.emoji_rate, profanity = excluded.profanity,
-       n_turns = excluded.n_turns, updated_at = now()`,
+       n_turns = excluded.n_turns, drift = excluded.drift,
+       drift_cites = excluded.drift_cites, updated_at = now()`,
     [
       row.agent_id,
       row.person_id,
@@ -503,6 +673,8 @@ export async function upsertTexture(q: QueryFn, row: TextureRow): Promise<void> 
       row.emoji_rate,
       row.profanity,
       row.n_turns,
+      row.drift ?? "",
+      row.drift_cites ?? [],
     ],
   );
 }
@@ -548,7 +720,8 @@ export async function readTexture(
 ): Promise<TextureRow | null> {
   const rows = await q(
     `select agent_id, person_id, teasing, humour, media_rate, words_median,
-            emoji_rate, profanity, nickname, avoid, avoid_cites, n_turns
+            emoji_rate, profanity, nickname, avoid, avoid_cites, n_turns,
+            drift, drift_cites
        from vy_rel_texture where agent_id = ($1)::uuid and person_id = ($2)::uuid`,
     [agentId, personId],
   );
@@ -567,6 +740,8 @@ export async function readTexture(
     avoid: pgTextArray(r.avoid),
     avoid_cites: pgBigintArray(r.avoid_cites),
     n_turns: Number(r.n_turns ?? 0),
+    drift: String(r.drift ?? ""),
+    drift_cites: pgBigintArray(r.drift_cites),
   };
 }
 
@@ -678,6 +853,16 @@ export function renderTexture(row: TextureRow | null): RenderResult {
   // A nickname is one or two words. Anything longer is a phrase she would
   // recite, whatever it lints as.
   if (nick && nick.split(/\s+/).length <= 2) lines.push(`nickname: "${nick}"`);
+
+  // CHANGE OVER TIME, rendered last and fail-closed: an uncited drift never
+  // reaches the prompt, for the same reason an uncited avoid topic does not.
+  // "she has gone quiet lately" is a claim about a person that a person can
+  // feel; it renders only when two episode ids stand behind it.
+  const drift = safeFreeText(row.drift ?? "", 90);
+  const driftCites = row.drift_cites ?? [];
+  if (drift && driftCites.length >= 1 && driftCites.every((c) => Number.isFinite(c) && Number(c) > 0)) {
+    lines.push(drift);
+  }
 
   const avoid = row.avoid ?? [];
   const cites = row.avoid_cites ?? [];

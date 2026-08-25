@@ -161,8 +161,13 @@ export default function GamesHub({
       {heading ? <h2 className="gh-title">{heading}</h2> : null}
 
       <div className="gh-her">
-        <span className="gh-face" aria-hidden="true">
-          <PhotoAvatar size={40} />
+        {/* the shared ring, quiet — she is not a story here, she is the person
+            you are about to play with. `.ring-gold` with no state class is
+            exactly that: a whisper, not a live hoop. */}
+        <span className="gh-face ring-gold" aria-hidden="true">
+          <span className="ring-inner">
+            <PhotoAvatar size={36} />
+          </span>
         </span>
         <span className="gh-who">
           <b>{HER_NAME}</b>

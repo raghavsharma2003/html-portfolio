@@ -76,8 +76,26 @@ class LiveWatchEngine {
   private static final String WS_BASE =
       "wss://generativelanguage.googleapis.com/ws/"
           + "google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";
-  // only used if /api/live-token ever answers without a model field
-  private static final String DEFAULT_MODEL = "models/gemini-2.5-flash-native-audio-latest";
+  // ── MIRRORED WITH api/live-token.js's LIVE_MODEL ────────────────────────
+  // Only used if /api/live-token ever answers without a model field, which is
+  // a malformed response rather than a normal path — and that is exactly why
+  // it was wrong for so long without anyone hearing it.
+  //
+  // It was "models/gemini-2.5-flash-native-audio-latest": a model this repo
+  // MEASURED AND REJECTED for the live lane (`live-model-bake`, 0/24 barge-in,
+  // 3-5.5s to first audio), sitting as the silent fallback on the ONE surface
+  // where the triple-swap actually happens. So a malformed token response did
+  // not degrade the watch lane's latency, it changed WHO SHE WAS: a different
+  // model family renders the same voice name as a different woman, which is
+  // the entire class scripts/verify-voice.mjs exists for. The JS twin
+  // (src/voice/liveCall.ts) has no fallback at all — it uses the token's model
+  // or fails — so the two twins did not merely differ, they disagreed about
+  // whether a fallback should exist.
+  //
+  // Reconciled deliberately: the fallback is now the SAME model the token
+  // endpoint serves, so a malformed response costs a round trip and nothing
+  // else. verify-voice.mjs §7c fails the build if the two strings drift apart.
+  private static final String DEFAULT_MODEL = "models/gemini-3.1-flash-live-preview";
 
   private static final int IN_RATE = 16000; // uplink mic PCM16 mono
   private static final int OUT_RATE = 24000; // downlink her voice PCM16 mono
@@ -629,6 +647,14 @@ class LiveWatchEngine {
   private volatile long lastVoiceAt = 0; // last input-transcription activity
   private volatile long lastNudgeAt = 0; // last "look at the screen" wake-up
   private volatile long lastFrameAt = 0; // last frame that actually entered the socket
+  /** WS-WATCHPERF part 2: device audio, or null for mic-only (the default and
+   *  the behaviour of every build before this one). Read by the mic thread,
+   *  written by the service's main thread — volatile, and the service always
+   *  clears this reference BEFORE releasing the capture. */
+  private volatile MediaAudioCapture mediaSource;
+  private byte[] mediaBuf; // mic-thread confined
+  private byte[] up; // mic-thread confined: the uplink chunk, mic + media
+  private volatile long mediaMixedChunks = 0; // trace only
   private volatile long lastActivityAt = 0; // last frame where the screen did anything
   private final long[] wakes = new long[WAKE_CEILING]; // frame-thread confined
   private final boolean[] wakeAmbient = new boolean[WAKE_CEILING];
@@ -712,6 +738,9 @@ class LiveWatchEngine {
     ready = false;
     lastFrameAt = 0; // no session, no picture — nothing may nudge off this one
     lastActivityAt = 0;
+    // the mic thread must not read a source the service is about to release;
+    // the service also clears it explicitly, and both orders are safe
+    mediaSource = null;
     wsGen.incrementAndGet(); // every in-flight WS callback is now stale
     congestion = 0; // nothing may read this session's backlog after teardown
     // a turn cut off mid-stream must still reach the chat log — emit
@@ -822,6 +851,20 @@ class LiveWatchEngine {
     return congestion;
   }
 
+  /** Attach (or detach, with null) the device-audio source. The service owns
+   *  the lifetime; this engine only reads from it, and only at the one seam
+   *  in the mic loop marked THE MEDIA MIXER. */
+  void setMediaSource(MediaAudioCapture m) {
+    mediaSource = m;
+    if (m == null) mediaMixedChunks = 0;
+  }
+
+  /** How many uplink chunks have actually carried device audio. Trace only —
+   *  no decision reads it. */
+  long getMediaMixedChunks() {
+    return mediaMixedChunks;
+  }
+
   /** Half-duplex gate for callers: capture never stops, we send silence. */
   void setMuted(boolean m) {
     muted = m;
@@ -844,11 +887,19 @@ class LiveWatchEngine {
 
   /* ── screen frames: straight through, the service sets the rate ────── */
 
-  /** motion: 0 nothing moved · 1 they're doing something · 2 a new thing. */
-  void onFrame(String b64Jpeg, int motion) {
-    if (!running || !ready || b64Jpeg == null || b64Jpeg.isEmpty()) return;
+  /**
+   * motion: 0 nothing moved · 1 they're doing something · 2 a new thing.
+   *
+   * <p>RETURNS WHETHER THE SOCKET TOOK IT (WS-WATCHPERF). It always knew — the
+   * `sent` local below has existed as long as the gate has — and it threw the
+   * answer away, so {@link WatchCaptureService} credited every refusal as a
+   * delivery and stalled the fast beat into the 2.5s keep-alive on exactly the
+   * held screens the feature is for. See WatchPacer's header.
+   */
+  boolean onFrame(String b64Jpeg, int motion) {
+    if (!running || !ready || b64Jpeg == null || b64Jpeg.isEmpty()) return false;
     WebSocket s = ws;
-    if (s == null) return;
+    if (s == null) return false;
     boolean sent = false;
     try {
       // VIDEO YIELDS TO HER EARS. This is priority, not degradation: frames
@@ -866,8 +917,8 @@ class LiveWatchEngine {
       // that is behind on HER audio, and a barge-in burst is audio we have
       // already chosen to send, not a link that cannot keep up. Without the
       // credit every barge-in blinded the screen share for ~2.2s.
-      if (s.queueSize() - burstBytes > FRAME_GATE) return;
-      if (b64Jpeg.length() > FRAME_MAX_B64) return; // pathological encode
+      if (s.queueSize() - burstBytes > FRAME_GATE) return false;
+      if (b64Jpeg.length() > FRAME_MAX_B64) return false; // pathological encode
       // base64 (NO_WRAP) and the fixed mime are JSON-safe by construction —
       // hand-rolled so a ~60KB frame isn't copied through JSONObject twice
       sent =
@@ -879,10 +930,11 @@ class LiveWatchEngine {
     }
     // nothing reached her eyes: she is never told to look at a screen she
     // hasn't been shown — that is the instruction that makes her invent
-    if (!sent) return;
+    if (!sent) return false;
     long now = System.currentTimeMillis();
     lastFrameAt = now;
     if (motion > 0) lastActivityAt = now;
+    return true;
   }
 
   /** The Live API only generates on audio activity — video frames alone never
@@ -1188,7 +1240,7 @@ class LiveWatchEngine {
     JSONObject speech = new JSONObject();
     speech.put(
         "voiceConfig",
-        new JSONObject().put("prebuiltVoiceConfig", new JSONObject().put("voiceName", "Autonoe")));
+        new JSONObject().put("prebuiltVoiceConfig", new JSONObject().put("voiceName", "Despina")));
     speech.put("languageCode", "hi-IN");
     gen.put("speechConfig", speech);
 
@@ -2030,11 +2082,53 @@ class LiveWatchEngine {
       // gated writes silence rather than stopping capture: the stream stays
       // continuous (server VAD hates gaps) and reopening costs nothing
       if (gated) Arrays.fill(buf, 0, n, (byte) 0);
+      // ── THE MEDIA MIXER, AND THE ONLY PLACE IT IS ALLOWED TO BE ────────
+      // Everything above this line has already been decided, and every one of
+      // those decisions read `buf`, which is the MICROPHONE and nothing else:
+      // sub[] and rms, the ambience floor, thrL/thrB/thrS, the echo estimate
+      // κ and its lag lock, `gated`, `opened`, `claim`, the hold-ring
+      // admission test. The mixer writes to `up`, a different array, and it
+      // runs after all of them. Device audio therefore cannot raise a level,
+      // cannot open the gate, cannot fill the hold ring and cannot fire a
+      // barge-in — not because a threshold was tuned to ignore it, but
+      // because no code that makes those decisions can see it.
+      //
+      // And it mixes ONLY into a chunk the gate has already opened for HIS
+      // VOICE. On a gated tick the wire still carries the same digital
+      // silence it carries today. That is what keeps the SERVER's automatic
+      // VAD out of this: media audio can never start a turn, because it is
+      // only ever present inside a turn the microphone already started.
+      // This lane's own history is the evidence that the weaker version does
+      // not work — `startSensitivity: HIGH made every reel sound and breath
+      // cut her off mid-word` is in the setup block above, about reel audio
+      // arriving ACOUSTICALLY. Streaming it digitally and continuously would
+      // be that failure with the volume turned up.
+      //
+      // The cost of that choice, stated: she hears what is playing while he
+      // is talking over it, not continuously. Making it continuous requires
+      // manual activity detection (`automaticActivityDetection.disabled` plus
+      // client activityStart/activityEnd) so that the turn clock stops being
+      // a function of the audio — the client already computes every signal
+      // that needs, but it moves the turn boundary off the server and cannot
+      // be measured anywhere but on a device. Not done here on purpose.
+      byte[] wire = buf;
+      int wireLen = n;
+      MediaAudioCapture mc = mediaSource;
+      if (mc != null && !gated && !holding && canSend && !drop) {
+        if (mediaBuf == null || mediaBuf.length < buf.length) mediaBuf = new byte[buf.length];
+        if (up == null || up.length < buf.length) up = new byte[buf.length];
+        int mn = mc.take(mediaBuf, n);
+        if (mn > 0) {
+          PcmMix.mix(buf, n, mediaBuf, mn, PcmMix.DUCK_GAIN, up);
+          wire = up;
+          mediaMixedChunks++;
+        }
+      }
       if (canSend && !drop) {
         try {
           s.send(
               "{\"realtimeInput\":{\"audio\":{\"data\":\""
-                  + Base64.encodeToString(buf, 0, n, Base64.NO_WRAP)
+                  + Base64.encodeToString(wire, 0, wireLen, Base64.NO_WRAP)
                   + "\",\"mimeType\":\"audio/pcm;rate=16000\"}}}");
         } catch (Exception ignored) {
         }

@@ -23,8 +23,42 @@
 
 import type { AppState, Message } from "./store";
 import type { UserProfile } from "../engine/persona";
+import type { ActivityRecord } from "../engine/memory";
 import type { GameSession } from "./game";
 import { isGameSession } from "./game";
+
+/** Hand-kept mirror of `engine/memory.ts`'s ACTIVITY_LEDGER_MAX, restated
+ *  rather than imported for the reason `memory.ts`'s CHAT_TAIL_MAX_WORDS is
+ *  restated in the other direction: importing a VALUE from `engine/memory.ts`
+ *  would drag Capacitor and the network layer into the state bundle to read
+ *  one integer, and this file is on the state boundary every parse crosses.
+ *  `evals/sync.mjs` pins the two together so the restatement cannot drift. */
+const LEDGER_MAX = 20;
+
+/**
+ * How many messages a merge may take FROM THE REMOTE COPY. It bounds what a
+ * peer can add; it is not a length limit on the result.
+ *
+ * It used to be `slice(-500)` over the union, which reads as "keep the last
+ * 500" and behaves as "delete everything before the last 500 on any device
+ * that has more". Local history is deliberately unbounded — `saveState`
+ * truncates only under real quota pressure, and the audit measured 2,000 real
+ * messages at ~10.6% of a 5 MB quota — so a long history lost its front the
+ * first time it merged: on a 409, on a cross-tab write, at sign-in. It went
+ * unnoticed because merges were rare. A pull on focus makes them routine,
+ * every 90 seconds on every open device, which would have industrialised it.
+ *
+ * So: the local half is kept entire, and the remote half may contribute at
+ * most this many messages this device has never seen. `syncableState` sends
+ * at most `SYNC_MESSAGE_CAP` (400) anyway, so in the normal world the bound
+ * is never even reached — it is here for the abnormal one (a corrupt row, a
+ * hand-edited blob, a future client with a different idea of the cap).
+ *
+ * A merge may add messages. It may never subtract them. Settings promises
+ * "nothing on it resets, expires, or can be lost", and a merge is the one
+ * operation in the app that could quietly make that untrue.
+ */
+export const MERGE_MESSAGE_CAP = 500;
 
 /**
  * `user`, coerced to a shape the prompt builder can survive.
@@ -82,13 +116,58 @@ export function mergeGame(
   return progressOf(remote) > progressOf(local) ? remote : local;
 }
 
+/**
+ * Her present moment, merged. LATER START WINS, WHOLESALE.
+ *
+ * Wholesale for the reason `inner` is: an activity and the instant it began
+ * must never come from different revisions, or she claims a duration for
+ * something she started somewhere else. A field-by-field merge could produce
+ * "reading, since forty minutes ago" out of two rows that never both existed,
+ * and `herNow` exists precisely so every duration is computable.
+ *
+ * The remote half crossed a trust boundary — another device's parse of its own
+ * localStorage, or a row written by an older build — so it is shape-checked
+ * before it can win, exactly like `game` two lines down. A malformed row is
+ * not adopted; the local one stands, and the derivation would rebuild it
+ * anyway.
+ */
+function isHerNow(v: any): boolean {
+  return (
+    !!v &&
+    typeof v === "object" &&
+    typeof v.activity === "string" &&
+    v.activity.length > 0 &&
+    typeof v.key === "string" &&
+    Number.isFinite(v.startedAt) &&
+    Number.isFinite(v.naturalSpanMs)
+  );
+}
+
+export function mergeHerNow(local: AppState["herNow"], remote: any): AppState["herNow"] {
+  if (!isHerNow(remote)) return local;
+  if (!local) return remote as AppState["herNow"];
+  return remote.startedAt > local.startedAt ? (remote as AppState["herNow"]) : local;
+}
+
 export function mergeStates(local: AppState, remote: any): Partial<AppState> {
   const clearedAt = Math.max(local.clearedAt ?? 0, Number(remote?.clearedAt) || 0);
-  const byId = new Map<string, Message>();
-  for (const m of Array.isArray(remote?.messages) ? remote.messages : [])
-    if (m && m.id && (m.at ?? 0) >= clearedAt) byId.set(m.id, m);
-  for (const m of local.messages) if ((m.at ?? 0) >= clearedAt) byId.set(m.id, m);
-  const messages = [...byId.values()].sort((a, b) => (a.at ?? 0) - (b.at ?? 0)).slice(-500);
+  // THE LOCAL HALF IS KEPT ENTIRE, past the tombstone. Not "the last N of the
+  // union" — see MERGE_MESSAGE_CAP for what that did to a long history.
+  const mine: Message[] = [];
+  const localIds = new Set<string>();
+  for (const m of local.messages)
+    if ((m.at ?? 0) >= clearedAt) {
+      mine.push(m);
+      localIds.add(m.id);
+    }
+  // …and the remote half adds only what this device has never seen, bounded.
+  // A message BOTH sides have keeps our copy: its status ticks and its
+  // reaction happened here, and a peer's row may predate both.
+  const theirs = (Array.isArray(remote?.messages) ? (remote.messages as Message[]) : [])
+    .filter((m) => m && m.id && !localIds.has(m.id) && (m.at ?? 0) >= clearedAt)
+    .sort((a, b) => (a.at ?? 0) - (b.at ?? 0))
+    .slice(-MERGE_MESSAGE_CAP);
+  const messages = [...mine, ...theirs].sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
 
   const t = local.tally ?? {};
   const rt = remote?.tally ?? {};
@@ -107,6 +186,31 @@ export function mergeStates(local: AppState, remote: any): Partial<AppState> {
     local.momentsFired?.length || remote?.momentsFired?.length
       ? [...new Set([...(local.momentsFired ?? []), ...(remote?.momentsFired ?? [])])]
       : local.momentsFired;
+
+  // The activity ledger is a LEDGER, so it merges by union, for the reason
+  // stated at the top of this file: an entry made anywhere holds everywhere.
+  // Keyed on the session's own identity — the same `kind:startedAt` the server
+  // dedupes the episode on, so one game played on a phone and synced to a
+  // laptop is one memory on both, never two. Bounded and newest-first on the
+  // way out, so a union of two full ledgers cannot grow without limit.
+  // Both halves crossed a trust boundary — another device's parse of its own
+  // localStorage, or a server row written by an older build — so the SHAPE is
+  // checked before either is spread. Spreading a non-array throws, and a throw
+  // in the sync path is a blank screen that then syncs.
+  const localActs = Array.isArray(local.activities) ? local.activities : [];
+  const remoteActs = Array.isArray(remote?.activities) ? (remote.activities as ActivityRecord[]) : [];
+  const activities =
+    localActs.length || remoteActs.length
+      ? (() => {
+          const byKey = new Map<string, ActivityRecord>();
+          for (const r of [...remoteActs, ...localActs])
+            if (r && r.kind && Number.isFinite(r.startedAt) && r.summary)
+              byKey.set(`${r.kind}:${r.startedAt}`, r);
+          return [...byKey.values()]
+            .sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0))
+            .slice(0, LEDGER_MAX);
+        })()
+      : local.activities;
 
   return {
     onboarded: remote?.onboarded || local.onboarded,
@@ -128,11 +232,19 @@ export function mergeStates(local: AppState, remote: any): Partial<AppState> {
     // come from different revisions.
     herLife: remote?.herLife?.length && !local.herLife?.length ? remote.herLife : local.herLife,
     inner: (Number(remote?.inner?.at) || 0) > (local.inner?.at ?? 0) ? remote.inner : local.inner,
+    // Her present moment — LATER START WINS, wholesale, exactly like `inner`
+    // above and for a sharper version of the same reason: an activity and the
+    // instant it began must never come from different revisions, or she
+    // claims a duration for something she started somewhere else. A merge
+    // that took the fields apart would be able to produce "reading, since
+    // 40 minutes ago" out of two rows that never both existed.
+    herNow: mergeHerNow(local.herNow, remote?.herNow),
     // the remote half crosses a trust boundary (another device's parse of
     // its own localStorage) — shape-guard it, or a malformed session becomes
     // a blank screen that SYNCS. isGameSession is the same guard loadState
     // applies to its own boundary.
     game: mergeGame(local.game, isGameSession(remote?.game) ? remote.game : null),
+    activities,
     tally,
     momentsFired,
     followup:

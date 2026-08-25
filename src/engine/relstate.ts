@@ -1064,6 +1064,16 @@ export interface PhraseRow {
  * but never carries an active-callback framing. Signature:
  * `renderWeCallbacks(episodes, phrases, pulled) => RenderResult`.
  */
+/** " [21 aug]" for a dated episode, "" for anything undated or unparseable —
+ *  a bad timestamp must cost the date, never the callback. */
+function weDay(at: string): string {
+  const ms = new Date(at).getTime();
+  if (!Number.isFinite(ms)) return "";
+  const d = new Date(ms);
+  const mon = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"][d.getMonth()];
+  return ` [${d.getDate()} ${mon}]`;
+}
+
 export function renderWeCallbacks(
   episodes: readonly WeEpisodeRow[],
   phrases: readonly PhraseRow[],
@@ -1072,8 +1082,20 @@ export function renderWeCallbacks(
   const validEpisodes = episodes.filter((e) => WE_TOKEN_RE.test(e.summary)).slice(0, 2);
   const validPhrases = phrases.slice(0, 2);
   const lines = [
-    ...validEpisodes.map((e) => `we: ${e.summary}`),
-    ...validPhrases.map((p) => `phrase: "${p.phrase}" — ${p.gloss}`),
+    // P1-6: the date was fetched, carried and then dropped at the render, so
+    // "us din jo baat hui thi" had no day attached to it. Telegraphic and
+    // bracketed — a rendered sentence here is a line she recites (L4).
+    ...validEpisodes.map((e) => `we: ${e.summary}${weDay(e.at)}`),
+    // The gloss is OPTIONAL and, for every phrase the pipeline actually
+    // writes, absent: `api/consolidate.js`'s deterministic capture stores the
+    // n-gram and nothing else, because a gloss is an interpretation of what
+    // the phrase MEANS to them and nothing in a frequency scan has read that
+    // anywhere — inventing one would be the fabrication this file's citation
+    // law exists to prevent. Every fixture in the tree happens to carry one,
+    // so this rendered `phrase: "chai pe scene set" — ` in production and
+    // nowhere else: a dangling em-dash in the one block she speaks back from
+    // (T6). Byte-identical whenever a gloss is present.
+    ...validPhrases.map((p) => (p.gloss?.trim() ? `phrase: "${p.phrase}" — ${p.gloss}` : `phrase: "${p.phrase}"`)),
   ];
   const header = pulled
     ? "SHARED HISTORY — ACTIVE (they just referenced this; context only, still never announce that you remember):"

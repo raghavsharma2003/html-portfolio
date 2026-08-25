@@ -3,7 +3,7 @@
 // exists, brain.ts prefers Claude and falls back here if the network fails.
 
 import { timeOfDay, CRISIS_LINES, type UserProfile } from "./persona";
-import type { ForgetTarget } from "./memory";
+import type { ForgetTarget, ForgetReceipt } from "./memory";
 
 export interface HeartReply {
   bubbles: string[];
@@ -17,7 +17,14 @@ export interface HeartReply {
   // on the way out. `forgot` is set ONLY after the rows are gone, so a caller
   // can trust it as a receipt rather than an intention.
   forget?: string;
-  forgot?: { target: ForgetTarget; deleted: { log: number; nodes: number; edges: number } };
+  // A1: `receipt` says which of the three outcomes this was. `forgot` is still
+  // set ONLY after rows are gone — the zero-match case never sets it at all,
+  // so no existing caller can show a receipt for a delete that took nothing.
+  forgot?: {
+    target: ForgetTarget;
+    receipt: ForgetReceipt;
+    deleted: { log: number; nodes: number; edges: number };
+  };
   tone?: string; // calls: her delivery mood right now, drives the TTS direction
   learned?: Record<string, string>;
   // crisis / honesty branches — must be delivered even if every cloud brain

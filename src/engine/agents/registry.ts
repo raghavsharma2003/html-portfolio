@@ -3,6 +3,7 @@
 // module to her `vy_agent` row.
 import type { AgentModule } from "./types";
 import { meeraAgent } from "./meera";
+import { kabirAgent } from "./kabir";
 
 // Mirrors db/migrations/009_agents.sql's fixed constant — read directly out
 // of that file (its own header: "mirrored in db/schema.sql and (when it
@@ -16,6 +17,12 @@ export const MEERA_AGENT_ID = "a0000000-0000-4000-8000-000000000001";
 
 const REGISTRY: Record<string, AgentModule> = {
   meera: meeraAgent,
+  // The existence proof (RelationalOS R2): a second personality composed
+  // from the SAME core, differing only by its character sheet. Registering
+  // him puts his module under the per-module invariant floor (G-E3) on
+  // every eval run. He has no vy_agent row yet — runtime use needs one;
+  // compile-time gating does not.
+  kabir: kabirAgent,
 };
 
 // The default injected into compiler.ts's CompileInput.agent — keeps every

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" role="img" aria-labelledby="title desc">
+  <title id="title">A gently toppled chess pawn</title>
+  <desc id="desc">A rose-colored pawn rests on its side beside a small warm lamp glow.</desc>
+  <defs>
+    <filter id="grain" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="23" result="noise"/>
+      <feComponentTransfer in="noise" result="softNoise"><feFuncA type="table" tableValues="0 0.05"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="softNoise" mode="soft-light"/>
+    </filter>
+  </defs>
+  <g filter="url(#grain)">
+    <path d="M48 188c59 15 112 7 159-9 43-15 80-14 108-1l-5 40H51z" fill="#011036" opacity=".16"/>
+    <path d="M54 194h252" fill="none" stroke="#26201b" stroke-width="5" stroke-linecap="round"/>
+    <g transform="translate(183 144) rotate(63)">
+      <circle cx="0" cy="-47" r="22" fill="#c23f56" stroke="#26201b" stroke-width="4"/>
+      <path d="M-15-26h30c0 20 6 38 22 50H-37c16-12 22-30 22-50z" fill="#c23f56" stroke="#26201b" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M-43 24h86l10 18h-106z" fill="#f2b75b" stroke="#26201b" stroke-width="4" stroke-linejoin="round"/>
+    </g>
+    <path d="M85 129c11-15 25-22 42-23" fill="none" stroke="#f8d08b" stroke-width="4" stroke-linecap="round" opacity=".75"/>
+    <circle cx="77" cy="139" r="4" fill="#f2b75b"/>
+    <path d="M294 68a26 26 0 0 0-28-24 26 26 0 1 1 28 24z" fill="#f8d08b"/>
+    <circle cx="60" cy="67" r="2.5" fill="#011036"/><circle cx="103" cy="48" r="2" fill="#011036"/>
+  </g>
+</svg>

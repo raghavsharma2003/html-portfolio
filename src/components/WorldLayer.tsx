@@ -55,7 +55,7 @@
 //    day the world is showing — rides on the surfaces themselves.
 
 import { useEffect, useState } from "react";
-import { skyNow, imgPath, type SkyFrame } from "../engine/sky";
+import { skyNow, imgPath, tokensFor, NIGHT_ROOM_STATE, type SkyFrame } from "../engine/sky";
 import "../styles/world.css";
 
 /**
@@ -192,6 +192,11 @@ function rgbOf(hex: string): string {
   return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
 }
 
+/** The night room's tokens, resolved once at module scope. It is a constant by
+ *  construction — `NIGHT_ROOM_STATE` is a fixed state, not a clock reading —
+ *  and resolving it here rather than per render is what makes that visible. */
+const NIGHT = tokensFor(NIGHT_ROOM_STATE);
+
 export function skyVars(frame: SkyFrame): React.CSSProperties {
   const t = frame.tokens;
   const n = frame.nextTokens;
@@ -235,6 +240,7 @@ export function skyVars(frame: SkyFrame): React.CSSProperties {
     // and putting it there would fog stage 1 to pay for stage 2's problem.
     "--world-scrim-a-painted": String(t.scrimAlphaPainted),
     "--world-ink": t.ink,
+    "--world-accent": t.accent,
     "--world-ink-rgb": rgbOf(t.ink),
     "--world-ink-dim": t.inkDim,
     "--world-control": t.control,
@@ -265,6 +271,65 @@ export function skyVars(frame: SkyFrame): React.CSSProperties {
     // tablet swaps the painting without a React render.
     "--world-img": t.img || "none",
     "--world-img-wide": t.imgWide || t.img || "none",
+    // THE THREAD'S WALLPAPER, both themes' worth. Emitted together rather
+    // than resolved here because the choice between them is the THEME's, and
+    // the theme lives in a `data-theme` attribute plus a media query — a
+    // React component that tried to resolve it would be a third copy of the
+    // rule global.css already states twice, and it would be the copy that
+    // does not update when the OS flips at sunset with the app open.
+    // `world.css` picks with the same selector pair global.css uses.
+    "--wall-scrim-light": t.wallScrimLight,
+    "--wall-a-light": String(t.wallAlphaLight),
+    // `wallScrimDark`/`wallAlphaDark` are deliberately NOT emitted any more.
+    // The dark palette's thread is the night room now (world.css, flavour 2),
+    // so nothing in the app would read them and a variable nothing reads is a
+    // dead writer waiting to be "tuned" by someone expecting the screen to
+    // change. They are still live in the TABLE, for the landing: site/ has no
+    // theme switch, so its dark states are the only surface still painting
+    // that veil, and the landing half of check-contrast.mjs measures it there.
+    // …and the same veil for the person who chose SKY rather than a palette,
+    // which is a CURVE rather than a number (see the long note in sky.ts: a
+    // flat veil pays the city's price over the sky, and the sky is the whole
+    // subject of the mode). Emitted alongside rather than instead, for the
+    // reason the pair above is emitted in both flavours: the choice between
+    // them belongs to a root attribute (`data-sky-choice`, stamped by
+    // applyTheme) and to a selector, and a component that resolved it here
+    // would be a copy of that rule that does not update when the clock crosses
+    // dusk with the app open.
+    "--wall-scrim-sky": t.wallScrimSky,
+    "--wall-a-sky-top": String(t.wallSkyTop),
+    "--wall-a-sky-mid": String(t.wallSkyMid),
+    "--wall-a-sky-bot": String(t.wallSkyBot),
+    "--wall-sky-s": `${(t.wallSkyS * 100).toFixed(1)}%`,
+    "--wall-sky-e": `${(t.wallSkyE * 100).toFixed(1)}%`,
+
+    // ── THE NIGHT ROOM, CONSTANT (sky.ts NIGHT_ROOM_STATE) ────────────────
+    //
+    // In the dark palette the thread's wallpaper is the NIGHT painting at the
+    // night curve, whatever the real hour is — the owner's decision, and the
+    // reasoning is in sky.ts. These are the night state's own fields, emitted
+    // on every frame regardless of what the clock says, because the surface
+    // that consumes them is chosen by a SELECTOR and not by this component.
+    //
+    // That split is deliberate and it is the constraint the brief set: the
+    // dark palette is reachable two ways — `data-theme="dark"` and a
+    // `prefers-color-scheme` media query with no attribute at all — so no
+    // component can resolve it without becoming a third copy of a rule that
+    // stops updating when the OS flips at sunset. React emits the values; CSS
+    // picks. `--night-img` is a separate variable from `--world-img` for the
+    // most boring reason there is: `--world-img` is written HERE, as an inline
+    // style, and an inline custom property cannot be overridden by any
+    // stylesheet rule. So the wallpaper's paint layer reads `--wall-img`, and
+    // the selector sets that to one of these two.
+    "--night-img": NIGHT.img || "none",
+    "--night-img-wide": NIGHT.imgWide || NIGHT.img || "none",
+    "--night-flat": NIGHT.stops[0],
+    "--night-scrim": NIGHT.wallScrimSky,
+    "--night-a-top": String(NIGHT.wallSkyTop),
+    "--night-a-mid": String(NIGHT.wallSkyMid),
+    "--night-a-bot": String(NIGHT.wallSkyBot),
+    "--night-s": `${(NIGHT.wallSkyS * 100).toFixed(1)}%`,
+    "--night-e": `${(NIGHT.wallSkyE * 100).toFixed(1)}%`,
   } as React.CSSProperties;
 }
 
@@ -308,15 +373,36 @@ interface Props {
   frame: SkyFrame;
   /**
    * `full` is the whole world: sky, stars, moon, clouds, city.
+   *
    * `band` is the top slice only, for a translucent header that shows the
-   * sky through it — the one way the world is allowed to reach the thread
-   * (DESIGN-WORLD §3, "the chat stays legible-first").
+   * sky through it — the one way the world was allowed to reach the thread
+   * under DESIGN-WORLD §3 ("the chat stays legible-first"), and as of Phase
+   * 3.2 it finally has a call site: `.chat-head`.
+   *
+   * `wallpaper` is the thread's ground (Phase 3.1). It is deliberately the
+   * SMALLEST variant, and that is its definition rather than an optimisation:
+   *
+   *   A WALLPAPER IS STILL.
+   *
+   * Nothing in it twinkles, drifts, rises or breathes. The full world is a
+   * place you look AT; the thread is a place you read IN, and every moving
+   * thing behind a paragraph is a thing competing with the paragraph. So the
+   * three layers that carry the picture — gradient, painting, veil — are all
+   * it renders, and the celestials, the plates, the glow and the city are not
+   * hidden here, they are NOT RENDERED, for the same countability reason the
+   * anti-fight rule gives above.
+   *
+   * It is also why the wallpaper costs the windowed thread nothing: three
+   * static layers in a `position: absolute` sibling OUTSIDE the scroll
+   * container means the scroller moves and this does not, so a row entering
+   * the viewport can never dirty it.
    */
-  variant?: "full" | "band";
+  variant?: "full" | "band" | "wallpaper";
 }
 
 export default function WorldLayer({ frame, variant = "full" }: Props) {
   const t = frame.tokens;
+  const still = variant === "wallpaper";
   const wide = useOrientationWide();
   // The crop the stylesheet is actually going to ask for, so the probe and the
   // paint agree by construction rather than by both happening to be right.
@@ -351,13 +437,13 @@ export default function WorldLayer({ frame, variant = "full" }: Props) {
              say: light does not arrive from directly above. Procedural-only —
              a painted sky already has its own light source and a second one
              laid over it is the same fight as a second moon. */}
-      {!painted && <div className="world-glow" />}
+      {!painted && !still && <div className="world-glow" />}
 
       {/* ── the procedural celestials: FALLBACK ONLY ───────────────────────
           Not `display: none` when painted — not rendered. The rule the
           battery checks is "exactly zero procedural moon nodes over a
           painting", and a hidden node is still a node. */}
-      {!painted && t.stars.count > 0 && (
+      {!painted && !still && t.stars.count > 0 && (
         <div className="world-stars">
           <i className="ws-a" style={{ boxShadow: STARS_A }} />
           <i className="ws-b" style={{ boxShadow: STARS_B }} />
@@ -365,13 +451,13 @@ export default function WorldLayer({ frame, variant = "full" }: Props) {
         </div>
       )}
 
-      {!painted && t.moon.visible && (
+      {!painted && !still && t.moon.visible && (
         <div className="world-moon">
           <i />
         </div>
       )}
 
-      {!painted && (
+      {!painted && !still && (
         <div className="world-clouds">
           <i className="wc-1" />
           <i className="wc-2" />

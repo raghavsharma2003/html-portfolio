@@ -79,6 +79,33 @@ ok("sky at 6:30pm (dusk) resolves dark", resolveTheme("sky", atMin(1110)) === "d
 ok("explicit dark beats a noon sky", resolveTheme("dark", atMin(720)) === "dark");
 ok("explicit light beats a midnight sky", resolveTheme("light", atMin(60)) === "light");
 
+// ── the sky choice leaves a trace of ITSELF (WS-SKYFELT) ──────────────────
+//
+// The owner's defect was not a bug in resolveTheme: "sky at noon resolves
+// light" above is CORRECT and still is. The defect is that being correct was
+// all it did — `data-theme="light"` is the same attribute explicit Light
+// writes, so from 06:10 to 18:10 the two modes painted identical pixels and
+// the tap read as broken.
+//
+// `applyTheme` now stamps a second attribute for the CHOICE. It is not a third
+// palette and this eval's whole point is that it stays that way: the two dark
+// blocks below are unchanged, resolveTheme is unchanged, and the only thing
+// that reads the new attribute is the thread's wallpaper VEIL in world.css —
+// how much of a picture you can see through, which is not a colour.
+{
+  const themeSrc = src("engine/theme.ts");
+  ok("sky stamps a presence attribute", /setAttribute\("data-sky-choice"/.test(themeSrc));
+  ok("every other choice removes it", /removeAttribute\("data-sky-choice"\)/.test(themeSrc));
+  // The attribute must never be a SELECTOR for a colour. If global.css ever
+  // grows a `[data-sky-choice]` rule, sky has become a third palette to keep
+  // in sync with the other two, which is the thing the two-block invariant
+  // below exists to prevent — one level up.
+  ok(
+    "the palette does not branch on it (sky is still not a third palette)",
+    !/data-sky-choice/.test(src("styles/global.css")),
+  );
+}
+
 // ── the CSS contract ──────────────────────────────────────────────────────
 const css = src("styles/global.css");
 

@@ -13,7 +13,9 @@ import {
   track,
   type AuthSession,
 } from "../engine/account";
-import { CloseIcon } from "./icons";
+import { ChevronIcon, CloseIcon } from "./icons";
+import { AnimGlyph } from "./anim";
+import toBody from "./bodyPortal";
 
 interface Props {
   state: AppState;
@@ -121,7 +123,7 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
     if (code.length === 6) verify(code);
   }
 
-  return (
+  return toBody(
     <>
       <div className="sheet-veil" onClick={onClose} />
       <div className="sheet auth-sheet" role="dialog" aria-modal="true" aria-label="Account">
@@ -134,7 +136,16 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
           <>
             <h3>Your account</h3>
             <div className="auth-id">
-              <div className="auth-avatar">{(state.auth?.email?.[0] || "🙂").toUpperCase()}</div>
+              {/* An initial when there is one, and our own face when there is
+                  not. The old fallback was a platform smiley, which is a
+                  different person on every OS and none of them is her. */}
+              <div className="auth-avatar">
+                {state.auth?.email?.[0] ? (
+                  state.auth.email[0].toUpperCase()
+                ) : (
+                  <AnimGlyph name="avatar-default" size={46} alt="" className="auth-avatar-art" />
+                )}
+              </div>
               <div>
                 <div className="auth-who">{state.auth?.email || state.auth?.phone || "Signed in"}</div>
                 <div className="auth-sub">Chats & memories sync to this account</div>
@@ -262,11 +273,12 @@ export default function AuthSheet({ state, onAuthed, onSignOut, onClose }: Props
                 setError("");
               }}
             >
-              ← different {mode === "email" ? "email" : "number"}
+              <ChevronIcon size={16} />
+              different {mode === "email" ? "email" : "number"}
             </button>
           </>
         )}
       </div>
-    </>
+    </>,
   );
 }

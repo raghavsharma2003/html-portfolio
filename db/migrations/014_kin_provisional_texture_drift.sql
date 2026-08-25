@@ -1,0 +1,67 @@
+-- Migration 014 — two columns the consolidation spine needs (WS-SPINE).
+--
+-- NOT YET APPLIED to production. This file is additive-only and every
+-- statement is independently idempotent (`add column if not exists`, all with
+-- defaults), so `node db/migrations/apply.mjs 014` is safe to run at any
+-- time, including against a live database serving traffic — no rewrite, no
+-- lock beyond the catalogue update, no backfill.
+--
+-- It MUST be applied BEFORE `CONSOLIDATE_SWEEP_LIVE` is turned on. Without it
+-- the kin writer throws on every row (loudly — see api/consolidate.js's
+-- `kin_errors`, which is deliberately not a `.catch(() => {})` swallow), and
+-- the texture writer's drift columns silently do not exist.
+--
+-- ── 1. vy_kin.provisional ────────────────────────────────────────────────
+--
+-- Until now nothing had ever written a vy_kin row (measurements
+-- `never-scheduled`: vy_kin 0 rows) because nothing ever CALLED
+-- src/engine/india.ts's `writeKin` — `dead-writers`, exactly. The
+-- consolidation pass is now that caller, which changes what this table is:
+-- every row in it from here on is DERIVED from conversation by a model,
+-- rather than entered by a human who knew the answer.
+--
+-- That distinction has to be in the data, not in a comment, because the
+-- failure it guards against is asymmetric and permanent:
+--
+--   A WRONG MOTHER'S NAME IS WORSE THAN NO MOTHER'S NAME.
+--
+-- She will use a kin row. She will use it by name, in the wrong relation, for
+-- months, and the person on the other end has no way to correct a belief they
+-- were never told she held. `provisional = true` means "derived, never
+-- confirmed by him", and it is what lets the T3 reader hedge instead of
+-- asserting, and lets a later contradiction supersede without anyone ever
+-- having been told a wrong thing as a certainty.
+--
+-- DEFAULT true, not false, and that is the whole point of the column: the
+-- direction of the default decides what happens to a row written by a future
+-- caller that forgets to set it. Defaulting to `false` would mean a forgotten
+-- flag PROMOTES a guess to a certainty, silently. Defaulting to `true` means
+-- a forgotten flag under-claims, which costs a hedge nobody notices. The
+-- existing rows this could mislabel number exactly zero.
+alter table vy_kin add column if not exists provisional boolean not null default true;
+
+-- ── 2. vy_rel_texture drift — CHANGE OVER TIME, not another snapshot ─────
+--
+-- vy_rel_texture is upserted in place on every pass, so it holds the CURRENT
+-- rapport and no memory of any other. Every other self/relational store in
+-- this schema can answer "what changed": vy_rel_event carries from_v -> to_v
+-- per dim so rel-state history is queryable, vy_self_arc carries from_note ->
+-- note with a >=42-day span floor, both supersede rather than overwrite.
+-- Texture alone could only ever say what today looks like — and "how you two
+-- talk NOW" with no "compared to when" is exactly the memory-junk shape the
+-- owner's directive names: a fact about the present pretending to be a story.
+--
+-- Rather than a history table (a row per pass per pair, which is a lot of
+-- storage to answer one question), this is a single compact DERIVED line:
+-- the deriver splits its existing trailing scan window into an EARLIER and a
+-- RECENT half and writes a note only when a rendered band actually MOVED a
+-- full bucket. No new scan, no model call, no new query — the same rows the
+-- deriver already reads, counted twice instead of once.
+--
+-- `drift_cites` is what keeps it honest and is the reason this is two columns
+-- and not one: the note may only render when it carries episode citations,
+-- the same fail-closed discipline `avoid`/`avoid_cites` already use in this
+-- table. An uncited claim about how someone has changed is the single easiest
+-- thing in this system to hallucinate and the hardest for a user to dispute.
+alter table vy_rel_texture add column if not exists drift text not null default '';
+alter table vy_rel_texture add column if not exists drift_cites bigint[] not null default '{}';

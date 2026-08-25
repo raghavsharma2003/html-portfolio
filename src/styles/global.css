@@ -46,7 +46,8 @@
 
   --bubble-me: var(--accent-solid);
   --bubble-me-ink: var(--on-solid);
-  --bubble-me-dim: rgba(255, 255, 255, 0.92); /* 4.54:1 on the bubble */
+  --bubble-me-dim: rgba(255, 255, 255, 0.92); /* 4.54:1 on the day bubble,
+                                                 6.18:1 on the night wine */
   --tick-read: #b9f0ff;
   /* the read tick on a photo CARD rather than in the rose bubble: on paper
      the cyan has to be dragged down to hold against white, on the dark
@@ -58,6 +59,70 @@
   --hairline-strong: rgba(32, 27, 25, 0.15);
   --scrim: rgba(32, 22, 20, 0.38);
   --chrome: rgba(252, 250, 248, 0.82); /* header/composer glass */
+  /* ── THE THREAD'S GLASS FAMILY (Phase 3.2) ──────────────────────────────
+     The thread's furniture used to sit on an opaque ground, so a day
+     separator could be bare text and a call chip could be a plain white pill.
+     Both now sit on a PICTURE, and a bare label on a picture is the thing
+     every chat app with a wallpaper learned not to ship.
+
+     Three tokens, and the split between the last two is the same one the
+     world layer already draws for its panels — the fill carries the TEXT, the
+     edge carries the OBJECT — with one honest difference stated here rather
+     than discovered later:
+
+       --glass-chip        the fill. Gated: --ink and --ink-dim on this,
+                           composited over the wallpaper, hold 4.5:1.
+       --glass-edge        a LABEL's boundary (day separator, call chip).
+                           Decorative, and deliberately NOT held to 3:1:
+                           those two are not UI components, they are text in
+                           a container, and the text is what carries the
+                           information. A 3:1 boundary between two surfaces
+                           this close in lightness would mean a mid-grey ring
+                           around every date in the thread.
+       --glass-edge-strong a CONTROL's boundary (the composer pill, the
+                           read-earlier pill). These ARE components under
+                           WCAG 1.4.11, they now float on a painting, and the
+                           gate holds them at 3:1 against it. The alpha looks
+                           heavy written down and reads as a properly drawn
+                           field on screen — the 0.15 hairline it replaces
+                           measured 1.4:1 against its own ground and was
+                           already close to invisible on paper.
+
+     Alphas are stated in rgba() rather than color-mix() because
+     check-contrast.mjs has to read the fill and the alpha as two numbers, and
+     because `rgba(var(--x-rgb), var(--a))` is the form that works in every
+     WebView this ships to (see WorldLayer.tsx's rgbOf note). */
+  --glass-chip: rgba(255, 255, 255, 0.80);
+  --glass-edge: rgba(32, 27, 25, 0.14);
+  --glass-edge-strong: rgba(32, 27, 25, 0.58);
+  /* A SHEET IS GLASS NOW TOO, and its alpha is the reason it can be: at 0.94
+     the ground contributes 6% of the composite, so the worst case a sheet can
+     ever sit on is bounded without knowing what is behind it. The gate proves
+     both ends — --ink and --ink-dim on this fill over PURE BLACK and over
+     PURE WHITE — which is a complete proof rather than a sample, and it is
+     what lets a sheet float over a thread whose ground is now a painting
+     nobody can enumerate. */
+  --sheet-glass: rgba(255, 255, 255, 0.94);
+  /* ── HER BUBBLE HAS TO BE FINDABLE ON A PICTURE ─────────────────────────
+     `--surface-2` is #f0ebe6 and the light wallpaper's ground averages
+     #f4f4f4. On the old flat `--bg` that 1.05:1 was fine — the ground was one
+     predictable colour and the bubble read as a shape against it. Over a
+     PAINTING it is not: where the wallpaper's city passes under a bubble the
+     two converge exactly, and a message loses its bubble entirely. Caught in
+     the browser battery's own screenshot, on the light morning thread, on the
+     third bubble — the first two sat over open sky and looked perfect.
+
+     The fix is the app's own elevation rule rather than a new idea: ON PAPER
+     A SURFACE RISES BY CASTING A SHADOW, ON A DARK GROUND IT IS FOUND BY ITS
+     EDGE. So this token is a shadow in the day and an inset hairline at
+     night, and it is a token precisely so the two dark blocks can carry the
+     other half without either of them growing a rule.
+
+     It does NOT touch the bubble's background, which stays byte-identically
+     opaque — that promise is what makes every ratio inside a bubble still
+     true, and `scripts/check-contrast.mjs` pins both halves. */
+  --bubble-her-lift: inset 0 0 0 1px rgba(32, 27, 25, 0.075),
+    0 1px 2px rgba(60, 40, 34, 0.10), 0 3px 10px -4px rgba(60, 40, 34, 0.20);
   /* a control that must sit ABOVE a --surface-2 well (the auth segment's
      selected pill). On paper it rises by getting whiter; on the dark ground
      --surface is BELOW --surface-2, so the same pill has to rise to
@@ -245,12 +310,52 @@
   --accent-deep: #f2798c; /* 5.4:1 on --accent-soft over a card */
   --accent-soft: rgba(228, 101, 122, 0.16);
   /* the fill, DEEPENED instead — it carries white, so it moves the other
-     way. White on it is 5.09:1 against the light theme's own 5.07:1, and
-     her bubble's timestamp and read tick land on 4.6:1 and 4.1:1 against
-     4.5:1 and 4.1:1 in the day. Her bubble reads at night exactly as well
-     as it reads at noon, which is the whole point of splitting these. */
+     way. White on it is 5.09:1 against the light theme's own 5.07:1, so a
+     primary button reads at night exactly as well as it reads at noon, which
+     is the whole point of splitting these. It is ALSO the send circle, and
+     that is what pins it here rather than letting it follow the bubble down
+     into the wine below: a control has to be findable against what surrounds
+     it, and on the composer's glass over the night wallpaper this sits at
+     3.36:1 against the 3:1 floor with nothing to spare. */
   --accent-solid: #bc4557;
   --accent-solid-press: #c94a60; /* white 4.5:1 — press LIGHTENS here */
+
+  /* ── HIS BUBBLE IS FURNITURE, NOT A NOTIFICATION (WS-SKYFELT) ──────────
+     Owner's verdict from real device use, verbatim: "the red and black not
+     going together in dark theme." He is right, and the reason is that the
+     night ground stopped being flat. #bc4557 is a saturated rose at ~47%
+     chroma; against the warm near-black it was tuned on it read as a fill,
+     and against the NIGHT PAINTING behind it — indigo zenith, violet middle,
+     a blue-lit city — it reads as an alert. Red on blue at that chroma is the
+     most agitated pair the wheel has, and a chat is a room you sit in.
+
+     So the bubble goes wine: same rose lineage (h345 against the family's
+     h350, still unmistakably hers), deeper (L 40% from 50%) and quieter
+     (S 38% from 47%). Deep enough to belong to the night blues, saturated
+     enough that nobody would call it grey. Chosen from real side-by-side
+     screenshots over the night AND dusk wallpapers, which is the only way a
+     "does it sit in the room" question can be answered.
+
+     EVERY RATIO ON IT IMPROVES, because the fill got darker and everything
+     that lands on it is a white wash or a pale tick. White 5.09:1 -> 6.97:1,
+     --bubble-me-dim (the timestamp) 4.56:1 -> 6.18:1, --tick-read 4.11:1 ->
+     5.64:1, the quoted-reply text inside the bubble 3.36:1 -> 4.15:1 and its
+     bar 3.13:1 -> 3.84:1. All five are gated now (they were not before, which
+     is how a fill could be retuned without anyone measuring what sits on it).
+
+     ── WHY THIS IS ITS OWN TOKEN AND --accent-solid DID NOT MOVE ──────────
+     The obvious change is to deepen --accent-solid and let the bubble, the
+     send button and the primary button move together. It was measured and
+     rejected: --accent-solid is also the 40px send circle, and a CONTROL has
+     to be findable against what surrounds it (WCAG 1.4.11, 3:1). On the
+     composer's glass over the night wallpaper the current rose sits at
+     3.36:1 — already close to the floor — and the wine takes it to 2.45:1.
+     A bubble is not a button: a bubble is found by being a large shape full
+     of white text, a button is found by its fill. So the fill splits the same
+     way `--accent` and `--accent-solid` split one step above, and for the
+     same kind of reason: two jobs that were one colour until the ground
+     changed under them. The light theme's bubble is untouched. */
+  --bubble-me: #8e4054;
 
   /* --accent-warm (#e2724f, 6.1:1 here) and --ok (#2fa855, 6.2:1) are
      deliberately NOT redefined: both already clear the ground, both are
@@ -271,6 +376,17 @@
   --hairline-strong: rgba(255, 240, 235, 0.17);
   --scrim: rgba(6, 3, 4, 0.62); /* deeper: a 0.38 scrim over a dark app is not a scrim */
   --chrome: rgba(28, 21, 23, 0.82);
+  /* the thread's glass family, night side. The fill is --surface at the
+     same alpha; the two edges are the warm-white the hairlines already
+     use, at the alphas the gate solved for over the night paintings. */
+  --glass-chip: rgba(30, 23, 25, 0.80);
+  --glass-edge: rgba(255, 240, 235, 0.16);
+  --glass-edge-strong: rgba(255, 240, 235, 0.46);
+  --sheet-glass: rgba(30, 23, 25, 0.94);
+  /* elevation inverts: a shadow on a dark ground lands on something already
+     darker than the shadow, so the edge draws what the shadow cannot */
+  --bubble-her-lift: inset 0 0 0 0.5px rgba(255, 240, 235, 0.13),
+    0 1px 3px rgba(0, 0, 0, 0.32);
 
   /* inverted surfaces stop inverting — see --notice-tint above */
   --notice-tint: #4a3c40; /* ink on the composited result: 9.9:1 */
@@ -318,12 +434,52 @@
   --accent-deep: #f2798c; /* 5.4:1 on --accent-soft over a card */
   --accent-soft: rgba(228, 101, 122, 0.16);
   /* the fill, DEEPENED instead — it carries white, so it moves the other
-     way. White on it is 5.09:1 against the light theme's own 5.07:1, and
-     her bubble's timestamp and read tick land on 4.6:1 and 4.1:1 against
-     4.5:1 and 4.1:1 in the day. Her bubble reads at night exactly as well
-     as it reads at noon, which is the whole point of splitting these. */
+     way. White on it is 5.09:1 against the light theme's own 5.07:1, so a
+     primary button reads at night exactly as well as it reads at noon, which
+     is the whole point of splitting these. It is ALSO the send circle, and
+     that is what pins it here rather than letting it follow the bubble down
+     into the wine below: a control has to be findable against what surrounds
+     it, and on the composer's glass over the night wallpaper this sits at
+     3.36:1 against the 3:1 floor with nothing to spare. */
   --accent-solid: #bc4557;
   --accent-solid-press: #c94a60; /* white 4.5:1 — press LIGHTENS here */
+
+  /* ── HIS BUBBLE IS FURNITURE, NOT A NOTIFICATION (WS-SKYFELT) ──────────
+     Owner's verdict from real device use, verbatim: "the red and black not
+     going together in dark theme." He is right, and the reason is that the
+     night ground stopped being flat. #bc4557 is a saturated rose at ~47%
+     chroma; against the warm near-black it was tuned on it read as a fill,
+     and against the NIGHT PAINTING behind it — indigo zenith, violet middle,
+     a blue-lit city — it reads as an alert. Red on blue at that chroma is the
+     most agitated pair the wheel has, and a chat is a room you sit in.
+
+     So the bubble goes wine: same rose lineage (h345 against the family's
+     h350, still unmistakably hers), deeper (L 40% from 50%) and quieter
+     (S 38% from 47%). Deep enough to belong to the night blues, saturated
+     enough that nobody would call it grey. Chosen from real side-by-side
+     screenshots over the night AND dusk wallpapers, which is the only way a
+     "does it sit in the room" question can be answered.
+
+     EVERY RATIO ON IT IMPROVES, because the fill got darker and everything
+     that lands on it is a white wash or a pale tick. White 5.09:1 -> 6.97:1,
+     --bubble-me-dim (the timestamp) 4.56:1 -> 6.18:1, --tick-read 4.11:1 ->
+     5.64:1, the quoted-reply text inside the bubble 3.36:1 -> 4.15:1 and its
+     bar 3.13:1 -> 3.84:1. All five are gated now (they were not before, which
+     is how a fill could be retuned without anyone measuring what sits on it).
+
+     ── WHY THIS IS ITS OWN TOKEN AND --accent-solid DID NOT MOVE ──────────
+     The obvious change is to deepen --accent-solid and let the bubble, the
+     send button and the primary button move together. It was measured and
+     rejected: --accent-solid is also the 40px send circle, and a CONTROL has
+     to be findable against what surrounds it (WCAG 1.4.11, 3:1). On the
+     composer's glass over the night wallpaper the current rose sits at
+     3.36:1 — already close to the floor — and the wine takes it to 2.45:1.
+     A bubble is not a button: a bubble is found by being a large shape full
+     of white text, a button is found by its fill. So the fill splits the same
+     way `--accent` and `--accent-solid` split one step above, and for the
+     same kind of reason: two jobs that were one colour until the ground
+     changed under them. The light theme's bubble is untouched. */
+  --bubble-me: #8e4054;
 
   /* --accent-warm (#e2724f, 6.1:1 here) and --ok (#2fa855, 6.2:1) are
      deliberately NOT redefined: both already clear the ground, both are
@@ -344,6 +500,17 @@
   --hairline-strong: rgba(255, 240, 235, 0.17);
   --scrim: rgba(6, 3, 4, 0.62); /* deeper: a 0.38 scrim over a dark app is not a scrim */
   --chrome: rgba(28, 21, 23, 0.82);
+  /* the thread's glass family, night side. The fill is --surface at the
+     same alpha; the two edges are the warm-white the hairlines already
+     use, at the alphas the gate solved for over the night paintings. */
+  --glass-chip: rgba(30, 23, 25, 0.80);
+  --glass-edge: rgba(255, 240, 235, 0.16);
+  --glass-edge-strong: rgba(255, 240, 235, 0.46);
+  --sheet-glass: rgba(30, 23, 25, 0.94);
+  /* elevation inverts: a shadow on a dark ground lands on something already
+     darker than the shadow, so the edge draws what the shadow cannot */
+  --bubble-her-lift: inset 0 0 0 0.5px rgba(255, 240, 235, 0.13),
+    0 1px 3px rgba(0, 0, 0, 0.32);
 
   /* inverted surfaces stop inverting — see --notice-tint above */
   --notice-tint: #4a3c40; /* ink on the composited result: 9.9:1 */
@@ -565,149 +732,19 @@ button {
 }
 
 /* ─── Onboarding ─── */
+/* MOVED TO src/styles/onboard.css (Phase 3.3). The flow runs on the world
+   layer now and is inked entirely in `--world-*` tokens, so every rule that
+   used to live here — the `--surface` ground, `.onb h1`, `.onb p.sub`,
+   `.onb input.field`, `.photo-fan` and its three tilted `.fan` children —
+   described a surface that no longer exists. They are deleted rather than
+   left behind: an unreachable rule that still parses is the thing this repo
+   calls `logged-but-unindexed`, and the next person to change onboarding
+   would have found two stylesheets and no way to tell which one ran.
 
-.onb {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  padding: calc(var(--safe-top) + 28px) calc(var(--safe-right) + 28px)
-    calc(var(--safe-bottom) + 24px) calc(var(--safe-left) + 28px);
-  background: var(--surface);
-}
-
-.onb-step {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.onb h1 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--t-display);
-  line-height: 1.12;
-  letter-spacing: -0.022em;
-  margin-bottom: 14px;
-}
-.onb h1 em {
-  font-style: normal;
-  color: var(--accent);
-}
-.onb p.sub {
-  color: var(--ink-dim);
-  font-size: 17px;
-  line-height: 1.5;
-  letter-spacing: -0.01em;
-  margin-bottom: 32px;
-  max-width: 34ch;
-}
-
-.onb input.field {
-  width: 100%;
-  min-height: 54px;
-  padding: 17px 20px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--hairline-strong);
-  background: var(--bg);
-  color: var(--ink);
-  font-size: 17px;
-  outline: none;
-  transition: border-color 0.15s, background 0.15s;
-}
-.onb input.field:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
-}
-.onb input.field:focus {
-  border-color: var(--accent);
-  background: var(--surface);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
-}
-.onb input.field::placeholder {
-  color: var(--ink-dim);
-}
-
-.chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-/* Fanned stack of her real photos — the first thing you see is a life, not a logo */
-.photo-fan {
-  position: relative;
-  height: 218px;
-  margin-bottom: 26px;
-}
-.photo-fan .fan {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 148px;
-  height: 186px;
-  object-fit: cover;
-  border-radius: 16px;
-  border: 4px solid var(--surface);
-  box-shadow: 0 10px 30px rgba(60, 40, 34, 0.18);
-}
-.photo-fan .fan-l {
-  transform: translate(-50%, -50%) translateX(-84px) rotate(-9deg);
-  z-index: 1;
-}
-.photo-fan .fan-r {
-  transform: translate(-50%, -50%) translateX(84px) rotate(9deg);
-  z-index: 1;
-}
-.photo-fan .fan-c {
-  width: 158px;
-  height: 198px;
-  transform: translate(-50%, -50%) rotate(-1.5deg);
-  z-index: 2;
-}
-
-.onb-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s3);
-  margin-bottom: 18px;
-}
-.onb-back {
-  width: 72px;
-  min-height: var(--hit);
-  text-align: left;
-  font-size: var(--t-sub);
-  color: var(--accent);
-  transition: opacity var(--d-tap) ease, transform var(--d-press) var(--ease-out);
-}
-.onb-back:disabled {
-  opacity: 0;
-  pointer-events: none;
-}
-.onb-dots {
-  display: flex;
-  gap: 7px;
-  justify-content: center;
-}
-.onb-dots i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--hairline-strong);
-  /* width costs layout — tolerated on a 7px first-run dot, never repeated.
-     motion-lint: allow a 7px dot seen once at first run; transform cannot
-     widen a pill from a circle without distorting the ends */
-  transition: width var(--d-state) var(--ease-out), background var(--d-state) ease;
-}
-.onb-dots i.on {
-  width: 22px;
-  border-radius: 4px;
-  background: var(--accent);
-}
+   `.chip` / `.chip-row` STAYED here, and deliberately: MoreSheet still uses
+   them for its "what you're looking for" row, so they are shared primitives
+   rather than onboarding's. Onboarding's own chips are `.onb-chip`, because a
+   chip on a painting and a chip on a sheet are two different objects. */
 
 /* ─── Chat ─── */
 
@@ -716,9 +753,55 @@ button {
   inset: 0;
   display: flex;
   flex-direction: column;
+  /* the wallpaper is the first child and is `position: absolute; inset: 0`;
+     this is what it is absolute inside of, and what stops it escaping */
+  isolation: isolate;
+}
+/* THE WALLPAPER LAYER, and its whole performance argument is structural
+   rather than declared: it is a SIBLING of `.chat-scroll`, not a descendant.
+   The scroller translates its own contents; this element is not among them,
+   so no amount of scrolling can invalidate it and no row entering the
+   viewport can dirty it. The windowed-thread work is untouched — there was
+   never a per-row cost to remove, because a per-row cost was never created.
+
+   `contain: strict` states it to the engine as well as to the reader: this
+   subtree's paint cannot affect anything outside its box, which is what lets
+   the compositor keep it on its own layer across a 300-message flick. */
+.chat > .world {
+  z-index: -1;
+  contain: strict;
 }
 
+/* ── THE HEADER JOINS THE WORLD (Phase 3.2) ───────────────────────────────
+   The band variant finally has a call site. What is behind this bar is now
+   the TOP OF THE PAINTING, veiled at the wallpaper's own alpha, and what is
+   drawn over it is a pane of glass: the app's `--chrome` at its usual blur.
+
+   ── WHERE `--chrome` ACTUALLY ENDS UP, MEASURED ──────────────────────────
+   This comment first claimed the chrome fill sits OVER the band and therefore
+   improves every ratio for free. It does not, and the difference is a CSS
+   painting-order rule that is easy to get backwards: A NEGATIVE-Z-INDEX CHILD
+   PAINTS ABOVE ITS PARENT'S OWN BACKGROUND, not below it. The order here is
+   chrome, then `.world` at z-index -1, then the controls at z-index 1 — so
+   the band covers the chrome completely.
+
+   Probed rather than reasoned about, on the light morning header: mean
+   luminance 232.6 with the chrome fill, 232.6 with it set to `transparent`,
+   246.6 with the BAND removed instead. The chrome moves the header by 0.0 and
+   the band moves it by 14.
+
+   Which leaves `--chrome` as exactly one thing, honestly stated: the ground
+   the band is drawn onto, and what the header falls back to if the world
+   layer is ever not there. The GLASS is the `backdrop-filter` plus the band's
+   own veil, and the gate models precisely that composite — the wallpaper veil
+   over the painting's top band, no chrome in it — so the number it proves is
+   the number that renders rather than a bound on it.
+
+   `isolation: isolate` so the band cannot paint over the row's own controls,
+   and `position: relative` so the band has something to be absolute inside. */
 .chat-head {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: var(--s3);
@@ -728,6 +811,16 @@ button {
   backdrop-filter: blur(28px) saturate(1.9);
   border-bottom: 0.5px solid var(--hairline);
   z-index: 5;
+}
+/* the band itself, behind the chrome and behind every control on the row */
+.chat-head > .world {
+  z-index: -1;
+}
+/* Every direct child that is NOT the world sits above the glass. Stated
+   once here rather than as a z-index on each of the five controls. */
+.chat-head > :not(.world) {
+  position: relative;
+  z-index: 1;
 }
 
 .chat-head .who {
@@ -739,11 +832,17 @@ button {
   background: none;
   padding: var(--s1) 0;
 }
+/* Her name, in the identity the home screen established: a lowercase book
+   serif. `.name-serif` (world.css) carries the face, the lowercase and the
+   tracking; the SIZE is the header's own, because a 40px presence portrait
+   and a 21px header line are the same idea at two scales.
+
+   21px rather than --t-head's 18px: a serif at the same nominal size as the
+   sans it replaces reads smaller (lower x-height), and matching the optical
+   size is the whole reason a type scale has a step here at all. */
 .chat-head .who .name {
-  font-family: var(--font-display);
-  font-size: var(--t-head);
-  font-weight: 650;
-  letter-spacing: -0.015em;
+  font-size: 21px;
+  line-height: 1.15;
   color: var(--ink);
 }
 .chat-head .who .status {
@@ -829,11 +928,16 @@ button {
   /* spacing lives on .msg + .msg alone — two compounding mechanisms make
      the rhythm unreadable from the source */
   gap: 0;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--surface) 55%, var(--bg)) 0%,
-    var(--bg) 30%
-  );
+  /* THE GROUND IS THE WALLPAPER NOW. This used to paint an opaque warm
+     gradient, which is exactly what the owner's two screenshots show: a flat
+     sheet of paper in the day and, on the dark ground, a near-black void with
+     four bubbles floating in the bottom fifth of it.
+
+     Transparent, so `.chat`'s wallpaper layer is what you see between the
+     bubbles. The layer is a SIBLING of this scroller, not a child of it, so
+     it does not scroll, does not repaint per row, and costs the windowed
+     thread nothing — see .chat below. */
+  background: transparent;
   /* the browser keeps the reading position when content is inserted ABOVE
      the viewport — history merges from another device used to yank the
      thread out from under whoever was reading it */
@@ -848,9 +952,20 @@ button {
   margin-top: auto;
 }
 
+/* A day separator was bare text on an opaque ground. On a wallpaper it needs
+   a carrier — the same quiet glass chip the call record wears, so the thread's
+   two "this happened" markers are one family rather than two ideas.
+
+   Small, existing content, new skin: the size, the tracking, the caps and the
+   ink are all unchanged. */
 .day-sep {
   align-self: center;
   margin: 22px 0 14px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--glass-chip);
+  border: 0.5px solid var(--glass-edge);
+  backdrop-filter: blur(12px) saturate(1.4);
   font-size: var(--t-meta);
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -877,6 +992,16 @@ button {
   border-radius: 50%;
   overflow: hidden;
   box-shadow: 0 12px 36px -14px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+/* The drawn room, between her face and the two lines. Bounded by the thread
+   rather than by the file: at 200px it clears the composer on the shortest
+   phone this app supports while still being a picture rather than an icon.
+   No ground of its own, so it carries over every wallpaper and both themes. */
+.chat-empty .ce-art {
+  margin-top: 14px;
+  width: 200px;
+  max-width: 62vw;
+  height: auto;
 }
 .chat-empty h2 {
   margin-top: 18px;
@@ -941,8 +1066,19 @@ button {
   min-height: 38px;
   padding: 0 var(--s4);
   border-radius: 999px;
-  border: 0.5px solid var(--hairline);
-  background: var(--surface);
+  /* WS-SWEEP: the glass family, like its sibling. This pill floats directly on
+     the WALLPAPER — it is `position: absolute` inside `.chat`, above the
+     scroller — and it was the one control there still wearing `--surface`
+     (`#ffffff`) behind a `--hairline`. `.load-earlier` in thread.css is the
+     same object at the other end of the thread and was converted when the
+     wallpaper shipped; this one was missed, so the two ends of the same
+     conversation floated on two different materials.
+     `--glass-edge-strong` rather than `--glass-edge` for the reason that file
+     states: this is a CONTROL, and the gate holds a control's boundary at 3:1
+     against this ground in five skies and both themes. */
+  border: 1px solid var(--glass-edge-strong);
+  background: var(--glass-chip);
+  backdrop-filter: blur(12px) saturate(1.4);
   color: var(--ink);
   font-size: var(--t-sub);
   font-weight: 550;
@@ -1016,6 +1152,9 @@ button {
   background: var(--surface-2);
   color: var(--ink);
   border-radius: 20px 20px 20px 6px;
+  /* see --bubble-her-lift: her bubble sits on a painting now and 1.05:1
+     against the ground is not a shape */
+  box-shadow: var(--bubble-her-lift);
 }
 .msg.her:has(+ .msg.her) {
   border-radius: 20px;
@@ -1348,9 +1487,13 @@ button {
   margin: 10px 0;
   padding: 7px var(--s4);
   border-radius: 999px;
-  background: var(--surface);
-  border: 0.5px solid var(--hairline);
-  box-shadow: var(--shadow-card);
+  /* the same quiet glass as the day separator — see .day-sep. The card
+     shadow goes with the opaque fill it was drawn for: a drop shadow under a
+     translucent chip on a painting reads as a sticker, and on the dark ground
+     it was already doing about a tenth of its job. */
+  background: var(--glass-chip);
+  border: 0.5px solid var(--glass-edge);
+  backdrop-filter: blur(12px) saturate(1.4);
   font-size: var(--t-sub);
   color: var(--ink-dim);
 }
@@ -1625,16 +1768,57 @@ button {
 
 /* she was typing, now the words are there: the indicator leaves as the
    bubble enters underneath it, instead of teleporting on the same frame */
+/* ── THE TYPING ROW OWNS ITS OWN SLOT ─────────────────────────────────────
+   THE BUG (owner screenshot, 2026-08-23): the three-dot bubble sat ON the
+   previous message's bottom edge.
+
+   THE CAUSE, and it is a gap rather than a mistake: every piece of vertical
+   rhythm in this thread is written as `.msg + .msg` (3px within a run) and
+   `.msg.her + .msg.me` (14px between turns). The typing indicator is NOT a
+   `.msg` — it is its own element with its own class — so not one of those
+   adjacency rules has ever matched it. It had `margin-top: 0` against
+   whatever bubble preceded it: the boxes touched exactly, and then two
+   things bled upward out of the box and over the bubble above. Its
+   `::after` halo is `inset: -6px`, so it is drawn 6px OUTSIDE its own
+   border box by construction; and `typing-breathe` scales it to 1.018
+   about its own centre, which on a 45px-tall bubble lifts its top edge
+   another ~0.4px. The overlap is therefore ~6.4px, every time, at every
+   thread length — it is not a scroll-anchoring artefact and it is not
+   mid-burst-specific, which is why it reproduces on a 4-message thread as
+   readily as on a 300-message one.
+
+   THE FIX IS THE MISSING RULE, not a nudge: the row is given the turn gap
+   the message rules would have given it, and the halo's 6px bleed is
+   RESERVED as real layout on both sides. Reserving it is what makes this
+   structural — the clearance no longer depends on who spoke last, on the
+   scroll position, or on anyone remembering that the halo is bigger than
+   its element. The browser battery asserts the boxes do not intersect.
+
+   `margin-top` is beaten by `.chat-scroll > :first-child { margin-top: auto }`
+   when the indicator is the only row, which is correct and wanted: on an
+   empty thread it should still be pushed down onto the composer. */
 .typing-bubble {
   position: relative;
   align-self: flex-start;
   display: flex;
   gap: 5px;
+  /* the turn gap (`.msg.me + .msg.her`), plus the halo's own 6px */
+  margin-top: 14px;
+  margin-bottom: 6px;
   padding: 15px 17px;
   background: var(--surface-2);
+  /* the indicator is her bubble's fill, so it has her bubble's problem on a
+     wallpaper: same token, same lift */
+  box-shadow: var(--bubble-her-lift);
   border-radius: 5px 18px 18px 18px;
   transform-origin: 0% 100%;
   transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out);
+}
+/* She is continuing her own run rather than taking a turn, so the gap
+   tightens toward the 3px within-run rhythm — but never below the 6px the
+   halo physically occupies, which is the number that actually binds. */
+.msg.her + .typing-bubble {
+  margin-top: 8px;
 }
 @starting-style {
   .typing-bubble {
@@ -1722,14 +1906,21 @@ button {
   border-top: 1px solid var(--hairline);
 }
 
+/* The composer joins the same glass family. The pill is a CONTROL — a field
+   you put a caret in — so unlike the two label chips it takes the gated
+   `--glass-edge-strong` boundary and is held at 3:1 against the wallpaper
+   behind it. The 0.15 hairline this replaces measured 1.4:1 against its own
+   ground and was already nearly invisible on paper; over a painting it would
+   have been a field with no edge at all. */
 .chat-input {
   flex: 1;
   display: flex;
   align-items: center;
   min-height: var(--hit);
   border-radius: 22px;
-  border: 1px solid var(--hairline-strong);
-  background: var(--surface);
+  border: 1px solid var(--glass-edge-strong);
+  background: var(--glass-chip);
+  backdrop-filter: blur(12px) saturate(1.4);
   padding: 2px 6px 2px 10px;
   transition: border-color var(--d-tap) ease, box-shadow var(--d-tap) ease;
 }
@@ -2182,8 +2373,11 @@ button {
 .sheet-veil {
   position: absolute;
   inset: 0;
+  /* the world DIMS behind a sheet rather than disappearing: a heavier blur
+     than the old 2px, because the ground under a sheet is a painted thread
+     now and 2px of blur on a photograph is a photograph */
   background: var(--scrim);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(12px) saturate(1.1);
   z-index: 30;
   animation: veil-in var(--d-veil) var(--ease-out);
 }
@@ -2212,12 +2406,20 @@ button {
      the fold with nothing saying the sheet continues. The two `local`
      gradients are covers in the sheet's own surface so the shadows never
      show at rest. */
+  /* THE SHEET IS GLASS (Phase 3.2). The covers and the fill are
+     `--sheet-glass` rather than `--surface`, so the world behind it stays
+     faintly present instead of being replaced by a slab; the blur is what
+     turns "translucent" into "frosted" rather than "see-through". The scroll
+     shadows are unchanged in mechanism — the covers are still the sheet's own
+     fill, so they still hide the shadows at rest. */
   background:
-    linear-gradient(var(--surface) 33%, color-mix(in srgb, var(--surface) 0%, transparent)),
-    linear-gradient(color-mix(in srgb, var(--surface) 0%, transparent), var(--surface) 66%) 0 100%,
+    linear-gradient(var(--sheet-glass) 33%, transparent),
+    linear-gradient(transparent, var(--sheet-glass) 66%) 0 100%,
     radial-gradient(farthest-side at 50% 0, color-mix(in srgb, var(--ink) 16%, transparent), transparent),
     radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--ink) 16%, transparent), transparent) 0 100%;
-  background-color: var(--surface);
+  background-color: var(--sheet-glass);
+  backdrop-filter: blur(30px) saturate(1.7);
+  border-top: 0.5px solid var(--hairline-strong);
   background-repeat: no-repeat;
   background-size: 100% 44px, 100% 44px, 100% 14px, 100% 14px;
   background-attachment: local, local, scroll, scroll;
@@ -2261,26 +2463,45 @@ button {
   transform: scale(0.92);
   background: var(--surface-3);
 }
+/* ── TYPE HIERARCHY ───────────────────────────────────────────────────────
+   The owner's read of this sheet was "a wall of same-weight rows", and it was
+   accurate: the title, the section labels and every row title sat within one
+   weight step of each other, so nothing said which was which. Four levels
+   now, and each one is a different KIND of thing rather than a different size
+   of the same thing:
+
+     h3        the sheet's name          24px / 700 / display
+     label     a section                 11.5px / 700 / uppercase + tracked
+     .stitle   a thing you can act on    16px / 600
+     .ssub     what it will do           13.5px / 400 / --ink-dim
+
+   The section label is the one that changed most: 13px semibold sentence-case
+   read as another row title, which is precisely why the rows all looked the
+   same weight. Uppercase and tracked, it reads as a rule over a group and
+   stops competing. */
 .sheet h3 {
   font-family: var(--font-display);
   font-size: var(--t-title);
   font-weight: 700;
   letter-spacing: -0.02em;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
   padding-right: 40px;
 }
 .sheet .hint {
   color: var(--ink-dim);
   font-size: var(--t-sub);
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   line-height: 1.5;
+  max-width: 38ch;
 }
 .sheet label {
   display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-dim);
-  margin: 16px 0 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 22px 0 9px;
 }
 .sheet input.field,
 .sheet select.field {
@@ -2351,8 +2572,10 @@ button {
 }
 .srow .stitle {
   display: block;
-  font-size: var(--t-ui);
-  font-weight: 550;
+  /* a row title is a THING YOU CAN ACT ON and now outranks the section label
+     that used to match it — 16/600 against the label's 11.5/700-uppercase */
+  font-size: 16px;
+  font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.3;
 }
@@ -2373,29 +2596,217 @@ button {
   color: var(--ink-faint);
   flex-shrink: 0;
 }
+/* ── THE SOUND SWITCH (WS-SOUND) ──────────────────────────────────────────
+   The sheet's one control that changes something instead of going somewhere,
+   so it wears a track rather than a chevron. It reuses `.srow` wholesale --
+   same height, same icon tile, same two lines of text -- because a switch that
+   invented its own row shape would be the only object in this sheet that did.
+
+   THE TRACK IS THE GLASS FAMILY. `--glass-chip` on `--glass-edge` is the same
+   pair the day separator, the call chip and the composer pill wear, which is
+   what makes an off switch read as a quiet piece of the sheet rather than as a
+   disabled control. ON is the accent, filled, because the accent is what this
+   app uses for "this is live right now" everywhere else.
+
+   The row sits outside `.sheet-rows` on purpose: that container groups things
+   you navigate to, and putting a switch inside it would make the group mean
+   two things. The negative top margin closes the gap the hint above leaves. */
+.sheet .sound-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 8px;
+  margin: -6px -8px 0;
+  border-radius: 14px;
+  text-align: left;
+  color: var(--ink);
+  transition: background var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.sheet .sound-row:active {
+  background: var(--surface-2);
+  transform: scale(0.985);
+}
+.sound-row .sswitch {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--glass-chip);
+  border: 1px solid var(--glass-edge-strong);
+  transition: background var(--d-tap) ease, border-color var(--d-tap) ease;
+}
+.sound-row .sknob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  /* `translate` and not `left`: `left` is a layout property and the motion
+     lint auto-blocks animating one, correctly -- it costs a layout pass on
+     every frame of a control someone flicks. */
+  transition: transform var(--d-tap) var(--ease-out), background var(--d-tap) ease;
+}
+.sound-row[aria-checked="true"] .sswitch {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.sound-row[aria-checked="true"] .sknob {
+  background: #fff;
+  transform: translateX(18px);
+}
+.sound-row[aria-checked="true"] .sicon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+/* OFF is drawn as off, not merely as "not on": the tile goes quiet with the
+   track, so the row reads at a glance from three feet away rather than
+   requiring the eye to find a 46px switch and decide which end it is at. */
+.sound-row[aria-checked="false"] .sicon {
+  background: var(--surface-2);
+  color: var(--ink-faint);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sound-row .sknob,
+  .sound-row .sswitch {
+    transition: none;
+  }
+}
+/* ── THE DANGER ZONE (Phase 3.2) ──────────────────────────────────────────
+   These two rows erase a relationship. They used to be marked as such by a
+   0.5px rule and the colour of their own text, which is a distinction you can
+   only see if you already know it is there — the owner's screenshot is
+   exactly what that looks like in use: one wall of identically shaped rows,
+   the last two of them red.
+
+   A zone instead of a line: inset, tinted in the danger hue at a whisper,
+   outlined, and labelled with the one word the two of them share. The rows
+   inside keep every handler, every confirmation flow and every word of their
+   copy — the only thing that changed is that you can now see where the
+   reversible part of this sheet ends. */
+.sheet label.danger-label {
+  margin: 22px 0 8px;
+  color: var(--danger);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 11.5px;
+}
 .sheet-rows.danger {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 0.5px solid var(--hairline);
+  margin: 0 -4px;
+  padding: 6px;
+  gap: 4px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 22%, transparent);
 }
 .srow.destructive .sicon {
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
   color: var(--danger);
 }
 .srow.destructive .stitle {
   color: var(--danger);
+  font-weight: 600;
+}
+.srow.destructive:active {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
+/* ── the appearance segmented control ─────────────────────────────────────
+   Four segments in one track, each showing the thing it does rather than
+   naming it. See MoreSheet.tsx for why the swatches are raw values: a
+   depiction of the light theme has to look light while the DARK theme is
+   active, so a token here would be the bug and a literal is the fix. */
+.seg {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  border: 0.5px solid var(--hairline);
+}
+.seg-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  min-height: 68px;
+  padding: 9px 2px 8px;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink-dim);
+  transition: background var(--d-tap) ease, color var(--d-tap) ease,
+    border-color var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.seg-opt:active {
+  transform: scale(0.96);
+}
+/* the selected segment RISES out of its track — the same elevation idiom the
+   auth segment uses, and the reason --raised exists (on the dark ground
+   --surface sits BELOW --surface-2, so a pill that rose to it would sink) */
+.seg-opt.on {
+  background: var(--raised);
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+  box-shadow: var(--shadow-card);
+}
+.seg-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(140, 120, 112, 0.34);
+}
+.seg-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1;
+}
+/* SKY: the live gradient, from the same four stops the world layer paints.
+   Not a picture of a sunset — the sky it is following, at this minute. */
+.seg-opt[data-mode="sky"] .seg-swatch {
+  background: linear-gradient(
+    to bottom,
+    var(--sky-1) 0%,
+    var(--sky-2) 34%,
+    var(--sky-3) 68%,
+    var(--sky-4) 100%
+  );
+}
+/* AUTO: a light half and a dark half, split on the diagonal */
+.seg-opt[data-mode="system"] .seg-swatch {
+  background: linear-gradient(114deg, #faf7f4 0 50%, #191315 50% 100%);
+}
+.seg-opt[data-mode="light"] .seg-swatch {
+  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #f3ece4 78%);
+}
+.seg-opt[data-mode="dark"] .seg-swatch {
+  background: radial-gradient(circle at 32% 28%, #2c2327 0%, #120d0e 82%);
+}
+
+/* THE HONESTY LINE IS TEXT, so it takes a text role. It was --ink-faint,
+   which the token block defines as non-text at 2.9:1 — and the sheet becoming
+   glass is what surfaced it: on a 0.94 fill over a dark thread it measured
+   2.69:1. This is the SECOND time this exact lesson has been paid for in this
+   product (onboarding's legal paragraph carries the same note, for the same
+   reason), which is why it is now a gate rather than a comment: a disclosure
+   nobody can read is not a disclosure. */
 .sheet-foot {
-  margin-top: 20px;
+  margin-top: 22px;
   padding-top: 14px;
   border-top: 0.5px solid var(--hairline);
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  font-size: 12px;
-  color: var(--ink-faint);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-dim);
 }
 .sheet-foot a {
   color: var(--ink-dim);
@@ -2524,6 +2935,11 @@ button {
   font-size: var(--t-ui);
   color: var(--ink-dim);
 }
+/* the clapper, sat on the text's baseline the way the glyph it replaced was */
+.gif-mark {
+  display: inline-block;
+  vertical-align: -0.22em;
+}
 
 /* ─── Account sheet — Apple-grade auth ─── */
 .auth-sheet h3 {
@@ -2629,14 +3045,25 @@ button {
   line-height: 1.5;
   margin-top: 12px;
 }
+/* WS-SWEEP: the same shape every other way BACK in the app has — a chevron
+   turned left, then the destination in words. It was a `←` text character,
+   which is drawn from the platform's UI font and sat at a different weight,
+   height and optical size from the stroked chevron `.as-back`, `.us-back`,
+   `.home-back` and the thread header all use. One gesture, one glyph. */
 .auth-back {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   min-height: var(--hit);
   margin: 6px auto 0;
   color: var(--accent);
   font-size: var(--t-ui);
   font-weight: 500;
   transition: transform var(--d-press) var(--ease-out);
+}
+.auth-back svg {
+  transform: rotate(180deg);
 }
 .auth-id {
   display: flex;
@@ -2659,6 +3086,15 @@ button {
   font-size: 20px;
   font-weight: 700;
   flex-shrink: 0;
+  overflow: hidden;
+}
+/* the no-initial case: our own drawn face, filling the circle rather than
+   sitting inside it as a smaller square */
+.auth-avatar-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
 }
 .auth-who {
   font-weight: 600;
@@ -2770,11 +3206,21 @@ button.avatar-ring {
   animation: none;
 }
 
+/* WS-SWEEP: NOT `#000`. The image is `object-fit: contain`, so on a portrait
+   photo in a taller viewport this ground is a real, visible band above and
+   below her picture — it was the only pure black in the product, on the one
+   surface that is nothing but her. DESIGN-STANDARDS' anti-pattern list rules
+   it out outright ("no pure black or gray — always tinted"), and the palette
+   already contains the answer: `#150f10` is the dark theme's own `--bg`, the
+   warm near-black every other dark surface here is built on. Written out
+   rather than `var(--bg)` because this viewer is the SAME viewer in both
+   themes — a story is a dark room whatever the app is set to — so a token
+   that flips would put a photograph on warm paper. */
 .story-view {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: #000;
+  background: #150f10;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2858,15 +3304,25 @@ button.avatar-ring {
   z-index: 2;
   color: #fff;
 }
+/* Her name, in the identity home, the thread header and the call screen all
+   established: a lowercase book serif. `.name-serif` (world.css) carries the
+   face, the lowercase and the tracking; the size is this row's own. It was
+   semibold sans Title Case — a screen title where every other surface in the
+   product says a person's name. 19px rather than --t-ui's 15px for the reason
+   the thread header states at its own scale: a serif reads smaller than the
+   sans it replaces, so the optical match needs the step. */
 .story-name {
-  font-weight: 600;
-  font-size: var(--t-ui);
+  font-size: 19px;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
 }
 .story-age {
   font-size: var(--t-sub);
   color: rgba(255, 255, 255, 0.82);
 }
+/* `filter: drop-shadow`, not `text-shadow`: these carry SVG paths now rather
+   than text characters, and a text-shadow on an element whose visible content
+   is a stroked path shadows nothing at all. Same offset, same blur, same
+   alpha — the glyphs still lift off a bright photograph exactly as far. */
 .story-btn {
   position: relative;
   width: var(--hit);
@@ -2875,8 +3331,7 @@ button.avatar-ring {
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 19px;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  filter: drop-shadow(0 1px 8px rgba(0, 0, 0, 0.5));
   transition: transform var(--d-press) var(--ease-out);
 }
 /* the one thing a first-time viewer cannot guess: that the sides advance
@@ -2930,6 +3385,21 @@ button.avatar-ring {
   font-size: 21px;
   text-align: center;
   font-weight: 600;
+}
+/* The gate's own picture. Warm-on-indigo line art with no ground of its own,
+   so it reads on the blurred dark scrim without a plate under it. Sized to
+   the panel rather than to the file: 200px is the widest it can be and still
+   leave the sentence and both buttons above the fold on a small phone. */
+.story-gate-art {
+  display: block;
+  width: 200px;
+  max-width: 62vw;
+  height: auto;
+}
+/* her eyes, at the height of the line they sit in */
+.story-eyes {
+  display: inline-block;
+  vertical-align: -0.16em;
 }
 .story-skip {
   color: rgba(255, 255, 255, 0.82);
@@ -3018,6 +3488,56 @@ button.avatar-ring {
 }
 .watch-chip .wb-btn:active {
   transform: scale(0.95);
+}
+
+/* WS-WATCHPERF — "let her hear it": device audio into the call.
+
+   Deliberately SMALLER and quieter than the watch chip above it. That chip is
+   a privacy control and is exempt from the chrome dimming for it; this one is
+   a comfort, and a comfort that competes with the look-away for attention is
+   a comfort that makes the look-away harder to find. So: half the width, one
+   line, no sub-label, and it takes the same dimming as the rest of the
+   chrome.
+
+   The ON state is stated in colour AND in words ("she can hear it"), because
+   a chip whose only signal is a tint is a chip someone reads wrong in the one
+   direction that matters — thinking the sound is off when it is on. */
+.hear-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: center;
+  margin-top: 10px;
+  min-height: 34px;
+  padding: 0 var(--s4);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: rgba(246, 241, 238, 0.82);
+  font-size: 12.5px;
+  font-weight: 550;
+  letter-spacing: -0.004em;
+  animation: msg-in var(--d-state) var(--ease-out);
+  transition: background var(--d-tap) ease, border-color var(--d-tap) ease,
+    color var(--d-tap) ease, transform var(--d-press) var(--ease-out);
+}
+.hear-chip .hc-icon {
+  display: flex;
+  flex-shrink: 0;
+  color: rgba(246, 241, 238, 0.55);
+  transition: color var(--d-tap) ease;
+}
+.hear-chip:active {
+  transform: scale(0.96);
+}
+.hear-chip.on {
+  background: rgba(214, 154, 106, 0.24);
+  border-color: rgba(230, 178, 132, 0.4);
+  color: #f6f1ee;
+}
+.hear-chip.on .hc-icon {
+  color: var(--accent-warm);
 }
 
 /* curtain closed. Three signals at once, because someone who THINKS they
@@ -3332,9 +3852,18 @@ input {
   align-items: center;
   padding: 4px 6px;
   border-radius: 999px;
-  background: var(--surface);
+  /* WS-SWEEP: A MENU FLOATING ON THE WALLPAPER. It is `position: absolute` at
+     `top: -46px`, so unlike the bubble it belongs to it sits entirely on the
+     picture — and it was `--surface` (`#ffffff`) behind a `--hairline`, which
+     over a painted city is a white slab with no visible boundary at all.
+     `--sheet-glass` is the material the app already gives a popover over the
+     world, and its ratios are bounded over ANY ground by the sheet rows in
+     `scripts/check-contrast.mjs`. The edge steps up to the gated CONTROL
+     boundary: this is a row of buttons, not a label. */
+  background: var(--sheet-glass);
+  backdrop-filter: blur(16px) saturate(1.5);
   box-shadow: var(--shadow-float);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-edge-strong);
   z-index: 3;
   animation: react-in 160ms var(--ease-out) both;
 }
@@ -3351,17 +3880,55 @@ input {
   padding: 5px;
   border-radius: 999px;
   cursor: pointer;
+  /* it holds a 21px picture now rather than a 21px glyph, so the box has to
+     say where the picture sits instead of leaving it to the text baseline */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: transform 140ms var(--ease-out), background 140ms var(--ease-out);
 }
 .react-pick:hover { transform: scale(1.22); }
 .react-pick:active { transform: scale(0.9); }
 .react-pick.on { background: var(--accent-soft); transform: scale(1.12); }
+
+/* ── OUR OWN REACTION ARTWORK ─────────────────────────────────────────────
+ * The picker and the pill both paint `src/components/anim.tsx`'s pair, at the
+ * sizes the emoji occupied before it (21px in the row, 15px on the bubble), so
+ * the hover scale, the press squash and the `react-pop` landing are unchanged
+ * — they act on the BUTTON and the PILL, which is why swapping what is inside
+ * them moved none of it.
+ *
+ * There is no reduced-motion rule here and there cannot be: an animated WebP
+ * ignores `animation: none`. The answer is upstream, in which file gets
+ * requested. See anim.tsx.
+ */
+.react-art {
+  display: block;
+  /* the third fallback renders the emoji in a <span> with this class, so the
+     glyph has to be given the size the image would have had */
+  line-height: 1;
+  font-size: inherit;
+}
+img.react-art {
+  object-fit: contain;
+}
+
 .react-bar .reply-chip {
   font-size: 15px;
   padding: 5px 9px;
   margin-left: 2px;
   border-left: 1px solid var(--hairline);
   border-radius: 0 999px 999px 0;
+}
+/* the inlined reply mark: `currentColor` is the chip's own accent, which is
+   the whole reason it is inline SVG and not an <img> */
+.chip-mark {
+  display: block;
+}
+.chip-mark svg {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 /* the emoji stuck onto a bubble */
@@ -3372,12 +3939,23 @@ input {
   line-height: 1;
   padding: 3px 5px;
   border-radius: 999px;
+  /* Stays OPAQUE — it is welded to a bubble's edge and half of it overhangs
+     onto the wallpaper, so it is a bubble-shaped object and takes the bubbles'
+     own rule. What it did not have is an EDGE that survives a picture: a
+     `--hairline` is 8% ink, and the overhanging half of this pill disappeared
+     into the city behind it. The gated control boundary is the same fix the
+     thread's own audit reached for her bubble, at badge scale. */
   background: var(--surface);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-edge-strong);
   box-shadow: var(--shadow-card);
   /* a reaction ARRIVING should be felt — it is the one thing in the thread
      that appears without a new bubble */
   animation: react-pop 260ms var(--ease-out) both;
+  /* the artwork inside is a block image; without this the pill keeps the
+     line-box of the emoji it replaced and sits a pixel or two low */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .msg.me .react-pill { left: 8px; }
 .msg.her .react-pill { right: 8px; }
@@ -3488,10 +4066,15 @@ input {
   height: 34px;
   border: 0;
   border-radius: 50%;
+  /* `#111` was a neutral near-black, which the standards forbid and which this
+     file has a warm answer for in every other dark ink it uses. The disc stays
+     white — it is the one solid control on a photograph and it has to read at
+     a glance. */
   background: #fff;
-  color: #111;
-  font-size: 17px;
-  line-height: 1;
+  color: #150f10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out);
 }
@@ -3555,11 +4138,22 @@ input {
   height: 70px;
   border: 0;
   border-radius: 50%;
-  font-size: 27px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--on-solid);
   cursor: pointer;
   box-shadow: var(--shadow-float);
   transition: transform 140ms var(--ease-out);
+}
+/* The hang-up handset, turned back up: one glyph says both halves of a call,
+   which is the convention a phone has used since it had a cradle. 135° rather
+   than 180° so it reads as a handset LIFTED off the rest rather than as the
+   same shape flipped — the tilt is the difference between "answer" and
+   "upside-down end call". */
+.inc-pick {
+  display: flex;
+  transform: rotate(135deg);
 }
 .inc-btn:active { transform: scale(0.92); }
 .inc-btn.decline { background: var(--danger-solid); }

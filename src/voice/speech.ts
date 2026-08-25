@@ -88,6 +88,114 @@ export interface VoiceOpts {
 const ELEVEN_DEFAULT_VOICE = "1qEiC6qsybMkmnNdVMbK";
 const SARVAM_SPEAKER = "priya";
 
+/* ─── WHO IS SPEAKING — one identity, one tag, one cache namespace ────────
+ *
+ * HER VOICE NAME, MIRRORED. `api/speech.js` owns `DEFAULT_VOICE`; this is the
+ * client-side mirror and `scripts/verify-voice.mjs` §1 asserts they are the
+ * same string on every run. It is a mirror rather than an import for the
+ * reason every other lane is: `api/speech.js` is a serverless function with
+ * server secrets and cannot be imported into the browser bundle.
+ *
+ * WHY THIS FILE NEEDS THE NAME AT ALL, given that it never SENDS it (the
+ * proxy applies its own default): because this file CACHES her audio, and a
+ * cache key that does not name the voice serves the OLD voice forever.
+ *
+ * That is not hypothetical — it is how the fixed bug came back. Her voice moved
+ * Aoede → Autonoe on 2026-08-21. Four lanes moved together, `verify-voice.mjs`
+ * went green, and the three clip caches below did not move, because their keys
+ * were `bc1:<text>:<style>`, `pk1:<text>:<style>` and `vn1:<msgId>` — text,
+ * style and id, never the voice. So every install that had made one call before
+ * that date kept playing **Aoede** pickup lines and backchannels out of
+ * IndexedDB, at the START of a call, and then went Autonoe the moment the live
+ * session connected. The constant switched; the audio did not.
+ *
+ * `liveCall.ts` is the lane that got this right — its ack cache has always been
+ * `${ACK_CACHE_V}:${ACK_VOICE}:${text}`. This is that shape, generalised to the
+ * third-party engines too, so switching engines cannot serve the other one's
+ * clips either.
+ *
+ * THE TAG IS THE SWITCH. Every cached clip is namespaced by `engineTag()`, so
+ * changing the voice constant changes every key and strands every stale clip
+ * automatically. There is no revision counter to bump and therefore none to
+ * forget. */
+const MEERA_VOICE = "Despina";
+
+/** Which engine will actually speak, decided ONCE per utterance.
+ *
+ *  This used to be re-derived per phrase inside `fetchClipFor`, and the
+ *  predicate it re-derived it from — `hasAudioTags(text)` — is a property of
+ *  the PHRASE, not of the reply. So with both user keys set, a reply whose
+ *  second sentence carried `[laughs]` was fetched from ElevenLabs while its
+ *  first came from Sarvam: two different women, one sentence apart, inside one
+ *  answer. `verify-voice.mjs` §2 already asserts precisely this cannot happen
+ *  one level down (the cascade's free and paid arms must name one model,
+ *  "because a multi-phrase reply races again per phrase"); nothing asserted it
+ *  one level up, where the engines are not even the same vendor.
+ *
+ *  The tradeoff, stated rather than hidden: deciding on the whole utterance
+ *  means a tag appearing only in a later phrase no longer pulls that phrase to
+ *  ElevenLabs. That is the correct trade. A missed emotion tag is a flatter
+ *  sentence; a mid-reply engine swap is a different person, and this repo has
+ *  already paid for the second one twice. Sarvam cannot perform a tag at all —
+ *  its callers hand it `stripForDevice(...)`, which turns tags into pauses — so
+ *  on a Sarvam install nothing is lost by the change. */
+export type SpeakEngine = "eleven" | "sarvam" | "proxy";
+
+/* IDENTITY WINS — coordinator decision, 2026-08-24.
+ *
+ * A user key used to be an AUTOMATIC OVERRIDE: set a Sarvam key and every
+ * cascade phrase, pickup line and backchannel came back in `priya` while the
+ * live call, the native watch engine and her voice notes stayed in her own
+ * voice. So the fallback — the thing that fires exactly when something has
+ * already gone wrong mid-call — was also the moment she became a different
+ * woman. That is the owner's verbatim complaint, and it is a strange bargain
+ * to have struck by default: one woman beats better-Hinglish-sometimes.
+ *
+ * Her own voice is now PREFERRED whenever it is reachable. The user keys are
+ * not deleted — they stay as FAILOVER, below her voice and above the device
+ * engine, because a different voice is still better than silence once the
+ * hosted lane has genuinely failed.
+ *
+ * THE OPT-IN IS A FUTURE SLICE, and this is the honest state of it: there is no
+ * settings surface for these keys anywhere in the tree. Nothing writes
+ * `sarvamKey`, `elevenKey` or `elevenVoiceId` — they are declared in
+ * `store.ts`, defaulted to `""`, read here and in `useCallEngine.ts`, and set
+ * by no code that exists. But `store.ts` hydrates as
+ * `{ ...defaultState, ...JSON.parse(raw) }`, so a value written by ANY earlier
+ * build survives every update since, invisibly and with no UI to clear it.
+ * That is the reachable path, and it is a good description of a year-old
+ * install whose owner cannot work out why she keeps changing voice.
+ *
+ * REVERSES IF: the owner explicitly chooses Hinglish quality over voice
+ * constancy for fallbacks — flip this one constant back to `false` and the
+ * previous preference order returns exactly as it was. */
+const VOICE_IDENTITY_WINS: boolean = true;
+
+function pickEngine(text: string, opts: VoiceOpts): SpeakEngine {
+  if (VOICE_IDENTITY_WINS) return "proxy";
+  if (opts.elevenKey && (hasAudioTags(text) || !opts.sarvamKey)) return "eleven";
+  if (opts.sarvamKey) return "sarvam";
+  return "proxy";
+}
+
+/** The identity that will be heard, as a short cache namespace. Anything that
+ *  changes WHO SHE SOUNDS LIKE has to change this string, or a clip cached
+ *  under the old identity gets replayed under the new one. */
+function engineTag(engine: SpeakEngine, opts: VoiceOpts): string {
+  if (engine === "eleven") return `el-${(opts.elevenVoiceId?.trim() || ELEVEN_DEFAULT_VOICE).slice(0, 12)}`;
+  if (engine === "sarvam") return `sv-${SARVAM_SPEAKER}`;
+  return `gm-${MEERA_VOICE}`;
+}
+
+/** Cache namespace for a clip this file is about to fetch through `opts`. */
+export function clipVoiceTag(opts: VoiceOpts, text = ""): string {
+  return engineTag(pickEngine(text, opts), opts);
+}
+
+/** Cache namespace for anything that goes STRAIGHT to `/api/speech` and so is
+ *  always the hosted voice — her voice notes, the live lane's ack clips. */
+export const PROXY_VOICE_TAG = `gm-${MEERA_VOICE}`;
+
 // Hosted Meera voice (Gemini TTS behind our proxy) — same-origin on the web,
 // absolute from inside the Android shell.
 const PROXY_SPEECH_URL = isNative
@@ -650,10 +758,12 @@ const JITTER_MS = 150;
 // Would this text route to the hosted proxy voice at all? Mirrors fetchClipFor
 // exactly, because a divergence here would silently stream one engine's text
 // through another engine's door.
-function usesProxyVoice(text: string, opts: VoiceOpts): boolean {
-  if (!proxyStreams) return false;
-  const preferEleven = Boolean(opts.elevenKey) && (hasAudioTags(text) || !opts.sarvamKey);
-  return !preferEleven && !opts.sarvamKey;
+// Takes the engine ALREADY DECIDED for this utterance rather than re-deriving
+// it from the phrase in hand — see `pickEngine`. Re-deriving here was the other
+// half of the per-phrase split: the first phrase could take the streaming proxy
+// path while a later, tag-carrying phrase went to ElevenLabs.
+function usesProxyVoice(engine: SpeakEngine): boolean {
+  return proxyStreams && engine === "proxy";
 }
 
 // Cleared the first time the proxy answers a streaming request with something
@@ -832,16 +942,26 @@ export async function speak(
   // and IS the voice for a fresh, keyless install.
   const cloudText = stripForCloud(text);
   if (cloudText) {
-    const preferEleven = Boolean(opts.elevenKey) && (hasAudioTags(text) || !opts.sarvamKey);
-    const tries: Array<() => Promise<Blob | null>> = [];
-    if (preferEleven) {
-      tries.push(() => elevenFetch(cloudText, opts));
-      if (opts.sarvamKey) tries.push(() => sarvamFetch(stripForDevice(text), opts));
-    } else if (opts.sarvamKey) {
-      tries.push(() => sarvamFetch(stripForDevice(text), opts));
-      if (opts.elevenKey) tries.push(() => elevenFetch(cloudText, opts));
-    }
-    tries.push(() => meeraFetch(cloudText));
+    // ONE decision for the whole utterance, from the whole text — the same
+    // `pickEngine` the call lane uses, so the chat lane and the call lane
+    // cannot disagree about who she is. The tiers below it are FAILOVER, not
+    // preference: they are only reached when the chosen engine returned
+    // nothing at all, which is a different event from choosing differently.
+    const engine = pickEngine(text, opts);
+    const eleven = () => elevenFetch(cloudText, opts);
+    const sarvam = () => sarvamFetch(stripForDevice(text), opts);
+    const hers = () => meeraFetch(cloudText);
+    // THE CHOSEN ENGINE FIRST — under IDENTITY WINS that is always her own
+    // voice. Everything after it is FAILOVER and nothing else: it is reached
+    // only when the engine above it returned no audio at all, which is a
+    // different event from preferring a different vendor. Ordering the vendors
+    // after her rather than before is the whole of the coordinator's decision.
+    const tries: Array<() => Promise<Blob | null>> = [
+      engine === "eleven" ? eleven : engine === "sarvam" ? sarvam : hers,
+    ];
+    if (engine !== "proxy") tries.push(hers);
+    if (engine !== "sarvam" && opts.sarvamKey) tries.push(sarvam);
+    if (engine !== "eleven" && opts.elevenKey) tries.push(eleven);
     for (const attempt of tries) {
       const blob = await attempt();
       if (blob) {
@@ -952,14 +1072,18 @@ function splitPhrases(text: string): string[] {
   return out.length ? out : [text];
 }
 
+// `engine` is decided ONCE per utterance by the caller and threaded down here,
+// so every phrase of one reply is synthesised by the same vendor. It used to be
+// recomputed from `text` on each call, which made the engine a property of the
+// phrase — see `pickEngine` for what that cost.
 async function fetchClipFor(
   text: string,
   opts: VoiceOpts,
-  style?: string,
+  style: string | undefined,
+  engine: SpeakEngine,
 ): Promise<Blob | null> {
-  const preferEleven = Boolean(opts.elevenKey) && (hasAudioTags(text) || !opts.sarvamKey);
-  if (preferEleven) return elevenFetch(text, opts);
-  if (opts.sarvamKey) return sarvamFetch(stripForDevice(text), opts);
+  if (engine === "eleven") return elevenFetch(text, opts);
+  if (engine === "sarvam") return sarvamFetch(stripForDevice(text), opts);
   return meeraFetch(text, style);
 }
 
@@ -995,7 +1119,12 @@ function noteClipMs(ms: number) {
   if (clipMs.length > 12) clipMs.shift();
 }
 
-function hedgedClipFor(text: string, opts: VoiceOpts, style?: string): Promise<Blob | null> {
+function hedgedClipFor(
+  text: string,
+  opts: VoiceOpts,
+  style: string | undefined,
+  engine: SpeakEngine,
+): Promise<Blob | null> {
   return new Promise((resolve) => {
     let settled = false;
     let hedged = false;
@@ -1005,7 +1134,10 @@ function hedgedClipFor(text: string, opts: VoiceOpts, style?: string): Promise<B
       if (settled || hedged) return;
       hedged = true;
       pending++;
-      fetchClipFor(text, opts, style).then(settle, () => settle(null));
+      // the hedge races the SAME engine; a hedge that fell to another vendor
+      // would be a coin-flip between two voices on the one clip the user is
+      // waiting for in silence
+      fetchClipFor(text, opts, style, engine).then(settle, () => settle(null));
     };
     const settle = (b: Blob | null) => {
       if (settled) return;
@@ -1029,7 +1161,7 @@ function hedgedClipFor(text: string, opts: VoiceOpts, style?: string): Promise<B
       }
     };
     const t0 = Date.now();
-    fetchClipFor(text, opts, style).then((b) => {
+    fetchClipFor(text, opts, style, engine).then((b) => {
       // only the unhedged primary teaches us this endpoint's real speed; a
       // hedged race would measure the winner of two and bias the median down
       if (!hedged) noteClipMs(Date.now() - t0);
@@ -1048,7 +1180,10 @@ export function prewarmSpeech(text: string, opts: VoiceOpts, style?: string) {
   if (!clean) return;
   const first = splitPhrases(clean)[0];
   if (!first || prewarmed.has(first)) return;
-  prewarmed.set(first, hedgedClipFor(first, opts, style));
+  // decided from the WHOLE reply, exactly as speakCall will decide it, so the
+  // prewarmed first phrase and the phrases that follow it cannot come from
+  // different vendors
+  prewarmed.set(first, hedgedClipFor(first, opts, style, pickEngine(clean, opts)));
   if (prewarmed.size > 4) prewarmed.delete(prewarmed.keys().next().value!);
 }
 
@@ -1065,6 +1200,10 @@ export async function speakCall(
   const clean = stripForCloud(text);
   if (!clean) return onEnd?.();
   const phrases = splitPhrases(clean);
+  // ONE engine for this whole reply, decided from the whole reply. Every
+  // `fetchClipFor` below is handed this value rather than re-deriving one from
+  // the phrase it happens to be fetching — see `pickEngine`.
+  const engine = pickEngine(clean, opts);
 
   // pipeline: kick off fetch N+1 while N plays; the first clip is hedged —
   // or already in flight if the caller prewarmed it (greeting during ring)
@@ -1084,9 +1223,9 @@ export async function speakCall(
   // already hidden and they keep the simpler complete-file path (and the blob
   // cache that hangs off it). Streaming here buys the entire win.
   let from = 0;
-  if (!pre && usesProxyVoice(phrases[0], opts)) {
+  if (!pre && usesProxyVoice(engine)) {
     // phrase 2 must not wait on phrase 1 finishing SOUNDING — start it now
-    if (phrases.length > 1) fetches[1] = fetchClipFor(phrases[1], opts, style);
+    if (phrases.length > 1) fetches[1] = fetchClipFor(phrases[1], opts, style, engine);
     const ok = await streamProxyClip(phrases[0], style, session, begin);
     if (session !== speakSession) return;
     if (ok) {
@@ -1094,12 +1233,12 @@ export async function speakCall(
       if (phrases.length > 1) await sleep(120 + Math.random() * 200);
     }
   }
-  if (from === 0) fetches[0] = pre ?? hedgedClipFor(phrases[0], opts, style);
+  if (from === 0) fetches[0] = pre ?? hedgedClipFor(phrases[0], opts, style, engine);
 
   for (let i = from; i < phrases.length; i++) {
     if (session !== speakSession) return;
     if (i + 1 < phrases.length && !fetches[i + 1])
-      fetches[i + 1] = fetchClipFor(phrases[i + 1], opts, style);
+      fetches[i + 1] = fetchClipFor(phrases[i + 1], opts, style, engine);
     const blob = await fetches[i];
     if (session !== speakSession) return;
     if (!blob) continue;
@@ -1145,6 +1284,14 @@ export function createStreamSpeaker(
   // ever streamed; the rest arrive under cover of the one before them.
   type Queued = Promise<Blob | null> | { streamText: string };
   const queue: Array<Queued> = [];
+  // ONE engine for this whole spoken turn, latched on the first phrase that
+  // survives the filters and never re-decided. This lane cannot see the reply
+  // it is about to speak — that is what makes it a stream — so "decide from the
+  // whole text" is not available here and "decide once, early, and hold" is the
+  // nearest thing that keeps her one person. Re-deciding per phrase, which is
+  // what this did, meant a tag arriving in phrase three moved her to a
+  // different vendor two sentences into an answer she had already started.
+  let engine: SpeakEngine | null = null;
 
   const emit = (phrase: string) => {
     const clean = stripForCloud(phrase);
@@ -1154,16 +1301,17 @@ export function createStreamSpeaker(
     if (/\b(base model|minimal text|text mode|system prompt|language model|as an ai|reasoning|max.?_?tokens|persona prompt|default model|output format)\b/i.test(clean))
       return;
     allText += (allText ? " " : "") + clean;
+    if (engine === null) engine = pickEngine(clean, opts);
     // Work starts NOW. A phrase with nothing playing ahead of it is the one the
     // user waits on in silence: it streams if the proxy voice is serving, and
     // is hedged otherwise (the engines that cannot stream keep the old cover).
     const awaitedInSilence = queue.length === 0 && !started;
     queue.push(
-      awaitedInSilence && usesProxyVoice(clean, opts)
+      awaitedInSilence && usesProxyVoice(engine)
         ? { streamText: clean }
         : awaitedInSilence
-          ? hedgedClipFor(clean, opts, style)
-          : fetchClipFor(clean, opts, style),
+          ? hedgedClipFor(clean, opts, style, engine)
+          : fetchClipFor(clean, opts, style, engine),
     );
     void pump();
   };
@@ -1193,7 +1341,7 @@ export function createStreamSpeaker(
         }
         // never became audible — fall back to the complete-file path, having
         // lost only the attempt
-        const blob = await hedgedClipFor(next.streamText, opts, style);
+        const blob = await hedgedClipFor(next.streamText, opts, style, engine ?? "proxy");
         if (session !== speakSession) return;
         if (blob) {
           begin();
@@ -1347,14 +1495,21 @@ let lastFillerIdx = -1;
 
 export async function prefetchBackchannels(opts: VoiceOpts) {
   if (backchannelClips.length) return;
+  // These clips are FETCHED ONCE and then live in IndexedDB forever, which is
+  // what makes their key the thing that decides whose voice a call opens in.
+  // The tag is in the key so a voice change strands them automatically — see
+  // the WHO IS SPEAKING block. `SOFT_STYLE` stays in it because a re-styled
+  // clip is a different sound in the same voice.
+  const engine = pickEngine("", opts);
+  const tag = engineTag(engine, opts);
   const load = async (text: string, into: Blob[]) => {
-    const key = `bc1:${text}:${SOFT_STYLE}`;
+    const key = `bc1:${tag}:${text}:${SOFT_STYLE}`;
     const hit = await cachedClip(key);
     if (hit) {
       into.push(hit);
       return;
     }
-    const blob = await fetchClipFor(text, opts, SOFT_STYLE);
+    const blob = await fetchClipFor(text, opts, SOFT_STYLE, engine);
     if (blob) {
       into.push(blob);
       saveClip(key, blob);
@@ -1378,13 +1533,20 @@ const PICKUP_STYLE = "casual warm phone pickup, natural, a little curious";
 const pickupClips: Blob[] = [];
 
 async function loadPickup(text: string, opts: VoiceOpts) {
-  const key = `pk1:${text}:${PICKUP_STYLE}`;
+  // THE FIRST SOUND OF A CALL, served from IndexedDB with zero network. Before
+  // the tag was in this key it was also the most reliably STALE sound in the
+  // product: cached under the old voice, replayed at pickup, and then followed
+  // a second later by the live session in the new one. That is the owner's
+  // report — "when we shift to different modes her voice is changing" — with
+  // the mode shift being nothing more exotic than the call starting.
+  const engine = pickEngine(text, opts);
+  const key = `pk1:${engineTag(engine, opts)}:${text}:${PICKUP_STYLE}`;
   const hit = await cachedClip(key);
   if (hit) {
     pickupClips.push(hit);
     return;
   }
-  const blob = await fetchClipFor(text, opts, PICKUP_STYLE);
+  const blob = await fetchClipFor(text, opts, PICKUP_STYLE, engine);
   if (blob) {
     pickupClips.push(blob);
     saveClip(key, blob);

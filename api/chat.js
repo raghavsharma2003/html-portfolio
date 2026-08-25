@@ -2,7 +2,23 @@
 // public repo never contain it. POST { system, messages, model? } → reply text.
 
 import { allow, ipOf } from "./_ratelimit.js";
-import { withGeminiKey, isQuota, poolSize } from "./_gkeys.js";
+import { withGeminiKey, poolSize } from "./_gkeys.js";
+// ONE classifier and ONE ladder, shared by every lane — see api/_lanes.js's
+// header for the 2026-08-24 production trace this file's old folding produced.
+// `isQuota` is no longer imported here on purpose: importing only the quota
+// half is what made 5xx look deterministic in the first place.
+import {
+  poolAttempt,
+  newTransientBudget,
+  normalizeImages,
+  attachToLastTurn,
+  laneOrder,
+  MAX_IMAGES,
+  MAX_MESSAGES_CHARS,
+  TRANSIENT_DEADLINE_MS,
+} from "./_lanes.js";
+import { normalizeDocs } from "./_docs.js";
+import { azureChat, azureConfigured, AZURE_CHAT_DEPLOYMENT, AZURE_VISION_DEPLOYMENT } from "./_azure.js";
 
 import { OPENROUTER_KEY } from "./_config.js";
 
@@ -62,7 +78,14 @@ export default async function handler(req, res) {
   if (!allow(ipOf(req), "chat", 40)) return res.status(429).json({ error: "slow down" });
 
   const key = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY;
-  if (!key) return res.status(500).json({ error: "no key configured" });
+  // This used to refuse the request outright when OpenRouter was unset, which
+  // was correct while OpenRouter was the only lane that always existed. There
+  // are three now, and the OpenRouter balance being spent is precisely the
+  // condition the Azure grant lane was added for — so the guard asks the only
+  // question that still matters: is there ANY brain to reach?
+  if (!key && poolSize() === 0 && !azureConfigured()) {
+    return res.status(500).json({ error: "no key configured" });
+  }
 
   // ── WS-TRACE (docs/TRACE.md §3.5): the model leg ──────────────────────────
   // This proxy is the only place that knows which upstream ACTUALLY answered.
@@ -95,8 +118,13 @@ export default async function handler(req, res) {
     retries: 0,
   };
   try {
-    const { system, system_tail, messages, model, max_tokens, stream, no_think, turn_id, lane } =
-      req.body || {};
+    const { system, system_tail, messages, model, max_tokens, stream, no_think, turn_id, lane,
+      // WS-COMPOSER seam: up to five images and one caption in ONE message,
+      // plus documents. Validated and capped below rather than trusted — see
+      // api/_lanes.js. The legacy shape (image_url parts already inside
+      // `messages`, which is what src/engine/brain.ts's toTurns has always
+      // built) is untouched and keeps working.
+      images, caption, docs } = req.body || {};
     if (!system || !Array.isArray(messages) || !messages.length) {
       return res.status(400).json({ error: "system + messages required" });
     }
@@ -174,9 +202,50 @@ export default async function handler(req, res) {
     // payload cap: recent user photos legitimately ride as data URLs when a
     // storage upload failed, but the total request must stay bounded —
     // vision-model cost per call is real money
-    if (JSON.stringify(messages).length > 3_000_000) {
+    if (JSON.stringify(messages).length > MAX_MESSAGES_CHARS) {
       return res.status(413).json({ error: "payload too large" });
     }
+
+    // ── the attachment set, validated server-side ─────────────────────────
+    // Count, per-image bytes and total bytes are all decided here. A client is
+    // a phone the owner can reinstall; a cap that only exists in the composer
+    // is a cap that does not exist. `gate0-structural` generalised: if a
+    // property is decidable from the bytes, decide it on the bytes.
+    const imgs = normalizeImages(images);
+    if (!imgs.ok) return res.status(imgs.status).json({ error: imgs.error });
+    const documents = normalizeDocs(docs);
+    if (!documents.ok) return res.status(documents.status).json({ error: documents.error });
+    const cap = typeof caption === "string" ? caption.slice(0, 2_000) : "";
+    // ONE turn, not five. A person shown five photos at once reacts to the SET;
+    // five turns produce five separate reactions, which is the tell.
+    const turns = attachToLastTurn(messages, {
+      caption: cap,
+      urls: imgs.urls,
+      docBlocks: documents.blocks,
+    });
+    // Documents ride in the TURN, never in `system`/`system_tail`. The prompt
+    // budget cuts the END of the prompt, which is where the newest and most
+    // safety-relevant text sits, and it has cost this repo the crisis helplines
+    // once already. Attachment text is something HE said, so it belongs in his
+    // message and the budget is untouched by construction.
+    trace.attach = {
+      images: imgs.urls.length,
+      images_max: MAX_IMAGES,
+      caption_chars: cap.length,
+      docs: documents.stats.n,
+      docs_extracted: documents.stats.extracted,
+      doc_chars: documents.stats.chars,
+    };
+    // WHAT COUNTS AS "this turn has pictures in it" — and it is not only the
+    // new `images` field. The composer uploads first and the pictures reach the
+    // model as `image_url` parts inside `messages` on the NEXT turn, via
+    // brain.ts's `toTurns`. Deciding the lane order from the request field
+    // alone would mean the owner's "Azure first for images" directive fired for
+    // a fresh data-URL send and silently never fired for the ordinary flow,
+    // which is the majority of picture turns. So the question asked is the
+    // honest one: does the prompt going upstream contain an image at all?
+    const hasAttachments =
+      imgs.urls.length > 0 || documents.stats.n > 0 || countImages(turns) > 0;
     const wantStream = stream === true;
     // a stalled upstream (or vanished client) must never hold the function
     // open until the platform kills it
@@ -187,7 +256,7 @@ export default async function handler(req, res) {
     const effort = no_think === true ? "minimal" : "low";
     const body = {
       model: typeof model === "string" && ALLOWED_MODEL.test(model) ? model : DEFAULT_MODEL,
-      messages: [{ role: "system", content: systemContent }, ...messages.slice(-120)],
+      messages: [{ role: "system", content: systemContent }, ...turns.slice(-120)],
       max_tokens: Number.isFinite(max_tokens) ? Math.min(800, Math.max(50, max_tokens)) : 800,
       ...(wantStream ? { stream: true } : {}),
     };
@@ -200,8 +269,8 @@ export default async function handler(req, res) {
     trace.effort = effort;
     trace.max_tokens = body.max_tokens;
     trace.stream = wantStream;
-    trace.messages_n = messages.length;
-    trace.images_n = countImages(messages);
+    trace.messages_n = turns.length;
+    trace.images_n = countImages(turns);
 
     // ── free tier first ──────────────────────────────────────────────────
     // Google's OpenAI-compatible endpoint speaks the same request and the same
@@ -231,35 +300,45 @@ export default async function handler(req, res) {
     // ask for.
     const freeModel = body.model.startsWith("google/") ? body.model.slice("google/".length) : null;
     let upstream = null;
-    let usedFree = false;
+    let servedBy = null;
     // WS-TRACE: the pool as a COUNT. No key, no key prefix, no hash of a key —
     // a hash of a secret is still a secret-shaped identifier and it carries no
     // diagnostic value the count does not. `free-pool-capacity` measured the
     // ceiling at ~75 calls/day; `one-key-two-jobs` is what happens when it runs
     // out mid-build. Both are answerable from these two numbers.
     trace.pool = { size: poolSize(), tried: 0, eligible: Boolean(freeModel) };
-    if (freeModel && poolSize() > 0) {
-      const got = await withGeminiKey(async (gkey) => {
-        trace.pool.tried++;
-        const tFree = Date.now();
-        const r = await fetch(GEMINI_OPENAI_URL, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${gkey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ ...body, model: freeModel, reasoning_effort: effort }),
-          signal: aborter.signal,
-        });
-        if (!r.ok) {
-          // WHY the fallback fired, not merely that it did. A quota 429 and a
-          // malformed-request 400 send the turn to completely different places
-          // and only one of them is anybody's fault.
-          trace.fallbacks.push({
-            from: "gemini-free",
-            to: isQuota(r.status) ? "next-key" : "abort",
-            why: isQuota(r.status) ? "quota" : `http_${r.status}`,
-            ms: Date.now() - tFree,
+
+    // ── the ladder ────────────────────────────────────────────────────────
+    // The order is a NAMED CONSTANT in api/_lanes.js, one for text and one for
+    // attachments, because "Azure first for images and documents" is the
+    // owner's preference and a preference written as an if-statement three
+    // files deep is a preference nobody can find or reverse.
+    const order = laneOrder({ hasAttachments });
+    trace.lane_order = order.join(">");
+    trace.azure = { configured: azureConfigured(), used: false };
+
+    /** Free Google pool, with the bounded transient ladder. */
+    const runGeminiFree = async () => {
+      if (!freeModel || poolSize() === 0) return null;
+      const budget = newTransientBudget(Date.now(), TRANSIENT_DEADLINE_MS);
+      const attempt = poolAttempt(
+        async (gkey, ctx) => {
+          trace.pool.tried++;
+          // Every attempt AFTER the first is bounded by the ladder's deadline.
+          // Without this the bound would be advisory: the two 502s in the
+          // 2026-08-24 trace took 6.7s and 9.9s to come back, so a retry that
+          // is only counted and not clocked can add twenty seconds of dead air.
+          let signal = aborter.signal;
+          if (!ctx.first && AbortSignal.any) {
+            const left = Math.max(1, ctx.deadline - Date.now());
+            signal = AbortSignal.any([aborter.signal, AbortSignal.timeout(left)]);
+          }
+          const r = await fetch(GEMINI_OPENAI_URL, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${gkey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ ...body, model: freeModel, reasoning_effort: effort }),
+            signal,
           });
-        }
-        if (r.ok) {
           // A 200 carrying an EMPTY reply is the worst outcome available: she
           // simply says nothing, and every status code says it worked. It is
           // what a mismatched reasoning tier produces, and it is exactly the
@@ -267,84 +346,156 @@ export default async function handler(req, res) {
           // Streaming cannot be inspected without buffering (that would cost
           // her first-word latency, which is not for sale), so this guards the
           // non-streaming lane and the stream keeps its measured tier.
-          if (!wantStream) {
+          if (r.ok && !wantStream) {
             const text = await r.clone().text();
             let empty = false;
             try {
-              const j = JSON.parse(text);
-              empty = !(j?.choices?.[0]?.message?.content || "").trim();
+              empty = !(JSON.parse(text)?.choices?.[0]?.message?.content || "").trim();
             } catch {
               empty = true;
             }
-            // treat as exhausted so the next key is tried, then the paid lane
             if (empty) {
-              // The 200-carrying-nothing failure. It is the worst outcome
-              // available — she simply says nothing and every status code says
-              // it worked — and until now the only record that the guard fired
-              // was the absence of a complaint.
               trace.empty_guard_fired = (trace.empty_guard_fired || 0) + 1;
-              trace.fallbacks.push({ from: "gemini-free", to: "next-key", why: "empty_200" });
-              return { ok: false, exhausted: true };
+              return { ok: false, status: r.status, empty: true };
             }
           }
-          return { ok: true, value: r };
-        }
-        if (isQuota(r.status)) return { ok: false, exhausted: true };
-        // 4xx that is not quota: our request is malformed and every key will
-        // reject it identically, so stop rather than burning the pool
-        return { ok: false, error: `gemini ${r.status}` };
-      });
-      if (got.value) {
-        upstream = got.value;
-        usedFree = true;
-      } else if (!got.triedAll) {
-        clearTimeout(kill);
-        return res.status(502).json({ error: got.error });
-      }
-      // triedAll: the whole free pool is spent — fall through to the paid lane
-    }
-
-    if (!upstream && trace.pool.eligible && trace.pool.size > 0) {
-      // the whole free pool is spent and the turn is about to bill real money —
-      // the single most useful line in this whole record
-      trace.fallbacks.push({ from: "gemini-free", to: "openrouter", why: "pool_exhausted" });
-    }
-    try {
-      if (!upstream)
-        upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json",
-          "X-Title": "Meera",
+          return { ok: r.ok, status: r.status, value: r };
         },
-        body: JSON.stringify({
-          ...body,
-          // Bounded hidden thinking. Default (unbounded) reasoning grows with
-          // context, eats the max_tokens budget, and truncates/leaks — but the
-          // "minimal" floor costs conversational coherence (non-sequiturs,
-          // context-free media sends). So: calls (no_think, latency-critical)
-          // stay at the floor; chat gets one notch of planning ("low"), still
-          // bounded far below the 700-token reply budget.
-          reasoning: { effort },
-        }),
-        signal: aborter.signal,
+        {
+          budget,
+          // WS-TRACE: counts and statuses ONLY. No key, no key prefix, no hash
+          // — a hash of a secret is still a secret-shaped identifier and it
+          // carries no diagnostic value the count does not.
+          onAttempt: ({ status, outcome, sameKeyRetry, network }) => {
+            if (outcome === "ok") return;
+            trace.fallbacks.push({
+              from: "gemini-free",
+              to:
+                outcome === "transient_retry"
+                  ? "same-key"
+                  : outcome === "deterministic" || outcome === "deadline"
+                    ? "abort"
+                    : "next-key",
+              why:
+                outcome === "deadline"
+                  ? "deadline"
+                  : network
+                    ? "network"
+                    : outcome === "quota"
+                      ? "quota"
+                      : outcome === "empty_200"
+                        ? "empty_200"
+                        : `http_${status}`,
+              n: sameKeyRetry,
+            });
+          },
+        },
+      );
+      const got = await withGeminiKey(attempt);
+      // `retries` was flat 0 in the production trace because nothing ever
+      // retried. It is now the count of extra attempts this ladder actually
+      // spent, which is the number that says whether the fix is doing anything.
+      trace.retries += budget.retries;
+      trace.pool.transient_attempts = budget.attempts;
+      trace.pool.deadline_ms = TRANSIENT_DEADLINE_MS;
+      // RCA: WHICH account served this turn — the owner-label, never the key.
+      // Pairs with pool.aborted / fallbacks so a day of meera_turn answers
+      // "which key is carrying the load and which one dies at noon".
+      if (got.label) trace.pool.served_label = got.label;
+      if (got.value) return got.value;
+      trace.pool.aborted = !got.triedAll;
+      trace.fallbacks.push({
+        from: "gemini-free",
+        to: "next-lane",
+        why: got.triedAll ? "pool_exhausted" : "pool_aborted",
       });
-    } catch {
+      return null;
+    };
+
+    /** Paid OpenRouter. Unchanged request shape. */
+    const runOpenRouter = async () => {
+      if (!key) return null;
+      try {
+        return await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${key}`,
+            "Content-Type": "application/json",
+            "X-Title": "Meera",
+          },
+          body: JSON.stringify({
+            ...body,
+            // Bounded hidden thinking. Default (unbounded) reasoning grows with
+            // context, eats the max_tokens budget, and truncates/leaks — but the
+            // "minimal" floor costs conversational coherence (non-sequiturs,
+            // context-free media sends). So: calls (no_think, latency-critical)
+            // stay at the floor; chat gets one notch of planning ("low"), still
+            // bounded far below the 700-token reply budget.
+            reasoning: { effort },
+          }),
+          signal: aborter.signal,
+        });
+      } catch {
+        trace.fallbacks.push({ from: "openrouter", to: "next-lane", why: "network" });
+        return null;
+      }
+    };
+
+    /** The grant lane. $0 cash; no-ops cleanly when unconfigured. */
+    const runAzure = async () => {
+      if (!azureConfigured()) return null;
+      const r = await azureChat(body, {
+        signal: aborter.signal,
+        vision: hasAttachments,
+        timeoutMs: wantStream ? 90_000 : 30_000,
+      });
+      if (!r) {
+        trace.fallbacks.push({ from: "azure", to: "next-lane", why: "network" });
+        return null;
+      }
+      trace.azure.used = true;
+      trace.azure.deployment = hasAttachments ? AZURE_VISION_DEPLOYMENT : AZURE_CHAT_DEPLOYMENT;
+      return r;
+    };
+
+    const runners = { "gemini-free": runGeminiFree, openrouter: runOpenRouter, azure: runAzure };
+    for (const name of order) {
+      const r = await runners[name]();
+      if (!r) continue;
+      if (!r.ok) {
+        // A lane that answered with a failure is still a lane that failed. Fall
+        // to the next one instead of ending the turn — the whole defect this
+        // workstream exists for was one upstream error ending a turn while
+        // other lanes sat untried. Only the LAST lane's status reaches the user.
+        trace.fallbacks.push({ from: name, to: "next-lane", why: `http_${r.status}` });
+        trace.upstream_status = r.status;
+        continue;
+      }
+      upstream = r;
+      servedBy = name;
+      break;
+    }
+    if (!upstream) {
       clearTimeout(kill);
       trace.served_by = "none";
-      trace.error = "upstream_timeout";
-      return res.status(504).json({ error: "upstream timeout", trace: seal(trace, tStart) });
+      trace.error = trace.upstream_status ? `upstream_${trace.upstream_status}` : "all_lanes_down";
+      return res
+        .status(502)
+        .json({ error: "upstream " + (trace.upstream_status ?? "unavailable"), trace: seal(trace, tStart) });
     }
-    trace.served_by = usedFree ? "gemini-free" : "openrouter";
+    trace.served_by = servedBy;
     trace.upstream_status = upstream.status;
+    // Belt and braces: the ladder above only ever assigns an `ok` response, so
+    // this cannot fire today. It is kept because "the loop always assigns an ok
+    // response" is a property of the loop, and the next edit to the loop is the
+    // one that would break it silently.
     if (!upstream.ok) {
       clearTimeout(kill);
       trace.error = `upstream_${upstream.status}`;
       return res.status(502).json({ error: "upstream " + upstream.status, trace: seal(trace, tStart) });
     }
     if (wantStream) {
-      // pipe OpenRouter's SSE straight through — the client parses deltas
+      // pipe the served lane's SSE straight through — the client parses deltas
       res.statusCode = 200;
       res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
       res.setHeader("Cache-Control", "no-cache, no-transform");

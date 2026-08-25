@@ -1,0 +1,12 @@
+{
+  "id": "google/gemini-3.6-flash",
+  "family": "google",
+  "provider": "openai-compatible",
+  "model": "gemini-3.6-flash",
+  "baseURL": "https://generativelanguage.googleapis.com/v1beta/openai",
+  "apiKeyEnv": "EVAL_GOOGLE_KEY",
+  "maxTokens": 120,
+  "pricing": { "prompt_per_token": 0, "completion_per_token": 0 },
+  "_pricing_note": "Free-tier AI Studio key: cash cost is genuinely zero, not unknown. The REAL constraint is quota, not dollars: ~200 calls/day/key on the measured free tier, so this judge must run on EVAL-ONLY keys (EVAL_GOOGLE_KEY / EVAL_GOOGLE_KEYS), never the production pool - context/decisions.md credential-split and the both-lanes-dry incident are why this line exists.",
+  "_qualification_note": "UNQUALIFIED until judge-backtest.mjs pools >=80 percent agreement. The three Azure grant candidates measured 27-52 percent on 2026-08-23; this config exists to measure the one remaining zero-cash candidate, not to assume it."
+}

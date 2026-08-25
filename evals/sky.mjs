@@ -71,6 +71,8 @@ const {
   parseSkySeed,
   midpointOf,
   tokensFor,
+  NIGHT_ROOM_STATE: SKY_MOD_NIGHT_ROOM,
+  wallCurveAt,
 } = sky;
 
 let fail = 0;
@@ -227,6 +229,150 @@ ok(
       SKY_TOKENS[s].scrimAlphaPainted <= 0.8,
   ),
 );
+// ── 1d. the THIRD veil: the thread's wallpaper ────────────────────────────
+// docs/DESIGN-WORLD.md §Phase 3.1. `scripts/check-contrast.mjs` owns the
+// floors (it decodes the jpgs); this is the structural half — the half that
+// survives someone collapsing four numbers into one, or wiring a state's
+// wallpaper to the sky's own mode instead of to the theme.
+{
+  const FIELDS = [
+    "wallScrimLight", "wallAlphaLight", "wallScrimDark", "wallAlphaDark",
+    // WS-SKYFELT. Six more, and they are the answer to a defect rather than a
+    // refinement. Round one: at 11:27 IST `sky` resolves to the light palette,
+    // so the thread painted the LIGHT veil and Sky was pixel-identical to Light
+    // until dusk. Round two: a thinner FLAT veil measured 1.65x better and the
+    // owner still said "I see no sky", because one number is the worst number
+    // in the frame applied to the whole frame. These six are the veil as a
+    // CURVE — thin over the open sky, deepening into the city — which is the
+    // mechanism the landing page already shipped. `check-contrast.mjs` owns
+    // their floors band by band; this is the structural half, and its whole job
+    // is to fail loudly if a state ever loses one and a var resolves to nothing
+    // on a night thread.
+    "wallScrimSky", "wallSkyTop", "wallSkyMid", "wallSkyBot", "wallSkyS", "wallSkyE",
+  ];
+  ok(
+    "every state carries all four wallpaper fields",
+    SKY_STATES.every((s) => FIELDS.every((f) => SKY_TOKENS[s][f] !== undefined)),
+    SKY_STATES.filter((s) => !FIELDS.every((f) => SKY_TOKENS[s][f] !== undefined)).join(","),
+  );
+  ok(
+    "both wallpaper scrims are 6-digit hexes the gate can parse",
+    SKY_STATES.every(
+      (s) =>
+        /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimLight) &&
+        /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimDark) &&
+        /^#[0-9a-f]{6}$/i.test(SKY_TOKENS[s].wallScrimSky),
+    ),
+  );
+  // THE CURVE HAS TO STAY A CURVE. Flatten it and every contrast floor still
+  // passes — one number CAN clear them, it just cannot be the right number
+  // twice — and the screen goes back to the one the owner photographed and
+  // captioned "I see no sky". The ratio floors live in check-contrast.mjs;
+  // this is the property that has no ratio.
+  ok(
+    "every state's sky veil rises from its top alpha into the city",
+    SKY_STATES.every((s) => SKY_TOKENS[s].wallSkyMid - SKY_TOKENS[s].wallSkyTop >= 0.05),
+    SKY_STATES.map((s) => `${s} ${SKY_TOKENS[s].wallSkyTop}->${SKY_TOKENS[s].wallSkyMid}`).join(" "),
+  );
+  ok(
+    "every state's curve stops are ordered and inside the frame",
+    SKY_STATES.every((s) => SKY_TOKENS[s].wallSkyS > 0 && SKY_TOKENS[s].wallSkyS < SKY_TOKENS[s].wallSkyE && SKY_TOKENS[s].wallSkyE < 1),
+    SKY_STATES.map((s) => `${s} ${SKY_TOKENS[s].wallSkyS}/${SKY_TOKENS[s].wallSkyE}`).join(" "),
+  );
+  // The night room is the sky's own night, not a second table — one painting,
+  // one curve, one veil colour, shared by explicit Dark and by Sky at 2am.
+  ok("the night room names a real state", SKY_STATES.includes(SKY_MOD_NIGHT_ROOM));
+  // `wallCurveAt` is the stylesheet's gradient in numbers, and the contrast
+  // gate walks it band by band. If it stops being the curve the CSS paints,
+  // every band number in that gate describes a screen nobody ships — the same
+  // hole `scrimEmphasisAt` records one section up.
+  for (const s of SKY_STATES) {
+    const t = SKY_TOKENS[s];
+    const at = (f) => wallCurveAt(f, t.wallSkyTop, t.wallSkyMid, t.wallSkyBot, t.wallSkyS, t.wallSkyE);
+    ok(`${s}: the curve holds its top alpha to the first stop`, Math.abs(at(0) - t.wallSkyTop) < 1e-9 && Math.abs(at(t.wallSkyS) - t.wallSkyTop) < 1e-9);
+    ok(`${s}: the curve reaches mid at the second stop`, Math.abs(at(t.wallSkyE) - t.wallSkyMid) < 1e-9);
+    ok(`${s}: the curve ends at bot`, Math.abs(at(1) - t.wallSkyBot) < 1e-9);
+    ok(`${s}: the curve is clamped outside 0..1`, Math.abs(at(-1) - t.wallSkyTop) < 1e-9 && Math.abs(at(2) - t.wallSkyBot) < 1e-9);
+  }
+  ok(
+    "both wallpaper alphas are numbers inside the sane band",
+    SKY_STATES.every(
+      (s) =>
+        SKY_TOKENS[s].wallAlphaLight >= 0.35 &&
+        SKY_TOKENS[s].wallAlphaLight <= 0.97 &&
+        SKY_TOKENS[s].wallAlphaDark >= 0.35 &&
+        SKY_TOKENS[s].wallAlphaDark <= 0.97,
+    ),
+  );
+  // THE VEIL IS INDEXED BY THEME, NOT BY THE SKY'S OWN MODE, and this is the
+  // check that says so in a way a refactor cannot talk its way past. The
+  // tempting simplification is "the sky already knows if it is light or dark,
+  // use `mode`" — and it is wrong, because `data-theme` beats the sky: a
+  // person on the explicit light theme reads dark ink at midnight. If the two
+  // families were really one, every dark state would share an alpha and every
+  // light state would share the other. They do not, and cannot.
+  const darkStates = SKY_STATES.filter((s) => SKY_TOKENS[s].mode === "dark");
+  ok(
+    "the wallpaper veil does not merely track the sky's own mode",
+    new Set(darkStates.map((s) => SKY_TOKENS[s].wallAlphaDark)).size > 1,
+    darkStates.map((s) => `${s} ${SKY_TOKENS[s].wallAlphaDark}`).join(", "),
+  );
+  // A dark painting can be let through; a bright one cannot. That ordering is
+  // the physical fact underneath every number in the table, so it is pinned:
+  // the morning sky (the brightest painting) must take the heaviest dark veil,
+  // and night (the darkest) the lightest.
+  ok(
+    "the dark veil is heaviest on the brightest painting",
+    SKY_TOKENS.morning.wallAlphaDark > SKY_TOKENS.night.wallAlphaDark,
+    `morning ${SKY_TOKENS.morning.wallAlphaDark} vs night ${SKY_TOKENS.night.wallAlphaDark}`,
+  );
+  // world.css must actually consume what the table declares, or the table is
+  // decoration. The dark FLAT pair is deliberately not in this list any more:
+  // the app's dark thread is the night room now, so nothing in world.css reads
+  // `--wall-*-dark` and WorldLayer no longer emits them. They stay live in the
+  // table for the LANDING (site/ has no theme switch, so its dark states are
+  // the only surface still painting that veil) and the landing half of
+  // check-contrast.mjs is what pins them there.
+  {
+    const css = readFileSync(join(ROOT, "src/styles/world.css"), "utf8");
+    for (const v of [
+      "--wall-scrim-light", "--wall-a-light",
+      "--wall-scrim-sky", "--wall-a-sky-top", "--wall-a-sky-mid", "--wall-a-sky-bot",
+      "--wall-sky-s", "--wall-sky-e",
+      "--night-scrim", "--night-a-top", "--night-a-mid", "--night-a-bot", "--night-img",
+    ])
+      ok(`world.css reads ${v}`, css.includes(v));
+    ok(
+      "the retired dark flat pair is not read by world.css any more",
+      !css.includes("--wall-a-dark"),
+    );
+    ok(
+      "world.css declares the wallpaper variant",
+      /\.world\[data-variant="wallpaper"\]/.test(css),
+    );
+    // A WALLPAPER IS STILL. The variant must turn off every ambient layer —
+    // the celestials are not rendered into it at all (WorldLayer.tsx), and
+    // this is the stylesheet's half of the same promise.
+    ok(
+      "the wallpaper variant stops the emphasis vignette",
+      /\.world\[data-variant="wallpaper"\] \.world-scrim::after/.test(css),
+    );
+  }
+  // …and WorldLayer must not render a single moving thing into it.
+  {
+    const tsx = readFileSync(join(ROOT, "src/components/WorldLayer.tsx"), "utf8");
+    ok(
+      "WorldLayer knows the wallpaper variant",
+      /"full" \| "band" \| "wallpaper"/.test(tsx),
+    );
+    ok(
+      "the wallpaper renders no procedural celestials",
+      (tsx.match(/!painted && !still/g) || []).length >= 4,
+      `${(tsx.match(/!painted && !still/g) || []).length} guarded`,
+    );
+  }
+}
+
 // The scrim's top/bottom emphasis curve, which the contrast gate composites
 // and world.css draws. Pinned to the gradient's own stops: if the stylesheet
 // moves them and this does not, the gate is measuring a screen nobody ships.

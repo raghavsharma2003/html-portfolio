@@ -32,7 +32,7 @@
 
 import { useEffect, useState } from "react";
 import type { Moment } from "../engine/milestones";
-import { moment as momentHaptic } from "../native/haptics";
+import { feel } from "../sound";
 import "../styles/celebrate.css";
 
 /** How long it stands before settling on its own. */
@@ -115,7 +115,14 @@ export default function Celebration({ moment, onDone, holdMs = HOLD_MS }: Celebr
     setOut(false);
     // the rarest event in the product gets the vocabulary's rarest pattern —
     // it was tap(Light), the QUIETEST response on the biggest occasion
-    momentHaptic();
+    //
+    // WS-SOUND: and now the rarest sound with it, from one call. `feel` reads
+    // the haptic level out of the sound vocabulary's table, which names
+    // `moment` for this cue — so the two channels cannot drift apart by
+    // someone changing one of them here. This is also the only cue in the
+    // palette with a tail; it can afford one because it fires a few times in
+    // a relationship, not a few times a minute.
+    feel("moment");
     const t = setTimeout(() => setOut(true), holdMs);
     return () => clearTimeout(t);
   }, [id, holdMs]);

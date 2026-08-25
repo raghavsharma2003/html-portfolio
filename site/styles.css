@@ -1,502 +1,969 @@
-/* Meera landing — light, Apple-grade. One accent, real imagery, and one
-   display face of its own. */
+/* ─── MEERA, THE LANDING ────────────────────────────────────────────────────
+   The first thing a stranger sees, rebuilt to be the same PLACE the app is.
 
-/* ── display type ─────────────────────────────────────────────────────────
-   Inside the app the system stack is correct: it ships optical sizing and
-   tracking tables, and an Operate surface benefits from feeling native. The
-   landing page is a Persuade surface with its own world to establish, and
-   "SF Pro Display" resolves to the same stack as "SF Pro Text" everywhere
-   except Apple hardware — so on Android and most desktops a 58px headline
-   was being set in the system UI font.
+   docs/DESIGN-WORLD.md §1 is the whole thesis: "THE SKY IS THE CLOCK." The app
+   opens onto one painted Indian city under five time states, driven by the
+   real clock. This page opens onto the SAME five paintings, the same five
+   veils, the same serif lowercase name, the same glass. A visitor who taps
+   "start chatting" should not experience a transition, because there is not
+   one: the sky behind /chat is the sky they were just standing under.
 
-   One face, headings only (nothing below 24px), latin subset, self-hosted,
-   font-display: swap. Instrument Sans, SIL OFL 1.1 — see assets/fonts/OFL.txt. */
-@font-face {
-  font-family: "Instrument Sans";
-  src: url("/assets/fonts/instrument-sans-latin.woff2") format("woff2");
-  font-weight: 400 700;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
-    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
-    U+2212, U+2215, U+FEFF, U+FFFD;
+   ── the two grounds, and why the page has both ────────────────────────────
+   The app has two ways of putting text over a sky, and they are different
+   objects, so this page uses both in the order the app does.
+
+     THE WORLD VEIL (--veil-a/-b)   the home screen's. Light, so the painting
+       is the picture and the text floats on it. Sky-owned ink.
+     THE WALLPAPER VEIL (--veil-ground)  the thread's. Heavy, so the painting
+       is a wash and long copy is read on the app's own ground. Theme ink.
+
+   The hero sits on the first; everything below it sits on the second; the
+   handover happens over about half a screen of scroll. That is the app's own
+   home-to-chat move performed by scrolling, and it is why the world does not
+   simply stop at the fold the way a hero image does.
+
+   ── colours ───────────────────────────────────────────────────────────────
+   Every value in the state table below is COPIED FROM `src/engine/sky.ts` and
+   `src/styles/global.css`, to the byte, except the veil curve, which was
+   SOLVED rather than chosen (see the table's own note). This file does
+   not import app code and must not: it ships verbatim, with no build step.
+   `scripts/check-contrast.mjs` re-derives every number here from the shipped
+   paintings' real pixels, which is what keeps the copy honest.
+
+   ── motion ────────────────────────────────────────────────────────────────
+   Three things move on this page: two cloud plates (ambient, linear,
+   transform-only, 210s/150s), the moments strip's entrance, and a button
+   press. Nothing animates layout, nothing animates a colour, nothing uses
+   `transition: all`, and nothing here is decoration with a keyframe on it. Reduced motion parks
+   the plates mid-frame rather than at their authored off-screen start, so a
+   still sky still has clouds in it. */
+
+/* ══ THE STATE TABLE ═══════════════════════════════════════════════════════
+   Five states, and the machine-readable half of the picker in index.html.
+   `night` is the default AND the no-JS identity: a visitor whose script never
+   runs gets her night sky, which is the sky this product is most itself
+   under.
+
+   PAINTINGS ARE THE APP'S OWN FILES, at /world/*.jpg. Not copies under
+   site/assets/: they are already optimised and already deployed, they are
+   what /chat is about to request, and one URL means one cache entry, so the
+   app's first paint after "start chatting" is free.
+
+   ── THE VEIL IS A CURVE, AND THE CURVE WAS SOLVED ────────────────────────
+   `--veil-a` (the top of the first screen), `--veil-b` (its horizon) and
+   `--veil-ground` (everything past the fold) are not taste. They are the
+   lowest alphas that hold 4.5:1 for every piece of text and 3:1 for every
+   glass edge, composited by `scripts/check-contrast.mjs` over the decoded
+   pixels of BOTH crops of each painting, in twenty horizontal bands, at the
+   darkest decile, the brightest decile and the mean of every one.
+
+   A curve rather than one number, because one number is the worst number in
+   the frame applied to the whole frame. These paintings are a sky above and a
+   CITY below: the bottom fifth of every one of them is roof slabs and trees,
+   and a flat veil heavy enough to carry text over those fogs the sky where
+   almost all the text actually is. The morning sky needed 0.66 flat and needs
+   0.38 at the top; that difference is the painting being visible or not.
+
+   The curve is safe under scroll by construction. A veil that scrolls with
+   the content and a sky that does not means a line of text can only ever move
+   UP the painting, never down, so the alpha a line carries is checked against
+   the worst ground in the painting ABOVE it as well as under it (the gate's
+   prefix walk). Ramp positions are in `vh`, deliberately earlier than the
+   solved cliff, which also absorbs the gap between `vh` and a phone's real
+   viewport when its URL bar is showing.
+
+   Everything else is the shipped token, verbatim:
+     --ink / --ink-dim / --glass / --edge   sky.ts TOKENS[state]
+     --ground-* / --surface / --accent-*    global.css, the palette matching
+                                            this state's `mode` field.       */
+
+:root {
+  /* ── NIGHT (19:40 → 04:30) — the default and the no-JS sky. mode: dark ── */
+  --sky-flat: #080a18;
+  --paint: url("/world/world_night.jpg");
+  --paint-wide: url("/world/world_night_wide.jpg");
+  --veil-a: rgba(5, 7, 15, 0.14);
+  --veil-b: rgba(5, 7, 15, 0.3);
+  --veil-s: 20vh;
+  --veil-e: 80vh;
+  --veil-ground: rgba(10, 12, 24, 0.64);
+  --scrim-mid: rgba(5, 7, 15, 0.55);
+  --ink: #f6f2ee;
+  --ink-dim: #c8c2d4;
+  --glass: rgba(7, 10, 26, 0.55);
+  --edge: rgba(255, 255, 255, 0.5);
 }
-/* The swap must not move the hero. Instrument Sans and the system fallbacks
-   already agree on x-height (0.510 vs Arial 0.519) and cap-height (0.720 vs
-   0.716), so size stays at 100% — what differs is the vertical line box, and
-   these overrides pin it to the real face's metrics (970/-250/0 per 1000upem).
-   Lowercase runs ~7% wider in the real face, which changes line length, not
-   layout height: the hero's breaks are authored with <br>. */
-@font-face {
-  font-family: "Display Fallback";
-  src: local("Helvetica Neue"), local("Arial"), local("Roboto"), local("Segoe UI");
-  ascent-override: 97%;
-  descent-override: 25%;
-  line-gap-override: 0%;
+[data-sky="predawn"] {
+  /* ── PRE-DAWN (04:30 → 06:10). mode: dark ─────────────────────────────── */
+  --sky-flat: #141a38;
+  --paint: url("/world/world_predawn.jpg");
+  --paint-wide: url("/world/world_predawn_wide.jpg");
+  --veil-a: rgba(11, 14, 30, 0.22);
+  --veil-b: rgba(11, 14, 30, 0.54);
+  --veil-s: 20vh;
+  --veil-e: 80vh;
+  --veil-ground: rgba(12, 14, 28, 0.74);
+  --scrim-mid: rgba(11, 14, 30, 0.55);
+  --ink: #f7f3ef;
+  --ink-dim: #ded9e4;
+  --glass: rgba(11, 14, 30, 0.55);
+  --edge: rgba(255, 255, 255, 0.62);
+}
+[data-sky="morning"] {
+  /* ── MORNING (06:10 → 16:20), the long daylight block. mode: light ────── */
+  --sky-flat: #7fb2e0;
+  --paint: url("/world/world_morning.jpg");
+  --paint-wide: url("/world/world_morning_wide.jpg");
+  --veil-a: rgba(251, 247, 242, 0.38);
+  --veil-b: rgba(251, 247, 242, 0.74);
+  --veil-s: 20vh;
+  --veil-e: 80vh;
+  --veil-ground: rgba(250, 248, 244, 0.94);
+  --scrim-mid: rgba(251, 247, 242, 0.55);
+  --ink: #1c1714;
+  --ink-dim: #4b423d;
+  --glass: rgba(255, 250, 244, 0.62);
+  --edge: rgba(28, 23, 20, 0.7);
+}
+[data-sky="golden"] {
+  /* ── GOLDEN HOUR (16:20 → 18:10). mode: light ─────────────────────────── */
+  --sky-flat: #5f93cc;
+  --paint: url("/world/world_golden.jpg");
+  --paint-wide: url("/world/world_golden_wide.jpg");
+  --veil-a: rgba(253, 246, 236, 0.46);
+  --veil-b: rgba(253, 246, 236, 0.72);
+  --veil-s: 20vh;
+  --veil-e: 80vh;
+  --veil-ground: rgba(252, 247, 240, 0.945);
+  --scrim-mid: rgba(253, 246, 236, 0.55);
+  --ink: #20160f;
+  --ink-dim: #4c3b2d;
+  --glass: rgba(255, 250, 244, 0.62);
+  --edge: rgba(32, 22, 15, 0.7);
+}
+[data-sky="dusk"] {
+  /* ── DUSK (18:10 → 19:40). mode: dark ─────────────────────────────────────
+     The one state whose ramp starts almost at the top, because it is the one
+     painting with no dark half: the whole lower two thirds is a lit horizon,
+     so the need climbs steadily from 15% down rather than falling off a cliff
+     at the rooftops. A 20% flat top here would have cost 18 points of veil
+     over the only part of the dusk sky that is still blue. */
+  --sky-flat: #1b2450;
+  --paint: url("/world/world_dusk.jpg");
+  --paint-wide: url("/world/world_dusk_wide.jpg");
+  --veil-a: rgba(21, 15, 34, 0.24);
+  --veil-b: rgba(21, 15, 34, 0.58);
+  --veil-s: 5vh;
+  --veil-e: 60vh;
+  --veil-ground: rgba(20, 15, 28, 0.89);
+  --scrim-mid: rgba(21, 15, 34, 0.55);
+  --ink: #f8f1ee;
+  --ink-dim: #e0d5db;
+  --glass: rgba(21, 15, 34, 0.55);
+  --edge: rgba(255, 255, 255, 0.62);
+}
+
+/* ── the palette the ground veil carries ──────────────────────────────────
+   THE SKY IS THE THEME (DESIGN-WORLD §4: "sky becomes the default theme
+   mode"), so this page deliberately does NOT answer `prefers-color-scheme`.
+   A visitor at midnight gets the dark palette because it is midnight in her
+   city, not because of a switch in their OS, and a visitor at noon gets warm
+   paper for the same reason. Honouring the OS as well would produce the one
+   combination the app cannot produce and refuses to: a night painting under
+   a day palette.
+
+   Both blocks are global.css's, verbatim, for the palette matching each
+   state's `mode` field in sky.ts. */
+:root,
+[data-sky="night"],
+[data-sky="predawn"],
+[data-sky="dusk"] {
+  color-scheme: dark;
+  --ground-ink: #f4eeec;
+  --ground-dim: #9b8f8b;
+  --ground-faint: #847876; /* hairlines and rules only, never text */
+  --surface: #1e1719;
+  --hairline: rgba(255, 240, 235, 0.09);
+  --hairline-strong: rgba(255, 240, 235, 0.17);
+  --accent: #e4657a;
+  --accent-solid: #bc4557;
+  --accent-solid-press: #c94a60;
+  --shadow-float: 0 12px 40px -12px rgba(0, 0, 0, 0.78);
+}
+[data-sky="morning"],
+[data-sky="golden"] {
+  color-scheme: light;
+  --ground-ink: #201b19;
+  --ground-dim: #6d635e;
+  --ground-faint: #9c918b;
+  --surface: #ffffff;
+  --hairline: rgba(32, 27, 25, 0.08);
+  --hairline-strong: rgba(32, 27, 25, 0.15);
+  --accent: #c23f56;
+  --accent-solid: #c23f56;
+  --accent-solid-press: #a53347;
+  --shadow-float: 0 12px 40px -12px rgba(60, 40, 34, 0.28);
 }
 
 :root {
-  /* the same tokens the app ships, to the value — a landing page whose
-     rose is eight degrees off the product's rose is two products */
-  --ink: #201b19;
-  --ink-dim: #6d635e;
-  /* --ink-soft was used twice below and defined nowhere, so both the roll
-     subtitle and every caption fell back to inherited near-black */
-  --ink-soft: #6d635e;
-  --ink-faint: #9c918b;
-  --bg: #ffffff;
-  --bg-soft: #faf7f4;
-  --accent: #c23f56;
-  --accent-deep: #a53347;
-  --accent-warm: #e2724f;
-  --hairline: rgba(32, 27, 25, 0.08);
-  --shadow-device: 0 24px 80px -24px rgba(60, 40, 34, 0.3);
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  /* headings only — existing size-specific tracking carries over unchanged */
-  --font-display: "Instrument Sans", "Display Fallback", var(--font);
+  --on-solid: #ffffff;
 
-  /* the same curves and steps the app uses — a landing page that moves
-     differently from the product it sells is two products */
+  /* ── type ───────────────────────────────────────────────────────────────
+     NO WEBFONT, and that is a decision rather than a saving. The app's
+     identity face is a real book serif set lowercase (world.css: "a lowercase
+     serif is what makes a name read as a person's name rather than as a
+     screen title"), resolved from what the device already has. The previous
+     landing shipped a 44 KB display sans nobody in the product uses, so the
+     page's headline was set in a face the app does not own. Matching the app
+     costs nothing and removes a render-blocking fetch and every swap risk. */
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Charter",
+    "Georgia Pro", Georgia, "Times New Roman", serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+    "Helvetica Neue", sans-serif;
+
+  /* the app's own curves and steps — a landing page that moves differently
+     from the product it sells is two products */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-arrive: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-squash: cubic-bezier(0.34, 1.2, 0.64, 1);
+  --d-press: 140ms;
   --d-state: 220ms;
+
+  --gutter: max(22px, calc((100vw - 1080px) / 2));
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-html { scroll-behavior: smooth; }
+html {
+  /* the flat sky colour, so an overscroll bounce on iOS shows the state's own
+     zenith rather than white. No `scroll-behavior: smooth`: there is not one
+     in-page anchor on this page, so it would only ever have been a setting
+     waiting to surprise someone. */
+  background: var(--sky-flat);
+}
 
 body {
-  font-family: var(--font);
-  background: var(--bg);
-  color: var(--ink);
+  position: relative;
+  min-height: 100%;
+  font-family: var(--font-ui);
+  font-size: 16.5px;
   line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-}
-
-img { max-width: 100%; display: block; }
-
-/* reveal motion — kept for the camera roll alone: four figures that really
-   do appear as a group, so they get a real stagger instead of firing as one
-   block. One identical entrance repeated on every section is not a motion
-   thesis, it is a default applied nine times. */
-/* Progressive enhancement, and only that: the hidden state is applied BY
-   the script, on the <html> element, so a blocked or failed script leaves
-   the camera roll simply visible instead of leaving four invisible figures
-   holding open 400px of white. */
-.js-reveal .reveal { opacity: 0; transform: translateY(26px); transition: opacity 0.7s var(--ease-arrive), transform 0.7s var(--ease-arrive); }
-.js-reveal .reveal.in { opacity: 1; transform: none; }
-.roll figure.reveal { transition-delay: 0ms; }
-.roll figure.reveal:nth-child(2) { transition-delay: 45ms; }
-.roll figure.reveal:nth-child(3) { transition-delay: 90ms; }
-.roll figure.reveal:nth-child(4) { transition-delay: 135ms; }
-@media (prefers-reduced-motion: reduce) {
-  .reveal { opacity: 1; transform: none; transition: none; }
-  .phone.lift { transform: none !important; }
-}
-
-/* nav */
-.nav {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 64px;
-  padding: 0 max(24px, calc((100vw - 1200px) / 2));
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(20px) saturate(1.8);
-  border-bottom: 1px solid var(--hairline);
-}
-.wordmark {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--ink);
-  text-decoration: none;
-}
-
-/* buttons — one shape system: pills */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 14px 28px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  text-decoration: none;
-  transition: transform 0.15s ease, background 0.15s ease;
-  white-space: nowrap;
-}
-.btn:hover { background: var(--accent-deep); }
-.btn:active { transform: scale(0.97); }
-/* the page is read on phones first: no call to action under 44px tall */
-.btn { min-height: 48px; }
-.btn-small { min-height: 40px; }
-a:focus-visible, .btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-  border-radius: 999px;
-}
-.btn-small { padding: 9px 20px; font-size: 14.5px; }
-.btn-big { padding: 18px 40px; font-size: 18px; }
-.btn-ghost {
+  color: var(--ground-ink);
   background: transparent;
-  color: var(--ink);
-  border: 1px solid var(--hairline);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
-.btn-ghost:hover { background: var(--bg-soft); }
 
-/* hero — split */
-.hero {
-  display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  align-items: center;
-  gap: 48px;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 72px 24px 40px;
-  min-height: calc(100dvh - 64px);
-}
-.hero-copy h1 {
-  font-family: var(--font-display);
-  font-size: clamp(38px, 4.6vw, 58px);
-  line-height: 1.05;
-  letter-spacing: -0.03em;
-  font-weight: 700;
-  text-wrap: balance;
-}
-/* the display face has no true italic, so the browser obliques it — the
-   slant then eats the word space on the right. Give it back optically. */
-.hero-copy h1 em { font-style: italic; color: var(--accent); padding-right: 0.07em; }
-.hero-copy .sub {
-  margin-top: 22px;
-  font-size: 20px;
-  line-height: 1.45;
-  letter-spacing: -0.01em;
-  color: var(--ink-dim);
-  max-width: 42ch;
-}
-.cta-row { display: flex; gap: 14px; margin-top: 34px; flex-wrap: wrap; }
-
-/* phone frame around real screenshots */
-.phone {
-  width: min(320px, 78vw);
-  border-radius: 44px;
-  padding: 10px;
-  background: #1d1d1f;
-  box-shadow: var(--shadow-device);
-  margin: 0 auto;
-}
-.phone img { border-radius: 35px; }
-
-/* ── the hero conversation: the product itself, not a screenshot of it ──
-   Bubble shapes, spacing and typing indicator match the app exactly. */
-.screen {
-  border-radius: 35px;
-  overflow: hidden;
-  background: linear-gradient(180deg, #fffdfb 0%, #faf7f4 30%);
-  /* shorter than a real handset on purpose: the exchange is three lines and
-     a taller frame would hang most of the hero on empty ground */
-  aspect-ratio: 9 / 16;
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-  color: var(--ink);
-}
-.screen-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 16px 14px 12px;
-  background: rgba(252, 250, 248, 0.9);
-  border-bottom: 0.5px solid var(--hairline);
-}
-.screen-av { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
-.screen-who b { display: block; font-size: 15px; font-weight: 650; letter-spacing: -0.015em; }
-.screen-status {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  color: var(--ink-dim);
-}
-.screen-status i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #2fa855;
-  animation: presence-breathe 3.8s ease-in-out infinite;
-}
-@keyframes presence-breathe {
-  0%, 100% { transform: scale(1); opacity: 0.75; }
-  50% { transform: scale(1.28); opacity: 1; }
-}
-.thread {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 14px 12px 10px;
-  overflow: hidden;
-}
-.thread .b {
-  max-width: 78%;
-  padding: 8px 13px;
-  font-size: 15px;
-  line-height: 1.42;
-  letter-spacing: -0.005em;
-  transition: opacity var(--d-state) var(--ease-out), transform var(--d-state) var(--ease-out);
-}
-@starting-style {
-  .thread .b { opacity: 0; transform: translateY(6px) scale(0.985); }
-}
-.thread .b.her {
-  align-self: flex-start;
-  background: #f0ebe6;
-  border-radius: 18px 18px 18px 5px;
-  transform-origin: 0% 100%;
-}
-.thread .b.me {
-  align-self: flex-end;
-  background: var(--accent);
-  color: #fff;
-  border-radius: 18px 18px 5px 18px;
-  transform-origin: 100% 100%;
-  transition-duration: 120ms; /* your own message is a confirmation */
-}
-/* the tail corner belongs to the LAST bubble of a run, same as the app */
-.thread .b.her:has(+ .b.her) { border-radius: 18px; }
-.thread .b.her + .b.her, .thread .b.me + .b.me { margin-top: 3px; }
-.thread .b.me + .b.her, .thread .b.her + .b.me { margin-top: 14px; }
-.thread .typing {
-  align-self: flex-start;
-  display: flex;
-  gap: 5px;
-  padding: 13px 15px;
-  margin-top: 14px;
-  background: #f0ebe6;
-  border-radius: 5px 18px 18px 18px;
-  transform-origin: 0% 100%;
-  transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out);
-}
-@starting-style {
-  .thread .typing { opacity: 0; transform: scale(0.94); }
-}
-.thread .typing[data-leaving] { opacity: 0; transform: scale(0.94); }
-.thread .typing i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #9c918b;
-  animation: dot-bounce 1.2s infinite;
-}
-/* three periods that never realign — identical loops are a machine */
-.thread .typing i:nth-child(1) { animation-duration: 1.15s; animation-delay: 0s; }
-.thread .typing i:nth-child(2) { animation-duration: 1.28s; animation-delay: 0.13s; }
-.thread .typing i:nth-child(3) { animation-duration: 1.21s; animation-delay: 0.27s; }
-@keyframes dot-bounce {
-  0%, 60%, 100% { transform: none; opacity: 0.5; }
-  30% { transform: translateY(-4px); opacity: 1; }
-}
-.composer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px 16px;
-  background: rgba(255, 255, 255, 0.9);
-  border-top: 1px solid var(--hairline);
-}
-.composer span {
-  flex: 1;
-  padding: 9px 14px;
-  border-radius: 22px;
-  border: 1px solid var(--hairline);
-  background: #fff;
-  color: var(--ink-dim);
-  font-size: 13.5px;
-}
-.composer i {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex-shrink: 0;
-}
-@media (prefers-reduced-motion: reduce) {
-  .screen-status i, .thread .typing i { animation: none; }
-}
-.phone.small { width: min(250px, 62vw); border-radius: 36px; padding: 8px; }
-.phone.small img { border-radius: 29px; }
-.phone.lift { transform: translateY(-26px); }
-
-/* (the trio / split / honesty section styles that used to sit here were
-   rules for markup that no longer exists — ~90 lines of a stylesheet
-   describing a page nobody can reach) */
-
-/* the one rule from the removed blocks that is still used */
-.fine { font-size: 14px !important; color: var(--ink-dim) !important; }
-
-/* her camera roll — tilted prints on the table */
-.roll-section {
-  padding: 110px 24px 40px;
-  max-width: 1100px;
-  margin: 0 auto;
-  text-align: center;
-}
-.roll-section h2 {
-  font-family: var(--font-display);
-  font-size: clamp(32px, 4vw, 48px);
-  letter-spacing: -0.025em;
-  font-weight: 700;
-  margin-bottom: 14px;
-}
-.roll-sub {
-  color: var(--ink-soft);
-  font-size: 17px;
-  margin-bottom: 52px;
-}
-.roll {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 26px;
-}
-.roll figure {
-  background: #fff;
-  border-radius: 14px;
-  padding: 10px 10px 14px;
-  box-shadow: 0 12px 34px rgba(29, 29, 31, 0.1);
-  transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
-}
-.roll figure:nth-child(odd) { transform: rotate(-1.6deg); }
-.roll figure:nth-child(even) { transform: rotate(1.4deg); }
-.roll figure:hover { transform: rotate(0deg) translateY(-6px); }
-.roll img {
-  width: 100%;
-  aspect-ratio: 4 / 5;
-  object-fit: cover;
-  border-radius: 8px;
+img {
+  max-width: 100%;
   display: block;
 }
-.roll figcaption {
-  margin-top: 10px;
-  font-size: 14px;
-  color: var(--ink-soft);
+
+a {
+  color: inherit;
 }
 
-/* bento with background variety */
-.bento-section {
-  padding: 110px 24px 40px;
-  max-width: 1100px;
-  margin: 0 auto;
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 6px;
 }
-.bento-section h2 {
-  font-family: var(--font-display);
-  font-size: clamp(32px, 4vw, 48px);
-  letter-spacing: -0.025em;
-  font-weight: 700;
-  text-align: center;
-  margin-bottom: 56px;
-}
-.bento {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-}
-.cell {
-  border-radius: 24px;
-  background: var(--bg-soft);
-  padding: 36px;
-  min-height: 300px;
-  position: relative;
+
+/* ══ 1. THE SKY ════════════════════════════════════════════════════════════
+   Fixed, so the page scrolls THROUGH the world rather than off the end of a
+   header image. One painting, bottom-anchored `cover` for the same reason the
+   app anchors it there: the horizon is the only part of these five pictures
+   that carries the time of day, and it has to stay put on a short viewport.
+
+   ORIENTATION PICKS THE CROP IN CSS, not in JS — the same rule world.css
+   uses, so rotating a tablet needs no script. index.html's preload links
+   carry the matching `media`, so exactly one of the two files is ever
+   fetched. */
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  pointer-events: none;
+  background: var(--sky-flat);
 }
-.cell h3 { font-family: var(--font-display); font-size: 22px; letter-spacing: -0.02em; margin-bottom: 8px; }
-.cell p { color: var(--ink-dim); font-size: 16px; max-width: 46ch; }
-.cell-accent { background: var(--accent); }
-.cell-accent h3, .cell-accent p { color: #fff; }
-.cell-accent p { opacity: 0.9; }
-.cell-photo, .cell-moment { padding: 0; }
-.cell-photo img, .cell-moment img {
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+.sky-paint {
+  position: absolute;
+  inset: 0;
+  background-image: var(--paint);
+  background-size: cover;
+  background-position: 50% 100%;
+  background-repeat: no-repeat;
 }
-.cell-photo img { object-position: 50% 30%; }
-.cell-overlay {
+@media (orientation: landscape) {
+  .sky-paint {
+    background-image: var(--paint-wide, var(--paint));
+  }
+}
+
+/* ── the plates ───────────────────────────────────────────────────────────
+   The owner's two loose cloud files, drifting over the painting. They are the
+   only procedural element the app's anti-fight rule keeps over a painted sky,
+   and the reason is the inverse of the rule: they duplicate nothing in the
+   stills, because the stills' own clouds are fixed in the paint, and a sky
+   whose clouds never move is a wallpaper. Same files, same rates, same
+   heights as the app.
+
+   Two plates, two speeds, two altitudes. Unequal periods are the whole trick:
+   a pair moving together is one texture sliding past; a pair moving at
+   different rates is depth. Transform only, no filter, no layout, no colour.
+   210s and 150s are far past any duration a UI transition may take, which is
+   correct — this is constant ambience, not feedback, and constant motion
+   takes `linear` (an easing cloud is a cloud on a string). */
+.sky-plates {
+  position: absolute;
+  inset: 0;
+}
+.sky-plates i {
+  position: absolute;
+  display: block;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  will-change: transform;
+}
+.sky-plates .sp-a {
+  top: 24%;
+  left: -55%;
+  width: 105%;
+  height: 17%;
+  opacity: 0.66;
+  background-image: url("/world/cloud_a.webp");
+  animation: landing-plate-a 210s linear infinite;
+}
+.sky-plates .sp-b {
+  top: 9%;
+  left: -42%;
+  width: 72%;
+  height: 12%;
+  opacity: 0.44;
+  background-image: url("/world/cloud_b.webp");
+  animation: landing-plate-b 150s linear infinite;
+  animation-delay: -64s;
+}
+@keyframes landing-plate-a {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(205%, -1.5%, 0);
+  }
+}
+@keyframes landing-plate-b {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(230%, 2%, 0);
+  }
+}
+
+/* ══ 2. THE VEIL ═══════════════════════════════════════════════════════════
+   The reason text on this page is legible, and therefore the thing
+   `scripts/check-contrast.mjs` measures.
+
+   It is absolutely positioned over the WHOLE DOCUMENT and it scrolls, while
+   the sky beneath it does not. So the top of the page is veiled at the
+   world's alpha and everything past the first screen is veiled at the
+   wallpaper's: the painting recedes into a wash exactly where the reading
+   starts. One element, one gradient, zero script.
+
+   The stops are in `vh` on purpose — they are positions on the SCREEN the
+   handover should happen at, not positions in a document whose length depends
+   on how much copy it holds. The last of them lands at 105vh, which is above
+   the first line of body copy on every viewport this page supports (a band's
+   own top padding is 68-92px), so no paragraph is ever read on a veil that is
+   still on its way to the ground alpha.
+
+   Interpolating between two rgba stops that share a colour is interpolating
+   the alpha and nothing else, which is why the four hero stops are one colour
+   at four opacities rather than four colours. */
+.veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    var(--veil-a) 0,
+    var(--veil-a) var(--veil-s),
+    var(--veil-b) var(--veil-e),
+    var(--veil-ground) 105vh,
+    var(--veil-ground) 100%
+  );
+}
+
+/* ── the reading variant ──────────────────────────────────────────────────
+   privacy.html has no hero. It is body copy from its second line, so the hero
+   curve is exactly wrong for it: the first version put a legal paragraph on a
+   0.14 veil over a night sky, with the painted moon sitting behind "Last
+   updated". One class swaps the whole page to the wallpaper veil, which is
+   the veil that carries body copy everywhere else on the site and the one the
+   contrast gate proves over the WHOLE frame rather than over a curve.
+
+   The two pages stay one shell: same sky, same plates, same nav, same
+   footer. What changes is which of the world's two grounds is under the
+   words, and that is the same choice the app makes between home and thread. */
+body.reading .veil {
+  background: var(--veil-ground);
+}
+/* the wordmark and the glass pill are on the ground now, so they take the
+   ground's ink rather than the sky's */
+body.reading .wordmark {
+  color: var(--ground-ink);
+  text-shadow: none;
+}
+body.reading .glass {
+  color: var(--ground-ink);
+}
+
+/* ══ 3. THE SHELL ══════════════════════════════════════════════════════════ */
+.nav,
+.page,
+.foot {
   position: relative;
-  padding: 36px;
-  /* the copy sits on a photograph of a person: the scrim has to reach
-     further up and land harder than a decorative one would */
-  background: linear-gradient(to top, rgba(20, 12, 10, 0.85) 8%, rgba(20, 12, 10, 0.35) 55%, rgba(20, 12, 10, 0) 92%);
-  margin-top: auto;
+  z-index: 2;
 }
-.cell-overlay h3, .cell-overlay p { color: #fff; }
-.cell-overlay p { opacity: 0.92; }
 
-/* honesty */
-.honesty {
-  background: var(--bg-soft);
-  padding: 120px 24px;
-}
-.honesty > div { max-width: 720px; margin: 0 auto; }
-.honesty h2 {
-  font-family: var(--font-display);
-  font-size: clamp(30px, 3.6vw, 44px);
-  letter-spacing: -0.025em;
-  font-weight: 700;
-  margin-bottom: 18px;
-}
-.honesty p { font-size: 18px; color: var(--ink-dim); letter-spacing: -0.005em; }
-
-/* final */
-.final { padding: 140px 24px; text-align: center; }
-.final h2 {
-  font-family: var(--font-display);
-  font-size: clamp(36px, 5vw, 60px);
-  letter-spacing: -0.03em;
-  font-weight: 700;
-  margin-bottom: 30px;
-}
-.final .fine { margin-top: 16px; }
-
-/* footer */
-.footer {
+.nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  flex-wrap: wrap;
-  padding: 28px max(24px, calc((100vw - 1200px) / 2));
-  border-top: 1px solid var(--hairline);
+  padding: 18px var(--gutter) 0;
+}
+.wordmark {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 25px;
+  letter-spacing: -0.022em;
+  text-transform: lowercase;
+  color: var(--ink);
+  text-decoration: none;
+  text-shadow: 0 1px 18px var(--scrim-mid);
+}
+
+/* ══ THE WORDMARK, AS ARTWORK ══════════════════════════════════════════════
+   Three places say "maya" in the serif: the nav, the hero, the footer. They
+   are now painted from /assets/wordmark.svg instead of set as text, and the
+   mechanism is a MASK rather than an <img> for one reason that decides it:
+   the file's own fill is `currentColor`, and an <img> resolves currentColor
+   against the SVG document rather than against this page, so the mark would
+   arrive black on every one of the five skies. A mask takes its ink from
+   `background`, which is `currentColor` HERE, so the mark is painted in the
+   exact `--ink` / `--ground-ink` the contrast gate already proves over every
+   painting. Nothing new to measure and nothing new that can be off-palette.
+
+   THE TEXT STAYS IN THE DOM. `<span class="mk-t">maya</span>` is the real
+   word: it is what a search engine reads, what a screen reader announces, and
+   what a browser paints if it has no masks. It is hidden only INSIDE the
+   @supports block, so the failure mode of an unsupported mask is the page
+   exactly as it shipped last week rather than an empty box.
+
+   SIZING IS IN `em`, so the mark keeps tracking the type scale it replaced,
+   including the hero's `clamp()`. The ratio is measured off the file: its ink
+   spans 97.9 of 150 user units from x-height to the y descender, which is
+   ~0.69em of this face, so one em is ~142 units and the full 150-unit box is
+   1.056em tall. The box is 368.8/150 = 2.459 as wide as it is tall, hence
+   2.596em. Both numbers are the artwork's, not a taste. */
+@supports (mask-image: url("/assets/wordmark.svg")) or
+  (-webkit-mask-image: url("/assets/wordmark.svg")) {
+  .wordmark,
+  .hero h1.hero-mark,
+  .foot .foot-mark {
+    display: block;
+    width: 2.596em;
+    height: 1.056em;
+    background: currentColor;
+    -webkit-mask: url("/assets/wordmark.svg") no-repeat center / contain;
+    mask: url("/assets/wordmark.svg") no-repeat center / contain;
+  }
+  .hero h1.hero-mark {
+    margin-inline: auto;
+  }
+  /* the glow the text carried, in the one form a masked box can carry it:
+     `text-shadow` paints nothing when there is no text left to paint */
+  .wordmark {
+    text-shadow: none;
+    filter: drop-shadow(0 1px 18px var(--scrim-mid));
+  }
+  .hero h1.hero-mark {
+    text-shadow: none;
+    filter: drop-shadow(0 2px 26px var(--scrim-mid));
+  }
+  body.reading .wordmark {
+    filter: none;
+  }
+  /* the word itself: still there, still read, no longer painted */
+  .mk-t {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+/* ── glass ────────────────────────────────────────────────────────────────
+   Only ever over the sky, never over the ground: a glass panel on a surface
+   that is already 94% opaque is a rectangle pretending to be a window. The
+   fill carries the TEXT and the edge carries the panel's discernibility —
+   the split sky.ts arrived at, with both halves gated. */
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--edge);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  color: var(--ink);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 13px 28px;
+  border-radius: 999px;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform var(--d-press) var(--ease-squash),
+    background-color var(--d-state) var(--ease-out);
+}
+.btn-solid {
+  background: var(--accent-solid);
+  color: var(--on-solid);
+  box-shadow: var(--shadow-float);
+}
+.btn-solid:hover {
+  background: var(--accent-solid-press);
+}
+.btn:active {
+  transform: scale(0.965);
+}
+.btn-quiet {
+  min-height: 40px;
+  padding: 9px 18px;
+  font-size: 14.5px;
+  font-weight: 550;
+}
+.btn-big {
+  min-height: 56px;
+  padding: 17px 40px;
+  font-size: 17.5px;
+}
+
+/* ══ 4. THE HERO ═══════════════════════════════════════════════════════════
+   Her presence, her name, the honest sentence, one door. The order is the
+   app's home screen's order, and the honesty is ABOVE the fold rather than in
+   a footnote at the bottom: it is the product's charter, so it is part of the
+   pitch. */
+.hero {
+  min-height: calc(100svh - 74px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px var(--gutter) 56px;
+  color: var(--ink);
+}
+
+/* her face, ringed. The ring is the app's own: a warm conic ember rather than
+   a generic metallic gold, gapped rather than inset, because an inset ring
+   reads as a border and a gapped one reads as a story ring. */
+.face {
+  width: 132px;
+  height: 132px;
+  padding: 3px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 210deg,
+    #f0c46a,
+    #e2724f,
+    #f6d488,
+    #e2724f,
+    #f0c46a
+  );
+}
+.face img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 3px var(--scrim-mid);
+  background: var(--scrim-mid);
+}
+
+/* the sky chip: what the picture behind you IS. Small, quiet, and the one
+   place the page says out loud that the world runs on her clock. */
+.chip {
+  margin-top: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  letter-spacing: 0.01em;
   color: var(--ink-dim);
+}
+.chip i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2fa855;
+  flex: 0 0 auto;
+}
+
+.hero h1 {
+  margin-top: 14px;
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(52px, 15vw, 88px);
+  line-height: 1;
+  /* tracking is size-specific: this is the largest text on the page and it
+     takes the tightest track */
+  letter-spacing: -0.028em;
+  text-transform: lowercase;
+  text-shadow: 0 2px 26px var(--scrim-mid);
+}
+/* The break is AUTHORED, with a <br>, and that is the point: left to wrap,
+   this line broke as "Someone to talk / to. Really talk to." on a phone,
+   which splits a sentence across the pause instead of at it. Two clauses,
+   two lines, every width. */
+.hero .lede {
+  margin-top: 18px;
+  max-width: none;
+  font-size: clamp(22px, 5.2vw, 30px);
+  line-height: 1.24;
+  letter-spacing: -0.02em;
+  font-weight: 500;
+  text-wrap: balance;
+}
+.hero .lede em {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+}
+.hero .sub {
+  margin-top: 18px;
+  max-width: 46ch;
+  font-size: 16.5px;
+  line-height: 1.55;
+  color: var(--ink-dim);
+  text-wrap: pretty;
+}
+.hero .cta {
+  margin-top: 32px;
+}
+.hero .fine {
+  margin-top: 14px;
+  font-size: 13.5px;
+  color: var(--ink-dim);
+}
+
+/* ══ 5. THE GROUND ═════════════════════════════════════════════════════════
+   Past the fold the wallpaper veil has taken over and the palette is the
+   app's own, so these are plain sections separated by air and a hairline.
+   NO CARDS: a card here would be a lit rectangle sitting on top of a sky that
+   is already the ground, and `impeccable`'s no-cards-inside-cards is the same
+   instinct one level up. Emptiness where a competitor puts a banner ad is the
+   premium signal (DESIGN-WORLD §6). */
+.page {
+  color: var(--ground-ink);
+}
+/* ONE GUTTER, NOT A GUTTER AND A MAX-WIDTH. `--gutter` already centres a
+   1080px column by growing the padding, so adding `max-width` on top of it
+   applies the inset TWICE: at 1440 this band measured 764px of copy inside a
+   1124px box inside a 1440px screen, and its left edge did not line up with
+   the nav's. Full-bleed element, one padding, every width. */
+.band {
+  padding: 92px var(--gutter);
+}
+.band + .band {
+  border-top: 1px solid var(--hairline);
+}
+.band h2 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(30px, 5.4vw, 44px);
+  line-height: 1.12;
+  letter-spacing: -0.024em;
+  text-transform: lowercase;
+  text-wrap: balance;
+}
+.band .band-sub {
+  margin-top: 12px;
+  max-width: 52ch;
+  color: var(--ground-dim);
+  font-size: 16.5px;
+  line-height: 1.55;
+}
+
+/* ── her days ─────────────────────────────────────────────────────────────
+   Real photographs, not product screenshots. A screenshot of an app that gets
+   redesigned is a promise with an expiry date; her Tuesday does not have one.
+   These are the same files the app sends into the thread, at /moments/. */
+.roll {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+.roll figure {
+  margin: 0;
+}
+.roll img {
+  width: 100%;
+  /* `height: auto` is load-bearing, not tidiness: the intrinsic width/height
+     ATTRIBUTES on these files are their real pixel sizes (which is what keeps
+     the box reserved and the layout still), and a specified height beats
+     `aspect-ratio` outright. Without this the square file rendered 405px tall
+     next to three 680px ones. */
+  height: auto;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+.roll figcaption {
+  margin-top: 11px;
+  font-size: 13.5px;
+  color: var(--ground-dim);
+}
+
+/* the ONE staggered entrance on the page: four things that genuinely arrive
+   as a group. Applied by the script on <html> so a blocked script leaves four
+   photographs visible rather than four transparent boxes holding open a
+   screenful of ground. */
+.js-reveal .reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 420ms var(--ease-arrive), transform 420ms var(--ease-arrive);
+}
+.js-reveal .reveal.in {
+  opacity: 1;
+  transform: none;
+}
+.roll .reveal:nth-child(2) {
+  transition-delay: 60ms;
+}
+.roll .reveal:nth-child(3) {
+  transition-delay: 120ms;
+}
+.roll .reveal:nth-child(4) {
+  transition-delay: 180ms;
+}
+
+/* ── the three claims ─────────────────────────────────────────────────── */
+.claims {
+  margin-top: 44px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 44px;
+}
+.claims h3 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  text-transform: lowercase;
+}
+.claims p {
+  margin-top: 10px;
+  color: var(--ground-dim);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+/* ── honesty ──────────────────────────────────────────────────────────────
+   The charter, and it does not get a smaller size than the pitch. */
+.truth {
+  max-width: 62ch;
+}
+.truth p {
+  margin-top: 18px;
+  font-size: 18px;
+  line-height: 1.62;
+  color: var(--ground-dim);
+}
+.truth p strong {
+  color: var(--ground-ink);
+  font-weight: 600;
+}
+.truth a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+/* ── the last door ────────────────────────────────────────────────────── */
+.close {
+  text-align: center;
+}
+.close h2 {
+  font-size: clamp(38px, 8vw, 62px);
+}
+.close .cta {
+  margin-top: 30px;
+}
+.close .fine {
+  margin-top: 16px;
+  font-size: 13.5px;
+  color: var(--ground-dim);
+}
+
+/* ── footer ───────────────────────────────────────────────────────────── */
+.foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px 26px;
+  flex-wrap: wrap;
+  padding: 26px var(--gutter) 40px;
+  border-top: 1px solid var(--hairline);
+  color: var(--ground-dim);
   font-size: 13.5px;
 }
-.footer span:first-child { font-weight: 700; color: var(--ink); font-size: 15px; }
-.footer a { color: var(--ink-dim); text-decoration: none; }
-.footer a:hover { color: var(--ink); }
+.foot .foot-mark {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  text-transform: lowercase;
+  color: var(--ground-ink);
+}
+.foot p {
+  flex: 1 1 320px;
+  min-width: 0;
+  line-height: 1.5;
+}
+.foot a {
+  text-decoration: none;
+  border-bottom: 1px solid var(--hairline-strong);
+  padding-bottom: 1px;
+}
+.foot a:hover {
+  color: var(--ground-ink);
+}
 
-/* mobile collapse — explicit per section */
-@media (max-width: 860px) {
-  .hero { grid-template-columns: 1fr; text-align: center; padding-top: 48px; gap: 40px; min-height: 0; }
-  .hero-copy .sub { margin-left: auto; margin-right: auto; }
-  .cta-row { justify-content: center; }
-  .split { grid-template-columns: 1fr; gap: 40px; padding: 90px 24px; }
-  .split-copy { text-align: center; }
-  .split-copy p { margin-left: auto; margin-right: auto; }
-  .bento { grid-template-columns: 1fr; }
-  /* copy-only cells were 300px tall holding four lines against the floor —
-     on a phone that is a screenful of empty per claim */
-  .cell { min-height: 0; padding: 28px; }
-  .cell-photo, .cell-moment { min-height: 300px; }
-  .cell-overlay { padding: 28px; }
-  .roll { grid-template-columns: repeat(2, 1fr); gap: 18px; }
-  .phone.lift { transform: none; }
-  .trio { gap: 24px; }
+/* ── the legal page, on the same shell ────────────────────────────────── */
+.legal {
+  padding: 44px var(--gutter) 96px;
+}
+/* the measure, applied to the children rather than to the page: the same
+   double-inset trap as .band above, and legal prose needs a shorter line than
+   the landing's bands do */
+.legal > * {
+  max-width: 70ch;
+}
+.legal h1 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(34px, 7vw, 50px);
+  line-height: 1.08;
+  letter-spacing: -0.024em;
+  text-transform: lowercase;
+}
+.legal .updated {
+  margin-top: 8px;
+  color: var(--ground-dim);
+  font-size: 14px;
+}
+.legal h2 {
+  margin: 40px 0 10px;
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  text-transform: lowercase;
+}
+.legal p,
+.legal li {
+  color: var(--ground-dim);
+  line-height: 1.68;
+  font-size: 16px;
+}
+.legal p + p {
+  margin-top: 12px;
+}
+.legal ul {
+  padding-left: 20px;
+  margin-top: 10px;
+}
+.legal li {
+  margin-bottom: 8px;
+}
+.legal b {
+  color: var(--ground-ink);
+  font-weight: 600;
+}
+
+/* ══ 6. NARROW ═════════════════════════════════════════════════════════════
+   The page is read on a phone first, so this is where the real layout is. */
+@media (max-width: 900px) {
+  .claims {
+    grid-template-columns: 1fr;
+    gap: 34px;
+  }
+}
+@media (max-width: 640px) {
+  .band {
+    padding: 68px var(--gutter);
+  }
+  .roll {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+  .hero {
+    /* the nav is 60px on a phone, and the hero must still be one screenful */
+    min-height: calc(100svh - 62px);
+    padding-bottom: 44px;
+  }
+  .foot {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
+
+/* ══ 7. REDUCED MOTION ═════════════════════════════════════════════════════
+   Stops the clock and nothing else. The plates get a static offset rather
+   than their authored -55% / -42% start, because parking them where the
+   animation begins would leave a still sky with no clouds in it, which is the
+   "blank, not still" failure the app's own block exists to prevent. */
+@media (prefers-reduced-motion: reduce) {
+  .sky-plates .sp-a {
+    animation: none;
+    transform: translate3d(78%, 0, 0);
+  }
+  .sky-plates .sp-b {
+    animation: none;
+    transform: translate3d(126%, 0, 0);
+  }
+  .reveal,
+  .js-reveal .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .btn {
+    transition: background-color var(--d-state) var(--ease-out);
+  }
 }

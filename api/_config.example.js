@@ -25,6 +25,12 @@ export const SUPABASE_KEY = "";
 export const GOOGLE_KEYS = [];
 // Kept for compatibility; folded into the pool above when set.
 export const GOOGLE_KEY = "";
+// The LABELED pool, for RCA: [{ label, key }, ...] where label is the owner tag
+// ("gaurav-3", "team@x.world") — never a secret, names WHOSE key. Preferred over
+// GOOGLE_KEYS locally; the trace records which label served each turn. In the
+// Vercel env, use GOOGLE_KEYS="label~key,label~key,..." instead. Managed by
+// scripts/keyring.mjs from api/keyring.json (both gitignored). See docs/KEYRING.md.
+export const GOOGLE_KEYRING = [];
 
 // A BILLED Google key. Optional, and the difference between ~600ms and ~2s to
 // first audio once the free pool is spent: it is the same streaming endpoint,
@@ -32,9 +38,33 @@ export const GOOGLE_KEY = "";
 // Tried last in the rotation and never cooled.
 export const GOOGLE_PAID_KEY = "";
 
-// Azure OpenAI — memory extraction only, on the startup credits.
+// Azure AI Foundry, on the Microsoft-for-Startups credits — $0 cash.
+//
+// Three jobs now, not one:
+//   1. memory extraction + embeddings (api/memory.js, api/_embed.js,
+//      api/consolidate.js) — the original use.
+//   2. THE LAST-RESORT BRAIN (api/_azure.js, reached from api/chat.js after the
+//      free Google pool and after OpenRouter). On 2026-08-24 the free pool
+//      aborted on one 502 and the OpenRouter balance was spent, and with
+//      nothing underneath them she sent the canned connectivity line three
+//      times in ninety minutes. This lane is what stops that.
+//   3. THE FIRST lane for images and documents, by the owner's directive — see
+//      LANE_ORDER_ATTACHMENT in api/_lanes.js.
+//
+// AZURE_ENDPOINT is the openai/v1-compatible base INCLUDING the /openai/v1
+// suffix and with no trailing slash. Env overrides, mirroring what memory.js
+// and _embed.js already read: AZURE_ENDPOINT and AZURE_API_KEY (note the
+// asymmetry — the config name is AZURE_KEY, the env name is AZURE_API_KEY).
+// Unset means the lane reports itself unconfigured and is skipped; nothing
+// breaks, she just loses her third brain.
 export const AZURE_KEY = "";
 export const AZURE_ENDPOINT = "";
+// Optional deployment names for the brain lane. Both default to
+// `grok-4-20-non-reasoning` — the one deployment on this resource that
+// config/models.json records as gate-passed for the vision lane (vy_gate_run
+// id 35). Env only, no config entry needed:
+//   AZURE_CHAT_DEPLOYMENT     text last resort
+//   AZURE_VISION_DEPLOYMENT   images and documents
 
 // ── the Telegram surface (api/tg.js, PROPOSAL-MULTIPARTY-V1 §6) ───────────
 //
@@ -55,3 +85,34 @@ export const TELEGRAM_WEBHOOK_SECRET = "";
 // detect an @-mention. Kept in env rather than hard-coded so a second bot
 // (staging) does not need a code change.
 export const TELEGRAM_BOT_USERNAME = "";
+
+// ── the push slot (api/push-token.js, api/_push.js, src/notify/) ──────────
+//
+// ALL THREE EMPTY IS THE SHIPPING STATE and everything downstream no-ops:
+// api/push-token.js answers 200 { stored: false } without touching the
+// database, api/_push.js returns { sent: 0, reason: "unconfigured" } without a
+// fetch, and the client never registers a service worker or asks for a token.
+// Local notifications (her reply, a missed call, her story) do not read any of
+// this and work with none of it.
+//
+// These are the SERVER half of a Firebase service account — the half that can
+// actually send, which is why it lives here and not in the committed
+// src/notify/config.ts (that file holds the public web config). Get them from
+// Firebase console -> Project settings -> Service accounts -> "Generate new
+// private key", which downloads a JSON file:
+//
+//   FCM_PROJECT_ID   = <project_id>
+//   FCM_CLIENT_EMAIL = <client_email>
+//   FCM_PRIVATE_KEY  = <private_key>, with its \n escapes left exactly as they
+//                      are in the JSON. api/_push.js un-escapes them; a key
+//                      pasted with real newlines through an environment
+//                      variable is the usual way this fails, and it fails as
+//                      "DECODER routines::unsupported", which reads like a
+//                      corrupt key rather than a formatting one.
+//
+// FCM_PRIVATE_KEY is a signing key: it appears in exactly one expression in
+// this repo (accessToken() in api/_push.js) and in no log line, the same rule
+// TELEGRAM_BOT_TOKEN states above.
+export const FCM_PROJECT_ID = "";
+export const FCM_CLIENT_EMAIL = "";
+export const FCM_PRIVATE_KEY = "";

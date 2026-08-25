@@ -28,6 +28,20 @@ const suites = {
   // WS-BURST. The multi-message wait policy — pure, offline, no model call,
   // wired here under the same `dead-writers` test as the suites below.
   burst: "burst.mjs",
+  // WS-BREATH. The scenario GRID — first-message shape × follow-up timing ×
+  // device shape × his rhythm, ~480 cells, each driven through the real surface
+  // clock in virtual time and checked against the seven properties the human
+  // model is made of (never cut him off, liveness, the floor, no dead air,
+  // handoff stays fast, the think-pause is not a cliff, web/Android parity).
+  //
+  // It exists because this defect has now been reported three times. Each wave
+  // fixed the shapes it could think of, and the shape that came back — a
+  // complete-LOOKING sentence followed by a think-pause — is the most ordinary
+  // cell in the space and had no test anywhere in the repo. The answer to
+  // "there will be thousands of cases" is a grid, not another patch.
+  //
+  // Pure, offline, deterministic, $0, ~1s.
+  burstgrid: "burstgrid.mjs",
   // WS-AWAY. T9 session.clock — the overnight-gap facts, and the negative
   // control that keeps them from becoming a greeting she recites.
   away: "away.mjs",
@@ -60,6 +74,44 @@ const suites = {
   wyr: "wyr.mjs",
   // WS-GAMES: tic-tac-toe — exhaustive legality + bounded imperfection.
   ttt: "ttt.mjs",
+  // WS-TTT. CHESS PARITY for tic-tac-toe, which is a different question from
+  // the one `ttt.mjs` answers: that suite proves she plays the game legally
+  // and imperfectly, and this one proves the REST OF THE PRODUCT reaches it.
+  //
+  //   "tic tac also has so many issues she dont know whats up, dont talk
+  //    clearly and intresting about it, memory issue also, and many other
+  //    which chess also had."
+  //
+  // Chess got a correction ladder over two waves; ttt rode the same generic
+  // seams the whole time and was reached by almost none of them. That is
+  // `dead-writers` in its purest form — every seam "supported" ttt, so nothing
+  // read as missing — which is why this battery asserts against COMPILED
+  // PROMPTS and real played-out games rather than against the adapter: the
+  // board state and its two-in-a-rows reaching a compile, a real game walked
+  // turn by turn through the think table and the staleness seam, the lifecycle
+  // facts saying "tic tac toe" instead of the union key she would read aloud,
+  // the episode writer firing with a ttt-shaped record, the early-end
+  // distinction that was chess-only, and nine negative controls that each
+  // re-run a claim against the input that should break it.
+  //
+  // Hermetic (pinned clock and TZ, no ambient config), offline, deterministic,
+  // $0, ~5s. Re-bundles from the real source on every run.
+  tttparity: "ttt/parity.mjs",
+  relleak: "relational/leak.mjs",
+  // WS-MOVEVOICE: her hand and her mouth on ONE timeline. The owner played
+  // chess on a call, she moved milliseconds after him, and then her voice said
+  // she SHOULD play the move already on the board. Gates the three halves of
+  // the fix — the seeded think-time table, the composed note that states the
+  // CHOICE as closed, and the send seam that drops a note whose position has
+  // moved. Carries the owner's exact case as a permanent fixture and its own
+  // negative control (the pre-fix note shape, which MUST be rejected).
+  // Offline, deterministic, $0, ~3s.
+  movevoice: "movevoice.mjs",
+  // WS-GAMEPLAY: the chat-initiated game invite (src/engine/gameInvite.ts).
+  // Deliberately lopsided toward NEGATIVE cases — a missed invite costs one
+  // trip to the games menu, a spurious one is the app interrupting a
+  // conversation to sell a board.
+  gameinvite: "game-invite.mjs",
   // WS-GAMIFY: moments fire once, largest-tier-only, charter-clean.
   milestones: "milestones.mjs",
   // WS-SYNC: the push list, merge semantics and account-switch reset agree.
@@ -83,6 +135,26 @@ const suites = {
   // ~2s — wired here rather than left standalone for the reason T-H4 gives:
   // `dead-writers` does not stop applying to evals.
   chattail: "chattail/run.mjs",
+  // WS-CALLMEM. The four voice-call defects the first external tester found:
+  // the call lane never carried what was said on the PREVIOUS call (chat did,
+  // as turns), a long call loses its own beginning to the server's sliding
+  // window, "bye" never ended anything, and a failed lookup was silent so she
+  // announced a check and then invented. Offline, deterministic, $0, ~3s —
+  // wired here rather than left standalone because `dead-writers` does not
+  // stop applying to evals.
+  callmem: "callmem/run.mjs",
+  // WS-SHARENOW. The share he had one minute before he called back: he
+  // screen-shared, hung up, called again sixty seconds later, asked what they
+  // had watched, and she did not know. The shared-history block DID carry
+  // share commentary — as the last three turns before the callmark, under a
+  // heading that calls it "BEFORE TODAY" and forbids reading it back — so the
+  // freshest thing that ever happens between them was the one thing the brief
+  // could not say. This drives the whole flow from the real source (her lines
+  // → the share-end mirror → the just-happened block → the real compiler) and
+  // carries the owner's exact scenario as a permanent fixture, plus its honest
+  // half: a share she was quiet through says so instead of inventing.
+  // Offline, deterministic, $0, ~3s.
+  sharenow: "sharenow/run.mjs",
   surface: "surface.mjs",
   // WS-MEMORY: finished games become graph episodes; the laundering predicate;
   // photo-forget path round-trips. Offline, db-free (config stub), ~2s.
@@ -92,6 +164,16 @@ const suites = {
   // and the legacy byte-identity fixture proving a kind-less ledger still
   // renders exactly as it did. Offline, $0, ~2s.
   herlife: "herlife.mjs",
+  // WS-HERNOW. Her present moment as a LEDGER with one row rather than a
+  // fresh improvisation per pickup: he called and she was reading; he called
+  // back one minute later and she was setting fairy lights, which are two
+  // nouns from the same story picture and nothing in the app held the answer
+  // she had already given. The suite carries BOTH fixtures — the one-minute
+  // re-call that must not change the activity, and the ninety-minute one that
+  // must — plus its own negative control (the pre-fix scene, seen going empty
+  // on exactly the pickup that broke). Offline, deterministic, $0, ~3s, and
+  // it re-bundles from the real source like everything else here.
+  hernow: "hernow.mjs",
   // WS-AFFECT: one rupture, every channel — the T2 stance block compiles
   // byte-identical across chat/cascade/live/watch, lapses cross all four
   // together, the record never moves, and G2 holds in both directions on
@@ -166,6 +248,189 @@ const suites = {
   // stuck-open-forever gap the ticket was filed for. Offline, fixture-based,
   // $0, bundled fresh from relstate.ts on every run.
   rupturelapse: "rupture-lapse.mjs",
+  // WS-SPINE. The consolidation spine: the watch contract's negative test
+  // (screen-derived turns can never become durable facts), kin precision
+  // including the friend's-mother trap, watch-episode finalization, the
+  // grounding checks for rel-state/phrase/pattern/life-told derivation,
+  // change-over-time, second-agent parity, and the enablement rails.
+  //
+  // Wired here specifically because this is the suite that guards the change
+  // which turns REAL SPEND ON: the hourly cron has been dry-run since it
+  // shipped, and the run that flips it is the first one ever to derive from
+  // months of backlog. Offline, deterministic, $0, ~3s — it costs CI nothing
+  // and it is the only thing standing between a flipped flag and a fabricated
+  // fact about somebody's mother.
+  consolidation: "consolidation/run.mjs",
+  // WS-RECALL. The retrieval cluster (the Hinglish tokenizer's 19-query
+  // battery and its precision negatives, the two dead stores' new readers,
+  // RRF fusion, the co-citation hop, and the structural proof that spaced
+  // resurfacing is a rank modifier and never a trigger) plus the FATE walk
+  // that asks every SERVER store what a forget does to it — the question
+  // evals/teardown.mjs asks of every AppState field, one layer down, and the
+  // one nobody was asking of the database. Offline, $0, no network, no DB.
+  recall: "recall/run.mjs",
+  // WS-MEMEVAL. THE LANE-PARITY GATE: one row per context block, one column
+  // per lane (chat/cascade/live/watch), a verdict in every cell, and an
+  // exemption that must state its reason in writing. It mechanises the rule
+  // `rejected.md#call-opens-with-amnesia-by-construction` ends with and left
+  // as prose — "every context block that exists must be asserted PRESENT on
+  // every lane that claims it" — so the next dark block is caught at commit
+  // time instead of by a paying tester. Carries its own negative control
+  // (the pre-fix live lane must be seen going dark). Offline, $0, ~3s.
+  lanes: "lanes/run.mjs",
+  // WS-LIFECYCLE. THE OVERLAP MATRIX: 10 lifecycle events x 5 concurrent
+  // contexts, a verdict in every one of the 50 cells, and the carrier named —
+  // `assembly`, `direct`, `state` or `silent` — with a written reason.
+  //
+  // It exists because the owner should never have to enumerate an overlap
+  // case again. Every previous wave fixed the pair he happened to hit (a board
+  // open at pickup, a move mid-call, a share mid-call, a call that dropped
+  // mid-sentence); the set of pairs is finite and this walks all of it. Same
+  // idiom as `lanes` directly above, applied to PROPAGATIONS instead of
+  // context blocks, and the same two failure modes: a cell that claims
+  // `direct` with no sender in useCallEngine.ts is a propagation DECLARED AND
+  // DEAD, and a cell that claims `silent` while something can reach her is the
+  // table lying. The `assembly` cells are driven through the real compile()
+  // and the real CALL_OPEN_DIRECTIVE off real board sessions, never a model of
+  // them. Carries seven negative controls, including the pre-fix tree going
+  // dark. Offline, $0, ~3s.
+  lifecycle: "lifecycle/run.mjs",
+  // WS-MEMEVAL / survey A4. The adversarial Hinglish forget battery. NOT a
+  // gate: it reports a measured baseline against the CURRENT lexical matcher,
+  // which is known to be poor on cross-lingual referents — a gate that fails
+  // on a known-unfixed thing is noise, and noise is how a suite stops being
+  // read. It fails only if the battery itself breaks or the baseline moves
+  // DOWN, which is the direction nobody intends. See its header.
+  forgetlex: "forget/a4.mjs",
+  // WS-FORGET-A1 (survey §Q5). The mutation-time forget matcher. THIS half IS
+  // a gate, unlike a4.mjs next door, because everything it asserts is offline
+  // and decided: the shipped prompt's schema and its lack of a voice, the
+  // parser's id closure (the anti-fabrication property — the resolver cannot
+  // name a row it was not shown), the union-not-replace composition, the
+  // two-lane call cap and fuse, the receipt gate, and the FAIL-SAFE proof —
+  // a hook that fails on every case is byte-identical to the old lexical
+  // matcher and never yields an unhedged receipt.
+  //
+  // It also re-derives A4's pre-registered headline (5.9% / 100% / 2 wrong
+  // rows) from its own emulation, so the two files agreeing is a check rather
+  // than a coincidence.
+  //
+  // Offline, $0, ZERO model calls — the live arm needs `--live` and an
+  // explicit lane, and is deliberately not reachable from here
+  // (`dryrun-still-spends`).
+  forgethook: "forget/a1.mjs",
+  // WS-FELTBATTERY (docs/MEMORY-FELT.md §9). The OFFLINE half of the
+  // felt-memory acceptance battery: 14 long-horizon dyads compiled through the
+  // REAL engine, the pre-registration hash checked against the committed
+  // manifest, every one of the eight behavioral laws covered by at least two
+  // probes, the named adversarial twins paired, every rubric linted as a
+  // rubric, and every context block a probe leans on asserted present on that
+  // probe's lane. Carries its own two negative controls. Offline, $0, ~2s.
+  //
+  // The JUDGED half (evals/feltmem/run.mjs --live) is deliberately NOT in this
+  // map, for exactly the reason the d0/d1 note above gives for D2: it spends
+  // money, and keeping it out of this object rather than skipping it in-loop is
+  // what makes that true by construction instead of by remembering.
+  feltmem: "feltmem/gate.mjs",
+  // WS-KNOWS. The "what she remembers" surface: the three pure selectors
+  // behind it, and the two ways it can fail that no layout review catches —
+  // offering a delete the item-scope cascade cannot actually perform (asserted
+  // against the real SQL in api/memory.js, ritual rows included as the
+  // negative), and drifting into a surveillance dashboard (no count rendered,
+  // no clock stamp anywhere, decided on the component's bytes). Offline, $0.
+  knows: "knows.mjs",
+  // WS-SOUND. The sound layer (src/sound/): the vocabulary is closed and every
+  // cue declares its haptic level, its mix and its span; there is exactly one
+  // path from a component to the speaker and it is downstream of every gate;
+  // nothing sounds before the first user gesture, with the toggle off, in a
+  // backgrounded tab, or while a call is live, connecting or sharing a screen.
+  //
+  // That last one is why this is a GATE and not a note. A cue during a call
+  // leaves the speaker, enters the mic and lands in the echo coefficient that
+  // evals/echosim/ measures the entire audio floor against, so a defect in
+  // this layer would be diagnosed in that one. It carries its own in-run
+  // negative control (the same fixture re-bundled with the in-call clause cut
+  // out, which MUST leak), because an assertion whose evidence is silence
+  // passes just as happily on a dead feature as on a working gate.
+  //
+  // Offline, deterministic, $0, no browser, no network, ~2s. It re-bundles
+  // from the REAL source on every run, same as this file does.
+  sound: "sound.mjs",
+  // WS-NOTIFY. The notification lane (src/notify/): a lock screen may only ever
+  // carry text she actually sent, which is asserted by the ABSENCE of any
+  // constructor that could produce a generic line rather than by grepping for
+  // one; the single permission ask is unrepeatable in both directions; the
+  // exact schedule payload is checked against a plugin recorder, emulator-free;
+  // and docs/PRODUCT-SUPERIORITY.md §5(c)'s lint is here — no notification call
+  // site takes a delay or an interval, enforced over the SOURCE because the
+  // failure it prevents is a future edit and no test that runs today's code can
+  // see one. Offline, deterministic, $0, ~3s.
+  notify: "notify.mjs",
+  // WS-RESILIENCE. The upstream failure ladder. On 2026-08-24 three of the
+  // owner's turns died on a SINGLE Google 502 with `retries:0`, `fallbacks:[]`
+  // and eight healthy keys untried, because api/chat.js folded every non-quota
+  // status into "every key would reject it identically" — true for 4xx, false
+  // for 5xx. The same turns then came back with the SAME canned connectivity
+  // pair three times in ninety minutes, because the draw was uniform with
+  // nothing forbidding a repeat.
+  //
+  // Every other gate here asks "does the code do the right thing when
+  // invoked", and none of them can invoke a 502. This one can: the upstream,
+  // the clock and the randomness are all functions, so the ladder is driven
+  // through 502-then-200, rotation, deterministic abort, pool-exhausted →
+  // grant lane, and everything-dead. Four cases carry an explicit negative
+  // control that re-runs them against the reverted classifier and asserts the
+  // battery FAILS — a green suite that would also be green against the bug is
+  // not a suite.
+  //
+  // It also lints the SOURCE for the folding coming back, which no test that
+  // runs today's code can see. Offline, deterministic, $0, ~4s.
+  resilience: "resilience/run.mjs",
+  // The labeled key pool: an owner-tag travels with each key so RCA can name
+  // WHICH account 429s, and a label can never reconstruct a secret. Hermetic.
+  keyring: "keyring/run.mjs",
+  // WS-COMPOSER. Sending more than one picture, with something written on it:
+  // the five-cap and its partial-accept behaviour, the total-byte rail, the
+  // collage a count resolves to, the `images` + `caption` wire shape and the
+  // legacy body it deliberately keeps for one uncaptioned picture, the caption
+  // threaded through screen and transcript and reply cycle, the proof that
+  // exactly one JPEG encoder sits on the picture-send path, and the two pieces
+  // of teardown state that evals/teardown.mjs's AppState walker structurally
+  // cannot see (the compose tray, and photoUrls riding inside messages).
+  //
+  // Wired here rather than left standalone because `dead-writers` does not stop
+  // applying to evals: a suite nothing invokes is indistinguishable from a suite
+  // that does not exist. Its BROWSER half (evals/composer-browser.mjs) is
+  // deliberately not in this map, for the by-construction reason the d0/d1 note
+  // above gives: it needs a built app and a server on a port, and a gate that
+  // skips looks exactly like a gate that passed.
+  //
+  // Offline, deterministic, $0, ~2s. Re-bundles from the real source on every
+  // run, like everything else here.
+  composer: "composer/run.mjs",
+  // WS-ASSETWIRE. Fifty-one generated files landed at their final paths
+  // referenced by NOTHING, and this suite is what stops that being true again
+  // in either direction: every path the app can request resolves on disk, and
+  // every file that ships is named by something.
+  //
+  // It is here rather than left standalone for the reason `dead-writers`
+  // gives, and it is a GATE rather than a note because everything it asserts
+  // is silent when it breaks. A wrong asset path renders an empty box that
+  // looks like spacing. An asset path written into `Message.reaction` instead
+  // of the emoji would stop reactions syncing and stop them reaching her while
+  // the thread carried on looking perfect. And the reduced-motion answer for
+  // an animated WebP is a BRANCH IN CODE rather than a stylesheet rule,
+  // because `animation: none` does nothing to a WebP — so it is the kind of
+  // thing a later edit deletes without any test noticing. That last one
+  // carries its own negative control: the reduce assertions are re-run against
+  // a component that ignores the query and MUST fail.
+  //
+  // It renders the real components through react-dom/server rather than
+  // grepping them, re-bundling from source on every run. Offline,
+  // deterministic, $0, ~2s. Its BROWSER half (evals/assetwire-browser.mjs) is
+  // deliberately not in this map, same by-construction reason the composer
+  // note above gives: it needs a built app on a port.
+  assetwire: "assetwire/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

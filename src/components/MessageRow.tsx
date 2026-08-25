@@ -28,10 +28,15 @@ import type { Message } from "../state/store";
 import { HER_NAME } from "../engine/persona";
 import { fmtTime } from "./fmtTime";
 import PhotoCard from "./PhotoCard";
+import PhotoGrid from "./PhotoGrid";
+import DocChips from "./DocChips";
+import { imagesOf } from "./attachments";
 import BigEmoji, { isSingleEmoji } from "./BigEmoji";
 import VoiceNote from "./VoiceNote";
 import GifBubble from "./GifBubble";
 import { PhoneIcon, TickIcon } from "./icons";
+import { ReactionGlyph } from "./anim";
+import replyMark from "../assets/stats/reply.svg?raw";
 
 /** WhatsApp's six, in WhatsApp's order — muscle memory is the whole point. */
 export const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "🙏", "👍"] as const;
@@ -58,6 +63,8 @@ export interface RowApi {
   /** tap a quote: go to the message it quotes, loading it in if it is older
    *  than the window */
   jumpToQuoted(m: Message): void;
+  /** tap a picture he sent: open it full-screen, on that one, swipeable */
+  openPhotos(m: Message, index: number): void;
   /** swipe-to-reply / drag-to-peek, bound to this message */
   swipe(m: Message): {
     onTouchStart(e: React.TouchEvent): void;
@@ -165,9 +172,37 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
   }
 
   if (m.kind === "photo") {
+    // What HE sent: one picture, or up to five as a collage. `imagesOf` owns
+    // the precedence between the new field and the legacy one, so this file
+    // never has to know which shape a stored message was written in.
+    const mine = m.from === "me" ? imagesOf(m) : [];
     return m.from === "me" ? (
-      <div className="msg me photo" data-row={m.id} {...sw}>
-        {m.photoUrl && <img className="pimg" src={m.photoUrl} alt="" draggable={false} />}
+      <div className={`msg me photo${mine.length > 1 ? " multi" : ""}`} data-row={m.id} {...sw}>
+        {mine.length > 1 ? (
+          <PhotoGrid urls={mine} onOpen={(i) => api.openPhotos(m, i)} />
+        ) : (
+          mine.length === 1 && (
+            // A BUTTON, not a bare image. Tapping a photo to see it larger is
+            // the one thing every person tries on every messaging app, and
+            // before this it did nothing at all. The keyboard gets it too,
+            // which a click handler on an <img> would not have given anyone.
+            <button
+              className="pimg-open"
+              data-tel="chat.photo_open"
+              onClick={(e) => {
+                e.stopPropagation();
+                api.openPhotos(m, 0);
+              }}
+              aria-label="Open photo"
+            >
+              <img className="pimg" src={mine[0]} alt="" draggable={false} />
+            </button>
+          )
+        )}
+        {/* documents ride ABOVE the caption, because the caption is about
+            everything he attached and a line sitting under one thing reads as
+            being about that thing */}
+        {m.docs?.length ? <DocChips docs={m.docs} /> : null}
         {m.text && <div className="cap">{m.text}</div>}
         <span className="t">
           {fmtTime(m.at)}
@@ -182,7 +217,17 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
     );
   }
 
-  const emo = emojiRun(m.text);
+  // A DOCUMENT MESSAGE IS A TEXT MESSAGE WITH FILES ON IT, deliberately.
+  //
+  // The obvious alternative was a new `Message.kind`, and it is the expensive
+  // one: nine readers across six files switch on `kind`, every one of them
+  // would have needed a branch that does nothing, and a kind nobody handles
+  // renders as an empty bubble in whichever one was missed. `docs` is a field,
+  // the caption is `text` exactly as it is for pictures, and every existing
+  // switch keeps working untouched — the same argument `Message.watched` makes
+  // for being a flag rather than a third `channel` value.
+  const docs = m.docs?.length ? m.docs : null;
+  const emo = docs ? 0 : emojiRun(m.text);
   // n=1 keeps the historical predicate exactly, so nothing that rendered as a
   // big animated emoji before renders differently now.
   const big = emo === 1 && isSingleEmoji(m.text);
@@ -190,7 +235,7 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
 
   return (
     <div
-      className={`msg ${m.from}${ramp} ${selected ? "sel" : ""}`}
+      className={`msg ${m.from}${ramp}${docs ? " hasdocs" : ""} ${selected ? "sel" : ""}`}
       onClick={() => api.toggleSelect(m.id)}
       // Quote-reply was tap-only, so on a keyboard it did not exist at
       // all. The thread is a roving-tabindex list now: ONE tab stop for
@@ -202,7 +247,12 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
       data-row={m.id}
       data-tel="chat.bubble"
       tabIndex={tabbable ? 0 : -1}
-      aria-label={`${m.from === "her" ? HER_NAME : "You"} at ${fmtTime(m.at)}: ${m.text}. Reply`}
+      // The files are named in the accessible name, because on a document
+      // message with no caption `m.text` is empty and the label would have
+      // announced the sender, the time and then nothing at all.
+      aria-label={`${m.from === "her" ? HER_NAME : "You"} at ${fmtTime(m.at)}: ${
+        docs ? `sent ${docs.map((d) => d.name).join(", ")}${m.text ? `. ${m.text}` : ""}` : m.text
+      }. Reply`}
       onFocus={() => api.focusRow(m.id)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -230,9 +280,13 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
               key={emoji}
               className={`react-pick ${m.reaction === emoji ? "on" : ""}`}
               aria-label={m.reaction === emoji ? `Remove ${emoji} reaction` : `React ${emoji}`}
+              // THE ARGUMENT IS STILL THE CHARACTER. `ReactionGlyph` paints
+              // our own artwork over it, and that is the whole extent of the
+              // change: what is stored, synced, transcribed and read to her is
+              // `emoji`, exactly as before. See ./anim.tsx's header.
               onClick={() => api.react(m, emoji)}
             >
-              {emoji}
+              <ReactionGlyph emoji={emoji} size={21} className="react-art" />
             </button>
           ))}
           <button
@@ -241,7 +295,15 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
             onClick={() => api.replyTo(m)}
             aria-label="Reply to this message"
           >
-            ↩
+            {/* The authored mark, inlined rather than fetched, because it is
+                drawn in `currentColor` and an <img> would resolve that against
+                the file instead of against this chip. Same reason as the site
+                wordmark's mask, one layer down. */}
+            <span
+              className="chip-mark"
+              aria-hidden="true"
+              dangerouslySetInnerHTML={{ __html: replyMark }}
+            />
           </button>
         </div>
       )}
@@ -279,6 +341,7 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
           )}
         </div>
       )}
+      {docs && <DocChips docs={docs} />}
       {big ? (
         <BigEmoji emoji={m.text} />
       ) : emo >= 2 ? (
@@ -296,7 +359,7 @@ function Row({ m, api, lastOfGroup, followsTyping, selected, tabbable, unheard }
         // Hangs off the bubble's bottom edge, so it reads as stuck ONTO the
         // message rather than sent after it.
         <span className="react-pill" aria-label={`Reacted ${m.reaction}`}>
-          {m.reaction}
+          <ReactionGlyph emoji={m.reaction} size={15} className="react-art" />
         </span>
       )}
       {/* Uncovered by dragging the thread left. aria-hidden because the

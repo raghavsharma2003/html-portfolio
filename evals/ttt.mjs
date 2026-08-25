@@ -307,6 +307,56 @@ const ok = (name, cond, extra = "") => {
   ok("draw is reported", act.facts.some((f) => /nobody won/.test(f)), JSON.stringify(act.facts));
 }
 
+// ═══ 5b. tttTalk: the DURABLE record ═══════════════════════════════════════
+//
+// `facts` is the present moment and expires with it; this is what is still
+// true next week. Before it existed a finished board left "3 moves in; she is
+// playing x; it is his move" in her memory, and the tester's report turned on
+// exactly this: he played chess and then tic tac toe, and the only game she
+// could still see was the one in the slot.
+{
+  let g = C.newTttGame();
+  for (const cell of [4, 0, 1, 3, 7]) g = C.playTtt(g, cell);
+  const rec = C.tttRecord(g, "x");
+  ok("the record exists", rec.length > 0, JSON.stringify(rec));
+  ok("it says which mark she had, in the PAST", rec.includes("she was x"), JSON.stringify(rec));
+  ok("it says who won and in how many", rec.some((f) => /^(she|he) won it in 5 moves\b/.test(f)), JSON.stringify(rec));
+  // WS-TTT added the SHAPE. "won it in 5 moves" is a scoreline; "won it on the
+  // middle column" is what a person actually carries out of a game of noughts
+  // and crosses, and it was the one durable fact this adapter had no word for.
+  ok("…and on which line", rec.some((f) => /won it in 5 moves, on the (top|middle|bottom) row|won it in 5 moves, on the (left|middle|right) column|won it in 5 moves, on the( other)? diagonal/.test(f)), JSON.stringify(rec));
+  // and where the marks ended up, which is what lets her answer "where did I
+  // go?" a week later instead of inventing a square
+  ok("…and where her marks were", rec.some((f) => /^she had /.test(f)), JSON.stringify(rec));
+  ok("…and where his were", rec.some((f) => /^he had /.test(f)), JSON.stringify(rec));
+  ok("and where it opened — the one move anyone recalls", rec.some((f) => /^(she|he) opened in centre$/.test(f)), JSON.stringify(rec));
+  for (const f of rec) {
+    ok(`record row <=14 words: "${f}"`, f.trim().split(/\s+/).length <= 14);
+    ok(`record row not sentence-shaped: "${f}"`, !/^[A-Z][^.?!]*[.?!]$/.test(f));
+    ok(`record row not first-person: "${f}"`, !/^(i\b|main\b|mai\b|mujhe\b|maine\b)/i.test(f));
+  }
+  // the live block must not carry it — a move list in front of a visible board
+  const act2 = C.tttActivity(g, "x", 0);
+  ok("the activity carries a record", Array.isArray(act2.record) && act2.record.length === rec.length);
+  ok("…and the facts are still just the moment", act2.facts.every((f) => !rec.includes(f)), JSON.stringify(act2.facts));
+  // an abandoned board says so rather than naming a winner
+  let open2 = C.newTttGame();
+  open2 = C.playTtt(open2, 0);
+  const openRec = C.tttRecord(open2, "o");
+  // WS-TTT: A TTT FACT NAMES THE GRID. This row used to read "left unfinished
+  // after 1 move", which is chess prose in a ttt hat — a chess game has an
+  // unbounded move number and that number IS the location, while a ttt board
+  // has nine squares and the honest location is how many nobody ever took.
+  ok("an unfinished board is remembered as unfinished", openRec.some((f) => /^left unfinished, 8 squares never taken$/.test(f)), JSON.stringify(openRec));
+  ok("…in English, not '1 squares'", !openRec.some((f) => /\b1 squares\b/.test(f)), JSON.stringify(openRec));
+  ok("…and names no winner", !openRec.some((f) => /won/.test(f)), JSON.stringify(openRec));
+  // and `endedEarly` — which was chess-only — names WHO left it
+  const earlyRec = C.tttRecord(open2, "o", true);
+  ok("an ABANDONED board names who abandoned it", earlyRec.some((f) => /^he left it unfinished, 8 squares never taken$/.test(f)), JSON.stringify(earlyRec));
+  ok("…and still names no winner", !earlyRec.some((f) => /won/.test(f)), JSON.stringify(earlyRec));
+  ok("an untouched board says nothing was played", C.tttRecord(C.newTttGame(), "x").some((f) => /before a move was played/.test(f)));
+}
+
 // ═══ 6. the imperfection is bounded — enumerated against the same referee ═══
 //
 // Reuses the referee and `tally` defined above §1. "She loses SOME of the

@@ -56,8 +56,16 @@ const WS_BASE =
 export interface LiveSession {
   stop: () => void;
   setMuted: (m: boolean) => void;
-  /** Speak an invisible directive (e.g. the pickup greeting trigger). */
-  direct: (contextNote: string) => void;
+  /**
+   * Speak an invisible directive (e.g. the pickup greeting trigger).
+   *
+   * `silent: true` makes it CONTEXT rather than a cue: the turn is appended
+   * to the session without `turnComplete`, so the server has it but she is
+   * not asked to answer it. That is the only shape in which a running memory
+   * note can be handed to a live call — a note that made her talk every few
+   * minutes would be a worse defect than the one it fixes.
+   */
+  direct: (contextNote: string, opts?: { silent?: boolean }) => void;
   /**
    * Stream a screen frame (base64 JPEG) — realtime co-watching. Returns
    * whether the frame actually entered the socket: a caller may only tell
@@ -962,7 +970,7 @@ const ACK_STYLE = "quiet, brief, barely-there listener sound, low energy";
 // field, so today these clips come back in the WRONG VOICE. Honouring `voice`
 // there (it is already validated against ALLOWED_VOICES, which contains Aoede)
 // is what makes this feature correct rather than merely working.
-const ACK_VOICE = "Autonoe";
+const ACK_VOICE = "Despina";
 const ACK_CACHE_V = "ack2"; // bump to invalidate every cached clip
 
 interface AckClip {
@@ -3062,7 +3070,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
               //     result), and unpinning it gives up the hi-IN phoneme
               //     handling her Hinglish depends on. Keep it pinned.
               speechConfig: {
-                voiceConfig: { prebuiltVoiceConfig: { voiceName: "Autonoe" } },
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: "Despina" } },
                 languageCode: "hi-IN",
               },
             },
@@ -3322,7 +3330,7 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
     setMuted: (m: boolean) => {
       muted = m;
     },
-    direct: (contextNote: string) => {
+    direct: (contextNote: string, opts?: { silent?: boolean }) => {
       // A clientContent turn with turnComplete:true is a hard turn commit: it
       // sets `interrupted` and guillotines her mid-word. Most callers of this
       // are screen-share wake-ups ("look at what just happened"), which is a
@@ -3330,13 +3338,23 @@ export async function startLiveCall(opts: LiveCallOpts): Promise<LiveSession> {
       // sitting next to someone. So while she is audibly speaking the note
       // waits for her to finish — capped, because a comment about a frame
       // that is two seconds gone is worse than no comment.
+      //
+      // `silent` sends the SAME frame with turnComplete:false, which is the
+      // protocol's own "append to the turn context without asking for a
+      // response". It is the whole reason a running memory note can exist:
+      // `contextWindowCompression: { slidingWindow: {} }` (the setup block
+      // above) drops the OLDEST turns of a long call, and the only way to put
+      // them back is to say them again as context — never as a cue. The wait
+      // is deliberately shared with the cue path: a silent frame cannot
+      // guillotine her, but keeping ONE code path here is worth more than the
+      // ≤1.2s it costs a note that nothing is waiting on.
       const send = () => {
         if (dead || !ws || ws.readyState !== WebSocket.OPEN) return;
         ws.send(
           JSON.stringify({
             clientContent: {
               turns: [{ role: "user", parts: [{ text: contextNote }] }],
-              turnComplete: true,
+              turnComplete: !opts?.silent,
             },
           }),
         );

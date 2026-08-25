@@ -217,8 +217,8 @@ const FREE_MODEL = "gemini-3.1-flash-tts-preview";
 //
 // To move her voice, move it HERE and in the two live speechConfigs together —
 // liveCall.ts and LiveWatchEngine.java — or this comes straight back.
-const DEFAULT_VOICE = "Autonoe";
-const ALLOWED_VOICES = new Set(["Leda", "Kore", "Aoede", "Zephyr", "Autonoe"]);
+const DEFAULT_VOICE = "Despina";
+const ALLOWED_VOICES = new Set(["Leda", "Kore", "Aoede", "Zephyr", "Autonoe", "Despina"]);
 const SAMPLE_RATE = 24000;
 
 // Bytes of PCM that prove a response is real audio rather than the empty-200
@@ -367,7 +367,17 @@ export default async function handler(req, res) {
        byte-identical to what this proxy has always wrapped in a WAV header.
        Generation runs 1.6–2.2x realtime, so after the first frame delivery
        never falls behind playback. ── */
-    const streamFree = async () => {
+    // Two-phase fuse. Phase 1: the fast fuse (FREE_FIRST_FRAME_MS) hunts for
+    // a key that answers at the healthy 615-1051ms the number was tuned to.
+    // Phase 2, only when EVERY key was merely slow rather than spent:
+    // ONE attempt with a long fuse. Measured 2026-08-24 22:30 UTC: Google's
+    // TTS preview degraded to 9.7-11.3s first frame on HEALTHY keys with
+    // real audio behind it — a fixed 1400ms fuse turned a slow night into
+    // total silence. Slow voice beats no voice; the pool's own rule ("a
+    // stale cooldown must never be the reason she goes silent") applies to
+    // fuses too.
+    const FREE_LONG_FRAME_MS = 15000;
+    const streamFree = async (frameMs = FREE_FIRST_FRAME_MS, slowBudget = undefined) => {
       if (!poolSize()) return false;
       const got = await withGeminiKey(async (k) => {
         // EACH KEY ATTEMPT STARTS ITS OWN ACCUMULATOR. Without this, a key that
@@ -389,7 +399,7 @@ export default async function handler(req, res) {
         const attempt = new AbortController();
         const giveUp = () => attempt.abort();
         freeAbort.signal.addEventListener("abort", giveUp, { once: true });
-        let deadline = setTimeout(giveUp, FREE_FIRST_FRAME_MS);
+        let deadline = setTimeout(giveUp, frameMs);
         const armed = () => {
           clearTimeout(deadline);
           deadline = null;
@@ -482,7 +492,7 @@ export default async function handler(req, res) {
           clearTimeout(deadline);
           freeAbort.signal.removeEventListener("abort", giveUp);
         }
-      });
+      }, slowBudget);
       return Boolean(got.value);
     };
 
@@ -589,6 +599,13 @@ export default async function handler(req, res) {
       await freeDone;
       clearTimeout(arm);
       if (winner === "free") return;
+      // every key was slow, none spent -> one long-fuse attempt before the
+      // paid lane: a 10s first frame is a bad night, silence is a broken one
+      if (!winner && poolSize()) {
+        const slow = await streamFree(FREE_LONG_FRAME_MS, 1).catch(() => false);
+        ownerDone("free");
+        if (slow || winner === "free") return;
+      }
       startPaid();
       await paidPromise;
     })().catch(() => {});

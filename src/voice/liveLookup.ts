@@ -99,12 +99,33 @@ export async function callLookup(said: string): Promise<string> {
       cached: !!body?.cached,
       klass: body?.class || "none",
       status: res.status,
+      skipped: body?.skipped || null,
     });
-    if (!facts) return "";
-    return note(facts, body?.confidence === "soft");
+    if (facts) return note(facts, body?.confidence === "soft");
+    // ── THE MISS IS NOT SILENT ANY MORE ─────────────────────────────────
+    // The tester: *"Asked her about a live match, she said she's checking but
+    // then just said something random."* This is where that came from, and it
+    // is not a persona failure. The lane's own design (the header above) is
+    // that she ALWAYS announces the check before the gap — and this function
+    // returned "" on every failure, so the announcement went out and nothing
+    // ever came back to answer it. She was left having promised a fact she
+    // had no way to get, mid-sentence, with the floor.
+    //
+    // `api/search.js` states the contract from the other side: *"`facts` is ""
+    // for anything the caller should treat as 'could not check' — the client
+    // already has an honest branch for that."* The CHAT client does. This one
+    // did not. It does now.
+    //
+    // `not_a_fact` is the one empty answer that must stay silent: the endpoint
+    // classified the question as having no fact to find, so there was never a
+    // check to come back from and telling her one failed would invent a
+    // failure. Every other empty — 502, 504, timeout, exhausted key, an
+    // assistant-voice frame break — is a real miss and she is told so.
+    if (body?.skipped) return "";
+    return missNote();
   } catch {
     diag("call", "lookup_done", { ms: Date.now() - t0, ok: false, klass: "error" });
-    return "";
+    return missNote();
   }
 }
 
@@ -121,6 +142,60 @@ Say the useful part out loud now, in one short spoken line, the way you'd read s
       ? "This one is just what the internet says, so keep it loose — no asserting it as fact."
       : "Round it, don't recite it."
   } If it doesn't actually answer what they asked, say you couldn't find it properly and move on — never fill the gap yourself. Never mention searching, looking up, or results.]`;
+}
+
+/**
+ * What she is told when the check came back with nothing.
+ *
+ * The rule it carries is the one the tester's report turns on, and it is
+ * stated as a PROHIBITION on the specific failure rather than as a mood: she
+ * may say she could not get it, and she may not produce the number. "Never
+ * fill the gap yourself" is lifted verbatim from `note()` above, because the
+ * two notes are answering the same question (what do you do with a gap) and
+ * two different answers to it is how one of them drifts.
+ *
+ * It never mentions searching, an app, or a network — the same fence `note()`
+ * carries, for the same reason: on this lane she has no phone the caller can
+ * see, and naming the machinery is the tell.
+ */
+function missNote(): string {
+  return `[not spoken by them — you glanced at your phone while talking and it gave you nothing. You do NOT have the answer.
+Say so out loud now, in one short spoken line: you couldn't get it right now, and you'll look properly and tell them after the call. Then move on.
+Do NOT say a number, a score, a name, a time or any detail you did not already know — never fill the gap yourself. Never mention searching, looking up, apps or the internet.]`;
+}
+
+/**
+ * Did SHE just promise to go and check something?
+ *
+ * The second half of the same defect, from the other end. `shouldLookUp` is
+ * deliberately narrow (measured 0 false fires in 55 ordinary turns), so there
+ * are factual turns it does not fire on — and on those she still announces a
+ * check, because the spoken register tells her to announce before a gap. The
+ * announcement is then the only thing that happened.
+ *
+ * So this reads HER transcript, and the caller fires the honest note when she
+ * promised a check that no lookup is going to answer. Present tense and
+ * first-person only: "dekh ke batati hu" is a promise, "dekh ke bataya tha" is
+ * a story about last week, and "tu dekh ke bata" is him asking her for
+ * nothing at all.
+ */
+const CHECK_PROMISE =
+  /\b(?:ruk(?:o|ja)?\s+(?:dekh|check)|dekh\s*ke\s+bata(?:ti|ta)\s*hu|dekh(?:ti|ta)\s*hu\b|check\s+kar(?:ti|ta)\s*hu\b|check\s*karke\s+bata|pata\s+kar(?:ti|ta)\s*hu\b|pata\s*karke\s+bata|dhund(?:h)?(?:ti|ta)\s*hu\b|search\s+kar(?:ti|ta)\s*hu\b|google\s+kar(?:ti|ta)\s*hu\b|let\s+me\s+check|lemme\s+check|i'?ll\s+(?:check|look)|hold\s+on,?\s+(?:let\s+me\s+)?check)\b/i;
+
+export function readsAsCheckPromise(herLine: string): boolean {
+  const s = String(herLine || "").trim();
+  if (s.length < 6 || s.length > 300) return false;
+  return CHECK_PROMISE.test(s);
+}
+
+/**
+ * The note for a promise nothing is going to answer. Same prohibition as
+ * `missNote`, different opening because nothing was ever looked at.
+ */
+export function checkPromiseNote(): string {
+  return `[not spoken by them — you just said you'd check something, and there is nothing in front of you: no result came back and none is coming.
+Say it straight in one short spoken line — you can't check it on the call, you'll look after and tell them. Then carry on with what you were saying.
+Do NOT invent the number, the score, the name or the detail to cover the gap. Never mention searching, looking up, apps or the internet.]`;
 }
 
 /** Test seam: forget the rate-limit window. */

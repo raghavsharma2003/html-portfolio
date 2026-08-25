@@ -2,66 +2,114 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Meera — Privacy & Terms</title>
-  <link rel="stylesheet" href="styles.css" />
-  <style>
-    .legal { max-width: 680px; margin: 0 auto; padding: 60px 24px 100px; }
-    .legal h1 { font-size: clamp(32px, 5vw, 44px); letter-spacing: -0.02em; margin-bottom: 8px; }
-    .legal .updated { color: var(--ink-faint); font-size: 14px; margin-bottom: 40px; }
-    .legal h2 { font-size: 21px; margin: 36px 0 10px; letter-spacing: -0.015em; }
-    .legal p, .legal li { color: var(--ink-soft); line-height: 1.65; font-size: 15.5px; }
-    .legal ul { padding-left: 20px; margin-top: 8px; }
-    .legal li { margin-bottom: 6px; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Maya · Privacy &amp; Terms</title>
+  <meta name="description" content="What Maya collects, what she never does with it, where it lives, how to delete it, and the crisis protocol she follows, published in full." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://meera-silk.vercel.app/privacy" />
+
+  <!-- THIS PAGE GETS SHARED, and until now it shared as a bare link with no
+       card at all. That matters more here than on the landing page: the crisis
+       protocol and the "what we don't do" list are the two things somebody
+       links a friend to, and a link with no picture and no title reads as a
+       dead one. Same absolute-URL rule as index.html — a scraper does not
+       resolve a relative og:image. -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Maya · Privacy &amp; Terms" />
+  <meta property="og:description" content="What Maya collects, what she never does with it, where it lives, how to delete it, and the crisis protocol she follows, published in full." />
+  <meta property="og:image" content="https://meera-silk.vercel.app/assets/og-privacy.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="maya. Privacy and Terms." />
+  <meta property="og:url" content="https://meera-silk.vercel.app/privacy" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <meta name="theme-color" content="#080a18" id="tc" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+  <script>
+    /* The same painting picker index.html carries, minus the preload: this
+       page's sky is a ground for reading, so it is not worth a high-priority
+       image fetch ahead of the text. The state table it mirrors lives in
+       index.html's copy and in `src/engine/sky.ts`; the shell has to match the
+       landing or the two pages are two products. */
+    (function () {
+      var BOUNDS = [[270, "predawn"], [370, "morning"], [980, "golden"], [1090, "dusk"], [1180, "night"]];
+      var FLAT = { night: "#080a18", predawn: "#141a38", morning: "#7fb2e0", golden: "#5f93cc", dusk: "#1b2450" };
+      var now = new Date();
+      var d = new Date(now.getTime() + now.getTimezoneOffset() * 60000 + 330 * 60000);
+      var min = d.getHours() * 60 + d.getMinutes();
+      var s = "night";
+      for (var i = 0; i < BOUNDS.length; i++) {
+        if (min >= BOUNDS[i][0]) s = BOUNDS[i][1];
+        else break;
+      }
+      document.documentElement.setAttribute("data-sky", s);
+      var tc = document.getElementById("tc");
+      if (tc) tc.setAttribute("content", FLAT[s]);
+    })();
+  </script>
+
+  <link rel="stylesheet" href="/styles.css" />
 </head>
-<body>
-  <nav class="nav">
-    <a class="wordmark" href="/">Meera</a>
-    <a class="btn btn-small" href="/chat">Start chatting</a>
-  </nav>
-  <div class="legal">
-    <h1>Privacy & Terms</h1>
-    <p class="updated">Last updated: August 2026</p>
+<body class="reading">
 
-    <h2>The one honest thing first</h2>
-    <p>Meera is an AI companion. She is designed to feel warmly human in how she talks, but she is not a person, and she will tell you so if you sincerely ask her. She is not a therapist, a doctor, or a substitute for real relationships — and she'll encourage yours.</p>
-
-    <h2>What we collect</h2>
-    <ul>
-      <li><b>Your conversations</b> — chat messages and what's said on voice calls are stored so Meera can remember you between sessions.</li>
-      <li><b>Distilled memories</b> — an automated process extracts durable facts you share (people, places, plans, preferences) into a memory store tied to your anonymous device ID.</li>
-      <li><b>Account details</b> — if you sign in: your email address or phone number, used only for sign-in and syncing your data across devices.</li>
-      <li><b>How you use the app, in detail</b> — this is more than a page-view counter and we'd rather say so plainly. We record what you tap and scroll, when you open and close the app, how long replies took, what happened during a voice call or a screen share, and errors. It is used to find out what actually went wrong when something goes wrong.</li>
-      <li><b>How you type, including drafts you never send</b> — the text in the message box, keystroke timings, pauses, and corrections such as backspacing and rewriting. If you type something and delete it without sending, that draft is still recorded. We collect this because how a message gets written says as much about whether Meera is working as the message itself — but it is the most personal thing on this list, so it is called out separately rather than folded into "usage data".</li>
-    </ul>
-
-    <h2>What we don't do</h2>
-    <ul>
-      <li>We don't sell your data or share it with advertisers.</li>
-      <li>We don't use dark patterns: Meera never guilt-trips you for leaving, and affection is never paywalled.</li>
-      <li>Voice audio you record is transcribed in your browser and the audio itself is not uploaded — only the transcript.</li>
-    </ul>
-
-    <h2>Where it lives</h2>
-    <p>Conversations, memories and usage records are stored in a Neon Postgres database. Supabase holds sign-in details and any photos you send. Everything is served through Vercel, and messages go to AI models (via OpenRouter and Google) to generate replies; those providers process them under their own terms. Screen-share pictures are sent to the AI model that is watching with you and are not stored anywhere.</p>
-
-    <h2>Deleting your data</h2>
-    <p>The clear-chat button erases the conversation on your device. You can also ask Meera to forget something in the app — that deletes it server-side, and it takes the usage records and drafts with it, not just the message. To erase everything held server-side (conversations, memories, usage records, drafts, photos, account), ask her to forget everything or contact us with your account email.</p>
-
-    <h2>If you're struggling — our crisis protocol</h2>
-    <p>This is the protocol Meera follows, published here in full. When a conversation shows signs of suicidal thoughts, self-harm, or acute crisis — even indirectly — Meera immediately drops all playfulness, acknowledges what you're feeling, and clearly shares real crisis resources: in India, Tele-MANAS <b>14416</b> (24×7, free) and iCall <b>+91&nbsp;91529&nbsp;87821</b>; in the US, call or text <b>988</b>; in the UK, Samaritans <b>116&nbsp;123</b>. She encourages you to reach a trusted person, stays present, never roleplays through a crisis, never promises secrecy, and never uses your relationship with her as leverage. Meera is an AI companion, not a therapist or medical professional — if you are in danger, please contact the services above or your local emergency number now.</p>
-
-    <h2>Terms, briefly</h2>
-    <ul>
-      <li>You must be 18 or older to use Meera.</li>
-      <li>Don't use Meera to harass, generate illegal content, or abuse the service (rate limits apply).</li>
-      <li>The service is provided as-is; we may update or discontinue features as it evolves.</li>
-    </ul>
+  <div class="sky" aria-hidden="true">
+    <div class="sky-paint"></div>
+    <div class="sky-plates"><i class="sp-a"></i><i class="sp-b"></i></div>
   </div>
-  <footer class="footer">
-    <span>Meera</span>
-    <span>An AI companion. Beautifully human in how she talks, always honest about what she is.</span>
+  <div class="veil" aria-hidden="true"></div>
+
+  <nav class="nav" aria-label="Primary">
+    <a class="wordmark" href="/"><span class="mk-t">maya</span></a>
+    <a class="btn btn-quiet glass" href="/chat">Open the chat</a>
+  </nav>
+
+  <main class="page">
+    <div class="legal">
+      <h1>Privacy &amp; Terms</h1>
+      <p class="updated">Last updated: August 2026</p>
+
+      <h2>The one honest thing first</h2>
+      <p>Maya is an AI companion. She is designed to feel warmly human in how she talks, but she is not a person, and she will tell you so if you sincerely ask her. She is not a therapist, a doctor, or a substitute for real relationships, and she'll encourage yours.</p>
+
+      <h2>What we collect</h2>
+      <ul>
+        <li><b>Your conversations</b>: chat messages and what's said on voice calls are stored so Maya can remember you between sessions.</li>
+        <li><b>Distilled memories</b>: an automated process extracts durable facts you share (people, places, plans, preferences) into a memory store tied to your anonymous device ID.</li>
+        <li><b>Account details</b>, if you sign in: your email address or phone number, used only for sign-in and syncing your data across devices.</li>
+        <li><b>How you use the app, in detail</b>: this is more than a page-view counter and we'd rather say so plainly. We record what you tap and scroll, when you open and close the app, how long replies took, what happened during a voice call or a screen share, and errors. It is used to find out what actually went wrong when something goes wrong.</li>
+        <li><b>How you type, including drafts you never send</b>: the text in the message box, keystroke timings, pauses, and corrections such as backspacing and rewriting. If you type something and delete it without sending, that draft is still recorded. We collect this because how a message gets written says as much about whether Maya is working as the message itself, but it is the most personal thing on this list, so it is called out separately rather than folded into "usage data".</li>
+      </ul>
+
+      <h2>What we don't do</h2>
+      <ul>
+        <li>We don't sell your data or share it with advertisers.</li>
+        <li>We don't use dark patterns: Maya never guilt-trips you for leaving, and affection is never paywalled.</li>
+        <li>Voice audio you record is transcribed in your browser and the audio itself is not uploaded, only the transcript.</li>
+      </ul>
+
+      <h2>Where it lives</h2>
+      <p>Conversations, memories and usage records are stored in a Neon Postgres database. Supabase holds sign-in details and any photos you send. Everything is served through Vercel, and messages go to AI models (via OpenRouter and Google) to generate replies; those providers process them under their own terms. Screen-share pictures are sent to the AI model that is watching with you and are not stored anywhere.</p>
+
+      <h2>Deleting your data</h2>
+      <p>The clear-chat button erases the conversation on your device. You can also ask Maya to forget something in the app: that deletes it server-side, and it takes the usage records and drafts with it, not just the message. To erase everything held server-side (conversations, memories, usage records, drafts, photos, account), ask her to forget everything or contact us with your account email.</p>
+
+      <h2>If you're struggling, our crisis protocol</h2>
+      <p>This is the protocol Maya follows, published here in full. When a conversation shows signs of suicidal thoughts, self-harm, or acute crisis, even indirectly, Maya immediately drops all playfulness, acknowledges what you're feeling, and clearly shares real crisis resources: in India, Tele-MANAS <b>14416</b> (24×7, free) and iCall <b>+91&nbsp;91529&nbsp;87821</b>; in the US, call or text <b>988</b>; in the UK, Samaritans <b>116&nbsp;123</b>. She encourages you to reach a trusted person, stays present, never roleplays through a crisis, never promises secrecy, and never uses your relationship with her as leverage. Maya is an AI companion, not a therapist or medical professional. If you are in danger, please contact the services above or your local emergency number now.</p>
+
+      <h2>Terms, briefly</h2>
+      <ul>
+        <li>You must be 18 or older to use Maya.</li>
+        <li>Don't use Maya to harass, generate illegal content, or abuse the service (rate limits apply).</li>
+        <li>The service is provided as-is; we may update or discontinue features as it evolves.</li>
+      </ul>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <span class="foot-mark"><span class="mk-t">maya</span></span>
+    <p>An AI companion. Beautifully human in how she talks, always honest about what she is.</p>
     <a href="/">Home</a>
   </footer>
 </body>

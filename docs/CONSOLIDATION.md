@@ -62,24 +62,89 @@ the workflow files themselves need no changes to start working.
 
 | trigger | mechanism | cadence | reaches production today? |
 |---|---|---|---|
-| `api/consolidate-sweep.js` cron | Vercel `crons` (`vercel.json`) | hourly, `0 * * * *` | **yes** — the only live mechanism |
+| `api/consolidate-sweep.js` cron | Vercel `crons` (`vercel.json`), real only when `CONSOLIDATE_SWEEP_LIVE=1` | hourly, `0 * * * *` | **yes** — the only live mechanism, and since 2026-08-23 the only one that runs the WHOLE chain |
 | `.github/workflows/consolidate.yml` | GitHub Actions `schedule` | nightly, 03:30 IST | no — not on `main`, see above |
 | day-1 seed | `src/engine/memory.ts:seedDayOneConsolidation`, fire-and-forget `POST /api/consolidate {device}` | once, right after onboarding | yes, but scoped to exactly one person and never retried |
 | manual/admin | `POST /api/consolidate {limit, dryRun, person}` | on demand | yes, human-triggered only |
 
-The sweep **ships dry-run-by-default** (see `vercel.json`'s cron path — no
-`?dryRun=0`), so simply deploying this change spends nothing. Two independent,
-deliberate steps turn it on for real:
+### Turning it on (WS-SPINE, 2026-08-23) — read this whole section first
 
-1. Set `CRON_SECRET` (or `CONSOLIDATE_SWEEP_SECRET`) in the Vercel project's
-   environment variables — without one of these the endpoint 403s
-   unconditionally, cron included. `CRON_SECRET` is Vercel's own convention:
-   when it is set, Vercel automatically sends
+**Step 2 below never happened, and that is why the derived layer is still
+empty.** The sweep shipped dry-run-by-default on 2026-08-18 (correctly — an
+unattended hourly job must not turn spend on by accident), and the deliberate
+second step was never taken, so every hourly firing since has returned an
+arithmetic report and called no model.
+
+**That second step has changed, and the old instruction below was replaced
+rather than followed.** It used to say: set the cron `path` to
+`/api/consolidate-sweep?dryRun=0`. Checked against Vercel's documentation on
+2026-08-23: the `crons` entry documents exactly two properties — `path`
+("must start with /") and `schedule` — and nothing in the docs says a query
+string on `path` is accepted, preserved or forwarded. It might work. That is
+not a good enough basis for the one config file whose rejection takes the
+whole deployment with it, in order to enable the one job that spends money.
+**The switch is now the env var `CONSOLIDATE_SWEEP_LIVE`**, which needs no
+deploy, cannot invalidate `vercel.json`, and lives in the same dashboard as
+`CRON_SECRET`. The endpoint still honours `?dryRun=0` by hand.
+
+There was a second, quieter reason nothing rendered, and it would have
+survived the flag being flipped: **the sweep called `runConsolidation` and
+nothing else**, while `consolidate.yml` chains six steps. Episodes and facts
+would have appeared and every derived table — `vy_rel_state`, `vy_pattern`,
+`vy_phrase`, `vy_rel_texture`, `vy_self_arc` — would have stayed empty, so
+T2/T3/T4/T6/T11/T12 would still render zero bytes while the run report showed
+cost and progress. The sweep now calls `runFullChainForPerson`, which is that
+workflow's order, in process.
+
+**What has to be true before the first real run:**
+
+1. `CRON_SECRET` (or `CONSOLIDATE_SWEEP_SECRET`) is set in the Vercel project.
+   Without one of these the endpoint 403s unconditionally, cron included.
+   `CRON_SECRET` is Vercel's own convention: when set, Vercel sends
    `Authorization: Bearer $CRON_SECRET` on every cron invocation.
-2. Change the cron's `path` in `vercel.json` to
-   `"/api/consolidate-sweep?dryRun=0"` and redeploy. Until that edit lands,
-   every hourly firing returns a report (persons lagging, rows pending,
-   estimated LLM calls) and calls no model.
+2. **`node db/migrations/apply.mjs 014`** has been run. It adds
+   `vy_kin.provisional` and `vy_rel_texture.drift`/`drift_cites`. Additive,
+   idempotent, no rewrite. Without it the kin writer throws on every row
+   (loudly — see `kin_errors` in the run report) and the drift columns do not
+   exist.
+3. `node scripts/consolidate-first-run.mjs` has been run with **no flags** (it
+   costs nothing and prints the plan), and then once with `--confirm`, and a
+   human has read the per-person output.
+
+**Then**, and only then, set `CONSOLIDATE_SWEEP_LIVE=1` and let the hourly
+cron take over:
+
+| control | effect |
+|---|---|
+| **`CONSOLIDATE_SWEEP_LIVE=1`** | **real run. This is the switch.** No deploy needed. |
+| `?dryRun=0` / `POST {"dryRun":false}` | real run for that one invocation, by hand |
+| `?dryRun=1` / `POST {"dryRun":true}` | forces arithmetic-only, overrides the env flag |
+| **`CONSOLIDATE_KILL=1`** | **stops everything on the next firing. No deploy. Checked before the lag query, the lease and any model call, and it overrides an explicit real-run POST.** |
+
+**The rails, so the first unattended run over a backlog cannot run away:**
+
+| rail | default | env |
+|---|---|---|
+| people per invocation | 3 (hard max 10) | `POST {"limit":N}` |
+| log rows per person per sweep | 220 | `LOG_BATCH_CAP` (exported from `api/consolidate.js`) |
+| LLM calls per invocation | 24 | `CONSOLIDATE_MAX_CALLS` |
+| tokens per invocation | 400,000 | `CONSOLIDATE_MAX_TOKENS` |
+| wall clock | 200s of a 300s `maxDuration` | — |
+
+The call and token ceilings are checked **between people, never mid-person**,
+and they count **attempts, not successes** — a provider failing every call
+would otherwise register zero spend and run forever. Every real run prints its
+measured `spend` block; the USD line multiplies measured tokens by
+`CONSOLIDATE_USD_PER_MTOK_IN`/`_OUT`, which are configured **assumptions** and
+are labelled as such in the response.
+
+**Measured backlog, 2026-08-23** (`node scripts/consolidate-first-run.mjs`,
+read-only): 10 people lagging, 174 rows pending, 10 person-sweeps to drain,
+~4 hours at the current 3-per-hour budget, roughly $0.03 typical / $0.05 worst
+case through the full six-step chain. This is much smaller than the 2,025 rows
+`never-scheduled` measured on 2026-08-18 — most of that backlog has since been
+cleared by `scripts/migrate/backfill-episodes.mjs`. Re-run the script before
+believing any number in this paragraph; it reads live lag and costs nothing.
 
 Manual trigger, real run, one call:
 
@@ -222,11 +287,11 @@ here, is below.
 
 Nothing here required editing `api/consolidate.js` internals — `runConsolidation({ onlyPerson, limit, dryRun })` (already exported) was sufficient for both the sweep and the backfill script. Two small, non-behavior-changing exports would remove real duplication and close the gap above, if whoever owns that file wants them:
 
-1. **Export `LOG_BATCH_CAP`.** Both new files here hardcode `220`, matching
-   the private constant at `api/consolidate.js`'s line ~84, with a comment
-   pointing at it. If that constant ever changes, these two copies silently
-   go stale. A one-line `export` removes the duplication instead of the
-   comment removing the risk.
+1. ~~**Export `LOG_BATCH_CAP`.**~~ **DONE (WS-SPINE, 2026-08-23.)** It is
+   exported from `api/consolidate.js` and imported by both
+   `api/consolidate-sweep.js` and `scripts/backfill-consolidate.mjs`. Two
+   copies of a cost ceiling go stale silently, and the comment saying so did
+   not stop them — it only recorded that someone knew.
 2. **A person-scoped claim hook inside `finalizePerson`** (or a lease
    parameter `runConsolidation` threads through to it) would let the day-1
    seed handler, a future working nightly cron, and this sweep all share
@@ -282,3 +347,76 @@ the same backlog; they do not conflict (both leave `meera_log.episode_id`
 claimed either way) but running both is redundant. Worth an owner's eyes,
 not resolved by this workstream — see the file header of
 `scripts/backfill-consolidate.mjs` for the full comparison.
+
+
+---
+
+## The watch contract (WS-SPINE, 2026-08-23)
+
+Watch-derived turns are arriving in `meera_log` with `channel = 'watch'`.
+Their content is **not something he said** — it is what a vision model read
+off his SCREEN. Consolidation therefore treats a watch row as never a source
+of a durable fact, a kin row, a ritual, an address-term reading, a
+code-switch sample, or a captured phrase. It does not enter any prompt
+consolidation builds.
+
+Enforced in two layers everywhere (`api/consolidate.js`'s WATCH CONTRACT
+section): `WATCH_EXCLUDE_SQL` in every `meera_log` WHERE, and
+`stripWatchRows` over the fetched rows. `finalizePerson` additionally refuses
+to derive at all if a watch row somehow reaches its batch. The sweep's lag
+query excludes watch rows from `pending_rows` too — otherwise they would be
+permanent phantom lag: never derivable, therefore never claimed, therefore
+selected every hour forever.
+
+Gated by `evals/consolidation/run.mjs` (in `evals/run.mjs`, so it runs in
+`verify-release`), whose negative arm puts fabricatable biography — a
+diagnosis, a salary, a boarding pass — in front of the pipeline and asserts
+none of it is cited by anything.
+
+### Watch episodes finalize deterministically
+
+`api/episodes.js` opens a watch episode with `summary = ''` and NULL log
+span, which `finalizePerson` structurally cannot finalize — so before this
+change such a row stayed provisional forever and re-pinned its person in
+`findEligiblePersons` on every sweep. With a bounded per-invocation person
+budget that is starvation, not waste: the same pinned people are selected
+every hour and the queue behind them never runs.
+
+`finalizeWatchEpisodes` now closes them: no LLM, no claim about what was on
+screen, a summary built from a COUNT of her own `vy_shared_moment` rows
+("watched together, 3 shared moments"). Its quiet window (60m) deliberately
+exceeds `api/episodes.js`'s `GAP_MS` (45m) so it never races the live lane
+into fragmenting a session that was still going.
+
+
+## Two stoplists, one list — the phrase-capture seam (2026-08-23)
+
+`api/consolidate.js`'s deterministic phrase capture imports `RECALL_STOP` from
+`api/memory.js` as half of its stoplist. Those two callers want opposite
+things from the same list:
+
+- **Recall** wants to MATCH on what someone said, so a content-bearing word
+  must NOT be a stopword. WS-RECALL removed `kaam` and `baat` on 2026-08-23
+  for exactly this reason, and was right to.
+- **Phrase capture** wants the one string nobody else would say, so a
+  content-bearing word that everyone says is precisely what it must ignore.
+
+The old rule skipped an n-gram only when EVERY token was a stopword, and
+neither `RECALL_STOP` nor `HINDI_MARKER_WORDS` contains the bare postpositions
+(`ka ki ke ko se na to hi`). So `kaam ka pressure`, `baat hi nahi`, `ghar se
+kaam` all survived, and any of them said on three different days would have
+become a **coined phrase** she says back as something they invented together.
+
+The fix is `PHRASE_PLAIN_VOCAB` plus `phraseIsDistinctive`: a coined phrase
+must carry **at least one** token that is not a stopword, not a Hindi function
+marker, and not everyday vocabulary. Coverage of that list is deliberately not
+exhaustive (same posture as `FESTIVAL_CALENDAR`); it is the precision layer,
+not the only one — capture is still capped at one per person per night and
+gated on >=3 distinct days. When a bad capture is found in production, the
+repair is a row in that list plus deleting the phrase, never a runtime
+frequency cut (which shrinks as the corpus grows).
+
+Guarded by `evals/consolidation/run.mjs` G4.12-G4.16, which read the LIVE
+`RECALL_STOP` rather than a mirror — the point is to notice when it changes
+again — and include a negative control proving the plain-vocabulary fixture
+is rejected by the distinctiveness rule and not by the days threshold.

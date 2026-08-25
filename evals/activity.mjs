@@ -12,6 +12,7 @@ import {
   chessActivity,
   moveFact,
   exchangeFact,
+  chessMoveNote,
   newGame,
   play,
   assessLast,
@@ -156,7 +157,13 @@ ok("whitespace fact yields no note", activityNote("   ") === "");
   ok("exchange is one line, no dialogue", !/["“”]/.test(ex) && ex.split("\n").length === 1, ex);
   // and the call lane actually uses it
   const call = readFileSync(new URL("../src/components/useCallEngine.ts", import.meta.url), "utf8");
-  ok("poke builds the exchange fact", /exchangeFact\(his, hers/.test(call));
+  // WS-MOVEVOICE moved the COMPOSITION one layer down, into chessTalk's
+  // `chessMoveNote`, so that the clause stating the choice is closed cannot be
+  // dropped by an edit to the call lane (evals/movevoice.mjs gates that half).
+  // The property this line guards is unchanged — the poke describes the
+  // EXCHANGE and hands the composer both assessments, his first.
+  ok("poke builds the exchange fact", /chessMoveNote\(cur\.game, cur\.herSide, his, hers/.test(call));
+  ok("…and the composer leads with his move", /^he played Nf3/.test(chessMoveNote(eg, "b", his, hers, "her")));
   ok("poke has a quiet floor on HIS voice", /lastHeardAt\.current < 2500/.test(call));
   // ── batch-2 discipline: she comments when the board EARNS it ───────────
   // The owner watched the alternative: a note landing in every breath-pause
@@ -177,8 +184,19 @@ ok("whitespace fact yields no note", activityNote("   ") === "");
   // computed — three directive sites, one truth.
   ok("pickup carries the context on every lane",
     (call.match(/CALL_OPEN_DIRECTIVE\(pickupOpts\(\)\)/g) || []).length >= 3, "want 3 sites");
-  ok("pickupOpts derives the scene from the single derivation",
-    /scene: activityPickupLine\(activityOf\(/.test(call));
+  // WS-HERNOW moved this one line. The scene used to be the app truth ALONE
+  // — `activityPickupLine(activityOf(state.game))` — which is "" on every
+  // call with no board on screen, and an empty scene fell through to the
+  // directive's improv clause, which re-rolled her present moment at each
+  // pickup (the fairy-lights report). The app truth is still the FIRST term
+  // and still comes from this file's single derivation; what changed is that
+  // there is now a second term underneath it instead of an empty string.
+  ok("pickupOpts still derives app truth from the single derivation",
+    /activityOf\(stateRef\.current\.game, now\)/.test(call) &&
+      /line: activityPickupLine\(act\)/.test(call));
+  ok("pickupOpts derives the scene from the herNow ledger",
+    /scene: herNowScene\(presentNow\(now\)\.entry, now\)/.test(call),
+    "see evals/hernow.mjs for the two fixtures this line exists for");
   ok("pickupOpts derives last-call recency from callmarks",
     /kind === "callmark"/.test(call) && /lastCallMinAgo/.test(call));
   ok("the caller direction reaches the engine", /sheCalled = false/.test(call));
@@ -228,7 +246,15 @@ ok("whitespace fact yields no note", activityNote("   ") === "");
 {
   const chat = readFileSync(new URL("../src/components/Chat.tsx", import.meta.url), "utf8");
   ok("teardown clears the game", /clearedAt: Date\.now\(\),[\s\S]{0,900}game: null/.test(chat));
-  ok("teardown clears the callback", /game: null,\s*\n\s*callback: null/.test(chat));
+  // The three now sit together and the assertion no longer demands they be
+  // ADJACENT: `activities` (the ledger of games already finished) joined them,
+  // and a check that pins line order is a check that fails on the next correct
+  // addition. What it pins is that all three are cleared in the same wipe.
+  ok("teardown clears the callback", /game: null,[\s\S]{0,900}callback: null/.test(chat));
+  ok(
+    "teardown clears the finished-game ledger too",
+    /game: null,[\s\S]{0,900}activities: \[\]/.test(chat),
+  );
   ok("undo restores the game too", /game: snap\.game/.test(chat));
 }
 

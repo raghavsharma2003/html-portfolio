@@ -2373,3 +2373,484 @@ identity verified INSIDE the artifact before delivery. Session totals:
 ~27 shipped slices, eval counts at close: honesty 351, sky 167,
 teardown 187, burst 119, greeting 75, feel/world/back browser
 batteries all green, verify-release 13/13 throughout.
+
+---
+
+## `phase3-thread-onboarding-settings` — 2026-08-22, WS-PHASE3 + WS-LANDING
+
+Method: real-pixel sampling of decoded shipped JPGs composited under the
+authored veils (check-contrast, prefix-walk over 20 bands for the landing,
+full-frame x {avg,darkest,brightest} for the thread); Playwright frame
+sampling for perf; n as stated.
+
+- Thread ground text worst case (all 5 states x 2 themes x 3 bands x 3
+  stats): 4.70:1 (floor 4.5). Chips 5.48:1. Control edges 3.49:1 (floor 3).
+- Wallpaper presence A/B: ground luminance sd 0.00 -> 4.47 (dark night),
+  0.00 -> 1.22 (light morning). The 0.00 IS the owner's two screenshots.
+- Thread scroll perf, 300 messages, 90 sampled frames: p95 17.30ms ->
+  17.20ms (0.994x), median 16.60 -> 16.70. Wallpaper box static across
+  all sampled frames.
+- Typing indicator vs last bubble: -0.7px overlap -> +13.3px gap;
+  asserted at n=4 and n=300 threads and 40 samples across a burst.
+- AI-disclosure footer on sheet glass: 2.69:1 on `--ink-faint` ->
+  passes on `--ink-dim` (token choice now pinned).
+- Injected-violation battery: 8/8 caught (translucent bubble, void veil,
+  thinned light veil, drifted dark blocks, shadow-only lift, faint
+  footer, thinned sheet glass, restored typing bug).
+- Landing first view (phone 390): 830KB -> 392KB night / 445KB golden
+  worst; above-the-fold 241-294KB; privacy 221-226KB. Hero text worst
+  4.83:1 under the prefix-walk (content only moves UP the fixed painting).
+- Eval counts at close: sky 180, persona 206, browser battery 115 checks
+  / 43 shots (thread+onboarding+settings), landing negative-tests 8/8,
+  verify-release 13/13 twice.
+
+---
+
+## `sweep-2026-08-22` — every remaining surface held against the world
+
+Method: 28 audit screenshots -> ranked defect list -> 110 after-frames
+(13 surfaces x light/dark x night/morning x 390/320 x reduced-motion),
+contrast gate extended and negative-tested.
+
+- 11 surfaces fixed, 3 proven NO-CHANGE with frames (CallVoice, auth
+  body, settings sub-sheets). Contrast gate 213 -> 268 checks, 6/6
+  injected violations caught.
+- Two stale hand-copies found still citing the call screen's REMOVED
+  gradient as their reason; both deleted rather than edited.
+- Gate bug fixed: first-block-per-selector reads masked later
+  overrides (same class of hole as the .msg.her double-declaration).
+- New anti-pattern pinned: a pure-white board cell passes every
+  contrast ratio and is still wrong on a painting; the gate now
+  requires tinted-not-neutral, read from the block the board uses.
+
+---
+
+## `callcost-2026-08-23` — what a minute of Meera costs (WS-CALLCOST)
+
+Method: lane constants read from the shipping code, prices fetched
+2026-08-23 from ai.google.dev/gemini-api/docs/pricing (they DOUBLE on
+2027-01-01 per the page), arithmetic reproducible at the scratchpad
+calc script; bands = her talk share 0.25/0.39/0.55.
+
+- List price per TYPICAL minute: live voice $0.0142, cascade voice
+  $0.0289, live+screen-share $0.0374, cascade+screen-share $0.109
+  (0.080 warm-cache to 0.399 cold: vision cache-hit rate UNMEASURED,
+  5x uncertainty). Today-cost $0 until the free pool's daily budget
+  exhausts; N minutes/day of free capacity is unmeasured.
+- 30 min/day month: live $13 (Rs.1,096), cascade $26 (Rs.2,210, within
+  2% of decisions.md's independent Rs.2,260), live+share $34.
+- Dominant drivers: video frames (47-65% of a share minute), her output
+  audio ($12/1M live, $20/1M cascade TTS: the fallback lane costs 2x),
+  the 44.8k-char system instruction (billed per cascade TURN and per
+  goAway rotation, ~$0.0105/rotation; video shortens rotation cadence).
+- Silent multipliers found: frames sent at 1.67fps against a documented
+  1fps ceiling (billing ambiguity up to 14x, ONE usageMetadata probe
+  settles it); flush frames ignore scene-change gating (up to a third
+  of the video bill on a frozen screen); MAX_ROTATES=6 drops to the
+  ~100x-cost cascade+vision lane on a server event nobody watches; a
+  greeting think+TTS is paid per call and usually discarded ($0.0044).
+- cache-9x's "cost is not the constraint" verdict SURVIVES for voice
+  ($5k = ~35,200 ten-minute calls, unchanged) and DOES NOT survive for
+  screen share (~13,400 live / ~4,600 cascade).
+- Ranked unmeasured: real usageMetadata per call, real talk share,
+  vision cache-hit rate, free-tier N, goAway rate while sharing.
+
+---
+
+## `tester-wave-1` — 2026-08-23, first external tester (Gaurav)
+
+Method: WhatsApp feedback + chat screenshots reproduced as scripted
+flows; every fix eval-pinned; n as stated per suite.
+
+- Honesty checks 351 -> 393 (family 6, activity specifics; the tester's
+  7 fabricated lines are permanent must-fail negatives, and the same
+  "catalan" sentence passes against a Catalan record).
+- callmem eval 195 assertions (call brief carries yesterday + last
+  call + game ledger; budgets pinned: shared history 700B, activities
+  300B, live tail 20,895/24,000, live+watch 23,047/24,000).
+- Echosim floor: byte-identical tables before/after, run twice
+  (5 couplings x 8 seeds x 2 arms).
+- Farewell detector: 20 positives fire, 23 adversarial negatives do
+  not ("bye bolna galat laga" class); ends 1.4s after her goodbye.
+- game-invite detector 123 assertions (negative-heavy by design);
+  gameplay browser battery 87 assertions incl. full chess games from
+  the black seat (133 and 86 plies, castling + promotion).
+- Persona: core 45,494 under the 45,500 tripwire after three trims;
+  assembled tripwire deliberately raised 50000 -> 51000 (dated
+  rationale at the check; growth cost ~$0.0004/session).
+- Tester positives preserved and logged: voice clarity/latency praised,
+  callback-on-drop praised, chat-side cross-modal memory worked.
+
+---
+
+## `memory-wave-2026-08-23` — the world-class memory wave, measured
+
+Method: WS-MEMAUDIT 12-scenario matrix through the real compiled engine,
+then four workstreams, each gated; numbers below are before -> after.
+
+- recall@8 on the labelled fixture set: 73.9% -> 95.7%; queries answered
+  76.9% -> 92.3%; false fires 0 -> 0. Hinglish tokenizer: 13/19 -> 17/19
+  real queries non-empty, 14 negative probes 0 fires.
+- Mid-call memory cues: 9/9 recall, 0/12 false fires, note <=500B.
+  Running note carries minute-3 AND minute-12 facts to minute 40.
+- Lane parity: T1-T16 + sub-blocks rendered per lane under a full
+  fixture (158 assertions); watch exemptions each carry a stated reason
+  at the call site; pre-fix dark lanes reproduced as negative control.
+- First-ever consolidation run, measured read-only against prod:
+  10 people, 180 pending rows, ~$0.03 typical / $0.05 worst.
+- Kin precision traps: 5/5 third-party shapes refused with reasons.
+- Cross-device: 18/18 two-real-contexts browser assertions incl.
+  clear-chat tombstone against a stale peer.
+- Hinglish-forget baseline PRE-REGISTERED: adversarial recall 5.9%
+  (1/17), controls 100%, 100% when the model resolves the referent;
+  the yardstick for survey A1, not fixed this wave.
+- Call-lane byte bound: was passing by omission (~5,920B of relational
+  blocks uncounted); now counts them, cap 24,000 -> 30,000 with
+  rationale, landing at 98.0%/99.0%.
+- Suite counts: callmem 323, recall 209, consolidation 98, lanes 158,
+  sync +22, milestones +41, forgetlex 34, game-invite 123.
+
+---
+
+## `feltmem-rehearsal-2026-08-23` — the battery's first judged run (underpowered, archived)
+
+Method: pre-registered battery (hash 4e2f7f51..), blind both-orders A/B,
+arms = pre-wave build vs current, judge anthropic/claude-opus-4.8 via
+OpenRouter. Run TRUNCATED by the OpenRouter key's total limit: 241 of
+1,320 judgments landed, n=130/arm < the 300 floor, so per
+fab-noise-floor NO rate below is citable; verdict label: rehearsal.
+$2.2372 spent. Archived: evals/feltmem/runs/judged-2026-08-23-REHEARSAL.json.
+
+- Direction only: law 1 retold-not-recited +0.89, law 7 human-time
+  +0.84 (the wave's two directly-built laws), ammunition flags halved
+  (30 to 16). Preference 5.4pp (needs 10 at power).
+- Permanent-negative flags fired on BOTH arms (fabricated 35 pre /
+  31 cur) — before the powered run, VERIFY whether the battery's
+  generation path runs the full brain gate chain; if it does, the
+  judge's "fabricated" is catching classes outside family 4/6 coverage
+  and that is the next honesty frontier; if it does not, the battery
+  is judging ungated output and must be fixed first.
+- BLOCKER for the powered run: OPENROUTER_KEY total limit exceeded —
+  which ALSO means production's cash fallback lane is dead until the
+  key is topped up; free pool alone carries production today. Owner
+  action. Alternative: qualify the Azure grant judges (#57).
+
+---
+
+## `judge-qualification-2026-08-23` — every zero-cash judge measured, none passes
+
+Method: judge-backtest.mjs against the archived blind verdicts
+(charm-grok + charm-luna, ground truth anthropic/claude-opus-4.8),
+80% pooled-agreement bar, both-orders-agree rule. $0 cash (Azure grant).
+
+- DeepSeek-V4-Flash 27.4% [19.4,37.1], gpt-5.6-terra 52.1% [42.2,61.8],
+  grok-4.3 34.4% [25.6,44.3] — ALL FAIL, all with heavy slot-A position
+  bias (58-81%). qualified_panel remains empty.
+- Remaining zero-cash candidate: gemini-3.6-flash as judge via the
+  OpenAI-compatible endpoint on EVAL-ONLY keys (config committed,
+  unqualified until backtested). The powered feltmem run therefore
+  WAITS on ~11 fresh AIza eval keys (owner: not right now) — the
+  one-command runner scripts/feltmem-overnight.mjs refuses to spend
+  under an unqualified judge.
+- Also measured: a pasted "AQ."-prefixed Google credential is not an
+  API key shape and returns 403 project-denied; only AIza keys join
+  any pool, after a live probe.
+
+## `sound-browser-2026-08-23` — the sound layer, in a real browser (WS-SOUND)
+
+Method: `evals/sound-browser.mjs`. Chromium (playwright), 390x844, the app
+built and served by `vite preview`, `/api/chat` stubbed so the script is
+deterministic and costs $0. `AudioContext` is patched by an init script that
+runs BEFORE any app code, recording every context constructed and every source
+node started; the sound layer's context is identified by its `latencyHint:
+"interactive"` (the voice lane builds its contexts bare). Node starts are
+grouped into CUES by a 25ms gap, because a cue schedules all its voices in one
+synchronous block and the module's own throttle floor is 70ms. n = 1 run per
+case, 5 cases; every number below is a count, not a sample.
+
+- AudioContexts belonging to the sound layer before the first user gesture: **0**
+  (app mounted, home painted, thread restored, layer armed).
+- After the first gesture: **1**, and **0 cues** — unlocking is silent, and a
+  restored thread full of her messages is not an arrival.
+- Her opener in a fresh chat: **1 cue**.
+- One send: **1 cue**.
+- A three-bubble reply: **2 cues total** (one send + one arrival), not 4.
+- Toggle tapped off in Settings: **0 cues** on the next send, and `soundOn:
+  false` in localStorage.
+
+Offline gate (`evals/sound.mjs`, fake AudioContext, ~2s, $0): every cue is
+scheduled within its declared span, respects its declared peak, and carries
+both layers (a noise transient AND a pitched body). Absolute peak of the
+loudest cue = 0.75 x 0.34 master = **0.255** of full scale; ceiling 0.28.
+Palette spans 0.55-0.75 relative, so the set is ranked rather than flat.
+Negative control in the same run: with the in-call clause deleted from the real
+bundle, a live call DOES leak a cue.
+
+Not measured, and deliberately not implied: whether any of it sounds good, and
+whether Android's ringer switch silences it. Neither is reachable from this
+harness. `src/sound/index.ts` states the iOS half as `[unmeasured, platform
+documentation]` rather than as coverage.
+
+---
+
+## `improvement-wave-2026-08-23` — six slices, one integration
+
+- Forget A1: adversarial recall 5.9% -> 76.5% (pre-registered A4, 5
+  live runs identical), wrong rows 2 -> 2, false receipts 16/27 ->
+  3/27; free-pool arm INVALID (18/27 429s) recorded not hidden.
+- Patterns unreachable-forever fixed: eligibility counters were never
+  set and reinforce had no caller; T4 rendered 0 bytes for every user.
+  Consolidation suite 98 -> 144 with the pre-fix zero as negative
+  control.
+- Sound: 5-cue synthesized vocabulary + 6-entry REFUSED table, four
+  gates each with named blockers, in-run negative control (in-call
+  gate removed must leak). New suites sound + sound-browser (11/11).
+- Notify: keyless local lane live (reply/missed-call/story), FCM
+  scaffold zero-bytes-until-config, permission at first FELT moment,
+  push-token FATE on both suites (wipe yes, scoped forget deliberately
+  no). notify suite 97, browser 14/14 headed.
+- Knows: 57+23 assertions, 8 contrast checks, forget flow end-to-end
+  with refused-delete negative control; ritual/india rows honestly
+  bin-less (gated to flip when the cascade learns keys).
+- Persona core 45,493/45,500 after paid-for trims. verify-release
+  13/13 twice on the integrated tree.
+
+---
+
+## `movevoice-timing-2026-08-23` — how long her move actually takes, measured in a browser
+
+**Method.** `evals/movevoice-browser.mjs`, chromium, the built app served by
+`vite preview`. A full game of chess is played move by move against the real
+opponent; on every one of her turns the page's OWN clock
+(`performance.timeOrigin + performance.now()`, polled at 25ms inside the page
+so this harness's round-trip is not counted as her think time) stamps the
+moment his ply appears in state and the moment hers does. The gap is held
+against `chessThinkMs` called on the same position with the same session seed —
+the function the component itself reads, not a copy of its formula.
+
+Predictions are emitted as a PAIR (recapture / non-recapture) because her reply
+is not known when his move is made, and the assertion admits either branch
+rather than pretending to know which she will play.
+
+**Measured (n = 25 of her turns, one complete game, container under load):**
+
+| | |
+|---|---|
+| gaps | 455 – 6759 ms |
+| spread within one game | 6304 ms |
+| below the 300ms floor | 0 of 25 |
+| landing before the board finished drawing his move (360ms) | 0 of 25 |
+| gap inside the table's predicted band | 25 of 25 |
+| ordering pairs (predicted gap differing by >400ms) where observed order matched predicted | 245 of 265 (92.5%) |
+
+The last row is the one that matters and is the one a constant delay would
+fail: the first three rows are all satisfied by "always wait 2 seconds". The
+pacing has to TRACK the position for her to read as thinking rather than as
+lagging, and it does.
+
+**Pre-fix baseline, from the owner's report rather than an instrument:** her
+move landing "milliseconds after his". The floor is now 300ms by construction
+and was not observed below 455ms in this run.
+
+**Offline half:** `evals/movevoice.mjs`, 162 assertions, ~3s, $0. Bounds swept
+over 5,120 synthetic chess inputs (every combination of ply × legal-move-count
+× check × recapture × book × seed) with no result outside [300ms, 7000ms].
+
+**Aggregate cost against the formula it replaced (n = 1600 of her turns over 40
+real games, both colours, driven by the real engine):** the position-scaled
+table is 8.7% SLOWER in aggregate than the flat ply-band formula — mean 3078ms
+vs 2831ms per turn, max 7000ms vs 5996ms. Small, and it is the price of the
+92.5% ordering agreement above: the modifiers that make a forced reply quick
+are outweighed by the wide-position and non-book-opening bands. It matters in
+exactly one place, which is why it was measured rather than assumed:
+`evals/gameplay-browser.mjs` bounds a full game by WALL CLOCK, and its 6-minute
+budget was only ~1.5x a long game's expected duration. Raised to 10 minutes in
+the same change.
+
+**Mutation test of the gate itself (n = 10 injected defects, all caught):**
+dropping the settled clause from the chess composer; dropping it from the ttt
+composer; neutering the staleness check; sending held notes into `direct()`'s
+wait; routing the chess note around the seam; returning a constant 5ms from
+`chessThinkMs`; the same for `tttThinkMs`; reseeding pacing on `Math.random`;
+removing the position scaling so every band collapses to one; and deferring
+`pokedPly` past the send so a dropped note un-marks its exchange. An earlier
+version of the suite caught 0 of the first 3 — its assertions were shape-greps
+over the call site rather than tests of a decision — which is why the seam and
+the note composition were extracted into pure functions.
+
+---
+
+## `timeline-wave-2026-08-23` — the live-test correction wave, measured
+
+- herNow: sticky present across a 1-minute re-call (moved:false), moves
+  on at span end knowing what it finished; elapsed floors swept 0-600
+  min with zero over-claims; hernow suite 154, lanes 196.
+- Just-happened: owner's share-then-60s-call scenario carries 3/3 of
+  her commentary lines (pre-fix control: 1/3 and unanswerable); block
+  283B real / 300 cap; sharenow 78 + callmem 341.
+- Share latency: held-frame worst 3114 to <=1090ms via delivery
+  accounting; wakesLost 15-100 per 8 runs to 0; phone-audio mix with
+  42-check echo-safety, echosim byte-identical.
+- Movevoice: think-time within predicted bands 25/25, ordering tracks
+  complexity 249/265, mutation test 10/10; suite 163.
+- She-calls: ring at 4.2-5.0s after her line, caller-branch directive
+  verified in the pickup POST; detector 377 at 2:1 negative ratio.
+- Breath: "U can call me" + typing at 4s went from cut-off-at-2.05s to
+  silent-through-the-draft; focused-idle 2.13s to 6.71s with release;
+  liveness ceiling 15.89s unchanged; burstgrid 1477 assertions/484
+  cells; burst suite 186.
+- Prompt ceilings raised with dated rationale: core 46400, assembled
+  51600 (~$0.0002/session).
+
+## `maya-lifecycle-wave-2026-08-23` (n and method per line)
+
+- Rename seam: 75 `HER_NAME` refs / 16 files (grep, n=all); 0 stray
+  display "Meera" literals in src/ (grep every string literal + JSX text
+  node); browser-verified (playwright, real preview build): onboarding,
+  home header, chat header, settings footer, real Notification titles
+  all "Maya", zero "Meera" on page; notify-browser ALL PASS.
+- Lifecycle: 378 checks over 50 cells (10 events x 5 contexts), 7
+  negative controls all caught incl. the pre-fix dark tree; carriers
+  assembly 17 / direct 11 / na 13 / state 4 / silent 5.
+- multimodal native-gate 63/63 after following the grounding predicate
+  to `WatchPacer.fresh` (parity battery proves property intact; only
+  the address moved). Wired into build-apk.yml with `--offline` so the
+  stub config fails loud.
+- verify-release 13/13 twice on the isolated maya tree, twice more on
+  the integrated tree after the coordinator's persona rename + bundle
+  regen (4 full passes total).
+
+## `resilience-latency-2026-08-24` (real api/chat.js handler, mocked upstream honouring aborts, 9-key pool, n=1/cell, scratchpad/lat.mjs)
+
+- instant 200: 74ms, lane gemini-free. fast 502 -> same-key retry -> 200:
+  778ms (+~700ms), retries=1. 1.2s 502 -> retry -> 200: 1919ms (+~720ms).
+- the production failure shape (6.7s 502): 6957ms, lands on azure at +257ms,
+  1 key burned — vs the pre-fix canned line.
+- every key slow-502 (3s each): 4203ms, deadline bound at 4000ms held, 2
+  keys burned (a first attempt that eats the deadline stops the walk).
+- quota on every key: 253ms, unchanged path.
+- no-repeat oops draw: 4000 consecutive draws, 0 back-to-back repeats, all 6
+  variants reached, not a fixed rotation; pre-fix uniform draw ~650 repeats.
+- composer: 121 + 59 browser assertions on the real preview build; 14
+  screenshots light+dark; "capture" in input false on desktop Chromium 141.
+
+---
+
+## `live-vs-tts-timbre` — Autonoe on the live lane vs Autonoe on the TTS lane (2026-08-24)
+
+`docs/VOICE-LANE.md` §9 named this the load-bearing **unmeasured** claim behind
+§6.1's "same name, different model, therefore a different voice", and recorded
+that *"the live lane's f0 has never been measured"*. Measured now.
+
+**Method.** Both arms driven with the shipped setup blocks — the free TTS arm
+exactly as `api/speech.js` sends it (`gemini-3.1-flash-tts-preview`,
+`streamGenerateContent`, `prebuiltVoiceConfig`), the live arm exactly as
+`liveCall.ts` sends it (`gemini-3.1-flash-live-preview`, AUDIO modality,
+`thinkingBudget: 0`, `languageCode: "hi-IN"`) — both naming `Autonoe`, over the
+**same three Hinglish lines**, the live arm under a diagnostic read-aloud
+instruction so the text is identical across arms. f0 by autocorrelation
+(read-only reuse of `scripts/prosody-baseline.mjs`'s analysis); spectral
+centroid and tilt by 1024-pt DFT on voiced high-energy frames.
+**n=3 per arm, 6 pool calls, no 429.**
+
+| | median f0 | p10–p90 f0 | centroid | tilt (2–6k vs <1k) | duration |
+|---|---|---|---|---|---|
+| TTS `gemini-3.1-flash-tts-preview` | 222 Hz | 169–381 | 1358 Hz | −13.0 dB | 3.68 s |
+| live `gemini-3.1-flash-live-preview` | 218 Hz | 161–348 | 1413 Hz | −8.5 dB | 2.44 s |
+| delta | −4 Hz (−0.32 st) | | +55 Hz | +4.4 dB | −1.24 s |
+
+**Pitch is not the difference.** −0.32 semitones sits far inside the TTS arm's
+own per-line spread (186 / 222 / 250 Hz). The hypothesis that the two engines
+render one name at different pitches is **not supported**.
+
+**Brightness is the surviving candidate and is NOT established at this n.** The
+live arm is consistently brighter and tight (tilt −7.6 / −8.5 / −8.7 dB); the
+TTS arm swings (−6.5 / −16.6 / −13.0 dB). The between-arm delta of 4.4 dB is
+**smaller than the within-TTS-arm spread of 10.1 dB** — so the reportable finding
+is that **the cascade lane is not consistent with itself line to line**, and a
+cross-engine timbre claim needs more than n=3.
+
+**Duration is confounded and must not be quoted as production.** The live arm
+read a fixed string under a diagnostic instruction; production live improvises
+under `persona.ts`'s spoken register, and pace is precisely the axis that
+instruction moves.
+
+**What would change this:** n≥20 per arm on matched text, and an ear test —
+`voice-ears` is the standing rule that pitch numbers alone already misled here
+once.
+
+---
+
+## `live-voice-roster` — which prebuilt names the realtime lane actually accepts (2026-08-24)
+
+Ahead of a possible voice switch, all eight candidate names plus the incumbent
+were probed against `models/gemini-3.1-flash-live-preview` at
+`languageCode: "hi-IN"`. **Setup-only handshakes: the socket opens, the setup
+frame goes, the server answers, the socket closes. No turn is ever sent, so
+zero audio is generated.** 11 handshakes total.
+
+**Accepted, all of them:** `Autonoe`, `Aoede`, `Leda`, `Kore`, `Zephyr`,
+`Despina`, `Callirrhoe`, `Laomedeia`, `Sulafat`, `Erinome`.
+
+**Negative-controlled, which is the part that makes it evidence.** A probe that
+says yes to everything measures nothing — `realtime-azure` records a raw
+handshake reporting an endpoint as working when it was not. `NotAVoiceAtAll` is
+refused with a **1007 close carrying `No matching speaker voice found for name:
+NotAVoiceAtAll and language: hi-IN`**, so acceptance here discriminates.
+
+This matters because `api/live-token.js` and `api/speech.js` both record the
+same asymmetry from the last switch: **a TTS model taking a voice name says
+nothing about the realtime one**, and a name the live lane rejects is a call
+that never connects rather than a wrong timbre. The list is now the allow-list
+`verify-voice.mjs --set` checks against; anything outside it must be probed and
+added with its date.
+
+## `ttt-t15-bytes` (2026-08-24, WS-TTT)
+
+- ttt T15 head 307 of 420 ACTIVITY_BUDGET bytes (chess 301): ~113 spare for
+  facts on a live game, 189 finished. Fact-order-is-drop-policy is load-
+  bearing for ttt in a way it is not for chess. Method: byte-count of real
+  compile() output across the parity battery's 5,478 reachable positions.
+
+## `tts-first-frame-degraded` (2026-08-24 ~22:30 UTC)
+
+- Google TTS preview (gemini-2.5-flash-preview-tts) first-frame on HEALTHY
+  free keys: 9.7s, 10.4s, 11.3s (n=3 keys: gaurav-2, arpit-1, rahul-1;
+  method: raw streamGenerateContent curl, wall-clock to first data chunk;
+  real audio followed each). Healthy-night baseline for the same probe:
+  615–1051ms (2026-08-24 morning, n=5). The 1400ms fuse sat between the
+  two modes — hence total outage in degraded mode.
+- carbonsettle org family: TTS generate 429 "prepayment credits depleted"
+  (n=3 keys probed), countTokens still 200 — health probes overstate a
+  family whose prepay is gone. Owner action: top-up at ai.studio.
+- Post-fix production (same night, commit 402c7f4): speech 200, lane
+  free, 61,440 bytes at 13.1s, pool 33/48; local handler 200 with
+  99,840 bytes at 12.9s. Resilience battery 153/153; verify-release
+  13/13 by exit code.
+- CORRECTION (2026-08-25 re-probe): the prepay-depleted 429 is ONE account,
+  not the family — compliance@carbonsettle.com has prepaid billing enabled
+  on its AI Studio project and 429s "prepayment credits depleted", while
+  aryan@carbonsettle.com (same domain) generates TTS 200 OK, as do the
+  other free-tier keys (n=3). The outage-night family-wide 429s were this
+  one prepay account PLUS ordinary free-tier daily TTS quota exhaustion on
+  its siblings. Family cooling still behaves correctly (5-min soft cool,
+  not a kill). Owner action shrinks to: switch compliance@'s AI Studio
+  project back to free tier, or ignore — 1 key of 51.
+- Pool grown 48→51 (2026-08-25): 10 keys supplied, 1 self-duplicate, 6
+  already in ring, 3 new (batch2-1..3); 51/51 healthy on countTokens.
+- OpenRouter lane re-funded (2026-08-25): balance $55 total / $34.23 used
+  = ~$20.77 available; 1-token generation probe 200 OK. Revives paid
+  speech fallback + openrouter chat overflow once the OPENROUTER_KEY
+  Actions secret is updated.
+- CORRECTION (2026-08-25 ~05:40 UTC): the OpenRouter "re-fund" needed no
+  deploy — both keys sit on ONE account ($55 credits / $34.23 used); the
+  production-baked (old) key had a $6 per-key limit with $6.03 spent, which
+  is what made culture distil fail fast. Owner raised that key's limit to
+  $20 (~$13.97 headroom); production culture refresh returned 200 with 10
+  items (distil 3.9s) immediately after, on the unchanged deploy. Lane
+  RCA lesson: a per-KEY limit and an account balance fail differently —
+  the fast 108ms distil failure was the limit, not the balance.
+- Pool 51 CONFIRMED LIVE in production (2026-08-25 ~06:00 UTC, deploy
+  d9d10b0 after owner updated GOOGLE_KEYS in Vercel + GitHub): speech 200
+  free-lane with pool header 35/51, chat 200. Full stack now: 51 free
+  keys + funded OpenRouter overflow (~$14) + Azure grant lane.

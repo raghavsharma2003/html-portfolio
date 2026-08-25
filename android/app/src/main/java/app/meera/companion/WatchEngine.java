@@ -169,9 +169,17 @@ class WatchEngine {
    *  motion: 0 nothing moved · 1 they're doing something · 2 a new thing to
    *  look at. Frames are only stored here; WHEN she looks up is decided by
    *  nudge() below, off what the screen actually did. */
-  void onFrame(String b64, int motion) {
+  /** WS-WATCHPERF: reports whether the frame was actually taken, so the
+   *  service's pacer can spend a cadence slot only on a frame she really has.
+   *  This lane holds the picture rather than putting it on a wire, so "taken"
+   *  is simply "there is a picture and this engine is alive" — but the caller
+   *  must not have to know which lane it is talking to, and a lane that
+   *  silently returns void is the one that drifts. */
+  boolean onFrame(String b64, int motion) {
+    if (!running || b64 == null || b64.isEmpty()) return false;
     latestFrame = b64;
     latestFrameAt = System.currentTimeMillis();
+    return true;
   }
 
   /** The cascade's version of a wake-up: one vision request against the frame

@@ -11,8 +11,12 @@
 //      slightly after the mark that completed it, so the eye reads
 //      "this is what she noticed" rather than "the board just changed".
 
+import { useEffect, useRef } from "react";
 import "../styles/ttt.css";
-import { tap, ImpactStyle } from "../native/haptics";
+// WS-SOUND. Same two doors ChessBoard uses and for the same reason: `feel` for
+// the mark HE puts down (cue + haptic, one call, one intensity nobody chose at
+// the call site), `play` alone for the one that arrives.
+import { feel, play } from "../sound";
 
 export type Mark = "x" | "o";
 export type Cell = number;
@@ -76,9 +80,35 @@ export default function TicTacToeBoard({
   // is 100 units). Only the eight fixed geometries a 3x3 board can produce.
   const lineGeometry = winningLine ? geometryFor(winningLine) : null;
 
+  // WS-SOUND. The cell HE just committed. His cue fires against his finger in
+  // the handler below; this is what keeps the arrival effect from sounding the
+  // same mark a second time when it comes back as a new `lastCell`.
+  const soundedCell = useRef<Cell | null>(null);
+  // `undefined` means "this board has not been observed yet", which is the
+  // whole guard: a board that MOUNTS with a game in progress already has a
+  // `lastCell`, and sounding that would be a noise nobody's finger asked for.
+  // One tick of observation costs nothing and makes the mount case impossible
+  // rather than merely unlikely.
+  const seenCell = useRef<Cell | null | undefined>(undefined);
+  useEffect(() => {
+    const prev = seenCell.current;
+    seenCell.current = lastCell ?? null;
+    const mine = soundedCell.current;
+    soundedCell.current = null;
+    if (prev === undefined) return; // mount
+    if (lastCell == null || lastCell === prev) return; // cleared, or unchanged
+    if (mine === lastCell) return; // his own mark, already sounded
+    // Hers. No haptic: nothing of his is in front of it.
+    play("place");
+  }, [lastCell]);
+
   const commit = (cell: Cell) => {
     if (!legal.has(cell)) return;
-    tap(ImpactStyle.Light);
+    // Was tap(ImpactStyle.Light); `feel("place")` is that same Light tap plus
+    // the wood it now makes, from one call. There is no capture in this game,
+    // so the board only ever spends one of the two board cues.
+    soundedCell.current = cell;
+    feel("place");
     onPlay?.(cell);
   };
 

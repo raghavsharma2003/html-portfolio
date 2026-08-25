@@ -11,6 +11,17 @@ import { useEffect, useRef, useState } from "react";
 import { type Story, storySrc, storyAge, markStorySeen } from "../engine/storyCatalog";
 import { HER_NAME } from "../engine/persona";
 import PhotoAvatar from "./PhotoAvatar";
+import { CloseIcon, MoreIcon, ArrowUpIcon } from "./icons";
+import { AnimGlyph } from "./anim";
+import gateArt from "../assets/empty/story-gate.svg";
+// task #134 — see bodyPortal.tsx. This viewer has TWO call sites: App.tsx
+// mounts it as a sibling of `.chat-wrap` (never trapped), Chat.tsx mounts it
+// as a CHILD of `.chat` (trapped under `.home-back`, isolation: isolate).
+// Portalling here, in the one component, fixes both uniformly rather than
+// leaving the fix dependent on which call site happens to be used —
+// PhotoViewer.tsx's header names this exact file as the same defect,
+// deliberately left for this workstream to pick up.
+import toBody from "./bodyPortal";
 
 const SEGMENT_MS = 5200;
 
@@ -133,7 +144,7 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
 
   if (!cur) return null;
 
-  return (
+  return toBody(
     <div
       className="story-view"
       role="dialog"
@@ -233,10 +244,23 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
       </div>
 
       <div className="story-head" onTouchEnd={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
-        <PhotoAvatar size={34} />
-        <span className="story-name">{HER_NAME}</span>
+        {/* the ring she wears everywhere else. `.ring-gold` is `live` here by
+            definition: you are inside her story, so the ring is the one thing
+            on this screen that cannot be in any other state. */}
+        <span className="ring-gold live" style={{ width: 36, height: 36, padding: 2 }} aria-hidden="true">
+          <span className="ring-inner">
+            <PhotoAvatar size={32} />
+          </span>
+        </span>
+        <span className="story-name name-serif">{HER_NAME}</span>
         <span className="story-age">{ageLabel(cur)}</span>
         <span style={{ flex: 1 }} />
+        {/* THE APP'S OWN ICONS, not two text dingbats. `⋯` and `✕` are
+            characters: they render in whatever the platform's UI font has,
+            which put a spread-out `· · ·` and a heavy serif cross next to a
+            screen full of hairline-stroked SVGs — and on the Android WebView
+            the ✕ box-drew. Both glyphs already exist in `icons.tsx` and are
+            what every other overlay in the app closes with. */}
         <button
           className="story-btn"
           aria-label="Account"
@@ -245,7 +269,7 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
             onProfile();
           }}
         >
-          ⋯
+          <MoreIcon size={20} />
         </button>
         <button
           className="story-btn"
@@ -255,7 +279,7 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
             onClose();
           }}
         >
-          ✕
+          <CloseIcon size={17} />
         </button>
       </div>
 
@@ -311,7 +335,7 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
             aria-label="Send reply"
             disabled={!reply.trim()}
           >
-            ↑
+            <ArrowUpIcon size={17} />
           </button>
         </form>
       )}
@@ -322,7 +346,13 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
           onTouchEnd={(e) => e.stopPropagation()}
           onMouseUp={(e) => e.stopPropagation()}
         >
-          <p>aur bhi hai 👀</p>
+          {/* The lit window: what is behind the gate, drawn rather than
+              described. It sits ABOVE the line and replaces none of it. */}
+          <img className="story-gate-art" src={gateArt} alt="" width={200} height={133} />
+          <p>
+            aur bhi hai{" "}
+            <AnimGlyph name="eyes" size={22} alt="" className="story-eyes" />
+          </p>
           <button
             className="btn-primary"
             style={{ width: "auto", padding: "13px 30px" }}
@@ -335,6 +365,6 @@ export default function StoryView({ stories, onClose, onProfile, signedIn, onSig
           </button>
         </div>
       )}
-    </div>
+    </div>,
   );
 }

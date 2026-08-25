@@ -41,6 +41,15 @@ const STRINGS = [
   "TELEGRAM_BOT_TOKEN",
   "TELEGRAM_WEBHOOK_SECRET",
   "TELEGRAM_BOT_USERNAME",
+  // The push slot (api/push-token.js, api/_push.js). OPTIONAL — not in the
+  // required-keys check — so a deploy never fails for lacking them, which is
+  // the shipping state: with these absent the whole push lane no-ops and local
+  // notifications are unaffected. Listed here at the same time as the code
+  // that reads them, because a key that exists locally and not in production
+  // fails in the one place nobody is watching.
+  "FCM_PROJECT_ID",
+  "FCM_CLIENT_EMAIL",
+  "FCM_PRIVATE_KEY",
 ];
 
 // Refusing to overwrite a real local config is not politeness — running this
@@ -70,19 +79,34 @@ for (const name of STRINGS) {
   }
 }
 
-let keys = [];
+// Each entry may be `label~key` (the keyring format, docs/KEYRING.md) or a
+// bare key. THE LABEL MUST BE PARSED HERE TOO: the 2026-08-24 pool-0 outage
+// was this script baking `label~key` strings verbatim into GOOGLE_KEYS —
+// upstream Google answered 400 API_KEY_INVALID for the glued-on label, and
+// after the runtime grew its paste sanitiser the same entries were charset-
+// dropped instead, taking the baked pool to zero. One entry format, parsed
+// identically at every seam (env at runtime, this bake, keyring.json).
+const parseEntry = (s) => {
+  const t = String(s).trim().replace(/^GOOGLE_KEYS=/i, "").replace(/^["']+|["']+$/g, "").trim();
+  const i = t.indexOf("~");
+  return i > 0 ? { label: t.slice(0, i), key: t.slice(i + 1) } : { label: null, key: t };
+};
+let ring = [];
 if (process.env.GOOGLE_KEYS) {
   try {
     const parsed = JSON.parse(process.env.GOOGLE_KEYS);
-    if (Array.isArray(parsed)) keys = parsed.filter((k) => typeof k === "string" && k.length > 20);
+    if (Array.isArray(parsed))
+      ring = parsed.map((k) => (typeof k === "string" ? parseEntry(k) : { label: k?.label ?? null, key: k?.key }));
   } catch {
     // a newline- or comma-separated list is the shape a human actually pastes
-    keys = process.env.GOOGLE_KEYS.split(/[\s,]+/).filter((k) => k.length > 20);
+    ring = process.env.GOOGLE_KEYS.split(/[\s,]+/).filter(Boolean).map(parseEntry);
   }
+  ring = ring.filter((e) => typeof e.key === "string" && e.key.length > 20);
 }
-if (keys.length) present.push(`GOOGLE_KEYS(${keys.length})`);
+if (ring.length) present.push(`GOOGLE_KEYS(${ring.length}${ring.some((e) => e.label) ? " labeled" : ""})`);
 else missing.push("GOOGLE_KEYS");
-lines.push(`export const GOOGLE_KEYS = ${JSON.stringify(keys)};`);
+lines.push(`export const GOOGLE_KEYRING = ${JSON.stringify(ring)};`);
+lines.push(`export const GOOGLE_KEYS = ${JSON.stringify(ring.map((e) => e.key))};`);
 
 // #89 CREDENTIALS SPLIT (docs/CREDENTIALS.md): resolve OPENROUTER_RESEARCH_KEY
 // once, here, rather than scattering a fallback across every research script.

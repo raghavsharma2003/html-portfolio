@@ -67,9 +67,13 @@
 // it is pure arithmetic over the lag query, exactly the number a real run
 // would need, computed without spending a token to find out.
 import { q } from "../api/_db.js";
-import { runConsolidation } from "../api/consolidate.js";
-
-const LOG_BATCH_CAP = 220; // api/consolidate.js's own constant, duplicated — see api/consolidate-sweep.js's identical note and the "minimal export" proposal in docs/CONSOLIDATION.md
+// LOG_BATCH_CAP is now IMPORTED, not duplicated. This line used to read
+// `const LOG_BATCH_CAP = 220;` with a comment pointing at api/consolidate.js's
+// private copy and proposing an export "if whoever owns that file wants it"
+// (docs/CONSOLIDATION.md, "minimal export"). WS-SPINE took the proposal: two
+// copies of a cost ceiling go stale silently, and a comment saying so does not
+// stop them, it only records that someone knew.
+import { runConsolidation, LOG_BATCH_CAP } from "../api/consolidate.js";
 const MAX_ROUNDS_PER_PERSON = 15; // ceil(2025/220) across the WHOLE backlog is 10; this is headroom, not a real expectation, and it exists so one stuck person can never hang the run
 const DEFAULT_PERSON_LIMIT = 200; // effectively "all of them" at today's scale (40 people) while still being an explicit, loggable number rather than "no limit"
 

@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import type { Message } from "../state/store";
+import { AnimGlyph } from "./anim";
 
 const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
 
@@ -43,7 +44,11 @@ export default function GifBubble({
   if (dead)
     return (
       <div className="gif-fallback">
-        🎬 <em>{m.text}</em>
+        {/* The clapper has no moving half and does not want one: this is the
+            state where something did NOT arrive, and a thing that failed
+            should not be the liveliest object in the thread. */}
+        <AnimGlyph name="clapper" size={20} alt="" className="gif-mark" />{" "}
+        <em>{m.text}</em>
       </div>
     );
   if (!url) return <div className="gif-loading" />;

@@ -4,7 +4,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import { cachedClip, saveClip, playNote, unlockAudio } from "../voice/speech";
+import { cachedClip, saveClip, playNote, unlockAudio, PROXY_VOICE_TAG } from "../voice/speech";
 import type { Message } from "../state/store";
 
 const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
@@ -21,8 +21,14 @@ async function audioFor(m: Message): Promise<Blob | null> {
   if (m.from === "me") return localClips.get(m.id) ?? null;
   const key = m.id;
   if (ttsCache.has(key)) return ttsCache.get(key)!;
-  // persistent cache: a replayed voice note must never be synthesized twice
-  const stored = await cachedClip(`vn1:${key}`);
+  // persistent cache: a replayed voice note must never be synthesized twice.
+  // NAMESPACED BY VOICE, because "never synthesized twice" and "keeps the voice
+  // she had in 2026-08" are the same sentence otherwise: this cache is
+  // permanent, so before the tag was here, every voice note recorded under a
+  // previous voice replayed in that voice forever, next to a chat and a call
+  // that had both moved on. This lane always goes straight to /api/speech, so
+  // the hosted voice is the only identity it can have.
+  const stored = await cachedClip(`vn1:${PROXY_VOICE_TAG}:${key}`);
   if (stored) {
     ttsCache.set(key, stored);
     return stored;
@@ -38,7 +44,7 @@ async function audioFor(m: Message): Promise<Blob | null> {
     const blob = await res.blob();
     if (blob.size < 1000) return null;
     ttsCache.set(key, blob);
-    saveClip(`vn1:${key}`, blob);
+    saveClip(`vn1:${PROXY_VOICE_TAG}:${key}`, blob);
     return blob;
   } catch {
     return null;

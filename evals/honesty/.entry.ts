@@ -37,7 +37,24 @@ export {
   HER_COMMITMENT_TTL_MS,
   SHARED_MIN_CLAIM_TERMS,
   NOT_GATED_BY_DESIGN,
+  // 2026-08-23 tester report: family 6 — invented specifics of an activity
+  // they REALLY did (a move, an opening, a card, a score). Same rule as
+  // everything above it: the suite drives the shipping predicate.
+  findActivitySpecifics,
+  activityVocabulary,
+  ACTIVITY_SUPPORT_SHARE,
 } from "../../src/engine/honesty";
+// The RECORD family 6 checks against, from the real adapters and the real
+// episode writer — so §15's support sets are the bytes a finished game
+// actually produces, never a hand-written approximation of them. A gate tested
+// against a fixture of its own input is a gate tested against nothing.
+export { chessRecord } from "../../src/engine/chessTalk";
+export { wyrRecord } from "../../src/engine/wyrTalk";
+export { tttRecord } from "../../src/engine/tttTalk";
+export { activityEpisodeSummary, formatActivityLedger } from "../../src/engine/memory";
+export { LABEL } from "../../src/engine/activity";
+export { newGame, play } from "../../src/engine/chess";
+export { freshSession, answerCurrent, advance } from "../../src/engine/wyr/session";
 // T16's renderer, so §10 can assert the compiler slot it feeds — a ledger
 // nothing renders is `dead-writers` with extra steps.
 export { renderHerCommitments, HER_COMMITMENTS_BUDGET, TAIL_ORDER, TAIL_MANIFEST } from "../../src/engine/compiler";

@@ -14,12 +14,15 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 
-const SOURCES = [
-  "src/assets/meera.jpg",
-  "src/assets/moments/meera-walk.jpg",
-  "src/assets/moments/meera-reading.jpg",
-  "src/assets/moments/meera-beach.jpg",
-];
+// WS-ASSETWIRE: the three bundled moment photographs (walk, reading, beach)
+// are gone from src/, and so are the variants this script made of them.
+// PhotoCard.tsx has served every moment out of the public library since audit
+// finding #6 — thirteen bundled 900x900 JPEGs replaced by a runtime path — so
+// those three were ~1.5 MB of source images that nothing imported and nothing
+// could reach. A missing source here sets exitCode 1, so they had to leave
+// this list with them rather than be left as a script that fails on a clean
+// checkout. evals/assetwire/run.mjs holds the list to what exists.
+const SOURCES = ["src/assets/meera.jpg"];
 
 const VARIANTS = [
   { suffix: "-400", width: 400 },

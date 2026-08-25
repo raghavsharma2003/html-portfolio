@@ -18,15 +18,38 @@ import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import { HER_NAME } from "../engine/persona";
 import { startRingback, stopRingback, unlockAudio } from "../voice/speech";
 import { tap } from "../native/haptics";
+import { CloseIcon, EndCallIcon } from "./icons";
+
+/**
+ * WHY SHE IS RINGING — the shecalls residual.
+ *
+ * The subtitle said "calling back" unconditionally, which is true of the one
+ * reason that exists today and false of the screen as a claim: `callback.secs`
+ * is the duration of the call that DROPPED, and a ring with no dropped call
+ * behind it is not a call back. It is a different register and it has to say
+ * so, or the screen is asserting a reason the app cannot produce.
+ *
+ * Two values, not a free string, for the reason the wake classes are an enum:
+ * the caller picks a reason, never a sentence, so a third reason has to add a
+ * case here and cannot arrive as prose from a call site.
+ */
+export type RingReason = "callback" | "wants";
 
 interface Props {
   /** how long the call that dropped had lasted, for the subtitle */
   secs: number;
+  /**
+   * Which ring this is. `"callback"` requires a dropped call behind it and is
+   * the only one the product arms today; `"wants"` is the honest subtitle when
+   * there is no drop to point at. Defaults to `"callback"` so an unmigrated
+   * call site renders exactly what it rendered before.
+   */
+  reason?: RingReason;
   onAccept: () => void;
   onDecline: () => void;
 }
 
-export default function IncomingCall({ secs, onAccept, onDecline }: Props) {
+export default function IncomingCall({ secs, reason = "callback", onAccept, onDecline }: Props) {
   const answered = useRef(false);
   // Same ground as home and the live call. A ring that arrives on a flat
   // theme background while the rest of the app is standing in a sky reads as
@@ -72,9 +95,19 @@ export default function IncomingCall({ secs, onAccept, onDecline }: Props) {
       <WorldLayer frame={sky} />
       <div className="inc-top">
         <div className="inc-name">{HER_NAME.toLowerCase()}</div>
+        {/* The reason, and only a reason the app can actually stand behind.
+            "call cut at 3:12" rides the callback register alone — it is the
+            evidence for it, and printing it under any other reason would be
+            the screen citing a drop that did not happen. */}
         <div className="inc-sub">
-          calling back
-          {secs > 0 && <span className="inc-why"> · call cut at {mmss(secs)}</span>}
+          {reason === "callback" && secs > 0 ? (
+            <>
+              calling back
+              <span className="inc-why"> · call cut at {mmss(secs)}</span>
+            </>
+          ) : (
+            "wants to talk"
+          )}
         </div>
       </div>
 
@@ -90,6 +123,14 @@ export default function IncomingCall({ secs, onAccept, onDecline }: Props) {
       </div>
 
 
+      {/* THE APP'S OWN ICONS, not two text dingbats. `✕` and `✆` are
+          characters, drawn from whatever the platform's UI font happens to
+          carry: `✆` (U+2706 TELEPHONE LOCATION SIGN) has no consistent form at
+          all and rendered as an outlined blob inside the accept disc, which is
+          the largest, most consequential control in the product. `EndCallIcon`
+          is what the live call already hangs up with, rotated so the same
+          handset means "pick up" rather than "put down" — one glyph, two
+          states, which is how a phone has always drawn it. */}
       <div className="inc-actions">
         <button
           className="inc-btn decline"
@@ -97,7 +138,7 @@ export default function IncomingCall({ secs, onAccept, onDecline }: Props) {
           aria-label="Decline call"
           data-tel="call.decline"
         >
-          <span aria-hidden="true">✕</span>
+          <CloseIcon size={26} />
         </button>
         <button
           className="inc-btn accept"
@@ -105,7 +146,9 @@ export default function IncomingCall({ secs, onAccept, onDecline }: Props) {
           aria-label="Accept call"
           data-tel="call.accept"
         >
-          <span aria-hidden="true">✆</span>
+          <span className="inc-pick" aria-hidden="true">
+            <EndCallIcon size={28} />
+          </span>
         </button>
       </div>
 

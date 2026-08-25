@@ -25,6 +25,10 @@ import {
   takeRelBundle,
   takeSelfBundle,
   callSelfBundle,
+  activityLedger,
+  formatActivityLedger,
+  withoutServerActivityBlock,
+  type ActivityRecord,
 } from "./memory";
 import { innerContext, overlaps, type Inner } from "./inner";
 import { diag } from "./diag";
@@ -39,6 +43,10 @@ import type { ActivityState } from "./activity";
 // T-H2 (formatHerLife, below) reuses T9's overnight predicate rather than
 // re-deriving one. away.ts imports only ./timeline, so this adds no cycle.
 import { crossedNight } from "./away";
+// WS-HERNOW. Her present moment as a ledger rather than a per-pickup roll.
+// herNow.ts imports only storyCatalog.ts (a leaf), so this adds no cycle —
+// the same check the away.ts line above documents for itself.
+import { formatHerNow, type HerNowEntry } from "./herNow";
 import { greetOnce, type GreetTurn } from "./greeting";
 // WS-MANIFEST Phase D prep (docs/SPEC.md §7.3 "chat lane call-site
 // adoption"): router.ts stays WS-ROUTER's exclusively (§13) — this is a
@@ -64,8 +72,15 @@ import {
   createStreamGuard,
   hisVocabulary,
   sharedVocabulary,
+  activityVocabulary,
 } from "./honesty";
 import type { Message } from "../state/store";
+// WS-SHARENOW. The just-happened block and the share mirror's holder, imported
+// rather than restated: there is exactly one definition in this repo of "what
+// the two of them just did" and a second one would diverge by not being
+// updated (`age-tier-never-realtime`'s law). The module reaches nothing this
+// file did not already reach — ./memory, ./honesty and ../state/store types.
+import { formatJustHappened, shareLedger } from "../voice/callHistory";
 
 const CLAUDE_MODEL = "claude-opus-5";
 // Default brain: Gemini 3.6 Flash — the best modern-Hinglish register we
@@ -235,6 +250,19 @@ export interface BrainKeys {
   // for the same reason relBundle does: the lane that HAS one ships it with
   // everything else it knows, and think()'s signature stays readable.
   activity?: ActivityState | null;
+  // What they have ALREADY done — the finished-activity ledger (AppState's
+  // `activities`). `activity` above is the one live session and is null the
+  // moment it is replaced; this is every game behind it.
+  //
+  // OPTIONAL AND USUALLY UNSET, deliberately, and this is the `selfBundle`
+  // idiom rather than an oversight: the ledger lives in App.tsx's state, the
+  // cascade call lane compiles from a frame that cannot reach it, and the
+  // realtime lane does not call this function at all — so App.tsx publishes it
+  // into memory.ts's holder and every lane reads the same one. A caller that
+  // already holds the ledger passes it here and the holder is not consulted;
+  // `!== undefined` rather than `??`, so a caller that means "no ledger this
+  // turn" is obeyed instead of silently overruled.
+  activities?: readonly ActivityRecord[];
   // #117 — a milestone that just crossed (state.recentMoment): ONE telegraphic
   // fact, rendered while fresh so she can bring it up herself. Optional on
   // both lanes like everything above; absent renders zero bytes.
@@ -331,22 +359,50 @@ export function activityStillRunning(at: number, nowMs: number): boolean {
   return !crossedNight(nowMs, age);
 }
 
+/**
+ * T7's string: what she has TOLD them, and — appended — where she actually is
+ * this minute.
+ *
+ * ── THE SEAM, BECAUSE THE TWO HALVES LOOK ALIKE AND ARE NOT ──────────────
+ *
+ *   the TOLD ledger (these rows)  is THE DAY AND BEFORE IT. She said these,
+ *     so they are fixed between the two of them and do not expire by the
+ *     clock; the compiler's own T7 header is written in exactly those words.
+ *   `present` (the appended block) is THE MINUTE. One activity, going on
+ *     right now, with an elapsed time computable from its `startedAt`, and
+ *     NOT something she has said. See src/engine/herNow.ts's header.
+ *
+ * The two never claim the same thing, and the block appended below opens by
+ * saying so — because T7's header says "you said these", and nothing in the
+ * present-moment block has been said to anybody.
+ *
+ * It rides T7 rather than earning a compiler slot for a structural reason:
+ * T7 is claimed by every lane in the parity table, so a present moment
+ * carried here cannot render in chat and go dark on the phone
+ * (`rejected.md#call-opens-with-amnesia-by-construction`). `present` is
+ * optional and defaults to nothing, so every existing caller is byte-
+ * identical — the watch lane deliberately stays one of them (see the herNow
+ * rows in `evals/lanes/run.mjs`).
+ */
 export function formatHerLife(
   facts?: Array<{ text: string; at: number; kind?: "activity" | "fact" }>,
   nowMs: number = Date.now(),
+  present?: HerNowEntry | null,
 ): string {
-  if (!facts?.length) return "";
-  const kept: Array<{ text: string; at: number }> = [];
-  for (const f of facts) {
+  const told: Array<{ text: string; at: number }> = [];
+  for (const f of facts ?? []) {
     if (!f?.text) continue;
     // Before the supersede check, not after: an activity that is over must not
     // go on shadowing an older durable fact it happens to share words with.
     if (f.kind === "activity" && !activityStillRunning(f.at, nowMs)) continue;
-    if (kept.some((k) => overlaps(k.text, f.text))) continue; // superseded
-    kept.push(f);
-    if (kept.length >= 12) break;
+    if (told.some((k) => overlaps(k.text, f.text))) continue; // superseded
+    told.push(f);
+    if (told.length >= 12) break;
   }
-  return kept.map((f) => `- ${f.text} (${agoLabel(f.at, nowMs)})`).join("\n");
+  const ledger = told.map((f) => `- ${f.text} (${agoLabel(f.at, nowMs)})`).join("\n");
+  const now = formatHerNow(present, nowMs);
+  if (!ledger) return now;
+  return now ? `${ledger}\n\n${now}` : ledger;
 }
 
 // Make device-spoken text breathe: openers, thinking pauses. Used on the
@@ -708,14 +764,72 @@ export function toTurns(history: Message[], latest: string) {
   // she SEES actual images for photos in the last few turns; older ones
   // survive as their stored one-line descriptions
   const visionCutoff = recent.length - 6;
+  // HOW MANY REAL IMAGES THE WINDOW MAY CARRY, decided newest-first.
+  //
+  // The window is six messages. It used to be six messages carrying at most one
+  // picture each; a message can now carry five, so the same window is a
+  // thirty-image prompt — real money per turn, and vision tokens are the part
+  // of a turn that is not prompt-cached. So the budget is on IMAGES, not on
+  // messages, and it is spent from the newest backwards: the set he just sent
+  // is the one she is being asked about, and an older set degrades to its
+  // stored one-line description exactly as a pre-window photo already does.
+  const VISION_IMAGE_BUDGET = 8;
+  const visionAllowed = new Set<number>();
+  {
+    let left = VISION_IMAGE_BUDGET;
+    for (let i = recent.length - 1; i >= Math.max(0, visionCutoff); i--) {
+      const m = recent[i];
+      if (m.from !== "me" || m.kind !== "photo") continue;
+      const n = Array.isArray(m.photoUrls) && m.photoUrls.length
+        ? m.photoUrls.filter(Boolean).length
+        : m.photoUrl
+          ? 1
+          : 0;
+      if (!n) continue;
+      // All or nothing per message: half a set is worse than none, because she
+      // would be told there are five and shown three and would talk about all
+      // five. The newest set always fits — the budget is above the cap.
+      if (n > left) break;
+      left -= n;
+      visionAllowed.add(i);
+    }
+  }
   for (let mi = 0; mi < recent.length; mi++) {
     const m = recent[mi];
-    const userImage = m.from === "me" && m.kind === "photo" && m.photoUrl;
+    // THE PICTURES ON THIS MESSAGE, not the picture. `photoUrls` is
+    // WS-COMPOSER's multi-select field and `photoUrl` always holds the first of
+    // the set, so a reader that knows only the old field degrades to showing
+    // one of five rather than none — but degrading is not the same as working:
+    // he selects five, she comments on the first, and that reads as her not
+    // looking at the others. The precedence rule is `imagesOf`'s, restated here
+    // rather than imported, because this file is engine and that one is
+    // components (and `api/_engine.gen.js` must keep building without the
+    // component tree). If the two ever disagree, THIS is the one the model
+    // sees, which is why the eval asserts the rule on both sides.
+    const userImages =
+      m.from === "me" && m.kind === "photo"
+        ? (Array.isArray(m.photoUrls) && m.photoUrls.length
+            ? m.photoUrls
+            : m.photoUrl
+              ? [m.photoUrl]
+              : []
+          ).filter(Boolean)
+        : [];
     const photoNote = m.from === "me" ? m.text || m.desc || "" : "";
+    // The transcript head the composer writes ("[photo]" / "[3 photos]") is a
+    // COUNT, not a caption — `transcriptLine` in components/attachments.ts
+    // produces `"[3 photos] ye dekh"` — so the head is stripped and only what
+    // he actually typed survives. The old code compared the whole note against
+    // the literal `"[photo]"`, which was exactly right for one picture and
+    // would have handed her "[3 photos] ye dekh" as a caption for three.
+    const caption = photoNote.replace(/^\[(?:photo|\d+ photos)\]\s*/i, "").trim();
+    const nPhotos = Math.max(userImages.length, 1);
     let text =
       m.kind === "photo"
         ? m.from === "me"
-          ? `[they sent a photo${photoNote && photoNote !== "[photo]" ? `: ${photoNote}` : ""}]`
+          ? `[they sent ${nPhotos > 1 ? `${nPhotos} photos` : "a photo"}${
+              caption ? `: ${caption}` : ""
+            }]`
           : `[shared a photo: ${m.text}]`
         : m.kind === "voice"
           ? m.text.startsWith("[voice")
@@ -724,6 +838,36 @@ export function toTurns(history: Message[], latest: string) {
           : m.kind === "gif"
             ? `[sent a meme gif: ${m.text}]`
             : m.text;
+    // ── DOCUMENTS: the line that outlives the file ────────────────────────
+    //
+    // A document's TEXT reaches her exactly once, in the turn it was attached
+    // to, through `think`'s `attachments` parameter — nothing uploads it and
+    // nothing stores it. So this marker is the whole of the long-term record,
+    // and without it the thread would show a caption with no explanation of
+    // what it was a caption FOR: three months later she would have "haan padh
+    // liya" sitting under a message that appears to be about nothing.
+    //
+    // It is written for EVERY document message including the newest, which is
+    // deliberate and is the same shape the photo path already has: the marker
+    // names the file, the attachment block (server-side, api/_docs.js) carries
+    // what is inside it. The composer's own transcript head is stripped first
+    // for the reason the caption line above states — `transcriptLine` writes
+    // "[file lease.pdf] ye dekh", and handing her that whole string as a
+    // caption would have her reading a marker back as if he had typed it.
+    const docNames = Array.isArray(m.docs)
+      ? m.docs.map((d) => (d && typeof d.name === "string" ? d.name : "")).filter(Boolean)
+      : [];
+    if (docNames.length && m.kind !== "photo") {
+      const said = text.replace(/^(?:\[file [^\]]*\]\s*)+/i, "").trim();
+      const head = `[they sent ${
+        docNames.length > 1 ? `${docNames.length} files` : "a file"
+      }: ${docNames.join(", ")}]`;
+      text = said ? `${head} ${said}` : head;
+    } else if (docNames.length) {
+      // pictures AND files on one message: the photo marker above already
+      // carries the caption, so the files are named after it
+      text += ` [also sent: ${docNames.join(", ")}]`;
+    }
     if (m.replyTo) {
       const who = m.replyTo.from === "her" ? "your message" : "their own message";
       text = `[replying to ${who}: "${m.replyTo.text.slice(0, 60)}"] ${text}`;
@@ -754,13 +898,20 @@ export function toTurns(history: Message[], latest: string) {
       : "";
     const stamped = stamp ? `[${stamp}] ${text}` : text;
     const prev = turns[turns.length - 1];
-    if (userImage && mi >= visionCutoff) {
-      // multimodal parts: the model looks at the real image. Merged into an
+    if (userImages.length && mi >= visionCutoff && visionAllowed.has(mi)) {
+      // Multimodal parts: the model looks at the real images. Merged into an
       // adjacent same-role turn — consecutive same-role messages 400 on
       // strict-alternation chat templates.
+      //
+      // ALL of them, in ONE turn. A person shown five photos at once reacts to
+      // the SET; five separate image turns produce five separate reactions,
+      // which is the tell. Same rule the server applies to a live send in
+      // api/_lanes.js's `attachToLastTurn` — stated in both places because the
+      // two paths (a fresh send, and re-reading history on the next turn) reach
+      // the model through different code and must not disagree about it.
       const parts: Array<Record<string, unknown>> = [
         { type: "text", text: stamped },
-        { type: "image_url", image_url: { url: m.photoUrl } },
+        ...userImages.map((url) => ({ type: "image_url", image_url: { url } })),
       ];
       if (prev && prev.role === role) {
         if (typeof prev.content === "string") {
@@ -832,6 +983,111 @@ async function openrouterThink(
   }
 }
 
+/**
+ * What he attached to one message (WS-COMPOSER → api/chat.js).
+ *
+ * Deliberately dumb: the client says what it has, the SERVER decides what is
+ * allowed. Count, per-image bytes, total bytes and document extraction are all
+ * enforced in `api/_lanes.js` / `api/_docs.js`, because a client is a phone the
+ * owner can reinstall and a cap that only exists in the composer is a cap that
+ * does not exist (`gate0-structural`, generalised: if a property is decidable
+ * from the bytes, decide it on the bytes).
+ */
+export type TurnAttachments = {
+  /** Up to five. Data URLs, https URLs, or `{ data, mime }`. */
+  images?: Array<string | { data: string; mime?: string }>;
+  /** What he typed alongside them. */
+  caption?: string;
+  /** Documents. `text` when the client already extracted it (preferred),
+   *  `data` (base64 / data URL) when it did not — the server extracts. */
+  docs?: Array<{ name?: string; mime?: string; text?: string; data?: string }>;
+};
+
+// ── the connectivity lines, and the rule that they never repeat ────────────
+//
+// Reached only when EVERY brain is unreachable (see the `!text` branch in
+// `think`). Phrased for the medium: on a call she is SPEAKING, so "my messages
+// aren't sending" would be absurd.
+//
+// Six of each, up from three, because the no-repeat draw below is only as good
+// as the pool it draws from: with three variants a user who trips this twice
+// still sees half the vocabulary. They are written as SHAPES in the same voice
+// — a noticing, a small apology, a promise to come back — not as polished
+// sentences, which is the `recited-prompt` discipline applied to the one place
+// in the product where literal lines are legitimate.
+export const OOPS_CALL: string[][] = [
+  ["awaaz kat rahi h lagta h... phir se bolna?"],
+  ["hello? ek second, network thoda ajeeb kar raha h"],
+  ["ruk, kuch sunai nahi diya — line kharab h shayad"],
+  ["ek sec ruk, awaaz aa jaa rahi h beech beech me"],
+  ["sun raha h tu? mujhe kuch clear nahi aa raha"],
+  ["arre yaar signal gir gaya lagta h, thoda ruk"],
+];
+export const OOPS_CHAT: string[][] = [
+  ["yaar net kuch ajeeb kar rha", "ek min"],
+  ["arre mere msg nhi ja rhe theek se 😭", "ruk"],
+  ["net dikkat kar rha lagta h", "abhi aati hu"],
+  ["ek sec, sab atak gya h idhar", "abhi try krti hu"],
+  ["ugh phone hi hang ho rha h", "2 min"],
+  ["kuch send hi nhi ho rha 🙄", "wapas aati hu"],
+];
+
+// The last index drawn, per mode. Module state is the server's answer (one
+// process serves many turns, and `api/_engine.gen.js` runs this same code on
+// the room path); localStorage is the client's, because a browser tab is
+// recreated on reload and a per-tab memory would forget the repeat it exists
+// to prevent. Both are best-effort by design — the cost of losing the memory is
+// one possible repeat, and the cost of THROWING here is that she says nothing
+// at all on the one path that exists because everything else already failed.
+const lastOops: Record<string, number> = {};
+const OOPS_KEY = "meera.oops.last";
+
+function readLastOops(mode: string): number {
+  if (mode in lastOops) return lastOops[mode];
+  try {
+    const raw = globalThis.localStorage?.getItem(`${OOPS_KEY}.${mode}`);
+    const n = raw === null || raw === undefined ? -1 : Number(raw);
+    return Number.isInteger(n) ? n : -1;
+  } catch {
+    return -1;
+  }
+}
+
+function writeLastOops(mode: string, i: number): void {
+  lastOops[mode] = i;
+  try {
+    globalThis.localStorage?.setItem(`${OOPS_KEY}.${mode}`, String(i));
+  } catch {
+    /* private mode, a server, a browser with site data blocked — see above */
+  }
+}
+
+/**
+ * Draw a variant that is NOT the one drawn last.
+ *
+ * Exported for `evals/resilience/run.mjs`, which asserts over a long run that
+ * consecutive draws are never identical and that every variant is still
+ * reachable — a no-repeat rule implemented as "always advance by one" would
+ * pass the first assertion and turn the pool into a fixed cycle, which is a
+ * different way of being predictable.
+ */
+export function drawNoRepeat<T>(pool: T[], mode: string): T {
+  if (pool.length <= 1) return pool[0];
+  const last = readLastOops(mode);
+  const excluded = last >= 0 && last < pool.length;
+  // Draw from the pool MINUS the last index, so every remaining variant stays
+  // equally likely. Rejection sampling would do the same thing with an
+  // unbounded loop; this cannot spin. With no remembered last draw the whole
+  // pool is in play — an off-by-one here would silently make the final variant
+  // unreachable forever, which is why the eval asserts coverage and not only
+  // non-repetition.
+  const span = excluded ? pool.length - 1 : pool.length;
+  const j = Math.floor(Math.random() * span);
+  const i = excluded && j >= last ? j + 1 : j;
+  writeLastOops(mode, i);
+  return pool[i];
+}
+
 async function proxyThink(
   keys: BrainKeys,
   system: string,
@@ -845,6 +1101,7 @@ async function proxyThink(
   noThink = false,
   // SPEC §7.3 chat-lane adoption — see openrouterThink's identical parameter.
   defaultModel = OPENROUTER_DEFAULT_MODEL,
+  attachments?: TurnAttachments,
 ): Promise<string | null> {
   try {
     const res = await fetch(PROXY_URL, {
@@ -858,6 +1115,14 @@ async function proxyThink(
         max_tokens: maxTokens,
         ...(onDelta ? { stream: true } : {}),
         ...(noThink ? { no_think: true } : {}),
+        // The set rides as its OWN field rather than being folded into `turns`
+        // here, so the server can cap it before a single byte reaches a model
+        // and can pick the attachment lane order (Azure first, by the owner's
+        // directive). Absent fields are absent, not empty arrays — a reader
+        // that does not know about them is unaffected.
+        ...(attachments?.images?.length ? { images: attachments.images } : {}),
+        ...(attachments?.caption ? { caption: attachments.caption } : {}),
+        ...(attachments?.docs?.length ? { docs: attachments.docs } : {}),
       }),
       // streams get longer to finish, but can still never hang forever
       signal: AbortSignal.timeout(onDelta ? 90_000 : 30_000),
@@ -958,6 +1223,33 @@ export async function think(
   // over the moment it exists, so the [search:] round trip is spent with a
   // message already on screen instead of in silence. Resolve when delivered.
   onHolding?: (r: HeartReply) => Promise<void> | void,
+  // ── WS-COMPOSER seam: what he attached to THIS message ───────────────────
+  //
+  // Passed straight through to /api/chat, which validates the counts and the
+  // byte caps server-side and folds the whole set into ONE turn (api/_lanes.js,
+  // api/_docs.js).
+  //
+  // THE SPLIT, STATED SO NOBODY RE-OPENS IT:
+  //
+  //   IMAGES DO NOT COME THROUGH HERE. They are uploaded, stored on the message
+  //   as `photoUrls`, and rebuilt into `image_url` parts by `toTurns` out of the
+  //   thread on every turn for the next six messages. Passing them here as well
+  //   would put the same picture in the prompt TWICE on the turn it was sent —
+  //   which reads to her as him having sent it twice. The field exists on the
+  //   type because the server accepts it and a future non-thread caller (a
+  //   share-target intent, a paste) would need it; the chat composer does not
+  //   use it, on purpose.
+  //
+  //   DOCUMENTS DO. Nothing uploads them and nothing stores their text, so
+  //   `toTurns` has no field to rebuild them from and the single turn they are
+  //   sent on is the only turn their contents can ever reach her. What survives
+  //   afterwards is the transcript line ("[file lease.pdf]") and the name/mime/
+  //   size on `Message.docs`.
+  //
+  // The one caller is `replyPass` in src/components/Chat.tsx, which takes them
+  // out of a take-once box so a superseded pass can neither double-send nor
+  // lose them. See components/attachments.ts for that box and its reasoning.
+  attachments?: TurnAttachments,
 ): Promise<HeartReply> {
   // when this turn started — the web lookup below spends what is LEFT of a
   // whole-turn budget rather than adding its own leg on top of pass 1
@@ -1012,12 +1304,61 @@ export async function think(
   // graph-memory recall: what she knows about their world, woven into
   // context. On live calls the lookup is done ONCE at pickup and passed in
   // as extraMemories — never in front of a spoken reply. Chat looks it up.
-  const memories =
+  const recalled =
     mode === "call"
       ? extraMemories || ""
       : keys.deviceId
         ? await recallMemories(keys.deviceId, latest)
         : "";
+  // ── THE ACTIVITY LEDGER, in front of the graph ────────────────────────
+  //
+  // #113 wrote a finished game into the graph and nothing read it back
+  // reliably: `opRecall`'s keyword leg queries `meera_nodes`, which activities
+  // are never written to; the we-episode leg needs a `vy_rel_state` row, which
+  // does not exist until a consolidation pass has run; so the only route left
+  // was the semantic leg, which needs an embedding call to have succeeded at
+  // write time. On the first external tester's device, on his first day, that
+  // was the whole retrieval story for two games of chess — and when he asked
+  // about them she said they had not happened, and then invented them.
+  //
+  // So the ledger goes FIRST, ahead of the graph rows. `api/chat.js` keeps the
+  // FIRST n characters of the tail and cuts the END, which makes ordering the
+  // drop policy: of the two, the graph rows are the ones that may be lost,
+  // never the record of what they actually played. Same arithmetic and same
+  // reason as `callMemories`' chat tail.
+  //
+  // It rides `memories` (T5) rather than taking a compiler slot of its own for
+  // the reason stated at `formatChatTail`: compile() is pure and db-free and
+  // the CALLER resolves strings, and a second heading is a second place for
+  // T5's recall law to drift.
+  //
+  // TWO PRODUCERS, ONE BLOCK. `api/memory.js` renders its own activity block
+  // for the surfaces that have no AppState to read a ledger from (the realtime
+  // call lane, Telegram, WhatsApp, Discord). This lane has the better copy of
+  // the same games — complete, no round trip, no embedding, correct signed out
+  // — so it takes the server's out rather than rendering both and putting
+  // every game in the prompt twice under two headings.
+  const ledger = keys.activities !== undefined ? keys.activities : activityLedger();
+  const ledgerBlock = formatActivityLedger(ledger, Date.now());
+  const graph = ledgerBlock ? withoutServerActivityBlock(recalled) : recalled;
+  const withLedger = ledgerBlock ? (graph ? `${ledgerBlock}\n\n${graph}` : ledgerBlock) : graph;
+  // ── WS-SHARENOW: what they JUST did, in front of all of it ─────────────
+  // The owner's defect was a CALL one (share, hang up, call back a minute
+  // later, "kya dekha humne"), but the block belongs on this lane for the
+  // reason `call-opens-with-amnesia-by-construction` ends with: a block that
+  // renders on one lane and silently empties on another is how the same person
+  // remembers on the phone and forgets in text. The 45-minute window means a
+  // share that ended before this message is still the present moment here too.
+  //
+  // Same composition rule as the ledger above and for the same truncation
+  // argument — `api/chat.js` keeps the FIRST n characters of the tail — except
+  // one notch stronger: of everything in this string it is the block a later
+  // round trip can least re-derive, since the share mirror is device-local.
+  // Bounded by `JUST_HAPPENED_BUDGET` (300), and it is "" for anyone whose
+  // last share, game or call is older than the window, which is this string's
+  // render-nothing default.
+  const justBlock = formatJustHappened(shareLedger(), ledger, history, Date.now());
+  const memories = justBlock ? (withLedger ? `${justBlock}\n\n${withLedger}` : justBlock) : withLedger;
   // WS-INTEGRATE seam 1 (T2/T3/T4/T6): the relstate bundle rode the SAME
   // op:"recall" response `memories` just resolved from (memory.ts's
   // takeRelBundle — see that file's header for why this isn't its own
@@ -1277,12 +1618,47 @@ export async function think(
       ...(relBundle?.rituals ?? []).map((r) => JSON.stringify(r)),
       ...(keys.activity?.facts ?? []),
       ...(keys.activity?.nameable ?? []),
+      // the durable half of the live activity, and the ledger of finished
+      // ones. Both are records she was HANDED — same provenance class as an
+      // episode — so a game she really played is a game she may retell.
+      ...(keys.activity?.record ?? []),
+      ...ledger.map((r) => r.summary),
       // #117 — a crossed milestone is shared past SHE WAS HANDED, same
       // provenance class as an activity fact: without this, "100 din ho
       // gaye humein" would be flagged as an invented shared memory by the
       // very gate that exists to catch invented shared memories.
       ...(momentLine ? [momentLine] : []),
     ]),
+    // Family 6 (invented specifics of a real activity). Its own set, because
+    // `sharedVocabulary`'s tokenizer drops digits and every chess move is a
+    // letter and a digit — see `activityVocabulary`. Same sources as family
+    // 4's, plus HIS words, which are ground truth on every channel and are
+    // what make "d4 tak sahi tha" checkable when he is the one who said d4.
+    //
+    // FAIL-CLOSED, and the condition is the record rather than the context:
+    // the field is set ONLY when this person has actually done an activity —
+    // one live, or one in the ledger. Two reasons, and the second is the one
+    // that matters. (1) `honesty-provenance-allowlist`: with no record to
+    // check against, every real detail is unsupported, so the gate would flag
+    // truths. (2) The named seam this family accepts, stated rather than
+    // hidden: the predicate reads "a claim about a game", and a sentence about
+    // a cricket match — "kal ka match draw hua tha" — has that shape. Someone
+    // who has never opened a board should never meet this family at all, and
+    // for someone who has, the cost of the residual is one soft canned line
+    // that hands the question back to him. Same trade families 3 and 4 make.
+    activityVocab:
+      keys.activity || ledger.length
+        ? activityVocabulary([
+            ...(keys.activity?.facts ?? []),
+            ...(keys.activity?.nameable ?? []),
+            ...(keys.activity?.record ?? []),
+            ...ledger.map((r) => r.summary),
+            memories,
+            ...(relBundle?.weEpisodes ?? []).map((e) => JSON.stringify(e)),
+            latest,
+            ...history.filter((m) => m.from === "me").map((m) => m.text || ""),
+          ])
+        : undefined,
   };
   const honestyAllowed = allowedFrom(honestyCtx.trustedText);
   // The streaming door. Only class (A) — an identifier is a self-contained
@@ -1293,8 +1669,17 @@ export async function think(
   // logged, remembered and spoken on every non-streaming path carries both.
   const streamGuard = onDelta && mode === "call" ? createStreamGuard(onDelta, honestyAllowed) : null;
 
-  if (keys.openrouterKey) text = await openrouterThink(keys, fullSystem, turns, maxTokens, chatRoute.model);
-  if (!text && keys.apiKey) text = await claudeThink(keys, fullSystem, turns);
+  // A message carrying an attachment SET goes to the proxy and nowhere else.
+  // The user's own OpenRouter/Claude keys are direct client-side lanes: they
+  // never see the `images`/`docs` fields, so a photo turn on those lanes would
+  // reach the model with the pictures silently missing — she would answer "kya
+  // bheja?" to five photos, which reads as her not looking. The proxy is also
+  // the only place the caps, the document extraction and the Azure-first
+  // attachment order exist. One place, on purpose.
+  const hasAttachments = Boolean(attachments?.images?.length || attachments?.docs?.length);
+  if (keys.openrouterKey && !hasAttachments)
+    text = await openrouterThink(keys, fullSystem, turns, maxTokens, chatRoute.model);
+  if (!text && keys.apiKey && !hasAttachments) text = await claudeThink(keys, fullSystem, turns);
   if (!text)
     text = await proxyThink(
       keys,
@@ -1305,6 +1690,7 @@ export async function think(
       streamGuard ? (d: string) => streamGuard.push(d) : undefined,
       mode === "call",
       chatRoute.model,
+      attachments,
     );
   if (streamGuard) {
     streamGuard.flush();
@@ -1317,20 +1703,18 @@ export async function think(
     if (isDirective) return { bubbles: [] };
     // honest connectivity trouble, phrased for the medium: on a call she's
     // SPEAKING, so "my messages aren't sending" would be absurd
-    const oops =
-      mode === "call"
-        ? [
-            ["awaaz kat rahi h lagta h... phir se bolna?"],
-            ["hello? ek second, network thoda ajeeb kar raha h"],
-            ["ruk, kuch sunai nahi diya — line kharab h shayad"],
-          ]
-        : [
-            ["yaar net kuch ajeeb kar rha", "ek min"],
-            ["arre mere msg nhi ja rhe theek se 😭", "ruk"],
-            ["net dikkat kar rha lagta h", "abhi aati hu"],
-          ];
+    //
+    // THESE ARE ALLOWED TO BE LITERAL LINES, and that is the exception rather
+    // than the rule. `recited-prompt` bans sentence-shaped text in her BRIEF,
+    // because anything she is shown becomes a phrase bank. These are not in her
+    // brief — no model ever sees them; they are what the code says when no
+    // model could be reached at all. What the law still binds is the outcome it
+    // was written about: she must not repeat herself verbatim. On 2026-08-24 she
+    // sent the SAME pair three times in ninety minutes, and the reason was a
+    // plain uniform draw with nothing forbidding a repeat.
+    const oops = mode === "call" ? OOPS_CALL : OOPS_CHAT;
     return {
-      bubbles: oops[Math.floor(Math.random() * oops.length)],
+      bubbles: drawNoRepeat(oops, mode),
       learned: local.learned,
     };
   }
@@ -1479,7 +1863,10 @@ export async function think(
             ? "This is what the internet says rather than a source worth trusting — keep it loose, hedge it, never assert it."
             : "If it doesn't state a city, a date or a unit, don't invent one; say the number loosely rather than precisely."
         }\nThese came from LOOKING IT UP, not from your own experience — never restate them as something you personally saw, used or checked on your own phone. Weave in only the part that answers what they asked; if it doesn't actually answer it, say you couldn't find it properly. Never mention "searching" or "results", and do NOT output another [search: …] marker.`;
-      const second = await proxyThink(keys, sysCore, tailWithFacts, turns, maxTokens, undefined, false, chatRoute.model);
+      // `attachments` rides the second pass too: the lookup pass rebuilds the
+      // tail, not the turns, and a photo that vanished between pass 1 and pass
+      // 2 would have her answer about a picture she can no longer see.
+      const second = await proxyThink(keys, sysCore, tailWithFacts, turns, maxTokens, undefined, false, chatRoute.model, attachments);
       if (second) {
         const p2 = gate(parseBubbles(second));
         p2.learned = local.learned;
@@ -1530,13 +1917,35 @@ export async function think(
     // no target = refused (a whole-memory wipe) or unreadable. Nothing is
     // deleted and nothing is claimed: `forgot` stays unset, so no caller
     // downstream shows a receipt for something that did not happen.
-    const res = target ? await forgetMemories(keys.deviceId, target) : null;
+    const res = target
+      ? await forgetMemories(keys.deviceId, target, undefined, { nohook: mode === "call" })
+      : null;
     diag("chat", "forget_fire", {
       scope: target?.scope || "refused",
       ok: Boolean(res),
+      receipt: res?.receipt || "none",
       ...(res?.deleted || {}),
     });
-    if (target && res) parsed.forgot = { target, deleted: res.deleted };
+    // ── A1: THE RECEIPT IS GATED ON WHAT ACTUALLY MATCHED ─────────────────
+    // She has already written "haan hata diya" by this point — the marker and
+    // the agreement come out of the same generation. When nothing matched,
+    // those words are a lie about the strongest promise in the product, and
+    // the ask is the honest version of the same turn: name it and she will.
+    //
+    // Replacing her bubbles with a fixed line is a thing this file does in
+    // exactly one other place (the post-search silence) and for the same
+    // reason: the alternative is worse, and this line asserts nothing about
+    // the world — it only asks. It is deliberately not in persona.ts, because
+    // a sentence in a brief is a sentence she recites elsewhere.
+    if (target && res?.receipt === "none") {
+      parsed.bubbles = ["kaunsi wali? naam bata do"];
+      parsed.photo = undefined;
+      parsed.voice = undefined;
+      parsed.gif = undefined;
+      diag("chat", "forget_unmatched", { scope: target.scope });
+    } else if (target && res) {
+      parsed.forgot = { target, receipt: res.receipt, deleted: res.deleted };
+    }
     parsed.forget = undefined;
   }
 

@@ -159,12 +159,42 @@ async function buildPool(limit) {
       context: "compiled",
     };
   });
+  // ── corpus-drift guard (2026-08-23, WS-PAPER) ──────────────────────────
+  // corpus.jsonl is a FROZEN index (dated 2026-08-15, see corpus.manifest.
+  // json) of {id, sha256} pairs compiled from src/engine/compiler.ts AS IT
+  // WAS THEN. getRowsByIds() above recompiles every row against WHATEVER
+  // compiler.ts is on disk right now, per corpus-lib.mjs's own determinism
+  // contract — which holds only for a fixed compiler. It is not fixed: 17+
+  // commits have touched compiler.ts/persona.ts since (T11-T13 self layer,
+  // rel-state, rupture stance, milestones, activity, the 2026-08-23 "memory
+  // wave" — see `git log -- src/engine/compiler.ts` for the live list), so
+  // a row recompiled today can carry DIFFERENT {system,tail} bytes than the
+  // sha256 corpus.jsonl committed. Measured 2026-08-23: 2304/2304 rows (the
+  // full pool) mismatch — total drift, not noise.
+  //
+  // The 853 incumbent rows already banked in incumbent-state.json were all
+  // called on 2026-08-15/08-18 — BEFORE the first drifting commit (27a9ef4,
+  // 2026-08-19) — so they remain valid and byte-identical to the terra arm
+  // (also generated under the 08-15 compiler). They are NOT invalidated by
+  // this. What drift threatens is only the 1,451 REMAINING rows: calling
+  // the model against a freshly-recompiled prompt would silently break
+  // "byte-identical across arms by construction", the property the whole
+  // swap test's D1 comparison rests on (docs/SWAP-TEST-PREREG.md Amendment
+  // 1) — and it would do so with no error, no empty reply, nothing a prior
+  // gate here would catch (this is `dead-writers`'s family: a check that
+  // exists and is not wired to block spend is indistinguishable from no
+  // check). So mismatch is refused as fatal in a LIVE run rather than
+  // logged as a warning — see the RUN-mode check in main(). Plan mode
+  // still reports it (not fatal there) so `--dry-run` stays informative
+  // without requiring a live call to see the corpus's state.
   if (mismatched) {
     console.error(
-      `WARNING: ${mismatched} row(s) regenerated with a DIFFERENT sha256 than corpus.jsonl recorded — ` +
-        `corpus-lib.mjs output has drifted. Re-run corpus-generate.mjs before trusting this run.`,
+      `WARNING: ${mismatched}/${wanted.length} row(s) regenerated with a DIFFERENT sha256 than ` +
+        `corpus.jsonl recorded — the compiler has drifted since the corpus was frozen (2026-08-15). ` +
+        `See the comment at buildPool()'s drift guard for what this does and does not invalidate.`,
     );
   }
+  pool.__corpusDrift = { mismatched, total: wanted.length };
   return pool;
 }
 
@@ -297,6 +327,17 @@ function planReport(pool) {
   console.log(`Already completed (resumed from incumbent-state.json): ${done}/${pool.length}`);
   const today = todayKey();
   console.log(`Calls made today (${today}) so far: ${state.dailyCounts[today] ?? 0}`);
+  const drift = pool.__corpusDrift ?? { mismatched: 0, total: pool.length };
+  if (drift.mismatched > 0) {
+    console.log(
+      `\nSTATUS: NOT READY — ${drift.mismatched}/${drift.total} corpus row(s) drifted from corpus.jsonl's ` +
+        `committed sha256 (compiler.ts changed since 2026-08-15; see the drift guard comment in buildPool()). ` +
+        `A live run (WSINC_RUN=1) will REFUSE to spend until this is resolved — see docs/research for the ` +
+        `remediation options.`,
+    );
+  } else {
+    console.log(`\nSTATUS: READY — corpus matches the committed index, live runs are byte-identical to the terra arm.`);
+  }
   console.log(`\nSmoke: WSINC_RUN=1 node evals/candidate/generate-incumbent.mjs --limit 20`);
   console.log(`Full:  WSINC_RUN=1 node evals/candidate/generate-incumbent.mjs --limit ${pool.length}\n`);
 }
@@ -316,6 +357,22 @@ async function main() {
   if (!RUN) {
     planReport(pool);
     process.exit(0);
+  }
+
+  const drift = pool.__corpusDrift ?? { mismatched: 0, total: pool.length };
+  if (drift.mismatched > 0) {
+    console.error(
+      `\nREFUSING TO RUN: ${drift.mismatched}/${drift.total} corpus row(s) no longer match corpus.jsonl's ` +
+        `committed sha256 — src/engine/compiler.ts has changed since the corpus was frozen (2026-08-15; see ` +
+        `evals/candidate/corpus/corpus.manifest.json and the drift guard comment in this file's buildPool()). ` +
+        `Calling the model now would spend real free-pool quota generating replies to a DIFFERENT prompt than ` +
+        `the terra arm was tested against, silently breaking the byte-identical-across-arms guarantee ` +
+        `docs/SWAP-TEST-PREREG.md Amendment 1 rests on. Zero calls were made. This needs a coordinator decision ` +
+        `(re-freeze the corpus against current compiler.ts and regenerate BOTH arms fresh, or pin the ` +
+        `regeneration to the 08-15 compiler snapshot for the remaining rows) before this can proceed — not a ` +
+        `flag to force past.`,
+    );
+    process.exit(1);
   }
 
   const state = loadState();

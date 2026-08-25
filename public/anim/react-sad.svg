@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sad reaction">
+  <circle cx="256" cy="252" r="140" fill="#f8d08b" fill-opacity=".13" stroke="#f8d08b" stroke-width="16"/>
+  <g fill="none" stroke="#c23f56" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M164 224c15-12 31-14 48-8M300 216c17-6 33-4 48 8M204 326c15-20 32-30 52-30s37 10 52 30"/>
+  </g>
+  <path d="M342 260c-13 23-16 29-16 40a16 16 0 0 0 32 0c0-11-3-17-16-40Z" fill="#f2b75b" fill-opacity=".6" stroke="#c23f56" stroke-width="8" stroke-linejoin="round"/>
+</svg>

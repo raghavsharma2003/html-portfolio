@@ -106,3 +106,16 @@ export {
   observationEligibleForPromotion,
   promoteObservation,
 } from "./observation";
+
+// ── the india layer's WRITE half (WS-SPINE, P1-2) ──────────────────────────
+// Same reason as everything above it: api/consolidate.js is a plain-JS
+// serverless function under the zero-imports-from-src rule, and it is now the
+// caller these three have never had (`never-scheduled`: vy_kin 0 rows,
+// vy_ritual 0 rows, because `dead-writers` — nothing anywhere invoked them).
+//
+// Hand-porting `writeKin` into JS was the alternative, and it is specifically
+// the one this file exists to refuse: its upsert carries the citation-union,
+// the address-term coalesce and the deliberate omission of `provisional` from
+// the update set list, and each of those is a RULE about what a kin row means.
+// A second copy of them in api/ is a second definition of a person's family.
+export { writeKin, recordRitualOccurrence, writeIndiaProfile, renderKinLines, KIN_BUDGET, type KinRow } from "./india";

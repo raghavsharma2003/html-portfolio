@@ -56,7 +56,17 @@ import PhotoAvatar from "./PhotoAvatar";
 import { ChevronIcon } from "./icons";
 import { tap, ImpactStyle } from "../native/haptics";
 import { useCallStatus } from "../state/callStatus";
+import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import "../styles/us.css";
+// The six marks, one per row of the record. Inlined rather than fetched
+// because each is drawn in `currentColor` and has to take this page's own ink
+// in both themes and under all five skies; an <img> would paint it black.
+import callsMark from "../assets/stats/calls.svg?raw";
+import chessMark from "../assets/stats/chess.svg?raw";
+import messagesMark from "../assets/stats/messages.svg?raw";
+import picturesMark from "../assets/stats/pictures.svg?raw";
+import tttMark from "../assets/stats/ttt.svg?raw";
+import wyrMark from "../assets/stats/wyr.svg?raw";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -180,17 +190,28 @@ function Line({
   aside,
   i,
   run,
+  mark,
 }: {
   n: number;
   what: string;
   aside?: string | null;
   i: number;
   run: boolean;
+  /** the row's own mark, as SVG markup. See the imports at the top. */
+  mark: string;
 }) {
   return (
     <div className="us-line" style={{ ["--i" as string]: i }}>
       <Counted value={n} run={run} />
-      <span className="us-what">{what}</span>
+      {/* The mark sits with the PHRASE, not with the number: it says what
+          kind of thing was counted, which is what the phrase says. It is
+          aria-hidden because the phrase already says it in words, and a row
+          that announced "chess, games of chess" would be reading a picture
+          out loud. */}
+      <span className="us-what">
+        <span className="us-glyph" aria-hidden="true" dangerouslySetInnerHTML={{ __html: mark }} />
+        {what}
+      </span>
       {aside ? <span className="us-aside">{aside}</span> : null}
     </div>
   );
@@ -203,6 +224,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
   // running underneath (audit: `us-screen-call-invisible`). This is a status
   // read, nothing more — the shell owns starting, ending and muting it.
   const call = useCallStatus();
+  const sky = useSky();
 
   // Same dedicated read as MoreSheet's closeness card, for the same reason,
   // and never `takeRelBundle` — see the prop's doc. `undefined` means "go
@@ -342,12 +364,23 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
     <div
       className="us"
       ref={root}
+      style={skyVars(sky)}
+      data-sky={sky.state}
       tabIndex={-1}
       role="region"
       aria-label={`You and ${HER_NAME}`}
       onKeyDown={onKeyDown}
     >
+      {/* THE RECORD IS KEPT SOMEWHERE, and this is where. Us was the last
+          full-screen surface in the app standing on flat `--bg` — a page about
+          the relationship, rendered in a room the relationship does not live
+          in. Same wallpaper variant, same veil and therefore the same measured
+          floors as the thread and the activity rooms; a SIBLING of the
+          scroller, so a page this long never repaints it. */}
+      <WorldLayer frame={sky} variant="wallpaper" />
       <div className="us-head">
+        {/* the band: the top of the same painting, through the same glass */}
+        <WorldLayer frame={sky} variant="band" />
         {/* the way out is a way BACK, and it is first in the DOM — the same
             contract ActivityShell states for its own exit */}
         <button
@@ -392,8 +425,13 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
             face above it is what keeps this a person rather than a
             profile page. */}
         <header className="us-hero">
-          <span className="us-face" aria-hidden="true">
-            <PhotoAvatar size={88} />
+          {/* the same ring home and the thread header wear — `.ring-gold`
+              carries it, the size stays here. It was a bespoke three-layer
+              accent halo that existed only on this screen. */}
+          <span className="us-face ring-gold" aria-hidden="true">
+            <span className="ring-inner">
+              <PhotoAvatar size={80} />
+            </span>
           </span>
           <p className="us-eyebrow">You and {HER_NAME}</p>
           <h1 className="us-day">
@@ -447,6 +485,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
           <Line
             i={0}
             run={run}
+            mark={messagesMark}
             n={r.chatCount}
             what={r.chatCount === 1 ? "message between you" : "messages between you"}
             aside={
@@ -460,6 +499,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
             <Line
               i={1}
               run={run}
+              mark={callsMark}
               n={r.callCount}
               what={r.callCount === 1 ? "voice call" : "voice calls"}
               aside={r.callSecs > 0 ? `${span(r.callSecs)} on the phone.` : null}
@@ -470,6 +510,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
             <Line
               i={2}
               run={run}
+              mark={picturesMark}
               n={r.photos}
               what={r.photos === 1 ? "picture shared" : "pictures shared"}
             />
@@ -479,6 +520,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
             <Line
               i={3}
               run={run}
+              mark={chessMark}
               n={r.chessGames}
               what={r.chessGames === 1 ? "game of chess" : "games of chess"}
               aside={chessAside}
@@ -489,6 +531,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
             <Line
               i={4}
               run={run}
+              mark={tttMark}
               n={r.tttGames}
               what={r.tttGames === 1 ? "round of tic-tac-toe" : "rounds of tic-tac-toe"}
             />
@@ -498,6 +541,7 @@ export default function UsScreen({ state, onExit, relBundle, now }: UsScreenProp
             <Line
               i={5}
               run={run}
+              mark={wyrMark}
               n={r.wyrCards}
               what={r.wyrCards === 1 ? "would-you-rather answered" : "would-you-rathers answered"}
             />

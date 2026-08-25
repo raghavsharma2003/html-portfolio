@@ -43,8 +43,22 @@
   width: min(300px, 84%);
   padding: var(--s5) var(--s4) var(--s4);
   border-radius: var(--r-lg);
-  background: var(--surface);
-  border: 0.5px solid var(--hairline);
+  /* WS-SWEEP: THE MATERIAL A SURFACE OVER THE WORLD IS MADE OF. This card only
+     ever appears over a BOARD (App mounts it under `activity !== null`), and
+     the activity rooms stand on the wallpaper now — so `--surface`, which is
+     `#ffffff`, was a pure-white rectangle laid on a painted sky. `--sheet-glass`
+     is the same near-opaque fill the settings sheet already uses for exactly
+     this job: enough of the room comes through to say the card is IN it, and at
+     0.94 nothing measured changes for the text inside.
+
+     The edge steps up to `--glass-edge-strong` for a reason the wallpaper gate
+     records in full: over a picture, contrast on the TEXT is not the failure —
+     losing the CONTAINER is, and a `--hairline` (8% ink) laid on a city is not
+     a boundary. That token is held at >= 3:1 against this ground in five skies
+     and both themes. */
+  background: var(--sheet-glass);
+  backdrop-filter: blur(16px) saturate(1.5);
+  border: 0.5px solid var(--glass-edge-strong);
   box-shadow: var(--shadow-float);
   color: var(--ink);
   text-align: center;

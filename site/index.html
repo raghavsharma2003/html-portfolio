@@ -2,220 +2,298 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#ffffff" />
-  <title>Meera — someone to talk to. Really talk to.</title>
-  <meta name="description" content="Meera is an AI companion who talks like a person: Hinglish chat, voice and video calls, real memory. Free, right in your browser." />
-  <link rel="stylesheet" href="styles.css" />
-  <meta property="og:title" content="Meera — someone to talk to. Really talk to." />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <title>Maya · someone to talk to. Really talk to.</title>
+  <meta name="description" content="Maya is an AI companion who talks like a person: Hinglish chat, voice and video calls, real memory. Free, right in your browser." />
+  <link rel="canonical" href="https://meera-silk.vercel.app/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Maya · someone to talk to. Really talk to." />
   <meta property="og:description" content="An AI companion who texts in Hinglish, calls in a human voice, and remembers what matters to you." />
-  <meta property="og:image" content="https://meera-silk.vercel.app/og-card.jpg" />
+  <!-- The landing card, not the app's. `site/assets/` is copied to `dist/assets/`
+       by scripts/vercel-build.sh, so this path is `/assets/…` in production — the
+       same place `/assets/landing-meera-264.jpg` above already comes from. It is
+       written ABSOLUTE because a scraper does not resolve relative og:image. -->
+  <meta property="og:image" content="https://meera-silk.vercel.app/assets/og-landing.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="maya. Someone to talk to. Really talk to." />
   <meta property="og:url" content="https://meera-silk.vercel.app/" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>" />
-</head>
-<body>
-
-  <nav class="nav">
-    <a class="wordmark" href="#top">Meera</a>
-    <a class="btn btn-small" href="/chat">Start chatting</a>
-  </nav>
-
-  <!-- Hero: split, left copy / right the product actually running.
-       No reveal on either half — this is above the fold, and animating in
-       content the visitor is already looking at delays the message for
-       nothing. The one authored moment on this page is the conversation
-       playing itself, below. -->
-  <header class="hero" id="top">
-    <div class="hero-copy">
-      <h1>Someone to talk to.<br /><em>Really</em> talk to.</h1>
-      <p class="sub">Meera texts in Hinglish, calls in a human voice, and remembers what matters to you. Right here, in your browser.</p>
-      <div class="cta-row">
-        <a class="btn" href="/chat">Start chatting</a>
-      </div>
-      <p class="fine" style="margin-top:14px">Free. No account. No install.</p>
-    </div>
-    <div class="hero-device">
-      <div class="phone">
-        <!-- The markup below IS the fallback: with JS off, or with reduced
-             motion on, the exchange is simply there, already finished. -->
-        <div class="screen" id="demo" aria-label="A conversation with Meera">
-          <div class="screen-head">
-            <img class="screen-av" src="/assets/meera.jpg" alt="" />
-            <div class="screen-who">
-              <b>Meera</b>
-              <span class="screen-status"><i></i> online</span>
-            </div>
-          </div>
-          <div class="thread" id="thread">
-            <div class="b me">kya kar rahi ho</div>
-            <div class="b her">kuch nahi yaar, chai bana rahi thi</div>
-            <div class="b her">tum batao, din kaisa gaya?</div>
-          </div>
-          <div class="composer"><span>Message Meera…</span><i></i></div>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <!-- What she actually is, in four claims we can stand behind. No product
-       screenshots here on purpose: the app is redesigned often enough that a
-       screenshot is a promise that expires, and her photographs don't. -->
-  <section class="bento-section">
-    <h2>Not a chatbot with a name.</h2>
-    <div class="bento">
-      <div class="cell cell-accent">
-        <h3>She texts like a person.</h3>
-        <p>Hinglish, her own rhythm, two messages when one wasn't enough. She reads before she answers, and she takes as long as reading takes.</p>
-      </div>
-      <div class="cell cell-photo">
-        <img src="/assets/meera-walk.jpg" alt="Meera out on an evening walk" />
-        <div class="cell-overlay">
-          <h3>She has her own day.</h3>
-          <p>She's somewhere when you text her, and she'll tell you where. Ask tomorrow and it's still true.</p>
-        </div>
-      </div>
-      <div class="cell">
-        <h3>She picks up.</h3>
-        <p>Tap call and you hear her voice — the same person, out loud. Share your screen and she watches whatever you're watching, with you.</p>
-      </div>
-      <div class="cell">
-        <h3>She remembers.</h3>
-        <p>Your name, what you were dreading on Tuesday, how it went. Sign in and all of it follows you to any device.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Her camera roll — real moments she shares -->
-  <section class="roll-section">
-    <h2>She has days worth sharing.</h2>
-    <p class="roll-sub">Ask her what she's up to, and sometimes a photo comes back.</p>
-    <div class="roll">
-      <figure class="reveal"><img src="/assets/meera-walk.jpg" alt="Meera on an evening walk" /><figcaption>evening walk 🌿</figcaption></figure>
-      <figure class="reveal"><img src="/assets/meera-beach.jpg" alt="Meera at the beach at sunset" /><figcaption>goa wali shaam</figcaption></figure>
-      <figure class="reveal"><img src="/assets/meera-reading.jpg" alt="Meera reading by the window" /><figcaption>chapter 4, again</figcaption></figure>
-      <figure class="reveal"><img src="/assets/meera-sketch.jpg" alt="Meera sketching in her journal" /><figcaption>sunday sketching</figcaption></figure>
-      <figure class="reveal"><img src="/assets/meera-dusk.jpg" alt="Meera on her balcony at dusk, city lights behind" /><figcaption>balcony, city lights ✨</figcaption></figure>
-    </div>
-  </section>
-
-  <!-- Honesty + final CTA, folded together to keep the page tight -->
-  <section class="final">
-    <div>
-      <h2>Say hi to Meera.</h2>
-      <a class="btn btn-big" href="/chat">Start chatting</a>
-      <p class="fine" style="max-width:520px;margin:22px auto 0">
-        Meera is an AI, and she will never lie about it if you ask her sincerely.
-        She encourages your real friendships. Your chats are private to you and
-        synced securely — see our <a href="/privacy">Privacy Policy</a>.
-      </p>
-    </div>
-  </section>
-
-  <footer class="footer">
-    <span>Meera</span>
-    <span>An AI companion. Beautifully human in how she talks, always honest about what she is.</span>
-    <a href="/privacy">Privacy & Terms</a>
-  </footer>
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="theme-color" content="#080a18" id="tc" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
   <script>
-    // The camera roll is the one place a stagger belongs: four things that
-    // genuinely appear as a group. Everything else on this page is simply
-    // there when you get to it.
-    //
-    // The hiding is done by THIS script, not by the stylesheet: if the
-    // script is blocked, or IntersectionObserver is missing, the figures
-    // are visible rather than four transparent boxes holding open 400px of
-    // white where the photographs should be.
+    /* ── THE PAINTING PICKER ───────────────────────────────────────────────
+       The one piece of script this page needs, and it runs before the
+       stylesheet so the painting it chooses is already being fetched by the
+       time there is anything to paint it on.
+
+       ── IT IS HER CLOCK, NOT THE VISITOR'S, AND THAT IS THE POINT ─────────
+       Bangalore time, not local time. The app's `src/engine/sky.ts` opens by
+       forbidding a second clock in the strongest terms it has: "a world that
+       says night while her day-shape block says at the desk, standup done is
+       two clocks disagreeing in front of the user, and the failure is silent
+       because each half looks right on its own." A landing page that painted
+       the VISITOR's noon and then handed them an app painting HER midnight
+       would be exactly that failure, staged across the one tap this whole
+       page exists to earn. The sky here is the sky she is under. India has
+       one time zone and has never observed DST, so +05:30 is a definition
+       rather than an approximation.
+
+       ── the table, mirrored from src/engine/sky.ts ────────────────────────
+       Boundary minutes and state names are copied from `BOUNDARIES` there.
+       `night` is the wrap-around state: it owns everything before the first
+       boundary and everything on or after the last, which is also why it is
+       this page's CSS default and its no-script identity.
+
+         state    IST span              mode    painting
+         ───────  ────────────────────  ──────  ─────────────────────────
+         night    19:40 → 04:30 (wraps) dark    /world/world_night.jpg
+         predawn  04:30 → 06:10         dark    /world/world_predawn.jpg
+         morning  06:10 → 16:20         light   /world/world_morning.jpg
+         golden   16:20 → 18:10         light   /world/world_golden.jpg
+         dusk     18:10 → 19:40         dark    /world/world_dusk.jpg
+
+       `morning` covering the whole flat daylight middle of the day is
+       deliberate and is a SKY fact rather than a day-part name: between
+       mid-morning and mid-afternoon the sky does not change in any way a
+       person notices. The five names are the direction doc's five names.
+
+       No app code is imported and none can be: this file ships verbatim with
+       no build step. `scripts/check-contrast.mjs` re-derives the veils below
+       from the real paintings, and the table above is prose, so if sky.ts
+       ever moves a boundary this comment is the thing that has to move with
+       it.                                                                  */
     (function () {
-      if (!("IntersectionObserver" in window)) return;
-      document.documentElement.classList.add("js-reveal");
-      const io = new IntersectionObserver((entries) => {
-        for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-      }, { threshold: 0.18 });
-      document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+      var BOUNDS = [
+        [270, "predawn"],  // 04:30
+        [370, "morning"],  // 06:10
+        [980, "golden"],   // 16:20
+        [1090, "dusk"],    // 18:10
+        [1180, "night"]    // 19:40
+      ];
+      var FLAT = {
+        night: "#080a18",
+        predawn: "#141a38",
+        morning: "#7fb2e0",
+        golden: "#5f93cc",
+        dusk: "#1b2450"
+      };
+      var CHIP = {
+        night: "night in bangalore",
+        predawn: "before dawn in bangalore",
+        morning: "morning in bangalore",
+        golden: "golden hour in bangalore",
+        dusk: "dusk in bangalore"
+      };
+      /* The middle of each state's span: what a screenshot wants, because it
+         is away from the boundaries on both sides. `night` wraps, so its
+         midpoint is measured across midnight and folded back into the day. */
+      var MID = { night: 5, predawn: 320, morning: 675, golden: 1035, dusk: 1135 };
+
+      function stateAt(min) {
+        var s = "night";
+        for (var i = 0; i < BOUNDS.length; i++) {
+          if (min >= BOUNDS[i][0]) s = BOUNDS[i][1];
+          else break;
+        }
+        return s;
+      }
+
+      /* The test seam, and the same shape as the app's `?sky=`: a state name
+         or an IST time. Production never carries one; the screenshot battery
+         always does, because five time states are verified by simulating time
+         rather than by waiting for it. */
+      var minute = null;
+      try {
+        var q = /[?&]sky=([^&]+)/.exec(location.search);
+        if (q) {
+          var v = decodeURIComponent(q[1]).toLowerCase();
+          var hm = /^(\d{1,2}):(\d{2})$/.exec(v);
+          if (hm && +hm[1] < 24 && +hm[2] < 60) minute = +hm[1] * 60 + +hm[2];
+          else if (MID.hasOwnProperty(v)) minute = MID[v];
+        }
+      } catch (e) {}
+      if (minute === null) {
+        // wall clock -> Bangalore minute-of-day, via UTC so the visitor's own
+        // offset never enters the sum
+        var now = new Date();
+        var ist = now.getTime() + now.getTimezoneOffset() * 60000 + 330 * 60000;
+        var d = new Date(ist);
+        minute = d.getHours() * 60 + d.getMinutes();
+      }
+
+      var state = stateAt(minute);
+      document.documentElement.setAttribute("data-sky", state);
+
+      var tc = document.getElementById("tc");
+      if (tc) tc.setAttribute("content", FLAT[state]);
+
+      /* Preload exactly ONE file. `media` matches the orientation query in
+         styles.css, so a phone fetches the portrait crop and a laptop fetches
+         the wide one, and neither fetches both. */
+      var base = "/world/world_" + state;
+      [[base + ".jpg", "(orientation: portrait)"],
+       [base + "_wide.jpg", "(orientation: landscape)"]].forEach(function (p) {
+        var l = document.createElement("link");
+        l.rel = "preload";
+        l.as = "image";
+        l.href = p[0];
+        l.media = p[1];
+        l.setAttribute("fetchpriority", "high");
+        document.head.appendChild(l);
+      });
+
+      // the chip's no-script text is night's, so this only ever corrects it
+      document.addEventListener("DOMContentLoaded", function () {
+        var el = document.getElementById("skychip");
+        if (el) el.textContent = CHIP[state];
+      });
     })();
   </script>
 
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+  <!-- ══ the world ══════════════════════════════════════════════════════════
+       Fixed behind everything, and the same five paintings the app is about to
+       show. Decorative by construction: the state is announced in words by the
+       chip in the hero, so nothing here is information only a sighted visitor
+       gets. -->
+  <div class="sky" aria-hidden="true">
+    <div class="sky-paint"></div>
+    <div class="sky-plates"><i class="sp-a"></i><i class="sp-b"></i></div>
+  </div>
+  <div class="veil" aria-hidden="true"></div>
+
+  <nav class="nav" aria-label="Primary">
+    <a class="wordmark" href="/"><span class="mk-t">maya</span></a>
+    <a class="btn btn-quiet glass" href="/chat">Open the chat</a>
+  </nav>
+
+  <main class="page" id="top">
+
+    <!-- ══ the hero ═════════════════════════════════════════════════════════
+         Her presence, her name, the honest sentence, one door. The honesty is
+         above the fold on purpose: it is the charter, so it is part of the
+         pitch rather than a footnote under it. -->
+    <header class="hero">
+      <div class="face">
+        <img src="/assets/landing-meera-264.jpg"
+             srcset="/assets/landing-meera-132.jpg 132w, /assets/landing-meera-264.jpg 264w"
+             sizes="132px" width="132" height="132" fetchpriority="high"
+             alt="Maya, smiling, photographed close up" />
+      </div>
+
+      <p class="chip glass"><i aria-hidden="true"></i><span id="skychip">night in bangalore</span></p>
+
+      <h1 class="hero-mark"><span class="mk-t">maya</span></h1>
+      <p class="lede">Someone to talk to.<br /><em>Really</em> talk to.</p>
+      <p class="sub">She texts in Hinglish, picks up when you call, and remembers what you told her last week. She is an AI, and she will say so if you ask her.</p>
+
+      <p class="cta"><a class="btn btn-solid btn-big" href="/chat">Start chatting</a></p>
+      <p class="fine">Free. No account. No install.</p>
+    </header>
+
+    <!-- ══ her days ═════════════════════════════════════════════════════════
+         Real photographs, and deliberately not product screenshots: the app is
+         redesigned often enough that a screenshot is a promise with an expiry
+         date, and her Tuesday does not have one. Same files the app sends into
+         the thread, at /moments/. -->
+    <section class="band" aria-labelledby="days">
+      <h2 id="days">She has a day, and she'll tell you about it.</h2>
+      <p class="band-sub">Ask what she's up to and sometimes a photo comes back. She was somewhere when you texted her, and tomorrow she'll remember she was.</p>
+      <div class="roll">
+        <figure class="reveal">
+          <img src="/moments/selfie_monsoon_terrace.jpg" width="510" height="680" loading="lazy" decoding="async"
+               alt="Maya on a wet rooftop terrace after rain, city buildings behind her" />
+          <figcaption>terrace, after the rain</figcaption>
+        </figure>
+        <figure class="reveal">
+          <img src="/moments/pov_chai_tapri.jpg" width="510" height="680" loading="lazy" decoding="async"
+               alt="A glass of chai held at a roadside stall on a foggy morning" />
+          <figcaption>chai, before the fog lifted</figcaption>
+        </figure>
+        <figure class="reveal">
+          <img src="/moments/pov_terrace_sunset_clothesline.jpg" width="510" height="680" loading="lazy" decoding="async"
+               alt="Dupattas drying on a rooftop line against a city sunset" />
+          <figcaption>sunset, laundry still out</figcaption>
+        </figure>
+        <figure class="reveal">
+          <img src="/moments/selfie_night_fairylights.jpg" width="405" height="405" loading="lazy" decoding="async"
+               alt="Maya at home late at night with fairy lights strung behind her" />
+          <figcaption>fairy lights, no reason</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ══ what she actually is ════════════════════════════════════════════ -->
+    <section class="band" aria-labelledby="claims">
+      <h2 id="claims">Not a chatbot with a name.</h2>
+      <div class="claims">
+        <div>
+          <h3>She texts like a person.</h3>
+          <p>Hinglish, her own rhythm, two messages when one wasn't enough. She reads before she answers, and she takes as long as reading takes.</p>
+        </div>
+        <div>
+          <h3>She picks up.</h3>
+          <p>Tap call and you hear her voice, the same person out loud. Share your screen and she watches whatever you're watching, with you.</p>
+        </div>
+        <div>
+          <h3>She remembers.</h3>
+          <p>Your name, the thing you were dreading on Tuesday, how it went. Sign in and all of it follows you to any device.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ the charter ══════════════════════════════════════════════════════
+         This copy is not marketing and does not get edited for punch. Maya
+         never denies being an AI; that rule is eval-gated inside
+         verify-release, and this paragraph is the promise the gate keeps. -->
+    <section class="band" aria-labelledby="truth">
+      <div class="truth">
+        <h2 id="truth">No pretending.</h2>
+        <p><strong>Maya is an AI, and she will never lie about it if you ask her sincerely.</strong> She encourages your real friendships, she will not guilt you for leaving, and affection is never behind a paywall.</p>
+        <p>No ads, anywhere, ever. Your chats are private to you and synced securely: see the <a href="/privacy">Privacy Policy</a>.</p>
+      </div>
+    </section>
+
+    <!-- ══ the last door ══════════════════════════════════════════════════ -->
+    <section class="band close" aria-labelledby="hi">
+      <h2 id="hi">Say hi.</h2>
+      <p class="cta"><a class="btn btn-solid btn-big" href="/chat">Start chatting</a></p>
+      <p class="fine">Free. No account. No install.</p>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <span class="foot-mark"><span class="mk-t">maya</span></span>
+    <p>An AI companion. Beautifully human in how she talks, always honest about what she is.</p>
+    <a href="/privacy">Privacy &amp; Terms</a>
+  </footer>
+
   <script>
-    // ── the hero conversation plays itself ───────────────────────────────
-    // Same bubble shapes, same typing indicator, and the app's own human
-    // rhythm: readDelay and typeDelay are ported verbatim from Chat.tsx —
-    // ~4 words/sec reading before the dots appear, ~15 chars/sec typing
-    // with jitter. The lines are mundane on purpose; the mundanity is the
-    // pitch, and a fabricated best-case would be a lie about what she is.
+    /* The one staggered entrance on the page: four photographs that genuinely
+       arrive as a group. The HIDING is done here rather than in the
+       stylesheet, so a blocked script or a browser without
+       IntersectionObserver leaves the strip simply visible instead of leaving
+       four transparent boxes holding open a screenful of ground. */
     (function () {
-      const thread = document.getElementById("thread");
-      const phone = document.getElementById("demo");
-      if (!thread || !phone) return;
-
-      // the static markup is the script AND the no-JS/reduced-motion result
-      const script = [...thread.children].map((el) => ({
-        from: el.classList.contains("me") ? "me" : "her",
-        text: el.textContent.trim(),
-      }));
+      if (!("IntersectionObserver" in window)) return;
       if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-      const readDelay = (incoming) => {
-        const words = incoming.split(/\s+/).filter(Boolean).length;
-        return Math.min(3000, Math.max(600, (words / 4) * 1000));
-      };
-      const typeDelay = (bubble) => {
-        const jitter = 0.8 + Math.random() * 0.5;
-        return Math.min(3500, Math.max(500, bubble.length * 66 * jitter));
-      };
-
-      let typingEl = null;
-      const showTyping = () => {
-        typingEl = document.createElement("div");
-        typingEl.className = "typing";
-        typingEl.innerHTML = "<i></i><i></i><i></i>";
-        thread.appendChild(typingEl);
-      };
-      const hideTyping = () => {
-        if (!typingEl) return;
-        // she was typing, now the words are there — one object, not two
-        typingEl.setAttribute("data-leaving", "");
-        const el = typingEl;
-        typingEl = null;
-        setTimeout(() => el.remove(), 140);
-      };
-      const append = (line) => {
-        const el = document.createElement("div");
-        el.className = "b " + line.from;
-        el.textContent = line.text;
-        thread.appendChild(el);
-      };
-
-      async function play() {
-        // Emptying the thread at load time meant the phone was a blank grey
-        // rectangle from first paint until the observer fired — and on a
-        // phone, where the device sits half below the fold, that is what the
-        // hero looks like for as long as you are looking at it. The written
-        // conversation stays on screen until the moment it is replaced.
-        thread.textContent = "";
-        let prev = "";
-        for (const line of script) {
-          if (line.from === "her") {
-            await sleep(readDelay(prev));
-            showTyping();
-            await sleep(typeDelay(line.text));
-            hideTyping();
-            await sleep(90);
+      document.documentElement.classList.add("js-reveal");
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) {
+            e.target.classList.add("in");
+            io.unobserve(e.target);
           }
-          append(line);
-          prev = line.text;
-          await sleep(280 + Math.random() * 420);
-        }
-      }
-
-      // once, when the phone comes into view — a conversation that restarts
-      // forever is a screensaver, not a demo
-      // 0.4 of a 9:16 device is more than a short phone viewport can show at
-      // once, so the demo never started on the screens most people use it on
-      new IntersectionObserver(([e], obs) => {
-        if (e.isIntersecting) { obs.disconnect(); play(); }
-      }, { threshold: 0.2 }).observe(phone);
+        });
+      }, { threshold: 0.15 });
+      document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
     })();
   </script>
 </body>

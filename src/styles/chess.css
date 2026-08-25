@@ -687,15 +687,29 @@
   min-height: 26px;
   padding: 0 var(--s1);
 }
+/* WS-SWEEP: A LABEL ON THE WALLPAPER IS A QUIET CHIP, and the thread settled
+   that vocabulary already — the day separator and the call record are exactly
+   this object. This one was bare text at `opacity: 0.62` over `--ink-dim`,
+   which was fine on flat paper and is two problems on a picture: it multiplies
+   a gated token down to something no floor covers, and a bare word floating on
+   a painted city reads as a caption on someone else's photograph.
+
+   Same fill, same 0.5px `--glass-edge` boundary and same `--t-meta` the day
+   separator uses. The opacity is gone rather than reduced: the chip is what
+   makes it quiet now, so thinning the ink as well would be paying twice. */
 .cb-tray-label {
   flex-shrink: 0;
   margin-right: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--glass-chip);
+  border: 0.5px solid var(--glass-edge);
+  backdrop-filter: var(--ga-blur);
   font-family: var(--font-ui);
   font-size: var(--t-meta);
   font-weight: 650;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  opacity: 0.62;
   color: var(--cb-tray-ink);
 }
 .cb-tray-pieces {
@@ -760,14 +774,65 @@
   color: var(--ga-ink);
   font-weight: 650;
 }
+/* WHOSE COLUMN IS WHOSE. Two unlabelled columns were readable by convention
+   while he was always white; the moment he can be black they are a scoresheet
+   that quietly lies about who played what. The swatch takes its fill from the
+   board's own set, restated. `--cb-*` is scoped to `.cb` and this row is a
+   SIBLING of the board, so reading those tokens here would silently resolve
+   to nothing; the values are written out and inked again in the dark block
+   below, exactly as the set itself is. A 10px dot with a `--ga-line-strong`
+   rim is a shape in both themes whichever fill it carries, which is the same
+   argument `board-stays-lit` makes at full size. */
+.cx-sides {
+  /* THE LIST'S OWN GRID, so each label sits over the column it names. The
+     first cell is the move-number gutter and stays empty. */
+  display: grid;
+  grid-template-columns: 2.4em 1fr 1fr;
+  gap: var(--s2);
+  padding: 0 var(--s3);
+  font-size: var(--t-meta);
+  color: var(--ga-dim);
+}
+.cx-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cx-side i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 0.5px solid var(--ga-line-strong);
+}
+.cx-side[data-side="w"] i {
+  background: #f8f1e9;
+}
+.cx-side[data-side="b"] i {
+  background: #2e2325;
+}
+.as[data-tone="dark"] .cx-side[data-side="w"] i {
+  background: #eee3dd;
+}
+.as[data-tone="dark"] .cx-side[data-side="b"] i {
+  background: #241b1d;
+}
+/* WS-SWEEP: the room is the world now, so this panel sits on a painting
+   rather than on flat paper. `--ga-well` is `--glass-chip` there — a fill the
+   contrast gate measures text on — but a translucent fill with no blur behind
+   it is not glass, it is a window: the city came through this list hard enough
+   to read street lights between the moves. `--ga-blur` is what makes it a
+   material. The BOUNDARY steps up to `--ga-line-strong` with it, because a
+   scrolling list of moves is a CONTROL rather than a label and that is the
+   half of the glass family the gate holds at 3:1 against the ground. */
 .cx-movelist {
   min-height: 96px;
   max-height: 132px;
   overflow-y: auto;
   overscroll-behavior: contain;
   border-radius: var(--r-md);
-  border: 0.5px solid var(--ga-line);
+  border: 0.5px solid var(--ga-line-strong);
   background: var(--ga-well);
+  backdrop-filter: var(--ga-blur);
   padding: 6px 0;
 }
 .cx-move {
@@ -788,10 +853,25 @@
 .cx-mv-n {
   color: var(--ga-faint);
 }
+/* The quiet board, above the line that was already here. Small: this sits
+   inside a move list, not on a screen of its own, so it is scaled to the
+   panel rather than to the artwork. */
 .cx-mv-empty {
   padding: 10px var(--s3);
   font-size: var(--t-sub);
   color: var(--ga-faint);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.cx-mv-empty img {
+  width: 168px;
+  max-width: 70%;
+  height: auto;
+}
+.cx-mv-empty p {
+  margin: 0;
 }
 
 /* ── reduced motion ─────────────────────────────────────────────────────
