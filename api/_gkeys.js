@@ -23,6 +23,7 @@
 // the state. The cheap failure is the right one here.
 
 // Namespace import, not named: GOOGLE_PAID_KEY is optional, and a named import
+import { obsBestEffort } from "./_obs.js";
 // of an export that does not exist is a link-time SyntaxError that would take
 // the whole function down rather than degrade.
 import * as CFG from "./_config.js";
@@ -160,6 +161,15 @@ function coolFamily(key, until) {
   cooled.set(key, until);
   const fam = FAMILY_OF.get(key);
   if (fam) for (const [k, f] of FAMILY_OF) if (f === fam) cooled.set(k, until);
+  // WS-OBS: every cooling decision becomes a durable row — label + family +
+  // how long, never the key. This is the "we know automatically when a key
+  // is exhausted" stream.
+  obsBestEffort("key_cooled", {
+    label: labelFor(key) || null,
+    family: fam || null,
+    cool_ms: Math.max(0, until - Date.now()),
+    pool: poolHealth(),
+  });
 }
 
 export function markExhausted(key) {
