@@ -113,7 +113,7 @@ for (const f of found.slice(0, 12)) console.log(`      [${f.lane}] …${f.ctx}�
 
 // The ratchet: today's measured count. It may FALL (extraction progress) but
 // a silent RISE fails — new Maya prose must go into her sheet, not the core.
-const RATCHET = 64; // 2026-08-25: 95 -> 64, batch-1 extraction (11 example-fragment fields, exact-byte cuts, Maya 83/83 byte-identical)
+const RATCHET = 27; // 2026-08-25: 95 -> 64 -> 27, extraction batches 1-2 (22 example-fragment fields, exact-byte cuts, Maya 83/83 byte-identical each time)
 ok(`residual count ${found.length} <= ratchet ${RATCHET} (falls with extraction, never silently rises)`, found.length <= RATCHET, String(found.length));
 
 console.log(`\n${fail === 0 ? "ALL PASS" : fail + " FAILED"} (${pass} assertions)`);

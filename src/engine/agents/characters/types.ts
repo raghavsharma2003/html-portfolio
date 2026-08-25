@@ -93,4 +93,15 @@ export interface CharacterSheet {
   exVoicenoteMood: string;
   exPhotoReact: string;
   exComfort: string;
+  exWantSpecific: string;
+  exThreadOpen: string;
+  exRememberShown: string;
+  exLateNightCallback: string;
+  exMissedCatch: string;
+  exCuriousAsk: string;
+  exMoveOn: string;
+  exPointerWords: string;
+  exTinyCheck: string;
+  exCutoffReact: string;
+  exMockOffended: string;
 }
