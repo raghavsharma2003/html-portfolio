@@ -2916,3 +2916,30 @@ paid ad channels (Meta/Google) are policy-closed, monthly-plan 12-month
 retention 6.1%; TRAI outbound-AI rules fully in effect since 2026-03-10;
 DPDP full effect 2027-05-14 makes cross-session memory need its own
 unbundled consent screen.
+
+## `watchcost-measured` — screen-share ₹/min, probed on the wire (2026-08-25)
+
+Method: ~25 real gemini-3.1-flash-live-preview sessions on the paid key,
+production config byte-matched (Despina, hi-IN, thinkingBudget 0, sliding
+window), real usageMetadata; frames at the code's true cadence
+(FRAME_EVERY_MS 600ms active / IDLE_FRAME_MS 2500ms idle, 768px q0.68).
+Spend < $1. Supersedes the watch component of callcost-2026-08-23, whose
+own flagged "1.67fps vs 1fps ceiling, up to 14x billing ambiguity" this
+probe settles.
+
+- Video: ~30 tok/frame at real cadence (n=133 frames over 80s, 3
+  checkpoints: 29.1/31.3/30.7). Burst frames sent <1s apart COLLAPSE to
+  ~one frame's cost (63 tok flat for 1, 3, or 5 frames — n=4 sessions):
+  Google compresses near-simultaneous frames, which validates the
+  existing idle-frame/flush redundancy logic.
+- Audio in: ~9 tok/s room tone, ~23 tok/s speech-like (synthetic).
+- VOICE-CONFIG TAX (new, applies to EVERY live call, not just watch):
+  declaring speechConfig.voiceConfig bills +201 "AUDIO" prompt tokens per
+  turn with zero audio sent (n=3, reproducible; languageCode alone: 0).
+  ~₹0.06/turn — small, but it is a per-turn constant nobody chose.
+- Watch-mode total: ≈ ₹1.1–1.6/min (video is 5–20% of it, not the
+  dominant driver the estimate assumed — old video component 6–30x high).
+  10 min/day ≈ ₹320–465/month (was estimated ₹750–1,200).
+- Caveats: video linearity from one 80s run (sliding-window behavior over
+  a full 10-min call untested — largest remaining uncertainty); audio was
+  synthetic; persona text amortized, not live-probed.

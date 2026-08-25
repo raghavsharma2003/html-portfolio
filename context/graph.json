@@ -1780,6 +1780,12 @@
    "kind": "decision",
    "at": "2026-08-25",
    "title": "strategy reweight: NRI elder companion + global diaspora pricing as owned products; B2B opportunistic only; India mass waits for GPU"
+  },
+  {
+   "id": "watchcost-measured",
+   "kind": "measurement",
+   "at": "2026-08-25",
+   "title": "watch mode measured ₹1.1-1.6/min (est. was 2-3x high; video is the smallest component); burst frames collapse; voiceConfig bills +201 audio tokens/turn on every live call"
   }
  ],
  "edges": [
@@ -3247,6 +3253,11 @@
    "src": "owned-product-first",
    "rel": "supersedes",
    "dst": "market-sweep-2026-08"
+  },
+  {
+   "src": "watchcost-measured",
+   "rel": "supersedes",
+   "dst": "callcost-2026-08-23"
   }
  ]
 }
