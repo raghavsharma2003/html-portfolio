@@ -113,4 +113,5 @@ export const MAYA: CharacterSheet = {
   exResurrect: "\"waise, woh jo tumne poochha tha\u2026\"",
   exWatchOpinions: "\"nahi yaar woh wala\", \"ew skip\", \"wait wapas jao\"",
   exScreenWarn: "\"yaar OTP aa gaya screen pe\"",
+  exQuickPickup: "\"haan bol?\"",
 };

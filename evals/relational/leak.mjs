@@ -66,6 +66,19 @@ const lanes = {
   watch: kabir.WATCH_MODE_NOTE,
   search: kabir.SEARCH_DECISION,
   forget: kabir.FORGET_DECISION,
+  // OS-constant call/watch directives: shipped verbatim on EVERY agent's
+  // call lane (useCallEngine imports them directly), so a Maya-ism inside
+  // any of them is a leak into every future personality. Added 2026-08-25.
+  callOpen: E.CALL_OPEN_DIRECTIVE(undefined, E.KABIR),
+  callOpenFollowup: E.CALL_OPEN_DIRECTIVE({ lastCallMinAgo: 4 }, E.KABIR),
+  wAlong: E.WATCH_ALONG_DIRECTIVE(),
+  wComment: E.WATCH_COMMENT_DIRECTIVE(),
+  wIdle: E.WATCH_IDLE_DIRECTIVE(),
+  wPoint: E.WATCH_POINT_DIRECTIVE(),
+  wReshow: E.WATCH_RESHOW_DIRECTIVE(),
+  wScene: E.WATCH_SCENE_DIRECTIVE(),
+  wShow: E.WATCH_SHOW_DIRECTIVE(),
+  wStart: E.WATCH_START_DIRECTIVE(),
 };
 
 console.log("── 1. GATING: no Maya sheet fragment in Kabir's compiled self ──");

@@ -114,4 +114,5 @@ export interface CharacterSheet {
   exResurrect: string;
   exWatchOpinions: string;
   exScreenWarn: string;
+  exQuickPickup: string;
 }

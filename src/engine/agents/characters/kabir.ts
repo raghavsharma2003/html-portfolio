@@ -98,4 +98,5 @@ export const KABIR: CharacterSheet = {
   exResurrect: "\"waise, that thing you asked earlier\u2026\"",
   exWatchOpinions: "\"nahi, woh waala\", \"skip this\", \"wait, go back\"",
   exScreenWarn: "\"OTP aa gaya screen pe, dhyan\"",
+  exQuickPickup: "\"haan, bolo?\"",
 };
