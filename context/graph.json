@@ -1755,6 +1755,13 @@
    "kind": "rejection",
    "at": "2026-08-25",
    "title": "frozen corpus index fails sha256 on all rows after persona/compiler drift; refresh belongs to #58's closer; stamp versions beside frozen indexes"
+  },
+  {
+   "id": "market-sweep-2026-08",
+   "kind": "measurement",
+   "at": "2026-08-25",
+   "title": "sourced GTM sweep: AstroTalk Rs1,182Cr proves per-minute WTP; elder-care Rs799-5,000/mo NRI-paid; companion paid ad channels closed; TRAI/DPDP constraints live",
+   "doc": "docs/research/market-sweep-2026-08-25.md"
   }
  ],
  "edges": [

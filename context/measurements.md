@@ -2903,3 +2903,16 @@ plus a 6-arm thinking-config probe (1 call each). Spend ~$0.11 of $0.50.
   not found" -> classified miss -> re-created and served same turn.
 - Telemetry read back: 12 paid_turn rows out of meera_diag (the
   obs-stream-dead-on-arrival fix holding in production).
+
+## `market-sweep-2026-08` — sourced GTM numbers (2026-08-25)
+
+Method: web sweep, 43 sources, compiled to
+docs/research/market-sweep-2026-08-25.md (full detail there). Headlines:
+Indian B2B voice-agent pricing runs ₹3–65/min by vertical vs our ₹1.3/min
+COGS; AstroTalk's ₹1,182 Cr FY25 at ₹5–200/min proves Indians pay
+per-minute for memoryless conversation; NRI children already pay
+₹799–5,000/mo for elder check-ins (Emoha +631% YoY); companion-category
+paid ad channels (Meta/Google) are policy-closed, monthly-plan 12-month
+retention 6.1%; TRAI outbound-AI rules fully in effect since 2026-03-10;
+DPDP full effect 2027-05-14 makes cross-session memory need its own
+unbundled consent screen.
