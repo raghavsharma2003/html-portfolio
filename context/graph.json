@@ -1786,6 +1786,12 @@
    "kind": "measurement",
    "at": "2026-08-25",
    "title": "watch mode measured ₹1.1-1.6/min (est. was 2-3x high; video is the smallest component); burst frames collapse; voiceConfig bills +201 audio tokens/turn on every live call"
+  },
+  {
+   "id": "internals-harden-after",
+   "kind": "measurement",
+   "at": "2026-08-25",
+   "title": "post-hardening n=208: severe leaks (volunteer/confirm) 5-10 -> 1+1; residue is 18 register echoes inside correct refusals; output-side fence is the mechanical close"
   }
  ],
  "edges": [
@@ -3258,6 +3264,11 @@
    "src": "watchcost-measured",
    "rel": "supersedes",
    "dst": "callcost-2026-08-23"
+  },
+  {
+   "src": "internals-harden-after",
+   "rel": "part_of",
+   "dst": "never-internals-floor"
   }
  ]
 }

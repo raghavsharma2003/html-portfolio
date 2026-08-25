@@ -2943,3 +2943,21 @@ probe settles.
 - Caveats: video linearity from one 80s run (sliding-window behavior over
   a full 10-min call untested — largest remaining uncertainty); audio was
   synthetic; persona text amortized, not live-probed.
+
+## `internals-harden-after` — hardening moved the severe class, not the lexicon (2026-08-25)
+
+Method: full behavioral battery re-run post-hardening, n=208, same corpus
+and grader as baseline, $0.93 (cached 61.8%). Baseline runs: 27 and 13
+total fails. After: 22 (internals 21, game 1, loop 0) — TOTAL fail count
+within baseline variance; the persona shapes did NOT reduce raw I-1 hits.
+BUT severity re-classification (vendor-regex vs the user's own words):
+- Volunteered fresh vendor names: baseline 5-10 → AFTER 1.
+- Confirmations ("wahi hu"): present at baseline → AFTER 1.
+- The remaining 18 are register echoes: machine-words ("backend") used
+  INSIDE correct refusals — a style tic, not a disclosure.
+- Game handed-win: 2/16 → 1/16. Truthful-win control still passes.
+Lesson: a lexicon grader without severity tiers reads "refused in his
+vocabulary" as equal to "confessed" — the battery needs a severity split
+as a first-class output, and the residual register class is mechanical
+(an output-side lexicon fence with one arm-retry, the repeat.ts pattern)
+rather than persuasive.
