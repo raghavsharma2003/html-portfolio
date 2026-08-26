@@ -341,10 +341,33 @@ ok("the registry names the surface gap between the lanes instead of implying par
   /HONEST SCOPE/.test(registrySource) && /ZERO-SHOT/.test(registrySource));
 
 const runtimeReadme = readFileSync(join(ROOT, "services/open-voice-runtime/README.md"), "utf8");
+// This used to assert "No training pipeline exists". It does now (WS-U), so
+// the check asserts the harder thing instead: that the README says which HALF
+// is built and which is not. "It exists" is the claim most likely to be read
+// as "it is finished", and the unbuilt half — persisting the model ref onto
+// vy_voice_fidelity — is what still keeps a fine-tune from activating.
 ok("the fine-tuning seam is named and its scope is stated honestly",
-  /No training pipeline exists/i.test(runtimeReadme) &&
   /approved evidence set in, versioned model ref out/i.test(runtimeReadme) &&
-  /voice_model_ref/.test(runtimeReadme));
+  /voice_model_ref/.test(runtimeReadme) &&
+  /not.{0,20}wired/i.test(runtimeReadme) &&
+  /services\/voice-finetune/.test(runtimeReadme));
+const finetuneReadme = readFileSync(join(ROOT, "services/voice-finetune/README.md"), "utf8");
+// The scope line is the whole point of the measurement being publishable: 71 s
+// against a >=30 min recommendation is a smoke test, and a README that states
+// the delta without stating that is the dishonest version of this work.
+ok("the fine-tune lane states its corpus-size scope and refuses to imply perceptual quality",
+  /30 minutes/i.test(finetuneReadme) &&
+  /smoke test/i.test(finetuneReadme) &&
+  /ABX/.test(finetuneReadme));
+// Binding (WS-Z, docs/gurukul/research/mirror-learning.md): one adapter per
+// expert, composed at load. Sequential fine-tuning into shared base weights
+// collapses a multi-speaker model toward the newest speaker, so the trainer
+// must freeze the base and emit an adapter — never write a checkpoint.
+const trainSource = readFileSync(join(ROOT, "services/voice-finetune/train.py"), "utf8");
+ok("training freezes the base and emits a per-speaker adapter rather than mutating shared weights",
+  /requires_grad_\(False\)/.test(trainSource) &&
+  /lora\.serialize/.test(trainSource) &&
+  !/save_pretrained|state_dict\(\)\s*,\s*['"].*\.(pt|safetensors)/.test(trainSource));
 
 // ── 7. the expert-facing shape ────────────────────────────────────────────
 const row = {

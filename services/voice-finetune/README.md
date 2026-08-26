@@ -35,6 +35,28 @@ pinned Chatterbox commit, the baked checkpoints and `lora.py` cannot drift
 between the thing that produces adapters and the thing that consumes them. It
 also makes the build about a minute instead of the runtime image's 12m55s.
 
+## One adapter per expert — never a sequential fine-tune
+
+**The base checkpoint is never written.** `train.py` freezes every T3 parameter
+*before* injecting LoRA, so a bug in the injection can only produce an adapter
+that does nothing — it can never produce a quietly-modified base checkpoint
+escaping as if it were a small adapter. Each expert gets their own adapter file,
+composed onto the frozen base at load time and removed after the request.
+
+This is a binding, not a convenience. Published evidence (`docs/gurukul/research/
+mirror-learning.md`, WS-Z) is that **sequential per-speaker adaptation of a
+shared multi-speaker TTS collapses it toward the newest speaker**: train A, then
+train B on the result, and A degrades. Composed-at-load adapters cannot do that
+to each other, because no expert's training ever sees another expert's weights.
+`evals/fidelity/run.mjs` gates the freeze-and-serialize shape so this cannot
+quietly become a checkpoint pipeline later.
+
+A **regression check across speakers** — re-measure an older voice after a new
+speaker's fine-tune — is what would catch it if this reasoning were ever wrong.
+The harness supports it today (point `measure` at a second reference and a
+second adapter), but with **one real consented speaker it has not been run**, so
+nothing here is a measured claim about cross-speaker interference.
+
 ## What the adapter may touch
 
 `lora.TARGET_SUFFIXES` — the `q_proj`/`k_proj`/`v_proj`/`o_proj` projections of
