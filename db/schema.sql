@@ -2028,8 +2028,12 @@ create table if not exists vy_teacher_sheet (
   status text not null default 'draft' check (status in ('draft','validated','published','revoked')),
   consent_artifact_id uuid,
   created_at timestamptz not null default now(),
+  -- 052: the studio draft lane's "when was my work last saved". A draft save
+  -- is an UPSERT, so created_at stops moving on the first one.
+  updated_at timestamptz default now(),
   published_at timestamptz,
   constraint vy_teacher_sheet_publish_gate check (status <> 'published' or (consent_artifact_id is not null and published_at is not null))
 );
 create index if not exists vy_teacher_sheet_agent_status_ix on vy_teacher_sheet (agent_id, status, published_at desc);
 create unique index if not exists vy_teacher_sheet_one_published_ix on vy_teacher_sheet (agent_id) where status = 'published';
+create index if not exists vy_teacher_sheet_agent_recent_ix on vy_teacher_sheet (agent_id, created_at desc);

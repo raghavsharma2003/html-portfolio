@@ -146,3 +146,49 @@ export {
   type TeacherSheetRowState,
 } from "./agents/fromSheet";
 export type { TeacherSheet } from "./agents/teacherTypes";
+
+// ── the ingestion seam (Gurukul WS-F) ──────────────────────────────────────
+// `verifyPhraseBank` is the half `fromSheet.ts`'s validator explicitly refused
+// to approximate: teacher-sheet-spec.md §4.3's ">=5 occurrences in the
+// held-out half", which separates a habitual verbalism from a memorable LINE
+// and needs a corpus the sheet does not carry. `api/_teachersheet.js`'s
+// publish predicate is where the corpus and the sheet finally meet, and that
+// file is plain JS under the zero-imports-from-src rule — so the function
+// crosses here rather than being hand-ported, for this file's standing reason:
+// a second copy of a rule about what may be RECITED to a minor would drift on
+// the first edit and the drifted half would still return 200.
+//
+// `transcriptStats`/`draftFromSignals` ride along so a future studio endpoint
+// drafts with the same code the eval suite gates, rather than with a server
+// copy of it.
+export {
+  transcriptStats,
+  verifyPhraseBank,
+  splitHeldOut,
+  countFragment,
+  tokenize,
+  HINDI_MARKER_WORDS,
+  FILLER_LEXICON,
+  PHRASE_BANK_MAX_WORDS,
+  PHRASE_BANK_MIN_OCCURRENCES,
+  PHRASE_BANK_LINE_CEILING,
+  type TranscriptTurn,
+  type TranscriptStats,
+  type PhraseBankVerification,
+  type PhraseBankFinding,
+} from "./ingest/transcriptStats";
+export {
+  draftFromSignals,
+  draftFromTranscript,
+  FIELD_SOURCE_CLASS,
+  type SheetDraftResult,
+  type SheetGap,
+  type TeacherInput,
+} from "./ingest/sheetDraft";
+export {
+  createStubQualitativePass,
+  createQualitativePass,
+  QUALITATIVE_PROPOSABLE_FIELDS,
+  type QualitativePass,
+  type QualitativeResult,
+} from "./ingest/qualitativePass";

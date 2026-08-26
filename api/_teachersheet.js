@@ -48,7 +48,13 @@
 // `silent-truncation` failure shape"). This module states it by having no
 // fallback branch to take.
 import { q } from "./_db.js";
-import { sheetToModule, validateTeacherSheet, consentGateBlockers } from "./_engine.gen.js";
+import {
+  sheetToModule,
+  validateTeacherSheet,
+  consentGateBlockers,
+  verifyPhraseBank,
+  splitHeldOut,
+} from "./_engine.gen.js";
 
 export const TEACHER_SHEET_STATUSES = Object.freeze(["draft", "validated", "published", "revoked"]);
 
@@ -189,15 +195,99 @@ export async function loadTeacherAgent(slug, timeoutMs = 10_000) {
  * they run over compiled output (teacher-sheet-spec.md §4.4/§4.5) and are
  * driven by evals/teachersheet.mjs and the release gate.
  */
-export function checkPublishable(sheet, rowState) {
+export function checkPublishable(sheet, rowState, evidence) {
   const validation = validateTeacherSheet(sheet);
   const blockers = consentGateBlockers({
     status: "published",
     consent_artifact_id: rowState?.consent_artifact_id ?? sheet?.consentArtifactId ?? null,
   }).filter((b) => b !== "sheet_not_published");
+
+  const phraseBank = phraseBankVerdict(sheet, evidence);
+  const errors = validation.errors.concat(phraseBank.errors);
+
   return {
-    ok: validation.ok && blockers.length === 0,
-    errors: validation.errors,
+    ok: errors.length === 0 && blockers.length === 0,
+    errors,
     blockers,
+    phraseBank: phraseBank.verification,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// The phrase-bank rule's corpus half (WS-F) — teacher-sheet-spec.md §4.3
+// ─────────────────────────────────────────────────────────────────────────
+//
+// `fromSheet.ts` enforces the SHAPE half (<=3 words, no terminal punctuation,
+// <=12 items) and says in full why it does not enforce the other: the
+// ">=5 occurrences in the held-out half" rule "needs a transcript, this
+// function takes a sheet, and a corpus-free approximation of it would be a
+// check that passes against a corpus it cannot see". This is where the
+// transcript arrives, so this is where the rule runs.
+//
+// ── the three-state answer, and why it is not a boolean ───────────────────
+// A phrase bank is VERIFIED, FAILED, or UNVERIFIED, and collapsing the third
+// into either of the others is the whole defect this shape exists to avoid:
+//
+//   verified   evidence present, every fragment cleared both halves
+//   failed     evidence present, a fragment did not clear -> publish BLOCKED
+//   unverified NO evidence -> the marker rides on the result, publish is NOT
+//              blocked, and nothing anywhere reports a pass
+//
+// The unverified case does not block because the corpus lane (upload -> ASR)
+// is WS-F's other half and is not built; a gate that blocked every publish on
+// evidence no path can yet supply would be a gate that gets removed rather
+// than satisfied. It does not silently pass either, which is the rule
+// `silent-truncation` states as absent-and-NAMED: the caller gets
+// `phraseBank.unverifiedReason === "no-transcript-evidence"` and a studio that
+// renders it tells the teacher their catchphrases are unproven. The day the
+// corpus lane lands, the evidence argument stops being optional at the
+// endpoint and this comment is the record of when that changed.
+
+/** `exSlangRepeat` ships as a parenthesised quoted list; `boardVerbalisms` is
+ *  already an array. Same unwrap `fromSheet.ts`'s `verbalismFragments` does —
+ *  duplicated rather than exported because the engine bundle is generated and
+ *  this is four lines of parsing, not a rule about what a clone is. */
+function fragmentsOf(value) {
+  if (Array.isArray(value)) return value.map((v) => String(v).trim()).filter(Boolean);
+  if (typeof value !== "string") return [];
+  return value
+    .replace(/^[\s(]+|[\s)]+$/g, "")
+    .split(",")
+    .map((s) => s.trim().replace(/^["'`]+|["'`]+$/g, "").trim())
+    .filter(Boolean);
+}
+
+/**
+ * @param evidence `{ transcript }` (split here, parity-interleaved) or
+ *   `{ heldOut }` (already split by the caller), or nothing at all.
+ *   `teacherSpeaker` narrows diarization so a student's words are never
+ *   counted as the teacher's habit.
+ */
+function phraseBankVerdict(sheet, evidence) {
+  const fragments = [
+    ...fragmentsOf(sheet?.boardVerbalisms),
+    ...fragmentsOf(sheet?.exSlangRepeat),
+  ];
+
+  const heldOut = evidence?.heldOut
+    ?? (Array.isArray(evidence?.transcript) ? splitHeldOut(evidence.transcript).heldOut : null);
+
+  const verification = verifyPhraseBank(fragments, heldOut, {
+    teacherSpeaker: evidence?.teacherSpeaker,
+  });
+
+  // With no corpus the verification still carries the SHAPE verdicts, and
+  // those are already errors on `validateTeacherSheet`'s side. Reporting them
+  // twice would make a studio show one problem as two rows, so the unverified
+  // branch contributes no errors of its own — only the marker.
+  if (verification.unverifiedReason) return { verification, errors: [] };
+
+  const errors = verification.failures.map((f) => ({
+    field: fragmentsOf(sheet?.boardVerbalisms).includes(f.fragment)
+      ? "boardVerbalisms"
+      : "exSlangRepeat",
+    code: f.code,
+    detail: `${f.fragment} — ${f.occurrences} occurrence(s) in ${verification.heldOutTokens} held-out tokens`,
+  }));
+  return { verification, errors };
 }

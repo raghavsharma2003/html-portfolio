@@ -5301,13 +5301,590 @@ function consentGateBlockers(row) {
   else if (consent === PLACEHOLDER_CONSENT_ARTIFACT_ID) blockers.push("consent_artifact_placeholder");
   return blockers;
 }
+
+// src/engine/ingest/transcriptStats.ts
+var HINDI_MARKER_WORDS = [
+  "hai",
+  "hain",
+  "tha",
+  "thi",
+  "the",
+  "kya",
+  "kyun",
+  "kyu",
+  "nahi",
+  "nhi",
+  "haan",
+  "haa",
+  "mera",
+  "meri",
+  "mere",
+  "tera",
+  "teri",
+  "tere",
+  "tum",
+  "tumhara",
+  "tumhari",
+  "aap",
+  "aapka",
+  "hum",
+  "humara",
+  "yaar",
+  "bhai",
+  "kar",
+  "karo",
+  "karna",
+  "raha",
+  "rahi",
+  "rahe",
+  "gaya",
+  "gayi",
+  "gaye",
+  "acha",
+  "accha",
+  "theek",
+  "matlab",
+  "bas",
+  "abhi",
+  "kal",
+  "aaj"
+];
+var FILLER_LEXICON = [
+  // Hindi/Hinglish discourse fillers
+  "matlab",
+  "toh",
+  "achha",
+  "acha",
+  "arre",
+  "arey",
+  "dekho",
+  "dekhiye",
+  "socho",
+  "samjhe",
+  "yaani",
+  "bas",
+  "chalo",
+  "haan toh",
+  "theek hai",
+  "ek minute",
+  "ek second",
+  "ab dekho",
+  // English fillers that survive code-switching intact
+  "basically",
+  "actually",
+  "you know",
+  "i mean",
+  "okay so",
+  "so basically",
+  "right",
+  "essentially",
+  "obviously",
+  // hesitation vocalizations as ASR usually renders them
+  "hmm",
+  "umm",
+  "um",
+  "uh",
+  "err",
+  "er",
+  "ah"
+];
+var LAUGHTER_TOKENS = [
+  "haha",
+  "hahaha",
+  "hahahaha",
+  "heh",
+  "hehe",
+  "hehehe",
+  "hah",
+  "ha ha"
+];
+var EDGE_STOPWORDS = /* @__PURE__ */ new Set([
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "but",
+  "of",
+  "to",
+  "in",
+  "on",
+  "at",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "this",
+  "that",
+  "it",
+  "we",
+  "you",
+  "i",
+  "will",
+  "can",
+  "if",
+  "as",
+  "for",
+  "with",
+  "from",
+  "by",
+  "then",
+  "so",
+  "aur",
+  "ke",
+  "ka",
+  "ki",
+  "ko",
+  "se",
+  "me",
+  "mein",
+  "par",
+  "hi",
+  "bhi",
+  "ye",
+  "yeh",
+  "wo",
+  "woh",
+  "jo",
+  "na",
+  "hai",
+  "hain",
+  "kar"
+]);
+var PHRASE_BANK_MAX_WORDS = 3;
+var PHRASE_BANK_MIN_OCCURRENCES = 5;
+var PHRASE_BANK_LINE_CEILING = 2;
+function normalizeText(text) {
+  return String(text ?? "").toLowerCase().replace(/[^\p{L}\p{N}'\s]+/gu, " ").replace(/\s+/g, " ").trim();
+}
+function tokenize(text) {
+  const normalized = normalizeText(text);
+  return normalized ? normalized.split(" ") : [];
+}
+function countFragment(tokens2, fragment) {
+  const needle = tokenize(fragment);
+  if (!needle.length || needle.length > tokens2.length) return 0;
+  let count = 0;
+  for (let i = 0; i + needle.length <= tokens2.length; i++) {
+    let hit = true;
+    for (let j = 0; j < needle.length; j++) {
+      if (tokens2[i + j] !== needle[j]) {
+        hit = false;
+        break;
+      }
+    }
+    if (hit) {
+      count++;
+      i += needle.length - 1;
+    }
+  }
+  return count;
+}
+var round = (value, places) => {
+  const f = 10 ** places;
+  return Math.round(value * f) / f;
+};
+var byCountThenFragment = (a, b) => b.count - a.count || (a.fragment < b.fragment ? -1 : a.fragment > b.fragment ? 1 : 0);
+var counted = (fragment, count, tokens2) => ({
+  fragment,
+  count,
+  per1k: tokens2 ? round(count / tokens2 * 1e3, 2) : 0
+});
+var STRETCH_RE = /(.)\1{2,}/u;
+function chooseSpeaker(turns, given) {
+  if (given) return { label: given, chosenBy: "given" };
+  const totals = /* @__PURE__ */ new Map();
+  for (const turn of turns) {
+    const label = String(turn?.speaker ?? "");
+    totals.set(label, (totals.get(label) ?? 0) + tokenize(turn?.text ?? "").length);
+  }
+  let best = "";
+  let bestTokens = -1;
+  for (const label of [...totals.keys()].sort()) {
+    const value = totals.get(label) ?? 0;
+    if (value > bestTokens) {
+      best = label;
+      bestTokens = value;
+    }
+  }
+  return { label: best, chosenBy: "most-tokens" };
+}
+function transcriptStats(turns, options = {}) {
+  const all = Array.isArray(turns) ? turns : [];
+  const speaker = chooseSpeaker(all, options.teacherSpeaker);
+  const mine = all.filter((t) => String(t?.speaker ?? "") === speaker.label);
+  const perTurnTokens = mine.map((t) => tokenize(t?.text ?? ""));
+  const tokens2 = perTurnTokens.flat();
+  const total = tokens2.length;
+  const markers = new Set(HINDI_MARKER_WORDS);
+  let hindiMarkerTokens = 0;
+  let turnsWithMarker = 0;
+  for (const turnTokens of perTurnTokens) {
+    let hitsHere = 0;
+    for (const token of turnTokens) if (markers.has(token)) hitsHere++;
+    hindiMarkerTokens += hitsHere;
+    if (hitsHere) turnsWithMarker++;
+  }
+  const fillers = [];
+  for (const filler of FILLER_LEXICON) {
+    const count = countFragment(tokens2, filler);
+    if (count > 0) fillers.push(counted(filler, count, total));
+  }
+  const laughter = [];
+  for (const token of LAUGHTER_TOKENS) {
+    const count = countFragment(tokens2, token);
+    if (count > 0) laughter.push(counted(token, count, total));
+  }
+  const stretchCounts = /* @__PURE__ */ new Map();
+  for (const token of tokens2) {
+    if (STRETCH_RE.test(token)) stretchCounts.set(token, (stretchCounts.get(token) ?? 0) + 1);
+  }
+  const stretch = [...stretchCounts.entries()].map(([f, c]) => counted(f, c, total));
+  const minCount = Math.max(1, options.minCatchphraseCount ?? 3);
+  const ngramCounts = /* @__PURE__ */ new Map();
+  for (const turnTokens of perTurnTokens) {
+    for (let n = 1; n <= PHRASE_BANK_MAX_WORDS; n++) {
+      for (let i = 0; i + n <= turnTokens.length; i++) {
+        const window2 = turnTokens.slice(i, i + n);
+        if (EDGE_STOPWORDS.has(window2[0]) || EDGE_STOPWORDS.has(window2[window2.length - 1])) continue;
+        const key = window2.join(" ");
+        ngramCounts.set(key, (ngramCounts.get(key) ?? 0) + 1);
+      }
+    }
+  }
+  const catchphrases = [];
+  for (const [fragment, count] of ngramCounts) {
+    if (count >= minCount) catchphrases.push(counted(fragment, count, total));
+  }
+  return {
+    speaker: { ...speaker, turns: mine.length },
+    totalTurns: all.length,
+    tokens: total,
+    codeSwitch: {
+      tokens: total,
+      hindiMarkerTokens,
+      tokenRatio: total ? round(hindiMarkerTokens / total, 3) : 0,
+      turnsWithMarker,
+      turnRatio: mine.length ? round(turnsWithMarker / mine.length, 3) : 0
+    },
+    fillers: fillers.sort(byCountThenFragment),
+    laughter: laughter.sort(byCountThenFragment),
+    stretch: stretch.sort(byCountThenFragment),
+    catchphrases: catchphrases.sort(byCountThenFragment)
+  };
+}
+function verifyPhraseBank(fragments, heldOutTranscript, options = {}) {
+  const items = (Array.isArray(fragments) ? fragments : []).map((f) => String(f ?? "").trim()).filter(Boolean);
+  const tokens2 = heldOutTokens(heldOutTranscript, options.teacherSpeaker);
+  if (!tokens2.length) {
+    const findings2 = items.map((fragment) => {
+      const words2 = tokenize(fragment).length;
+      return words2 > PHRASE_BANK_MAX_WORDS ? { fragment, words: words2, occurrences: 0, ok: false, code: "phrase-bank-too-long" } : { fragment, words: words2, occurrences: 0, ok: false };
+    });
+    return {
+      verified: false,
+      unverifiedReason: "no-transcript-evidence",
+      heldOutTokens: 0,
+      findings: findings2,
+      failures: findings2.filter((f) => f.code)
+    };
+  }
+  const findings = items.map((fragment) => {
+    const words2 = tokenize(fragment).length;
+    const occurrences = countFragment(tokens2, fragment);
+    if (words2 > PHRASE_BANK_MAX_WORDS) {
+      return { fragment, words: words2, occurrences, ok: false, code: "phrase-bank-too-long" };
+    }
+    if (occurrences <= PHRASE_BANK_LINE_CEILING) {
+      return { fragment, words: words2, occurrences, ok: false, code: "phrase-bank-is-a-line" };
+    }
+    if (occurrences < PHRASE_BANK_MIN_OCCURRENCES) {
+      return { fragment, words: words2, occurrences, ok: false, code: "phrase-bank-below-threshold" };
+    }
+    return { fragment, words: words2, occurrences, ok: true };
+  });
+  return {
+    verified: findings.every((f) => f.ok),
+    heldOutTokens: tokens2.length,
+    findings,
+    failures: findings.filter((f) => !f.ok)
+  };
+}
+function heldOutTokens(heldOut, teacherSpeaker) {
+  if (typeof heldOut === "string") return tokenize(heldOut);
+  if (!Array.isArray(heldOut) || !heldOut.length) return [];
+  const speaker = chooseSpeaker(heldOut, teacherSpeaker);
+  return heldOut.filter((t) => String(t?.speaker ?? "") === speaker.label).flatMap((t) => tokenize(t?.text ?? ""));
+}
+function splitHeldOut(turns) {
+  const all = Array.isArray(turns) ? turns : [];
+  return {
+    derive: all.filter((_, i) => i % 2 === 0),
+    heldOut: all.filter((_, i) => i % 2 === 1)
+  };
+}
+
+// src/engine/ingest/sheetDraft.ts
+var FIELD_SOURCE_CLASS = Object.freeze({
+  // ── SYS ──
+  slug: "SYS",
+  version: "SYS",
+  voiceCloneId: "SYS",
+  // ── FLOOR ──
+  crisisLines: "FLOOR",
+  cloneDisclosureFact: "FLOOR",
+  academicIntegrityStance: "FLOOR",
+  // ── TCH: cannot be mined, and rows 5/21 must not be ──
+  name: "TCH",
+  identityWho: "TCH",
+  identityLife: "TCH",
+  lifeTexture: "TCH",
+  voiceIdentityPhrase: "TCH",
+  syllabusScope: "TCH",
+  firstMoveOnDoubt: "TCH",
+  doubtEscalationLadder: "TCH",
+  rigorFloor: "TCH",
+  strictness: "TCH",
+  warmth: "TCH",
+  pacePreference: "TCH",
+  credentialFacts: "TCH",
+  examTrack: "TCH",
+  escalationRoute: "TCH",
+  consentArtifactId: "TCH",
+  // ── TPL: authored templates, including the seven arc overrides, whose
+  //    content is teacher-arc.md's and is a PRODUCT decision, not a teacher's ──
+  textEmojiRule: "TPL",
+  voiceSpelling: "TPL",
+  sarvamScriptRule: "TPL",
+  stageNickname: "TPL",
+  shareSuggestLine: "TPL",
+  outOfScopePolicy: "TPL",
+  stageEarly: "TPL",
+  stageGettingClose: "TPL",
+  stageEstablished: "TPL",
+  boundaryParagraph: "TPL",
+  ritualPatternShapes: "TPL",
+  abilityLabelBan: "TPL",
+  winMethodRule: "TPL",
+  exDeflect: "TPL",
+  exNameRude: "TPL",
+  exSpecificWin: "TPL",
+  exNeverSeen: "TPL",
+  exVoicenoteMood: "TPL",
+  exPhotoReact: "TPL",
+  exComfort: "TPL",
+  exWantSpecific: "TPL",
+  exThreadOpen: "TPL",
+  exRememberShown: "TPL",
+  exLateNightCallback: "TPL",
+  exPointerWords: "TPL",
+  exNeverTyped: "TPL",
+  exNameTheMiss: "TPL",
+  exNoHolding: "TPL",
+  exSearchHold: "TPL",
+  exResurrect: "TPL",
+  exWatchOpinions: "TPL",
+  exScreenWarn: "TPL",
+  // ── ING: mined ──
+  languageVoiceRule: "ING",
+  languageTextRule: "ING",
+  textLaughter: "ING",
+  voiceStretch: "ING",
+  voiceLaughter: "ING",
+  voiceFillers: "ING",
+  voiceSelfCorrect: "ING",
+  voiceRepeat: "ING",
+  voiceBreath: "ING",
+  voiceLanguageBalance: "ING",
+  sttSoundAlikes: "ING",
+  technicalTermRule: "ING",
+  explanationOrder: "ING",
+  workedExamplePattern: "ING",
+  notationConventions: "ING",
+  analogyBank: "ING",
+  boardVerbalisms: "ING",
+  commonMistakeBank: "ING",
+  subjectDomain: "ING",
+  subjectStrands: "ING",
+  exSlangRepeat: "ING",
+  exOneWordReplies: "ING",
+  exMissedCatch: "ING",
+  exCuriousAsk: "ING",
+  exMoveOn: "ING",
+  exTinyCheck: "ING",
+  exCutoffReact: "ING",
+  exGetInterested: "ING",
+  exCorrections: "ING",
+  exSelfFix: "ING",
+  exQuickPickup: "ING",
+  // ── ING?: proposes, teacher edits ──
+  textShortforms: "ING?",
+  textStretch: "ING?",
+  tasteTopics: "ING?",
+  curiosityTopics: "ING?",
+  exMockShock: "ING?",
+  exDontKnow: "ING?",
+  exMockOffended: "ING?"
+});
+var VERBALISM_CAP = 12;
+function renderSlangList(items) {
+  return `(${items.map((i) => `"${i}"`).join(", ")})`;
+}
+function acceptedTeacherFields(input) {
+  const out = [];
+  for (const [field, value] of Object.entries(input ?? {})) {
+    const cls = FIELD_SOURCE_CLASS[field];
+    if (!cls) continue;
+    if (cls === "FLOOR") continue;
+    if (value === void 0 || value === null) continue;
+    if (typeof value === "string" && !value.trim()) continue;
+    if (Array.isArray(value) && !value.length) continue;
+    out.push([field, value]);
+  }
+  return out;
+}
+function gapReasonFor(field, cls) {
+  switch (cls) {
+    case "SYS":
+      return "platform-assigned";
+    case "FLOOR":
+      return "platform-floor";
+    case "TCH":
+      return "needs-teacher-input";
+    case "TPL":
+      return "needs-template";
+    default:
+      return REGISTER_BULLET_ING.has(field) ? "measured-needs-canonical-bullet" : "needs-qualitative-pass";
+  }
+}
+var REGISTER_BULLET_ING = /* @__PURE__ */ new Set([
+  "languageVoiceRule",
+  "languageTextRule",
+  "textLaughter",
+  "voiceStretch",
+  "voiceLaughter",
+  "voiceFillers",
+  "voiceRepeat",
+  "voiceBreath",
+  "voiceLanguageBalance",
+  "technicalTermRule",
+  "voiceSelfCorrect",
+  "textStretch"
+]);
+function draftFromSignals(stats, teacherInput = {}, options = {}) {
+  const draft = {};
+  const provenance = [];
+  const gaps = [];
+  for (const [field, value] of acceptedTeacherFields(teacherInput)) {
+    draft[field] = value;
+    provenance.push({ field, origin: "teacher-input" });
+  }
+  const candidates = stats.catchphrases.filter(
+    (c) => c.fragment.split(" ").length <= PHRASE_BANK_MAX_WORDS
+  );
+  const cap = Math.max(0, options.maxVerbalisms ?? VERBALISM_CAP);
+  const proposed = candidates.slice(0, cap).map((c) => c.fragment);
+  const heldOut = options.heldOut ?? null;
+  const phraseBank = verifyPhraseBank(proposed, heldOut, {
+    teacherSpeaker: stats.speaker.label
+  });
+  const kept = phraseBank.verified ? proposed : phraseBank.findings.filter((f) => f.ok).map((f) => f.fragment);
+  if (!phraseBank.unverifiedReason && kept.length) {
+    draft.boardVerbalisms = kept;
+    provenance.push({
+      field: "boardVerbalisms",
+      origin: "transcript-stats",
+      signal: "catchphrase-ngrams + held-out >=5 occurrences",
+      detail: kept.map((f) => `${f}=${phraseBank.findings.find((x) => x.fragment === f)?.occurrences ?? 0}`).join(", ")
+    });
+    const single = kept.filter((f) => !f.includes(" "));
+    if (single.length) {
+      draft.exSlangRepeat = renderSlangList(single);
+      provenance.push({
+        field: "exSlangRepeat",
+        origin: "transcript-stats",
+        signal: "verified single-word verbalisms",
+        detail: single.join(", ")
+      });
+    }
+  }
+  for (const field of Object.keys(FIELD_SOURCE_CLASS)) {
+    if (field in draft) continue;
+    const cls = FIELD_SOURCE_CLASS[field];
+    if (field === "boardVerbalisms" || field === "exSlangRepeat") {
+      gaps.push({
+        field,
+        sourceClass: cls,
+        reason: phraseBank.unverifiedReason ? "unverified-no-held-out-evidence" : "insufficient-evidence",
+        detail: phraseBank.unverifiedReason ? `${candidates.length} candidate(s) mined, none verifiable without a held-out corpus` : `${candidates.length} candidate(s) mined, ${kept.length} cleared the >=5 rule`
+      });
+      continue;
+    }
+    gaps.push({ field, sourceClass: cls, reason: gapReasonFor(field, cls) });
+  }
+  return {
+    draft,
+    gaps,
+    provenance,
+    measurements: {
+      tokens: stats.tokens,
+      turns: stats.speaker.turns,
+      hindiMarkerTokenRatio: stats.codeSwitch.tokenRatio,
+      hindiMarkerTurnRatio: stats.codeSwitch.turnRatio,
+      topFillers: stats.fillers.slice(0, 10),
+      laughterTokens: stats.laughter,
+      stretchTokens: stats.stretch.slice(0, 10)
+    },
+    candidates,
+    phraseBank
+  };
+}
+function draftFromTranscript(turns, statsOf, teacherInput = {}, options = {}) {
+  const { derive, heldOut } = splitHeldOut(turns);
+  return draftFromSignals(statsOf(derive), teacherInput, { ...options, heldOut });
+}
+
+// src/engine/ingest/qualitativePass.ts
+var QUALITATIVE_PROPOSABLE_FIELDS = [
+  "subjectDomain",
+  "subjectStrands",
+  "explanationOrder",
+  "workedExamplePattern",
+  "notationConventions",
+  "analogyBank",
+  "commonMistakeBank",
+  "tasteTopics",
+  "curiosityTopics"
+];
+function createStubQualitativePass() {
+  return {
+    name: "qualitative-stub/v1",
+    async propose() {
+      return { proposals: [], unavailable: "qualitative_pass_not_implemented" };
+    }
+  };
+}
+function createQualitativePass() {
+  throw Object.assign(new Error("qualitative_pass_unavailable"), {
+    code: "qualitative_pass_unavailable",
+    status: 503
+  });
+}
 export {
   CRISIS_LINES,
+  FIELD_SOURCE_CLASS,
+  FILLER_LEXICON,
+  HINDI_MARKER_WORDS,
   KIN_BUDGET,
   MIN_SPAN_DAYS,
   MP_BRIDGE_BUDGET,
   MP_ROSTER_BUDGET,
+  PHRASE_BANK_LINE_CEILING,
+  PHRASE_BANK_MAX_WORDS,
+  PHRASE_BANK_MIN_OCCURRENCES,
   PLACEHOLDER_CONSENT_ARTIFACT_ID,
+  QUALITATIVE_PROPOSABLE_FIELDS,
   ROOM_INTRO_DIRECTIVE,
   ROOM_MEMBER_CAP,
   ROOM_MODE_NOTE,
@@ -5316,10 +5893,15 @@ export {
   allowedFrom,
   compile,
   consentGateBlockers,
+  countFragment,
+  createQualitativePass,
+  createStubQualitativePass,
   decayObservations,
   decideParticipation,
   deriveSelfArc,
   deriveTexture,
+  draftFromSignals,
+  draftFromTranscript,
   guardReply,
   helplineNumbersIn,
   hisVocabulary,
@@ -5341,10 +5923,14 @@ export {
   seedFromStoryCatalog,
   sharedVocabulary,
   sheetToModule,
+  splitHeldOut,
   stripTextingDashes,
+  tokenize,
+  transcriptStats,
   untoldFor,
   upsertTexture,
   validateTeacherSheet,
+  verifyPhraseBank,
   writeIndiaProfile,
   writeKin,
   writeObservation
