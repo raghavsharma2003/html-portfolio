@@ -75,7 +75,7 @@ export default function RuntimeGate({
     <section id="runtime-gate" className="runtime-gate" aria-labelledby="runtime-gate-title">
       <div className="runtime-gate-head">
         <div>
-          <p className="eyebrow">09 · Private runtime</p>
+          <p className="eyebrow">Private runtime</p>
           <h2 id="runtime-gate-title">One qualified identity, frozen at launch.</h2>
           <p>
             Launch binds the exact person model, VoiceGenome, provider voice, relationship namespace,
@@ -98,9 +98,9 @@ export default function RuntimeGate({
         <>
           <div className="runtime-score">
             <div><strong>{runtime.qualification.passed}/{runtime.qualification.required}</strong><span>qualification suites passed</span></div>
-            <div><strong>{runtime.versions.profile ?? "—"}</strong><span>person model version</span></div>
-            <div><strong>{runtime.versions.calibration ?? "—"}</strong><span>calibration version</span></div>
-            <div><strong>{runtime.versions.voice_genome ?? "—"}</strong><span>VoiceGenome version</span></div>
+            <div><strong>{runtime.versions.profile ?? "none yet"}</strong><span>person model version</span></div>
+            <div><strong>{runtime.versions.calibration ?? "none yet"}</strong><span>calibration version</span></div>
+            <div><strong>{runtime.versions.voice_genome ?? "none yet"}</strong><span>VoiceGenome version</span></div>
           </div>
           {blockers.length > 0 && (
             <div className="runtime-blockers">
@@ -109,7 +109,7 @@ export default function RuntimeGate({
             </div>
           )}
           <div className="runtime-action">
-            <p>Replica calls use protected cascade speech only. There is no fallback to Meera, another cloud voice, or device TTS.</p>
+            <p>Replica calls use protected cascade speech only. There is no fallback to another cloud voice and none to device TTS.</p>
             <button
               className="button primary-button"
               type="button"

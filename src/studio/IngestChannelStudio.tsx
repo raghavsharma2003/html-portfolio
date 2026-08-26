@@ -39,13 +39,13 @@ import type { ChannelAttestation, ChannelWatch, ChannelWatchView } from "./chann
  *  four of five items is the failure this guards against. */
 const STATEMENT_COPY: Record<string, string> = {
   owns_or_controls_channel:
-    "This YouTube channel is mine — I own it or I control it.",
+    "This YouTube channel is mine. I own it or I control it.",
   is_rights_holder_of_uploads:
     "I hold the rights to the videos on it, so I can license their use for my own clone.",
   authorizes_audio_extraction_for_own_replica:
     "I authorise this platform to take the AUDIO from those videos and use it to build my own clone.",
   understands_tos_exposure_is_not_copyright_permission:
-    "I understand that my permission covers copyright, and that downloading from YouTube is separately restricted by YouTube's own Terms — which is a matter between YouTube and the account used, and is not something my permission removes.",
+    "I understand that my permission covers copyright, and that downloading from YouTube is separately restricted by YouTube's own Terms, which are a matter between YouTube and the account used and are not something my permission removes.",
   understands_revocation_stops_extraction:
     "I understand that withdrawing this permission stops all further extraction immediately.",
 };
@@ -120,7 +120,7 @@ export default function IngestChannelStudio({
     try {
       await attestChannel(token, replicaId, channelUrl.trim(), statements);
       setTicked({});
-      setNotice("Recorded. You can start the import now — and you can withdraw this at any time.");
+      setNotice("Recorded. You can start the import now, and you can withdraw this at any time.");
       await load();
     } catch (e) {
       fail(e);
@@ -169,7 +169,7 @@ export default function IngestChannelStudio({
         <div>
           <h2 id="ingest-channel-title">Learn from your own channel</h2>
           <p className="field-note">
-            Your own lectures are the best material there is for your clone — your explanations, your
+            Your own lectures are the best material there is for your clone: your explanations, your
             examples, your phrasing. Point us at your channel and we will keep learning from it as you
             upload. Nothing is published from it without your review.
           </p>
@@ -256,7 +256,7 @@ export default function IngestChannelStudio({
             {(view?.watches ?? []).map((watch) => (
               <li key={watch.watch_id}>
                 <p>
-                  <strong>{watch.channel_url}</strong> — {STATUS_COPY[watch.status] ?? watch.status}
+                  <strong>{watch.channel_url}</strong>: {STATUS_COPY[watch.status] ?? watch.status}
                 </p>
                 {!watch.attested && (
                   // A watch predating migration 057. It reads as unattested

@@ -149,14 +149,14 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
     <section id="person-model-studio" className="person-model" aria-labelledby="person-model-title">
       <div className="person-model-head">
         <div>
-          <p className="eyebrow">05 · Person Model</p>
+          <p className="eyebrow">Person model</p>
           <h2 id="person-model-title">Not a persona prompt. A model you can inspect.</h2>
           <p>
             Confirm identity, language, behavior, values, boundaries, and autobiography as separate evidence-backed claims.
             Conflicts stay visible instead of being averaged into a confident fiction.
           </p>
         </div>
-        <div className="model-version"><strong>{approved ? `v${approved.version}` : "—"}</strong><span>approved version</span></div>
+        <div className="model-version"><strong>{approved ? `v${approved.version}` : "none yet"}</strong><span>approved version</span></div>
       </div>
 
       {loading ? <div className="runtime-loading" role="status">Loading reviewed claims…</div> : error ? (

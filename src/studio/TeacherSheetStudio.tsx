@@ -32,15 +32,15 @@ const SUBJECT_ID: Record<TeacherSheet["subjectDomain"], SubjectId> = {
 };
 
 const STRICTNESS_LABELS: Record<TeacherStrictness, string> = {
-  0: "Never names it — reframes every miss as nearly right",
-  1: "Gentle — softens most corrections",
+  0: "Never names it. Reframes every miss as nearly right",
+  1: "Gentle. Softens most corrections",
   2: "Direct about the answer, easy about the person",
   3: "Names a wrong step plainly, in the same breath it's met",
-  4: "No cushioning — the sharpest read of a mistake",
+  4: "No cushioning. The sharpest read of a mistake",
 };
 
 const WARMTH_LABELS: Record<TeacherWarmth, string> = {
-  0: "All business — no encouragement beyond the correction itself",
+  0: "All business. No encouragement beyond the correction itself",
   1: "Occasional, and only for a real specific win",
   2: "Steady encouragement, always tied to something they did",
   3: "Warm by default, still specific",
@@ -145,7 +145,7 @@ export default function TeacherSheetStudio({
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
       // Same soft-fail idiom: the draft is never lost, it just isn't synced.
       setServiceUnavailable(true);
-      setNotice("Kept locally — the sheet service isn't connected yet.");
+      setNotice("Kept locally. The sheet service isn't connected yet.");
     } finally {
       setSaving(false);
     }
@@ -159,7 +159,7 @@ export default function TeacherSheetStudio({
           <h2 id="teacher-sheet-title">Review and confirm how {sheet.name || "this teacher"} teaches</h2>
           <p>
             Only what a teacher must decide is editable here. Everything drafted from your uploads renders read-only
-            below — confirm or correct it in the claims step once ingestion is connected.
+            below. Confirm or correct it in the claims step once ingestion is connected.
           </p>
         </div>
         <button className="text-button" type="button" onClick={() => void load()}>
@@ -169,7 +169,7 @@ export default function TeacherSheetStudio({
 
       {serviceUnavailable && (
         <p className="inline-error" role="status">
-          The teacher-sheet service isn't available yet — this draft is being kept in this screen only.
+          The teacher-sheet service isn't available yet. This draft is being kept in this screen only.
         </p>
       )}
 
@@ -198,7 +198,7 @@ export default function TeacherSheetStudio({
           />
 
           <p className="field-note">
-            Chapter coverage — check every chapter this clone should teach. A physics teacher's clone answering
+            Chapter coverage. Check every chapter this clone should teach. A physics teacher's clone answering
             organic chemistry is a misrepresentation of them.
           </p>
           <div className="syllabus-coverage" role="group" aria-label="Chapter coverage">
@@ -225,10 +225,10 @@ export default function TeacherSheetStudio({
         <article className="teacher-sheet-card">
           <h3>Strictness &amp; warmth</h3>
           <p className="field-note">
-            Teacher-confirmed, never inferred alone — an over-read here is a real harm to a 16-year-old
+            Teacher-confirmed, never inferred alone. An over-read here is a real harm to a 16-year-old
             (teacher-sheet-spec.md §3).
           </p>
-          <label className="field-label" htmlFor="strictness">Strictness — how bluntly a wrong answer is named</label>
+          <label className="field-label" htmlFor="strictness">Strictness: how bluntly a wrong answer is named</label>
           <select
             id="strictness"
             className="field"
@@ -236,11 +236,11 @@ export default function TeacherSheetStudio({
             onChange={(event) => setSheet((current) => ({ ...current, strictness: Number(event.target.value) as TeacherStrictness }))}
           >
             {[0, 1, 2, 3, 4].map((value) => (
-              <option key={value} value={value}>{value} — {STRICTNESS_LABELS[value as TeacherStrictness]}</option>
+              <option key={value} value={value}>{value}: {STRICTNESS_LABELS[value as TeacherStrictness]}</option>
             ))}
           </select>
 
-          <label className="field-label" htmlFor="warmth">Warmth — encouragement density, independent of strictness</label>
+          <label className="field-label" htmlFor="warmth">Warmth: encouragement density, independent of strictness</label>
           <select
             id="warmth"
             className="field"
@@ -248,7 +248,7 @@ export default function TeacherSheetStudio({
             onChange={(event) => setSheet((current) => ({ ...current, warmth: Number(event.target.value) as TeacherWarmth }))}
           >
             {[0, 1, 2, 3, 4].map((value) => (
-              <option key={value} value={value}>{value} — {WARMTH_LABELS[value as TeacherWarmth]}</option>
+              <option key={value} value={value}>{value}: {WARMTH_LABELS[value as TeacherWarmth]}</option>
             ))}
           </select>
         </article>
@@ -256,7 +256,7 @@ export default function TeacherSheetStudio({
         <article className="teacher-sheet-card">
           <h3>Doubt-handling ladder</h3>
           <p className="field-note">
-            The ordered hint rungs given before any full solution — this is the academic-integrity spine. A full
+            The ordered hint rungs given before any full solution. This is the academic-integrity spine. A full
             solution is never the first response.
           </p>
           <ol className="ladder-list">
@@ -289,7 +289,7 @@ export default function TeacherSheetStudio({
         <article className="teacher-sheet-card">
           <h3>Boundaries</h3>
           <p className="field-note">
-            <code>identityLife</code> is teacher-authored, never ingested — a teacher's private life is not consented
+            <code>identityLife</code> is teacher-authored, never ingested. A teacher's private life is not consented
             training material even when it appears in your own uploaded videos.
           </p>
           <label className="field-label" htmlFor="identity-life">Teaching life, in one breath</label>
@@ -310,15 +310,15 @@ export default function TeacherSheetStudio({
       <section className="teacher-sheet-ingested" aria-labelledby="ingested-title">
         <h3 id="ingested-title">Drafted from your uploads</h3>
         <p className="field-note">
-          Read-only until the ingestion pipeline is connected. Review or correct each one in the claims step —
-          nothing here can be edited from this screen.
+          Read-only until the ingestion pipeline is connected. Review or correct each one in the claims step.
+          Nothing here can be edited from this screen.
         </p>
         <div className="teacher-sheet-ingested-grid">
           {INGESTED_PREVIEW.map((item) => (
             <div key={String(item.key)} className="teacher-sheet-readonly">
               <span className="claim-meta">{item.label}</span>
               <p>{item.render(sheet)}</p>
-              <small>Drafted from your uploads — review in the claims step</small>
+              <small>Drafted from your uploads. Review in the claims step</small>
             </div>
           ))}
         </div>

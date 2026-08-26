@@ -275,3 +275,123 @@ answers.
 Backing: `/api/context-items`, `api/_context-locker.js`, migration 058,
 `evals/contextlocker.mjs` (77 checks). Matrix:
 `docs/gurukul/context-locker.md`.
+
+---
+
+# WS-AG — queued for the two files this workstream may not touch
+
+**WS-AG, 2026-08-26.** `scripts/check-copy.mjs` is now the mechanical copy gate
+for DESIGN-LAW §1 and it scans `src/studio/`, `src/gurukul/`, `src/replica/` and
+`site/`. It found 120 violations; 117 are fixed on `gurukul-ws-ag`. The three
+below are in `src/studio/StudioApp.tsx`, which WS-AE owns this window.
+
+They are **waived, not muted**: the gate prints them in full on every run and
+exits 0, and it FAILS THE BUILD the moment the file comes back clean, telling
+whoever fixed it to delete the waiver entry. Fix these, delete the `WAIVED` map
+entry in `scripts/check-copy.mjs`, and the gate is fully closed.
+
+Replacement strings are ready to paste. Each turns one em-dash into a full stop
+or a comma without changing a claim.
+
+### UX-Q-AG-01 · Three em-dashes in `StudioApp.tsx` (DESIGN-LAW §1)
+**Owner: WS-AE.** Verify with `node scripts/check-copy.mjs`.
+
+`StudioApp.tsx:126` — `introTitle`
+```
+- "A teaching clone that begins with your permission — and is disclosed to every student."
++ "A teaching clone that begins with your permission, and is disclosed to every student."
+```
+
+`StudioApp.tsx:128` — the intro body
+```
+- ...and students are told plainly — before every session — that they are talking to an AI clone, not you.
++ ...and students are told plainly, before every session, that they are talking to an AI clone, not you.
+```
+
+`StudioApp.tsx:227` — the launch-rail summary
+```
+- <span>Identity, liveness, provider consent, voice training, and launch — open this to work through them directly.</span>
++ <span>Identity, liveness, provider consent, voice training, and launch. Open this to work through them directly.</span>
+```
+
+### UX-Q-AG-02 · `--ink-faint` fails WCAG AA and is used for body-size text
+**Owner: whoever holds `src/studio/studio.css`.** MEASURED, not judged:
+`--ink-faint` is `#7a7e74`, which is **3.67:1 on `--paper`** and **4.11:1 on
+`--panel`**, against AA's 4.5:1 for text under 18px. `studio.css` uses it for
+captions, metadata and help text at 11px to 13px, and `site/vyakti.html` used it
+for 12.5px body copy until this pass.
+
+**Do:** `--ink-faint: #676b62` in `studio.css`'s `@layer tokens` block. That is
+**4.82:1 on paper and 5.39:1 on panel**, clears AA at every size the studio uses
+it at, and is a hue-preserving darkening (same warm neutral, one step down), so
+nothing else in the palette has to move. `site/vyakti.html` already ships the
+new value; `tokens.css` cannot fix it because studio.css declares the same name
+later in the same cascade layer and wins by source order, which is exactly the
+ordering `tokens.css`'s own header describes.
+
+**Verify:** the numbers above are reproducible from the WCAG 2.x relative
+luminance formula on the two ground colours in `DESIGN-SYSTEM.md` §4.1.
+
+### UX-Q-AG-03 · Numbered eyebrows removed outside StudioApp, may exist inside
+DESIGN-LAW §1 bans the `06 · how it works` eyebrow shape. WS-AG removed five
+(`CalibrationStudio`, `PersonModelStudio`, `ReplicaDialogueLab`, `RuntimeGate`,
+and the two `voice-step` spans in `VoiceEnrollmentLab`, which became "Step one"
+and "Step two" because the ORDER there is real and only the decoration was
+not). If WS-AE or WS-AF adds one, `check-copy.mjs`'s `section-number` rule
+fails the build and names the line. There is nothing to do here unless a new one
+appears; this entry exists so the rule is not mistaken for a style preference.
+
+### UX-Q-AG-04 · Thirteen em-dashes in `VideoEnrollPanel.tsx` (DESIGN-LAW §1)
+**Owner: WS-AF.** This component landed after `check-copy.mjs` was widened, so
+it is waived on the same self-expiring terms as UX-Q-AG-01: printed every run,
+not failing the build, and the gate FAILS once the file is clean so the waiver
+cannot outlive its reason. Delete the `WAIVED` entry with the last fix.
+
+Line numbers will drift; the left-hand strings are the stable identifiers.
+
+```
+- "This is my channel — I own or control it."
++ "This is my channel. I own or control it."
+
+- "YouTube would not serve our server — it asked it to sign in and prove it is not a bot.
++ "YouTube would not serve our server. It asked it to sign in and prove it is not a bot.
+
+- "...This is ours to fix — it needs a version bump...
++ "...This is ours to fix, and it needs a version bump...
+
+- "Too many requests in a row — wait a moment and try again."
++ "Too many requests in a row. Wait a moment and try again."
+
+- Paste a link to one of your own videos — a lecture, a talk, anything
++ Paste a link to one of your own videos: a lecture, a talk, anything
+
+- "Working — this takes a few minutes…"
++ "Working. This takes a few minutes."          (also drops the ellipsis glyph)
+
+- Scored by {window.score_source} — a signal-quality measure of the
++ Scored by {window.score_source}, a signal-quality measure of the
+
+- <p>We also transcribed the whole lecture — {...} cha
++ <p>We also transcribed the whole lecture: {...} cha
+```
+
+Three are the EN-dash in a numeric range and one is the empty-value glyph, which
+need a decision rather than a swap:
+
+```
+- {clock(window.start_ms)}–{clock(window.end_ms)}          (x2, and in candidates)
++ {clock(window.start_ms)} to {clock(window.end_ms)}
+
+- if (ms == null || !Number.isFinite(ms)) return "—";
++ if (ms == null || !Number.isFinite(ms)) return "not yet";
+```
+
+On the last one: WS-AG made the same call in five places (`RuntimeGate`,
+`CalibrationStudio`, `PersonModelStudio`, `MirrorCallStudio` twice) rather than
+taking the `emdash-ok:` exemption the old queue entry C30 suggested. A dash in a
+value slot is not punctuation, it is a word the product declined to choose, and
+"not yet" or "none yet" says the true thing instead. Use whichever of the two
+fits the slot.
+
+Two more lines in that file carry a `·` each, which is within the one-per-line
+rule and needs no change.

@@ -153,12 +153,12 @@
     {
       "id": "persona",
       "kind": "component",
-      "title": "persona.ts \u2014 where her personality lives"
+      "title": "persona.ts — where her personality lives"
     },
     {
       "id": "inner",
       "kind": "component",
-      "title": "inner.ts \u2014 carried feeling, wants, taste, mood arc"
+      "title": "inner.ts — carried feeling, wants, taste, mood arc"
     },
     {
       "id": "memory-graph",
@@ -511,19 +511,19 @@
     {
       "id": "free-pool-capacity",
       "kind": "measurement",
-      "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) \u2014 axis recalibration flagged",
+      "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) — axis recalibration flagged",
       "at": "2026-08-15"
     },
     {
       "id": "deepseek-pro-judge",
       "kind": "measurement",
-      "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash \u2014 family out at any size",
+      "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash — family out at any size",
       "at": "2026-08-15"
     },
     {
       "id": "mistral-judge",
       "kind": "measurement",
-      "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A \u2014 most extreme position bias measured",
+      "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A — most extreme position bias measured",
       "at": "2026-08-15"
     },
     {
@@ -559,13 +559,13 @@
     {
       "id": "relstate-zero-rows",
       "kind": "measurement",
-      "title": "vy_rel_state: 0 rows for 40 persons \u2014 UPDATE-writers with no INSERT owner; whole relational surface silently invisible",
+      "title": "vy_rel_state: 0 rows for 40 persons — UPDATE-writers with no INSERT owner; whole relational surface silently invisible",
       "at": "2026-08-15"
     },
     {
       "id": "felt-wiring-landed",
       "kind": "measurement",
-      "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card \u2014 deployed 4/4",
+      "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card — deployed 4/4",
       "at": "2026-08-15"
     },
     {
@@ -577,7 +577,7 @@
     {
       "id": "r4-english-control",
       "kind": "measurement",
-      "title": "English translation does not rescue judges (recovery within noise floor) \u2014 failure is deeper than code-switching",
+      "title": "English translation does not rescue judges (recovery within noise floor) — failure is deeper than code-switching",
       "at": "2026-08-18"
     },
     {
@@ -595,7 +595,7 @@
     {
       "id": "ground-truth-ceiling",
       "kind": "measurement",
-      "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] \u2014 the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
+      "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] — the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
       "at": "2026-08-18"
     },
     {
@@ -613,7 +613,7 @@
     {
       "id": "r2-axis-decomposition",
       "kind": "measurement",
-      "title": "Per-axis judge failure partially concentrates: brevity a clustered-CI outlier (55.2%), humour indistinguishable from specificity/personhood \u2014 three tiers, not the predicted binary; every axis still fails 80% bar",
+      "title": "Per-axis judge failure partially concentrates: brevity a clustered-CI outlier (55.2%), humour indistinguishable from specificity/personhood — three tiers, not the predicted binary; every axis still fails 80% bar",
       "at": "2026-08-18"
     },
     {
@@ -643,7 +643,7 @@
     {
       "id": "age-tier-never-realtime",
       "kind": "rejection",
-      "title": "The second assembler dropped FORGET_DECISION and AGE_TIER_SAFETY_OVERRIDE \u2014 a safety rule never reached the realtime lane",
+      "title": "The second assembler dropped FORGET_DECISION and AGE_TIER_SAFETY_OVERRIDE — a safety rule never reached the realtime lane",
       "at": "2026-08-20"
     },
     {
@@ -655,7 +655,7 @@
     {
       "id": "startup-failure-is-invisible",
       "kind": "rejection",
-      "title": "secrets in a job-level if: makes the whole workflow invalid \u2014 15 red runs, 0 jobs, 9 days with no auto-deploy",
+      "title": "secrets in a job-level if: makes the whole workflow invalid — 15 red runs, 0 jobs, 9 days with no auto-deploy",
       "at": "2026-08-20"
     },
     {
@@ -757,7 +757,7 @@
     {
       "id": "logged-but-unindexed",
       "kind": "rejection",
-      "title": "16 entries written up with no graph row \u2014 --check validated one direction only",
+      "title": "16 entries written up with no graph row — --check validated one direction only",
       "at": "2026-08-20"
     },
     {
@@ -793,7 +793,7 @@
     {
       "id": "manifest-sourcestatus",
       "kind": "rejection",
-      "title": "sourceStatus reports wired against a compile that rendered 0 of 3 blocks \u2014 an anti-signal, not a weak one",
+      "title": "sourceStatus reports wired against a compile that rendered 0 of 3 blocks — an anti-signal, not a weak one",
       "at": "2026-08-20"
     },
     {
@@ -907,7 +907,7 @@
     {
       "id": "nine-dark-tail-slots",
       "kind": "measurement",
-      "title": "Production: 9 declared tail slots render 0 bytes; only T5/T7/T10/T11 render \u2014 three investigations in one queryable row",
+      "title": "Production: 9 declared tail slots render 0 bytes; only T5/T7/T10/T11 render — three investigations in one queryable row",
       "at": "2026-08-20"
     },
     {
@@ -919,19 +919,19 @@
     {
       "id": "engine-bundle-check-uncalled",
       "kind": "rejection",
-      "title": "build-engine-bundle --check works, caught real drift, and is invoked by nothing \u2014 dead-writers in the guard",
+      "title": "build-engine-bundle --check works, caught real drift, and is invoked by nothing — dead-writers in the guard",
       "at": "2026-08-20"
     },
     {
       "id": "busy-held-across-recursion",
       "kind": "rejection",
-      "title": "the burst branch recursed while still holding `busy`, so the one path written for bursts was the only one that could not reply \u2014 and the chat stayed dead",
+      "title": "the burst branch recursed while still holding `busy`, so the one path written for bursts was the only one that could not reply — and the chat stayed dead",
       "at": "2026-08-21"
     },
     {
       "id": "surface-bypasses-parse",
       "kind": "rejection",
-      "title": "api/_surface.js returns the model's raw string and never calls parseBubbles, so no engine guarantee \u2014 honesty, dash, protocol extraction \u2014 reaches Telegram",
+      "title": "api/_surface.js returns the model's raw string and never calls parseBubbles, so no engine guarantee — honesty, dash, protocol extraction — reaches Telegram",
       "at": "2026-08-21"
     },
     {
@@ -961,7 +961,7 @@
     {
       "id": "proactive-reason-contingent",
       "kind": "decision",
-      "title": "she may text first because something HAPPENED, never because he went quiet \u2014 the test is on the trigger, not the frequency",
+      "title": "she may text first because something HAPPENED, never because he went quiet — the test is on the trigger, not the frequency",
       "at": "2026-08-21"
     },
     {
@@ -1009,7 +1009,7 @@
     {
       "id": "theme-choosable",
       "kind": "decision",
-      "title": "light, dark or follow the phone \u2014 and 'system' stamps no attribute so the media query keeps deciding",
+      "title": "light, dark or follow the phone — and 'system' stamps no attribute so the media query keeps deciding",
       "at": "2026-08-21"
     },
     {
@@ -1021,7 +1021,7 @@
     {
       "id": "gates-that-live-nowhere-2",
       "kind": "rejection",
-      "title": "the eval suite had never run in CI, and could not have \u2014 a gitignored import killed it first",
+      "title": "the eval suite had never run in CI, and could not have — a gitignored import killed it first",
       "at": "2026-08-21"
     },
     {
@@ -1189,7 +1189,7 @@
     {
       "id": "prosody-reads-hearing-not-feeling",
       "kind": "decision",
-      "title": "Usage signals may inform hearing, never feeling; content-vs-usage test in the charter with the \u00a7H reversal",
+      "title": "Usage signals may inform hearing, never feeling; content-vs-usage test in the charter with the §H reversal",
       "at": "2026-08-22"
     },
     {
@@ -1219,7 +1219,7 @@
     {
       "id": "minifier-eats-runtime-tokens",
       "kind": "rejection",
-      "title": "Runtime token reads get the minifier value; entrance never ran; settle truncated \u2014 frame-sampling found all three",
+      "title": "Runtime token reads get the minifier value; entrance never ran; settle truncated — frame-sampling found all three",
       "at": "2026-08-22"
     },
     {
@@ -1376,7 +1376,7 @@
       "id": "sound-layer",
       "kind": "component",
       "at": "2026-08-23",
-      "title": "src/sound/ \u2014 vocabulary, synth, and the one gated path to the speaker"
+      "title": "src/sound/ — vocabulary, synth, and the one gated path to the speaker"
     },
     {
       "id": "sound-browser-2026-08-23",
@@ -1574,7 +1574,7 @@
       "id": "watch-exit-returns-to-live",
       "kind": "decision",
       "at": "2026-08-24",
-      "title": "All three native-watch exits reconnect to live; #96 landed the reconnect but missed watch_consent_denied because a denial is not a stop \u2014 the likeliest path, downgrading the call in exchange for a share that never happened"
+      "title": "All three native-watch exits reconnect to live; #96 landed the reconnect but missed watch_consent_denied because a denial is not a stop — the likeliest path, downgrading the call in exchange for a share that never happened"
     },
     {
       "id": "model-twins-pinned",
@@ -1634,7 +1634,7 @@
       "id": "personality-is-a-sheet",
       "kind": "decision",
       "at": "2026-08-24",
-      "title": "RelationalOS proven: Kabir authored as a 29-field sheet on Maya's core \u2014 412/412 invariants across 2 agents, Maya byte-identical throughout"
+      "title": "RelationalOS proven: Kabir authored as a 29-field sheet on Maya's core — 412/412 invariants across 2 agents, Maya byte-identical throughout"
     },
     {
       "id": "fixed-fuse-on-a-variable-upstream",
@@ -1670,19 +1670,19 @@
       "id": "accent-joins-the-sky",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "sky states carry a sky-solved accent (>=4.75:1 over veiled stops, gated); the theme rose measured 2.26:1 on morning blue \u2014 owner-felt, now structural"
+      "title": "sky states carry a sky-solved accent (>=4.75:1 over veiled stops, gated); the theme rose measured 2.26:1 on morning blue — owner-felt, now structural"
     },
     {
       "id": "residues-zero",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "leak-guard residues 95->0 in three byte-identical batches; ratchet pinned at 0 \u2014 character prose in core is now a build failure"
+      "title": "leak-guard residues 95->0 in three byte-identical batches; ratchet pinned at 0 — character prose in core is now a build failure"
     },
     {
       "id": "never-internals-floor",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "sixth floor category: architecture silence with playful deflection, per-module gated on 4 lanes \u2014 from the live gpt-4o disclosure incident"
+      "title": "sixth floor category: architecture silence with playful deflection, per-module gated on 4 lanes — from the live gpt-4o disclosure incident"
     },
     {
       "id": "session-2026-08-25-close",
@@ -1694,13 +1694,13 @@
       "id": "ws-gamefeel",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "tester defect wave: her-side loop fence, game-idea substrate, board-derived terminal claims, opening variety, adaptive strength \u2014 layer-tagged OS vs engine"
+      "title": "tester defect wave: her-side loop fence, game-idea substrate, board-derived terminal claims, opening variety, adaptive strength — layer-tagged OS vs engine"
     },
     {
       "id": "ws-gamefeel-shipped",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "defect wave shipped same-day: state-law fence, idea line, weighted variety, adaptive strength, loop fence \u2014 uniform-draw and streamed-line learnings logged"
+      "title": "defect wave shipped same-day: state-law fence, idea line, weighted variety, adaptive strength, loop fence — uniform-draw and streamed-line learnings logged"
     },
     {
       "id": "cache-plateau",
@@ -1785,7 +1785,7 @@
       "id": "watchcost-measured",
       "kind": "measurement",
       "at": "2026-08-25",
-      "title": "watch mode measured \u20b91.1-1.6/min (est. was 2-3x high; video is the smallest component); burst frames collapse; voiceConfig bills +201 audio tokens/turn on every live call"
+      "title": "watch mode measured ₹1.1-1.6/min (est. was 2-3x high; video is the smallest component); burst frames collapse; voiceConfig bills +201 audio tokens/turn on every live call"
     },
     {
       "id": "internals-harden-after",
@@ -1914,7 +1914,7 @@
     {
       "id": "recall-bench-v1",
       "kind": "measurement",
-      "title": "memory recall benchmark harness \u2014 3 dyads, 50 questions, deliberately unmeasured until a keyed run",
+      "title": "memory recall benchmark harness — 3 dyads, 50 questions, deliberately unmeasured until a keyed run",
       "at": "2026-08-26"
     },
     {
@@ -1980,7 +1980,7 @@
     {
       "id": "fake-the-instagram-adapter",
       "kind": "rejection",
-      "title": "an Instagram adapter against credentials that cannot exist \u2014 the gap is App Review, not code",
+      "title": "an Instagram adapter against credentials that cannot exist — the gap is App Review, not code",
       "at": "2026-08-26"
     },
     {
@@ -2095,7 +2095,7 @@
       "id": "statement-shapes-postgres-will-not-parse",
       "kind": "rejection",
       "at": "2026-08-26",
-      "title": "bare FOR UPDATE over a LEFT JOIN, and a referenced data-modifying CTE with no RETURNING \u2014 three shipped statements that could never execute"
+      "title": "bare FOR UPDATE over a LEFT JOIN, and a referenced data-modifying CTE with no RETURNING — three shipped statements that could never execute"
     },
     {
       "id": "coverage-lists-that-enumerate-a-subset",
@@ -2286,7 +2286,7 @@
     {
       "id": "owner-intent-is-the-spec",
       "kind": "decision",
-      "title": "owner states intent; platform fills every gap \u2014 product/UX quality is a hard bar, not polish",
+      "title": "owner states intent; platform fills every gap — product/UX quality is a hard bar, not polish",
       "at": "2026-08-26"
     },
     {
@@ -2485,6 +2485,30 @@
       "id": "three-step-wizard-ia",
       "kind": "decision",
       "title": "studio IA: Feed -> Meet (interact/tweak, the heart) -> Deploy; never one continuous screen",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "copy-law-is-a-gate-not-a-guideline",
+      "kind": "decision",
+      "title": "check-copy.mjs enforces DESIGN-LAW §1 mechanically: dash broadly on comment-stripped lines, word bans only on proven-visible strings",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "landing-hero-is-four-elements",
+      "kind": "decision",
+      "title": "site/vyakti.html hero rebuilt to four elements; the build-status strip moved to the unproven-claims section rather than being deleted",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "ink-faint-fails-aa",
+      "kind": "measurement",
+      "title": "--ink-faint #7a7e74 is 3.67:1 on paper and 4.11:1 on panel, under WCAG AA, and is used for 11-13px text",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "copy-law-violations-before-after",
+      "kind": "measurement",
+      "title": "120 copy-law violations found by the widened gate, 117 fixed, 3 waived in a peer-owned file",
       "at": "2026-08-26"
     }
   ],
@@ -4753,6 +4777,31 @@
       "src": "three-step-wizard-ia",
       "rel": "constrains",
       "dst": "owner-intent-is-the-spec"
+    },
+    {
+      "src": "copy-law-is-a-gate-not-a-guideline",
+      "rel": "constrains",
+      "dst": "owner-intent-is-the-spec"
+    },
+    {
+      "src": "copy-law-is-a-gate-not-a-guideline",
+      "rel": "measured_by",
+      "dst": "copy-law-violations-before-after"
+    },
+    {
+      "src": "landing-hero-is-four-elements",
+      "rel": "constrains",
+      "dst": "owner-intent-is-the-spec"
+    },
+    {
+      "src": "landing-hero-is-four-elements",
+      "rel": "caused_by",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "landing-hero-is-four-elements",
+      "rel": "measured_by",
+      "dst": "ink-faint-fails-aa"
     }
   ]
 }
