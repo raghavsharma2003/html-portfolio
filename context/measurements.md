@@ -3403,3 +3403,29 @@ back — confirmed `external: false` afterwards, and every app confirmed at
 this was never an authorisation hole; `/healthz` is unauthenticated, so it WAS a
 cost surface for the duration. This is a measurement scaffold. It is not an
 answer to §12, and the numbers above do not depend on which answer is chosen.
+
+## `first-real-clone` — the owner's voice, end to end (2026-08-26, WS-T)
+
+n=1 subject (the owner), 71.0 s consented Hinglish reference, 24 kHz mono
+PCM16; every figure a live-service response.
+
+| metric | value | method |
+|---|---|---|
+| ECAPA fidelity, zero-shot clone vs own reference | **0.7753** (p10 0.7479, worst-window 0.7479) | 8 reference + 8 candidate embeddings via deployed `voice-evidence`; n=2 runs, spread 1e-6 |
+| self-vs-self ceiling (same audio both sides) | **0.8869** | same path, identical input — the practical ceiling of this metric on this stack |
+| verdict at provisional policy | `warn` → activation refused | `api/_fidelity.js`; 12 blockers incl. `voice_fidelity_not_qualified` |
+| voice-evidence round trip (warm) | 4 977 ms for 71 s / 4 windows / 8 embeddings | first ever run of this service |
+| voice-evidence cold start | 176 s to ready from zero replicas | |
+| Chatterbox synthesis | rtf 0.79–0.80 warm; 1.77 first-on-replica | 4 clips, 45.2 s total, PerTh watermark verified on all |
+| Sarvam sync ASR | 4 134 ms for 25 s; **hard 30 s cap** | `saarika:v2.5` (`saarika:v2` deprecated) |
+| Sarvam batch ASR | 137 s for 71 s → 5 diarized turns | `saaras:v3` |
+| sheet draft from real transcript | 5 turns, 127 tokens, 92 gaps, 8 phrase candidates | `transcriptStats` + `sheetDraft` |
+| spend | ~$0.66 (~29 min open-voice + ~33 min voice-evidence T4, + ~$0.07 Sarvam) | wall-clock estimate, not a billing read |
+
+**What this licenses and what it does not.** It licenses: the pipeline works
+on a real human. It does NOT license any claim about how the clone sounds —
+speaker-embedding similarity is not perceptual quality, and our own
+`azure-tts` rejection is the standing evidence that the two diverge. The
+blind ABX bench in `docs/gurukul/research/voice-stack.md` is what settles
+that. The number is also ZERO-SHOT: no per-speaker fine-tune has run, so
+0.7753 is the floor this stack reaches with no training at all.

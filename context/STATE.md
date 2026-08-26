@@ -44,23 +44,28 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 | Meera production | untouched; its deploy trigger no longer matches this branch |
 | In-house voice | Azure RG `vyakti-voice`: Chatterbox GPU runtime + admission broker + voice evidence, scale-to-zero, synthesising (RTF 0.79 warm). `docs/gurukul/AZURE-DEPLOY-STATE.md` |
 
-## The three ingestion/voice pipelines — verified status (2026-08-26, after WS-T)
+## The three ingestion/voice pipelines — status after the first real clone (2026-08-26)
 
-Each row is a live run, not a code read. The command that produces them is
-`node scripts/first-clone.mjs <audio.wav> "<name>"`; numbers in
-`measurements.md#first-real-clone`.
+**A real human voice has now been through the pipeline end to end.** The owner
+supplied a 71 s consented Hinglish voice note; every stage below is a live
+service response, not a claim.
 
-| pipeline | status | the exact blocker |
+| pipeline | status | evidence |
 |---|---|---|
-| **Voice learning / cloning** | **RUNS END TO END on a real consented human voice** — for the first time | A real 71 s consented Hinglish sample was cloned zero-shot on the deployed stack and scored: ECAPA fidelity **0.7753** (verdict `warn`) against a **0.8869** self-vs-self ceiling, n=2 runs. The `voice-evidence` round trip that had never run now runs: 71 s in 4 windows -> 8 embeddings in 4 977 ms warm, 176 s cold from zero. What is still NOT done: no fine-tune, so this is a zero-shot FLOOR; no blind ABX bench, so nothing may be claimed about how it SOUNDS; and the fidelity row cannot be PERSISTED — `recordOwnedFidelity` needs a voice profile, which needs biometric consent, which needs a human liveness challenge. |
-| **YouTube channel ingest** | **not touched by WS-T** — read the row this replaced plus `docs/gurukul/youtube-extraction-posture.md`, whichever is newer | WS-T ran neither this lane nor `services/media-extract`, so it has nothing measured to add and deliberately leaves no opinion here. |
-| **Video/audio file upload** | **upload + ASR + sheet draft now RUN; finalize is one redeploy away** | The signed private upload works live (**HTTP 200**, 3.41 MB in 2 451 ms). `finalize` still returns 409 `storage_metadata_incomplete` **on the deployed build** — the fix is committed (`supabase-object-info-is-not-json`) and the branch is not pushed, so the deployment is behind. Until it lands, no source leaves `pending_upload` and the `integrity` job is never enqueued. Sarvam ASR now works on both paths after three wrong addresses were fixed (`sarvam-batch-paths-were-three-guesses`): 71 s -> 5 diarized turns in 137 s batch; sync is capped at 30 s. A real sheet draft with **92 real gaps** comes out the far end. |
+| **Voice cloning** | **WORKS, measured** | Zero-shot clone of the owner from their own 71 s reference. **ECAPA fidelity 0.7753** (p10 0.7479) against a **0.8869 self-vs-self ceiling**; verdict `warn`, so the activation gate correctly refuses (12 blockers). rtf 0.79–0.80 warm. n=2, spread 1e-6. **Zero-shot, no fine-tune — a floor, not a ceiling, and NOT a claim about how it sounds** (that needs the blind ABX bench). |
+| **voice-evidence round trip** | **WORKS — first ever run** | 71 s → 4 windows → 8 embeddings in **4 977 ms** warm; **176 s** cold start from zero. |
+| **ASR (Sarvam)** | **WORKS** | sync `saarika:v2.5` 25 s → 200 in 4 134 ms (**hard 30 s cap**); batch `saaras:v3` 71 s → **5 diarized turns in 137 s**. `saarika:v2` is deprecated. |
+| **transcript → sheet draft** | **WORKS** | 5 turns, 127 tokens, **92 honest `gaps`**, 8 phrase candidates. |
+| **upload → finalize** | **finalize was BROKEN; fixed in tree, deployment behind it** | `replicaObjectInfo` parsed a HEAD-style route as JSON, so EVERY finalize failed closed and **nothing downstream of storage had ever executed for anyone**. One redeploy away. |
+| **YouTube extraction** | built, gate live, **never run against real YouTube** | Datacenter IPs (Azure included) get `LOGIN_REQUIRED`/bot-check before a stream URL is returned. Expect `channel_extract_extractor_bot_check` on first real sweep; levers: player-clients → cookies → proxy. |
 
-**The honest summary:** the voice-cloning lane has processed a real human and
-has a real number. The upload lane needs one redeploy. The three things that
-gate a live clone are, in order: **push the branch and redeploy** (finalize),
-**a human liveness challenge** (biometric consent -> voice profile -> a
-persistable fidelity row), and **the ABX bench** before any quality claim.
+**Known-open, deliberately not guessed at:**
+- Code-switch ratio reads 0.000 on visibly bilingual speech — `HINDI_MARKER_WORDS` is romanised, Sarvam returns Devanagari. Needs a decision (transliterate / extend lexicon / different model), not a patch.
+- Fidelity cannot be persisted or clear activation until a voice profile + biometric consent + human liveness challenge exist.
+- HMAC skew window (60 s) is shorter than a 176 s cold start, so the waking request returns 401 — an auth error for a latency problem. Worked around by pinging `/healthz` first; ownership unassigned.
+
+**The command, once env is set:** `node scripts/first-clone.mjs /path/to/voice.wav "Name"`
+(input must be 24 kHz mono PCM16: `ffmpeg -i in.m4a -ac 1 -ar 24000 -c:a pcm_s16le out.wav`).
 
 ## What is NOT live
 

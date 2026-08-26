@@ -2204,6 +2204,12 @@
       "kind": "open",
       "at": "2026-08-26",
       "title": "12 live activation blockers remain; the fidelity row cannot be persisted without liveness-verified biometric consent"
+    },
+    {
+      "id": "plausible-return-hides-a-dead-pipeline",
+      "kind": "rejection",
+      "title": "four defects each returned a believable value; the whole processing half had never executed",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3823,11 +3829,6 @@
       "dst": "first-live-apply"
     },
     {
-      "src": "first-live-apply",
-      "rel": "part_of",
-      "dst": "gurukul-founding"
-    },
-    {
       "src": "voice-lane-live",
       "rel": "part_of",
       "dst": "platform-north-star"
@@ -4096,6 +4097,21 @@
       "src": "romanised-lexicon-meets-devanagari-asr",
       "rel": "constrains",
       "dst": "first-real-clone"
+    },
+    {
+      "src": "first-real-clone",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "plausible-return-hides-a-dead-pipeline",
+      "rel": "caused_by",
+      "dst": "first-real-clone"
+    },
+    {
+      "src": "plausible-return-hides-a-dead-pipeline",
+      "rel": "part_of",
+      "dst": "offline-mocks-cannot-type-check-sql"
     }
   ]
 }

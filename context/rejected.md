@@ -2735,3 +2735,37 @@ decision is which of three: transliterate the ASR output to Latin before
 measuring, add Devanagari spellings to the lexicon, or pick an ASR model that
 returns romanised Hinglish. `scripts/first-clone.mjs` prints the warning
 whenever it sees ratio 0 on a non-trivial transcript, so this cannot go quiet.
+
+## `plausible-return-hides-a-dead-pipeline` — four defects that each returned something believable (2026-08-26)
+
+The first real end-to-end run (WS-T, the owner's own voice) found four
+defects. None had ever shown as an error, because each returned a plausible
+value instead of failing:
+
+1. **`replicaObjectInfo` parsed a HEAD-style storage route as JSON.** Every
+   upload finalize therefore failed closed with `storage_metadata_incomplete`,
+   so no source ever left `pending_upload` and **nothing downstream of storage
+   had ever executed for anyone** — the entire processing half of the product
+   was unreachable and looked merely unused.
+2. **Three of five Sarvam batch addresses were wrong**: a directory SAS treated
+   as a blob (409), a status path that 404s forever (a job that finished in
+   126 s rode a 10-minute timeout), and an output directory fetched as JSON
+   when the blob is `0.json`. The earlier probe that "verified the batch API"
+   only proved `job/init` — the first hop.
+3. **The HMAC skew window (60 s) is shorter than the cold start (176 s)**, so
+   the request that WAKES a scaled-to-zero service comes back 401
+   `transport_signature_invalid` — an auth error reported for a latency
+   problem, and the adapter treats 401 as non-retryable.
+4. **`normalizeText` dropped Devanagari matras**, so 213 characters measured as
+   74 single-glyph tokens and the top "phrase candidate" was a single vowel
+   sign repeated ten times. Fixed by keeping `\p{M}`; the same transcript then
+   measured 47 real words.
+
+**The law:** a stage that returns a plausible value on failure is invisible to
+every check that does not compare it to reality. Offline suites, type checks
+and even live smoke tests of the FIRST hop all passed while the pipeline was
+dead. Only driving the whole chain with real input found it. Related to
+`offline-mocks-cannot-type-check-sql` and `aliveness-was-unreachable-not-
+meera-bound`: three different disguises for the same thing — code that looks
+finished, is reached by no test that would notice, and returns something
+believable.
