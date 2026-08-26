@@ -316,6 +316,14 @@ function AuthGate({ onAuthed, copy }: { onAuthed: (session: StudioSession) => vo
             >
               {busy ? <><Spinner label="Sending sign-in code" />Sending code</> : "Continue securely"}
             </button>
+            <button
+              className="button secondary-button"
+              type="button"
+              disabled={!email.includes("@")}
+              onClick={() => { setError(""); setStep("code"); }}
+            >
+              I already have a code
+            </button>
           </>
         ) : (
           <>
