@@ -242,10 +242,18 @@ export const PHRASE_BANK_LINE_CEILING = 2;
  *  locale is a statistic that cannot be compared across two runs. Devanagari
  *  survives (`\p{L}` is Unicode-aware) — a mixed-script transcript is the
  *  normal case for this product, not the exception. */
+// `\p{M}` (combining marks) is kept, and that is not a detail. Devanagari
+// vowel signs — the matras in मेरा, नहीं, क्या — are Mark_Nonspacing, not
+// Letter. Stripping them does not merely lose accents: it shatters every word
+// into its bare consonants and inserts a space where each mark was, so a real
+// Sarvam transcript of a real teacher measured as 74 "tokens" of single
+// glyphs, code-switch ratio 0.000, zero fillers, and a phrase-bank candidate
+// list of "म" ×10. Measured 2026-08-26 on the first live Hinglish transcript.
+// Every abugida this product targets has the same shape.
 export function normalizeText(text: string): string {
   return String(text ?? "")
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}'\s]+/gu, " ")
+    .replace(/[^\p{L}\p{M}\p{N}'\s]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

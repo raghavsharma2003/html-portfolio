@@ -5983,7 +5983,7 @@ var PHRASE_BANK_MAX_WORDS = 3;
 var PHRASE_BANK_MIN_OCCURRENCES = 5;
 var PHRASE_BANK_LINE_CEILING = 2;
 function normalizeText(text) {
-  return String(text ?? "").toLowerCase().replace(/[^\p{L}\p{N}'\s]+/gu, " ").replace(/\s+/g, " ").trim();
+  return String(text ?? "").toLowerCase().replace(/[^\p{L}\p{M}\p{N}'\s]+/gu, " ").replace(/\s+/g, " ").trim();
 }
 function tokenize(text) {
   const normalized = normalizeText(text);
