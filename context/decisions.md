@@ -2845,3 +2845,25 @@ Open after this wave: WS-F ingestion (video/audio/text → sheet draft; the
 ≥5-occurrences phrase-bank half lives there), practice's live-call lane
 wiring, revision queue / mock cycle screens, `/api/teacher-sheet` endpoint
 over WS-B's loader.
+
+## `gurukul-ws3-landed` — third build wave: the teacher-sheet endpoint and the offline ingestion half (2026-08-26)
+
+Merged clean, all 11 gates green (ingest suite 84/84, teachersheet still
+129/129). `api/teacher-sheet.js` (GET / save-draft / publish over the WS-B
+loader; a failing draft SAVES with field errors, publish fails closed);
+`transcriptStats.ts` (code-switch ratio, filler/laughter/stretch counts,
+catchphrase candidates); the phrase-bank verifier wired into publish with
+THREE states — verified / failed-blocks / `unverified-no-transcript-evidence`
+which rides every response and never reads as a pass; `sheetDraft.ts`
+assembles only what it can honestly derive and names the rest in `gaps`;
+`qualitativePass.ts` is the LLM seam and throws 503 until keys exist.
+Migration 052 adds `updated_at`. Notable authoring-law call: mined
+`boardVerbalisms` candidates are NEVER auto-filled (top hits were the
+lecture's own vocabulary — `squared`, `equals` — recited-prompt with a
+pipeline in front of it); the human picks, the held-out corpus prunes.
+Its fixture caught a per-speaker parity bug in the held-out split that
+would have silently zeroed every fragment.
+
+Still owner-gated: real ASR/upload lane, live model for the qualitative
+pass, all deployment (ENV-MANIFEST batches, migrations 015–052 on live
+Neon, Microsoft Limited Access, voice bench spend).

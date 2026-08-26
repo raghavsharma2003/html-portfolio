@@ -1880,6 +1880,12 @@
       "kind": "decision",
       "title": "second gurukul build wave landed: dynamic sheets + student surface + teacher studio",
       "at": "2026-08-26"
+    },
+    {
+      "id": "gurukul-ws3-landed",
+      "kind": "decision",
+      "title": "third gurukul build wave landed: teacher-sheet endpoint + offline ingestion",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3445,6 +3451,11 @@
     },
     {
       "src": "gurukul-ws2-landed",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
+    },
+    {
+      "src": "gurukul-ws3-landed",
       "rel": "part_of",
       "dst": "gurukul-founding"
     }
