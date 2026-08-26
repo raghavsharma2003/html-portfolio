@@ -3452,3 +3452,121 @@ unreadable scanner exit is `clamav_scan_failed`, never `{safe:true}`.
 **The generalisation worth keeping.** A default value is a positive claim. Ask
 of every fallback: if this fires, what am I asserting, and would I sign it? For
 a safety check the honest fallback is always an exception, never a verdict.
+
+## `clamdscan-is-only-a-recommended-package` (2026-08-26, WS-AK)
+
+**Tried.** Building the worker image with
+`apt-get install --no-install-recommends ffmpeg clamav-daemon clamav-freshclam`,
+which is what `services/replica-processing-worker/Dockerfile` had said since it
+was written, and deploying it as the component whose entire purpose is to
+provide `malware_scan` and `media_probe`.
+
+**What broke.** The image has `clamd` and no `clamdscan`. On Debian,
+`clamdscan` is its own package and is only a *Recommended* of `clamav-daemon`,
+so `--no-install-recommends` - which the image wants for every other reason -
+drops it silently. `resolveNativeTool` then finds no `clamdscan` on the PATH and
+reports `malware_scanner_unavailable`: the exact code the container was deployed
+to stop producing. The build log says so in plain sight, under `Recommended
+packages:`, and nobody reads that section of a successful build.
+
+**What caught it.** Not review, and not the build. A `REQUIRED_STEPS` assertion
+added to `run-once.js` in the same session: the container checks that
+`integrity`, `malware_scan` and `media_probe` are all available before it does
+anything, and exits non-zero naming the missing ones. First execution printed
+`{"error":"worker_missing_required_capability:malware_scan"}` in 20 seconds.
+
+**The reusable part.** A component deployed to provide a capability should
+assert that it has that capability, at startup, by name. Without the assertion
+this container would have started, leased nothing it could serve, exited 0, and
+looked exactly like a healthy idle worker forever - the same shape as
+`aliveness-was-unreachable-not-meera-bound`, where both ends were fine and only
+the connection was missing.
+
+## `ffprobe-cannot-read-mp3-duration-from-a-pipe` (2026-08-26, WS-AK)
+
+**Tried.** Probing the owner's real 32.9 MB MP3 by streaming the bytes to
+`ffprobe ... pipe:0` on stdin, which is what `createNativeToolRunners().probeBytes`
+did and what the worker's own `native.js` had done before it.
+
+**What broke.** The step failed `media_probe_output_invalid` on a recording that
+is perfectly fine. Measured inside the worker image, same binary, same bytes,
+same arguments, only the input changed:
+
+```
+ffprobe ... pipe:0  -> exit 0, streams complete, "format": {}
+ffprobe ... <path>  -> exit 0, streams complete, "duration": "822.720000"
+```
+
+A pipe is not seekable, and an MP3's duration is not in a header that can be
+read going forwards - it comes from seeking to the end, or from a Xing frame
+that has to be seeked to. So on a pipe the duration is simply absent,
+`readFfprobeFacts` rightly refuses a result with no duration, and the failure
+lands on the recording instead of on the call.
+
+**Fixed by** writing the bytes to a temporary file and probing the path, then
+removing it in a `finally`. The bytes are already fully in memory, bounded by
+the storage read cap, so this costs one write and one delete and buys a probe
+that works for every container format rather than only the seek-free ones.
+
+**The reusable part.** `exit 0` from a media tool is not the same as a complete
+answer, and the parse that catches the difference will name the *file* as
+invalid, because that is all it can see. When a probe fails on real user media
+that plays fine everywhere else, suspect how the tool was invoked before
+suspecting the media.
+
+## `the-mission-brief-said-the-sweep-was-already-merged` (2026-08-26, WS-AK)
+
+**Tried.** Basing on `origin/claude/gurukul-platform` and expecting to find
+WS-AH's `api/replica-processing-sweep.js` there, as the brief stated.
+
+**What broke.** It is not there. The sweep exists only on `origin/gurukul-ws-ah`
+and was never merged to the platform branch, though it *is* deployed and running
+on production - the owner's `integrity` job completed at 18:35:21Z while this
+session was reading code that did not contain the thing that ran it.
+
+**Why it matters beyond the inconvenience.** Coordinating with a component means
+reading it, and a branch that does not contain it will not say so - it will just
+look like a queue with no drainer, which is the exact bug WS-AH had already
+fixed. `origin/gurukul-ws-ah` was merged into `gurukul-ws-ak` before any design
+work started.
+
+**The reusable part.** Deployed and merged are independent facts. Check the
+branch for the file rather than the brief for the claim, and when the two
+disagree, the repository is the one that is not guessing.
+
+## `data-modifying-ctes-cannot-see-each-other` (2026-08-26, WS-AK)
+
+**What was tried.** `commitProcessingOutput` writes the artifacts, the evidence,
+the settled job, the attempt, the source state and the next queued step in one
+PostgreSQL statement, which is right: a crash between any two of those strands
+the DAG. To make the write safe it then *validated* itself in the same
+statement, by re-reading `vy_replica_processing_artifact` and
+`vy_replica_processing_evidence` and joining them against the rows it had asked
+for, and aborting through a deliberate `1 / 0` if the counts disagreed.
+
+**What broke.** The re-read can never see the insert. Data-modifying CTEs all
+run against the same snapshot and cannot observe one another's effects, so
+`valid_evidence` counted the table as it was BEFORE `inserted_evidence` ran. For
+any step producing at least one row the counts always disagreed, the guard
+always fired, and the whole statement always rolled back with SQLSTATE 22012.
+
+**How large this was.** Every step in the eight-step DAG except `integrity` and
+`malware_scan` produces an artifact or a piece of evidence. Those two were the
+only steps that had ever completed, and the database held zero artifact rows and
+zero evidence rows in total. The commit had never once worked for a step with
+output, on any runtime, for any upload. It was hidden behind the undeployed
+container: nothing had ever got far enough to hit it.
+
+**Fixed by** counting a desired row as valid if this statement inserted it - it
+is in `inserted_artifacts` / `inserted_evidence`, which ARE visible as CTE
+results - *or* if an identical row already existed. Both halves are load-bearing.
+The first is the ordinary path. The second keeps a retry after a lost response
+settling instead of dead-ending. An id that exists with different content is in
+neither, so it still aborts, which is the collision the guard was written for.
+The guard was also made to stand down when there is no eligible job, so an
+ordinary lost lease reports `lost_processing_lease` rather than 22012.
+
+**The reusable part.** A statement cannot audit its own writes by re-reading the
+table it is writing. If a check inside a data-modifying CTE appears to validate
+the insert, it is validating the past. And a guard that can only ever fail is
+indistinguishable from a guard that never fires until something reaches it.

@@ -8,8 +8,23 @@ import { authorizedProcessingSweep, runProcessingSweep } from "./_replica-proces
 // to be able to prove the auth refusal and the job bound offline, and a module
 // that pulls in `_db.js` at import time cannot be imported offline at all.
 //
-// Registered in vercel.json at `*/5 * * * *`, the same cadence as the other
-// worker-advanced sweeps.
+// NO LONGER ON A CRON. The Azure Container Apps Job `vyakti-replica-processing`
+// owns all eight steps of the audio DAG, because it is the only runtime that
+// has `clamdscan` and `ffprobe` and so the only one that can serve more than
+// `integrity`. Its cron entry was removed from vercel.json when that job was
+// deployed and proven serving.
+//
+// This endpoint stays, and still answers a CRON_SECRET bearer call, as the
+// manual fallback for when Azure is unavailable. Restoring the cron line is
+// what makes it scheduled again.
+//
+// Why one owner and not two. The lease is atomic, so two schedulers can never
+// run one job twice - that is not the hazard. The hazard is that this runtime
+// terminally fails a tool-bound step with `malware_scanner_unavailable` and the
+// container requeues it moments later because the capability is present there,
+// so the pair flaps the owner's Activity screen between blocked and progressing
+// for as long as both are on a schedule. See
+// services/replica-processing-worker/README.md.
 
 export const config = { maxDuration: 300 };
 

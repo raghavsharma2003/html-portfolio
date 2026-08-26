@@ -2738,6 +2738,72 @@
       "kind": "component",
       "title": "api/replica-processing-sweep.js + _replica-processing/sweep.js + composition.js + native-tools.js + capability-codes.js: the caller that drains the eight-step audio DAG",
       "at": "2026-08-26"
+    },
+    {
+      "id": "replica-processing-worker-deployed",
+      "kind": "component",
+      "title": "vyakti-replica-processing on Azure Container Apps: a scheduled JOB, Consumption, no ingress, that owns all eight steps of the audio DAG and is the only runtime with clamdscan and ffprobe",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "processing-worker-is-a-job-not-an-app",
+      "kind": "decision",
+      "title": "the worker deploys as a Container Apps Job rather than a Container App: it is run-to-completion, it is a queue consumer with no inbound door, and zero idle cost is real rather than scale-to-zero",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "the-container-owns-every-processing-step",
+      "kind": "decision",
+      "title": "one owner per step: the Azure job owns all eight, the Vercel sweep's cron entry is removed and the endpoint stays as a manual fallback, because two schedulers with different capabilities flap the owner's Activity screen",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "commit-guard-had-never-committed-evidence",
+      "kind": "measurement",
+      "title": "0 artifact rows and 0 evidence rows existed database-wide and the only steps ever completed were the two producing neither; commitProcessingOutput aborted every other step with SQLSTATE 22012 - n=whole production db, 2026-08-26",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "worker-execution-timings",
+      "kind": "measurement",
+      "title": "worker image builds 96-107s; an execution finding an empty queue costs 23s with no ClamAV started; clamd ready in 10,052ms; malware_scan on 32.9MB in 1.4s; integrity in 5.13s",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "ffprobe-pipe-versus-file-on-the-owners-mp3",
+      "kind": "measurement",
+      "title": "same binary, same args, same bytes: pipe:0 yields format {} with no duration, a file path yields duration 822.720000 - the owner's recording is 822,720ms, 48kHz, stereo, mp3; n=1 file, 2 invocations, 2026-08-26",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "data-modifying-ctes-cannot-see-each-other",
+      "kind": "rejection",
+      "title": "validating an insert by re-reading the base table in the same statement: a data-modifying CTE's rows are invisible to the rest of the statement, so the check always failed and the collision guard divided by zero",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "clamdscan-is-only-a-recommended-package",
+      "kind": "rejection",
+      "title": "installing clamav-daemon with --no-install-recommends and expecting a scanner: clamdscan is a separate Debian package and only Recommended, so the image had the daemon and no client",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "ffprobe-cannot-read-mp3-duration-from-a-pipe",
+      "kind": "rejection",
+      "title": "probing audio by streaming bytes to ffprobe pipe:0: a pipe is not seekable, MP3 duration needs a seek, so the step failed media_probe_output_invalid on a recording that is fine",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "the-mission-brief-said-the-sweep-was-already-merged",
+      "kind": "rejection",
+      "title": "trusting a brief that said WS-AH's sweep was already on the platform branch: it was deployed but never merged, so the branch showed a queue with no drainer",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "voice-genome-still-blocked-on-asr",
+      "kind": "open",
+      "title": "a voice_genome build needs sources at state=ready, which only voice_quality sets; the DAG stops at diarize without AZURE_VOICE_EVIDENCE_ORIGIN and then at transcribe on AZURE_SPEECH_ENDPOINT, and the subscription has ZERO Cognitive Services accounts",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -5300,6 +5366,56 @@
       "src": "a-runner-nobody-runs",
       "rel": "caused_by",
       "dst": "aliveness-was-unreachable-not-meera-bound"
+    },
+    {
+      "src": "replica-processing-worker-deployed",
+      "rel": "part_of",
+      "dst": "media-extract-deployed"
+    },
+    {
+      "src": "processing-worker-is-a-job-not-an-app",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "the-container-owns-every-processing-step",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "commit-guard-had-never-committed-evidence",
+      "rel": "caused_by",
+      "dst": "data-modifying-ctes-cannot-see-each-other"
+    },
+    {
+      "src": "data-modifying-ctes-cannot-see-each-other",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "clamdscan-is-only-a-recommended-package",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "ffprobe-cannot-read-mp3-duration-from-a-pipe",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "ffprobe-pipe-versus-file-on-the-owners-mp3",
+      "rel": "part_of",
+      "dst": "ffprobe-cannot-read-mp3-duration-from-a-pipe"
+    },
+    {
+      "src": "worker-execution-timings",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "voice-genome-still-blocked-on-asr",
+      "rel": "caused_by",
+      "dst": "replica-processing-worker-deployed"
     }
   ]
 }

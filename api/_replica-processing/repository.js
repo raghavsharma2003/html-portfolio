@@ -147,25 +147,57 @@ export async function commitProcessingOutput(db, input) {
           and (d.item->>'owner_user_id')::uuid=j.owner_user_id
        on conflict (evidence_id) do nothing
        returning evidence_id
+     -- A desired row counts as valid if THIS statement inserted it, or if an
+     -- identical row was already there.
+     --
+     -- The or exists half used to be the whole test: re-read the table and
+     -- join. That can never see the row inserted_evidence just wrote.
+     -- Data-modifying CTEs run against the same snapshot and cannot observe one
+     -- another's effects, so the re-read returned the state from BEFORE the
+     -- insert, the counts disagreed, and collision_guard divided by zero.
+     --
+     -- Which means this statement had never committed a step that produces an
+     -- artifact or a piece of evidence - only integrity and malware_scan,
+     -- which produce neither, could get through it. Measured 2026-08-26 on
+     -- production: 0 rows in vy_replica_processing_artifact, 0 rows in
+     -- vy_replica_processing_evidence, and the only completed steps in the
+     -- entire database were those two. media_probe failed SQLSTATE 22012.
+     --
+     -- Both halves are load-bearing and the guard's real job is unchanged: an
+     -- id that already exists with DIFFERENT content is in neither half, so it
+     -- still aborts, which is the collision this was written to catch. An
+     -- identical re-commit is in the second half, so a retry after a lost
+     -- response still settles instead of dead-ending.
      ), valid_artifacts as materialized (
        select count(*)::integer total from desired_artifacts d
-       join vy_replica_processing_artifact a on a.artifact_id=(d.item->>'artifact_id')::uuid
-        and a.source_id=(d.item->>'source_id')::uuid and a.replica_id=(d.item->>'replica_id')::uuid
-        and a.owner_user_id=(d.item->>'owner_user_id')::uuid
-        and a.created_by_job_id=(d.item->>'created_by_job_id')::uuid and a.sha256=d.item->>'sha256'
-        and a.input_sha256=d.item->>'input_sha256' and a.manifest_hash=d.item->>'manifest_hash'
+        where (d.item->>'artifact_id')::uuid in (select artifact_id from inserted_artifacts)
+           or exists (
+             select 1 from vy_replica_processing_artifact a
+              where a.artifact_id=(d.item->>'artifact_id')::uuid
+                and a.source_id=(d.item->>'source_id')::uuid and a.replica_id=(d.item->>'replica_id')::uuid
+                and a.owner_user_id=(d.item->>'owner_user_id')::uuid
+                and a.created_by_job_id=(d.item->>'created_by_job_id')::uuid and a.sha256=d.item->>'sha256'
+                and a.input_sha256=d.item->>'input_sha256' and a.manifest_hash=d.item->>'manifest_hash')
      ), valid_evidence as materialized (
        select count(*)::integer total from desired_evidence d
-       join vy_replica_processing_evidence e on e.evidence_id=(d.item->>'evidence_id')::uuid
-        and e.source_id=(d.item->>'source_id')::uuid and e.replica_id=(d.item->>'replica_id')::uuid
-        and e.owner_user_id=(d.item->>'owner_user_id')::uuid
-        and e.created_by_job_id=(d.item->>'created_by_job_id')::uuid and e.input_sha256=d.item->>'input_sha256'
-        and e.record_hash=d.item->>'record_hash'
+        where (d.item->>'evidence_id')::uuid in (select evidence_id from inserted_evidence)
+           or exists (
+             select 1 from vy_replica_processing_evidence e
+              where e.evidence_id=(d.item->>'evidence_id')::uuid
+                and e.source_id=(d.item->>'source_id')::uuid and e.replica_id=(d.item->>'replica_id')::uuid
+                and e.owner_user_id=(d.item->>'owner_user_id')::uuid
+                and e.created_by_job_id=(d.item->>'created_by_job_id')::uuid and e.input_sha256=d.item->>'input_sha256'
+                and e.record_hash=d.item->>'record_hash')
      ), collision_guard as materialized (
-       select 1 / case when
-         (select count(*) from desired_artifacts)=(select total from valid_artifacts)
-         and (select count(*) from desired_evidence)=(select total from valid_evidence)
-       then 1 else 0 end ok
+       -- With no eligible job there is nothing to guard: the writes above
+       -- inserted nothing because they cross join eligible_job. Aborting here
+       -- would turn an ordinary lost lease into SQLSTATE 22012, when settled
+       -- being empty already reports it as lost_processing_lease, which is
+       -- the answer the caller is written to handle.
+       select 1 / case when (select count(*) from eligible_job)=0 then 1
+                       when (select count(*) from desired_artifacts)=(select total from valid_artifacts)
+                        and (select count(*) from desired_evidence)=(select total from valid_evidence)
+                  then 1 else 0 end ok
      ), settled as (
        update vy_replica_processing_job j
           set state='complete',result=$5::jsonb,failure_code='',lease_token_hash='',

@@ -4990,3 +4990,68 @@ costs money. It is fenced on both sides today (only the five codes, and only
 where that step is live in the running process), and only `integrity` through
 `media_probe` are free; if a paid step ever enters the absence set, the fence
 needs a spend check before it stays.
+
+## `processing-worker-is-a-job-not-an-app` (2026-08-26, WS-AK)
+
+**Decided.** `services/replica-processing-worker/` is deployed to
+`vyakti-voice` as a scheduled **Azure Container Apps Job**
+(`vyakti-replica-processing`, Consumption, `*/5 * * * *`, `parallelism: 1`,
+`replicaTimeout: 900`), not as a Container App and not as a smaller
+purpose-built container.
+
+**Why a Job.** The worker is already run-to-completion: `run-once.js` drains a
+bounded queue and returns. A Container App expects a long-lived server, so
+using one would mean inventing a listener, a readiness probe and an ingress
+that nothing would ever call. A Job also has genuine zero idle cost: it is not
+running between executions at all, rather than sitting at `minReplicas: 0` with
+a wake path.
+
+**Why no ingress, and why that is not a new security posture.** This is a queue
+*consumer*. It pulls work from Neon and talks outward to Supabase Storage and,
+when configured, to the private evidence service. It needs no inbound door. The
+HMAC admission broker pattern exists to protect services that must accept
+inbound requests (`open-voice-admission` in front of the GPU runtime); adding
+ingress here purely to have something to authenticate would create an attack
+surface rather than reuse a posture. There is already a Jobs precedent in this
+exact resource group: `vyakti-voice-finetune`.
+
+**Why not a smaller purpose-built container.** A container that only shelled out
+to `clamdscan` and `ffprobe` would need its own leasing, settling and DAG
+handling, which is a second implementation of the part of this system where a
+bug is most expensive. The existing worker shares one code path with the Vercel
+sweep through `api/_replica-processing/composition.js`, which is what lets the
+two agree on what a step's absence is called. The image is a few hundred
+megabytes, not the 5-10 GB of the GPU images, so size was never the argument.
+
+**What would reverse it.** A step that needs to answer a synchronous request
+from the app plane rather than drain a queue. That is a different component with
+a different shape, and it would go behind the admission broker like everything
+else with a door.
+
+## `the-container-owns-every-processing-step` (2026-08-26, WS-AK)
+
+**Decided.** `vyakti-replica-processing` owns all eight steps of the audio DAG.
+The Vercel sweep's cron entry was removed from `vercel.json`; the endpoint
+remains and still answers a `CRON_SECRET` bearer call, so it is a manual
+fallback rather than a second scheduled owner.
+
+**Why ownership had to be singular.** Not for correctness. The lease is atomic
+(`for update skip locked` plus a lease token hash), so two schedulers can never
+run one job twice - that hazard does not exist. The real hazard is capability
+flapping: the Vercel sweep terminally fails a tool-bound step with
+`malware_scanner_unavailable`, the container requeues it moments later because
+the capability is present there, and for as long as both are scheduled the pair
+would move the owner's Activity screen between blocked and progressing on a
+five-minute cycle. WS-AH named this exact race as their reversal condition.
+
+**Why the cron line rather than `REPLICA_PROCESSING_KILL=1`.** Both work, and
+the kill switch stays as the lever for silencing the endpoint itself. The cron
+line was chosen because it is *in the repository*: the split is enacted by the
+same push that deploys it, and it is visible to the next reader in the same
+diff as the container. An env var set in a dashboard is a split that only one
+person can see.
+
+**What would reverse it.** Azure being an unacceptable single point of failure
+for enrollment. The fallback is already written and one line long: restore the
+cron entry, and the queue drains as far as a serverless runtime honestly can,
+with named absences for the rest.

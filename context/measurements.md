@@ -3876,3 +3876,78 @@ with every step live.
 environment, draining it would have written
 `failed/private_storage_not_configured` onto the owner's only job, which is a
 worse state than the one the deployed sweep will produce on its first tick.
+
+## `commit-guard-had-never-committed-evidence` (2026-08-26, WS-AK)
+
+**n = the whole production database, one query.** Before any fix, on Neon
+project `lucky-sun-80291432`:
+
+```
+vy_replica_processing_evidence  0 rows
+vy_replica_processing_artifact  0 rows
+completed steps, all time       integrity, malware_scan
+```
+
+**Method.** A single `select count(*)` over both derived-data tables plus
+`string_agg(distinct step)` over `vy_replica_processing_job where state =
+'complete'`, run after `media_probe` had failed twice on production.
+
+**What it means.** `integrity` and `malware_scan` are the only two steps in the
+eight-step DAG that produce neither an artifact nor a piece of evidence. They
+are also the only two that had ever completed. `commitProcessingOutput` aborted
+every other step with SQLSTATE 22012, so the pipeline could not have gone past
+`media_probe` for any upload, ever, on any runtime - which is a different and
+larger blocker than the undeployed container, and was hidden behind it.
+
+**How the SQLSTATE was obtained.** Reproduced locally in about a second against
+production Neon, with real storage, real database, real builders and the real
+commit statement, stubbing only the ffprobe subprocess with facts already
+measured inside the container. That is the whole reason to keep the seam
+injectable.
+
+## `worker-execution-timings` (2026-08-26, WS-AK)
+
+Measured on `vyakti-replica-processing`, Consumption profile, 1.0 vCPU / 2 GiB,
+Central India, on the owner's real 32.9 MB (32,908,934 byte) MP3.
+
+| thing | measurement | n |
+|---|---|---|
+| ACR Task build, worker image | 98 s, 96 s, 107 s | 3 builds, 2-vCPU agent |
+| Execution that finds an empty queue | 23 s wall, no ClamAV started | 1 |
+| `clamd` ready after `--ping` answers | 10,052 ms | 1 |
+| `malware_scan` on 32.9 MB, clamdscan `--stream` | 1.4 s | 1 |
+| `integrity` (read 32.9 MB from Supabase + SHA-256) | 5.13 s | 1 |
+| ClamAV signatures baked into the image | main v63 (3,287,027 sigs), daily v28104 (355,623), bytecode v339 (80) | build log |
+
+**Method.** Wall clock from Container Apps execution `startTime`/`endTime`, from
+`vy_replica_processing_attempt.started_at`/`finished_at` for the per-step
+numbers, and from the worker's own content-free `clamd_ready_ms` field for the
+daemon.
+
+**The 23 s idle figure is the important one.** It is what the schedule costs
+when there is nothing to do, and it is 23 s rather than roughly 33 s because
+`pendingWork` runs before ClamAV is started. At `*/5` that is 288 executions a
+day; paying the 10 s signature load on each of them to discover an empty queue
+would be the dominant cost of the entire lane.
+
+## `ffprobe-pipe-versus-file-on-the-owners-mp3` (2026-08-26, WS-AK)
+
+**n = 1 file, 2 invocations, same binary and arguments,** inside the worker
+image on the owner's real upload:
+
+```
+ffprobe -v error -show_entries format=duration:stream=... -of json pipe:0
+  -> exit 0   streams: mp3, 48000 Hz, 2ch   format: {}
+
+ffprobe ... <same args> <file path>
+  -> exit 0   streams: mp3, 48000 Hz, 2ch   format: { "duration": "822.720000" }
+```
+
+**Method.** A throwaway Container Apps Job on the same image with a command
+override, fetching the object through the real storage adapter and running both
+invocations back to back. Deleted afterwards.
+
+**The number that matters downstream:** the recording is 822,720 ms, 13 minutes
+43 seconds, 48 kHz, stereo, mp3. That is what the pipeline now records as
+`media_probe` evidence, and it is comfortably above any plausible enrollment
+minimum.
