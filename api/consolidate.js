@@ -629,7 +629,7 @@ ${sourceLines.join("\n")}`;
 /** Finalize one person: the whole nightly pass, scoped to their stale
  *  provisional window. Returns a per-person report for the run summary. */
 async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
-  const rep = { person, log_rows: 0, episodes: 0, facts: 0, rejected_episodes: 0, rejected_facts: 0, audited: 0, refuted: 0, superseded_episodes: 0, superseded_facts: 0, kin: 0, kin_rejected: 0, rituals: 0, rituals_rejected: 0, kin_errors: [] };
+  const rep = { person, log_rows: 0, episodes: 0, facts: 0, rejected_episodes: 0, rejected_facts: 0, audited: 0, refuted: 0, superseded_episodes: 0, superseded_facts: 0, dated_facts: 0, disjoint_facts: 0, kin: 0, kin_rejected: 0, rituals: 0, rituals_rejected: 0, kin_errors: [] };
   const batch = await fetchLogBatch(person, { agentId });
   if (!batch.length) return rep;
   // Layer 2 of the watch contract, asserted rather than assumed at the ONE
@@ -776,7 +776,24 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
       rep.rejected_facts++;
       continue;
     }
-    factsToEmbed.push({ kind, name, body, feel: telegraphic(f.feel, 60), citations: citedEpIds, segIdxs });
+    // ── BI-TEMPORAL FACT EDGES (migration 056, WS-O) ────────────────────
+    // `saidAt` is the START of the episode this fact cites, never the
+    // consolidation clock. That is the whole mechanism and it is the reason
+    // the derivation happens HERE rather than in a later sweep: "kal" resolves
+    // against when they SAID it, and a nightly pass that anchored on its own
+    // run time would put every relative date one night late — and a pass that
+    // re-ran a week later would put it a week late, producing a different
+    // interval each time it touched the same row.
+    const saidAt = acceptedEpIdx.get(segIdxs[0])?.startedAt;
+    factsToEmbed.push({
+      kind,
+      name,
+      body,
+      feel: telegraphic(f.feel, 60),
+      citations: citedEpIds,
+      segIdxs,
+      saidAt: Number.isFinite(saidAt) ? Number(saidAt) : null,
+    });
   }
 
   if (!factsToEmbed.length) {
@@ -785,8 +802,31 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
     rep.facts = factsToEmbed.length;
   } else {
     const vecs = await embedBatch(factsToEmbed.map((f) => f.body)).catch(() => []);
+    // ── BI-TEMPORAL FACT EDGES (migration 056, WS-O) ──────────────────────
+    // The parser is src/engine/validity.ts over timeline.ts's `resolveWhen`,
+    // reached through the engine bundle. It is not re-implemented here for the
+    // reason this file already learned once at its own cost — its header names
+    // the "honorific port" as a mirrored-logic mistake, and a second date table
+    // is that mistake with dates instead of address terms.
+    //
+    // Loaded ONCE per run, lazily, and a missing bundle degrades to null
+    // validity on every row — which is exactly today's behaviour, because null
+    // validity is what every row written before 056 carries.
+    const vmod = await import("./_engine.gen.js").catch(() => null);
+    const derive = typeof vmod?.deriveFactValidity === "function" ? vmod.deriveFactValidity : null;
+    const overlaps =
+      typeof vmod?.validityOverlaps === "function" ? vmod.validityOverlaps : () => true;
+    const validityFor = (f) => {
+      if (!derive || !Number.isFinite(f.saidAt)) return null;
+      try {
+        return derive({ id: f.name, name: f.name, kind: f.kind, summary: f.body, saidAt: f.saidAt });
+      } catch {
+        return null;
+      }
+    };
     for (let i = 0; i < factsToEmbed.length; i++) {
       const f = factsToEmbed[i];
+      const v = validityFor(f);
       // contradiction handling (§4.1.3): a NEW row always; an existing
       // active final fact with the same name gets superseded, never
       // updated in place.
@@ -795,27 +835,69 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
       // supersede this one, which is the cross-agent leak inverted — not a row
       // escaping into the wrong context, but the wrong context editing a row.
       const prior = await q(
-        `select v.id, v.body from vy_fact v where v.person_id = $1 and lower(v.name) = $2
+        `select v.id, v.body, v.valid_from, v.valid_to from vy_fact v
+          where v.person_id = $1 and lower(v.name) = $2
            and v.provisional = false and v.t_invalid is null and v.retracted_at is null
            ${agentScopePredicate("v", { agentId: "$3" })}
          order by v.created_at desc limit 1`,
         [person, f.name, agentId],
       ).catch(() => []);
       const ins = await q(
-        `insert into vy_fact (agent_id, person_id, kind, name, body, feel, provenance, confidence, citations, provisional)
-         values (${agentValue("$7")},$1,$2,$3,$4,$5,'extracted',0.85,$6::bigint[],false)
+        `insert into vy_fact (agent_id, person_id, kind, name, body, feel, provenance, confidence, citations, provisional, valid_from, valid_to)
+         values (${agentValue("$7")},$1,$2,$3,$4,$5,'extracted',0.85,$6::bigint[],false,$8,$9)
          returning id`,
-        [person, f.kind, f.name, f.body, f.feel, f.citations, agentId],
+        [
+          person,
+          f.kind,
+          f.name,
+          f.body,
+          f.feel,
+          f.citations,
+          agentId,
+          v ? new Date(v.validFrom).toISOString() : null,
+          v && v.validTo != null ? new Date(v.validTo).toISOString() : null,
+        ],
       ).catch(() => []);
       if (!ins[0]) continue;
       rep.facts++;
+      if (v) rep.dated_facts++;
       const newId = ins[0].id;
-      if (prior[0] && prior[0].body !== f.body) {
+      // ── CONTRADICTION IS NOW A QUERY OVER VALIDITY (ROADMAP-100X item 4) ──
+      //
+      // WHAT WAS WRONG. "Same lowercased name + different body ⇒ supersede the
+      // older row" is right for a belief that CHANGED ("lives in lucknow" →
+      // "lives in delhi") and wrong for a SEQUENCE of same-named,
+      // differently-dated things. Two rows named `exam`, one for a November
+      // sitting and one for the May one after it, are not a contradiction —
+      // they are two exams, and superseding the first sets `t_invalid`, which
+      // every recall query in this repo reads as a hard exclusion. The November
+      // exam would vanish from her memory the moment the May one was mentioned.
+      //
+      // The predicate: supersede only when the two facts' EVENT-time intervals
+      // overlap. A row with no validity overlaps everything — so for every row
+      // written before 056, and for every fact whose text carries no resolvable
+      // date, this is byte-for-byte the rule that shipped before, and the
+      // change is opt-in per row rather than a new global behaviour.
+      //
+      // NO LLM CALL, which is the sentence the roadmap item is written in: two
+      // timestamp comparisons where a model call was the alternative design.
+      const priorOverlaps =
+        prior[0] &&
+        overlaps(
+          {
+            validFrom: prior[0].valid_from ? new Date(prior[0].valid_from).getTime() : null,
+            validTo: prior[0].valid_to ? new Date(prior[0].valid_to).getTime() : null,
+          },
+          v ? { validFrom: v.validFrom, validTo: v.validTo } : null,
+        );
+      if (prior[0] && prior[0].body !== f.body && priorOverlaps) {
         await q(
           `update vy_fact v set t_invalid = now(), superseded_by = $1 where v.id = $2
             ${agentScopePredicate("v", { agentId: "$3" })}`,
           [newId, prior[0].id, agentId],
         ).catch(() => {});
+      } else if (prior[0] && prior[0].body !== f.body) {
+        rep.disjoint_facts = (rep.disjoint_facts || 0) + 1;
       }
       // supersede the provisional fact(s) this promotes, matched by name
       // under the episodes just finalized (§0.2.1: provisional is

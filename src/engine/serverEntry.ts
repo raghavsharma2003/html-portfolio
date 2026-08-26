@@ -107,6 +107,30 @@ export {
   promoteObservation,
 } from "./observation";
 
+// ── bi-temporal fact edges (ROADMAP-100X item 4, WS-O) ─────────────────────
+// api/consolidate.js and api/memory.js both WRITE `valid_from`/`valid_to`
+// (migration 056), and the date extraction behind them is timeline.ts's
+// `resolveWhen` — the repo's one authored, Hinglish-aware, deterministic date
+// table, already gated by evals/time/his.mjs. Hand-porting it into api/ is the
+// mirrored-logic failure this file exists to refuse, and it would be that
+// failure in its most literal form: a second definition of what "november"
+// means, drifting on the first edit to either copy, with the drifted half still
+// returning 200.
+//
+// Only the DERIVER crosses. The read side (`api/memory.js`'s `staleNote`)
+// compares a stored timestamp against the clock and needs no parser, no import
+// and no bundle — see that function's own note for why the split is where it is.
+export {
+  deriveFactValidity,
+  factStaleness,
+  validityOverlaps,
+  validityMs,
+  validityIso,
+  type FactValidity,
+  type Staleness,
+  type ValidityInput,
+} from "./validity";
+
 // ── the india layer's WRITE half (WS-SPINE, P1-2) ──────────────────────────
 // Same reason as everything above it: api/consolidate.js is a plain-JS
 // serverless function under the zero-imports-from-src rule, and it is now the

@@ -2456,3 +2456,73 @@ with a non-default agent"** — and if the answer is a grep with no hits, the
 feature does not exist for that agent no matter how generic the module is.
 `evals/clonelife` §5 now asserts the three forwarding lines in `brain.ts` over
 the source text, because that is the assertion whose absence let this stand.
+---
+
+## `month-prefix-parse` — matching a month by its first three letters
+
+`src/engine/timeline.ts`'s `resolveWhen` resolved month names with
+`/\b(jan|feb|mar|…|dec)[a-z]*\.?\s*(\d{1,2})?\b/i` — "the three-letter
+abbreviation plus whatever follows it". `[a-z]*` was meant to admit the full
+name ("jan" → "january"). What it actually admitted was **the prefix inside any
+longer word**. Measured over a plain word list:
+
+| word | read as |
+|---|---|
+| married, marriage, marks | March |
+| decade, decide, declare | December |
+| junior | June |
+| novel | November |
+| janta | January |
+| octopus | October |
+| septic | September |
+| augment | August |
+| aprons | April |
+
+`marks` and `janta` are the ones that matter: this is a product whose users
+say both constantly, and a JEE-teacher clone will hear "marks" in every third
+message.
+
+**Why it survived.** `resolveWhen` had exactly one consumer — `hisClock`, whose
+output is a coarse human label ("was about a month back"). A label that is five
+months off reads as a memory being vague, and no gate encodes what "vague"
+should be. It became load-bearing the moment WS-O made the same answer the
+stored `valid_to` that decides TENSE: a December wedding parsed on "married"
+resolves to March, and she congratulates someone on a wedding that has not
+happened.
+
+The lesson is not about regexes. **A parser with one forgiving consumer has
+never been tested.** Wiring it into a second consumer with a strict consequence
+is what tested it, and that is a reason to expect the next such reuse to find
+something too.
+
+Fixed by replacing `[a-z]*` with an alternation admitting only the real
+completions of each month name, closed with `\b`. Fixture: `evals/run.mjs
+recallbench` [A-14], over dyad-a's "getting married in nashik in december".
+
+---
+
+## `router-matched-a-table-instead-of-a-statement` — a mock that swallowed the query under test
+
+`evals/recallbench/store.mjs` routed the person lookup with
+`s.includes("from vy_person_device")`. WS-O's surface-switch leg names
+`vy_person_device` in a SUBQUERY, so that branch swallowed the new statement
+whole and answered it with a person row.
+
+The result was the worst available one: the leg ran, issued its query, got a
+plausible-looking answer, contributed nothing, and **every assertion in the
+suite stayed green**. The only visible symptom was a route-count line nobody
+would read. It took a printf inside the leg to find it, after two rounds of
+looking for the bug in the shipping code — which was correct the whole time.
+
+Fixed by matching the STATEMENT (`select person_id from vy_person_device`)
+rather than a table that appears in it. The general rule, and the reason this
+is written down rather than just patched: **a mock branch keyed on a table name
+is a branch that will one day answer a different query than it was written
+for.** The watch branches in the same file already carried an ordering note for
+the same species of trap; this is the second instance, which is what makes it a
+rule.
+
+Related, from the same session and the same file: the router used to IGNORE
+`device_id` entirely and serve fixture rows to any caller. A mock that
+OVER-RETURNS is the more dangerous kind — it made an 89.2% cross-surface recall
+loss invisible while the whole benchmark read as healthy.

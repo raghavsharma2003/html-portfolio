@@ -81,10 +81,34 @@ now and are **wave 5**; 4–5 follow; the rest wait for measurements.
 4. **Bi-temporal fact edges** (valid-from/valid-to, Graphiti's idea) —
    contradiction resolution becomes a query, not an LLM call. Migration +
    consolidation change; touches the citation chain, so it lands alone.
+   **SHIPPED (WS-O, 2026-08-26)** — migration 056, `src/engine/validity.ts`
+   over timeline.ts's existing date table, `staleNote` and contradiction
+   resolution both queries over validity, absent-is-byte-identical with no
+   backfill. Closes `stale-note-keys-on-row-age`. See
+   `context/decisions.md#bitemporal-fact-edges`.
 5. **Example-dialogue format experiment** — community consensus says
    example dialogues are the strongest persona lever; our `recited-prompt`
    rejection says quotable sentences get recited. Likely reconciled by
    format (micro-scene vs quotable line). One cheap A/B, then law.
+   **HALF-DONE, DELIBERATELY (WS-O, 2026-08-26)** — the structural arm is
+   built and measured (`evals/run.mjs exdialog`; quotable 6 emittable spans /
+   0.405 liftable vs micro-scene 0 / 0.000 at matched length), and it measures
+   a SURFACE rather than a recitation rate. **No law is written and the item
+   stays open.** The decisive arm needs generation and a judge and sits behind
+   a provider seam reporting `judged: false`. See
+   `context/decisions.md#exdialog-surface-only`.
+
+### 6 — added by WS-O, out of the audit rather than the sweep
+
+**Continuity across surfaces.** Not on the original list because the research
+sweep looked outward and this one is ours. `api/_surface.js` states the law
+("memory is never keyed by surface") and retrieval violated it: **89.2% of
+recall was lost when a person moved from one surface to another**, measured on
+identical rows with `device_id` as the only variable. Closed for the READ path
+by an additive, consent-atomic leg (13.5% residual, named). Still open for the
+FORGET path — `legacy-forget-is-device-scoped` — which needs a live database to
+verify a widened DELETE against and is therefore the first thing a keyed
+session should do.
 
 Later, evidence-gated: hallucination-taxonomy split in the honesty gates,
 sycophancy audit, procedural "what worked with this student" memory,

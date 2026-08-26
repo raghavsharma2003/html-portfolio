@@ -70,7 +70,7 @@ register(pathToFileURL(join(HERE, "loader.mjs")));
 process.env.SUPABASE_URL = "https://recallbench.invalid";
 process.env.SUPABASE_KEY = "recallbench-not-a-key";
 
-const { loadFixture, unroutedQueries, routeCounts } = await import(pathToFileURL(join(HERE, "store.mjs")).href);
+const { loadFixture, unroutedQueries, routeCounts, setCrossSurface } = await import(pathToFileURL(join(HERE, "store.mjs")).href);
 const memory = await import(pathToFileURL(join(HERE, "..", "..", "api", "memory.js")).href);
 const handler = memory.default;
 
@@ -299,15 +299,46 @@ console.log("\n§3 the specific behaviours the classes are named for");
 // ═════════════════════════════════════════════════════════════════════════
 {
   loadFixture(DYADS[0]);
-  // TEMPORAL: a december plan recalled in august must arrive hedged. This is
-  // `staleNote` in api/memory.js, and it is the difference between "shaadi
-  // december me hai" and "us december wali shaadi ho gayi na?".
-  const stale = await recall(DYADS[0], "meghna ki shaadi kab hai");
+  // ── TEMPORAL: the hedge, in BOTH directions ────────────────────────────
+  //
+  // WHAT THIS ASSERTION USED TO SAY, AND WHY IT WAS WRONG. It read "a
+  // past-dated plan carries the stale hedge" and passed on dyad-a's December
+  // wedding — recalled in AUGUST of the same year, i.e. four months BEFORE it
+  // happens. It passed because `staleNote` keyed on ROW AGE, so a row written
+  // in March was hedged as already-past whatever its own date said. The
+  // benchmark had the defect it went on to discover baked into its own
+  // expectation: the hedge fired, so the assertion was green, and the thing
+  // being asserted was the bug.
+  //
+  // That is the shape `gates-that-live-nowhere` warns about from the other
+  // side — not a gate that runs nothing, but a gate that pins the wrong
+  // behaviour and would have failed the fix. Bi-temporal fact edges
+  // (ROADMAP-100X item 4, migration 056) close it, so the expectation flips
+  // and the OTHER direction becomes an assertion rather than an assumption.
+  //
+  // The hedge is the difference between "shaadi december me hai" and "us
+  // december wali shaadi ho gayi na?", and getting it backwards is worse than
+  // not hedging at all: she congratulates someone on a wedding that has not
+  // happened, fluently, with nothing in the output marking it as wrong.
+  const ahead = await recall(DYADS[0], "meghna ki shaadi kab hai");
   ok(
-    "[A-10] a past-dated plan carries the stale hedge",
-    stale.includes("already happened"),
-    stale.slice(0, 200),
+    "[A-10] a plan whose own date is still AHEAD is NOT hedged as past",
+    !ahead.includes("already happened"),
+    ahead.slice(0, 260),
   );
+  // The row-age FALLBACK, still live and still gated: `case presentation` is
+  // four months old, kind `event`, and carries no date any parser can resolve.
+  // Absent validity must behave exactly as it did before 056 — that property
+  // is what lets the migration land with no backfill, and it is silent when it
+  // breaks.
+  loadFixture(DYADS[1]);
+  const fallback = await recall(DYADS[1], "case presentation wala kya hua tha");
+  ok(
+    "[A-10b] an OLD, UNDATED, time-shaped row still gets the row-age hedge",
+    fallback.includes("already happened"),
+    fallback.slice(0, 260),
+  );
+  loadFixture(DYADS[0]);
   // PROVENANCE: the age travels with the row, or "kab bataya tha maine" is
   // unanswerable from a row the function already had in hand (P1-6).
   const prov = await recall(DYADS[0], "kab bataya tha maine zenith ke baare me");
@@ -367,32 +398,206 @@ console.log("\n§3b KNOWN RETRIEVAL GAPS — measured, deliberately NOT gated");
     console.log(`      why:    ${g.why}`);
   }
 
-  // ── A DEFECT THIS BENCHMARK FOUND ON ITS FIRST RUN ────────────────────
+  // ── A DEFECT THIS BENCHMARK FOUND ON ITS FIRST RUN — NOW CLOSED ───────
   //
-  // `staleNote` in api/memory.js hedges a plan with "whatever was ahead in
-  // this has already happened" when the ROW is more than 45 days old and its
-  // kind is plan/event or its summary looks time-bound. It keys on the AGE OF
-  // THE ROW, not on the date INSIDE the fact — so a plan told 67 days ago
-  // about something that is still two months in the FUTURE is handed to her
-  // pre-hedged as past. dyad-b's `neet pg` (a november exam, recorded in June)
-  // is that case exactly.
+  // WHAT IT WAS. `staleNote` in api/memory.js hedges a plan with "whatever was
+  // ahead in this has already happened" when the ROW is more than 45 days old
+  // and its kind is plan/event or its summary looks time-bound. It keyed on
+  // the AGE OF THE ROW, never on the date INSIDE the fact — so a plan told 67
+  // days ago about something still two months in the FUTURE was handed to her
+  // pre-hedged as past. dyad-b's `neet pg` (a November exam, recorded in June)
+  // is that case exactly, and it is the fixture the finding was filed against.
   //
-  // It is REPORTED, not gated and not fixed here: api/memory.js's recall
-  // semantics are WS-RECALL's, changing the predicate would move what every
-  // existing turn recalls, and "the row is old" is a genuinely useful signal
-  // that a better rule would keep. The right fix needs the fact's own dates,
-  // which is ROADMAP-100X item 4 (bi-temporal edges, valid-from/valid-to) —
-  // so this is filed as evidence FOR that item rather than patched around.
+  // WHAT CLOSED IT. WS-O, ROADMAP-100X item 4: bi-temporal fact edges. The
+  // fact now carries its own `valid_from`/`valid_to` (migration 056), derived
+  // at write time from timeline.ts's date table, and `staleNote` asks the
+  // horizon before it counts days. Row age is KEPT as the fallback for rows
+  // with no derivable date, which is most rows and every row written before
+  // 056 — so absence behaves exactly as before, which is what let the fix land
+  // without a backfill.
+  //
+  // It is now a GATE, in both directions, and it is asserted in §3 ([A-10] the
+  // ahead case, [A-10b] the row-age fallback) rather than printed here. This
+  // block stays as the ASSERTION THAT THE FIX IS STILL IN, because the failure
+  // mode is silent: she asks how an exam went, in August, in a fluent sentence
+  // that nothing about the output marks as wrong.
   {
     loadFixture(DYADS[1]);
     const fresh = await recall(DYADS[1], "exam kab hai");
     const hedged = fresh.includes("already happened");
+    ok(
+      "[B-12b] `stale-note-keys-on-row-age` stays closed — a November exam is not past in August",
+      !hedged,
+      fresh.slice(0, 260),
+    );
     console.log(
-      `\n  DEFECT (reported, not gated): a FUTURE plan recorded 67 days ago is ${hedged ? "hedged as already-past" : "no longer hedged as already-past"}` +
-        `\n      staleNote keys on ROW AGE, not on the date inside the fact (dyad-b 'neet pg', a november exam).` +
-        `\n      Evidence for ROADMAP-100X item 4 (bi-temporal edges); see §3b's comment for why it is not patched here.`,
+      `\n  CLOSED (was: DEFECT, reported not gated): a FUTURE plan recorded 67 days ago is ${hedged ? "STILL hedged as already-past — THE FIX IS GONE" : "no longer hedged as already-past"}` +
+        `\n      staleNote now asks the fact's own valid_to (migration 056) and falls back to row age only when there is none.` +
+        `\n      ROADMAP-100X item 4, shipped by WS-O; gated in §3 [A-10]/[A-10b] and by evals/run.mjs validity.`,
     );
   }
+
+  // ── A SECOND DEFECT THIS BENCHMARK SURFACED, in the parser ────────────
+  //
+  // Wiring `resolveWhen` into a stored `valid_to` made a latent bug in it
+  // visible for the first time. Its month pattern ended each abbreviation with
+  // `[a-z]*` — the three-letter prefix plus anything — so it matched the
+  // prefix INSIDE A LONGER WORD: married→March, marks→March, decade→December,
+  // junior→June, novel→November, janta→January. dyad-a's row "younger sister,
+  // getting married in nashik in december" resolved on "married" and landed in
+  // MARCH, five months behind the December it says.
+  //
+  // Invisible while `resolveWhen` had one consumer (hisClock, whose output is
+  // a coarse label a reader would forgive); load-bearing the moment the same
+  // answer became the timestamp that decides tense. Fixed in timeline.ts (the
+  // alternation now admits only real completions of each month name and closes
+  // with `\b`); the assertion lives here because this fixture is the evidence.
+  {
+    loadFixture(DYADS[0]);
+    const m = await recall(DYADS[0], "meghna ki shaadi kab hai");
+    ok(
+      "[A-14] a december wedding is not parsed as march by a month-prefix match",
+      !m.includes("already happened"),
+      m.slice(0, 260),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§3c THE SURFACE SWITCH — the same person, a different device (WS-O)");
+// ═════════════════════════════════════════════════════════════════════════
+//
+// ── THE LAW, AS THE PRODUCT ALREADY STATES IT ──────────────────────────
+// `api/_surface.js`'s own header: "A surface is a TRANSPORT... The same human
+// on Telegram and on the web is the same relationship, so identity resolution
+// here is AGENT-INDEPENDENT and memory is never keyed by surface. Anything
+// that keys memory by surface reintroduces the amnesia the relational layer
+// exists to delete."
+//
+// ── WHAT THE ENGINE ACTUALLY DOES ───────────────────────────────────────
+// Identity IS shared: `vy_surface_identity` maps (surface, surface_user_id) to
+// ONE person_id, with no agent and no surface in the key. But `_room.js`'s
+// `bindSurfaceDmDevice` mints a device per surface (`surfaceDmDeviceId(surface,
+// surfaceUserId)`), and opRecall's two largest legs — the keyword MATCHED leg
+// and the STANDING BACKGROUND leg — read `meera_nodes ... where device_id =
+// $1`, as do `meera_edges` and the neighbour-name resolution. The vy_ store
+// (facts, activities, watch moments, rel/self bundles) is person-keyed and
+// follows the person.
+//
+// So a person who says something on the web app and then opens WhatsApp keeps
+// half of her memory and loses the other half, silently, with no error and a
+// 200 on every call.
+//
+// ── HOW THIS IS MEASURED ────────────────────────────────────────────────
+// The identical 50 questions, over the identical fixture rows, from a device
+// the fixture's person also owns — which is what `personIdFor` returns for
+// both, because the mock resolves any device to the fixture's person exactly
+// as `vy_surface_identity` would. The only variable is the device_id bound
+// into the legacy-lane statements. Nothing about the store changes.
+//
+// REPORTED, NOT GATED, and the reason is the one §3b gives: the fix is a
+// coordinated change to recall AND to the legacy forget lane, and half of it
+// is a consent regression (see the note under the table).
+{
+  let threw = null;
+  const arm = async (crossOn) => {
+    setCrossSurface(crossOn);
+    const home = [];
+    const away = [];
+    for (const d of DYADS) {
+      loadFixture(d);
+      const keys = keysOf(d);
+      // A DIFFERENT, VALID uuid. It must be valid: `opRecall` 400s on a
+      // malformed device before it reads anything, and a 400 would look exactly
+      // like total recall loss — which is the number this section reports, so
+      // getting it by accident would be the worst available outcome. [SS-3]
+      // asserts both calls actually returned a prompt.
+      const suffix = DYADS.indexOf(d).toString(16).repeat(12).slice(0, 12);
+      const other = { ...d, deviceId: `ffffffff-9999-4999-8999-${suffix}` };
+      for (const question of d.questions) {
+        const expected = question.expect || [];
+        if (!expected.length) continue; // forget/absent are boolean, not recall
+        const h = await recall(d, question.q).catch((e) => `THREW ${e.message}`);
+        const a = await recall(other, question.q).catch((e) => `THREW ${e.message}`);
+        threw = threw || (h.startsWith("THREW") ? h : a.startsWith("THREW") ? a : null);
+        const hit = (str) => retrievedFrom(str, keys).filter((k) => expected.includes(k)).length / expected.length;
+        home.push(hit(h));
+        away.push(hit(a));
+      }
+    }
+    return { home, away };
+  };
+  const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
+  // The PRE-FIX arm first: the leg's two statements throw, exactly as a SQL
+  // error would, so `api/memory.js`'s catch drops the whole contribution.
+  const off = await arm(false);
+  const on = await arm(true);
+  setCrossSurface(true);
+  const pct = (x, y) => (x > 0 ? (((x - y) / x) * 100).toFixed(1) : "0.0");
+  console.log(
+    `  n = ${on.home.length} recall questions (the scorable ones, across all three dyads)` +
+      `\n` +
+      `\n                                   | same device | after a surface switch | loss` +
+      `\n  --------------------------------+-------------+------------------------+------` +
+      `\n  surface-switch leg OFF (pre-fix) |    ${mean(off.home).toFixed(3)}    |         ${mean(off.away).toFixed(3)}          | ${pct(mean(off.home), mean(off.away))}%` +
+      `\n  surface-switch leg ON            |    ${mean(on.home).toFixed(3)}    |         ${mean(on.away).toFixed(3)}          | ${pct(mean(on.home), mean(on.away))}%` +
+      `\n` +
+      `\n  What survived the switch WITHOUT the leg: the vy_ store only — facts,` +
+      `\n    activities, watch moments, and the rel/self bundles. All person-keyed.` +
+      `\n  What was lost: meera_nodes (the MATCHED and STANDING BACKGROUND legs),` +
+      `\n    meera_edges, and the neighbour-name resolution. All device-keyed.` +
+      `\n` +
+      `\n  THE RESIDUAL is real and is not a rounding error. \`meera_edges\` is still` +
+      `\n  device-keyed and the leg does not import relations, so a multi-hop question` +
+      `\n  answered through an edge on the home device is still answered without it` +
+      `\n  after a switch; and the leg is capped at 6 rows where the two home legs` +
+      `\n  together return up to 14. Both are deliberate: relations between two` +
+      `\n  imported rows would need a second import and a second dedup, and a cap` +
+      `\n  bigger than the home legs would let another surface's memory outweigh this` +
+      `\n  one\'s. Named here so the number is not mistaken for "fixed".`,
+  );
+  // GATES ON THE MEASUREMENT ITSELF, not on the defect.
+  ok("[SS-1] the pre-fix arm really loses most of recall (the defect is real)", mean(off.home) - mean(off.away) > 0.5, `${mean(off.home).toFixed(3)} -> ${mean(off.away).toFixed(3)}`);
+  ok("[SS-2] the leg restores most of it (the fix works)", mean(on.away) > mean(off.away) + 0.4, `${mean(off.away).toFixed(3)} -> ${mean(on.away).toFixed(3)}`);
+  // THE BYTE-IDENTITY PROPERTY, from this leg's own side: on the device the
+  // rows live on, a person with no other devices must recall EXACTLY what they
+  // recalled before the leg existed. If this ever fails, the leg is not
+  // absent-by-default and every existing fixture is at risk.
+  ok("[SS-4] on the home device the leg changes NOTHING", Math.abs(mean(on.home) - mean(off.home)) < 1e-9, `${mean(off.home).toFixed(6)} vs ${mean(on.home).toFixed(6)}`);
+  // THE FAIL-SAFE DEGRADE PATH, proved rather than asserted: the OFF arm above
+  // IS the leg failing the way a SQL error would, and the home column is
+  // unchanged in it. A feature that takes the product down with it when it
+  // breaks is not additive.
+  ok("[SS-5] when the leg fails, home recall is untouched (fail-safe degrade)", Math.abs(mean(off.home) - mean(on.home)) < 1e-9);
+
+  // ── THE CONSENT HALF, which decides whether this leg may exist at all ──
+  //
+  // `opRecall` has NO read-side forget suppression: forget is a hard DELETE and
+  // the legacy lane's delete is device-scoped. So an imported row is the one
+  // place in this function where a thing the person asked her to forget could
+  // come back — on the very device where they asked. The leg reads the forget
+  // terms across ALL of the person's devices and filters imported rows through
+  // them, and the two reads are ATOMIC: no terms, no rows.
+  //
+  // Both halves are tested. A suppression test with no positive control passes
+  // on a leg that imports nothing.
+  {
+    setCrossSurface(true);
+    const d = DYADS[0];
+    const suffix = "0".repeat(12);
+    const other = { ...d, deviceId: `ffffffff-9999-4999-8999-${suffix}` };
+
+    loadFixture(d);
+    const beforeForget = await recall(other, "meghna ki shaadi kab hai").catch(() => "");
+    ok("[SS-6] positive control: the row DOES import across the switch", beforeForget.toLowerCase().includes("meghna"), beforeForget.slice(0, 160));
+
+    loadFixture({ ...d, forgetTerms: ["meghna"] });
+    const afterForget = await recall(other, "meghna ki shaadi kab hai").catch(() => "");
+    ok("[SS-7] a forget term on ANY of the person's devices suppresses the imported row", !afterForget.toLowerCase().includes("meghna"), afterForget.slice(0, 240));
+
+    loadFixture(d);
+  }
+  ok("[SS-3] neither the home nor the away call errored — the loss is retrieval, not a rejected request", threw === null, String(threw));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

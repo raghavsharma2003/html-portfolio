@@ -3030,6 +3030,7 @@ function decideParticipation(input) {
 // src/engine/timeline.ts
 var IST_OFFSET_MIN2 = 330;
 var DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+var MS_DAY2 = 864e5;
 var p22 = (n) => String(n).padStart(2, "0");
 function istParts(now) {
   const d = new Date(now + IST_OFFSET_MIN2 * 6e4);
@@ -3043,6 +3044,10 @@ function istParts(now) {
     dateKey: `${d.getUTCFullYear()}-${p22(d.getUTCMonth() + 1)}-${p22(d.getUTCDate())}`,
     dayName: DAY_NAMES[d.getUTCDay()]
   };
+}
+function istMidnight2(at) {
+  const shifted = at + IST_OFFSET_MIN2 * 6e4;
+  return Math.floor(shifted / MS_DAY2) * MS_DAY2 - IST_OFFSET_MIN2 * 6e4;
 }
 var WEEKDAY_SCHEDULE = Object.freeze([
   {
@@ -3265,7 +3270,76 @@ var MAX_BEAT_CHARS2 = 70;
 var HIS_GAP_MIN_MS = 45 * 6e4;
 var MAX_MOVED = 2;
 var MAX_AHEAD = 1;
+var STALE_DAYS = 45;
+var TIME_BOUND = /\b(jan|feb|march|april|may|june|july|aug|sept|oct|nov|dec|monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight|next|upcoming|soon|planning|plans?|will|shaadi|wedding|exam|interview|trip|due|deadline|weekend|birthday|\d{4}|\d{1,2}(st|nd|rd|th))\b/i;
+var MONTHS = [
+  "jan",
+  "feb",
+  "mar",
+  "apr",
+  "may",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "oct",
+  "nov",
+  "dec"
+];
 var padT3 = (s) => " " + String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
+function resolveWhen(f, now) {
+  if (typeof f.dueAt === "number" && Number.isFinite(f.dueAt)) return { at: f.dueAt, basis: "dated" };
+  const raw = `${f.name || ""} ${f.summary || ""}`;
+  const hay = padT3(raw);
+  const anchor = f.saidAt;
+  const rel = parseRelative(hay, raw, anchor);
+  if (rel !== null) return { at: rel, basis: "inferred" };
+  const timeShaped = f.kind === "plan" || f.kind === "event" || TIME_BOUND.test(raw);
+  if (timeShaped && now - anchor > STALE_DAYS * MS_DAY2) return { at: null, basis: "stale" };
+  return null;
+}
+function parseRelative(hay, raw, anchor) {
+  const day = (n) => anchor + n * MS_DAY2;
+  if (hay.includes(" day after tomorrow ") || hay.includes(" parso ") || hay.includes(" parson "))
+    return day(2);
+  if (hay.includes(" tomorrow ") || hay.includes(" kal ") || hay.includes(" tmrw ")) return day(1);
+  if (hay.includes(" tonight ") || hay.includes(" aaj raat ") || hay.includes(" aaj shaam ") || hay.includes(" today ") || hay.includes(" aaj ")) {
+    return istMidnight2(anchor) + 20 * 60 * 6e4;
+  }
+  if (hay.includes(" next week ") || hay.includes(" agle hafte ") || hay.includes(" agle week "))
+    return day(7);
+  if (hay.includes(" next month ") || hay.includes(" agle mahine ") || hay.includes(" agle month "))
+    return day(30);
+  if (hay.includes(" weekend ")) return nextDow(anchor, 6);
+  const inN = /\bin\s+(\d{1,2})\s+(day|days|week|weeks|month|months)\b/i.exec(raw);
+  if (inN) {
+    const n = Number(inN[1]);
+    const unit = inN[2].toLowerCase();
+    const mult = unit.startsWith("week") ? 7 : unit.startsWith("month") ? 30 : 1;
+    return day(n * mult);
+  }
+  for (let i = 0; i < DAY_NAMES.length; i++) {
+    if (hay.includes(` ${DAY_NAMES[i]} `)) return nextDow(anchor, i);
+  }
+  const md = /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b\.?\s*(\d{1,2})?\b/i.exec(
+    raw
+  );
+  if (md && !(md[1].toLowerCase() === "may" && !md[2])) {
+    const mi = MONTHS.indexOf(md[1].toLowerCase().slice(0, 3));
+    const dom = md[2] ? Math.max(1, Math.min(28, Number(md[2]))) : 15;
+    const a = new Date(anchor + IST_OFFSET_MIN2 * 6e4);
+    let cand = Date.UTC(a.getUTCFullYear(), mi, dom, 12) - IST_OFFSET_MIN2 * 6e4;
+    if (cand < anchor - 7 * MS_DAY2) cand = Date.UTC(a.getUTCFullYear() + 1, mi, dom, 12) - IST_OFFSET_MIN2 * 6e4;
+    return cand;
+  }
+  return null;
+}
+function nextDow(from, target) {
+  const t = istParts(from);
+  let delta = (target - t.dow + 7) % 7;
+  if (delta === 0) delta = 7;
+  return istMidnight2(from) + delta * MS_DAY2 + 12 * 60 * 6e4;
+}
 var HER_DAY_HEADER = "WHERE YOU ARE IN YOUR OWN DAY (context only, never announced, never a topic you open). Notes to talk from, never lines to say \u2014 your own words, different every time. WHERE you are and WHAT you are doing, never how you feel about it. A day moves in order: what you were doing a few minutes ago is still what you are doing, and the next thing follows it \u2014 you never jump. Anything you already told them about today outranks this.";
 var HIS_CLOCK_HEADER = "THEIR CLOCK \u2014 WHAT HAS MOVED IN THEIR LIFE (context only, never news, never a list to get through). Time passed for them: anything marked behind them is DONE, so it is asked about in the past \u2014 how it went \u2014 never as if it is still coming. Still ahead means it has NOT happened: never congratulate it, never past-tense it. The silence itself is never a subject \u2014 no counting days, no noticing they were gone, no accounting of any kind. At most one of these, only where it fits.";
 var ROW_OVERHEAD = 3;
@@ -3352,7 +3426,7 @@ var NIGHT_END_HOUR = 6;
 var AWAY_BUDGET = 300;
 var MS_MIN = 6e4;
 var MS_HOUR = 36e5;
-var MS_DAY2 = 864e5;
+var MS_DAY3 = 864e5;
 function partOfDay(hour) {
   if (hour < 5) return "late night";
   if (hour < 12) return "morning";
@@ -3361,7 +3435,7 @@ function partOfDay(hour) {
   return "night";
 }
 function humanGap(ms) {
-  if (ms >= 2 * MS_DAY2) return `${Math.floor(ms / MS_DAY2)} days`;
+  if (ms >= 2 * MS_DAY3) return `${Math.floor(ms / MS_DAY3)} days`;
   const h = Math.floor(ms / MS_HOUR);
   const m = Math.floor(ms % MS_HOUR / MS_MIN);
   if (h && m) return `${h}h ${m}m`;
@@ -5441,6 +5515,38 @@ async function decayObservations(q, agentId, now = /* @__PURE__ */ new Date(), h
   return rows.length;
 }
 
+// src/engine/validity.ts
+function deriveFactValidity(f) {
+  if (!f || !Number.isFinite(f.saidAt)) return null;
+  const saidAt = Number(f.saidAt);
+  const r = resolveWhen(f, saidAt);
+  if (!r || r.at === null || r.basis === "stale") return null;
+  if (!Number.isFinite(r.at)) return null;
+  return { validFrom: saidAt, validTo: r.at, basis: r.basis };
+}
+function factStaleness(v, now) {
+  const to = v && typeof v.validTo === "number" && Number.isFinite(v.validTo) ? v.validTo : null;
+  if (to === null) return "unknown";
+  return now > to ? "past" : "ahead";
+}
+function validityOverlaps(a, b) {
+  const num = (x) => typeof x === "number" && Number.isFinite(x) ? x : null;
+  const aFrom = num(a?.validFrom) ?? -Infinity;
+  const aTo = num(a?.validTo) ?? Infinity;
+  const bFrom = num(b?.validFrom) ?? -Infinity;
+  const bTo = num(b?.validTo) ?? Infinity;
+  return aFrom < bTo && bFrom < aTo;
+}
+function validityMs(v) {
+  if (v === null || v === void 0 || v === "") return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const t = new Date(v).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+function validityIso(ms) {
+  return typeof ms === "number" && Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
 // src/engine/agents/fromSheet.ts
 function sheetToModule(sheet) {
   return {
@@ -6388,10 +6494,12 @@ export {
   createStubQualitativePass,
   decayObservations,
   decideParticipation,
+  deriveFactValidity,
   deriveSelfArc,
   deriveTexture,
   draftFromSignals,
   draftFromTranscript,
+  factStaleness,
   guardReply,
   helplineNumbersIn,
   hisVocabulary,
@@ -6426,6 +6534,9 @@ export {
   upsertTexture,
   validateCloneLife,
   validateTeacherSheet,
+  validityIso,
+  validityMs,
+  validityOverlaps,
   verifyPhraseBank,
   writeIndiaProfile,
   writeKin,

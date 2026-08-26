@@ -42,6 +42,7 @@ export function loadFixture(f) {
   FIXTURE = f;
   unrouted.length = 0;
   routedCounts.clear();
+  deriveFixtureValidity(f);
 }
 export function unroutedQueries() {
   return unrouted.slice();
@@ -51,6 +52,44 @@ export function routeCounts() {
 }
 
 const bump = (id) => routedCounts.set(id, (routedCounts.get(id) || 0) + 1);
+
+/** The surface-switch leg's negative control — see the branch that reads it. */
+let crossSurfaceOn = true;
+export function setCrossSurface(on) {
+  crossSurfaceOn = Boolean(on);
+}
+
+// ── DEVICE SCOPE, honoured (WS-O) ────────────────────────────────────────
+//
+// The legacy graph store (`meera_nodes`, `meera_edges`) is DEVICE-keyed; the
+// vy_ store is PERSON-keyed. This router used to ignore the distinction and
+// serve fixture rows to any caller, which made it blind to the single largest
+// cross-surface property there is: a person who moves from the web app to
+// WhatsApp resolves to the SAME person_id and a DIFFERENT device_id, so the
+// person-keyed legs follow them and the device-keyed legs do not.
+//
+// A mock that OVER-RETURNS is the more dangerous kind: it makes a real gap
+// invisible while every assertion stays green. So the device-keyed branches now
+// check the bound device against the fixture's, exactly as the database would.
+// `params[0]` is the device in every legacy-lane statement in api/memory.js —
+// asserted, not assumed, by `deviceOf` returning undefined for anything else.
+//
+// Single-device fixtures are unaffected: every existing call binds the
+// fixture's own deviceId, so every existing assertion sees exactly the rows it
+// saw before.
+function deviceOf(params) {
+  const p = params && params[0];
+  if (typeof p === "string") return p;
+  if (Array.isArray(p) && p.every((x) => typeof x === "string")) return p;
+  return undefined;
+}
+
+/** Does this statement's bound device belong to the fixture's legacy store? */
+function deviceMatches(params) {
+  const d = deviceOf(params);
+  if (d === undefined) return true; // not a device-bound statement
+  return Array.isArray(d) ? d.includes(FIXTURE.deviceId) : d === FIXTURE.deviceId;
+}
 
 /** Statements that legitimately return nothing for every fixture here, each
  *  with the reason it is empty rather than broken. Matched by substring. */
@@ -112,17 +151,72 @@ function rankOf(n, now) {
   return (n.salience ?? 1) * recency * (1 + 0.35 * Math.log(1 + (n.mentions ?? 0))) * spaced;
 }
 
-const NODE_COLS = (n) => ({
-  id: n.id,
-  name: n.name,
-  kind: n.kind,
-  summary: n.summary,
-  feel: n.feel ?? null,
-  updated_at: n.updated_at,
-  created_at: n.created_at,
-  mentions: n.mentions ?? 0,
-  last_recalled: n.last_recalled ?? null,
-});
+// ── BI-TEMPORAL FACT EDGES (migration 056, WS-O) ────────────────────────
+//
+// The fixture files author STORE STATE, not conversation, so a row's
+// valid_from/valid_to are whatever the WRITER would have put there. Rather
+// than hand-typing two timestamps per row — which would make the fixture the
+// authority on what "november" means, and would keep passing after the deriver
+// broke — the store derives them here with the REAL deriver
+// (src/engine/validity.ts, via api/_engine.gen.js), anchored on the row's own
+// `created_at`, which is exactly what api/memory.js's node writer does with
+// `Date.now()` on the turn the thing was said.
+//
+// A fixture may still pin `valid_from`/`valid_to` explicitly and that wins —
+// the escape hatch for a row whose stored interval is the thing under test.
+//
+// If the bundle is missing, every row derives null and this harness behaves
+// exactly as it did before 056, which is also what the product does.
+// Top-level await: `loadFixture` is synchronous and is called from eight
+// places, so the module is resolved once here rather than turning every call
+// site async for a 300 KB import that never changes between fixtures.
+const _vmod = await import("../../api/_engine.gen.js")
+  .then((m) => (typeof m?.deriveFactValidity === "function" ? m : null))
+  .catch(() => null);
+
+/** Derived once per loadFixture, keyed by node id. */
+let DERIVED = new Map();
+
+export function deriveFixtureValidity(fixture) {
+  DERIVED = new Map();
+  const m = _vmod;
+  if (!m) return DERIVED;
+  for (const n of fixture.nodes || []) {
+    if (n.valid_from !== undefined || n.valid_to !== undefined) continue;
+    const saidAt = Date.parse(n.created_at);
+    if (!Number.isFinite(saidAt)) continue;
+    try {
+      const v = m.deriveFactValidity({ id: String(n.id), name: n.name, kind: n.kind, summary: n.summary, saidAt });
+      if (v) DERIVED.set(n.id, v);
+    } catch {
+      /* an unreadable date is a null column, never a lost row */
+    }
+  }
+  return DERIVED;
+}
+
+const NODE_COLS = (n) => {
+  const d = DERIVED.get(n.id);
+  return {
+    id: n.id,
+    name: n.name,
+    kind: n.kind,
+    summary: n.summary,
+    feel: n.feel ?? null,
+    updated_at: n.updated_at,
+    created_at: n.created_at,
+    mentions: n.mentions ?? 0,
+    last_recalled: n.last_recalled ?? null,
+    valid_from:
+      n.valid_from !== undefined ? n.valid_from : d ? new Date(d.validFrom).toISOString() : null,
+    valid_to:
+      n.valid_to !== undefined
+        ? n.valid_to
+        : d && d.validTo != null
+          ? new Date(d.validTo).toISOString()
+          : null,
+  };
+};
 
 const FACT_COLS = (f) => ({
   id: f.id,
@@ -147,8 +241,15 @@ export function route(sql, params) {
     }
   }
 
-  // vy_person_device — personIdFor
-  if (s.includes("from vy_person_device")) {
+  // vy_person_device — personIdFor.
+  //
+  // The predicate is `select person_id from` and not a bare table match, and
+  // that is a bug this router already made once: WS-O's surface-switch leg
+  // names `vy_person_device` in a SUBQUERY, so a bare table match swallowed it
+  // whole and served it a person row. The leg then contributed nothing, every
+  // assertion stayed green, and the only visible symptom was a route count.
+  // A router branch must match the STATEMENT, never a table that appears in it.
+  if (s.includes("select person_id from vy_person_device")) {
     bump("person");
     return [{ person_id: FIXTURE.personId }];
   }
@@ -158,6 +259,7 @@ export function route(sql, params) {
   // because opRecall re-sorts on it and a router that returned them already
   // ordered would hide a bug in that re-sort.
   if (s.includes("with scored as")) {
+    if (!deviceMatches(params)) { bump("background:other-device"); return []; }
     bump("background");
     const scored = FIXTURE.nodes.map((n) => ({ ...NODE_COLS(n), salience: n.salience ?? 1, r: rankOf(n, now) }));
     const ranked = scored.slice().sort((a, b) => b.r - a.r || new Date(b.updated_at) - new Date(a.updated_at)).slice(0, 5);
@@ -169,8 +271,59 @@ export function route(sql, params) {
     return [...ranked.map((r) => ({ ...r, slot: 0 })), ...reserved.map((r) => ({ ...r, slot: 1 }))];
   }
 
+  // ── THE SURFACE-SWITCH LEG (WS-O) ────────────────────────────────────
+  //
+  // MUST BE TESTED BEFORE THE KEYWORD LEG: both statements select `${COLS}`
+  // from `meera_nodes n`, so a router that checked the keyword branch first
+  // would serve home rows to the cross-surface query and this leg would be
+  // untestable — the same trap the watch branches' ordering note describes.
+  // The discriminator is the one thing only this statement has:
+  // `n.device_id <> $1`.
+  //
+  // THE MODEL. A fixture's rows live on ONE device (`FIXTURE.deviceId`), and
+  // the mock resolves any device to the fixture's person, exactly as
+  // `vy_surface_identity` does for a person on two surfaces. So:
+  //   caller IS the home device  -> the person's OTHER devices hold nothing.
+  //   caller is ANOTHER device   -> this query is how the home device's rows
+  //                                 reach them, which is the whole feature.
+  if (s.includes("from meera_nodes n") && s.includes("n.device_id <> $1")) {
+    // THE NEGATIVE CONTROL. `setCrossSurface(false)` makes both halves of the
+    // leg fail exactly the way a real SQL error would — by throwing, which
+    // `api/memory.js`'s `.catch` turns into the `null` that drops the whole
+    // contribution. It is how §3c measures the pre-fix state without keeping a
+    // second copy of opRecall, and it is how the fail-safe degrade path is
+    // proved rather than asserted: with this off, recall must be EXACTLY what
+    // it was before the leg existed.
+    if (!crossSurfaceOn) throw new Error("recallbench: cross-surface leg disabled (negative control)");
+    const caller = deviceOf(params);
+    if (caller === FIXTURE.deviceId) {
+      bump("cross-surface:home");
+      return [];
+    }
+    bump("cross-surface:away");
+    const words = wordsFromParams(params);
+    const rows = words.length
+      ? FIXTURE.nodes.filter((n) => words.some((w) => matchesWord(n.name, w) || matchesWord(n.summary, w)))
+      : FIXTURE.nodes;
+    return rows
+      .map((n) => ({ ...NODE_COLS(n), salience: n.salience ?? 1 }))
+      .sort((a, b) => rankOf(b, now) - rankOf(a, now))
+      .slice(0, 6);
+  }
+
+  // The forget terms the surface-switch leg reads across the person's devices.
+  // `FIXTURE.forgetTerms` is the escape hatch a consent case sets; every dyad
+  // leaves it absent, which is the real state of a person who never asked her
+  // to forget anything.
+  if (s.includes("from meera_forget f")) {
+    if (!crossSurfaceOn) throw new Error("recallbench: cross-surface leg disabled (negative control)");
+    bump("cross-surface:terms");
+    return (FIXTURE.forgetTerms || []).map((term) => ({ term }));
+  }
+
   // THE KEYWORD LEG over meera_nodes
   if (s.includes("from meera_nodes n") && s.includes("id, name, kind, summary")) {
+    if (!deviceMatches(params)) { bump("keyword:other-device"); return []; }
     bump("keyword");
     const words = wordsFromParams(params);
     if (!words.length) return [];
@@ -183,6 +336,7 @@ export function route(sql, params) {
 
   // neighbour-name resolution for edges pointing outside the recalled set
   if (s.includes("select id, name from meera_nodes")) {
+    if (!deviceMatches(params)) { bump("names:other-device"); return []; }
     bump("names");
     const ids = new Set((params[1] || []).map(Number));
     return FIXTURE.nodes.filter((n) => ids.has(n.id)).map((n) => ({ id: n.id, name: n.name }));
@@ -190,6 +344,7 @@ export function route(sql, params) {
 
   // meera_edges
   if (s.includes("from meera_edges e")) {
+    if (!deviceMatches(params)) { bump("edges:other-device"); return []; }
     bump("edges");
     const ids = new Set((params[1] || []).map(Number));
     return (FIXTURE.edges || []).filter((e) => ids.has(e.src) || ids.has(e.dst)).slice(0, 30);

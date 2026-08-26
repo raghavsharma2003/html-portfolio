@@ -3260,3 +3260,198 @@ from the manifest), and `evals/self/wiring.mjs` pins only the cosmetic band
 relational- or honesty-band priority, this renumber is the change that broke it,
 and the fix is to pin that gate to the CLASS ordering (drift.mjs's shape) rather
 than to restore the old numbers.
+## `bitemporal-fact-edges` — a fact carries its own validity, and staleness stops being a guess (2026-08-26)
+
+ROADMAP-100X item 4, WS-O. Closes `stale-note-keys-on-row-age`.
+
+**What was wrong.** `api/memory.js`'s `staleNote` hedged a recalled row as
+already-past when THE ROW was older than 45 days and looked time-shaped. Row age
+was a proxy for "the world has moved on" and it is the wrong variable: WS-K's
+recall benchmark caught a November exam recorded in June being handed to her in
+August pre-hedged as past. She asks how an exam went that has not happened, in a
+fluent sentence with nothing in it marking the error.
+
+**What was decided.**
+
+1. **Two column pairs, not one.** `valid_from`/`valid_to` (migration 056) are
+   EVENT time and sit beside the existing `t_valid`/`t_invalid`, which are
+   BELIEF time. They are not merged, and the reason is a product one:
+   `t_invalid is not null` is read as a hard exclusion in about a dozen WHERE
+   clauses, so making a November exam set it in November would DELETE the fact
+   from recall rather than re-tense it. A passed plan is still a fact about a
+   person; it is just no longer ahead of them.
+2. **`valid_to` is a HORIZON, not an end-of-life.** "shaadi december me hai" is
+   true from the day it is said until December, and a wrong statement after.
+   That transition is exactly what row age was trying to detect.
+3. **Both stores get the columns.** `vy_fact` AND `meera_nodes`. The renderer
+   carrying the bug reads `meera_nodes`; `vy_fact` alone would have been the
+   tidy migration that fixed nothing a user could see.
+4. **One parser.** The deriver reuses `timeline.ts`'s `resolveWhen` — the repo's
+   existing authored Hinglish date table — through the engine bundle. A second
+   date table would be a second definition of what "november" means.
+5. **The write path parses; the read path compares.** `staleNote` (the
+   latency-critical one) needs no parser, no import and no cold-start cost —
+   two timestamps and a `>`. This split is what let the fix land in the hot
+   path in two lines.
+6. **Contradiction resolution is a query over validity.** Supersede only when
+   the two facts' event-time intervals overlap. Two rows named `exam` with
+   disjoint horizons are two exams, not a contradiction — the old rule would
+   have set `t_invalid` on the November one the moment the May one was
+   mentioned.
+7. **Absent validity is byte-identical to today**, in both consumers, and there
+   is NO BACKFILL. Null makes `factStaleness` return "unknown" (the 45-day rule,
+   unchanged) and `validityOverlaps` return true (supersede by name, unchanged).
+   Every pre-056 row is null, so the migration changes zero recalled bytes on
+   the day it is applied and starts changing them only as new dated facts are
+   written. A backfill is possible and is deliberately not done: it would
+   re-tense every live person's rows in one step with no measurement in front of
+   it.
+
+**What would reverse it.** Two things, separately:
+
+- If the deriver's PRECISION turns out to be bad in production — a measurable
+  rate of horizons that are simply wrong — then a wrong horizon is worse than
+  row age, because row age at least degrades toward "old things are probably
+  done" while a wrong horizon asserts a specific tense with confidence. The
+  reversal is to gate the deriver behind provenance (`user_said` only) or to
+  turn it off; the columns and the fallback stay, so turning it off is a
+  one-line change and not a migration.
+- If the belief pair and the event pair ever need to be one thing — i.e. if a
+  consumer appears that genuinely cannot tell "we stopped believing this" from
+  "this stopped being true" — then #1 above was the wrong call and the two
+  should merge. Nothing needs that today and the dozen WHERE clauses say why.
+
+**Gates.** `node evals/run.mjs validity` (85 assertions: the defect as a
+fixture, a precision side that outnumbers the positives, the one-parser
+assertion, the absent-is-identical property, the migration's own idempotence
+split with the real runner's splitter). `node evals/run.mjs recallbench`
+[A-10]/[A-10b]/[A-14]/[B-12b]. Byte-identity 83/83 intact; all 11 gates green.
+
+**A gate can pin the wrong behaviour.** recallbench's [A-10] asserted "a
+past-dated plan carries the stale hedge" and passed on a December wedding
+recalled in August. The hedge fired, so the assertion was green, and the thing
+being asserted was the bug — the fix had to FAIL that gate before it could pass.
+Filed alongside `gates-that-live-nowhere` as its inverse: not a gate that runs
+nothing, but a gate that runs and defends the defect.
+
+## `exdialog-surface-only` — the example-dialogue question is measured on one side and left open (2026-08-26)
+
+ROADMAP-100X item 5, WS-O. See `context/measurements.md#exdialog-surface` for
+the table.
+
+**The decision is what NOT to conclude.** The structural arm is real and the
+numbers are in `measurements.md`: at matched content and matched length, the
+quotable-line format puts 6 ready-to-emit utterances and 40.5% of its block into
+the prompt where the micro-scene format puts 0 and 0.0%, with 4.5× the
+characteristic vocabulary. That is a large, clean, reproducible difference —
+and it is a difference in SURFACE, which is necessary for recitation and not
+sufficient for it.
+
+So no law is written. `recited-prompt` stands unchanged, persona.ts is
+untouched, and item 5 stays open (`example-dialogue-unresolved`). What lands is
+a harness, a protocol and a provider seam that reports `judged: false`, so the
+decisive comparison costs a keyed session rather than a redesign.
+
+**Why the restraint is the decision rather than the absence of one.** The
+temptation here is real: the structural gap is big enough that "micro-scenes are
+safe, ship them" would feel supported. It is not. Three things the harness
+cannot see, each of which could invert the answer — (a) recitation is a model
+behaviour and only one arm has a measured rate behind it (arm A, 0 at n=84);
+(b) arm B RECONSTRUCTS the 4-of-5 shape, because the original text is not in
+version control; (c) nothing here measures whether examples TEACH anything, so a
+format that recites nothing because it conveys nothing scores perfectly and is
+worthless.
+
+**What would close it.** The §5 protocol run with keys: N replies per arm over a
+probe set that includes turns the examples are NOT about (the original finding
+was recitation on unrelated turns, which is what makes it a phrase bank rather
+than a demonstration), scored as longest-common-substring against each arm's
+emittable spans, with a register/quality check so an arm cannot win by being
+empty.
+
+**What would reverse the restraint early.** If a judged run shows arm C reciting
+at arm A's rate AND scoring at least as well on register, example dialogue
+becomes a technique this repo can use and `recited-prompt` gains a format
+carve-out. If arm C recites materially above arm A, the law is confirmed as
+written and item 5 closes as a rejection.
+
+## `surface-switch-recall-leg` — the graph store follows the person, as an ADDITIVE leg (2026-08-26)
+
+WS-O, the third piece. Measurement: `context/measurements.md#surface-switch-recall`.
+
+**What was broken, and it is the product's own stated law being violated.**
+`api/_surface.js`'s header: "A surface is a TRANSPORT… memory is never keyed by
+surface. Anything that keys memory by surface reintroduces the amnesia the
+relational layer exists to delete." Identity obeys that. Retrieval did not —
+`bindSurfaceDmDevice` mints a device per surface and opRecall's two biggest legs
+are device-keyed. **Measured: 89.2% of recall lost on a surface switch**, on
+identical rows, with device_id as the only variable.
+
+**Decision 1 — an ADDITIVE LEG, not a wider `where`.** The obvious fix is to
+widen the two existing predicates to the person's device set. Refused, on
+failure modes rather than taste: those two statements build every recalled
+prompt and are each wrapped in `.catch(() => [])`, so a SQL error in a widened
+predicate would not raise — it would return `[]` and she would silently have no
+memory at all. That is `silent-truncation` in the retrieval path, and
+`offline-mocks-cannot-type-check-sql` is explicit that a mocked DB proves
+control flow and not SQL types. There is no live database in this session. As a
+separate leg the failure mode inverts: the leg dies, the imported rows are
+absent, recall is exactly what it is today. **Asserted, not hoped:** [SS-4] and
+[SS-5] check that home recall is bit-for-bit identical whether the leg works or
+throws.
+
+**Decision 2 — consent decides the shape.** `opRecall` has NO read-side forget
+suppression (forget is a hard DELETE) and the legacy delete is device-scoped. An
+imported row is therefore the one place in that function where a forgotten thing
+could return — on the very device where the person asked. So the leg reads the
+forget terms across ALL of the person's devices and filters imports through
+them, and the two reads are **atomic: no terms, no rows.** A memory that arrives
+without its suppression list is not a partially-good feature, it is a consent
+defect. [SS-6] is the positive control (the row really does import), [SS-7] the
+suppression.
+
+**Decision 3 — the imported rows are not labelled with their surface.** They
+join the same two sets the home rows are in and nothing downstream learns where
+they came from. A row tagged with its origin is a row a model will eventually
+narrate ("you told me this on WhatsApp"), which is both wrong and creepy. Which
+set a row joins is decided by the rule the home legs already use — words present
+means it word-matched means it is an ANSWER; no words means CONTINUITY.
+
+**Decision 4 — dedup by NAME and the home row wins.** The same person's "amma"
+on two devices is two ids and one meaning; an id-dedup renders her mother twice.
+The home row wins because it is the one whose salience and mentions this
+device's conversations actually moved.
+
+**Decision 5 — a cap of 6, and no relations.** Deliberately smaller than the 14
+the two home legs return together: a bigger cap would let another surface's
+memory outweigh this one's. Relations are not imported at all — edges between
+two imported rows would need a second import and a second dedup. Both are why
+the residual after the fix is 13.5% rather than 0, and the residual is printed
+in the run so it cannot be mistaken for "fixed".
+
+**What is deliberately NOT done, and it is the larger half.** The legacy FORGET
+lane is still device-scoped: a whole wipe on the web leaves the Telegram
+`meera_nodes` rows standing. That is a defect TODAY, independent of this leg
+(the whole wipe detaches the wiping device from the person, so this leg cannot
+reach those rows and does not worsen it — but it does not fix it either).
+Widening a DELETE's blast radius with no live database to verify the SQL against
+is exactly what `offline-mocks-cannot-type-check-sql` forbids, and a half-done
+forget is the worst possible half. Filed as `legacy-forget-is-device-scoped`
+(open), with the fix stated: resolve the person's device set once and pass it to
+every legacy-lane statement in `opForget`, smoke-tested against the real
+database first.
+
+**What would reverse this.** If a live smoke test shows the leg's two statements
+failing (a uuid/text mismatch in the subquery is the plausible one), the leg is
+dead weight and either gets fixed against the real types or removed — and
+removing it costs nothing, which is the property Decision 1 bought. If the
+imported rows measurably degrade answer PRECISION in a keyed run — a real risk,
+since they are imported without the ranking context of their own device — the
+cap comes down or the leg becomes words-only.
+
+**Gate.** `node evals/run.mjs recallbench` §3c: [SS-1] the pre-fix loss is real,
+[SS-2] the leg restores most of it, [SS-3] neither call errored, [SS-4] the home
+device is unchanged, [SS-5] the fail-safe degrade, [SS-6]/[SS-7] the consent
+pair. Plus the router itself gained device scope — it used to serve fixture rows
+to any caller, which made this whole class of defect invisible while every
+assertion stayed green.

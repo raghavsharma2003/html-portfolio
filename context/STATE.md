@@ -98,3 +98,16 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 - `clone-initiative-record-has-no-absence` — a clone may speak first only on a
   citable reason. Silence, gaps and streaks are not inputs the predicate HAS.
   Do not re-add a silence-triggered ping in any form, on any surface.
+  `measurements.md` — with one narrow exception added 2026-08-26: a measurement
+  OF A PROMPT'S OWN TEXT (`exdialog-surface`) is exact rather than a proxy, and
+  is admitted with its scope line stated before the numbers. A number produced
+  against a MOCKED DATABASE is still not admissible as a product measurement,
+  and `surface-switch-recall` says so in its own entry.
+- **Memory is never keyed by surface** (`api/_surface.js` §4). Retrieval
+  violated this until 2026-08-26 and lost 89.2% of recall on a surface switch;
+  the legacy FORGET lane still violates it (`legacy-forget-is-device-scoped`,
+  open).
+- A mock branch keyed on a TABLE NAME will one day answer a different query
+  than it was written for, and a mock that OVER-RETURNS hides real defects while
+  every assertion stays green
+  (`router-matched-a-table-instead-of-a-statement`).

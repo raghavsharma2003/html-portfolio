@@ -189,6 +189,18 @@ export {
   RECIPROCITY_BUDGET,
   DISCLOSURE_WEIGHT,
 } from "../src/engine/reciprocity";
+// WS-O (ROADMAP-100X item 4). Bi-temporal fact edges. `resolveWhen` rides
+// along beside the deriver on purpose: evals/validity.mjs asserts that the
+// deriver's horizons ARE `resolveWhen`'s answers rather than a second parser's,
+// and it can only assert that against the real function.
+export {
+  deriveFactValidity,
+  factStaleness,
+  validityOverlaps,
+  validityMs,
+  validityIso,
+} from "../src/engine/validity";
+export { resolveWhen, STALE_DAYS, TIME_BOUND } from "../src/engine/timeline";
 export {
   compile,
   TAIL_MANIFEST,
@@ -202,6 +214,11 @@ export {
   CORE_CAP,
   SYSTEM_MAX,
   OPERATIONAL_TAIL_CAP,
+  // WS-O: `evals/exdialog` sizes its arms against the guard api/chat.js
+  // actually enforces, not against SPEC's target CORE_CAP — the shipping brief
+  // already exceeds the target and an assertion on it would fail on the
+  // control (see compiler.ts's own note on why the live guard was raised).
+  OPERATIONAL_CORE_CAP,
 } from "../src/engine/compiler";
 
 // WS-K (ROADMAP-100X item 2). The injected persona module, so evals/drift.mjs
