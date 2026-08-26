@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ensureStudioSession,
   googleSignIn,
@@ -15,6 +15,7 @@ import {
   revokeReplica,
 } from "./replicaApi";
 import { restoreSession, writeStoredSession } from "./session";
+import { friendlyError } from "./errorCopy";
 import type {
   ConsentReceipt,
   LivenessChallenge,
@@ -40,6 +41,7 @@ import ModelConsentGate from "./ModelConsentGate";
 import VoicePreviewLab from "./VoicePreviewLab";
 import TeacherSheetStudio from "./TeacherSheetStudio";
 import DisclosurePreview from "./DisclosurePreview";
+import QuickStartPath from "./QuickStartPath";
 import { DEMO_TEACHER } from "../engine/agents/characters/demoTeacher";
 import {
   createSourceUpload,
@@ -201,6 +203,27 @@ function Mark() {
 
 function Spinner({ label }: { label: string }) {
   return <span className="spinner" role="status" aria-label={label} />;
+}
+
+// AdvancedSurface — progressive disclosure for the expert / verification
+// path (WS-P). Teacher mode collapses it behind a native <details> so the
+// default path shows only the quick-start minimum; nothing inside is
+// removed, disabled, or lazily unmounted — it is still full markup, just
+// closed, so screen readers and in-page anchors (QuickStartPath's
+// `jumpTo`) both still reach it. Generic (self-replica) mode renders the
+// same children with no wrapper at all — byte-identical to before this
+// change, per this file's own mode-seam comment.
+function AdvancedSurface({ mode, children }: { mode: StudioMode; children: ReactNode }) {
+  if (mode !== "teacher") return <>{children}</>;
+  return (
+    <details className="advanced-disclosure">
+      <summary>
+        <strong>Advanced &amp; verification steps</strong>
+        <span>Identity, liveness, provider consent, voice training, and launch — open this to work through them directly.</span>
+      </summary>
+      <div className="advanced-disclosure-body">{children}</div>
+    </details>
+  );
 }
 
 function AuthGate({ onAuthed, copy }: { onAuthed: (session: StudioSession) => void; copy: StudioCopy }) {
@@ -613,6 +636,16 @@ function ReplicaWorkspace({
             </article>
           </section>
 
+          {mode === "teacher" && (
+            <QuickStartPath
+              token={accessToken}
+              replica={replica}
+              consents={consents}
+              sources={sources}
+              onAuthError={onReviewAuthError}
+            />
+          )}
+
           <EnrollmentWorkspace
             consents={consents}
             sources={sources}
@@ -623,55 +656,6 @@ function ReplicaWorkspace({
             onRetryUpload={onRetryUpload}
             onFinalizeUpload={onFinalizeUpload}
             onDeleteSource={onDeleteSource}
-          />
-
-          <IdentityProofing
-            token={accessToken}
-            replicaId={replica.replica_id}
-            sources={sources}
-            onChanged={onIdentityChanged}
-            onAuthError={onReviewAuthError}
-          />
-
-          <LivenessCapture
-            consentActive={hasSourceConsent(consents) && replica.age_verified}
-            challenge={challenge}
-            loading={livenessLoading}
-            onIssue={onIssueChallenge}
-            onStartFace={onStartFaceSession}
-            onPollFace={onPollFaceSession}
-            onCancel={onCancelChallenge}
-            onCreateUpload={onCreateLivenessUpload}
-            onRetryUpload={onRetryUpload}
-            onFinalize={onFinalizeLiveness}
-          />
-
-          <ModelConsentGate
-            token={accessToken}
-            replica={replica}
-            consents={consents}
-            onChanged={onVerifiedConsentChanged}
-            onAuthError={onReviewAuthError}
-          />
-
-          <ProcessingReview
-            token={accessToken}
-            replicaId={replica.replica_id}
-            sourceCount={sources.length}
-            onAuthError={onReviewAuthError}
-          />
-
-          <VoicePreviewLab
-            key={`voice-preview-${replica.replica_id}`}
-            token={accessToken}
-            replicaId={replica.replica_id}
-            onAuthError={onReviewAuthError}
-          />
-
-          <PersonModelStudio
-            token={accessToken}
-            replicaId={replica.replica_id}
-            onAuthError={onReviewAuthError}
           />
 
           {mode === "teacher" && (
@@ -686,75 +670,135 @@ function ReplicaWorkspace({
             </>
           )}
 
-          <CalibrationStudio
-            token={accessToken}
-            replicaId={replica.replica_id}
-            onAuthError={onReviewAuthError}
-          />
+          {/* Progressive disclosure (WS-P): in teacher mode, everything below
+              this line is the expert / verification path — identity,
+              liveness, provider consent, voice training, launch. Collapsed by
+              default so the default path shows the minimum; nothing is
+              removed and every row stays reachable, and QuickStartPath's
+              "Go there" / "See status" links open this automatically via
+              `jumpTo`'s `closest("details")`. Generic (self-replica) mode
+              renders this exact same content, uncollapsed — its behavior
+              stays byte-identical, per this file's own mode-seam comment. */}
+          <AdvancedSurface mode={mode}>
+            <IdentityProofing
+              token={accessToken}
+              replicaId={replica.replica_id}
+              sources={sources}
+              onChanged={onIdentityChanged}
+              onAuthError={onReviewAuthError}
+            />
 
-          <VoiceEnrollmentLab
-            key={`voice-enrollment-${replica.replica_id}`}
-            token={accessToken}
-            replica={replica}
-            consents={consents}
-            onAuthError={onReviewAuthError}
-          />
+            <LivenessCapture
+              consentActive={hasSourceConsent(consents) && replica.age_verified}
+              challenge={challenge}
+              loading={livenessLoading}
+              onIssue={onIssueChallenge}
+              onStartFace={onStartFaceSession}
+              onPollFace={onPollFaceSession}
+              onCancel={onCancelChallenge}
+              onCreateUpload={onCreateLivenessUpload}
+              onRetryUpload={onRetryUpload}
+              onFinalize={onFinalizeLiveness}
+            />
 
-          <section className="stage-section locked-path" aria-labelledby="path-title">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Not yet enabled</p>
-                <h2 id="path-title">Modeling gates</h2>
+            <ModelConsentGate
+              token={accessToken}
+              replica={replica}
+              consents={consents}
+              onChanged={onVerifiedConsentChanged}
+              onAuthError={onReviewAuthError}
+            />
+
+            <ProcessingReview
+              token={accessToken}
+              replicaId={replica.replica_id}
+              sourceCount={sources.length}
+              onAuthError={onReviewAuthError}
+            />
+
+            <VoicePreviewLab
+              key={`voice-preview-${replica.replica_id}`}
+              token={accessToken}
+              replicaId={replica.replica_id}
+              onAuthError={onReviewAuthError}
+            />
+
+            <PersonModelStudio
+              token={accessToken}
+              replicaId={replica.replica_id}
+              onAuthError={onReviewAuthError}
+            />
+
+            <CalibrationStudio
+              token={accessToken}
+              replicaId={replica.replica_id}
+              onAuthError={onReviewAuthError}
+            />
+
+            <VoiceEnrollmentLab
+              key={`voice-enrollment-${replica.replica_id}`}
+              token={accessToken}
+              replica={replica}
+              consents={consents}
+              onAuthError={onReviewAuthError}
+            />
+
+            <section className="stage-section locked-path" aria-labelledby="path-title">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">Not yet enabled</p>
+                  <h2 id="path-title">Modeling gates</h2>
+                </div>
+                <p>Uploading evidence does not authorize biometric modeling, training, inference, or generation.</p>
               </div>
-              <p>Uploading evidence does not authorize biometric modeling, training, inference, or generation.</p>
-            </div>
-            <div className="stage-list">
-              {STAGES.map((stage, index) => (
-                <article className="stage-row locked" key={stage.id}>
-                  <span className="stage-number">{stage.number}</span>
-                  <span className="stage-line" aria-hidden="true" />
-                  <div className="stage-copy">
-                    <h3>{stage.title}</h3>
-                    <p>{stage.copy}</p>
-                  </div>
-                  <div className="stage-lock">
-                    <span className="lock-icon" aria-hidden="true" />
-                    <span>
-                      <strong>Not available</strong>
-                      <small>{stage.availability}</small>
-                    </span>
-                  </div>
-                  {index === 0 && <span className="stage-next">LOCKED</span>}
-                </article>
-              ))}
-            </div>
-          </section>
+              <div className="stage-list">
+                {STAGES.map((stage, index) => (
+                  <article className="stage-row locked" key={stage.id}>
+                    <span className="stage-number">{stage.number}</span>
+                    <span className="stage-line" aria-hidden="true" />
+                    <div className="stage-copy">
+                      <h3>{stage.title}</h3>
+                      <p>{stage.copy}</p>
+                    </div>
+                    <div className="stage-lock">
+                      <span className="lock-icon" aria-hidden="true" />
+                      <span>
+                        <strong>Not available</strong>
+                        <small>{stage.availability}</small>
+                      </span>
+                    </div>
+                    {index === 0 && <span className="stage-next">LOCKED</span>}
+                  </article>
+                ))}
+              </div>
+            </section>
 
-          <RuntimeGate
-            key={`runtime-${replica.replica_id}`}
-            token={accessToken}
-            replicaId={replica.replica_id}
-            stopped={stopped}
-            onAuthError={onReviewAuthError}
-            onStatusChange={setRuntimeStatus}
-          />
+            <RuntimeGate
+              key={`runtime-${replica.replica_id}`}
+              token={accessToken}
+              replicaId={replica.replica_id}
+              stopped={stopped}
+              onAuthError={onReviewAuthError}
+              onStatusChange={setRuntimeStatus}
+            />
 
-          <ReplicaDialogueLab
-            key={`dialogue-${replica.replica_id}`}
-            token={accessToken}
-            replicaId={replica.replica_id}
-            stopped={stopped}
-            onAuthError={onReviewAuthError}
-            runtimeStatus={runtimeStatus?.replica_id === replica.replica_id ? runtimeStatus : null}
-          />
+            <ReplicaDialogueLab
+              key={`dialogue-${replica.replica_id}`}
+              token={accessToken}
+              replicaId={replica.replica_id}
+              stopped={stopped}
+              onAuthError={onReviewAuthError}
+              runtimeStatus={runtimeStatus?.replica_id === replica.replica_id ? runtimeStatus : null}
+            />
 
-          <CandidateEvaluationLab
-            key={`candidate-eval-${replica.replica_id}`}
-            token={accessToken}
-            replicaId={replica.replica_id}
-            stopped={stopped}
-            onAuthError={onReviewAuthError}
-          />
+            <CandidateEvaluationLab
+              key={`candidate-eval-${replica.replica_id}`}
+              token={accessToken}
+              replicaId={replica.replica_id}
+              stopped={stopped}
+              onAuthError={onReviewAuthError}
+            />
+          </AdvancedSurface>
         </>
       )}
 
@@ -826,7 +870,7 @@ export default function StudioApp() {
   const [revoking, setRevoking] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReturnType<typeof friendlyError> | null>(null);
   const [consents, setConsents] = useState<ConsentReceipt[]>([]);
   const [sources, setSources] = useState<ReplicaSource[]>([]);
   const [enrollmentLoading, setEnrollmentLoading] = useState(false);
@@ -848,7 +892,7 @@ export default function StudioApp() {
     setSelected(null);
     setErasureRequestId("");
     setErasureStatus(null);
-    setError("");
+    setError(null);
   }, []);
 
   const refreshForRequest = useCallback(async (candidate: StudioSession) => {
@@ -865,7 +909,7 @@ export default function StudioApp() {
       signOut();
       return;
     }
-    setError(cause instanceof Error ? cause.message : fallback);
+    setError(friendlyError(cause, fallback));
   }, [signOut]);
 
   const handleReviewAuthError = useCallback((cause: unknown) => {
@@ -874,7 +918,7 @@ export default function StudioApp() {
 
   const loadReplicas = useCallback(async (activeSession: StudioSession) => {
     setLoadState("loading");
-    setError("");
+    setError(null);
     try {
       const fresh = await refreshForRequest(activeSession);
       const mine = await listReplicas(fresh.accessToken);
@@ -1033,7 +1077,7 @@ export default function StudioApp() {
     if (!session) return;
     setLoadState("loading");
     setShowCreate(false);
-    setError("");
+    setError(null);
     try {
       const fresh = await refreshForRequest(session);
       setSelected(await readReplica(fresh.accessToken, id));
@@ -1047,7 +1091,7 @@ export default function StudioApp() {
   async function handleCreate(name: string) {
     if (!session) return;
     setCreating(true);
-    setError("");
+    setError(null);
     try {
       const fresh = await refreshForRequest(session);
       const replica = await createReplica(fresh.accessToken, name);
@@ -1065,7 +1109,7 @@ export default function StudioApp() {
   async function handleRevoke() {
     if (!session || !selected) return;
     setRevoking(true);
-    setError("");
+    setError(null);
     try {
       const fresh = await refreshForRequest(session);
       const result = await revokeReplica(fresh.accessToken, selected.replica_id);
@@ -1351,7 +1395,7 @@ export default function StudioApp() {
           )}
           {error && (
             <div className="error-banner" role="alert">
-              <span>!</span><div><strong>Something needs attention</strong><p>{error}</p></div>
+              <span>!</span><div><strong>{error.headline}</strong><p>{error.detail}</p></div>
               <button type="button" onClick={() => session && void loadReplicas(session)}>Try again</button>
             </div>
           )}
