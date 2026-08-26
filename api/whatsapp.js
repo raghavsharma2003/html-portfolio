@@ -34,6 +34,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { allow, ipOf } from "./_ratelimit.js";
 import { dispatch, loadEngine, makeCtx, splitForLimit } from "./_surface.js";
+import { q } from "./_db.js";
+import { resolveInboundClone } from "./_clonechannel.js";
+import { getChannelSecret } from "./_channel-secrets.js";
 
 /** Raw bytes are required for the HMAC — see api/discord.js's property 1. */
 export const config = { api: { bodyParser: false } };
@@ -157,6 +160,14 @@ export function resetWindow() {
 const base = (over = {}) => ({
   surface: "whatsapp",
   kind: "ignore",
+  // The BINDING address (Gurukul WS-N): Meta's `phone_number_id`, which is the
+  // WABA-side identity of the number this delivery arrived on. It is NOT the
+  // chatKey and must never be confused with it — the chatKey addresses a
+  // human, this addresses the business line, and `vy_clone_channel` routes on
+  // the second. Meta puts it on `value.metadata`, per delivery, which is why
+  // one POST can in principle carry two clones' traffic and the resolution
+  // below is per EVENT rather than per request.
+  channelRef: "",
   chatKey: "",
   chatName: "",
   isGroup: false,
@@ -184,11 +195,12 @@ export function parse(payload) {
   for (const entry of payload?.entry || []) {
     for (const change of entry?.changes || []) {
       const v = change?.value || {};
+      const channelRef = String(v?.metadata?.phone_number_id || "");
       const names = new Map(
         (v.contacts || []).map((c) => [String(c.wa_id), String(c.profile?.name || "").slice(0, 64)]),
       );
       if (!v.messages?.length) {
-        out.push(base({ reason: v.statuses?.length ? "status callback" : "no messages" }));
+        out.push(base({ channelRef, reason: v.statuses?.length ? "status callback" : "no messages" }));
         continue;
       }
       for (const m of v.messages) {
@@ -202,6 +214,7 @@ export function parse(payload) {
         out.push(
           base({
             kind: "message",
+            channelRef,
             chatKey,
             chatName: String(v.group_subject || ""),
             isGroup: Boolean(groupId),
@@ -234,18 +247,22 @@ export function parse(payload) {
  * with its own copy review and its own consent question; it is not something
  * an adapter gets to do on her behalf.
  */
-export async function send(chatKey, msg, now = Date.now()) {
-  if (!ACCESS_TOKEN || !PHONE_ID) return { ok: false, error: "no access token" };
+export async function send(chatKey, msg, now = Date.now(), creds = null) {
+  if (!(creds?.accessToken || ACCESS_TOKEN) || !(creds?.phoneId || PHONE_ID))
+    return { ok: false, error: "no access token" };
   if (msg.kind === "reaction") {
     if (!windowOpen(chatKey, now))
       return { ok: false, error: "outside 24h window", requiresTemplate: true };
-    return await post({
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: String(chatKey),
-      type: "reaction",
-      reaction: { message_id: String(msg.replyTo), emoji: msg.emoji },
-    });
+    return await post(
+      {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: String(chatKey),
+        type: "reaction",
+        reaction: { message_id: String(msg.replyTo), emoji: msg.emoji },
+      },
+      creds,
+    );
   }
   if (!windowOpen(chatKey, now))
     return { ok: false, error: "outside 24h window", requiresTemplate: true };
@@ -265,13 +282,21 @@ export async function send(chatKey, msg, now = Date.now()) {
       0,
       WA_TEXT_LIMIT,
     );
-  return await post(body);
+  return await post(body, creds);
 }
 
-async function post(body) {
-  const r = await fetch(`${API}/${PHONE_ID}/messages`, {
+/** The credentials one send uses. Defaulted to the module-level pair so every
+ *  existing call is unchanged; overridden per clone by `sendWith()` below,
+ *  whose values come from api/_channel-secrets.js and never from the database.
+ *  A module-level mutable would have been the small change here and it is the
+ *  wrong one: two clones' deliveries interleave inside one warm lambda. */
+async function post(body, creds) {
+  const phoneId = creds?.phoneId || PHONE_ID;
+  const accessToken = creds?.accessToken || ACCESS_TOKEN;
+  if (!phoneId || !accessToken) return { ok: false, error: "no access token" };
+  const r = await fetch(`${API}/${phoneId}/messages`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
@@ -283,16 +308,88 @@ async function post(body) {
 
 export const render = (text) => splitForLimit(text, WA_TEXT_LIMIT);
 
+/** One clone's outbound half. `send` stays the module-level default so nothing
+ *  that already calls it changes; a bound lane builds its own. */
+export const sendWith = (creds) => (chatKey, msg) => send(chatKey, msg, Date.now(), creds);
+
 // ── the adapter ───────────────────────────────────────────────────────────
 
 export const adapter = { surface: "whatsapp", verify, parse, send, render };
 
+/**
+ * `deps.bind` is the clone binding seam (Gurukul WS-N) and it is OPTIONAL by
+ * design: absent, this is byte-for-byte the single-agent lane that shipped,
+ * and `evals/mp/*` measure it unchanged. Present, it is called ONCE PER EVENT
+ * with that event's `channelRef` and must return `{agent, agentId, send}` for
+ * the clone bound to that business line, or null.
+ *
+ * NULL MEANS THE EVENT IS DROPPED — not answered by a default, not answered
+ * with an apology. An unbound number, a paused or revoked binding, an
+ * unpublished clone and a withdrawn consent artifact all arrive here as the
+ * same null (api/_clonechannel.js flattens them on purpose), and the only safe
+ * response to "I do not know who should answer this" is silence. A fallback
+ * here would put a companion persona built for consenting adults in front of
+ * whoever messaged a teacher's number.
+ */
 export async function handleEvents(payload, deps = {}) {
   const engine = deps.engine !== undefined ? deps.engine : await loadEngine();
-  const ctx = makeCtx(adapter, { ...deps, engine, botHandle: BOT_NAME });
   const results = [];
-  for (const ev of parse(payload)) results.push(await dispatch(ev, ctx));
+  for (const ev of parse(payload)) {
+    let bound = null;
+    if (deps.bind) {
+      bound = await deps.bind(ev).catch(() => null);
+      if (!bound) {
+        results.push({ ok: false, skipped: "clone_unavailable", channelRef: ev.channelRef || "" });
+        continue;
+      }
+    }
+    const ctx = makeCtx(adapter, {
+      ...deps,
+      engine,
+      botHandle: bound?.botHandle || BOT_NAME,
+      agent: bound?.agent ?? deps.agent,
+      agentId: bound?.agentId ?? deps.agentId,
+      send: bound?.send ?? deps.send,
+    });
+    results.push(await dispatch(ev, ctx));
+  }
   return results;
+}
+
+// ── the clone binding (Gurukul WS-N) ──────────────────────────────────────
+
+/**
+ * `phone_number_id` → the published clone that answers on that business line,
+ * with ITS OWN access token read from the secret store.
+ *
+ * Two credentials, one reference: the token is the secret, the phone id is the
+ * public half and already lives in `vy_clone_channel.external_ref`. So the
+ * secret store holds exactly one string per channel and there is nothing to
+ * keep in step.
+ *
+ * NOT VERIFIED: no WhatsApp channel has ever been connected and no secret has
+ * ever been written — the default secret backend is `none` and refuses, so
+ * this path currently ends in a null and a dropped event. That is the honest
+ * state and it is named here rather than implied to work, in the same words
+ * this file's header uses about everything else Meta-side.
+ */
+export async function bindWhatsappClone(ev, deps = {}) {
+  const ref = String(ev?.channelRef || "");
+  if (!ref) return null;
+  const db = deps.db || q;
+  const resolved = await resolveInboundClone(db, "whatsapp", ref, deps).catch(() => null);
+  if (!resolved) return null;
+  const read = deps.readSecret || getChannelSecret;
+  const accessToken = await read(resolved.channel.credentials_ref).catch(() => null);
+  // No token, no lane. Binding a clone we cannot send as would log the
+  // student's turn and then go silent, which is worse than never resolving.
+  if (!accessToken) return null;
+  return {
+    agent: resolved.module,
+    agentId: resolved.agentId,
+    botHandle: resolved.module?.displayName || BOT_NAME,
+    send: sendWith({ accessToken, phoneId: ref }),
+  };
 }
 
 // ── HTTP ──────────────────────────────────────────────────────────────────
@@ -310,7 +407,10 @@ export default async function handler(req, res) {
       : res.status(auth.respond.status).json(auth.respond.body);
   }
   try {
-    await handleEvents(auth.payload);
+    // The clone binder is wired at the EDGE, never inside the adapter: an
+    // adapter that could reach the database would be an adapter holding a
+    // query, which docs/SURFACES.md §"What you must NOT do" forbids.
+    await handleEvents(auth.payload, { bind: (ev) => bindWhatsappClone(ev) });
     // Meta retries on non-2xx and would re-run the writes above.
     return res.status(200).json({ ok: true });
   } catch (e) {
