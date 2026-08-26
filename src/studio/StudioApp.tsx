@@ -38,6 +38,9 @@ import CandidateEvaluationLab from "./CandidateEvaluationLab";
 import VoiceEnrollmentLab from "./VoiceEnrollmentLab";
 import ModelConsentGate from "./ModelConsentGate";
 import VoicePreviewLab from "./VoicePreviewLab";
+import TeacherSheetStudio from "./TeacherSheetStudio";
+import DisclosurePreview from "./DisclosurePreview";
+import { DEMO_TEACHER } from "../engine/agents/characters/demoTeacher";
 import {
   createSourceUpload,
   deleteSource,
@@ -61,6 +64,71 @@ import {
 
 type AuthStep = "email" | "code";
 type LoadState = "booting" | "loading" | "ready" | "error";
+
+// The teacher mode seam. Read ONCE, at mount, from `?mode=teacher` — see
+// `readStudioMode()` below. Generic mode ("replica") is the untouched
+// default and stays byte-identical in behavior; teacher mode only relabels
+// copy and appends the Gurukul teacher steps (SPEC-GURUKUL §5 WS-E). Nothing
+// here is read again after mount, so a mid-session query-string edit does
+// not flip the wizard underneath a signed-in teacher.
+export type StudioMode = "generic" | "teacher";
+
+function readStudioMode(): StudioMode {
+  try {
+    return new URLSearchParams(window.location.search).get("mode") === "teacher" ? "teacher" : "generic";
+  } catch {
+    return "generic";
+  }
+}
+
+interface StudioCopy {
+  brandTag: string;
+  introEyebrow: string;
+  introTitle: string;
+  introBody: string;
+  workspaceNoun: string;
+  firstEyebrow: string;
+  firstTitle: string;
+  firstBody: string;
+  nameLabel: string;
+  namePlaceholder: string;
+  fieldNote: string;
+  createdNotice: string;
+}
+
+const GENERIC_COPY: StudioCopy = {
+  brandTag: "PRIVATE REPLICA LAB",
+  introEyebrow: "Private by construction",
+  introTitle: "A replica that begins with your permission.",
+  introBody:
+    "Build and control a consent-verified model of yourself. Every source stays private, every capability is separately approved, and revocation stops future use.",
+  workspaceNoun: "Self-replica",
+  firstEyebrow: "Your first replica",
+  firstTitle: "Begin with identity, not an upload.",
+  firstBody:
+    "Name your private workspace. Voice, memories, and behavior remain locked until consent and liveness services are connected.",
+  nameLabel: "Replica name",
+  namePlaceholder: "Your name",
+  fieldNote: "You may create a replica only of yourself. Verification comes next.",
+  createdNotice: "Private workspace created. Enrollment remains locked until verification services are ready.",
+};
+
+const TEACHER_COPY: StudioCopy = {
+  brandTag: "GURUKUL TEACHER STUDIO",
+  introEyebrow: "Verified, consented, disclosed",
+  introTitle: "A teaching clone that begins with your permission — and is disclosed to every student.",
+  introBody:
+    "Build and control a consent-verified teaching clone of yourself. Every source stays private, every capability is separately approved, revocation stops future use, and students are told plainly — before every session — that they are talking to an AI clone, not you.",
+  workspaceNoun: "Self-teaching-clone",
+  firstEyebrow: "Your first teaching clone",
+  firstTitle: "Begin with identity, not an upload.",
+  firstBody:
+    "Name your teaching clone. Voice, teaching style, and pedagogy remain locked until consent and liveness services are connected.",
+  nameLabel: "Teacher / clone name",
+  namePlaceholder: "Your name, as students will see it",
+  fieldNote: "You may create a teaching clone only of yourself. Verification comes next.",
+  createdNotice: "Teaching clone created. Enrollment remains locked until verification services are ready.",
+};
 
 const ERASURE_REQUEST_KEY = "vyakti.replica.erasure-request.v1";
 
@@ -135,7 +203,7 @@ function Spinner({ label }: { label: string }) {
   return <span className="spinner" role="status" aria-label={label} />;
 }
 
-function AuthGate({ onAuthed }: { onAuthed: (session: StudioSession) => void }) {
+function AuthGate({ onAuthed, copy }: { onAuthed: (session: StudioSession) => void; copy: StudioCopy }) {
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -184,16 +252,13 @@ function AuthGate({ onAuthed }: { onAuthed: (session: StudioSession) => void }) 
         <a href="/" aria-label="Vyakti home"><Mark /></a>
         <span>VYAKTI</span>
         <span className="brand-rule" />
-        <span>PRIVATE REPLICA LAB</span>
+        <span>{copy.brandTag}</span>
       </header>
 
       <section className="auth-intro" aria-labelledby="studio-title">
-        <p className="eyebrow">Private by construction</p>
-        <h1 id="studio-title">A replica that begins with your permission.</h1>
-        <p>
-          Build and control a consent-verified model of yourself. Every source stays private,
-          every capability is separately approved, and revocation stops future use.
-        </p>
+        <p className="eyebrow">{copy.introEyebrow}</p>
+        <h1 id="studio-title">{copy.introTitle}</h1>
+        <p>{copy.introBody}</p>
         <div className="trust-strip" aria-label="Studio safeguards">
           <span><i />Self-replication only</span>
           <span><i />No public voice library</span>
@@ -300,7 +365,7 @@ function AuthGate({ onAuthed }: { onAuthed: (session: StudioSession) => void }) 
   );
 }
 
-function CreateReplicaCard({ onCreate, busy }: { onCreate: (name: string) => void; busy: boolean }) {
+function CreateReplicaCard({ onCreate, busy, copy }: { onCreate: (name: string) => void; busy: boolean; copy: StudioCopy }) {
   const [name, setName] = useState("");
   return (
     <section className="empty-card" aria-labelledby="empty-title">
@@ -309,11 +374,9 @@ function CreateReplicaCard({ onCreate, busy }: { onCreate: (name: string) => voi
         <div className="portrait-core">YOU</div>
       </div>
       <div>
-        <p className="eyebrow">Your first replica</p>
-        <h2 id="empty-title">Begin with identity, not an upload.</h2>
-        <p>
-          Name your private workspace. Voice, memories, and behavior remain locked until consent and liveness services are connected.
-        </p>
+        <p className="eyebrow">{copy.firstEyebrow}</p>
+        <h2 id="empty-title">{copy.firstTitle}</h2>
+        <p>{copy.firstBody}</p>
         <form
           className="create-form"
           onSubmit={(event) => {
@@ -321,13 +384,13 @@ function CreateReplicaCard({ onCreate, busy }: { onCreate: (name: string) => voi
             if (name.trim()) onCreate(name.trim());
           }}
         >
-          <label className="field-label" htmlFor="replica-name">Replica name</label>
+          <label className="field-label" htmlFor="replica-name">{copy.nameLabel}</label>
           <div className="create-row">
             <input
               id="replica-name"
               className="field"
               maxLength={80}
-              placeholder="Your name"
+              placeholder={copy.namePlaceholder}
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
@@ -335,7 +398,7 @@ function CreateReplicaCard({ onCreate, busy }: { onCreate: (name: string) => voi
               {busy ? <Spinner label="Creating replica" /> : "Create workspace"}
             </button>
           </div>
-          <p className="field-note">You may create a replica only of yourself. Verification comes next.</p>
+          <p className="field-note">{copy.fieldNote}</p>
         </form>
       </div>
     </section>
@@ -382,6 +445,8 @@ function ReplicaList({
 
 function ReplicaWorkspace({
   replica,
+  mode,
+  copy,
   erasureStatus,
   consents,
   sources,
@@ -408,6 +473,8 @@ function ReplicaWorkspace({
   onReviewAuthError,
 }: {
   replica: Replica;
+  mode: StudioMode;
+  copy: StudioCopy;
   erasureStatus: ReplicaErasureStatus | null;
   consents: ConsentReceipt[];
   sources: ReplicaSource[];
@@ -477,7 +544,7 @@ function ReplicaWorkspace({
             <span className={`state-dot state-${replica.lifecycle}`} />
             {lifecycleLabel(replica.lifecycle)}
             <span className="tiny-divider" />
-            Self-replica
+            {copy.workspaceNoun}
           </div>
           <h1>{replica.display_name}</h1>
           <p>Created {dateLabel(replica.created_at)} · Policy {replica.policy_version}</p>
@@ -598,6 +665,18 @@ function ReplicaWorkspace({
             replicaId={replica.replica_id}
             onAuthError={onReviewAuthError}
           />
+
+          {mode === "teacher" && (
+            <>
+              <TeacherSheetStudio
+                token={accessToken}
+                replicaId={replica.replica_id}
+                sheetDraft={DEMO_TEACHER}
+                onAuthError={onReviewAuthError}
+              />
+              <DisclosurePreview sheet={DEMO_TEACHER} />
+            </>
+          )}
 
           <CalibrationStudio
             token={accessToken}
@@ -726,6 +805,10 @@ function ReplicaWorkspace({
 }
 
 export default function StudioApp() {
+  // Read once, at mount — see readStudioMode()'s own comment. Not re-read on
+  // navigation, so this never flips mid-session.
+  const [mode] = useState<StudioMode>(readStudioMode);
+  const copy = mode === "teacher" ? TEACHER_COPY : GENERIC_COPY;
   const [session, setSession] = useState<StudioSession | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [replicas, setReplicas] = useState<Replica[]>([]);
@@ -963,7 +1046,7 @@ export default function StudioApp() {
       setReplicas((items) => [replica, ...items]);
       setSelected(replica);
       setShowCreate(false);
-      setNotice("Private workspace created. Enrollment remains locked until verification services are ready.");
+      setNotice(copy.createdNotice);
     } catch (cause) {
       handleApiError(cause, "Could not create your workspace");
     } finally {
@@ -1227,16 +1310,16 @@ export default function StudioApp() {
     );
   }
 
-  if (!session) return <AuthGate onAuthed={(next) => { setSession(next); void loadReplicas(next); }} />;
+  if (!session) return <AuthGate copy={copy} onAuthed={(next) => { setSession(next); void loadReplicas(next); }} />;
 
   return (
     <div className="studio-shell">
       <header className="studio-header">
         <a className="studio-logo" href="/" aria-label="Vyakti home">
           <Mark />
-          <span><strong>VYAKTI</strong><small>REPLICA STUDIO</small></span>
+          <span><strong>VYAKTI</strong><small>{mode === "teacher" ? "GURUKUL STUDIO" : "REPLICA STUDIO"}</small></span>
         </a>
-        <div className="header-trust"><span className="secure-dot" />Private self-replica workspace</div>
+        <div className="header-trust"><span className="secure-dot" />{mode === "teacher" ? "Private teaching-clone workspace" : "Private self-replica workspace"}</div>
         <div className="account-menu">
           <span className="account-copy"><strong>{identity}</strong><small>Verified account session</small></span>
           <button className="signout-button" type="button" onClick={signOut}>Sign out</button>
@@ -1275,10 +1358,12 @@ export default function StudioApp() {
               <div className="skeleton skeleton-panel" />
             </div>
           ) : showCreate || (!selected && loadState === "ready") ? (
-            <CreateReplicaCard onCreate={(name) => void handleCreate(name)} busy={creating} />
+            <CreateReplicaCard onCreate={(name) => void handleCreate(name)} busy={creating} copy={copy} />
           ) : selected ? (
             <ReplicaWorkspace
               replica={selected}
+              mode={mode}
+              copy={copy}
               erasureStatus={erasureStatus}
               consents={consents}
               sources={sources}

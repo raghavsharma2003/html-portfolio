@@ -2568,3 +2568,52 @@
   .identity-withdraw > div { align-items: stretch; flex-direction: column; }
   .identity-withdraw .button { width: 100%; }
 }
+
+/* ── Gurukul teacher mode: sheet review + disclosure preview ────────────── */
+/* WS-E: mirrors .person-model / .model-consent-section's token-driven card
+   language (var(--line)/var(--panel)/var(--shadow)) rather than the legacy
+   hardcoded-hex block above, since these are new sections. */
+
+.teacher-sheet-studio, .disclosure-preview {
+  margin-top: 28px;
+  padding: clamp(24px, 3.2vw, 38px);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.teacher-sheet-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 22px; }
+.teacher-sheet-card { padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
+.teacher-sheet-card h3 { margin: 0 0 12px; color: var(--forest-deep); font: 500 18px/1.2 var(--serif); letter-spacing: -0.01em; }
+.teacher-sheet-card .field-label { margin-top: 14px; }
+.teacher-sheet-card .field-label:first-of-type { margin-top: 0; }
+
+.syllabus-coverage { display: grid; gap: 12px; margin-top: 12px; max-height: 260px; overflow-y: auto; }
+.syllabus-unit strong { display: block; margin-bottom: 6px; color: var(--ink); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+.syllabus-chapters { display: grid; gap: 6px; }
+.syllabus-chapter { padding: 8px 10px; font-size: 12px; }
+
+.ladder-list { display: grid; gap: 8px; margin: 12px 0; padding: 0; list-style: none; }
+.ladder-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255, 255, 255, 0.6); }
+.ladder-list li > span { color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+.ladder-list li > .text-button { flex: 0 0 auto; width: auto; margin: 0; padding: 0; }
+
+.teacher-sheet-readonly { padding: 14px 16px; margin-top: 12px; border: 1px dashed var(--line); border-radius: 13px; background: rgba(255, 255, 255, 0.5); }
+.teacher-sheet-readonly > p { margin: 6px 0 0; color: var(--ink-soft); font-size: 12px; line-height: 1.55; }
+.teacher-sheet-readonly > small { display: block; margin-top: 8px; color: var(--ink-faint); font-size: 10px; }
+
+.teacher-sheet-ingested { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--line); }
+.teacher-sheet-ingested h3 { margin: 0 0 6px; color: var(--forest-deep); font: 500 18px/1.2 var(--serif); }
+.teacher-sheet-ingested-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+
+.disclosure-card { margin-top: 18px; padding: 20px 22px; border: 1px solid var(--forest); border-radius: 18px; background: var(--forest-soft); }
+.disclosure-card-kicker { display: block; margin-bottom: 8px; color: var(--forest-deep); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.disclosure-card h3 { margin: 0 0 8px; color: var(--forest-deep); font: 500 20px/1.25 var(--serif); letter-spacing: -0.015em; }
+.disclosure-card p { margin: 0; color: var(--ink); font-size: 13px; line-height: 1.6; }
+.disclosure-card-spoken { background: var(--paper); }
+
+@media (max-width: 590px) {
+  .teacher-sheet-studio, .disclosure-preview { padding: 23px 17px; }
+  .teacher-sheet-grid, .teacher-sheet-ingested-grid { grid-template-columns: 1fr; }
+}
