@@ -3076,6 +3076,28 @@ number:
    keep. **This is direct evidence for ROADMAP-100X item 4 (bi-temporal edges,
    valid-from/valid-to)** — the fix needs the fact's own validity interval,
    which is precisely what that item adds.
+
+   **CLOSED 2026-08-26 by WS-O** (`bitemporal-fact-edges`): migration 056 adds
+   `valid_from`/`valid_to`, `staleNote` asks the horizon before it counts days,
+   and row age is kept as the fallback for rows with no derivable date. Now
+   gated in both directions — `evals/run.mjs recallbench` [A-10] (ahead),
+   [A-10b] (the row-age fallback), [B-12b] (this defect stays closed) — and by
+   `evals/run.mjs validity`.
+
+   Two further things this defect's fix surfaced, both recorded because they are
+   the expensive half:
+   - The benchmark's own [A-10] **asserted the defect**. It read "a past-dated
+     plan carries the stale hedge" and passed on a December wedding recalled in
+     August — the hedge fired, so the assertion was green, and the thing being
+     asserted was the bug. A gate can pin the wrong behaviour and would then
+     have failed the fix.
+   - `timeline.ts`'s `resolveWhen` matched month ABBREVIATIONS INSIDE LONGER
+     WORDS (`[a-z]*` after each prefix): married/marks → March,
+     decade/decide/declare → December, junior → June, novel → November, janta →
+     January. Invisible while its only consumer was `hisClock`'s coarse label;
+     load-bearing the moment the same answer became a stored timestamp that
+     decides tense. Fixed in the same commit; `evals/run.mjs recallbench`
+     [A-14] is the fixture.
 2. **A Hinglish question about a game reaches the activity leg and matches
    nothing.** "kya khela tha humne" tokenises to `[khela, humne]`; the activity
    leg word-matches over an ENGLISH body ("chess together on 10 aug — …") and
@@ -3085,3 +3107,70 @@ number:
    tha" does not match a row whose summary says "younger sister"; the row
    reaches the prompt only through STANDING BACKGROUND. The `bg-only` column in
    the run's table is what makes this countable.
+
+---
+
+## `exdialog-surface` — example-dialogue FORMAT, measured as prompt surface (2026-08-26)
+
+ROADMAP-100X item 5, WS-O. `node evals/run.mjs exdialog`.
+
+**Read the scope line before the numbers.** This is a measurement OF A PROMPT'S
+TEXT, not of a model's behaviour. The prompt is a string this repo produces and
+can count exactly, so counting it offline is not a proxy for anything — which is
+why it belongs here at all, and why `no offline numbers in measurements.md`
+(STATE.md) is not violated: that law is about behaviour measured against a mock.
+**No recitation rate is measured here and none is claimed.**
+
+Method: three arms compiled through the real `compile()` by wrapping the real
+`meeraAgent` (persona.ts untouched — arm A is asserted byte-identical to a
+compile with no agent override). Arms matched on situation set (the same six,
+in the same order) and byte count (595 vs 815, ratio 1.37), so FORMAT is the
+only variable. Corpus for the register columns: n=96 of her turns from
+`evals/recallbench`'s three dyads, authored by WS-K for a different suite before
+this experiment existed; his 96 turns subtracted, so an n-gram common to both
+speakers counts as Hinglish rather than as her.
+
+| arm | format | core B added | emittable spans | liftable ratio | 1-gram | 2-gram | 3-gram | shapelint flags |
+|---|---|---|---|---|---|---|---|---|
+| A | none (shipping) | 0 | 0 | 0.000 | 0.000 | 0.000 | 0.000 | 0 |
+| B | quotable-line | 595 | **6** | **0.405** | 0.063 | 0.018 | 0.000 | 6 |
+| C | micro-scene | 815 | **0** | **0.000** | 0.014 | 0.000 | 0.000 | 6 |
+
+- **emittable spans** — contiguous runs that could be sent as a reply with zero
+  adaptation (quoted spans, plus shapelint's own sentence-shape rule).
+- **liftable ratio** — the fraction of the block's characters inside those spans.
+- **1/2/3-gram** — the fraction of the block's word n-grams that are
+  characteristic of her turns. The 3-gram column is 0.000 for BOTH arms and
+  separates nothing at this corpus size; reported, never asserted.
+
+**The result, stated exactly:** the two formats differ by a factor of ∞ in
+emittable spans (6 vs 0) and 4.5× in characteristic vocabulary (1-gram 0.063 vs
+0.014) at comparable length over identical content. The micro-scene format
+supplies a far smaller surface for recitation to come from.
+
+**What this does NOT establish** (and the run says so in its own output):
+
+1. It is not a recitation rate. A surface is necessary for recitation, not
+   sufficient. The decisive arm needs generation and a judge; the protocol and
+   the provider seam are `evals/exdialog/run.mjs` §5, which reports
+   `judged: false` so a fake can never be read as a measurement.
+2. Only ONE arm has a measured rate behind it: arm A, at 0 (n=84), from the
+   removal that produced `recited-prompt`. Arm B RECONSTRUCTS the 4-of-5 shape
+   from its description — the original text is not in version control.
+3. Nothing here measures whether examples TEACH anything. This is the cost side
+   of the trade only. A format that recites nothing because it conveys nothing
+   would score perfectly here and be worthless.
+
+**ROADMAP-100X item 5 is therefore NOT resolved and no law is written from it.**
+
+### A live gate has a hole, found by this run
+
+`lintLine`'s sentence-shape rule — the repo's mechanised `recited-prompt` guard
+— is `/^[A-Z][^.?!]*[.?!]$/`: capital start, terminal punctuation. Every line
+she actually says is lowercase romanised Hinglish with no full stop. **It
+flagged 0 of 6 quotable-arm rows** (the quote-span detector caught 6 of 6). A
+phrase bank written in her own voice — the only kind anyone would write — passes
+shapelint clean. Not patched: shapelint runs over TAIL content rows, where a
+quoted span is legitimately a person's own words ("their own words for it" is a
+live feature of `api/memory.js`'s fact renderer), so a quote-delimiter rule
+would fire on the wrong file. Filed as `shapelint-blind-to-hinglish-quotes`.

@@ -262,6 +262,28 @@ const suites = {
   // validity.ts, and the absent-is-byte-identical property that lets 056 land
   // with no backfill. Offline, deterministic, $0, no DB, no clock, ~1s.
   validity: "validity.mjs",
+  // WS-O (ROADMAP-100X item 5). The EXAMPLE-DIALOGUE FORMAT EXPERIMENT: the
+  // one place where an outside consensus ("example dialogues are the single
+  // most powerful tool") and a measured in-house result (`recited-prompt`:
+  // example quotes recited 4/5, 0 after removal) point opposite ways.
+  //
+  // Three arms — no examples, quotable lines, micro-scenes — compiled through
+  // the REAL compiler by wrapping the real agent module, matched on situation
+  // set, order and byte count so FORMAT is the only variable.
+  //
+  // It measures the recitation SURFACE (emittable spans, liftable ratio,
+  // n-gram overlap with a corpus of her own turns) and says in its own output
+  // that a surface is not a rate. The decisive arm needs generation and a
+  // judge and sits behind a provider seam that reports `judged: false`.
+  //
+  // Wired here rather than left standing alone because §0 is a real gate on a
+  // real risk: it asserts the quotable arm's text reaches NO shipping prompt,
+  // which is the property that makes it safe for a phrase bank to exist in
+  // this repo at all. §4 reports a live gap — shapelint's sentence-shape rule
+  // is anchored on English orthography and cannot see a Hinglish phrase bank.
+  //
+  // Offline, deterministic, $0, no keys, no DB, no model call, ~2s.
+  exdialog: "exdialog/run.mjs",
   // WS-MOVEVOICE: her hand and her mouth on ONE timeline. The owner played
   // chess on a call, she moved milliseconds after him, and then her voice said
   // she SHOULD play the move already on the board. Gates the three halves of

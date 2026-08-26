@@ -214,6 +214,11 @@ export {
   CORE_CAP,
   SYSTEM_MAX,
   OPERATIONAL_TAIL_CAP,
+  // WS-O: `evals/exdialog` sizes its arms against the guard api/chat.js
+  // actually enforces, not against SPEC's target CORE_CAP — the shipping brief
+  // already exceeds the target and an assertion on it would fail on the
+  // control (see compiler.ts's own note on why the live guard was raised).
+  OPERATIONAL_CORE_CAP,
 } from "../src/engine/compiler";
 
 // WS-K (ROADMAP-100X item 2). The injected persona module, so evals/drift.mjs
