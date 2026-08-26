@@ -72,3 +72,9 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 - Isolation is a SQL predicate, never a prompt instruction.
 - Every claim is measured or it is marked unverified. No offline numbers in
   `measurements.md`.
+- `aliveness-was-unreachable-not-meera-bound` — "is this module generic" is the
+  wrong question. Name the CALL SITE that reaches it with a non-default agent;
+  a grep with no hits means the feature does not exist for that agent.
+- `clone-initiative-record-has-no-absence` — a clone may speak first only on a
+  citable reason. Silence, gaps and streaks are not inputs the predicate HAS.
+  Do not re-add a silence-triggered ping in any form, on any surface.

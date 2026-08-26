@@ -2341,3 +2341,43 @@ smoke-tested against the real database before it is called done —
 `verify-release --live`, or a scripted call of the real exported functions
 with `NEON_URL` set. Fixed: casts in `api/_replica.js` (WS-M sweeps the rest),
 and `evals/sqlcast.mjs` makes the class statically unrepresentable.
+
+## `aliveness-was-unreachable-not-meera-bound` — the diagnosis was content, the defect was a missing argument (2026-08-26, WS-Q)
+
+**What was tried:** the WS-Q brief opened by auditing the aliveness stack
+(`inner` `timeline` `herNow` `life` `selfarc` `texture` `observation`
+`milestones` `repeat` `away` `greeting` `moment` `culture` `reciprocity`) for
+Meera-bound CONTENT — hardcoded catalogs, table names, a baked agent id — on the
+premise that parameterizing those was the work.
+
+**What that found, and why it was mostly the wrong hunt.** Nine of the fourteen
+were already character-agnostic: they derive from transcripts or take `agentId`
+as a parameter that merely DEFAULTS to `MEERA_AGENT_ID`. One (`timeline`) is a
+tombstone whose prompt render was retired as a dead writer in 2026-08 and whose
+zero-importer rule is enforced by `evals/lifecycle` §5 — parameterizing it would
+have produced a second dead writer. Only `herNow` was genuinely content-bound.
+
+**What actually broke, and what nothing in the tree said out loud:**
+
+1. `src/engine/brain.ts` — the ONE place the whole client aliveness stack is
+   assembled — calls `compile({...})` with **no `agent` field**. Grepped: the
+   identifier `agent` did not appear in that function. So the lane that has the
+   carried interior, the told-life ledger, the self bundle, the moment gate and
+   both honesty ledgers was Meera's *by construction*.
+2. `api/_teachersheet.js`'s `loadTeacherAgent` — the entire runtime clone
+   constructor, three-times consent-gated, carefully written — had **zero
+   callers anywhere in the repo**.
+
+Both halves look finished from every angle a reader normally checks. The
+AgentModule injection seam exists and is documented (SPEC-AGENT-LAYER §3 Law
+E2); the loader exists and is tested; the modules are generic. Nothing was
+wired to the other end. `dead-writers`, fifth instance, and the most expensive
+shape of it yet: not a renderer nobody calls, but an entire PRODUCT LINE
+connected to the engine by an argument nobody passes.
+
+**The law:** "is this module character-agnostic" is the wrong question and it
+has a comforting answer. The question is **"name the call site that reaches it
+with a non-default agent"** — and if the answer is a grep with no hits, the
+feature does not exist for that agent no matter how generic the module is.
+`evals/clonelife` §5 now asserts the three forwarding lines in `brain.ts` over
+the source text, because that is the assertion whose absence let this stand.
