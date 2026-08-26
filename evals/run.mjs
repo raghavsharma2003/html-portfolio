@@ -1020,6 +1020,27 @@ const suites = {
   // WS-X's backend suite for the same feature, and the two gate different
   // halves of the same wire contract.
   mirrorcallapi: "mirrorcallapi.mjs",
+
+  // WS-AC. The CLONE'S REPLY inside a Mirror Call — the half `mirrorcallapi`
+  // above explicitly did not have, back when `turn_voice` answered 501 and
+  // every window returned a null turn.
+  //
+  // Three things it gates that nothing else can:
+  //  - the reply is assembled from the OWNER'S OWN sheet through the ONE door
+  //    (`gatedReply`), with no fallback persona: a replica with no sheet
+  //    produces no turn and a named reason, and the negative control drives
+  //    exactly that;
+  //  - the no-published-sheet case answers from the DRAFT and SAYS SO on the
+  //    wire, so `plausible-return-hides-a-dead-pipeline` cannot happen quietly;
+  //  - synthesis goes through WS-W's admission-broker path UNFORKED, and a
+  //    deliberately forked path that skips the watermark check is kept beside
+  //    it and must FAIL. That last one is the whole reason this file exists as
+  //    a gate rather than as a comment: the disclosure prefix and the watermark
+  //    are the two things a well-meaning refactor removes first.
+  //
+  // Offline, deterministic, $0, no database, no network, no model call, no
+  // credential. Same blindness as its sibling: it cannot see SQL types.
+  mirrorcallreply: "mirrorcallreply.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

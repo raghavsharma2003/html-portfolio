@@ -8,6 +8,7 @@ the project stands. Deep history lives in `decisions.md` / `rejected.md` /
 Last updated: 2026-08-26 (WS-W: "Preview my voice" — the owner-facing panel, and the cold start told honestly)
 Last updated: 2026-08-26 (WS-U: per-speaker fine-tuning built, and its delta measured)
 Last updated: 2026-08-26 (WS-X: the Mirror Call backend — approval as one SQL clause, and a voice loop that selects rather than accumulates)
+Last updated: 2026-08-26 (WS-AC: the clone answers back — the Mirror Call reply lane, and a synthesis path reused rather than forked)
 
 ## What the product is
 
@@ -181,11 +182,40 @@ service response, not a claim.
     enrolled profile and no scorer produces one yet. So the candidate pool is
     empty, no conditioning window is ever selected, and the fine-tune queue
     stays empty. All four states are named on the wire.
-  - the **clone's reply** is not built: `turn_voice` is listed under
-    `unserved_ops` and answers 501, every window returns `turn: null` with
-    `turn_absent_reason` (`mirror-call-turn-voice-is-declared-unserved`).
+  - ~~the **clone's reply** is not built~~ — **BUILT by WS-AC** (see below).
   - the **conditioning score** is a server-side WAV probe, not ECAPA, and
     `score_source` says so on every row and every payload.
+- **The clone's reply inside a Mirror Call** (WS-AC, `api/_mirrorcall-reply.js`,
+  migration **060**, `vy_mirror_turn`): the owner speaks and the clone answers
+  back, in text and in the owner's own cloned voice. Code-complete and gated
+  offline (`evals/mirrorcallreply.mjs`, 110 checks with four negative controls:
+  a sheetless replica that a cooperative reply function cannot coax a turn out
+  of, a struck owner clause that DOES leak the sheet, a disclosure-stripped clip
+  that is refused, and a FORKED synthesis path whose watermark proof does not
+  bind and is refused). What it does:
+  - `ingest_window` assembles the reply from the owner's own TeacherSheet
+    through `gatedReply` — the one door — and returns it as the `turn` object
+    the studio captions. No fallback persona exists in the file; a replica with
+    no sheet gets `turn: null` and `clone_sheet_absent`
+    (`mirror-call-reply-is-the-one-door`).
+  - no PUBLISHED sheet means the DRAFT sheet replies, with `sheet_source` on
+    the row and on every payload
+    (`mirror-call-answers-from-the-draft-sheet-and-says-so`).
+  - `turn_voice` is **served** (it answered 501 in WS-X's tree) and synthesises
+    through WS-W's `handleVoicePreviewPanel` unforked — same HMAC, same audible
+    disclosure prefix, same watermark, same ledger, same 202-warming contract
+    passed through byte for byte (`mirror-call-synthesis-is-reused-not-forked`).
+    `MIRROR_CALL_UNSERVED_OPS` is now empty.
+  - `status` was already served by WS-X and remains so.
+  **NOTHING IS LIVE.** Migration 060 is UNAPPLIED, no statement in this lane has
+  ever executed against a database (`NEON_URL` and `api/_config.js` are absent
+  here, so the relational gates were skipped and `offline-mocks-cannot-type-
+  check-sql` applies in full), and **no clone has ever spoken a Mirror Call turn
+  aloud** — the synthesis half inherits every blocker on §"Preview my voice"
+  above, including `AZURE_OPEN_VOICE_ORIGIN` / `OPEN_VOICE_HMAC_SECRET`
+  (`mirror-call-reply-never-ran`). Without them `turn_voice` answers **503
+  `open_voice_origin_required`**, and `can_voice` is false on every turn with
+  `voice_absent_reason: "voice_route_unconfigured"` so the studio says why.
 
 ## Open owner items
 
@@ -197,7 +227,10 @@ service response, not a claim.
    keys + management token, Azure SP secret, Google OAuth secret, and the two
    keys flagged in `session-2026-08-25b-close`.
 4. Azure GPU quota, if the deploy agent reports the subscription has none.
-5. Apply migrations 055 and **058** (the Mirror Call), and set
+5. Apply migrations 055, **058** (the context locker), **059** (the Mirror Call)
+   and **060** (the Mirror Call's clone turns — without it every
+   `ingest_window` returns `turn: null` with `clone_reply_failed` and
+   `turn_voice` 404s), and set
    `CLONE_WIDGET_SESSION_SECRET` (≥32 chars,
    `openssl rand -base64 48`) — without it the embeddable widget is off.
 6. Decide the channel secret store: set `CHANNEL_SECRET_BACKEND=azure-keyvault`

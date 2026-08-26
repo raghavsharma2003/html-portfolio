@@ -1020,3 +1020,252 @@ export async function listUnactionedMirrorDeltas(db, ownerUserId, replicaIdValue
     ],
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// turns — the clone's own half of the call (WS-AC, migration 060)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Every statement below carries `owner_user_id` in the WHERE clause, bound
+// from `requireUser()`. There is no read here a non-owner can reach and no
+// write a non-owner can cause, and both are predicates rather than branches —
+// the file header's rule, unchanged.
+
+const TURN_COLUMNS = `turn_id, session_id, window_id, replica_id, owner_user_id, seq, text,
+  assembled_chars, sheet_id, sheet_source, agent_slug, gate_applied, gate_findings,
+  generation_id, voice_state, voice_failure_code, created_at, updated_at`;
+
+export function clientTurn(row) {
+  if (!row) return null;
+  return {
+    turn_id: row.turn_id,
+    window_id: row.window_id,
+    seq: Number(row.seq),
+    text: String(row.text || ""),
+    assembled_chars: Number(row.assembled_chars ?? 0),
+    sheet_id: row.sheet_id ?? null,
+    // WHICH PERSONA ANSWERED. Never omitted and never defaulted: an owner who
+    // cannot tell a published clone from a draft one cannot judge either.
+    sheet_source: row.sheet_source,
+    agent_slug: row.agent_slug || "",
+    gate_applied: Boolean(row.gate_applied),
+    gate_findings: Number(row.gate_findings ?? 0),
+    generation_id: row.generation_id ?? null,
+    voice_state: row.voice_state,
+    voice_failure_code: row.voice_failure_code || "",
+    created_at: row.created_at,
+  };
+}
+
+/**
+ * The sheet the clone answers FROM.
+ *
+ * ONE read, owner-scoped in the predicate, that prefers a published+consented
+ * row and otherwise takes the newest non-revoked draft. The ordering IS the
+ * policy, and it is deliberately in SQL rather than in two queries with a
+ * branch between them: two queries is two chances for the second to be run
+ * without the first's owner clause.
+ *
+ * `s.status <> 'revoked'` is not decoration. A revoked sheet is a persona whose
+ * subject withdrew consent, and `safety-floor-teacher.md` §2.2's rule is that
+ * revocation DEREGISTERS the module. Falling back to it because it happened to
+ * be the newest row would be the withdrawal quietly failing to take effect — on
+ * the owner's own cloned voice, which is the one place nobody would notice.
+ */
+export async function mirrorReplyAgent(db, ownerUserId, replicaIdValue) {
+  const rows = await db(
+    `select s.sheet_id, s.agent_id, s.version, s.sheet, s.status, s.consent_artifact_id,
+            s.published_at, s.created_at, a.slug
+       from vy_teacher_sheet s
+       join vy_replica r on r.agent_id = s.agent_id
+       join vy_agent a on a.agent_id = s.agent_id
+      where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
+        and r.subject_mode = 'self' and r.lifecycle not in ('revoked','purging')
+        and s.status <> 'revoked'
+      order by (s.status = 'published' and s.consent_artifact_id is not null) desc,
+               s.published_at desc nulls last, s.created_at desc
+      limit 1`,
+    [mirrorUuid(replicaIdValue, "mirror_replica_id_invalid"), ownerUserId],
+  );
+  return rows[0] || null;
+}
+
+/**
+ * The DRAFT voice genome version this replica's synthesis conditions on.
+ *
+ * `beginOwnedVoicePreview` takes `genome_version` as an argument and the studio
+ * panel gets it from its own screen state; a Mirror Call has no such screen, so
+ * it is resolved HERE and never accepted from the client. Same rule as the text
+ * lane: a caller may not choose which version of the owner's voice speaks any
+ * more than it may choose the words.
+ *
+ * Absent is a NAMED answer, never a default of 1 — a guessed version would
+ * either authorize nothing or, worse, authorize the wrong thing.
+ */
+export async function mirrorDraftGenomeVersion(db, ownerUserId, replicaIdValue) {
+  const rows = await db(
+    `select vg.version from vy_replica_voice_genome vg
+       join vy_replica r on r.replica_id = vg.replica_id and r.owner_user_id = $2::uuid
+      where vg.replica_id = $1::uuid and vg.status = 'draft'
+        and r.subject_mode = 'self' and r.lifecycle not in ('revoked','purging')
+      order by vg.version desc
+      limit 1`,
+    [mirrorUuid(replicaIdValue, "mirror_replica_id_invalid"), ownerUserId],
+  );
+  const version = Number(rows[0]?.version);
+  return Number.isInteger(version) && version >= 1 ? version : null;
+}
+
+/**
+ * Record the clone's turn for a window.
+ *
+ * `on conflict (window_id) do nothing` plus the re-read is the idempotency the
+ * cascade needs: an ingest whose response never reached the browser is retried
+ * with the same seq, and the second attempt must return the SAME turn_id rather
+ * than a second clone turn for one thing the owner said. Returning the existing
+ * row rather than a new one is what makes a retry a retry.
+ *
+ * The insert selects from an `allowed` CTE, so the window, the session and the
+ * replica are all re-proven to belong to this owner IN SQL. A turn row whose
+ * window belongs to somebody else is the shape that would let one owner's call
+ * put words in another owner's clone.
+ */
+export async function recordMirrorTurn(db, ownerUserId, replicaIdValue, sessionIdValue, input) {
+  const rid = mirrorUuid(replicaIdValue, "mirror_replica_id_invalid");
+  const sid = mirrorUuid(sessionIdValue, "mirror_session_id_invalid");
+  const wid = mirrorUuid(input?.windowId, "mirror_window_id_invalid");
+  const text = String(input?.text || "").trim();
+  if (!text) fail("mirror_turn_text_required", 400);
+  const source = input?.sheetSource === "published" ? "published" : "draft";
+  const rows = await db(
+    `with allowed as (
+       select w.window_id, w.seq, s.session_id
+         from vy_mirror_window w
+         join vy_mirror_session s on s.session_id = w.session_id
+        where w.window_id = $3::uuid and w.session_id = $2::uuid
+          and w.replica_id = $1::uuid and w.owner_user_id = $9::uuid
+          and s.replica_id = $1::uuid and s.owner_user_id = $9::uuid
+          and s.state = 'open'
+          and w.asr_state = 'transcribed'
+     ), inserted as (
+       insert into vy_mirror_turn
+         (session_id, window_id, replica_id, owner_user_id, seq, text, assembled_chars,
+          sheet_id, sheet_source, agent_slug, gate_applied, gate_findings)
+       select a.session_id, a.window_id, $1::uuid, $9::uuid, a.seq, $4::text, $5::int4,
+              $6::uuid, $7::text, $8::text, $10::boolean, $11::int4
+         from allowed a
+       on conflict (window_id) do nothing
+       returning ${TURN_COLUMNS}
+     )
+     select * from inserted`,
+    [
+      rid, sid, wid, text,
+      Number(input?.assembledChars ?? text.length) || text.length,
+      input?.sheetId ? mirrorUuid(input.sheetId, "mirror_sheet_id_invalid") : null,
+      source,
+      String(input?.agentSlug || "").slice(0, 64),
+      ownerUserId,
+      Boolean(input?.gateApplied),
+      Number(input?.gateFindings ?? 0) || 0,
+    ],
+  );
+  if (rows[0]) return clientTurn(rows[0]);
+  // Either the window was not this owner's, or a turn already exists for it.
+  // Distinguished by asking, and an existing turn is the RETRY case rather than
+  // an error — the whole reason the conflict clause is `do nothing`.
+  return getMirrorTurnByWindow(db, ownerUserId, rid, sid, wid);
+}
+
+export async function getMirrorTurnByWindow(db, ownerUserId, replicaIdValue, sessionIdValue, windowIdValue) {
+  const rows = await db(
+    `select ${TURN_COLUMNS} from vy_mirror_turn t
+      where t.window_id = $3::uuid and t.session_id = $2::uuid
+        and t.replica_id = $1::uuid and t.owner_user_id = $4::uuid
+      limit 1`,
+    [
+      mirrorUuid(replicaIdValue, "mirror_replica_id_invalid"),
+      mirrorUuid(sessionIdValue, "mirror_session_id_invalid"),
+      mirrorUuid(windowIdValue, "mirror_window_id_invalid"),
+      ownerUserId,
+    ],
+  );
+  return clientTurn(rows[0]);
+}
+
+/**
+ * THE SYNTHESIS BINDING READ.
+ *
+ * `api/mirror-call.js`'s `turn_voice` gets its TEXT from this row and from
+ * nowhere else. The `turn_id` in the query string SELECTS a row; it never
+ * supplies one. That is the invariant `src/studio/mirrorCallApi.ts` names —
+ * "keeps the studio unable to make the clone say anything the server did not
+ * author" — expressed as the absence of any other source for the string.
+ */
+export async function getMirrorTurn(db, ownerUserId, sessionIdValue, turnIdValue) {
+  const rows = await db(
+    `select ${TURN_COLUMNS} from vy_mirror_turn t
+      where t.turn_id = $2::uuid and t.session_id = $1::uuid and t.owner_user_id = $3::uuid
+        and exists (
+          select 1 from vy_replica r
+           where r.replica_id = t.replica_id and r.owner_user_id = t.owner_user_id
+             and r.lifecycle not in ('revoked','purging')
+        )
+      limit 1`,
+    [
+      mirrorUuid(sessionIdValue, "mirror_session_id_invalid"),
+      mirrorUuid(turnIdValue, "mirror_turn_id_invalid"),
+      ownerUserId,
+    ],
+  );
+  return clientTurn(rows[0]);
+}
+
+/**
+ * What happened when the clone tried to speak.
+ *
+ * Written for EVERY outcome including the warming one, so "the owner clicked
+ * and heard nothing" is a row an operator can read rather than a report nobody
+ * can reproduce. `voice_state='spoken'` cannot be written without a generation
+ * id — migration 060's CHECK, not this function's `and` — so a claim that a
+ * protected clip was delivered is always backed by the ledger row that carries
+ * its watermark token hash.
+ */
+export async function noteMirrorTurnVoice(db, ownerUserId, sessionIdValue, turnIdValue, outcome) {
+  const state = ["unspoken", "warming", "spoken", "refused"].includes(outcome?.state)
+    ? outcome.state
+    : "refused";
+  const rows = await db(
+    `update vy_mirror_turn t
+        set voice_state = $4::text,
+            voice_failure_code = $5::text,
+            generation_id = coalesce($6::uuid, t.generation_id),
+            updated_at = now()
+      where t.turn_id = $2::uuid and t.session_id = $1::uuid and t.owner_user_id = $3::uuid
+      returning ${TURN_COLUMNS}`,
+    [
+      mirrorUuid(sessionIdValue, "mirror_session_id_invalid"),
+      mirrorUuid(turnIdValue, "mirror_turn_id_invalid"),
+      ownerUserId,
+      state,
+      String(outcome?.failureCode || "").slice(0, 64),
+      outcome?.generationId ? mirrorUuid(outcome.generationId, "mirror_generation_id_invalid") : null,
+    ],
+  );
+  return clientTurn(rows[0]);
+}
+
+/** Every clone turn in this call, for the rolling history the next reply
+ *  compiles against. Bounded like `listMirrorWindows` and for the same reason:
+ *  an unbounded read inside a live call is an unbounded latency. */
+export async function listMirrorTurns(db, ownerUserId, replicaIdValue, sessionIdValue) {
+  const rows = await db(
+    `select ${TURN_COLUMNS} from vy_mirror_turn t
+      where t.session_id = $1::uuid and t.replica_id = $2::uuid and t.owner_user_id = $3::uuid
+      order by t.seq asc limit 2000`,
+    [
+      mirrorUuid(sessionIdValue, "mirror_session_id_invalid"),
+      mirrorUuid(replicaIdValue, "mirror_replica_id_invalid"),
+      ownerUserId,
+    ],
+  );
+  return rows.map(clientTurn);
+}

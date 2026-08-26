@@ -2486,6 +2486,54 @@
       "kind": "decision",
       "title": "studio IA: Feed -> Meet (interact/tweak, the heart) -> Deploy; never one continuous screen",
       "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-call-reply",
+      "kind": "component",
+      "title": "the clone answers back inside a Mirror Call: api/_mirrorcall-reply.js assembles the text through gatedReply, turn_voice synthesises it through WS-W's admission broker, vy_mirror_turn binds the two",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-call-reply-is-the-one-door",
+      "kind": "decision",
+      "title": "the Mirror Call reply is assembled from the owner's own sheet through gatedReply with NO fallback persona - a sheetless replica produces no turn and a named reason",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-call-answers-from-the-draft-sheet-and-says-so",
+      "kind": "decision",
+      "title": "no published sheet means the DRAFT persona replies, and sheet_source rides on the turn row and every payload so the owner knows which clone they graded",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-call-synthesis-is-reused-not-forked",
+      "kind": "decision",
+      "title": "turn_voice calls WS-W's handleVoicePreviewPanel unchanged - no second HMAC, disclosure or watermark path - and records its mirror meaning on vy_mirror_turn.generation_id",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-caption-longer-than-the-clip",
+      "kind": "rejection",
+      "title": "captioning the full reply while speaking only the first fragment: the screen would say more than the voice, on the one surface built for comparing them",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-call-channel-in-the-generation-ledger",
+      "kind": "rejection",
+      "title": "widening 019's channel CHECK to add mirror_call: 045's preview_shape pins the lane, so a new value makes the mirror path a second shape the provenance path must know",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-turn-voice-202-read-as-corrupt-audio",
+      "kind": "rejection",
+      "title": "202 is response.ok, so the honest GPU-warming body would have surfaced to the owner as an audio integrity error",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-call-reply-never-ran",
+      "kind": "open",
+      "title": "migration 060 is unapplied, no statement in the reply lane has executed against a database, and no clone has ever spoken a Mirror Call turn aloud",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -4753,6 +4801,71 @@
       "src": "three-step-wizard-ia",
       "rel": "constrains",
       "dst": "owner-intent-is-the-spec"
+    },
+    {
+      "src": "mirror-call-reply",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "mirror-call-reply",
+      "rel": "supersedes",
+      "dst": "mirror-call-turn-voice-is-declared-unserved"
+    },
+    {
+      "src": "mirror-call-reply-is-the-one-door",
+      "rel": "constrains",
+      "dst": "mirror-call-reply"
+    },
+    {
+      "src": "mirror-call-answers-from-the-draft-sheet-and-says-so",
+      "rel": "constrains",
+      "dst": "mirror-call-reply"
+    },
+    {
+      "src": "mirror-call-synthesis-is-reused-not-forked",
+      "rel": "constrains",
+      "dst": "mirror-call-reply"
+    },
+    {
+      "src": "mirror-caption-longer-than-the-clip",
+      "rel": "constrains",
+      "dst": "mirror-call-reply"
+    },
+    {
+      "src": "mirror-call-channel-in-the-generation-ledger",
+      "rel": "constrains",
+      "dst": "mirror-call-synthesis-is-reused-not-forked"
+    },
+    {
+      "src": "mirror-turn-voice-202-read-as-corrupt-audio",
+      "rel": "constrains",
+      "dst": "mirror-call-reply"
+    },
+    {
+      "src": "mirror-call-reply-never-ran",
+      "rel": "constrains",
+      "dst": "mirror-call-reply"
+    },
+    {
+      "src": "offline-mocks-cannot-type-check-sql",
+      "rel": "constrains",
+      "dst": "mirror-call-reply"
+    },
+    {
+      "src": "plausible-return-hides-a-dead-pipeline",
+      "rel": "constrains",
+      "dst": "mirror-call-answers-from-the-draft-sheet-and-says-so"
+    },
+    {
+      "src": "disclosure-announces-the-clone",
+      "rel": "constrains",
+      "dst": "mirror-call-synthesis-is-reused-not-forked"
+    },
+    {
+      "src": "clone-initiative-record-has-no-absence",
+      "rel": "constrains",
+      "dst": "mirror-call-reply-is-the-one-door"
     }
   ]
 }

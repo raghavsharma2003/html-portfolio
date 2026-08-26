@@ -347,6 +347,13 @@ export async function completeReplicaErasure(db, lease, receipt) {
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      mirror_feedback as (delete from vy_mirror_feedback x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- The clone's own turns (migration 060). Ahead of the windows because a
+     -- turn points at the window it answered, and on this list at all for the
+     -- reason the block above gives: a Mirror Call turn is the clone of a real
+     -- person saying words in that person's cloned voice, and relying on a
+     -- cascade for it means relying on an FK nobody re-checks.
+     mirror_turns as (delete from vy_mirror_turn x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      mirror_windows as (delete from vy_mirror_window x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      mirror_sessions as (delete from vy_mirror_session x using target t
