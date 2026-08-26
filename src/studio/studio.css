@@ -6,6 +6,20 @@
   body { margin: 0; }
   button, input { font: inherit; }
   button { color: inherit; }
+
+  /* Standard offscreen-but-announced pattern. Used by `WizardRail.tsx`'s jump
+     announcer (WS-AP): a screen reader has to hear "moved to X" when a jump
+     anchor moves focus on a phone, but nobody sighted should see a floating
+     status string appear and vanish. `display: none` would hide it from
+     assistive tech too, which is the one thing this element exists to avoid. */
+  .visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px; padding: 0; border: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
 }
 
 @layer components {
@@ -1867,7 +1881,12 @@
     .replica-list::-webkit-scrollbar { display: none; }
     .replica-tab { min-width: 190px; }
     .new-replica { margin-top: 6px; padding-bottom: 0; }
-    .studio-main { padding: 36px 20px 75px; }
+    /* The 75px bottom reserve used to clear the sticky pager
+       (`.wizard-pager`), deleted per owner directive
+       (`context/rejected.md#the-sticky-pager-was-deleted-not-shrunk`).
+       Nothing sits fixed at the foot of the page any more, so the reserve
+       went with it rather than becoming permanent unexplained whitespace. */
+    .studio-main { padding: 36px 20px; }
     .empty-card { grid-template-columns: 1fr; }
     .portrait-placeholder { max-width: 260px; }
   }
@@ -3300,32 +3319,15 @@
   .wizard-blockers li span { color: var(--ink); font-size: var(--text-body); }
   .wizard-blockers li small { color: var(--ink-faint); font-size: var(--text-small); line-height: var(--leading-snug); }
 
-  .wizard-pager {
-    position: sticky;
-    bottom: 0;
-    display: grid;
-    gap: var(--space-row);
-    margin-top: var(--space-section);
-    padding: var(--space-item) 0;
-    /* Floating chrome: translucent, with the page moving under it, and a
-       scroll-edge fade rather than a hard divider (DESIGN-LAW §2). */
-    background: linear-gradient(to top, var(--paper) 62%, rgba(244, 241, 233, 0));
-    backdrop-filter: blur(12px);
-  }
-  .wizard-pager-caution {
-    max-width: var(--measure);
-    margin: 0;
-    color: var(--ink-faint);
-    font-size: var(--text-small);
-    line-height: var(--leading-body);
-  }
-  .wizard-pager-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-item);
-  }
+  /* `.wizard-pager` and its children lived here: a sticky bar pinned to the
+     viewport foot on every step. Deleted, not shrunk (owner directive,
+     2026-08-26) — its primary button pointed at a step it simultaneously
+     called refused, its explanatory line truncated mid sentence in the space
+     it was given, and it sat over roughly a third of a 390px viewport
+     permanently. Navigation did not need replacing: the rail beside/above the
+     content (`.wizard-rail`, `.compact-rail`) already names per-step status
+     and is always reachable. See `WizardRail.tsx`'s header comment and
+     `context/rejected.md#the-sticky-pager-was-deleted-not-shrunk`. */
 
   /* ── WS-AD's labelled hole ───────────────────────────────────────────── */
 
@@ -3383,22 +3385,19 @@
       border-right: 0;
       border-bottom: var(--hairline) solid var(--line);
     }
-    .wizard-pager-actions { flex-direction: column-reverse; align-items: stretch; }
   }
 
   /* DESIGN-LAW §2: three preferences, honoured at the token and material
      level rather than re-derived per component. */
   @media (prefers-reduced-transparency: reduce) {
-    .studio-rail,
-    .wizard-pager {
+    .studio-rail {
       background: var(--paper-deep);
       backdrop-filter: none;
     }
   }
 
   @media (prefers-contrast: more) {
-    .studio-rail,
-    .wizard-pager { background: var(--paper); backdrop-filter: none; }
+    .studio-rail { background: var(--paper); backdrop-filter: none; }
     .wizard-step { border-color: var(--line); }
     .wizard-dot-later { opacity: 1; }
   }
@@ -3651,47 +3650,22 @@
   max-width: var(--measure);
 }
 
-/* ── the sticky pager stops sitting on the page ──────────────────────────────
+/* ── the sticky pager was deleted, not shrunk ────────────────────────────────
 
-   The owner's third symptom was "notices floating over content", and this is
-   it. `.wizard-pager` is `position: sticky; bottom: 0` and correctly translucent
-   (DESIGN-LAW section 2 asks for exactly that), but it CONTAINS a
-   `.blocker-notice`, which is an opaque bordered card with its own background.
-   So the bar was a translucent surface with a solid card stacked on it, which
-   the same section of the law forbids in as many words: "Never stack two light
-   translucent surfaces." The measured result, at every width and every step:
-   the pager covered readable prose at every scroll position, up to 343x186px of
-   it on tablet, and the card is opaque so what it covered was simply gone.
-
-   The caution is not deleted. It is the sentence that stops someone advancing
-   past a gate, and it is still there, still classed, still read by the same
-   `role="status"`. It just stops pretending to be a second panel: no border, no
-   fill, no padding of its own, so the translucent bar is ONE surface and the
-   page reads through it as designed. The class badge keeps its colour, which is
-   the part that carries the claim.
-
-   The bar is also capped, so a long reason cannot grow it into a wall: past two
-   lines it ellipsises, and the full sentence is in the step body above, where
-   this notice is already shown in full. */
-.wizard-pager > .blocker-notice.wizard-pager-caution {
-  border: 0;
-  padding: 0;
-  background: none;
-}
-
-.wizard-pager-caution .blocker-notice-headline,
-.wizard-pager-caution .blocker-notice-next {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-
-/* And the page gets room to scroll clear of the bar, so the last card on a step
-   is never parked underneath it. */
-.studio-main {
-  scroll-padding-bottom: 25vh;
-}
+   This section used to hold the fix for the bar covering readable prose (a
+   translucent surface stacking a solid card, up to 343x186px of prose gone on
+   tablet). That was the WRONG level to fix the defect at: the owner's actual
+   report was that the bar's primary button pushed a person into a step it
+   simultaneously called refused, and shrinking the visual footprint of a
+   button that lies about where it goes was polish on a bug. Owner directive,
+   2026-08-26, verbatim: "Remove it. Not shrink it, not reword it, not make it
+   conditional. Delete it." `.wizard-pager` and everything that targeted it are
+   gone from the markup (`WizardRail.tsx`) and from this file. The rail was
+   already the honest place for per-step status and navigation; nothing
+   replaced the bar because nothing needed to.
+   `context/rejected.md#the-sticky-pager-was-deleted-not-shrunk` has the fuller
+   account, including why the shrink-it attempt above was itself evidence the
+   defect was misdiagnosed the first time. */
 
 /* ── the last two controls that did not read ─────────────────────────────────
 

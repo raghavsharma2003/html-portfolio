@@ -1,4 +1,4 @@
-// WizardRail.tsx — the persistent three-step rail, and the Back/Next pager.
+// WizardRail.tsx — the persistent three-step rail.
 //
 // The rail is the answer to the owner's defect report ("one continuous screen"):
 // it is the only thing on the page that is always visible and always answers
@@ -16,26 +16,75 @@
 // that refuses to open Meet until Feed is perfect is the wall again with a
 // progress bar on it. What a not-ready step gets is an honest line at the top
 // of it (`stepEntryWarning`), never a locked door.
+//
+// THERE IS NO PAGER (WS-AP, owner directive, 2026-08-26). A fixed bar used to
+// sit at the foot of every step with a "Next:" button, and it was the bug in
+// three ways at once: its primary button pointed at a step it simultaneously
+// said was refused, its explanatory line truncated mid sentence in the space
+// it was given, and it sat over roughly a third of a 390px viewport
+// permanently. The owner's own words: "Remove it. Not shrink it, not reword
+// it, not make it conditional. Delete it." This rail — always visible, never a
+// push, per-step status already named — IS the replacement, and it was
+// already right there. If a future session is tempted to rebuild a forward
+// button here, re-read `context/rejected.md#the-sticky-pager-was-deleted-not-shrunk`
+// first.
 import { useState, type ReactNode } from "react";
-import { CLASS_COPY } from "./blockerClass";
-import { backLabel, nextLabel, type Missing, type StepId, type StepView } from "./wizardModel";
+import { CLASS_COPY, disabledReason } from "./blockerClass";
+import { type Missing, type StepId, type StepView, type WizardInput } from "./wizardModel";
 import { BlockerNotice } from "./BlockerNotice";
-import type { DisabledReason } from "./blockerClass";
 
 /**
- * Scroll to an anchor, opening the `<details>` it lives inside first.
+ * A visually-hidden region that announces a jump for a screen reader.
  *
- * Carried over verbatim from `QuickStartPath.jumpTo` because it is load-bearing
- * and non-obvious: a link to a panel inside a collapsed Advanced area silently
- * does nothing, and "the button did nothing" is the worst possible answer on a
- * screen whose whole job is telling a person what is still open.
+ * `scrollIntoView` and even a plain `.focus()` are silent to a screen reader
+ * unless the target already had focus-worthy content: a `<section>` given
+ * `tabindex="-1"` becomes focusable but is not automatically ANNOUNCED just
+ * because it received focus, and on a phone "the offending field is usually
+ * off screen" is exactly the case where a silent focus move looks like
+ * nothing happened (WS-AP, from the owner's report on error and blocker
+ * anchors). One singleton element rather than one per caller: a live region
+ * only works if it existed in the DOM before the mutation a screen reader is
+ * meant to notice, so re-creating it per jump would race the very announcement
+ * it exists to make.
  */
-function jumpTo(anchor: string) {
-  const target = document.querySelector(anchor);
+let announcer: HTMLElement | null = null;
+function announce(text: string) {
+  if (typeof document === "undefined") return;
+  if (!announcer || !document.body.contains(announcer)) {
+    announcer = document.createElement("div");
+    announcer.setAttribute("aria-live", "polite");
+    announcer.setAttribute("role", "status");
+    announcer.className = "visually-hidden";
+    document.body.appendChild(announcer);
+  }
+  const el = announcer;
+  el.textContent = "";
+  // A screen reader announces a live region on a TEXT CHANGE, so writing the
+  // same string twice in a row (jump to the same anchor twice) would announce
+  // nothing the second time without the empty-then-fill round trip.
+  window.setTimeout(() => { el.textContent = text; }, 30);
+}
+
+/**
+ * Scroll to an anchor, open the `<details>` it lives inside, AND move focus.
+ *
+ * Carried over from `QuickStartPath.jumpTo`, which only scrolled. That is half
+ * the requirement: `scrollIntoView` alone moves a sighted person's eye and
+ * leaves a screen reader's focus wherever it already was, so VoiceOver and
+ * TalkBack never say anything about the thing that just came into view — the
+ * exact "I don't know my next action item" failure the owner reported, in its
+ * assistive-tech form. `tabindex="-1"` is the standard way to make an ordinary
+ * landmark programmatically focusable without adding it to the Tab order.
+ */
+export function jumpTo(anchor: string, label?: string) {
+  const target = document.querySelector<HTMLElement>(anchor);
   if (!target) return;
   const details = target.closest("details");
-  if (details && !details.open) details.open = true;
+  if (details && !(details as HTMLDetailsElement).open) (details as HTMLDetailsElement).open = true;
   target.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+  target.focus({ preventScroll: true });
+  announce(`Moved to ${label ?? "the section"}.`);
 }
 
 function StepDot({ state }: { state: StepView["state"] }) {
@@ -168,56 +217,45 @@ export function CompactRail({
 }
 
 /**
- * The pager at the foot of every step.
+ * The status line the owner asked for by name: "I have to scroll down the
+ * whole page to know that the audio is processing."
  *
- * The Next button is never disabled. When the current step's exit condition is
- * unmet it still moves, and the line above it says what will not work yet.
- * Refusing to move would be the honest-looking version of the wall: it hides
- * the clone behind a checklist, which is the exact thing the owner rejected.
+ * Rendered once, directly under the step head on EVERY step (`StudioApp.tsx`),
+ * so it sits above the fold at every width this product ships (390, 834,
+ * 1355 — `scripts/check-layout.mjs`'s three viewports). It is not the Activity
+ * panel; it is the one honest line that panel would otherwise cost a scroll to
+ * reach. Silent (returns null) the moment the platform is idle, so it never
+ * becomes furniture that outlives its own reason to exist.
  */
-export function StepPager({
-  back,
-  next,
-  caution,
-  onGo,
+export function PlatformWorkBanner({
+  work,
+  onSeeActivity,
 }: {
-  back: StepId | null;
-  next: StepId | null;
-  /**
-   * What is not ready on the step this pager is about to move to, WITH ITS
-   * CLASS. It used to be a bare string, which is precisely why the sentence in
-   * the owner's screenshot could not be rendered differently depending on whose
-   * turn it was: a string has no class to render.
-   */
-  caution: DisabledReason | null;
-  onGo: (step: StepId) => void;
+  work: WizardInput["platformWork"];
+  /** Feed and Meet jump straight to the Activity panel's own section;
+   *  Deploy has no Activity mount, so the host sends the person to the step
+   *  that does rather than jumping at nothing. */
+  onSeeActivity: () => void;
 }) {
+  if (!work) return null;
+  if (work.running === 0 && work.stuck === 0 && work.undeployedLanes.length === 0) return null;
+  const lane = work.undeployedLanes[0];
+  const reason = disabledReason(
+    "us",
+    lane
+      ? `We have not finished connecting ${lane}.`
+      : work.stuck > 0
+        ? "Your material is stopped part way through our processing."
+        : "We are processing what you gave us.",
+    "Nothing for you to do here. You can watch it update below.",
+  );
   return (
-    <section className="wizard-pager" aria-label="Move between steps">
-      {/* Collapsed by default on a phone, where it is three lines of prose
-          between the person and the button they came here for. The summary
-          still carries the class and the headline, so nothing is hidden that a
-          person needs in order to decide; what is behind the disclosure is the
-          "what happens next" sentence. */}
-      {caution && <BlockerNotice reason={caution} className="wizard-pager-caution" />}
-      <div className="wizard-pager-actions">
-        {/* The primary action is FIRST in the DOM and last in visual order on
-            wide screens (`flex-direction: row-reverse` is not used; the CSS
-            orders them). On a phone the column puts the primary on top, where
-            a thumb is, rather than at the bottom of a stack under a secondary
-            it will be pressed by accident. */}
-        {next && (
-          <button className="button primary-button" type="button" onClick={() => onGo(next)}>
-            {nextLabel(next)}
-          </button>
-        )}
-        {back ? (
-          <button className="button secondary-button" type="button" onClick={() => onGo(back)}>
-            {backLabel(back)}
-          </button>
-        ) : <span />}
-      </div>
-    </section>
+    <div className="platform-work-banner">
+      <BlockerNotice reason={reason} />
+      <button className="text-button" type="button" onClick={onSeeActivity}>
+        See what is happening
+      </button>
+    </div>
   );
 }
 
@@ -243,11 +281,11 @@ function BlockerRow({ row }: { row: Missing }) {
           // Feedback on pointerdown, never on release (DESIGN-LAW §2). The
           // scroll is the feedback here, so starting it on press is the whole
           // difference between "the button responds" and "the button lags".
-          onPointerDown={() => jumpTo(row.anchor)}
+          onPointerDown={() => jumpTo(row.anchor, row.label)}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
-              jumpTo(row.anchor);
+              jumpTo(row.anchor, row.label);
             }
           }}
         >

@@ -5637,3 +5637,92 @@ opaque code rather than narrowing it.
 **Generalises.** Any `eligible`-style CTE in this codebase has the same defect
 shape. An empty join result is not an authorization verdict.
 
+
+## one-honest-next-action-lives-in-the-rail-never-a-sticky-button
+
+**Decided** 2026-08-26 (WS-AP), owner directive, verbatim: "this bottom section
+should be completely removed... Remove it. Not shrink it, not reword it, not
+make it conditional. Delete it."
+
+**Why.** The studio had a fixed bar (`.wizard-pager`, `StepPager`) pinned to
+the viewport foot on every step, carrying a "Next:" primary button and a
+caution sentence. It carried the exact bug this workstream exists to fix, in
+its most visible form: the primary button pointed at the next step
+unconditionally, including a step the SAME screen simultaneously called
+refused (a first attempt at fixing this — `wizardModel.pagerAction`, gating
+the button on `computeWizard`'s own `state === "running"` — closed that one
+symptom but left the object itself, and the owner's report named the object,
+not the symptom). Its explanatory line truncated mid sentence in the space it
+was given, and it occupied roughly a third of a 390px viewport permanently, on
+top of the content it was talking about.
+
+**What replaced it: nothing built.** `WizardRail`/`CompactRail` were already
+always-visible, already computed from `wizardModel.computeWizard`, already
+named the one thing left on each step, and every row was already clickable
+regardless of readiness (`context/decisions.md` on the wizard's own "never
+silently blocked" rule). No new component was needed because the honest
+surface already existed beside the one that lied. `pagerAction`/`PagerAction`
+and the `nextStep`/`previousStep`/`nextLabel`/`backLabel` helpers that only
+ever fed the deleted button were removed with it
+(`context/rejected.md#the-sticky-pager-was-deleted-not-shrunk` has the
+shrink-first attempt and why it was the wrong diagnosis).
+
+**The property that survives the deletion.** "The primary CTA never points at
+a step with nothing actionable" is now enforced as a DOM assertion rather than
+a unit-tested model function, because there is no longer a function to
+unit-test: `scripts/check-layout.mjs`'s `pager-returned` finding fails if
+`.wizard-pager` or any button labelled "Next: " renders anywhere, on every
+step, at every width. Proven to bite: reintroducing the old markup produced 18
+findings across three widths; reverting produced zero. Verified 2026-08-26.
+
+**What would reverse it.** If a future redesign genuinely needs a persistent
+forward action again, it must be built to the same rule this section states —
+one honest action, derived from `computeWizard`, never rendered when the
+target step is `state === "running"` — and it must come with its own DOM
+negative control before it ships, not after a second owner report.
+
+## voice-genome-approval-is-the-owners-turn-not-the-platforms
+
+**Decided** 2026-08-26 (WS-AP), from a production defect measured against the
+owner's real replica: all eight processing steps complete, identity and
+liveness verified, `vy_replica_voice_genome` and `vy_replica_model_build` both
+empty, and the studio said "waiting on us" in its most important panel
+("Preview my voice") while the true blocker was entirely the owner's: go to
+Processing Review, review the evidence, and press "Queue a draft voice
+model" — the deliberate human tap `queueOwnedVoiceGenome` requires by design
+(`api/_replica-review.js`), and correctly so: a persona never self-updates
+without one.
+
+**What changed.** `BLOCKER_META.voice_genome_not_approved` in
+`src/studio/wizardModel.ts` moves from `owner: "platform"` (note: "We are
+waiting on processing review and approval. Nothing for you to do.") to
+`owner: "you", needsProcessedMaterial: true` (note: go review and queue a
+build), the same treatment `person_profile_not_approved` and
+`calibration_not_approved` already had. `needsProcessedMaterial` still
+reclassifies the row to `us` while the platform's own ingestion queue
+(`platformWork`) is genuinely holding work, so the row is never ember before
+there is anything real to review.
+
+**Why this was backwards being worse than silent.** `docs/HONESTY.md`'s law is
+that an unexplained state defaults to `us`, on the theory that our failure to
+explain is ours, not theirs. This code sat on the WRONG side of that default:
+it explicitly, confidently told the owner the platform was working on
+something it was not, using the exact reassuring words ("nothing for you to
+do") that make a person stop looking for the actual next step. Silence would
+have been a smaller lie.
+
+**Verified.** `evals/studiowizard.mjs`'s existing 80-check suite (unchanged
+assertions, same class-honesty properties from section 8) plus a new section
+10 exercising `voicePreviewBlockReason` — the function `VoicePreviewPanel.tsx`
+now calls instead of hardcoding its own class — over the full input space
+(27,648 rows) and against the exact production shape (identity/liveness
+unverified; identity/liveness done with an unreviewed genome; the same gate
+while `platformWork` is genuinely busy). All pass; see
+`context/measurements.md#voice-preview-block-reason-production-shape`.
+
+**What would reverse it.** If a future build adds an automated,
+person-uninvolved path from reviewed evidence to an approved genome (removing
+the deliberate human tap entirely), this reclassification would need
+revisiting — at that point the gate genuinely would be ours again. No such
+path exists today; `queueOwnedVoiceGenome` is reached only from a person
+pressing a button.

@@ -111,11 +111,126 @@ const ROUTES: Record<string, unknown> = {
   "/api/mirror-call": { contract: null, call: null },
 };
 
+/* WS-AP's scenarios, layered onto `ROUTES` by `?scenario=`.
+ *
+ * The default fixture (empty, signed-in, nothing uploaded) is what
+ * `check-layout.mjs` already drives, and it cannot see the owner's actual
+ * complaint: none of it exists until a real upload is in flight. Reusing THIS
+ * fixture rather than building a third harness (the brief's own instruction)
+ * meant adding scenarios here, not a parallel page. Each overlay is a partial
+ * `ROUTES` patch, applied on top of the base table, so a scenario only needs
+ * to state what is DIFFERENT about it. */
+const ACTIVITY_LANES = [
+  "upload_processing", "channel_video", "channel_watch",
+  "context_item", "voice_model_build", "mirror_finetune", "erasure",
+] as const;
+const LANE_LABELS: Record<(typeof ACTIVITY_LANES)[number], string> = {
+  upload_processing: "Uploaded recordings", channel_video: "Individual videos",
+  channel_watch: "Channel watching", context_item: "Files and links",
+  voice_model_build: "Voice model builds", mirror_finetune: "Mirror Call learning",
+  erasure: "Erasure",
+};
+
+const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
+  // Nothing uploaded yet. The base table already is this scenario; listed
+  // for symmetry so `?scenario=empty` and no param at all are the same page.
+  empty: {},
+
+  // An audio upload is mid-pipeline. Proves the status banner is visible
+  // without a scroll on Feed, and that the pager on Feed does not push
+  // forward into a Meet step with nothing on it yet.
+  processing: {
+    "/api/replica-source": {
+      sources: [{
+        source_id: "src-processing-0001", replica_id: FIXTURE_REPLICA.replica_id,
+        kind: "audio", capture_mode: "upload", mime: "audio/mpeg", byte_size: 34_512_000,
+        state: "processing", contains_third_parties: false, rejection_code: "",
+        created_at: "2026-08-26T18:40:00.000Z", updated_at: "2026-08-26T18:41:00.000Z",
+      }],
+    },
+    "/api/replica-activity": {
+      replica_id: FIXTURE_REPLICA.replica_id,
+      generated_at: "2026-08-26T18:45:00.000Z",
+      jobs: [{
+        job_id: "upload_processing:src-processing-0001", ref: "src-processing-0001",
+        lane: "upload_processing", subject: "lecture-recording.mp3", state: "running",
+        state_reason: "Separating your voice from background noise.",
+        started_at: "2026-08-26T18:41:00.000Z", updated_at: "2026-08-26T18:44:30.000Z",
+        finished_at: null, progress: { done: 5, total: 8, unit: "steps" },
+        next_action: { kind: "wait", label: "Runs automatically" },
+      }],
+      lanes: ACTIVITY_LANES.map((lane) => ({ lane, label: LANE_LABELS[lane], deployed: true, missing: [] })),
+      in_flight: true,
+      next_poll_ms: 4000,
+    },
+    "/api/replica-runtime": {
+      runtime: {
+        replica_id: FIXTURE_REPLICA.replica_id, lifecycle: "consent_pending", active: false,
+        can_activate: false,
+        blockers: ["identity_verification_required", "liveness_verification_required", "voice_genome_not_approved", "voice_not_ready"],
+        qualification: { passed: 0, required: 7 },
+        versions: { profile: null, calibration: null, voice_genome: null },
+        activated_at: null,
+      },
+    },
+  },
+
+  // The coordinator's exact production case: all eight processing steps
+  // complete, identity AND liveness verified, and NO voice genome or build
+  // queued at all. Proves the rail and "Preview my voice" both now say
+  // "you" (go review and approve) rather than "us".
+  "review-pending": {
+    "/api/replica": {
+      replicas: [{ ...FIXTURE_REPLICA, age_verified: true, identity_verified: true, liveness_verified: true }],
+      replica: { ...FIXTURE_REPLICA, age_verified: true, identity_verified: true, liveness_verified: true },
+    },
+    "/api/replica-source": {
+      sources: [{
+        source_id: "src-ready-0001", replica_id: FIXTURE_REPLICA.replica_id,
+        kind: "audio", capture_mode: "upload", mime: "audio/mpeg", byte_size: 34_512_000,
+        state: "ready", contains_third_parties: false, rejection_code: "",
+        created_at: "2026-08-26T14:00:00.000Z", updated_at: "2026-08-26T14:20:00.000Z",
+      }],
+    },
+    "/api/replica-activity": {
+      replica_id: FIXTURE_REPLICA.replica_id,
+      generated_at: "2026-08-26T18:45:00.000Z",
+      jobs: [{
+        job_id: "upload_processing:src-ready-0001", ref: "src-ready-0001",
+        lane: "upload_processing", subject: "lecture-recording.mp3", state: "done",
+        state_reason: "Processed. This recording is ready to use.",
+        started_at: "2026-08-26T14:00:00.000Z", updated_at: "2026-08-26T14:20:00.000Z",
+        finished_at: "2026-08-26T14:20:00.000Z", progress: { done: 8, total: 8, unit: "steps" },
+        next_action: { kind: "none", label: null },
+      }],
+      lanes: ACTIVITY_LANES.map((lane) => ({ lane, label: LANE_LABELS[lane], deployed: true, missing: [] })),
+      in_flight: false,
+      next_poll_ms: null,
+    },
+    "/api/replica-runtime": {
+      runtime: {
+        replica_id: FIXTURE_REPLICA.replica_id, lifecycle: "consent_pending", active: false,
+        can_activate: false,
+        // Identity and liveness are DONE here (the replica record above says
+        // so), so the runtime does not report those two. What is left is
+        // exactly the coordinator's report: no genome, nothing queued.
+        blockers: ["voice_genome_not_approved", "voice_not_ready"],
+        qualification: { passed: 0, required: 7 },
+        versions: { profile: null, calibration: null, voice_genome: null },
+        activated_at: null,
+      },
+    },
+  },
+};
+
 function installStubFetch() {
+  const params = new URLSearchParams(window.location.search);
+  const scenario = SCENARIOS[params.get("scenario") || "empty"] ?? {};
+  const routes: Record<string, unknown> = { ...ROUTES, ...scenario };
   window.fetch = async (input: RequestInfo | URL): Promise<Response> => {
     const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const path = new URL(raw, window.location.origin).pathname;
-    const body = Object.prototype.hasOwnProperty.call(ROUTES, path) ? ROUTES[path] : {};
+    const body = Object.prototype.hasOwnProperty.call(routes, path) ? routes[path] : {};
     return new Response(JSON.stringify(body), {
       status: 200,
       headers: { "content-type": "application/json" },

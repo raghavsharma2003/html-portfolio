@@ -19,6 +19,7 @@ import type { ReplicaReview } from "./types";
 import { requestVoicePanelPreview, type VoicePanelWarming } from "./voicePanelApi";
 import { disabledReason, type DisabledReason } from "./blockerClass";
 import { DisabledAction } from "./BlockerNotice";
+import { voicePreviewBlockReason, type WizardInput } from "./wizardModel";
 
 const MAX_TEXT = 280;
 
@@ -41,9 +42,94 @@ type Phase =
 // retrying forever against a GPU meter.
 const MAX_AUTO_RETRIES = 6;
 
-export default function VoicePreviewPanel({ token, replicaId, onAuthError }: {
+// ── THE WAIT SURVIVES A TAB SWITCH (WS-AP, from the owner's own report) ────
+//
+// The owner waited ten minutes on "Waking the voice lab", switched browser
+// tabs, came back, and had to start over. This panel's own copy already
+// promised "You can leave this open or go and do something else on this
+// step", which was true for a background TAB (the JS keeps running) and false
+// for anything that actually reloads the page — a phone OS discarding a
+// backgrounded tab under memory pressure, or a person genuinely refreshing.
+// Either way `phase` is in-memory React state and a reload erases it, so the
+// person came back to "idle" and pressed the button again, and every one of
+// those extra presses is a fresh two-to-three-minute cold start stacked on
+// the last one. Ten minutes of nothing was four button presses, not one long
+// wait.
+//
+// `sessionStorage` is the fix: it survives a reload in the SAME tab (unlike
+// plain React state) without surviving a genuinely new tab or a different
+// device (unlike `localStorage`, which would be the wrong scope for a wait
+// that is honestly tied to one browser tab's in-flight request). What is
+// persisted is enough to resume the SAME countdown on remount: the retry
+// clock, the attempt count, and the exact text/language that was being
+// synthesised, so the retry that fires next is the next tick of the same
+// wait rather than a new one.
+const WARMUP_KEY_PREFIX = "vy.voicePreview.warmup.";
+// Generous on purpose. The real cold start is 2-3 minutes; this is the ceiling
+// past which a persisted wait is treated as abandoned rather than resumable,
+// covering a slow admission queue plus however long a person's tab genuinely
+// stayed backgrounded. Past it, starting fresh is more honest than pretending
+// to resume something that has likely already finished or died unseen.
+const RESUMABLE_MS = 8 * 60_000;
+
+interface PersistedWarmup {
+  text: string;
+  language: "hi" | "en";
+  genomeVersion: number;
+  attempt: number;
+  retryAt: number;
+  warming: VoicePanelWarming;
+}
+
+function warmupKey(replicaId: string): string {
+  return `${WARMUP_KEY_PREFIX}${replicaId}`;
+}
+
+function readPersistedWarmup(replicaId: string): PersistedWarmup | null {
+  try {
+    const raw = window.sessionStorage.getItem(warmupKey(replicaId));
+    if (!raw) return null;
+    const value = JSON.parse(raw);
+    if (!value || typeof value !== "object" || typeof value.retryAt !== "number") return null;
+    // Stale rather than resumable: a wait this old has almost certainly
+    // already resolved (or failed) without anyone watching, and resuming it
+    // would be a countdown with nothing real behind it.
+    if (value.retryAt < Date.now() - RESUMABLE_MS) return null;
+    return value as PersistedWarmup;
+  } catch {
+    // Private browsing can throw on read as well as write. A wait that
+    // cannot be persisted still works; it just cannot survive a reload,
+    // which is the pre-fix behaviour, not a new failure.
+    return null;
+  }
+}
+
+function writePersistedWarmup(replicaId: string, value: PersistedWarmup) {
+  try {
+    window.sessionStorage.setItem(warmupKey(replicaId), JSON.stringify(value));
+  } catch {
+    // Quota or private browsing. See `readPersistedWarmup`.
+  }
+}
+
+function clearPersistedWarmup(replicaId: string) {
+  try {
+    window.sessionStorage.removeItem(warmupKey(replicaId));
+  } catch {
+    // Nothing to clean up if the write never landed in the first place.
+  }
+}
+
+export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAuthError }: {
   token: string;
   replicaId: string;
+  /** So the "no draft yet" reason can be DERIVED from the same wizard state
+   *  the rail reads, rather than a class hardcoded in this file. See
+   *  `wizardModel.voicePreviewBlockReason` for the production defect this
+   *  closes: this panel used to say "us" unconditionally, which was backwards
+   *  whenever the true blocker was the owner's own identity, liveness, or an
+   *  unreviewed evidence set sitting in Processing Review. */
+  wizardInput: WizardInput;
   onAuthError: (cause: unknown) => void;
 }) {
   const [review, setReview] = useState<ReplicaReview | null>(null);
@@ -53,6 +139,12 @@ export default function VoicePreviewPanel({ token, replicaId, onAuthError }: {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [remaining, setRemaining] = useState(0);
   const urlRef = useRef<string>("");
+  // Runs the restore check exactly once per mount, after the review fetch
+  // below has had a chance to answer. Not a dependency-array guard: `draft`
+  // is a fresh object every render once `review` is set, so gating on
+  // `draft` alone would fire the restore attempt again on every unrelated
+  // re-render.
+  const restoredRef = useRef(false);
 
   const draft = useMemo(
     () => review?.voice_genomes.find((item) => item.status === "draft") ?? null,
@@ -112,6 +204,47 @@ export default function VoicePreviewPanel({ token, replicaId, onAuthError }: {
     }
   }, [draft, language, onAuthError, replicaId, text, token]);
 
+  // RE-ATTACH rather than restart. Once the review fetch has answered (so
+  // `draft` is either a real genome or confirmed absent), check for a
+  // still-live warmup left by an earlier mount of this same panel. Restoring
+  // `text`/`language` alongside `phase` matters: without it the countdown
+  // would resume correctly but then synthesise whatever the (now-default)
+  // textbox holds, which is a request for a different line than the one that
+  // was actually waited on.
+  useEffect(() => {
+    if (loading || restoredRef.current) return;
+    restoredRef.current = true;
+    const persisted = readPersistedWarmup(replicaId);
+    if (!persisted) return;
+    // The draft the persisted wait was for may no longer be the current one
+    // (a new recording replaced it while the tab was away). Resuming against
+    // the wrong genome version would synthesise a stale voice silently, so
+    // this refuses rather than guesses.
+    if (!draft || draft.version !== persisted.genomeVersion) {
+      clearPersistedWarmup(replicaId);
+      return;
+    }
+    setText(persisted.text);
+    setLanguage(persisted.language);
+    setPhase({ kind: "warming", warming: persisted.warming, retryAt: persisted.retryAt, attempt: persisted.attempt });
+  }, [loading, draft, replicaId]);
+
+  // PERSIST while warming, CLEAR once the wait resolves either way. Written
+  // as its own effect off `phase` rather than inline in `run`, so a restored
+  // phase (set by the effect above, not by `run`) is persisted too — the
+  // record has to survive a SECOND reload just as well as the first.
+  useEffect(() => {
+    if (phase.kind === "warming") {
+      if (!draft) return; // `run` cannot fire without a draft; nothing to persist yet.
+      writePersistedWarmup(replicaId, {
+        text, language, genomeVersion: draft.version,
+        attempt: phase.attempt, retryAt: phase.retryAt, warming: phase.warming,
+      });
+    } else if (phase.kind === "ready" || phase.kind === "error") {
+      clearPersistedWarmup(replicaId);
+    }
+  }, [phase, draft, replicaId, text, language]);
+
   // The countdown and the automatic retry. One interval owns both, so the
   // number on screen and the moment the request fires cannot drift apart.
   useEffect(() => {
@@ -159,11 +292,7 @@ export default function VoicePreviewPanel({ token, replicaId, onAuthError }: {
       "This takes a moment. The button turns on by itself when the check comes back.",
     )
     : !draft
-      ? disabledReason(
-        "us",
-        "There is no draft voice to preview yet, because we have not built one from your recordings.",
-        "Nothing here needs you. Once a recording has been through processing and a draft voice is built, this turns on. The activity panel on this step shows where your recordings are.",
-      )
+      ? voicePreviewBlockReason(wizardInput)
       : busy
         ? disabledReason(
           "us",

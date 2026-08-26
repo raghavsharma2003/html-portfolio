@@ -113,8 +113,21 @@ export function clientRuntimeStatus(row) {
     versions: {
       profile: Number(row.profile_version || 0) || null,
       calibration: Number(row.calibration_version || 0) || null,
-      voice_genome: Number(row.genome_version || 0) || null,
+      // A production run measured this reading `0 / Not built yet` while
+      // `vy_replica_voice_genome` held a real version-1 DRAFT row: `vg` below
+      // (and the join it was read from before this fix) is scoped to
+      // `status='approved'` because that scoping is CORRECT for gating
+      // activation, but it made the same number stand in for "does a genome
+      // exist" on a status strip, which it does not answer. `vg_latest` is
+      // the honest count: the newest genome row of ANY status. Activation's
+      // own gate (`activateOwnedRuntime` below) is untouched and stays
+      // approved-only.
+      voice_genome: Number(row.genome_latest_version || 0) || null,
     },
+    // The status the number above belongs to, so a strip can say "draft,
+    // needs your approval" rather than a bare count that reads as either
+    // "not built" or "ready" depending on who is guessing.
+    voice_genome_status: row.genome_latest_status || null,
     activated_at: row.capability_activated_at || null,
   };
 }
@@ -131,6 +144,7 @@ const RUNTIME_STATUS_SQL = `select r.replica_id,r.subject_mode,r.lifecycle,r.sub
   pp.version as profile_version,(pp.status='approved') as profile_approved,
   cal.version as calibration_version,(cal.status='approved') as calibration_approved,
   vg.version as genome_version,(vg.status='approved') as genome_approved,
+  vg_latest.version as genome_latest_version,vg_latest.status as genome_latest_status,
   vp.voice_profile_id,(vp.status='ready') as voice_ready,
   (lower(coalesce(vp.provider,'')) in ('fake','test','fixture','deterministic-fake')) as test_voice,
   (case when cap.state='active' then ${RUNTIME_QUALIFICATION_SUITES.length} else coalesce(q.passed,0) end)::int as qualification_passed,
@@ -169,6 +183,17 @@ left join lateral (
      and (cap.state is null or x.version=cap.genome_version)
    order by x.version desc limit 1
 ) vg on true
+-- The reality count (WS-AP, from a measured production defect: this replica
+-- had a real version-1 DRAFT genome and the status strip read "0 / Not built
+-- yet"). Unscoped by status and unscoped by cap (the active-capability CTE
+-- above), on purpose: "what is the newest thing that exists" is a different
+-- question from "what is currently powering an active capability", and the
+-- counter above answered the second question while labelled as the first.
+left join lateral (
+  select x.version,x.status from vy_replica_voice_genome x
+   where x.replica_id=r.replica_id
+   order by x.version desc limit 1
+) vg_latest on true
 left join lateral (
   select x.voice_profile_id,x.provider,x.status from vy_replica_voice_profile x
    where x.replica_id=r.replica_id and x.genome_version=vg.version and x.status='ready'

@@ -509,8 +509,15 @@ export function normaliseContextItem(row) {
       state_reason: reasonFor(row.refusal_reason, "This item was refused and no reason was recorded.") });
   }
   if (row.status === "routed") {
+    // `routed_to` already carries its own "_lane" suffix (see
+    // `routed_elsewhere` in `_context-locker.js`: `"channel_lane"`,
+    // `"voice_evidence_lane"`), so appending the word "lane" again below
+    // produced "Sent to the channel lane lane" in production. Strip a
+    // trailing lane name before adding the one this sentence supplies, so the
+    // fix holds regardless of whether a future route ever stops carrying it.
+    const routedName = String(row.routed_to).replaceAll("_", " ").replace(/\s*lane$/i, "");
     return job({ ...base, state: "done", finished_at: iso(row.updated_at),
-      state_reason: `Sent to the ${String(row.routed_to).replaceAll("_", " ")} lane, which is where this kind of thing belongs.` });
+      state_reason: `Sent to the ${routedName} lane, which is where this kind of thing belongs.` });
   }
   if (row.status === "mined") {
     return row.run_id

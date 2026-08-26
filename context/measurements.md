@@ -4557,3 +4557,109 @@ was written for exactly this kind of file), so the fix was to route the OUTPUT
 through a file the same way `probeBytes` already routes the INPUT through one,
 and to reuse `readPcm16Wav` for the final slice rather than assuming a fixed
 offset. See `context/rejected.md` for the same finding as a named rejection.
+
+## voice-preview-block-reason-production-shape (2026-08-26, WS-AP)
+
+**Method.** `evals/studiowizard.mjs` section 10, run via
+`node evals/studiowizard.mjs` (bundles the real `wizardModel.ts` and
+`blockerClass.ts` from source on every run, per this repo's standing rule
+against frozen bundles). Three targeted rows plus a full sweep:
+
+1. The exact production shape (identity/liveness unverified, no runtime
+   blockers reported, platform queue idle) — `voicePreviewBlockReason` reads
+   `kind: "you"`, never `"us"`, and names the identity gate specifically.
+2. Identity/liveness done, `voice_genome_not_approved` present, platform queue
+   idle — reads `"you"` (go review and queue a build).
+3. The identical row 2 shape with `platformWork.running: 1` — reads `"us"`
+   (nothing to review yet).
+4. Every row in the 27,648-input universe (`STEP_ORDER` x boolean/tristate
+   fixtures already built for section 8): `reasonIsHonest` true for all
+   27,648, and the panel's class never disagrees with the Meet step's own
+   `missing` row for the gate it names (0 disagreements).
+
+**Result.** 6/6 assertions pass. Re-run 2026-08-26 after the reclassification
+in `context/decisions.md#voice-genome-approval-is-the-owners-turn-not-the-platforms`
+landed; the full suite (10 sections, 80 checks) passes alongside it.
+
+## the-sticky-pager-negative-control-bites (2026-08-26, WS-AP)
+
+**Method.** `scripts/check-layout.mjs`'s new `pager-returned` finding, added
+to its existing real-browser audit (Playwright, Chromium, `studio-layout-
+fixture.html`, three viewports x three steps). Two runs against the built
+`dist/`:
+
+1. **Clean tree** (the sticky pager deleted): `node scripts/check-layout.mjs`
+   → `ok, 246 prose blocks judged across 390, 834, 1355px x feed, meet,
+   deploy` — zero `pager-returned` findings.
+2. **Negative control**: a `.wizard-pager` section with a "Next: talk to your
+   clone" button reintroduced into `StudioApp.tsx`'s render, same build and
+   gate: `FAIL, 18 finding(s)` — the element and the "Next: " button both
+   caught, at the first width/step the audit reaches (`phone/feed`; the audit
+   stops enumerating duplicates past 6, so 18 is the count of DISTINCT
+   `(kind, where)` pairs recorded before that cap, not the true total across
+   all nine screens).
+3. Tree reverted to (1), re-run: clean again.
+
+**Why this replaces the earlier model-level negative control.** `pagerAction`/
+`PagerAction`, the function this suite's section 10 used to test with a
+hand-built "naive advance" negative control, were deleted along with the
+component they served (`context/rejected.md#the-sticky-pager-was-deleted-not-shrunk`).
+The property "nothing pushes a person into a step with nothing to act on" is
+now a property of the RENDERED PAGE, not of a function, and only a real
+render can check it. Sits alongside `evals/studiowizard.mjs`'s remaining
+model-level properties (section 8's honesty split, section 10's
+`voicePreviewBlockReason` agreement with the rail) rather than replacing them.
+
+## replica-runtime-genome-latest-query-explained-live (2026-08-26, WS-AP)
+
+**Method.** The modified `RUNTIME_STATUS_SQL` in `api/_replica-runtime.js`
+(adding the `vg_latest` lateral join and its two selected columns) was run
+directly against the live Neon database over SQL-over-HTTP
+(`api/_db.js`'s own protocol), not a mock: once as `EXPLAIN <query>` with a
+placeholder replica id, once as the real query. Both returned `200`. The real
+query's field list includes `genome_latest_version` and `genome_latest_status`
+alongside every pre-existing column, and returned zero rows for the
+placeholder id, as expected (`offline-mocks-cannot-type-check-sql` /
+`explain-is-the-only-parser-we-have` both apply; this is the live database,
+not a mock, so both are satisfied more strongly than the minimum).
+
+**A defect this check caught before it shipped.** The first version of this
+edit put backtick-quoted identifiers (`` `vg_latest` ``, `` `cap` ``) inside a
+SQL `--` comment that itself sits inside the file's JS template literal. A
+backtick inside a JS template literal closes it regardless of surrounding SQL
+comment syntax, so the edit silently truncated `RUNTIME_STATUS_SQL` and left
+roughly ninety lines of SQL sitting as bare (invalid) JavaScript. `node --
+input-type=module -e 'import ... from "./api/_replica-runtime.js"'` threw a
+`SyntaxError` immediately, before any gate ran. Fixed by rewording the comment
+to name the identifiers without backticks. `node scripts/verify-release.mjs`
+was re-run in full AFTER this fix (not before) and is the 14/14 recorded in
+this session's `STATE.md` log line.
+
+## voice-versions-counter-and-the-third-hidden-gate (2026-08-26, WS-AP)
+
+**Method.** Read `api/_replica-runtime.js`'s `RUNTIME_STATUS_SQL` and
+`clientRuntimeStatus` by source inspection against the coordinator's report
+(replica `6aff3202-abbd-4ca6-976b-4009ed5af028`: a real version-1 DRAFT genome
+in `vy_replica_voice_genome`, status strip reading "0 / Not built yet"). The
+`vg` lateral join computing `versions.voice_genome` was scoped to
+`status='approved'`, so a draft-only genome was invisible to it by
+construction; the label additionally assumed any non-zero count meant
+approved. Both are now derived from a second, unscoped `vg_latest` join
+(newest row of any status) and its own status column, verified live per
+`context/measurements.md#replica-runtime-genome-latest-query-explained-live`.
+
+**The "third hidden gate".** `runtimeBlockers()` already emits
+`voice_genome_not_approved` whenever `!genome_approved`, which is true
+whenever only a draft exists — so the code path the coordinator flagged as a
+newly-discovered gate was already reachable through
+`context/decisions.md#voice-genome-approval-is-the-owners-turn-not-the-platforms`'s
+fix, not a fourth thing to build. What was still a dead end: the Activity
+panel's "Look at the build" action (`normaliseModelBuild`, `state==='review'`,
+`next_action: {kind:'review'}`) had no `onAct` handler wired in
+`StudioApp.tsx`, so the tap silently did nothing. Wired to navigate to Meet
+and focus `#processing-review`. **Not built, and said so rather than guessed
+at:** no endpoint anywhere in `api/` sets a `vy_replica_voice_genome` row's
+status to `'approved'` — grepped for `status='approved'` and `'approved'`
+writes against that table and found none. Approving a genome outright (as
+opposed to reviewing evidence and queuing a build, which is real and wired)
+is a capability that does not exist yet in this codebase, not a hidden UI.

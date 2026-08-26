@@ -151,6 +151,7 @@ export default function ActivityPanel({
   token,
   replicaId,
   where = "feed",
+  showHeading = true,
   onAuthError,
   onAct,
   onView,
@@ -159,6 +160,19 @@ export default function ActivityPanel({
   replicaId: string;
   /** Which of the two questions this mount is answering. See MOODS above. */
   where?: "feed" | "meet";
+  /**
+   * False when the host already gave this mount a heading AND an intro of
+   * its own.
+   *
+   * On Feed it used to be printed twice: `StudioApp.tsx` wraps this panel in
+   * a `Band` titled "Where each upload is right now" with its own blurb, and
+   * this component printed the identical title (`MOODS.feed.title`) and a
+   * near-identical lede one line below it — the owner's screenshot showed the
+   * heading stacked twice. This suppresses both here and relies on the host's
+   * copy instead, since a host that gives this panel its own dedicated Band
+   * already says the same thing.
+   */
+  showHeading?: boolean;
   onAuthError?: (error: ReplicaApiError) => void;
   /** The host owns navigation. A `review` action means "take me to the
    *  suggestions", a `fix_input` action means "take me to the step that owns
@@ -274,12 +288,17 @@ export default function ActivityPanel({
     <section
       className="vy-activity"
       id={`processing-status-${where}`}
-      aria-labelledby={`vy-activity-title-${where}`}
+      aria-labelledby={showHeading ? `vy-activity-title-${where}` : undefined}
+      aria-label={showHeading ? undefined : mood.title}
     >
-      <header className="vy-activity__head">
-        <h2 className="vy-activity__title" id={`vy-activity-title-${where}`}>{mood.title}</h2>
-      </header>
-      <p className="vy-activity__lede">{mood.lede}</p>
+      {showHeading && (
+        <>
+          <header className="vy-activity__head">
+            <h2 className="vy-activity__title" id={`vy-activity-title-${where}`}>{mood.title}</h2>
+          </header>
+          <p className="vy-activity__lede">{mood.lede}</p>
+        </>
+      )}
 
       {error ? <div className="vy-activity__error" role="status">{error}</div> : null}
 
