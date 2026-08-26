@@ -2037,3 +2037,30 @@ create table if not exists vy_teacher_sheet (
 create index if not exists vy_teacher_sheet_agent_status_ix on vy_teacher_sheet (agent_id, status, published_at desc);
 create unique index if not exists vy_teacher_sheet_one_published_ix on vy_teacher_sheet (agent_id) where status = 'published';
 create index if not exists vy_teacher_sheet_agent_recent_ix on vy_teacher_sheet (agent_id, created_at desc);
+
+-- Migration 054 - vy_voice_fidelity: the stored half of the "still sounds like
+-- them" guarantee (SPEC-GURUKUL.md §8.2). Scoring math is api/_fidelity.js;
+-- the ECAPA-TDNN embeddings come from services/voice-evidence. The row's key
+-- names the VOICE completely - (voice_profile_ref, genome_version,
+-- voice_model_ref) - because `cache-outlives-the-voice` is exactly this hazard:
+-- a stored verdict whose key does not name the voice it measured keeps
+-- covering a voice it never heard. Superseded rows are kept; the history of a
+-- score moving is the only way an expert can see drift.
+create table if not exists vy_voice_fidelity (
+  fidelity_id uuid primary key default gen_random_uuid(),
+  replica_id uuid not null references vy_replica(replica_id) on delete cascade,
+  owner_user_id uuid not null,
+  voice_profile_ref uuid not null,
+  voice_model_ref text not null default '',
+  genome_version integer not null check (genome_version > 0),
+  score jsonb not null,
+  policy_version text not null,
+  status text not null check (status in ('pass','warn','fail')),
+  computed_at timestamptz not null default now(),
+  superseded_at timestamptz,
+  constraint vy_voice_fidelity_profile_fk foreign key (voice_profile_ref, replica_id, owner_user_id) references vy_replica_voice_profile (voice_profile_id, replica_id, owner_user_id) on delete cascade,
+  constraint vy_voice_fidelity_score_shape check (jsonb_typeof(score->'mean') = 'number' and jsonb_typeof(score->'p10') = 'number' and jsonb_typeof(score->'worst') = 'number')
+);
+create unique index if not exists vy_voice_fidelity_standing_ix on vy_voice_fidelity (voice_profile_ref) where superseded_at is null;
+create index if not exists vy_voice_fidelity_gate_ix on vy_voice_fidelity (replica_id, owner_user_id, voice_profile_ref, computed_at desc);
+create index if not exists vy_voice_fidelity_history_ix on vy_voice_fidelity (replica_id, computed_at desc);

@@ -64,6 +64,14 @@ function statusRow(extra = {}) {
     voice_ready: true,
     test_voice: false,
     qualification_passed: RUNTIME_QUALIFICATION_SUITES.length,
+    // WS-J: the fidelity guarantee is a PEER gate alongside the seven suites
+    // (SPEC-GURUKUL §8.2). Its own suite is evals/fidelity/run.mjs; it appears
+    // here so this suite's baseline row is a genuinely activatable clone and so
+    // the peer relationship has a check on the qualification side too.
+    fidelity_qualified: true,
+    fidelity_status: "pass",
+    fidelity_score: { mean: 0.91, p10: 0.88, worst: 0.86, windows: 10, references: 3 },
+    fidelity_computed_at: "2026-08-24T00:00:00.000Z",
     capability_state: null,
     capability_activated_at: null,
     ...extra,
@@ -123,6 +131,8 @@ ok("unverified adult identity is blocked", runtimeBlockers(statusRow({ person_ag
 ok("test voice can never activate", runtimeBlockers(statusRow({ test_voice: true })).includes("production_voice_required"));
 ok("unapproved calibration can never activate", runtimeBlockers(statusRow({ calibration_approved: false })).includes("calibration_not_approved"));
 ok("missing one suite blocks activation", runtimeBlockers(statusRow({ qualification_passed: 6 })).includes("qualification_incomplete"));
+ok("a clone that passes all seven suites still cannot activate without a fidelity pass",
+  runtimeBlockers(statusRow({ fidelity_qualified: false })).includes("voice_fidelity_not_qualified"));
 const safeStatus = clientRuntimeStatus(statusRow());
 ok("client runtime status is whitelist-built", !/(owner|agent|person|provider|voice_profile|qualification_hash)/i.test(JSON.stringify(safeStatus)));
 
