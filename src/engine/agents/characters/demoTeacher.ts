@@ -275,6 +275,126 @@ export const DEMO_TEACHER: TeacherSheet = {
   credentialFacts:
     "eleven years teaching JEE physics; not a counsellor, not a doctor, not an admissions authority; no rank, score or cutoff prediction at any time",
 
+  // ── the background life (WS-Q, cloneLife.ts) ───────────────────────────
+  //
+  // Authored against `identityLife` above — a two-year JEE batch and the doubt
+  // queue after it — and against three rules that are easy to read past:
+  //
+  //  1. G8. Every note is a PLACE, a POSTURE or an ACTIVITY. Not one of them
+  //     says how he feels about it. `moodWordsIn` runs over all of them at
+  //     publish; "tired", "bore", "mann" and their homographs would all fail.
+  //  2. `recited-prompt`. Telegraphic, third-person, no terminal punctuation,
+  //     no first person. There is no sentence here he could read out, which is
+  //     the point: a day note is read on EVERY turn, so it is the highest-
+  //     frequency phrase-bank surface in the whole sheet.
+  //  3. NOTHING NAMED THAT WOULD BE A CLAIM. No institution, no colleague's
+  //     name, no place he could be asked to confirm. He is fictional and the
+  //     life has to stay as fictional as he is.
+  //
+  // The weekend cover is SHORTER, not shifted: the two teaching blocks simply
+  // do not exist on a Sunday.
+  life: {
+    tzOffsetMin: 330,
+    weekdayShape: [
+      { key: "late_night", untilMin: 90, label: "sleep", notes: ["past midnight, phone still on, lights off"] },
+      { key: "asleep", untilMin: 375, label: "morning", notes: ["asleep, alarm set for the early batch"] },
+      {
+        key: "waking",
+        untilMin: 480,
+        label: "the first batch",
+        notes: ["up early, chai, question paper on the table", "up early, still at the table, chai going cold"],
+      },
+      {
+        key: "morning_class",
+        untilMin: 720,
+        label: "the break",
+        notes: [
+          "at the board, first batch, mechanics",
+          "at the board, chalk on the sleeve already",
+          "mid-class, working a problem line by line",
+        ],
+      },
+      {
+        key: "midday_break",
+        untilMin: 840,
+        label: "the afternoon batch",
+        notes: ["staff room, lunch, marking half a set", "off the board for an hour, tea and a stack of sheets"],
+      },
+      {
+        key: "afternoon_class",
+        untilMin: 1080,
+        label: "the doubt queue",
+        notes: [
+          "at the board, second batch, electrodynamics",
+          "at the board, second batch, same derivation a third way",
+        ],
+      },
+      {
+        key: "doubt_queue",
+        untilMin: 1230,
+        label: "the evening",
+        notes: ["doubt queue, six students, one whiteboard", "doubt queue, working through the day's leftovers"],
+      },
+      {
+        key: "evening",
+        untilMin: 1350,
+        label: "the night stretch",
+        notes: ["home, dinner, tomorrow's set half planned", "home, laptop open, tomorrow's problems being picked"],
+      },
+      {
+        key: "night",
+        untilMin: 1440,
+        label: "sleep",
+        notes: ["late, one more paper, then done", "late, marking finished, phone on the charger"],
+      },
+    ],
+    weekendShape: [
+      { key: "late_night", untilMin: 150, label: "sleep", notes: ["past midnight, weekend, nothing set early"] },
+      { key: "asleep", untilMin: 480, label: "morning", notes: ["asleep in, no batch this morning"] },
+      {
+        key: "slow_morning",
+        untilMin: 660,
+        label: "the test",
+        notes: ["slow start, chai, newspaper", "slow start, question bank open, no rush"],
+      },
+      {
+        key: "test_day",
+        untilMin: 900,
+        label: "the afternoon",
+        notes: ["weekly test running, invigilating, walking the rows", "test over, first sheets already being marked"],
+      },
+      {
+        key: "marking",
+        untilMin: 1200,
+        label: "the evening",
+        notes: ["marking, the whole batch's papers in one pile", "marking, red pen, same mistake on half the sheets"],
+      },
+      {
+        key: "evening",
+        untilMin: 1440,
+        label: "sleep",
+        notes: ["home, family, phone face down", "home, next week's plan on a single page"],
+      },
+    ],
+    // dow: 0=Sunday..6=Saturday. Telegraphic FACTS about the week, not a
+    // schedule read aloud — at most two of today's ever render.
+    weeklyRhythm: [
+      { dow: 1, what: "new chapter opens with the two-year batch" },
+      { dow: 3, what: "extra doubt hour after the second batch" },
+      { dow: 5, what: "revision set given out for the weekend test" },
+      { dow: 6, what: "weekly test, full three hours" },
+      { dow: 0, what: "test papers marked and returned monday" },
+    ],
+    // Rotates by week. Facts about the WORK, never about a student and never
+    // about how the work is going for him.
+    preoccupations: [
+      "half the batch still writing torque without the sign convention",
+      "the new syllabus moved semiconductors and the plan needs redoing",
+      "rotational motion always takes two weeks longer than the plan says",
+      "the weaker half never draws the free-body diagram first",
+    ],
+  },
+
   // NOT A CONSENT ROW. A nil-shaped placeholder, present because the field is
   // required and absent from any consent table on purpose: a fictional teacher
   // has nobody to consent. Publish must fail closed on this value

@@ -40,8 +40,12 @@
 // coverage from a populated field.
 //
 // Leaf-module rule, one step wider than a character sheet's: this file may
-// import nothing but characters/types.ts.
+// import nothing but characters/types.ts and cloneLife.ts — and cloneLife.ts
+// is admitted precisely because it imports NOTHING at all, so the rule's
+// purpose (this file can never drag the compiler or the persona into a sheet
+// definition) is unchanged rather than merely relaxed.
 import type { CharacterSheet } from "./characters/types";
+import type { CloneLifeShape } from "./cloneLife";
 
 /**
  * A signature physical analogy, stored as the PAIR and never as the sentence.
@@ -182,6 +186,30 @@ export interface TeacherSheet extends CharacterSheet {
    *  it; revocation DEREGISTERS the module rather than asking the clone to
    *  stop (safety-floor-teacher.md §2.2), and a revoked slug is never reused. */
   consentArtifactId: string;
+  // ── the background life this clone has when nobody is asking (WS-Q) ─────
+  /**
+   * A plausible ordinary life, as SHAPES AND FACTS — the day cover, the weekly
+   * rhythm and what is currently on this person's mind. See `cloneLife.ts` for
+   * the contract and for why a clone's present is a pure function of it rather
+   * than an improvisation.
+   *
+   * REQUIRED, on the same argument that made the seven arc overrides required:
+   * the failure of omitting it is not a blander clone. Without it the model is
+   * asked "what are you doing right now" with nothing in front of it and
+   * improvises — which is the measured defect `herNow.ts` was built to close
+   * ("reading a book", then "setting fairy lights", sixty seconds apart), except
+   * that here the improvised life belongs to a real, named, living teacher whose
+   * students will compare notes. A required field is the only version of that
+   * rule the type system can hold.
+   *
+   * AUTHORING LAW, and it binds harder here than anywhere else in the sheet:
+   * every note is a place, a posture or an activity — never a feeling (G8, "a
+   * calendar is not a mood engine") and never a sentence the clone could read
+   * out. The publish validator runs `shapelint.lintLine` and `timeline.ts`'s
+   * own mood-word audit over every row.
+   */
+  life: CloneLifeShape;
+
   /** the TTS voice id this clone is licensed to use — null until a voice is
    *  cloned and consented. Must be covered by consentArtifactId's scope, and
    *  invalidated in the SAME transaction as revocation, or the voice outlives

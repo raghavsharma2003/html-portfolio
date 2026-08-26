@@ -56,6 +56,13 @@ import {
 } from "../persona";
 import { PUBLISHED_HELPLINES } from "../honesty";
 import { lintLine } from "../shapelint";
+// WS-Q. `moodWordsIn` is timeline.ts's OWN G8 audit ("a calendar is not a mood
+// engine"), reused rather than re-implemented: a second mood-word list is a
+// second thing that goes stale, and the one in timeline.ts is the one an
+// existing gate already exercises. Type-only for the life shape itself —
+// cloneLife.ts imports nothing, so neither edge can become a cycle.
+import { moodWordsIn } from "../timeline";
+import { validateCloneLife, cloneLifeRows } from "./cloneLife";
 import type { TeacherSheet } from "./teacherTypes";
 import type { AgentModule, DimsStage, Medium, UserProfile, VoiceEngine } from "./types";
 
@@ -395,6 +402,34 @@ export function validateTeacherSheet(sheet: unknown): SheetValidation {
       if (words.length > VERBALISM_MAX_WORDS) push(f, "phrase-bank-too-long", item);
       if (/[.?!]$/.test(item)) push(f, "phrase-bank-terminal-punctuation", item);
     }
+  }
+
+  // ── 6. the clone's background life (WS-Q) ──────────────────────────────
+  //
+  // Three checks, and they are three because each catches a different way this
+  // field ships broken while looking filled:
+  //
+  //  STRUCTURE — `validateCloneLife` proves the day covers midnight and its
+  //    boundaries ascend. Without it `slotAtMinute` has an unreachable tail of
+  //    the day and the clone's evening silently becomes its afternoon. That is
+  //    `silent-truncation` wearing a calendar, and it returns 200.
+  //  SHAPE — `lintLine` over every authored row. `boardVerbalisms` is the
+  //    field this repo already names as the phrase bank; a day note is the
+  //    field nobody thinks of that way, and it is read on more turns than any
+  //    catchphrase, because it renders on all of them.
+  //  MOOD — timeline.ts's own G8 audit. A note that says how the person FEELS
+  //    about their afternoon is a mood assigned by a clock, delivered to a
+  //    sixteen-year-old, on every single turn, with no cause in the
+  //    conversation. It is the exact failure `inner.ts` made unrepresentable
+  //    for Meera, arriving through the one door a sheet can open.
+  for (const p of validateCloneLife(s.life)) {
+    push(p.field, p.code, p.detail);
+  }
+  for (const row of cloneLifeRows(s.life as never)) {
+    const violation = lintLine(row);
+    if (violation.reasons.length) push("life", "recitable-shape", `${row} — ${violation.reasons.join("; ")}`);
+    const mood = moodWordsIn(row);
+    if (mood.length) push("life", "mood-word-in-life-note", `${row} — ${mood.join(", ")}`);
   }
 
   return { ok: errors.length === 0, errors };
