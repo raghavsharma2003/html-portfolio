@@ -197,6 +197,23 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, ZERO model calls, ~4s.
   drift: "drift.mjs",
+  // WS-K (ROADMAP-100X item 3). The MEMORY RECALL BENCHMARK: 3 authored dyads
+  // (190 Hinglish turns, 50 ground-truth questions across nine question
+  // classes) driven through the REAL api/memory.js opRecall, with the database
+  // mocked at api/_db.js's own module boundary.
+  //
+  // It exists because "does she remember correctly" was judged informally and
+  // measured nowhere, which contradicts the house ethos in the one place it
+  // matters most. It is a GATE rather than a report because everything it
+  // asserts is silent when it breaks: a retrieval leg that reads zero rows
+  // looks exactly like an empty store (`realtime-recall-never`), which is why
+  // the router refuses to answer a statement it does not recognise.
+  //
+  // Honest about its own coverage, in the run header and not only in a
+  // comment: the LLM EXTRACTOR and the SEMANTIC LEG are NOT exercised, so
+  // every score is a lower bound and no number from it is written to
+  // measurements.md. Offline, deterministic, $0, no DB, no network, ~1s.
+  recallbench: "recallbench/run.mjs",
   // WS-MOVEVOICE: her hand and her mouth on ONE timeline. The owner played
   // chess on a call, she moved milliseconds after him, and then her voice said
   // she SHOULD play the move already on the board. Gates the three halves of

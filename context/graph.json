@@ -1898,6 +1898,30 @@
       "kind": "decision",
       "title": "research synthesis: voice stack pinned, fidelity two-gate law, wave-5 build order",
       "at": "2026-08-26"
+    },
+    {
+      "id": "disclosure-reciprocity-ledger",
+      "kind": "decision",
+      "title": "track her own self-disclosure against his; T17 note, no migration",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "within-session-drift-gate",
+      "kind": "decision",
+      "title": "the eval suite tests a 44-turn session, not a turn; structural arm only",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "recall-bench-v1",
+      "kind": "measurement",
+      "title": "memory recall benchmark harness — 3 dyads, 50 questions, deliberately unmeasured until a keyed run",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "stale-note-keys-on-row-age",
+      "kind": "open",
+      "title": "a future plan recorded >45d ago is hedged as already-past; needs the fact's own validity interval",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3480,6 +3504,26 @@
       "src": "roadmap-100x",
       "rel": "part_of",
       "dst": "platform-north-star"
+    },
+    {
+      "src": "disclosure-reciprocity-ledger",
+      "rel": "part_of",
+      "dst": "roadmap-100x"
+    },
+    {
+      "src": "within-session-drift-gate",
+      "rel": "part_of",
+      "dst": "roadmap-100x"
+    },
+    {
+      "src": "recall-bench-v1",
+      "rel": "part_of",
+      "dst": "roadmap-100x"
+    },
+    {
+      "src": "stale-note-keys-on-row-age",
+      "rel": "caused_by",
+      "dst": "recall-bench-v1"
     }
   ]
 }

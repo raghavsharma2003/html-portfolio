@@ -101,9 +101,33 @@ const herLifeToldOnly = E.formatHerLife(
   NOW,
 );
 
+// A window where HE discloses steadily and SHE does not — the Kuki-study
+// direction. Sixteen turns, over both floors, well past the threshold.
+const RECIPROCITY_LOPSIDED = Array.from({ length: 16 }, (_, i) =>
+  i % 2 === 0
+    ? { from: "me", text: `mujhe aaj bahut tension ho rahi hai ${i}` }
+    : { from: "her", text: `accha ${i}` },
+);
+
 const base = {
   user: F.user,
   messageCount: h.length,
+  // T17 rel.reciprocity (WS-K): every lane's real call site folds the SAME
+  // message store, so it belongs in `base` rather than being repeated per
+  // lane — the shape of the wiring is itself the parity claim this table makes.
+  //
+  // The fold runs over a DEDICATED lopsided transcript rather than over `h`.
+  // Two reasons, and the second is the important one:
+  //   1. `h` is balanced, and `reciprocityNote` is silent on every balanced
+  //      window BY CONSTRUCTION — so a table row driven from `h` would read
+  //      DARK on all four lanes and say nothing about the wiring.
+  //   2. Perturbing `h` to make it lopsided would move T14's repetition
+  //      signal, T16's commitment ages and T5's memories for every lane at
+  //      once, i.e. it would pay for one row with four others.
+  // What this row therefore asserts is the thing that actually breaks: that
+  // all four call sites PASS the state. `evals/reciprocity.mjs` owns the
+  // content half.
+  reciprocity: E.reciprocityState(RECIPROCITY_LOPSIDED),
   isDirective: false,
   watching: false,
   herLife: herLifeWithNow,
@@ -188,6 +212,7 @@ const BLOCKS = [
   { id: "T15", what: "session.activity", chat: P, cascade: P, live: P,
     watch: "the watch compile passes no `activity`. A share starts MID-CALL and this prompt is frozen when it starts, so a board opened later cannot ride it either way; mid-call state travels by direct(). NOT stated at the call site — WS-SYNC+MEMEVAL flagged it for whoever owns useCallEngine.ts" },
   { id: "T16", what: "her.commitments", chat: P, cascade: P, live: P, watch: P },
+  { id: "T17", what: "rel.reciprocity", chat: P, cascade: P, live: P, watch: P },
   { id: "mp.roster", what: "multiparty roster", chat: "no roomBundle on a dyadic lane: the room layer is a separate surface (WS-TGBOT) and every dyadic fixture must render it as exactly zero bytes — gate G1",
     cascade: "no roomBundle on a dyadic lane — same G1 zero-byte property",
     live: "no roomBundle on a dyadic lane — same G1 zero-byte property",

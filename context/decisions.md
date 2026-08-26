@@ -2908,3 +2908,75 @@ judgment layer. Standing decisions it sets:
   wound (Replika + Character.AI both broke it publicly in April 2026;
   Delphi is conversation-scoped); teacher-clone seat empty; voice
   commoditized; consent UX becoming law. Positioning follows.
+
+## `disclosure-reciprocity-ledger` — track HER disclosure, not only his (2026-08-26)
+
+ROADMAP-100X item 1, built as `src/engine/reciprocity.ts` + T17
+`rel.reciprocity`. RelationalOS tracked the person deeply (vy_fact,
+vy_episode, vy_pattern, the whole citation graph) and the agent's own
+self-disclosure not at all; `herLife`/T7 is a ledger of what she has SAID so
+she cannot contradict herself, which answers "what have I claimed", never
+"have I given anything back lately".
+
+Rationale: the Kuki longitudinal study (Oxford IwC 35(1), via
+`docs/gurukul/research/relationalos-100x.md` §3) is the one finding in that
+sweep with a clean causal design rather than a leaderboard — user
+self-disclosure decayed over repeated sessions *specifically because the
+chatbot did not reciprocate*.
+
+Three sub-decisions, each with its own reason:
+
+- **NO MIGRATION.** The balance is a pure function of a trailing turn window
+  brain.ts already holds for T14. A table would cost a writer, a forget
+  cascade, a citation discipline a running ratio cannot satisfy, and a second
+  place holding one thing (`life-per-person`). texture.ts is the precedent.
+  Reverses if: a consumer needs the balance's HISTORY (a trend, "has this been
+  getting worse for a month") rather than its current value — a trailing
+  window structurally cannot answer that and a table becomes correct.
+- **DROP PRIORITY 0, extending the drop order DOWNWARD.** The house habit is
+  that a new tail slot takes a fresh HIGH number rather than renumbering, but a
+  fresh high number means MOST PROTECTED, and this is the cheapest block in the
+  tail. Renumbering the self layer to free up 1 would desynchronise nine rows
+  for a cosmetic block. Reverses if: measured evidence shows the note changes
+  retention, at which point it stops being cosmetic.
+- **THE NOTE CARRIES AN ANTI-FABRICATION FENCE.** "You have been holding back"
+  is a note a model can resolve by INVENTING a life detail, and an invented
+  detail contradicts T7 for the life of the relationship. The header says out
+  loud that the block is not a cue to talk about herself and never a reason to
+  invent anything new. Same reasoning as the activity block's "never add a
+  move" fence.
+
+Unmeasured, and stated as such: every threshold in the module is a principled
+default with no production cohort behind it. `evals/reciprocity.mjs` (80
+assertions) gates the machinery, not the thresholds.
+
+## `within-session-drift-gate` — the eval suite now tests a session, not a turn (2026-08-26)
+
+ROADMAP-100X item 2, built as `evals/drift.mjs`. Every eval in the tree tested
+a TURN; none tested a SESSION. The external literature this comes from
+(Identity Drift arXiv:2412.00804, ContextEcho arXiv:2605.24279) measures drift
+as a function of conversation LENGTH and names the mechanism as persona
+instructions occupying a shrinking fraction of context — which is invisible to
+a single-turn suite by construction, since the existing gates pass identically
+on a build whose anchors survive turn one and are shouldered out by turn forty.
+It is also an independent external corroboration of this repo's own
+`prompt-position` finding (0/8 mid-brief vs 8/8 appended last).
+
+The suite compiles a 44-turn session on both lanes and asserts, at EVERY turn:
+the appended-last rules are literally last and adjacent, the four safety-floor
+categories are present, the register bullets are on the call lane and absent
+from chat, CORE is byte-identical across the whole session (`cache-9x`), the
+stage paragraph matches its count across the band edge the sweep crosses, and
+the drop order sheds cosmetic before load-bearing over 44 turns x 7 caps.
+
+**The scope boundary is a decision, not an omission.** The suite measures THE
+PROMPT, not HER. Whether the model's register holds across forty turns needs a
+generation and a judge per turn; that arm is a PARAMETER of the file (a
+`Provider` seam) and today's default provider is a structural fake that reports
+`judged: false` in every row of its own table, so a fake score can never be
+read as a measurement. Reverses if: a keyed session runs the judged arm, at
+which point the seam is filled and the scope line moves.
+
+Every tail slot now carries a written DROP CLASS (cosmetic / relational /
+honesty-adjacent / floor) and the suite fails if a manifest row appears without
+one — a new slot with no class is a slot whose drop policy nobody decided.

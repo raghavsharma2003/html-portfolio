@@ -107,6 +107,8 @@ import { readsAsFarewell } from "../voice/farewell";
 // nothing at all), and the compiler slot has existed and rendered zero bytes
 // on this lane since it shipped — the caller is what was missing.
 import { herCommitments } from "../engine/honesty";
+// T17 rel.reciprocity (WS-K) — a pure fold over the message store, no I/O.
+import { reciprocityState } from "../engine/reciprocity";
 import { activityOf, activityPickupLine, lastAssessment, noteVerdict } from "../state/game";
 // WS-HERNOW. Her present moment as a LEDGER with one row rather than a fresh
 // improvisation at every pickup — see src/engine/herNow.ts.
@@ -1258,6 +1260,18 @@ export function useCallEngine(
       // zero bytes on every call. `raisedRecently` drops call turns itself, so
       // what this hands over is the store and the one rule decides.
       recentTurns: callRecentTurns(stateRef.current.messages),
+      // ── T17 rel.reciprocity (WS-K, ROADMAP-100X item 1) ─────────────────
+      // Wired on THIS lane at the same time as the chat lane rather than a
+      // wave later, because that asymmetry is the exact defect the two
+      // paragraphs above are the record of: a slot the chat lane fills and a
+      // call lane does not renders zero bytes on every call ever made, and
+      // nothing says so (`age-tier-never-realtime`).
+      //
+      // It reads the FULL store rather than `callRecentTurns` (T14's view,
+      // which drops call turns): disclosure is about the relationship, and a
+      // thing he told her on a call is a thing he told her. reciprocity.ts's
+      // own fold documents that divergence from repeat.ts at the source.
+      reciprocity: reciprocityState(stateRef.current.messages),
       // WHAT THEY ARE DOING. If a game is already on when the call connects,
       // she knows it the moment she picks up — she does not have to be told by
       // him that they are mid-game, which is what a person would never need.
@@ -2966,6 +2980,10 @@ export function useCallEngine(
         // T14, same reason and same input shape as the live compile: the slot
         // has been wired since it shipped and this lane never passed it.
         recentTurns: callRecentTurns(stateRef.current.messages),
+        // T17 rel.reciprocity, same input as the live compile above and for
+        // the same reason: a slot filled on three lanes and dark on the fourth
+        // is the lane-parity defect this file already carries two records of.
+        reciprocity: reciprocityState(stateRef.current.messages),
         // T15 session.activity is DELIBERATELY not passed here (coordinator,
         // 2026-08-23, confirming the lane-parity gate's recorded exemption):
         // a screen share starts mid-call and this prompt is frozen at share

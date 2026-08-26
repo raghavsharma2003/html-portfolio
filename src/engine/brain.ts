@@ -43,6 +43,9 @@ import type { ActivityState } from "./activity";
 // T-H2 (formatHerLife, below) reuses T9's overnight predicate rather than
 // re-deriving one. away.ts imports only ./timeline, so this adds no cycle.
 import { crossedNight } from "./away";
+// T17 rel.reciprocity (WS-K). A pure fold over the transcript — no I/O, no
+// clock, no table; see reciprocity.ts's header for why there is no migration.
+import { reciprocityState } from "./reciprocity";
 // WS-HERNOW. Her present moment as a ledger rather than a per-pickup roll.
 // herNow.ts imports only storyCatalog.ts (a leaf), so this adds no cycle —
 // the same check the away.ts line above documents for itself.
@@ -1469,6 +1472,19 @@ export async function think(
     // T14 rel.raised — the repetition signal is derived from the transcript
     // itself, so the transcript is the only input it needs.
     recentTurns: history,
+    // T17 rel.reciprocity — WS-K, ROADMAP-100X item 1. Derived from the SAME
+    // transcript T14 above reads, folded here rather than inside compile() for
+    // the reason `herCommitments` is folded here: compile() must stay a pure
+    // function of its input, and a fold with its own window is a second thing
+    // the byte-identity gate would have to compile twice and compare.
+    //
+    // It is wired at this ONE call site deliberately. `dead-writers` is this
+    // repo's law and a renderer nothing calls is indistinguishable from one
+    // that does not exist — a T-slot declared "wired" in the manifest with no
+    // producer anywhere would be exactly that. `reciprocityNote` returns "" for
+    // every balanced, thin or short window, so on the overwhelming majority of
+    // turns this changes nothing at all.
+    reciprocity: reciprocityState(history),
     // T16 her.commitments — the promises SHE made, visible instead of
     // silently forgotten (task #119; the slot renders zero bytes when empty)
     herCommitments: herCommitments(history, Date.now()),
