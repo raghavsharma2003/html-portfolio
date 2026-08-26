@@ -36,7 +36,7 @@ import {
 } from "./videoEnrollApi";
 
 const ATTESTATION_COPY: Record<VideoAttestation, string> = {
-  owns_or_controls_channel: "This is my channel — I own or control it.",
+  owns_or_controls_channel: "This is my channel. I own or control it.",
   is_rights_holder_of_uploads: "I am the rights holder of what I upload to it.",
   authorizes_audio_extraction_for_own_replica:
     "I authorise Vyakti to take the audio from this video to build MY replica.",
@@ -49,21 +49,21 @@ const ATTESTATION_COPY: Record<VideoAttestation, string> = {
 const REASON_COPY: Record<string, string> = {
   // The state this deploy is in today. Named, with the path that works.
   channel_extract_extractor_bot_check:
-    "YouTube would not serve our server — it asked it to sign in and prove it is not a bot. This happens to requests from datacentres and it is not about your video or your permission. Until we route around it, use the file upload step instead: download your own video from YouTube Studio and hand us the file.",
+    "YouTube would not serve our server. It asked it to sign in and prove it is not a bot. This happens to requests from datacentres, and it is not about your video or your permission. Until we route around it, use the file upload step instead: download your own video from YouTube Studio and hand us the file.",
   channel_extract_extractor_po_token_required:
     "YouTube asked for a proof-of-origin token our extractor does not have yet. Nothing is wrong with your video; use the file upload step for now.",
   channel_extract_extractor_signature_failed:
-    "Our extractor is out of date against YouTube's player. This is ours to fix — it needs a version bump, not anything from you.",
+    "Our extractor is out of date against YouTube's player. This is ours to fix: it needs a version bump, not anything from you.",
   channel_extract_video_unavailable:
     "YouTube says this video is private, members-only or removed. Check the link is public, then try again.",
   channel_binding_mismatch:
-    "That video does not belong to the channel you attested. We only take audio from a channel you have told us is yours — paste a video from that channel, or attest the channel this video is actually on.",
+    "That video does not belong to the channel you attested. We only take audio from a channel you have told us is yours. Paste a video from that channel, or attest the channel this video is actually on.",
   channel_extraction_unavailable:
     "Extraction is not configured on this deployment yet. The file upload step works today.",
   video_enroll_owner_daily_cap:
     "You have used your videos for today. This cap exists so open testing cannot exhaust the shared compute budget; it resets at midnight UTC.",
   video_enroll_global_daily_cap:
-    "The platform has hit its shared daily limit for video enrollments. Nothing is wrong with your account — try again after midnight UTC.",
+    "The platform has hit its shared daily limit for video enrollments. Nothing is wrong with your account. Try again after midnight UTC.",
   video_enroll_duration_over_cap: "That video is longer than this lane accepts.",
   video_enroll_bytes_over_cap: "That video's audio is larger than this lane accepts.",
   video_enroll_no_usable_window:
@@ -75,7 +75,7 @@ const REASON_COPY: Record<string, string> = {
   asr_unavailable:
     "We got your voice reference, but the transcription service was unavailable, so there is no lecture text yet.",
   replica_not_found: "We could not find that replica under your account.",
-  slow_down: "Too many requests in a row — wait a moment and try again.",
+  slow_down: "Too many requests in a row. Wait a moment and try again.",
 };
 
 function reasonFor(code: string): string {
@@ -86,7 +86,7 @@ function reasonFor(code: string): string {
 }
 
 function clock(ms: number | null | undefined): string {
-  if (ms == null || !Number.isFinite(ms)) return "—";
+  if (ms == null || !Number.isFinite(ms)) return "?";
   const total = Math.round(ms / 1000);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
@@ -151,7 +151,7 @@ export default function VideoEnrollPanel({ token, replicaId }: Props) {
     <section className="studio-panel" aria-labelledby="video-enroll-heading">
       <h2 id="video-enroll-heading">Make a clone from one video</h2>
       <p>
-        Paste a link to one of your own videos — a lecture, a talk, anything
+        Paste a link to one of your own videos: a lecture, a talk, anything
         where you are the one speaking. We take the audio, find the clearest ten
         seconds of your voice <em>anywhere</em> in it, and use that as the
         reference. The opening does not have to be clean.
@@ -210,7 +210,7 @@ export default function VideoEnrollPanel({ token, replicaId }: Props) {
       </fieldset>
 
       <button type="button" disabled={busy || !allTicked || !videoUrl || !channelUrl} onClick={() => void submit()}>
-        {busy ? "Working — this takes a few minutes…" : "Make the clone from this video"}
+        {busy ? "Working. This takes a few minutes." : "Make the clone from this video"}
       </button>
       {!allTicked && (
         <p className="studio-note">All five need to be true before we can start.</p>
@@ -222,7 +222,7 @@ export default function VideoEnrollPanel({ token, replicaId }: Props) {
         <div className="studio-result">
           <h3>Your voice reference</h3>
           <p>
-            We used <strong>{clock(window.start_ms)}–{clock(window.end_ms)}</strong> of your video.
+            We used <strong>{clock(window.start_ms)} to {clock(window.end_ms)}</strong> of your video.
             {result.stats?.head_window_rank === null
               ? " The opening ten seconds were not usable at all, which is exactly the case this step exists for."
               : result.stats?.selected_over_head_delta
@@ -230,7 +230,7 @@ export default function VideoEnrollPanel({ token, replicaId }: Props) {
                 : ""}
           </p>
           <p className="studio-note">
-            Scored by {window.score_source} — a signal-quality measure of the
+            Scored by {window.score_source}, a signal-quality measure of the
             recording, not a measurement of how much the clone sounds like you.
             That one needs a listening test.
           </p>
@@ -245,7 +245,7 @@ export default function VideoEnrollPanel({ token, replicaId }: Props) {
             </p>
           )}
           {result.enrollment.transcript_chars ? (
-            <p>We also transcribed the whole lecture — {result.enrollment.transcript_chars.toLocaleString()} characters, waiting for you in your sheet draft.</p>
+            <p>We also transcribed the whole lecture: {result.enrollment.transcript_chars.toLocaleString()} characters, waiting for you in your sheet draft.</p>
           ) : (
             <p className="studio-note">No transcript came back for this one.</p>
           )}
@@ -255,7 +255,7 @@ export default function VideoEnrollPanel({ token, replicaId }: Props) {
               <ul>
                 {result.enrollment.windows.map((candidate) => (
                   <li key={candidate.start_ms}>
-                    #{candidate.rank} {clock(candidate.start_ms)}–{clock(candidate.end_ms)} · score {candidate.score?.toFixed(3)} · {Math.round(candidate.voiced_fraction * 100)}% voiced · {candidate.snr_db.toFixed(1)} dB
+                    #{candidate.rank} {clock(candidate.start_ms)} to {clock(candidate.end_ms)} · score {candidate.score?.toFixed(3)} · {Math.round(candidate.voiced_fraction * 100)}% voiced · {candidate.snr_db.toFixed(1)} dB
                     {candidate.speaker_purity === null ? " · one-speaker check did not run" : ` · ${Math.round(candidate.speaker_purity * 100)}% one speaker`}
                   </li>
                 ))}

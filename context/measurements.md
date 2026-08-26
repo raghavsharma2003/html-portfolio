@@ -3613,3 +3613,114 @@ Two further readings:
   this ranking is untested.
 - Still speaker-embedding cosine, still no ABX, still says nothing about how
   any of these sound.
+
+---
+
+## youtube-extraction-blocked-from-azure
+
+**Date:** 2026-08-26. **Who:** WS-AD. **Cost:** ~$0.05 (one ACR build, a few
+minutes of 1-vCPU Container Apps uptime, two short diagnostic job runs).
+
+**The question this answers is the one the whole channel lane was waiting on:
+does our YouTube extraction work from Azure at all?** `docs/gurukul/youtube-
+extraction-posture.md` §3 predicted it would not and said so in writing
+("Nothing here is measured… the first live attempt from an Azure egress has a
+material chance of returning `channel_extract_extractor_bot_check`"). It is now
+measured. The prediction was right, and one half of the lane works anyway.
+
+### What was deployed
+
+`services/media-extract` built by ACR Task from the WS-AD worktree tarball
+(**87 s**, digest `sha256:b5e23f0b…`) and deployed as container app
+`vyakti-media-extract` into the existing `vyakti-voice-env`: Consumption (CPU)
+profile, 1 vCPU / 2 GiB, external ingress behind its own HMAC admission,
+`minReplicas: 0`. Startup/Readiness/Liveness probes all three, per WS-L's §6 —
+readiness alone crash-loops. Upload host pinned to
+`vyaktivoicewsu.blob.core.windows.net`.
+
+| probe | result |
+|---|---|
+| `GET /healthz`, cold from zero replicas | **200 in 47.9 s** — yt-dlp `2026.08.19` |
+| `POST /v1/enumerate`, signed, real channel | **200 in 13.9 s**, 5 real video ids with durations |
+| `POST /v1/extract`, signed, real video | **502 `extractor_bot_check` in 2.4–3.4 s** |
+
+### The lever sweep
+
+Method: a Container Apps **Job** on the same image in the same managed
+environment, so its egress is the production egress, with `yt-dlp` run directly
+and its stderr read out of Log Analytics — the service returns opaque codes by
+design, so this is the only way to see the real message. Egress IP observed:
+**20.207.113.242** (Azure Central India). One video (`Q5_BtWc-G7Y`, NASA — US
+Government work, public domain, chosen for the cleanest possible consent
+posture on a research smoke test).
+
+**n = 10 player clients × 1 video, one job execution, all ten identical:**
+
+```
+default, android, android_vr, ios, tv, tv_simply, mweb,
+web_embedded, web_safari, visionos
+  → ERROR: [youtube] Sign in to confirm you're not a bot.
+```
+
+**Flat-playlist enumeration from the same job, same second: SUCCEEDED** — three
+real video ids returned. The channel-listing path does not go through the
+player API and is not blocked.
+
+### The control that makes the sweep trustworthy
+
+The first sweep of four clients was **invalid and reported a false result**. A
+`PATCH` to a container app returns `provisioningState: Succeeded` before the new
+revision carries traffic, so four "lever" measurements were taken against the
+old revision. Caught by a negative control — setting `MEDIA_EXTRACT_PROXY` to a
+dead address (`http://127.0.0.1:9`) and asserting the error CHANGES. It did not,
+which is impossible if the lever were reaching yt-dlp. After waiting on
+`runningState: Running` **and** `trafficWeight: 100`, the same control returned
+`extractor_failed` instead of `extractor_bot_check` — a different code — and
+only then were lever results recorded. See
+`rejected.md#provisioning-succeeded-is-not-serving`.
+
+### A local control, for comparison
+
+The same yt-dlp version from this sandbox's (also datacenter) egress:
+metadata succeeded for the first two requests, then bot-checked; with
+`player_client=android` metadata came back but the media fetch **403**ed. So the
+failure is graded by IP reputation, and Azure Central India sits at the harsh
+end: it is refused at metadata, before a stream URL is ever issued.
+
+### What this does and does not settle
+
+- **Settled:** lever 1 (player-clients) does not work from this egress. n=10, all
+  clients yt-dlp 2026.08.19 offers.
+- **Settled:** the back-catalogue enumeration lane WORKS from Azure today. That
+  is a live capability nobody had verified before.
+- **NOT tried:** lever 2 (cookies) and lever 3 (proxy). Both need credentials
+  this session does not have — a YouTube account cookie jar, or a residential
+  proxy subscription. Neither was guessed at. Note the posture doc's own source
+  warns that cookies used from a datacenter IP tend to get the ACCOUNT banned,
+  so lever 2 is a decision with a cost attached, not a config change.
+- **NOT measured:** whether the media fetch would succeed if metadata did. From
+  Azure we never got far enough to find out; the local control says the stream
+  URL 403s there, which is weak evidence it would also need work.
+
+## media-extract-cost-per-video
+
+**Date:** 2026-08-26. **Who:** WS-AD. **Method:** wall clock on live service
+responses, Central India list prices.
+
+Per-video CPU cost of the extraction step, at the measured rates:
+
+| stage | measured | est. cost |
+|---|---|---|
+| cold start (`/healthz` from 0 replicas) | **47.9 s** of 1-vCPU/2 GiB | ~$0.0006 |
+| `/v1/enumerate`, warm | **13.9 s** | ~$0.0002 |
+| `/v1/extract`, refused at bot check | **2.4–3.4 s** | ~$0.00004 |
+| ACR Task build of the image | **87 s** on a 2-vCPU agent | ~$0.003 (one-off) |
+
+**A successful 15-minute extraction has never run, so its cost is UNMEASURED.**
+The honest bound is that extraction is dominated by download plus an ffmpeg
+transcode of ~15 min of audio on 1 vCPU, and neither has been observed. What
+IS established: the CPU lane is roughly three orders of magnitude cheaper than
+the GPU lane (`AZURE-DEPLOY-STATE.md` §9: ~$0.53–0.60/hr of T4), so extraction
+is not where this product's money goes — cold starts on the GPU side still are.
+
+Total WS-AD spend: **~$0.05**, against the session's smoke-test allowance.

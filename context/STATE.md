@@ -8,6 +8,7 @@ the project stands. Deep history lives in `decisions.md` / `rejected.md` /
 Last updated: 2026-08-26 (WS-W: "Preview my voice" — the owner-facing panel, and the cold start told honestly)
 Last updated: 2026-08-26 (WS-U: per-speaker fine-tuning built, and its delta measured)
 Last updated: 2026-08-26 (WS-X: the Mirror Call backend — approval as one SQL clause, and a voice loop that selects rather than accumulates)
+Last updated: 2026-08-26 (WS-AD: media-extract deployed to Azure and run against real YouTube — the bot check is REAL and measured; the one-link enrollment lane built around it)
 
 ## What the product is
 
@@ -63,7 +64,8 @@ service response, not a claim.
 | **ASR (Sarvam)** | **WORKS** | sync `saarika:v2.5` 25 s → 200 in 4 134 ms (**hard 30 s cap**); batch `saaras:v3` 71 s → **5 diarized turns in 137 s**. `saarika:v2` is deprecated. |
 | **transcript → sheet draft** | **WORKS** | 5 turns, 127 tokens, **92 honest `gaps`**, 8 phrase candidates. |
 | **upload → finalize** | **finalize was BROKEN; fixed in tree, deployment behind it** | `replicaObjectInfo` parsed a HEAD-style route as JSON, so EVERY finalize failed closed and **nothing downstream of storage had ever executed for anyone**. One redeploy away. |
-| **YouTube extraction** | built, gate live, **never run against real YouTube** | Datacenter IPs (Azure included) get `LOGIN_REQUIRED`/bot-check before a stream URL is returned. Expect `channel_extract_extractor_bot_check` on first real sweep; levers: player-clients → cookies → proxy. |
+| **YouTube extraction** | **RUN, and the answer is split** | `services/media-extract` is DEPLOYED (`vyakti-media-extract`, Azure Container Apps, CPU, scale-to-zero, yt-dlp 2026.08.19, `/healthz` 200 in 47.9 s cold). Against real YouTube from that egress: **`/v1/enumerate` WORKS** (200 in 13.9 s, real ids — first ever live run of the channel lane) and **`/v1/extract` is BLOCKED** — `extractor_bot_check` in 2–3 s at the metadata probe, on **all 10** player clients yt-dlp offers. Lever 1 is exhausted; levers 2 (cookies) and 3 (proxy) need credentials nobody has yet and were NOT guessed at. `youtube-extraction-blocked-from-azure`. |
+| **One link → one clone** (WS-AD) | code-complete, gated offline, **extraction step blocked upstream** | `/api/video-enroll`, `api/_video-enroll{.js,/windows.js,/quota.js}`, migration **060**, `src/studio/VideoEnrollPanel.tsx`. Paste one video URL → attest the channel (WS-S's table, reused) → extract → **score every ~10 s window and condition on the best one anywhere in the video** → ASR → sheet draft. `evals/videoenroll.mjs`, 80 checks, wired into `evals/run.mjs`. Migration 060 UNAPPLIED; `promoteReference` is a declared seam this deploy does not supply, so `reference_promoted` is false and says so. |
 
 **Known-open, deliberately not guessed at:**
 - Code-switch ratio reads 0.000 on visibly bilingual speech — `HINDI_MARKER_WORDS` is romanised, Sarvam returns Devanagari. Needs a decision (transliterate / extend lexicon / different model), not a patch.
@@ -211,6 +213,7 @@ service response, not a claim.
    `503 open_voice_origin_required` and the studio panel can never produce
    audio. This is the single blocker on the first owner ever hearing their own
    clone in a browser.
+
 8. **Decide whether the broker gets a cheap readiness route.** Today nothing in
    the app plane can wake or observe the private GPU runtime except a real
    `POST /v1/synthesize`, so every cold start costs a wasted synthesis. A
@@ -218,6 +221,22 @@ service response, not a claim.
    that; it is a service change, not an app-plane one, and was deliberately not
    guessed at (`rejected.md#broker-healthz-is-a-front-door-not-a-readiness-check`).
 
+9. **Decide the YouTube lever** — the one blocker on "paste a link and get a
+   clone" working for anybody. Extraction from Azure is refused at the bot
+   check and lever 1 is measured dead
+   (`measurements.md#youtube-extraction-blocked-from-azure`). The remaining
+   two both cost something and are the owner's call, not an engineer's:
+   **cookies** (a YouTube account's cookie jar — and the sources warn the
+   account itself tends to get banned when used from a datacenter IP), or a
+   **residential proxy** subscription. A third option nobody has costed: a
+   PO-token provider plugin. Until one lands, the honest product answer is the
+   one the studio already gives — download your own video from YouTube Studio
+   and upload the file — and the CHANNEL LISTING lane works today regardless.
+10. **Apply migration 060** (single-video enrollment) alongside 055 and 058.
+11. **Set `AZURE_MEDIA_EXTRACT_ORIGIN` and `MEDIA_EXTRACT_HMAC_SECRET` on
+    Vercel.** The service is live and the app plane cannot reach it without
+    them; both are recoverable from the container app's `listSecrets`, the same
+    way §"Secret recovery" describes for the voice pair.
 ## The laws a new session must not relearn
 
 - `offline-mocks-cannot-type-check-sql` — a mocked DB proves control flow, not
