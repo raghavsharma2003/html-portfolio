@@ -2830,3 +2830,63 @@ at every multiple of two.
 `counterbalanceReport()` printing `position balanced false` on the first
 self-test run. The check was written before the bug existed, because the whole
 suite was written on the assumption that the blinding would be wrong somewhere.
+
+## `broker-healthz-is-a-front-door-not-a-readiness-check` — the probe that cannot see the thing it is probing (2026-08-26, WS-W)
+
+**What was tried.** Building the panel's warm-up on the obvious reading of
+`AZURE-DEPLOY-STATE.md` §8 and `rejected.md#hmac-skew-shorter-than-cold-start`:
+ping `/healthz`, and when it answers 200, the voice lane is ready.
+
+**What broke.** It is ready in the sense that matters for `voice-evidence` and
+in no other sense. `services/open-voice-runtime/broker.py` serves `/healthz`
+from `app.state.ready`, which is the **CPU admission broker's own** lifespan
+flag. The broker exposes exactly two routes — `/healthz` and
+`POST /v1/synthesize` — and the private GPU app is environment-internal, so
+**nothing in the app plane can observe the runtime's state, and nothing but a
+real synthesis can wake it.** A 200 from `/healthz` costs about a cent of CPU
+and proves the runtime nothing.
+
+Two consequences that were nearly got backwards:
+
+- The two cold starts fail in **different shapes**. A cold *broker* is the
+  401-skew hazard, because the signature is minted before the wake and verified
+  after it. A cold *runtime* is a **timeout**, because the broker verifies the
+  signature the moment the request lands and only then forwards it — the 161 s
+  boot happens entirely after admission. Reporting the second as the first
+  (STATE.md's summary line reads that way) would have sent someone hunting a key
+  rotation for a latency problem.
+- A wake cannot be a fire-and-forget with an abort. The first version raced the
+  synthesis against a timer and aborted the `AbortSignal` when the timer won.
+  That cancels the request at the broker, so the GPU replica is never scheduled
+  and the wake is undone by the timeout meant to survive it. The dispatch now
+  leaves the promise running with its own 210 s budget and only stops WAITING.
+
+**What was deliberately NOT done.** Widening the skew window (rejected at
+`hmac-skew-shorter-than-cold-start`, and it buys nothing a warm-up does not).
+Adding a broker route that wakes the GPU app cheaply — that is a service change
+on a branch that is not pushed, and it is the right fix; it is written down as
+an owner item rather than guessed at here.
+
+## `warming-that-does-not-clear-warm` — a 504 that left us still believing the runtime was up (2026-08-26, WS-W)
+
+**What was tried.** Modelling warmth as two independent timestamps —
+`lastReadyAt` set by a success, `lastWakeAt` set by a dispatched wake — and
+reading "warm if ready is recent, else warming if a wake is recent".
+
+**What broke.** Caught by `evals/voicepanel.mjs` before it shipped, on the one
+sequence that matters: a runtime that had answered once and then returned
+`open_voice_http_504`. The failure path notes `waking`, but `lastReadyAt` was
+still inside its 240 s TTL, so `read()` kept answering **warm** — and the next
+click therefore took the BLOCKING path against a service that had just told us
+it was booting. The state machine's own recovery path put it back into the
+four-minute hang it exists to prevent.
+
+**The fix used.** `waking` clears `lastReadyAt`. A wake and a ready belief are
+mutually exclusive by construction rather than by ordering.
+
+**Why it is written down.** The bug is invisible to any test that drives the
+states in isolation; it needs the *sequence* ready → failure → click. That is
+the general shape — a state machine whose transitions are each correct and whose
+composition is not — and the assertion that caught it ("a 504 clears the warm
+belief so the next click waits properly") is the one to keep if this file is
+ever tidied.

@@ -3429,3 +3429,32 @@ speaker-embedding similarity is not perceptual quality, and our own
 blind ABX bench in `docs/gurukul/research/voice-stack.md` is what settles
 that. The number is also ZERO-SHOT: no per-speaker fine-tune has run, so
 0.7753 is the floor this stack reaches with no training at all.
+
+## `voice-panel-admission-probe` — the wake path, against the live broker (2026-08-26, WS-W)
+
+**Scope line, stated before the numbers: this is the UNAUTHENTICATED front-door
+probe only.** It measures `probeAdmissionHealth`'s round trip to the public
+admission broker. It is **not** an end-to-end synthesis, it says nothing about
+the GPU runtime's state, and no clip was generated — `AZURE_OPEN_VOICE_ORIGIN`
+and `OPEN_VOICE_HMAC_SECRET` are both absent from this environment, so the
+signed half of the lane has never run from this code.
+
+Method: `GET {broker}/healthz`, from the build sandbox, 2026-08-26. Endpoint
+from `AZURE-DEPLOY-STATE.md` §2 (an endpoint, not a secret).
+
+| probe | n | result |
+|---|---|---|
+| `curl` first contact | 1 | **200 in 1 034 ms** |
+| `probeAdmissionHealth()`, immediately after | 3 | **200 in 250 / 253 / 334 ms**, 1 attempt each |
+
+Consistent with WS-L's measured **0.8 s warm** and materially under their
+measured **21.8 s cold-from-zero**, so the broker was already awake and **no
+cold start was observed here**. The 21.8 s figure remains the one to plan
+against; `WARMUP.healthBudgetMs` is 45 s for exactly that reason, and sits
+under the broker's own 60 s skew window so that whatever is signed afterwards
+is signed against a broker proven awake.
+
+**Not measured, and needing the live deployment:** the panel's warm round trip,
+its cold-start wall clock, and whether the 12 s flush window is long enough for
+the platform to have begun scheduling the GPU replica. That last one is the
+assumption the design rests on and it is untested.

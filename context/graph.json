@@ -2248,6 +2248,42 @@
       "at": "2026-08-26"
     },
     {
+      "id": "preview-cold-start-is-a-state",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "The studio's Preview my voice panel answers with three outcomes - audio, error, and a structured 202 warming - because the GPU runtime is ready at 161 s and the request that wakes it dies at 242 s"
+    },
+    {
+      "id": "voice-panel-admission-probe",
+      "kind": "measurement",
+      "at": "2026-08-26",
+      "title": "probeAdmissionHealth against the live admission broker: 200 in 250/253/334 ms warm (n=3), first contact 1 034 ms; the SIGNED half never ran, no credentials"
+    },
+    {
+      "id": "broker-healthz-is-a-front-door-not-a-readiness-check",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "/healthz reports the CPU broker's own lifespan flag; nothing in the app plane can observe the private GPU runtime and nothing but a real synthesis can wake it"
+    },
+    {
+      "id": "warming-that-does-not-clear-warm",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "Independent ready/wake timestamps left a 504 still reading warm, so the next click took the blocking path against a booting service"
+    },
+    {
+      "id": "voice-preview-panel",
+      "kind": "component",
+      "at": "2026-08-26",
+      "title": "api/voice-preview.js + api/_voice/{warmup,preview-panel}.js + src/studio/VoicePreviewPanel.tsx - the owner's one-button preview, gated offline by evals/voicepanel.mjs"
+    },
+    {
+      "id": "voice-panel-has-never-synthesised",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "The panel's synthesis half has never run: no Azure credentials in the build sandbox, so warm latency, cold wall clock and the 12 s flush-window assumption are all untested"
+    },
+    {
       "id": "owner-intent-is-the-spec",
       "kind": "decision",
       "title": "owner states intent; platform fills every gap \u2014 product/UX quality is a hard bar, not polish",
@@ -4204,6 +4240,36 @@
       "src": "explain-is-the-only-parser-we-have",
       "rel": "constrains",
       "dst": "forget-follows-the-person"
+    },
+    {
+      "src": "preview-cold-start-is-a-state",
+      "rel": "caused_by",
+      "dst": "hmac-skew-shorter-than-cold-start"
+    },
+    {
+      "src": "preview-cold-start-is-a-state",
+      "rel": "measured_by",
+      "dst": "voice-panel-admission-probe"
+    },
+    {
+      "src": "preview-cold-start-is-a-state",
+      "rel": "caused_by",
+      "dst": "broker-healthz-is-a-front-door-not-a-readiness-check"
+    },
+    {
+      "src": "voice-preview-panel",
+      "rel": "caused_by",
+      "dst": "preview-cold-start-is-a-state"
+    },
+    {
+      "src": "warming-that-does-not-clear-warm",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "voice-panel-has-never-synthesised",
+      "rel": "blocks",
+      "dst": "voice-preview-panel"
     },
     {
       "src": "owner-intent-is-the-spec",

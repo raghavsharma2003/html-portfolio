@@ -909,6 +909,30 @@ const suites = {
   // the database (relcheck is what catches that); it can see every table this
   // repo wrote a migration for, on a laptop with no secrets.
   persontables: "persontables.mjs",
+
+  // WS-W. The studio's "Preview my voice" panel — the first surface where an
+  // owner interacts with their own clone, and the first one that has to tell
+  // the truth about a GPU runtime that scales to zero.
+  //
+  // Wired here rather than left standalone for the ordinary `dead-writers`
+  // reason and one specific to this panel: two of the things it checks are
+  // ABSENCES, and an absence has no other witness. A caller who does not own
+  // the replica must not cause a read of the private bucket or a second of
+  // GPU; the suite counts both as zeros, with a positive control proving the
+  // counters can move and a negative control (the owner predicate struck out
+  // of the fence) proving the refusal comes from the owner binding.
+  //
+  // It also holds the third outcome. Audio-or-error is the shape every future
+  // refactor will want to collapse this back into, and the measured facts in
+  // AZURE-DEPLOY-STATE.md §8 say that shape cannot be honest: the runtime is
+  // ready at 161 s and the request that woke it dies at 242 s. And it keeps
+  // `rejected.md#hmac-skew-shorter-than-cold-start` from being re-learned —
+  // nothing may be signed until the unauthenticated /healthz answers 200, and
+  // a wrong key must never be reported as a cold start.
+  //
+  // Offline, deterministic, $0, no DB and no network: the real fence, the real
+  // warm-up module and the real handler on a virtual clock.
+  voicepanel: "voicepanel.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

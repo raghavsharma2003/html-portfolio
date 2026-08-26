@@ -190,3 +190,45 @@ run each to learn:
 - **`voice_quality` takes at most 4 inputs per call**, and
   `DEFAULT_FIDELITY_POLICY` wants >=2 references and >=3 candidate windows. Four
   equal windows per side is the most evidence one call each can carry.
+
+## `voice-preview-panel` — the owner's one-button preview (WS-W, 2026-08-26)
+
+```
+studio (browser)                      Vercel                     Azure
+──────────────────                    ──────                     ─────
+VoicePreviewPanel.tsx
+  └ voicePanelApi.ts ──POST /api/voice-preview──> voice-preview.js
+                                                    │ requireUser()  (Supabase)
+                                                    │ allow(ip) / allow(user)
+                                                    ▼
+                                        _voice/preview-panel.js
+                                          │ capPanelText (280)
+                                          │ beginOwnedVoicePreview ──> Neon
+                                          │      (the ownership + consent fence)
+                                          │ probeAdmissionHealth ─GET /healthz─> broker
+                                          │      (unauthenticated; nothing signed yet)
+                                          │ warmth: warm | warming | cold
+                                          │ readPrivateReplicaObject ──> Supabase bucket
+                                          ▼
+                                   open-chatterbox-preview.js ─HMAC POST /v1/synthesize─>
+                                          │                        broker ──> private GPU
+                                          │ assertSynthesisResult (disclosure)
+                                          │ provider verifies PerTh before returning
+                                          ▼
+                                   _provenance/delivery.js  (watermark, C2PA, ledger)
+                                          ▼
+   200 audio/wav  |  202 {state:"warming"}  |  4xx/5xx {state:"error"}
+```
+
+Three things about this shape are load-bearing:
+
+- **The three-outcome contract.** `202 warming` is not an error dressed up; it
+  is what the panel returns when the GPU runtime is asleep, and the UI renders
+  it as a countdown that retries itself. `preview-cold-start-is-a-state`.
+- **The HMAC secret never leaves the Vercel function.** The browser talks only
+  to `/api/voice-preview`; the broker origin and the signing key exist only in
+  `open-chatterbox-preview.js`'s process. `evals/voicepanel.mjs` asserts both
+  client files are free of either.
+- **The fence is shared, not forked.** `beginOwnedVoicePreview` is the same
+  predicate the calibration lab uses. The panel adds a tighter text cap and a
+  tighter rate bucket and subtracts nothing.

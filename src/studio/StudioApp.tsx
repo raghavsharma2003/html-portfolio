@@ -39,6 +39,7 @@ import CandidateEvaluationLab from "./CandidateEvaluationLab";
 import VoiceEnrollmentLab from "./VoiceEnrollmentLab";
 import ModelConsentGate from "./ModelConsentGate";
 import VoicePreviewLab from "./VoicePreviewLab";
+import VoicePreviewPanel from "./VoicePreviewPanel";
 import TeacherSheetStudio from "./TeacherSheetStudio";
 import ChannelsStudio from "./ChannelsStudio";
 import IngestChannelStudio from "./IngestChannelStudio";
@@ -695,6 +696,21 @@ function ReplicaWorkspace({
               />
             </>
           )}
+
+          {/* WS-W. "Preview my voice" sits in the DEFAULT path, above the
+              advanced surface, on purpose: it is the first moment an owner
+              meets their own clone, and it was previously reachable only
+              inside a collapsed expert section as one control of a
+              seven-condition calibration lab. VoicePreviewLab is still down
+              there and still does the calibration work — this panel is the one
+              button, and it is the only surface that models the runtime's cold
+              start as a state rather than as a hung request. */}
+          <VoicePreviewPanel
+            key={`hear-voice-${replica.replica_id}`}
+            token={accessToken}
+            replicaId={replica.replica_id}
+            onAuthError={onReviewAuthError}
+          />
 
           {/* Progressive disclosure (WS-P): in teacher mode, everything below
               this line is the expert / verification path — identity,
