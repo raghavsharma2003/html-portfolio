@@ -50,7 +50,14 @@ mv dist/index.html dist/chat.html
 # (the vyakti product's branch) — so the replica project shows the studio at /
 # with no per-project env var, while the companion branch keeps Meera's landing.
 if [ "${STUDIO_ROOT:-}" = "1" ] || [ "${VERCEL_GIT_COMMIT_REF:-}" = "claude/gurukul-platform" ]; then
-  printf '<!doctype html><meta http-equiv="refresh" content="0;url=/studio?mode=teacher"><link rel="canonical" href="/studio"><title>Vyakti Studio</title>' > dist/index.html
+  # Vyakti's own landing, not a redirect. `/` used to be a one-line meta
+  # refresh into /studio?mode=teacher, which meant the product had no
+  # indexable page at all, no way to explain itself before asking a teacher
+  # for a government ID, and a browser tab that said "Replica Studio" to a
+  # stranger. site/vyakti.html is self-contained (its CSS is inline) so it
+  # needs no second cp line and no coupling to Meera's site/styles.css, which
+  # scripts/check-contrast.mjs reads by name. See docs/gurukul/DESIGN-SYSTEM.md.
+  cp site/vyakti.html dist/index.html
 else
   cp site/index.html dist/index.html
 fi

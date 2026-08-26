@@ -2324,6 +2324,24 @@
       "kind": "open",
       "title": "the client contract in mirrorCallApi.ts has never spoken to a running api/mirror-call.js - WS-X's branch was not on origin when the UI landed",
       "at": "2026-08-26"
+    },
+    {
+      "id": "journey-is-a-surface-not-a-stack",
+      "kind": "decision",
+      "title": "the studio journey gets one owner, a design system with values, and an ordered queue; no literal in a status position",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "demo-sheet-on-the-consent-screen",
+      "kind": "open",
+      "title": "every teacher is shown the demo teacher name on the disclosure consent screen (StudioApp passes DEMO_TEACHER)",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "student-disclosure-has-no-ui",
+      "kind": "open",
+      "title": "the student surface has no session-open disclosure card; disclosure there rides on a prompt field, not a predicate",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -4391,6 +4409,21 @@
       "src": "mirror-call-ui",
       "rel": "blocks",
       "dst": "mirror-call-contract-unverified"
+    },
+    {
+      "src": "owner-intent-is-the-spec",
+      "rel": "constrains",
+      "dst": "journey-is-a-surface-not-a-stack"
+    },
+    {
+      "src": "journey-is-a-surface-not-a-stack",
+      "rel": "blocks",
+      "dst": "demo-sheet-on-the-consent-screen"
+    },
+    {
+      "src": "journey-is-a-surface-not-a-stack",
+      "rel": "blocks",
+      "dst": "student-disclosure-has-no-ui"
     }
   ]
 }

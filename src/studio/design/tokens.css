@@ -1,0 +1,203 @@
+/* tokens.css — the Vyakti studio's design system, as values.
+ *
+ * WHY THIS FILE EXISTS, AND WHY IT IS NOT INSIDE studio.css
+ * ---------------------------------------------------------------------------
+ * `studio.css` already opens a `@layer tokens` block with a good palette in it
+ * (paper, forest, signal, danger, three radii, three families). That palette is
+ * not the problem. The problem is that NOTHING ELSE in 2 700 lines of studio
+ * CSS is tokenised: type sizes run 9/10/11/12/13/14/18px picked per component,
+ * spacing runs 4/5/6/7/8/9/10/11/12/14/16/18/20/22/24/26/32/42/46px, radii run
+ * 9/10/11/12/16/17/20/28/99/999px while `--radius-sm|--radius|--radius-lg` sit
+ * defined and bypassed, and there is not one motion token anywhere in a repo
+ * that gates motion with a lint. Ten parallel workstreams each picked a value
+ * that looked right next to the value beside it, which is exactly how a union
+ * of good components becomes an incoherent product.
+ *
+ * So this file is the SCALE, and studio.css keeps the palette. It is a separate
+ * file for a mechanical reason as much as a conceptual one: `studio.css` is
+ * being edited concurrently by other workstreams, and a shared scale that only
+ * exists as a diff inside a contended file is a scale that loses a merge.
+ *
+ * ORDERING. `main.tsx` imports this BEFORE `studio.css`. Both write into the
+ * `tokens` cascade layer, so on any name declared in both, studio.css (later in
+ * source order, same layer) wins. That is deliberate: this file adds, it does
+ * not overrule. The `@layer` statement below restates studio.css's own layer
+ * order verbatim so that importing this first cannot reorder the cascade.
+ *
+ * WHAT THE SCALE IS FOR. A token is worth having only if a reviewer can answer
+ * "which one?" without opening another file. So every scale below is short,
+ * every step is named for its JOB rather than its size, and where an existing
+ * studio value is the odd one out it is left alone rather than silently moved:
+ * migration is `docs/gurukul/UX-QUEUE.md`'s work, one component at a time,
+ * with eyes on it. Adding a token changes nothing on screen. That is the point
+ * of landing it while three workstreams are mid-flight.
+ *
+ * The identity these values serve is written down in
+ * `docs/gurukul/DESIGN-SYSTEM.md`. Read that before changing a number here.
+ */
+
+@layer reset, tokens, base, components, responsive;
+
+@layer tokens {
+  :root {
+    /* ── TYPE ────────────────────────────────────────────────────────────
+     * Six sizes, ~1.2 ratio, each named for what it does. The studio's real
+     * problem is not that 11px exists; it is that 9px, 10px and 11px all
+     * exist and mean the same thing (a caption), so three components caption
+     * at three sizes on one screen.
+     *
+     * `--text-micro` is 11px and is the FLOOR. The studio currently ships 9px
+     * and 10px caption text (studio.css `.artifact-title > span`,
+     * `.pipeline-step span`, `.review-controls label span`, `.review-decision`)
+     * — that is below the size at which a teacher on a phone reads a consent
+     * label, and consent labels are the last copy in this product that may be
+     * hard to read. Nothing is resized by this file; the floor is declared so
+     * the queue has a number to migrate toward.
+     */
+    --text-micro: 11px;   /* uppercase eyebrows, metadata, receipt stamps */
+    --text-small: 12px;   /* secondary body, help text, chip labels */
+    --text-body: 14px;    /* default body and control text */
+    --text-lead: 16px;    /* panel lede, the sentence that carries a step */
+    --text-title: 20px;   /* h3 / panel title */
+    --text-heading: 26px; /* h2 / section heading */
+    --text-display: clamp(30px, 4.2vw, 42px); /* h1 only, once per screen */
+
+    --leading-tight: 1.25;  /* headings */
+    --leading-snug: 1.45;   /* controls, chips, dense rows */
+    --leading-body: 1.6;    /* paragraphs a teacher actually reads */
+
+    /* Three weights, not five. 750 and 800 both appear in studio.css today
+     * and are indistinguishable at 11px on the ground this product paints. */
+    --weight-normal: 400;
+    --weight-medium: 600;
+    --weight-strong: 800;
+
+    --tracking-caps: 0.06em; /* the ONE tracking value; eyebrows use it */
+
+    /* ── SPACE ───────────────────────────────────────────────────────────
+     * A 4px base, six steps, plus two page-level rhythms. Named for use so
+     * "gap: var(--space-row)" reads as an intention rather than a number.
+     */
+    --space-hair: 4px;   /* label to its own value */
+    --space-tight: 8px;  /* inside a chip, between siblings in a row */
+    --space-row: 12px;   /* between rows in a list */
+    --space-item: 16px;  /* between distinct controls */
+    --space-block: 24px; /* between blocks inside a panel */
+    --space-panel: 32px; /* panel inner padding at rest */
+
+    /* The two rhythms that decide whether the studio reads as one document or
+     * as ten stacked apps. Every top-level <section> should use them. */
+    --space-section: clamp(40px, 6vw, 64px); /* between numbered steps */
+    --space-pad: clamp(20px, 4vw, 42px);     /* panel padding, responsive */
+
+    /* ── RADIUS ──────────────────────────────────────────────────────────
+     * studio.css already defines --radius-sm/--radius/--radius-lg (12/20/28).
+     * Those are kept verbatim. What is added is the two ends of the range the
+     * studio kept re-inventing: the control radius (buttons, inputs, selects
+     * — shipped today as 9, 10 and 11px in three files) and the pill (shipped
+     * as both 99px and 999px, which are the same shape spelled twice).
+     */
+    --radius-control: 10px;
+    --radius-pill: 999px;
+
+    /* ── LINE WEIGHT ─────────────────────────────────────────────────────
+     * A hairline that survives a 2x display. Borders in this product are
+     * load-bearing (they are what makes a panel read as a record rather than
+     * a card), so they get a name.
+     */
+    --hairline: 1px;
+
+    /* ── ELEVATION ───────────────────────────────────────────────────────
+     * Two shadows and no more. studio.css's `--shadow` is the resting panel;
+     * `--shadow-lift` is for the two things that genuinely float above the
+     * page (a modal, a sticky action bar). A third elevation would mean the
+     * page has a depth ORDER, and it does not — it is a document.
+     */
+    --shadow-lift: 0 32px 90px rgba(41, 43, 35, 0.18), 0 4px 14px rgba(41, 43, 35, 0.08);
+
+    /* ── STATUS ──────────────────────────────────────────────────────────
+     * THE GAP THIS CLOSES. The studio has exactly two state colours today:
+     * forest and danger. So "verified", "recorded", "in progress", "queued"
+     * and "waiting on the platform" all render forest, and a teacher cannot
+     * tell a finished step from a running one without reading the label. In a
+     * product whose whole claim is that it shows its work, a state palette is
+     * not decoration — it is the work being shown.
+     *
+     * Four states, and they map onto the vocabulary the product already uses
+     * in `QuickStartPath`'s blocker owners and `ReplicaSource["state"]`:
+     *
+     *   done     forest    it happened, it is recorded, nothing is owed
+     *   waiting  ember     YOUR turn — the one state a person must act on
+     *   running  slate     the platform is working; you cannot speed it up
+     *   stopped  danger    revoked, rejected, erased, refused
+     *
+     * `running` is deliberately the most neutral of the four. A cold start
+     * takes 176 s in this system (`context/STATE.md`), and a colour that
+     * looked urgent for three minutes would be a lie told in paint.
+     */
+    --state-done: var(--forest);
+    --state-done-soft: var(--forest-soft);
+    --state-waiting: #b4551f;   /* ember, darkened from --signal for contrast on paper */
+    --state-waiting-soft: #fbead9;
+    --state-running: #4c5a6b;   /* slate: working, not waiting on you */
+    --state-running-soft: #e8ecf1;
+    --state-stopped: var(--danger);
+    --state-stopped-soft: var(--danger-soft);
+
+    /* ── FOCUS ───────────────────────────────────────────────────────────
+     * studio.css focuses with `rgba(23, 73, 59, 0.28)`, which composites to
+     * roughly #b9c9c3 on the paper ground: about 1.9:1, under the 3:1 that
+     * WCAG 2.2 asks of a focus indicator. This is the opaque forest at full
+     * strength (about 8.6:1 on paper) so keyboard focus is visible to the
+     * person most likely to be using a keyboard here: a teacher filling in a
+     * long consent form on a laptop.
+     */
+    --focus-ring: var(--forest);
+    --focus-width: 3px;
+    --focus-offset: 3px;
+
+    /* ── MOTION ──────────────────────────────────────────────────────────
+     * `scripts/check-motion.mjs` caps a UI transition at 300ms and allows
+     * transform/opacity only. It had no tokens to enforce against, so every
+     * duration in the studio is a literal. These four are the whole vocabulary
+     * and all of them clear the cap.
+     *
+     * `--ease-exit` is faster than `--ease-enter` on purpose: a thing leaving
+     * should not make you wait for it. `--ease-emphasis` is the one curve with
+     * any overshoot, reserved for a state CHANGING (a gate closing, a step
+     * ticking to done) rather than for anything merely appearing.
+     */
+    --motion-instant: 90ms;  /* hover, press, focus */
+    --motion-quick: 160ms;   /* a control changing state */
+    --motion-enter: 240ms;   /* a panel or chip arriving */
+    --motion-exit: 140ms;    /* anything leaving */
+
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+    --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+    --ease-emphasis: cubic-bezier(0.2, 0, 0, 1.2);
+
+    /* ── LAYOUT ──────────────────────────────────────────────────────────
+     * `--measure` is the line length past which a consent paragraph stops
+     * being read. The studio already max-widths prose at 560/640/760px in
+     * three files; 68ch is the same intention expressed in the unit that
+     * actually governs it.
+     */
+    --measure: 68ch;
+    --measure-tight: 52ch; /* help text under a control */
+  }
+
+  /* Honest reduced-motion default for anything built on these tokens: the
+   * durations collapse rather than each component re-deriving a media query.
+   * A component that must still move (a genuine progress indicator) overrides
+   * locally and says why, which is the same shape `check-motion.mjs`'s
+   * `motion-lint: allow` escape hatch already uses. */
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --motion-instant: 1ms;
+      --motion-quick: 1ms;
+      --motion-enter: 1ms;
+      --motion-exit: 1ms;
+    }
+  }
+}

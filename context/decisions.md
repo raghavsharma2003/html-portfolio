@@ -4174,3 +4174,75 @@ a browser here and are marked unverified in `STATE.md`. The three-chips-a-minute
 cap is a starting point, not a measurement: no acceptance-rate study has been
 run on this UI, and the 72%-preference figure the cap rests on is itself flagged
 `[UNVERIFIED]` in the sweep that produced it.
+
+---
+
+## `journey-is-a-surface-not-a-stack` — the studio's flow gets one owner, one design system, and a queue (2026-08-26, WS-AA)
+
+**The problem, measured against the code rather than against taste.** The
+studio is the union of ten parallel workstreams. Each built a good component
+and placed it where the component made sense on its own, which produced a
+1 475-line vertical stack of fourteen full-width panels with: two different
+panels both numbered `04` (`ProcessingReview.tsx:117` and
+`ModelConsentGate.tsx:74`) rendering in the opposite order to their numbers;
+mandatory identity and liveness filed under a `<details>` labelled "Advanced";
+the emotional peak of the product (hearing your own cloned voice) collapsed
+behind that same widget and the only major panel with no anchor to link to;
+a hardcoded `0 / No model trained` status literal; a three-step checklist whose
+third step is hardcoded `next` and can never complete; every teacher shown the
+demo teacher's name on the DISCLOSURE CONSENT screen
+(`StudioApp.tsx:668/684/693` pass `DEMO_TEACHER`); Google sign-in returning the
+user to a different product than the one they signed in from
+(`studioAuth.ts:53` dropped `?mode=teacher`, which is the only thing selecting
+teacher mode); 73 em-dashes in a repo whose one written typographic rule bans
+them and whose lint does not scan `src/studio/`; and no landing page at all
+(`/` was a meta refresh, `studio.html` is `noindex`).
+
+None of these is a bad decision by any workstream. Every one is the absence of
+a decision about the WHOLE.
+
+**Decided.** (1) The journey is a product surface with a written spec
+(`docs/gurukul/PRODUCT-JOURNEY.md`) that any workstream touching the studio
+reads before placing a panel, exactly as `SPEC-GURUKUL.md` is read before
+placing a capability. (2) The visual language is a system with values
+(`src/studio/design/tokens.css`) and a description
+(`docs/gurukul/DESIGN-SYSTEM.md`); the description changes first. (3) Work
+designed but unsafe to land against contended files goes to an ordered queue
+with target files (`docs/gurukul/UX-QUEUE.md`) rather than into a parallel
+rewrite that loses a merge.
+
+**Three sub-rules that are the actual content, each derived from a defect
+above, not from preference:**
+
+- **No literal in a status position.** A status must be derived from data or
+  not shown. `StudioApp.tsx:629-633` and `QuickStartPath.tsx:140` are the same
+  defect as a spinner that outlives its request: a display that cannot be
+  distinguished from a working one while being wrong.
+- **Progressive disclosure collapses what is OPTIONAL, never what is
+  REQUIRED-but-later.** Identity proofing is not "advanced"; it is the gate
+  `RuntimeGate` refuses activation without.
+- **Hear yourself before you hand over your ID.** The phase that earns trust
+  precedes the phases that spend it. This costs nothing in safety: the preview
+  already cannot join a call or activate a replica, the runtime gate still
+  refuses without identity, and source consent is already a separate scope
+  from biometric consent.
+
+**Landed now** (only files no sibling workstream is editing): the mode-drop fix
+(`studioAuth.ts` + `main.tsx`, client-side so its correctness does not live in
+a Supabase dashboard), the token file, `site/vyakti.html` as a real landing,
+and the three documents. Everything requiring `StudioApp.tsx` or `studio.css`
+is queued, because WS-W and WS-Y hold both.
+
+**What would reverse this.** A measured finding that the phase reordering costs
+completion — specifically, that teachers who hear a preview before identity
+proofing complete verification at a LOWER rate than those who do not. That is
+falsifiable and nobody has measured it; the current ordering was not measured
+either, it was the order the components were built in. Also reversed if the
+owner narrows `owner-intent-is-the-spec`, which is the only reason this
+document has standing. The three sub-rules reverse only on evidence, not on
+schedule pressure.
+
+**Not claimed.** No teacher has used this product. Every item in the journey
+audit is derived from source, from a spec in `docs/gurukul/`, or from a law
+already in `context/`; judgment calls beyond that are marked `[taste]` in the
+document. Nothing here is a finding about real users, because there are none.
