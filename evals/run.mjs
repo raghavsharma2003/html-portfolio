@@ -245,6 +245,24 @@ const suites = {
   // agent/person resolution, RelationalOS isolation, protected cascade speech
   // and revocation fencing at the signed segment boundary.
   replicaruntime: "replica-runtime/run.mjs",
+  // WS-J. The fidelity guarantee (SPEC-GURUKUL §8.2): "still sounds like them"
+  // as a number that gates activation rather than a claim in a brief.
+  //
+  // Score math over fixture ECAPA vectors (identical -> 1, orthogonal -> 0,
+  // known-similarity fixtures per verdict tier, and the one-bad-window case
+  // that the mean cannot see and `worst`/`p10` can), the thresholds proved to
+  // be DATA (one changed floor moves the verdict with no code edit), the
+  // activation gate's negative controls in BOTH directions (no fidelity row
+  // and a 'fail' row each fail closed, with ONE indistinguishable blocker code
+  // so "never benched" cannot be told from "benched and failed"), and the
+  // recompute-on-update law that stops a stale pass covering a new voice.
+  //
+  // It is wired here rather than left standalone for the `dead-writers`
+  // reason, and because the thing it guards is a gate: a fidelity gate nothing
+  // runs is a fidelity gate that silently stops gating. Offline,
+  // deterministic, $0, no GPU, no model, no network — every embedding is a
+  // fixture vector, which is exactly what the audio/vectors seam buys.
+  fidelity: "fidelity/run.mjs",
   // Evidence-backed personality: append-only owner claim decisions,
   // contradiction-preserving typed Person Models, deterministic source-set
   // builds and explicit exact-version approval.

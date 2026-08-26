@@ -6,6 +6,7 @@
 // profile definitions, memory rows or agent/person ids to the client.
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 import { calibrationDirectives } from "./_replica-calibration.js";
+import { FIDELITY_BLOCKER, FIDELITY_POLICY_VERSION } from "./_fidelity.js";
 
 export const RUNTIME_POLICY_VERSION = "replica-runtime-v1";
 export const REPLICA_CORE_CAP = 12_000;
@@ -63,7 +64,26 @@ export function runtimeBlockers(row) {
   if (truth(row.test_voice)) blockers.push("production_voice_required");
   if (Number(row.qualification_passed || 0) !== RUNTIME_QUALIFICATION_SUITES.length)
     blockers.push("qualification_incomplete");
+  // SPEC-GURUKUL §8.2: the fidelity guarantee GATES ACTIVATION. It sits here as
+  // a PEER of the 7-suite qualification pass above, not downstream of it and
+  // not folded into it — the suites measure whether the clone behaves like the
+  // person, this measures whether it SOUNDS like them, and a clone can pass
+  // either while failing the other. One code for every failing shape (no row,
+  // a 'fail' row, a superseded row, a row scored under a different policy
+  // version), per the WS-B loader precedent: a caller must not be able to tell
+  // "never benched" from "benched and failed".
+  if (!truth(row.fidelity_qualified)) blockers.push(FIDELITY_BLOCKER);
   return blockers;
+}
+
+function fidelityStatistics(value) {
+  const score = parsed(value, {});
+  return {
+    mean: Number.isFinite(Number(score.mean)) ? Number(score.mean) : null,
+    p10: Number.isFinite(Number(score.p10)) ? Number(score.p10) : null,
+    worst: Number.isFinite(Number(score.worst)) ? Number(score.worst) : null,
+    windows: Number.isFinite(Number(score.windows)) ? Number(score.windows) : null,
+  };
 }
 
 export function clientRuntimeStatus(row) {
@@ -79,6 +99,17 @@ export function clientRuntimeStatus(row) {
       passed: Number(row.qualification_passed || 0),
       required: RUNTIME_QUALIFICATION_SUITES.length,
     },
+    // "surfaced to the expert" (SPEC-GURUKUL §8.2). Whitelisted by hand like
+    // everything else in this object: the statistics and the verdict, never the
+    // profile ref, the model ref or the vectors.
+    fidelity: row.fidelity_status
+      ? {
+          status: row.fidelity_status,
+          score: fidelityStatistics(row.fidelity_score),
+          policy_version: FIDELITY_POLICY_VERSION,
+          computed_at: row.fidelity_computed_at || null,
+        }
+      : null,
     versions: {
       profile: Number(row.profile_version || 0) || null,
       calibration: Number(row.calibration_version || 0) || null,
@@ -103,6 +134,13 @@ const RUNTIME_STATUS_SQL = `select r.replica_id,r.subject_mode,r.lifecycle,r.sub
   vp.voice_profile_id,(vp.status='ready') as voice_ready,
   (lower(coalesce(vp.provider,'')) in ('fake','test','fixture','deterministic-fake')) as test_voice,
   (case when cap.state='active' then ${RUNTIME_QUALIFICATION_SUITES.length} else coalesce(q.passed,0) end)::int as qualification_passed,
+  -- Deliberately NOT short-circuited on cap.state, unlike qualification above.
+  -- An already-active capability whose standing fidelity row was superseded
+  -- (a fine-tune landed, thresholds were re-benched) must report the blocker,
+  -- because "recomputed on every voice/model update" (SPEC-GURUKUL §8.2) is
+  -- worth nothing if an active clone is exempt from the recomputation.
+  (fid.status='pass') as fidelity_qualified,
+  fid.status as fidelity_status,fid.score as fidelity_score,fid.computed_at as fidelity_computed_at,
   cap.state as capability_state,cap.activated_at as capability_activated_at
 from vy_replica r
 left join vy_person p on p.person_id=r.subject_person_id
@@ -138,6 +176,13 @@ left join lateral (
    order by x.updated_at desc limit 1
 ) vp on true
 left join lateral (
+  select x.status,x.score,x.computed_at from vy_voice_fidelity x
+   where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
+     and x.voice_profile_ref=vp.voice_profile_id and x.genome_version=vg.version
+     and x.policy_version=$5 and x.superseded_at is null
+   limit 1
+) fid on true
+left join lateral (
   select count(*) filter (where latest.verdict='pass') as passed
   from (
     select distinct on (e.suite) e.suite,e.verdict
@@ -152,7 +197,9 @@ where r.replica_id=$1 and r.owner_user_id=$2 and r.policy_version=$3
 limit 1`;
 
 export async function ownedRuntimeStatus(db, ownerUserId, id) {
-  const rows = await db(RUNTIME_STATUS_SQL, [replicaId(id), ownerUserId, REPLICA_POLICY_VERSION, [...RUNTIME_QUALIFICATION_SUITES]]);
+  const rows = await db(RUNTIME_STATUS_SQL, [
+    replicaId(id), ownerUserId, REPLICA_POLICY_VERSION, [...RUNTIME_QUALIFICATION_SUITES], FIDELITY_POLICY_VERSION,
+  ]);
   return clientRuntimeStatus(rows[0]);
 }
 
@@ -196,6 +243,21 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
               and lower(x.provider) not in ('fake','test','fixture','deterministic-fake')
             order by x.updated_at desc limit 1
          ) vp on true
+         -- THE FIDELITY GATE (SPEC-GURUKUL §8.2), an INNER lateral join and a
+         -- peer of the qualification HAVING below. No standing 'pass' row
+         -- bound to this exact profile, genome version and policy version means
+         -- no 'selected' row means no capability: fail closed by construction,
+         -- with no branch in JS that a later edit can drop. "superseded_at is
+         -- null" is what makes cache-outlives-the-voice unrepresentable here
+         -- — a verdict measured on a voice that has since moved is superseded,
+         -- and a superseded verdict gates nothing.
+         join lateral (
+           select x.fidelity_id from vy_voice_fidelity x
+            where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
+              and x.voice_profile_ref=vp.voice_profile_id and x.genome_version=vg.version
+              and x.policy_version=$7 and x.superseded_at is null and x.status='pass'
+            limit 1
+         ) fid on true
          join lateral (
            select distinct on (e.suite) e.eval_id,e.suite,e.corpus_hash,e.verdict
              from vy_replica_eval_run e
@@ -251,7 +313,8 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
      select capability_id,replica_id,state,genome_version,profile_version,calibration_version,activated_at
        from created_capability
      limit 1`,
-    [rid, ownerUserId, REPLICA_POLICY_VERSION, [...RUNTIME_QUALIFICATION_SUITES], RUNTIME_QUALIFICATION_SUITES.length, RUNTIME_POLICY_VERSION],
+    [rid, ownerUserId, REPLICA_POLICY_VERSION, [...RUNTIME_QUALIFICATION_SUITES],
+     RUNTIME_QUALIFICATION_SUITES.length, RUNTIME_POLICY_VERSION, FIDELITY_POLICY_VERSION],
   );
   if (!rows[0]) {
     const status = await ownedRuntimeStatus(db, ownerUserId, rid);
